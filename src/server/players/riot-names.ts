@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { riotAccounts } from "@/server/db/schema";
-import { opggLinkFor, opggProfileUrl, platformOfMatchId, riotIdProblem, type KnownRiotId, type RiotIdProblem } from "@/domain/opgg";
+import { charactersIn, opggLinkFor, opggProfileUrl, platformOfMatchId, riotIdProblem, type KnownRiotId, type RiotIdProblem } from "@/domain/opgg";
 
 /*
   The Riot ID to link a player by, from what UNIIVERSE already stores: no Riot request is made.
@@ -66,7 +66,8 @@ function acceptedBefore(raw: string | null): boolean {
  * over the last 30 days, how many have an OP.GG link and from which Riot ID (a linked account's, a
  * newer game's or the game's own), and why the others have none ("server": one OP.GG does not
  * list). A link only says the address is well formed: OP.GG can still show "not found" for an
- * account it has not indexed yet.
+ * account it has not indexed yet. `tagLengths`: the places whose tag is outside 3–5 characters, by
+ * server, length and kind ("oc1 2 latin"), to learn what Riot records before the rule changes.
  */
 export async function opggCoverage(db: Db, now = new Date()) {
   const since = now.getTime() - 30 * 86_400_000;
@@ -98,6 +99,7 @@ export async function opggCoverage(db: Db, now = new Date()) {
   let teamMembers = 0;
   let recordedNamesNowAccepted = 0;
   let renamedSinceGame = 0;
+  const tagLengths: Record<string, number> = {};
   for (const r of rows) {
     const n = Number(r.places);
     places += n;
@@ -112,7 +114,15 @@ export async function opggCoverage(db: Db, now = new Date()) {
     if (opggLinkFor(r.name, r.platform, known)) {
       if (known && opggProfileUrl(known.riotId, known.platform ?? r.platform)) linked[r.linked_id ? "byLinkedAccount" : "byNewerRiotId"] += n;
       else linked.byRecordedRiotId += n;
-    } else notLinked[riotIdProblem(r.name) ?? "server"] += n;
+    } else {
+      const problem = riotIdProblem(r.name) ?? "server";
+      notLinked[problem] += n;
+      if (problem === "tag-length") {
+        const tag = r.name!.split("#")[1]!.trim().normalize("NFC");
+        const shape = `${r.platform} ${charactersIn(tag)} ${/^[0-9]+$/.test(tag) ? "digits" : /^[A-Za-z0-9]+$/.test(tag) ? "latin" : "other"}`;
+        tagLengths[shape] = (tagLengths[shape] ?? 0) + n;
+      }
+    }
   }
-  return { windowDays: 30, places, removed, teamMembers, linked, notLinked, recordedNamesNowAccepted, renamedSinceGame };
+  return { windowDays: 30, places, removed, teamMembers, linked, notLinked, tagLengths, recordedNamesNowAccepted, renamedSinceGame };
 }

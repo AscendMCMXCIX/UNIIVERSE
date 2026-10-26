@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronUp, ExternalLink, MoreHorizontal, Pencil, Plus, RefreshCw, Star, Trash2 } from "lucide-react";
 import { platformLabel } from "@/domain/platforms";
 import { opggProfileUrl } from "@/domain/opgg";
-import { canRetrySync, describeAccountSync, syncRefreshInterval } from "@/domain/account-status";
-import { AutoRefresh } from "@/components/ui/auto-refresh";
+import { canRetrySync, describeAccountSync } from "@/domain/account-status";
 import type { RiotAccountRecord } from "@/server/accounts/repository";
 import { addPlayerAccountAction, changeRiotIdAction, removePlayerAccountAction, reorderAccountsAction, setMainAccountAction, syncPlayerAccountAction } from "@/server/actions/accounts";
 import { moveAccount, orderAccounts } from "@/domain/account-order";
@@ -88,12 +87,8 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
     router.refresh();
   };
 
-  // While an account is still being verified or catching up on history, the list updates itself.
-  const refreshEvery = riotConfigured ? syncRefreshInterval(accounts.map((a) => describeAccountSync({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, history: a.historyBackfill, riotConfigured }).state)) : null;
-
   return (
     <Panel>
-      <AutoRefresh active={refreshEvery !== null} intervalMs={refreshEvery ?? undefined} />
       {/* The profile's Refresh, where it is on every tab (under the heading, on the left); the rows
           below already say each account's state and when it was updated, so no ⓘ repeats them. */}
       <PanelHeader

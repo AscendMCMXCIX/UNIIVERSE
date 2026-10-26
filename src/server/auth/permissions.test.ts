@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ACCESS_GROUPS, sanitiseAccessGroups, withAccessGroups, CAPABILITY_KEYS, canEditPlayer, canManageRiotAccounts, canUseAdminArea, capabilitiesOf, describeAccess, hasPermission, isAdmin, sanitiseCapabilities, STANDARD_PLAYER, type Capability, type Session } from "./permissions";
+import { canWatchFreshness, ACCESS_GROUPS, sanitiseAccessGroups, withAccessGroups, CAPABILITY_KEYS, canEditPlayer, canManageRiotAccounts, canUseAdminArea, capabilitiesOf, describeAccess, hasPermission, isAdmin, sanitiseCapabilities, STANDARD_PLAYER, type Capability, type Session } from "./permissions";
 import { NAV_LINKS, canOpen } from "@/lib/nav";
 
 const base = { userId: "u-self", label: "U", playerId: "p-self", username: "u", hasPassword: true, mustChangePassword: false, setupComplete: true };
@@ -155,5 +155,32 @@ describe("What they can do (Admin access dialog) matches the server's own decisi
     const leaderboards = NAV_LINKS.find((l) => l.href === "/leaderboards")!;
     expect(canOpen(player, leaderboards)).toBe(true);
     expect(canOpen(personal, leaderboards)).toBe(false);
+  });
+});
+
+describe("asking for a page's data version (/api/freshness): the page's own access", () => {
+  const own = { kind: "player", playerId: "p-self" } as const;
+  const other = { kind: "player", playerId: "p-other" } as const;
+  const team = { kind: "team" } as const;
+  const jobs = { kind: "jobs" } as const;
+  const personal: Session = { ...player, teamMember: false };
+
+  it("an administrator may watch every page", () => {
+    for (const scope of [own, other, team, jobs]) expect(canWatchFreshness(admin, scope)).toBe(true);
+  });
+
+  it("a Standard Player watches profiles and the team's pages, never the jobs", () => {
+    expect([own, other, team].map((s) => canWatchFreshness(player, s))).toEqual([true, true, true]);
+    expect(canWatchFreshness(player, jobs)).toBe(false);
+  });
+
+  it("without the Players directory, only their own profile; a personal account, nothing of the team's", () => {
+    const noDirectory: Session = { ...base, role: "player", capabilities: ["view-team", "edit-own-profile"] };
+    expect([own, other, team].map((s) => canWatchFreshness(noDirectory, s))).toEqual([true, false, true]);
+    expect([own, other, team, jobs].map((s) => canWatchFreshness(personal, s))).toEqual([true, false, false, false]);
+  });
+
+  it("signed out: nothing", () => {
+    for (const scope of [own, other, team, jobs]) expect(canWatchFreshness(null, scope)).toBe(false);
   });
 });

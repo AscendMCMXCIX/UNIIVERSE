@@ -444,3 +444,13 @@ On the live site, signed in as a member, after the deployment (`smoke` shows its
 - [ ] The Opponents, Allies and Everyone choices each have a small colour key (red, blue, split).
 - [ ] Open a Mixed player: the window shows the Mixed badge, the records (Against, then Alongside), and the games in two sections, "Against them" and "Alongside them", each with its count. A game opens the match window; Back returns to the player.
 - [ ] On a phone, the date last met ends the name's line and the badge, chips and record share the line under it, so no name is cut short. Only on a 375 px phone (iPhone SE or mini) may a Mixed player's "small sample" mark start a third line; from 390 px every row is two lines. Nothing scrolls sideways.
+
+## Pages that update themselves (October 2026)
+
+On the live site, after the deployment (`smoke` shows its commit):
+- [ ] Open your profile while an account of yours is due for a refresh (last updated over 15 minutes ago): within a minute or so, new games, rank and "Last updated" appear without pressing Refresh or reloading, the page stays where it was scrolled, and an open game window stays open.
+- [ ] Two browsers: in one, open Players; in the other, change something teammates see (a card, a pool, the lineup). Back in the first, switch to its tab: the change shows within a second or two, without a reload.
+- [ ] Leave a page open in a hidden tab: the browser's network panel shows no `/api/freshness` requests until the tab is shown again; on screen and idle, the checks become rarer (1, 2, 4, 8, then every 10 minutes).
+- [ ] Admin Mode → System Health while a job runs: its result appears when it finishes, without Refresh.
+- [ ] Data jobs → `data-audit`: `opggLinks.tagLengths` lists the tags outside 3–5 characters by server, length and kind (counts only); `notLinked.tag-length` equals its total.
+- [ ] Data jobs → `egress` the next day: the day stays under its budget.

@@ -2,14 +2,39 @@
 
 import * as React from "react";
 
+/** The card in view in a snap track, kept outside React state so only what shows it re-renders as the track scrolls. */
+export interface SnapIndex {
+  get: () => number;
+  subscribe: (listener: () => void) => () => void;
+}
+
+function createSnapIndex(): SnapIndex & { set: (i: number) => void } {
+  let index = 0;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => index,
+    set: (i) => {
+      if (i === index) return;
+      index = i;
+      for (const l of listeners) l();
+    },
+    subscribe: (l) => {
+      listeners.add(l);
+      return () => void listeners.delete(l);
+    },
+  };
+}
+
 /**
  * A phone track of cards (Team Overview): which card is in view (updated only when it changes, from the scroll position
- * read once per frame), and moving to a card from the dots or arrows. Wider layouts are a grid,
- * where none of this does anything.
+ * read once per frame), and moving to a card from the dots or arrows. The track's owner does not
+ * re-render while the track scrolls: only the part that shows the position (useSnapIndex) does,
+ * so the cards themselves are never drawn again mid-swipe. Wider layouts are a grid, where none
+ * of this does anything.
  */
 export function useSnapTrack(count: number) {
   const ref = React.useRef<HTMLDivElement>(null);
-  const [index, setIndex] = React.useState(0);
+  const [index] = React.useState(createSnapIndex);
   const frame = React.useRef(0);
   const onScroll = React.useCallback(() => {
     if (frame.current) return;
@@ -28,9 +53,9 @@ export function useSnapTrack(count: number) {
           best = i;
         }
       });
-      setIndex((cur) => (cur === best ? cur : best));
+      index.set(best);
     });
-  }, []);
+  }, [index]);
   React.useEffect(() => () => cancelAnimationFrame(frame.current), []);
   const go = React.useCallback(
     (i: number) => {
@@ -41,5 +66,10 @@ export function useSnapTrack(count: number) {
     },
     [count],
   );
-  return { ref, index, onScroll, go };
+  return { ref, index: index as SnapIndex, onScroll, go };
+}
+
+/** The card in view, for the one component that shows it (the role bar). */
+export function useSnapIndex(index: SnapIndex): number {
+  return React.useSyncExternalStore(index.subscribe, index.get, () => 0);
 }
