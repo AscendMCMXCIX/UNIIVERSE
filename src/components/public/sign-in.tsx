@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { DetailModal } from "@/components/ui/detail-modal";
+import { CLEAR_OF_CONTROLS, DetailModal } from "@/components/ui/detail-modal";
+import { cn } from "@/lib/cn";
 import { useKeyboardFit } from "@/components/ui/keyboard-fit";
 import { BrandMark } from "@/components/brand-mark";
 import { LoginForm } from "@/app/login/login-form";
@@ -82,7 +83,7 @@ function SignInWindow({ brand, onClose }: { brand: SignInBrand; onClose: () => v
       header={
         // The brand as in the public page's header; it stays at the top, with the close button,
         // while the rest scrolls on a short screen.
-        <div className="flex min-w-0 items-center gap-3 py-3 pl-5 pr-16 sm:py-4">
+        <div className={cn("flex min-w-0 items-center gap-3 py-3 pl-5 sm:py-4", CLEAR_OF_CONTROLS)}>
           <BrandMark src={brand.logo} still={brand.logoStill} name={brand.shortName} className="h-9 w-9 text-base" />
           <span className="truncate text-sm font-bold tracking-label text-fg">{brand.shortName}</span>
         </div>

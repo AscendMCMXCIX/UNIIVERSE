@@ -11,7 +11,7 @@ import { MIN_PATTERN_GAMES } from "@/domain/matchups";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone } from "@/domain/stats/win-rate";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
-import { AfterOpen, DetailModal } from "@/components/ui/detail-modal";
+import { AfterOpen, CLEAR_OF_CONTROLS, DetailModal } from "@/components/ui/detail-modal";
 import { MultikillSummaryRow } from "./multikill-summary";
 import { MatchDetailModal } from "@/components/match-history/match-detail";
 import { CardArtLayer } from "./card-art";
@@ -107,7 +107,7 @@ export function ChampionDetail({
   const header = (
     <div className="relative isolate overflow-hidden">
       <CardArtLayer art={{ championId: sel.championId, skinNum: 0 }} accent="var(--color-accent)" kind="splash" position="center 22%" strength="strong" testId="champion-detail-art" />
-      <div className="relative px-4 pt-4 pr-14 sm:px-6 sm:pr-16 sm:pt-5">
+      <div className={cn("relative pl-4 pt-4 sm:pl-6 sm:pt-5", CLEAR_OF_CONTROLS)}>
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <ChampionPortrait champion={me} size="lg" className="shrink-0 rounded-panel ring-2 ring-accent/50 shadow-lg shadow-black/40" />
           <div className="min-w-0 space-y-1">

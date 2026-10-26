@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { CardArtLayer } from "@/components/players/card-art";
 import { CustomiseCardButton } from "@/components/players/customise-card-button";
 import { CardIdentity, CardPerformance, CardPool, CardRoleChip, PoolChampionTile } from "@/components/players/player-card";
-import { DetailModal } from "@/components/ui/detail-modal";
+import { BELOW_CONTROLS, DetailModal } from "@/components/ui/detail-modal";
 import { InfoTip } from "@/components/ui/info-tip";
 import { BrandMark } from "@/components/brand-mark";
 import { toast } from "@/components/ui/toast";
@@ -589,7 +589,7 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profi
       header={
         <div className="relative isolate" style={{ ...cardShellStyle(p.look, { glow: false }), borderColor: undefined, ["--card-accent" as string]: accentCss(p.look.style) }} data-testid="player-detail-hero">
           <CardArtLayer art={p.art} accent={accentCss(p.look.style)} kind="splash" position="center 22%" look={p.look} decorate={false} strength="normal" testId="detail-art" foot />
-          <div className="relative flex min-h-[13rem] flex-col justify-end gap-3 px-4 pb-4 pt-14 sm:min-h-[15rem] sm:px-6 sm:pb-5">
+          <div className={cn("relative flex min-h-[13rem] flex-col justify-end gap-3 px-4 pb-4 sm:min-h-[15rem] sm:px-6 sm:pb-5", BELOW_CONTROLS)}>
             <h2 id="player-detail-title" className="sr-only">
               {p.name} · {slot.roleLabel}
             </h2>

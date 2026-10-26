@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 import { formatDate, formatCount } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { DetailModal } from "@/components/ui/detail-modal";
+import { BELOW_CONTROLS_ON_PHONES, CLEAR_OF_CONTROLS, DetailModal } from "@/components/ui/detail-modal";
 import { MatchDetailCacheContext } from "./match-detail-cache";
 import { fmtDuration, fmtInt, fmtNum } from "./match-history-view";
 import { PlayerLink } from "./player-link";
@@ -66,7 +66,7 @@ export function MatchDetailModal({ playerId, matchId, championsById, onClose, ba
   // The match at a glance: the result large, then the champion, the game's context as labelled
   // chips, and the loadout; the close button (top right, as on every panel) never crowds it.
   const header = view ? (
-    <div className={cn("flex flex-col gap-4 px-4 pb-4 pr-14 pt-4 sm:px-6 sm:pr-16 sm:pt-5 lg:flex-row lg:items-end lg:justify-between", back && "max-sm:pt-14 sm:pr-72")}>
+    <div className={cn("flex flex-col gap-4 pb-4 pl-4 pt-4 sm:pl-6 sm:pt-5 lg:flex-row lg:items-end lg:justify-between", back ? BELOW_CONTROLS_ON_PHONES : CLEAR_OF_CONTROLS)}>
       <div className="flex min-w-0 items-center gap-4">
         <ChampionPortrait champion={champ(view.championId)} size="lg" className={cn("ring-2", view.win ? "ring-blue/60" : "ring-red/60")} />
         <div className="min-w-0 space-y-1.5">
@@ -88,7 +88,7 @@ export function MatchDetailModal({ playerId, matchId, championsById, onClose, ba
       <Loadout player={view.player} className="shrink-0" />
     </div>
   ) : (
-    <h2 id="match-detail-title" className={cn("px-4 py-4 pr-14 text-lg font-semibold text-fg sm:px-6", back && "max-sm:pt-14 sm:pr-72")}>
+    <h2 id="match-detail-title" className={cn("py-4 pl-4 text-lg font-semibold text-fg sm:pl-6", back ? BELOW_CONTROLS_ON_PHONES : CLEAR_OF_CONTROLS)}>
       Match details
     </h2>
   );

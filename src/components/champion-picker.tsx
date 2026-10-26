@@ -51,7 +51,7 @@ export function ChampionPicker({ open, title = "Select champion", champions, dis
     <div className="fade-in fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm sm:p-4 short:p-0" onMouseDown={onClose} role="dialog" aria-modal="true" aria-label={title}>
       {/* Phones and short windows (a phone held sideways): the whole screen; otherwise a centred window. */}
       <div className="flex h-dvh w-full flex-col border-border bg-bg-elevated px-safe pt-safe pb-safe shadow-2xl sm:h-[min(80vh,720px)] sm:max-w-4xl sm:rounded-panel sm:border short:h-dvh short:max-w-none short:rounded-none short:border-0" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3 short:py-2">
+        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 short:py-2">
           <h2 className="text-base font-semibold">{title}</h2>
           <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close" className="h-9 w-9 shrink-0 px-0 pointer-coarse:h-11 pointer-coarse:w-11">
             <X className="h-5 w-5" />

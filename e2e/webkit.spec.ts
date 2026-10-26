@@ -1,5 +1,6 @@
 import { devices, expect, test, type Locator, type Page } from "./test";
 import { emulateKeyboard, keyboard } from "./keyboard";
+import { expectClearCorner } from "./modal-corner";
 import path from "node:path";
 
 /*
@@ -134,6 +135,8 @@ test("a teammate's profile: its sections switch, and a champion's window opens a
   // The window fills the phone's width and nothing in it scrolls sideways.
   const box = (await page.locator("dialog[open]").boundingBox())!;
   expect(box.width).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
+  // Its close button keeps the corner to itself, a 44px target (e2e/modal-corner.ts).
+  await expectClearCorner(page);
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("champion-detail")).toBeHidden();
   await tabs.getByRole("link", { name: "Match History" }).tap();
