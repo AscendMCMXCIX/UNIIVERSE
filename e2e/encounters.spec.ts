@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "./test";
+import { expect, test, type Locator, type Page } from "./test";
 import { openFilterBar } from "./filters";
 import { memberContext } from "./member-account";
 
@@ -25,7 +25,32 @@ async function openEncounters(page: Page, path: string) {
   await expect(page.locator("[data-testid='encounters'][data-ready]")).toBeVisible();
 }
 
-const gamesIn = (text: string) => (/\b(?:Faced|Alongside|Met) once\b/.test(text) ? 1 : Number(/\b(?:Faced|Alongside|Met) (\d+) times\b/.exec(text)![1]));
+/** The games a row's record covers: those on the list's side, or every game on Everyone. */
+const gamesOf = async (row: Locator) => Number(await row.getByTestId("encounter-record").getAttribute("data-games"));
+
+/**
+ * A row says what the player was (Opponent, Ally, or Mixed when both), the games on each side
+ * ("Against 7", "Alongside 2"), and the record: right after the side the list is about, or after
+ * both sides on Everyone.
+ */
+async function expectRow(row: Locator, relation: "opponents" | "allies" | "everyone") {
+  const against = row.getByTestId("encounter-count-opponent");
+  const alongside = row.getByTestId("encounter-count-ally");
+  const [a, b] = [await against.count(), await alongside.count()];
+  const kind = a && b ? "mixed" : a ? "opponent" : "ally";
+  await expect(row).toHaveAttribute("data-kind", kind);
+  await expect(row.getByTestId("encounter-kind")).toHaveText({ mixed: "Mixed", opponent: "Opponent", ally: "Ally" }[kind]);
+  if (a) await expect(against).toHaveText(`Against ${await against.getAttribute("data-games")}`);
+  if (b) await expect(alongside).toHaveText(`Alongside ${await alongside.getAttribute("data-games")}`);
+  await expect(row.getByTestId("encounter-record")).toHaveText(/^\d+W \d+L( · \d+%)?$/);
+  const order = await row.locator("[data-testid^='encounter-count-'], [data-testid='encounter-record']").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")));
+  if (relation === "everyone") expect(order.at(-1)).toBe("encounter-record");
+  else {
+    const side = relation === "opponents" ? against : alongside;
+    expect(order.slice(0, 2)).toEqual([relation === "opponents" ? "encounter-count-opponent" : "encounter-count-ally", "encounter-record"]);
+    expect(await gamesOf(row)).toBe(Number(await side.getAttribute("data-games")));
+  }
+}
 const countOf = async (option: ReturnType<Page["locator"]>) => Number(/\((\d+)\)/.exec((await option.textContent()) ?? "")![1]);
 
 test("Encounters lists the opponents and allies a player keeps meeting, with honest wording", async ({ page }) => {
@@ -47,26 +72,28 @@ test("Encounters lists the opponents and allies a player keeps meeting, with hon
   const rows = page.getByTestId("encounter-row");
   await expect(rows.first()).toBeVisible();
   for (const row of await rows.all()) {
-    const text = await row.getByTestId("encounter-record").innerText();
-    expect(text).toMatch(/^Faced \d+ times · \d+W \d+L/);
-    expect(gamesIn(text)).toBeGreaterThanOrEqual(2);
+    await expectRow(row, "opponents");
+    const games = await gamesOf(row);
+    expect(games).toBeGreaterThanOrEqual(2);
     // Fewer than five games is labelled a small sample, and only then.
-    await expect(row.getByTestId("encounter-small-sample")).toHaveCount(gamesIn(text) < 5 ? 1 : 0);
+    await expect(row.getByTestId("encounter-small-sample")).toHaveCount(games < 5 ? 1 : 0);
   }
 
   // Allies, then everyone met.
   await page.getByTestId("encounter-relation-allies").click();
   await expect(page).toHaveURL(/rel=allies/);
-  for (const text of await page.getByTestId("encounter-record").allTextContents()) expect(text).toMatch(/^Alongside \d+ times · \d+W \d+L/);
+  await expect(page.getByTestId("encounter-relation-allies")).toHaveAttribute("aria-current", "page");
+  for (const row of await rows.all()) await expectRow(row, "allies");
   await page.getByTestId("encounter-relation-everyone").click();
   await expect(page).toHaveURL(/rel=everyone/);
+  await expect(page.getByTestId("encounter-relation-everyone")).toHaveAttribute("aria-current", "page");
   await expect(rows.first()).toBeVisible();
-  for (const text of await page.getByTestId("encounter-record").allTextContents()) expect(text).toMatch(/^Met \d+ times · \d+W \d+L/);
+  for (const row of await rows.all()) await expectRow(row, "everyone");
 
   // At least three games: every player left was met three times or more.
   await page.getByTestId("encounter-min").selectOption("3");
   await expect(page).toHaveURL(/min=3/);
-  for (const text of await page.getByTestId("encounter-record").allTextContents()) expect(gamesIn(text)).toBeGreaterThanOrEqual(3);
+  for (const row of await rows.all()) expect(await gamesOf(row)).toBeGreaterThanOrEqual(3);
 
   // A search that matches nobody: an honest empty state, the choices kept.
   await page.getByTestId("encounter-search").fill("Nobody Like This#NONE");
@@ -79,11 +106,22 @@ test("Encounters lists the opponents and allies a player keeps meeting, with hon
 test("one player's window: the record, every recorded game, and the match with Back", async ({ page }) => {
   await openEncounters(page, `${await teammate(page)}/matches?view=encounters&rel=everyone`);
   const row = page.getByTestId("encounter-row").first();
-  const total = gamesIn(await row.getByTestId("encounter-record").innerText());
+  const total = await gamesOf(row);
+  const kind = (await row.getAttribute("data-kind"))!;
+  const side = async (r: "opponent" | "ally") => ((await row.getByTestId(`encounter-count-${r}`).count()) ? Number(await row.getByTestId(`encounter-count-${r}`).getAttribute("data-games")) : 0);
+  const [against, alongside] = [await side("opponent"), await side("ally")];
   await row.click();
   const detail = page.getByTestId("encounter-detail");
   await expect(detail).toBeVisible();
   await expect(page.getByTestId("encounter-detail-summary")).toContainText(new RegExp(`^${total} recorded games? with `));
+  // What they were, as on the row, and the games against them, then those alongside them.
+  await expect(detail.getByTestId("encounter-kind")).toHaveAttribute("data-kind", kind);
+  const sections = detail.getByTestId("encounter-games-section");
+  expect(await sections.evaluateAll((els) => els.map((e) => [e.getAttribute("data-relation"), Number(e.getAttribute("data-games"))]))).toEqual([...(against ? [["opponent", against]] : []), ...(alongside ? [["ally", alongside]] : [])]);
+  for (const section of await sections.all()) {
+    const relation = (await section.getAttribute("data-relation"))!;
+    for (const r of await section.getByTestId("encounter-game").evaluateAll((els) => els.map((e) => e.getAttribute("data-relation")))) expect(r).toBe(relation);
+  }
   // Each game once, newest first.
   const games = page.getByTestId("encounter-game");
   await expect(games).toHaveCount(Math.min(total, 100));
@@ -102,6 +140,44 @@ test("one player's window: the record, every recorded game, and the match with B
   await expect(detail).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(detail).toBeHidden();
+});
+
+test("an opponent reads warm, an ally cool and Mixed split, on the rows, the filter and the window", async ({ page }) => {
+  await openEncounters(page, `${await teammate(page)}/matches?view=encounters&rel=everyone&min=1`);
+  const rows = page.getByTestId("encounter-row");
+  await expect(rows.first()).toBeVisible();
+  // Each row's colour rail and badge: one red for every opponent, one blue for every ally, Mixed both.
+  const look = await rows.evaluateAll((els) =>
+    els.map((row) => {
+      const rail = getComputedStyle(row.firstElementChild!);
+      const rgb = (c: string): [number, number, number] => {
+        const [r = 0, g = 0, b = 0] = c.match(/[\d.]+/g)!.map(Number);
+        return [r, g, b];
+      };
+      return { kind: row.getAttribute("data-kind")!, rail: rail.backgroundImage === "none" ? rgb(rail.backgroundColor) : "split", badge: rgb(getComputedStyle(row.querySelector("[data-testid=encounter-kind]")!).color) };
+    }),
+  );
+  const of = (kind: string) => look.filter((l) => l.kind === kind);
+  expect(of("opponent").length).toBeGreaterThan(0);
+  for (const l of of("opponent")) {
+    const [r, , b] = l.rail as [number, number, number];
+    expect(r).toBeGreaterThan(b);
+    expect(l.badge[0]).toBeGreaterThan(l.badge[2]);
+  }
+  for (const l of of("ally")) {
+    const [r, , b] = l.rail as [number, number, number];
+    expect(b).toBeGreaterThan(r);
+    expect(l.badge[2]).toBeGreaterThan(l.badge[0]);
+  }
+  for (const l of of("mixed")) expect(l.rail).toBe("split");
+  // The filter's choices carry the same colour keys.
+  for (const r of ["opponents", "allies", "everyone"]) await expect(page.getByTestId(`encounter-relation-${r}`).locator("span[aria-hidden]")).toHaveCount(1);
+  // Nothing scrolls sideways, and on a phone a row's chips and record wrap under the name instead of squeezing it.
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+  for (const row of (await rows.all()).slice(0, 5)) {
+    const [name, badge] = [(await row.locator("[title]").first().boundingBox())!, (await row.getByTestId("encounter-kind").boundingBox())!];
+    expect(Math.abs(name.y + name.height / 2 - (badge.y + badge.height / 2))).toBeLessThanOrEqual(2);
+  }
 });
 
 test("the season, game mode and account choice is the games list's, and every count follows it", async ({ page }) => {

@@ -79,7 +79,8 @@ describe("a profile's Encounters window", () => {
     expect(res.status).toBe("ok");
     if (res.status !== "ok") return;
     expect(res.games.map((g) => g.matchId)).toEqual(["OC1_2", "OC1_1"]);
-    expect(res.more).toBe(0);
+    // Every game is listed (the window counts the older ones per side from the summary).
+    expect(res.games).toHaveLength(res.summary.games);
     expect(JSON.stringify(res)).not.toContain("secret-puuid-x");
     // The later game (another member's) names the account's new Riot ID; the counts stay Ace's.
     expect(res.renamed).toBe("Rival Renamed#OCE");

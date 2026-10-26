@@ -423,3 +423,12 @@ This replaces "On a computer, collapse the sidebar: the logo is centred above th
 - [ ] Team → a player: previous and next are left of the ×, past the same divider.
 - [ ] On a phone, the × is easy to hit with a thumb (44px), also with the phone held sideways, where it floats over the window as before.
 - [ ] Escape closes every window, and focus returns to what opened it. The windows look as before otherwise.
+
+## Encounters: opponents, allies and Mixed told apart (26 Oct 2026)
+
+- [ ] Data jobs → `smoke`: every step passes, and `deployment.commit` is the merge commit.
+- [ ] A profile → Match History → Encounters, on a computer and on a phone: each row has the player's name, then **Opponent** (red), **Ally** (blue) or **Mixed** (red and blue), then "Against N" and/or "Alongside N", the record and the date last met. The colour bar at the row's left edge matches.
+- [ ] Opponents: the "Against" chip comes first with the record right after it; a player who was also an ally shows a quieter "Alongside" chip after it. Allies: the other way round. Everyone: both chips, then the record over all the games.
+- [ ] The Opponents, Allies and Everyone choices each have a small colour key (red, blue, split).
+- [ ] Open a Mixed player: the window shows the Mixed badge, the records (Against, then Alongside), and the games in two sections, "Against them" and "Alongside them", each with its count. A game opens the match window; Back returns to the player.
+- [ ] On a phone, nothing scrolls sideways and the chips wrap under the name instead of squeezing it.
