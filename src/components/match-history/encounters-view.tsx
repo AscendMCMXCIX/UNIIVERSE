@@ -88,7 +88,7 @@ const RELATION_KIND: Record<EncounterRelation, Kind> = { opponents: "opponent", 
 /** Opponent, Ally or Mixed, after the player's name. */
 function KindBadge({ kind }: { kind: Kind }) {
   return (
-    <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 text-2xs font-medium leading-4", KIND[kind].badge)} data-testid="encounter-kind" data-kind={kind}>
+    <span className={cn("mr-1 inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 text-2xs font-medium leading-4", KIND[kind].badge)} data-testid="encounter-kind" data-kind={kind}>
       <span className={cn("h-1.5 w-1.5 rounded-full", KIND[kind].dot)} aria-hidden />
       {KIND[kind].label}
     </span>
@@ -289,12 +289,12 @@ function EncounterRow({ s, relation, onOpen }: { s: EncounterSummary; relation: 
     <li>
       <button type="button" onClick={onOpen} className="relative grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-3 py-2.5 pl-4 text-left transition-colors hover:bg-surface-2/60" data-testid="encounter-row" data-key={s.key} data-kind={kind}>
         <span className={cn("absolute inset-y-2 left-0 w-[3px] rounded-r-full", KIND[kind].rail)} aria-hidden />
+        {/* The name, then what they were and the games: one line where there is room, the name on a
+            line of its own where there is not (phones), so it is never cut short for the badge. */}
         <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-          <span className="flex min-w-0 items-center gap-2">
-            <RiotId name={s.name} className="text-sm" />
-            <KindBadge kind={kind} />
-          </span>
+          <RiotId name={s.name} className="text-sm" />
           <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
+            <KindBadge kind={kind} />
             {sides.map((r) => (
               <React.Fragment key={r}>
                 <CountChip relation={r} games={s[r].games} quiet={lead !== null && r !== lead} />

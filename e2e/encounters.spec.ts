@@ -143,7 +143,10 @@ test("one player's window: the record, every recorded game, and the match with B
 });
 
 test("an opponent reads warm, an ally cool and Mixed split, on the rows, the filter and the window", async ({ page }) => {
-  await openEncounters(page, `${await teammate(page)}/matches?view=encounters&rel=everyone&min=1`);
+  // The Support player's Encounters: the demo places some regulars on both sides of their games.
+  await page.goto("/team");
+  const support = `/players/${await page.getByTestId("lineup-row-SUPPORT").getAttribute("data-player-id")}`;
+  await openEncounters(page, `${support}/matches?view=encounters&rel=everyone&min=1&limit=500`);
   const rows = page.getByTestId("encounter-row");
   await expect(rows.first()).toBeVisible();
   // Each row's colour rail and badge: one red for every opponent, one blue for every ally, Mixed both.
@@ -169,14 +172,35 @@ test("an opponent reads warm, an ally cool and Mixed split, on the rows, the fil
     expect(b).toBeGreaterThan(r);
     expect(l.badge[2]).toBeGreaterThan(l.badge[0]);
   }
+  expect(of("ally").length).toBeGreaterThan(0);
+  expect(of("mixed").length).toBeGreaterThan(0);
   for (const l of of("mixed")) expect(l.rail).toBe("split");
+  // A Mixed player's window: the games against them, then those alongside them, as many as the row's chips say.
+  const mixed = rows.locator("xpath=self::*[@data-kind='mixed']").first();
+  const gamesOn = async (r: "opponent" | "ally") => Number(await mixed.getByTestId(`encounter-count-${r}`).getAttribute("data-games"));
+  const [against, alongside] = [await gamesOn("opponent"), await gamesOn("ally")];
+  await mixed.click();
+  const detail = page.getByTestId("encounter-detail");
+  await expect(detail.getByTestId("encounter-kind")).toHaveText("Mixed");
+  await expect(detail.getByTestId("encounter-games-section")).toHaveCount(2);
+  for (const [relation, games] of [["opponent", against], ["ally", alongside]] as const) {
+    const section = detail.locator(`[data-testid='encounter-games-section'][data-relation='${relation}']`);
+    await expect(section).toHaveAttribute("data-games", String(games));
+    await expect(section.locator("h3")).toContainText(relation === "opponent" ? "Against them" : "Alongside them");
+    await expect(section.getByTestId("encounter-game")).toHaveCount(games);
+  }
+  await page.keyboard.press("Escape");
+  await expect(detail).toBeHidden();
   // The filter's choices carry the same colour keys.
   for (const r of ["opponents", "allies", "everyone"]) await expect(page.getByTestId(`encounter-relation-${r}`).locator("span[aria-hidden]")).toHaveCount(1);
-  // Nothing scrolls sideways, and on a phone a row's chips and record wrap under the name instead of squeezing it.
+  // Nothing scrolls sideways, no name is cut short for the badge (on a phone the badge, chips and
+  // record go on the line under the name), and the badge leads the chips on their line.
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
-  for (const row of (await rows.all()).slice(0, 5)) {
-    const [name, badge] = [(await row.locator("[title]").first().boundingBox())!, (await row.getByTestId("encounter-kind").boundingBox())!];
-    expect(Math.abs(name.y + name.height / 2 - (badge.y + badge.height / 2))).toBeLessThanOrEqual(2);
+  for (const row of (await rows.all()).slice(0, 8)) {
+    expect(await row.locator("[title]").first().evaluate((name) => name.scrollWidth - name.clientWidth)).toBeLessThanOrEqual(1);
+    const [badge, chip] = [(await row.getByTestId("encounter-kind").boundingBox())!, (await row.locator("[data-testid^='encounter-count-']").first().boundingBox())!];
+    expect(Math.abs(badge.y + badge.height / 2 - (chip.y + chip.height / 2))).toBeLessThanOrEqual(2);
+    expect(badge.x).toBeLessThan(chip.x);
   }
 });
 
