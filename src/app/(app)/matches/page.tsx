@@ -19,6 +19,8 @@ import { chooseSeason, isOfferedSeason, offeredCurrentSeason, offeredSeasons } f
 import { currentSeason } from "@/server/accounts/sync";
 import { PlayedTogetherView, TOGETHER_QUEUES, type TogetherFilters, type TogetherListGame } from "@/components/matches/played-together";
 import { encountersRedirect } from "@/lib/nav";
+import { teamFreshness } from "@/server/ops/freshness";
+import { FreshnessWatcher } from "@/components/ui/freshness-watcher";
 
 export const dynamic = "force-dynamic";
 
@@ -66,7 +68,7 @@ function Summary({ children, caveat, label }: { children: React.ReactNode; cavea
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<ReturnType<typeof getAppDb>>; teamId: string; sp: Record<string, string | string[] | undefined>; session: Session }) {
-  const [data, champions, bookmarks, seasonNow] = await Promise.all([loadPlayedTogether(db, teamId), listChampions(db), listTeamBookmarks(db, teamId), currentSeason(db)]);
+  const [data, champions, bookmarks, seasonNow, version] = await Promise.all([loadPlayedTogether(db, teamId), listChampions(db), listTeamBookmarks(db, teamId), currentSeason(db), teamFreshness(db)]);
   // Season 2026 on only: every count, list and choice below starts from these games.
   const games = data.games.filter((g) => isOfferedSeason(g.season, seasonNow));
   const queue = str(sp.queue) in TOGETHER_QUEUES ? str(sp.queue) : "all";
@@ -148,6 +150,7 @@ async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<Ret
   const decided = all.filter((g) => g.win !== null).length;
   return (
     <div className="mx-auto max-w-[var(--content-max)] space-y-4">
+      <FreshnessWatcher scope={{ kind: "team" }} version={version} />
       <PageHeader
         title="Matches"
         description={

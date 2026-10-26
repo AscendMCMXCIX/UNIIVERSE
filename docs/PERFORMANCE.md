@@ -437,6 +437,57 @@ inside the app is not a new load (INP keeps counting for that first page). Each 
 measures it supports, so every figure shows how many loads stand behind it, and a small count is a
 small sample. Field figures are never mixed with the lab tables above.
 
+## Profile code, lineup swipe and self-updating pages (26 Oct 2026)
+
+Measured on the demo build, main at cceeb23 and this change side by side on the same machine.
+
+**Client JavaScript loaded up front** (gzip, every chunk a page's client-reference manifest lists, so
+the same figure on every run). Each profile tab now loads only its own code
+(`src/components/players/profile-*-tab.tsx`; before, the profile layout imported every tab's body):
+
+| Page | Before | After |
+|---|---|---|
+| Overview (`/overview`, `/players/[id]`) | 129.2 KB | 120.6 KB |
+| Champions & Roles | 129.2 KB | 113.7 KB |
+| Match History | 129.2 KB | 96.1 KB |
+| Riot Accounts | 129.2 KB | 73.3 KB |
+| Matchups, Stats, Edit, Blocks history | 129.2 KB | 62.2 KB |
+| Solo Queue Blocks | 146.8 KB | 83.1 KB |
+| A Solo Queue Block | 137.8 KB | 71.8 KB |
+| Team, Players, Matches, Leaderboards | 72.8, 64.8, 86, 55.7 KB | +0.4 to +1.1 KB (the page's update watcher) |
+
+**Frames** (`frames.mjs`: Pixel 7 profile, CPU slowed 4×, median of 5 runs; a frame over 25 ms is a
+visible hitch at 60 Hz):
+
+| Interaction | Longest frame | Over 25 ms |
+|---|---|---|
+| Swiping the phone lineup | 33 → 17 ms | 5 → 0 |
+| Turning a card | 83 → 67 ms | 2 → 1 |
+| Changing profile tab | 100 → 100 ms | 6 → 6 |
+
+The lineup kept the card in view in Team Overview's state, so every card change re-rendered all five
+cards mid-swipe; it now lives in a small store that only the role bar follows. Changing tab measured
+the same as before the split.
+
+**Page loads** (Pixel 7, CPU 4×, 150 ms round trip at 1.6 Mbps, median of 3): within the noise of the
+setup, which moved an unchanged page's Total Blocking Time from 245 to 384 ms between two runs. The
+profile's Overview and Match History finished loading 155 and 257 ms sooner (2,625 → 2,470 and
+2,533 → 2,276 ms); CLS stayed 0 everywhere. All JavaScript transferred in a profile page's first two
+seconds, code fetched ahead for linked pages included, stayed between 260 and 275 KB (269 KB before):
+the split changes what a page needs before it works, not the total a visit downloads.
+
+**Self-updating pages** (`docs/ARCHITECTURE.md`, "Pages that update themselves"): a check is one
+statement returning a short row (the bulky parts hashed in Postgres), a few hundred bytes from the
+database, asked only while a page is on screen. It replaced timed re-renders of a whole profile every
+30 seconds while an account was updating.
+
+**Not improved: opening a window on a long page.** `showModal()` makes the rest of the page inert, and
+Chromium recomputes the style of every element for that: 142 ms for an empty window on a 1,513-element
+Match History page with the CPU slowed 4× (4 ms with `show()`, which would lose the native modal's
+inertness and focus containment). `content-visibility` on the list barely helped (116 ms). The native
+modal is kept for its accessibility; opening a match window on that page still shows one long frame
+(367 ms on the phone profile at 4×, 200 ms on a 1440×900 desktop with the CPU slowed 2×; medians of 3).
+
 ## Stored game records: the players' index (26 Oct 2026)
 
 Production's query statistics (`db-usage`, 26 Oct) showed two statements unpacking every stored game

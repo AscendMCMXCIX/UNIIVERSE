@@ -88,6 +88,8 @@ describe("OP.GG link coverage for the data audit", () => {
       // The member by their linked account, x-1's older place by the newer Riot ID, the rest by their own.
       linked: { byLinkedAccount: 1, byNewerRiotId: 1, byRecordedRiotId: 3 },
       notLinked: { "no-name": 1, "no-tag": 2, "tag-length": 1, "tag-characters": 1, "name-length": 1, "name-characters": 0, server: 1 },
+      // x-3's two-letter tag, by server, length and kind.
+      tagLengths: { "oc1 2 latin": 1 },
       recordedNamesNowAccepted: 1,
       renamedSinceGame: 1,
     });

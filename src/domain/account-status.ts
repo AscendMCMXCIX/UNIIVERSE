@@ -24,16 +24,20 @@ export interface AccountSyncView {
   lastUpdatedAt: Date | null;
 }
 
+/** A player's accounts are refreshed when someone views them and they were last synced longer ago than this. */
+export const VIEW_REFRESH_AFTER_MS = 15 * 60_000;
+
 /**
- * How often a page showing these accounts refreshes itself (AutoRefresh): every 30 seconds while
- * one is being verified or fetched for the first time (a minute or two), every 2 minutes while one
- * only catches up on older games (hours, and each refresh reads the player's data again), and not
- * at all otherwise.
+ * Whether viewing a player refreshes this account (server/accounts/kickoff.ts): unverified accounts,
+ * accounts still adding this season's history, and accounts not refreshed for 15 minutes. Never a
+ * demo account, nor a Riot ID Riot could not find (a person must correct it).
  */
-export function syncRefreshInterval(states: readonly AccountSyncState[]): number | null {
-  if (states.some((s) => s === "pending" || s === "verified")) return 30_000;
-  if (states.includes("syncing")) return 120_000;
-  return null;
+export function dueForViewRefresh(a: AccountSyncFacts, now: Date = new Date()): boolean {
+  if (a.syncStatus === "demo") return false;
+  const view = describeAccountSync(a, now);
+  if (view.state === "error" && a.syncStatus === "unresolved") return false;
+  if (view.state === "syncing" || view.state === "pending" || view.state === "verified") return true;
+  return !a.lastSyncAt || now.getTime() - a.lastSyncAt.getTime() > VIEW_REFRESH_AFTER_MS;
 }
 
 /** Accounts refresh every 45 minutes or so while the team is active; six hours without one is a delay. */

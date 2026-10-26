@@ -1,7 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { getAppDb } from "@/server/bootstrap";
 import { getSession } from "@/server/auth/session";
-import { ProfileOverviewTab, profileHeader, type ProfileSearch } from "@/components/players/profile-sections";
+import { profileHeader, type ProfileSearch } from "@/components/players/profile-sections";
+import { ProfileOverviewTab } from "@/components/players/profile-overview-tab";
 
 export const dynamic = "force-dynamic";
 
