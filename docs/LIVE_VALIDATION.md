@@ -431,4 +431,4 @@ This replaces "On a computer, collapse the sidebar: the logo is centred above th
 - [ ] Opponents: the "Against" chip comes first with the record right after it; a player who was also an ally shows a quieter "Alongside" chip after it. Allies: the other way round. Everyone: both chips, then the record over all the games.
 - [ ] The Opponents, Allies and Everyone choices each have a small colour key (red, blue, split).
 - [ ] Open a Mixed player: the window shows the Mixed badge, the records (Against, then Alongside), and the games in two sections, "Against them" and "Alongside them", each with its count. A game opens the match window; Back returns to the player.
-- [ ] On a phone, nothing scrolls sideways and the chips wrap under the name instead of squeezing it.
+- [ ] On a phone, the date last met ends the name's line and the badge, chips and record share the line under it, so no name is cut short; on the narrowest phones a Mixed player's "small sample" mark may start a third line. Nothing scrolls sideways.
