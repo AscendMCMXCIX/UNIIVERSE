@@ -201,13 +201,21 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
   const [owner] = slice.length ? await db.select({ teamId: players.teamId }).from(players).where(eq(players.id, playerId)) : [];
   // Players who renamed since a game on this page are linked by their newer Riot ID.
   const pagePuuids = details.flatMap((d) => d.participants.map((p) => p.puuid));
-  const [members, known] = await Promise.all([
+  const ownPuuids = new Set(accounts.map((a) => a.puuid).filter(Boolean));
+  // The opponents in this page's games: their stored ranks, read together for the page (three
+  // queries in all, no Riot request). Ranks missing or stale are checked only when a match is opened.
+  const opponents = details.flatMap((d) => {
+    const own = d.participants.find((p) => ownPuuids.has(p.puuid));
+    return own ? d.participants.filter((p) => p.teamId !== own.teamId && p.puuid && !isRemoved(p)).map((p) => p.puuid) : [];
+  });
+  const [members, known, readings] = await Promise.all([
     owner ? teamMembersByPuuid(db, owner.teamId, pagePuuids) : Promise.resolve(new Map<string, { id: string; name: string }>()),
     knownRiotIds(db, pagePuuids, Math.min(...details.map((d) => d.gameCreation))),
+    storedRankReadings(db, opponents),
   ]);
   const inJournal = new Set(journal.map((j) => j.id));
   const puuidOf = new Map(accounts.map((a) => [a.id, a.puuid]));
-  const ownPuuids = new Set(accounts.map((a) => a.puuid).filter(Boolean));
+  const nowMs = now.getTime();
   const riotIdOf = new Map(accounts.map((a) => [a.id, a.riotId]));
   const fallbackVersion = patch?.ddragonVersion ?? null;
 
@@ -222,7 +230,7 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     const version = ddragonVersionOf(d?.gameVersion, fallbackVersion);
     const ic = me ? icons(me, assets, version) : { items: null, spells: null, keystone: null, secondary: null };
     const tk = me && d ? teamKills(d.participants, me.teamId, d.teams) : 0;
-    const teams = d ? compositionOf(d.participants, members, (puuid) => puuid === me?.puuid, me?.teamId ?? null, platformOfMatchId(g.matchId), known) : null;
+    const teams = d ? compositionOf(d.participants, members, (puuid) => puuid === me?.puuid, me?.teamId ?? null, { platform: platformOfMatchId(g.matchId), known, enemyRank: (puuid) => participantRank(readings.get(puuid) ?? [], g.queueId, nowMs) }) : null;
     return {
       matchId: g.matchId,
       riotId: accounts.length > 1 ? (riotIdOf.get(g.accountId) ?? null) : null,

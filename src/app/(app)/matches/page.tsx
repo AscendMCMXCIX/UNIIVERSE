@@ -142,7 +142,7 @@ async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<Ret
   const teams: Record<string, Composition | null> = {};
   for (const g of shown) {
     const ps = parts.get(g.matchId);
-    teams[g.matchId] = ps ? compositionOf(ps, members, (puuid) => !!session.playerId && members.get(puuid)?.id === session.playerId, g.teamId, platformOfMatchId(g.matchId), known) : null;
+    teams[g.matchId] = ps ? compositionOf(ps, members, (puuid) => !!session.playerId && members.get(puuid)?.id === session.playerId, g.teamId, { platform: platformOfMatchId(g.matchId), known }) : null;
   }
   const wins = all.filter((g) => g.win).length;
   const decided = all.filter((g) => g.win !== null).length;

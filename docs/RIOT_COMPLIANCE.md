@@ -35,9 +35,10 @@ Endpoints used: `account-v1` (Riot ID → PUUID), `match-v5` (match ids, matches
 ## Player links in completed matches
 
 In a player's Match History, Team → Matches and the match window, each name in a completed game links somewhere:
-- **UNIIVERSE members** (an active profile with that linked Riot account) link to their UNIIVERSE profile.
+- **UNIIVERSE members** (an active profile with that linked Riot account) link to their UNIIVERSE profile. Since 26 October 2026 a small separate link beside the name opens their OP.GG profile too, for a mouse and the keyboard (on a touch screen it would be too small a target beside the name, so it is not drawn there; their profile's Riot Accounts tab has it).
 - **Everyone else** links to their public OP.GG profile, in a new tab, when the stored match allows it: the Riot ID Riot recorded in Match-V5 (`Name#TAG`) and the server in the match id (`OC1_…` → `oce`).
-- **Otherwise the name is plain text.** That covers a name that is not a well-formed Riot ID, a server OP.GG does not list, and demo games.
+- **The newest Riot ID UNIIVERSE already holds wins** (`src/server/players/riot-names.ts`), by PUUID: a linked account's (the account sync keeps it current), on its server once Riot has confirmed that server (until then, the match's own); otherwise the newest full Riot ID from a later stored game. A player who renamed is linked by their newer name, never by a guess. A record without a tag, and a demo game's made-up name, never count.
+- **Otherwise the name is plain text.** That covers a name that is not a well-formed Riot ID, a server OP.GG does not list, and demo games. The data audit counts these places by reason (`data-audit` → `opggLinks`, counts only).
 
 The rules (`src/domain/opgg.ts`, unit tested with real-world Riot IDs):
 
@@ -123,7 +124,7 @@ Every match window's scoreboard (Match History, Encounters, Matchups and Team �
 
 **For the product registration.** The description registered with Riot (see "Before you register a production key") covers members' own match history. The owner should add this use the next time the registration is updated, for example: "shows the current rank of the players in members' completed matches, checked on demand when a member opens one (at most every three days per player, up to 1,000 checks a day)". Nothing in the key or the app changes for it.
 
-**Considered and not built: the lane opponent's rank on each Match History card.** It would ask Riot for up to 10 players per page of the list (or show stored ranks only, with uneven coverage), add a fifth item to a card that is already dense, and on phones the card's names are hidden. Ranks stay in the match window, where they are asked for one match at a time.
+**Opponents' ranks on the Match History cards (26 October 2026).** Each collapsed game card shows the opponents' ranks in a few letters ("E2", "GM"; "Unr" on a check's word that they are unranked; nothing when no rank was read), from what is already stored only: the same readings as the match window, read with the page in three indexed queries. The list never asks Riot: a missing or stale rank is checked only when a member opens that match (under the limits above), and then shows on its card. Coverage is therefore uneven, by design: a game nobody opened shows the ranks stored for its players from other games, or none. The full statement (queue, rank, when it was read, and that it is not the rank at the time of the game) is on hover and for screen readers. The same permissions as the match window; never on the public pages. No new API use.
 
 ## Clash Scout (retired 23 Oct 2026)
 

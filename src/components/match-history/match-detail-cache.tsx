@@ -49,11 +49,17 @@ function memo<T extends { status: string }>(fetch: (playerId: string, matchId: s
   };
 }
 
-export function createMatchDetailCache(): MatchDetailCache {
+/** `onRanks`: told of every match's rank results as they arrive, so the list can show ranks the window checked. */
+export function createMatchDetailCache({ onRanks }: { onRanks?: (matchId: string, result: MatchRanksResult) => void } = {}): MatchDetailCache {
+  const ranks = memo(getMatchRanksAction, (r) => r.status === "ok" && !r.check.failed && !r.check.skipped);
   return {
     load: memo(getMatchDetailAction),
     groups: memo(getMatchGroupsAction),
-    ranks: memo(getMatchRanksAction, (r) => r.status === "ok" && !r.check.failed && !r.check.skipped),
+    ranks: (playerId, matchId) =>
+      ranks(playerId, matchId).then((r) => {
+        onRanks?.(matchId, r);
+        return r;
+      }),
   };
 }
 

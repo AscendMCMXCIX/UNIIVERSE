@@ -423,3 +423,15 @@ This replaces "On a computer, collapse the sidebar: the logo is centred above th
 - [ ] Team → a player: previous and next are left of the ×, past the same divider.
 - [ ] On a phone, the × is easy to hit with a thumb (44px), also with the phone held sideways, where it floats over the window as before.
 - [ ] Escape closes every window, and focus returns to what opened it. The windows look as before otherwise.
+
+## Match History: opponents' ranks on the cards and OP.GG links (26 Oct 2026)
+
+On the live site, signed in as a member, after the deployment (`smoke` shows its commit):
+- [ ] Your profile → Match History on a computer: open a game whose opponents show no rank, wait for the ranks under the scoreboard, close it. Its card now shows a short rank at the end of each opponent's name line ("E2", "GM", "Unr"), in the tier's colour, and the card is no taller.
+- [ ] Hover one: the same statement as the match window ("… checked <date>. Their rank then, not at the time of this match").
+- [ ] Reload: the ranks are still there. Scroll and change pages: nothing waits on Riot (the list is as fast as before).
+- [ ] A Flex game: a rank shown from Solo/Duo carries a small grey "s"; a Solo/Duo game's Flex-only rank an "f".
+- [ ] A phone: the ranks sit under the opponents' icons, both teams' icons on one line, nothing overlapping or scrolling sideways.
+- [ ] Team members on a card (a computer): a small arrow after their name opens their OP.GG profile in a new tab, and the card does not open the match. The name still opens their profile. On a phone the arrow is not shown.
+- [ ] A player with an accented, Thai, Arabic or Persian Riot ID, or a recent rename: their name links to their OP.GG profile under their current name.
+- [ ] Data jobs → `data-audit`: `opggLinks` counts the places with and without a link, by reason; `notLinked.no-tag` and `notLinked.server` are the remaining gaps.
