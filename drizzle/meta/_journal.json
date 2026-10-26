@@ -407,6 +407,13 @@
       "when": 1792808733187,
       "tag": "0057_participant_ranks",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1793005690871,
+      "tag": "0058_match_details_puuids",
+      "breakpoints": true
     }
   ]
 }

@@ -444,3 +444,11 @@ On the live site, signed in as a member, after the deployment (`smoke` shows its
 - [ ] The Opponents, Allies and Everyone choices each have a small colour key (red, blue, split).
 - [ ] Open a Mixed player: the window shows the Mixed badge, the records (Against, then Alongside), and the games in two sections, "Against them" and "Alongside them", each with its count. A game opens the match window; Back returns to the player.
 - [ ] On a phone, the date last met ends the name's line and the badge, chips and record share the line under it, so no name is cut short. Only on a 375 px phone (iPhone SE or mini) may a Mixed player's "small sample" mark start a third line; from 390 px every row is two lines. Nothing scrolls sideways.
+
+## Stored game records: the players' index (migration 0058, 26 Oct 2026)
+
+Nothing on screen changes; the checks confirm the same answers, sooner.
+- [ ] Data jobs → `smoke auth-audit perf-probe`: every step passes, `deployment.commit` is the merge commit, and `auth-audit` lists migrations up to `0058_match_details_puuids`.
+- [ ] `perf-probe` → `matches.possibleGroups`: the same kind of note as before ("N earlier stored games searched · M possible groups"), and the cold time well under the 1,917 ms of 26 Oct.
+- [ ] Open a game in Match History: possible groups, their evidence games and the players' OP.GG links are as before.
+- [ ] A day later, Data jobs → `db-usage`: the figures backfill's `UPDATE account_matches … pg_column_size …` and the possible-groups query are no longer among the costliest statements, and `match_details`'s `index_bytes` has grown by a few MB (the new index).
