@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { riotAccounts } from "@/server/db/schema";
-import { charactersIn, opggLinkFor, opggProfileUrl, platformOfMatchId, riotIdProblem, type KnownRiotId, type RiotIdProblem } from "@/domain/opgg";
+import { charactersIn, opggLinkFor, opggProfileUrl, platformOfMatchId, riotIdProblem, tagProblem, type KnownRiotId, type RiotIdProblem } from "@/domain/opgg";
 
 /*
   The Riot ID to link a player by, from what UNIIVERSE already stores: no Riot request is made.
@@ -67,7 +67,8 @@ function acceptedBefore(raw: string | null): boolean {
  * newer game's or the game's own), and why the others have none ("server": one OP.GG does not
  * list). A link only says the address is well formed: OP.GG can still show "not found" for an
  * account it has not indexed yet. `tagLengths`: the places whose tag is outside 3–5 characters, by
- * server, length and kind ("oc1 2 latin"), to learn what Riot records before the rule changes.
+ * server, length and kind ("oc1 2 latin"), and `shortTags` what those tags are (shortTagEvidence),
+ * to learn what Riot records before the rule changes.
  */
 export async function opggCoverage(db: Db, now = new Date()) {
   const since = now.getTime() - 30 * 86_400_000;
@@ -118,11 +119,68 @@ export async function opggCoverage(db: Db, now = new Date()) {
       const problem = riotIdProblem(r.name) ?? "server";
       notLinked[problem] += n;
       if (problem === "tag-length") {
-        const tag = r.name!.split("#")[1]!.trim().normalize("NFC");
-        const shape = `${r.platform} ${charactersIn(tag)} ${/^[0-9]+$/.test(tag) ? "digits" : /^[A-Za-z0-9]+$/.test(tag) ? "latin" : "other"}`;
+        const shape = `${r.platform} ${tagShape(r.name!.split("#")[1]!.trim().normalize("NFC"))}`;
         tagLengths[shape] = (tagLengths[shape] ?? 0) + n;
       }
     }
   }
-  return { windowDays: 30, places, removed, teamMembers, linked, notLinked, tagLengths, recordedNamesNowAccepted, renamedSinceGame };
+  return { windowDays: 30, places, removed, teamMembers, linked, notLinked, tagLengths, shortTags: await shortTagEvidence(db, since), recordedNamesNowAccepted, renamedSinceGame };
+}
+
+/** A tag without the tag: its length as Riot counts characters, and digits, Latin or another script ("2 latin"). */
+function tagShape(tag: string): string {
+  return `${charactersIn(tag)} ${/^[0-9]+$/.test(tag) ? "digits" : /^[A-Za-z0-9]+$/.test(tag) ? "latin" : "other"}`;
+}
+
+/**
+ * Whether the tags outside 3–5 characters are Riot IDs as they are or shortened ones (counts only).
+ * `linkedAccountsCheckedByRiot`: the linked accounts whose Riot ID Riot's account record has
+ * confirmed (re-read by PUUID about daily), by tag: a short one there comes from Riot itself.
+ * `players`: the players seen with a short tag in the window's games, by server and tag; then
+ * whether each recorded that tag in every game, also a longer tag starting with it (the short one
+ * cut off), or another tag (a rename), and, for those with a linked account, whether its confirmed
+ * tag is the short one. `distinctTags` and `mostCommonTagPlayers`: one tag held by most of them
+ * would be one Riot gives, many different ones tags people chose.
+ */
+async function shortTagEvidence(db: Db, since: number) {
+  const linkedAccountsCheckedByRiot: Record<string, number> = {};
+  const accounts = rowsOf<{ tag_line: string }>(
+    await db.execute(sql`SELECT tag_line FROM riot_accounts WHERE owner_type = 'player' AND riot_id_checked_at IS NOT NULL AND label <> 'demo' AND sync_status <> 'demo'`),
+  );
+  for (const a of accounts) {
+    const tag = a.tag_line.trim().normalize("NFC");
+    const key = tagProblem(tag) === "tag-length" ? tagShape(tag) : (tagProblem(tag) ?? "3-5");
+    linkedAccountsCheckedByRiot[key] = (linkedAccountsCheckedByRiot[key] ?? 0) + 1;
+  }
+  // Only players with a tag that may be short (ASCII outside 3–5, or any other script) leave the database.
+  const rows = rowsOf<{ platform: string; tags: string[]; account_tag: string | null }>(
+    await db.execute(sql`
+      WITH p AS (
+        SELECT x->>'puuid' AS puuid, split_part(x->>'name', '#', 2) AS tag, lower(split_part(d.match_id, '_', 1)) AS platform
+        FROM match_details d CROSS JOIN LATERAL jsonb_array_elements(d.participants) x
+        WHERE d.game_creation >= ${since} AND d.match_id ~ '^[A-Z]+[0-9]*_[0-9]+$' AND coalesce(x->>'removed', '') <> 'true'
+          AND coalesce(x->>'puuid', '') <> '' AND strpos(coalesce(x->>'name', ''), '#') > 0)
+      SELECT min(p.platform) AS platform, json_agg(DISTINCT p.tag) AS tags,
+        (SELECT a.tag_line FROM riot_accounts a WHERE a.puuid = p.puuid AND a.owner_type = 'player' AND a.riot_id_checked_at IS NOT NULL AND a.label <> 'demo' AND a.sync_status <> 'demo' LIMIT 1) AS account_tag
+      FROM p GROUP BY p.puuid
+      HAVING bool_or(char_length(btrim(p.tag)) NOT BETWEEN 3 AND 5 OR btrim(p.tag) !~ '^[A-Za-z0-9]+$')`),
+  );
+  const players: Record<string, number> = {};
+  const recorded = { sameTagInEveryGame: 0, alsoLongerTagStartingWithIt: 0, alsoAnotherTag: 0 };
+  const linkedAccount = { sameShortTag: 0, anotherTag: 0 };
+  const holders = new Map<string, number>();
+  for (const r of rows) {
+    const tags = [...new Set(r.tags.map((t) => t.trim().normalize("NFC").toLowerCase()))];
+    const short = tags.filter((t) => tagProblem(t) === "tag-length");
+    if (!short.length) continue;
+    for (const t of short) {
+      players[`${r.platform} ${tagShape(t)}`] = (players[`${r.platform} ${tagShape(t)}`] ?? 0) + 1;
+      holders.set(t, (holders.get(t) ?? 0) + 1);
+    }
+    if (tags.length === 1) recorded.sameTagInEveryGame++;
+    else if (tags.some((t) => short.some((s) => t !== s && t.startsWith(s)))) recorded.alsoLongerTagStartingWithIt++;
+    else recorded.alsoAnotherTag++;
+    if (r.account_tag != null) linkedAccount[short.includes(r.account_tag.trim().normalize("NFC").toLowerCase()) ? "sameShortTag" : "anotherTag"]++;
+  }
+  return { linkedAccountsCheckedByRiot, players, recorded, linkedAccount, distinctTags: holders.size, mostCommonTagPlayers: Math.max(0, ...holders.values()) };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { opggLinkFor, opggProfileUrl, parseRiotId, platformOfMatchId, riotIdProblem } from "./opgg";
+import { opggLinkFor, opggProfileUrl, parseRiotId, platformOfMatchId, riotIdProblem, tagProblem } from "./opgg";
 
 describe("OP.GG profile links from completed matches", () => {
   it("builds the profile address from the recorded Riot ID and the match's server", () => {
@@ -97,6 +97,8 @@ describe("OP.GG profile links from completed matches", () => {
       ["Hide on bush#KR1", null],
     ];
     for (const [raw, problem] of cases) expect(riotIdProblem(raw), String(raw)).toBe(problem);
+    // The tag alone, as the audit checks the tags it finds.
+    expect([tagProblem("AB"), tagProblem("OCE"), tagProblem("K-R"), tagProblem("ไทย")]).toEqual(["tag-length", null, "tag-characters", null]);
   });
 
   it("keeps the name as recorded apart from surrounding spaces", () => {

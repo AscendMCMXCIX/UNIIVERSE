@@ -453,4 +453,5 @@ On the live site, after the deployment (`smoke` shows its commit):
 - [ ] Leave a page open in a hidden tab: the browser's network panel shows no `/api/freshness` requests until the tab is shown again; on screen and idle, the checks become rarer (1, 2, 4, 8, then every 10 minutes).
 - [ ] Admin Mode → System Health while a job runs: its result appears when it finishes, without Refresh.
 - [ ] Data jobs → `data-audit`: `opggLinks.tagLengths` lists the tags outside 3–5 characters by server, length and kind (counts only); `notLinked.tag-length` equals its total.
+- [ ] Data jobs → `data-audit`: `opggLinks.shortTags` says what those tags are, without showing any: `linkedAccountsCheckedByRiot` (a short tag there comes from Riot's account record itself), `recorded` (the same tag in every game, cut off from a longer one, or renamed) and `linkedAccount` (whether Riot's record agrees with the short tag the games recorded).
 - [ ] Data jobs → `egress` the next day: the day stays under its budget.
