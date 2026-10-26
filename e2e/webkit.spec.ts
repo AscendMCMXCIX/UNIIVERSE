@@ -144,6 +144,50 @@ test("a teammate's profile: its sections switch, and a champion's window opens a
   await expect(tabs.getByRole("link", { name: "Match History" })).toHaveAttribute("aria-current", "page");
 });
 
+test("Match History: once a game's window has checked its opponents' ranks, its card shows them under their icons, inside the card", async ({ page }) => {
+  await page.goto("/team");
+  const id = (await page.getByTestId("lineup-row-ADC").getAttribute("data-player-id"))!;
+  await page.goto(`/players/${id}/matches`);
+  // A game no window has checked yet (its opponents show no rank).
+  const unchecked = page.getByTestId("match-card").filter({ has: page.getByTestId("match-teams") }).filter({ hasNot: page.getByTestId("slot-rank") });
+  const matchId = (await unchecked.first().getByTestId("match-row").getAttribute("data-match"))!;
+  const card = page.getByTestId("match-card").filter({ has: page.locator(`[data-match="${matchId}"]`) });
+  const detail = page.getByTestId("match-detail");
+  await expect(async () => {
+    if (!(await detail.isVisible())) await card.tap({ position: { x: 24, y: 16 }, timeout: 2_000 });
+    await expect(detail).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  // The browser tests' Riot stand-in answers the window's check (server/riot/browser-test.ts).
+  const note = page.getByTestId("ranks-note");
+  await expect(note).toBeVisible({ timeout: 15_000 });
+  await expect(note).not.toHaveAttribute("data-state", "checking", { timeout: 15_000 });
+  await page.keyboard.press("Escape");
+  await expect(detail).toHaveCount(0);
+  await expect(card.getByTestId("slot-rank").first()).toBeVisible();
+  // On a phone each rank sits under its opponent's icon: the ten icons stay on one line, no two
+  // ranks overlap, and every rank is inside the card.
+  const g = await card.evaluate((el) => {
+    const box = (e: Element) => e.getBoundingClientRect().toJSON() as DOMRect;
+    const slots = [...el.querySelectorAll('[data-testid="team-slot"]')];
+    return {
+      card: box(el),
+      iconTops: slots.map((s) => box(s.firstElementChild!).top),
+      ranks: slots.flatMap((s) => {
+        const r = s.querySelector('[data-testid="slot-rank"]');
+        return r ? [{ rank: box(r), icon: box(s.firstElementChild!) }] : [];
+      }),
+    };
+  });
+  expect(g.ranks.length).toBeGreaterThan(0);
+  expect(Math.max(...g.iconTops) - Math.min(...g.iconTops), "the icons on one line").toBeLessThanOrEqual(1);
+  for (const [i, { rank, icon }] of g.ranks.entries()) {
+    expect(rank.top, "under its icon").toBeGreaterThanOrEqual(icon.bottom - 0.5);
+    expect(rank.left >= g.card.left - 0.5 && rank.right <= g.card.right + 0.5 && rank.bottom <= g.card.bottom + 0.5, "inside the card").toBe(true);
+    for (const { rank: other } of g.ranks.slice(i + 1)) expect(rank.right <= other.left + 0.5 || other.right <= rank.left + 0.5, "two ranks overlap").toBe(true);
+  }
+  await fitsWidth(page, "Match History");
+});
+
 test("Player Customisation: the Studio opens, its sections switch from the section list, and Cancel keeps the saved card", async ({ page }) => {
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
