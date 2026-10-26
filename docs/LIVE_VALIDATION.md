@@ -401,16 +401,18 @@ Never erase a real member to test this: the erasure itself is tested on syntheti
 - [ ] The Match History list itself shows no ranks (unchanged).
 - [ ] Data jobs → `data-audit`: `participantRanks` shows the checks per day and the coverage, with no names or ids.
 
-## Team Overview header alignment (26 Oct 2026)
+## Sidebar logo centred (26 Oct 2026)
+
+This replaces "On a computer, collapse the sidebar: the logo is centred above the icons" under 22 Oct 2026. That was true of the letter mark only, not of an uploaded logo. PR #141 (Team Overview's header) was reverted in the same release, so Team Overview's layout is the one from before it.
 
 - [ ] Data jobs → `smoke`: every step passes, and `deployment.commit` is the merge commit.
-- [ ] Team Overview on a computer, with the sidebar open: the logo, the team's name, the line under it and the lineup's state are centred over the cards, and **Edit lineup** sits at the right edge of the cards.
-- [ ] Collapse the sidebar, then open it again (the control under the logo, or Ctrl+\\): the header re-centres with the cards straight away, without a reload, and nothing scrolls sideways. The same after a reload with the sidebar collapsed.
-- [ ] On a wide screen (1920 or more) and on a laptop (1280 to 1440): the same, both ways.
-- [ ] On a tablet, upright and sideways: the header centred over the cards, Edit lineup at their right edge.
-- [ ] On a phone, upright: the logo and the name centred on one line, the state and Edit lineup centred on the next, over the card in view, also on the first card (Top) and the last (Support). Sideways: as on a tablet.
-- [ ] Press **Edit lineup** and then **Done**: the button stays where it is under your finger or pointer, and the logo, the name and the line under it do not move sideways.
-- [ ] The public team page still shows the header without Edit lineup or the lineup's state.
+- [ ] On a computer, with the team's uploaded logo, collapse the sidebar: the logo is centred in the rail, on the same line as the icons under it. Before, it sat about 12px to the right.
+- [ ] Open the sidebar: the logo stays where it was, over the icons, with the team's name beside it. It does not move while the sidebar opens or collapses, nor when pointing at the collapsed sidebar opens it over the page.
+- [ ] The same in a wide window (1920px or more, where everything is drawn larger) and in a 1024px one.
+- [ ] Tab to the logo: its focus ring is whole, not cut off at the sidebar's edge.
+- [ ] The phone and tablet top bar, the public page's header, the sign-in window and the Team tabs: the logo starts its row, with no gap before it. On the sign-in page the logo and the name are centred together.
+- [ ] Team Overview: as before PR #141, except that the header has no empty space under it (4px less on a computer, 10px on a phone).
+- [ ] With "reduce motion" turned on, the logo shows its still frame everywhere; otherwise it animates.
 
 ## Match History: opponents' ranks on the cards and OP.GG links (26 Oct 2026)
 
