@@ -143,7 +143,7 @@ test("one player's window: the record, every recorded game, and the match with B
 });
 
 test("an opponent reads warm, an ally cool and Mixed split, on the rows, the filter and the window", async ({ page }) => {
-  // The Support player's Encounters: the demo places some regulars on both sides of their games.
+  // The Support player's Encounters (the demo has every member meet one player on both sides).
   await page.goto("/team");
   const support = `/players/${await page.getByTestId("lineup-row-SUPPORT").getAttribute("data-player-id")}`;
   await openEncounters(page, `${support}/matches?view=encounters&rel=everyone&min=1&limit=500`);
@@ -176,7 +176,7 @@ test("an opponent reads warm, an ally cool and Mixed split, on the rows, the fil
   expect(of("mixed").length).toBeGreaterThan(0);
   for (const l of of("mixed")) expect(l.rail).toBe("split");
   // A Mixed player's window: the games against them, then those alongside them, as many as the row's chips say.
-  const mixed = rows.locator("xpath=self::*[@data-kind='mixed']").first();
+  const mixed = page.locator("[data-testid='encounter-row'][data-kind='mixed']").first();
   const gamesOn = async (r: "opponent" | "ally") => Number(await mixed.getByTestId(`encounter-count-${r}`).getAttribute("data-games"));
   const [against, alongside] = [await gamesOn("opponent"), await gamesOn("ally")];
   await mixed.click();
