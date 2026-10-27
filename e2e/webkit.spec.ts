@@ -1,7 +1,7 @@
 import { devices, expect, test, type Locator, type Page } from "./test";
 import { emulateKeyboard, keyboard } from "./keyboard";
 import { expectClearCorner } from "./modal-corner";
-import { memberContext, signIn } from "./member-account";
+import { memberContext, signIn, webkitMemberOptions } from "./member-account";
 import path from "node:path";
 
 /*
@@ -453,7 +453,7 @@ test("Ranked Development on an iPhone: an objective, a session, a game's review 
   const member = await memberContext(browser, admin);
   await member.context.close();
   const { defaultBrowserType: _, ...iphone } = devices["iPhone 15"];
-  const context = await browser.newContext(iphone);
+  const context = await browser.newContext({ ...iphone, ...webkitMemberOptions(browser) });
   try {
     const p = await context.newPage();
     await signIn(p, member.username, "Mine#2026-team");
@@ -471,6 +471,8 @@ test("Ranked Development on an iPhone: an objective, a session, a game's review 
 
     // Before you queue: the objective window, its fields large enough that Safari does not zoom.
     await p.goto("/overview/development");
+    // Still signed in (a lost session would land on the sign-in page instead).
+    await expect(p).toHaveURL(/\/overview\/development$/);
     await fitsWidth(p, "Ranked Development");
     const editor = p.getByRole("dialog", { name: "New objective" });
     // A tap before the page is interactive does nothing: tap until the window opens.

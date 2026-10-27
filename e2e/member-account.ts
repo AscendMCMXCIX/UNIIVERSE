@@ -59,10 +59,14 @@ export async function choosePassword(page: Page, username: string, temporary: st
 /** A team member account, signed in on its own browser context (first-time setup included, with `role` as their Primary Role). */
 export async function memberContext(browser: Browser, admin: Page, viewport = { width: 1440, height: 900 }, { base = "Viewer", role = "Mid" }: { base?: string; role?: "Top" | "Jungle" | "Mid" | "Bottom" | "Support" } = {}): Promise<{ context: BrowserContext; page: Page; username: string }> {
   const { username, temporary } = await createMember(admin, base);
-  const context = await browser.newContext({ viewport });
+  const context = await browser.newContext({ viewport, ...webkitMemberOptions(browser) });
   const page = await context.newPage();
   await choosePassword(page, username, temporary);
   const setup = page.getByTestId("setup-form");
+  // A refused password (or a session lost on the way) says so instead of timing out.
+  const refused = page.getByTestId("set-password-form").getByRole("alert");
+  await expect(setup.or(refused)).toBeVisible();
+  if (await refused.isVisible()) throw new Error(`Save my password was refused: ${await refused.innerText()}`);
   await setup.getByTestId("setup-continue").click();
   await setup.getByRole("radiogroup", { name: "Primary role" }).getByRole("button", { name: role }).click();
   await setup.getByTestId("primary-pool-toggle").click();
@@ -97,12 +101,19 @@ const keeping = new WeakSet<BrowserContext>();
  * makes an exception for localhost), and the e2e server is a production build, whose session
  * cookies are `Secure`: a member signed in on WebKit would lose the session at the next request.
  * In WebKit only, the cookies a form's response sets are stored again without `Secure`. Production
- * is served over https, where Safari keeps them as they are.
+ * is served over https, where Safari keeps them as they are. The context must be made with
+ * webkitMemberOptions: a page the service worker controls sends its requests past Playwright's
+ * routing in WebKit, and a sign-in that slips past it loses its cookie.
  */
 export async function keepSessionInWebKit(context: BrowserContext) {
   if (context.browser()?.browserType().name() !== "webkit" || keeping.has(context)) return;
   keeping.add(context);
   await storeCookiesWithoutSecure(context);
+}
+
+/** Options for a WebKit context a member signs in on: no service worker, so every request is routed (see keepSessionInWebKit). */
+export function webkitMemberOptions(browser: Browser): { serviceWorkers?: "block" } {
+  return browser.browserType().name() === "webkit" ? { serviceWorkers: "block" } : {};
 }
 
 /** Every POST's response is passed on with its cookies stored without `Secure` (any browser). */
