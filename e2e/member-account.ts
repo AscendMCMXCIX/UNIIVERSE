@@ -80,6 +80,7 @@ export async function memberContext(browser: Browser, admin: Page, viewport = { 
  * sent past /login: the guest cookie makes it a visitor first (one account per browser).
  */
 export async function signIn(page: Page, username: string, password: string) {
+  await keepSessionInWebKit(page.context());
   if (!page.url().startsWith("http")) await page.goto("/public");
   await page.context().addCookies([{ name: "uniiverse_guest", value: "1", url: page.url().split("/").slice(0, 3).join("/") }]);
   await page.goto("/login");
@@ -87,4 +88,52 @@ export async function signIn(page: Page, username: string, password: string) {
   await form.getByLabel("Username").fill(username);
   await form.getByLabel("Password").fill(password);
   await form.getByRole("button", { name: "Sign in" }).click();
+}
+
+const keeping = new WeakSet<BrowserContext>();
+
+/**
+ * WebKit keeps no `Secure` cookie on http://localhost (WebKit bugs 231035 and 281149; Chromium
+ * makes an exception for localhost), and the e2e server is a production build, whose session
+ * cookies are `Secure`: a member signed in on WebKit would lose the session at the next request.
+ * In WebKit only, the cookies a form's response sets are stored again without `Secure`. Production
+ * is served over https, where Safari keeps them as they are.
+ */
+export async function keepSessionInWebKit(context: BrowserContext) {
+  if (context.browser()?.browserType().name() !== "webkit" || keeping.has(context)) return;
+  keeping.add(context);
+  await storeCookiesWithoutSecure(context);
+}
+
+/** Every POST's response is passed on with its cookies stored without `Secure` (any browser). */
+export async function storeCookiesWithoutSecure(context: BrowserContext) {
+  await context.route(
+    () => true,
+    async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      const response = await route.fetch({ maxRedirects: 0 });
+      const headers: Record<string, string> = {};
+      for (const { name, value } of response.headersArray()) {
+        const key = name.toLowerCase();
+        if (key === "set-cookie") await storeWithoutSecure(context, route.request().url(), value);
+        // The body handed on is the decoded one, measured again by Playwright.
+        else if (key !== "content-encoding" && key !== "content-length" && key !== "transfer-encoding") headers[key] = key in headers ? `${headers[key]}, ${value}` : value;
+      }
+      await route.fulfill({ status: response.status(), headers, body: await response.body() });
+    },
+  );
+}
+
+async function storeWithoutSecure(context: BrowserContext, url: string, header: string) {
+  const [pair = "", ...parts] = header.split(";");
+  const at = pair.indexOf("=");
+  const name = pair.slice(0, at).trim();
+  const value = pair.slice(at + 1).trim();
+  const attributes = new Map(parts.map((part) => [part.split("=")[0]!.trim().toLowerCase(), part.slice(part.indexOf("=") + 1).trim()]));
+  const path = attributes.get("path") || "/";
+  const maxAge = attributes.has("max-age") ? Number(attributes.get("max-age")) : null;
+  const expires = maxAge !== null ? Date.now() / 1000 + maxAge : attributes.has("expires") ? Date.parse(attributes.get("expires")!) / 1000 : -1;
+  if (expires !== -1 && expires * 1000 <= Date.now()) return context.clearCookies({ name, path });
+  const sameSite = attributes.get("samesite")?.toLowerCase() === "strict" ? "Strict" : "Lax";
+  await context.addCookies([{ name, value, domain: new URL(url).hostname, path, expires, httpOnly: attributes.has("httponly"), secure: false, sameSite }]);
 }
