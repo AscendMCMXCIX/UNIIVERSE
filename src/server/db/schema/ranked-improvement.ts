@@ -18,6 +18,9 @@ export interface SessionStartRank {
   tier: string | null;
   division: string | null;
   leaguePoints: number | null;
+  /** The season's Solo/Duo wins and losses at that reading (they bracket the session's games). */
+  wins?: number | null;
+  losses?: number | null;
   /** When that rank was last read from Riot. */
   at: string | null;
 }
@@ -74,6 +77,12 @@ export const rankedBlocks = pgTable(
     accountId: uuid("account_id").references(() => riotAccounts.id, { onDelete: "set null" }),
     /** The start, the latest game's end or the player's latest action: a session idle for twelve hours ends. */
     lastActivityAt: timestamp("last_activity_at", { withTimezone: true }),
+    /**
+     * Synced games that ended after this moment join the session by themselves (its start; for a
+     * block already in progress when sessions arrived, that moment, so games the player chose not to
+     * import are never added). Null for blocks finished before then: nothing joins them.
+     */
+    collectsFrom: timestamp("collects_from", { withTimezone: true }),
     startRank: jsonb("start_rank").$type<SessionStartRank>(),
     /** The player's own closing note on the session. */
     closingNote: text("closing_note").notNull().default(""),

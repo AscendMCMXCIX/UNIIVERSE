@@ -120,10 +120,12 @@ describe("TESTS — BLOCKS", () => {
     const next = await startBlock(db, carol, BLOCK_SIZE);
     expect(next).toMatchObject({ number: 3, status: "active", games: 0 });
     expect(next.label).toBe("BLOCK 003");
-    await expect(finishBlock(db, carol, next.id)).rejects.toThrow(/Add a game/);
+    // A session can end before a game is recorded: games played in it can still arrive from the sync.
+    expect(await finishBlock(db, carol, next.id)).toMatchObject({ number: 3, status: "completed", games: 0 });
+    expect(await startBlock(db, carol, BLOCK_SIZE)).toMatchObject({ number: 4, status: "active", games: 0 });
     const actives = await db.select().from(rankedBlocks).where(eq(rankedBlocks.playerId, carol));
     expect(actives.filter((b) => b.status === "active")).toHaveLength(1);
-    expect(actives.map((b) => b.number).sort()).toEqual([1, 2, 3]);
+    expect(actives.map((b) => b.number).sort()).toEqual([1, 2, 3, 4]);
   });
 
   it("lets historical games be edited or deleted without reopening the block", async () => {
@@ -137,7 +139,7 @@ describe("TESTS — BLOCKS", () => {
     await deleteGame(db, carol, detail!.games[5]!.id);
     const after = await getBlock(db, carol, first!.id);
     expect(after?.block).toMatchObject({ status: "completed", games: 5 });
-    expect(await getActiveBlock(db, carol)).toMatchObject({ number: 3 });
+    expect(await getActiveBlock(db, carol)).toMatchObject({ number: 4 });
     // Validation guards the entry.
     await expect(addGame(db, carol, { championId: "", result: "win" })).rejects.toThrow(/champion/);
     await expect(addGame(db, carol, { championId: "Jinx", result: "draw" as never })).rejects.toThrow(/result/);

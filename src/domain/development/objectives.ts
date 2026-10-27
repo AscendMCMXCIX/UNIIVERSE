@@ -114,3 +114,22 @@ export function needsRevisit(o: { status: ObjectiveStatus; lastPractisedAt: Date
   const since = daysSince(o.lastPractisedAt ?? o.statusChangedAt, now);
   return since !== null && since >= REVISIT_AFTER_DAYS ? "not-practised" : null;
 }
+
+export interface StatusSuggestion {
+  to: ObjectiveStatus;
+  reason: string;
+}
+
+/**
+ * A next step to offer for an objective, only when the player's own record supports it: sessions
+ * played for it, their self-reported plan follow-through, and (when it follows one) a statistic
+ * that has not moved the wrong way. The player decides; nothing changes by itself.
+ */
+export function suggestStatus(o: { status: ObjectiveStatus; sessions: number; hasMeasure: boolean }, execution: { rated: number; followed: number }, trend: "toward" | "away" | "similar" | null): StatusSuggestion | null {
+  const share = execution.rated ? execution.followed / execution.rated : 0;
+  const followed = `you followed your plan in ${execution.followed} of your last ${execution.rated} reviewed games`;
+  if (o.status === "identified" && o.sessions > 0) return { to: "practising", reason: `You have played ${o.sessions} session${o.sessions === 1 ? "" : "s"} for it.` };
+  if (o.status === "practising" && execution.rated >= 6 && share >= 0.75 && trend !== "away") return { to: "improving", reason: `By your own reviews, ${followed}${trend === "toward" ? ", and its statistic moved the better way" : ""}.` };
+  if (o.status === "improving" && execution.rated >= 8 && share >= 0.85 && (trend === "toward" || (!o.hasMeasure && trend === null))) return { to: "maintaining", reason: `By your own reviews, ${followed}${trend === "toward" ? ", and its statistic moved the better way" : ""}. It may be becoming a habit.` };
+  return null;
+}

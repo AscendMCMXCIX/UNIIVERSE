@@ -34,6 +34,10 @@ export const REVIEW_STATUSES = ["none", "pending", "done", "skipped"] as const;
  */
 export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
 
+export function isReviewStatus(value: unknown): value is ReviewStatus {
+  return typeof value === "string" && (REVIEW_STATUSES as readonly string[]).includes(value);
+}
+
 export function isExecution(value: unknown): value is ExecutionLevel {
   return value === 0 || value === 1 || value === 2 || value === 3;
 }
@@ -100,4 +104,19 @@ export function areaCounts(keys: ReadonlyArray<string | null>, min = 1): Array<{
     .filter(([, n]) => n >= min)
     .map(([key, count]) => ({ key, count }))
     .sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
+}
+
+export const PATTERN_WINDOW_DAYS = 30;
+/** An area becomes a pattern after this many reviews name it in the window. */
+export const PATTERN_MIN = 3;
+
+export interface ReviewPatterns {
+  reviewed: number;
+  hardest: Array<{ key: CategoryKey; count: number }>;
+  best: Array<{ key: CategoryKey; count: number }>;
+}
+
+/** Areas named again and again in the player's recent reviews (self-reported, so labelled as such). */
+export function reviewPatterns(reviews: ReadonlyArray<{ wentWell: string | null; wentWrong: string | null }>): ReviewPatterns {
+  return { reviewed: reviews.length, hardest: areaCounts(reviews.map((r) => r.wentWrong), PATTERN_MIN), best: areaCounts(reviews.map((r) => r.wentWell), PATTERN_MIN) };
 }

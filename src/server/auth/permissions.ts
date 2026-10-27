@@ -188,6 +188,8 @@ export function canWatchFreshness(session: Session | null, scope: FreshnessScope
   if (!session) return false;
   if (scope.kind === "jobs") return hasPermission(session, "manage-data");
   if (scope.kind === "player") return session.playerId === scope.playerId || hasPermission(session, "view-players");
+  // Ranked Development is private: its version (which follows private sessions and reviews) is the player's alone.
+  if (scope.kind === "development") return !!session.playerId && session.playerId === scope.playerId;
   return (["view-team", "view-players", "view-teammate-stats", "view-matches"] as const).some((p) => hasPermission(session, p));
 }
 

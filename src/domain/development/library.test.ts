@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { categoryLabel, cleanCustomCategory, DEVELOPMENT_CATEGORIES, isObjectiveCategory, LEGACY_MISTAKE_CATEGORY } from "./categories";
-import { cleanObjective, isActiveStatus, looksLikeOutcome, needsRevisit, OBJECTIVE_STATUSES, REVISIT_AFTER_DAYS } from "./objectives";
+import { cleanObjective, isActiveStatus, looksLikeOutcome, needsRevisit, OBJECTIVE_STATUSES, REVISIT_AFTER_DAYS, suggestStatus } from "./objectives";
+import { reviewPatterns } from "./reviews";
 import { cleanPlan, cleanPlanPart, planSentence, PLAN_TEMPLATES, templatesFor } from "./plans";
 import { MAIN_MISTAKES } from "@/domain/ranked-improvement";
 import { isMeasure, measureRelation, suggestedMeasures } from "./measures";
@@ -100,5 +101,33 @@ describe("statistics offered for an objective", () => {
     expect(measureRelation("laning", "early-deaths")).toBe("direct");
     expect(isMeasure("deaths")).toBe(true);
     expect(isMeasure("lp")).toBe(false);
+  });
+});
+
+
+describe("progress suggestions", () => {
+  const none = { rated: 0, followed: 0 };
+  it("offer a step only when the player's own record supports it", () => {
+    expect(suggestStatus({ status: "identified", sessions: 0, hasMeasure: false }, none, null)).toBeNull();
+    expect(suggestStatus({ status: "identified", sessions: 2, hasMeasure: false }, none, null)).toMatchObject({ to: "practising" });
+    expect(suggestStatus({ status: "practising", sessions: 3, hasMeasure: false }, { rated: 6, followed: 5 }, null)).toMatchObject({ to: "improving", reason: expect.stringMatching(/your own reviews/) });
+    // Too few reviews, or a statistic moving the wrong way: no suggestion.
+    expect(suggestStatus({ status: "practising", sessions: 3, hasMeasure: false }, { rated: 5, followed: 5 }, null)).toBeNull();
+    expect(suggestStatus({ status: "practising", sessions: 3, hasMeasure: true }, { rated: 8, followed: 8 }, "away")).toBeNull();
+    // Maintaining needs a statistic that moved the better way when one is followed.
+    expect(suggestStatus({ status: "improving", sessions: 6, hasMeasure: true }, { rated: 8, followed: 8 }, "similar")).toBeNull();
+    expect(suggestStatus({ status: "improving", sessions: 6, hasMeasure: true }, { rated: 8, followed: 8 }, "toward")).toMatchObject({ to: "maintaining" });
+    expect(suggestStatus({ status: "improving", sessions: 6, hasMeasure: false }, { rated: 8, followed: 7 }, null)).toMatchObject({ to: "maintaining" });
+    expect(suggestStatus({ status: "maintaining", sessions: 9, hasMeasure: false }, { rated: 8, followed: 8 }, null)).toBeNull();
+  });
+
+  it("find areas named again and again in reviews", () => {
+    const p = reviewPatterns([
+      { wentWell: "vision", wentWrong: "trading" },
+      { wentWell: "vision", wentWrong: "trading" },
+      { wentWell: null, wentWrong: "trading" },
+      { wentWell: "vision", wentWrong: "positioning" },
+    ]);
+    expect(p).toEqual({ reviewed: 4, hardest: [{ key: "trading", count: 3 }], best: [{ key: "vision", count: 3 }] });
   });
 });

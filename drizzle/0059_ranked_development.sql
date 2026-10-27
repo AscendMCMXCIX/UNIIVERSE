@@ -9,7 +9,9 @@
 --   - a player's ranked focus sentence becomes their primary objective (status Practising), with
 --     the champions they chose for it; ranked_profiles itself is left untouched;
 --   - a block still in progress follows that objective and counts as active now, so it has the
---     full idle period (twelve hours) before it ends by itself.
+--     full idle period (twelve hours) before it ends by itself; synced games join it only from now
+--     on (collects_from), so games its player chose not to import are never added to it. Finished
+--     blocks collect nothing.
 -- The new tables get Row Level Security, no Data API grants and the backup role's SELECT
 -- (docs/DATABASE_PERMISSIONS.md). Rollback: drop the two tables and the added columns; no
 -- earlier value is changed except the new columns' backfill.
@@ -49,6 +51,7 @@ ALTER TABLE "ranked_blocks" ADD COLUMN "objective_id" uuid;--> statement-breakpo
 ALTER TABLE "ranked_blocks" ADD COLUMN "plan_id" uuid;--> statement-breakpoint
 ALTER TABLE "ranked_blocks" ADD COLUMN "account_id" uuid;--> statement-breakpoint
 ALTER TABLE "ranked_blocks" ADD COLUMN "last_activity_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "ranked_blocks" ADD COLUMN "collects_from" timestamp with time zone;--> statement-breakpoint
 ALTER TABLE "ranked_blocks" ADD COLUMN "start_rank" jsonb;--> statement-breakpoint
 ALTER TABLE "ranked_blocks" ADD COLUMN "closing_note" text DEFAULT '' NOT NULL;--> statement-breakpoint
 ALTER TABLE "ranked_games" ADD COLUMN "source" text DEFAULT 'manual' NOT NULL;--> statement-breakpoint
@@ -95,7 +98,7 @@ SELECT p."player_id", left(btrim(regexp_replace(p."focus", '\s+', ' ', 'g')), 12
   'blocks-focus', p."created_at", now()
 FROM "ranked_profiles" p WHERE btrim(p."focus") <> '';--> statement-breakpoint
 UPDATE "ranked_blocks" b SET "objective_id" = o."id" FROM "development_objectives" o WHERE o."player_id" = b."player_id" AND o."source" = 'blocks-focus' AND b."status" = 'active';--> statement-breakpoint
-UPDATE "ranked_blocks" SET "last_activity_at" = now() WHERE "status" = 'active';--> statement-breakpoint
+UPDATE "ranked_blocks" SET "last_activity_at" = now(), "collects_from" = now() WHERE "status" = 'active';--> statement-breakpoint
 ALTER TABLE "development_objectives" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "development_plans" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 -- Closed to Supabase's Data API whatever the project's default privileges, and readable by the

@@ -63,11 +63,12 @@ describe("0059 Ranked Development keeps every Solo Queue Blocks record", () => {
       expect(objectives[0]).toMatchObject({ player_id: alice, title: "Ward river before 3:15", category: "other", status: "practising", is_primary: true, champion_ids: ["Ahri", "Syndra"], source: "blocks-focus" });
       expect(new Date(objectives[0]!.identified_at).toISOString()).toBe("2026-09-01T00:00:00.000Z");
 
-      // The block in progress follows it and counts as active from now; the finished one is untouched.
-      const blocks = await q<{ number: number; objective_id: string | null; active_now: boolean | null }>(sql`SELECT number, objective_id, last_activity_at > now() - interval '1 minute' AS active_now FROM ranked_blocks ORDER BY number`);
+      // The block in progress follows it, counts as active from now and collects only games played
+      // from now (older games are never pulled into it); the finished one never collects.
+      const blocks = await q<{ number: number; objective_id: string | null; active_now: boolean | null; collects_now: boolean | null }>(sql`SELECT number, objective_id, last_activity_at > now() - interval '1 minute' AS active_now, collects_from > now() - interval '1 minute' AS collects_now FROM ranked_blocks ORDER BY number`);
       expect(blocks).toEqual([
-        { number: 1, objective_id: null, active_now: null },
-        { number: 2, objective_id: objectives[0]!.id, active_now: true },
+        { number: 1, objective_id: null, active_now: null, collects_now: null },
+        { number: 2, objective_id: objectives[0]!.id, active_now: true, collects_now: true },
       ]);
 
       // The new tables keep Row Level Security on.

@@ -80,6 +80,27 @@ export async function playerFreshness(db: Db, playerId: string, { now = new Date
   };
 }
 
+/**
+ * A player's own Ranked Development: everything their profile version follows, plus their private
+ * sessions, session games and reviews, objectives and plans (counts and latest changes, so an edit
+ * made on another device shows here too). A running session asks every two minutes ("session").
+ */
+export async function developmentFreshness(db: Db, playerId: string, { now = new Date() }: { now?: Date } = {}): Promise<{ freshness: Freshness; sessionActive: boolean }> {
+  const [player, result] = await Promise.all([
+    playerFreshness(db, playerId, { now }),
+    db.execute(sql`
+      SELECT
+        (SELECT json_build_array(count(*), max(updated_at), count(*) FILTER (WHERE status = 'active')) FROM ranked_blocks WHERE player_id = ${playerId}) AS sessions,
+        (SELECT json_build_array(count(*), max(updated_at)) FROM ranked_games WHERE player_id = ${playerId}) AS games,
+        (SELECT json_build_array(count(*), max(updated_at)) FROM development_objectives WHERE player_id = ${playerId}) AS objectives,
+        (SELECT json_build_array(count(*), max(updated_at)) FROM development_plans WHERE player_id = ${playerId}) AS plans`),
+  ]);
+  const [row] = rowsOf<{ sessions: [number, string | null, number] | null; games: unknown; objectives: unknown; plans: unknown }>(result);
+  const sessionActive = Number(row?.sessions?.[2] ?? 0) > 0;
+  const pace: FreshnessPace = player.pace === "now" ? "now" : sessionActive ? "session" : player.pace;
+  return { freshness: { v: digest([player.v, row?.sessions ?? null, row?.games ?? null, row?.objectives ?? null, row?.plans ?? null]), pace }, sessionActive };
+}
+
 /** The team's pages (Team Overview, Players, Leaderboards, Matches): the roster and its cards, pools and pictures, the current lineup, members' ranks and games, team matches and bookmarks. */
 export async function teamFreshness(db: Db): Promise<Freshness> {
   const [row] = rowsOf<Record<string, unknown>>(
@@ -121,6 +142,7 @@ export async function jobsFreshness(db: Db, now: Date = new Date()): Promise<Fre
   return { v: digest([row?.last_run ?? null, time(row?.finished), time(row?.status)]), pace: running ? "now" : "idle" };
 }
 
-export function freshness(db: Db, scope: FreshnessScope): Promise<Freshness> {
+export async function freshness(db: Db, scope: FreshnessScope): Promise<Freshness> {
+  if (scope.kind === "development") return (await developmentFreshness(db, scope.playerId)).freshness;
   return scope.kind === "player" ? playerFreshness(db, scope.playerId) : scope.kind === "team" ? teamFreshness(db) : jobsFreshness(db);
 }

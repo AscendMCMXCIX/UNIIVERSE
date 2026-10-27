@@ -37,13 +37,13 @@ export async function kickoffAccountSync(db: Db, playerId: string, options: { ma
  * (components/ui/freshness-watcher.tsx), and each render may start the next slice, so a new account
  * fills in while it is being watched and nobody needs a Retry button. A two-minute lease per player keeps slices from overlapping.
  */
-export async function refreshPlayerAccountsIfDue(db: Db, playerId: string, options: { deadlineMs?: number; maxMatchesPerRun?: number } = {}): Promise<number> {
+export async function refreshPlayerAccountsIfDue(db: Db, playerId: string, options: { deadlineMs?: number; maxMatchesPerRun?: number; refreshAfterMs?: number } = {}): Promise<number> {
   if (!backgroundRefreshEnabled()) return 0;
   const client = createRiotClient();
   if (!client) return 0;
   try {
     const now = new Date();
-    const due = (await listAccountsForPlayer(db, playerId)).filter((a) => dueForViewRefresh({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, history: a.historyBackfill }, now));
+    const due = (await listAccountsForPlayer(db, playerId)).filter((a) => dueForViewRefresh({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, history: a.historyBackfill }, now, options.refreshAfterMs));
     if (due.length === 0 || !(await claimLease(db, `account_refresh:${playerId}`, 2 * 60_000, now))) return 0;
     const startedAt = Date.now();
     const deadline = options.deadlineMs ?? 40_000;
