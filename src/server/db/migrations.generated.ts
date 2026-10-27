@@ -812,5 +812,53 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
     "statements": [
       "CREATE INDEX \"match_details_puuids_idx\" ON \"match_details\" USING gin ((jsonb_path_query_array(\"participants\", '$[*].puuid'))) WITH (fastupdate=false);"
     ]
+  },
+  {
+    "idx": 59,
+    "tag": "0059_ranked_development",
+    "hash": "d91bd2bfc2105d2f44d52978f427f783eb2cb6aeb0cb8628e2b0da790dbbe8b3",
+    "statements": [
+      "-- Ranked Development (docs/RANKED_DEVELOPMENT.md): Solo Queue Blocks become sessions, with a\n-- weakness library (development_objectives), versioned If–Then plans (development_plans), and a\n-- short review on each session game. Additive and data-preserving: two new tables, new nullable or\n-- defaulted columns on ranked_blocks and ranked_games, and a backfill that keeps every block, game,\n-- note and mistake as it was:\n--   - games keep their main mistake and notes; a game with either counts as reviewed, and its\n--     mistake is also read into the shared areas (went_wrong) through the same mapping as\n--     domain/development/categories LEGACY_MISTAKE_CATEGORY;\n--   - a player's ranked focus sentence becomes their primary objective (status Practising), with\n--     the champions they chose for it; ranked_profiles itself is left untouched;\n--   - a block still in progress follows that objective and counts as active now, so it has the\n--     full idle period (twelve hours) before it ends by itself.\n-- The new tables get Row Level Security, no Data API grants and the backup role's SELECT\n-- (docs/DATABASE_PERMISSIONS.md). Rollback: drop the two tables and the added columns; no\n-- earlier value is changed except the new columns' backfill.\nCREATE TABLE \"development_objectives\" (\n\t\"id\" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,\n\t\"player_id\" uuid NOT NULL,\n\t\"title\" text NOT NULL,\n\t\"detail\" text DEFAULT '' NOT NULL,\n\t\"category\" text NOT NULL,\n\t\"custom_category\" text,\n\t\"role\" \"role\",\n\t\"champion_ids\" jsonb DEFAULT '[]'::jsonb NOT NULL,\n\t\"status\" text DEFAULT 'identified' NOT NULL,\n\t\"is_primary\" boolean DEFAULT false NOT NULL,\n\t\"measure\" text,\n\t\"plan_id\" uuid,\n\t\"identified_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\t\"status_changed_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\t\"source\" text DEFAULT 'player' NOT NULL,\n\t\"created_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\t\"updated_at\" timestamp with time zone DEFAULT now() NOT NULL\n);",
+      "CREATE TABLE \"development_plans\" (\n\t\"id\" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,\n\t\"player_id\" uuid NOT NULL,\n\t\"objective_id\" uuid,\n\t\"if_text\" text NOT NULL,\n\t\"then_text\" text NOT NULL,\n\t\"template_key\" text,\n\t\"retired_at\" timestamp with time zone,\n\t\"created_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\t\"updated_at\" timestamp with time zone DEFAULT now() NOT NULL\n);",
+      "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"objective_id\" uuid;",
+      "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"plan_id\" uuid;",
+      "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"account_id\" uuid;",
+      "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"last_activity_at\" timestamp with time zone;",
+      "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"start_rank\" jsonb;",
+      "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"closing_note\" text DEFAULT '' NOT NULL;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"source\" text DEFAULT 'manual' NOT NULL;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"objective_id\" uuid;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"review_status\" text DEFAULT 'none' NOT NULL;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"execution\" smallint;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"went_well\" text;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"went_wrong\" text;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"learning\" text DEFAULT '' NOT NULL;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"adjustment\" text DEFAULT '' NOT NULL;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"reviewed_at\" timestamp with time zone;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"needs_confirmation\" boolean DEFAULT false NOT NULL;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"alternative_block_id\" uuid;",
+      "ALTER TABLE \"development_objectives\" ADD CONSTRAINT \"development_objectives_player_id_players_id_fk\" FOREIGN KEY (\"player_id\") REFERENCES \"public\".\"players\"(\"id\") ON DELETE cascade ON UPDATE no action;",
+      "ALTER TABLE \"development_objectives\" ADD CONSTRAINT \"development_objectives_plan_id_development_plans_id_fk\" FOREIGN KEY (\"plan_id\") REFERENCES \"public\".\"development_plans\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "ALTER TABLE \"development_plans\" ADD CONSTRAINT \"development_plans_player_id_players_id_fk\" FOREIGN KEY (\"player_id\") REFERENCES \"public\".\"players\"(\"id\") ON DELETE cascade ON UPDATE no action;",
+      "ALTER TABLE \"development_plans\" ADD CONSTRAINT \"development_plans_objective_id_development_objectives_id_fk\" FOREIGN KEY (\"objective_id\") REFERENCES \"public\".\"development_objectives\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "CREATE INDEX \"development_objectives_player_idx\" ON \"development_objectives\" USING btree (\"player_id\",\"status\");",
+      "CREATE UNIQUE INDEX \"development_objectives_one_primary_idx\" ON \"development_objectives\" USING btree (\"player_id\") WHERE \"development_objectives\".\"is_primary\";",
+      "CREATE INDEX \"development_plans_player_idx\" ON \"development_plans\" USING btree (\"player_id\",\"objective_id\");",
+      "ALTER TABLE \"ranked_blocks\" ADD CONSTRAINT \"ranked_blocks_objective_id_development_objectives_id_fk\" FOREIGN KEY (\"objective_id\") REFERENCES \"public\".\"development_objectives\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "ALTER TABLE \"ranked_blocks\" ADD CONSTRAINT \"ranked_blocks_plan_id_development_plans_id_fk\" FOREIGN KEY (\"plan_id\") REFERENCES \"public\".\"development_plans\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "ALTER TABLE \"ranked_blocks\" ADD CONSTRAINT \"ranked_blocks_account_id_riot_accounts_id_fk\" FOREIGN KEY (\"account_id\") REFERENCES \"public\".\"riot_accounts\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "ALTER TABLE \"ranked_games\" ADD CONSTRAINT \"ranked_games_objective_id_development_objectives_id_fk\" FOREIGN KEY (\"objective_id\") REFERENCES \"public\".\"development_objectives\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "ALTER TABLE \"ranked_games\" ADD CONSTRAINT \"ranked_games_alternative_block_id_ranked_blocks_id_fk\" FOREIGN KEY (\"alternative_block_id\") REFERENCES \"public\".\"ranked_blocks\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "CREATE INDEX \"ranked_games_objective_idx\" ON \"ranked_games\" USING btree (\"player_id\",\"objective_id\");",
+      "UPDATE \"ranked_games\" SET \"source\" = 'import' WHERE \"riot_match_id\" IS NOT NULL;",
+      "UPDATE \"ranked_games\" SET \"review_status\" = 'done', \"reviewed_at\" = \"updated_at\" WHERE \"main_mistake\" IS NOT NULL OR \"notes\" <> '';",
+      "UPDATE \"ranked_games\" SET \"went_wrong\" = CASE \"main_mistake\"\n  WHEN 'mechanics' THEN 'mechanics'\n  WHEN 'trading-laning' THEN 'trading'\n  WHEN 'wave-tempo' THEN 'wave-management'\n  WHEN 'vision-awareness' THEN 'vision'\n  WHEN 'macro-objectives' THEN 'objective-setup'\n  WHEN 'positioning-teamfight' THEN 'teamfighting'\n  WHEN 'decision-making' THEN 'decision-making'\n  WHEN 'mental' THEN 'mental'\n  WHEN 'other' THEN 'other'\nEND WHERE \"main_mistake\" IS NOT NULL;",
+      "INSERT INTO \"development_objectives\" (\"player_id\", \"title\", \"category\", \"status\", \"is_primary\", \"champion_ids\", \"source\", \"identified_at\", \"status_changed_at\")\nSELECT p.\"player_id\", left(btrim(regexp_replace(p.\"focus\", '\\s+', ' ', 'g')), 120), 'other', 'practising', true,\n  coalesce((SELECT jsonb_agg(v.c ORDER BY v.o) FROM (VALUES (1, p.\"champion_1\"), (2, p.\"champion_2\"), (3, p.\"champion_3\")) AS v(o, c) WHERE v.c IS NOT NULL AND v.c <> ''), '[]'::jsonb),\n  'blocks-focus', p.\"created_at\", now()\nFROM \"ranked_profiles\" p WHERE btrim(p.\"focus\") <> '';",
+      "UPDATE \"ranked_blocks\" b SET \"objective_id\" = o.\"id\" FROM \"development_objectives\" o WHERE o.\"player_id\" = b.\"player_id\" AND o.\"source\" = 'blocks-focus' AND b.\"status\" = 'active';",
+      "UPDATE \"ranked_blocks\" SET \"last_activity_at\" = now() WHERE \"status\" = 'active';",
+      "ALTER TABLE \"development_objectives\" ENABLE ROW LEVEL SECURITY;",
+      "ALTER TABLE \"development_plans\" ENABLE ROW LEVEL SECURITY;",
+      "-- Closed to Supabase's Data API whatever the project's default privileges, and readable by the\n-- backup role where it exists (docs/DATABASE_PERMISSIONS.md).\nDO $$ BEGIN\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN\n    REVOKE ALL ON TABLE public.development_objectives FROM anon;\n    REVOKE ALL ON TABLE public.development_plans FROM anon;\n  END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN\n    REVOKE ALL ON TABLE public.development_objectives FROM authenticated;\n    REVOKE ALL ON TABLE public.development_plans FROM authenticated;\n  END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'uniiverse_backup') THEN\n    GRANT SELECT ON TABLE public.development_objectives TO uniiverse_backup;\n    GRANT SELECT ON TABLE public.development_plans TO uniiverse_backup;\n  END IF;\nEND $$;"
+    ]
   }
 ];

@@ -262,6 +262,11 @@ export interface MatchTimelineParticipant {
   purchases: Array<[number, number]>;
   /** Skill slots levelled, in order (1 = Q, 2 = W, 3 = E, 4 = R). */
   skills: number[];
+  /**
+   * When the player died (ms into the game), from the timeline's kill events. Absent on timelines
+   * stored before Ranked Development kept it: unknown there, never zero.
+   */
+  deaths?: number[];
 }
 
 export interface MatchTeamDetail {

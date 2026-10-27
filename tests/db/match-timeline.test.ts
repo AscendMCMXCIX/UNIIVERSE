@@ -39,6 +39,10 @@ function timeline(matchId: string, puuids: string[]): RiotMatchTimeline {
             ev("SKILL_LEVEL_UP", 130_000, 1, { skillSlot: 3, levelUpType: "NORMAL" }),
             ev("SKILL_LEVEL_UP", 200_000, 1, { skillSlot: 2, levelUpType: "NORMAL" }),
             ev("SKILL_LEVEL_UP", 300_000, 1, { skillSlot: 1, levelUpType: "EVOLVE" }),
+            // Kill events name the victim (and killer), not a participantId.
+            { type: "CHAMPION_KILL", timestamp: 520_000, victimId: 2 },
+            { type: "CHAMPION_KILL", timestamp: 910_000, victimId: 1 },
+            { type: "CHAMPION_KILL", timestamp: 480_000, victimId: 2 },
           ],
         },
       ],
@@ -47,10 +51,10 @@ function timeline(matchId: string, puuids: string[]): RiotMatchTimeline {
 }
 
 describe("reading a timeline", () => {
-  it("keeps purchases in order, removes undone ones, and records skill level-ups (not evolutions)", () => {
+  it("keeps purchases in order, removes undone ones, and records skill level-ups (not evolutions) and death times", () => {
     const [me, other] = timelineParticipants(timeline("OC1_T", ["p1", "p2"]));
-    expect(me).toEqual({ puuid: "p1", purchases: [[2_000, 1055], [2_500, 2003], [2_600, 2003], [402_000, 1036]], skills: [1, 3, 2] });
-    expect(other).toEqual({ puuid: "p2", purchases: [[3_000, 1056]], skills: [] });
+    expect(me).toEqual({ puuid: "p1", purchases: [[2_000, 1055], [2_500, 2003], [2_600, 2003], [402_000, 1036]], skills: [1, 3, 2], deaths: [910_000] });
+    expect(other).toEqual({ puuid: "p2", purchases: [[3_000, 1056]], skills: [], deaths: [480_000, 520_000] });
   });
 
   it("falls back to the metadata order when the timeline lists no participants", () => {

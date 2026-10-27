@@ -11,6 +11,7 @@ export * from "./opponents";
 export * from "./accounts";
 export * from "./series";
 export * from "./matches";
+export * from "./development";
 export * from "./ranked-improvement";
 export * from "./clash";
 export * from "./privacy";
