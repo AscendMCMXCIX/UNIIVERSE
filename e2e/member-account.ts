@@ -82,12 +82,15 @@ export async function memberContext(browser: Browser, admin: Page, viewport = { 
 /**
  * Signs in on /login. Locally a browser without a session is the automatic local owner, who is
  * sent past /login: the guest cookie makes it a visitor first (one account per browser).
+ * With `next`, a successful sign-in opens that page instead of the account's start page: going
+ * there with page.goto while the start page is still on its way cuts that navigation short, and
+ * the app then loads the start page again over the goto (seen in WebKit).
  */
-export async function signIn(page: Page, username: string, password: string) {
+export async function signIn(page: Page, username: string, password: string, next?: string) {
   await keepSessionInWebKit(page.context());
   if (!page.url().startsWith("http")) await page.goto("/public");
   await page.context().addCookies([{ name: "uniiverse_guest", value: "1", url: page.url().split("/").slice(0, 3).join("/") }]);
-  await page.goto("/login");
+  await page.goto(next ? `/login?next=${encodeURIComponent(next)}` : "/login");
   const form = page.getByTestId("login-form");
   await form.getByLabel("Username").fill(username);
   await form.getByLabel("Password").fill(password);

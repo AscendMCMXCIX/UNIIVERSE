@@ -456,8 +456,7 @@ test("Ranked Development on an iPhone: an objective, a session, a game's review 
   const context = await browser.newContext({ ...iphone, ...webkitMemberOptions(browser) });
   try {
     const p = await context.newPage();
-    await signIn(p, member.username, "Mine#2026-team");
-    await expect(p).not.toHaveURL(/\/login/);
+    await signIn(p, member.username, "Mine#2026-team", "/overview/development");
     const { width, height } = p.viewportSize()!;
     // A window slides in when it opens: its edges are measured once it has settled.
     const inside = async (target: Locator, label: string) => {
@@ -470,9 +469,9 @@ test("Ranked Development on an iPhone: an objective, a session, a game's review 
     const fontSize = (target: Locator) => target.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
 
     // Before you queue: the objective window, its fields large enough that Safari does not zoom.
-    await p.goto("/overview/development");
-    // Still signed in (a lost session would land on the sign-in page instead).
+    // Signed in straight onto Ranked Development (a lost session would stay on the sign-in page).
     await expect(p).toHaveURL(/\/overview\/development$/);
+    await expect(p.getByTestId("before-queue")).toBeVisible();
     await fitsWidth(p, "Ranked Development");
     const editor = p.getByRole("dialog", { name: "New objective" });
     // A tap before the page is interactive does nothing: tap until the window opens.

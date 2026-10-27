@@ -97,9 +97,8 @@ test("an objective, a session on two devices, a reviewed and a skipped game, the
     const otherDevice = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
     try {
       const phone = await otherDevice.newPage();
-      await signIn(phone, member.username, PASSWORD);
-      await expect(phone).not.toHaveURL(/\/login/);
-      await phone.goto("/overview/development");
+      await signIn(phone, member.username, PASSWORD, "/overview/development");
+      await expect(phone).toHaveURL(/\/overview\/development$/);
       await expect(phone.getByTestId("before-queue")).toHaveAttribute("data-state", "active");
       await phone.getByTestId("session-continue").click();
       await expect(phone).toHaveURL(/\/overview\/development\/sessions$/);
