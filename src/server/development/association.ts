@@ -10,8 +10,9 @@ import { isRole } from "@/domain/roles";
   sessions end). Called after every sync that stored games for the player, and when their Ranked
   Development pages are read, so a game is never missed whichever path stored it. It reads only
   stored rows, never Riot, and is idempotent: a game already in a session is never added again
-  (one row per player and Riot match), and a game typed in by hand for the same session is linked
-  to the synced match instead of being added a second time.
+  (one row per player and Riot match), a game typed in by hand for the same session is linked to
+  the synced match instead of being added a second time, and a game the player removed from a
+  session stays out.
 */
 
 const DAY = 86_400_000;
@@ -57,6 +58,8 @@ export async function associateSessionGames(db: Db, ownerPlayerId: string, now: 
             isNotNull(accountMatches.win),
             gte(accountMatches.gameCreation, from),
             sql`NOT EXISTS (SELECT 1 FROM ranked_games g WHERE g.player_id = ${ownerPlayerId} AND g.riot_match_id = ${accountMatches.matchId})`,
+            // A synced game the player removed from a session never joins one by itself again.
+            sql`NOT EXISTS (SELECT 1 FROM ranked_blocks b WHERE b.player_id = ${ownerPlayerId} AND b.dismissed_match_ids @> jsonb_build_array(${accountMatches.matchId}))`,
           ),
         )
         .orderBy(accountMatches.gameCreation, accountMatches.accountId)

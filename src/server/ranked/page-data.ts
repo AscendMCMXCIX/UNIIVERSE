@@ -22,6 +22,7 @@ export async function loadJournalLookups(db: Db, teamId: string, ownerPlayerId: 
     accounts: accounts.map((a) => ({ id: a.id, riotId: a.riotId })),
     // Read fresh on every visit: a changed Primary Role or pool shows at once (saved blocks keep theirs).
     mainPool: { roleLabel: owner?.primaryRole ? ROLE_LABELS[owner.primaryRole] : null, ids: owner?.primaryPool ?? [] },
+    primaryRole: owner?.primaryRole ?? null,
     accountState: accounts.length === 0 ? "none" : accounts.some((a) => a.syncStatus === "ok") ? "synced" : "pending",
   };
 }

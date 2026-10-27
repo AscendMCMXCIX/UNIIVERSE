@@ -70,10 +70,10 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
     kept: "Until you clear them; removed when your account is deleted",
   },
   {
-    what: "Solo Queue Blocks: your goals, notes and logged games",
-    why: "Your own practice journal",
-    who: "Only you",
-    kept: "Until you delete them, or the profile is deleted or your personal information removed",
+    what: "Ranked Development: your objectives, If–Then plans, sessions, game reviews and notes (and the Solo Queue Blocks journal they grew from)",
+    why: "Your own practice: what you work on, and how your Solo/Duo games went against it",
+    who: "Only you: never shown on your profile to others or used in team statistics",
+    kept: "Until you delete them, or the profile is deleted or your personal information removed. Deleting a session or review never deletes your Riot match history",
   },
   {
     what: "Admin activity: which account or setting an administrator changed, and when, with names as they were then",
@@ -238,7 +238,7 @@ export default async function PrivacyPage() {
           <p className="mt-2 text-sm text-fg-muted">Previously created encrypted backups may temporarily retain information after deletion. Backup retention, offline copies and restoration procedures are managed to prevent previously erased information from being inadvertently restored.</p>
           <h3 className="mt-4 text-sm font-semibold text-fg">What a removal covers</h3>
           <ul className={LIST}>
-            <li>The account and its sign-in sessions; the profile with its roles, champion pools, card design, picture and social links; Solo Queue Blocks; and every linked Riot account with its Riot IDs, PUUIDs, ranks, champion mastery and statistics.</li>
+            <li>The account and its sign-in sessions; the profile with its roles, champion pools, card design, picture and social links; Ranked Development (objectives, plans, sessions and reviews); and every linked Riot account with its Riot IDs, PUUIDs, ranks, champion mastery and statistics.</li>
             <li>Games: a stored game that no other member&apos;s history or team record uses is deleted. In any other, the person&apos;s place becomes &ldquo;Removed player&rdquo;: only the side they played on and the result stay, never their name, Riot ID, champion, items or figures, and their part of the game&apos;s timeline is deleted.</li>
             <li>Team records, Clash scouts and notes: their name is replaced (&ldquo;Former member&rdquo; in drafts and match records, &ldquo;[removed]&rdquo; in notes), and their entries in Clash scouts are emptied.</li>
             <li>Logs: their name becomes &ldquo;Erased member&rdquo; in the admin activity log, and their Riot IDs are taken out of the background job records.</li>

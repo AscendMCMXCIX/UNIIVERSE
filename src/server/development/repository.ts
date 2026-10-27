@@ -5,7 +5,7 @@ import { cleanObjective, isObjectiveStatus, type ObjectiveInput, type ObjectiveS
 import { cleanPlan, templateByKey } from "@/domain/development/plans";
 import { cleanReview, type ReviewInput } from "@/domain/development/reviews";
 import { isMeasure, type MeasureKey } from "@/domain/development/measures";
-import { isRole, type Role } from "@/domain/roles";
+import type { Role } from "@/domain/roles";
 import { applyCompletionRule } from "@/server/ranked/repository";
 
 /*
@@ -321,11 +321,11 @@ export async function saveSessionNote(db: Db, ownerPlayerId: string, sessionId: 
   if (!updated.length) throw new DevelopmentError("Session not found.");
 }
 
-/** The roles a player's objectives may name, for forms. */
-export const objectiveRole = (role: unknown): Role | null => (isRole(role) ? role : null);
-
-/** Ids of the owner's sessions that still hold games waiting for a confirmation, for the overview. */
-export async function sessionsNeedingConfirmation(db: Db, ownerPlayerId: string): Promise<number> {
-  const [row] = await db.select({ n: sql<number>`count(*)` }).from(rankedGames).where(and(eq(rankedGames.playerId, ownerPlayerId), eq(rankedGames.needsConfirmation, true), isNotNull(rankedGames.alternativeBlockId)));
-  return Number(row?.n ?? 0);
+/** How many of the owner's games wait for the player to say which session they belong to, and the first such session. */
+export async function sessionsNeedingConfirmation(db: Db, ownerPlayerId: string): Promise<{ games: number; sessionId: string | null }> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)`, first: sql<string | null>`(array_agg(${rankedGames.blockId} ORDER BY ${rankedGames.playedAt}))[1]` })
+    .from(rankedGames)
+    .where(and(eq(rankedGames.playerId, ownerPlayerId), eq(rankedGames.needsConfirmation, true), isNotNull(rankedGames.alternativeBlockId)));
+  return { games: Number(row?.n ?? 0), sessionId: row?.first ?? null };
 }

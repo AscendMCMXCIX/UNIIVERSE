@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronRight, NotebookPen, UserX } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, Target, UserX } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { getMatchBuildAction, getMatchDetailAction, getMatchGroupsAction, getMatchRanksAction } from "@/server/actions/match-history";
 import type { MatchGroupsResult, MatchGroupsTeam, MatchGroupView } from "@/server/matches/possible-groups";
@@ -751,8 +751,9 @@ function ParticipantRow({ x, champ, maxDamage, group, rank, queueId, checking }:
 }
 
 /**
- * Adds this Ranked Solo/Duo game to Solo Queue Blocks through the journal's own import (never
- * twice). With no block in progress, the game simply starts one (0 Games → 1 Game).
+ * Adds this Ranked Solo/Duo game to the Ranked Development session in progress through the
+ * journal's own import (never twice). With no session in progress, the game starts one. Games
+ * played during a session join it by themselves; this is for one that was played outside one.
  */
 function JournalButton({ matchId, inJournal }: { matchId: string; inJournal: boolean }) {
   const router = useRouter();
@@ -761,7 +762,7 @@ function JournalButton({ matchId, inJournal }: { matchId: string; inJournal: boo
   if (done)
     return (
       <p className="inline-flex items-center gap-1.5 rounded-lg bg-good/10 px-3 py-2 text-sm text-good" data-testid="journal-added">
-        <Check className="h-4 w-4" aria-hidden /> In your Solo Queue Blocks
+        <Check className="h-4 w-4" aria-hidden /> In your Ranked Development sessions
       </p>
     );
   const add = async () => {
@@ -773,13 +774,13 @@ function JournalButton({ matchId, inJournal }: { matchId: string; inJournal: boo
       return void toast.error("Not added", { description: r.error });
     }
     setDone(true);
-    toast.success(`Added to ${r.data.block.label}.`, { description: "Add the main mistake and a note in Solo Queue Blocks." });
+    toast.success(`Added to ${r.data.block.label}.`, { description: "Review it in Ranked Development → Sessions." });
     router.refresh();
   };
   return (
     <div className="flex flex-wrap items-end gap-2" data-testid="journal-add">
       <Button variant="outline" disabled={busy} onClick={() => void add()} data-testid="journal-add-button">
-        <NotebookPen className="h-4 w-4" /> {busy ? "Adding…" : "Add to Solo Queue Block"}
+        <Target className="h-4 w-4" /> {busy ? "Adding…" : "Add to a Ranked Development session"}
       </Button>
     </div>
   );

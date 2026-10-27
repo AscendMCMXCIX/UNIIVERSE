@@ -22,7 +22,7 @@ export interface Session {
   localDev?: boolean;
   /**
    * Member of the competitive team (players.team_member). False = personal use only: their own
-   * profile, statistics and Solo Queue Blocks, but nothing of the team workspace.
+   * profile, statistics and Ranked Development, but nothing of the team workspace.
    * Undefined (no player profile, or a session from before Phase 10) counts as a member.
    */
   teamMember?: boolean;
@@ -124,7 +124,7 @@ export function effectiveCapabilities(input: { owner: boolean; base: readonly Ca
 }
 
 /** Always available to every signed-in account, whatever its level (enforced by ownership checks, not capabilities). */
-export const ALWAYS_AVAILABLE = ["Their own profile: Overview, All Champions, Match History", "Their private Solo Queue Blocks", "Their own Settings: username, picture, password"] as const;
+export const ALWAYS_AVAILABLE = ["Their own profile: Overview, All Champions, Match History", "Their private Ranked Development", "Their own Settings: username, picture, password"] as const;
 
 /** Keeps only known capability keys (stored JSON may be stale or hand-edited). */
 export function sanitiseCapabilities(value: unknown): Capability[] {

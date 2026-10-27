@@ -63,6 +63,11 @@ export interface GameFormProps {
   initial?: Partial<GameFormValues>;
   /** An imported game keeps its Riot facts; the form still lets you add the reflection. */
   synced?: boolean;
+  /**
+   * The journal's older reflection fields (main mistake, notes). Ranked Development asks for a review
+   * instead, so they show only for a game that already has them.
+   */
+  reflection?: boolean;
   submitLabel: string;
   onSubmit: (values: GameFormValues) => Promise<string | null>;
   onCancel?: () => void;
@@ -70,10 +75,10 @@ export interface GameFormProps {
 }
 
 /**
- * The thirty-second entry: champion, enemy laner, result, main mistake. Everything else is
- * optional and sits below. Phone-first: big touch targets, one column, no modal.
+ * The thirty-second entry: champion, enemy laner, result. Everything else is optional and sits
+ * below. Phone-first: big touch targets, one column.
  */
-export function GameForm({ lookups, initial, synced = false, submitLabel, onSubmit, onCancel, autoFocus = false }: GameFormProps) {
+export function GameForm({ lookups, initial, synced = false, reflection = true, submitLabel, onSubmit, onCancel, autoFocus = false }: GameFormProps) {
   const defaultAccount = lookups.accounts[0]?.id ?? "";
   const [values, setValues] = React.useState<GameFormValues>({ ...EMPTY_GAME, accountId: defaultAccount, ...initial });
   const [busy, setBusy] = React.useState(false);
@@ -138,17 +143,19 @@ export function GameForm({ lookups, initial, synced = false, submitLabel, onSubm
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <Label htmlFor={`${uid}-mistake`}>Main mistake</Label>
-          <Select id={`${uid}-mistake`} value={values.mainMistake} onChange={(e) => set("mainMistake", e.target.value)} autoFocus={autoFocus}>
-            <option value="">Not sure yet</option>
-            {MAIN_MISTAKES.map((m) => (
-              <option key={m.key} value={m.key}>
-                {m.label}
-              </option>
-            ))}
-          </Select>
-        </div>
+        {reflection ? (
+          <div>
+            <Label htmlFor={`${uid}-mistake`}>Main mistake</Label>
+            <Select id={`${uid}-mistake`} value={values.mainMistake} onChange={(e) => set("mainMistake", e.target.value)} autoFocus={autoFocus}>
+              <option value="">Not sure yet</option>
+              {MAIN_MISTAKES.map((m) => (
+                <option key={m.key} value={m.key}>
+                  {m.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+        ) : null}
         <div>
           <Label htmlFor={`${uid}-teammate`}>Played with teammate</Label>
           <Select id={`${uid}-teammate`} value={values.teammatePlayerId} onChange={(e) => set("teammatePlayerId", e.target.value)}>
@@ -162,10 +169,12 @@ export function GameForm({ lookups, initial, synced = false, submitLabel, onSubm
         </div>
       </div>
 
-      <div>
-        <Label htmlFor={`${uid}-notes`}>Notes</Label>
-        <Textarea id={`${uid}-notes`} value={values.notes} onChange={(e) => set("notes", e.target.value)} rows={2} maxLength={1000} placeholder="One or two lines: what happened, what to do next time." />
-      </div>
+      {reflection ? (
+        <div>
+          <Label htmlFor={`${uid}-notes`}>Notes</Label>
+          <Textarea id={`${uid}-notes`} value={values.notes} onChange={(e) => set("notes", e.target.value)} rows={2} maxLength={1000} placeholder="One or two lines: what happened, what to do next time." />
+        </div>
+      ) : null}
 
       <button type="button" onClick={() => setMore((v) => !v)} className="inline-flex min-h-11 items-center text-xs text-fg-muted underline-offset-2 hover:text-fg hover:underline md:min-h-0" aria-expanded={more}>
         {more ? "Hide optional details" : "More details (link, date, role, account)"}

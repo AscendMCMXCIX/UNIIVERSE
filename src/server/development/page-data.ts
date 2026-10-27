@@ -3,12 +3,14 @@ import type { Db } from "@/server/db/types";
 import { developmentObjectives, developmentPlans, rankedBlocks, rankedGames } from "@/server/db/schema";
 import { isActiveStatus, needsRevisit, suggestStatus, type StatusSuggestion } from "@/domain/development/objectives";
 import { PATTERN_WINDOW_DAYS, reviewPatterns, type ExecutionTrend, type ReviewPatterns } from "@/domain/development/reviews";
-import { LATE_GAME_DAYS, summariseSession, type SessionSummary } from "@/domain/development/sessions";
+import { LATE_GAME_DAYS, summariseSession, type SessionLp, type SessionSummary } from "@/domain/development/sessions";
+import type { GameFigures } from "@/domain/development/measures";
 import { getActiveBlock, getBlock, listBlocks, toGame, type RankedBlockView, type RankedGameView } from "@/server/ranked/repository";
+import { blockLabel } from "@/domain/ranked-improvement";
 import { associateQuietly } from "./association";
 import { gameFigures, objectiveEvidence, objectiveExecution, type ObjectiveEvidence } from "./evidence";
 import { listObjectives, listPlanHistory, sessionsNeedingConfirmation, type ObjectiveView, type PlanHistoryItem, type PlanView } from "./repository";
-import { sessionLpChange, type SessionLp } from "./ranks";
+import { sessionLpChange } from "./ranks";
 
 /*
   What Ranked Development's three areas read. Each page first lets newly synced games join their
@@ -17,8 +19,6 @@ import { sessionLpChange, type SessionLp } from "./ranks";
 */
 
 const DAY = 86_400_000;
-
-export type GameFigures = Awaited<ReturnType<typeof gameFigures>> extends Map<string, infer F> ? F : never;
 
 export interface SessionGame extends RankedGameView {
   /** The game's own figures from the synced match (null for a game typed in by hand). */
@@ -32,6 +32,8 @@ export interface SessionDetail {
   games: SessionGame[];
   summary: SessionSummary;
   lp: SessionLp;
+  /** Labels of the other sessions a game here also fits ("Session 4"), for the player's confirmation. */
+  alternatives: Record<string, string>;
 }
 
 async function planById(db: Db, ownerPlayerId: string, planId: string | null): Promise<PlanView | null> {
@@ -57,7 +59,9 @@ export async function loadSession(db: Db, ownerPlayerId: string, sessionId: stri
     objective?.category ?? null,
   );
   const lp = await sessionLpChange(db, { startedAt: block.startedAt, accountId: block.accountId, startRank: block.startRank }, games.map((g) => ({ accountId: g.accountId })));
-  return { session: block, objective, plan, games: games.map((g) => ({ ...g, figures: g.riotMatchId ? (figures.get(g.riotMatchId) ?? null) : null })), summary, lp };
+  const otherIds = [...new Set(games.filter((g) => g.needsConfirmation && g.alternativeBlockId).map((g) => g.alternativeBlockId!))];
+  const others = otherIds.length ? await db.select({ id: rankedBlocks.id, number: rankedBlocks.number }).from(rankedBlocks).where(and(eq(rankedBlocks.playerId, ownerPlayerId), inArray(rankedBlocks.id, otherIds))) : [];
+  return { session: block, objective, plan, games: games.map((g) => ({ ...g, figures: g.riotMatchId ? (figures.get(g.riotMatchId) ?? null) : null })), summary, lp, alternatives: Object.fromEntries(others.map((o) => [o.id, blockLabel(o.number)])) };
 }
 
 export interface PendingReview extends SessionGame {
@@ -133,6 +137,8 @@ async function progressOf(db: Db, ownerPlayerId: string, objective: ObjectiveVie
 
 export interface OverviewData {
   primary: ObjectiveProgress | null;
+  /** Every objective still being worked on (primary first): the choices a session can start with. */
+  library: ObjectiveView[];
   /** Other objectives still being worked on (learning priorities). */
   others: ObjectiveView[];
   active: SessionDetail | null;
@@ -140,7 +146,8 @@ export interface OverviewData {
   last: SessionDetail | null;
   pending: PendingReview[];
   reviews: ReviewedGame[];
-  confirmations: number;
+  /** Games that fit two sessions, waiting for the player's word (and the first session holding one). */
+  confirmations: { games: number; sessionId: string | null };
   /** Areas named again and again in recent reviews that no active objective covers. */
   uncovered: ReviewPatterns["hardest"];
 }
@@ -164,6 +171,7 @@ export async function loadOverview(db: Db, ownerPlayerId: string, now: Date = ne
   const covered = new Set(objectives.filter((o) => isActiveStatus(o.status)).map((o) => o.category));
   return {
     primary,
+    library: objectives.filter((o) => isActiveStatus(o.status)),
     others: objectives.filter((o) => !o.isPrimary && isActiveStatus(o.status)).slice(0, 3),
     active,
     last,
@@ -191,7 +199,7 @@ export interface SessionListItem extends RankedBlockView {
 }
 
 /** A page of sessions, newest first, each with its review counts and self-reported follow-through. */
-export async function listSessions(db: Db, ownerPlayerId: string, options: { limit: number; offset: number }): Promise<SessionListItem[]> {
+export async function listSessions(db: Db, ownerPlayerId: string, options: { limit: number; offset: number; status?: "active" | "completed" }): Promise<SessionListItem[]> {
   const blocks = await listBlocks(db, ownerPlayerId, options);
   if (blocks.length === 0) return [];
   const rows = await db

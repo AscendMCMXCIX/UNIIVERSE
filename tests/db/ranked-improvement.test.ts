@@ -90,7 +90,7 @@ describe("TESTS — BLOCKS", () => {
     for (let i = 1; i <= BLOCK_SIZE; i++) {
       const res = await addGame(db, carol, { championId: "Jinx", result: i % 2 ? "win" : "loss", mainMistake: "mechanics" });
       reached.push(res.targetReached);
-      expect(res.block.label).toBe("BLOCK 001");
+      expect(res.block.label).toBe("Session 1");
       expect(res.block.games).toBe(i);
       expect(res.block.status).toBe("active");
     }
@@ -104,7 +104,7 @@ describe("TESTS — BLOCKS", () => {
     expect(await getActiveBlock(db, carol)).toBeNull();
     // The next game starts BLOCK 002 (with the target chosen alongside it).
     const seventh = await addGame(db, carol, { championId: "Kaisa", result: "win" });
-    expect(seventh.block.label).toBe("BLOCK 002");
+    expect(seventh.block.label).toBe("Session 2");
     expect(seventh.block.status).toBe("active");
     expect(seventh.targetReached).toBe(false);
   });
@@ -112,14 +112,14 @@ describe("TESTS — BLOCKS", () => {
   it("allows finishing early, keeps the block's actual size and never has two active blocks", async () => {
     const db = handle.db;
     const active = await getActiveBlock(db, carol);
-    expect(active?.label).toBe("BLOCK 002");
+    expect(active?.label).toBe("Session 2");
     expect(await startBlock(db, carol)).toMatchObject({ id: active!.id, number: 2 });
     const finished = await finishBlock(db, carol, active!.id);
     expect(finished).toMatchObject({ number: 2, status: "completed", games: 1 });
     expect(await getActiveBlock(db, carol)).toBeNull();
     const next = await startBlock(db, carol, BLOCK_SIZE);
     expect(next).toMatchObject({ number: 3, status: "active", games: 0 });
-    expect(next.label).toBe("BLOCK 003");
+    expect(next.label).toBe("Session 3");
     // A session can end before a game is recorded: games played in it can still arrive from the sync.
     expect(await finishBlock(db, carol, next.id)).toMatchObject({ number: 3, status: "completed", games: 0 });
     expect(await startBlock(db, carol, BLOCK_SIZE)).toMatchObject({ number: 4, status: "active", games: 0 });
@@ -178,7 +178,7 @@ describe("TESTS — GAME IMPORT", () => {
     const { game, block } = await importMatch(db, bob, "OC1_1", { mainMistake: "positioning-teamfight", notes: "Flashed forward in the dragon fight", plannedGames: BLOCK_SIZE });
     expect(game).toMatchObject({ championId: "Jinx", enemyChampionId: "Caitlyn", result: "win", role: "ADC", accountId, riotMatchId: "OC1_1", mainMistake: "positioning-teamfight", notes: "Flashed forward in the dragon fight" });
     expect(game.playedAt.toISOString()).toBe("2026-10-10T11:00:00.000Z");
-    expect(block.label).toBe("BLOCK 001");
+    expect(block.label).toBe("Session 1");
     await expect(importMatch(db, bob, "OC1_1")).rejects.toThrow(/already in your journal/);
     expect((await listImportableMatches(db, bob)).map((m) => m.matchId)).toEqual(["OC1_2"]);
     // Manual entry carrying the same match id is also refused; a manual game without one is fine.

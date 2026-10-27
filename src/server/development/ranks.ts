@@ -2,6 +2,7 @@ import { and, asc, desc, eq, gt, lte } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { rankSnapshots, riotAccounts, type SessionStartRank } from "@/server/db/schema";
 import { ladderScore } from "@/domain/rank-progress";
+import type { SessionLp } from "@/domain/development/sessions";
 
 /*
   A session's LP change, from the Solo/Duo rank snapshots the account sync already stores (no Riot
@@ -30,17 +31,7 @@ export async function sessionStartRank(db: Db, ownerPlayerId: string, accountId:
   return { accountId: id, tier: snap.tier, division: snap.division, leaguePoints: snap.leaguePoints, wins: snap.wins, losses: snap.losses, at: snap.capturedAt.toISOString() };
 }
 
-export type SessionLp =
-  | { state: "known"; accountId: string; from: { tier: string; division: string | null; leaguePoints: number | null }; to: { tier: string; division: string | null; leaguePoints: number | null }; change: number }
-  | { state: "unknown"; reason: "no-games" | "several-accounts" | "no-rank" | "not-read-yet" | "other-games" };
-
-export const LP_REASON_TEXT: Record<Extract<SessionLp, { state: "unknown" }>["reason"], string> = {
-  "no-games": "No games yet.",
-  "several-accounts": "Played on more than one account: LP is per account.",
-  "no-rank": "No Solo/Duo rank was recorded for this account before the session.",
-  "not-read-yet": "The rank after the last game has not been read yet; it comes with the next account update.",
-  "other-games": "Other Solo/Duo games were played before the rank was read again, so the session's share is unknown.",
-};
+export type { SessionLp } from "@/domain/development/sessions";
 
 /** LP gained or lost over a session, or why it is not known. */
 export async function sessionLpChange(db: Db, session: { startedAt: Date; accountId: string | null; startRank: SessionStartRank | null }, games: ReadonlyArray<{ accountId: string | null }>): Promise<SessionLp> {

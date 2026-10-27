@@ -2,7 +2,7 @@ import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountMatches, rankedBlocks, rankedGames, riotAccounts } from "@/server/db/schema";
 import { compareMeasure, describeEvidence, MAX_GAMES, type EvidenceResult, type EvidenceText } from "@/domain/development/evidence";
-import { CS_CHECKPOINT_MS, earlyDeathsOf, MEASURES, measureValue, MIN_MEASURED_GAME_SEC, type MeasuredGame, type MeasureKey } from "@/domain/development/measures";
+import { CS_CHECKPOINT_MS, earlyDeathsOf, MEASURES, measureValue, MIN_MEASURED_GAME_SEC, type GameFigures, type MeasuredGame, type MeasureKey } from "@/domain/development/measures";
 import { executionTrend, type ExecutionTrend } from "@/domain/development/reviews";
 import { SOLO_DUO_QUEUE } from "@/domain/development/sessions";
 import { valueAt } from "@/domain/matchups";
@@ -166,19 +166,31 @@ export async function objectiveExecution(db: Db, ownerPlayerId: string, objectiv
   return executionTrend(rows.map((r) => ({ execution: r.execution, reviewedAt: r.reviewedAt?.getTime() ?? 0 })));
 }
 
-/** The statistic for one session's games (the figures shown on each game in a session or review). */
-export async function gameFigures(db: Db, ownerPlayerId: string, matchIds: string[]): Promise<Map<string, { kills: number | null; deaths: number | null; assists: number | null; cs: number | null; durationSec: number | null; visionScore: number | null; csAt10: number | null; earlyDeaths: number | null }>> {
-  const out = new Map<string, { kills: number | null; deaths: number | null; assists: number | null; cs: number | null; durationSec: number | null; visionScore: number | null; csAt10: number | null; earlyDeaths: number | null }>();
+/** Each game's own figures (shown on a session's games and in a review), from the stored match rows of the owner's accounts. */
+export async function gameFigures(db: Db, ownerPlayerId: string, matchIds: string[]): Promise<Map<string, GameFigures>> {
+  const out = new Map<string, GameFigures>();
   if (matchIds.length === 0) return out;
   const rows = await db
-    .select({ matchId: accountMatches.matchId, accountId: accountMatches.accountId, gameCreation: accountMatches.gameCreation, gameDuration: accountMatches.gameDuration, role: accountMatches.role, championId: accountMatches.championId, win: accountMatches.win, kills: accountMatches.kills, deaths: accountMatches.deaths, assists: accountMatches.assists, cs: accountMatches.cs, visionScore: accountMatches.visionScore, teamKills: accountMatches.teamKills, controlWards: sql<number | null>`null`, puuid: riotAccounts.puuid })
+    .select({ matchId: accountMatches.matchId, accountId: accountMatches.accountId, gameCreation: accountMatches.gameCreation, gameDuration: accountMatches.gameDuration, role: accountMatches.role, championId: accountMatches.championId, win: accountMatches.win, kills: accountMatches.kills, deaths: accountMatches.deaths, assists: accountMatches.assists, cs: accountMatches.cs, visionScore: accountMatches.visionScore, teamKills: accountMatches.teamKills, controlWards: sql<number | null>`(${accountMatches.extraStats}->>'controlWardsBought')::int`, puuid: riotAccounts.puuid })
     .from(accountMatches)
     .innerJoin(riotAccounts, eq(riotAccounts.id, accountMatches.accountId))
     .where(and(eq(riotAccounts.playerId, ownerPlayerId), inArray(accountMatches.matchId, matchIds)));
   const timeline = await timelineFigures(db, rows);
   for (const r of rows) {
+    // A record Riot no longer serves has kills = -1: its figures are unknown, not zero.
     const known = r.kills !== null && r.kills >= 0;
-    out.set(r.matchId, { kills: known ? r.kills : null, deaths: known ? r.deaths : null, assists: known ? r.assists : null, cs: r.cs, durationSec: r.gameDuration, visionScore: r.visionScore, csAt10: timeline.get(r.matchId)?.csAt10 ?? null, earlyDeaths: timeline.get(r.matchId)?.earlyDeaths ?? null });
+    out.set(r.matchId, {
+      kills: known ? r.kills : null,
+      deaths: known ? r.deaths : null,
+      assists: known ? r.assists : null,
+      cs: known ? r.cs : null,
+      durationSec: r.gameDuration,
+      visionScore: known ? r.visionScore : null,
+      teamKills: known ? r.teamKills : null,
+      controlWards: r.controlWards === null || r.controlWards === undefined ? null : Number(r.controlWards),
+      csAt10: timeline.get(r.matchId)?.csAt10 ?? null,
+      earlyDeaths: timeline.get(r.matchId)?.earlyDeaths ?? null,
+    });
   }
   return out;
 }

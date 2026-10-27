@@ -86,6 +86,8 @@ export const rankedBlocks = pgTable(
     startRank: jsonb("start_rank").$type<SessionStartRank>(),
     /** The player's own closing note on the session. */
     closingNote: text("closing_note").notNull().default(""),
+    /** Synced matches the player removed from this session: they never join a session by themselves again. */
+    dismissedMatchIds: jsonb("dismissed_match_ids").$type<string[]>().notNull().default([]),
     ...timestamps,
   },
   (t) => [uniqueIndex("ranked_blocks_player_number_idx").on(t.playerId, t.number), index("ranked_blocks_player_status_idx").on(t.playerId, t.status)],

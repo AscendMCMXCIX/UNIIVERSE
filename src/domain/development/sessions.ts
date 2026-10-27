@@ -167,3 +167,33 @@ export function sessionSuggestions(s: SessionSummary, objectiveCategory: string 
   if (s.nextAdjustment) out.push(`Start the next session with your last adjustment: “${s.nextAdjustment}”`);
   return out;
 }
+
+/** A session's LP change, from stored Solo/Duo rank snapshots (server/development/ranks.ts), or why it is not known. */
+export type SessionLp =
+  | { state: "known"; accountId: string; from: { tier: string; division: string | null; leaguePoints: number | null }; to: { tier: string; division: string | null; leaguePoints: number | null }; change: number }
+  | { state: "unknown"; reason: "no-games" | "several-accounts" | "no-rank" | "not-read-yet" | "other-games" };
+
+export const LP_REASON_TEXT: Record<Extract<SessionLp, { state: "unknown" }>["reason"], string> = {
+  "no-games": "No games yet.",
+  "several-accounts": "Played on more than one account: LP is per account.",
+  "no-rank": "No Solo/Duo rank was recorded for this account before the session.",
+  "not-read-yet": "The rank after the last game has not been read yet; it comes with the next account update.",
+  "other-games": "Other Solo/Duo games were played before the rank was read again, so the session's share is unknown.",
+};
+
+/** "In progress", "Ended", "Ended on its 2nd loss", "Ended after 12 hours without a game", "Ended before its target of 5". */
+export function sessionStatusText(s: { status: "active" | "completed"; completedReason: string | null; plannedGames: number | null; games: number; losses: number }): string {
+  if (s.status === "active") return "In progress";
+  if (s.completedReason === "two-losses" && s.losses >= 2) return "Ended on its 2nd loss";
+  if (s.completedReason === "idle") return `Ended after ${SESSION_IDLE_HOURS} hours without a game`;
+  if (s.plannedGames !== null && s.games < s.plannedGames) return `Ended before its target of ${s.plannedGames}`;
+  return "Ended";
+}
+
+/** How a session ends, as chosen when it starts: no limit, a game limit (a plan; never enforced), or the two-loss stop. */
+export type SessionLimit = "none" | "games" | "two-losses";
+
+export function sessionLimitText(s: { completionRule: "target" | "two-losses"; plannedGames: number | null }): string {
+  if (s.completionRule === "two-losses") return "Stops after 2 losses";
+  return s.plannedGames === null ? "No game limit" : `Limit: ${s.plannedGames} game${s.plannedGames === 1 ? "" : "s"}`;
+}

@@ -24,8 +24,8 @@ import { keyCheckOf, normaliseRiotId, tagged } from "./tokens";
 
   What happens to each kind of record:
   - the account, sessions, profile picture, player profile (roles, pools, card customisation,
-    banner, social links, notes), Riot accounts, their games, mastery, rank history and the
-    Solo Queue Blocks journal are deleted;
+    banner, social links, notes), Riot accounts, their games, mastery, rank history and their
+    Ranked Development (objectives, If–Then plans, sessions, games and reviews) are deleted;
   - Riot games only they played (no other linked account, bookmark or team record uses them) are
     deleted with their timelines; games shared with others keep the others and replace the person
     with a "Removed player" (server/privacy/redact.ts), their timeline entries removed, and other
@@ -376,7 +376,15 @@ async function notesToEdit(db: Db, s: ErasureSubject): Promise<{ edits: NoteEdit
     { where: "Draft notes", table: "drafts", keyColumn: "id", column: "notes" },
     { where: "Match notes", table: "matches", keyColumn: "id", column: "notes" },
     { where: "Series notes", table: "series", keyColumn: "id", column: "notes" },
-    { where: "Solo Queue Blocks notes of other players", table: "ranked_games", keyColumn: "id", column: "notes", owner: "player_id" },
+    { where: "Ranked Development notes of other players", table: "ranked_games", keyColumn: "id", column: "notes", owner: "player_id" },
+    { where: "Ranked Development notes of other players", table: "ranked_games", keyColumn: "id", column: "learning", owner: "player_id" },
+    { where: "Ranked Development notes of other players", table: "ranked_games", keyColumn: "id", column: "adjustment", owner: "player_id" },
+    { where: "Ranked Development notes of other players", table: "ranked_blocks", keyColumn: "id", column: "closing_note", owner: "player_id" },
+    { where: "Ranked Development notes of other players", table: "ranked_blocks", keyColumn: "id", column: "focus", owner: "player_id" },
+    { where: "Ranked Development objectives of other players", table: "development_objectives", keyColumn: "id", column: "title", owner: "player_id" },
+    { where: "Ranked Development objectives of other players", table: "development_objectives", keyColumn: "id", column: "detail", owner: "player_id" },
+    { where: "Ranked Development objectives of other players", table: "development_plans", keyColumn: "id", column: "if_text", owner: "player_id" },
+    { where: "Ranked Development objectives of other players", table: "development_plans", keyColumn: "id", column: "then_text", owner: "player_id" },
     { where: "Ranked focus of other players", table: "ranked_profiles", keyColumn: "player_id", column: "focus", owner: "player_id" },
     { where: "Ranked focus of other players", table: "ranked_profiles", keyColumn: "player_id", column: "notes", owner: "player_id" },
     { where: "Player profile notes", table: "players", keyColumn: "id", column: "notes", owner: "id" },

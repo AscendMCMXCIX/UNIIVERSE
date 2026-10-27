@@ -54,6 +54,7 @@ ALTER TABLE "ranked_blocks" ADD COLUMN "last_activity_at" timestamp with time zo
 ALTER TABLE "ranked_blocks" ADD COLUMN "collects_from" timestamp with time zone;--> statement-breakpoint
 ALTER TABLE "ranked_blocks" ADD COLUMN "start_rank" jsonb;--> statement-breakpoint
 ALTER TABLE "ranked_blocks" ADD COLUMN "closing_note" text DEFAULT '' NOT NULL;--> statement-breakpoint
+ALTER TABLE "ranked_blocks" ADD COLUMN "dismissed_match_ids" jsonb DEFAULT '[]'::jsonb NOT NULL;--> statement-breakpoint
 ALTER TABLE "ranked_games" ADD COLUMN "source" text DEFAULT 'manual' NOT NULL;--> statement-breakpoint
 ALTER TABLE "ranked_games" ADD COLUMN "objective_id" uuid;--> statement-breakpoint
 ALTER TABLE "ranked_games" ADD COLUMN "review_status" text DEFAULT 'none' NOT NULL;--> statement-breakpoint

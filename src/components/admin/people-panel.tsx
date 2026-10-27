@@ -115,7 +115,7 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
   const visible = current.filter((p) => matches(p, filter));
   const groups = [
     { key: "team", title: "Team members", subtitle: "The team workspace: Team Overview, Players, Leaderboards and Matches. Listed in Players and eligible for the lineup once set up.", rows: visible.filter((p) => p.teamMember) },
-    { key: "personal", title: "Personal use", subtitle: "Their own profile, statistics and Solo Queue Blocks; no Team pages, not in Players or the lineup.", rows: visible.filter((p) => !p.teamMember) },
+    { key: "personal", title: "Personal use", subtitle: "Their own profile, statistics and Ranked Development; no Team pages, not in Players or the lineup.", rows: visible.filter((p) => !p.teamMember) },
   ];
 
   return (

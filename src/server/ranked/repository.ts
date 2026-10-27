@@ -361,11 +361,11 @@ export async function deleteBlock(db: Db, ownerPlayerId: string, blockId: string
   });
 }
 
-export async function listBlocks(db: Db, ownerPlayerId: string, options: { limit?: number; offset?: number } = {}): Promise<RankedBlockView[]> {
+export async function listBlocks(db: Db, ownerPlayerId: string, options: { limit?: number; offset?: number; status?: "active" | "completed" } = {}): Promise<RankedBlockView[]> {
   const rows = await db
     .select()
     .from(rankedBlocks)
-    .where(eq(rankedBlocks.playerId, ownerPlayerId))
+    .where(options.status ? and(eq(rankedBlocks.playerId, ownerPlayerId), eq(rankedBlocks.status, options.status)) : eq(rankedBlocks.playerId, ownerPlayerId))
     .orderBy(desc(rankedBlocks.number))
     .limit(options.limit ?? 20)
     .offset(options.offset ?? 0);
@@ -470,10 +470,21 @@ export async function updateGame(db: Db, ownerPlayerId: string, gameId: string, 
   return toGame(row!);
 }
 
+/**
+ * Removes a game from its session (the journal entry and its review; the Riot match stays in Match
+ * History and the statistics). A synced game removed this way is remembered on the session, so it
+ * never joins a session by itself again; the player can still add it back from their synced games.
+ */
 export async function deleteGame(db: Db, ownerPlayerId: string, gameId: string): Promise<void> {
-  const deleted = await db.delete(rankedGames).where(and(eq(rankedGames.id, gameId), eq(rankedGames.playerId, ownerPlayerId))).returning({ id: rankedGames.id, blockId: rankedGames.blockId });
+  const deleted = await db.delete(rankedGames).where(and(eq(rankedGames.id, gameId), eq(rankedGames.playerId, ownerPlayerId))).returning({ id: rankedGames.id, blockId: rankedGames.blockId, riotMatchId: rankedGames.riotMatchId });
   if (deleted.length === 0) throw new JournalError("Game not found.");
-  await applyCompletionRule(db, ownerPlayerId, deleted[0]!.blockId);
+  const { blockId, riotMatchId } = deleted[0]!;
+  if (riotMatchId)
+    await db
+      .update(rankedBlocks)
+      .set({ dismissedMatchIds: sql`CASE WHEN ${rankedBlocks.dismissedMatchIds} @> ${JSON.stringify([riotMatchId])}::jsonb THEN ${rankedBlocks.dismissedMatchIds} ELSE ${rankedBlocks.dismissedMatchIds} || ${JSON.stringify([riotMatchId])}::jsonb END`, updatedAt: new Date() })
+      .where(and(eq(rankedBlocks.id, blockId), eq(rankedBlocks.playerId, ownerPlayerId)));
+  await applyCompletionRule(db, ownerPlayerId, blockId);
 }
 
 export interface GameFilter {

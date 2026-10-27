@@ -133,7 +133,7 @@ export function AddPlayerAccount() {
               {(
                 [
                   ["team", `Member of the ${teamName} team`, "Team Overview, Players, Leaderboards and Matches, plus their own profile."],
-                  ["personal", "Personal use only", "Their own profile, statistics and Solo Queue Blocks. No Team pages; you can add them to the team later."],
+                  ["personal", "Personal use only", "Their own profile, statistics and Ranked Development. No Team pages; you can add them to the team later."],
                 ] as const
               ).map(([value, label, hint]) => (
                 <label key={value} className={cn("flex cursor-pointer gap-2.5 rounded-panel border p-3 text-sm transition-colors", access === value ? "border-accent bg-accent/10" : "border-border hover:border-border-strong")}>

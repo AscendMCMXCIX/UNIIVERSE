@@ -85,9 +85,9 @@ export async function playerFreshness(db: Db, playerId: string, { now = new Date
  * sessions, session games and reviews, objectives and plans (counts and latest changes, so an edit
  * made on another device shows here too). A running session asks every two minutes ("session").
  */
-export async function developmentFreshness(db: Db, playerId: string, { now = new Date() }: { now?: Date } = {}): Promise<{ freshness: Freshness; sessionActive: boolean }> {
+export async function developmentFreshness(db: Db, playerId: string, { now = new Date(), visit = false }: { now?: Date; visit?: boolean } = {}): Promise<{ freshness: Freshness; sessionActive: boolean }> {
   const [player, result] = await Promise.all([
-    playerFreshness(db, playerId, { now }),
+    playerFreshness(db, playerId, { now, visit }),
     db.execute(sql`
       SELECT
         (SELECT json_build_array(count(*), max(updated_at), count(*) FILTER (WHERE status = 'active')) FROM ranked_blocks WHERE player_id = ${playerId}) AS sessions,

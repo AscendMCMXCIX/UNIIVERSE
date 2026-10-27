@@ -214,3 +214,22 @@ export function earlyDeathsOf(deathTimes: readonly number[] | null | undefined):
   if (!deathTimes) return null;
   return deathTimes.filter((t) => t < EARLY_GAME_MS).length;
 }
+
+/** One game's own figures, as a session and a review show them (null: not recorded for that game). */
+export interface GameFigures {
+  kills: number | null;
+  deaths: number | null;
+  assists: number | null;
+  cs: number | null;
+  durationSec: number | null;
+  visionScore: number | null;
+  teamKills: number | null;
+  controlWards: number | null;
+  csAt10: number | null;
+  earlyDeaths: number | null;
+}
+
+/** An objective's statistic in one game, or null when that game does not have it. */
+export function gameMeasure(key: MeasureKey, f: GameFigures): number | null {
+  return measureValue(key, { matchId: "", playedAt: 0, role: null, championId: "", win: false, ...f });
+}

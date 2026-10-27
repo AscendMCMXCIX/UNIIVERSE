@@ -1,5 +1,5 @@
 {
-  "id": "7883f793-3aa3-41cf-8631-1bac6a8521fb",
+  "id": "c2ef2eaf-5710-43c0-adf1-e70f4b8a074b",
   "prevId": "09ac0a41-b4a5-43bc-a29a-6fa43710c04d",
   "version": "7",
   "dialect": "postgresql",
@@ -6959,6 +6959,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "''"
+        },
+        "dismissed_match_ids": {
+          "name": "dismissed_match_ids",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
         },
         "created_at": {
           "name": "created_at",
