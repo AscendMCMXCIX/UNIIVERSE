@@ -174,6 +174,16 @@ test("an objective, a session on two devices, a reviewed and a skipped game, the
     await expect(p.getByTestId("next-keep")).toHaveText("Kept for next session");
     await fitsEverySize(p, [sessionUrl]);
 
+    // Old Solo Queue Blocks addresses lead here: the history, and a block's own address to its session.
+    for (const [from, to] of [
+      ["/overview/blocks", "/overview/development/sessions"],
+      ["/overview/blocks/history", "/overview/development/sessions"],
+      [`/overview/blocks/${sessionUrl.split("/").pop()}`, sessionUrl],
+    ] as const) {
+      await p.goto(from);
+      await expect(p, from).toHaveURL(new RegExp(`${to}$`));
+    }
+
     // The history lists it; the overview offers the next one with the same objective.
     await p.goto("/overview/development/sessions");
     await expect(p.getByTestId("session-list").getByTestId("session-row")).toHaveCount(1);

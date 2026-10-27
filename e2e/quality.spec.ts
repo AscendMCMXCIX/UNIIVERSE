@@ -302,19 +302,21 @@ test.describe("ranked development", () => {
   test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "runs once"));
 
   test("the old Solo Queue Blocks addresses lead to Ranked Development, which needs a player profile", async ({ page }) => {
-    // The journey itself runs on member accounts in e2e/ranked-development.spec.ts.
+    // The journey itself, and the old addresses under My Profile, run on member accounts in
+    // e2e/ranked-development.spec.ts.
     for (const [from, to] of [
-      ["/overview/blocks", /\/overview\/development\/sessions$/],
-      ["/overview/blocks/history", /\/overview\/development\/sessions$/],
       ["/blocks", /\/overview\/development\/sessions$/],
       ["/ranked", /\/overview\/development$/],
     ] as const) {
       await page.goto(from);
       await expect(page, from).toHaveURL(to);
     }
-    // The in-memory demo's local owner has no player profile: My Profile says where to make one.
-    await page.goto("/overview/development");
-    await expect(page.getByText("This account has no player profile yet.")).toBeVisible();
+    // The in-memory demo's local owner has no player profile: My Profile (old addresses included)
+    // says where to make one.
+    for (const route of ["/overview/development", "/overview/blocks"]) {
+      await page.goto(route);
+      await expect(page.getByText("This account has no player profile yet."), route).toBeVisible();
+    }
   });
 });
 
