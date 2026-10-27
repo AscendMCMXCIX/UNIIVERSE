@@ -152,7 +152,7 @@ Key single files:
 | Other players' ranks | `last_known_ranks` (PK `puuid`; Solo/Duo `tier`, `division`, `league_points`; Flex `flex_tier`, `flex_division`, `flex_league_points`; `observed_at`; `source`) | Migration 0048 (copied from the retired Draft scouting and ranked ladder), extended by 0057. Written by the match window's rank checks (`source` "match lookup", partial index `last_known_ranks_lookups_idx` on `observed_at`), one row per player, replaced by the next check. `UNRANKED` marks a queue with no entry. Not deleted automatically; erasure deletes a person's row. See Ranks in the match window (G3). |
 | Removed Meta & Trends (data kept) | `tracked_summoners`, `match_fetch_queue`, `ranked_matches`, `ranked_participants`, `ranked_bans`, `region_status`, `stat_periods`, `stat_region_periods`, `stat_rank_periods`, `champion_role_stats`, `champion_ban_stats`, `champion_matchups`, `champion_synergies`, `pro_pick_slot_stats`, `pro_games`, `pro_game_picks`, `pro_game_bans`, `champion_change_points` | No longer written or read: migration `0048` copied the ladder ranks Match History shows into `last_known_ranks`. Dropping them is approval-gated (`docs/DATA_PIPELINES.md`, "Retired tables"). |
 | Removed Draft feature (data kept) | `drafts`, `draft_actions`, `draft_role_swaps`, `draft_presence`, `draft_enemy_scouting`, `series`, `matches` (the drafted archive), `opponent_teams`, `opponent_players` | No longer read or written: migration `0048` copied the scouted ranks Match History shows into `last_known_ranks`. Kept until a cleanup migration that runs only after a verified production backup. `team_bookmarks` (Team Matches) is defined in the same schema file but belongs to Team Matches. |
-| Solo Queue Blocks | `ranked_profiles` (focus), `ranked_blocks` (unique player + number), `ranked_games` (unique player + Riot match id; optional `teammate_player_id`) | Private journal |
+| Ranked Development (formerly Solo Queue Blocks) | `ranked_blocks` (sessions: unique player + number; objective, plan, account, `collects_from`, `last_activity_at`, `start_rank`, `closing_note`, `dismissed_match_ids`), `ranked_games` (session games, unique player + Riot match id; the review: `review_status`, `execution`, `learning`, `adjustment`, `went_well`, `went_wrong`; `needs_confirmation`, `alternative_block_id`), `development_objectives` (the weakness library; one `is_primary` per player), `development_plans` (versioned If–Then plans), `ranked_profiles` (the old focus, kept untouched) | Private to the player. Migration 0059 (additive; the old focus became each player's current objective). RLS on, no Data API grants, backup role `SELECT`. `docs/RANKED_DEVELOPMENT.md`. |
 | Removed Clash Scout (data kept until a held drop) | `clash_scouts` (one saved scout per row: team, opponent, server, tournament, a bounded JSON snapshot, captured/verified counts, `search_text`, creator, `scouted_at`), `clash_scout_accounts` (scout, slot, verified PUUID) | Migration 0042. Retired 23 Oct 2026: no page, action or job uses them; permanent erasure and its full reconciliation still clear an erased person from them. RLS on, no policies. Dropped only by a held migration after a verified backup. See `docs/CLASH_SCOUT.md`. |
 | Branding / ops | `app_settings` (key/value: names, colours, stats version, leases, schedules, the Resources library under `resources`), `brand_assets` (`logo`, `background` = sign-in, `appBackground`, plus `-static` frames), `brand_upload_chunks`, `data_refresh_status` (per-job status), `job_runs` (history) | |
 | Personal-data erasure | `privacy_erasures` (a random `reference`, `erased_at`, `tokens`: keyed HMAC tokens of the erased account, profile, Riot account ids, PUUIDs and Riot IDs, never the identifiers; `key_check`; `released_at`) | Migration 0056. RLS on, no policies; `SELECT` for the backup role. Written only by an erasure, a release or an import. `docs/PRIVACY.md`. |
@@ -171,7 +171,7 @@ Key single files:
   - The primary and secondary role pools live in `player_champion_pools` (`slot` primary/secondary).
   - Additional roles live in `player_role_pools` (keyed by `role`).
   - "The pool for role R" is resolved through `poolFor(player, role)` in `src/domain/roster`.
-- **Player ↔ Solo Queue Blocks:** `ranked_blocks.player_id` and `ranked_games.player_id`, cascade on delete. Visible to the owning player only.
+- **Player ↔ Ranked Development:** `ranked_blocks.player_id`, `ranked_games.player_id`, `development_objectives.player_id` and `development_plans.player_id`, cascade on delete. A session, game or plan that points at a deleted objective or plan keeps its row (set null; a session keeps the objective title it was played with). Visible to the owning player only.
 
 ### B3. Data integrity
 
@@ -322,7 +322,7 @@ Key single files:
 - **How access is distinguished:**
   - The privileged *account type* is only Owner vs non-Owner (`users.role`); administrator access is the `users.is_admin` flag on top. Everything else is capabilities from level + custom + groups, resolved into the session (`UserRecord.capabilities`).
   - `canUseAdminArea` = `isAdmin`: the Owner and accounts with administrator access. Delegated work (lineup, matches, other players' profiles) happens in place on Team, Matches and profiles.
-  - **Team membership** (`players.team_member`, migration 0029, default true): a personal-use account (false) holds no team capability (`TEAM_CAPABILITIES` in `hasPermission`), is refused by `requireTeamMember` (team bookmark actions), and is left out of Players and lineup selection; it keeps its own profile, statistics and Solo Queue Blocks.
+  - **Team membership** (`players.team_member`, migration 0029, default true): a personal-use account (false) holds no team capability (`TEAM_CAPABILITIES` in `hasPermission`), is refused by `requireTeamMember` (team bookmark actions), and is left out of Players and lineup selection; it keeps its own profile, statistics and Ranked Development.
   - **Membership and setup are separate** (`listPlayers` in `src/server/repositories/team.ts`): a member is a profile on the team that is not archived and not personal use. Unfinished first-time setup only marks it `setupPending` ("Setup incomplete" badge); such a member is listed in Players, Team pickers, Leaderboards and the teammate picker, and their profile opens with clear empty states. A profile without a chosen role has `primaryRole: null` (`RosterPlayer`): no legal role and no pool, so it is shown but never assigned or drafted (`hasPrimaryRole`, `listRolePlayers` for the engine). A member with a role is eligible for that role whether or not setup is finished. Statistics come only from stored games, so a member without data has none (never zeros).
 - **Server-side authorisation:** every Server Action and admin page checks `hasPermission` / `requirePageAccess` (`src/server/auth/page-access.ts`). Navigation only mirrors this; hidden buttons are never the security.
 - **Retired:** the coach / "Team Leader" / Draft Lead role (removed in Phase 1; must not return; migration 0031 converts any leftover `coach` account to a player and a check constraint refuses the value). The Other Players group is retired the same way (0031).
@@ -600,7 +600,7 @@ and untouched until a separate, approval-gated cleanup migration drops them (see
   - Every member sees profiles, pools, Riot IDs and statistics. Teammates' statistics need `view-teammate-stats`.
   - Team Overview follows the same rule on the server (`getTeamRosterForViewer`): without `view-teammate-stats` a teammate's card carries name, roles, lineup place and pool champions only (no rank, season figures, champion figures, proficiency or rank change, and vacant-role suggestions do not cite games). Your own card always shows your figures.
   - Never shown: passwords, sessions, infrastructure.
-  - Solo Queue Blocks are private to the owner.
+  - Ranked Development is private to the owner.
 
 ### G2. Player statistics (`src/domain/season-stats.ts`, `src/server/players/overview.ts`, `src/components/players/player-overview.tsx`)
 
@@ -629,7 +629,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
   - A scope label always states what is counted.
   - **One filter bar per page.** On the profile Overview, Season and Game mode sit up front and Refine holds the role played, the champions and the account; its panel says what they narrow ("Applies to Season performance, its multikills and Recent form"). Recent form counts the same games and says "Filtered: …" when Refine narrows it. Ranked progress keeps its own queue and account switch, and Roles & champion pools only the season and mode (their scope line says so). No section has filters of its own.
 - **Rendering never calls Riot synchronously.**
-- **Where the defaults apply** (current season + All supported games, real filters, Reset restores them): Profile Overview, All Champions, Match History, the champion window (via Refine), Leaderboards, Team Overview, Played Together (plus "All seasons"; its "Played together most" pairs follow the season and mode). Exceptions: Solo Queue Blocks are Solo/Duo only; Drafted Matches is an archive of team drafts filtered by competition and patch, not by Riot game mode, and lists every season. A game's season is read from its patch (`seasonOfGame`).
+- **Where the defaults apply** (current season + All supported games, real filters, Reset restores them): Profile Overview, All Champions, Match History, the champion window (via Refine), Leaderboards, Team Overview, Played Together (plus "All seasons"; its "Played together most" pairs follow the season and mode). Exceptions: Ranked Development is Solo/Duo only; Drafted Matches is an archive of team drafts filtered by competition and patch, not by Riot game mode, and lists every season. A game's season is read from its patch (`seasonOfGame`).
 - **Mode counts and empty seasons** (`modeBreakdown`): the Game mode filter of Overview, All Champions and Match History names each mode's games in the chosen season ("Ranked Flex (14)"), and a list that a mode leaves empty links to the seasons holding that mode's games. Played Together does the same for its filters. Production (2026-10-17): 83 Ranked Flex games stored (199 account rows across 10 linked accounts), 54 of them with two or more team players on one side; `data-audit` → `queueClassification.flexVisibility` gives them per player and season as the views count them.
 - **Encounters** (a profile's Match History → Encounters, `?view=encounters` on `/overview/matches` and `/players/[id]/matches`; `src/domain/encounters.ts`, `src/server/players/encounters.ts`, `src/components/match-history/encounters-view.tsx`, `getEncounterDetailAction`). Until 21 Oct 2026 this was a team list under Team → Matches; that address now opens your own profile's Encounters (`encountersRedirect`, `src/lib/nav.ts`).
   - **What:** the other players this profile's player met in their recorded games, across all their linked Riot accounts. Three lists: Opponents (the default), Allies and Everyone, each with the player's own record against or alongside them.
@@ -708,24 +708,58 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 - **Strength tags were removed in Phase 9** (by the user's choice), with their code (`player-tags.ts`, `team/tags.ts`); the unused `player_tags` table is kept.
 - **Empty roles:** advisory suggestions of registered players who could fill them (`src/domain/team-advice.ts`); never auto-assigned. Production: the Support slot is empty.
 
-### G5. Solo Queue Blocks (`/blocks`; `src/domain/ranked-improvement.ts`, `src/components/ranked/*`)
+### G5. Ranked Development (`/overview/development`; `src/domain/development/*`, `src/server/development/*`, `src/components/development/*`; `docs/RANKED_DEVELOPMENT.md`)
 
-- **Blocks (Phase 9):** a block starts at **0 / 1** with one click (or by logging a game when none is running) and gains a slot with every game; no maximum. A target (1–100) is optional and can be set, changed or cleared at any time; reaching it does not close the block (Finish block or "+3 more"); finished early is recorded as such.
-- **Ranked Focus:** one card with a featured champion (`ranked_profiles.champion1`), the improvement sentence and two more champions plus a counter pick. The block in progress follows it; finished blocks keep the focus and featured champion they were played with (`ranked_blocks.focus`, `featured_champion_id`, migration 0027).
-  - **Champions follow the Primary Role pool** (`src/domain/ranked-focus.ts`, October 2026): a slot the player never set (`null`) shows the next champion of their Primary Role pool in their order, read fresh each visit, so a changed or reordered pool shows at once (the cause of the old mismatch: the focus kept copies of champions chosen long before). A champion the player picks is theirs and stays; clearing a slot stores `''` (stays empty); "Use my pool order" sets the three back to `null`. No schema change. The block in progress shows the pool's first champion while it follows the pool; finishing it (by hand or by the two-loss limit) stores that champion, so completed blocks never change.
-  - **Autosave:** champions save on change; the sentence after a 0.7 s pause in typing, on leaving the field, on Enter and when the page is hidden or left (a "leave page?" prompt only while a save is pending). One save at a time, in order; "Saved" only after the server confirmed it; a failure keeps the text and offers Retry (`SaveStatusIndicator`). There is no Save button.
-- **Layout (October 2026, the same order on every screen):** Focus (featured champion, objective, the other champions; across the page on wide screens); Current Block or starting the next (label, rule, focus, wins/losses, the games as a strip, the next action, Finish and Delete); Quick Add (recent Riot games and manual entry, beside the block on wide screens); Logged Games (five per page); Previous Blocks (latest five, full history paginated). `e2e/blocks-focus.spec.ts` checks the order at 1440 and 390.
-- **Patterns & Notes: removed (October 2026).** A short-lived private trends panel and free-text notes were taken out at the owner's request (simplicity: no separate gameplay-pattern analysis or notes system). Recent Form, Ranked Progress and the Blocks focus and journal are unchanged. The `ranked_profiles.notes` column from migration `0039_patterns_notes` is retired, not dropped: nothing reads or writes it, and it stays so no player text is deleted unverified. Drop it in a later migration only after confirming production holds no notes.
-- **Completion rules (migration 0038: `ranked_blocks.completion_rule`, `completed_reason`):** chosen when a block starts (a game logged with no block running reuses the previous block's rule).
-  - *Game target* (`target`, the default and every block before 0038): the player finishes it; a target is an optional plan.
-  - *Two-loss limit* (`two-losses`): the block completes by itself on its 2nd loss in total ("Completed · 2-loss limit reached"); no game target. Applied after every add, import, result edit and game deletion (`applyCompletionRule`).
-  - *Manual*: Finish block, any time (`completed_reason = manual`).
-  - Corrections: an active two-loss block that reaches two losses completes; a block the limit completed that drops below two losses (an edited result or a deleted loss) reopens only while it is the latest block and nothing else is in progress; otherwise it stays completed and its label shows only "Completed". A block the player finished never reopens. Duplicate imports are refused as before.
-- **Deleting a block** (`deleteBlock`, `deleteRankedBlockAction`): the player's own block, in progress or finished, after a confirmation that names what goes. One transaction removes the block and its journal entries (`ranked_games` rows); `account_matches` and every Riot record are untouched, so imported games can be imported again. Other blocks keep their labels; the next block is numbered after the highest remaining one. The owner comes from the session; another player's block is "not found".
-- **Game entry:** champion, enemy laner, result, **one main mistake** (Mechanics, Trading/Laning, Wave/Tempo, Vision, Macro, Positioning, Decision Making, Mental, Other), optional note, optional teammate tag.
-- **Riot import:** one tap adds a recent synced Solo/Duo game from `account_matches`; no extra Riot call.
-- **Privacy:** only the owner sees their blocks; nothing feeds team statistics. Editing and deleting games is allowed.
-- **Dashboard:** win rate and most common mistake.
+Solo Queue Blocks became Ranked Development in October 2026 (migration 0059, additive). The rows
+are the same: a block is a **session** ("Session N"), and its games are session games.
+
+- **Three areas.** Overview (before you queue: objective, why, If–Then plan, Start / Continue;
+  reviews waiting; the session or the last summary with keep / adjust / replace; progress;
+  learning priorities; recent reviews), Sessions (in progress, add a missing game, history ten per
+  page) and Development (the weakness library, patterns in the reviews, plan history).
+- **What replaced what.**
+  - The Ranked Focus card became the **current objective** (`development_objectives.is_primary`);
+    each player's old focus sentence was carried over, with its champions.
+  - Quick Add became **Add a game**. Synced Solo/Duo games now join the session by themselves
+    (`associateSessionGames`, after every sync that stored games and on every visit; no Riot call).
+  - The main mistake became the review's areas (went best, hardest), and the dashboard became the
+    session summary and the objective's evidence.
+  - The focus autosave, the champion slots that followed the pool and the old journal panels were
+    removed with their actions; `ranked_profiles` stays untouched.
+- **Kept from Blocks.**
+  - The completion rules: an optional game limit (a plan, never enforced) or the two-loss stop,
+    which ends a session by itself at the end of its second loss.
+  - Ending a session by hand (now with an optional private closing note; ending an empty session is
+    allowed).
+  - Deleting a session or game: journal rows only, never `account_matches` or Riot records; another
+    player's session is "not found".
+  - "Played with" for registered teammates, and Match History's add-to-session button.
+- **Association rules.**
+  - A game joins the session it was played in, on the session's account when it follows one.
+  - A game that fits two sessions asks the player (Keep / Move); nothing moves silently.
+  - Twelve idle hours end a session at its last activity, and late games still join for three days.
+  - A game typed by hand is linked to the synced match instead of counting twice.
+  - A synced game the player removed stays out (`dismissed_match_ids`).
+  - Sessions finished before 0059 collect nothing.
+- **Reviews.** Plan followed (0–3), biggest learning point, adjustment for next game, and optional
+  areas. Each answer is optional and Skip has no penalty. Statuses: none, pending, done, skipped.
+- **Evidence.** One statistic per objective (optional), compared before and during practice in the
+  same role and champions: at least 5 games each, newest 20, games of 15 minutes or more, and a
+  change only above a minimum difference and 0.3 of the spread. Self-reported follow-through is
+  shown separately. LP appears only when stored snapshots bracket the session exactly.
+- **Freshness.** A private `development` scope: every two minutes while a session runs (with a
+  sync after five minutes), the idle pace otherwise, nothing from a hidden tab.
+- **Privacy.**
+  - The owner always comes from the session; another player's address is not found.
+  - The section is never on a profile others open (`own: true`).
+  - Erasure deletes the player's rows and redacts their name in other players' new text fields.
+- **Tests:** `tests/db/ranked-development.test.ts`, `ranked-development-migration.test.ts`,
+  `ranked-improvement.test.ts`, `privacy-erasure.test.ts`, `src/domain/development/*.test.ts`,
+  `e2e/ranked-development.spec.ts`.
+- **Patterns & Notes: removed (October 2026).** The `ranked_profiles.notes` column from migration
+  `0039_patterns_notes` is retired, not dropped: nothing reads or writes it, and it stays so no
+  player text is deleted unverified. Drop it in a later migration only after confirming production
+  holds no notes.
 
 ### G6. Champion window and Matchups (All Champions → a champion; `src/components/players/champion-detail.tsx`, `lane-parts.tsx`, `opponent-picker.tsx`; `src/domain/matchups.ts`, `src/server/players/matchups.ts`; `docs/MATCHUPS.md`)
 
@@ -818,13 +852,13 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 | My Profile | `/overview` (+ `/champions`, `/accounts`) | Same as above for yourself; statistics with filters | self | Accounts without a profile see "complete your profile" |
 | Matches | `/matches` | Played together (with bookmarks); `?view=encounters` opens your profile's Encounters | `view-matches` (+ `view-teammate-stats` for Played together); bookmark removal by its creator or `manage-matches` | |
 | Resources | `/resources` | The team's library of League of Legends sites in five sections (League of Legends, Summoner's Rift, ARAM, Arena, Esports): a panel per section of rows opening in a new tab, search, a section filter, favourites kept in the browser; no management controls on the page | every signed-in account; managed in Admin Mode → Platform Settings → Resources (`manage-branding`) | `docs/ARCHITECTURE.md` (Resources) |
-| Solo Queue Blocks | `/blocks`, `/blocks/[id]`, `/blocks/history` | Current block, quick add, dashboard | owner only | |
+| Ranked Development | `/overview/development`, `/overview/development/sessions` (+ `/[id]`), `/overview/development/library` | Overview (before you queue, reviews waiting, the session or the last summary, progress), Sessions (in progress, add a game, history), Development (weakness library, plans, patterns) | owner only | `docs/RANKED_DEVELOPMENT.md` |
 | Settings | `/settings` | Username, password, profile picture, sign out | self | Riot accounts moved to the profile |
 | Admin Mode | `/admin`, `/admin/people` (+ `/access`), `/admin/branding`, `/admin/previews`, `/admin/data`, `/admin/system`, `/admin/audit`, `/admin/settings` | Dashboard, Users & Permissions, Platform Settings, Data & Integrations, System Health, Audit Logs | administrators | "Switch to Admin Mode" in the sidebar, the phone menu or Settings (C2a) |
 | Auth | `/login`, `/setup`, `/recover`, `/welcome` | Sign-in, first-run Owner setup, Owner recovery, onboarding | — | |
 
 **Redirects kept for old links:**
-- `/overview/blocks/*`, `/ranked/*` → `/blocks`
+- `/overview/blocks/*`, `/blocks/*`, `/ranked/*` → `/overview/development` (sessions and a session's own address keep their place)
 - `/settings/riot` → `/overview/accounts`
 - `/admin/players`, `/admin/users` → `/admin/people`
 - `/players/[id]/stats` → profile
@@ -978,7 +1012,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 - jobs and scheduler;
 - branding uploads;
 - team tags and roster;
-- Solo Queue Blocks privacy;
+- Ranked Development privacy;
 - responsive layout (no horizontal overflow on phone/tablet/desktop);
 - accessibility (axe: no critical/serious violations on player and admin pages).
 
@@ -1088,7 +1122,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 - **Easy statistics:** labelled, with sample sizes shown, nothing fabricated; partial data is marked as partial.
 - **Data refreshes automatically,** with no routine manual runs.
 - **Normal users need no technical knowledge,** and routine account changes need no admin.
-- **Solo Queue Blocks stay lightweight and private.**
+- **Ranked Development stays lightweight and private:** nothing to log while playing, reviews optional and skippable, Riot figures and self-reports kept apart.
 - **Security and safety rules:**
   - Never expose or log secrets.
   - Never ask the user to paste secrets into chat (tell them where to enter them).
@@ -1160,7 +1194,7 @@ These are stable and working; extend them instead:
 | Encounters (profiles) | `src/server/players/encounters.ts`, `src/server/actions/encounters.ts`, `src/components/match-history/encounters-view.tsx` | account history, match details | `tests/db/profile-encounters.test.ts`, `encounter-permissions.test.ts` |
 | Data pipelines and jobs | `src/server/jobs/*`, `src/server/accounts/*`, `src/server/riot/static/*` | Riot, Data Dragon | `tests/db/jobs.test.ts`, `automation.test.ts`, `static-sync.test.ts` |
 | Branding | `src/domain/branding.ts`, `src/server/repositories/branding.ts`, `src/components/settings/branding-panel.tsx`, `src/app/api/branding/*` | — | `tests/db/branding.test.ts`, `src/domain/branding.test.ts` |
-| Solo Queue Blocks | `src/domain/ranked-improvement.ts`, `src/server/actions/ranked.ts`, `src/components/ranked/*`, `src/app/(app)/blocks` | account_matches | `tests/db/ranked-improvement.test.ts` |
+| Ranked Development | `src/domain/development/*`, `src/domain/ranked-improvement.ts`, `src/server/development/*`, `src/server/ranked/repository.ts`, `src/server/actions/development.ts`, `src/server/actions/ranked.ts`, `src/components/development/*`, `src/app/(app)/overview/development` | account_matches (stored games only) | `src/domain/development/*.test.ts`, `tests/db/ranked-development*.test.ts`, `tests/db/ranked-improvement.test.ts`, `e2e/ranked-development.spec.ts` |
 | Health and diagnostics | `src/app/api/health/route.ts`, `src/domain/data-health.ts`, `system-health.ts`, `src/server/ops/*`, `src/server/jobs/*-probe.ts`, `*-audit.ts` | — | `src/domain/*health*.test.ts` |
 
 ---
@@ -1182,7 +1216,7 @@ These are stable and working; extend them instead:
    - **Team:** five lineup cards with full pools and per-champion statistics for the assigned role.
    - **Players** and **profiles** (Overview / Champions & Roles / Riot Accounts).
    - **Matches:** Played together (with bookmarks). Encounters are in each profile's Match History.
-   - **Solo Queue Blocks:** private journal.
+   - **Ranked Development:** private sessions, reviews and objective library.
    - **Settings.**
    - **Admin Mode** (administrators): Dashboard, Users & Permissions, Platform Settings, Data & Integrations, System Health, Audit Logs.
 

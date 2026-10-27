@@ -183,4 +183,15 @@ describe("asking for a page's data version (/api/freshness): the page's own acce
   it("signed out: nothing", () => {
     for (const scope of [own, other, team, jobs]) expect(canWatchFreshness(null, scope)).toBe(false);
   });
+
+  it("Ranked Development is private: only its own player watches it, an administrator included", () => {
+    const mine = { kind: "development", playerId: "p-self" } as const;
+    const theirs = { kind: "development", playerId: "p-other" } as const;
+    for (const s of [admin, player, personal]) {
+      expect(canWatchFreshness(s, mine)).toBe(true);
+      expect(canWatchFreshness(s, theirs)).toBe(false);
+    }
+    expect(canWatchFreshness({ ...admin, playerId: null }, mine)).toBe(false);
+    expect(canWatchFreshness(null, mine)).toBe(false);
+  });
 });

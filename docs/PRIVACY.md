@@ -39,13 +39,13 @@ Deactivating, deleting and archiving are different actions, and none of them is 
 | | What happens |
 |---|---|
 | Account | Deleted, with its sessions, invites and activation codes. Drafts they controlled, and invites or codes they issued, no longer point to them |
-| Profile | Deleted: roles, champion pools, card design, banner, picture, social links, Solo Queue Blocks, notes about them on their own profile |
+| Profile | Deleted: roles, champion pools, card design, banner, picture, social links, Ranked Development (sessions, reviews, objectives, plans), notes about them on their own profile |
 | Riot accounts | Deleted, with their games, ranks, mastery, season figures, last-known ranks, tracked-summoner and sync state |
 | Games only they used | Deleted: the match record, its timeline and any bookmark to it |
 | Shared games | Kept for the others. Their place becomes **"Removed player"**: side and result only; no PUUID, name, Riot ID, champion, position, items, runes, spells or figures. Team kills come from Riot's team total, so the others' figures stay right. Their timeline entries and per-minute frames are deleted, and teammates' games no longer record them as the lane opponent. The summaries are rebuilt. |
 | Team records | Drafts, draft actions, role swaps and match records keep the team's history, with them as **"Former member"**: no name, id or champion pool. |
 | Clash scouts (retired, kept until the held clean-up) | Their slots in the scouts saved before Clash Scout was retired are emptied, and the verified accounts of those slots removed from the scout index. Scouting and opponent rows that hold their Riot identity are deleted or emptied. |
-| Notes others wrote | Whole-word mentions of their names, Riot names and Riot IDs (3 characters or more) become "[removed]"; the rest of each note stays. |
+| Notes others wrote | Whole-word mentions of their names, Riot names and Riot IDs (3 characters or more) become "[removed]"; the rest of each note stays. This includes other players' private Ranked Development text: review learning points and adjustments, session focus and closing notes, objective titles and explanations, and If–Then plans. |
 | Admin activity | Entries keep what happened. Their name becomes **"Erased member"** as actor or target, and matching details become "[removed]". |
 | Job logs | Their Riot IDs are taken out of `job_runs` and `data_refresh_status`. Newer sync lines name an account only as `account 1a2b3c4d`. |
 | Caches | Team, public page, leaderboards, proficiency and lookup caches are cleared on this server instance; other instances follow within their cache times. |

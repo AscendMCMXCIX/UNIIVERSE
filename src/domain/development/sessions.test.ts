@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planAssociation, SESSION_IDLE_MS, summariseSession, type CandidateGame, type SessionWindow, type SummaryGame } from "./sessions";
+import { planAssociation, SESSION_IDLE_HOURS, SESSION_IDLE_MS, sessionLimitText, sessionStatusText, summariseSession, type CandidateGame, type SessionWindow, type SummaryGame } from "./sessions";
 import { areaCounts, cleanReview, executionTrend } from "./reviews";
 
 const MIN = 60_000;
@@ -124,5 +124,27 @@ describe("reviews", () => {
 
   it("count the areas named, keeping only repeated ones when asked", () => {
     expect(areaCounts(["vision", "trading", "vision", null, "bogus"], 2)).toEqual([{ key: "vision", count: 2 }]);
+  });
+});
+
+describe("how a session reads", () => {
+  const ended = { status: "completed" as const, completedReason: null, plannedGames: null, games: 3, losses: 1 };
+
+  it("says why it ended, and never calls a session short of its target a failure", () => {
+    expect(sessionStatusText({ ...ended, status: "active" })).toBe("In progress");
+    expect(sessionStatusText(ended)).toBe("Ended");
+    expect(sessionStatusText({ ...ended, completedReason: "two-losses", losses: 2 })).toBe("Ended on its 2nd loss");
+    expect(sessionStatusText({ ...ended, completedReason: "idle" })).toBe(`Ended after ${SESSION_IDLE_HOURS} hours without a game`);
+    expect(sessionStatusText({ ...ended, plannedGames: 5 })).toBe("Ended before its target of 5");
+    expect(sessionStatusText({ ...ended, plannedGames: 3 })).toBe("Ended");
+    // A two-loss reason without the losses (an old row) falls back to the plain wording.
+    expect(sessionStatusText({ ...ended, completedReason: "two-losses", losses: 1 })).toBe("Ended");
+  });
+
+  it("names its limit as chosen at the start: none, a number of games, or the two-loss stop", () => {
+    expect(sessionLimitText({ completionRule: "target", plannedGames: null })).toBe("No game limit");
+    expect(sessionLimitText({ completionRule: "target", plannedGames: 1 })).toBe("Limit: 1 game");
+    expect(sessionLimitText({ completionRule: "target", plannedGames: 4 })).toBe("Limit: 4 games");
+    expect(sessionLimitText({ completionRule: "two-losses", plannedGames: null })).toBe("Stops after 2 losses");
   });
 });

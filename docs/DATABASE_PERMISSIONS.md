@@ -77,7 +77,7 @@ What differs is who sees the data **through the app**. The server decides that (
 | Accounts and sign-in | `users`, `sessions`, `permission_presets`, `user_avatars`, `auth_failures`, `invites` and `activation_codes` (legacy) | Each account sees its own; admins manage accounts. Password hashes, session tokens and throttle keys are stored only as hashes and never leave the server. |
 | Team and players | `teams`, `players`, `player_champion_pools`, `player_role_pools`, `lineups`, `lineup_slots`, `lineup_substitutes`, `player_card_banners`, `player_tags` (retired) | Signed-in members. |
 | Riot accounts and games | `riot_accounts`, `account_matches`, `account_champion_history`, `account_mastery`, `rank_snapshots`, `last_known_ranks`, `match_details`, `match_timelines`, `team_bookmarks` | Signed-in members. |
-| Solo Queue Blocks | `ranked_profiles`, `ranked_blocks`, `ranked_games` | The player's private journal. |
+| Ranked Development | `ranked_profiles`, `ranked_blocks`, `ranked_games`, `development_objectives`, `development_plans` | The player's private sessions, reviews, objectives and plans (docs/RANKED_DEVELOPMENT.md). |
 | Static game data | `patches`, `champions`, `champion_skins` | Signed-in members. Nothing personal. |
 | Branding and settings | `app_settings`, `brand_assets`, `brand_upload_chunks` | Everyone sees the published branding. Changing it is for admins. |
 | Operations | `data_refresh_status`, `job_runs`, `audit_events`, `db_egress_daily`, `uniiverse_migrations` | Admins (System Health, Admin activity). |

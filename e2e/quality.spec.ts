@@ -12,7 +12,7 @@ test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
 });
 
-const PLAYER_ROUTES = ["/team", "/players", "/leaderboards", "/matches", "/overview", "/overview/champions", "/overview/blocks", "/overview/matches", "/resources", "/settings"];
+const PLAYER_ROUTES = ["/team", "/players", "/leaderboards", "/matches", "/overview", "/overview/champions", "/overview/development", "/overview/matches", "/resources", "/settings"];
 const ADMIN_ROUTES = ["/admin", "/admin/people", "/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/data", "/admin/system", "/admin/audit", "/admin/settings"];
 const SIZES: Array<[number, number]> = [
   [320, 640],
@@ -298,28 +298,23 @@ test.describe("tooltips", () => {
   });
 });
 
-test.describe("solo queue blocks", () => {
+test.describe("ranked development", () => {
   test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "runs once"));
 
-  test("a block starts at 0 Games in one click, with no target, and the layout follows the workflow", async ({ page }) => {
-    await page.goto("/overview/blocks");
-    // Blocks belong to a player profile; the in-memory demo's local owner has none.
-    test.skip((await page.getByText("has no player profile").count()) > 0, "needs an account with a player profile (covered by tests/db/blocks-refinement.test.ts)");
-    await expect(page.getByTestId("ranked-focus")).toBeVisible();
-    if (await page.getByTestId("start-block").count()) {
-      await expect(page.getByTestId("add-game")).toContainText(/Starts BLOCK \d{3}/);
-      await page.getByTestId("start-block-submit").click();
+  test("the old Solo Queue Blocks addresses lead to Ranked Development, which needs a player profile", async ({ page }) => {
+    // The journey itself runs on member accounts in e2e/ranked-development.spec.ts.
+    for (const [from, to] of [
+      ["/overview/blocks", /\/overview\/development\/sessions$/],
+      ["/overview/blocks/history", /\/overview\/development\/sessions$/],
+      ["/blocks", /\/overview\/development\/sessions$/],
+      ["/ranked", /\/overview\/development$/],
+    ] as const) {
+      await page.goto(from);
+      await expect(page, from).toHaveURL(to);
     }
-    await expect(page.getByTestId("current-block")).toBeVisible();
-    await expect(page.getByTestId("block-progress")).toHaveText(/^(\d+ Games?|\d+ of \d+ games.*)$/);
-    // No default target: no empty slot hints at a limit.
-    await expect(page.getByTestId("block-slots").locator("[data-next]")).toHaveCount(0);
-    await expect(page.getByTestId("add-game")).toContainText(/Goes into BLOCK \d{3}/);
-    // Workflow order on the page: the focus, the current block (Quick Add beside it), then its games
-    // and the previous blocks (also e2e/blocks-focus.spec.ts, on a member account).
-    const tops = await Promise.all(["current-block", "block-games", "latest-blocks"].map(async (id) => (await page.getByTestId(id).boundingBox())!.y));
-    expect([...tops].sort((a, b) => a - b)).toEqual(tops);
-    expect((await page.getByTestId("add-game").boundingBox())!.y).toBeLessThanOrEqual(tops[1]!);
+    // The in-memory demo's local owner has no player profile: My Profile says where to make one.
+    await page.goto("/overview/development");
+    await expect(page.getByText("This account has no player profile yet.")).toBeVisible();
   });
 });
 
@@ -369,7 +364,7 @@ test.describe("sidebar entries", () => {
     const href = (await card.getAttribute("href"))!;
     await page.goto(`${href}/matches`);
     const tabs = page.getByTestId("profile-tabs");
-    // The sections, in their deliberate order (Solo Queue Blocks, private, sits between Match
+    // The sections, in their deliberate order (Ranked Development, private, sits between Match
     // History and Riot Accounts on your own profile only; Matchups live in a champion's window).
     await expect(tabs.getByRole("link")).toHaveText(["Overview", "All Champions", "Match History", "Riot Accounts"]);
     await expect(tabs.getByRole("link", { name: "Match History" })).toHaveAttribute("aria-current", "page");

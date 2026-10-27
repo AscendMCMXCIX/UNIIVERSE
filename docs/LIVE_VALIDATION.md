@@ -44,7 +44,7 @@ Failure signs: "Static provider unavailable" in the job log → the host cannot 
 Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot recognises (wrong value, placeholder, extra characters); 403 on every endpoint → the key expired (development keys last 24 h) or was revoked; 403 on `/riot/account/v1/…` only, while `riot-check` says *accepted* → the request went to a routing value that does not serve ACCOUNT-V1 (the `sea` host did until 575a4f6; account lookups now use `asia`); 404 on `by-puuid` endpoints → wrong regional routing (check `RIOT_PLATFORMS` values like `euw1`, `kr`, `na1`, `oc1`).
 
 - [x] `riot-check` (Admin → Data & Riot → Riot credential → **Check key now**, or the data-jobs workflow with `job=riot-check`) answers with the key's state and the HTTP status without exposing the key. *2026-10-13: `accepted`, status 200 on oc1, key fingerprint `…18eb`.*
-- [x] The **Production smoke** workflow (Actions → Production smoke → Run) prints the live build from `/api/health`, 200 for `/login`, 307 → `/login?next=…` for every private page (including `/overview/blocks`) and 401 for the job endpoint without the secret.
+- [x] The **Production smoke** workflow (Actions → Production smoke → Run) prints the live build from `/api/health`, 200 for `/login`, 307 → `/login?next=…` for every private page (including `/overview/development` and the old `/overview/blocks`) and 401 for the job endpoint without the secret.
 
 ## 3. Linked Riot accounts and proficiency
 
@@ -464,3 +464,17 @@ Nothing on screen changes; the checks confirm the same answers, sooner.
 - [ ] `perf-probe` → `matches.possibleGroups`: the same kind of note as before ("N earlier stored games searched · M possible groups"), and the cold time well under the 1,917 ms of 26 Oct.
 - [ ] Open a game in Match History: possible groups, their evidence games and the players' OP.GG links are as before.
 - [ ] A day later, Data jobs → `db-usage`: the figures backfill's `UPDATE account_matches … pg_column_size …` and the possible-groups query are no longer among the costliest statements, and `match_details`'s `index_bytes` has grown by a few MB (the new index).
+
+## Ranked Development (migration 0059, October 2026)
+
+Solo Queue Blocks became Ranked Development (`docs/RANKED_DEVELOPMENT.md`). On the live site, after the deployment:
+- [ ] Data jobs → `smoke auth-audit perf-probe`: every step passes, `deployment.commit` is the merge commit, `/overview/development` answers 307 to sign-in when signed out, and `auth-audit` lists migrations up to `0059_ranked_development`.
+- [ ] My Profile → **Ranked Development** (between Match History and Riot Accounts; not on a teammate's profile): Overview, Sessions and Development as tabs. A player who had a Solo Queue Blocks focus sees it as their current objective (Practising), with its champions; their earlier blocks are listed under Sessions as "Session N" with their games, notes and main mistakes.
+- [ ] Old addresses: `/overview/blocks`, `/overview/blocks/history`, a block's own address, `/blocks` and `/ranked` lead to Ranked Development.
+- [ ] Before you queue: choose or write an objective (a rank goal such as "Reach Diamond" is pointed out), add an If–Then plan, start a session (no game limit by default; a game limit or "Stop after 2 losses" when chosen; an account when you have several).
+- [ ] Play a Solo/Duo game with the page open (or open it afterwards): within a few minutes of the game ending it joins the session by itself, with "Review" and "Skip". The review takes under a minute; Skip leaves no penalty. A game played on another account than the session's stays out.
+- [ ] On another device signed in to the same account, the session is there, in progress, with the same games.
+- [ ] End the session with a closing note: the summary shows results (LP only when it is known, otherwise why not), champions, plan follow-through from your reviews (labelled self-reported) and suggestions only where reviews support them; then keep, adjust or replace the objective.
+- [ ] Development: progress steps move only when you move them (several wins change nothing); the evidence panel says "not enough games" until there are five in each period; a removed synced game does not come back by itself.
+- [ ] A teammate cannot open your session's address (not found) and never sees your objectives, plans or reviews.
+- [ ] On a phone (portrait and landscape) and a tablet: nothing scrolls sideways; the review and objective windows open as sheets inside the screen; with reduced motion on, nothing pulses.

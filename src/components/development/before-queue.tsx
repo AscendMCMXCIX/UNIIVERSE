@@ -111,7 +111,7 @@ export function BeforeYouQueue({ primary, library, active, lookups }: { primary:
       <section className="overflow-hidden rounded-card border border-accent/40 bg-surface" data-testid="before-queue" data-state="active">
         <div className="bg-gradient-to-r from-accent/15 via-accent/5 to-transparent px-4 py-4 sm:px-5">
           <p className="flex flex-wrap items-center gap-2 text-xs font-medium uppercase tracking-label text-accent">
-            <span className="h-2 w-2 rounded-full bg-accent motion-safe:animate-pulse" aria-hidden /> {active.label} in progress
+            <span className="h-2 w-2 rounded-full bg-accent motion-safe:animate-pulse" aria-hidden data-testid="session-live" /> {active.label} in progress
           </p>
           <p className="mt-1 text-sm text-fg-muted">
             Started <RelativeTime date={active.startedAt} /> · {active.games} game{active.games === 1 ? "" : "s"} ·{" "}

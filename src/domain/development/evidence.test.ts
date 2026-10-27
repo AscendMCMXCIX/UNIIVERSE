@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compareMeasure, describeEvidence, MIN_GAMES } from "./evidence";
-import { earlyDeathsOf, EARLY_GAME_MS, measureValue, type MeasuredGame } from "./measures";
+import { earlyDeathsOf, EARLY_GAME_MS, gameMeasure, measureValue, type MeasuredGame } from "./measures";
 
 let n = 0;
 const game = (over: Partial<MeasuredGame> = {}): MeasuredGame => ({
@@ -35,6 +35,16 @@ describe("per-game figures", () => {
     // A game cut short says nothing about per-minute habits.
     expect(measureValue("cs-per-min", game({ durationSec: 600 }))).toBeNull();
     expect(measureValue("kill-participation", game({ teamKills: 0 }))).toBeNull();
+  });
+
+  it("read the same way for one game in a session as across games", () => {
+    const figures = { kills: 2, deaths: 6, assists: 8, cs: 180, durationSec: 1500, visionScore: 25, teamKills: 20, controlWards: 0, csAt10: 61, earlyDeaths: 3 };
+    expect(gameMeasure("deaths", figures)).toBe(6);
+    expect(gameMeasure("cs-per-min", figures)).toBeCloseTo(7.2);
+    expect(gameMeasure("kill-participation", figures)).toBeCloseTo(50);
+    expect(gameMeasure("control-wards", figures)).toBe(0);
+    expect(gameMeasure("early-deaths", { ...figures, earlyDeaths: null })).toBeNull();
+    expect(gameMeasure("vision-per-min", { ...figures, durationSec: 300 })).toBeNull();
   });
 
   it("count early deaths from the timeline's death times, unknown without them", () => {
