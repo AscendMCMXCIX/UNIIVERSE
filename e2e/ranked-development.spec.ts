@@ -57,8 +57,12 @@ test("an objective, a session on two devices, a reviewed and a skipped game, the
     await expect(before).toHaveAttribute("data-state", "empty");
 
     // BEFORE: one objective, a habit rather than a result. A rank goal is pointed out, not refused.
-    await p.getByTestId("objective-create").click();
+    // A click before the page has hydrated does nothing: click until the window opens.
     const editor = p.getByRole("dialog", { name: "New objective" });
+    await expect(async () => {
+      await p.getByTestId("objective-create").click();
+      await expect(editor).toBeVisible({ timeout: 1_000 });
+    }).toPass({ timeout: 15_000 });
     const title = editor.getByTestId("objective-editor").getByTestId("objective-title");
     await title.fill("Reach Diamond this split");
     await expect(editor.getByTestId("objective-outcome-note")).toBeVisible();
@@ -111,8 +115,13 @@ test("an objective, a session on two devices, a reviewed and a skipped game, the
     await expect(current).toContainText("No games yet");
     const add = p.getByTestId("add-game");
     await expect(add).toContainText("Goes into Session 1");
-    await add.getByTestId("add-game-manual").click();
-    await add.getByTestId("pool-quick-pick").first().click();
+    // Until the page has hydrated a click changes nothing: pick until the champion is chosen.
+    const pick = add.getByTestId("pool-quick-pick").first();
+    await expect(async () => {
+      await add.getByTestId("add-game-manual").click();
+      await pick.click();
+      await expect(pick).toHaveAttribute("aria-pressed", "true", { timeout: 1_000 });
+    }).toPass({ timeout: 15_000 });
     await add.getByRole("button", { name: "Win", exact: true }).click();
     await add.getByRole("button", { name: "Save game" }).click();
     const review = p.getByRole("dialog", { name: "Review this game" });
@@ -134,12 +143,13 @@ test("an objective, a session on two devices, a reviewed and a skipped game, the
     await add.getByRole("button", { name: "Loss", exact: true }).click();
     await add.getByRole("button", { name: "Save game" }).click();
     await expect(review).toBeVisible();
-    // On a phone the review window stays inside the screen.
+    // On a phone the review window stays inside the screen (measured once it has settled).
     await p.setViewportSize({ width: 390, height: 844 });
-    const box = (await review.boundingBox())!;
-    expect(box.x).toBeGreaterThanOrEqual(0);
-    expect(box.x + box.width).toBeLessThanOrEqual(391);
-    expect(box.y + box.height).toBeLessThanOrEqual(845);
+    const edges = async () => {
+      const b = (await review.boundingBox())!;
+      return { left: b.x >= -0.5, right: b.x + b.width <= 390.5, bottom: b.y + b.height <= 844.5 };
+    };
+    await expect.poll(edges, { message: "review window inside a phone screen" }).toEqual({ left: true, right: true, bottom: true });
     await p.setViewportSize({ width: 1440, height: 900 });
     await review.getByTestId("review-skip").click();
     await expect(review).toBeHidden();
@@ -155,8 +165,11 @@ test("an objective, a session on two devices, a reviewed and a skipped game, the
     // End it with a closing note: the summary, then the choice for the next session.
     await p.goto("/overview/development/sessions");
     await audit(p, "sessions with a session in progress");
-    await current.getByTestId("session-end").click();
     const end = p.getByRole("dialog", { name: "End Session 1?" });
+    await expect(async () => {
+      await current.getByTestId("session-end").click();
+      await expect(end).toBeVisible({ timeout: 1_000 });
+    }).toPass({ timeout: 15_000 });
     await expect(end).toContainText("2 games (1W 1L)");
     await end.getByTestId("session-end-note").fill("The plan held in lane.");
     await end.getByTestId("session-end-confirm").click();
@@ -199,8 +212,10 @@ test("an objective, a session on two devices, a reviewed and a skipped game, the
     await expect(card.getByTestId("evidence-none")).toBeVisible();
     await expect(card.getByTestId("evidence-execution")).toHaveAttribute("data-rated", "1");
     await audit(p, "library");
-    await card.getByTestId("objective-status-improving").click();
-    await expect(card).toHaveAttribute("data-status", "improving");
+    await expect(async () => {
+      await card.getByTestId("objective-status-improving").click();
+      await expect(card).toHaveAttribute("data-status", "improving", { timeout: 2_000 });
+    }).toPass({ timeout: 15_000 });
     await expect(card.getByTestId("objective-status-improving")).toHaveAttribute("aria-checked", "true");
     await p.reload();
     await expect(p.getByTestId("objective-card")).toHaveAttribute("data-status", "improving");

@@ -16,12 +16,25 @@ export async function createMember(admin: Page, base = "Viewer"): Promise<{ user
   await view(admin.context(), admin.url().split("/").slice(0, 3).join("/"), "admin");
   await admin.goto("/admin/people");
   const form = admin.getByTestId("add-player-form");
-  await form.getByLabel("Username").fill(username);
-  await form.getByLabel("Riot ID").fill(`${username}#OCE`);
-  await form.getByRole("button", { name: "Verify" }).click();
+  const name = form.getByLabel("Username");
+  const verify = form.getByRole("button", { name: "Verify" });
+  const create = admin.getByTestId("create-account");
+  // The form is drawn on the server: what is typed before the page has hydrated never reaches its
+  // state (WebKit hydrates later than Chromium). Type until the form holds the Riot ID (Verify is
+  // enabled), and the username again until Create is enabled.
+  await expect(async () => {
+    await name.fill(username);
+    await form.getByLabel("Riot ID").fill(`${username}#OCE`);
+    await expect(verify).toBeEnabled({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+  await verify.click();
   await expect(admin.getByTestId("riot-verified")).toBeVisible();
   await admin.getByTestId("new-access-team").check();
-  await admin.getByTestId("create-account").click();
+  await expect(async () => {
+    if (await create.isDisabled()) await name.fill(username);
+    await expect(create).toBeEnabled({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+  await create.click();
   await expect(admin.getByTestId("created-account")).toContainText(username);
   const temporary = (await admin.getByTestId("temporary-password-value").innerText()).trim();
   return { username, temporary };

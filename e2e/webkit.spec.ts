@@ -459,11 +459,13 @@ test("Ranked Development on an iPhone: an objective, a session, a game's review 
     await signIn(p, member.username, "Mine#2026-team");
     await expect(p).not.toHaveURL(/\/login/);
     const { width, height } = p.viewportSize()!;
+    // A window slides in when it opens: its edges are measured once it has settled.
     const inside = async (target: Locator, label: string) => {
-      const b = (await target.boundingBox())!;
-      expect(b.x, `${label}: left edge`).toBeGreaterThanOrEqual(-0.5);
-      expect(b.x + b.width, `${label}: right edge`).toBeLessThanOrEqual(width + 0.5);
-      expect(b.y + b.height, `${label}: bottom edge`).toBeLessThanOrEqual(height + 0.5);
+      const edges = async () => {
+        const b = (await target.boundingBox())!;
+        return { left: b.x >= -0.5, right: b.x + b.width <= width + 0.5, bottom: b.y + b.height <= height + 0.5 };
+      };
+      await expect.poll(edges, { message: `${label} inside the screen` }).toEqual({ left: true, right: true, bottom: true });
     };
     const fontSize = (target: Locator) => target.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
 
@@ -491,8 +493,13 @@ test("Ranked Development on an iPhone: an objective, a session, a game's review 
     // A game added by hand: its review opens right after, inside the screen.
     await p.goto("/overview/development/sessions");
     const add = p.getByTestId("add-game");
-    await add.getByTestId("add-game-manual").tap();
-    await add.getByTestId("pool-quick-pick").first().tap();
+    // A tap before the page is interactive does nothing: tap until the champion is chosen.
+    const pick = add.getByTestId("pool-quick-pick").first();
+    await expect(async () => {
+      await add.getByTestId("add-game-manual").tap();
+      await pick.tap();
+      await expect(pick).toHaveAttribute("aria-pressed", "true", { timeout: 1_000 });
+    }).toPass({ timeout: 15_000 });
     await add.getByRole("button", { name: "Win", exact: true }).tap();
     await add.getByRole("button", { name: "Save game" }).tap();
     const review = p.getByRole("dialog", { name: "Review this game" });
@@ -507,9 +514,11 @@ test("Ranked Development on an iPhone: an objective, a session, a game's review 
     await fitsWidth(p, "a session in progress");
 
     // Ending it: the window inside the screen, then the summary.
-    await p.getByTestId("session-end").tap();
     const end = p.getByRole("dialog", { name: "End Session 1?" });
-    await expect(end).toBeVisible();
+    await expect(async () => {
+      await p.getByTestId("session-end").tap();
+      await expect(end).toBeVisible({ timeout: 1_000 });
+    }).toPass({ timeout: 15_000 });
     await inside(end, "end window");
     expect(await fontSize(end.getByTestId("session-end-note"))).toBeGreaterThanOrEqual(16);
     await end.getByTestId("session-end-confirm").tap();
