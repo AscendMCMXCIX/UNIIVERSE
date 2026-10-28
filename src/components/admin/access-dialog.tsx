@@ -117,7 +117,7 @@ export function AccessDialog({ account, presets, lineupRole = null, onClose }: {
               <h3 id={`team-${account.userId}`} className="text-sm font-medium text-fg">
                 Team membership
               </h3>
-              <Switch id={`member-${account.userId}`} label={`Member of the ${teamName} team`} description={member ? "Team Overview, Players, Leaderboards and Matches; listed in Players once set up and eligible for the lineup." : "Personal use: their own profile, statistics and Solo Queue Blocks. No Team pages; not in Players or the lineup."} checked={member} onChange={setMember} />
+              <Switch id={`member-${account.userId}`} label={`Member of the ${teamName} team`} description={member ? "Team Overview, Players, Leaderboards and Matches; listed in Players once set up and eligible for the lineup." : "Personal use: their own profile, statistics and Ranked Development. No Team pages; not in Players or the lineup."} checked={member} onChange={setMember} />
               {!member && lineupRole && account.teamMember ? <p className="rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-xs text-fg">They hold the lineup&apos;s {ROLE_LABELS[lineupRole]} place: give it to someone else on Team Overview first.</p> : null}
               <p className="text-xs text-fg-subtle">Their Riot accounts, champion pools, statistics and journal stay as they are either way.</p>
             </section>

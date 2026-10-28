@@ -414,6 +414,13 @@
       "when": 1793005690871,
       "tag": "0058_match_details_puuids",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1793076148430,
+      "tag": "0059_ranked_development",
+      "breakpoints": true
     }
   ]
 }

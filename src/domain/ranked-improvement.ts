@@ -202,9 +202,9 @@ export function matchupRecords(games: Array<Pick<JournalGameFacts, "championId" 
   return [...by.values()].sort((a, b) => b.games - a.games || a.championId.localeCompare(b.championId));
 }
 
-/** "BLOCK 004" */
+/** "Session 4": blocks became Ranked Development's sessions (the same rows, numbered as before). */
 export function blockLabel(number: number): string {
-  return `BLOCK ${String(number).padStart(3, "0")}`;
+  return `Session ${number}`;
 }
 
 /** Accepts an OP.GG / match link and nothing else that could be abused (http(s) only, short). */

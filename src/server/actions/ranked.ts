@@ -1,13 +1,13 @@
 "use server";
 
-import { isCompletionRule, type BlockTarget, type CompletionRule } from "@/domain/ranked-improvement";
+import type { BlockTarget } from "@/domain/ranked-improvement";
 
 import { revalidatePath } from "next/cache";
 import { getAppDb } from "@/server/bootstrap";
 import { getSession, NotAuthorizedError } from "@/server/auth/session";
 import { journalOwnerFor } from "@/server/ranked/owner";
 import type { Role } from "@/domain/roles";
-import { addGame, deleteBlock, deleteGame, finishBlock, importMatch, JournalError, setBlockSize, setPlayedWith, startBlock, updateGame, updateRankedProfile, type GameInput, type RankedBlockView, type RankedGameView, type RankedProfileView } from "@/server/ranked/repository";
+import { addGame, deleteBlock, deleteGame, importMatch, JournalError, setBlockSize, setPlayedWith, updateGame, type GameInput, type RankedBlockView, type RankedGameView } from "@/server/ranked/repository";
 
 type Result<T = null> = { ok: true; data: T } | { ok: false; error: string };
 const fail = (err: unknown): Result<never> => ({ ok: false, error: err instanceof JournalError || err instanceof NotAuthorizedError ? err.message : "Something went wrong. Please try again." });
@@ -17,9 +17,7 @@ async function owner(): Promise<string> {
 }
 
 function touch() {
-  revalidatePath("/overview");
-  revalidatePath("/overview/blocks");
-  revalidatePath("/overview/blocks/history");
+  revalidatePath("/overview/development", "layout");
 }
 
 export interface GameFormInput {
@@ -79,32 +77,6 @@ export async function deleteRankedGameAction(gameId: string): Promise<Result> {
   }
 }
 
-export async function finishRankedBlockAction(blockId: string): Promise<Result<RankedBlockView>> {
-  try {
-    const playerId = await owner();
-    const db = await getAppDb();
-    const block = await finishBlock(db, playerId, blockId);
-    touch();
-    return { ok: true, data: block };
-  } catch (err) {
-    return fail(err);
-  }
-}
-
-/** Starts a block with the completion rule (and, for a game target, the target) the player chose. */
-export async function startRankedBlockAction(plannedGames?: BlockTarget | null, rule?: CompletionRule | null): Promise<Result<RankedBlockView>> {
-  try {
-    const playerId = await owner();
-    if (rule != null && !isCompletionRule(rule)) return { ok: false, error: "Choose how the block ends: a game target or the two-loss limit." };
-    const db = await getAppDb();
-    const block = await startBlock(db, playerId, plannedGames, rule ?? null);
-    touch();
-    return { ok: true, data: block };
-  } catch (err) {
-    return fail(err);
-  }
-}
-
 /**
  * Deletes one of your own blocks with its journal entries. The owner comes from the session (never
  * the request), so another player's block is simply not found. Riot match data is never touched.
@@ -129,18 +101,6 @@ export async function importRankedMatchAction(matchId: string, extra: { mainMist
     const data = await importMatch(db, playerId, matchId, extra);
     touch();
     return { ok: true, data };
-  } catch (err) {
-    return fail(err);
-  }
-}
-
-export async function saveRankedFocusAction(patch: Partial<Omit<RankedProfileView, "playerId">>): Promise<Result<RankedProfileView>> {
-  try {
-    const playerId = await owner();
-    const db = await getAppDb();
-    const profile = await updateRankedProfile(db, playerId, patch);
-    touch();
-    return { ok: true, data: profile };
   } catch (err) {
     return fail(err);
   }

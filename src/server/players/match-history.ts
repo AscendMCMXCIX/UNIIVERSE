@@ -84,7 +84,7 @@ export interface MatchRow {
   record: "stored" | "missing" | "unavailable";
   /** The largest multikill the player made in the game (2 = double … 5 = penta); null for none or without the counts. */
   multikill: 2 | 3 | 4 | 5 | null;
-  /** Ranked Solo/Duo game already in the owner's Solo Queue Blocks (owner only). */
+  /** Ranked Solo/Duo game already in one of the owner's Ranked Development sessions (owner only). */
   inJournal: boolean;
   /** Both teams (blue and red) in lane order, with team members marked; null without the full record. */
   teams: Composition | null;

@@ -37,10 +37,9 @@ describe("ranked improvement domain", () => {
     ]);
   });
 
-  it("labels blocks with three digits and knows every mistake category", () => {
-    expect(blockLabel(1)).toBe("BLOCK 001");
-    expect(blockLabel(42)).toBe("BLOCK 042");
-    expect(blockLabel(1000)).toBe("BLOCK 1000");
+  it("labels blocks as numbered sessions and knows every mistake category", () => {
+    expect(blockLabel(1)).toBe("Session 1");
+    expect(blockLabel(42)).toBe("Session 42");
     expect(mistakeLabel("trading-laning")).toBe("Trading / Laning");
     expect(mistakeLabel("nope")).toBe("—");
     expect(isMainMistake("positioning-teamfight")).toBe(true);

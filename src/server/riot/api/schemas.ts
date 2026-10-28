@@ -92,7 +92,7 @@ export const matchSchema = z.object({
 
 /**
  * A match timeline (match-v5 /timeline): only the participant order and the events UNIIVERSE reads
- * (item purchases, their undos and skill level-ups). Riot's minute-by-minute frames carry far more;
+ * (item purchases, their undos, skill level-ups and who died when). Riot's minute-by-minute frames carry far more;
  * the rest is ignored and never stored.
  */
 export const matchTimelineSchema = z.object({
@@ -127,6 +127,8 @@ export const matchTimelineSchema = z.object({
                 afterId: z.number().optional(),
                 skillSlot: z.number().optional(),
                 levelUpType: z.string().optional(),
+                /** CHAMPION_KILL: the participant who died. */
+                victimId: z.number().optional(),
               }),
             )
             .default([]),

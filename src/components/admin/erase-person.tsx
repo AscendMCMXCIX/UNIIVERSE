@@ -27,7 +27,7 @@ const n = (value: number, one: string, many: string) => `${formatCount(value)} $
 export function erasureLines(c: ErasureCounts): string[] {
   const lines: string[] = [];
   if (c.account) lines.push("Their account and every signed-in session are removed.");
-  if (c.profile) lines.push(`Their player profile is removed: roles, champion pools, card customisation, banner, social links${c.journalEntries ? ` and ${n(c.journalEntries, "Solo Queue Blocks entry", "Solo Queue Blocks entries")}` : " and their Solo Queue Blocks journal"}.`);
+  if (c.profile) lines.push(`Their player profile is removed: roles, champion pools, card customisation, banner, social links${c.journalEntries ? ` and ${n(c.journalEntries, "Ranked Development game", "Ranked Development games")} with their objectives, plans and reviews` : " and their Ranked Development objectives, plans and reviews"}.`);
   if (c.riotAccounts) lines.push(`${n(c.riotAccounts, "linked Riot account is", "linked Riot accounts are")} removed with ${n(c.games, "stored game", "stored games")}, mastery and rank history.`);
   if (c.gamesDeleted) lines.push(`${n(c.gamesDeleted, "game only they played is", "games only they played are")} deleted.`);
   if (c.gamesDeidentified) lines.push(`${n(c.gamesDeidentified, "game shared with others is", "games shared with others are")} kept for the others, with them shown as "Removed player" (no name, champion or figures).`);
