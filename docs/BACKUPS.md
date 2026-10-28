@@ -15,7 +15,7 @@ A backup only counts once it has been restored and checked. This page says how t
 All of it lives in the one Postgres database:
 - **Accounts:** usernames, password hashes, sessions, access levels, the admin activity record.
 - **The team:** players, pools, lineups and substitutes, branding.
-- **Game data:** linked Riot accounts, stored games and match details, Ranked Development (sessions, reviews, objectives and plans).
+- **Game data:** linked Riot accounts, stored games and match details, and the records kept from the retired Ranked Development (sessions, reviews, objectives and plans) until their clean-up.
 
 Riot's static data (champions, patches, skins) can be fetched again, but restoring it with the rest is simpler.
 

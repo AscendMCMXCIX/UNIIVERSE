@@ -32,7 +32,7 @@ UNIIVERSE is a **private, team-focused League of Legends platform** for one amat
 - **the team together**: the lineup, Leaderboards, and the games members played together.
 
 **Who uses it.**
-- **Players:** keep their roles and champion pools, see their statistics, and keep a private Solo Queue improvement journal.
+- **Players:** keep their roles and champion pools and see their statistics.
 - **The Owner/admin:** manages accounts, access, data jobs and branding.
 
 **Main goals.**
@@ -62,7 +62,7 @@ UNIIVERSE is a **private, team-focused League of Legends platform** for one amat
 | **Riot account linking** | Several accounts per player, exactly one **Main** and the rest **Alts**. Each account is resolved to a PUUID and synced automatically by priority: rank, mastery and the whole current season of supported queues. | IMPLEMENTED · TESTED · PRODUCTION VERIFIED (13 linked accounts, all resolved and synced within the last hour on 14 Oct) |
 | **Team Matches** | Played together: Riot games two or more members played on the same side, with filters, bookmarks and match details. | IMPLEMENTED · TESTED |
 | **Encounters** | In each profile's Match History: the opponents and allies that player keeps meeting, with their record against and alongside them, under the same season, game mode and account filters. | IMPLEMENTED · TESTED |
-| **Ranked Development** (formerly Solo Queue Blocks) | Private Solo/Duo practice: one current objective with an If–Then plan, sessions that collect synced games by themselves, a short skippable review per game, session summaries, a weakness library with player-moved progress steps, and evidence that keeps Riot figures and self-reports apart (docs/RANKED_DEVELOPMENT.md). Only the owner can see it. | IMPLEMENTED · TESTED |
+| **Ranked Development** (formerly Solo Queue Blocks) | Retired on 29 Oct 2026: removed from the app, with Match History's add-to-session button and the automatic session matching after each sync. Its old addresses redirect to My Profile → Overview. Its records are kept, unused, until a separate clean-up (docs/RANKED_DEVELOPMENT.md). | RETIRED |
 | **Admin** | People & Access, Riot Data (jobs, coverage, champion rework handling), Branding, System Health. | IMPLEMENTED · TESTED (local) |
 | **Branding** | Team name, tagline, logo, separate sign-in and app backgrounds (GIF up to 20 MB, uploaded in 3.5 MB pieces), five colours with contrast checks. | IMPLEMENTED · TESTED |
 | **System Health** | Plain-language status for website, database, Riot API, player syncing and jobs, plus technical diagnostics. `/api/health` is public and cheap. | IMPLEMENTED · PRODUCTION VERIFIED (`/api/health` answered ok with no failing jobs on 14 Oct). Note: "ok" does not mean data is flowing (see section 5). |
@@ -140,7 +140,6 @@ All phases were developed between 1 and 14 October 2026. Phase 1 started on 13 O
   - Accounts, passwords and permissions stay with Owners.
   - The last Owner can never be locked out.
   - No secrets are ever pasted into chat.
-- **Privacy.** Ranked Development is private to its owner and never feeds team statistics.
 - **Retired ideas:**
   - activation-code sign-in;
   - the Team Leader / Draft Lead role;

@@ -44,7 +44,7 @@ Failure signs: "Static provider unavailable" in the job log → the host cannot 
 Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot recognises (wrong value, placeholder, extra characters); 403 on every endpoint → the key expired (development keys last 24 h) or was revoked; 403 on `/riot/account/v1/…` only, while `riot-check` says *accepted* → the request went to a routing value that does not serve ACCOUNT-V1 (the `sea` host did until 575a4f6; account lookups now use `asia`); 404 on `by-puuid` endpoints → wrong regional routing (check `RIOT_PLATFORMS` values like `euw1`, `kr`, `na1`, `oc1`).
 
 - [x] `riot-check` (Admin → Data & Riot → Riot credential → **Check key now**, or the data-jobs workflow with `job=riot-check`) answers with the key's state and the HTTP status without exposing the key. *2026-10-13: `accepted`, status 200 on oc1, key fingerprint `…18eb`.*
-- [x] The **Production smoke** workflow (Actions → Production smoke → Run) prints the live build from `/api/health`, 200 for `/login`, 307 → `/login?next=…` for every private page (including `/overview/development` and the old `/overview/blocks`) and 401 for the job endpoint without the secret.
+- [x] The **Production smoke** workflow (Actions → Production smoke → Run) prints the live build from `/api/health`, 200 for `/login`, 307 → `/login?next=…` for every private page, 401 for the job endpoint without the secret, and a redirect to `/overview` for the retired Ranked Development addresses (`/overview/development`, `/overview/blocks`, `/blocks`, `/ranked`).
 
 ## 3. Linked Riot accounts and proficiency
 
@@ -467,6 +467,8 @@ Nothing on screen changes; the checks confirm the same answers, sooner.
 
 ## Ranked Development (migration 0059, October 2026)
 
+Superseded on 29 Oct 2026: Ranked Development was removed (next section). Kept as the record of what was checked while it existed.
+
 Solo Queue Blocks became Ranked Development (`docs/RANKED_DEVELOPMENT.md`). On the live site, after the deployment:
 - [ ] Data jobs → `smoke auth-audit perf-probe`: every step passes, `deployment.commit` is the merge commit, `/overview/development` answers 307 to sign-in when signed out, and `auth-audit` lists migrations up to `0059_ranked_development`.
 - [ ] My Profile → **Ranked Development** (between Match History and Riot Accounts; not on a teammate's profile): Overview, Sessions and Development as tabs. A player who had a Solo Queue Blocks focus sees it as their current objective (Practising), with its champions; their earlier blocks are listed under Sessions as "Session N" with their games, notes and main mistakes.
@@ -478,3 +480,13 @@ Solo Queue Blocks became Ranked Development (`docs/RANKED_DEVELOPMENT.md`). On t
 - [ ] Development: progress steps move only when you move them (several wins change nothing); the evidence panel says "not enough games" until there are five in each period; a removed synced game does not come back by itself.
 - [ ] A teammate cannot open your session's address (not found) and never sees your objectives, plans or reviews.
 - [ ] On a phone (portrait and landscape) and a tablet: nothing scrolls sideways; the review and objective windows open as sheets inside the screen; with reduced motion on, nothing pulses.
+
+## Ranked Development removed (29 Oct 2026)
+
+Ranked Development is retired, with Solo Queue Blocks and the Ranked Improvement journal before it (`docs/RANKED_DEVELOPMENT.md`). Items in earlier sections about Solo Queue Blocks, the ranked journal or Ranked Development no longer apply. On the live site, after the deployment:
+- [ ] Data jobs → `smoke perf-probe`: every step passes, `deployment.commit` is the merge commit, and `/overview/development`, `/overview/blocks`, `/blocks` and `/ranked` answer a redirect to `/overview`.
+- [ ] My Profile shows four sections, Overview, All Champions, Match History and Riot Accounts, evenly spaced under the profile card on a computer, a tablet, a phone (portrait and landscape) and the installed app; a teammate's profile shows the same four.
+- [ ] Signed in, the old addresses (`/overview/development/sessions`, `/overview/blocks/history`, a block's own address, `/ranked`) open My Profile → Overview.
+- [ ] Match History: a game's window has no "Add to a Ranked Development session" button; Bookmark (your own games) and the OP.GG link are still there; enemy ranks show as before.
+- [ ] Overview, All Champions, Ranked progress (rank and LP), Riot Accounts, Team Overview and Leaderboards show the same figures as before the change; a new game still arrives with the next account sync.
+- [ ] Privacy notice: the Ranked Development entry says the records are kept, unused, until a planned clean-up, and the date at the top is 29 October 2026.

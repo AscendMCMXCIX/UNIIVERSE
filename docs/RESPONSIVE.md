@@ -26,7 +26,6 @@ it (`globals.css`), and every pinned element follows these rules:
 | Tab bar | fixed at the bottom | hidden; `main` keeps only the home indicator's inset (`pb-tabbar`) |
 | Detail windows (`DetailModal`) | whole screen below `sm`, centred window above; one whose header would fill over 40% of a phone's screen (the Team player window on a small phone) scrolls as one, as in a short window | whole screen, scrolling as one: a large header scrolls away, its close and step buttons float at the top, a footer stays pinned |
 | Dialogs (`Dialog`) | bottom sheet, at most the screen minus a strip | centred card, at most the screen minus 1rem; title and actions stay, only the body scrolls |
-| Pickers (`ChampionPicker`) | whole screen | whole screen |
 | Things pinned to the bottom (toasts, a save bar) | `bottom-tabbar`: above the tab bar | near the bottom edge |
 
 Turning the phone keeps state: windows, filters and tabs live in the address or in component
@@ -80,7 +79,6 @@ fit (iPhone 15 and wider) and scroll on narrower phones.
   with no hydration flash (the first render leaves the decision to CSS).
 - `PanelHeader` wraps its actions; `Panel` is `min-w-0` so grids never force page overflow.
 - `ChampionPortrait` images carry width/height, `loading="lazy"` and `decoding="async"`.
-- `ChampionPicker`: full-screen sheet on phones and in short windows, dialog from `sm`; body scroll is locked while open.
 
 ## Tables
 
@@ -141,6 +139,12 @@ Three levels, each saying what it proves:
   - fields at 16px or more (Safari zooms into smaller ones) and sign-in's password autofill attributes;
   - the pages held sideways;
   - the Home Screen metadata: `apple-mobile-web-app-*`, the touch icon, the manifest and `viewport-fit=cover`.
+
+  None of these tests signs a member in. One that does must keep the session itself: WebKit keeps
+  no `Secure` cookie on `http://localhost`, and the e2e server is a production build whose session
+  cookies are `Secure`. Ranked Development's iPhone test stored the sign-in's cookies again without
+  `Secure` and blocked the service worker so every request was routed (commits `e87dd15` to
+  `985c65a`; removed with that feature).
 
   This is WebKit as Playwright builds it for Linux: Safari's engine, not Safari on an iPhone.
   **Status, 21 Oct 2026:** the spec passes in Chromium with the same iPhone settings; its first
