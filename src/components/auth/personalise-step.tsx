@@ -5,7 +5,7 @@ import { ArrowLeft, Camera, Paintbrush } from "lucide-react";
 import type { CardLook } from "@/domain/card-style";
 import type { CardArt } from "@/domain/player-card";
 import type { Role } from "@/domain/roles";
-import type { PickerChampion } from "@/components/champion-picker";
+import type { PickerChampion } from "@/components/champions/types";
 import { CardPreview } from "@/components/players/card-preview";
 import { CustomiseCardButton } from "@/components/players/customise-card-button";
 import { AvatarEditor } from "@/components/settings/account-details";

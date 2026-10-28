@@ -24,7 +24,7 @@ describe("field performance", () => {
   it("keeps only the first part of the address, never an id", () => {
     expect(pageGroupOf("/players/1f3a9c2e-0000-4000-8000-000000000000/matches")).toBe("players");
     expect(pageGroupOf("/team")).toBe("team");
-    expect(pageGroupOf("/overview/blocks/42")).toBe("overview");
+    expect(pageGroupOf("/overview/matches/42")).toBe("overview");
     expect(pageGroupOf("/admin/system")).toBe("admin");
     expect(pageGroupOf("/invite/secret-token")).toBe("other");
     expect(pageGroupOf("/")).toBe("other");

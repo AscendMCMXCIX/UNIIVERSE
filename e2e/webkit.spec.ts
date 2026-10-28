@@ -1,7 +1,6 @@
 import { devices, expect, test, type Locator, type Page } from "./test";
 import { emulateKeyboard, keyboard } from "./keyboard";
 import { expectClearCorner } from "./modal-corner";
-import { memberContext, signIn, webkitMemberOptions } from "./member-account";
 import path from "node:path";
 
 /*
@@ -440,93 +439,5 @@ test("an uploaded logo: at the start of the top bar, animated unless motion is r
     await page.locator("[data-testid=brand-logo][data-ready=true]").getByRole("button", { name: "Remove" }).click();
     await page.getByTestId("confirm-dialog-confirm").click();
     await expect(page.getByTestId("brand-logo-empty")).toBeVisible();
-  }
-});
-
-test("Ranked Development on an iPhone: an objective, a session, a game's review and the end, each window inside the screen with 16px fields", async ({ browser }) => {
-  test.setTimeout(180_000);
-  // A member account, made in Users & Permissions and set up on a computer-sized window, then
-  // signed in on its own iPhone.
-  const desk = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-  const admin = await desk.newPage();
-  await admin.goto("/team");
-  const member = await memberContext(browser, admin);
-  await member.context.close();
-  const { defaultBrowserType: _, ...iphone } = devices["iPhone 15"];
-  const context = await browser.newContext({ ...iphone, ...webkitMemberOptions(browser) });
-  try {
-    const p = await context.newPage();
-    await signIn(p, member.username, "Mine#2026-team", "/overview/development");
-    const { width, height } = p.viewportSize()!;
-    // A window slides in when it opens: its edges are measured once it has settled.
-    const inside = async (target: Locator, label: string) => {
-      const edges = async () => {
-        const b = (await target.boundingBox())!;
-        return { left: b.x >= -0.5, right: b.x + b.width <= width + 0.5, bottom: b.y + b.height <= height + 0.5 };
-      };
-      await expect.poll(edges, { message: `${label} inside the screen` }).toEqual({ left: true, right: true, bottom: true });
-    };
-    const fontSize = (target: Locator) => target.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-
-    // Before you queue: the objective window, its fields large enough that Safari does not zoom.
-    // Signed in straight onto Ranked Development (a lost session would stay on the sign-in page).
-    await expect(p).toHaveURL(/\/overview\/development$/);
-    await expect(p.getByTestId("before-queue")).toBeVisible();
-    await fitsWidth(p, "Ranked Development");
-    const editor = p.getByRole("dialog", { name: "New objective" });
-    // A tap before the page is interactive does nothing: tap until the window opens.
-    await expect(async () => {
-      await p.getByTestId("objective-create").tap();
-      await expect(editor).toBeVisible({ timeout: 1_000 });
-    }).toPass({ timeout: 15_000 });
-    await inside(editor, "objective window");
-    const title = editor.getByTestId("objective-editor").getByTestId("objective-title");
-    await title.fill("Ward the river before I shove");
-    await editor.getByTestId("objective-area").selectOption("vision");
-    await editor.getByTestId("plan-if").fill("my wave is about to crash");
-    await editor.getByTestId("plan-then").fill("I ward the river first");
-    for (const field of [title, editor.getByTestId("objective-area"), editor.getByTestId("plan-if"), editor.getByTestId("plan-then")]) expect(await fontSize(field)).toBeGreaterThanOrEqual(16);
-    await editor.getByTestId("objective-save").tap();
-    await expect(editor).toBeHidden();
-    await p.getByTestId("session-start").tap();
-    await expect(p.getByTestId("before-queue")).toHaveAttribute("data-state", "active");
-
-    // A game added by hand: its review opens right after, inside the screen.
-    await p.goto("/overview/development/sessions");
-    const add = p.getByTestId("add-game");
-    // A tap before the page is interactive does nothing: tap until the champion is chosen.
-    const pick = add.getByTestId("pool-quick-pick").first();
-    await expect(async () => {
-      await add.getByTestId("add-game-manual").tap();
-      await pick.tap();
-      await expect(pick).toHaveAttribute("aria-pressed", "true", { timeout: 1_000 });
-    }).toPass({ timeout: 15_000 });
-    await add.getByRole("button", { name: "Win", exact: true }).tap();
-    await add.getByRole("button", { name: "Save game" }).tap();
-    const review = p.getByRole("dialog", { name: "Review this game" });
-    await expect(review).toBeVisible();
-    await inside(review, "review window");
-    for (const field of [review.getByTestId("review-learning"), review.getByTestId("review-adjustment")]) expect(await fontSize(field)).toBeGreaterThanOrEqual(16);
-    await review.getByTestId("review-execution-2").tap();
-    await review.getByTestId("review-learning").fill("I shoved without vision twice");
-    await review.getByTestId("review-save").tap();
-    await expect(review).toBeHidden();
-    await expect(p.getByTestId("current-session").getByTestId("session-game")).toHaveAttribute("data-review", "done");
-    await fitsWidth(p, "a session in progress");
-
-    // Ending it: the window inside the screen, then the summary.
-    const end = p.getByRole("dialog", { name: "End Session 1?" });
-    await expect(async () => {
-      await p.getByTestId("session-end").tap();
-      await expect(end).toBeVisible({ timeout: 1_000 });
-    }).toPass({ timeout: 15_000 });
-    await inside(end, "end window");
-    expect(await fontSize(end.getByTestId("session-end-note"))).toBeGreaterThanOrEqual(16);
-    await end.getByTestId("session-end-confirm").tap();
-    await expect(p.getByTestId("session-summary")).toContainText("Plan followed in 1 of 1 reviewed game");
-    await fitsWidth(p, "a finished session");
-  } finally {
-    await context.close();
-    await desk.close();
   }
 });

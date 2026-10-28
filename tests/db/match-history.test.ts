@@ -14,7 +14,6 @@ import { compareInMatch, getMatchDetail, getMatchHistory } from "@/server/player
 import { compositionOf, loadCompositionParticipants, teamMembersByPuuid } from "@/server/matches/compositions";
 import { compactAssets, ddragonVersionOf } from "@/server/riot/static/assets";
 import { invalidateCache } from "@/server/observability/cache";
-import { importMatch, startBlock } from "@/server/ranked/repository";
 import { RiotApiClient } from "@/server/riot/api/client";
 import { RateLimiter } from "@/server/riot/api/rate-limiter";
 import type { RiotMatch } from "@/server/riot/api/schemas";
@@ -215,28 +214,28 @@ describe("personal match history", () => {
   });
 
   it("lists this season's games newest first, a page at a time, a shared game once", async () => {
-    const page = await getMatchHistory(handle.db, playerId, { per: 10 }, true);
+    const page = await getMatchHistory(handle.db, playerId, { per: 10 });
     // 20 main + 3 alt + 1 bare (the shared game once, last season's game left out).
     expect(page.total).toBe(24);
     expect(page.pages).toBe(3);
     expect(page.rows).toHaveLength(10);
     expect(page.rows.map((r) => r.matchId).slice(0, 3)).toEqual(["OC1_700000019", "OC1_700000018", "OC1_700000017"]);
     const ids = new Set<string>();
-    for (let p = 1; p <= page.pages; p++) for (const r of (await getMatchHistory(handle.db, playerId, { per: 10, page: p }, true)).rows) ids.add(r.matchId);
+    for (let p = 1; p <= page.pages; p++) for (const r of (await getMatchHistory(handle.db, playerId, { per: 10, page: p })).rows) ids.add(r.matchId);
     expect(ids.size).toBe(24);
     // Out-of-range page numbers and sizes are clamped rather than empty.
-    expect((await getMatchHistory(handle.db, playerId, { per: 10, page: 99 }, true)).page).toBe(3);
-    expect((await getMatchHistory(handle.db, playerId, { per: 1 }, true)).per).toBe(5);
-    expect((await getMatchHistory(handle.db, playerId, { per: 500 }, true)).per).toBe(25);
+    expect((await getMatchHistory(handle.db, playerId, { per: 10, page: 99 })).page).toBe(3);
+    expect((await getMatchHistory(handle.db, playerId, { per: 1 })).per).toBe(5);
+    expect((await getMatchHistory(handle.db, playerId, { per: 500 })).per).toBe(25);
   });
 
   it("filters by mode, champion, account and season", async () => {
     const db = handle.db;
-    expect((await getMatchHistory(db, playerId, { mode: "flex", per: 25 }, true)).total).toBe(10);
-    expect((await getMatchHistory(db, playerId, { mode: "solo", per: 25 }, true)).total).toBe(14);
-    expect((await getMatchHistory(db, playerId, { championId: "Riven", per: 25 }, true)).total).toBe(5);
+    expect((await getMatchHistory(db, playerId, { mode: "flex", per: 25 })).total).toBe(10);
+    expect((await getMatchHistory(db, playerId, { mode: "solo", per: 25 })).total).toBe(14);
+    expect((await getMatchHistory(db, playerId, { championId: "Riven", per: 25 })).total).toBe(5);
     // The alt: its three games and the one shared game.
-    const altPage = await getMatchHistory(db, playerId, { accountId: alt, per: 25 }, true);
+    const altPage = await getMatchHistory(db, playerId, { accountId: alt, per: 25 });
     expect(altPage.total).toBe(4);
     expect(altPage.accountOptions.map((a) => a.riotId).sort()).toEqual(["Hist#OCE", "HistAlt#OCE"]);
     // Every row says which account played it when several are linked.
@@ -244,15 +243,15 @@ describe("personal match history", () => {
     expect(altPage.championOptions.map((c) => c.id)).toEqual(["Gwen"]);
     // Last season's game stays stored but is never offered: Season 2026 is the earliest choice,
     // and an old address asking for 2025 shows the current season instead.
-    const all = await getMatchHistory(db, playerId, { per: 25 }, true);
+    const all = await getMatchHistory(db, playerId, { per: 25 });
     expect(all.seasons).toEqual([16]);
-    const last = await getMatchHistory(db, playerId, { season: 15, per: 25 }, true);
+    const last = await getMatchHistory(db, playerId, { season: 15, per: 25 });
     expect(last.filter.season).toBe(16);
     expect(last.rows.map((r) => r.matchId)).not.toContain("OC1_OLDSEASON");
   });
 
   it("shows per-minute figures, kill participation and icons only where they are recorded", async () => {
-    const page = await getMatchHistory(handle.db, playerId, { per: 25 }, true);
+    const page = await getMatchHistory(handle.db, playerId, { per: 25 });
     const top = page.rows.find((r) => r.matchId === "OC1_700000019")!;
     expect(top.record).toBe("stored");
     expect(top.csPerMin).toBeCloseTo(192 / 30, 6);
@@ -277,12 +276,12 @@ describe("personal match history", () => {
 
   it("counts every matching game, filters by pool and previews both lineups", async () => {
     const db = handle.db;
-    const all = await getMatchHistory(db, playerId, { per: 10 }, true);
+    const all = await getMatchHistory(db, playerId, { per: 10 });
     // The whole filtered population for the pages, not just this page (the shared game once).
     expect(all.total).toBe(24);
     expect(all.rows).toHaveLength(10);
     // Pool scope: the champions of the configured pool of the role each game was played in.
-    const riven = await getMatchHistory(db, playerId, { scope: "pool", per: 25 }, true, (r) => (r === "TOP" ? ["Riven"] : []));
+    const riven = await getMatchHistory(db, playerId, { scope: "pool", per: 25 }, (r) => (r === "TOP" ? ["Riven"] : []));
     expect(riven.filter.scope).toBe("pool");
     expect(riven.total).toBe(5);
     expect(riven.rows.every((r) => r.championId === "Riven")).toBe(true);
@@ -347,7 +346,7 @@ describe("personal match history", () => {
       expect(by.get(7)?.opgg).toBe("https://op.gg/lol/summoners/oce/Player7-OCE");
       expect(by.get(8)?.opgg).toBe("https://op.gg/lol/summoners/oce/Player8-OCE");
       // The match cards use the same rule.
-      const page = await getMatchHistory(db, playerId, { per: 25 }, true);
+      const page = await getMatchHistory(db, playerId, { per: 25 });
       const red = page.rows.find((r) => r.matchId === "OC1_700000018")!.teams!.red;
       expect(red.map((x) => x.opgg)).toContain(`https://op.gg/lol/summoners/euw/${encodeURIComponent("Новое Имя")}-RU1`);
     } finally {
@@ -369,9 +368,9 @@ describe("personal match history", () => {
     const [record] = await db.select({ participants: matchDetails.participants }).from(matchDetails).where(eq(matchDetails.matchId, "OC1_800000002"));
     const demoPlace = { ...record!.participants.find((x) => x.puuid === nine)!, name: "Made Up#OCE" };
     await db.insert(matchDetails).values({ matchId: "DEMO_1a2b3c4d_1", platform: "oc1", queueId: 420, gameCreation: later(27), gameDuration: 1800, gameVersion: "16.20.1", teams: [], participants: [demoPlace] });
-    const mate = async () => (await getMatchHistory(db, playerId, { per: 25 }, true)).rows.find((r) => r.matchId === "OC1_700000019")!.teams!.blue.find((x) => x.member && !x.you)!;
+    const mate = async () => (await getMatchHistory(db, playerId, { per: 25 })).rows.find((r) => r.matchId === "OC1_700000019")!.teams!.blue.find((x) => x.member && !x.you)!;
     try {
-      const page = await getMatchHistory(db, playerId, { per: 25 }, true);
+      const page = await getMatchHistory(db, playerId, { per: 25 });
       const card = page.rows.find((r) => r.matchId === "OC1_700000018")!.teams!.red.find((x) => x.slot === 9);
       expect(card?.opgg).toBe("https://op.gg/lol/summoners/oce/Nine%20Renamed-OCE");
       const res = await getMatchDetail(db, playerId, "OC1_700000018", { viewerIsOwner: true });
@@ -397,7 +396,7 @@ describe("personal match history", () => {
     const solo = (await createPlayer(db, teamId, { displayName: "Single", primaryRole: "MID", primaryPool: ["Ahri"] })).id;
     const acc = (await addAccount(db, { ownerType: "player", playerId: solo, riotId: "Single#OCE", platform: "oc1" })).id;
     await db.insert(accountMatches).values({ accountId: acc, matchId: "OC1_S1", gameCreation: base, queueId: 420, championId: "Ahri", role: "MIDDLE", win: true, patch: "16.20" });
-    const page = await getMatchHistory(db, solo, {}, true);
+    const page = await getMatchHistory(db, solo, {});
     expect(page.accountOptions).toEqual([]);
     expect(page.rows[0]?.riotId).toBeNull();
     expect(page.total).toBe(1);
@@ -428,8 +427,6 @@ describe("personal match history", () => {
     expect(stranger).toMatchObject({ memberId: null, teamMember: null });
     expect(stranger.opgg).toBe(`https://op.gg/lol/summoners/oce/${encodeURIComponent(stranger.name!.split("#")[0]!)}-OCE`);
     expect(v.maxDamage).toBe(27_000);
-    // Flex: not a Solo Queue Block game.
-    expect(v.journal.eligible).toBe(false);
     // Comparisons from the record only: shares of the team, the enemy top laner, team totals.
     const c = v.comparison;
     expect(c.damageShare).toBeCloseTo(27_000 / 87_000, 6);
@@ -481,26 +478,9 @@ describe("personal match history", () => {
     expect(missing.status).toBe("missing");
   });
 
-  it("adds a Solo/Duo game to the owner's Solo Queue Block once", async () => {
-    const db = handle.db;
-    const before = await getMatchDetail(db, playerId, "OC1_700000018", { viewerIsOwner: true });
-    expect(before.status === "ok" && before.view.journal).toEqual({ eligible: true, inJournal: false });
-    // Teammates viewing the profile never get the journal action.
-    const viewer = await getMatchDetail(db, playerId, "OC1_700000018", { viewerIsOwner: false });
-    expect(viewer.status === "ok" && viewer.view.journal.eligible).toBe(false);
-    await startBlock(db, playerId, 5);
-    await importMatch(db, playerId, "OC1_700000018");
-    await expect(importMatch(db, playerId, "OC1_700000018")).rejects.toThrow(/already in your journal/);
-    const after = await getMatchDetail(db, playerId, "OC1_700000018", { viewerIsOwner: true });
-    expect(after.status === "ok" && after.view.journal.inJournal).toBe(true);
-    const page = await getMatchHistory(db, playerId, { per: 25 }, true);
-    expect(page.rows.find((r) => r.matchId === "OC1_700000018")?.inJournal).toBe(true);
-    expect((await getMatchHistory(db, playerId, { per: 25 }, false)).rows.find((r) => r.matchId === "OC1_700000018")?.inJournal).toBe(false);
-  });
-
   it("marks a game's largest multikill from its stored record, and nothing without one", async () => {
     const db = handle.db;
-    const row = async (id: string) => (await getMatchHistory(db, playerId, { per: 25 }, true)).rows.find((r) => r.matchId === id)!;
+    const row = async (id: string) => (await getMatchHistory(db, playerId, { per: 25 })).rows.find((r) => r.matchId === id)!;
     expect((await row("OC1_700000019")).multikill).toBeNull();
     // The player is the record's first participant (see riotMatch).
     await db.execute(sql`UPDATE match_details SET participants = jsonb_set(participants, '{0,stats}', '{"doubleKills":1,"tripleKills":1,"quadraKills":0,"pentaKills":0,"largestMultiKill":3}'::jsonb) WHERE match_id = 'OC1_700000019'`);

@@ -14,7 +14,6 @@ import { recordRiotOutcome } from "@/server/riot/credential";
 import type { RiotAccountRecord } from "./repository";
 import { recordRankSnapshots, storedRankFrom } from "./rank-history";
 import { erasureFilter, type ErasureFilter } from "@/server/privacy/ledger";
-import { associateQuietly } from "@/server/development/association";
 
 /**
  * Riot queue ids UNIIVERSE collects for our players, all on Summoner's Rift:
@@ -275,8 +274,6 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
     await db.update(riotAccounts).set({ lastSyncAt: new Date(), syncStatus: "ok", syncError: null, resolveAttempts: 0, syncCursor: Math.floor(Date.now() / 1000), historyBackfill: history, updatedAt: new Date() }).where(eq(riotAccounts.id, account.id));
     result.history = summariseBackfill(history);
     await recordRiotOutcome(db, client, { ok: true });
-    // New games join the player's ranked session by themselves (stored rows only; never fails the sync).
-    if (result.matchesFolded > 0 && account.ownerType === "player") await associateQuietly(db, account.playerId);
     return result;
   } catch (err) {
     if (err instanceof RiotApiError && err.status === 400 && account.puuid) {

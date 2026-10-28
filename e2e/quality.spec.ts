@@ -12,7 +12,7 @@ test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
 });
 
-const PLAYER_ROUTES = ["/team", "/players", "/leaderboards", "/matches", "/overview", "/overview/champions", "/overview/development", "/overview/matches", "/resources", "/settings"];
+const PLAYER_ROUTES = ["/team", "/players", "/leaderboards", "/matches", "/overview", "/overview/champions", "/overview/matches", "/resources", "/settings"];
 const ADMIN_ROUTES = ["/admin", "/admin/people", "/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/data", "/admin/system", "/admin/audit", "/admin/settings"];
 const SIZES: Array<[number, number]> = [
   [320, 640],
@@ -298,25 +298,19 @@ test.describe("tooltips", () => {
   });
 });
 
-test.describe("ranked development", () => {
+test.describe("retired Ranked Development", () => {
   test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "runs once"));
 
-  test("the old Solo Queue Blocks addresses lead to Ranked Development, which needs a player profile", async ({ page }) => {
-    // The journey itself, and the old addresses under My Profile, run on member accounts in
-    // e2e/ranked-development.spec.ts.
-    for (const [from, to] of [
-      ["/blocks", /\/overview\/development\/sessions$/],
-      ["/ranked", /\/overview\/development$/],
-    ] as const) {
-      await page.goto(from);
-      await expect(page, from).toHaveURL(to);
+  test("its addresses, and those of Solo Queue Blocks and the Ranked Improvement journal before it, lead to My Profile's Overview", async ({ page }) => {
+    const retired = ["/overview/development", "/overview/development/sessions", "/overview/development/sessions/00000000-0000-4000-8000-000000000000", "/overview/development/library", "/overview/blocks", "/overview/blocks/history", "/overview/blocks/42", "/blocks", "/blocks?add=1", "/blocks/history", "/blocks/42", "/ranked", "/ranked/history", "/ranked/blocks/42"];
+    for (const from of retired) {
+      const response = await page.goto(from);
+      expect(new URL(page.url()).pathname, from).toBe("/overview");
+      expect(response?.status(), from).toBe(200);
     }
-    // The in-memory demo's local owner has no player profile: My Profile (old addresses included)
-    // says where to make one.
-    for (const route of ["/overview/development", "/overview/blocks"]) {
-      await page.goto(route);
-      await expect(page.getByText("This account has no player profile yet."), route).toBeVisible();
-    }
+    // No page of the app links to them any more.
+    await page.goto("/overview");
+    for (const href of await page.locator("a[href]").evaluateAll((as) => as.map((a) => a.getAttribute("href") ?? ""))) expect(href).not.toMatch(/^\/(overview\/development|overview\/blocks|blocks|ranked)(\/|\?|$)/);
   });
 });
 
@@ -366,8 +360,7 @@ test.describe("sidebar entries", () => {
     const href = (await card.getAttribute("href"))!;
     await page.goto(`${href}/matches`);
     const tabs = page.getByTestId("profile-tabs");
-    // The sections, in their deliberate order (Ranked Development, private, sits between Match
-    // History and Riot Accounts on your own profile only; Matchups live in a champion's window).
+    // The sections, in their deliberate order (Matchups live in a champion's window).
     await expect(tabs.getByRole("link")).toHaveText(["Overview", "All Champions", "Match History", "Riot Accounts"]);
     await expect(tabs.getByRole("link", { name: "Match History" })).toHaveAttribute("aria-current", "page");
     await expect(aside.getByRole("link", { name: "Match History" })).toHaveCount(0);

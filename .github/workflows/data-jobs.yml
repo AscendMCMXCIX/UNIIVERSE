@@ -98,11 +98,21 @@ jobs:
               if ! printf '%s' "$health" | jq -e '.ok == true and .db.ok == true' >/dev/null 2>&1; then
                 echo "::error::Smoke: /api/health is not ok"; status=1
               fi
-              for path in /login /team /players /overview /overview/development /overview/blocks /ranked /me /settings /admin/players /api/jobs/tick; do
+              for path in /login /team /players /overview /me /settings /admin/players /api/jobs/tick; do
                 out="$(curl --silent --output /dev/null --max-time 60 -w "%{http_code} %{redirect_url} %{time_total}s" "$APP_URL$path" || true)"
                 printf "%-24s %s\n" "$path" "$out"
                 case "${out%% *}" in
                   5*|000|"") echo "::error::Smoke: $path answered ${out%% *}"; status=1 ;;
+                esac
+              done
+              # Ranked Development is retired: its addresses (and those of Solo Queue Blocks and the
+              # Ranked Improvement journal before it) redirect to My Profile's Overview.
+              for path in /overview/development /overview/blocks /blocks /ranked; do
+                out="$(curl --silent --output /dev/null --max-time 60 -w "%{http_code} %{redirect_url}" "$APP_URL$path" || true)"
+                printf "%-24s %s\n" "$path" "$out"
+                case "$out" in
+                  30[78]" "*/overview) ;;
+                  *) echo "::error::Smoke: $path does not redirect to /overview"; status=1 ;;
                 esac
               done
               continue

@@ -16,16 +16,18 @@ import { keyCheckOf, normaliseRiotId, tagged } from "./tokens";
     deactivate  blocks sign-in, keeps everything;
     delete      removes the account (and optionally the profile), keeps shared history as it was;
     archive     hides a profile, keeps everything;
-    erase       removes the person: account, profile, customisation, journal, Riot accounts and
-                everything stored about them, and de-identifies what other people's records keep.
+    erase       removes the person: account, profile, customisation, the records kept from the
+                retired Ranked Development, Riot accounts and everything stored about them, and
+                de-identifies what other people's records keep.
   It cannot be undone (encrypted backups made before it keep the data until they expire; see
   docs/BACKUPS.md). Everything happens in one transaction: an interrupted erasure changes nothing,
   and running it again does the same work.
 
   What happens to each kind of record:
   - the account, sessions, profile picture, player profile (roles, pools, card customisation,
-    banner, social links, notes), Riot accounts, their games, mastery, rank history and their
-    Ranked Development (objectives, If–Then plans, sessions, games and reviews) are deleted;
+    banner, social links, notes), Riot accounts, their games, mastery, rank history and the records
+    kept from the retired Ranked Development (objectives, If–Then plans, sessions, games and
+    reviews) are deleted;
   - Riot games only they played (no other linked account, bookmark or team record uses them) are
     deleted with their timelines; games shared with others keep the others and replace the person
     with a "Removed player" (server/privacy/redact.ts), their timeline entries removed, and other
@@ -277,8 +279,8 @@ async function affectedMatches(db: Db, s: ErasureSubject): Promise<Array<{ match
   const owned = s.accountIds.length ? sql`SELECT am.match_id FROM account_matches am WHERE am.account_id IN (${uuidList(s.accountIds)})` : null;
   const sources = [named, owned].filter((q): q is SQL => !!q);
   if (!sources.length) return [];
-  // Shared: another linked account played it, or a bookmark, team match record or journal entry of
-  // someone else points at it. Otherwise it is only theirs.
+  // Shared: another linked account played it, or a bookmark, team match record or retired Ranked
+  // Development game of someone else points at it. Otherwise it is only theirs.
   const otherAccount = s.accountIds.length ? sql`AND o.account_id NOT IN (${uuidList(s.accountIds)})` : sql``;
   const otherPlayer = (column: SQL) => (s.playerId ? sql`AND ${column} IS DISTINCT FROM ${s.playerId}::uuid` : sql``);
   return rowsOf(
@@ -610,7 +612,7 @@ async function planErasure(db: Db, s: ErasureSubject): Promise<Plan> {
   };
 }
 
-/** Other members' games (and journal entries) whose lane opponent was the person. */
+/** Other members' games (and retired Ranked Development games) whose lane opponent was the person. */
 function lanePartnerWhere(s: ErasureSubject): SQL {
   const conditions: SQL[] = [];
   if (s.puuids.length) conditions.push(sql`p->>'puuid' IN (${textList(s.puuids)})`);
@@ -805,7 +807,8 @@ async function applyPlan(tx: Db, plan: Plan): Promise<void> {
   if (leases.length) await tx.delete(appSettings).where(inArray(appSettings.key, leases));
 
   // 5. The account and the profile: sessions, picture, pools, card, banner, Riot accounts with their
-  //    games, mastery and rank history, and the journal all go with them (foreign keys cascade).
+  //    games, mastery and rank history, and the retired Ranked Development records all go with
+  //    them (foreign keys cascade).
   if (s.userId) await tx.delete(users).where(eq(users.id, s.userId));
   if (s.playerId) await tx.delete(players).where(eq(players.id, s.playerId));
   // Failed sign-ins are kept as keyed hashes for 15 minutes; older ones are pruned now.

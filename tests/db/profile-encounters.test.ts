@@ -191,7 +191,7 @@ describe("a player's Encounters, counted in the database", () => {
   it("counts exactly the games Match History lists for the same season, mode and account", async () => {
     for (const mode of MODES) {
       for (const accountId of [null, acc.ace!, acc.ace2!]) {
-        const history = await getMatchHistory(handle.db, ids.Ace!, { season: 16, mode, accountId }, false);
+        const history = await getMatchHistory(handle.db, ids.Ace!, { season: 16, mode, accountId });
         const page = await loadEncounterPage(handle.db, { accountIds: accountId ? [accountId] : [acc.ace!, acc.ace2!], season: 16, mode }, { relation: "everyone", min: 1, sort: "games", q: "", limit: 1 });
         expect(page.games, `${mode} ${accountId}`).toBe(history.total);
         expect(page.games).toBeGreaterThan(0);

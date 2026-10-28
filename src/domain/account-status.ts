@@ -32,16 +32,13 @@ export const VIEW_REFRESH_AFTER_MS = 15 * 60_000;
  * accounts still adding this season's history, and accounts not refreshed for 15 minutes. Never a
  * demo account, nor a Riot ID Riot could not find (a person must correct it).
  */
-export function dueForViewRefresh(a: AccountSyncFacts, now: Date = new Date(), refreshAfterMs: number = VIEW_REFRESH_AFTER_MS): boolean {
+export function dueForViewRefresh(a: AccountSyncFacts, now: Date = new Date()): boolean {
   if (a.syncStatus === "demo") return false;
   const view = describeAccountSync(a, now);
   if (view.state === "error" && a.syncStatus === "unresolved") return false;
   if (view.state === "syncing" || view.state === "pending" || view.state === "verified") return true;
-  return !a.lastSyncAt || now.getTime() - a.lastSyncAt.getTime() > refreshAfterMs;
+  return !a.lastSyncAt || now.getTime() - a.lastSyncAt.getTime() > VIEW_REFRESH_AFTER_MS;
 }
-
-/** While a ranked session runs and its page is open, the player's accounts are read again after this long (new games join it). */
-export const SESSION_REFRESH_AFTER_MS = 5 * 60_000;
 
 /** Accounts refresh every 45 minutes or so while the team is active; six hours without one is a delay. */
 export const ACCOUNT_STALE_AFTER_HOURS = 6;

@@ -59,7 +59,7 @@ export async function choosePassword(page: Page, username: string, temporary: st
 /** A team member account, signed in on its own browser context (first-time setup included, with `role` as their Primary Role). */
 export async function memberContext(browser: Browser, admin: Page, viewport = { width: 1440, height: 900 }, { base = "Viewer", role = "Mid" }: { base?: string; role?: "Top" | "Jungle" | "Mid" | "Bottom" | "Support" } = {}): Promise<{ context: BrowserContext; page: Page; username: string }> {
   const { username, temporary } = await createMember(admin, base);
-  const context = await browser.newContext({ viewport, ...webkitMemberOptions(browser) });
+  const context = await browser.newContext({ viewport });
   const page = await context.newPage();
   await choosePassword(page, username, temporary);
   const setup = page.getByTestId("setup-form");
@@ -82,72 +82,13 @@ export async function memberContext(browser: Browser, admin: Page, viewport = { 
 /**
  * Signs in on /login. Locally a browser without a session is the automatic local owner, who is
  * sent past /login: the guest cookie makes it a visitor first (one account per browser).
- * With `next`, a successful sign-in opens that page instead of the account's start page: going
- * there with page.goto while the start page is still on its way cuts that navigation short, and
- * the app then loads the start page again over the goto (seen in WebKit).
  */
-export async function signIn(page: Page, username: string, password: string, next?: string) {
-  await keepSessionInWebKit(page.context());
+export async function signIn(page: Page, username: string, password: string) {
   if (!page.url().startsWith("http")) await page.goto("/public");
   await page.context().addCookies([{ name: "uniiverse_guest", value: "1", url: page.url().split("/").slice(0, 3).join("/") }]);
-  await page.goto(next ? `/login?next=${encodeURIComponent(next)}` : "/login");
+  await page.goto("/login");
   const form = page.getByTestId("login-form");
   await form.getByLabel("Username").fill(username);
   await form.getByLabel("Password").fill(password);
   await form.getByRole("button", { name: "Sign in" }).click();
-}
-
-const keeping = new WeakSet<BrowserContext>();
-
-/**
- * WebKit keeps no `Secure` cookie on http://localhost (WebKit bugs 231035 and 281149; Chromium
- * makes an exception for localhost), and the e2e server is a production build, whose session
- * cookies are `Secure`: a member signed in on WebKit would lose the session at the next request.
- * In WebKit only, the cookies a form's response sets are stored again without `Secure`. Production
- * is served over https, where Safari keeps them as they are. The context must be made with
- * webkitMemberOptions: a page the service worker controls sends its requests past Playwright's
- * routing in WebKit, and a sign-in that slips past it loses its cookie.
- */
-export async function keepSessionInWebKit(context: BrowserContext) {
-  if (context.browser()?.browserType().name() !== "webkit" || keeping.has(context)) return;
-  keeping.add(context);
-  await storeCookiesWithoutSecure(context);
-}
-
-/** Options for a WebKit context a member signs in on: no service worker, so every request is routed (see keepSessionInWebKit). */
-export function webkitMemberOptions(browser: Browser): { serviceWorkers?: "block" } {
-  return browser.browserType().name() === "webkit" ? { serviceWorkers: "block" } : {};
-}
-
-/** Every POST's response is passed on with its cookies stored without `Secure` (any browser). */
-export async function storeCookiesWithoutSecure(context: BrowserContext) {
-  await context.route(
-    () => true,
-    async (route) => {
-      if (route.request().method() !== "POST") return route.fallback();
-      const response = await route.fetch({ maxRedirects: 0 });
-      const headers: Record<string, string> = {};
-      for (const { name, value } of response.headersArray()) {
-        const key = name.toLowerCase();
-        if (key === "set-cookie") await storeWithoutSecure(context, route.request().url(), value);
-        // The body handed on is the decoded one, measured again by Playwright.
-        else if (key !== "content-encoding" && key !== "content-length" && key !== "transfer-encoding") headers[key] = key in headers ? `${headers[key]}, ${value}` : value;
-      }
-      await route.fulfill({ status: response.status(), headers, body: await response.body() });
-    },
-  );
-}
-
-async function storeWithoutSecure(context: BrowserContext, url: string, header: string) {
-  const [pair = "", ...parts] = header.split(";");
-  const at = pair.indexOf("=");
-  const name = pair.slice(0, at).trim();
-  const value = pair.slice(at + 1).trim();
-  const attributes = new Map(parts.map((part) => [part.split("=")[0]!.trim().toLowerCase(), part.slice(part.indexOf("=") + 1).trim()]));
-  const path = attributes.get("path") || "/";
-  const maxAge = attributes.has("max-age") ? Number(attributes.get("max-age")) : null;
-  const expires = maxAge !== null ? Date.now() / 1000 + maxAge : attributes.has("expires") ? Date.parse(attributes.get("expires")!) / 1000 : -1;
-  if (expires !== -1 && expires * 1000 <= Date.now()) return context.clearCookies({ name, path });
-  const sameSite = attributes.get("samesite")?.toLowerCase() === "strict" ? "Strict" : "Lax";
-  await context.addCookies([{ name, value, domain: new URL(url).hostname, path, expires, httpOnly: attributes.has("httponly"), secure: false, sameSite }]);
 }

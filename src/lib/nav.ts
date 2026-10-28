@@ -1,4 +1,4 @@
-import { BookMarked, Fingerprint, Medal, Users, UserCog, Settings, History, UserPlus, Database, Paintbrush, Activity, LayoutGrid, LayoutDashboard, CircleUserRound, Gauge, Library, Target, ScrollText, Link2, KeyRound, MonitorSmartphone, SlidersHorizontal, ClipboardList, type LucideIcon } from "lucide-react";
+import { BookMarked, Fingerprint, Medal, Users, UserCog, Settings, History, UserPlus, Database, Paintbrush, Activity, LayoutGrid, LayoutDashboard, CircleUserRound, Gauge, Library, ScrollText, Link2, KeyRound, MonitorSmartphone, SlidersHorizontal, ClipboardList, type LucideIcon } from "lucide-react";
 import { hasPermission, type Permission, type Session } from "@/server/auth/permissions";
 
 export interface NavLink {
@@ -27,16 +27,15 @@ export interface NavHub {
 export type NavEntry = NavLink | NavHub;
 
 /**
- * A profile's sections, in this deliberate order: Overview, All Champions, Match History,
- * Ranked Development, Riot Accounts (Matchups live inside All Champions: a champion's window). The bar under the profile card (a picker on phones) reads this
- * list, on your own profile and on every teammate's. `path` is relative to the profile (/overview
- * for your own, /players/[id] for a teammate's); `own` sections exist only on your own profile.
+ * A profile's sections, in this deliberate order: Overview, All Champions, Match History, Riot
+ * Accounts (Matchups live inside All Champions: a champion's window). The bar under the profile
+ * card reads this list, on your own profile and on every teammate's. `path` is relative to the
+ * profile (/overview for your own, /players/[id] for a teammate's).
  */
-export const PROFILE_SECTIONS: Array<{ key: string; path: string; label: string; icon: LucideIcon; own?: boolean }> = [
+export const PROFILE_SECTIONS: Array<{ key: string; path: string; label: string; icon: LucideIcon }> = [
   { key: "overview", path: "", label: "Overview", icon: Gauge },
   { key: "champions", path: "/champions", label: "All Champions", icon: Library },
   { key: "matches", path: "/matches", label: "Match History", icon: ScrollText },
-  { key: "development", path: "/development", label: "Ranked Development", icon: Target, own: true },
   { key: "accounts", path: "/accounts", label: "Riot Accounts", icon: Link2 },
 ];
 
@@ -231,7 +230,7 @@ export function isActivePath(pathname: string, href: string): boolean {
 
 /**
  * The one link of a list that the page belongs to: the longest matching href, so
- * /overview/development marks "Ranked Development" and not also "Overview" (/overview).
+ * /overview/matches marks "Match History" and not also "Overview" (/overview).
  */
 export function activeHref(pathname: string, hrefs: readonly string[]): string | null {
   return hrefs.filter((h) => isActivePath(pathname, h)).sort((a, b) => b.length - a.length)[0] ?? null;

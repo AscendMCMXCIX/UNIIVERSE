@@ -22,7 +22,7 @@ export interface Session {
   localDev?: boolean;
   /**
    * Member of the competitive team (players.team_member). False = personal use only: their own
-   * profile, statistics and Ranked Development, but nothing of the team workspace.
+   * profile and statistics, but nothing of the team workspace.
    * Undefined (no player profile, or a session from before Phase 10) counts as a member.
    */
   teamMember?: boolean;
@@ -124,7 +124,7 @@ export function effectiveCapabilities(input: { owner: boolean; base: readonly Ca
 }
 
 /** Always available to every signed-in account, whatever its level (enforced by ownership checks, not capabilities). */
-export const ALWAYS_AVAILABLE = ["Their own profile: Overview, All Champions, Match History", "Their private Ranked Development", "Their own Settings: username, picture, password"] as const;
+export const ALWAYS_AVAILABLE = ["Their own profile: Overview, All Champions, Match History, Riot Accounts", "Their own Settings: username, picture, password"] as const;
 
 /** Keeps only known capability keys (stored JSON may be stale or hand-edited). */
 export function sanitiseCapabilities(value: unknown): Capability[] {
@@ -188,8 +188,6 @@ export function canWatchFreshness(session: Session | null, scope: FreshnessScope
   if (!session) return false;
   if (scope.kind === "jobs") return hasPermission(session, "manage-data");
   if (scope.kind === "player") return session.playerId === scope.playerId || hasPermission(session, "view-players");
-  // Ranked Development is private: its version (which follows private sessions and reviews) is the player's alone.
-  if (scope.kind === "development") return !!session.playerId && session.playerId === scope.playerId;
   return (["view-team", "view-players", "view-teammate-stats", "view-matches"] as const).some((p) => hasPermission(session, p));
 }
 

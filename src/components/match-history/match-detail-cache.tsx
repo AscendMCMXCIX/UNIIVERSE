@@ -11,9 +11,9 @@ const LIMIT = 30;
 /**
  * Match details one list has already loaded, so a match opened again (or one prefetched as the
  * pointer went down on it) shows at once. The cache belongs to that list: it goes with it (another
- * page, another account) and is replaced whenever the list's data is (a refresh after a bookmark or
- * a Ranked Development import), and nothing is stored in the browser. Only complete results are
- * kept, and every load is still checked by the server.
+ * page, another account) and is replaced whenever the list's data is (a refresh after a
+ * bookmark), and nothing is stored in the browser. Only complete results are kept, and every load
+ * is still checked by the server.
  */
 export interface MatchDetailCache {
   load(playerId: string, matchId: string): Promise<MatchDetailResult>;

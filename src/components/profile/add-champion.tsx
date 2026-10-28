@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Plus, Search } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
-import type { PickerChampion } from "@/components/champion-picker";
+import type { PickerChampion } from "@/components/champions/types";
 import { normalise } from "@/components/champions/types";
 import { cn } from "@/lib/cn";
 import { RemoteImage } from "@/components/ui/remote-image";

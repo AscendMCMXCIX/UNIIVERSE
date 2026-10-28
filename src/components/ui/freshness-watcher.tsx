@@ -2,13 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { RETURN_CHECK_AFTER_MS, coveredScope, nextCheckMs, scopeKey, type Freshness, type FreshnessScope } from "@/domain/freshness";
-
-/**
- * Scopes another watcher on the page already follows (a Ranked Development page's version includes
- * its player's profile version): their own watcher stays quiet meanwhile, so one page never asks twice.
- */
-const covered = new Map<string, number>();
+import { RETURN_CHECK_AFTER_MS, nextCheckMs, scopeKey, type Freshness, type FreshnessScope } from "@/domain/freshness";
 
 /**
  * Keeps an open page current (domain/freshness.ts). While the tab is on screen it asks the server
@@ -22,16 +16,6 @@ const covered = new Map<string, number>();
 export function FreshnessWatcher({ scope, version }: { scope: FreshnessScope; version: Freshness }) {
   const router = useRouter();
   const key = scopeKey(scope);
-  const covers = coveredScope(scope);
-  React.useEffect(() => {
-    if (!covers) return;
-    covered.set(covers, (covered.get(covers) ?? 0) + 1);
-    return () => {
-      const left = (covered.get(covers) ?? 1) - 1;
-      if (left > 0) covered.set(covers, left);
-      else covered.delete(covers);
-    };
-  }, [covers]);
   const known = React.useRef(version);
   /** Starts the wait again from the current pace (set by the loop below). */
   const restart = React.useRef<() => void>(() => {});
@@ -51,9 +35,8 @@ export function FreshnessWatcher({ scope, version }: { scope: FreshnessScope; ve
       if (!stopped) timer = window.setTimeout(ask, nextCheckMs(known.current.pace, quiet));
     };
     const ask = async () => {
-      // A hidden page waits for visibilitychange instead; a scope another watcher follows waits too.
+      // A hidden page waits for visibilitychange instead.
       if (asking || stopped || document.visibilityState !== "visible") return;
-      if (covered.has(key)) return schedule();
       asking = true;
       lastAsked = Date.now();
       try {
