@@ -1024,7 +1024,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 - **Production-readiness, performance and responsive audits.**
 - **Account changes:** email removed in favour of usernames; an Owner lockout was fixed, with a recovery path added.
 - **Riot data:** global regions added.
-- **Ranked Improvement journal** (now Solo Queue Blocks).
+- **Ranked Improvement journal** (later Solo Queue Blocks, then Ranked Development; removed 29 Oct 2026).
 
 **Phases** (each with a brief from the user and a final report; claims re-checked on 14 Oct):
 
@@ -1059,7 +1059,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 | Player strength tags | **Removed** in Phase 9 at the user's request |
 | Featured champion splash backgrounds and skins | **Implemented**; 3,198 skins collected in production (14 Oct) |
 | Expanded performance statistics (KDA, CS, damage, vision) | **Implemented**; K/D/A back-fill for older games is **partial** |
-| Solo Queue Blocks redesign | **Implemented** (own page since Phase 6) |
+| Solo Queue Blocks redesign | **Removed** (29 Oct 2026, at the user's request, with Ranked Development, which it had become) |
 | Sidebar collapsing | **Implemented** |
 | Draft (and with it unfinished drafts, Fearless, opponent rosters) | **Removed** (Oct 2026, at the user's request) |
 | Reliable 10-minute scheduling (`pg_cron`) | **Requested / recommended; not confirmed set up** (user action) |
