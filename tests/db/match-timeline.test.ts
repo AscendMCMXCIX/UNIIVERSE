@@ -7,7 +7,7 @@ import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { addAccount } from "@/server/accounts/repository";
-import { buildSteps, getMatchTimeline, maxOrderOf, timelineEvents, timelineFrames, timelineParticipants, timelineRow } from "@/server/accounts/match-timeline";
+import { buildSteps, completedTimeline, getMatchTimeline, maxOrderOf, timelineEvents, timelineFrames, timelineParticipants, timelineRow } from "@/server/accounts/match-timeline";
 import { RiotApiClient } from "@/server/riot/api/client";
 import { RateLimiter } from "@/server/riot/api/rate-limiter";
 import type { RiotMatchTimeline } from "@/server/riot/api/schemas";
@@ -129,6 +129,30 @@ describe("reading a timeline", () => {
     ]);
     // A timeline Riot no longer provides is kept as such, with no events to ask for again.
     expect(timelineRow("OC1_GONE", "oc1", null).events).toEqual({ objectives: [], missing: true });
+  });
+
+  it("completes a kept timeline without replacing what it holds", () => {
+    const stored = { participants: [{ puuid: "a", purchases: [[1000, 1055]] as Array<[number, number]>, skills: [1] }], frames: { t: [0, 60_000], p: { a: { g: [500, 900], x: [0, 100], c: [0, 5] } } }, events: null };
+    const fresh = {
+      matchId: "M",
+      platform: "oc1",
+      participants: [
+        { puuid: "a", purchases: [] as Array<[number, number]>, skills: [], kills: [61_000], deaths: [], assists: [] },
+        { puuid: "b", purchases: [[2000, 3078]] as Array<[number, number]>, skills: [2], kills: [], deaths: [61_000], assists: [] },
+      ],
+      frames: { t: [], p: {} },
+      events: { objectives: [{ t: 300_000, team: 100 as const, kind: "dragon" as const }] },
+    };
+    // The stored purchases, skills and frames stay; the answer adds the kill times, the player the row lacked and the objectives.
+    expect(completedTimeline(stored, fresh)).toEqual({
+      participants: [{ puuid: "a", purchases: [[1000, 1055]], skills: [1], kills: [61_000], deaths: [], assists: [] }, fresh.participants[1]],
+      frames: stored.frames,
+      events: fresh.events,
+    });
+    // Nothing kept before: the answer as it is. Riot no longer providing it: everything kept stays.
+    expect(completedTimeline(undefined, fresh)).toEqual({ participants: fresh.participants, frames: fresh.frames, events: fresh.events });
+    const gone = completedTimeline(stored, timelineRow("M", "oc1", null));
+    expect(gone).toEqual({ participants: stored.participants, frames: stored.frames, events: { objectives: [], missing: true } });
   });
 
   it("groups purchases by minute with counts, and finds the max order", () => {

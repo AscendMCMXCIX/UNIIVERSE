@@ -1,9 +1,9 @@
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { matchTimelines } from "@/server/db/schema";
 import { RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
 import { SYNC_QUEUE_IDS } from "./sync";
-import { keptTimeline, timelineRow } from "./match-timeline";
+import { completedTimeline, keptTimeline, timelineRow } from "./match-timeline";
 
 /*
   Timeline backfill for Matchups: the linked players' own Summoner's Rift games that have an
@@ -84,16 +84,15 @@ export async function backfillTimelines(db: Db, client: RiotApiClient, options: 
         break;
       }
     }
-    // A row stored for the build order only (no frames yet) is completed: frames, kills and
-    // objectives. The fresh participants carry the same purchases with the kill times added (both
-    // without anyone erased: keptTimeline); a timeline Riot no longer provides keeps what it had.
+    // A row stored for the build order only (no frames yet) keeps its purchases and skills; the
+    // frames, kill times and objectives are added (completedTimeline). A timeline Riot no longer
+    // provides keeps what it had.
+    const [stored] = await db.select({ participants: matchTimelines.participants, frames: matchTimelines.frames, events: matchTimelines.events }).from(matchTimelines).where(eq(matchTimelines.matchId, matchId));
+    const done = completedTimeline(stored, row);
     await db
       .insert(matchTimelines)
-      .values(row)
-      .onConflictDoUpdate({
-        target: matchTimelines.matchId,
-        set: { frames: row.frames, events: row.events, participants: sql`CASE WHEN jsonb_array_length(excluded.participants) = 0 THEN ${matchTimelines.participants} ELSE excluded.participants END` },
-      });
+      .values({ ...row, ...done })
+      .onConflictDoUpdate({ target: matchTimelines.matchId, set: done });
   }
   return result;
 }

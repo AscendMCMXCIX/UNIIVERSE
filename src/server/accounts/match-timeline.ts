@@ -107,6 +107,39 @@ export async function keptTimeline(db: Db, row: typeof matchTimelines.$inferInse
   return erased.empty ? row : redactTimeline(row, (puuid) => !erased.puuid(puuid));
 }
 
+/**
+ * A timeline fetched again, added to the one kept before (if any) without replacing what that held:
+ * each player's stored purchases and skills stay, and the answer only fills what the row lacked
+ * (kill, death and assist times, frames, the objectives). Both have been through keptTimeline, so a
+ * player erased since appears in neither. A timeline Riot no longer provides keeps everything kept.
+ */
+export function completedTimeline(stored: Pick<TimelineRow, "participants" | "frames" | "events"> | undefined, fresh: typeof matchTimelines.$inferInsert): Pick<typeof matchTimelines.$inferInsert, "participants" | "frames" | "events"> {
+  if (!stored) return { participants: fresh.participants, frames: fresh.frames, events: fresh.events };
+  const answer = new Map(fresh.participants.map((p) => [p.puuid, p]));
+  const kept = new Set(stored.participants.map((p) => p.puuid));
+  const participants = stored.participants.length
+    ? [
+        ...stored.participants.map((p) => {
+          const f = answer.get(p.puuid);
+          return {
+            ...p,
+            purchases: p.purchases.length ? p.purchases : (f?.purchases ?? []),
+            skills: p.skills.length ? p.skills : (f?.skills ?? []),
+            ...((p.kills ?? f?.kills) ? { kills: p.kills ?? f!.kills } : {}),
+            ...((p.deaths ?? f?.deaths) ? { deaths: p.deaths ?? f!.deaths } : {}),
+            ...((p.assists ?? f?.assists) ? { assists: p.assists ?? f!.assists } : {}),
+          };
+        }),
+        ...fresh.participants.filter((p) => !kept.has(p.puuid)),
+      ]
+    : fresh.participants;
+  return {
+    participants,
+    frames: stored.frames && stored.frames.t.length ? stored.frames : fresh.frames,
+    events: stored.events && !stored.events.missing ? stored.events : (fresh.events ?? stored.events),
+  };
+}
+
 /** Purchases (undone ones removed), skill level-ups and the champion kills each player took part in, from a Riot timeline. */
 export function timelineParticipants(t: RiotMatchTimeline): MatchTimelineParticipant[] {
   const puuidOf = new Map<number, string>(t.info.participants.map((p) => [p.participantId, p.puuid]));
@@ -220,18 +253,9 @@ async function timelineFor(db: Db, playerId: string, matchId: string, options: {
       try {
         const timeline = await client.matchTimeline(account.platform, matchId);
         const kept = await keptTimeline(db, timelineRow(matchId, account.platform, timeline));
-        // A kept timeline is completed, never emptied: what is stored stays unless Riot's answer holds it too.
-        await db
-          .insert(matchTimelines)
-          .values(kept)
-          .onConflictDoUpdate({
-            target: matchTimelines.matchId,
-            set: {
-              participants: sql`CASE WHEN jsonb_array_length(excluded.participants) = 0 THEN ${matchTimelines.participants} ELSE excluded.participants END`,
-              frames: sql`CASE WHEN jsonb_array_length(excluded.frames->'t') = 0 THEN ${matchTimelines.frames} ELSE excluded.frames END`,
-              events: kept.events,
-            },
-          });
+        // A kept timeline is completed, never replaced: what it holds stays (completedTimeline).
+        const done = completedTimeline(row, kept);
+        await db.insert(matchTimelines).values({ ...kept, ...done }).onConflictDoUpdate({ target: matchTimelines.matchId, set: done });
       } catch (err) {
         const status = err instanceof RiotApiError ? err.status : 0;
         if (status === 404) {

@@ -15,7 +15,7 @@ describe("objective names", () => {
   });
 
   it("the chart's legend names only the kinds the game has, in a fixed order", () => {
-    expect(objectiveLegend([objective(20, "tower"), objective(6, "dragon"), objective(8, "dragon"), objective(7, "grubs")])).toBe("D dragon · G voidgrubs · T tower");
+    expect(objectiveLegend([objective(20, "tower"), objective(6, "dragon"), objective(8, "dragon"), objective(7, "grubs")])).toBe("D dragon · G voidgrubs · T tower");
     expect(objectiveLegend([])).toBe("");
   });
 });
