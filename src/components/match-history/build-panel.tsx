@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { ChevronRight } from "lucide-react";
 import type { MatchTimelineResult } from "@/server/accounts/match-timeline";
 import type { DetailParticipant, RunePage } from "@/server/players/match-history";
@@ -14,12 +15,13 @@ const SKILL_TONE: Record<string, string> = { Q: "bg-blue/20 text-blue", W: "bg-g
  * and then kept; without a timeline it says so rather than guessing from the final items.
  */
 export function BuildPanel({ result, runePage, player }: { result: MatchTimelineResult | null; runePage: RunePage | null; player: DetailParticipant }) {
+  const uid = React.useId();
   const build = result?.status === "ok" ? result.timeline.build : null;
   const message = !result ? null : result.status !== "ok" ? result.message : !build ? "This player is not in the stored timeline of this game." : null;
   return (
     <div className="space-y-4" data-testid="match-build">
-      <section aria-labelledby="build-order-title" className="space-y-2">
-        <h3 id="build-order-title" className="text-sm font-semibold text-fg">
+      <section aria-labelledby={`${uid}-build-order`} className="space-y-2">
+        <h3 id={`${uid}-build-order`} className="text-sm font-semibold text-fg">
           Build order
         </h3>
         {!result ? (
@@ -52,8 +54,8 @@ export function BuildPanel({ result, runePage, player }: { result: MatchTimeline
         )}
       </section>
       {build && build.skills.length ? (
-        <section aria-labelledby="skill-order-title" className="space-y-2">
-          <h3 id="skill-order-title" className="flex flex-wrap items-baseline gap-2 text-sm font-semibold text-fg">
+        <section aria-labelledby={`${uid}-skill-order`} className="space-y-2">
+          <h3 id={`${uid}-skill-order`} className="flex flex-wrap items-baseline gap-2 text-sm font-semibold text-fg">
             Skill order
             {build.maxOrder.length ? <span className="text-xs font-normal text-fg-muted">Max {build.maxOrder.join(" → ")}</span> : null}
           </h3>
@@ -67,8 +69,8 @@ export function BuildPanel({ result, runePage, player }: { result: MatchTimeline
           </ol>
         </section>
       ) : null}
-      <section aria-labelledby="runes-title" className="space-y-2">
-        <h3 id="runes-title" className="text-sm font-semibold text-fg">
+      <section aria-labelledby={`${uid}-runes`} className="space-y-2">
+        <h3 id={`${uid}-runes`} className="text-sm font-semibold text-fg">
           Runes and summoner spells
         </h3>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3" data-testid="rune-page">

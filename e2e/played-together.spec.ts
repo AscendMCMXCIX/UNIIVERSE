@@ -124,7 +124,7 @@ test("teammate combinations: choose members in the searchable picker, see only t
 });
 
 
-test("a Team Matches card opens the same match window as Match History; names and the bookmark keep their own action", async ({ page }) => {
+test("a Team Matches card opens the match window, with the breakdown Match History opens under its cards; names and the bookmark keep their own action", async ({ page }) => {
   await page.goto("/matches");
   const card = page.getByTestId("together-game").first();
   await expect(card).toBeVisible();

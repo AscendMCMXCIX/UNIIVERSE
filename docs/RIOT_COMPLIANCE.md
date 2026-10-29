@@ -53,7 +53,7 @@ The rules (`src/domain/opgg.ts`, unit tested with real-world Riot IDs):
 
 **OP.GG region slugs.** `na`, `euw`, `kr`, `lan`, `las`, `ru`, `br` and `vn` were checked against live OP.GG profile addresses. `oce`, `eune`, `jp`, `tr`, `me`, `sg`, `ph`, `th` and `tw` follow OP.GG's region list. A wrong slug would only open OP.GG's own "not found" page.
 
-**A player's history on OP.GG (October 2026).** The match window (for the account that played the game) also offers **"View Match History on OP.GG"**, built the same way from the member's own linked Riot ID and server. Match History's header offered the same link until 23 October 2026; it was removed as redundant with the match window's. OP.GG has no documented address for a single game that can be built from Riot's match id, so UNIIVERSE never links "to the game": the label always says it is the player's history. Demo games have no real match id and get no link.
+**A player's history on OP.GG (October 2026).** A game's breakdown (under its Match History card, or in the match window; for the account that played the game) also offers **"View Match History on OP.GG"**, built the same way from the member's own linked Riot ID and server. Match History's header offered the same link until 23 October 2026; it was removed as redundant with the match window's. OP.GG has no documented address for a single game that can be built from Riot's match id, so UNIIVERSE never links "to the game": the label always says it is the player's history. Demo games have no real match id and get no link.
 
 ## Social links (YouTube, Twitch, Discord)
 
@@ -73,7 +73,7 @@ Members may add their own YouTube channel, Twitch channel and Discord username (
 
 ## Possible groups in completed matches
 
-The match window (Match History and Team → Matches) can mark players outside UNIIVERSE on one team who may have queued together, for example "Possible trio · These three players appeared on the same team in four previous recorded games." It is a post-game, historical inference from data UNIIVERSE already stores:
+A game's scoreboard (under its Match History card, or in the match window from Team → Matches) can mark players outside UNIIVERSE on one team who may have queued together, for example "Possible trio · These three players appeared on the same team in four previous recorded games." It is a post-game, historical inference from data UNIIVERSE already stores:
 
 | Rule | Where |
 | --- | --- |
@@ -84,7 +84,7 @@ The match window (Match History and Team → Matches) can mark players outside U
 | Evidence: the games of the 180 days before the analysed match (never the match itself, never a later game) in which every player of the group was on the same team. At least 3 such games, and at least three times as many as games in which they were all present but on opposite teams. | same |
 | Queue party sizes: Solo/Duo duos only; Flex 2, 3 or 5; normal draft, blind, ARAM, Quickplay and Swiftplay up to 5; Clash is stated as a registered team of five (nothing inferred); any other queue is not assessed. A player is in one group at most; two overlapping groups with equal support are both left out. | same |
 | Wording: "Possible duo / trio / four-player / five-player group", "These N players appeared on the same team in N previous recorded games.", never "premade" and never a percentage. Without a group: "not enough recorded history to assess"; a side made up of members: "no other players to assess". The note under the scoreboard says how many stored games were searched and that it is an inference, not confirmed parties. | `src/components/match-history/match-detail.tsx` |
-| Loaded only when a match window is open, after the scoreboard (a second request; never during the Match History list), cached per match on the server for 30 minutes and per list in the browser. | same |
+| Loaded only when a game is opened, after the scoreboard (a second request; never during the Match History list), cached per match on the server for 30 minutes and per list in the browser. | same |
 
 **Why this is allowed without a portal change.** It is analysis of completed matches already collected for the registered purpose (consenting members' match history), shown only to signed-in team members. It uses no live information, so it cannot give an in-game edge, and Riot's anonymity changes (Streamer Mode) explicitly leave post-match data unaffected. It identifies nobody who is hidden: it only relates Riot IDs that Riot published for that completed game, and only through games the team itself played in.
 
@@ -109,7 +109,7 @@ A profile's Match History → Encounters lists the other players that player met
 
 ## Ranks in completed matches
 
-Every match window's scoreboard (Match History, Encounters, Matchups and Team → Matches) shows a small badge beside each player: their current or last-checked Ranked Solo/Duo or Flex rank, with when it was read, "Unranked" when Riot listed no ranked entry, or "—" when nothing is known. It is never their rank at the time of the game: Riot's match records (Match-V5) hold no rank, so nobody's rank then is known, and the badge's hover text and the note under the scoreboard say so.
+Every game's scoreboard (Match History, Encounters, Matchups and Team → Matches) shows a small badge beside each player: their current or last-checked Ranked Solo/Duo or Flex rank, with when it was read, "Unranked" when Riot listed no ranked entry, or "—" when nothing is known. It is never their rank at the time of the game: Riot's match records (Match-V5) hold no rank, so nobody's rank then is known, and the badge's hover text and the note under the scoreboard say so.
 
 | Rule | Where |
 | --- | --- |
@@ -124,7 +124,17 @@ Every match window's scoreboard (Match History, Encounters, Matchups and Team �
 
 **For the product registration.** The description registered with Riot (see "Before you register a production key") covers members' own match history. The owner should add this use the next time the registration is updated, for example: "shows the current rank of the players in members' completed matches, checked on demand when a member opens one (at most every three days per player, up to 1,000 checks a day)". Nothing in the key or the app changes for it.
 
-**Opponents' ranks on the Match History cards (26 October 2026).** Each collapsed game card shows the opponents' ranks in a few letters ("E2", "GM"; "Unr" on a check's word that they are unranked; nothing when no rank was read), from what is already stored only: the same readings as the match window, read with the page in three indexed queries. The list never asks Riot: a missing or stale rank is checked only when a member opens that match (under the limits above), and then shows on its card. Coverage is therefore uneven, by design: a game nobody opened shows the ranks stored for its players from other games, or none. The full statement (queue, rank, when it was read, and that it is not the rank at the time of the game) is on hover and for screen readers. The same permissions as the match window; never on the public pages. No new API use.
+**Players' ranks on the Match History cards (26 October 2026; teammates' too since 29 October).** Each collapsed game card shows the other players' ranks in a few letters ("E2", "GM"; "Unr" on a check's word that they are unranked; nothing when no rank was read), from what is already stored only: the same readings as the scoreboard, read with the page in three indexed queries. The list never asks Riot: a missing or stale rank is checked only when a member opens that match (under the limits above), and then shows on its card. Coverage is therefore uneven, by design: a game nobody opened shows the ranks stored for its players from other games, or none. The full statement (queue, rank, when it was read, and that it is not the rank at the time of the game) is on hover and for screen readers. The same permissions as the scoreboard; never on the public pages. No new API use.
+
+**Match History 2.0 (29 October 2026).** A member's Match History opens a game under its card,
+with a scoreboard, comparisons, the gold difference over the game and the build. No new endpoint
+and no new kind of data: the comparisons are arithmetic on the stored records of that member's own
+games (shares of the team, the lane opponent by recorded position, the member's own earlier games),
+labelled with their sample and never turned into a score or a judgement of other players. The match
+timeline (`match-v5`, already used for the build and Matchups) is requested once per game, only
+when the member opens a section that needs it, and kept compactly as before (each player's gold,
+experience and CS per frame, purchases and skill order; erased players removed). A 429 is shown as
+Riot limiting requests; nothing retries in the background.
 
 ## Clash Scout (retired 23 Oct 2026)
 

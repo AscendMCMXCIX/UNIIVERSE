@@ -259,15 +259,17 @@ const DEMO_LANE_OPPONENTS: Record<Role, string[]> = {
 /**
  * Synthetic gold, experience and CS frames for a demo game (demo mode only): frames a little more
  * than a minute apart and a last frame at the end of the game, like Riot's, with a lane that drifts
- * towards the result. Never real data.
+ * towards the result. The player and the lane opponent come from `rnd` (as they always have, so the
+ * Matchups demo reads the same); the other eight players, when given, from their own sequence, so
+ * the whole game's gold can be drawn. Never real data.
  */
-function demoFrames(rnd: () => number, durationSeconds: number, me: string, them: string, role: Role, win: boolean, bias: number): MatchFrames {
+function demoFrames(rnd: () => number, durationSeconds: number, me: string, them: string, role: Role, win: boolean, bias: number, others: { rnd: () => number; players: Array<{ puuid: string; ally: boolean; role: Role }> } | null = null): MatchFrames {
   const t: number[] = [0];
   for (let m = 1; m * 60_000 < durationSeconds * 1000; m++) t.push(m * 60_000 + Math.round(rnd() * 400));
   t.push(durationSeconds * 1000);
-  const support = role === "SUPPORT";
-  const csPerMin = support ? 1.2 : role === "JUNGLE" ? 5.6 : 7.4;
-  const series = (lead: number) => {
+  const series = (lead: number, playerRole: Role, r: () => number) => {
+    const support = playerRole === "SUPPORT";
+    const csPerMin = support ? 1.2 : playerRole === "JUNGLE" ? 5.6 : 7.4;
     let gold = 500;
     let xp = 0;
     let cs = 0;
@@ -277,9 +279,9 @@ function demoFrames(rnd: () => number, durationSeconds: number, me: string, them
       const minutes = (ms - prev) / 60_000;
       const minute = ms / 60_000;
       const drift = (lead * Math.min(minute, 25)) / 25;
-      gold += minutes * ((support ? 250 : 360) + drift + (rnd() - 0.5) * 60);
-      xp += minutes * (minute < 1.5 ? 0 : 420 + drift * 0.5 + (rnd() - 0.5) * 40);
-      cs += minute < 1.5 ? 0 : minutes * (csPerMin + drift / 120 + (rnd() - 0.5) * 0.6);
+      gold += minutes * ((support ? 250 : 360) + drift + (r() - 0.5) * 60);
+      xp += minutes * (minute < 1.5 ? 0 : 420 + drift * 0.5 + (r() - 0.5) * 40);
+      cs += minute < 1.5 ? 0 : minutes * (csPerMin + drift / 120 + (r() - 0.5) * 0.6);
       out.g.push(Math.round(gold));
       out.x.push(Math.round(xp));
       out.c.push(Math.max(0, Math.round(cs)));
@@ -288,8 +290,43 @@ function demoFrames(rnd: () => number, durationSeconds: number, me: string, them
     return out;
   };
   const edge = (win ? 30 : -30) + bias;
-  return { t, p: { [me]: series(edge / 2), [them]: series(-edge / 2) } };
+  const p: MatchFrames["p"] = { [me]: series(edge / 2, role, rnd), [them]: series(-edge / 2, role, rnd) };
+  // The rest of both teams drift with the result too, each a little differently.
+  for (const o of others?.players ?? []) p[o.puuid] = series(((o.ally === win ? 1 : -1) * (10 + others!.rnd() * 30)) / 2, o.role, others!.rnd);
+  return { t, p };
 }
+
+const DEMO_STARTS: Record<Role, number[]> = { TOP: [1054, 2003], JUNGLE: [1102, 2003], MID: [1056, 2003, 2003], ADC: [1055, 2003], SUPPORT: [3865, 2003] };
+const DEMO_CORE: Record<Role, number[]> = {
+  TOP: [1028, 3047, 1037, 3078, 1029, 3068, 3075],
+  JUNGLE: [1036, 3158, 1037, 3071, 1028, 3053, 3742],
+  MID: [1052, 3020, 1026, 6655, 1058, 3089, 3157],
+  ADC: [1036, 3006, 1037, 6672, 1038, 3031, 3036],
+  SUPPORT: [2055, 1028, 3158, 3190, 2055, 3107, 3109],
+};
+
+/**
+ * Purchases and skill order for one demo player (demo mode only): the role's starting items, then
+ * the next item of a fixed path every few minutes, and the usual skill order (R at 6, 11 and 16).
+ */
+function demoBuild(rnd: () => number, durationSeconds: number, role: Role): { purchases: Array<[number, number]>; skills: number[] } {
+  const purchases: Array<[number, number]> = DEMO_STARTS[role].map((id, i) => [1_000 + i * 400, id]);
+  let at = 300_000 + Math.round(rnd() * 120_000);
+  for (const id of DEMO_CORE[role]) {
+    if (at >= durationSeconds * 1000) break;
+    purchases.push([at, id]);
+    at += 150_000 + Math.round(rnd() * 180_000);
+  }
+  const first = role === "SUPPORT" ? 3 : 1;
+  const second = first === 1 ? 3 : 2;
+  const third = 6 - first - second;
+  const order = [first, second, third, first, first, 4, first, second, first, second, 4, second, second, third, third, 4, third, third];
+  const level = Math.min(18, Math.max(6, Math.round(durationSeconds / 120)));
+  return { purchases, skills: order.slice(0, level) };
+}
+
+/** The four other roles of a team, in lane order, around the demo player's own. */
+const DEMO_ROLES_FOR = (role: Role): Role[] => (["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"] as Role[]).filter((r) => r !== role);
 
 /**
  * One demo player's older games read as most real accounts' early games do until the figures
@@ -388,8 +425,18 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
     // The lane opponent: the enemy in the same position.
     const lane = `demo-lane-${puuid.slice(5, 13)}-${i}`;
     enemies[0] = { ...enemies[0]!, puuid: lane, championId: enemyChampionId, position: role };
-    // Most demo games have a timeline; every sixth is left "still to be collected".
-    if (i % 6 !== 5) timelines.push({ matchId, platform: "euw1", participants: [], frames: demoFrames(laneRnd, duration, puuid, lane, role, win, (opponentIndex - 1) * 25) });
+    // Most demo games have a timeline; every sixth is left "still to be collected". Everyone in
+    // it has frames and a build, from a sequence of the game's own (the player's and the lane
+    // opponent's frames are as they always were).
+    if (i % 6 !== 5) {
+      let gameSeed = [...matchId].reduce((n, c) => n + c.charCodeAt(0) * 7, 13);
+      const gameRnd = () => ((gameSeed = (gameSeed * 9301 + 49297) % 233280), gameSeed / 233280);
+      const roles = DEMO_ROLES_FOR(role);
+      const others = [...allies.map((a, k) => ({ puuid: a.puuid, ally: true, role: roles[k]! })), ...enemies.slice(1).map((e, k) => ({ puuid: e.puuid, ally: false, role: roles[k]! }))];
+      const frames = demoFrames(laneRnd, duration, puuid, lane, role, win, (opponentIndex - 1) * 25, { rnd: gameRnd, players: others });
+      const builds = [{ puuid, role }, { puuid: lane, role }, ...others].map((x) => ({ puuid: x.puuid, ...demoBuild(gameRnd, duration, x.role) }));
+      timelines.push({ matchId, platform: "euw1", participants: builds, frames });
+    }
     details.push({ matchId, platform: "euw1", queueId, gameCreation, gameDuration: duration, gameVersion: `${season}.20.1`, teams: [{ teamId: 100, win, bans: [], objectives: {} }, { teamId: 200, win: !win, bans: [], objectives: {} }], participants: [me, ...allies, ...enemies] });
   }
   await db.insert(accountMatches).values(games).onConflictDoNothing();

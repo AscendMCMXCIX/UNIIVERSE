@@ -134,7 +134,8 @@ export function MatchBreakdown({ playerId, view, champ, variant }: { playerId: s
         </section>
       ) : null}
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-border">
-        <div role="tablist" aria-label="Match details" className="-mb-px flex min-w-0 gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {/* Four sections share a phone's width (no hidden tab), and take their own width from sm up. */}
+        <div role="tablist" aria-label="Match details" className="-mb-px flex w-full min-w-0 gap-0.5 sm:w-auto sm:gap-1">
           {TABS.map(([key, label]) => (
             <button
               key={key}
@@ -154,7 +155,7 @@ export function MatchBreakdown({ playerId, view, champ, variant }: { playerId: s
                 document.getElementById(tabId(next))?.focus();
               }}
               tabIndex={tab === key ? 0 : -1}
-              className={cn("h-10 shrink-0 border-b-2 px-3 text-sm font-medium transition-colors pointer-coarse:h-11 md:h-9", tab === key ? "border-accent text-fg" : "border-transparent text-fg-muted hover:text-fg")}
+              className={cn("h-10 min-w-0 flex-1 border-b-2 px-1 text-sm font-medium transition-colors pointer-coarse:h-11 sm:flex-none sm:px-3 md:h-9", tab === key ? "border-accent text-fg" : "border-transparent text-fg-muted hover:text-fg")}
               data-testid={`match-tab-${key}`}
             >
               {label}

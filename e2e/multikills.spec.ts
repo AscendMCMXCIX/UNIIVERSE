@@ -251,7 +251,7 @@ test("Match History marks a game's largest multikill, and nothing else", async (
   for (const text of await marks.allTextContents()) expect(text.trim()).toMatch(/^(Double kill|Triple kill|Quadra kill|Pentakill)$/);
   // The card's button names it too, for screen readers.
   const marked = page.getByTestId("match-card").filter({ has: marks.first() }).first();
-  await expect(marked.getByTestId("match-row")).toHaveAttribute("aria-label", /, (double kill|triple kill|quadra kill|pentakill)\. Open the match details\.$/);
+  await expect(marked.getByTestId("match-row")).toHaveAttribute("aria-label", /, (double kill|triple kill|quadra kill|pentakill)\. Show the match details\.$/);
 });
 
 test("Team Matches marks each member's largest multikill beside their K/D/A", async ({ page }) => {

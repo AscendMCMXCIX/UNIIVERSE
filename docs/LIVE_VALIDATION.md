@@ -490,3 +490,18 @@ Ranked Development is retired, with Solo Queue Blocks and the Ranked Improvement
 - [ ] Match History: a game's window has no "Add to a Ranked Development session" button; Bookmark (your own games) and the OP.GG link are still there; enemy ranks show as before.
 - [ ] Overview, All Champions, Ranked progress (rank and LP), Riot Accounts, Team Overview and Leaderboards show the same figures as before the change; a new game still arrives with the next account sync.
 - [ ] Privacy notice: the Ranked Development entry says the records are kept, unused, until a planned clean-up, and the date at the top is 29 October 2026.
+
+## Match History 2.0 (29 Oct 2026)
+
+A profile's Match History opens each game under its card (`docs/ARCHITECTURE.md` → Match History 2.0). Items above that open a Match History game "in the window" now open it under its card; Team → Matches, Matchups, Encounters and the champion window still use the window. On the live site, after the deployment:
+- [ ] Data jobs → `smoke perf-probe`: every step passes and `deployment.commit` is the merge commit.
+- [ ] Your profile → Match History on a computer: above the games, one line about the newest games the filters list (results as small squares, record, KDA, CS/min, KP, a streak from two games, the champions played most; "+N Solo/Duo points, 30 days" only when two rank readings 30 days apart exist). Choosing Ranked Flex in the game mode filter changes it to Flex.
+- [ ] Cards: the champion's level on its portrait; the other players' ranks (teammates too) where stored, nothing where not; "Best <figure> in N" on a few games at most, and only where its hover text names at least 20 earlier games.
+- [ ] Click a card: the game opens under it (the address gains `?match=`), with Scoreboard first; clicking it again closes it; opening another closes the first. Reload with `?match=` in the address: the same game is open. Opening a game adds no history entry, so Back goes to the page before Match History.
+- [ ] Scoreboard: ten rows, your row tinted, members marked, the lane opponent marked "Lane" only when one enemy played the same position; ranks fill in after a moment for players with none stored; on a phone each row shows the name, KDA and items without sideways scrolling.
+- [ ] Analysis: your shares of the team's kills, damage and gold, your place in the game; the lane at 10:00 and 15:00 (the first time, after the timeline loads) and at the end, or "no single lane opponent"; "Against your usual" with the number of games compared, or the reason there is no comparison (fewer than 10 earlier games of that role and queue group). Nothing is graded.
+- [ ] Timeline: the gold difference line around zero, the largest lead and deficit, the end and the changes of lead; hover or the arrow keys read a minute; "Every minute as a table" lists every frame. A game Riot no longer serves says so; nothing invented. Opening Timeline again, or Build, makes no new request (Network tab).
+- [ ] Build: the build steps by minute, the skill order and the rune page, as before.
+- [ ] A game with a removed (erased) player: the scoreboard shows "Removed player", and the gold difference says it cannot be drawn.
+- [ ] Team → Matches, a champion's window (All Champions) and Encounters: a game opens in the window, with the same four sections; Back returns where it should.
+- [ ] On a phone (portrait and landscape), a tablet and the installed app: the four sections share the width, nothing scrolls sideways, and with reduced motion on nothing slides or rises.

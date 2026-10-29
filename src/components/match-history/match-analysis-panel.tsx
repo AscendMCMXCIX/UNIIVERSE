@@ -2,12 +2,12 @@
 
 import * as React from "react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
-import { BASELINE_GAMES, BASELINE_MIN, BEST_MIN, FIGURES, LANE_MINUTES, QUEUE_GROUP_WORDS, placeOf, type FigureComparison, type PersonalComparison } from "@/domain/match-analysis";
+import { BASELINE_GAMES, BASELINE_MIN, BEST_MIN, LANE_MINUTES, QUEUE_GROUP_WORDS, figureText, placeOf, type PersonalComparison } from "@/domain/match-analysis";
 import type { MatchTimelineResult } from "@/server/accounts/match-timeline";
 import type { ComparisonFigure, DetailParticipant, MatchDetailView } from "@/server/players/match-history";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { InfoTip } from "@/components/ui/info-tip";
-import { formatCount } from "@/lib/format";
+import { formatCount, formatKilo } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
 /*
@@ -33,10 +33,10 @@ export function AnalysisPanel({ view, champ, timeline }: { view: MatchDetailView
       <div className="space-y-5">
         <Shares view={view} />
         <Lane me={view.player} opponent={opponent} champ={champ} timeline={timeline} />
+        <Places view={view} everyone={everyone} />
       </div>
       <div className="space-y-5">
         <Personal personal={view.personal} />
-        <Places view={view} everyone={everyone} />
         <Objectives view={view} />
       </div>
     </div>
@@ -67,10 +67,11 @@ function ShareBar({ label, value, help }: { label: string; value: number | null;
 }
 
 function Shares({ view }: { view: MatchDetailView }) {
+  const id = React.useId();
   const c = view.comparison;
   return (
-    <section aria-labelledby="share-title" className="space-y-2" data-testid="match-shares">
-      <SectionTitle id="share-title">Your share of the team</SectionTitle>
+    <section aria-labelledby={id} className="space-y-2" data-testid="match-shares">
+      <SectionTitle id={id}>Your share of the team</SectionTitle>
       <ShareBar label="Champion damage" value={c.damageShare} help="Your damage to champions as a share of your team's" />
       <ShareBar label="Gold" value={c.goldShare} help="Your gold earned as a share of your team's" />
       <ShareBar label="Kill participation" value={c.killParticipation} help="Kills and assists as a share of your team's kills" />
@@ -94,10 +95,11 @@ function DiffCell({ you, them, digits = 0, loading = false }: { you: number | nu
 }
 
 function Lane({ me, opponent, champ, timeline }: { me: DetailParticipant; opponent: DetailParticipant | null; champ: (id: string | null) => PortraitChampion; timeline: MatchTimelineResult | null }) {
+  const id = React.useId();
   if (!opponent)
     return (
-      <section aria-labelledby="lane-title" className="space-y-1.5" data-testid="lane-comparison" data-state="none">
-        <SectionTitle id="lane-title">Lane</SectionTitle>
+      <section aria-labelledby={id} className="space-y-1.5" data-testid="lane-comparison" data-state="none">
+        <SectionTitle id={id}>Lane</SectionTitle>
         <p className="text-xs text-fg-muted">Riot did not record positions clearly enough to pair a lane opponent in this game, so none is shown.</p>
       </section>
     );
@@ -109,9 +111,9 @@ function Lane({ me, opponent, champ, timeline }: { me: DetailParticipant; oppone
   const note = !timeline ? null : timeline.status !== "ok" ? timeline.message : !moments ? "The timeline does not hold both players' figures, so 10:00 and 15:00 are not shown." : moments.some((m) => !m.you || !m.opponent) ? "A dash at a minute the game had not reached." : null;
   const name = opponent.name?.split("#")[0] ?? c.name;
   return (
-    <section aria-labelledby="lane-title" className="space-y-1.5" data-testid="lane-comparison" data-state={moments ? "timeline" : "end"}>
+    <section aria-labelledby={id} className="space-y-1.5" data-testid="lane-comparison" data-state={moments ? "timeline" : "end"}>
       <SectionTitle
-        id="lane-title"
+        id={id}
         tip={<InfoTip label="About the lane comparison" text="The enemy Riot recorded in the same position as you (its reading of where each player spent the game), only when exactly one enemy has it. Each cell is your figure minus theirs, with both under it. 10:00 and 15:00 are read from the match timeline between its minute frames; the last row is the end of the game." />}
       >
         Lane against
@@ -192,19 +194,18 @@ function Lane({ me, opponent, champ, timeline }: { me: DetailParticipant; oppone
   );
 }
 
-const figureText = (f: Pick<FigureComparison, "key">, v: number) => (FIGURES[f.key].digits === 0 ? formatCount(v) : v.toFixed(FIGURES[f.key].digits));
-
 /**
  * This game beside the player's previous games of the same role and kind of queue: for each figure,
  * where the game sits among them (a marker on a track from their lowest to their highest share),
  * their median, and "best" only above every one of at least BEST_MIN of them.
  */
 function Personal({ personal }: { personal: PersonalComparison | null }) {
+  const id = React.useId();
   const method = `Your previous games in the same role and the same kind of queue (ranked with ranked, normal with normal, Swiftplay and Quickplay together, Clash apart), at most ${BASELINE_GAMES}, newest first; this game and later ones never count. The track shows the share of those games with a lower figure (a tie counts half), the mark at the middle is their median. A figure is compared once ${BASELINE_MIN} games carry it, and called your best only when it is higher than every one of at least ${BEST_MIN}. No figure is weighted against another, and nothing here is a score.`;
   if (!personal)
     return (
-      <section aria-labelledby="personal-title" className="space-y-1.5" data-testid="personal-comparison" data-state="none">
-        <SectionTitle id="personal-title" tip={<InfoTip label="About this comparison" text={method} />}>
+      <section aria-labelledby={id} className="space-y-1.5" data-testid="personal-comparison" data-state="none">
+        <SectionTitle id={id} tip={<InfoTip label="About this comparison" text={method} />}>
           Compared with your usual
         </SectionTitle>
         <p className="text-xs text-fg-muted">Not enough earlier games to compare with: it needs {BASELINE_MIN} of your previous games in the same role and kind of queue, with the role recorded.</p>
@@ -213,8 +214,8 @@ function Personal({ personal }: { personal: PersonalComparison | null }) {
   const games = Math.max(...personal.figures.map((f) => f.games));
   const group = QUEUE_GROUP_WORDS[personal.group];
   return (
-    <section aria-labelledby="personal-title" className="space-y-2" data-testid="personal-comparison" data-state="ok">
-      <SectionTitle id="personal-title" tip={<InfoTip label="About this comparison" text={method} />}>
+    <section aria-labelledby={id} className="space-y-2" data-testid="personal-comparison" data-state="ok">
+      <SectionTitle id={id} tip={<InfoTip label="About this comparison" text={method} />}>
         Compared with your usual
       </SectionTitle>
       <p className="-mt-1 text-2xs text-fg-subtle" data-testid="personal-sample">
@@ -225,7 +226,7 @@ function Personal({ personal }: { personal: PersonalComparison | null }) {
           <li key={f.key} data-testid={`personal-${f.key}`} data-best={f.best || undefined}>
             <div className="flex items-baseline justify-between gap-2 text-xs">
               <span className="text-fg-muted">
-                {f.label} <span className="font-semibold tabular-nums text-fg">{figureText(f, f.value)}</span>
+                {f.label} <span className="font-semibold tabular-nums text-fg">{figureText(f.key, f.value)}</span>
               </span>
               <span className={cn("tabular-nums", f.best ? "font-semibold text-accent" : "text-fg-muted")}>{f.best ? `Your best in ${f.games}` : `Higher than ${Math.round(f.percentile * 100)}%`}</span>
             </div>
@@ -234,7 +235,7 @@ function Personal({ personal }: { personal: PersonalComparison | null }) {
               <span className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-bg-elevated bg-accent" style={{ left: `${Math.round(Math.min(1, Math.max(0, f.percentile)) * 100)}%` }} />
             </div>
             <div className="mt-0.5 text-2xs tabular-nums text-fg-subtle">
-              Median {figureText(f, f.median)} · highest before {figureText(f, f.top)} · {f.games} games
+              Median {figureText(f.key, f.median)} · highest before {figureText(f.key, f.top)} · {f.games} games
             </div>
           </li>
         ))}
@@ -252,13 +253,14 @@ const PLACE_OF: Record<ComparisonFigure["key"], (p: DetailParticipant) => number
 
 /** Each figure beside the lane opponent and the player's team average, and the player's place among everyone in the game. */
 function Places({ view, everyone }: { view: MatchDetailView; everyone: DetailParticipant[] }) {
+  const id = React.useId();
   const c = view.comparison;
   const present = everyone.filter((p) => !p.removed);
   const me = present.find((p) => p.isPlayer) ?? null;
   const show = (key: ComparisonFigure["key"], v: number | null) => (v === null ? "—" : key === "csPerMin" ? v.toFixed(1) : formatCount(v));
   return (
-    <section aria-labelledby="places-title" className="space-y-1.5" data-testid="match-places">
-      <SectionTitle id="places-title">In this game</SectionTitle>
+    <section aria-labelledby={id} className="space-y-1.5" data-testid="match-places">
+      <SectionTitle id={id}>In this game</SectionTitle>
       <table className="w-full text-sm tabular-nums">
         <caption className="sr-only">Your figures beside your lane opponent and your team&apos;s average, and your place among the players in the game</caption>
         <thead>
@@ -307,6 +309,7 @@ function Places({ view, everyone }: { view: MatchDetailView; everyone: DetailPar
 
 /** The objectives and vision Riot recorded for the player, then the two teams' totals. */
 function Objectives({ view }: { view: MatchDetailView }) {
+  const id = React.useId();
   const p = view.player;
   const s = p.stats;
   const own = view.teams[0];
@@ -327,8 +330,8 @@ function Objectives({ view }: { view: MatchDetailView }) {
   ];
   const shown = items.filter(([, , v]) => v !== null);
   return (
-    <section aria-labelledby="objectives-title" className="space-y-2.5" data-testid="match-objectives">
-      <SectionTitle id="objectives-title">Objectives and vision</SectionTitle>
+    <section aria-labelledby={id} className="space-y-2.5" data-testid="match-objectives">
+      <SectionTitle id={id}>Objectives and vision</SectionTitle>
       {shown.length ? (
         <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs @min-[30rem]/bd:grid-cols-3">
           {shown.map(([label, help, value]) => (
@@ -352,7 +355,7 @@ function Objectives({ view }: { view: MatchDetailView }) {
             const a = t.own ?? 0;
             const b = t.enemy ?? 0;
             const share = a + b > 0 ? a / (a + b) : 0.5;
-            const text = (v: number | null) => (v === null ? "—" : t.key === "gold" || t.key === "damage" ? `${(v / 1000).toFixed(1)}k` : String(v));
+            const text = (v: number | null) => (v === null ? "—" : t.key === "gold" || t.key === "damage" ? formatKilo(v) : String(v));
             return (
               <div key={t.key} data-testid={`team-total-${t.key}`}>
                 <div className="flex items-baseline justify-between text-xs">

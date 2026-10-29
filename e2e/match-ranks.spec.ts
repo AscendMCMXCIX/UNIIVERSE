@@ -1,7 +1,8 @@
 import { expect, test, type Page, type Response } from "./test";
+import { cardOf, closeGame, openGame } from "./match-history";
 
 /*
-  Ranks in the match window (server/players/participant-ranks.ts, domain/known-rank.ts), on the
+  Ranks in an opened game's scoreboard (server/players/participant-ranks.ts, domain/known-rank.ts), on the
   demo games with the browser tests' Riot stand-in (server/riot/browser-test.ts: most players
   ranked in Solo/Duo, some in Flex too or only, some unranked, one in ten failing). Every player
   gets one compact badge: a current or last-checked rank with its queue and date, "Unranked" when
@@ -40,21 +41,19 @@ async function openHistory(page: Page, role: string) {
   await page.waitForLoadState("networkidle");
 }
 
+/** Opens the game of the given card under it and waits for its rank check to answer. */
 async function openMatch(page: Page, index: number) {
-  const card = page.getByTestId("match-card").nth(index);
-  await expect(async () => {
-    await card.click({ position: { x: 24, y: 16 } });
-    await expect(page.getByTestId("match-detail")).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 15_000 });
-  const note = page.getByTestId("ranks-note");
+  const breakdown = await openGame(page.getByTestId("match-card").nth(index));
+  const note = breakdown.getByTestId("ranks-note");
   await expect(note).toBeVisible({ timeout: 15_000 });
   await expect(note).not.toHaveAttribute("data-state", "checking", { timeout: 15_000 });
   return note;
 }
 
+/** Closes the open game (one at a time), found by its match id: once closed, it is no longer "expanded". */
 async function closeMatch(page: Page) {
-  await page.keyboard.press("Escape");
-  await expect(page.getByTestId("match-detail")).toHaveCount(0);
+  const matchId = (await page.locator('[data-testid="match-row"][aria-expanded="true"]').getAttribute("data-match"))!;
+  await closeGame(cardOf(page, matchId));
 }
 
 test("every player in the scoreboard has one rank badge: a dated current rank, Unranked or not available", async ({ page }) => {
@@ -101,7 +100,9 @@ test("a rank from the match's other ranked queue is marked, and only then", asyn
   let flex = false;
   for (let i = 0; i < 10 && !(solo && flex); i++) {
     await openMatch(page, i);
-    const queue = (await page.locator("#match-detail-title + ul li").first().innerText()).trim();
+    // The game's queue, from its card (the card's button names it).
+    const label = (await page.getByTestId("match-row").nth(i).getAttribute("aria-label"))!;
+    const queue = label.includes("Ranked Flex") ? "Ranked Flex" : label.includes("Ranked Solo/Duo") ? "Ranked Solo/Duo" : "other";
     const own = queue === "Ranked Flex" ? "flex" : "solo";
     const mark = own === "flex" ? "Solo" : "Flex";
     const badges = page.locator('[data-testid="participant-rank"][data-state="ranked"]');

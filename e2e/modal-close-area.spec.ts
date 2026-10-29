@@ -26,14 +26,15 @@ async function topPlayer(page: Page) {
 }
 
 test("the match window: the close button alone in its corner, Escape back to the game", async ({ page }) => {
-  await page.goto(`/players/${await topPlayer(page)}/matches`);
-  const card = page.getByTestId("match-card").first();
-  await card.click({ position: { x: 24, y: 16 } });
+  // Team Matches opens a game in the window (Match History opens its games under their cards).
+  await page.goto("/matches");
+  const card = page.getByTestId("together-game").first();
+  await card.click({ position: { x: 24, y: 12 } });
   const win = page.getByTestId("match-detail");
   await expect(win.getByTestId("match-result")).toBeVisible();
   await expect(win.getByTestId("match-detail-close")).toBeFocused();
   await expectClearCorner(page);
-  await expectEscapeReturnsTo(page, win, card.getByTestId("match-row"));
+  await expectEscapeReturnsTo(page, win, card.getByTestId("together-open"));
 });
 
 test("Encounters: OP.GG under the player's name, and the match window's Back set apart from the close button", async ({ page }) => {
@@ -157,8 +158,8 @@ async function sideways(browser: Browser, baseURL: string): Promise<Page> {
 test("held sideways, the floating corner keeps clear of the headers too", async ({ browser, baseURL }, info) => {
   test.skip(info.project.name !== "phone", "a phone held sideways, once");
   const page = await sideways(browser, baseURL!);
-  await page.goto(`/players/${await topPlayer(page)}/matches`);
-  await page.getByTestId("match-card").first().click({ position: { x: 24, y: 16 } });
+  await page.goto("/matches");
+  await page.getByTestId("together-game").first().click({ position: { x: 24, y: 12 } });
   await expect(page.getByTestId("match-result")).toBeVisible();
   await expectClearCorner(page);
   await page.keyboard.press("Escape");

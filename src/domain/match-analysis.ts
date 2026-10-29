@@ -1,5 +1,6 @@
 import { MAX_VALID_DURATION_S, MIN_VALID_DURATION_S, gameRole, type GameRole, type SeasonGame } from "./season-stats";
 import { valueAt, type PlayerSeries } from "./matchups";
+import { formatCount } from "@/lib/format";
 
 /*
   MATCH ANALYSIS: what one game says once it is set beside something comparable. Plain
@@ -58,6 +59,12 @@ export const FIGURES: Record<FigureKey, FigureInfo> = {
 };
 
 export const FIGURE_ORDER: FigureKey[] = ["kda", "damagePerMin", "csPerMin", "visionPerMin"];
+
+/** A figure as the pages write it: damage as a count, the others with their decimals. */
+export function figureText(key: FigureKey, value: number): string {
+  const digits = FIGURES[key].digits;
+  return digits === 0 ? formatCount(value) : value.toFixed(digits);
+}
 
 /** At most this many earlier games make the comparison (the newest ones). */
 export const BASELINE_GAMES = 50;

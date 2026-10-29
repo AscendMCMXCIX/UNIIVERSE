@@ -5,7 +5,7 @@ import type { MatchGroupsResult, MatchGroupsTeam, MatchGroupView } from "@/serve
 import { groupEvidenceText } from "@/domain/possible-groups";
 import type { DetailParticipant, DetailTeam, MatchRanksResult } from "@/server/players/match-history";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
-import { formatCompactCount, formatCount, formatDate } from "@/lib/format";
+import { formatCount, formatDate, formatKilo } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { matchRankQueue, rankBadgeLabel, rankChecksWhen, type ParticipantRank } from "@/domain/known-rank";
 import { RankEmblem } from "@/components/players/rank-emblem";
@@ -36,7 +36,8 @@ const OBJECTIVES: Array<[string, string, string]> = [
 const GROUP_MARK = ["bg-accent", "bg-warn"];
 
 /** One row's grid at each width of the breakdown (see the note above). */
-const ROW = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 @min-[36rem]/bd:grid-cols-[minmax(0,1.4fr)_5.5rem_minmax(7rem,1fr)_auto] @min-[60rem]/bd:grid-cols-[minmax(0,1.6fr)_6rem_8.5rem_4.5rem_4.5rem_3.5rem_auto] @min-[60rem]/bd:gap-x-4";
+// The items take a fixed width on the one-line layout (seven 24px icons), so the column names line up.
+const ROW = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 @min-[36rem]/bd:grid-cols-[minmax(0,1.4fr)_5.5rem_minmax(7rem,1fr)_auto] @min-[60rem]/bd:grid-cols-[minmax(0,1.6fr)_6rem_8.5rem_4.5rem_4.5rem_3.5rem_11.5rem] @min-[60rem]/bd:gap-x-4";
 
 const pctText = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)}%`);
 const intText = (v: number | null) => (v === null ? "—" : formatCount(v));
@@ -66,7 +67,7 @@ export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, qu
         </span>
         <span className="flex flex-wrap gap-x-3 text-fg-muted">
           <span>{team.kills} kills</span>
-          {team.gold !== null ? <span>{(team.gold / 1000).toFixed(1)}k gold</span> : null}
+          {team.gold !== null ? <span>{formatKilo(team.gold)} gold</span> : null}
           {objectives.map(([k, one, many]) => (
             <span key={k}>
               {team.objectives[k]} {team.objectives[k] === 1 ? one : many}
@@ -302,18 +303,18 @@ function ParticipantRow({ x, champ, maxDamage, group, lane, rank, queueId, check
       <span className="leading-tight @max-[36rem]/bd:col-span-2" title={x.damage !== null ? `${formatCount(x.damage)} damage to champions${share ? `, ${share} of the team's` : ""}` : undefined}>
         <span className="flex items-center gap-1.5 text-2xs tabular-nums text-fg-muted">
           <span className="whitespace-nowrap">
-            <span className="font-medium text-fg">{x.damage === null ? "—" : formatCompactCount(x.damage)}</span> dmg{share ? ` · ${share}` : ""}
+            <span className="font-medium text-fg">{x.damage === null ? "—" : formatKilo(x.damage)}</span> dmg{share ? ` · ${share}` : ""}
           </span>
           <span className="h-1.5 min-w-6 flex-1 overflow-hidden rounded-full bg-surface-3" aria-hidden>
             <span className="block h-full rounded-full bg-accent/70" style={{ width: `${Math.round(((x.damage ?? 0) / maxDamage) * 100)}%` }} />
           </span>
         </span>
         <span className="block truncate text-2xs tabular-nums text-fg-subtle @min-[60rem]/bd:hidden">
-          {x.gold === null ? "—" : formatCompactCount(x.gold)} gold · {intText(x.cs)} CS ({decText(x.csPerMin)}) · {intText(x.vision)} vision
+          {x.gold === null ? "—" : formatKilo(x.gold)} gold · {intText(x.cs)} CS ({decText(x.csPerMin)}) · {intText(x.vision)} vision
         </span>
       </span>
       <span className="hidden leading-tight @min-[60rem]/bd:block" data-testid="participant-gold">
-        <span className="block text-xs font-medium tabular-nums text-fg">{x.gold === null ? "—" : formatCompactCount(x.gold)}</span>
+        <span className="block text-xs font-medium tabular-nums text-fg">{x.gold === null ? "—" : formatKilo(x.gold)}</span>
         <span className="block text-2xs tabular-nums text-fg-subtle">{decText(x.goldPerMin, 0)}/min</span>
       </span>
       <span className="hidden leading-tight @min-[60rem]/bd:block" data-testid="participant-cs">

@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { MULTIKILL_NAMES } from "@/domain/multikills";
-import { QUEUE_GROUP_WORDS, queueGroup, type FigureKey } from "@/domain/match-analysis";
+import { QUEUE_GROUP_WORDS, figureText, queueGroup, type FigureKey } from "@/domain/match-analysis";
 import type { MatchDetailResult, MatchHistoryPage, MatchRow } from "@/server/players/match-history";
 import type { Composition } from "@/server/matches/compositions";
 import type { ParticipantRank } from "@/domain/known-rank";
@@ -72,7 +72,7 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
   const members = membersIn(row.teams);
   const roleName = row.role ? ROLE_LABELS[row.role as Role] : null;
   const standout = row.standout;
-  const standoutTitle = standout ? `Your highest ${standout.label} in your last ${standout.games} ${QUEUE_GROUP_WORDS[queueGroup(row.queueId)]} games${roleName ? ` as ${roleName}` : ""}: ${standout.key === "damagePerMin" ? formatCount(standout.value) : standout.value.toFixed(2)} (the highest before: ${standout.key === "damagePerMin" ? formatCount(standout.top) : standout.top.toFixed(2)})` : undefined;
+  const standoutTitle = standout ? `Your highest ${standout.label} in your last ${standout.games} ${QUEUE_GROUP_WORDS[queueGroup(row.queueId)]} games${roleName ? ` as ${roleName}` : ""}: ${figureText(standout.key, standout.value)} (the highest before: ${figureText(standout.key, standout.top)})` : undefined;
   const open = React.useRef<HTMLButtonElement>(null);
   return (
     <li id={`match-${row.matchId}`} className="scroll-mt-16 lg:scroll-mt-3" data-testid="match-item" data-expanded={expanded || undefined}>

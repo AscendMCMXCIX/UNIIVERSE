@@ -38,7 +38,7 @@ export function TimelinePanel({ result }: { result: MatchTimelineResult | null }
       {gold && story ? (
         <>
           <GoldChart points={gold} />
-          <ul className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-fg-muted" data-testid="gold-story">
+          <ul className="-mt-1 flex flex-wrap gap-x-5 gap-y-1 text-xs text-fg-muted" data-testid="gold-story">
             <li>
               Largest lead{" "}
               {story.lead ? (
@@ -68,6 +68,7 @@ export function TimelinePanel({ result }: { result: MatchTimelineResult | null }
                 : `The lead changed sides ${story.changes.length === 1 ? "once" : `${story.changes.length} times`}: ${story.changes.map((c) => `${gameClock(c.minute)} (${c.to === "ahead" ? "your team ahead" : "the other team ahead"})`).join(", ")}`}
             </li>
           </ul>
+          <GoldTable points={gold} />
         </>
       ) : (
         <p className="rounded-panel border border-dashed border-border p-3 text-sm text-fg-muted" data-testid="gold-missing">
@@ -83,7 +84,7 @@ export function TimelinePanel({ result }: { result: MatchTimelineResult | null }
  * The gold difference as one line around zero, washed blue where the player's team was ahead and red
  * where it was behind (the site's colours for a won and a lost game). Drawn at the width it is
  * shown, so the labels keep their size; they are HTML over the drawing. Hover, touch or the arrow
- * keys read one frame; Home and End jump to the ends. The table under it holds every frame.
+ * keys read one frame; Home and End jump to the ends. GoldTable holds every frame.
  */
 export function GoldChart({ points, testId = "gold-chart" }: { points: GoldPoint[]; testId?: string }) {
   const box = React.useRef<HTMLDivElement>(null);
@@ -109,7 +110,8 @@ export function GoldChart({ points, testId = "gold-chart" }: { points: GoldPoint
   const area = `${line}L${x(points[points.length - 1]!.minute).toFixed(1)},${y(0).toFixed(1)}L${x(points[0]!.minute).toFixed(1)},${y(0).toFixed(1)}Z`;
   const ticks = H >= 180 ? [max, max / 2, 0, -max / 2, -max] : [max, 0, -max];
   const every = W < 480 ? 10 : 5;
-  const minutes = Array.from({ length: Math.floor(end / every) + 1 }, (_, i) => i * every).filter((m) => x(m) <= W - pad.r - 12 || m === 0);
+  // From the first mark after the start: "0:00" would meet the lowest value's label in the corner.
+  const minutes = Array.from({ length: Math.floor(end / every) }, (_, i) => (i + 1) * every).filter((m) => x(m) <= W - pad.r - 12);
   const pick = (clientX: number, rect: DOMRect) => {
     const minute = ((((clientX - rect.left) / rect.width) * W - pad.l) / (W - pad.l - pad.r)) * end;
     let best = 0;
@@ -189,32 +191,38 @@ export function GoldChart({ points, testId = "gold-chart" }: { points: GoldPoint
           "Hover, touch or use the arrow keys to read a minute."
         )}
       </p>
-      <details className="group/table mt-1 text-xs">
-        <summary className="inline-flex min-h-9 cursor-pointer items-center rounded text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11">Every minute as a table</summary>
-        <div className="mt-1 max-h-56 overflow-y-auto rounded-lg border border-border">
-          <table className="w-full text-xs tabular-nums" data-testid={`${testId}-table`}>
-            <caption className="sr-only">Gold difference at every frame, your team minus the other team</caption>
-            <thead className="sticky top-0 bg-surface text-fg-subtle">
-              <tr>
-                <th scope="col" className="px-3 py-1 text-left font-medium">
-                  Time
-                </th>
-                <th scope="col" className="px-3 py-1 text-right font-medium">
-                  Difference
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {points.map((p) => (
-                <tr key={p.minute} className="border-t border-border/60">
-                  <td className="px-3 py-1 text-fg-muted">{gameClock(p.minute)}</td>
-                  <td className={cn("px-3 py-1 text-right font-medium", goldTone(p.diff))}>{signedGold(p.diff)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </details>
     </figure>
+  );
+}
+
+/** Every frame of the gold difference as a table: the chart's values without hovering, for any reader. */
+function GoldTable({ points }: { points: GoldPoint[] }) {
+  return (
+    <details className="text-xs">
+      <summary className="inline-flex min-h-9 cursor-pointer items-center rounded text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11">Every minute as a table</summary>
+      <div className="mt-1 max-h-56 overflow-y-auto rounded-lg border border-border">
+        <table className="w-full text-xs tabular-nums" data-testid="gold-chart-table">
+          <caption className="sr-only">Gold difference at every frame, your team minus the other team</caption>
+          <thead className="sticky top-0 bg-surface text-fg-subtle">
+            <tr>
+              <th scope="col" className="px-3 py-1 text-left font-medium">
+                Time
+              </th>
+              <th scope="col" className="px-3 py-1 text-right font-medium">
+                Difference
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {points.map((p) => (
+              <tr key={p.minute} className="border-t border-border/60">
+                <td className="px-3 py-1 text-fg-muted">{gameClock(p.minute)}</td>
+                <td className={cn("px-3 py-1 text-right font-medium", goldTone(p.diff))}>{signedGold(p.diff)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
   );
 }

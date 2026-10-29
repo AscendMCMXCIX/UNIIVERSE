@@ -84,6 +84,9 @@ fit (iPhone 15 and wider) and scroll on narrower phones.
 
 Tables with more than four columns render as cards on phones and as the table from `md`:
 Data jobs and the player's champion proficiency table. Match history rows wrap into cards.
+A game's breakdown (under its Match History card, or in the match window) sizes its scoreboard by
+its own width (container `bd`, not the screen): name, KDA and items on phones, damage from 36rem,
+gold, CS and vision columns from 60rem; its four section tabs share a phone's width.
 
 ## Tests
 
