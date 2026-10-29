@@ -435,7 +435,7 @@ request is a game's match timeline, once per game, when a section that needs it 
   erased players never. Possible groups' note is one line with its rules in an (i) as well.
 - **Finishing pass** (29 Oct 2026): on a profile's other sections (Match History, champions,
   accounts) the profile card is one compact band (`ProfileHeader`'s `basePath`: name, role, rank
-  and Customise, about 70px instead of about 320px on a phone); the Overview keeps the full card. A
+  and Customise, about 65px instead of about 250px on a 390px phone); the Overview keeps the full card. A
   narrow card's meta line keeps the time of its game in view ("Ranked" dropped from the queue on
   cards under 36rem), and its team members fold to the first name and "+N". On a phone a scoreboard
   row is three lines (the items share the damage's line). An open game ends with "Close this
@@ -450,7 +450,9 @@ request is a game's match timeline, once per game, when a section that needs it 
   after the finger lifts (a mouse's ends when it leaves, a keyboard's when the focus leaves); each
   row of the event table carries the chart's mark; the method moved from a permanent footnote into
   the chart's (i). On a touch screen both tables run with the page (`docs/RESPONSIVE.md` → Long
-  lists inside a page). Nothing here asks Riot for more.
+  lists inside a page). The possible-groups note is one statement: "not enough recorded history"
+  when no side can be assessed, otherwise the inference and then the sides it could not cover.
+  Nothing here asks Riot for more.
 - **Summary** (`history-summary.tsx`, `src/domain/history-summary.ts`): one line above the list
   about the newest games its filters list (20, the Overview's Recent form rules, so the two agree):
   results, record, KDA, CS/min (vision for supports), kill participation (total takedowns over total
