@@ -20,9 +20,13 @@ Raw facts (`riot_accounts`, `account_champion_history`, `account_mastery`) stay 
 
 `account_matches` also keeps per-match facts (queue, champion, role, result, enemy champion in the same position, patch, duration), which Match History, Played Together and possible groups read without another Riot call.
 
-## Ranks of a match's players (on demand)
+## Ranks of a match's players
 
-Not a job: when a member opens a match window, the server asks LEAGUE-V4 (`/lol/league/v4/entries/by-puuid/{puuid}`, the match's server) about the players of that match with no rank check in the last 3 days, and keeps each answer in `last_known_ranks` (both ranked queues, `UNRANKED` for a queue with no entry, `source` "match lookup"). Stored ranks are shown first; the check fills in the rest while the window is open. At most 1,000 checks in any 24 hours across the site, half of each rate-limit window of that server (account sync keeps the other half), never a queued request, no retries. `data-audit` → `participantRanks` reports the coverage and the checks per day. Details: `src/server/players/participant-ranks.ts`, `docs/RIOT_COMPLIANCE.md` → Ranks in completed matches.
+LEAGUE-V4 (`/lol/league/v4/entries/by-puuid/{puuid}`, the match's server) is asked about the other players of the members' games, and each answer is kept in `last_known_ranks` (both ranked queues, `UNRANKED` for a queue with no entry, `source` "match lookup"), at two moments:
+- **After a game is collected** (the `rank-checks` job, in every scheduler tick after `account-sync`, due every 15 minutes, at most 15 s): the players of the members' games of the last 7 days with no check since that game ended, newest game first, 30 a run, so every recent card and scoreboard has the ranks around its game whether or not anyone opens it. It uses at most 600 of the day's checks.
+- **When a member opens a match**: its players with no check in the last 3 days, or none since a game of the last 7 days ended.
+
+Members are never checked this way: their own sync reads their rank, and their rank history (`rank_snapshots`) gives their rank going into each game. At most 1,000 checks in any 24 hours across the site, half of each rate-limit window of that server (account sync keeps the other half), never a queued request, no retries. `data-audit` → `participantRanks` reports the coverage and the checks per day. Details: `src/server/players/participant-ranks.ts`, `docs/RIOT_COMPLIANCE.md` → Ranks in completed matches.
 
 **Erased people** (`docs/PRIVACY.md`). The sync keeps the people whose personal data was erased out of everything it stores, through the erasure records (`erasureFilter`, `src/server/privacy/ledger.ts`):
 - An erased person's own accounts are refused, before and after the PUUID is resolved, and logged only as `account 1a2b3c4d`.

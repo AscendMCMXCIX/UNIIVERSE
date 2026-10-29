@@ -520,3 +520,12 @@ The card, the scoreboard, Analysis and the Timeline describe the same game (`doc
 - [ ] Data jobs → `smoke data-audit`: `matchViews` reports `contradicting` 0; `playersGoldOff`, `playersCsOff`, `playersKillsOff` and `objectivesOff` are 0 or close to it (each one is a stored game to look at, not a figure to hide).
 - [ ] Your profile → Match History, open three games, one of them played from the red side: the Analysis team gold, the scoreboard's gold column added up and the Timeline's "At the end" give the same lead or deficit (yours first); your team's kills run along the top of the Timeline, and the kill and objective counts match the scoreboard.
 - [ ] Only if `contradicting` is above 0: such a game's Timeline says its timeline and its record disagree and shows no gold line or lane figures; its scoreboard and Analysis are unchanged.
+
+## Match History: ranks around each game (29 Oct 2026)
+
+Ranks are read against the game they are shown for (`docs/ARCHITECTURE.md` → Match History 2.0 → Ranks around each game). On the live site, after the deployment:
+- [ ] Data jobs → `smoke data-audit`: `participantRanks.lookupsByDay` stays under 1,000 a day; over the next days `gamesLast30Days.othersNothingStored` falls as the `rank-checks` job reaches the last week's games.
+- [ ] Admin Mode → System (or Data jobs → `tick`): the `rank-checks` job runs after `account-sync`, with "N checked … M players in K recent games were waiting" in its summary, and is never "failed" because Riot was busy.
+- [ ] Your profile → Match History: the cards of games from the last week show their players' ranks (tier colour) without anyone opening them; an older game's ranks, read later, are in the caption colour.
+- [ ] Open a recent game: the note under the scoreboard says "Ranks around the time of this game."; hover a badge: "checked … after this game", or for a member "the last rank recorded before this game". Open a game from a month ago: badges read later carry a clock, and the note says so. The (i) explains both, by keyboard and by touch.
+- [ ] The note under the scoreboard about possible groups is one line with its (i); the groups themselves are unchanged.

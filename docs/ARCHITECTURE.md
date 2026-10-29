@@ -80,7 +80,7 @@ Sessions are rows in `sessions` (`src/server/auth/sessions.ts`): the browser hol
 
 - **Season history** (`src/server/accounts/sync.ts`): each account sync reads every supported queue (420, 440, 400, 430, 480, 490, 700) newest first, then resumes older pages from the per-queue offset stored in `riot_accounts.history_backfill` until the season start, at most `ACCOUNT_SYNC_MATCHES_PER_RUN` (default 80) new matches per account per run; empty queues are rechecked every 12 hours. Statuses: Pending sync · Verified · Synchronising (season history still being collected) · Synced · Delayed · Failed (`src/domain/account-status.ts`).
 - **Rate limits** (`src/server/riot/api/rate-limiter.ts`): the client adopts Riot's own `X-App-Rate-Limit` header (development, personal or production key alike) unless `RIOT_RATE_LIMITS` pins them.
-- **Scheduler** (`src/server/jobs/scheduler.ts`): the tick runs version-check → account-sync (≤75 s) → integrity (≤20 s) → timeline-backfill (≤25 s) → figures-backfill (≤25 s), each also bounded by what is left of the tick's budget. Ticks are started by GitHub (hourly), Vercel (daily) and visits (`src/server/jobs/background.ts`: a lease row lets at most one visit-started tick run per 30 minutes).
+- **Scheduler** (`src/server/jobs/scheduler.ts`): the tick runs version-check → account-sync (≤75 s) → rank-checks (≤15 s) → integrity (≤20 s) → timeline-backfill (≤25 s) → figures-backfill (≤25 s), each also bounded by what is left of the tick's budget. Ticks are started by GitHub (hourly), Vercel (daily) and visits (`src/server/jobs/background.ts`: a lease row lets at most one visit-started tick run per 30 minutes).
 - **Proficiency** (`src/domain/proficiency`): queue-aware weights (Solo/Duo 1, Flex 0.9, Clash/other 0.85, Normal 0.6); normals add familiarity and practice but never the ranked performance baseline.
 - **Read-only diagnostics job**: `data-audit` (anonymised Riot data coverage), run from GitHub Actions → Data jobs.
 
@@ -418,6 +418,21 @@ request is a game's match timeline, once per game, when a section that needs it 
   player (teammates too, from storage only; `compositionOf`'s `rankOf`), the damage share, and one
   standout at most (`standoutOf`): a figure higher than every one of at least 20 earlier comparable
   games, named "Best <figure> in N". Most games have none, by design.
+- **Ranks around each game** (29 Oct 2026; `src/domain/known-rank.ts`,
+  `src/server/players/participant-ranks.ts`): every rank is read against its game
+  (`participantRank(…, game)`, `RankTiming`): a member's last rank recorded before the game
+  (`recordedRanksBefore`: their rank history, two indexed queries for a page of games) wins over
+  their current one; another player's reading is "after" when checked within 24 hours after the
+  game, and "later" or "earlier" otherwise. The scoreboard's badge and the card's short rank say so
+  on hover; a rank read away from its game carries a clock (scoreboard) or the caption colour
+  (card), and the note under the scoreboard is one line (around the game, read later, or both) with
+  the rules in its (i). The `rank-checks` job (scheduler tick, after account-sync, every 15 minutes,
+  15 s at most, `checkRecentGameRanks`) checks the other players of the members' games of the last 7
+  days with no check since the game ended, 30 a run, newest game first, within 600 of the 1,000
+  daily checks and half of Riot's rate limits, so a card or scoreboard has its ranks whether or not
+  anyone opened it. Opening a recent game also checks players last read before it. One statement
+  finds the players (at most 120 rows leave the database a run); members are read by their sync,
+  erased players never. Possible groups' note is one line with its rules in an (i) as well.
 - **Summary** (`history-summary.tsx`, `src/domain/history-summary.ts`): one line above the list
   about the newest games its filters list (20, the Overview's Recent form rules, so the two agree):
   results, record, KDA, CS/min (vision for supports), kill participation (total takedowns over total

@@ -9,6 +9,7 @@ export type JobKey =
   | "account-sync"
   | "timeline-backfill"
   | "figures-backfill"
+  | "rank-checks"
   | "auth-audit"
   | "access-audit"
   | "perf-probe"
