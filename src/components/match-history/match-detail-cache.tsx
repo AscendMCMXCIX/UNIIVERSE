@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { getMatchDetailAction, getMatchGroupsAction, getMatchRanksAction, getMatchTimelineAction } from "@/server/actions/match-history";
+import { getMatchDetailAction, getMatchGroupsAction, getMatchMeetingsAction, getMatchRanksAction, getMatchTimelineAction, type MatchMeetingsResult } from "@/server/actions/match-history";
 import type { MatchDetailResult, MatchRanksResult } from "@/server/players/match-history";
 import type { MatchGroupsResult } from "@/server/matches/possible-groups";
 import type { MatchTimelineResult } from "@/server/accounts/match-timeline";
@@ -24,19 +24,28 @@ export interface MatchDetailCache {
   ranks(playerId: string, matchId: string): Promise<MatchRanksResult>;
   /** The match's timeline figures (build, lane at 10:00 and 15:00, gold difference), when a section that needs them opens. */
   timeline(playerId: string, matchId: string): Promise<MatchTimelineResult>;
+  /** The match's players met in the player's other games of the list's season, game mode and account (after its details). */
+  meetings(playerId: string, matchId: string, scope: MeetingScope): Promise<MatchMeetingsResult>;
 }
 
-function memo<T extends { status: string }>(fetch: (playerId: string, matchId: string) => Promise<T>, complete: (r: T) => boolean = (r) => r.status === "ok") {
+/** The season, game mode and account Encounters counts in (the list's own). */
+export interface MeetingScope {
+  season: number;
+  mode: string;
+  accountId: string | null;
+}
+
+function memo<A extends [playerId: string, matchId: string, ...rest: unknown[]], T extends { status: string }>(fetch: (...args: A) => Promise<T>, complete: (r: T) => boolean = (r) => r.status === "ok") {
   const entries = new Map<string, Promise<T>>();
-  return (playerId: string, matchId: string): Promise<T> => {
-    const key = `${playerId}:${matchId}`;
+  return (...args: A): Promise<T> => {
+    const key = JSON.stringify(args);
     const hit = entries.get(key);
     if (hit) {
       entries.delete(key);
       entries.set(key, hit);
       return hit;
     }
-    const loading = fetch(playerId, matchId).then(
+    const loading = fetch(...args).then(
       (r) => {
         if (!complete(r)) entries.delete(key);
         return r;
@@ -59,6 +68,7 @@ export function createMatchDetailCache({ onRanks }: { onRanks?: (matchId: string
     load: memo(getMatchDetailAction),
     groups: memo(getMatchGroupsAction),
     timeline: memo(getMatchTimelineAction),
+    meetings: memo(getMatchMeetingsAction),
     ranks: (playerId, matchId) =>
       ranks(playerId, matchId).then((r) => {
         onRanks?.(matchId, r);

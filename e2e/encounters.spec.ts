@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "./test";
 import { openFilterBar } from "./filters";
 import { memberContext } from "./member-account";
+import { closeGame, openGame } from "./match-history";
 
 /*
   A profile's Match History → Encounters on the demo roster: a teammate's profile (the in-memory
@@ -140,6 +141,53 @@ test("one player's window: the record, every recorded game, and the match with B
   await expect(detail).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(detail).toBeHidden();
+});
+
+test("a game's scoreboard marks the players met in other games, and a mark opens their window with the same count", async ({ page }) => {
+  await page.goto(`${await teammate(page)}/matches`);
+  await expect(page.locator("[data-testid='match-history'][data-ready]")).toBeVisible();
+  // The first game on the page whose scoreboard marks someone (about two demo games in five meet a
+  // recurring demo player). The marks follow the scoreboard: the breakdown says how many once known.
+  let mark: Locator | null = null;
+  for (const card of (await page.getByTestId("match-card").all()).slice(0, 12)) {
+    const breakdown = await openGame(card);
+    await expect(breakdown).toHaveAttribute("data-met", /^\d+$/);
+    const marked = Number(await breakdown.getAttribute("data-met"));
+    await expect(breakdown.getByTestId("participant-met")).toHaveCount(marked);
+    if (marked) {
+      mark = breakdown.getByTestId("participant-met").first();
+      break;
+    }
+    await closeGame(card);
+  }
+  expect(mark, "a game on the first page meets a recurring player").not.toBeNull();
+  const games = Number(await mark!.getAttribute("data-games"));
+  expect(games).toBeGreaterThanOrEqual(2);
+  // "Met N×" on screen; read as "Met N times, this game included (… against, … alongside)".
+  expect(await mark!.evaluate((el) => [...el.childNodes].filter((n) => !(n instanceof HTMLElement && n.classList.contains("sr-only"))).map((n) => n.textContent).join(""))).toBe(`Met ${games}×`);
+  await expect(mark!).toHaveAccessibleName(new RegExp(`^Met ${games} times, this game included \\((\\d+ against)?(, )?(\\d+ alongside)?\\)\\. Open their encounters$`));
+  const name = (await mark!.locator("xpath=ancestor::li[1]").getByTestId("participant-name").textContent())!.trim();
+  // Nothing scrolls sideways for it, on a phone either.
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+
+  // Their Encounters window, in the list's season and game mode: the same count, and their games.
+  await mark!.click();
+  const detail = page.getByTestId("encounter-detail");
+  await expect(detail).toBeVisible();
+  await expect(detail.locator("#encounter-title")).toContainText(name);
+  await expect(page.getByTestId("encounter-detail-summary")).toContainText(new RegExp(`^${games} recorded games with `));
+  await expect(page.getByTestId("encounter-game")).toHaveCount(games);
+  // A game from there opens the match window, which marks no one (no window opens another); Back returns.
+  await page.getByTestId("encounter-game").first().click();
+  const matchWindow = page.getByTestId("match-detail");
+  await expect(matchWindow.getByTestId("participant").first()).toBeVisible();
+  await expect(matchWindow.getByTestId("participant-met")).toHaveCount(0);
+  await page.getByTestId("match-detail-back").click();
+  await expect(detail).toBeVisible();
+  // Closing it returns to the mark that opened it.
+  await page.keyboard.press("Escape");
+  await expect(detail).toBeHidden();
+  await expect(mark!).toBeFocused();
 });
 
 test("an opponent reads warm, an ally cool and Mixed split, on the rows, the filter and the window", async ({ page }) => {

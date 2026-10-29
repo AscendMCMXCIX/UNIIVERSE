@@ -8,7 +8,7 @@ import { invalidateLeaderboardCache, loadLeaderboardData, type LeaderboardData }
 import { buildLeaderboardView, parseFilters, type LeaderboardView } from "@/server/leaderboards/view";
 import { invalidatePlayedTogetherCache, loadPlayedTogether, type PlayedTogether } from "@/server/matches/played-together";
 import { getMatchGroups, type MatchGroupsResult } from "@/server/matches/possible-groups";
-import { loadEncounterPage, loadGamesBySeason, type EncounterPage } from "@/server/players/encounters";
+import { loadEncounterPage, loadGamesBySeason, loadMatchMeetings, type EncounterPage, type MatchMeeting } from "@/server/players/encounters";
 import { historyMembers, memberGameCounts } from "@/server/players/history-members";
 import { encounterListChoice } from "@/domain/encounters";
 import { offeredCurrentSeason } from "@/domain/season";
@@ -393,6 +393,19 @@ export async function runPerfProbe(
             note: (r) => {
               const counts = [...(r as Map<string, { with: number; against: number }>).values()];
               return `${matchIds.length} games · ${members.length} members with a linked account · ${counts.length} of them in these games · ${counts.reduce((n, c) => n + c.with + c.against, 0)} member placements`;
+            },
+          }),
+        );
+      }
+      // A game's scoreboard: the players of the same player's newest game met in their other games
+      // this season (through the participants' index, then only those players' games). Counts only.
+      const [last] = await db.select({ matchId: accountMatches.matchId }).from(accountMatches).where(and(inArray(accountMatches.accountId, accountIds), isNotNull(accountMatches.championId))).orderBy(desc(accountMatches.gameCreation)).limit(1);
+      if (last) {
+        push(
+          await step("profile.matchMeetings", () => loadMatchMeetings(db, { accountIds, season, mode: "all" }, last.matchId), {
+            note: (r) => {
+              const met = r as MatchMeeting[] | null;
+              return met ? `${met.length} players of the newest game met in other games this season · ${met.reduce((n, m) => n + m.games, 0)} games with them` : "the newest game is not in the current season";
             },
           }),
         );

@@ -341,6 +341,17 @@ request is a game's match timeline, once per game, when a section that needs it 
   container (`@container/bd`) sets the scoreboard's columns: name and KDA on phones; damage from
   36rem; gold, CS and vision columns from 60rem (`scoreboard.tsx`). Ranks and possible groups load
   after it as before (`getMatchRanksAction`, `getMatchGroupsAction`).
+- **Players met in other games** (`loadMatchMeetings` in `src/server/players/encounters.ts`,
+  `getMatchMeetingsAction`): under a card, a scoreboard row carries "Met N×" after the name when the
+  player met that player in another game of the list's season, game mode and account. N counts
+  their games together as Encounters counts them, this one included, and the mark opens their
+  Encounters window, which shows the same N. Only the players Encounters lists are marked (a
+  recorded Riot ID and no UNIIVERSE profile). One statement after the scoreboard: the game's record
+  names them, then only the records holding them are opened, through the participants' index
+  (`match_details_puuids_idx`), each counted when it is one of the player's games in the scope.
+  2–4 ms in the database locally at production volume (`docs/HOSTING_USAGE.md`). Accounts stay
+  in the database; the page gets Encounters' opaque key. The match window marks no one (a window
+  does not open another).
 - **Analysis** (`match-analysis-panel.tsx`, rules in `src/domain/match-analysis.ts`): plain
   comparisons, never a score. The player's shares of the team's kills, damage and gold and their
   place in the game for each figure; the lane opponent only when exactly one enemy has the same

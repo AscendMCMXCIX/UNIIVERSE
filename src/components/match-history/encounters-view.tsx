@@ -328,7 +328,8 @@ function EncounterRow({ s, relation, onOpen }: { s: EncounterSummary; relation: 
   );
 }
 
-function EncounterWindow({ target, playerId, playerName, filters, championsById, onClose }: { target: { key: string; name: string }; playerId: string; playerName: string; filters: { season: number; mode: SeasonMode; accountId: string | null }; championsById: Record<string, PortraitChampion>; onClose: () => void }) {
+/** One player's window: the records with and against them and the recorded games (also opened from a game's scoreboard in Match History). */
+export function EncounterWindow({ target, playerId, playerName, filters, championsById, onClose }: { target: { key: string; name: string }; playerId: string; playerName: string; filters: { season: number; mode: SeasonMode; accountId: string | null }; championsById: Record<string, PortraitChampion>; onClose: () => void }) {
   const [result, setResult] = React.useState<EncounterDetailResult | null>(null);
   const [match, setMatch] = React.useState<string | null>(null);
   const { season, mode, accountId } = filters;

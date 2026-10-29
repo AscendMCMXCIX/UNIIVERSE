@@ -16,7 +16,7 @@ import { timeAgo, formatCount, formatDayMonth, formatNumber, formatTimeOfDay } f
 import { cn } from "@/lib/cn";
 import { MatchDetailModal } from "./match-detail";
 import { MatchDetailCacheContext, createMatchDetailCache, type MatchDetailCache } from "./match-detail-cache";
-import { MatchBreakdown } from "./match-breakdown";
+import { EncounterLinkContext, MatchBreakdown, type EncounterLink } from "./match-breakdown";
 import { HistorySummaryStrip } from "./history-summary";
 import { ItemRow } from "./icon-img";
 import { MultikillTag } from "./multikill-tag";
@@ -24,7 +24,7 @@ import { ChampionLoadout, MatchRail, MatchResult, matchCardClass, matchTone } fr
 import { TeamComposition } from "./team-composition";
 import { ModeElsewhere, OverviewFilters } from "@/components/players/overview-filters";
 import { HistoryRefineFields, historyRefinements } from "./history-refine-fields";
-import { MatchViewSwitch } from "./encounters-view";
+import { EncounterWindow, MatchViewSwitch } from "./encounters-view";
 import type { DataStatus } from "@/domain/data-status";
 import { DataRefresh, type DataRefreshTarget } from "@/components/ui/data-status";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -275,7 +275,7 @@ export function pageList(page: number, pages: number): Array<number | "gap"> {
  * not added to the history); a link to a game that is not on the page shown opens it in the
  * shared match window instead.
  */
-export function MatchHistoryView({ data, championsById, basePath, playerId, status, refresh }: { data: MatchHistoryPage; championsById: Record<string, PortraitChampion>; basePath: string; playerId: string; /** The page's data status (domain/data-status). */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts, where Riot can be asked. */ refresh?: DataRefreshTarget | null }) {
+export function MatchHistoryView({ data, championsById, basePath, playerId, playerName, status, refresh }: { data: MatchHistoryPage; championsById: Record<string, PortraitChampion>; basePath: string; playerId: string; /** The profile's name, in a player's Encounters window. */ playerName: string; /** The page's data status (domain/data-status). */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts, where Riot can be asked. */ refresh?: DataRefreshTarget | null }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -361,6 +361,11 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, stat
     [data],
   );
   const prefetch = React.useCallback((matchId: string) => void cache.load(playerId, matchId).catch(() => {}), [cache, playerId]);
+  // A player met in other games, from an open game's scoreboard: their Encounters window, in the
+  // list's season, game mode and account (the counts the scoreboard showed).
+  const [met, setMet] = React.useState<{ key: string; name: string } | null>(null);
+  const { season, mode, accountId } = data.filter;
+  const encounterLink = React.useMemo<EncounterLink>(() => ({ scope: { season, mode, accountId }, open: setMet }), [season, mode, accountId]);
   const openRef = React.useRef(open);
   React.useLayoutEffect(() => {
     openRef.current = open;
@@ -452,34 +457,37 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, stat
       {data.summary ? <HistorySummaryStrip summary={data.summary} ladder={data.ladder} championsById={championsById} /> : null}
 
       <MatchDetailCacheContext.Provider value={cache}>
-        <div ref={listRef} className={cn("transition-opacity", pending && "opacity-60")}>
-          {data.total === 0 ? (
-            <p className="rounded-panel border border-dashed border-border px-4 py-6 text-center text-sm text-fg-muted" data-testid="match-empty">
-              {data.accountsLinked === 0 ? "No Riot account is linked yet: games appear here once one is linked and synced." : narrowed ? "No stored game matches these filters." : data.syncing ? "No games stored for this season yet; the first sync is collecting them and this page fills in by itself." : "No games stored for this season."}
-              <ModeElsewhere basePath={basePath} filter={f} elsewhere={data.modes.elsewhere} keep={keep} />
-            </p>
-          ) : sessionGroups ? (
-            <ol className="@container/mh space-y-4" aria-label={`Playing sessions, page ${data.page} of ${data.pages}`} data-testid="match-sessions">
-              {sessionGroups.map((g) => {
-                const summary = data.sessions[g.key];
-                return (
-                  <li key={g.key} className="space-y-1.5" data-testid="session" data-games={summary?.games ?? g.rows.length}>
-                    {summary ? <SessionHeader summary={summary} onPage={g.rows.length} /> : null}
-                    <ol className="space-y-1.5">{g.rows.map(card)}</ol>
-                  </li>
-                );
-              })}
-            </ol>
-          ) : (
-            <ol className="@container/mh space-y-1.5" aria-label={`Page ${data.page} of ${data.pages}`}>
-              {data.rows.map(card)}
-            </ol>
-          )}
-        </div>
+        <EncounterLinkContext.Provider value={encounterLink}>
+          <div ref={listRef} className={cn("transition-opacity", pending && "opacity-60")}>
+            {data.total === 0 ? (
+              <p className="rounded-panel border border-dashed border-border px-4 py-6 text-center text-sm text-fg-muted" data-testid="match-empty">
+                {data.accountsLinked === 0 ? "No Riot account is linked yet: games appear here once one is linked and synced." : narrowed ? "No stored game matches these filters." : data.syncing ? "No games stored for this season yet; the first sync is collecting them and this page fills in by itself." : "No games stored for this season."}
+                <ModeElsewhere basePath={basePath} filter={f} elsewhere={data.modes.elsewhere} keep={keep} />
+              </p>
+            ) : sessionGroups ? (
+              <ol className="@container/mh space-y-4" aria-label={`Playing sessions, page ${data.page} of ${data.pages}`} data-testid="match-sessions">
+                {sessionGroups.map((g) => {
+                  const summary = data.sessions[g.key];
+                  return (
+                    <li key={g.key} className="space-y-1.5" data-testid="session" data-games={summary?.games ?? g.rows.length}>
+                      {summary ? <SessionHeader summary={summary} onPage={g.rows.length} /> : null}
+                      <ol className="space-y-1.5">{g.rows.map(card)}</ol>
+                    </li>
+                  );
+                })}
+              </ol>
+            ) : (
+              <ol className="@container/mh space-y-1.5" aria-label={`Page ${data.page} of ${data.pages}`}>
+                {data.rows.map(card)}
+              </ol>
+            )}
+          </div>
 
-        {data.pages > 1 ? <Pages page={data.page} pages={data.pages} total={data.total} per={data.per} pending={pending} go={(p) => go({ page: String(p) })} /> : null}
+          {data.pages > 1 ? <Pages page={data.page} pages={data.pages} total={data.total} per={data.per} pending={pending} go={(p) => go({ page: String(p) })} /> : null}
 
-        {windowed ? <MatchDetailModal playerId={playerId} matchId={windowed} championsById={championsById} onClose={closeWindow} /> : null}
+          {windowed ? <MatchDetailModal playerId={playerId} matchId={windowed} championsById={championsById} onClose={closeWindow} /> : null}
+          {met ? <EncounterWindow target={met} playerId={playerId} playerName={playerName} filters={{ season, mode, accountId }} championsById={championsById} onClose={() => setMet(null)} /> : null}
+        </EncounterLinkContext.Provider>
       </MatchDetailCacheContext.Provider>
     </section>
   );
