@@ -299,7 +299,7 @@ Match History's Refine counts, for every visit, how many of the listed games eac
 
 Both found the same 137 games with a member and 138 against. Cold, the first version would have read every stored record from disk on each visit (the cost that makes Encounters slow cold in production, `docs/PERFORMANCE.md`); the shipped one reads narrow rows only.
 
-- **Production after the deploy:** pending (the post-deploy `perf-probe`, step `profile.historyMembers`, counts only).
+- **Production after the deploy** (Data jobs run 40825361632, 29 Oct 2026, commit 19b73c3): the `perf-probe` step `profile.historyMembers` took 78.6 ms and sent 0.5 KB for the player with the most games: 1,150 games, 6 members with a linked account, 1,115 member placements. That is one first call, including the round trip from Vercel's Sydney region to the database.
 
 ## 29 Oct 2026: players met in other games (Match History's scoreboard)
 
