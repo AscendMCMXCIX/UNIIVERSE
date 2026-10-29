@@ -5,10 +5,11 @@ import { cardOf, closeGame, openGame } from "./match-history";
   Ranks in an opened game's scoreboard (server/players/participant-ranks.ts, domain/known-rank.ts), on the
   demo games with the browser tests' Riot stand-in (server/riot/browser-test.ts: most players
   ranked in Solo/Duo, some in Flex too or only, some unranked, one in ten failing). Every player
-  gets one compact badge: a current or last-checked rank with its queue and date, "Unranked" when
-  Riot listed no entry, or "—" when nothing is known; never a rank at the time of the game. The
-  check asks Riot only for players whose rank is missing or stale, once. The row layout is the one
-  the scoreboard already had, on phones too.
+  gets one compact badge: a rank with its queue and when it was read against the game (a member's
+  last one before it, a check within a day after it, or, marked with a clock, one read later or
+  before), "Unranked" when Riot listed no entry, or "—" when nothing is known. The check asks Riot
+  only for players whose rank is missing or stale, once. The row layout is the one the scoreboard
+  already had, on phones too.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -70,13 +71,16 @@ test("every player in the scoreboard has one rank badge: a dated current rank, U
     states.push(state);
     const shown = (await badge.getByTestId("participant-rank-text").innerText()).trim();
     const title = (await badge.getAttribute("title"))!;
+    const timing = await badge.getAttribute("data-timing");
+    // A rank read away from the game (later, or before it) carries the clock, and only then.
+    await expect(badge.getByTestId("rank-read-later")).toHaveCount(timing === "later" || timing === "earlier" ? 1 : 0);
     if (state === "ranked") {
-      // The queue, the rank in full, when it was read, and that it is not the rank in this game.
-      expect(title).toMatch(/^Ranked (Solo\/Duo|Flex): [A-Z][a-z]+( (I|II|III|IV))?(, \d+ LP)?, (checked|last seen) \d{1,2} [A-Z][a-z]{2} \d{4}\. Their rank then, not at the time of this match$/);
+      // The queue, the rank in full, and when it was read against this game.
+      expect(title).toMatch(/^Ranked (Solo\/Duo|Flex): [A-Z][a-z]+( (I|II|III|IV))?(, \d+ LP)?, (the last rank recorded before this game|(checked|last seen) \d+ (min|h) after this game|(checked|last seen) \d{1,2} [A-Z][a-z]{2} \d{4}, (\d+ days? after|before) this game: their rank then, not at the time of this game)$/);
       expect(shown).toMatch(/^((Flex|Solo) )?(Iron|Bronze|Silver|Gold|Plat|Emerald|Diamond|Master|GM|Chall)( [1-4])?( · [A-Z][a-z]{2}( \d{4})?)?$/);
     } else if (state === "unranked") {
       expect(shown).toBe("Unranked");
-      expect(title).toMatch(/^Unranked: no Ranked Solo\/Duo or Flex entry when checked \d{1,2} [A-Z][a-z]{2} \d{4}$/);
+      expect(title).toMatch(/^Unranked(: no Ranked Solo\/Duo or Flex entry when checked .+ this game(: their rank then, not at the time of this game)?| before this game: no Ranked Solo\/Duo or Flex entry recorded)$/);
     } else {
       expect(state).toBe("unknown");
       expect(shown).toBe("—");
@@ -86,11 +90,13 @@ test("every player in the scoreboard has one rank badge: a dated current rank, U
   // The stand-in ranks most players; the account the history belongs to has its own synced rank.
   expect(states.filter((s) => s === "ranked").length).toBeGreaterThanOrEqual(5);
   await expect(page.locator('[data-testid="participant"][data-player] [data-testid="participant-rank"]')).toHaveAttribute("data-state", "ranked");
-  // What the badges are, under the scoreboard.
-  await expect(note).toContainText(/(Current|Last-known) Ranked (Solo\/Duo|Flex) ranks \((Flex|Solo\/Duo) where marked\)/);
-  await expect(note).toContainText("not the ranks players had in this game, which Riot's match records do not include");
-  if (states.includes("unknown")) await expect(note).toContainText("—: not available.");
-  if (states.includes("unranked")) await expect(note).toContainText("Unranked: no ranked entry.");
+  // Under the scoreboard, one line: around the game, read later, or both; the rules in its (i).
+  await expect(note.getByTestId("ranks-note-lead")).toHaveText(/^(Ranks around the time of this game\.|Ranks read later \(marked\), not at the time of this game\.|Ranks around the time of this game; marked ones were read later\.)$/);
+  await expect(note).toContainText("Riot's game records hold no ranks");
+  await expect(note).toContainText(/Ranked (Solo\/Duo|Flex) ranks/);
+  await expect(note).toContainText("Unranked: no ranked entry when checked. —: not read.");
+  const info = note.getByTestId("ranks-info");
+  await expect(info).toHaveAccessibleName("About the ranks");
 });
 
 test("a rank from the match's other ranked queue is marked, and only then", async ({ page }, info) => {

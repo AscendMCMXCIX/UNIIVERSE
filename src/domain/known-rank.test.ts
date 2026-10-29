@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchRankQueue, participantRank, rankBadgeLabel, rankChecksWhen, rankShortLabel, RANK_FRESH_DAYS, type ParticipantRank, type RankReading } from "./known-rank";
+import { matchRankQueue, participantRank, rankBadgeLabel, rankShortLabel, rankTimingCounts, rankTiming, RANK_ENRICH_DAYS, RANK_FRESH_DAYS, type ParticipantRank, type RankReading } from "./known-rank";
 
 const DAY = 86_400_000;
 const now = new Date("2026-10-19T12:00:00Z");
@@ -47,7 +47,7 @@ describe("which rank a match window shows", () => {
 });
 
 describe("the rank badge", () => {
-  const ranked = (over: Partial<ParticipantRank>): ParticipantRank => ({ state: "ranked", queue: "solo", tier: "GOLD", division: "II", leaguePoints: 45, asOf: "2026-10-10T08:00:00Z", kind: "check", stale: true, ...over });
+  const ranked = (over: Partial<ParticipantRank>): ParticipantRank => ({ state: "ranked", queue: "solo", tier: "GOLD", division: "II", leaguePoints: 45, asOf: "2026-10-10T08:00:00Z", kind: "check", stale: true, timing: null, gameEnd: null, ...over });
 
   it("shows a recent rank plainly, with the queue, LP and the date it was checked in full", () => {
     expect(rankBadgeLabel(ranked({}), 420, now)).toEqual({
@@ -55,6 +55,7 @@ describe("the rank badge", () => {
       queueMark: null,
       spoken: "Ranked Solo/Duo: Gold II, 45 LP, checked 10 Oct 2026",
       title: "Ranked Solo/Duo: Gold II, 45 LP, checked 10 Oct 2026. Their rank then, not at the time of this match",
+      aroundGame: null,
     });
     expect(rankBadgeLabel(ranked({ tier: "GRANDMASTER", division: null, leaguePoints: 612 }), 420, now).text).toBe("GM");
   });
@@ -81,13 +82,13 @@ describe("the rank badge", () => {
     const unranked = rankBadgeLabel({ ...ranked({}), state: "unranked", queue: null, tier: null, division: null, leaguePoints: null }, 420, now);
     expect(unranked.text).toBe("Unranked");
     expect(unranked.spoken).toBe("Unranked: no Ranked Solo/Duo or Flex entry when checked 10 Oct 2026");
-    const unknown = rankBadgeLabel({ state: "unknown", queue: null, tier: null, division: null, leaguePoints: null, asOf: null, kind: null, stale: true }, 420, now);
+    const unknown = rankBadgeLabel({ state: "unknown", queue: null, tier: null, division: null, leaguePoints: null, asOf: null, kind: null, stale: true, timing: null, gameEnd: null }, 420, now);
     expect(unknown).toMatchObject({ text: "—", spoken: "Rank not available" });
   });
 });
 
 describe("an opponent's rank in a collapsed match card", () => {
-  const ranked = (over: Partial<ParticipantRank>): ParticipantRank => ({ state: "ranked", queue: "solo", tier: "EMERALD", division: "II", leaguePoints: 45, asOf: "2026-10-18T08:00:00Z", kind: "check", stale: false, ...over });
+  const ranked = (over: Partial<ParticipantRank>): ParticipantRank => ({ state: "ranked", queue: "solo", tier: "EMERALD", division: "II", leaguePoints: 45, asOf: "2026-10-18T08:00:00Z", kind: "check", stale: false, timing: null, gameEnd: null, ...over });
 
   it("is the tier's letter and division, the apex tiers by their letters alone", () => {
     expect(rankShortLabel(ranked({}), 420, now)).toMatchObject({ text: "E2", tier: "EMERALD", queueMark: null, spoken: "Emerald 2" });
@@ -109,7 +110,7 @@ describe("an opponent's rank in a collapsed match card", () => {
 
   it("tells confirmed unranked from nothing known, and shows nothing for the latter", () => {
     expect(rankShortLabel({ ...ranked({}), state: "unranked", queue: null, tier: null, division: null, leaguePoints: null }, 420, now)).toMatchObject({ text: "Unr", tier: null, spoken: "unranked" });
-    const unknown = rankShortLabel({ state: "unknown", queue: null, tier: null, division: null, leaguePoints: null, asOf: null, kind: null, stale: true }, 420, now);
+    const unknown = rankShortLabel({ state: "unknown", queue: null, tier: null, division: null, leaguePoints: null, asOf: null, kind: null, stale: true, timing: null, gameEnd: null }, 420, now);
     expect(unknown).toMatchObject({ text: null, spoken: null });
     expect(unknown.title).toMatch(/not available/);
   });
@@ -123,15 +124,69 @@ describe("an opponent's rank in a collapsed match card", () => {
   });
 });
 
-describe("when a match's ranks were checked", () => {
-  const checked = (iso: string): ParticipantRank => ({ state: "ranked", queue: "solo", tier: "GOLD", division: "I", leaguePoints: 1, asOf: iso, kind: "check", stale: false });
-  it("is today, one day or a span, in the installation's time zone; sightings and unknowns do not count", () => {
-    expect(rankChecksWhen([checked("2026-10-19T01:00:00Z"), checked("2026-10-19T10:00:00Z")], now)).toBe("today");
-    expect(rankChecksWhen([checked("2026-10-16T01:00:00Z")], now)).toBe("16 Oct");
-    expect(rankChecksWhen([checked("2026-10-16T01:00:00Z"), checked("2026-10-19T01:00:00Z")], now)).toBe("16–19 Oct");
-    expect(rankChecksWhen([checked("2026-09-28T01:00:00Z"), checked("2026-10-02T01:00:00Z")], now)).toBe("28 Sep–2 Oct");
-    expect(rankChecksWhen([checked("2025-12-30T01:00:00Z"), checked("2026-10-19T01:00:00Z")], now)).toBe("30 Dec 2025–19 Oct");
-    expect(rankChecksWhen([{ ...checked("2026-10-19T01:00:00Z"), kind: "sighting" }], now)).toBeNull();
-    expect(rankChecksWhen([], now)).toBeNull();
+describe("a rank read against its game", () => {
+  // A game that began at 10:00 and lasted 30 minutes, two days before `now`.
+  const game = { start: at("2026-10-17T10:00:00Z"), end: at("2026-10-17T10:30:00Z") };
+  const history = (iso: string, solo: RankReading["solo"], flex: RankReading["flex"]): RankReading => ({ ...check(iso, solo, flex), beforeGame: true });
+
+  it("is a member's last recorded rank before the game, over any later reading", () => {
+    const r = participantRank([check("2026-10-19T08:00:00Z", plat4, "unranked"), history("2026-10-16T20:00:00Z", gold2, "unranked")], 420, now.getTime(), game);
+    expect(r).toMatchObject({ tier: "GOLD", timing: "before", stale: false });
+    const label = rankBadgeLabel(r, 420, now);
+    expect(label).toMatchObject({ text: "Gold 2", aroundGame: true });
+    expect(label.title).toBe("Ranked Solo/Duo: Gold II, 45 LP, the last rank recorded before this game");
+    // Without the game (a page that is not about one game), the newest reading.
+    expect(participantRank([check("2026-10-19T08:00:00Z", plat4, "unranked"), history("2026-10-16T20:00:00Z", gold2, "unranked")], 420, now.getTime()).tier).toBe("PLATINUM");
+  });
+
+  it("is around the game when checked within a day after it, and says how long after", () => {
+    const r = participantRank([check("2026-10-17T11:10:00Z", gold2, "unranked")], 420, now.getTime(), game);
+    expect(r.timing).toBe("after");
+    expect(rankBadgeLabel(r, 420, now)).toMatchObject({ aroundGame: true, title: "Ranked Solo/Duo: Gold II, 45 LP, checked 40 min after this game" });
+    expect(rankBadgeLabel(participantRank([check("2026-10-17T15:40:00Z", gold2, "unranked")], 420, now.getTime(), game), 420, now).title).toBe("Ranked Solo/Duo: Gold II, 45 LP, checked 5 h after this game");
+    expect(rankShortLabel(r, 420, now)).toMatchObject({ text: "G2", aroundGame: true });
+  });
+
+  it("is marked as their rank then when read later, or before the game", () => {
+    const later = participantRank([check("2026-10-19T08:00:00Z", gold2, "unranked")], 420, now.getTime(), game);
+    expect(later.timing).toBe("later");
+    expect(rankBadgeLabel(later, 420, now)).toMatchObject({ aroundGame: false, title: "Ranked Solo/Duo: Gold II, 45 LP, checked 19 Oct 2026, 2 days after this game: their rank then, not at the time of this game" });
+    expect(rankShortLabel(later, 420, now).aroundGame).toBe(false);
+    const earlier = participantRank([check("2026-10-15T08:00:00Z", gold2, "unranked")], 420, now.getTime(), game);
+    expect(earlier.timing).toBe("earlier");
+    expect(rankBadgeLabel(earlier, 420, now).title).toBe("Ranked Solo/Duo: Gold II, 45 LP, checked 15 Oct 2026, before this game: their rank then, not at the time of this game");
+    const unranked = rankBadgeLabel(participantRank([check("2026-10-19T08:00:00Z", "unranked", "unranked")], 420, now.getTime(), game), 420, now);
+    expect(unranked).toMatchObject({ text: "Unranked", aroundGame: false });
+    expect(unranked.title).toMatch(/^Unranked: no Ranked Solo\/Duo or Flex entry when checked 19 Oct 2026, 2 days after this game: their rank then, not at the time of this game$/);
+  });
+
+  it("tells the four timings apart at their edges", () => {
+    expect(rankTiming({ at: game.end + 24 * 3_600_000 }, game)).toBe("after");
+    expect(rankTiming({ at: game.end + 24 * 3_600_000 + 1 }, game)).toBe("later");
+    expect(rankTiming({ at: game.start - 1 }, game)).toBe("earlier");
+    expect(rankTiming({ at: game.start - 3_600_000, beforeGame: true }, game)).toBe("before");
+  });
+
+  it("asks Riot again for a recent game whose players were last read before it, and not for an older one", () => {
+    // Read the day before a game that ended two hours ago: fresh by age, but not around the game.
+    const recent = { start: now.getTime() - 3 * 3_600_000, end: now.getTime() - 2 * 3_600_000 };
+    expect(participantRank([check(new Date(now.getTime() - DAY).toISOString(), gold2, "unranked")], 420, now.getTime(), recent).stale).toBe(true);
+    expect(participantRank([check(new Date(now.getTime() - 3_600_000).toISOString(), gold2, "unranked")], 420, now.getTime(), recent).stale).toBe(false);
+    // A game older than RANK_ENRICH_DAYS: only the age of the check counts.
+    const old = { start: now.getTime() - (RANK_ENRICH_DAYS + 2) * DAY, end: now.getTime() - (RANK_ENRICH_DAYS + 2) * DAY + 1_800_000 };
+    expect(participantRank([check(new Date(now.getTime() - DAY).toISOString(), gold2, "unranked")], 420, now.getTime(), old).stale).toBe(false);
+    // A member's history reading is not a check: with no current reading, ask.
+    expect(participantRank([history(new Date(recent.start - DAY).toISOString(), gold2, "unranked")], 420, now.getTime(), recent)).toMatchObject({ timing: "before", stale: true });
+  });
+
+  it("counts, for the note, the ranks around the game and those read away from it", () => {
+    const ranks = [
+      participantRank([check("2026-10-17T11:10:00Z", gold2, "unranked")], 420, now.getTime(), game),
+      participantRank([history("2026-10-16T20:00:00Z", gold2, "unranked")], 420, now.getTime(), game),
+      participantRank([check("2026-10-19T08:00:00Z", gold2, "unranked")], 420, now.getTime(), game),
+      participantRank([], 420, now.getTime(), game),
+    ];
+    expect(rankTimingCounts(ranks)).toEqual({ around: 2, away: 1 });
+    expect(rankTimingCounts([])).toEqual({ around: 0, away: 0 });
   });
 });

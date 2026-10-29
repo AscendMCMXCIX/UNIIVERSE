@@ -447,14 +447,15 @@ Riot ID typed (account creation, or an Alt added on the profile)
 ### D3. Background updating
 
 - **Scheduler:**
-  - Entry point: `runTick` in `src/server/jobs/scheduler.ts`. Order: version-check → account-sync → integrity → timeline-backfill → figures-backfill.
-  - A tick has a 240 s budget (visit ticks 230 s). Jobs claim atomically, so concurrent ticks skip instead of duplicating work. Per-job caps inside a tick: account-sync 75 s, integrity 20 s, timeline-backfill 25 s, figures-backfill 25 s.
+  - Entry point: `runTick` in `src/server/jobs/scheduler.ts`. Order: version-check → account-sync → rank-checks → integrity → timeline-backfill → figures-backfill.
+  - A tick has a 240 s budget (visit ticks 230 s). Jobs claim atomically, so concurrent ticks skip instead of duplicating work. Per-job caps inside a tick: account-sync 75 s, rank-checks 15 s, integrity 20 s, timeline-backfill 25 s, figures-backfill 25 s.
 - **Job intervals** (`defaultIntervalMinutes`; can be changed in Admin):
 
   | Job | Interval |
   |---|---|
   | version-check | 60 min |
   | account-sync | 15 min |
+  | rank-checks | 15 min |
   | timeline-backfill | 60 min |
   | figures-backfill | 60 min |
   | integrity | 24 h |
