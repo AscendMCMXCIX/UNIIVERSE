@@ -430,7 +430,9 @@ request is a game's match timeline, once per game, when a section that needs it 
   15 s at most, `checkRecentGameRanks`) checks the other players of the members' games of the last 7
   days with no check since the game ended, 30 a run, newest game first, within 600 of the 1,000
   daily checks and half of Riot's rate limits, so a card or scoreboard has its ranks whether or not
-  anyone opened it. Opening a recent game also checks players last read before it. One statement
+  anyone opened it. Half of Riot's one-second window is about ten requests, so the job waits for
+  that window to turn over (within its 15 s) and stops when a wait gets nobody through: a longer
+  window is full (the first production run stopped at 10 players before this). Opening a recent game also checks players last read before it. One statement
   finds the players (at most 120 rows leave the database a run); members are read by their sync,
   erased players never. Possible groups' note is one line with its rules in an (i) as well.
 - **Finishing pass** (29 Oct 2026): on a profile's other sections (Match History, champions,

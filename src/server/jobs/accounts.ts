@@ -70,13 +70,13 @@ defineJob({
 
 defineJob({
   key: "rank-checks",
-  description: "Check the current rank of the other players in the members' games of the last 7 days once each game is collected (LEAGUE-V4, one request a player, at most 30 a run), so every recent game shows the ranks around it whether or not anyone opened it. Within 600 of the 1,000 daily rank checks and half of Riot's rate limits; never waits for Riot.",
+  description: "Check the current rank of the other players in the members' games of the last 7 days once each game is collected (LEAGUE-V4, one request a player, at most 30 a run), so every recent game shows the ranks around it whether or not anyone opened it. Within 600 of the 1,000 daily rank checks and half of Riot's rate limits; waits only for Riot's one-second window to turn over, within its 15 seconds.",
   defaultIntervalMinutes: 15,
   run: async (ctx) => {
     const client = rankLookupClient();
     if (!client) return { ok: true, degraded: true, error: "RIOT_API_KEY is not configured; ranks cannot be checked.", summary: { skipped: true } };
     const run = await checkRecentGameRanks(ctx.db, client, { deadline: ctx.startedAt + ctx.budgetMs });
-    ctx.log(`ranks: ${run.found} checked, ${run.failed} failed, ${run.skipped} skipped${run.reason ? ` (${run.reason})` : ""}; ${run.waiting} players in ${run.games} recent games were waiting`);
+    ctx.log(`ranks: ${run.found} checked, ${run.failed} failed, ${run.skipped} skipped${run.reason ? ` (${run.reason})` : ""}${run.waits ? `, ${run.waits} waits for Riot's one-second window` : ""}; ${run.waiting} players in ${run.games} recent games were waiting`);
     return { ok: true, degraded: run.asked > 0 && run.found === 0 && run.failed > 0, summary: { ...run, requests: client.requestCount } };
   },
 });

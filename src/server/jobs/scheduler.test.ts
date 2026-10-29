@@ -10,7 +10,7 @@ describe("scheduler tick budget", () => {
     // A fresh 240 s tick.
     expect(tickJobBudget("account-sync", 238_000)).toBe(75_000);
     expect(tickJobBudget("integrity", 60_000)).toBe(20_000);
-    // The rank checks never wait for Riot: a short slice.
+    // The rank checks wait at most for Riot's one-second window: a short slice.
     expect(tickJobBudget("rank-checks", 160_000)).toBe(15_000);
     // Matchups' timeline backfill shares Riot's limits: a small slice.
     expect(tickJobBudget("timeline-backfill", 120_000)).toBe(25_000);

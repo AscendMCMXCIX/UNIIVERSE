@@ -18,7 +18,8 @@ import type { ParticipantRank } from "@/domain/known-rank";
 /*
   The ranks beside a match's players (server/players/participant-ranks.ts): stored readings first;
   LEAGUE-V4 asked only for the opened match's players whose reading is missing or over three days
-  old, once each, within the daily limit and half of each rate-limit window, never waiting; both
+  old, once each, within the daily limit and half of each rate-limit window, never waiting (the
+  checks after collection wait only for Riot's one-second window to turn over); both
   queues kept, "UNRANKED" where Riot lists no entry; nothing stored for anyone no longer in the
   stored match or whose personal data was erased; nothing at all for a match outside the player's
   history.
@@ -379,6 +380,36 @@ describe("ranks around each game", () => {
     const run = await checkRecentGameRanks(handle.db, second.client, { now: NOW, perDay: 5 });
     expect(run).toMatchObject({ waiting: 4, asked: 2, skipped: 2, reason: "budget" });
     expect(second.asked.sort()).toEqual(["x-4", "x-5"]);
+  });
+
+  it("wait for Riot's one-second window to turn over, and leave the rest to the next run when a wait gets nobody through", async () => {
+    // Four a second and twelve in two minutes: half of each is two and six.
+    let clock = 0;
+    const limiter = new RateLimiter([{ requests: 4, seconds: 1 }, { requests: 12, seconds: 120 }], () => clock);
+    const sleep = async (ms: number) => {
+      clock += ms;
+    };
+    const first = riot({ limiter });
+    const run = await checkRecentGameRanks(handle.db, first.client, { now: NOW, sleep });
+    // Two a second, three waits; then the two-minute half is full, and y-1 is left for the next run.
+    expect(first.asked).toEqual(["x-1", "x-2", "x-3", "x-4", "x-5", "x-6"]);
+    expect(run).toMatchObject({ waiting: 7, asked: 6, found: 5, failed: 1, skipped: 1, reason: "busy", waits: 3 });
+    // Two minutes on, the next run asks the one left (x-5 waits out its pause after the failure).
+    clock += 120_000;
+    const second = riot({ limiter });
+    expect(await checkRecentGameRanks(handle.db, second.client, { now: NOW, sleep })).toMatchObject({ waiting: 2, asked: 1, found: 1, skipped: 0, reason: null, waits: 0 });
+    expect(second.asked).toEqual(["y-1"]);
+  });
+
+  it("never wait past the run's time", async () => {
+    let clock = 0;
+    const { client, asked } = riot({ limiter: new RateLimiter([{ requests: 4, seconds: 1 }], () => clock) });
+    const sleep = async (ms: number) => {
+      clock += ms;
+    };
+    const run = await checkRecentGameRanks(handle.db, client, { now: NOW, deadline: Date.now() + 500, sleep });
+    expect(asked).toEqual(["x-1", "x-2"]);
+    expect(run).toMatchObject({ asked: 2, skipped: 5, reason: "busy", waits: 0 });
   });
 
   it("show a member's rank going into the game: the last one recorded before it, over their current one", async () => {
