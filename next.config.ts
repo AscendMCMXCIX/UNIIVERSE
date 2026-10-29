@@ -24,7 +24,19 @@ const SECURITY_HEADERS = [
 // their own stricter policy (SVG logos are sandboxed).
 const PAGE_CSP = "frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'";
 
+// Ranked Development (formerly Solo Queue Blocks and the Ranked Improvement journal) is retired:
+// its addresses, with anything below them, lead to My Profile's Overview instead of a missing page.
+// Temporary redirects, so the addresses stay free for other use. Its stored records are kept
+// (docs/RANKED_DEVELOPMENT.md).
+const RETIRED_RANKED_DEVELOPMENT = ["/overview/development", "/overview/blocks", "/blocks", "/ranked"];
+
 const nextConfig: NextConfig = {
+  async redirects() {
+    return RETIRED_RANKED_DEVELOPMENT.flatMap((source) => [
+      { source, destination: "/overview", permanent: false },
+      { source: `${source}/:rest*`, destination: "/overview", permanent: false },
+    ]);
+  },
   async headers() {
     return [
       { source: "/:path*", headers: SECURITY_HEADERS },

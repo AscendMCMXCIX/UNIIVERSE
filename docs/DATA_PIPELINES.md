@@ -18,7 +18,7 @@ Every tick (`account-sync` is due every 15 minutes) works through the linked acc
 
 Raw facts (`riot_accounts`, `account_champion_history`, `account_mastery`) stay separate from the derived proficiency (`src/domain/proficiency`): games, recent games, games this patch, role usage, last played, mastery and results become a 0–1 score, a confidence and a tier (Main · Comfortable · Familiar · Few games · Out of practice · Not played; revision 2, see `docs/CHAMPION_EXPERIENCE_LABELS.md`). Proficiency never changes the pools; it rates the champions in them on Team Overview and the profile. Each player's profile shows the per-champion table with provenance (accounts, games analysed, current-patch games, last sync); the Owner sees raw sync diagnostics.
 
-`account_matches` also keeps per-match facts (queue, champion, role, result, enemy champion in the same position, patch, duration) so a player's own Solo/Duo games join their private Ranked Development sessions without another Riot call (the association reads only stored rows: docs/RANKED_DEVELOPMENT.md); nothing in it flows back into statistics or proficiency.
+`account_matches` also keeps per-match facts (queue, champion, role, result, enemy champion in the same position, patch, duration), which Match History, Played Together and possible groups read without another Riot call.
 
 ## Ranks of a match's players (on demand)
 

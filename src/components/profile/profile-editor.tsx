@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, Check, ChevronDown, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
 import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
-import type { PickerChampion } from "@/components/champion-picker";
+import type { PickerChampion } from "@/components/champions/types";
 import { TierBadge } from "@/components/players/tier-badge";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { AddChampion } from "./add-champion";

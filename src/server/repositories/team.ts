@@ -339,8 +339,8 @@ export async function listProfilesForAdmin(db: Db, teamId: string): Promise<Admi
 
 /**
  * Team membership (Admin only): a member uses the team workspace, appears in Players once set up
- * and can join the lineup; a personal-use profile keeps its own profile, statistics and journal
- * but none of that. Removing someone who holds a lineup place is refused until the place is
+ * and can join the lineup; a personal-use profile keeps its own profile and statistics but
+ * none of that. Removing someone who holds a lineup place is refused until the place is
  * given to someone else, so the lineup never points at a non-member.
  */
 export async function setTeamMember(db: Db, teamId: string, playerId: string, member: boolean): Promise<void> {

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import type { MatchupsData } from "@/server/players/matchups";
-import type { PickerChampion } from "@/components/champion-picker";
+import type { PickerChampion } from "@/components/champions/types";
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { ProfileEditor } from "@/components/profile/profile-editor";
 import { ChampionWindow, useChampionWindow, type ChampionWindowScope } from "./champion-window";

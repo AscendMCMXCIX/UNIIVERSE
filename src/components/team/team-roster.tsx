@@ -10,7 +10,7 @@ import { ACCENT_COLOR } from "@/domain/player-card";
 import { accentCss } from "@/domain/card-style";
 import { CardFrame, cardShellStyle } from "@/components/players/card-look";
 import { setLineupSlotAction, setLineupSubstituteAction } from "@/server/actions/players";
-import type { PickerChampion } from "@/components/champion-picker";
+import type { PickerChampion } from "@/components/champions/types";
 import { Button, buttonClass } from "@/components/ui/button";
 import { RoleIcon } from "@/components/role-icon";
 import { Avatar } from "@/components/ui/avatar";

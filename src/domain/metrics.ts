@@ -116,41 +116,6 @@ export const METRICS = {
     description: "Accounts refresh automatically every few hours; a manual sync is available where Riot accounts are managed.",
     source: "Account sync",
   },
-  "journal-games": {
-    title: "Ranked games logged",
-    unit: "games",
-    population: "Every Solo/Duo game in your Ranked Improvement journal, finished and unfinished blocks alike",
-    description: "How many games you have written down. A block of fewer than six games counts only the games it has.",
-    source: "Your private journal (only you can see it)",
-  },
-  "journal-win-rate": {
-    title: "Overall win rate",
-    unit: "percent of games",
-    population: "All games in your journal",
-    description: "Wins divided by games logged. Nothing is weighted, shrunk or adjusted.",
-    source: "Your private journal",
-  },
-  "journal-mistake": {
-    title: "Most common mistake",
-    unit: "label",
-    population: "The one main mistake you chose on each logged game",
-    description: "The category you pick most often. One main mistake per game keeps the signal honest.",
-    source: "Your private journal",
-  },
-  "journal-focus": {
-    title: "Current improvement focus",
-    unit: "label",
-    population: "Your own one-sentence note",
-    description: "The one thing you are working on right now. Edit it whenever it changes.",
-    source: "Your own words",
-  },
-  "journal-champion-win-rate": {
-    title: "Win rate",
-    unit: "percent of games",
-    population: "Your journal games on this champion or matchup",
-    description: "Raw wins over games in your journal. Small samples swing a lot; the games column tells you how much to trust it.",
-    source: "Your private journal",
-  },
 } as const satisfies Record<string, MetricDefinition>;
 
 export type MetricKey = keyof typeof METRICS;

@@ -1,19 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, ChevronRight, Target, UserX } from "lucide-react";
+import { ArrowLeft, ChevronRight, UserX } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { getMatchBuildAction, getMatchDetailAction, getMatchGroupsAction, getMatchRanksAction } from "@/server/actions/match-history";
 import type { MatchGroupsResult, MatchGroupsTeam, MatchGroupView } from "@/server/matches/possible-groups";
 import { groupEvidenceText } from "@/domain/possible-groups";
 import { BookmarkButton } from "@/components/matches/bookmark-button";
 import type { MatchBuildResult } from "@/server/accounts/match-timeline";
-import { importRankedMatchAction } from "@/server/actions/ranked";
 import type { ComparisonFigure, DetailParticipant, DetailTeam, MatchDetailResult, MatchDetailView, MatchRanksResult, RunePage } from "@/server/players/match-history";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
-import { Button } from "@/components/ui/button";
-import { toast } from "@/components/ui/toast";
 import { formatDate, formatCount } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { BELOW_CONTROLS_ON_PHONES, CLEAR_OF_CONTROLS, DetailModal } from "@/components/ui/detail-modal";
@@ -226,9 +222,8 @@ function DetailBody({ playerId, view, champ }: { playerId: string; view: MatchDe
           <Figure label="Damage taken" value={fmtInt(p.damageTaken)} />
           <Figure label="Gold · vision" value={fmtInt(p.gold)} sub={`${fmtInt(p.vision)} vision score`} />
         </div>
-        {view.journal.eligible || view.share.eligible || p.opgg ? (
+        {view.share.eligible || p.opgg ? (
           <div className="flex flex-wrap items-center gap-2">
-            {view.journal.eligible ? <JournalButton matchId={view.matchId} inJournal={view.journal.inJournal} /> : null}
             {view.share.eligible ? <BookmarkButton matchId={view.matchId} bookmarked={view.share.shared} share /> : null}
             {p.opgg ? <OpggHistoryLink href={p.opgg} account={p.name?.split("#")[0]?.trim() || null} /> : null}
           </div>
@@ -747,41 +742,5 @@ function ParticipantRow({ x, champ, maxDamage, group, rank, queueId, checking }:
         </span>
       </span>
     </li>
-  );
-}
-
-/**
- * Adds this Ranked Solo/Duo game to the Ranked Development session in progress through the
- * journal's own import (never twice). With no session in progress, the game starts one. Games
- * played during a session join it by themselves; this is for one that was played outside one.
- */
-function JournalButton({ matchId, inJournal }: { matchId: string; inJournal: boolean }) {
-  const router = useRouter();
-  const [done, setDone] = React.useState(inJournal);
-  const [busy, setBusy] = React.useState(false);
-  if (done)
-    return (
-      <p className="inline-flex items-center gap-1.5 rounded-lg bg-good/10 px-3 py-2 text-sm text-good" data-testid="journal-added">
-        <Check className="h-4 w-4" aria-hidden /> In your Ranked Development sessions
-      </p>
-    );
-  const add = async () => {
-    setBusy(true);
-    const r = await importRankedMatchAction(matchId);
-    setBusy(false);
-    if (!r.ok) {
-      if (/already in your journal/i.test(r.error)) return setDone(true);
-      return void toast.error("Not added", { description: r.error });
-    }
-    setDone(true);
-    toast.success(`Added to ${r.data.block.label}.`, { description: "Review it in Ranked Development → Sessions." });
-    router.refresh();
-  };
-  return (
-    <div className="flex flex-wrap items-end gap-2" data-testid="journal-add">
-      <Button variant="outline" disabled={busy} onClick={() => void add()} data-testid="journal-add-button">
-        <Target className="h-4 w-4" /> {busy ? "Adding…" : "Add to a Ranked Development session"}
-      </Button>
-    </div>
   );
 }

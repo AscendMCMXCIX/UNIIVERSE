@@ -106,9 +106,9 @@ export const accountChampionHistory = pgTable(
 
 /**
  * Match ids already folded into an account's history (so re-syncs never double count), plus
- * the few per-game facts the ranked journal can import without asking Riot again: the champion
- * played, the role, the queue, the result and the lane opponent. Rows synced before these
- * columns existed stay null and are simply not importable.
+ * the few per-game facts read without asking Riot again (Match History, Played Together, possible
+ * groups): the champion played, the role, the queue, the result and the lane opponent. Rows synced
+ * before these columns existed stay null.
  */
 export const accountMatches = pgTable(
   "account_matches",
@@ -262,11 +262,6 @@ export interface MatchTimelineParticipant {
   purchases: Array<[number, number]>;
   /** Skill slots levelled, in order (1 = Q, 2 = W, 3 = E, 4 = R). */
   skills: number[];
-  /**
-   * When the player died (ms into the game), from the timeline's kill events. Absent on timelines
-   * stored before Ranked Development kept it: unknown there, never zero.
-   */
-  deaths?: number[];
 }
 
 export interface MatchTeamDetail {

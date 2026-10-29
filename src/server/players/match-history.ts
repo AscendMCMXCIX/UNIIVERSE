@@ -5,7 +5,7 @@ import { compositionOf, loadCompositionParticipants, teamMembersByPuuid, type Co
 import { opggLinkFor, platformOfMatchId } from "@/domain/opgg";
 import { largestMultikill } from "@/domain/multikills";
 import { knownRiotIds } from "@/server/players/riot-names";
-import { accountMatches, matchDetails, players, rankedGames, riotAccounts, teamBookmarks, type MatchParticipantDetail } from "@/server/db/schema";
+import { accountMatches, matchDetails, players, riotAccounts, teamBookmarks, type MatchParticipantDetail } from "@/server/db/schema";
 import { filterGames, gameRole, modeBreakdown, isGameRole, isSeasonMode, seasonsInGames, MIN_VALID_DURATION_S, type GameRole, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
 import { currentSeason } from "@/server/accounts/sync";
 import { loadSeasonGames } from "@/server/players/season-games";
@@ -84,8 +84,6 @@ export interface MatchRow {
   record: "stored" | "missing" | "unavailable";
   /** The largest multikill the player made in the game (2 = double … 5 = penta); null for none or without the counts. */
   multikill: 2 | 3 | 4 | 5 | null;
-  /** Ranked Solo/Duo game already in one of the owner's Ranked Development sessions (owner only). */
-  inJournal: boolean;
   /** Both teams (blue and red) in lane order, with team members marked; null without the full record. */
   teams: Composition | null;
 }
@@ -161,7 +159,7 @@ export function teamKills(parts: readonly MatchParticipantDetail[], teamId: numb
 }
 
 /** One page of the history, newest first, with the same filters as the profile's statistics. */
-export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQuery, viewerIsOwner: boolean, poolOf: (role: GameRole) => readonly string[] = () => []): Promise<MatchHistoryPage> {
+export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQuery, poolOf: (role: GameRole) => readonly string[] = () => []): Promise<MatchHistoryPage> {
   const now = new Date();
   const [accounts, seasonNow, patch] = await Promise.all([listAccountsForPlayer(db, playerId), currentSeason(db, now), getCurrentPatch(db)]);
   const ids = accounts.map((a) => a.id);
@@ -191,10 +189,9 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
   const championOptions = [...counts.entries()].map(([id, games]) => ({ id, games })).sort((a, b) => b.games - a.games || a.id.localeCompare(b.id));
 
   const matchIds = slice.map((g) => g.matchId);
-  const [details, assets, journal] = await Promise.all([
+  const [details, assets] = await Promise.all([
     matchIds.length ? db.select().from(matchDetails).where(inArray(matchDetails.matchId, matchIds)) : Promise.resolve([]),
     loadRiotAssets(db),
-    viewerIsOwner && matchIds.length ? db.select({ id: rankedGames.riotMatchId }).from(rankedGames).where(and(eq(rankedGames.playerId, playerId), inArray(rankedGames.riotMatchId, matchIds))) : Promise.resolve([]),
   ]);
   const byMatch = new Map(details.map((d) => [d.matchId, d]));
   // Team members among everyone in these games (one query for the page), for the compositions.
@@ -213,7 +210,6 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     knownRiotIds(db, pagePuuids, Math.min(...details.map((d) => d.gameCreation))),
     storedRankReadings(db, opponents),
   ]);
-  const inJournal = new Set(journal.map((j) => j.id));
   const puuidOf = new Map(accounts.map((a) => [a.id, a.puuid]));
   const nowMs = now.getTime();
   const riotIdOf = new Map(accounts.map((a) => [a.id, a.riotId]));
@@ -255,7 +251,6 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
       ...ic,
       record: d ? (d.participants.length ? "stored" : "unavailable") : "missing",
       multikill: largestMultikill(me?.stats),
-      inJournal: inJournal.has(g.matchId),
       teams,
     };
   });
@@ -353,7 +348,6 @@ export interface MatchDetailView {
   /** Highest damage in the game (for the damage bars). */
   maxDamage: number;
   comparison: MatchComparison;
-  journal: { eligible: boolean; inJournal: boolean };
   /** Sharing this game with the team (Matches → Bookmarked): only the player's own games, by them. */
   share: { eligible: boolean; shared: boolean };
 }
@@ -561,7 +555,6 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
   });
   const me = meRaw ? view(meRaw) : null;
   const tk = meRaw ? teamKills(d.participants, meRaw.teamId, d.teams) : 0;
-  const inJournal = options.viewerIsOwner ? (await db.select({ id: rankedGames.id }).from(rankedGames).where(and(eq(rankedGames.playerId, playerId), eq(rankedGames.riotMatchId, matchId)))).length > 0 : false;
   if (!me) return { status: "unavailable", message: "This player is not in the stored record of this game." };
   const canShare = !!options.canShare && options.viewerIsOwner;
   const shared = canShare ? (await db.select({ id: teamBookmarks.id }).from(teamBookmarks).where(eq(teamBookmarks.riotMatchId, matchId)).limit(1)).length > 0 : false;
@@ -582,7 +575,6 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
       rankCheck: rankChecksAvailable({ matchId, platform: d.platform }) && teams.some((t) => t.participants.some((p) => !p.removed && p.rank.stale)),
       maxDamage: Math.max(1, ...d.participants.map((p) => p.damage ?? 0)),
       comparison: compareInMatch(d.participants, d.teams, meRaw!, d.gameDuration),
-      journal: { eligible: options.viewerIsOwner && d.queueId === 420, inJournal },
       share: { eligible: canShare, shared },
     },
   };

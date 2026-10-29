@@ -6,7 +6,7 @@ import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { DEFAULT_CARD_STYLE, type CardLook } from "@/domain/card-style";
 import { DISPLAY_NAME_MAX, displayNameProblem, normaliseDisplayName } from "@/domain/display-name";
 import { finishSetupAction, saveSetupProgressAction } from "@/server/actions/auth";
-import type { PickerChampion } from "@/components/champion-picker";
+import type { PickerChampion } from "@/components/champions/types";
 import { PoolSection } from "@/components/profile/profile-editor";
 import { RoleFields } from "@/components/auth/role-fields";
 import { CardPreview } from "@/components/players/card-preview";

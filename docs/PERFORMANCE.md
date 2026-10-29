@@ -274,7 +274,7 @@ compared like for like, not as absolute figures for real devices.
   All Champions list.
 - Match History keeps the details it has loaded for the page it shows (`MatchDetailCache`, at most
   30). It lives in memory only, is replaced whenever the page's data is (a new page, a filter, a
-  refresh after a bookmark or a Solo Queue Blocks import), keeps only complete results, and the
+  refresh after a bookmark), keeps only complete results, and the
   server still checks access on every load.
 - A mouse press on a card starts loading the match before the click lands. Touch does not, because
   a finger going down is often the start of a scroll.

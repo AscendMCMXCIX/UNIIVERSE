@@ -4,11 +4,11 @@ import { roleEnum, timestamps } from "./common";
 import { players } from "./team";
 
 /*
-  Ranked Development (src/domain/development): a player's own improvement library. Private like the
-  rest of the journal: every row belongs to one player, is read and written only through the owner
-  check in src/server/development/repository.ts, never feeds team pages or public pages, and goes
-  with the player when their data is erased (foreign keys cascade). Sessions and their games live
-  in ranked_blocks and ranked_games (ranked-improvement.ts), which point here.
+  Retired with Ranked Development (docs/RANKED_DEVELOPMENT.md): a player's own improvement library.
+  Nothing reads these tables or writes to them any more; their rows are kept until a separate,
+  approval-gated clean-up deletes them. They stay defined so drizzle-kit never generates a DROP.
+  Every row belongs to one player and goes with the player when their profile is deleted (foreign
+  keys cascade) or their personal information is removed (server/privacy/erasure.ts).
 */
 
 /** One skill the player is developing (the weakness library). */
@@ -20,7 +20,7 @@ export const developmentObjectives = pgTable(
     title: text("title").notNull(),
     /** A short explanation in the player's words (may be empty). */
     detail: text("detail").notNull().default(""),
-    /** An area key from domain/development/categories, or "custom". */
+    /** The area it was about (an area key, or "custom"). */
     category: text("category").notNull(),
     /** The player's own area name when `category` is "custom". */
     customCategory: text("custom_category"),
@@ -28,11 +28,11 @@ export const developmentObjectives = pgTable(
     role: roleEnum("role"),
     /** Champions it is about; empty for any champion. */
     championIds: jsonb("champion_ids").$type<string[]>().notNull().default([]),
-    /** identified | practising | improving | maintaining (domain/development/objectives). */
+    /** identified | practising | improving | maintaining. */
     status: text("status").notNull().default("identified"),
     /** The one objective sessions start with; at most one per player (partial unique index). */
     isPrimary: boolean("is_primary").notNull().default(false),
-    /** The statistic followed for it (domain/development/measures), or null to rely on reviews. */
+    /** The statistic followed for it, or null to rely on reviews. */
     measure: text("measure"),
     /** The current If–Then plan; older versions stay in development_plans. */
     planId: uuid("plan_id").references((): AnyPgColumn => developmentPlans.id, { onDelete: "set null" }),
@@ -57,7 +57,7 @@ export const developmentPlans = pgTable(
     objectiveId: uuid("objective_id").references((): AnyPgColumn => developmentObjectives.id, { onDelete: "set null" }),
     ifText: text("if_text").notNull(),
     thenText: text("then_text").notNull(),
-    /** The template it started from (domain/development/plans), if any. */
+    /** The template it started from, if any. */
     templateKey: text("template_key"),
     /** Set when the plan was replaced by a newer version or put away; null while in use. */
     retiredAt: timestamp("retired_at", { withTimezone: true }),

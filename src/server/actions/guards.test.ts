@@ -20,8 +20,8 @@ import ts from "typescript";
   feature; this makes sure there is one, and that it comes first.
 */
 
-/** Calls that refuse a caller who is not allowed (server/auth/session.ts, server/ranked/owner.ts). */
-const GUARDS = new Set(["requirePermission", "requireSession", "requireSessionForSetup", "requireTeamMember", "requireOwner", "requireRiotAccountEditor", "requirePlayerEditor", "journalOwnerFor"]);
+/** Calls that refuse a caller who is not allowed (server/auth/session.ts). */
+const GUARDS = new Set(["requirePermission", "requireSession", "requireSessionForSetup", "requireTeamMember", "requireOwner", "requireRiotAccountEditor", "requirePlayerEditor"]);
 /** Asynchronous calls that may come before the check: they read the request or open the database, and change nothing. */
 const HARMLESS = new Set(["getAppDb", "headers", "cookies", "clientIp"]);
 /** Helpers that run the function they are given (server/observability/log.ts): that function is what is checked. */

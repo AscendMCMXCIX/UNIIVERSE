@@ -175,7 +175,7 @@ These boards use the same counts as the profile's Multikills section (`src/domai
 ## Privacy
 
 - **What the board uses:** Riot match figures and mastery only.
-- **What it never reads:** Ranked Development notes, reviews, objectives, plans and other private journal content.
+- **What it never reads:** the records kept from the retired Ranked Development (notes, reviews, objectives and plans).
 - **Production probe:** the `perf-probe` job records counts only (players, games, games with details), never names or values.
 
 ## Data changes

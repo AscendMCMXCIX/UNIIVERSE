@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { GripVertical, X, Plus } from "lucide-react";
-import type { PickerChampion } from "@/components/champion-picker";
+import type { PickerChampion } from "@/components/champions/types";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { cn } from "@/lib/cn";
 import { championArtUrl } from "@/domain/player-card";

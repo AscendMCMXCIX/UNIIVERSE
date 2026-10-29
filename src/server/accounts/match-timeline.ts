@@ -13,8 +13,8 @@ import { redactTimeline } from "@/server/privacy/redact";
   Build order and skill order for one match, from Riot's match timeline. The timeline is a separate
   request Riot makes per match, so it is never fetched while a page renders or during the account
   sync: it is fetched once, when a player first opens that match's details or when the timeline
-  backfill reaches it, and kept compactly: the purchases, skill level-ups and death times, and each
-  player's gold, experience and CS at every frame (for Matchups; nothing else of the frames). Nothing is
+  backfill reaches it, and kept compactly: the purchases and skill level-ups, and each player's gold,
+  experience and CS at every frame (for Matchups; nothing else of the frames). Nothing is
   reconstructed from the final inventory: without a timeline the page says so.
 */
 
@@ -67,13 +67,13 @@ export async function keptTimeline(db: Db, row: typeof matchTimelines.$inferInse
   return erased.empty ? row : redactTimeline(row, (puuid) => !erased.puuid(puuid));
 }
 
-/** Purchases (undone ones removed), skill level-ups and death times per player, from a Riot timeline. */
+/** Purchases (undone ones removed) and skill level-ups per player, from a Riot timeline. */
 export function timelineParticipants(t: RiotMatchTimeline): MatchTimelineParticipant[] {
   const puuidOf = new Map<number, string>(t.info.participants.map((p) => [p.participantId, p.puuid]));
   // Older timelines leave info.participants empty: participant n is the n-th of metadata.participants.
   if (!puuidOf.size) t.metadata.participants.forEach((puuid, i) => puuidOf.set(i + 1, puuid));
   const by = new Map<number, MatchTimelineParticipant>();
-  for (const [id, puuid] of puuidOf) by.set(id, { puuid, purchases: [], skills: [], deaths: [] });
+  for (const [id, puuid] of puuidOf) by.set(id, { puuid, purchases: [], skills: [] });
   const events = t.info.frames.flatMap((f) => f.events).sort((a, b) => a.timestamp - b.timestamp);
   for (const e of events) {
     const p = e.participantId !== undefined ? by.get(e.participantId) : undefined;
@@ -88,8 +88,6 @@ export function timelineParticipants(t: RiotMatchTimeline): MatchTimelinePartici
         }
     } else if (e.type === "SKILL_LEVEL_UP" && e.levelUpType !== "EVOLVE" && e.skillSlot && e.skillSlot >= 1 && e.skillSlot <= 4) p.skills.push(e.skillSlot);
   }
-  // Deaths, for Ranked Development's laning-phase statistic: the victim of each champion kill.
-  for (const e of events) if (e.type === "CHAMPION_KILL" && e.victimId !== undefined) by.get(e.victimId)?.deaths?.push(e.timestamp);
   return [...by.values()];
 }
 

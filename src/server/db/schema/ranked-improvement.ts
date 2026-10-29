@@ -5,11 +5,13 @@ import { riotAccounts } from "./accounts";
 import { developmentObjectives, developmentPlans } from "./development";
 
 /*
-  Ranked Development's sessions (formerly Solo Queue Blocks): a private Solo/Duo journal per player
-  profile. Every row belongs to one player (the owner); nothing here is read by proficiency, team
-  pages or public pages, and every query goes through the owner check in
-  src/server/ranked/repository.ts or src/server/development/repository.ts. The table names stay
-  those of the blocks they began as: a session is a ranked_blocks row, its games ranked_games.
+  Retired with Ranked Development (docs/RANKED_DEVELOPMENT.md): its sessions (formerly Solo Queue
+  Blocks, and the Ranked Improvement journal before them), their games and each player's ranked
+  focus. Nothing reads these tables or writes to them any more; their rows are kept until a
+  separate, approval-gated clean-up deletes them. They stay defined so drizzle-kit never generates
+  a DROP. Every row belongs to one player and goes with the player when their profile is deleted
+  (foreign keys cascade) or their personal information is removed (server/privacy/erasure.ts). A
+  session is a ranked_blocks row, its games ranked_games.
 */
 
 /** The rank a session started at, read from the account's stored rank (no Riot request). */
@@ -126,11 +128,11 @@ export const rankedGames = pgTable(
     source: text("source").notNull().default("manual"),
     /** The objective the game was played for (the session's at the time). */
     objectiveId: uuid("objective_id").references((): AnyPgColumn => developmentObjectives.id, { onDelete: "set null" }),
-    /** none | pending | done | skipped (domain/development/reviews). */
+    /** none | pending | done | skipped. */
     reviewStatus: text("review_status").notNull().default("none"),
     /** How consistently the plan was followed, 0 (not at all) to 3 (every time); self-reported. */
     execution: smallint("execution"),
-    /** Areas (domain/development/categories) the player named as best and hardest. */
+    /** Areas the player named as best and hardest. */
     wentWell: text("went_well"),
     wentWrong: text("went_wrong"),
     learning: text("learning").notNull().default(""),

@@ -281,7 +281,7 @@ describe("rank checks for an opened match", () => {
 describe("opponents' ranks on the collapsed match cards", () => {
   // A slot is the place in the stored record: x-4 … x-7 are 5 … 8, the removed player 9.
   const opponents = async (matchId: string) => {
-    const page = await getMatchHistory(handle.db, memberId, { per: 25 }, true);
+    const page = await getMatchHistory(handle.db, memberId, { per: 25 });
     const teams = page.rows.find((r) => r.matchId === matchId)!.teams!;
     return { teams, red: new Map(teams.red.map((s) => [s.slot, s])) };
   };

@@ -25,7 +25,7 @@ import type { DataStatus } from "@/domain/data-status";
   looking at (title, scope, last update), the competition (the top three, then everyone with a
   bar against the leader), and where you stand (your place and the gap to first). The metric
   rail lists every statistic of the category with its leader and your place, so you can spot
-  the boards you could win. Values are Riot game data only; nothing from private journals.
+  the boards you could win. Values are Riot game data only.
 */
 
 const KIND_LABEL = { total: "Total", average: "Average", rate: "Rate", record: "Record" } as const;

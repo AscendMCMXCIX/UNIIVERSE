@@ -174,7 +174,7 @@ p a.text-accent {
   padding-left: max(calc(var(--spacing) * --value(integer)), env(safe-area-inset-left));
   padding-right: max(calc(var(--spacing) * --value(integer)), env(safe-area-inset-right));
 }
-/* Small inline text links ("All blocks →", "Every Highlights statistic", a name in a list) keep
+/* Small inline text links ("Every Highlights statistic", a name in a list) keep
    their look but get a finger-sized hit area on touch screens: an invisible box around the text, at
    least 44px tall, that does not move anything around it. */
 @utility touch-target {

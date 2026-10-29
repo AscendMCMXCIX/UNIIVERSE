@@ -24,8 +24,6 @@ import type { PortraitChampion } from "@/components/champion-portrait";
                         champion opens its window (Overview, and Matchups: one lane opponent at a
                         time, the lane from timelines, the games)
     Match History       the Riot games stored for the linked accounts, a page at a time
-    Ranked Development  your private Solo/Duo practice: objectives, sessions and reviews (your own
-                        profile only; never a teammate's)
     Riot Accounts       linked accounts, Main and Alt, sync state
 
   This module is the frame every tab shares (the header, its section bar, the data each tab
@@ -97,7 +95,7 @@ export async function ProfileFrame({ db, header, session, basePath, children }: 
       {/* The section bar belongs to the profile card: tucked right under it. */}
       <div className="space-y-1.5">
         <ProfileHeader identity={headerIdentity(header)} self={self} editable={editable} champions={champions} />
-        <ProfileTabs basePath={basePath} showOwn={self && basePath === "/overview"} />
+        <ProfileTabs basePath={basePath} />
       </div>
       {children}
     </div>
