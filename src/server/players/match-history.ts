@@ -5,9 +5,13 @@ import { compositionOf, loadCompositionParticipants, teamMembersByPuuid, type Co
 import { opggLinkFor, platformOfMatchId } from "@/domain/opgg";
 import { largestMultikill } from "@/domain/multikills";
 import { knownRiotIds } from "@/server/players/riot-names";
-import { accountMatches, matchDetails, players, riotAccounts, teamBookmarks, type MatchParticipantDetail } from "@/server/db/schema";
-import { filterGames, gameRole, modeBreakdown, isGameRole, isSeasonMode, seasonsInGames, MIN_VALID_DURATION_S, type GameRole, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
+import { accountMatches, matchDetails, players, riotAccounts, teamBookmarks, type MatchParticipantDetail, type ParticipantExtraStats } from "@/server/db/schema";
+import { dedupeGames, filterGames, gameRole, modeBreakdown, isGameRole, isSeasonMode, seasonsInGames, MIN_VALID_DURATION_S, type GameRole, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
+import { LANE_ORDER, laneOf, laneOpponentOf, personalComparison, standoutOf, type FigureKey, type PersonalComparison } from "@/domain/match-analysis";
+import { historySummary, type HistorySummary } from "@/domain/history-summary";
+import { FORM_RECENT } from "@/domain/recent-form";
 import { currentSeason } from "@/server/accounts/sync";
+import { ladderChange, type RankChange } from "@/server/accounts/rank-history";
 import { loadSeasonGames } from "@/server/players/season-games";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
 import { storeMatchDetail, storeMatchUnavailable } from "@/server/accounts/match-details";
@@ -62,6 +66,8 @@ export interface MatchRow {
   playedAt: number;
   durationS: number | null;
   championId: string;
+  /** The champion's level at the end of the game; null without the full record. */
+  champLevel: number | null;
   role: GameRole | null;
   win: boolean;
   kills: number | null;
@@ -74,6 +80,8 @@ export interface MatchRow {
   csPerMin: number | null;
   damage: number | null;
   damagePerMin: number | null;
+  /** The player's share of their team's champion damage; null when a teammate's damage is not recorded. */
+  damageShare: number | null;
   vision: number | null;
   killParticipation: number | null;
   items: Array<Icon | null> | null;
@@ -86,6 +94,11 @@ export interface MatchRow {
   multikill: 2 | 3 | 4 | 5 | null;
   /** Both teams (blue and red) in lane order, with team members marked; null without the full record. */
   teams: Composition | null;
+  /**
+   * A figure higher than in every one of the player's previous comparable games (same role and
+   * queue group, at least BEST_MIN of them: domain/match-analysis); null in most games.
+   */
+  standout: { key: FigureKey; label: string; value: number; top: number; games: number } | null;
 }
 
 export interface MatchHistoryPage {
@@ -106,6 +119,15 @@ export interface MatchHistoryPage {
   syncing: boolean;
   /** Games per game mode in the chosen season, and other seasons holding the chosen mode (see modeBreakdown). */
   modes: ReturnType<typeof modeBreakdown>;
+  /** The newest games of the filter (domain/history-summary); null when it matches none. */
+  summary: HistorySummary | null;
+  /**
+   * The ladder change over the last 30 days, from stored rank readings: Ranked Flex when the filter
+   * is Flex, else Solo/Duo; the account filtered on, else the Main account. Null outside the current
+   * season, for normal games, or without two readings to compare. `riotId` names the account when
+   * several are linked.
+   */
+  ladder: (RankChange & { riotId: string | null }) | null;
 }
 
 const perMinute = (value: number | null, durationS: number | null) => (value === null || !durationS || durationS < MIN_VALID_DURATION_S ? null : value / (durationS / 60));
@@ -139,10 +161,9 @@ function runePageOf(p: MatchParticipantDetail, assets: RiotAssets | null): RuneP
   return { primaryTree: icon(r.primary), primary: list(r.primaryPerks), secondaryTree: icon(r.secondary), secondary: list(r.secondaryPerks) };
 }
 
-const LANE_ORDER = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
 const laneIndex = (p: MatchParticipantDetail) => {
-  const i = LANE_ORDER.indexOf(p.position ?? "");
-  return i < 0 ? LANE_ORDER.length : i;
+  const lane = laneOf(p.position);
+  return lane ? LANE_ORDER.indexOf(lane) : LANE_ORDER.length;
 };
 const byLane = (a: MatchParticipantDetail, b: MatchParticipantDetail) => laneIndex(a) - laneIndex(b);
 
@@ -176,6 +197,8 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
   };
   const { games } = filterGames(raw, filter, poolOf);
   const modes = modeBreakdown(raw, filter);
+  // Every stored game once, whatever the filters: what each game on the page is compared with.
+  const history = dedupeGames(raw);
   const sorted = [...games].sort((a, b) => b.gameCreation - a.gameCreation || a.matchId.localeCompare(b.matchId));
   const per = Math.min(PER_PAGE_MAX, Math.max(PER_PAGE_MIN, Math.round(q.per ?? PER_PAGE_DEFAULT)));
   const pages = Math.max(1, Math.ceil(sorted.length / per));
@@ -199,17 +222,31 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
   // Players who renamed since a game on this page are linked by their newer Riot ID.
   const pagePuuids = details.flatMap((d) => d.participants.map((p) => p.puuid));
   const ownPuuids = new Set(accounts.map((a) => a.puuid).filter(Boolean));
-  // The opponents in this page's games: their stored ranks, read together for the page (three
+  // Everyone else in this page's games: their stored ranks, read together for the page (three
   // queries in all, no Riot request). Ranks missing or stale are checked only when a match is opened.
-  const opponents = details.flatMap((d) => {
-    const own = d.participants.find((p) => ownPuuids.has(p.puuid));
-    return own ? d.participants.filter((p) => p.teamId !== own.teamId && p.puuid && !isRemoved(p)).map((p) => p.puuid) : [];
-  });
-  const [members, known, readings] = await Promise.all([
+  const others = details.flatMap((d) => d.participants.filter((p) => p.puuid && !ownPuuids.has(p.puuid) && !isRemoved(p)).map((p) => p.puuid));
+  // The newest games of the filter, for the summary: their team kills, from the stored summaries
+  // (one narrow query; the cached game rows do not carry them).
+  const newest = [...sorted].slice(0, FORM_RECENT);
+  const ladderQueue = filter.season === seasonNow && filter.mode !== "normal" ? (filter.mode === "flex" ? "flex" : "solo") : null;
+  const ladderAccount = filter.accountId ? accounts.find((a) => a.id === filter.accountId) : accounts[0];
+  const [members, known, readings, teamKillRows, ladder] = await Promise.all([
     owner ? teamMembersByPuuid(db, owner.teamId, pagePuuids) : Promise.resolve(new Map<string, { id: string; name: string }>()),
     knownRiotIds(db, pagePuuids, Math.min(...details.map((d) => d.gameCreation))),
-    storedRankReadings(db, opponents),
+    storedRankReadings(db, others),
+    newest.length
+      ? db
+          .select({ matchId: accountMatches.matchId, accountId: accountMatches.accountId, teamKills: accountMatches.teamKills })
+          .from(accountMatches)
+          .where(and(inArray(accountMatches.accountId, ids), inArray(accountMatches.matchId, newest.map((g) => g.matchId))))
+      : Promise.resolve([]),
+    ladderQueue && ladderAccount ? ladderChange(db, ladderAccount.id, ladderQueue, now.getTime()) : Promise.resolve(null),
   ]);
+  const teamKillsOf = new Map<string, number>();
+  for (const g of newest) {
+    const row = teamKillRows.find((r) => r.matchId === g.matchId && r.accountId === g.accountId) ?? teamKillRows.find((r) => r.matchId === g.matchId);
+    if (row?.teamKills !== null && row?.teamKills !== undefined) teamKillsOf.set(g.matchId, row.teamKills);
+  }
   const puuidOf = new Map(accounts.map((a) => [a.id, a.puuid]));
   const nowMs = now.getTime();
   const riotIdOf = new Map(accounts.map((a) => [a.id, a.riotId]));
@@ -226,7 +263,8 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     const version = ddragonVersionOf(d?.gameVersion, fallbackVersion);
     const ic = me ? icons(me, assets, version) : { items: null, spells: null, keystone: null, secondary: null };
     const tk = me && d ? teamKills(d.participants, me.teamId, d.teams) : 0;
-    const teams = d ? compositionOf(d.participants, members, (puuid) => puuid === me?.puuid, me?.teamId ?? null, { platform: platformOfMatchId(g.matchId), known, enemyRank: (puuid) => participantRank(readings.get(puuid) ?? [], g.queueId, nowMs) }) : null;
+    const teams = d ? compositionOf(d.participants, members, (puuid) => puuid === me?.puuid, me?.teamId ?? null, { platform: platformOfMatchId(g.matchId), known, rankOf: (puuid) => participantRank(readings.get(puuid) ?? [], g.queueId, nowMs) }) : null;
+    const standout = standoutOf(personalComparison(g, history));
     return {
       matchId: g.matchId,
       riotId: accounts.length > 1 ? (riotIdOf.get(g.accountId) ?? null) : null,
@@ -235,6 +273,7 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
       playedAt: g.gameCreation,
       durationS: duration,
       championId: g.championId,
+      champLevel: me?.champLevel ?? null,
       role: gameRole(g),
       win: !!g.win,
       kills,
@@ -246,12 +285,14 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
       csPerMin: perMinute(g.cs ?? null, duration),
       damage: g.damage ?? null,
       damagePerMin: perMinute(g.damage ?? null, duration),
+      damageShare: me && d ? share(me.damage, sumOf(d.participants.filter((x) => x.teamId === me.teamId).map((x) => x.damage))) : null,
       vision: g.visionScore ?? null,
       killParticipation: me && tk > 0 ? (me.kills + me.assists) / tk : null,
       ...ic,
       record: d ? (d.participants.length ? "stored" : "unavailable") : "missing",
       multikill: largestMultikill(me?.stats),
       teams,
+      standout: standout ? { key: standout.key, label: standout.label, value: standout.value, top: standout.top, games: standout.games } : null,
     };
   });
 
@@ -269,6 +310,8 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     accountOptions: accounts.length > 1 ? accounts.map((a) => ({ id: a.id, riotId: a.riotId, label: a.label })) : [],
     accountsLinked: accounts.length,
     missingOnPage: rows.filter((r) => r.record === "missing").length,
+    summary: games.length ? historySummary(games.map((g) => ({ ...g, teamKills: teamKillsOf.get(g.matchId) ?? null }))) : null,
+    ladder: ladder ? { ...ladder, riotId: accounts.length > 1 ? (ladderAccount?.riotId ?? null) : null } : null,
     syncing: accounts.some((a) => a.syncStatus === "syncing" || a.syncStatus === "pending" || a.syncStatus === "never" || !a.historyBackfill?.completedAt),
   };
 }
@@ -300,12 +343,22 @@ export interface DetailParticipant {
   deaths: number;
   assists: number;
   kda: number;
+  /** Kills and assists over the team's kills; null when the team's kills are not known. */
+  killParticipation: number | null;
   cs: number | null;
   csPerMin: number | null;
   gold: number | null;
+  goldPerMin: number | null;
   damage: number | null;
+  damagePerMin: number | null;
+  /** Share of the team's champion damage; null when a teammate's damage is not recorded. */
+  damageShare: number | null;
   damageTaken: number | null;
   vision: number | null;
+  visionPerMin: number | null;
+  wardsPlaced: number | null;
+  /** The extra figures Riot sent for this player (absent on records stored before they were kept). */
+  stats: Pick<ParticipantExtraStats, "wardsKilled" | "controlWardsBought" | "turretTakedowns" | "objectiveDamage" | "buildingDamage" | "ccSeconds" | "soloKills" | "firstBloodKill" | "firstBloodAssist" | "largestKillingSpree" | "largestMultiKill"> | null;
   items: Array<Icon | null> | null;
   spells: Icon[] | null;
   keystone: Icon | null;
@@ -341,13 +394,18 @@ export interface MatchDetailView {
   win: boolean;
   championId: string | null;
   role: string | null;
-  player: DetailParticipant & { killParticipation: number | null; damagePerMin: number | null; runePage: RunePage | null };
+  player: DetailParticipant & { runePage: RunePage | null };
   teams: DetailTeam[];
   /** Some players' ranks are missing or stale and Riot can be asked: the window checks them once open (getMatchRanks). */
   rankCheck: boolean;
   /** Highest damage in the game (for the damage bars). */
   maxDamage: number;
   comparison: MatchComparison;
+  /**
+   * The game beside the player's previous games of the same role and queue group (at most 50:
+   * domain/match-analysis); null with fewer than 10 of them or without a recorded role.
+   */
+  personal: PersonalComparison | null;
   /** Sharing this game with the team (Matches → Bookmarked): only the player's own games, by them. */
   share: { eligible: boolean; shared: boolean };
 }
@@ -378,7 +436,8 @@ export interface MatchComparison {
   damageShare: number | null;
   goldShare: number | null;
   killParticipation: number | null;
-  opponent: { championId: string | null; name: string | null } | null;
+  /** The enemy in the same recorded position (only when exactly one enemy has it); `slot` finds them on the scoreboard. */
+  opponent: { championId: string | null; name: string | null; slot: number } | null;
   figures: ComparisonFigure[];
   teams: TeamTotal[];
 }
@@ -389,8 +448,9 @@ const share = (part: number | null, whole: number | null) => (part === null || w
 export function compareInMatch(participants: MatchParticipantDetail[], teams: Array<{ teamId: number; objectives: Record<string, number> }>, me: MatchParticipantDetail, durationS: number | null): MatchComparison {
   const own = participants.filter((p) => p.teamId === me.teamId);
   const enemy = participants.filter((p) => p.teamId !== me.teamId);
-  // The lane opponent: the enemy in the same recorded position (none when positions are missing).
-  const opp = me.position && LANE_ORDER.includes(me.position) ? (enemy.filter((p) => p.position === me.position).length === 1 ? enemy.find((p) => p.position === me.position)! : null) : null;
+  // The lane opponent: the one enemy in the same recorded position (none when positions are missing or shared).
+  const oppSlot = laneOpponentOf(participants, participants.indexOf(me));
+  const opp = oppSlot === null ? null : participants[oppSlot]!;
   const pm = (v: number | null) => perMinute(v, durationS);
   const avg = (vals: Array<number | null>) => {
     const t = sumOf(vals);
@@ -407,7 +467,7 @@ export function compareInMatch(participants: MatchParticipantDetail[], teams: Ar
     damageShare: share(me.damage, sumOf(own.map((p) => p.damage))),
     goldShare: share(me.gold, sumOf(own.map((p) => p.gold))),
     killParticipation: ownKills > 0 ? (me.kills + me.assists) / ownKills : null,
-    opponent: opp ? { championId: opp.championId, name: opp.name } : null,
+    opponent: opp ? { championId: opp.championId, name: opp.name, slot: participants.indexOf(opp) } : null,
     figures: [
       figure("csPerMin", "CS/min", (p) => pm(p.cs)),
       figure("damagePerMin", "Damage/min", (p) => pm(p.damage)),
@@ -512,6 +572,17 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
   const version = ddragonVersionOf(d.gameVersion, patch?.ddragonVersion ?? null);
   const now = Date.now();
   const rankOf = (p: MatchParticipantDetail): ParticipantRank => (isRemoved(p) || !p.puuid ? { ...UNKNOWN_RANK, stale: false } : participantRank(readings.get(p.puuid) ?? [], d!.queueId, now));
+  const killsOf = new Map<number, number>();
+  const damageOf = new Map<number, number | null>();
+  for (const teamId of new Set(d.participants.map((x) => x.teamId))) {
+    killsOf.set(teamId, teamKills(d.participants, teamId, d.teams));
+    damageOf.set(teamId, sumOf(d.participants.filter((x) => x.teamId === teamId).map((x) => x.damage)));
+  }
+  const extras = (st: ParticipantExtraStats | undefined): DetailParticipant["stats"] => {
+    if (!st) return null;
+    const { wardsKilled, controlWardsBought, turretTakedowns, objectiveDamage, buildingDamage, ccSeconds, soloKills, firstBloodKill, firstBloodAssist, largestKillingSpree, largestMultiKill } = st;
+    return { wardsKilled, controlWardsBought, turretTakedowns, objectiveDamage, buildingDamage, ccSeconds, soloKills, firstBloodKill, firstBloodAssist, largestKillingSpree, largestMultiKill };
+  };
   const view = (p: MatchParticipantDetail): DetailParticipant => ({
     slot: d!.participants.indexOf(p),
     removed: isRemoved(p),
@@ -528,12 +599,19 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
     deaths: p.deaths,
     assists: p.assists,
     kda: p.deaths > 0 ? (p.kills + p.assists) / p.deaths : p.kills + p.assists,
+    killParticipation: isRemoved(p) || !(killsOf.get(p.teamId)! > 0) ? null : Math.min(1, (p.kills + p.assists) / killsOf.get(p.teamId)!),
     cs: p.cs,
     csPerMin: perMinute(p.cs, d!.gameDuration),
     gold: p.gold,
+    goldPerMin: perMinute(p.gold, d!.gameDuration),
     damage: p.damage,
+    damagePerMin: perMinute(p.damage, d!.gameDuration),
+    damageShare: share(p.damage, damageOf.get(p.teamId) ?? null),
     damageTaken: p.damageTaken,
     vision: p.vision,
+    visionPerMin: perMinute(p.vision, d!.gameDuration),
+    wardsPlaced: p.wardsPlaced,
+    stats: extras(p.stats),
     ...icons(p, assets, version),
   });
   // The player's team first, each in lane order.
@@ -554,8 +632,10 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
     };
   });
   const me = meRaw ? view(meRaw) : null;
-  const tk = meRaw ? teamKills(d.participants, meRaw.teamId, d.teams) : 0;
   if (!me) return { status: "unavailable", message: "This player is not in the stored record of this game." };
+  // The player's own stored games (every account, one row per game; cached per instance).
+  const history = await loadSeasonGames(db, accounts.map((a) => a.id));
+  const target = history.find((g) => g.matchId === matchId);
   const canShare = !!options.canShare && options.viewerIsOwner;
   const shared = canShare ? (await db.select({ id: teamBookmarks.id }).from(teamBookmarks).where(eq(teamBookmarks.riotMatchId, matchId)).limit(1)).length > 0 : false;
   return {
@@ -570,11 +650,12 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
       win: meRaw!.win,
       championId: me.championId,
       role: mine.role,
-      player: { ...me, killParticipation: tk > 0 ? (meRaw!.kills + meRaw!.assists) / tk : null, damagePerMin: perMinute(me.damage, d.gameDuration), runePage: runePageOf(meRaw!, assets) },
+      player: { ...me, runePage: runePageOf(meRaw!, assets) },
       teams,
       rankCheck: rankChecksAvailable({ matchId, platform: d.platform }) && teams.some((t) => t.participants.some((p) => !p.removed && p.rank.stale)),
       maxDamage: Math.max(1, ...d.participants.map((p) => p.damage ?? 0)),
       comparison: compareInMatch(d.participants, d.teams, meRaw!, d.gameDuration),
+      personal: target ? personalComparison(target, history) : null,
       share: { eligible: canShare, shared },
     },
   };

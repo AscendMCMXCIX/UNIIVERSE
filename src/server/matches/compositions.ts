@@ -29,8 +29,9 @@ export interface CompSlot {
    */
   opgg: string | null;
   /**
-   * An opponent's current or last-known rank from stored readings (domain/known-rank.ts), on a
-   * player's Match History only: never the rank at the time of the game.
+   * The player's current or last-known rank from stored readings (domain/known-rank.ts), on a
+   * player's Match History only (everyone but the player the list is about): never the rank at
+   * the time of the game.
    */
   rank?: ParticipantRank;
   /** A player whose personal data was erased: nothing about them is kept (shown as "Removed player"). */
@@ -66,11 +67,11 @@ export interface CompositionOptions {
   platform?: string | null;
   /** Newer Riot IDs by PUUID (server/players/riot-names). */
   known?: ReadonlyMap<string, KnownRiotId>;
-  /** The stored rank of each opponent of the focus side (a player's Match History), by PUUID. */
-  enemyRank?: (puuid: string) => ParticipantRank;
+  /** The stored rank of every player but the focus player (a player's Match History), by PUUID. */
+  rankOf?: (puuid: string) => ParticipantRank;
 }
 
-export function compositionOf(participants: readonly CompParticipant[], members: ReadonlyMap<string, { id: string; name: string }>, you: (puuid: string) => boolean, focusTeamId: number | null, { platform = null, known = new Map(), enemyRank }: CompositionOptions = {}): Composition | null {
+export function compositionOf(participants: readonly CompParticipant[], members: ReadonlyMap<string, { id: string; name: string }>, you: (puuid: string) => boolean, focusTeamId: number | null, { platform = null, known = new Map(), rankOf }: CompositionOptions = {}): Composition | null {
   // Only a full record: ten players, five a side.
   if (participants.length !== 10) return null;
   const side = (teamId: number) =>
@@ -81,8 +82,8 @@ export function compositionOf(participants: readonly CompParticipant[], members:
       .map(({ p, slot }): CompSlot => {
         if (p.removed) return { slot, championId: null, name: null, member: null, you: false, opgg: null, removed: true };
         const member = members.get(p.puuid) ?? null;
-        const opponent = !!enemyRank && focusTeamId !== null && p.teamId !== focusTeamId;
-        return { slot, championId: p.championId, name: p.name ? p.name.split("#")[0]!.trim() || null : null, member, you: you(p.puuid), opgg: opggLinkFor(p.name, platform, known.get(p.puuid)), ...(opponent ? { rank: enemyRank(p.puuid) } : {}) };
+        const isYou = you(p.puuid);
+        return { slot, championId: p.championId, name: p.name ? p.name.split("#")[0]!.trim() || null : null, member, you: isYou, opgg: opggLinkFor(p.name, platform, known.get(p.puuid)), ...(rankOf && !isYou ? { rank: rankOf(p.puuid) } : {}) };
       });
   const blue = side(BLUE_TEAM);
   const red = side(RED_TEAM);

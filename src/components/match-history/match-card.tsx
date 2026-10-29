@@ -65,14 +65,22 @@ export function MatchResult({ win, queue, when, duration, lineBelow, className }
 }
 
 /**
- * The champion as it was played: the portrait with the two summoner spells and the two rune trees
- * beside it (empty slots when the details were not collected, never guessed ones).
+ * The champion as it was played: the portrait (with the level it ended on, when known) and the two
+ * summoner spells and two rune trees beside it (empty slots when the details were not collected,
+ * never guessed ones).
  */
-export function ChampionLoadout({ champion, spells, keystone, secondary, size = "lg", icon = 22, className, portraitClassName, iconsClassName }: { champion: PortraitChampion; spells: Array<Icon | null> | null; keystone: Icon | null; secondary: Icon | null; size?: "md" | "lg"; icon?: number; className?: string; portraitClassName?: string; iconsClassName?: string }) {
+export function ChampionLoadout({ champion, spells, keystone, secondary, level = null, size = "lg", icon = 22, className, portraitClassName, iconsClassName }: { champion: PortraitChampion; spells: Array<Icon | null> | null; keystone: Icon | null; secondary: Icon | null; /** The champion's level at the end of the game, on the portrait's corner. */ level?: number | null; size?: "md" | "lg"; icon?: number; className?: string; portraitClassName?: string; iconsClassName?: string }) {
   const two = spells?.length ? spells.slice(0, 2) : [null, null];
   return (
     <span className={cn("flex shrink-0 items-center gap-1", className)}>
-      <ChampionPortrait champion={champion} size={size} className={portraitClassName} />
+      <span className="relative flex shrink-0">
+        <ChampionPortrait champion={champion} size={size} className={portraitClassName} />
+        {level !== null ? (
+          <span className="absolute -bottom-1 -right-1 rounded bg-bg px-1 text-3xs font-semibold tabular-nums leading-4 text-fg-muted" title={`Level ${level}`} data-testid="champion-level">
+            {level}
+          </span>
+        ) : null}
+      </span>
       <span className={cn("grid grid-flow-col grid-rows-2 gap-0.5", iconsClassName)} aria-hidden>
         {two.map((s, i) => (
           <IconImg key={i} icon={s} size={icon} />

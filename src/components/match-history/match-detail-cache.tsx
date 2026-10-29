@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { getMatchDetailAction, getMatchGroupsAction, getMatchRanksAction } from "@/server/actions/match-history";
+import { getMatchDetailAction, getMatchGroupsAction, getMatchRanksAction, getMatchTimelineAction } from "@/server/actions/match-history";
 import type { MatchDetailResult, MatchRanksResult } from "@/server/players/match-history";
 import type { MatchGroupsResult } from "@/server/matches/possible-groups";
+import type { MatchTimelineResult } from "@/server/accounts/match-timeline";
 
 /** Matches kept per list (a page of Match History is at most 25). */
 const LIMIT = 30;
@@ -21,6 +22,8 @@ export interface MatchDetailCache {
   groups(playerId: string, matchId: string): Promise<MatchGroupsResult>;
   /** The match's rank checks (after its details); a check left incomplete is asked again next time. */
   ranks(playerId: string, matchId: string): Promise<MatchRanksResult>;
+  /** The match's timeline figures (build, lane at 10:00 and 15:00, gold difference), when a section that needs them opens. */
+  timeline(playerId: string, matchId: string): Promise<MatchTimelineResult>;
 }
 
 function memo<T extends { status: string }>(fetch: (playerId: string, matchId: string) => Promise<T>, complete: (r: T) => boolean = (r) => r.status === "ok") {
@@ -55,6 +58,7 @@ export function createMatchDetailCache({ onRanks }: { onRanks?: (matchId: string
   return {
     load: memo(getMatchDetailAction),
     groups: memo(getMatchGroupsAction),
+    timeline: memo(getMatchTimelineAction),
     ranks: (playerId, matchId) =>
       ranks(playerId, matchId).then((r) => {
         onRanks?.(matchId, r);

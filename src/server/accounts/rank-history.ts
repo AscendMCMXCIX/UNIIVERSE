@@ -1,5 +1,5 @@
 import { orderAccounts } from "@/domain/account-order";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, lte } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { rankSnapshots, riotAccounts } from "@/server/db/schema";
 import { rankProgress, snapshotChanged, type RankQueue, type RankSnapshot } from "@/domain/rank-progress";
@@ -116,4 +116,23 @@ export async function rankChangesFor(db: Db, players: ReadonlyArray<{ id: string
     out.set(p.id, change ? { ...change, queue } : null);
   }
   return out;
+}
+
+/**
+ * One account's ladder change over the last `windowDays` in one queue (the Match History summary).
+ * Only the readings that decide it are read: those inside the window and the last one before it.
+ * The answer is rankProgress's over every reading: season segments are decided by consecutive
+ * readings, and nothing before the last reading ahead of the window can be the window's start.
+ */
+export async function ladderChange(db: Db, accountId: string, queue: RankQueue, now = Date.now(), windowDays = 30): Promise<RankChange | null> {
+  const since = new Date(now - windowDays * 86_400_000);
+  const columns = { tier: rankSnapshots.tier, division: rankSnapshots.division, leaguePoints: rankSnapshots.leaguePoints, wins: rankSnapshots.wins, losses: rankSnapshots.losses, capturedAt: rankSnapshots.capturedAt };
+  const mine = and(eq(rankSnapshots.accountId, accountId), eq(rankSnapshots.queue, queue));
+  const [inside, before] = await Promise.all([
+    db.select(columns).from(rankSnapshots).where(and(mine, gt(rankSnapshots.capturedAt, since))),
+    db.select(columns).from(rankSnapshots).where(and(mine, lte(rankSnapshots.capturedAt, since))).orderBy(desc(rankSnapshots.capturedAt)).limit(1),
+  ]);
+  const snapshots = [...before, ...inside].map((r) => ({ queue, tier: r.tier, division: r.division, leaguePoints: r.leaguePoints, wins: r.wins, losses: r.losses, capturedAt: r.capturedAt.getTime() }));
+  const change = rankProgress(queue, snapshots, now, windowDays).change;
+  return change ? { ...change, queue } : null;
 }
