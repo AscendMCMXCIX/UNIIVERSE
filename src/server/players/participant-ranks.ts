@@ -18,8 +18,8 @@ import { RANK_ENRICH_DAYS, RANK_FRESH_DAYS, type QueueRank, type RankReading } f
   kept in last_known_ranks, both queues, "UNRANKED" where Riot lists no entry, in two ways:
   - after a game is collected (checkRecentGameRanks, the "rank-checks" job of the scheduler tick):
     the players of the members' games of the last RANK_ENRICH_DAYS days with no reading since the
-    game ended, newest game first, a few dozen a run, so every recent card and scoreboard has the
-    ranks around its game whether or not anyone opened it;
+    game ended, newest game first, RANK_CHECKS_PER_RUN a run, so every recent card and scoreboard
+    has the ranks around its game whether or not anyone opened it;
   - when a member opens a match: its players whose newest reading is missing or older than
     RANK_FRESH_DAYS (or older than the game, for a recent one).
   Nothing else asks: no list, page or search looks anyone up, nobody outside the members' games
@@ -30,8 +30,10 @@ import { RANK_ENRICH_DAYS, RANK_FRESH_DAYS, type QueueRank, type RankReading } f
   - RANK_LOOKUPS_PER_DAY checks in any 24 hours across the site, counted from the rows written,
     of which the checks after collection may use RANK_CHECKS_AFTER_GAMES_SHARE, so opened matches
     always have the rest;
-  - at most half of each rate-limit window of the match's server (RANK_LOOKUP_SHARE), and never a
-    wait: a request with no free slot is skipped, and the match says so;
+  - at most half of each rate-limit window of the match's server (RANK_LOOKUP_SHARE). An opened
+    match never waits: a request with no free slot is skipped, and the match says so. The job waits
+    only for Riot's one-second window to turn over, within its time, and stops when a longer window
+    is full;
   - no retries; a player whose check failed is not asked again on this server for 30 minutes (for
     a day when Riot cannot read their PUUID with this key: one stored under an earlier key), and a
     rejected key stops every check for 10 minutes.
@@ -164,7 +166,7 @@ const inFlight = new Map<string, Promise<"found" | "failed" | "busy" | "refused"
 const failedUntil = new Map<string, number>();
 let refusedUntil = 0;
 
-/** Riot for the rank checks: no retries, quick, at most RANK_LOOKUP_SHARE of each window, never waiting; the stand-in in browser tests. */
+/** Riot for the rank checks: no retries, quick, at most RANK_LOOKUP_SHARE of each window, never waiting for a slot; the stand-in in browser tests. */
 export function rankLookupClient(): RiotApiClient | null {
   return createRiotClient({ maxRetries: 0, timeoutMs: 4_000, limitShare: RANK_LOOKUP_SHARE, noWait: true }) ?? browserTestRiotClient();
 }
@@ -204,6 +206,8 @@ async function storeLookup(db: Db, matchId: string, puuid: string, entries: read
       observed_at = EXCLUDED.observed_at, source = EXCLUDED.source`);
 }
 
+type Player = { puuid: string; name: string | null };
+
 /**
  * Looks up the current rank of these players of one stored match (callers pass only those whose
  * reading is stale) within the limits above, and keeps the answers. Never throws for Riot's sake.
@@ -212,14 +216,25 @@ export async function lookUpRanks(
   db: Db,
   client: RiotApiClient | null,
   match: { matchId: string; platform: string | null },
-  players: ReadonlyArray<{ puuid: string; name: string | null }>,
+  players: ReadonlyArray<Player>,
   options: { now?: Date; perDay?: number } = {},
 ): Promise<RankCheck> {
+  return (await askRiot(db, client, match, players, options)).check;
+}
+
+/** lookUpRanks, and the players turned away because the rate-limit share was full (for the job to ask again once it has room). */
+async function askRiot(
+  db: Db,
+  client: RiotApiClient | null,
+  match: { matchId: string; platform: string | null },
+  players: ReadonlyArray<Player>,
+  options: { now?: Date; perDay?: number },
+): Promise<{ check: RankCheck; busy: Player[] }> {
   const now = options.now ?? new Date();
   const t = now.getTime();
   const candidates = players.filter((p) => p.puuid && (failedUntil.get(p.puuid) ?? 0) <= t);
-  if (!candidates.length) return NO_CHECK;
-  if (!client || !checkable(match, t)) return { ...NO_CHECK, skipped: candidates.length, reason: "unavailable" };
+  if (!candidates.length) return { check: NO_CHECK, busy: [] };
+  if (!client || !checkable(match, t)) return { check: { ...NO_CHECK, skipped: candidates.length, reason: "unavailable" }, busy: [] };
   // Never anyone whose personal data was erased (a stored match no longer names them; this is a second lock).
   const erased = await erasureFilter(db);
   const allowed = candidates.filter((p) => !erased.participant(p));
@@ -254,16 +269,18 @@ export async function lookUpRanks(
       return run;
     }),
   );
-  for (const r of results) {
+  const busy: Player[] = [];
+  results.forEach((r, i) => {
     if (r === "found") outcome.found++;
     else if (r === "failed") outcome.failed++;
     else {
       outcome.asked--;
       outcome.skipped++;
       outcome.reason ??= r === "busy" ? "busy" : "unavailable";
+      if (r === "busy") busy.push(ask[i]!);
     }
-  }
-  return outcome;
+  });
+  return { check: outcome, busy };
 }
 
 /** What one run of the checks after collection did: the RankCheck of its matches, and what is left. */
@@ -271,7 +288,12 @@ export interface RecentGameChecks extends RankCheck {
   /** Before this run: the players still to check (each once), and the games they were last seen in. */
   waiting: number;
   games: number;
+  /** Times the run waited for Riot's one-second window to turn over. */
+  waits: number;
 }
+
+/** Riot's shortest rate-limit window is a second: a little longer, and the requests in it have left it. */
+const WINDOW_WAIT_MS = 1_100;
 
 /**
  * The checks after a game is collected (the "rank-checks" job): the other players of the members'
@@ -279,8 +301,17 @@ export interface RecentGameChecks extends RankCheck {
  * at most `limit` players a run, within the daily share and the rate-limit share above. Members are
  * read by their own sync, and erased players never (lookUpRanks). One statement finds them, and at
  * most four times the run's share of rows leaves the database. Never throws for Riot's sake.
+ *
+ * Half of Riot's one-second window is about ten requests, so a run would stop at about ten players.
+ * When that window is full, the run waits for it to turn over, within its time (`deadline`), and
+ * carries on with the players it turned away. When a wait gets nobody through, a longer window is
+ * full (account sync shares it), and the next run carries on.
  */
-export async function checkRecentGameRanks(db: Db, client: RiotApiClient | null, options: { now?: Date; limit?: number; perDay?: number; deadline?: number } = {}): Promise<RecentGameChecks> {
+export async function checkRecentGameRanks(
+  db: Db,
+  client: RiotApiClient | null,
+  options: { now?: Date; limit?: number; perDay?: number; deadline?: number; sleep?: (ms: number) => Promise<void> } = {},
+): Promise<RecentGameChecks> {
   const now = options.now ?? new Date();
   const t = now.getTime();
   const limit = options.limit ?? RANK_CHECKS_PER_RUN;
@@ -305,26 +336,48 @@ export async function checkRecentGameRanks(db: Db, client: RiotApiClient | null,
       SELECT w.match_id, w.platform, w.puuid, w.name, (SELECT count(*) FROM waiting) AS waiting, (SELECT count(DISTINCT match_id) FROM waiting) AS games
       FROM waiting w ORDER BY w.game_creation DESC, w.match_id, w.puuid LIMIT ${limit * 4}`),
   );
-  const outcome: RecentGameChecks = { ...NO_CHECK, games: Number(rows[0]?.games ?? 0), waiting: Number(rows[0]?.waiting ?? 0) };
+  const outcome: RecentGameChecks = { ...NO_CHECK, games: Number(rows[0]?.games ?? 0), waiting: Number(rows[0]?.waiting ?? 0), waits: 0 };
   const byMatch = new Map<string, { platform: string | null; players: Array<{ puuid: string; name: string | null }> }>();
   for (const r of rows.filter((r) => (failedUntil.get(r.puuid) ?? 0) <= t).slice(0, limit)) {
     const m = byMatch.get(r.match_id) ?? { platform: r.platform, players: [] };
     m.players.push({ puuid: r.puuid, name: r.name });
     byMatch.set(r.match_id, m);
   }
-  for (const [matchId, m] of byMatch) {
-    if (options.deadline && Date.now() > options.deadline) {
-      outcome.skipped += m.players.length;
-      continue;
+  const perDay = options.perDay ?? Math.floor(RANK_LOOKUPS_PER_DAY * RANK_CHECKS_AFTER_GAMES_SHARE);
+  const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  // Whether the request just made came straight after a wait, and whether the day's share ran out.
+  let waited = false;
+  let last = false;
+  matches: for (const [matchId, m] of byMatch) {
+    let players = m.players;
+    while (players.length) {
+      if (options.deadline && Date.now() > options.deadline) {
+        outcome.skipped += players.length;
+        continue matches;
+      }
+      const { check, busy } = await askRiot(db, client, { matchId, platform: m.platform }, players, { now, perDay });
+      outcome.asked += check.asked;
+      outcome.found += check.found;
+      outcome.failed += check.failed;
+      if (check.reason === "budget") last = true;
+      const wait = busy.length > 0 && (check.asked > 0 || !waited) && (!options.deadline || Date.now() + WINDOW_WAIT_MS < options.deadline);
+      if (wait) {
+        // Riot's one-second window is full: the players it turned away are asked once it turns over.
+        outcome.skipped += check.skipped - busy.length;
+        if (check.reason === "budget") outcome.reason ??= "budget";
+        outcome.waits++;
+        await sleep(WINDOW_WAIT_MS);
+        waited = true;
+        players = busy;
+        continue;
+      }
+      waited = false;
+      outcome.skipped += check.skipped;
+      outcome.reason ??= check.reason;
+      // The daily share is used up, or Riot's window is still full after a wait: the next run carries on.
+      if (last || check.reason === "busy") break matches;
+      players = [];
     }
-    const check = await lookUpRanks(db, client, { matchId, platform: m.platform }, m.players, { now, perDay: options.perDay ?? Math.floor(RANK_LOOKUPS_PER_DAY * RANK_CHECKS_AFTER_GAMES_SHARE) });
-    outcome.asked += check.asked;
-    outcome.found += check.found;
-    outcome.failed += check.failed;
-    outcome.skipped += check.skipped;
-    outcome.reason ??= check.reason;
-    // The daily share is used up, or Riot's window is full: the next run carries on.
-    if (check.reason === "budget" || check.reason === "busy") break;
   }
   return outcome;
 }

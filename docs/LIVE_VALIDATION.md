@@ -526,6 +526,7 @@ The card, the scoreboard, Analysis and the Timeline describe the same game (`doc
 Ranks are read against the game they are shown for (`docs/ARCHITECTURE.md` → Match History 2.0 → Ranks around each game). On the live site, after the deployment:
 - [ ] Data jobs → `smoke data-audit`: `participantRanks.lookupsByDay` stays under 1,000 a day; over the next days `gamesLast30Days.othersNothingStored` falls as the `rank-checks` job reaches the last week's games.
 - [ ] Admin Mode → System (or Data jobs → `tick`): the `rank-checks` job runs after `account-sync`, with "N checked … M players in K recent games were waiting" in its summary, and is never "failed" because Riot was busy.
+- [ ] After the pacing change (29 Oct 2026): a Data jobs `tick` whose summary has players waiting checks up to 30 in the run, with "W waits for Riot's one-second window" in the line, instead of stopping at about ten.
 - [ ] Your profile → Match History: the cards of games from the last week show their players' ranks (tier colour) without anyone opening them; an older game's ranks, read later, are in the caption colour.
 - [ ] Open a recent game: the note under the scoreboard says "Ranks around the time of this game."; hover a badge: "checked … after this game", or for a member "the last rank recorded before this game". Open a game from a month ago: badges read later carry a clock, and the note says so. The (i) explains both, by keyboard and by touch.
 - [ ] The note under the scoreboard about possible groups is one line with its (i); the groups themselves are unchanged.
