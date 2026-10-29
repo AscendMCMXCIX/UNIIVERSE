@@ -166,7 +166,9 @@ test("a game's scoreboard marks the players met in other games, and a mark opens
   // "Met N×" on screen; read as "Met N times, this game included (… against, … alongside)".
   expect(await mark!.evaluate((el) => [...el.childNodes].filter((n) => !(n instanceof HTMLElement && n.classList.contains("sr-only"))).map((n) => n.textContent).join(""))).toBe(`Met ${games}×`);
   await expect(mark!).toHaveAccessibleName(new RegExp(`^Met ${games} times, this game included \\((\\d+ against)?(, )?(\\d+ alongside)?\\)\\. Open their encounters$`));
-  const name = (await mark!.locator("xpath=ancestor::li[1]").getByTestId("participant-name").textContent())!.trim();
+  // The Riot ID the row names (its title), not the row's text: a possible group's label, read to
+  // screen readers after the name, arrives with the groups and may or may not be there yet.
+  const name = (await mark!.locator("xpath=ancestor::li[1]").getByTestId("participant-name").getAttribute("title"))!.split("#")[0]!;
   // Nothing scrolls sideways for it, on a phone either.
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
 
