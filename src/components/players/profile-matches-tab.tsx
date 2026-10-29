@@ -35,6 +35,15 @@ export interface MatchSearch {
   sort?: string;
   q?: string;
   limit?: string;
+  /** Match History's own Refine choices (domain/history-refine readRefine). */
+  result?: string;
+  patch?: string;
+  from?: string;
+  to?: string;
+  with?: string;
+  against?: string;
+  hl?: string;
+  group?: string;
 }
 
 /** Match History: the player's stored Riot games, a page at a time, or the players met in them (Encounters); details open on top. */
@@ -53,7 +62,7 @@ async function ProfileMatchesTabBody({ db, header, session, basePath, search }: 
   if (!self && !hasPermission(session, "view-teammate-stats")) return <p className="rounded-panel border border-border bg-surface p-4 text-sm text-fg-muted">Teammates&apos; match histories are not part of your access.</p>;
   if (search.view === "encounters") return <ProfileEncountersBody db={db} header={header} session={session} basePath={basePath} search={search} />;
   const [data, championsById, syncStatus, accounts] = await Promise.all([
-    getMatchHistory(db, player.id, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, scope: search.scope ?? null, championId: search.champion ?? null, accountId: search.account ?? null, page: Number(search.page) || 1, per: Number(search.per) || undefined }, (r) => (legalRolesFor(player).includes(r) ? poolFor(player, r) : [])),
+    getMatchHistory(db, player.id, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, scope: search.scope ?? null, championId: search.champion ?? null, accountId: search.account ?? null, page: Number(search.page) || 1, per: Number(search.per) || undefined, refine: { result: search.result, patch: search.patch, from: search.from, to: search.to, with: search.with, against: search.against, hl: search.hl, group: search.group } }, (r) => (legalRolesFor(player).includes(r) ? poolFor(player, r) : [])),
     championMap(db),
     getMatchSyncStatus(db, player.id),
     listAccountsForPlayer(db, player.id),

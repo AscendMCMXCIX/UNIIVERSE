@@ -284,6 +284,23 @@ Encounters moved from Team → Matches into each player's profile (Match History
 - **Before (Team → Matches):** a cold load sent 434 KB locally and 2.6 MB in production before the compact answer (above), then about 4 KB warm.
 - **Production after the deploy:** pending (the post-deploy `perf-probe`, step `profile.encounters`).
 
+## 29 Oct 2026: Match History's Refine (team members)
+
+Match History's Refine counts, for every visit, how many of the listed games each other team member played with the player and against them (`src/server/players/history-members.ts`).
+
+**How it reads:** one statement over `account_matches` only: the player's listed games with their side, joined to the members' own stored games by match, compared by side, grouped per member. The database sends one row per member (a few hundred bytes). The games of one member are read only while that member is chosen. No record JSON (`match_details.participants`) is read.
+
+**Measured locally** (PostgreSQL 16, a production-sized synthetic history: 7 other members, 5,000 stored records with ten participants each, the player with 1,100 games on two accounts, 275 of them shared; `EXPLAIN (ANALYZE, BUFFERS)`, warm):
+
+| | Database time | Buffers | Statement round trip |
+|---|---|---|---|
+| Members found in the records' participants (first version, not shipped) | 72.8 ms | 17,592 (every record opened; Postgres chose a sequential scan over the participants index) | 98–162 ms |
+| Members found in their own stored games (shipped) | 5.6 ms | 125 | 21–36 ms |
+
+Both found the same 137 games with a member and 138 against. Cold, the first version would have read every stored record from disk on each visit (the cost that makes Encounters slow cold in production, `docs/PERFORMANCE.md`); the shipped one reads narrow rows only.
+
+- **Production after the deploy:** pending (the post-deploy `perf-probe`, step `profile.historyMembers`, counts only).
+
 ## What still needs attention
 
 - **Meta & Trends removed** (after this change). Its collection and aggregation jobs were most of the database's writes, and its tables hold about 200 MB of the database. The tables stay until their drop is approved (`docs/DATA_PIPELINES.md`, Retired tables).

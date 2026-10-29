@@ -6,12 +6,13 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { MULTIKILL_NAMES } from "@/domain/multikills";
 import { QUEUE_GROUP_WORDS, figureText, queueGroup, type FigureKey } from "@/domain/match-analysis";
+import { narrowsGames, refineParams, type SessionSummary } from "@/domain/history-refine";
 import type { MatchDetailResult, MatchHistoryPage, MatchRow } from "@/server/players/match-history";
 import type { Composition } from "@/server/matches/compositions";
 import type { ParticipantRank } from "@/domain/known-rank";
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
-import { timeAgo, formatCount } from "@/lib/format";
+import { timeAgo, formatCount, formatDayMonth, formatNumber, formatTimeOfDay } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { MatchDetailModal } from "./match-detail";
 import { MatchDetailCacheContext, createMatchDetailCache, type MatchDetailCache } from "./match-detail-cache";
@@ -22,6 +23,7 @@ import { MultikillTag } from "./multikill-tag";
 import { ChampionLoadout, MatchRail, MatchResult, matchCardClass, matchTone } from "./match-card";
 import { TeamComposition } from "./team-composition";
 import { ModeElsewhere, OverviewFilters } from "@/components/players/overview-filters";
+import { HistoryRefineFields, historyRefinements } from "./history-refine-fields";
 import { MatchViewSwitch } from "./encounters-view";
 import type { DataStatus } from "@/domain/data-status";
 import { DataRefresh, type DataRefreshTarget } from "@/components/ui/data-status";
@@ -405,10 +407,18 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, stat
   }, []);
 
   const f = data.filter;
-  const narrowed = f.role || f.scope !== "all" || f.accountId || f.mode !== "all" || f.season !== data.currentSeason;
+  const narrowed = f.role || f.scope !== "all" || f.accountId || f.mode !== "all" || f.season !== data.currentSeason || narrowsGames(data.refine);
+  // Refine's own choices ride along every change of the shared filters; a change of them starts again at the newest games.
+  const keep = { per: String(data.per), ...refineParams(data.refine) };
+  const refineTo = (patch: Record<string, string | null>) => go({ ...patch, page: null });
+  // Grouping keeps the page and an open game: the games and their order stay the same.
+  const groupTo = (sessions: boolean) => go({ group: sessions ? "sessions" : null }, { keepMatch: true });
+  // The page's games by playing session, when grouped (a session cut by the page break shows its part here).
+  const sessionGroups = data.refine.sessions && data.rows.length ? groupBySession(data.rows, data.sessionOf) : null;
+  const card = (r: MatchRow) => <MatchCard key={r.matchId} row={r} playerId={playerId} champion={championsById[r.championId] ?? fallbackChampion(r.championId)} champ={champOrUnknown} onToggle={toggle} onPrefetch={prefetch} expanded={inline === r.matchId} checked={checkedRanks[r.matchId]} />;
 
   return (
-    <section className="space-y-3" aria-labelledby="match-history" data-testid="match-history" data-accounts-linked={data.accountsLinked} data-ready={interactive ? "true" : undefined}>
+    <section className="space-y-3" aria-labelledby="match-history" data-testid="match-history" data-accounts-linked={data.accountsLinked} data-total={data.total} data-ready={interactive ? "true" : undefined}>
       {/* Browsing individual games: the profile's one heading layout (as Overview and All
           Champions): the title and the switch to the players met (Encounters), Refresh with the
           data status under them, the filters on the right (the scope they set is readable in them);
@@ -428,9 +438,12 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, stat
               currentSeason={data.currentSeason}
               champions={data.championOptions.map((c) => ({ id: c.id, name: champ(c.id).name, games: c.games, portraitUrl: champ(c.id).portraitUrl }))}
               accounts={data.accountOptions}
-              keep={{ per: String(data.per) }}
+              keep={keep}
               modeCounts={data.modes.counts}
               testId="match-filters"
+              refineLabel="Refine the games"
+              extraFields={<HistoryRefineFields refine={data.refine} options={data} set={refineTo} group={groupTo} pending={pending} />}
+              extraRefinements={historyRefinements(data.refine, data, refineTo, groupTo)}
             />
           </div>
         }
@@ -443,13 +456,23 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, stat
           {data.total === 0 ? (
             <p className="rounded-panel border border-dashed border-border px-4 py-6 text-center text-sm text-fg-muted" data-testid="match-empty">
               {data.accountsLinked === 0 ? "No Riot account is linked yet: games appear here once one is linked and synced." : narrowed ? "No stored game matches these filters." : data.syncing ? "No games stored for this season yet; the first sync is collecting them and this page fills in by itself." : "No games stored for this season."}
-              <ModeElsewhere basePath={basePath} filter={f} elsewhere={data.modes.elsewhere} keep={{ per: String(data.per) }} />
+              <ModeElsewhere basePath={basePath} filter={f} elsewhere={data.modes.elsewhere} keep={keep} />
             </p>
+          ) : sessionGroups ? (
+            <ol className="@container/mh space-y-4" aria-label={`Playing sessions, page ${data.page} of ${data.pages}`} data-testid="match-sessions">
+              {sessionGroups.map((g) => {
+                const summary = data.sessions[g.key];
+                return (
+                  <li key={g.key} className="space-y-1.5" data-testid="session" data-games={summary?.games ?? g.rows.length}>
+                    {summary ? <SessionHeader summary={summary} onPage={g.rows.length} /> : null}
+                    <ol className="space-y-1.5">{g.rows.map(card)}</ol>
+                  </li>
+                );
+              })}
+            </ol>
           ) : (
             <ol className="@container/mh space-y-1.5" aria-label={`Page ${data.page} of ${data.pages}`}>
-              {data.rows.map((r) => (
-                <MatchCard key={r.matchId} row={r} playerId={playerId} champion={championsById[r.championId] ?? fallbackChampion(r.championId)} champ={champOrUnknown} onToggle={toggle} onPrefetch={prefetch} expanded={inline === r.matchId} checked={checkedRanks[r.matchId]} />
-              ))}
+              {data.rows.map(card)}
             </ol>
           )}
         </div>
@@ -459,6 +482,38 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, stat
         {windowed ? <MatchDetailModal playerId={playerId} matchId={windowed} championsById={championsById} onClose={closeWindow} /> : null}
       </MatchDetailCacheContext.Provider>
     </section>
+  );
+}
+
+/** The page's games in their playing sessions, in the page's order (sessions are runs of the list, newest first). */
+function groupBySession(rows: readonly MatchRow[], sessionOf: Readonly<Record<string, string>>): Array<{ key: string; rows: MatchRow[] }> {
+  const groups: Array<{ key: string; rows: MatchRow[] }> = [];
+  for (const r of rows) {
+    const key = sessionOf[r.matchId] ?? r.matchId;
+    const last = groups[groups.length - 1];
+    if (last && last.key === key) last.rows.push(r);
+    else groups.push({ key, rows: [r] });
+  }
+  return groups;
+}
+
+/** "29 Oct, 7:12 pm – 10:40 pm · 5 games · 3W 2L · 3.21 KDA · 7.4 CS/min · 2 h 10 min played" (wins and losses in the cards' colours). */
+function SessionHeader({ summary: s, onPage }: { summary: SessionSummary; onPage: number }) {
+  const minutes = Math.round(s.minutes);
+  const played = minutes >= 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} min` : `${minutes} min`;
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-1 text-xs text-fg-muted" data-testid="session-header">
+      <h3 className="text-sm font-semibold text-fg">
+        {formatDayMonth(s.start)}, {formatTimeOfDay(s.start)} – {formatTimeOfDay(s.end)}
+      </h3>
+      <span className="tabular-nums">
+        {formatCount(s.games)} {s.games === 1 ? "game" : "games"} · <span className="text-blue">{formatCount(s.wins)}W</span> <span className="text-red">{formatCount(s.losses)}L</span>
+      </span>
+      {s.kda !== null ? <span className="tabular-nums">{s.perfect ? "Perfect KDA" : `${formatNumber(s.kda, 2)} KDA`}</span> : null}
+      {s.csPerMinute !== null ? <span className="tabular-nums">{formatNumber(s.csPerMinute, 1)} CS/min</span> : null}
+      {minutes > 0 ? <span className="tabular-nums">{played} played</span> : null}
+      {onPage < s.games ? <span className="text-fg-subtle">{formatCount(onPage)} of them on this page</span> : null}
+    </div>
   );
 }
 

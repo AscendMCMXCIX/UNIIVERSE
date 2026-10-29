@@ -192,6 +192,11 @@ describe("team leaderboards data", () => {
     expect(data.note).toMatch(/^3 players · 25 games \(26 stored rows\) · 2 with match details · 1 with extra figures$/);
     expect(data.note).not.toMatch(/Ace|Bea/);
     expect(steps.find((s) => s.name === "leaderboards.view")?.error).toBeUndefined();
+    // Match History's member counts for the busiest player: counts only, never a name.
+    const members = steps.find((s) => s.name === "profile.historyMembers")!;
+    expect(members.error).toBeUndefined();
+    expect(members.note).toMatch(/^\d+ games · \d+ members with a linked account · \d+ of them in these games · \d+ member placements$/);
+    expect(members.note).not.toMatch(/Ace|Bea/);
   }, 60_000);
 
   it("keeps all 48 statistics, and every one builds a board in every scope", async () => {

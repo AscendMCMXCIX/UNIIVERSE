@@ -46,9 +46,18 @@ export function OverviewFilters({
   resetQuery,
   modeCounts,
   refineScope,
+  extraFields,
+  extraRefinements = [],
+  refineLabel = "Refine the statistics",
 }: {
+  /** The Refine panel's name for assistive technology. */
+  refineLabel?: string;
   /** What Refine's choices narrow on this page, said at the top of its panel (the sections it leaves alone keep their own scope). */
   refineScope?: string;
+  /** A page's own fields at the end of Refine (Match History's result, patch, days, team members, highlights). */
+  extraFields?: React.ReactNode;
+  /** The page's own choices in effect, shown and removed like the shared ones. */
+  extraRefinements?: ReadonlyArray<{ key: string; text: string; clear: () => void }>;
   /** Games per game mode in the chosen season, shown beside each mode ("Ranked Flex (14)"). */
   modeCounts?: Partial<Record<StatsFilter["mode"], number>>;
   /** Offer the champion filter (All Champions has its own search instead). */
@@ -81,6 +90,7 @@ export function OverviewFilters({
     filter.scope === "pool" ? { key: "scope", text: "Configured pool", clear: () => go({ scope: "all", championId: null }) } : null,
     filter.scope === "champion" && filter.championId ? { key: "champion", text: champions.find((c) => c.id === filter.championId)?.name ?? filter.championId, clear: () => go({ scope: "all", championId: null }) } : null,
     filter.accountId ? { key: "account", text: accounts.find((a) => a.id === filter.accountId)?.riotId ?? "One account", clear: () => go({ accountId: null }) } : null,
+    ...extraRefinements,
   ].filter((r): r is { key: string; text: string; clear: () => void } => !!r);
   const [open, setOpen] = React.useState(false);
   const refineRef = React.useRef<HTMLDivElement>(null);
@@ -171,13 +181,13 @@ export function OverviewFilters({
         </FilterField>
         {/* Refine and its panel. Phones: no box of its own (display: contents), so the fields sit in the
             opened filter bar. Wider: the anchor of the floating panel. Without a field to offer, none. */}
-        {showRole || showChampions || accounts.length > 1 ? (
+        {showRole || showChampions || accounts.length > 1 || extraFields ? (
           <div ref={refineRef} className="max-md:contents md:relative">
             <RefineButton buttonRef={refineButton} open={open} count={refinements.length} controls="overview-refine" haspopup="dialog" onClick={() => setOpen((o) => !o)} className="max-md:hidden" testId="refine-filters" />
             <div
               id="overview-refine"
               role="group"
-              aria-label="Refine the statistics"
+              aria-label={refineLabel}
               className={cn(
                 "flex min-w-0 flex-col gap-3",
                 "md:absolute md:top-full md:z-40 md:mt-2 md:w-[min(34rem,calc(100vw-2rem))] md:rounded-panel md:border md:border-border md:bg-bg-elevated md:p-3.5 md:shadow-2xl md:shadow-black/40",
@@ -224,6 +234,7 @@ export function OverviewFilters({
                   ) : null}
                 </div>
               ) : null}
+              {extraFields}
             </div>
           </div>
         ) : null}

@@ -624,3 +624,129 @@ describe("comparisons, the summary and the ladder (Match History 2.0)", () => {
     expect(enemyMid.damageShare).toBeCloseTo(0.2, 6);
   });
 });
+
+describe("Refine and playing sessions (Match History 2.0)", () => {
+  let playerId: string;
+  let mateA: string;
+  let mateB: string;
+  const minute = 60_000;
+  const day = 24 * 60 * minute;
+  // Ten days ago at a fixed hour, so the days and the sittings do not depend on when the test runs.
+  const t0 = Math.floor((Date.now() - 10 * day) / day) * day + 9 * 60 * minute;
+  const lanes = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
+  const part = (puuid: string, teamId: number, position: string, over: Partial<MatchParticipantDetail> = {}): MatchParticipantDetail => ({ puuid, name: `${puuid}#OCE`, teamId, championId: "Ahri", championKey: 103, champLevel: 14, position, win: teamId === 100, kills: 2, deaths: 3, assists: 4, cs: 150, gold: 9_000, damage: 15_000, damageTaken: 18_000, vision: 18, wardsPlaced: 8, items: null, spells: null, runes: null, ...over });
+  /** A record with the player in the middle on blue and the members placed as given (blue = with, red = against). */
+  const record = (matchId: string, created: number, members: { blue?: string[]; red?: string[] }) => {
+    const blue = lanes.map((l, i) => (l === "MIDDLE" ? part("r-me", 100, l) : part(members.blue?.[i > 2 ? i - 1 : i] ?? `r-b-${matchId}-${l}`, 100, l)));
+    const red = lanes.map((l, i) => part(members.red?.[i] ?? `r-r-${matchId}-${l}`, 200, l));
+    return { matchId, platform: "oc1", queueId: 420, gameCreation: created, gameDuration: 1800, gameVersion: "16.20.1", teams: [], participants: [...blue, ...red] };
+  };
+  const ids = { g1: "OC1_920000001", g2: "OC1_920000002", g3: "OC1_920000003", g4: "OC1_920000004", normal: "OC1_920000005" };
+
+  beforeAll(async () => {
+    const db = handle.db;
+    playerId = (await createPlayer(db, teamId, { displayName: "Refiner", primaryRole: "MID", primaryPool: ["Ahri"] })).id;
+    const account = (await addAccount(db, { ownerType: "player", playerId, riotId: "Refiner#OCE", platform: "oc1", puuid: "r-me" })).id;
+    mateA = (await createPlayer(db, teamId, { displayName: "Mate A", primaryRole: "JUNGLE", primaryPool: ["LeeSin"] })).id;
+    const mateAccountA = (await addAccount(db, { ownerType: "player", playerId: mateA, riotId: "MateA#OCE", platform: "oc1", puuid: "r-mate-a" })).id;
+    mateB = (await createPlayer(db, teamId, { displayName: "Mate B", primaryRole: "TOP", primaryPool: ["Gwen"] })).id;
+    const mateAccountB = (await addAccount(db, { ownerType: "player", playerId: mateB, riotId: "MateB#OCE", platform: "oc1", puuid: "r-mate-b" })).id;
+    // An archived profile is not a team member: never counted, never offered.
+    const gone = (await createPlayer(db, teamId, { displayName: "Former", primaryRole: "ADC", primaryPool: ["Jinx"] })).id;
+    const goneAccount = (await addAccount(db, { ownerType: "player", playerId: gone, riotId: "Former#OCE", platform: "oc1", puuid: "r-former" })).id;
+    await db.execute(sql`UPDATE players SET archived_at = now() WHERE id = ${gone}::uuid`);
+    const counts = (doubleKills: number, tripleKills: number, quadraKills: number, pentaKills: number) => ({ doubleKills, tripleKills, quadraKills, pentaKills });
+    const game = (matchId: string, created: number, over: Partial<typeof accountMatches.$inferInsert> = {}): typeof accountMatches.$inferInsert => ({ accountId: account, matchId, gameCreation: created, queueId: 420, championId: "Ahri", role: "MID", win: true, patch: "16.20", kills: 5, deaths: 2, assists: 6, cs: 210, damage: 21_000, visionScore: 30, gameDuration: 1800, extraStats: counts(0, 0, 0, 0), ...over });
+    // One evening: g1, g2 15 minutes after it ended, a normal game 15 minutes after that. Two days later g3, then g4 (no record).
+    // Each side (team_id) as the summary of a stored record keeps it (accounts/match-summary); g4 has none.
+    await db.insert(accountMatches).values([
+      game(ids.g1, t0, { teamId: 100, extraStats: counts(1, 0, 0, 0) }),
+      game(ids.g2, t0 + 45 * minute, { teamId: 100, win: false, kills: 1, deaths: 6, assists: 2 }),
+      game(ids.normal, t0 + 90 * minute, { teamId: 100, queueId: 400, win: false }),
+      game(ids.g3, t0 + 2 * day, { teamId: 100, patch: "16.19", extraStats: counts(0, 0, 0, 1) }),
+      game(ids.g4, t0 + 4 * day, { patch: "16.19", win: false }),
+    ]);
+    await db.insert(matchDetails).values([
+      record(ids.g1, t0, { blue: ["r-mate-a", "r-former"] }),
+      record(ids.g2, t0 + 45 * minute, { red: ["r-mate-a"] }),
+      { ...record(ids.normal, t0 + 90 * minute, {}), queueId: 400 },
+      // Mate A is in g3's record too, but their account never stored g3: not counted (the rule of Played together).
+      record(ids.g3, t0 + 2 * day, { blue: ["r-mate-b"], red: ["r-mate-a"] }),
+    ]);
+    // The members' own stored games, as their accounts' sync keeps them, each with its side.
+    await db.insert(accountMatches).values([
+      game(ids.g1, t0, { accountId: mateAccountA, teamId: 100, championId: "LeeSin", role: "JUNGLE" }),
+      game(ids.g1, t0, { accountId: goneAccount, teamId: 100, championId: "Jinx", role: "ADC" }),
+      game(ids.g2, t0 + 45 * minute, { accountId: mateAccountA, teamId: 200, championId: "LeeSin", role: "JUNGLE", win: true }),
+      game(ids.g3, t0 + 2 * day, { accountId: mateAccountB, teamId: 100, championId: "Gwen", role: "TOP", patch: "16.19" }),
+    ]);
+  });
+
+  const page = (refine: Record<string, string>, more: Parameters<typeof getMatchHistory>[2] = {}) => getMatchHistory(handle.db, playerId, { per: 25, ...more, refine });
+  const listed = async (refine: Record<string, string>, more: Parameters<typeof getMatchHistory>[2] = {}) => (await page(refine, more)).rows.map((r) => r.matchId);
+
+  it("keeps wins or losses, one patch (by either name) and the days between two dates, in the installation's time zone", async () => {
+    const { isoDay } = await import("@/lib/format");
+    expect(await listed({ result: "win" })).toEqual([ids.g3, ids.g1]);
+    expect(await listed({ result: "loss" })).toEqual([ids.g4, ids.normal, ids.g2]);
+    expect(await listed({ patch: "26.19" })).toEqual([ids.g4, ids.g3]);
+    expect(await listed({ from: isoDay(t0 + 2 * day), to: isoDay(t0 + 3 * day) })).toEqual([ids.g3]);
+    const all = await page({});
+    expect(all.unrefinedTotal).toBe(5);
+    expect(all.patchOptions).toEqual([
+      { patch: "16.20", label: "26.20", games: 3 },
+      { patch: "16.19", label: "26.19", games: 2 },
+    ]);
+    // Narrowed by Refine: the summary is the refined games', and the total says how many are listed.
+    const wins = await page({ result: "win" });
+    expect(wins.total).toBe(2);
+    expect(wins.unrefinedTotal).toBe(5);
+    expect(wins.summary!.form.recent.games).toBe(2);
+  });
+
+  it("keeps the games a team member played with the player or against them, as their stored games place them", async () => {
+    const all = await page({});
+    // Counted per member over the games the other filters leave; the archived profile is not offered.
+    expect(all.memberOptions).toEqual([
+      { id: mateA, name: "Mate A", with: 1, against: 1 },
+      { id: mateB, name: "Mate B", with: 1, against: 0 },
+    ]);
+    expect(await listed({ with: mateA })).toEqual([ids.g1]);
+    expect(await listed({ against: mateA })).toEqual([ids.g2]);
+    expect(await listed({ with: "any" })).toEqual([ids.g3, ids.g1]);
+    expect(await listed({ against: mateB })).toEqual([]);
+    // The counts are over the games the shared filters leave, not narrowed by Refine's own choices,
+    // so choosing a patch keeps every member on offer; a shared filter does narrow them.
+    expect((await page({ patch: "16.19" })).memberOptions.map((m) => m.name)).toEqual(["Mate A", "Mate B"]);
+    expect((await page({}, { mode: "normal" })).memberOptions).toEqual([]);
+    // A profile that is not a current member is ignored, never guessed: every game is listed.
+    const unknown = await page({ with: "99999999-9999-4999-8999-999999999999" });
+    expect(unknown.refine.member).toBeNull();
+    expect(unknown.total).toBe(5);
+  });
+
+  it("keeps the games with a multikill of at least the size chosen", async () => {
+    expect(await listed({ hl: "double" })).toEqual([ids.g3, ids.g1]);
+    expect(await listed({ hl: "penta" })).toEqual([ids.g3]);
+    expect(await listed({ hl: "triple", result: "loss" })).toEqual([]);
+  });
+
+  it("groups the page into playing sessions found from every game, each with the figures of the games listed", async () => {
+    const grouped = await page({ group: "sessions" });
+    expect(grouped.sessionOf[ids.g1]).toBe(ids.g1);
+    expect(grouped.sessionOf[ids.g2]).toBe(ids.g1);
+    expect(grouped.sessionOf[ids.normal]).toBe(ids.g1);
+    expect(grouped.sessionOf[ids.g3]).toBe(ids.g3);
+    expect(grouped.sessions[ids.g1]).toMatchObject({ games: 3, wins: 1, losses: 2, start: t0, end: t0 + 90 * minute + 1800 * 1000, minutes: 90 });
+    // Solo/Duo only: the normal game is not listed but keeps the evening one session.
+    const solo = await page({ group: "sessions" }, { mode: "solo" });
+    expect(solo.rows.map((r) => r.matchId)).toEqual([ids.g4, ids.g3, ids.g2, ids.g1]);
+    expect(solo.sessions[ids.g1]).toMatchObject({ games: 2, wins: 1, losses: 1, end: t0 + 45 * minute + 1800 * 1000 });
+    expect(solo.sessions[ids.g1]!.kda).toBeCloseTo((5 + 6 + 1 + 2) / (2 + 6), 6);
+    // A session cut by the page break keeps its whole record.
+    const small = await page({ group: "sessions" }, { per: 5, page: 1 });
+    expect(Object.keys(small.sessions).length).toBeGreaterThan(0);
+    // Without grouping, nothing is computed.
+    expect((await page({})).sessionOf).toEqual({});
+  });
+});

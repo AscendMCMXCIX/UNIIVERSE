@@ -501,6 +501,17 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
     }
     details.push({ matchId, platform: "euw1", queueId, gameCreation, gameDuration: duration, gameVersion: `${season}.20.1`, teams: [{ teamId: 100, win, bans: [], objectives: objectiveCounts?.[100] ?? {} }, { teamId: 200, win: !win, bans: [], objectives: objectiveCounts?.[200] ?? {} }], participants: [me, ...allies, ...enemies] });
   }
+  // One evening of back-to-back games: the 2nd and 3rd newest move up to the newest (same order,
+  // 15 and 12 minutes between them), so Match History's playing sessions have a sitting to show
+  // near the top of the list, on its first page whatever its size.
+  for (const [back, gapMinutes] of [[2, 15], [3, 12]] as const) {
+    const earlier = games[count - back];
+    const later = games[count - back + 1];
+    if (!earlier || !later) continue;
+    earlier.gameCreation = later.gameCreation - (earlier.gameDuration! * 1000 + gapMinutes * 60_000);
+    const record = details.find((d) => d.matchId === earlier.matchId);
+    if (record) record.gameCreation = earlier.gameCreation;
+  }
   await db.insert(accountMatches).values(games).onConflictDoNothing();
   await db.insert(matchDetails).values(details).onConflictDoNothing();
   if (timelines.length) await db.insert(matchTimelines).values(timelines).onConflictDoNothing();

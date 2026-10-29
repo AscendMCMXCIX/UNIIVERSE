@@ -44,6 +44,19 @@ export function calendarDay(date: DateInput): { day: number; month: (typeof MONT
   return c ? { day: c.day, month: MONTHS[c.month - 1]!, year: c.year } : null;
 }
 
+/** The calendar day of an instant in the installation's time zone as a date input writes it ("2026-10-21"); "" for no date. */
+export function isoDay(date: DateInput): string {
+  const c = clock(date);
+  return c ? `${c.year}-${String(c.month).padStart(2, "0")}-${String(c.day).padStart(2, "0")}` : "";
+}
+
+/** "21 Oct 2026" for a calendar day as a date input writes it ("2026-10-21"); "—" for anything else. */
+export function formatIsoDay(day: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
+  const month = m ? MONTHS[Number(m[2]) - 1] : undefined;
+  return m && month ? `${Number(m[3])} ${month} ${m[1]}` : "—";
+}
+
 /** "21 Oct 2026". */
 export function formatDate(date: DateInput): string {
   const c = clock(date);
@@ -54,6 +67,12 @@ export function formatDate(date: DateInput): string {
 export function formatDayMonth(date: DateInput): string {
   const c = clock(date);
   return c ? `${c.day} ${MONTHS[c.month - 1]}` : "—";
+}
+
+/** "3:04 pm": the time of day in the installation's time zone; "—" for no date. */
+export function formatTimeOfDay(date: DateInput): string {
+  const c = clock(date);
+  return c ? `${c.hour % 12 || 12}:${String(c.minute).padStart(2, "0")} ${c.hour < 12 ? "am" : "pm"}` : "—";
 }
 
 /** "21 Oct 2026, 3:04 pm". */
