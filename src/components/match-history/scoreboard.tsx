@@ -246,15 +246,25 @@ export function GroupsNote({ result, teams }: { result: MatchGroupsResult | null
   const sides = (list: MatchGroupsTeam[]) => list.map((t) => side(t.teamId)).join(" and ");
   const members = open.filter(nobody);
   const thin = open.filter((t) => !nobody(t));
+  // One statement: nothing to infer from on either side, or the inference and then the sides it could not cover.
   return (
     <p className="text-2xs text-fg-subtle" data-testid="possible-groups-note" data-state="ok">
-      {thin.length ? (
+      {thin.length === result.teams.length ? (
         <span className="text-fg-muted" data-testid="possible-groups-insufficient">
-          {thin.length === result.teams.length ? "Possible groups: not enough recorded history to assess." : `${sides(thin)}: not enough recorded history to assess possible groups.`}{" "}
+          Possible groups: not enough recorded history to assess.
         </span>
-      ) : null}
-      {members.length ? <span className="text-fg-muted">{sides(members)}: no other players to assess. </span> : null}
-      Possible groups: an inference from {formatCount(result.gamesSearched)} earlier recorded {result.gamesSearched === 1 ? "game" : "games"}.{" "}
+      ) : (
+        <>
+          Possible groups: an inference from {formatCount(result.gamesSearched)} earlier recorded {result.gamesSearched === 1 ? "game" : "games"}.
+          {thin.length ? (
+            <span className="text-fg-muted" data-testid="possible-groups-insufficient">
+              {" "}
+              {sides(thin)}: not enough recorded history to assess possible groups.
+            </span>
+          ) : null}
+        </>
+      )}
+      {members.length ? <span className="text-fg-muted"> {sides(members)}: no other players to assess.</span> : null}{" "}
       <InfoTip
         label="About possible groups"
         testId="groups-info"

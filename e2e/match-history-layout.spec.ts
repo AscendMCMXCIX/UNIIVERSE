@@ -26,11 +26,11 @@ test("the profile card is a compact band on the other sections and in full on th
   await page.goto(profile);
   const header = page.getByTestId("profile-header");
   await expect(header).toBeVisible();
-  await expect(header).not.toHaveAttribute("data-compact", /.*/);
+  await expect(header).not.toHaveAttribute("data-compact");
   const full = (await header.boundingBox())!;
   for (const section of ["matches", "champions", "accounts"]) {
     await page.goto(`${profile}/${section}`);
-    await expect(header).toHaveAttribute("data-compact", "");
+    await expect(header).toHaveAttribute("data-compact");
     // The name, the role and the rank stay; the band is far shorter than the card.
     await expect(header.getByRole("heading", { level: 1 })).toBeVisible();
     await expect(header.getByTestId("profile-rank")).toBeVisible();
@@ -41,7 +41,7 @@ test("the profile card is a compact band on the other sections and in full on th
   }
   // Back on the Overview (a tab, no reload): the full card again.
   await page.getByTestId("profile-tab-overview").click();
-  await expect(header).not.toHaveAttribute("data-compact", /.*/);
+  await expect(header).not.toHaveAttribute("data-compact");
 });
 
 test("an open game ends with a control that closes it and brings its card into view, with the focus on it", async ({ page }) => {
@@ -94,9 +94,9 @@ test("a narrow card keeps the time of its game in view", async ({ page }) => {
   expect(count).toBeGreaterThan(0);
   for (let i = 0; i < count; i++) {
     const meta = metas.nth(i);
-    // "Victory · Solo/Duo · 3h ago": the queue without "Ranked", and nothing cut off.
+    // "Victory · Solo/Duo · 3h ago" as shown (the long queue name is hidden): without "Ranked", and nothing cut off.
     await expect(meta).toContainText(/ago|just now/);
-    await expect(meta).not.toContainText("Ranked");
+    expect(await meta.innerText()).not.toContain("Ranked");
     expect(await meta.evaluate((el) => el.scrollWidth - el.clientWidth), `card ${i}`).toBeLessThanOrEqual(1);
   }
 });

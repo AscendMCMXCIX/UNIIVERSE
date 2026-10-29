@@ -105,13 +105,16 @@ test("Analysis compares the game with what it names: the team, the ten players, 
 
 test("a game without a timeline compares the lane at the end only, and says why", async ({ page }) => {
   await openHistory(page);
-  for (let i = 0; i < 12; i++) {
+  const cards = await page.getByTestId("match-card").count();
+  for (let i = 0; i < cards; i++) {
     const card = page.getByTestId("match-card").nth(i);
     const breakdown = await openGame(card);
     const timeline = await section(breakdown, "timeline");
     await expect(timeline.getByTestId("timeline-loading")).toHaveCount(0, { timeout: 15_000 });
+    // Read before switching: a section that is not shown is not in the page.
+    const none = (await timeline.getByTestId("timeline-message").count()) > 0;
     const lane = (await section(breakdown, "analysis")).getByTestId("lane-comparison");
-    if ((await timeline.getByTestId("timeline-message").count()) && (await lane.getAttribute("data-state")) !== "none") {
+    if (none && (await lane.getAttribute("data-state")) !== "none") {
       // No rows of dashes: the end of the game, and a line saying why 10:00 and 15:00 are missing.
       await expect(lane.getByTestId("lane-at-end")).toContainText(/[+−±]\d/);
       await expect(lane.getByTestId("lane-at-10")).toHaveCount(0);
@@ -121,7 +124,7 @@ test("a game without a timeline compares the lane at the end only, and says why"
     }
     await closeGame(card);
   }
-  throw new Error("no demo game without a timeline among the newest twelve");
+  throw new Error("no demo game without a timeline on the first page");
 });
 
 test("Timeline draws the gold difference, reads a minute by keyboard and as a table, and asks for the timeline once", async ({ page }) => {
