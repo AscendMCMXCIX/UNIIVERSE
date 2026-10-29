@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SeasonGame } from "./season-stats";
-import { BASELINE_GAMES, BASELINE_MIN, BEST_MIN, CONTRADICTION_MIN, LEAD_MIN, figureOf, goldContradictsRecord, goldStory, laneMoments, laneOpponentOf, personalComparison, placeOf, queueGroup, standoutOf, teamGoldDifference } from "./match-analysis";
+import { BASELINE_GAMES, BASELINE_MIN, BEST_MIN, CONTRADICTION_MIN, LEAD_MIN, figureOf, goldContradictsRecord, goldStory, laneMoments, laneOpponentOf, personalComparison, placeOf, queueGroup, standingText, standoutOf, teamGoldDifference } from "./match-analysis";
 
 let n = 0;
 /** A 30-minute game; `at` orders the games (minutes since an arbitrary start). */
@@ -54,6 +54,9 @@ describe("personal comparison", () => {
     const dmg = personalComparison(target, history)!.figures.find((f) => f.key === "damagePerMin")!;
     // 4 earlier games below 15,000, one tie: (4 + 0.5) / 10.
     expect(dmg.percentile).toBeCloseTo(0.45);
+    // In words, the tie is not counted: higher than 4 of the 10.
+    expect(dmg.below).toBe(4);
+    expect(standingText(dmg)).toBe("Higher than 4 of 10");
     expect(dmg.median).toBeCloseTo(16_500 / 30);
     expect(dmg.top).toBeCloseTo(30_000 / 30);
     expect(dmg.best).toBe(false);
@@ -76,6 +79,14 @@ describe("personal comparison", () => {
     expect(c.figures.find((f) => f.key === "damagePerMin")!.best).toBe(true);
     // Equal to the earlier best is not above it.
     expect(personalComparison(game(100), enough)!.figures.some((f) => f.best)).toBe(false);
+  });
+
+  it("says where the game sits in counts, never a bare percentage", () => {
+    expect(standingText({ best: true, below: 28, games: 28 })).toBe("Your best in 28");
+    // Above every one of too few games to be called a best.
+    expect(standingText({ best: false, below: 12, games: 12 })).toBe("Higher than all 12");
+    expect(standingText({ best: false, below: 11, games: 28 })).toBe("Higher than 11 of 28");
+    expect(standingText({ best: false, below: 0, games: 28 })).toBe("Higher than none of 28");
   });
 
   it("does not compare supports on CS, and counts one game per match", () => {

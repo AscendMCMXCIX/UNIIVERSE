@@ -49,6 +49,14 @@ translucent status bar, so:
 - Controls on a card (a flip button, social icons) stop their event: using one never opens,
   turns or selects the card.
 
+## Long lists inside a page
+
+A list opened inside a page (a table under a `<details>`, an event list) runs with the page on a
+touch screen: a box that scrolls inside a scrolling page catches the finger, and the page stops
+moving. With a mouse or trackpad (`pointer-fine:`) it may keep a height limit and scroll in its box
+(Match History's timeline tables do: `pointer-fine:max-h-64 pointer-fine:overflow-y-auto`, and
+their header sticks only there). Windows and dialogs keep their one scrolling body (above).
+
 ## Rows that scroll sideways
 
 Tabs and chip rows that do not fit scroll sideways inside themselves (never the page) with

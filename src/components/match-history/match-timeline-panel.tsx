@@ -3,7 +3,7 @@
 import * as React from "react";
 import { X } from "lucide-react";
 import { goldStory, LEAD_MIN, type GoldPoint } from "@/domain/match-analysis";
-import { eventsBetween, goldSwings, mergeGrubs, objectiveLabel, objectiveLegend, OBJECTIVE_MARK, type EventsInWindow, type TimelineEventsView } from "@/domain/match-events";
+import { eventsBetween, goldSwings, mergeGrubs, objectiveLabel, objectiveLegend, OBJECTIVE_MARK, type EventsInWindow, type ObjectiveKind, type TimelineEventsView } from "@/domain/match-events";
 import type { MatchTimelineResult } from "@/server/accounts/match-timeline";
 import { InfoTip } from "@/components/ui/info-tip";
 import { formatCount } from "@/lib/format";
@@ -94,7 +94,6 @@ export function TimelinePanel({ result }: { result: MatchTimelineResult | null }
           {eventsNote ?? "Riot does not provide the kills and objectives of this game, so they are not marked."}
         </p>
       )}
-      <p className="text-2xs text-fg-subtle">From Riot&apos;s match timeline: the gold read once per frame (about every minute), kills and objectives at the moment Riot recorded them.</p>
     </div>
   );
 }
@@ -143,16 +142,26 @@ function Swings({ swings, events }: { swings: ReturnType<typeof goldSwings>; eve
   );
 }
 
+type EventMark = { kind: ObjectiveKind; own: boolean } | "kill" | "assist" | "death";
+
+/** The chart's mark for an event: an objective's letter in its team's colour, a dot for the player's kill, a ring for an assist, a cross for a death. */
+function EventMarkIcon({ mark }: { mark: EventMark }) {
+  if (mark === "kill") return <span className="h-2 w-2 rounded-full bg-good" />;
+  if (mark === "assist") return <span className="h-2 w-2 rounded-full border-[1.5px] border-good" />;
+  if (mark === "death") return <X className="h-3 w-3 text-bad" strokeWidth={3} />;
+  return <span className={cn("grid h-4 w-4 place-items-center rounded text-3xs font-bold leading-none", mark.own ? "bg-blue/20 text-blue" : "bg-red/20 text-red")}>{OBJECTIVE_MARK[mark.kind]}</span>;
+}
+
 /** Every objective and the player's own kills, assists and deaths, in order: the markers in words. */
 function EventList({ events }: { events: TimelineEventsView }) {
-  type Row = { minute: number; what: string; side: "own" | "enemy" | "you"; key: string };
+  type Row = { minute: number; what: string; side: "own" | "enemy" | "you"; mark: EventMark; key: string };
   const rows: Row[] = [
-    ...mergeGrubs(events.objectives).map((o, i): Row => ({ minute: o.minute, what: objectiveLabel(o), side: o.own ? "own" : "enemy", key: `o${i}` })),
+    ...mergeGrubs(events.objectives).map((o, i): Row => ({ minute: o.minute, what: objectiveLabel(o), side: o.own ? "own" : "enemy", mark: { kind: o.kind, own: o.own }, key: `o${i}` })),
     ...(events.you
       ? [
-          ...events.you.kills.map((m, i): Row => ({ minute: m, what: "Your kill", side: "you", key: `k${i}` })),
-          ...events.you.assists.map((m, i): Row => ({ minute: m, what: "Your assist", side: "you", key: `a${i}` })),
-          ...events.you.deaths.map((m, i): Row => ({ minute: m, what: "Your death", side: "you", key: `d${i}` })),
+          ...events.you.kills.map((m, i): Row => ({ minute: m, what: "Your kill", side: "you", mark: "kill", key: `k${i}` })),
+          ...events.you.assists.map((m, i): Row => ({ minute: m, what: "Your assist", side: "you", mark: "assist", key: `a${i}` })),
+          ...events.you.deaths.map((m, i): Row => ({ minute: m, what: "Your death", side: "you", mark: "death", key: `d${i}` })),
         ]
       : []),
   ].sort((a, b) => a.minute - b.minute);
@@ -166,10 +175,11 @@ function EventList({ events }: { events: TimelineEventsView }) {
           {kills ? <span className="tabular-nums text-fg-subtle"> ({teamKillWords(kills.own.length, kills.enemy.length)})</span> : null}
         </span>
       </summary>
-      <div className="mt-1 max-h-64 overflow-y-auto rounded-lg border border-border">
+      {/* On a touch screen the table runs with the page: a box that scrolls inside the page would catch the finger. */}
+      <div className="mt-1 rounded-lg border border-border pointer-fine:max-h-64 pointer-fine:overflow-y-auto">
         <table className="w-full text-xs" data-testid="timeline-events-table">
           <caption className="sr-only">Objectives taken by each team and your kills, assists and deaths, in game time order</caption>
-          <thead className="sticky top-0 bg-surface text-fg-subtle">
+          <thead className="bg-surface text-fg-subtle pointer-fine:sticky pointer-fine:top-0">
             <tr>
               <th scope="col" className="px-3 py-1 text-left font-medium">
                 Time
@@ -186,7 +196,14 @@ function EventList({ events }: { events: TimelineEventsView }) {
             {rows.map((r) => (
               <tr key={r.key} className="border-t border-border/60" data-side={r.side}>
                 <td className="px-3 py-1 tabular-nums text-fg-muted">{gameClock(r.minute)}</td>
-                <td className="px-3 py-1 text-fg">{r.what}</td>
+                <td className="px-3 py-1 text-fg">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="grid w-4 shrink-0 place-items-center" aria-hidden>
+                      <EventMarkIcon mark={r.mark} />
+                    </span>
+                    {r.what}
+                  </span>
+                </td>
                 <td className={cn("px-3 py-1", r.side === "own" ? "text-blue" : r.side === "enemy" ? "text-red" : "text-fg-muted")}>{r.side === "own" ? "Your team" : r.side === "enemy" ? "Other team" : "You"}</td>
               </tr>
             ))}
@@ -217,12 +234,17 @@ function lanesFor<T extends { x: number }>(items: readonly T[], width: number, r
  * team's kills as short ticks (the player's team's along the top, the other's along the bottom),
  * and under the curve the objectives each team took and the player's own kills and deaths, at the
  * same scale. Hover, touch or the arrow keys read one frame, with what happened since the frame
- * before; Home and End jump to the ends. GoldTable and EventList hold every value in words.
+ * before; Home and End jump to the ends. The marks under the curve read too: a mark reads the frame
+ * that covers it, so its event is in the reading. A touch keeps its reading after the finger
+ * lifts (a mouse's ends when it leaves). GoldTable and EventList hold every value in words.
  */
 export function GoldChart({ points, events = null, testId = "gold-chart" }: { points: GoldPoint[]; events?: TimelineEventsView | null; testId?: string }) {
   const box = React.useRef<HTMLDivElement>(null);
+  const svg = React.useRef<SVGSVGElement>(null);
   const [W, setW] = React.useState(640);
   const [at, setAt] = React.useState<number | null>(null);
+  // How the frame was chosen: leaving the chart with the keyboard ends a keyboard reading; a tap under the curve moves the focus but keeps its reading.
+  const via = React.useRef<"pointer" | "key">("pointer");
   const uid = React.useId().replace(/[^a-zA-Z0-9_-]/g, "");
   React.useEffect(() => {
     const el = box.current;
@@ -253,6 +275,15 @@ export function GoldChart({ points, events = null, testId = "gold-chart" }: { po
     });
     setAt(best);
   };
+  // A mark reads the first frame at or after its moment (the frame whose "since the minute before" holds it); elsewhere, the nearest frame.
+  const read = (e: React.PointerEvent) => {
+    via.current = "pointer";
+    const mark = (e.target as Element).closest?.("[data-minute]");
+    if (mark) {
+      const i = points.findIndex((p) => p.minute >= Number(mark.getAttribute("data-minute")));
+      setAt(i < 0 ? points.length - 1 : i);
+    } else if (svg.current) pick(e.clientX, svg.current.getBoundingClientRect());
+  };
   const hover = at === null ? null : points[at]!;
   // What happened since the frame before the one read (or since the start).
   const since = hover && events ? eventsBetween(events, at! > 0 ? points[at! - 1]!.minute : -1, hover.minute) : null;
@@ -267,121 +298,127 @@ export function GoldChart({ points, events = null, testId = "gold-chart" }: { po
   const you = events?.you ?? null;
   return (
     <figure className="min-w-0" data-testid={testId}>
-      <figcaption id={`${uid}-cap`} className="mb-1.5 text-xs text-fg-muted">
-        Gold difference between the teams (your team minus theirs){events?.kills ? ", with each team's kills" : ""}
+      <figcaption className="mb-1.5 flex items-start gap-1.5 text-xs text-fg-muted">
+        <span id={`${uid}-cap`}>Gold difference between the teams (your team minus theirs){events?.kills ? ", with each team's kills" : ""}</span>
+        <InfoTip label="About this chart" text="From Riot's match timeline: the gold is read once per frame (about every minute), the kills and objectives at the moment Riot recorded them. Above the line your team had more gold. Hover or touch the chart or a mark under it to read that minute; on a keyboard, the arrow keys move a minute at a time." />
       </figcaption>
-      <div className="relative" ref={box}>
-        <svg
-          viewBox={`0 0 ${W} ${H}`}
-          className="block h-auto w-full touch-pan-y select-none rounded focus-visible:outline-2 focus-visible:outline-accent"
-          role="img"
-          aria-labelledby={`${uid}-cap`}
-          aria-describedby={`${uid}-readout`}
-          tabIndex={0}
-          onPointerMove={(e) => pick(e.clientX, e.currentTarget.getBoundingClientRect())}
-          onPointerDown={(e) => pick(e.clientX, e.currentTarget.getBoundingClientRect())}
-          onPointerLeave={() => setAt(null)}
-          onBlur={() => setAt(null)}
-          onKeyDown={(e) => {
-            const last = points.length - 1;
-            const next = e.key === "ArrowRight" ? Math.min(last, (at ?? -1) + 1) : e.key === "ArrowLeft" ? Math.max(0, (at ?? last + 1) - 1) : e.key === "Home" ? 0 : e.key === "End" ? last : null;
-            if (next === null) return;
-            e.preventDefault();
-            setAt(next);
-          }}
-          data-testid={`${testId}-svg`}
-        >
-          <defs>
-            <clipPath id={`${uid}-above`}>
-              <rect x={0} y={0} width={W} height={y(0)} />
-            </clipPath>
-            <clipPath id={`${uid}-below`}>
-              <rect x={0} y={y(0)} width={W} height={H - y(0)} />
-            </clipPath>
-          </defs>
+      {/* One pointer area: the curve and the marks under it. A vertical swipe still scrolls the page (and drops the reading). */}
+      <div className="touch-pan-y select-none" onPointerDown={read} onPointerMove={read} onPointerLeave={(e) => e.pointerType === "mouse" && setAt(null)} onPointerCancel={() => setAt(null)}>
+        <div className="relative" ref={box}>
+          <svg
+            ref={svg}
+            viewBox={`0 0 ${W} ${H}`}
+            className="block h-auto w-full rounded focus-visible:outline-2 focus-visible:outline-accent"
+            role="img"
+            aria-labelledby={`${uid}-cap`}
+            aria-describedby={`${uid}-readout`}
+            tabIndex={0}
+            onBlur={() => via.current === "key" && setAt(null)}
+            onKeyDown={(e) => {
+              const last = points.length - 1;
+              const next = e.key === "ArrowRight" ? Math.min(last, (at ?? -1) + 1) : e.key === "ArrowLeft" ? Math.max(0, (at ?? last + 1) - 1) : e.key === "Home" ? 0 : e.key === "End" ? last : null;
+              if (next === null) return;
+              e.preventDefault();
+              via.current = "key";
+              setAt(next);
+            }}
+            data-testid={`${testId}-svg`}
+          >
+            <defs>
+              <clipPath id={`${uid}-above`}>
+                <rect x={0} y={0} width={W} height={y(0)} />
+              </clipPath>
+              <clipPath id={`${uid}-below`}>
+                <rect x={0} y={y(0)} width={W} height={H - y(0)} />
+              </clipPath>
+            </defs>
+            {ticks.map((v) => (
+              <line key={v} x1={pad.l} x2={W - pad.r} y1={y(v)} y2={y(v)} className={v === 0 ? "stroke-fg-subtle/70" : "stroke-border/50"} strokeWidth={1} />
+            ))}
+            <path d={area} className="fill-blue/15" clipPath={`url(#${uid}-above)`} />
+            <path d={area} className="fill-red/15" clipPath={`url(#${uid}-below)`} />
+            {events?.kills ? (
+              <g aria-hidden data-testid={`${testId}-kills`} data-own={events.kills.own.length} data-enemy={events.kills.enemy.length}>
+                {events.kills.own.map((m, i) => (
+                  <line key={`o${i}`} x1={x(m)} x2={x(m)} y1={pad.t} y2={pad.t + 6} className="stroke-blue/70" strokeWidth={1.5} />
+                ))}
+                {events.kills.enemy.map((m, i) => (
+                  <line key={`e${i}`} x1={x(m)} x2={x(m)} y1={H - pad.b - 6} y2={H - pad.b} className="stroke-red/70" strokeWidth={1.5} />
+                ))}
+              </g>
+            ) : null}
+            <path d={line} fill="none" className="stroke-accent" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" data-testid={`${testId}-line`} />
+            {hover ? (
+              <g aria-hidden>
+                <line x1={x(hover.minute)} x2={x(hover.minute)} y1={pad.t} y2={H - pad.b} className="stroke-fg-subtle/60" strokeWidth={1} />
+                <circle cx={x(hover.minute)} cy={y(hover.diff)} r={4.5} className="fill-accent stroke-bg-elevated" strokeWidth={2} />
+              </g>
+            ) : null}
+          </svg>
+          {/* Axis labels: HTML over the drawing, in the site's text sizes. */}
           {ticks.map((v) => (
-            <line key={v} x1={pad.l} x2={W - pad.r} y1={y(v)} y2={y(v)} className={v === 0 ? "stroke-fg-subtle/70" : "stroke-border/50"} strokeWidth={1} />
+            <span key={v} className="pointer-events-none absolute -translate-y-1/2 pr-1.5 text-right text-3xs tabular-nums text-fg-subtle" style={{ left: 0, width: pad.l, top: y(v) }} aria-hidden>
+              {v === 0 ? "0" : signedGold(v)}
+            </span>
           ))}
-          <path d={area} className="fill-blue/15" clipPath={`url(#${uid}-above)`} />
-          <path d={area} className="fill-red/15" clipPath={`url(#${uid}-below)`} />
-          {events?.kills ? (
-            <g aria-hidden data-testid={`${testId}-kills`} data-own={events.kills.own.length} data-enemy={events.kills.enemy.length}>
-              {events.kills.own.map((m, i) => (
-                <line key={`o${i}`} x1={x(m)} x2={x(m)} y1={pad.t} y2={pad.t + 6} className="stroke-blue/70" strokeWidth={1.5} />
-              ))}
-              {events.kills.enemy.map((m, i) => (
-                <line key={`e${i}`} x1={x(m)} x2={x(m)} y1={H - pad.b - 6} y2={H - pad.b} className="stroke-red/70" strokeWidth={1.5} />
-              ))}
-            </g>
-          ) : null}
-          <path d={line} fill="none" className="stroke-accent" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" data-testid={`${testId}-line`} />
-          {hover ? (
-            <g aria-hidden>
-              <line x1={x(hover.minute)} x2={x(hover.minute)} y1={pad.t} y2={H - pad.b} className="stroke-fg-subtle/60" strokeWidth={1} />
-              <circle cx={x(hover.minute)} cy={y(hover.diff)} r={4.5} className="fill-accent stroke-bg-elevated" strokeWidth={2} />
-            </g>
-          ) : null}
-        </svg>
-        {/* Axis labels: HTML over the drawing, in the site's text sizes. */}
-        {ticks.map((v) => (
-          <span key={v} className="pointer-events-none absolute -translate-y-1/2 pr-1.5 text-right text-3xs tabular-nums text-fg-subtle" style={{ left: 0, width: pad.l, top: y(v) }} aria-hidden>
-            {v === 0 ? "0" : signedGold(v)}
-          </span>
-        ))}
-        {minutes.map((m) => (
-          <span key={m} className="pointer-events-none absolute -translate-x-1/2 text-3xs tabular-nums text-fg-subtle" style={{ left: x(m), top: H - pad.b + 4 }} aria-hidden>
-            {m}:00
-          </span>
-        ))}
+          {minutes.map((m) => (
+            <span key={m} className="pointer-events-none absolute -translate-x-1/2 text-3xs tabular-nums text-fg-subtle" style={{ left: x(m), top: H - pad.b + 4 }} aria-hidden>
+              {m}:00
+            </span>
+          ))}
+        </div>
+        {events ? (
+          // The same events under the curve, at its scale (in words in the list below; hidden from screen readers here).
+          <div className="mt-1 space-y-1" aria-hidden data-testid={`${testId}-events`}>
+            {objectives.length ? (
+              <div className="relative" style={{ height: objectiveRows * (marker + 2) }} data-testid={`${testId}-objectives`}>
+                <span className="absolute left-0 top-0 pr-1.5 text-right text-3xs leading-4 text-fg-subtle" style={{ width: pad.l }}>
+                  Objectives
+                </span>
+                {placed.map(({ o, x: left, lane }, i) => (
+                  <span
+                    key={i}
+                    className={cn("absolute grid -translate-x-1/2 place-items-center rounded text-3xs font-bold leading-none", o.own ? "bg-blue/20 text-blue" : "bg-red/20 text-red")}
+                    style={{ left, top: lane * (marker + 2), width: marker, height: marker }}
+                    title={`${gameClock(o.minute)} ${objectiveLabel(o)} for ${sideWords(o.own)}`}
+                    data-testid="timeline-objective"
+                    data-minute={o.minute}
+                    data-kind={o.kind}
+                    data-own={o.own}
+                  >
+                    {OBJECTIVE_MARK[o.kind]}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            {you && (you.kills.length || you.deaths.length) ? (
+              <div className="relative h-4" data-testid={`${testId}-you`}>
+                <span className="absolute left-0 top-0 pr-1.5 text-right text-3xs leading-4 text-fg-subtle" style={{ width: pad.l }}>
+                  You
+                </span>
+                {you.kills.map((m, i) => (
+                  <span key={`k${i}`} className="absolute top-1 h-2 w-2 -translate-x-1/2 rounded-full bg-good" style={{ left: x(m) }} title={`${gameClock(m)} your kill`} data-testid="timeline-you-kill" data-minute={m} />
+                ))}
+                {you.deaths.map((m, i) => (
+                  <X key={`d${i}`} className="absolute top-0.5 h-3 w-3 -translate-x-1/2 text-bad" strokeWidth={3} style={{ left: x(m) }} data-testid="timeline-you-death" data-minute={m} />
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
       {events ? (
-        // The same events under the curve, at its scale (in words in the list below; hidden from screen readers here).
-        <div className="mt-1 space-y-1" aria-hidden data-testid={`${testId}-events`}>
-          {objectives.length ? (
-            <div className="relative" style={{ height: objectiveRows * (marker + 2) }} data-testid={`${testId}-objectives`}>
-              <span className="absolute left-0 top-0 pr-1.5 text-right text-3xs leading-4 text-fg-subtle" style={{ width: pad.l }}>
-                Objectives
-              </span>
-              {placed.map(({ o, x: left, lane }, i) => (
-                <span
-                  key={i}
-                  className={cn("absolute grid -translate-x-1/2 place-items-center rounded text-3xs font-bold leading-none", o.own ? "bg-blue/20 text-blue" : "bg-red/20 text-red")}
-                  style={{ left, top: lane * (marker + 2), width: marker, height: marker }}
-                  title={`${gameClock(o.minute)} ${objectiveLabel(o)} for ${sideWords(o.own)}`}
-                  data-testid="timeline-objective"
-                  data-kind={o.kind}
-                  data-own={o.own}
-                >
-                  {OBJECTIVE_MARK[o.kind]}
-                </span>
-              ))}
-            </div>
-          ) : null}
-          {you && (you.kills.length || you.deaths.length) ? (
-            <div className="relative h-4" data-testid={`${testId}-you`}>
-              <span className="absolute left-0 top-0 pr-1.5 text-right text-3xs leading-4 text-fg-subtle" style={{ width: pad.l }}>
-                You
-              </span>
-              {you.kills.map((m, i) => (
-                <span key={`k${i}`} className="absolute top-1 h-2 w-2 -translate-x-1/2 rounded-full bg-good" style={{ left: x(m) }} title={`${gameClock(m)} your kill`} data-testid="timeline-you-kill" />
-              ))}
-              {you.deaths.map((m, i) => (
-                <X key={`d${i}`} className="absolute top-0.5 h-3 w-3 -translate-x-1/2 text-bad" strokeWidth={3} style={{ left: x(m) }} data-testid="timeline-you-death" />
-              ))}
-            </div>
-          ) : null}
-          <p className="flex flex-wrap gap-x-3 gap-y-0.5 text-3xs text-fg-subtle" style={{ paddingLeft: pad.l }}>
+        <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-3xs text-fg-subtle" style={{ paddingLeft: pad.l }} aria-hidden>
+          <span>
+            <span className="text-blue">■</span> your team · <span className="text-red">■</span> the other team
+          </span>
+          {objectives.length ? <span data-testid={`${testId}-legend`}>{objectiveLegend(objectives)}</span> : null}
+          {you ? (
             <span>
-              <span className="text-blue">■</span> your team · <span className="text-red">■</span> the other team
+              <span className="text-good">●</span> your kill · <span className="text-bad">✕</span> your death
             </span>
-            {objectives.length ? <span data-testid={`${testId}-legend`}>{objectiveLegend(objectives)}</span> : null}
-            {you ? (
-              <span>
-                <span className="text-good">●</span> your kill · <span className="text-bad">✕</span> your death
-              </span>
-            ) : null}
-          </p>
-        </div>
+          ) : null}
+        </p>
       ) : null}
       <p id={`${uid}-readout`} className={cn("mt-1 min-h-[1.25rem] text-xs tabular-nums", hover ? "text-fg" : "text-fg-subtle")} aria-live="polite" data-testid={`${testId}-readout`}>
         {hover ? (
@@ -404,10 +441,10 @@ function GoldTable({ points }: { points: GoldPoint[] }) {
   return (
     <details className="text-xs">
       <summary className="inline-flex min-h-9 cursor-pointer items-center rounded text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11">Every minute as a table</summary>
-      <div className="mt-1 max-h-56 overflow-y-auto rounded-lg border border-border">
+      <div className="mt-1 rounded-lg border border-border pointer-fine:max-h-56 pointer-fine:overflow-y-auto">
         <table className="w-full text-xs tabular-nums" data-testid="gold-chart-table">
           <caption className="sr-only">Gold difference at every frame, your team minus the other team</caption>
-          <thead className="sticky top-0 bg-surface text-fg-subtle">
+          <thead className="bg-surface text-fg-subtle pointer-fine:sticky pointer-fine:top-0">
             <tr>
               <th scope="col" className="px-3 py-1 text-left font-medium">
                 Time

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
-import { BASELINE_GAMES, BASELINE_MIN, BEST_MIN, LANE_MINUTES, QUEUE_GROUP_WORDS, figureText, placeOf, type PersonalComparison } from "@/domain/match-analysis";
+import { BASELINE_GAMES, BASELINE_MIN, BEST_MIN, LANE_MINUTES, QUEUE_GROUP_WORDS, figureText, placeOf, standingText, type LaneMoment, type PersonalComparison } from "@/domain/match-analysis";
 import type { MatchTimelineResult } from "@/server/accounts/match-timeline";
 import type { ComparisonFigure, DetailParticipant, MatchDetailView } from "@/server/players/match-history";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
@@ -108,7 +108,10 @@ function Lane({ me, opponent, champ, timeline }: { me: DetailParticipant; oppone
   // The timeline's moments only when they are about the same opponent the record names.
   const moments = lane && lane.opponentSlot === opponent.slot ? lane.moments : null;
   const loading = !timeline;
-  const note = !timeline ? null : timeline.status !== "ok" ? timeline.message : !moments ? "The timeline does not hold both players' figures, so 10:00 and 15:00 are not shown." : moments.some((m) => !m.you || !m.opponent) ? "A dash at a minute the game had not reached." : null;
+  // A row for each minute the timeline holds both players at (placeholders while it loads); the others are named in the note.
+  const rows: LaneMoment[] = loading ? LANE_MINUTES.map((minute) => ({ minute, you: null, opponent: null })) : (moments ?? []).filter((m) => m.you && m.opponent);
+  const unreached = (moments ?? []).filter((m) => !m.you || !m.opponent).map((m) => `${m.minute}:00`);
+  const note = !timeline ? null : timeline.status !== "ok" ? timeline.message : !moments ? "The timeline does not hold both players' figures, so 10:00 and 15:00 are not shown." : unreached.length ? `No ${unreached.join(" or ")} ${unreached.length === 1 ? "row: the game's timeline ends before it" : "rows: the game's timeline ends before them"}.` : null;
   const name = opponent.name?.split("#")[0] ?? c.name;
   return (
     <section aria-labelledby={id} className="space-y-1.5" data-testid="lane-comparison" data-state={moments ? "timeline" : "end"}>
@@ -141,25 +144,22 @@ function Lane({ me, opponent, champ, timeline }: { me: DetailParticipant; oppone
           </tr>
         </thead>
         <tbody className="divide-y divide-border/60">
-          {LANE_MINUTES.map((minute, i) => {
-            const m = moments?.[i] ?? null;
-            return (
-              <tr key={minute} data-testid={`lane-at-${minute}`}>
-                <th scope="row" className="py-1.5 text-left text-xs font-normal text-fg-muted">
-                  {minute}:00
-                </th>
-                <td className="py-1.5 text-right">
-                  <DiffCell you={m?.you?.cs} them={m?.opponent?.cs} loading={loading} />
-                </td>
-                <td className="py-1.5 text-right">
-                  <DiffCell you={m?.you?.gold} them={m?.opponent?.gold} loading={loading} />
-                </td>
-                <td className="py-1.5 text-right">
-                  <DiffCell you={m?.you?.xp} them={m?.opponent?.xp} loading={loading} />
-                </td>
-              </tr>
-            );
-          })}
+          {rows.map((m) => (
+            <tr key={m.minute} data-testid={`lane-at-${m.minute}`}>
+              <th scope="row" className="py-1.5 text-left text-xs font-normal text-fg-muted">
+                {m.minute}:00
+              </th>
+              <td className="py-1.5 text-right">
+                <DiffCell you={m.you?.cs} them={m.opponent?.cs} loading={loading} />
+              </td>
+              <td className="py-1.5 text-right">
+                <DiffCell you={m.you?.gold} them={m.opponent?.gold} loading={loading} />
+              </td>
+              <td className="py-1.5 text-right">
+                <DiffCell you={m.you?.xp} them={m.opponent?.xp} loading={loading} />
+              </td>
+            </tr>
+          ))}
           <tr data-testid="lane-at-end">
             <th scope="row" className="py-1.5 text-left text-xs font-normal text-fg-muted">
               End
@@ -196,12 +196,13 @@ function Lane({ me, opponent, champ, timeline }: { me: DetailParticipant; oppone
 
 /**
  * This game beside the player's previous games of the same role and kind of queue: for each figure,
- * where the game sits among them (a marker on a track from their lowest to their highest share),
- * their median, and "best" only above every one of at least BEST_MIN of them.
+ * how many of them it is higher than ("Higher than 11 of 28", in counts rather than a percentage),
+ * a marker on a track from their lowest to their highest share, their median, and "best" only above
+ * every one of at least BEST_MIN of them.
  */
 function Personal({ personal }: { personal: PersonalComparison | null }) {
   const id = React.useId();
-  const method = `Your previous games in the same role and the same kind of queue (ranked with ranked, normal with normal, Swiftplay and Quickplay together, Clash apart), at most ${BASELINE_GAMES}, newest first; this game and later ones never count. The track shows the share of those games with a lower figure (a tie counts half), the mark at the middle is their median. A figure is compared once ${BASELINE_MIN} games carry it, and called your best only when it is higher than every one of at least ${BEST_MIN}. No figure is weighted against another, and nothing here is a score.`;
+  const method = `Your previous games in the same role and the same kind of queue (ranked with ranked, normal with normal, Swiftplay and Quickplay together, Clash apart), at most ${BASELINE_GAMES}, newest first; this game and later ones never count. Each figure says how many of those games it is higher than; the track places it among them (a tie counts half), and the mark at the middle is their median. A figure is compared once ${BASELINE_MIN} games carry it, and called your best only when it is higher than every one of at least ${BEST_MIN}. No figure is weighted against another, and nothing here is a score.`;
   if (!personal)
     return (
       <section aria-labelledby={id} className="space-y-1.5" data-testid="personal-comparison" data-state="none">
@@ -228,14 +229,16 @@ function Personal({ personal }: { personal: PersonalComparison | null }) {
               <span className="text-fg-muted">
                 {f.label} <span className="font-semibold tabular-nums text-fg">{figureText(f.key, f.value)}</span>
               </span>
-              <span className={cn("tabular-nums", f.best ? "font-semibold text-accent" : "text-fg-muted")}>{f.best ? `Your best in ${f.games}` : `Higher than ${Math.round(f.percentile * 100)}%`}</span>
+              <span className={cn("shrink-0 tabular-nums", f.best ? "font-semibold text-accent" : "text-fg-muted")} data-testid="personal-standing">
+                {standingText(f)}
+              </span>
             </div>
             <div className="relative mt-1 h-2 rounded-full bg-surface-3" aria-hidden>
               <span className="absolute inset-y-0 left-1/2 w-px bg-fg-subtle/60" />
               <span className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-bg-elevated bg-accent" style={{ left: `${Math.round(Math.min(1, Math.max(0, f.percentile)) * 100)}%` }} />
             </div>
             <div className="mt-0.5 text-2xs tabular-nums text-fg-subtle">
-              Median {figureText(f.key, f.median)} · highest before {figureText(f.key, f.top)} · {f.games} games
+              Median {figureText(f.key, f.median)} · highest before {figureText(f.key, f.top)}
             </div>
           </li>
         ))}
@@ -312,12 +315,12 @@ function Objectives({ view }: { view: MatchDetailView }) {
   const id = React.useId();
   const p = view.player;
   const s = p.stats;
-  const own = view.teams[0];
-  const ownTone = own?.side === "red" ? "bg-red/70" : "bg-blue/70";
-  const enemyTone = own?.side === "red" ? "bg-blue/70" : "bg-red/70";
+  // The team's towers, for the player's part in them (only when the two agree: a takedown is a tower the team destroyed).
+  const towers = view.comparison.teams.find((t) => t.key === "tower")?.own ?? null;
+  const turrets = s?.turretTakedowns;
   const firstBlood = s ? (s.firstBloodKill ? "Kill" : s.firstBloodAssist ? "Assist" : s.firstBloodKill === false ? "No" : null) : null;
   const items: Array<[string, string, string | null]> = [
-    ["Turret takedowns", "Towers destroyed or assisted", s?.turretTakedowns !== undefined ? int(s?.turretTakedowns) : null],
+    ["Turret takedowns", towers !== null && turrets !== undefined && turrets <= towers ? `Towers you destroyed or helped destroy, of the ${int(towers)} your team destroyed` : "Towers you destroyed or helped destroy", turrets === undefined ? null : towers !== null && turrets <= towers ? `${int(turrets)} of ${int(towers)}` : int(turrets)],
     ["Objective damage", "Damage to epic monsters, towers and inhibitors", s?.objectiveDamage !== undefined ? int(s?.objectiveDamage) : null],
     ["Building damage", "Damage to towers and inhibitors", s?.buildingDamage !== undefined ? int(s?.buildingDamage) : null],
     ["Wards placed", "Wards placed in the game", p.wardsPlaced !== null ? int(p.wardsPlaced) : null],
@@ -363,9 +366,10 @@ function Objectives({ view }: { view: MatchDetailView }) {
                   <span className="text-fg-muted">{t.label}</span>
                   <span className="tabular-nums text-fg-muted">{text(t.enemy)}</span>
                 </div>
+                {/* Your team in blue and the other in red, whichever side they played on: as on the Timeline. */}
                 <div className="mt-1 flex h-2 gap-0.5 overflow-hidden rounded-full" aria-hidden>
-                  <div className={cn("rounded-l-full", ownTone)} style={{ width: `${Math.round(share * 100)}%` }} />
-                  <div className={cn("flex-1 rounded-r-full", enemyTone)} />
+                  <div className="rounded-l-full bg-blue/70" style={{ width: `${Math.round(share * 100)}%` }} />
+                  <div className="flex-1 rounded-r-full bg-red/70" />
                 </div>
               </div>
             );
