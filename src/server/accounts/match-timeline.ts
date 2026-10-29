@@ -9,7 +9,7 @@ import { getCurrentPatch } from "@/server/repositories/champions";
 import { erasureFilter } from "@/server/privacy/ledger";
 import { redactTimeline } from "@/server/privacy/redact";
 import { loadCompositionParticipants } from "@/server/matches/compositions";
-import { LANE_MINUTES, laneMoments, laneOpponentOf, teamGoldDifference, type GoldPoint, type LaneMoment } from "@/domain/match-analysis";
+import { LANE_MINUTES, goldContradictsRecord, laneMoments, laneOpponentOf, teamGoldDifference, type GoldPoint, type LaneMoment } from "@/domain/match-analysis";
 import type { TimelineEventsView } from "@/domain/match-events";
 
 /*
@@ -296,6 +296,8 @@ export interface MatchTimelineView {
   lane: { opponentSlot: number; moments: LaneMoment[] } | null;
   /** The two teams' gold difference at every frame, from the player's side; null unless all ten players' frames are kept. */
   gold: GoldPoint[] | null;
+  /** Why `gold` is null when frames exist: "incomplete" (a player's frames are missing) or "contradicts" (the timeline and the record disagree). */
+  goldNote: "incomplete" | "contradicts" | null;
   /** The game's last frame, in minutes (the length the curve covers). */
   minutes: number | null;
   /** Kills and objectives along the game (domain/match-events); null when this timeline does not hold them. */
@@ -333,6 +335,17 @@ function eventsView(row: TimelineRow, parts: ReadonlyArray<{ puuid: string; team
   };
 }
 
+/** The teams' recorded gold (Riot's goldEarned) from one side; null when a player's is not recorded. One row by primary key. */
+async function recordedGoldDifference(db: Db, matchId: string, teamId: number): Promise<number | null> {
+  const result = await db.execute(sql`
+    SELECT CASE WHEN bool_and(p->>'gold' IS NOT NULL AND coalesce(p->>'removed', '') <> 'true')
+      THEN sum(CASE WHEN (p->>'teamId')::int = ${teamId} THEN (p->>'gold')::numeric ELSE -(p->>'gold')::numeric END) END AS diff
+    FROM match_details d CROSS JOIN LATERAL jsonb_array_elements(d.participants) p
+    WHERE d.match_id = ${matchId}`);
+  const [row] = ((result as { rows?: unknown[] }).rows ?? result) as Array<{ diff: string | number | null }>;
+  return row?.diff === null || row?.diff === undefined ? null : Number(row.diff);
+}
+
 /**
  * Everything a match's breakdown reads from its timeline, in one request: the build, the lane at
  * fixed minutes, the gold difference over the game and the kills and objectives along it. Stored
@@ -355,12 +368,21 @@ export async function getMatchTimeline(db: Db, playerId: string, matchId: string
     if (mine && theirs) lane = { opponentSlot, moments: laneMoments(frames.t, mine, theirs, LANE_MINUTES) };
   }
   const series = frames ? parts.filter((p) => !p.removed && frames.p[p.puuid]).map((p) => ({ teamId: p.teamId, g: frames.p[p.puuid]!.g })) : [];
+  let gold = frames && me ? teamGoldDifference(frames.t, series, me.teamId) : null;
+  // A timeline that tells a different game from the record (one side clearly ahead in one, clearly
+  // behind in the other) is not drawn, and neither is its lane: the record is what every other view reads.
+  const contradicts = !!gold && !!me && goldContradictsRecord(gold, await recordedGoldDifference(db, matchId, me.teamId));
+  if (contradicts) {
+    gold = null;
+    lane = null;
+  }
   return {
     status: "ok",
     timeline: {
       build: meTimeline ? await buildOf(db, matchId, meTimeline) : null,
       lane,
-      gold: frames && me ? teamGoldDifference(frames.t, series, me.teamId) : null,
+      gold,
+      goldNote: contradicts ? "contradicts" : frames && !gold ? "incomplete" : null,
       minutes: frames ? frames.t[frames.t.length - 1]! / MINUTE : null,
       events: eventsView(row, parts, me),
       eventsNote: row.events ? null : eventsNote,

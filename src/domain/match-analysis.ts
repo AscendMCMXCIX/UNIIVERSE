@@ -220,6 +220,22 @@ export function teamGoldDifference(t: readonly number[], series: ReadonlyArray<{
   return t.map((ms, i) => ({ minute: ms / 60_000, diff: own.reduce((n, s) => n + s.g[i]!, 0) - enemy.reduce((n, s) => n + s.g[i]!, 0) }));
 }
 
+/** A gold difference this large or larger cannot be read the other way round by both a game's record and its timeline. */
+export const CONTRADICTION_MIN = 2_000;
+
+/**
+ * Whether a game's timeline contradicts its record about who had more gold at the end: the
+ * difference at the last frame (the end of the game, where Riot's goldEarned is read) against the
+ * teams' recorded gold, from the same side. A small gap either way is not a contradiction (the two
+ * are read a moment apart); one side clearly ahead in one and clearly behind in the other means the
+ * two do not describe the same game, and neither curve nor lane figures should be shown from it.
+ */
+export function goldContradictsRecord(points: readonly GoldPoint[], recordedDiff: number | null): boolean {
+  const last = points.at(-1);
+  if (!last || recordedDiff === null) return false;
+  return Math.sign(last.diff) !== Math.sign(recordedDiff) && Math.min(Math.abs(last.diff), Math.abs(recordedDiff)) >= CONTRADICTION_MIN;
+}
+
 /** A gap smaller than this is not called a lead when lead changes are counted (about a kill and an assist's worth). */
 export const LEAD_MIN = 1000;
 

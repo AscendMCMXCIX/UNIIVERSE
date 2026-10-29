@@ -235,6 +235,7 @@ async function seedDemoTogether(db: Db, teamId: string) {
       const teamId = parts.filter((x) => x.teamId === 100).length < 5 ? 100 : 200;
       parts.push({ puuid: `demo-together-${i}-${n}`, name: demoOtherName(teamId === 100, n), teamId, championId: demoOther(i, n, taken), championKey: 0, champLevel: 14, position: null, win: teamId === 100 ? g.win : !g.win, kills: 3, deaths: 4, assists: 5, cs: 140, gold: 8000, damage: 11000, damageTaken: 14000, vision: 15, wardsPlaced: 8, items: null, spells: null, runes: null });
     }
+    balanceTogetherGame(parts, duration / 60, i);
     details.push({ matchId, platform: "euw1", queueId: g.queueId, gameCreation, gameDuration: duration, gameVersion: `${season}.20.1`, teams: [{ teamId: 100, win: g.win, bans: [], objectives: {} }, { teamId: 200, win: !g.win, bans: [], objectives: {} }], participants: parts });
   });
   if (games.length) await db.insert(accountMatches).values(games).onConflictDoNothing();
@@ -294,6 +295,97 @@ function demoFrames(rnd: () => number, durationSeconds: number, me: string, them
   // The rest of both teams drift with the result too, each a little differently.
   for (const o of others?.players ?? []) p[o.puuid] = series(((o.ally === win ? 1 : -1) * (10 + others!.rnd() * 30)) / 2, o.role, others!.rnd);
   return { t, p };
+}
+
+/** Riot's experience to reach each champion level (index 1 is level 1), for demo frames that end on the recorded level. */
+const XP_TO_LEVEL = [0, 0, 280, 660, 1140, 1720, 2400, 3180, 4060, 5040, 6120, 7300, 8580, 9960, 11440, 13020, 14700, 16480, 18360];
+
+/**
+ * Demo frames end where the game's record does (demo mode only): each player's last frame holds
+ * their recorded gold, CS and a level's worth of experience, the curve keeping its shape. Without
+ * this the timeline told a different game from the scoreboard (the gold difference at the end
+ * against the teams' recorded gold). Real timelines come from Riot and are never changed.
+ */
+function fitFramesToRecord(frames: MatchFrames, parts: readonly MatchParticipantDetail[]): MatchFrames {
+  const p: MatchFrames["p"] = { ...frames.p };
+  const fit = (series: number[], from: number, to: number | null) => {
+    const end = series[series.length - 1];
+    if (to === null || end === undefined || end <= from) return series;
+    return series.map((v) => Math.round(from + ((v - from) * (to - from)) / (end - from)));
+  };
+  for (const x of parts) {
+    const s = p[x.puuid];
+    if (!s) continue;
+    const level = x.champLevel === null ? null : Math.max(1, Math.min(18, x.champLevel));
+    p[x.puuid] = { g: fit(s.g, 500, x.gold), x: fit(s.x, 0, level === null ? null : XP_TO_LEVEL[level]! + (level < 18 ? 0.4 * (XP_TO_LEVEL[level + 1]! - XP_TO_LEVEL[level]!) : 400)), c: fit(s.c, 0, x.cs) };
+  }
+  return { t: frames.t, p };
+}
+
+/** `total` shared out over `players` unevenly but deterministically (the game's number turns the weights). */
+function shareOut(total: number, players: MatchParticipantDetail[], key: "kills" | "deaths", turn: number) {
+  const weights = players.map((_, k) => 1 + ((k + turn) % 3));
+  const whole = weights.reduce((n, w) => n + w, 0);
+  const shares = weights.map((w) => Math.floor((total * w) / whole));
+  for (let k = 0, rest = total - shares.reduce((n, v) => n + v, 0); rest > 0; k++, rest--) shares[(k + turn) % shares.length]! += 1;
+  players.forEach((x, k) => (x[key] = shares[k]!));
+}
+
+/**
+ * A demo game several members played (demo mode only): the members' own figures are their stored
+ * games, so the other players' make the sides add up. Each side kills at least as many as any of its
+ * members took part in, one side's deaths are the other side's kills, and the others' gold follows
+ * their kills, assists and the result.
+ */
+function balanceTogetherGame(parts: MatchParticipantDetail[], minutes: number, turn: number) {
+  const other = (x: MatchParticipantDetail) => x.puuid.startsWith("demo-together-");
+  const side = (team: number) => parts.filter((x) => x.teamId === team);
+  const sum = (xs: MatchParticipantDetail[], key: "kills" | "deaths") => xs.reduce((n, x) => n + x[key], 0);
+  for (const team of [100, 200]) {
+    const fillers = side(team).filter(other);
+    if (!fillers.length) continue;
+    const needed = Math.max(0, ...side(team).filter((x) => !other(x)).map((x) => x.kills + x.assists));
+    for (let k = 0; sum(side(team), "kills") < needed; k++) fillers[k % fillers.length]!.kills += 1;
+  }
+  for (const team of [100, 200]) {
+    const enemy = team === 100 ? 200 : 100;
+    const fixed = sum(side(team).filter((x) => !other(x)), "deaths");
+    const fillers = side(team).filter(other);
+    const enemyFillers = side(enemy).filter(other);
+    // The other side made at least the kills behind this side's members' own deaths, and exactly as many as this side's deaths when no one here can take the rest.
+    for (let k = 0; enemyFillers.length && sum(side(enemy), "kills") < fixed; k++) enemyFillers[k % enemyFillers.length]!.kills += 1;
+    if (!fillers.length && enemyFillers.length) shareOut(fixed - sum(side(enemy).filter((x) => !other(x)), "kills"), enemyFillers, "kills", turn);
+  }
+  for (const team of [100, 200]) {
+    const fillers = side(team).filter(other);
+    if (fillers.length) shareOut(sum(side(team === 100 ? 200 : 100), "kills") - sum(side(team).filter((x) => !other(x)), "deaths"), fillers, "deaths", turn);
+    const made = sum(side(team), "kills");
+    for (const x of fillers) {
+      x.assists = Math.min(x.assists, Math.max(0, made - x.kills));
+      x.gold = Math.round(minutes * 285 + x.kills * 300 + x.assists * 110 + (x.win ? 1100 : 0));
+    }
+  }
+}
+
+/**
+ * A demo game whose two sides add up as a real one does (demo mode only): one side's deaths are
+ * the other side's kills, nobody assists more kills than their team made, and the other players'
+ * gold follows their kills, assists and the result. The player's own figures (their stored game)
+ * are left as drawn.
+ */
+function balanceDemoGame(me: MatchParticipantDetail, allies: MatchParticipantDetail[], enemies: MatchParticipantDetail[], minutes: number, turn: number) {
+  const sum = (xs: MatchParticipantDetail[], key: "kills" | "deaths") => xs.reduce((n, x) => n + x[key], 0);
+  // The other side's kills cover the player's own deaths (the demo has no executions).
+  for (let k = 0; sum(enemies, "kills") < me.deaths; k++) enemies[k % enemies.length]!.kills += 1;
+  for (let k = 0; me.kills + sum(allies, "kills") < me.kills + me.assists; k++) allies[k % allies.length]!.kills += 1;
+  shareOut(me.kills + sum(allies, "kills"), enemies, "deaths", turn);
+  shareOut(sum(enemies, "kills") - me.deaths, allies, "deaths", turn + 1);
+  for (const side of [[me, ...allies], enemies]) {
+    const made = sum(side, "kills");
+    for (const x of side) if (x !== me) x.assists = Math.min(x.assists, Math.max(0, made - x.kills));
+  }
+  // Gold from the game's length, kills, assists and the result, the drawn figure keeping a little of its spread.
+  for (const x of [...allies, ...enemies]) x.gold = Math.round(minutes * 285 + x.kills * 300 + x.assists * 110 + (x.win ? 1100 : 0) + ((x.gold ?? 10_500) - 10_500) * 0.3);
 }
 
 const DEMO_STARTS: Record<Role, number[]> = { TOP: [1054, 2003], JUNGLE: [1102, 2003], MID: [1056, 2003, 2003], ADC: [1055, 2003], SUPPORT: [3865, 2003] };
@@ -432,6 +524,10 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
     const opponentIndex = Math.min(laneOptions.length - 1, Math.floor(laneRnd() * laneRnd() * laneOptions.length));
     const enemyChampionId = laneOptions[opponentIndex]!;
     games.push({ accountId, matchId, gameCreation, queueId, championId, role, win, enemyChampionId, patch: `${season}.${Math.max(1, 20 - Math.floor((count - i) / 3))}`, gameDuration: duration, kills, deaths, assists, cs, damage, visionScore: vision });
+    // Every third game on the red side (never one with the recurring duo below), so every view is
+    // seen from both sides: Riot lists the blue side (100) first, as here.
+    const ownTeam = i % 3 === 2 ? 200 : 100;
+    const otherTeam = ownTeam === 100 ? 200 : 100;
     const teamKills = kills + assists + int(2, 10);
     const taken = new Set([championId, enemyChampionId]);
     // Other players are new in every game, except a pair of rivals who queue together and meet
@@ -441,7 +537,7 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
     const me: MatchParticipantDetail = {
       puuid,
       name: `${name}#DEMO`,
-      teamId: 100,
+      teamId: ownTeam,
       championId,
       championKey: 0,
       champLevel: 16,
@@ -478,11 +574,13 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
       delete me.stats;
       if (i % 4 === 0) gone.push(matchId);
     }
-    const allies = [1, 2, 3, 4].map((n) => filler(n, 100, true));
-    const enemies = [5, 6, 7, 8, 9].map((n) => filler(n, 200, false));
+    const allies = [1, 2, 3, 4].map((n) => filler(n, ownTeam, true));
+    const enemies = [5, 6, 7, 8, 9].map((n) => filler(n, otherTeam, false));
     // The lane opponent: the enemy in the same position.
     const lane = `demo-lane-${puuid.slice(5, 13)}-${i}`;
     enemies[0] = { ...enemies[0]!, puuid: lane, championId: enemyChampionId, position: role };
+    balanceDemoGame(me, allies, enemies, minutes, i);
+    const sides = ownTeam === 100 ? [me, ...allies, ...enemies] : [...enemies, me, ...allies];
     // Most demo games have a timeline; every sixth is left "still to be collected". Everyone in
     // it has frames, a build and kill times, from a sequence of the game's own (the player's and
     // the lane opponent's frames are as they always were), and the record's team counts follow
@@ -493,13 +591,13 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
       const gameRnd = () => ((gameSeed = (gameSeed * 9301 + 49297) % 233280), gameSeed / 233280);
       const roles = DEMO_ROLES_FOR(role);
       const others = [...allies.map((a, k) => ({ puuid: a.puuid, ally: true, role: roles[k]! })), ...enemies.slice(1).map((e, k) => ({ puuid: e.puuid, ally: false, role: roles[k]! }))];
-      const frames = demoFrames(laneRnd, duration, puuid, lane, role, win, (opponentIndex - 1) * 25, { rnd: gameRnd, players: others });
+      const frames = fitFramesToRecord(demoFrames(laneRnd, duration, puuid, lane, role, win, (opponentIndex - 1) * 25, { rnd: gameRnd, players: others }), sides);
       const builds = [{ puuid, role }, { puuid: lane, role }, ...others].map((x) => ({ puuid: x.puuid, ...demoBuild(gameRnd, duration, x.role) }));
-      const { kda, events, counts } = demoEvents(gameRnd, duration, win ? 100 : 200, [me, ...allies, ...enemies]);
+      const { kda, events, counts } = demoEvents(gameRnd, duration, win ? ownTeam : otherTeam, sides);
       timelines.push({ matchId, platform: "euw1", participants: builds.map((b) => ({ ...b, ...kda.get(b.puuid)! })), frames, events });
       objectiveCounts = counts;
     }
-    details.push({ matchId, platform: "euw1", queueId, gameCreation, gameDuration: duration, gameVersion: `${season}.20.1`, teams: [{ teamId: 100, win, bans: [], objectives: objectiveCounts?.[100] ?? {} }, { teamId: 200, win: !win, bans: [], objectives: objectiveCounts?.[200] ?? {} }], participants: [me, ...allies, ...enemies] });
+    details.push({ matchId, platform: "euw1", queueId, gameCreation, gameDuration: duration, gameVersion: `${season}.20.1`, teams: [100, 200].map((teamId) => ({ teamId, win: teamId === ownTeam ? win : !win, bans: [], objectives: objectiveCounts?.[teamId] ?? {} })), participants: sides });
   }
   // One evening of back-to-back games: the 2nd and 3rd newest move up to the newest (same order,
   // 15 and 12 minutes between them), so Match History's playing sessions have a sitting to show

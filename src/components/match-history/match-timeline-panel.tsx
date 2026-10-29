@@ -39,7 +39,7 @@ export function TimelinePanel({ result }: { result: MatchTimelineResult | null }
         {result.message}
       </p>
     );
-  const { gold, events, eventsNote } = result.timeline;
+  const { gold, goldNote, events, eventsNote } = result.timeline;
   const story = gold ? goldStory(gold) : null;
   const swings = gold ? goldSwings(gold) : [];
   return (
@@ -81,8 +81,10 @@ export function TimelinePanel({ result }: { result: MatchTimelineResult | null }
           <GoldTable points={gold} />
         </>
       ) : (
-        <p className="rounded-panel border border-dashed border-border p-3 text-sm text-fg-muted" data-testid="gold-missing">
-          The gold difference needs every player&apos;s figures in the timeline, and this game&apos;s timeline does not hold them all (a removed player, or figures Riot did not send), so it is not drawn.
+        <p className="rounded-panel border border-dashed border-border p-3 text-sm text-fg-muted" data-testid="gold-missing" data-reason={goldNote ?? undefined}>
+          {goldNote === "contradicts"
+            ? "This game's timeline and its record disagree about which team had more gold at the end, so the gold difference and the lane figures are not shown. The scoreboard and Analysis read the record."
+            : "The gold difference needs every player's figures in the timeline, and this game's timeline does not hold them all (a removed player, or figures Riot did not send), so it is not drawn."}
         </p>
       )}
       {events ? (

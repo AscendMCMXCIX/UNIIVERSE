@@ -53,10 +53,12 @@ export async function applyDemoEncounters(db: Db): Promise<void> {
     };
     if (h % 5 < 2) place(h % 7, REGULARS[h % REGULARS.length]!);
     if (h % 11 === 0) place((h >>> 3) % 7, REGULARS[(h >>> 4) % REGULARS.length]!);
-    // A member's own game (DEMO_<account>_<n>, the member first): BOTH_SIDES on their side in their
-    // first game, on the other side in the next.
-    const me = next[0];
-    if (me && /^DEMO_[^_]+_\d+$/.test(matchId)) {
+    // A member's own game (DEMO_<account>_<n>, named after the member's PUUID, which is demo-<player
+    // id>): BOTH_SIDES on their side in their first game, on the other side in the next. The member
+    // is found by PUUID: on the red side they come after the blue side's five, as in Riot's records.
+    const account = /^DEMO_([^_]+)_\d+$/.exec(matchId)?.[1];
+    const me = account ? next.find((p) => p.puuid.startsWith(`demo-${account}`)) : undefined;
+    if (me) {
       const met = bothSides.get(me.puuid) ?? 0;
       const slot = met < 2 ? next.findIndex((p) => (p.puuid.startsWith("demo-filler-") || p.puuid.startsWith("demo-together-")) && (p.teamId === me.teamId) === (met === 0)) : -1;
       if (slot >= 0) {
