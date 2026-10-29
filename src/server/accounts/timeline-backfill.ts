@@ -84,11 +84,16 @@ export async function backfillTimelines(db: Db, client: RiotApiClient, options: 
         break;
       }
     }
-    // Rows stored for the build order only (no frames yet) keep their purchases; the frames are added.
+    // A row stored for the build order only (no frames yet) is completed: frames, kills and
+    // objectives. The fresh participants carry the same purchases with the kill times added (both
+    // without anyone erased: keptTimeline); a timeline Riot no longer provides keeps what it had.
     await db
       .insert(matchTimelines)
       .values(row)
-      .onConflictDoUpdate({ target: matchTimelines.matchId, set: { frames: row.frames, participants: sql`CASE WHEN jsonb_array_length(${matchTimelines.participants}) = 0 THEN excluded.participants ELSE ${matchTimelines.participants} END` } });
+      .onConflictDoUpdate({
+        target: matchTimelines.matchId,
+        set: { frames: row.frames, events: row.events, participants: sql`CASE WHEN jsonb_array_length(excluded.participants) = 0 THEN ${matchTimelines.participants} ELSE excluded.participants END` },
+      });
   }
   return result;
 }

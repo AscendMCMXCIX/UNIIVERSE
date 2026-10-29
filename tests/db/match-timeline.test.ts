@@ -7,7 +7,7 @@ import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { addAccount } from "@/server/accounts/repository";
-import { buildSteps, getMatchTimeline, maxOrderOf, timelineFrames, timelineParticipants, timelineRow } from "@/server/accounts/match-timeline";
+import { buildSteps, getMatchTimeline, maxOrderOf, timelineEvents, timelineFrames, timelineParticipants, timelineRow } from "@/server/accounts/match-timeline";
 import { RiotApiClient } from "@/server/riot/api/client";
 import { RateLimiter } from "@/server/riot/api/rate-limiter";
 import type { RiotMatchTimeline } from "@/server/riot/api/schemas";
@@ -53,8 +53,8 @@ function timeline(matchId: string, puuids: string[]): RiotMatchTimeline {
 describe("reading a timeline", () => {
   it("keeps purchases in order, removes undone ones, and records skill level-ups (not evolutions)", () => {
     const [me, other] = timelineParticipants(timeline("OC1_T", ["p1", "p2"]));
-    expect(me).toEqual({ puuid: "p1", purchases: [[2_000, 1055], [2_500, 2003], [2_600, 2003], [402_000, 1036]], skills: [1, 3, 2] });
-    expect(other).toEqual({ puuid: "p2", purchases: [[3_000, 1056]], skills: [] });
+    expect(me).toEqual({ puuid: "p1", purchases: [[2_000, 1055], [2_500, 2003], [2_600, 2003], [402_000, 1036]], skills: [1, 3, 2], kills: [], deaths: [], assists: [] });
+    expect(other).toEqual({ puuid: "p2", purchases: [[3_000, 1056]], skills: [], kills: [], deaths: [], assists: [] });
   });
 
   it("falls back to the metadata order when the timeline lists no participants", () => {
@@ -81,6 +81,54 @@ describe("reading a timeline", () => {
     expect(frames.p.p3).toBeUndefined();
     // Timelines without frame figures store none (nothing invented).
     expect(timelineFrames(timeline("OC1_T", ["p1"]))).toEqual({ t: [], p: {} });
+  });
+
+  it("records the champion kills each player took part in; an execution counts only as a death", () => {
+    const t = timeline("OC1_T", ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10"]);
+    t.info.frames[0]!.events.push(
+      { type: "CHAMPION_KILL", timestamp: 300_000, killerId: 1, victimId: 6, assistingParticipantIds: [2, 3, 2] },
+      { type: "CHAMPION_KILL", timestamp: 420_000, killerId: 6, victimId: 1, assistingParticipantIds: [7] },
+      { type: "CHAMPION_KILL", timestamp: 430_000, killerId: 0, victimId: 2 },
+    );
+    const by = new Map(timelineParticipants(t).map((p) => [p.puuid, p]));
+    expect(by.get("p1")).toMatchObject({ kills: [300_000], deaths: [420_000], assists: [] });
+    // An assist is counted once even if Riot lists the player twice.
+    expect(by.get("p2")).toMatchObject({ kills: [], deaths: [430_000], assists: [300_000] });
+    expect(by.get("p6")).toMatchObject({ kills: [420_000], deaths: [300_000] });
+    expect(by.get("p7")).toMatchObject({ assists: [420_000] });
+  });
+
+  it("keeps the objectives each team took: monsters by the team that took them, buildings for the side that broke them", () => {
+    const t = timeline("OC1_T", ["p1", "p2"]);
+    const kill = (timestamp: number, extra: Record<string, unknown>) => ({ type: "ELITE_MONSTER_KILL", timestamp, ...extra });
+    t.info.frames[1]!.events.push(
+      kill(360_000, { killerId: 2, killerTeamId: 100, monsterType: "DRAGON", monsterSubType: "FIRE_DRAGON" }),
+      // No team given: read from the killer's side (participants 6 to 10 are red).
+      kill(400_000, { killerId: 7, monsterType: "HORDE" }),
+      kill(900_000, { killerTeamId: 200, monsterType: "RIFTHERALD" }),
+      kill(1_200_000, { killerTeamId: 100, monsterType: "ATAKHAN" }),
+      kill(1_500_000, { killerTeamId: 200, monsterType: "BARON_NASHOR" }),
+      kill(2_100_000, { killerTeamId: 100, monsterType: "DRAGON", monsterSubType: "ELDER_DRAGON" }),
+      // A monster Riot names that this does not know, and one with no team at all: left out.
+      kill(2_150_000, { killerTeamId: 100, monsterType: "SCUTTLE" }),
+      kill(2_160_000, { killerId: 0, monsterType: "DRAGON", monsterSubType: "WATER_DRAGON" }),
+      // Riot names the side that lost the building.
+      { type: "BUILDING_KILL", timestamp: 700_000, killerId: 1, teamId: 200, buildingType: "TOWER_BUILDING", laneType: "TOP_LANE", towerType: "OUTER_TURRET" },
+      { type: "BUILDING_KILL", timestamp: 1_900_000, killerId: 8, teamId: 100, buildingType: "INHIBITOR_BUILDING", laneType: "MID_LANE" },
+      { type: "TURRET_PLATE_DESTROYED", timestamp: 500_000, killerId: 1, teamId: 200, laneType: "BOT_LANE" },
+    );
+    expect(timelineEvents(t).objectives).toEqual([
+      { t: 360_000, team: 100, kind: "dragon", detail: "FIRE" },
+      { t: 400_000, team: 200, kind: "grubs" },
+      { t: 700_000, team: 100, kind: "tower", detail: "TOP OUTER" },
+      { t: 900_000, team: 200, kind: "herald" },
+      { t: 1_200_000, team: 100, kind: "atakhan" },
+      { t: 1_500_000, team: 200, kind: "baron" },
+      { t: 1_900_000, team: 200, kind: "inhibitor", detail: "MID" },
+      { t: 2_100_000, team: 100, kind: "elder" },
+    ]);
+    // A timeline Riot no longer provides is kept as such, with no events to ask for again.
+    expect(timelineRow("OC1_GONE", "oc1", null).events).toEqual({ objectives: [], missing: true });
   });
 
   it("groups purchases by minute with counts, and finds the max order", () => {
@@ -271,5 +319,173 @@ describe("the lane and the gold difference of a stored game", () => {
     const [ten, fifteen] = r.timeline.lane!.moments;
     expect(ten!.you).not.toBeNull();
     expect(fifteen).toEqual({ minute: 15, you: null, opponent: null });
+  });
+});
+
+describe("the kills and objectives of a stored game", () => {
+  let handle: DbHandle;
+  let owner: string;
+  let accountId: string;
+  const LANES = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
+  const part = (puuid: string, teamId: number, position: string | null, over: Partial<MatchParticipantDetail> = {}): MatchParticipantDetail => ({ puuid, name: `${puuid}#OCE`, teamId, championId: "Ahri", championKey: 103, champLevel: 16, position, win: teamId === 100, kills: 2, deaths: 2, assists: 2, cs: 200, gold: 10_000, damage: 20_000, damageTaken: 10_000, vision: 20, wardsPlaced: 5, items: null, spells: null, runes: null, ...over });
+  /** Ten players: the owner ("me", participant 3) in the middle on blue. */
+  const players = (matchId: string) => [...LANES.map((l) => part(l === "MIDDLE" ? "me" : `${matchId}-b-${l}`, 100, l)), ...LANES.map((l) => part(`${matchId}-r-${l}`, 200, l))];
+  /** A game of 20 minutes: the player kills participant 8 at 5:00 (participants 1 and 2 assisting) and is killed by them at 7:00; participant 4 is executed; blue takes a dragon and a tower, red voidgrubs and Baron. */
+  function eventful(matchId: string): RiotMatchTimeline {
+    const t = framedTimeline(matchId, players(matchId).map((p) => p.puuid), 20, (slot, minute) => 500 + minute * 300);
+    t.info.frames[1]!.events.push(
+      { type: "CHAMPION_KILL", timestamp: 300_000, killerId: 3, victimId: 8, assistingParticipantIds: [1, 2] },
+      { type: "CHAMPION_KILL", timestamp: 420_000, killerId: 8, victimId: 3, assistingParticipantIds: [9] },
+      { type: "CHAMPION_KILL", timestamp: 430_000, killerId: 0, victimId: 4 },
+      { type: "ELITE_MONSTER_KILL", timestamp: 360_000, killerId: 2, killerTeamId: 100, monsterType: "DRAGON", monsterSubType: "FIRE_DRAGON" },
+      { type: "ELITE_MONSTER_KILL", timestamp: 600_000, killerId: 7, monsterType: "HORDE" },
+      { type: "BUILDING_KILL", timestamp: 700_000, killerId: 1, teamId: 200, buildingType: "TOWER_BUILDING", laneType: "TOP_LANE", towerType: "OUTER_TURRET" },
+      { type: "ELITE_MONSTER_KILL", timestamp: 1_000_000, killerTeamId: 200, monsterType: "BARON_NASHOR" },
+    );
+    return t;
+  }
+  async function record(matchId: string, participants: MatchParticipantDetail[]) {
+    await handle.db.insert(accountMatches).values({ accountId, matchId, gameCreation: Date.now() - 86_400_000, queueId: 420, championId: "Ahri", role: "MID", win: true, patch: "16.20", gameDuration: 1200 });
+    await handle.db.insert(matchDetails).values({ matchId, platform: "oc1", queueId: 420, gameCreation: Date.now() - 86_400_000, gameDuration: 1200, gameVersion: "16.20.1", teams: [], participants });
+  }
+  /** A timeline kept before kills and objectives were: no events, no kill times. */
+  async function dated(matchId: string) {
+    await record(matchId, players(matchId));
+    const row = timelineRow(matchId, "oc1", eventful(matchId));
+    await handle.db.insert(matchTimelines).values({ matchId, platform: "oc1", participants: row.participants.map(({ puuid, purchases, skills }) => ({ puuid, purchases, skills })), frames: row.frames });
+  }
+  const answering = (status: number, calls: string[], body: (matchId: string) => RiotMatchTimeline = eventful) =>
+    new RiotApiClient({
+      apiKey: "k",
+      maxRetries: 0,
+      limiter: new RateLimiter([{ requests: 1000, seconds: 1 }]),
+      sleep: async () => {},
+      fetchImpl: async (input: string | URL | Request) => {
+        const url = String(input);
+        calls.push(url);
+        const matchId = url.split("/matches/")[1]!.split("/")[0]!;
+        return status === 200
+          ? new Response(JSON.stringify(body(matchId)), { status: 200, headers: { "content-type": "application/json" } })
+          : new Response(JSON.stringify({ status: { message: "no" } }), { status, headers: { "content-type": "application/json", "retry-after": "1" } });
+      },
+    });
+
+  beforeAll(async () => {
+    handle = await testDb();
+    const db = handle.db;
+    await syncStaticData(db, new FixtureStaticProvider(), { fingerprint: false });
+    const team = await getOrCreateTeam(db);
+    owner = (await createPlayer(db, team.id, { displayName: "Events", primaryRole: "MID", primaryPool: ["Ahri"] })).id;
+    accountId = (await addAccount(db, { ownerType: "player", playerId: owner, riotId: "Events#OCE", platform: "oc1", puuid: "me" })).id;
+    await record("OC1_EVENTS", players("OC1_EVENTS"));
+    await db.insert(matchTimelines).values(timelineRow("OC1_EVENTS", "oc1", eventful("OC1_EVENTS")));
+    // The same game with a removed (erased) player on red.
+    await record("OC1_EV_REMOVED", players("OC1_EV_REMOVED").map((p) => (p.puuid === "OC1_EV_REMOVED-r-TOP" ? { ...p, puuid: "", name: null, position: null, removed: true as const } : p)));
+    await db.insert(matchTimelines).values(timelineRow("OC1_EV_REMOVED", "oc1", eventful("OC1_EV_REMOVED")));
+    await dated("OC1_DATED");
+    await dated("OC1_DATED_BUSY");
+    await dated("OC1_DATED_GONE");
+  }, 60_000);
+  afterAll(async () => {
+    await handle.close();
+  });
+
+  it("places each objective by the team that took it, from the player's side, with every kill of each team and the player's own", async () => {
+    const r = await getMatchTimeline(handle.db, owner, "OC1_EVENTS");
+    if (r.status !== "ok") throw new Error(r.message);
+    const events = r.timeline.events!;
+    expect(events.objectives).toEqual([
+      { minute: 6, own: true, kind: "dragon", detail: "FIRE" },
+      { minute: 10, own: false, kind: "grubs", detail: null },
+      { minute: 700_000 / 60_000, own: true, kind: "tower", detail: "TOP OUTER" },
+      { minute: 1_000_000 / 60_000, own: false, kind: "baron", detail: null },
+    ]);
+    // The execution counts as a death, not as a kill for anyone.
+    expect(events.kills).toEqual({ own: [5], enemy: [7] });
+    expect(events.you).toEqual({ kills: [5], deaths: [7], assists: [] });
+    expect(r.timeline.eventsNote).toBeNull();
+  });
+
+  it("shows no team kills when a player was removed (their kills are not kept), and still the player's own", async () => {
+    const r = await getMatchTimeline(handle.db, owner, "OC1_EV_REMOVED");
+    if (r.status !== "ok") throw new Error(r.message);
+    expect(r.timeline.events!.kills).toBeNull();
+    expect(r.timeline.events!.you).toEqual({ kills: [5], deaths: [7], assists: [] });
+    expect(r.timeline.events!.objectives).toHaveLength(4);
+  });
+
+  it("fetches a timeline kept before kills and objectives were once more, keeps them, and asks no more", async () => {
+    const calls: string[] = [];
+    const client = answering(200, calls);
+    // Not asked for: said so, and the rest of the timeline shows.
+    const before = await getMatchTimeline(handle.db, owner, "OC1_DATED");
+    if (before.status !== "ok") throw new Error(before.message);
+    expect(before.timeline.events).toBeNull();
+    expect(before.timeline.eventsNote).toContain("not loaded yet");
+    expect(before.timeline.gold).toHaveLength(21);
+    const r = await getMatchTimeline(handle.db, owner, "OC1_DATED", { fetch: true, client });
+    if (r.status !== "ok") throw new Error(r.message);
+    expect(r.timeline.events!.kills).toEqual({ own: [5], enemy: [7] });
+    expect(r.timeline.build).not.toBeNull();
+    await getMatchTimeline(handle.db, owner, "OC1_DATED", { fetch: true, client });
+    expect(calls).toHaveLength(1);
+    const [row] = await handle.db.select().from(matchTimelines).where(eq(matchTimelines.matchId, "OC1_DATED"));
+    expect(row!.events!.objectives).toHaveLength(4);
+    expect(row!.participants.find((p) => p.puuid === "me")).toMatchObject({ kills: [300_000], deaths: [420_000] });
+  });
+
+  it("keeps showing the stored timeline when Riot is busy, says so, and asks again next time", async () => {
+    const calls: string[] = [];
+    const r = await getMatchTimeline(handle.db, owner, "OC1_DATED_BUSY", { fetch: true, client: answering(429, calls) });
+    if (r.status !== "ok") throw new Error(r.message);
+    expect(r.timeline.events).toBeNull();
+    expect(r.timeline.eventsNote).toContain("limiting requests");
+    expect(r.timeline.gold).toHaveLength(21);
+    const [row] = await handle.db.select().from(matchTimelines).where(eq(matchTimelines.matchId, "OC1_DATED_BUSY"));
+    expect(row!.events).toBeNull();
+    const again = await getMatchTimeline(handle.db, owner, "OC1_DATED_BUSY", { fetch: true, client: answering(200, calls) });
+    expect(again.status === "ok" && again.timeline.events?.objectives).toHaveLength(4);
+  });
+
+  it("remembers when Riot no longer provides the timeline, keeping what was stored", async () => {
+    const calls: string[] = [];
+    const r = await getMatchTimeline(handle.db, owner, "OC1_DATED_GONE", { fetch: true, client: answering(404, calls) });
+    if (r.status !== "ok") throw new Error(r.message);
+    expect(r.timeline.events).toBeNull();
+    expect(r.timeline.eventsNote).toBeNull();
+    expect(r.timeline.build).not.toBeNull();
+    await getMatchTimeline(handle.db, owner, "OC1_DATED_GONE", { fetch: true, client: answering(404, calls) });
+    expect(calls).toHaveLength(1);
+    const [row] = await handle.db.select().from(matchTimelines).where(eq(matchTimelines.matchId, "OC1_DATED_GONE"));
+    expect(row!.events).toEqual({ objectives: [], missing: true });
+    expect(row!.participants).toHaveLength(10);
+  });
+
+  it("never empties a stored timeline: an answer without the players keeps what was kept and adds the objectives", async () => {
+    await dated("OC1_DATED_EMPTY");
+    const calls: string[] = [];
+    const playerless = (matchId: string): RiotMatchTimeline => {
+      const t = eventful(matchId);
+      return { ...t, metadata: { ...t.metadata, participants: [] }, info: { ...t.info, participants: [], frames: t.info.frames.map((f) => ({ ...f, participantFrames: {} })) } };
+    };
+    const r = await getMatchTimeline(handle.db, owner, "OC1_DATED_EMPTY", { fetch: true, client: answering(200, calls, playerless) });
+    if (r.status !== "ok") throw new Error(r.message);
+    expect(calls).toHaveLength(1);
+    expect(r.timeline.gold).toHaveLength(21);
+    expect(r.timeline.build).not.toBeNull();
+    expect(r.timeline.events!.objectives).toHaveLength(4);
+    // No kill times were kept for anyone, so none are shown.
+    expect(r.timeline.events!.kills).toBeNull();
+    expect(r.timeline.events!.you).toBeNull();
+    const [row] = await handle.db.select().from(matchTimelines).where(eq(matchTimelines.matchId, "OC1_DATED_EMPTY"));
+    expect(row!.participants).toHaveLength(10);
+    expect(row!.frames!.t).toHaveLength(21);
+  });
+
+  it("says when Riot access is not configured, without failing the timeline", async () => {
+    await dated("OC1_DATED_NOKEY");
+    const r = await getMatchTimeline(handle.db, owner, "OC1_DATED_NOKEY", { fetch: true, client: null });
+    if (r.status !== "ok") throw new Error(r.message);
+    expect(r.timeline.eventsNote).toContain("once Riot access is configured");
   });
 });

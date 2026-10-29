@@ -862,5 +862,13 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
       "ALTER TABLE \"development_plans\" ENABLE ROW LEVEL SECURITY;",
       "-- Closed to Supabase's Data API whatever the project's default privileges, and readable by the\n-- backup role where it exists (docs/DATABASE_PERMISSIONS.md).\nDO $$ BEGIN\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN\n    REVOKE ALL ON TABLE public.development_objectives FROM anon;\n    REVOKE ALL ON TABLE public.development_plans FROM anon;\n  END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN\n    REVOKE ALL ON TABLE public.development_objectives FROM authenticated;\n    REVOKE ALL ON TABLE public.development_plans FROM authenticated;\n  END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'uniiverse_backup') THEN\n    GRANT SELECT ON TABLE public.development_objectives TO uniiverse_backup;\n    GRANT SELECT ON TABLE public.development_plans TO uniiverse_backup;\n  END IF;\nEND $$;"
     ]
+  },
+  {
+    "idx": 60,
+    "tag": "0060_match_timeline_events",
+    "hash": "1248c9bd5410b7f9f5a46d41a556d78099255afd9199c05606630c81af157415",
+    "statements": [
+      "ALTER TABLE \"match_timelines\" ADD COLUMN \"events\" jsonb;"
+    ]
   }
 ];

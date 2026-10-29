@@ -360,7 +360,24 @@ request is a game's match timeline, once per game, when a section that needs it 
   once per game (stored in `match_timelines` as before; a game Riot no longer serves is recorded as
   unavailable and not asked for again), the browser keeps the answer for the list
   (`MatchDetailCache.timeline`), and Riot's 429 is shown as "Riot is limiting requests just now".
-  Kills, objectives and buildings are not marked yet: the stored timeline keeps no events.
+- **Kills and objectives on the timeline** (migration `0060_match_timeline_events`;
+  `src/domain/match-events.ts`): read from the same timeline request. Each player's entry in
+  `match_timelines.participants` gains the times of the champion kills they made, died in and
+  assisted (`kills`, `deaths`, `assists`, ms into the game; an execution is only a death), so an
+  erased player's go with their entry, as the rest of it already did. The objectives and buildings
+  each team took (`match_timelines.events`: dragons with their element, the Elder Dragon, Baron,
+  the Rift Herald, voidgrubs, Atakhan, towers by lane and tier, inhibitors) are team facts with no
+  player in them. A timeline stored before (events null) is fetched again once, the next time its
+  Timeline, Build or lane is opened; if Riot cannot answer, the stored timeline shows without them
+  and says why, and a 404 is recorded so it is not asked again (`events.missing`). The chart marks
+  each team's kills (the player's team along the top, the other along the bottom; only when all ten
+  players' kills are kept), the objectives under the curve (one letter each, voidgrubs of one camp
+  together) and the player's own kills and deaths; the readout adds what happened since the minute
+  before. "Largest swings" (`goldSwings`: the three largest moves over about three minutes, 1,500
+  gold or more, not overlapping) lists the kills and objectives of the same minutes side by side,
+  and says it does not name a cause. Every objective and the player's kills, assists and deaths are
+  also a table. The demo seeds kill times and objectives for every demo game with a timeline, and
+  the record's team counts follow them.
 - **Build** (`build-panel.tsx`): the build and skill order from the same timeline request (which
   replaced `getMatchBuild`), and the rune page.
 - **Cards** (`MatchRow`): the champion's level, each player's stored rank for everyone but the
