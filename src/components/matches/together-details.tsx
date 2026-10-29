@@ -9,11 +9,12 @@ import { cn } from "@/lib/cn";
 const OWN_ACTION = "a, button, input, select, textarea, summary, label";
 
 /**
- * A Team Matches game card that opens the same match window as My Profile → Match History (both
- * teams, items, runes, possible groups), read from one member's stored history. As there: a click
- * anywhere on the card opens it except on a link or a control (member names open their profile,
- * other players' names their OP.GG page, the bookmark toggles), and one button behind the content
- * is the card for the keyboard and screen readers. Closing returns the focus to that button.
+ * A Team Matches game card that opens the match window: the same breakdown My Profile → Match
+ * History opens under its cards (both teams, analysis, timeline, build, possible groups), read from
+ * one member's stored history. As there: a click anywhere on the card opens it except on a link or
+ * a control (member names open their profile, other players' names their OP.GG page, the bookmark
+ * toggles), and one button behind the content is the card for the keyboard and screen readers.
+ * Closing returns the focus to that button.
  */
 export function TogetherCardFrame({ playerId, matchId, championsById, label, className, children, ...data }: { playerId: string; matchId: string; championsById: Record<string, PortraitChampion>; label: string; className?: string; children: React.ReactNode } & Record<`data-${string}`, string | number | undefined>) {
   const [open, setOpen] = React.useState(false);

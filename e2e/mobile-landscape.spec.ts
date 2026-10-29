@@ -295,13 +295,12 @@ test("turning a small phone with the player window open keeps it open and whole-
 
 test("a window whose header leaves room keeps its own scrolling body on a phone held upright", async ({ browser, baseURL }) => {
   const page = await phone(browser, baseURL!, IPHONE);
-  await page.goto("/players");
-  const profile = new URL((await page.locator("main a[data-testid='player-card'][data-player-name='Demo Mid']").getAttribute("href"))!, "http://x").pathname;
-  await page.goto(`${profile}/matches`);
+  // Team Matches opens a game in the match window (Match History opens its games under their cards).
+  await page.goto("/matches");
   const win = page.getByTestId("match-detail");
-  const card = page.getByTestId("match-card").first();
+  const card = page.getByTestId("together-game").first();
   await expect(async () => {
-    if (!(await win.isVisible())) await card.click({ position: { x: 24, y: 16 }, timeout: 2_000 });
+    if (!(await win.isVisible())) await card.click({ position: { x: 24, y: 12 }, timeout: 2_000 });
     await expect(win).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
   await expect(page.getByTestId("match-detail-figures")).toBeVisible();

@@ -1,6 +1,6 @@
 import { eq, like } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { matchDetails, type MatchParticipantDetail } from "@/server/db/schema";
+import { matchDetails, matchTimelines, type MatchParticipantDetail } from "@/server/db/schema";
 
 /*
   Demo data only (synthetic DEMO_ games in the in-memory demo): the other players of the demo
@@ -9,7 +9,8 @@ import { matchDetails, type MatchParticipantDetail } from "@/server/db/schema";
   players is placed in some of them, on either side, across different members' games, so a profile's
   Encounters (Match History) has something realistic to show. One more is met once on each side by
   every member (BOTH_SIDES), so every profile has a player who was both an ally and an opponent
-  (Mixed). Real (non-DEMO_) records are never read or changed. Running it twice changes nothing.
+  (Mixed). A game's stored timeline is renamed with it. Real (non-DEMO_) records are never read or
+  changed. Running it twice changes nothing.
 */
 
 /** Recurring demo players: realistic Riot IDs (spaces, accents, other scripts, long names). */
@@ -64,6 +65,20 @@ export async function applyDemoEncounters(db: Db): Promise<void> {
         changed = true;
       }
     }
-    if (changed) await db.update(matchDetails).set({ participants: next }).where(eq(matchDetails.matchId, matchId));
+    if (!changed) continue;
+    await db.update(matchDetails).set({ participants: next }).where(eq(matchDetails.matchId, matchId));
+    // The game's timeline follows the same players under their new identities, so its figures
+    // still belong to someone in the record (the gold difference needs all ten).
+    const renamed = new Map(participants.flatMap((p, i) => (p.puuid !== next[i]!.puuid ? [[p.puuid, next[i]!.puuid] as const] : [])));
+    const [timeline] = await db.select({ participants: matchTimelines.participants, frames: matchTimelines.frames }).from(matchTimelines).where(eq(matchTimelines.matchId, matchId));
+    if (!timeline || !renamed.size) continue;
+    const to = (puuid: string) => renamed.get(puuid) ?? puuid;
+    await db
+      .update(matchTimelines)
+      .set({
+        participants: timeline.participants.map((t) => ({ ...t, puuid: to(t.puuid) })),
+        frames: timeline.frames ? { t: timeline.frames.t, p: Object.fromEntries(Object.entries(timeline.frames.p).map(([puuid, series]) => [to(puuid), series])) } : timeline.frames,
+      })
+      .where(eq(matchTimelines.matchId, matchId));
   }
 }

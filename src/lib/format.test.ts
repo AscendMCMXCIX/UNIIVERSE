@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import path from "node:path";
 import { ESLint } from "eslint";
-import { DISPLAY_TIME_ZONE, calendarDay, formatCompactCount, formatCount, formatDate, formatDateTime, formatDayMonth, formatNumber, timeAgo } from "./format";
+import { DISPLAY_TIME_ZONE, calendarDay, formatCompactCount, formatCount, formatDate, formatDateTime, formatDayMonth, formatKilo, formatNumber, timeAgo } from "./format";
 
 /*
   Every date on the site is written in the installation's time zone (Sydney unless
@@ -94,5 +94,9 @@ describe("numbers", () => {
     expect(formatCompactCount(9_999)).toBe("9,999");
     expect(formatCompactCount(45_400)).toBe("45K");
     expect(formatCompactCount(1_250_000)).toBe("1.3M");
+    // A scoreboard's gold and damage: one decimal of thousands, whatever the size, so a column reads alike.
+    expect(formatKilo(7_504)).toBe("7.5k");
+    expect(formatKilo(29_120)).toBe("29.1k");
+    expect(formatKilo(950)).toBe("950");
   });
 });

@@ -144,25 +144,31 @@ test("a teammate's profile: its sections switch, and a champion's window opens a
   await expect(tabs.getByRole("link", { name: "Match History" })).toHaveAttribute("aria-current", "page");
 });
 
-test("Match History: once a game's window has checked its opponents' ranks, its card shows them under their icons, inside the card", async ({ page }) => {
+test("Match History: a game opens under its card, and once it has checked the players' ranks the card shows them under their icons, inside the card", async ({ page }) => {
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-ADC").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}/matches`);
-  // A game no window has checked yet (its opponents show no rank).
+  // A game nobody has opened yet (its players show no rank).
   const unchecked = page.getByTestId("match-card").filter({ has: page.getByTestId("match-teams") }).filter({ hasNot: page.getByTestId("slot-rank") });
   const matchId = (await unchecked.first().getByTestId("match-row").getAttribute("data-match"))!;
   const card = page.getByTestId("match-card").filter({ has: page.locator(`[data-match="${matchId}"]`) });
-  const detail = page.getByTestId("match-detail");
+  const row = card.getByTestId("match-row");
   await expect(async () => {
-    if (!(await detail.isVisible())) await card.tap({ position: { x: 24, y: 16 }, timeout: 2_000 });
-    await expect(detail).toBeVisible({ timeout: 1_000 });
+    if ((await row.getAttribute("aria-expanded")) !== "true") await card.tap({ position: { x: 24, y: 16 }, timeout: 2_000 });
+    await expect(row).toHaveAttribute("aria-expanded", "true", { timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
-  // The browser tests' Riot stand-in answers the window's check (server/riot/browser-test.ts).
-  const note = page.getByTestId("ranks-note");
+  const breakdown = card.locator("xpath=..").getByTestId("match-breakdown");
+  await expect(breakdown).toBeVisible({ timeout: 15_000 });
+  // The breakdown and its scoreboard fit the phone's width.
+  await fitsWidth(page, "an open game");
+  // The browser tests' Riot stand-in answers the check (server/riot/browser-test.ts).
+  const note = breakdown.getByTestId("ranks-note");
   await expect(note).toBeVisible({ timeout: 15_000 });
   await expect(note).not.toHaveAttribute("data-state", "checking", { timeout: 15_000 });
-  await page.keyboard.press("Escape");
-  await expect(detail).toHaveCount(0);
+  // The card closes it again.
+  await card.tap({ position: { x: 24, y: 16 } });
+  await expect(row).toHaveAttribute("aria-expanded", "false");
+  await expect(breakdown).toHaveCount(0);
   await expect(card.getByTestId("slot-rank").first()).toBeVisible();
   // On a phone each rank sits under its opponent's icon: the ten icons stay on one line, no two
   // ranks overlap, and every rank is inside the card.

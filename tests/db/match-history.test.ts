@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq, inArray, sql } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { accountMatches, appSettings, matchDetails, patches, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
+import { accountMatches, appSettings, matchDetails, patches, rankSnapshots, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
 import { patchSortKey } from "@/domain/patch";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
@@ -524,5 +524,103 @@ describe("last-known ranks of a match's players", () => {
     expect(shown("rank-apex").division).toBeNull();
     // Nothing stored: unknown, not "unranked".
     expect(shown("rank-nobody")).toMatchObject({ state: "unknown", stale: true });
+  });
+});
+
+describe("comparisons, the summary and the ladder (Match History 2.0)", () => {
+  let playerId: string;
+  let account: string;
+  const hour = 3_600_000;
+  const day = 24 * hour;
+  // 25 ranked Mid games a day apart, ending a day ago; then the newest, with more damage than any of them.
+  const start = Date.now() - 27 * day;
+  const lanes = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
+  const part = (puuid: string, teamId: number, position: string, over: Partial<MatchParticipantDetail> = {}): MatchParticipantDetail => ({ puuid, name: `${puuid}#OCE`, teamId, championId: "Ahri", championKey: 103, champLevel: 14, position, win: teamId === 100, kills: 2, deaths: 3, assists: 4, cs: 150, gold: 9_000, damage: 15_000, damageTaken: 18_000, vision: 18, wardsPlaced: 8, items: null, spells: null, runes: null, ...over });
+
+  beforeAll(async () => {
+    const db = handle.db;
+    playerId = (await createPlayer(db, teamId, { displayName: "Comparer", primaryRole: "MID", primaryPool: ["Ahri"] })).id;
+    account = (await addAccount(db, { ownerType: "player", playerId, riotId: "Comparer#OCE", platform: "oc1", puuid: "c-me" })).id;
+    const game = (i: number, over: Partial<typeof accountMatches.$inferInsert> = {}): typeof accountMatches.$inferInsert => ({ accountId: account, matchId: `OC1_9100000${String(i).padStart(2, "0")}`, gameCreation: start + i * day, queueId: 420, championId: "Ahri", role: "MID", win: i % 2 === 0, patch: "16.20", kills: 5, deaths: 5, assists: 5, cs: 210, damage: 21_000, visionScore: 30, gameDuration: 1800, teamKills: 25, ...over });
+    await db.insert(accountMatches).values([
+      ...Array.from({ length: 25 }, (_, i) => game(i)),
+      // The newest ranked game: 50% more damage than ever before, everything else the same.
+      game(25, { damage: 31_500, win: true }),
+      // A normal game the same day: never compared with ranked games (and too few normals to compare at all).
+      game(26, { queueId: 400, damage: 90_000, gameCreation: start + 25 * day + hour, win: true }),
+    ]);
+    // The newest ranked game's full record: the player in the middle on blue.
+    const me = part("c-me", 100, "MIDDLE", { kills: 5, deaths: 5, assists: 5, cs: 210, gold: 12_000, damage: 31_500, vision: 30, champLevel: 17, stats: { turretTakedowns: 3, wardsKilled: 4, controlWardsBought: 2 } });
+    const participants = [...lanes.map((l) => (l === "MIDDLE" ? me : part(`c-b-${l}`, 100, l))), ...lanes.map((l) => part(`c-r-${l}`, 200, l))];
+    await db.insert(matchDetails).values({ matchId: "OC1_910000025", platform: "oc1", queueId: 420, gameCreation: start + 25 * day, gameDuration: 1800, gameVersion: "16.20.1", teams: [], participants });
+    // Rank readings: Gold II 50 LP 40 days ago, Gold I 10 LP 20 days ago, Gold I 60 LP 2 days ago.
+    await db.insert(rankSnapshots).values([
+      { accountId: account, queue: "solo", tier: "GOLD", division: "II", leaguePoints: 50, wins: 10, losses: 10, capturedAt: new Date(Date.now() - 40 * day) },
+      { accountId: account, queue: "solo", tier: "GOLD", division: "I", leaguePoints: 10, wins: 20, losses: 15, capturedAt: new Date(Date.now() - 20 * day) },
+      { accountId: account, queue: "solo", tier: "GOLD", division: "I", leaguePoints: 60, wins: 28, losses: 19, capturedAt: new Date(Date.now() - 2 * day) },
+    ]);
+  });
+
+  it("marks a game's figure only when it is above every one of enough earlier games of the same role and queue group", async () => {
+    const page = await getMatchHistory(handle.db, playerId, { per: 25 });
+    const newest = page.rows.find((r) => r.matchId === "OC1_910000025")!;
+    expect(newest.standout).toMatchObject({ key: "damagePerMin", games: 25 });
+    expect(newest.standout!.value).toBeCloseTo(31_500 / 30, 6);
+    expect(newest.standout!.top).toBeCloseTo(21_000 / 30, 6);
+    // The normal game is not compared with ranked games, and the rest are like every other game.
+    expect(page.rows.find((r) => r.matchId === "OC1_910000026")!.standout).toBeNull();
+    expect(page.rows.filter((r) => r.standout)).toHaveLength(1);
+    // From the full record: the champion's level and the share of the team's damage.
+    expect(newest.champLevel).toBe(17);
+    expect(newest.damageShare).toBeCloseTo(31_500 / (31_500 + 4 * 15_000), 6);
+  });
+
+  it("summarises the newest games of the filter with the Overview's rules", async () => {
+    const db = handle.db;
+    const all = await getMatchHistory(db, playerId, { per: 25 });
+    const s = all.summary!;
+    expect(s.form.recent.games).toBe(20);
+    // The two newest games were won; the one before them (game 24, even) too, game 23 lost.
+    expect(s.streak).toEqual({ win: true, games: 3 });
+    expect(s.mostPlayed).toEqual([{ championId: "Ahri", games: 20, wins: expect.any(Number) }]);
+    // Kills and assists over the team's kills: (5 + 5) / 25 in every game.
+    expect(s.killParticipation.games).toBe(20);
+    expect(s.killParticipation.value).toBeCloseTo(10 / 25, 6);
+    // A filter that matches nothing has no summary.
+    expect((await getMatchHistory(db, playerId, { championId: "Garen", per: 25 })).summary).toBeNull();
+  });
+
+  it("reads the 30-day ladder change from stored readings, the same as the profile's ranked progress", async () => {
+    const db = handle.db;
+    const page = await getMatchHistory(db, playerId, { per: 25 });
+    expect(page.ladder).toMatchObject({ queue: "solo", days: 30, points: 110, from: "Gold II 50 LP", to: "Gold I 60 LP", riotId: null });
+    // Normal games have no ladder; Flex has no readings here.
+    expect((await getMatchHistory(db, playerId, { mode: "normal", per: 25 })).ladder).toBeNull();
+    expect((await getMatchHistory(db, playerId, { mode: "flex", per: 25 })).ladder).toBeNull();
+    // Reading only the window and the reading before it gives rankProgress's answer over every reading.
+    const { ladderChange } = await import("@/server/accounts/rank-history");
+    const { rankProgress } = await import("@/domain/rank-progress");
+    const rows = await db.select().from(rankSnapshots).where(eq(rankSnapshots.accountId, account));
+    const every = rankProgress("solo", rows.map((r) => ({ queue: "solo" as const, tier: r.tier, division: r.division, leaguePoints: r.leaguePoints, wins: r.wins, losses: r.losses, capturedAt: r.capturedAt.getTime() })), Date.now()).change;
+    expect(await ladderChange(db, account, "solo")).toEqual({ ...every, queue: "solo" });
+  });
+
+  it("opens the game beside the player's usual, with each player's shares and rates", async () => {
+    const res = await getMatchDetail(handle.db, playerId, "OC1_910000025", { viewerIsOwner: true });
+    if (res.status !== "ok") throw new Error(res.message);
+    const v = res.view;
+    expect(v.personal).toMatchObject({ role: "MID", group: "ranked" });
+    const dmg = v.personal!.figures.find((f) => f.key === "damagePerMin")!;
+    expect(dmg).toMatchObject({ games: 25, percentile: 1, best: true });
+    expect(v.personal!.figures.find((f) => f.key === "kda")).toMatchObject({ best: false, percentile: 0.5 });
+    // Per player: kill participation, shares and per-minute rates from the stored record.
+    expect(v.player.killParticipation).toBeCloseTo(10 / (5 + 4 * 2), 6);
+    expect(v.player.damageShare).toBeCloseTo(31_500 / 91_500, 6);
+    expect(v.player.goldPerMin).toBeCloseTo(400, 6);
+    expect(v.player.visionPerMin).toBeCloseTo(1, 6);
+    expect(v.player.stats).toMatchObject({ turretTakedowns: 3, wardsKilled: 4, controlWardsBought: 2 });
+    const enemyMid = v.teams[1]!.participants.find((p) => p.position === "MIDDLE")!;
+    expect(v.comparison.opponent?.slot).toBe(enemyMid.slot);
+    expect(enemyMid.damageShare).toBeCloseTo(0.2, 6);
   });
 });

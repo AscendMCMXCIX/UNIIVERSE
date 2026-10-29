@@ -8,14 +8,17 @@ import { assetUrl, ddragonVersionOf, loadRiotAssets } from "@/server/riot/static
 import { getCurrentPatch } from "@/server/repositories/champions";
 import { erasureFilter } from "@/server/privacy/ledger";
 import { redactTimeline } from "@/server/privacy/redact";
+import { loadCompositionParticipants } from "@/server/matches/compositions";
+import { LANE_MINUTES, laneMoments, laneOpponentOf, teamGoldDifference, type GoldPoint, type LaneMoment } from "@/domain/match-analysis";
 
 /*
-  Build order and skill order for one match, from Riot's match timeline. The timeline is a separate
+  One match minute by minute, from Riot's match timeline: the build and skill order, the lane at
+  10:00 and 15:00 and the two teams' gold difference over the game. The timeline is a separate
   request Riot makes per match, so it is never fetched while a page renders or during the account
-  sync: it is fetched once, when a player first opens that match's details or when the timeline
+  sync: it is fetched once, when a player first opens that match's breakdown or when the timeline
   backfill reaches it, and kept compactly: the purchases and skill level-ups, and each player's gold,
-  experience and CS at every frame (for Matchups; nothing else of the frames). Nothing is
-  reconstructed from the final inventory: without a timeline the page says so.
+  experience and CS at every frame (nothing else of the frames). Nothing is reconstructed from the
+  final inventory or the final figures: without a timeline the page says so.
 */
 
 /** Each player's gold, experience and CS at every frame, aligned with the frames' own timestamps. */
@@ -105,7 +108,8 @@ export interface MatchBuildView {
   maxOrder: Array<"Q" | "W" | "E">;
 }
 
-export type MatchBuildResult = { status: "ok"; build: MatchBuildView } | { status: "unavailable" | "not-configured" | "not-found" | "error"; message: string };
+/** Why a match's timeline cannot be shown, in words for the page. */
+export type TimelineFailure = { status: "unavailable" | "not-configured" | "not-found" | "error"; message: string };
 
 const SLOT = ["Q", "W", "E", "R"] as const;
 
@@ -136,12 +140,13 @@ export function buildSteps(purchases: Array<[number, number]>, describe: (id: nu
   return steps;
 }
 
+type TimelineRow = typeof matchTimelines.$inferSelect;
+
 /**
- * The player's build and skill order in one of their stored games. The match must be one of the
- * player's stored games. The timeline is read from storage, or fetched from Riot once and kept
- * (one request, at most once per match, only when someone opens it).
+ * One of the player's stored games and its timeline: read from storage, or fetched from Riot once
+ * and kept (one request, at most once per match, only when someone opens it). A failure says why.
  */
-export async function getMatchBuild(db: Db, playerId: string, matchId: string, options: { fetch?: boolean; client?: RiotApiClient | null } = {}): Promise<MatchBuildResult> {
+async function timelineFor(db: Db, playerId: string, matchId: string, options: { fetch?: boolean; client?: RiotApiClient | null }): Promise<{ row: TimelineRow; puuids: Set<string> } | TimelineFailure> {
   const accounts = await listAccountsForPlayer(db, playerId);
   if (!accounts.length) return { status: "not-found", message: "This match is not in this player's history." };
   const [mine] = await db
@@ -153,29 +158,77 @@ export async function getMatchBuild(db: Db, playerId: string, matchId: string, o
   if (!row && options.fetch) {
     const account = accounts.find((a) => a.id === mine.accountId)!;
     const client = options.client !== undefined ? options.client : createRiotClient({ maxRetries: 0, timeoutMs: 7_000 });
-    if (!client) return { status: "not-configured", message: "The build order appears once Riot access is configured for this site." };
+    if (!client) return { status: "not-configured", message: "The timeline appears once Riot access is configured for this site." };
     try {
       const timeline = await client.matchTimeline(account.platform, matchId);
       await db.insert(matchTimelines).values(await keptTimeline(db, timelineRow(matchId, account.platform, timeline))).onConflictDoNothing();
     } catch (err) {
       if (err instanceof RiotApiError && err.status === 404) await db.insert(matchTimelines).values(timelineRow(matchId, account.platform, null)).onConflictDoNothing();
-      else return { status: "error", message: "Riot did not answer just now. Open the game again in a moment to load its build order." };
+      else if (err instanceof RiotApiError && err.status === 429) return { status: "error", message: "Riot is limiting requests just now. Open the game again in a minute to load its timeline." };
+      else return { status: "error", message: "Riot did not answer just now. Open the game again in a moment to load its timeline." };
     }
     [row] = await db.select().from(matchTimelines).where(eq(matchTimelines.matchId, matchId));
   }
-  if (!row || !row.participants.length) return { status: "unavailable", message: "Riot does not provide the purchase timeline for this game, so its build order is not shown." };
-  const puuids = new Set(accounts.map((a) => a.puuid).filter(Boolean));
-  const me = row.participants.find((p) => puuids.has(p.puuid));
-  if (!me) return { status: "unavailable", message: "This player is not in the stored timeline of this game." };
+  if (!row || !row.participants.length) return { status: "unavailable", message: "Riot does not provide the timeline of this game, so its build order and minute-by-minute figures are not shown." };
+  return { row, puuids: new Set(accounts.map((a) => a.puuid).filter((x): x is string => !!x)) };
+}
+
+async function buildOf(db: Db, matchId: string, me: MatchTimelineParticipant): Promise<MatchBuildView> {
   const [[detail], assets, patch] = await Promise.all([db.select({ gameVersion: matchDetails.gameVersion }).from(matchDetails).where(eq(matchDetails.matchId, matchId)), loadRiotAssets(db), getCurrentPatch(db)]);
   const version = ddragonVersionOf(detail?.gameVersion ?? null, patch?.ddragonVersion ?? null);
   const describe = (id: number) => ({ name: assets?.items[String(id)] ?? `Item ${id}`, url: version ? assetUrl.item(version, id) : null });
   return {
+    steps: buildSteps(me.purchases, describe),
+    skills: me.skills.map((s) => SLOT[s - 1]!),
+    maxOrder: maxOrderOf(me.skills),
+  };
+}
+
+export interface MatchTimelineView {
+  /** Build and skill order; null when the timeline has no entry for the player. */
+  build: MatchBuildView | null;
+  /**
+   * The player and the enemy in the same recorded position at 10:00 and 15:00; null without such
+   * an enemy (exactly one) or without both players' frames. `opponentSlot` is their place in the record.
+   */
+  lane: { opponentSlot: number; moments: LaneMoment[] } | null;
+  /** The two teams' gold difference at every frame, from the player's side; null unless all ten players' frames are kept. */
+  gold: GoldPoint[] | null;
+  /** The game's last frame, in minutes (the length the curve covers). */
+  minutes: number | null;
+}
+
+export type MatchTimelineResult = { status: "ok"; timeline: MatchTimelineView } | TimelineFailure;
+
+/**
+ * Everything a match's breakdown reads from its timeline, in one request: the build, the lane at
+ * fixed minutes and the gold difference over the game. Stored data first; fetched from Riot at most
+ * once per match, when someone opens it.
+ */
+export async function getMatchTimeline(db: Db, playerId: string, matchId: string, options: { fetch?: boolean; client?: RiotApiClient | null } = {}): Promise<MatchTimelineResult> {
+  const found = await timelineFor(db, playerId, matchId, options);
+  if ("status" in found) return found;
+  const { row, puuids } = found;
+  const meTimeline = row.participants.find((p) => puuids.has(p.puuid)) ?? null;
+  const parts = (await loadCompositionParticipants(db, [matchId])).get(matchId) ?? [];
+  const meSlot = parts.findIndex((p) => puuids.has(p.puuid));
+  const me = meSlot >= 0 ? parts[meSlot]! : null;
+  const frames = row.frames && row.frames.t.length ? row.frames : null;
+  let lane: MatchTimelineView["lane"] = null;
+  const opponentSlot = me ? laneOpponentOf(parts, meSlot) : null;
+  if (frames && me && opponentSlot !== null) {
+    const mine = frames.p[me.puuid];
+    const theirs = frames.p[parts[opponentSlot]!.puuid];
+    if (mine && theirs) lane = { opponentSlot, moments: laneMoments(frames.t, mine, theirs, LANE_MINUTES) };
+  }
+  const series = frames ? parts.filter((p) => !p.removed && frames.p[p.puuid]).map((p) => ({ teamId: p.teamId, g: frames.p[p.puuid]!.g })) : [];
+  return {
     status: "ok",
-    build: {
-      steps: buildSteps(me.purchases, describe),
-      skills: me.skills.map((s) => SLOT[s - 1]!),
-      maxOrder: maxOrderOf(me.skills),
+    timeline: {
+      build: meTimeline ? await buildOf(db, matchId, meTimeline) : null,
+      lane,
+      gold: frames && me ? teamGoldDifference(frames.t, series, me.teamId) : null,
+      minutes: frames ? frames.t[frames.t.length - 1]! / 60_000 : null,
     },
   };
 }

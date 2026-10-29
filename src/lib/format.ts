@@ -99,6 +99,11 @@ export function formatNumber(value: number, digits: number): string {
   return value.toLocaleString("en", { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
+/** Gold and damage as a scoreboard writes them, in thousands with one decimal: "12.4k"; the whole number below 1,000. */
+export function formatKilo(value: number): string {
+  return Math.abs(value) >= 1000 ? `${(value / 1000).toFixed(1)}k` : formatCount(value);
+}
+
 /** A large count shortened for a tight space: "1.2M", "45K", or the whole number below 10,000. */
 export function formatCompactCount(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;

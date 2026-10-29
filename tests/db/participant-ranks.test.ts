@@ -278,7 +278,7 @@ describe("rank checks for an opened match", () => {
   });
 });
 
-describe("opponents' ranks on the collapsed match cards", () => {
+describe("ranks on the collapsed match cards", () => {
   // A slot is the place in the stored record: x-4 … x-7 are 5 … 8, the removed player 9.
   const opponents = async (matchId: string) => {
     const page = await getMatchHistory(handle.db, memberId, { per: 25 });
@@ -286,11 +286,16 @@ describe("opponents' ranks on the collapsed match cards", () => {
     return { teams, red: new Map(teams.red.map((s) => [s.slot, s])) };
   };
 
-  it("come from storage only, for the opponents only, and a rank checked in the match window shows on the next load", async () => {
+  it("come from storage only, for everyone but the player, and a rank checked in the match window shows on the next load", async () => {
     const { client, asked } = riot();
     const before = await opponents("OC1_100");
-    // The player's own side carries no ranks (x-3's stored sighting included); every opponent has one, "unknown" while nothing is stored.
-    expect([...before.teams.blue].every((s) => !("rank" in s))).toBe(true);
+    // The player (m-1) carries no rank; teammates carry their stored ones: a member's from their own
+    // account (m-2, Silver I), anyone else's from a match lookup (x-1, Platinum IV).
+    const blue = new Map(before.teams.blue.map((s) => [s.slot, s]));
+    expect(blue.get(0)).not.toHaveProperty("rank");
+    expect(blue.get(1)?.rank).toMatchObject({ state: "ranked", tier: "SILVER", division: "I" });
+    expect(blue.get(2)?.rank).toMatchObject({ state: "ranked", tier: "PLATINUM", division: "IV" });
+    // Every opponent has one too, "unknown" while nothing is stored.
     expect([5, 6, 7, 8].map((slot) => before.red.get(slot)?.rank?.state)).toEqual(["unknown", "unknown", "unknown", "unknown"]);
     // The erased player keeps nothing, a rank included.
     expect(before.red.get(9)).toMatchObject({ removed: true });

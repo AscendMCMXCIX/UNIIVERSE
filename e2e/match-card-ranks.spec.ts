@@ -1,12 +1,13 @@
 import { expect, test, type Locator, type Page } from "./test";
 import { createMember } from "./member-account";
+import { cardOf, closeGame, openGame } from "./match-history";
 
 /*
-  Opponents' ranks on the collapsed match cards (components/match-history/team-composition.tsx and
-  rank-short.tsx, server/players/match-history.ts): each opponent's current or last-checked rank in
-  a few letters ("E2", "GM", "Unr"), in its tier's colour, read from storage with the page and never
-  asked of Riot while the list is browsed. A match window's check (the browser tests' Riot
-  stand-in, server/riot/browser-test.ts) shows on its card as soon as the window closes, and on
+  Ranks on the collapsed match cards (components/match-history/team-composition.tsx and
+  rank-short.tsx, server/players/match-history.ts): everyone's but the player's current or
+  last-checked rank in a few letters ("E2", "GM", "Unr"), in its tier's colour, read from storage
+  with the page and never asked of Riot while the list is browsed. The check an opened game makes
+  (the browser tests' Riot stand-in, server/riot/browser-test.ts) shows on its card at once, and on
   every later visit. Wide cards put the rank on the name's line without the card growing; phones
   stack it under the icon. And a member's OP.GG profile: a small link beside their profile link,
   for a mouse and the keyboard.
@@ -40,9 +41,7 @@ async function openHistory(page: Page, role: string) {
   await page.goto(`/players/${id}/matches`, { waitUntil: "networkidle" });
 }
 
-const cardOf = (page: Page, matchId: string) => page.getByTestId("match-card").filter({ has: page.locator(`[data-match="${matchId}"]`) });
-
-/** A game on the page whose opponents show no rank yet: one no match window has checked. */
+/** A game on the page whose players show no rank yet: one no opened game has checked. */
 async function uncheckedGame(page: Page): Promise<string> {
   const cards = page.getByTestId("match-card");
   for (let i = 0; i < (await cards.count()); i++) {
@@ -52,22 +51,20 @@ async function uncheckedGame(page: Page): Promise<string> {
   throw new Error("every game on the page already shows ranks");
 }
 
+/** Opens a game under its card and waits for its rank check to answer. */
 async function openMatch(card: Locator) {
-  const page = card.page();
-  await expect(async () => {
-    await card.click({ position: { x: 24, y: 16 } });
-    await expect(page.getByTestId("match-detail")).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 15_000 });
-  const note = page.getByTestId("ranks-note");
+  const breakdown = await openGame(card);
+  const note = breakdown.getByTestId("ranks-note");
   await expect(note).toBeVisible({ timeout: 15_000 });
   await expect(note).not.toHaveAttribute("data-state", "checking", { timeout: 15_000 });
+  return breakdown;
 }
 
 /** Each rank shown on a card: what it says and its whole statement, in order. */
 const ranksOn = (card: Locator) =>
   card.getByTestId("slot-rank").evaluateAll((els) => els.map((e) => ({ text: e.textContent ?? "", title: e.getAttribute("title") ?? "", state: e.getAttribute("data-state"), tier: e.getAttribute("data-tier"), classes: e.className })));
 
-test("an opponent's rank shows on their card once the match window has checked it, and on every later visit, without asking Riot again", async ({ page }) => {
+test("a player's rank shows on the card once the opened game has checked it, and on every later visit, without asking Riot again", async ({ page }) => {
   const actions = watchActions(page);
   await openHistory(page, "ADC");
   // Listing the games calls nothing: no rank check, so nothing asked of Riot.
@@ -75,21 +72,20 @@ test("an opponent's rank shows on their card once the match window has checked i
   const matchId = await uncheckedGame(page);
   const card = cardOf(page, matchId);
   const before = (await card.boundingBox())!;
-  await openMatch(card);
-  // What the window says of each player, in full.
-  const statements = await page.locator('[data-testid="match-detail"] [data-testid="participant-rank"]').evaluateAll((els) => els.map((e) => e.getAttribute("title")));
-  await page.keyboard.press("Escape");
-  await expect(page.getByTestId("match-detail")).toHaveCount(0);
+  const breakdown = await openMatch(card);
+  // What the breakdown says of each player, in full.
+  const statements = await breakdown.getByTestId("participant-rank").evaluateAll((els) => els.map((e) => e.getAttribute("title")));
+  await closeGame(card);
 
-  // Without reloading: the card shows what the window found, for the opponents only.
+  // Without reloading: the card shows what the check found, for everyone but the player.
   await expect(card.getByTestId("slot-rank").first()).toBeVisible();
   const shown = await ranksOn(card);
   expect(shown.length).toBeGreaterThan(0);
-  expect(shown.length).toBeLessThanOrEqual(5);
-  await expect(card.locator("[data-own] [data-testid='slot-rank']")).toHaveCount(0);
+  expect(shown.length).toBeLessThanOrEqual(9);
+  await expect(card.locator("[data-you] [data-testid='slot-rank']")).toHaveCount(0);
   for (const r of shown) {
     expect(r.text, r.title).toMatch(RANK_TEXT);
-    // The same statement as the window's badge: the queue, the rank, when it was read, and never the rank in this game.
+    // The same statement as the breakdown's badge: the queue, the rank, when it was read, and never the rank in this game.
     expect(statements).toContain(r.title);
     if (r.state === "ranked") {
       expect(r.title).toMatch(/^Ranked (Solo\/Duo|Flex): .+, checked \d{1,2} [A-Z][a-z]{2} \d{4}\. Their rank then, not at the time of this match$/);
@@ -146,7 +142,7 @@ test("an opponent's rank shows on their card once the match window has checked i
   expect(await overflow(page)).toBeLessThanOrEqual(1);
 
   // A later visit: the same ranks, from storage, and again no action called (the pointer is moved
-  // off the cards first: hovering one fetches its match window ahead).
+  // off the cards first: pressing one fetches its game ahead).
   if (!isPhone(page)) await page.mouse.move(0, 0);
   const called = actions.length;
   await page.reload({ waitUntil: "networkidle" });
@@ -161,7 +157,7 @@ test("Team → Matches keeps its preview without ranks", async ({ page }) => {
   await expect(page.getByTestId("slot-rank")).toHaveCount(0);
 });
 
-test("a member's OP.GG profile: a small link beside their profile link, on the card and in the match window, opening OP.GG in a new tab and never the match", async ({ page, context }, info) => {
+test("a member's OP.GG profile: a small link beside their profile link, on the card and in the opened game, opening OP.GG in a new tab and never the game", async ({ page, context }, info) => {
   test.skip(info.project.name === "tablet", "phone and desktop cover touch and the pointer");
   // OP.GG itself is never reached from a test: its pages are answered here.
   await context.route("https://op.gg/**", (route) => route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>OP.GG</title>" }));
@@ -198,14 +194,12 @@ test("a member's OP.GG profile: a small link beside their profile link, on the c
     const tab = await popup;
     await expect(tab).toHaveURL(address);
     await tab.close();
-    // The click opened OP.GG, not the match.
-    await expect(page.getByTestId("match-detail")).toHaveCount(0);
+    // The click opened OP.GG, not the game.
+    await expect(card.getByTestId("match-row")).toHaveAttribute("aria-expanded", "false");
   }
 
-  // The match window: the name opens the profile; beside it the same OP.GG link, in the tab order.
-  await card.click({ position: { x: 24, y: 16 } });
-  const detail = page.getByTestId("match-detail");
-  await expect(detail).toBeVisible();
+  // The opened game: the name opens the profile; beside it the same OP.GG link, in the tab order.
+  const detail = await openGame(card);
   const row = detail.locator("[data-testid='participant'][data-player]");
   await expect(row.getByTestId("player-link")).toHaveAttribute("data-link", "profile");
   const arrow = row.getByTestId("player-opgg");
@@ -213,7 +207,7 @@ test("a member's OP.GG profile: a small link beside their profile link, on the c
   await expect(arrow).not.toHaveAttribute("tabindex", "-1");
   if (isPhone(page)) {
     await expect(arrow).toBeHidden();
-    // On touch the window's own button is the way to OP.GG: a finger-sized one.
+    // On touch the breakdown's own button is the way to OP.GG: a finger-sized one.
     const button = detail.getByTestId("match-opgg-history");
     await expect(button).toHaveAttribute("href", address);
     expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
