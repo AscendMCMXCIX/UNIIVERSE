@@ -392,6 +392,26 @@ request is a game's match timeline, once per game, when a section that needs it 
   and says it does not name a cause. Every objective and the player's kills, assists and deaths are
   also a table. The demo seeds kill times and objectives for every demo game with a timeline, and
   the record's team counts follow them.
+- **One game, one set of figures** (29 Oct 2026): the card, the scoreboard and Analysis read the
+  game's record (`match_details`: each player's side is their `teamId`, players are matched by
+  PUUID, team kills follow `teamKills`); the Timeline reads the same game's stored timeline from the
+  player's side (`teamGoldDifference(…, me.teamId)`). They agree because Riot's do: at the last
+  frame (the end of the game) each player's gold and CS are their recorded gold and CS.
+  `tests/db/match-views.test.ts` syncs two Riot-shaped games (`tests/fixtures/riot-game.ts`: frames,
+  kills with an execution, objectives, and the record built from them) for a member on each side and
+  checks that the four views agree on kills, kill participation, damage and gold shares, team gold,
+  objectives, the gold line's end (the recorded difference), the lane opponent and which team is
+  listed first. A stored timeline that points the other way from its record at the end, both by
+  2,000 gold or more (`goldContradictsRecord`), draws no gold difference and no lane figures and says
+  why (`goldNote: "contradicts"`); the scoreboard and Analysis are unchanged. The read-only
+  `data-audit` job reports how every stored record and timeline agree (`matchViews`,
+  `src/server/players/match-consistency.ts`: gold, CS and kills per player, towers, dragons and
+  barons per side; counts only, computed in the database, each timeline read once: 1.4 s locally
+  for 6,100 timelines, 43 MB). The demo's frames used to be a random
+  walk with no tie to its records (its 26 Oct Orianna game read 66.5k against 49.7k in Analysis and
+  a 3,390 deficit in Timeline): they are now fitted to each record (`fitFramesToRecord` in
+  `src/server/demo/seed.ts`), every demo game's deaths are the other side's kills, and a third of a
+  member's demo games are played from the red side.
 - **Build** (`build-panel.tsx`): the build and skill order from the same timeline request (which
   replaced `getMatchBuild`), and the rune page.
 - **Cards** (`MatchRow`): the champion's level, each player's stored rank for everyone but the

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SeasonGame } from "./season-stats";
-import { BASELINE_GAMES, BASELINE_MIN, BEST_MIN, LEAD_MIN, figureOf, goldStory, laneMoments, laneOpponentOf, personalComparison, placeOf, queueGroup, standoutOf, teamGoldDifference } from "./match-analysis";
+import { BASELINE_GAMES, BASELINE_MIN, BEST_MIN, CONTRADICTION_MIN, LEAD_MIN, figureOf, goldContradictsRecord, goldStory, laneMoments, laneOpponentOf, personalComparison, placeOf, queueGroup, standoutOf, teamGoldDifference } from "./match-analysis";
 
 let n = 0;
 /** A 30-minute game; `at` orders the games (minutes since an arbitrary start). */
@@ -132,6 +132,26 @@ describe("team gold difference", () => {
   it("is not drawn when a player is missing", () => {
     const series = [...Array.from({ length: 5 }, () => p(100, 400)), ...Array.from({ length: 4 }, () => p(200, 300))];
     expect(teamGoldDifference(t, series, 100)).toBeNull();
+  });
+});
+
+describe("a timeline against its game's record", () => {
+  const ending = (diff: number) => [{ minute: 0, diff: 0 }, { minute: 31, diff }];
+  it("agrees when both say the same side was ahead, or the gap is small either way", () => {
+    expect(goldContradictsRecord(ending(4_200), 4_150)).toBe(false);
+    expect(goldContradictsRecord(ending(-6_800), -6_900)).toBe(false);
+    // A close game read a moment apart can flip sign: not a contradiction.
+    expect(goldContradictsRecord(ending(350), -120)).toBe(false);
+    expect(goldContradictsRecord(ending(CONTRADICTION_MIN - 1), -9_000)).toBe(false);
+  });
+  it("contradicts when one clearly has the player's team ahead and the other clearly behind", () => {
+    // The 26 October demo game before the demo was fixed: +16,830 recorded, −4,342 at the last frame.
+    expect(goldContradictsRecord(ending(-4_342), 16_830)).toBe(true);
+    expect(goldContradictsRecord(ending(CONTRADICTION_MIN), -CONTRADICTION_MIN)).toBe(true);
+  });
+  it("cannot be judged without the recorded gold or the curve", () => {
+    expect(goldContradictsRecord(ending(-4_342), null)).toBe(false);
+    expect(goldContradictsRecord([], 16_830)).toBe(false);
   });
 });
 

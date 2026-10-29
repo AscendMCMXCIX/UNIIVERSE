@@ -514,6 +514,13 @@ A profile's Match History opens each game under its card (`docs/ARCHITECTURE.md`
 - [ ] Players met in other games: open a few games under their cards. A player met in another game this season (same game mode filter) carries "Met N×" after their name, and its hover text gives the games against and alongside. Teammates with a profile and players without a recorded Riot ID are never marked. Pressing it opens their Encounters window with "N recorded games with <player>" (the same N) and those games; Escape returns to the mark. A game opened in the window (Team → Matches, Encounters) has no marks. On a phone the mark fits beside the name without a sideways scroll.
 - [ ] Data jobs → `perf-probe`: the step `profile.matchMeetings` passes, with counts only.
 
+## Match History: one game, one set of figures (29 Oct 2026)
+
+The card, the scoreboard, Analysis and the Timeline describe the same game (`docs/ARCHITECTURE.md` → Match History 2.0 → One game, one set of figures). On the live site, after the deployment:
+- [ ] Data jobs → `smoke data-audit`: `matchViews` reports `contradicting` 0; `playersGoldOff`, `playersCsOff`, `playersKillsOff` and `objectivesOff` are 0 or close to it (each one is a stored game to look at, not a figure to hide).
+- [ ] Your profile → Match History, open three games, one of them played from the red side: the Analysis team gold, the scoreboard's gold column added up and the Timeline's "At the end" give the same lead or deficit (yours first); your team's kills run along the top of the Timeline, and the kill and objective counts match the scoreboard.
+- [ ] Only if `contradicting` is above 0: such a game's Timeline says its timeline and its record disagree and shows no gold line or lane figures; its scoreboard and Analysis are unchanged.
+
 ## Match History: ranks around each game (29 Oct 2026)
 
 Ranks are read against the game they are shown for (`docs/ARCHITECTURE.md` → Match History 2.0 → Ranks around each game). On the live site, after the deployment:
