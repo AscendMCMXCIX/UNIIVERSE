@@ -3,6 +3,7 @@ import { bigint, boolean, index, integer, jsonb, pgTable, primaryKey, text, time
 import { accountOwnerEnum, roleEnum, timestamps } from "./common";
 import { players } from "./team";
 import { opponentPlayers } from "./opponents";
+import type { ObjectiveKind } from "@/domain/match-events";
 
 /**
  * Riot accounts linked to our players (opponent rows are legacy). The PUUID is the canonical
@@ -233,8 +234,9 @@ export const matchDetails = pgTable("match_details", {
 /**
  * What a match's timeline says about each player, kept once per match when a player first opens the
  * match or the timeline backfill reaches it: item purchases in order (undone purchases removed),
- * skill level-ups and, from the Matchups release on, gold, experience and CS at each frame. An
- * empty participant list means Riot no longer provides the timeline.
+ * skill level-ups and, from the Matchups release on, gold, experience and CS at each frame; from
+ * Match History 2.0 on, when each player took part in a champion kill, and the objectives each team
+ * took. An empty participant list means Riot no longer provides the timeline.
  */
 export const matchTimelines = pgTable("match_timelines", {
   matchId: text("match_id").primaryKey(),
@@ -242,8 +244,30 @@ export const matchTimelines = pgTable("match_timelines", {
   participants: jsonb("participants").$type<MatchTimelineParticipant[]>().notNull(),
   /** Null on rows stored before frames were kept (build order only): the backfill refetches those. */
   frames: jsonb("frames").$type<MatchFrames>(),
+  /**
+   * The objectives and buildings each team took (team facts, no player), and the sign that the
+   * participants carry their kill times. Null on rows stored before (29 Oct 2026): such a timeline
+   * is fetched again, once, the next time someone opens its Timeline.
+   */
+  events: jsonb("events").$type<MatchEvents>(),
   storedAt: timestamp("stored_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** An objective or building a team took, at milliseconds into the game. */
+export interface MatchObjectiveEvent {
+  t: number;
+  /** The team that took it: 100 (blue side) or 200 (red side). */
+  team: number;
+  kind: ObjectiveKind;
+  /** A dragon's element (FIRE, EARTH, WATER, AIR, HEXTECH, CHEMTECH); a building's lane (TOP, MID, BOT) and a tower's tier (OUTER, INNER, BASE, NEXUS). */
+  detail?: string;
+}
+
+export interface MatchEvents {
+  objectives: MatchObjectiveEvent[];
+  /** Riot no longer provides the timeline: the events were asked for and are not available. */
+  missing?: true;
+}
 
 /**
  * Per-player figures at each timeline frame. Riot's frames are about a minute apart but not exactly:
@@ -262,6 +286,13 @@ export interface MatchTimelineParticipant {
   purchases: Array<[number, number]>;
   /** Skill slots levelled, in order (1 = Q, 2 = W, 3 = E, 4 = R). */
   skills: number[];
+  /**
+   * Champion kills the player made, died in and assisted, in milliseconds into the game (absent on
+   * timelines stored before 29 Oct 2026). They go with the entry: a removed player's go with theirs.
+   */
+  kills?: number[];
+  deaths?: number[];
+  assists?: number[];
 }
 
 export interface MatchTeamDetail {

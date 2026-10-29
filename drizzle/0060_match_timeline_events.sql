@@ -1,0 +1,1 @@
+ALTER TABLE "match_timelines" ADD COLUMN "events" jsonb;

@@ -40,7 +40,7 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
     kept: "While the profile exists. When an account is deleted, an administrator archives the profile with its history or deletes it too; permanent removal takes all of it (below)",
   },
   {
-    what: "Match records: for each stored game, the record Riot publishes (all ten players' in-game names, PUUIDs, champions, items, runes and results) and its timeline, kept once per game",
+    what: "Match records: for each stored game, the record Riot publishes (all ten players' in-game names, PUUIDs, champions, items, runes and results) and its timeline (what each player bought, their skill order, their gold, experience and CS minute by minute and when they took part in a kill, and the objectives each team took), kept once per game",
     why: "Match details, Matchups, Played Together and Encounters",
     who: "Team members, for games in a profile's history",
     kept: "Not deleted automatically: a game stays stored after the profiles that played it are deleted, but is no longer shown. Permanent removal takes the person out of every stored game (below)",

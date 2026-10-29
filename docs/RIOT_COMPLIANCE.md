@@ -132,9 +132,11 @@ and no new kind of data: the comparisons are arithmetic on the stored records of
 games (shares of the team, the lane opponent by recorded position, the member's own earlier games),
 labelled with their sample and never turned into a score or a judgement of other players. The match
 timeline (`match-v5`, already used for the build and Matchups) is requested once per game, only
-when the member opens a section that needs it, and kept compactly as before (each player's gold,
-experience and CS per frame, purchases and skill order; erased players removed). A 429 is shown as
-Riot limiting requests; nothing retries in the background.
+when the member opens a section that needs it, and kept compactly (each player's gold, experience
+and CS per frame, purchases, skill order and the times they took part in a champion kill; the
+objectives each team took; erased players removed). Timelines kept before the kill times and
+objectives were are requested once more, the same way, the next time one is opened. A 429 is shown
+as Riot limiting requests; nothing retries in the background.
 
 ## Clash Scout (retired 23 Oct 2026)
 

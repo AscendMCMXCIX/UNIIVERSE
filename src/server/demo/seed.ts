@@ -1,6 +1,6 @@
 import { eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { accountChampionHistory, accountMastery, accountMatches, brandAssets, matchDetails, matchTimelines, type MatchFrames, type MatchParticipantDetail, champions, playerChampionPools, players, rankSnapshots, riotAccounts, users } from "@/server/db/schema";
+import { accountChampionHistory, accountMastery, accountMatches, brandAssets, matchDetails, matchTimelines, type MatchEvents, type MatchFrames, type MatchObjectiveEvent, type MatchParticipantDetail, champions, playerChampionPools, players, rankSnapshots, riotAccounts, users } from "@/server/db/schema";
 import { listPlayers } from "@/server/repositories/team";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 import { ROLES } from "@/domain/roles";
@@ -325,6 +325,64 @@ function demoBuild(rnd: () => number, durationSeconds: number, role: Role): { pu
   return { purchases, skills: order.slice(0, level) };
 }
 
+const DEMO_DRAGONS = ["FIRE", "EARTH", "WATER", "AIR", "HEXTECH", "CHEMTECH"];
+const DEMO_LANES = ["TOP", "MID", "BOT"];
+
+/**
+ * The champion kills each demo player took part in (as many as the game's record gives them) and
+ * the objectives and buildings each team took, at plausible times, the winner taking more (demo
+ * mode only; never real data). Also the team counts for the stored record, so the scoreboard's
+ * dragons and towers agree with the timeline's.
+ */
+function demoEvents(rnd: () => number, durationSeconds: number, winner: number, players: ReadonlyArray<Pick<MatchParticipantDetail, "puuid" | "kills" | "deaths" | "assists">>): { kda: Map<string, { kills: number[]; deaths: number[]; assists: number[] }>; events: MatchEvents; counts: Record<number, Record<string, number>> } {
+  const end = durationSeconds * 1000;
+  const at = (lo: number, hi: number) => Math.round(lo + rnd() * (hi - lo));
+  // Fights get more frequent as the game goes on: later times are likelier.
+  const times = (n: number) => Array.from({ length: n }, () => Math.round((0.1 + 0.88 * Math.sqrt(rnd())) * end)).sort((a, b) => a - b);
+  const kda = new Map(players.map((p) => [p.puuid, { kills: times(p.kills), deaths: times(p.deaths), assists: times(p.assists) }]));
+  const loser = winner === 100 ? 200 : 100;
+  const side = (lean: number) => (rnd() < lean ? winner : loser);
+  const objectives: MatchObjectiveEvent[] = [];
+  // Dragons from 5:00, about every five and a half minutes, until one side has four.
+  const dragons = { [winner]: 0, [loser]: 0 } as Record<number, number>;
+  for (let t = at(300_000, 380_000); t < end - 30_000; t += at(300_000, 360_000)) {
+    if (dragons[winner]! >= 4 || dragons[loser]! >= 4) {
+      if (t > 1_800_000) objectives.push({ t, team: side(0.75), kind: "elder" });
+      continue;
+    }
+    const team = side(0.65);
+    dragons[team]! += 1;
+    objectives.push({ t, team, kind: "dragon", detail: DEMO_DRAGONS[Math.floor(rnd() * DEMO_DRAGONS.length)] });
+  }
+  // Voidgrubs: a camp of three at 6:00 or so, sometimes shared.
+  const grubsAt = at(360_000, 420_000);
+  for (let k = 0; k < 3; k++) objectives.push({ t: grubsAt + k * at(8_000, 20_000), team: side(0.6), kind: "grubs" });
+  if (end > 900_000) objectives.push({ t: at(840_000, 960_000), team: side(0.6), kind: "herald" });
+  if (end > 1_260_000 && rnd() < 0.6) objectives.push({ t: at(1_200_000, 1_320_000), team: side(0.65), kind: "atakhan" });
+  for (let t = at(1_380_000, 1_560_000); t < end - 60_000; t += at(420_000, 540_000)) objectives.push({ t, team: side(0.75), kind: "baron" });
+  // Towers lane by lane, outer to base; the winner breaks more and ends on the nexus towers.
+  const broken = { [winner]: 0, [loser]: 0 } as Record<number, number>;
+  const towers = (team: number, n: number, from: number) => {
+    for (let k = 0; k < n; k++) {
+      const tier = ["OUTER", "INNER", "BASE"][Math.min(2, Math.floor(k / 3))]!;
+      objectives.push({ t: Math.min(end - 20_000, from + Math.round(((end - from) * (k + rnd())) / (n + 1))), team, kind: "tower", detail: `${DEMO_LANES[k % 3]} ${tier}` });
+      broken[team]! += 1;
+    }
+  };
+  towers(winner, Math.min(9, 6 + Math.floor(rnd() * 4)), 600_000);
+  towers(loser, 1 + Math.floor(rnd() * 4), 540_000);
+  const inhibitors = 1 + Math.floor(rnd() * 2);
+  for (let k = 0; k < inhibitors; k++) objectives.push({ t: end - at(60_000, 180_000), team: winner, kind: "inhibitor", detail: DEMO_LANES[(k + 1) % 3] });
+  objectives.push({ t: end - at(25_000, 45_000), team: winner, kind: "tower", detail: "MID NEXUS" }, { t: end - at(10_000, 22_000), team: winner, kind: "tower", detail: "MID NEXUS" });
+  broken[winner]! += 2;
+  objectives.sort((a, b) => a.t - b.t);
+  const count = (team: number, kinds: string[]) => objectives.filter((o) => o.team === team && kinds.includes(o.kind)).length;
+  const counts = Object.fromEntries(
+    [winner, loser].map((team) => [team, { tower: count(team, ["tower"]), dragon: count(team, ["dragon", "elder"]), baron: count(team, ["baron"]), horde: count(team, ["grubs"]), riftHerald: count(team, ["herald"]), inhibitor: count(team, ["inhibitor"]) }]),
+  ) as Record<number, Record<string, number>>;
+  return { kda, events: { objectives }, counts };
+}
+
 /** The four other roles of a team, in lane order, around the demo player's own. */
 const DEMO_ROLES_FOR = (role: Role): Role[] => (["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"] as Role[]).filter((r) => r !== role);
 
@@ -426,8 +484,10 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
     const lane = `demo-lane-${puuid.slice(5, 13)}-${i}`;
     enemies[0] = { ...enemies[0]!, puuid: lane, championId: enemyChampionId, position: role };
     // Most demo games have a timeline; every sixth is left "still to be collected". Everyone in
-    // it has frames and a build, from a sequence of the game's own (the player's and the lane
-    // opponent's frames are as they always were).
+    // it has frames, a build and kill times, from a sequence of the game's own (the player's and
+    // the lane opponent's frames are as they always were), and the record's team counts follow
+    // the timeline's objectives.
+    let objectiveCounts: Record<number, Record<string, number>> | null = null;
     if (i % 6 !== 5) {
       let gameSeed = [...matchId].reduce((n, c) => n + c.charCodeAt(0) * 7, 13);
       const gameRnd = () => ((gameSeed = (gameSeed * 9301 + 49297) % 233280), gameSeed / 233280);
@@ -435,9 +495,11 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
       const others = [...allies.map((a, k) => ({ puuid: a.puuid, ally: true, role: roles[k]! })), ...enemies.slice(1).map((e, k) => ({ puuid: e.puuid, ally: false, role: roles[k]! }))];
       const frames = demoFrames(laneRnd, duration, puuid, lane, role, win, (opponentIndex - 1) * 25, { rnd: gameRnd, players: others });
       const builds = [{ puuid, role }, { puuid: lane, role }, ...others].map((x) => ({ puuid: x.puuid, ...demoBuild(gameRnd, duration, x.role) }));
-      timelines.push({ matchId, platform: "euw1", participants: builds, frames });
+      const { kda, events, counts } = demoEvents(gameRnd, duration, win ? 100 : 200, [me, ...allies, ...enemies]);
+      timelines.push({ matchId, platform: "euw1", participants: builds.map((b) => ({ ...b, ...kda.get(b.puuid)! })), frames, events });
+      objectiveCounts = counts;
     }
-    details.push({ matchId, platform: "euw1", queueId, gameCreation, gameDuration: duration, gameVersion: `${season}.20.1`, teams: [{ teamId: 100, win, bans: [], objectives: {} }, { teamId: 200, win: !win, bans: [], objectives: {} }], participants: [me, ...allies, ...enemies] });
+    details.push({ matchId, platform: "euw1", queueId, gameCreation, gameDuration: duration, gameVersion: `${season}.20.1`, teams: [{ teamId: 100, win, bans: [], objectives: objectiveCounts?.[100] ?? {} }, { teamId: 200, win: !win, bans: [], objectives: objectiveCounts?.[200] ?? {} }], participants: [me, ...allies, ...enemies] });
   }
   await db.insert(accountMatches).values(games).onConflictDoNothing();
   await db.insert(matchDetails).values(details).onConflictDoNothing();

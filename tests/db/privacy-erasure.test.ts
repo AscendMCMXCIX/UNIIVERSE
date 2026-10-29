@@ -153,7 +153,16 @@ async function seed(db: Db): Promise<void> {
   const frames = (puuids: string[]) => ({ t: [0, 60000], p: Object.fromEntries(puuids.map((p) => [p, { g: [500, 900], x: [0, 280], c: [0, 8] }])) });
   await db.insert(matchTimelines).values([
     { matchId: "OC1_SOLO", platform: "oc1", participants: [{ puuid: "puuid-alice-main", purchases: [[1000, 1056]], skills: [1, 2] }], frames: frames(["puuid-alice-main", "stranger-100-0"]) },
-    { matchId: "OC1_SHARED", platform: "oc1", participants: [{ puuid: "puuid-alice-main", purchases: [[1000, 1056]], skills: [1] }, { puuid: "puuid-bob", purchases: [[1000, 1055]], skills: [3] }], frames: frames(["puuid-alice-main", "puuid-bob"]) },
+    {
+      matchId: "OC1_SHARED",
+      platform: "oc1",
+      participants: [
+        { puuid: "puuid-alice-main", purchases: [[1000, 1056]], skills: [1], kills: [300000], deaths: [], assists: [420000] },
+        { puuid: "puuid-bob", purchases: [[1000, 1055]], skills: [3], kills: [420000], deaths: [600000], assists: [300000] },
+      ],
+      frames: frames(["puuid-alice-main", "puuid-bob"]),
+      events: { objectives: [{ t: 360000, team: 100, kind: "dragon", detail: "FIRE" }] },
+    },
   ]);
   await db.insert(teamBookmarks).values([{ teamId, riotMatchId: "OC1_SHARED", playerId: null, createdByUserId: id.alice, note: "great game" }]);
   // Her journal, and Bob's entry that names her as a duo (and as someone he did not play with).
@@ -307,6 +316,9 @@ describe("personal-data erasure", () => {
     const [timeline] = await db.select().from(matchTimelines).where(eq(matchTimelines.matchId, "OC1_SHARED"));
     expect(timeline!.participants.map((p) => p.puuid)).toEqual(["puuid-bob"]);
     expect(Object.keys(timeline!.frames!.p)).toEqual(["puuid-bob"]);
+    // Her kill times went with her entry; Bob's stay, and the objectives are the teams', not hers.
+    expect(timeline!.participants[0]).toEqual({ puuid: "puuid-bob", purchases: [[1000, 1055]], skills: [3], kills: [420000], deaths: [600000], assists: [300000] });
+    expect(timeline!.events).toEqual({ objectives: [{ t: 360000, team: 100, kind: "dragon", detail: "FIRE" }] });
     // Bob's summary of the shared game: the team's kills from Riot's team total, no team damage (hers is gone).
     const [bobShared] = await db.select().from(accountMatches).where(sql`${accountMatches.accountId} = ${id.bobAccount} AND ${accountMatches.matchId} = 'OC1_SHARED'`);
     expect(bobShared).toMatchObject({ teamKills: 23, teamDamage: null });

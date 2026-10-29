@@ -1,16 +1,21 @@
 "use client";
 
 import * as React from "react";
+import { X } from "lucide-react";
 import { goldStory, LEAD_MIN, type GoldPoint } from "@/domain/match-analysis";
+import { eventsBetween, goldSwings, mergeGrubs, objectiveLabel, objectiveLegend, OBJECTIVE_MARK, type EventsInWindow, type TimelineEventsView } from "@/domain/match-events";
 import type { MatchTimelineResult } from "@/server/accounts/match-timeline";
+import { InfoTip } from "@/components/ui/info-tip";
 import { formatCount } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
 /*
   The game minute by minute: the two teams' gold difference from the player's side, from Riot's
-  match timeline (loaded when this section first opens; see getMatchTimeline). Above the zero line
-  the player's team had more gold. The curve is described in figures only (the largest lead and
-  deficit, the end, when a clear lead changed sides): no cause is read into it.
+  match timeline (loaded when this section first opens; see getMatchTimeline), with the kills and
+  objectives where they happened. Above the zero line the player's team had more gold. The curve is
+  described in figures only (the largest lead and deficit, the end, when a clear lead changed
+  sides), and its largest swings are listed with what happened in the same minutes, side by side:
+  nothing says one caused the other.
 */
 
 export const signedGold = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : "±"}${formatCount(Math.abs(n))}`;
@@ -23,6 +28,9 @@ export function gameClock(minute: number): string {
 
 const goldTone = (n: number) => (Math.abs(n) < 1 ? "text-fg-muted" : n > 0 ? "text-good" : "text-bad");
 
+/** "your team" / "the other team", for an objective. */
+const sideWords = (own: boolean) => (own ? "your team" : "the other team");
+
 export function TimelinePanel({ result }: { result: MatchTimelineResult | null }) {
   if (!result) return <div className="h-56 animate-pulse rounded-panel bg-surface-2 motion-reduce:animate-none" aria-busy="true" aria-label="Loading the timeline" data-testid="timeline-loading" />;
   if (result.status !== "ok")
@@ -31,13 +39,14 @@ export function TimelinePanel({ result }: { result: MatchTimelineResult | null }
         {result.message}
       </p>
     );
-  const gold = result.timeline.gold;
+  const { gold, events, eventsNote } = result.timeline;
   const story = gold ? goldStory(gold) : null;
+  const swings = gold ? goldSwings(gold) : [];
   return (
     <div className="space-y-3" data-testid="match-timeline">
       {gold && story ? (
         <>
-          <GoldChart points={gold} />
+          <GoldChart points={gold} events={events} />
           <ul className="-mt-1 flex flex-wrap gap-x-5 gap-y-1 text-xs text-fg-muted" data-testid="gold-story">
             <li>
               Largest lead{" "}
@@ -68,6 +77,7 @@ export function TimelinePanel({ result }: { result: MatchTimelineResult | null }
                 : `The lead changed sides ${story.changes.length === 1 ? "once" : `${story.changes.length} times`}: ${story.changes.map((c) => `${gameClock(c.minute)} (${c.to === "ahead" ? "your team ahead" : "the other team ahead"})`).join(", ")}`}
             </li>
           </ul>
+          {events && swings.length ? <Swings swings={swings} events={events} /> : null}
           <GoldTable points={gold} />
         </>
       ) : (
@@ -75,18 +85,139 @@ export function TimelinePanel({ result }: { result: MatchTimelineResult | null }
           The gold difference needs every player&apos;s figures in the timeline, and this game&apos;s timeline does not hold them all (a removed player, or figures Riot did not send), so it is not drawn.
         </p>
       )}
-      <p className="text-2xs text-fg-subtle">From Riot&apos;s match timeline, read once per frame (every minute). Kills, objectives and buildings are not marked yet.</p>
+      {events ? (
+        <EventList events={events} />
+      ) : (
+        <p className="text-xs text-fg-muted" data-testid="events-note">
+          {eventsNote ?? "Riot does not provide the kills and objectives of this game, so they are not marked."}
+        </p>
+      )}
+      <p className="text-2xs text-fg-subtle">From Riot&apos;s match timeline: the gold read once per frame (about every minute), kills and objectives at the moment Riot recorded them.</p>
     </div>
   );
+}
+
+/** "your team 3 kills, theirs 1": each team's kills, the player's team first. */
+const teamKillWords = (own: number, enemy: number) => `your team ${own} ${own === 1 ? "kill" : "kills"}, theirs ${enemy}`;
+
+/** One line about a window of the game: the kills, the objectives taken and the player's own kills and deaths, in words. */
+function windowWords(w: EventsInWindow): string {
+  const parts: string[] = [];
+  if (w.kills && (w.kills.own || w.kills.enemy)) parts.push(teamKillWords(w.kills.own, w.kills.enemy));
+  for (const o of w.objectives) parts.push(`${objectiveLabel(o)} for ${sideWords(o.own)}`);
+  if (w.you && (w.you.kills || w.you.deaths)) parts.push(`you: ${[w.you.kills ? `${w.you.kills} ${w.you.kills === 1 ? "kill" : "kills"}` : null, w.you.deaths ? `${w.you.deaths} ${w.you.deaths === 1 ? "death" : "deaths"}` : null].filter(Boolean).join(", ")}`);
+  return parts.length ? parts.join(" · ") : "no kill or objective recorded";
+}
+
+/** The largest moves of the gold difference, each with what happened in the same minutes. */
+function Swings({ swings, events }: { swings: ReturnType<typeof goldSwings>; events: TimelineEventsView }) {
+  const id = React.useId();
+  return (
+    <section className="space-y-1.5" aria-labelledby={id} data-testid="gold-swings">
+      <h4 id={id} className="flex items-center gap-1.5 text-xs font-semibold text-fg">
+        Largest swings
+        <InfoTip label="About the swings" text="The three largest moves of the gold difference over about three minutes (1,500 gold or more), each with the kills and objectives recorded in those minutes. They are listed side by side: the page does not say what caused a swing." />
+      </h4>
+      <ol className="space-y-1">
+        {swings.map((s) => {
+          const change = s.end - s.start;
+          return (
+            <li key={s.from} className="text-xs leading-snug" data-testid="gold-swing">
+              <span className="tabular-nums text-fg-muted">
+                {gameClock(s.from)}–{gameClock(s.to)}
+              </span>{" "}
+              <span className={cn("font-semibold tabular-nums", goldTone(change))}>{signedGold(change)}</span>{" "}
+              <span className="text-fg-subtle">
+                ({signedGold(s.start)} to {signedGold(s.end)})
+              </span>
+              <span className="block text-fg-muted" data-testid="gold-swing-events">
+                In those minutes: {windowWords(eventsBetween(events, s.from, s.to))}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
+/** Every objective and the player's own kills, assists and deaths, in order: the markers in words. */
+function EventList({ events }: { events: TimelineEventsView }) {
+  type Row = { minute: number; what: string; side: "own" | "enemy" | "you"; key: string };
+  const rows: Row[] = [
+    ...mergeGrubs(events.objectives).map((o, i): Row => ({ minute: o.minute, what: objectiveLabel(o), side: o.own ? "own" : "enemy", key: `o${i}` })),
+    ...(events.you
+      ? [
+          ...events.you.kills.map((m, i): Row => ({ minute: m, what: "Your kill", side: "you", key: `k${i}` })),
+          ...events.you.assists.map((m, i): Row => ({ minute: m, what: "Your assist", side: "you", key: `a${i}` })),
+          ...events.you.deaths.map((m, i): Row => ({ minute: m, what: "Your death", side: "you", key: `d${i}` })),
+        ]
+      : []),
+  ].sort((a, b) => a.minute - b.minute);
+  const kills = events.kills;
+  return (
+    <details className="text-xs" data-testid="timeline-events-list">
+      <summary className="inline-flex min-h-9 cursor-pointer items-center rounded text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11">
+        {/* One run of text, so it wraps as a sentence on a phone. */}
+        <span>
+          Every objective, and your kills, assists and deaths
+          {kills ? <span className="tabular-nums text-fg-subtle"> ({teamKillWords(kills.own.length, kills.enemy.length)})</span> : null}
+        </span>
+      </summary>
+      <div className="mt-1 max-h-64 overflow-y-auto rounded-lg border border-border">
+        <table className="w-full text-xs" data-testid="timeline-events-table">
+          <caption className="sr-only">Objectives taken by each team and your kills, assists and deaths, in game time order</caption>
+          <thead className="sticky top-0 bg-surface text-fg-subtle">
+            <tr>
+              <th scope="col" className="px-3 py-1 text-left font-medium">
+                Time
+              </th>
+              <th scope="col" className="px-3 py-1 text-left font-medium">
+                Event
+              </th>
+              <th scope="col" className="px-3 py-1 text-left font-medium">
+                Team
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.key} className="border-t border-border/60" data-side={r.side}>
+                <td className="px-3 py-1 tabular-nums text-fg-muted">{gameClock(r.minute)}</td>
+                <td className="px-3 py-1 text-fg">{r.what}</td>
+                <td className={cn("px-3 py-1", r.side === "own" ? "text-blue" : r.side === "enemy" ? "text-red" : "text-fg-muted")}>{r.side === "own" ? "Your team" : r.side === "enemy" ? "Other team" : "You"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  );
+}
+
+/** Markers that would touch move to the next row (at most `rows` rows; past that, the emptiest one). */
+function lanesFor<T extends { x: number }>(items: readonly T[], width: number, rows: number): Array<T & { lane: number }> {
+  const ends: number[] = [];
+  return [...items]
+    .sort((a, b) => a.x - b.x)
+    .map((it) => {
+      let lane = ends.findIndex((end) => it.x - width / 2 >= end + 1);
+      if (lane < 0) lane = ends.length < rows ? ends.length : ends.indexOf(Math.min(...ends));
+      ends[lane] = it.x + width / 2;
+      return { ...it, lane };
+    });
 }
 
 /**
  * The gold difference as one line around zero, washed blue where the player's team was ahead and red
  * where it was behind (the site's colours for a won and a lost game). Drawn at the width it is
- * shown, so the labels keep their size; they are HTML over the drawing. Hover, touch or the arrow
- * keys read one frame; Home and End jump to the ends. GoldTable holds every frame.
+ * shown, so the labels keep their size; they are HTML over the drawing. With the game's events: each
+ * team's kills as short ticks (the player's team's along the top, the other's along the bottom),
+ * and under the curve the objectives each team took and the player's own kills and deaths, at the
+ * same scale. Hover, touch or the arrow keys read one frame, with what happened since the frame
+ * before; Home and End jump to the ends. GoldTable and EventList hold every value in words.
  */
-export function GoldChart({ points, testId = "gold-chart" }: { points: GoldPoint[]; testId?: string }) {
+export function GoldChart({ points, events = null, testId = "gold-chart" }: { points: GoldPoint[]; events?: TimelineEventsView | null; testId?: string }) {
   const box = React.useRef<HTMLDivElement>(null);
   const [W, setW] = React.useState(640);
   const [at, setAt] = React.useState<number | null>(null);
@@ -104,7 +235,7 @@ export function GoldChart({ points, testId = "gold-chart" }: { points: GoldPoint
   const extent = Math.max(0, ...points.map((p) => Math.abs(p.diff)));
   const step = extent > 8000 ? 5000 : extent > 3000 ? 2000 : 1000;
   const max = Math.max(1000, Math.ceil(extent / step) * step);
-  const x = (minute: number) => pad.l + ((W - pad.l - pad.r) * minute) / end;
+  const x = (minute: number) => pad.l + ((W - pad.l - pad.r) * Math.min(end, Math.max(0, minute))) / end;
   const y = (v: number) => pad.t + ((H - pad.t - pad.b) * (max - v)) / (2 * max);
   const line = points.map((p, i) => `${i ? "L" : "M"}${x(p.minute).toFixed(1)},${y(p.diff).toFixed(1)}`).join("");
   const area = `${line}L${x(points[points.length - 1]!.minute).toFixed(1)},${y(0).toFixed(1)}L${x(points[0]!.minute).toFixed(1)},${y(0).toFixed(1)}Z`;
@@ -121,10 +252,21 @@ export function GoldChart({ points, testId = "gold-chart" }: { points: GoldPoint
     setAt(best);
   };
   const hover = at === null ? null : points[at]!;
+  // What happened since the frame before the one read (or since the start).
+  const since = hover && events ? eventsBetween(events, at! > 0 ? points[at! - 1]!.minute : -1, hover.minute) : null;
+  const objectives = events ? mergeGrubs(events.objectives) : [];
+  const marker = W < 480 ? 14 : 16;
+  const placed = lanesFor(
+    objectives.map((o) => ({ o, x: x(o.minute) })),
+    marker,
+    3,
+  );
+  const objectiveRows = placed.length ? Math.max(...placed.map((p) => p.lane)) + 1 : 0;
+  const you = events?.you ?? null;
   return (
     <figure className="min-w-0" data-testid={testId}>
       <figcaption id={`${uid}-cap`} className="mb-1.5 text-xs text-fg-muted">
-        Gold difference between the teams (your team minus theirs)
+        Gold difference between the teams (your team minus theirs){events?.kills ? ", with each team's kills" : ""}
       </figcaption>
       <div className="relative" ref={box}>
         <svg
@@ -160,6 +302,16 @@ export function GoldChart({ points, testId = "gold-chart" }: { points: GoldPoint
           ))}
           <path d={area} className="fill-blue/15" clipPath={`url(#${uid}-above)`} />
           <path d={area} className="fill-red/15" clipPath={`url(#${uid}-below)`} />
+          {events?.kills ? (
+            <g aria-hidden data-testid={`${testId}-kills`} data-own={events.kills.own.length} data-enemy={events.kills.enemy.length}>
+              {events.kills.own.map((m, i) => (
+                <line key={`o${i}`} x1={x(m)} x2={x(m)} y1={pad.t} y2={pad.t + 6} className="stroke-blue/70" strokeWidth={1.5} />
+              ))}
+              {events.kills.enemy.map((m, i) => (
+                <line key={`e${i}`} x1={x(m)} x2={x(m)} y1={H - pad.b - 6} y2={H - pad.b} className="stroke-red/70" strokeWidth={1.5} />
+              ))}
+            </g>
+          ) : null}
           <path d={line} fill="none" className="stroke-accent" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" data-testid={`${testId}-line`} />
           {hover ? (
             <g aria-hidden>
@@ -180,12 +332,62 @@ export function GoldChart({ points, testId = "gold-chart" }: { points: GoldPoint
           </span>
         ))}
       </div>
+      {events ? (
+        // The same events under the curve, at its scale (in words in the list below; hidden from screen readers here).
+        <div className="mt-1 space-y-1" aria-hidden data-testid={`${testId}-events`}>
+          {objectives.length ? (
+            <div className="relative" style={{ height: objectiveRows * (marker + 2) }} data-testid={`${testId}-objectives`}>
+              <span className="absolute left-0 top-0 pr-1.5 text-right text-3xs leading-4 text-fg-subtle" style={{ width: pad.l }}>
+                Objectives
+              </span>
+              {placed.map(({ o, x: left, lane }, i) => (
+                <span
+                  key={i}
+                  className={cn("absolute grid -translate-x-1/2 place-items-center rounded text-3xs font-bold leading-none", o.own ? "bg-blue/20 text-blue" : "bg-red/20 text-red")}
+                  style={{ left, top: lane * (marker + 2), width: marker, height: marker }}
+                  title={`${gameClock(o.minute)} ${objectiveLabel(o)} for ${sideWords(o.own)}`}
+                  data-testid="timeline-objective"
+                  data-kind={o.kind}
+                  data-own={o.own}
+                >
+                  {OBJECTIVE_MARK[o.kind]}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {you && (you.kills.length || you.deaths.length) ? (
+            <div className="relative h-4" data-testid={`${testId}-you`}>
+              <span className="absolute left-0 top-0 pr-1.5 text-right text-3xs leading-4 text-fg-subtle" style={{ width: pad.l }}>
+                You
+              </span>
+              {you.kills.map((m, i) => (
+                <span key={`k${i}`} className="absolute top-1 h-2 w-2 -translate-x-1/2 rounded-full bg-good" style={{ left: x(m) }} title={`${gameClock(m)} your kill`} data-testid="timeline-you-kill" />
+              ))}
+              {you.deaths.map((m, i) => (
+                <X key={`d${i}`} className="absolute top-0.5 h-3 w-3 -translate-x-1/2 text-bad" strokeWidth={3} style={{ left: x(m) }} data-testid="timeline-you-death" />
+              ))}
+            </div>
+          ) : null}
+          <p className="flex flex-wrap gap-x-3 gap-y-0.5 text-3xs text-fg-subtle" style={{ paddingLeft: pad.l }}>
+            <span>
+              <span className="text-blue">■</span> your team · <span className="text-red">■</span> the other team
+            </span>
+            {objectives.length ? <span data-testid={`${testId}-legend`}>{objectiveLegend(objectives)}</span> : null}
+            {you ? (
+              <span>
+                <span className="text-good">●</span> your kill · <span className="text-bad">✕</span> your death
+              </span>
+            ) : null}
+          </p>
+        </div>
+      ) : null}
       <p id={`${uid}-readout`} className={cn("mt-1 min-h-[1.25rem] text-xs tabular-nums", hover ? "text-fg" : "text-fg-subtle")} aria-live="polite" data-testid={`${testId}-readout`}>
         {hover ? (
           <>
             {gameClock(hover.minute)} · {hover.diff === 0 ? "Even" : hover.diff > 0 ? "Your team ahead by " : "The other team ahead by "}
             {hover.diff === 0 ? null : <span className={cn("font-semibold", goldTone(hover.diff))}>{formatCount(Math.abs(hover.diff))}</span>}
             {hover.diff === 0 ? null : " gold"}
+            {since && (since.objectives.length || since.kills?.own || since.kills?.enemy || since.you?.deaths || since.you?.kills) ? <span className="text-fg-muted"> · since the minute before: {windowWords(since)}</span> : null}
           </>
         ) : (
           "Hover, touch or use the arrow keys to read a minute."
