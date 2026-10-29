@@ -369,7 +369,10 @@ request is a game's match timeline, once per game, when a section that needs it 
   the Rift Herald, voidgrubs, Atakhan, towers by lane and tier, inhibitors) are team facts with no
   player in them. A timeline stored before (events null) is fetched again once, the next time its
   Timeline, Build or lane is opened; if Riot cannot answer, the stored timeline shows without them
-  and says why, and a 404 is recorded so it is not asked again (`events.missing`). The chart marks
+  and says why, and a 404 is recorded so it is not asked again (`events.missing`). A timeline
+  fetched again (here or by the Matchups backfill) completes the stored one and never replaces it
+  (`completedTimeline`): stored purchases, skills and frames stay, the answer adds what was missing.
+  The chart marks
   each team's kills (the player's team along the top, the other along the bottom; only when all ten
   players' kills are kept), the objectives under the curve (one letter each, voidgrubs of one camp
   together) and the player's own kills and deaths; the readout adds what happened since the minute

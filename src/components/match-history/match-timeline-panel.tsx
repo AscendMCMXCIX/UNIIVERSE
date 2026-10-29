@@ -97,11 +97,14 @@ export function TimelinePanel({ result }: { result: MatchTimelineResult | null }
   );
 }
 
+/** "your team 3 kills, theirs 1": each team's kills, the player's team first. */
+const teamKillWords = (own: number, enemy: number) => `your team ${own} ${own === 1 ? "kill" : "kills"}, theirs ${enemy}`;
+
 /** One line about a window of the game: the kills, the objectives taken and the player's own kills and deaths, in words. */
 function windowWords(w: EventsInWindow): string {
   const parts: string[] = [];
-  if (w.kills && (w.kills.own || w.kills.enemy)) parts.push(`kills ${w.kills.own} to ${w.kills.enemy}`);
-  for (const o of w.objectives) parts.push(`${objectiveLabel(o)} (${sideWords(o.own)})`);
+  if (w.kills && (w.kills.own || w.kills.enemy)) parts.push(teamKillWords(w.kills.own, w.kills.enemy));
+  for (const o of w.objectives) parts.push(`${objectiveLabel(o)} for ${sideWords(o.own)}`);
   if (w.you && (w.you.kills || w.you.deaths)) parts.push(`you: ${[w.you.kills ? `${w.you.kills} ${w.you.kills === 1 ? "kill" : "kills"}` : null, w.you.deaths ? `${w.you.deaths} ${w.you.deaths === 1 ? "death" : "deaths"}` : null].filter(Boolean).join(", ")}`);
   return parts.length ? parts.join(" · ") : "no kill or objective recorded";
 }
@@ -155,12 +158,11 @@ function EventList({ events }: { events: TimelineEventsView }) {
   return (
     <details className="text-xs" data-testid="timeline-events-list">
       <summary className="inline-flex min-h-9 cursor-pointer items-center rounded text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11">
-        Every objective, and your kills, assists and deaths
-        {kills ? (
-          <span className="ml-1.5 tabular-nums text-fg-subtle">
-            (kills {kills.own.length} to {kills.enemy.length})
-          </span>
-        ) : null}
+        {/* One run of text, so it wraps as a sentence on a phone. */}
+        <span>
+          Every objective, and your kills, assists and deaths
+          {kills ? <span className="tabular-nums text-fg-subtle"> ({teamKillWords(kills.own.length, kills.enemy.length)})</span> : null}
+        </span>
       </summary>
       <div className="mt-1 max-h-64 overflow-y-auto rounded-lg border border-border">
         <table className="w-full text-xs" data-testid="timeline-events-table">
@@ -343,7 +345,7 @@ export function GoldChart({ points, events = null, testId = "gold-chart" }: { po
                   key={i}
                   className={cn("absolute grid -translate-x-1/2 place-items-center rounded text-3xs font-bold leading-none", o.own ? "bg-blue/20 text-blue" : "bg-red/20 text-red")}
                   style={{ left, top: lane * (marker + 2), width: marker, height: marker }}
-                  title={`${gameClock(o.minute)} ${objectiveLabel(o)} (${sideWords(o.own)})`}
+                  title={`${gameClock(o.minute)} ${objectiveLabel(o)} for ${sideWords(o.own)}`}
                   data-testid="timeline-objective"
                   data-kind={o.kind}
                   data-own={o.own}

@@ -37,10 +37,10 @@ export const OBJECTIVE_MARK: Record<ObjectiveKind, string> = { dragon: "D", elde
 const LEGEND_ORDER: readonly ObjectiveKind[] = ["dragon", "elder", "grubs", "herald", "atakhan", "baron", "tower", "inhibitor"];
 const LEGEND_WORDS: Record<ObjectiveKind, string> = { dragon: "dragon", elder: "elder", grubs: "voidgrubs", herald: "herald", atakhan: "Atakhan", baron: "Baron", tower: "tower", inhibitor: "inhibitor" };
 
-/** The chart's legend for the kinds a game has: "D dragon · G voidgrubs · T tower". */
+/** The chart's legend for the kinds a game has: "D dragon · G voidgrubs · T tower" (a letter never wraps away from its word). */
 export function objectiveLegend(objectives: readonly Pick<TimelineObjective, "kind">[]): string {
   return LEGEND_ORDER.filter((k) => objectives.some((o) => o.kind === k))
-    .map((k) => `${OBJECTIVE_MARK[k]} ${LEGEND_WORDS[k]}`)
+    .map((k) => `${OBJECTIVE_MARK[k]} ${LEGEND_WORDS[k]}`)
     .join(" · ");
 }
 

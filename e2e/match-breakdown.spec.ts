@@ -4,7 +4,8 @@ import { closeGame, openGame } from "./match-history";
 /*
   A game's breakdown under its Match History card (demo data, in memory): the four sections share
   one tab row, the Analysis compares only what it says it compares, the Timeline draws the gold
-  difference and reads it minute by minute (keyboard, and as a table), the Build shows the order
+  difference and reads it minute by minute (keyboard, and as a table) with the kills, objectives
+  and largest swings beside it (never a cause), the Build shows the order
   bought and the skills, and the match timeline is asked for once however often the sections are
   switched. Every sixth demo game has no stored timeline (and the demo has no Riot key to fetch
   it), so the tests use the first game whose Timeline draws.
@@ -127,6 +128,49 @@ test("Timeline draws the gold difference, reads a minute by keyboard and as a ta
   await expect(chart).toBeVisible();
   await page.waitForTimeout(300);
   expect(posts.length - before).toBe(0);
+});
+
+test("Timeline marks the kills and objectives, lists the largest swings beside what happened in those minutes, and holds every event as a table", async ({ page }) => {
+  await openHistory(page);
+  const { timeline } = await gameWithTimeline(page);
+  const chart = timeline.getByTestId("gold-chart");
+  // Each team's kills along the chart: the demo keeps all ten players' kills.
+  const kills = chart.getByTestId("gold-chart-kills");
+  await expect(kills).toBeAttached();
+  expect(Number(await kills.getAttribute("data-own")) + Number(await kills.getAttribute("data-enemy"))).toBeGreaterThan(0);
+  // Objectives under the curve, by the team that took them; the legend names only the kinds shown.
+  const markers = chart.getByTestId("timeline-objective");
+  expect(await markers.count()).toBeGreaterThan(0);
+  const kinds = new Set(await markers.evaluateAll((els) => els.map((e) => e.getAttribute("data-kind"))));
+  const legend = chart.getByTestId("gold-chart-legend");
+  const words: Record<string, string> = { dragon: "D dragon", elder: "E elder", grubs: "G voidgrubs", herald: "H herald", atakhan: "A Atakhan", baron: "B Baron", tower: "T tower", inhibitor: "I inhibitor" };
+  for (const [kind, word] of Object.entries(words)) {
+    if (kinds.has(kind)) await expect(legend).toContainText(word);
+    else await expect(legend).not.toContainText(word);
+  }
+  for (const own of await markers.evaluateAll((els) => els.map((e) => e.getAttribute("data-own")))) expect(["true", "false"]).toContain(own);
+  // A minute read by keyboard says what happened since the minute before, somewhere in the game.
+  const frames = await timeline.getByTestId("gold-chart-table").locator("tbody tr").count();
+  await chart.getByTestId("gold-chart-svg").focus();
+  await page.keyboard.press("Home");
+  let told = false;
+  for (let i = 1; i < frames && !told; i++) {
+    await page.keyboard.press("ArrowRight");
+    told = /since the minute before: /.test(await chart.getByTestId("gold-chart-readout").innerText());
+  }
+  expect(told, "a minute with a kill or an objective says so").toBe(true);
+  // The largest swings, when the gold moved enough: each with its window and the events beside it, never a cause.
+  for (const swing of await timeline.getByTestId("gold-swing").all()) {
+    await expect(swing).toHaveText(/^\d+:\d{2}–\d+:\d{2} [+−][\d,]+/);
+    await expect(swing.getByTestId("gold-swing-events")).toHaveText(/^In those minutes: /);
+    await expect(swing).not.toContainText(/because|caused|due to|thanks to/i);
+  }
+  // Every event in words: objectives by team, and the player's own kills, assists and deaths.
+  await timeline.getByText("Every objective, and your kills, assists and deaths").click();
+  const rows = timeline.getByTestId("timeline-events-table").locator("tbody tr");
+  expect(await rows.count()).toBeGreaterThanOrEqual(await markers.count());
+  for (const side of await rows.evaluateAll((els) => els.map((e) => e.getAttribute("data-side")))) expect(["own", "enemy", "you"]).toContain(side);
+  await fitsWidth(page, "Timeline events");
 });
 
 test("Build lists what was bought minute by minute, the skill order and the runes", async ({ page }) => {
