@@ -6,7 +6,7 @@ import { opggLinkFor, platformOfMatchId } from "@/domain/opgg";
 import { largestMultikill } from "@/domain/multikills";
 import { knownRiotIds } from "@/server/players/riot-names";
 import { accountMatches, matchDetails, players, riotAccounts, teamBookmarks, type MatchParticipantDetail, type ParticipantExtraStats } from "@/server/db/schema";
-import { dedupeGames, filterGames, gameRole, modeBreakdown, isGameRole, isSeasonMode, seasonsInGames, MIN_VALID_DURATION_S, type GameRole, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
+import { dedupeGames, filterGames, gameRole, modeBreakdown, isGameRole, isSeasonMode, seasonsInGames, MIN_VALID_DURATION_S, type GameRole, type SeasonGame, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
 import { LANE_ORDER, laneOf, laneOpponentOf, personalComparison, standoutOf, type FigureKey, type PersonalComparison } from "@/domain/match-analysis";
 import { historySummary, type HistorySummary } from "@/domain/history-summary";
 import { FORM_RECENT } from "@/domain/recent-form";
@@ -21,6 +21,9 @@ import { getCurrentPatch } from "@/server/repositories/champions";
 import { isRemoved } from "@/server/privacy/redact";
 import { lookUpRanks, NO_CHECK, rankChecksAvailable, rankLookupClient, storedRankReadings, type RankCheck } from "@/server/players/participant-ranks";
 import { participantRank, UNKNOWN_RANK, type ParticipantRank } from "@/domain/known-rank";
+import { narrowsGames, patchOptions, readRefine, refineGames, sessionKeys, sessionSummaries, type HistoryRefine, type MembersInGame, type RefineParams, type SessionSummary } from "@/domain/history-refine";
+import { historyMembers, memberGameCounts, memberPlacements } from "@/server/players/history-members";
+import { isoDay } from "@/lib/format";
 
 /*
   The personal match history: the Riot games already stored for a player's linked accounts (the
@@ -51,6 +54,8 @@ export interface MatchHistoryQuery {
   accountId?: string | null;
   page?: number;
   per?: number;
+  /** Match History's own choices: result, patch, days, a team member, highlights, sessions (domain/history-refine). */
+  refine?: RefineParams;
 }
 
 export interface Icon {
@@ -128,9 +133,27 @@ export interface MatchHistoryPage {
    * several are linked.
    */
   ladder: (RankChange & { riotId: string | null }) | null;
+  /** Match History's own choices, as read from the address (domain/history-refine). */
+  refine: HistoryRefine;
+  /** Games the season, mode, role, champion and account choices leave, before Refine's own choices narrow them. */
+  unrefinedTotal: number;
+  /** The patches of those games, newest first, with their counts. */
+  patchOptions: Array<{ patch: string; label: string; games: number }>;
+  /**
+   * The team's other members with a linked account, with how many of those games the stored
+   * records place them with the player and against them; the members of none are left out (the one
+   * chosen stays). Empty without such a member.
+   */
+  memberOptions: Array<{ id: string; name: string; with: number; against: number }>;
+  /**
+   * With sessions chosen: each game's playing session on this page, by match, and the figures of
+   * each such session over every game the filters list (not only this page's). Empty otherwise.
+   */
+  sessionOf: Record<string, string>;
+  sessions: Record<string, SessionSummary>;
 }
 
-const perMinute = (value: number | null, durationS: number | null) => (value === null || !durationS || durationS < MIN_VALID_DURATION_S ? null : value / (durationS / 60));
+const perMinute =(value: number | null, durationS: number | null) => (value === null || !durationS || durationS < MIN_VALID_DURATION_S ? null : value / (durationS / 60));
 
 function icons(p: MatchParticipantDetail, assets: RiotAssets | null, version: string | null) {
   const item = (id: number): Icon | null => (id > 0 && version ? { url: assetUrl.item(version, id), name: assets?.items[String(id)] ?? `Item ${id}` } : null);
@@ -195,10 +218,29 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     championId: q.championId ?? null,
     accountId: q.accountId && ids.includes(q.accountId) ? q.accountId : null,
   };
-  const { games } = filterGames(raw, filter, poolOf);
+  const { games: unrefined } = filterGames(raw, filter, poolOf);
   const modes = modeBreakdown(raw, filter);
   // Every stored game once, whatever the filters: what each game on the page is compared with.
   const history = dedupeGames(raw);
+
+  // Refine's own choices. A team member's games are read only while one is chosen; the counts
+  // beside each member, over the games the other filters leave, in one aggregated read.
+  const refine = readRefine(q.refine ?? {});
+  const [owner] = await db.select({ teamId: players.teamId }).from(players).where(eq(players.id, playerId));
+  const members = owner && ids.length ? await historyMembers(db, owner.teamId, playerId) : [];
+  const chosenMember = refine.member && (refine.member.id === "any" || members.some((m) => m.id === refine.member!.id)) ? refine.member : null;
+  const unrefinedIds = unrefined.map((g) => g.matchId);
+  const [memberCounts, placements] = await Promise.all([
+    members.length ? memberGameCounts(db, { accountIds: ids, matchIds: unrefinedIds, members }) : Promise.resolve(new Map<string, { with: number; against: number }>()),
+    chosenMember && members.length ? memberPlacements(db, { accountIds: ids, matchIds: unrefinedIds, members, chosen: chosenMember }) : Promise.resolve(new Map<string, MembersInGame>()),
+  ]);
+  const chosen: HistoryRefine = { ...refine, member: chosenMember };
+  const games = narrowsGames(chosen) ? refineGames(unrefined, chosen, { dayOf: isoDay, members: placements, best: (g) => standoutOf(personalComparison(g, history)) !== null }) : unrefined;
+  const memberOptions = members
+    .map((m) => ({ id: m.id, name: m.name, ...(memberCounts.get(m.id) ?? { with: 0, against: 0 }) }))
+    .filter((m) => m.with + m.against > 0 || m.id === chosenMember?.id)
+    .sort((a, b) => b.with + b.against - (a.with + a.against) || a.name.localeCompare(b.name));
+
   const sorted = [...games].sort((a, b) => b.gameCreation - a.gameCreation || a.matchId.localeCompare(b.matchId));
   const per = Math.min(PER_PAGE_MAX, Math.max(PER_PAGE_MIN, Math.round(q.per ?? PER_PAGE_DEFAULT)));
   const pages = Math.max(1, Math.ceil(sorted.length / per));
@@ -217,8 +259,6 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     loadRiotAssets(db),
   ]);
   const byMatch = new Map(details.map((d) => [d.matchId, d]));
-  // Team members among everyone in these games (one query for the page), for the compositions.
-  const [owner] = slice.length ? await db.select({ teamId: players.teamId }).from(players).where(eq(players.id, playerId)) : [];
   // Players who renamed since a game on this page are linked by their newer Riot ID.
   const pagePuuids = details.flatMap((d) => d.participants.map((p) => p.puuid));
   const ownPuuids = new Set(accounts.map((a) => a.puuid).filter(Boolean));
@@ -230,7 +270,7 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
   const newest = [...sorted].slice(0, FORM_RECENT);
   const ladderQueue = filter.season === seasonNow && filter.mode !== "normal" ? (filter.mode === "flex" ? "flex" : "solo") : null;
   const ladderAccount = filter.accountId ? accounts.find((a) => a.id === filter.accountId) : accounts[0];
-  const [members, known, readings, teamKillRows, ladder] = await Promise.all([
+  const [pageMembers, known, readings, teamKillRows, ladder] = await Promise.all([
     owner ? teamMembersByPuuid(db, owner.teamId, pagePuuids) : Promise.resolve(new Map<string, { id: string; name: string }>()),
     knownRiotIds(db, pagePuuids, Math.min(...details.map((d) => d.gameCreation))),
     storedRankReadings(db, others),
@@ -263,7 +303,7 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     const version = ddragonVersionOf(d?.gameVersion, fallbackVersion);
     const ic = me ? icons(me, assets, version) : { items: null, spells: null, keystone: null, secondary: null };
     const tk = me && d ? teamKills(d.participants, me.teamId, d.teams) : 0;
-    const teams = d ? compositionOf(d.participants, members, (puuid) => puuid === me?.puuid, me?.teamId ?? null, { platform: platformOfMatchId(g.matchId), known, rankOf: (puuid) => participantRank(readings.get(puuid) ?? [], g.queueId, nowMs) }) : null;
+    const teams = d ? compositionOf(d.participants, pageMembers, (puuid) => puuid === me?.puuid, me?.teamId ?? null, { platform: platformOfMatchId(g.matchId), known, rankOf: (puuid) => participantRank(readings.get(puuid) ?? [], g.queueId, nowMs) }) : null;
     const standout = standoutOf(personalComparison(g, history));
     return {
       matchId: g.matchId,
@@ -313,6 +353,30 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     summary: games.length ? historySummary(games.map((g) => ({ ...g, teamKills: teamKillsOf.get(g.matchId) ?? null }))) : null,
     ladder: ladder ? { ...ladder, riotId: accounts.length > 1 ? (ladderAccount?.riotId ?? null) : null } : null,
     syncing: accounts.some((a) => a.syncStatus === "syncing" || a.syncStatus === "pending" || a.syncStatus === "never" || !a.historyBackfill?.completedAt),
+    refine: chosen,
+    unrefinedTotal: unrefined.length,
+    patchOptions: patchOptions(unrefined),
+    memberOptions,
+    ...pageSessions(chosen.sessions, slice, games, history),
+  };
+}
+
+/**
+ * The playing sessions of the page's games (domain/history-refine): found from every stored game,
+ * each one's figures over all the games the filters list, so a session cut by the page break keeps
+ * its whole record.
+ */
+function pageSessions(on: boolean, slice: readonly SeasonGame[], listed: readonly SeasonGame[], history: readonly SeasonGame[]): Pick<MatchHistoryPage, "sessionOf" | "sessions"> {
+  if (!on || !slice.length) return { sessionOf: {}, sessions: {} };
+  const keys = sessionKeys(history);
+  const onPage = new Set(slice.map((g) => keys.get(g.matchId) ?? g.matchId));
+  const summaries = sessionSummaries(
+    listed.filter((g) => onPage.has(keys.get(g.matchId) ?? g.matchId)),
+    keys,
+  );
+  return {
+    sessionOf: Object.fromEntries(slice.map((g) => [g.matchId, keys.get(g.matchId) ?? g.matchId])),
+    sessions: Object.fromEntries(summaries),
   };
 }
 
