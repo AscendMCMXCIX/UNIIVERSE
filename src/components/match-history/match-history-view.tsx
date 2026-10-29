@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { MULTIKILL_NAMES } from "@/domain/multikills";
 import { QUEUE_GROUP_WORDS, figureText, queueGroup, type FigureKey } from "@/domain/match-analysis";
@@ -122,11 +122,13 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
           <ChampionLoadout champion={champion} spells={row.spells} keystone={row.keystone} secondary={row.secondary} level={row.champLevel} size="md" icon={22} portraitClassName="@min-[50rem]/mh:h-14 @min-[50rem]/mh:w-14" iconsClassName="@max-[50rem]/mh:hidden" />
           {/* The champion, the role, the account it was played on and the team members in the game */}
           <span className="min-w-0 leading-snug">
-            <span className={cn("block truncate text-xs font-bold @min-[50rem]/mh:hidden", tone.text)}>
+            <span className={cn("block truncate text-xs font-bold @min-[50rem]/mh:hidden", tone.text)} data-testid="match-card-meta">
               {tone.word}{" "}
               {/* "3h ago" is measured on the server first, then by the browser's own clock (useNow). */}
               <span className="font-medium text-fg-subtle" suppressHydrationWarning>
-                · {row.queue} · {when}
+                {/* A narrow card names the queue without "Ranked", so the time stays in view. */}
+                · <span className="@max-[36rem]/mh:hidden">{row.queue}</span>
+                <span className="hidden @max-[36rem]/mh:inline">{row.queue.replace(/^Ranked /, "")}</span> · {when}
               </span>
             </span>
             <span className="block truncate text-md font-semibold text-fg">{champion.name}</span>
@@ -141,9 +143,9 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
             </span>
             {members.with.length || members.against.length ? (
               <span className="block truncate text-2xs" title={[members.with.length ? `With team members: ${members.with.map((m) => m.name).join(", ")}` : null, members.against.length ? `Against team members: ${members.against.map((m) => m.name).join(", ")}` : null].filter(Boolean).join(". ")} data-testid="match-members" data-with={members.with.length} data-against={members.against.length}>
-                {members.with.length ? <span className="font-medium text-accent">With {members.with.map((m) => m.name).join(", ")}</span> : null}
+                {members.with.length ? <span className="font-medium text-accent">With <MemberNames names={members.with.map((m) => m.name)} /></span> : null}
                 {members.with.length && members.against.length ? <span className="text-fg-subtle"> · </span> : null}
-                {members.against.length ? <span className="text-fg-muted">Against {members.against.map((m) => m.name).join(", ")}</span> : null}
+                {members.against.length ? <span className="text-fg-muted">Against <MemberNames names={members.against.map((m) => m.name)} /></span> : null}
               </span>
             ) : null}
           </span>
@@ -190,11 +192,44 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
       {expanded ? (
         <div id={regionId} role="region" aria-label={`${tone.word} on ${champion.name}: match details`} className="rounded-b-panel border border-t-0 border-border bg-surface/70 p-3 motion-safe:rise-in sm:p-4" data-testid="match-expanded">
           <InlineMatch playerId={playerId} matchId={row.matchId} champ={champ} />
+          {/* The way back from the end of a long breakdown: closes the game and brings its card
+              into view (the list goes on from where it was), with the focus on it. */}
+          <div className="mt-3 flex justify-end border-t border-border/60 pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                onToggle(row.matchId);
+                requestAnimationFrame(() => {
+                  const card = document.getElementById(`match-${row.matchId}`);
+                  if (card && card.getBoundingClientRect().top < 0) card.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+                  open.current?.focus({ preventScroll: true });
+                });
+              }}
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11"
+              data-testid="match-close"
+            >
+              <ChevronUp className="h-3.5 w-3.5" aria-hidden />
+              Close this game
+            </button>
+          </div>
         </div>
       ) : null}
     </li>
   );
 });
+
+/** Team members on a card: every name, or on a narrow card the first and how many more (all of them in the line's hover text and the scoreboard). */
+function MemberNames({ names }: { names: string[] }) {
+  return (
+    <>
+      <span className="@max-[36rem]/mh:hidden">{names.join(", ")}</span>
+      <span className="hidden @max-[36rem]/mh:inline">
+        {names[0]}
+        {names.length > 1 ? ` +${names.length - 1}` : ""}
+      </span>
+    </>
+  );
+}
 
 /** The breakdown under a card: loaded once opened (or from the press that opened it), kept by the list's cache. */
 function InlineMatch({ playerId, matchId, champ }: { playerId: string; matchId: string; champ: (id: string | null) => PortraitChampion }) {

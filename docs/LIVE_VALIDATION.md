@@ -529,3 +529,13 @@ Ranks are read against the game they are shown for (`docs/ARCHITECTURE.md` → M
 - [ ] Your profile → Match History: the cards of games from the last week show their players' ranks (tier colour) without anyone opening them; an older game's ranks, read later, are in the caption colour.
 - [ ] Open a recent game: the note under the scoreboard says "Ranks around the time of this game."; hover a badge: "checked … after this game", or for a member "the last rank recorded before this game". Open a game from a month ago: badges read later carry a clock, and the note says so. The (i) explains both, by keyboard and by touch.
 - [ ] The note under the scoreboard about possible groups is one line with its (i); the groups themselves are unchanged.
+
+## Match History: finishing pass (29 Oct 2026)
+
+On a real phone (and the installed app) and a desktop browser, after the deployment (`docs/ARCHITECTURE.md` → Match History 2.0 → Finishing pass):
+- [ ] A profile's Match History, champions and accounts sections open under a compact band (name, role, rank, Customise) and the Overview under the full card; switching tabs changes between them without a jump in the list.
+- [ ] The cards keep "… ago" in view on a phone, and a long run of team members folds to the first name and "+N".
+- [ ] Open a game on a phone: each scoreboard row is three lines with the items beside the damage; at the end, "Close this game" closes it and the card is back in view.
+- [ ] Refine on a phone: Result shows, the other fields open with "More filters" (it says how many are in use), and nothing scrolls sideways.
+- [ ] Analysis: "Higher than N of M" (or "Your best in M") beside each figure of "Compared with your usual"; a game without a timeline shows the lane at the end only, with one line saying why; turret takedowns read "N of M" when the team's towers are recorded; your team's bar is blue in the team totals whichever side you played.
+- [ ] Timeline on a phone: touch the chart or a lettered objective under it, lift the finger, and the reading stays (the objective named in it); a vertical swipe on the chart still scrolls the page. Open "Every objective…" and "Every minute as a table": each runs with the page (no box scrolling inside it), and each event row carries its mark. On a desktop, hovering reads, leaving clears, and the tables scroll in their boxes.

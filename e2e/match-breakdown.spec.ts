@@ -89,9 +89,42 @@ test("Analysis compares the game with what it names: the team, the ten players, 
   await expect(analysis.getByTestId("match-places")).toContainText(/\d+(st|nd|rd|th) of \d+/);
   // Compared with the player's own earlier games: the sample is named, or why there is none.
   const personal = analysis.getByTestId("personal-comparison");
-  if ((await personal.getAttribute("data-state")) === "ok") await expect(personal.getByTestId("personal-sample")).toHaveText(/^Your last \d+ (ranked|normal|Clash|Swiftplay and Quickplay) games? as /);
-  else await expect(personal).toContainText("Not enough earlier games to compare with");
+  if ((await personal.getAttribute("data-state")) === "ok") {
+    await expect(personal.getByTestId("personal-sample")).toHaveText(/^Your last \d+ (ranked|normal|Clash|Swiftplay and Quickplay) games? as /);
+    // Where the game sits, in counts of those games: never a bare percentage.
+    for (const standing of await personal.getByTestId("personal-standing").all()) await expect(standing).toHaveText(/^(Your best in \d+|Higher than (all \d+|none of \d+|\d+ of \d+))$/);
+  } else await expect(personal).toContainText("Not enough earlier games to compare with");
+  // Turret takedowns out of the team's towers, when the two agree.
+  const turrets = analysis.getByTestId("match-objectives").locator("div", { has: page.getByText("Turret takedowns", { exact: true }) }).locator("dd");
+  if (await turrets.count()) {
+    const [took, of] = (await turrets.innerText()).split(" of ").map((n) => Number(n.replace(/,/g, "")));
+    if (of !== undefined) expect(took).toBeLessThanOrEqual(of);
+  }
   await fitsWidth(page, "Analysis");
+});
+
+test("a game without a timeline compares the lane at the end only, and says why", async ({ page }) => {
+  await openHistory(page);
+  const cards = await page.getByTestId("match-card").count();
+  for (let i = 0; i < cards; i++) {
+    const card = page.getByTestId("match-card").nth(i);
+    const breakdown = await openGame(card);
+    const timeline = await section(breakdown, "timeline");
+    await expect(timeline.getByTestId("timeline-loading")).toHaveCount(0, { timeout: 15_000 });
+    // Read before switching: a section that is not shown is not in the page.
+    const none = (await timeline.getByTestId("timeline-message").count()) > 0;
+    const lane = (await section(breakdown, "analysis")).getByTestId("lane-comparison");
+    if (none && (await lane.getAttribute("data-state")) !== "none") {
+      // No rows of dashes: the end of the game, and a line saying why 10:00 and 15:00 are missing.
+      await expect(lane.getByTestId("lane-at-end")).toContainText(/[+−±]\d/);
+      await expect(lane.getByTestId("lane-at-10")).toHaveCount(0);
+      await expect(lane.getByTestId("lane-at-15")).toHaveCount(0);
+      await expect(lane.getByTestId("lane-note")).not.toBeEmpty();
+      return;
+    }
+    await closeGame(card);
+  }
+  throw new Error("no demo game without a timeline on the first page");
 });
 
 test("Timeline draws the gold difference, reads a minute by keyboard and as a table, and asks for the timeline once", async ({ page }) => {
@@ -120,6 +153,9 @@ test("Timeline draws the gold difference, reads a minute by keyboard and as a ta
   expect(await rows.count()).toBeGreaterThan(20);
   await expect(rows.last().locator("td").first()).toHaveText(end);
   await fitsWidth(page, "Timeline");
+  // On a touch screen the tables run with the page (a box scrolling inside it would catch the finger); with a mouse the table scrolls in its box.
+  const coarse = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
+  expect(await timeline.getByTestId("gold-chart-table").locator("xpath=..").evaluate((el) => getComputedStyle(el).overflowY)).toBe(coarse ? "visible" : "auto");
   // Switching sections reuses the one answer: Build and Analysis ask for nothing more.
   const before = posts.length;
   await section(breakdown, "build");
@@ -170,7 +206,37 @@ test("Timeline marks the kills and objectives, lists the largest swings beside w
   const rows = timeline.getByTestId("timeline-events-table").locator("tbody tr");
   expect(await rows.count()).toBeGreaterThanOrEqual(await markers.count());
   for (const side of await rows.evaluateAll((els) => els.map((e) => e.getAttribute("data-side")))) expect(["own", "enemy", "you"]).toContain(side);
+  // Each row carries the chart's mark for its kind of event.
+  expect(await rows.evaluateAll((els) => els.filter((e) => !e.querySelector("td:nth-child(2) [aria-hidden='true'] > *")).length)).toBe(0);
   await fitsWidth(page, "Timeline events");
+});
+
+test("a mark under the curve reads the minute that holds it; a touch keeps its reading after the finger lifts", async ({ page }) => {
+  await openHistory(page);
+  const { timeline } = await gameWithTimeline(page);
+  const chart = timeline.getByTestId("gold-chart");
+  const readout = chart.getByTestId("gold-chart-readout");
+  const mark = chart.getByTestId("timeline-objective").first();
+  const minute = Number(await mark.getAttribute("data-minute"));
+  const touch = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
+  await mark.scrollIntoViewIfNeeded();
+  if (touch) await mark.tap();
+  else await mark.hover();
+  // The reading names the objective: its frame is the first at or after the objective's moment.
+  await expect(readout).toContainText(/since the minute before: .*for (your team|the other team)/);
+  const [m, s] = (await readout.innerText()).split(" · ")[0]!.split(":").map(Number);
+  const read = m! + s! / 60;
+  expect(read).toBeGreaterThanOrEqual(minute - 1 / 60);
+  expect(read - minute).toBeLessThan(1.5);
+  if (touch) {
+    // The finger has lifted: the reading stays until the next touch.
+    await page.waitForTimeout(300);
+    await expect(readout).toContainText("since the minute before: ");
+  } else {
+    // A mouse's reading ends when it leaves the chart.
+    await page.mouse.move(1, 1);
+    await expect(readout).toHaveText(/^Hover, touch or use the arrow keys/);
+  }
 });
 
 test("Build lists what was bought minute by minute, the skill order and the runes", async ({ page }) => {

@@ -433,6 +433,26 @@ request is a game's match timeline, once per game, when a section that needs it 
   anyone opened it. Opening a recent game also checks players last read before it. One statement
   finds the players (at most 120 rows leave the database a run); members are read by their sync,
   erased players never. Possible groups' note is one line with its rules in an (i) as well.
+- **Finishing pass** (29 Oct 2026): on a profile's other sections (Match History, champions,
+  accounts) the profile card is one compact band (`ProfileHeader`'s `basePath`: name, role, rank
+  and Customise, about 65px instead of about 250px on a 390px phone); the Overview keeps the full card. A
+  narrow card's meta line keeps the time of its game in view ("Ranked" dropped from the queue on
+  cards under 36rem), and its team members fold to the first name and "+N". On a phone a scoreboard
+  row is three lines (the items share the damage's line). An open game ends with "Close this
+  game", which closes it, brings its card back into view and puts the focus on it. On a phone,
+  Refine shows Result and keeps the other fields behind "More filters" (open when one is in use).
+  Analysis says where a figure sits in counts ("Higher than 11 of 28", `standingText`; never a
+  bare percentage), draws a lane row only for a minute the timeline holds both players at (the
+  note names the others), gives turret takedowns out of the team's towers when the two agree
+  ("3 of 7"), and colours the team totals your team blue and the other red whatever the side, as
+  the Timeline does. The Timeline's chart and the marks under it are one pointer area: a mark
+  reads the first frame at or after it, so its event is in the reading; a touch keeps its reading
+  after the finger lifts (a mouse's ends when it leaves, a keyboard's when the focus leaves); each
+  row of the event table carries the chart's mark; the method moved from a permanent footnote into
+  the chart's (i). On a touch screen both tables run with the page (`docs/RESPONSIVE.md` → Long
+  lists inside a page). The possible-groups note is one statement: "not enough recorded history"
+  when no side can be assessed, otherwise the inference and then the sides it could not cover.
+  Nothing here asks Riot for more.
 - **Summary** (`history-summary.tsx`, `src/domain/history-summary.ts`): one line above the list
   about the newest games its filters list (20, the Overview's Recent form rules, so the two agree):
   results, record, KDA, CS/min (vision for supports), kill participation (total takedowns over total

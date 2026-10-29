@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { ChevronDown } from "lucide-react";
+import { cn } from "@/lib/cn";
 import { FilterField } from "@/components/ui/filter-bar";
 import { Input, Select } from "@/components/ui/input";
 import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
@@ -16,6 +18,8 @@ import type { MatchHistoryPage } from "@/server/players/match-history";
   sessions. Each choice is an address parameter, so a link keeps it; `set` replaces the address
   (the list's own navigation, which closes an open game and starts at the newest games); `group`
   keeps the page and the open game, since grouping changes neither the games nor their order.
+  On a phone, where the fields stack in the opened filter bar, the result shows and the rest wait
+  behind "More filters" (open from the start when one of them is in use), so the panel stays short.
 */
 
 type SetChoices = (patch: Record<string, string | null>) => void;
@@ -69,6 +73,8 @@ export function HistoryRefineFields({ refine, options, set, group, pending }: { 
   const members = options.memberOptions;
   const memberValue = refine.member ? `${refine.member.side}:${refine.member.id}` : "";
   const patchKnown = !refine.patch || options.patchOptions.some((p) => p.patch === refine.patch);
+  const inUse = [refine.highlight, refine.patch, refine.member, refine.from || refine.to, refine.sessions].filter(Boolean).length;
+  const [more, setMore] = React.useState(inUse > 0);
   return (
     <div className="flex min-w-0 flex-col gap-3 md:grid md:grid-cols-2 md:gap-3" data-testid="history-refine">
       <FilterField label="Result" labelId={`${id}-result`} alwaysLabel>
@@ -83,6 +89,19 @@ export function HistoryRefineFields({ refine, options, set, group, pending }: { 
           })}
         </div>
       </FilterField>
+      <button
+        type="button"
+        onClick={() => setMore((m) => !m)}
+        aria-expanded={more}
+        aria-controls={`${id}-more`}
+        className="-my-1 inline-flex min-h-9 w-fit items-center gap-1 rounded-lg text-sm font-medium text-accent focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11 md:hidden"
+        data-testid="refine-more"
+      >
+        {more ? "Fewer filters" : "More filters"}
+        {inUse ? <span className="text-fg-muted"> · {inUse} in use</span> : null}
+        <ChevronDown className={cn("h-4 w-4 transition-transform motion-reduce:transition-none", more && "rotate-180")} aria-hidden />
+      </button>
+      <div id={`${id}-more`} className={cn("contents", !more && "max-md:hidden")} data-testid="refine-more-fields">
       <FilterField label="Highlights" htmlFor={`${id}-hl`} alwaysLabel>
         <Select id={`${id}-hl`} value={refine.highlight ?? ""} disabled={pending} onChange={(e) => set({ hl: e.target.value || null })} className="w-full" data-testid="refine-highlight">
           <option value="">Every game</option>
@@ -139,6 +158,7 @@ export function HistoryRefineFields({ refine, options, set, group, pending }: { 
           <InfoTip label="About playing sessions" text={`Games less than ${SESSION_GAP_MINUTES} minutes apart (from the end of one to the start of the next) count as one sitting, whatever their game mode. Each session's header counts the games the filters list; the games and their order stay the same.`} />
         </div>
       </FilterField>
+      </div>
     </div>
   );
 }

@@ -40,6 +40,9 @@ async function openRefine(page: Page): Promise<Locator> {
   }
   const panel = filters.getByTestId("refine-panel");
   await expect(panel).toBeVisible();
+  // Phones keep the fields after Result behind "More filters" (open already when one is in use).
+  const more = panel.getByTestId("refine-more");
+  if ((await more.isVisible()) && (await more.getAttribute("aria-expanded")) !== "true") await more.click();
   return panel;
 }
 

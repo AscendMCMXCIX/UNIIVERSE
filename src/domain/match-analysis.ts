@@ -97,6 +97,8 @@ export interface FigureComparison {
   value: number;
   /** Share of the earlier games with a lower value (a tie counts half): 0.8 = higher than 80% of them. */
   percentile: number;
+  /** Earlier games with a lower value (ties not counted). */
+  below: number;
   /** The middle value of the earlier games. */
   median: number;
   /** The highest value among the earlier games. */
@@ -143,9 +145,16 @@ export function personalComparison(target: SeasonGame, history: readonly SeasonG
     if (values.length < BASELINE_MIN) continue;
     const below = values.filter((v) => v < value).length;
     const ties = values.filter((v) => v === value).length;
-    figures.push({ key, label: FIGURES[key].label, value, percentile: (below + ties / 2) / values.length, median: median(values), top: Math.max(...values), games: values.length, best: values.length >= BEST_MIN && below === values.length });
+    figures.push({ key, label: FIGURES[key].label, value, percentile: (below + ties / 2) / values.length, below, median: median(values), top: Math.max(...values), games: values.length, best: values.length >= BEST_MIN && below === values.length });
   }
   return figures.length ? { role, group, figures } : null;
+}
+
+/** Where the game sits among the earlier ones, in counts: "Your best in 28", "Higher than all 12", "Higher than 11 of 28", "Higher than none of 28". */
+export function standingText(f: Pick<FigureComparison, "below" | "games" | "best">): string {
+  if (f.best) return `Your best in ${f.games}`;
+  if (f.below >= f.games) return `Higher than all ${f.games}`;
+  return f.below === 0 ? `Higher than none of ${f.games}` : `Higher than ${f.below} of ${f.games}`;
 }
 
 /**

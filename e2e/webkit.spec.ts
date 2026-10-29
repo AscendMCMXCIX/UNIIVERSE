@@ -194,6 +194,41 @@ test("Match History: a game opens under its card, and once it has checked the pl
   await fitsWidth(page, "Match History");
 });
 
+test("Match History's Timeline: a tap on a mark under the curve reads its minute, the reading stays after the finger lifts, and the tables run with the page", async ({ page }) => {
+  await page.goto("/team");
+  const id = (await page.getByTestId("lineup-row-MID").getAttribute("data-player-id"))!;
+  await page.goto(`/players/${id}/matches`);
+  // The first of the newest games whose stored timeline draws (every sixth demo game has none).
+  let timeline: Locator | null = null;
+  for (let i = 0; i < 6 && !timeline; i++) {
+    const card = page.getByTestId("match-card").nth(i);
+    const row = card.getByTestId("match-row");
+    await expect(async () => {
+      if ((await row.getAttribute("aria-expanded")) !== "true") await card.tap({ position: { x: 24, y: 16 }, timeout: 2_000 });
+      await expect(row).toHaveAttribute("aria-expanded", "true", { timeout: 1_000 });
+    }).toPass({ timeout: 15_000 });
+    const breakdown = card.locator("xpath=..").getByTestId("match-breakdown");
+    await breakdown.getByTestId("match-tab-timeline").tap();
+    const panel = breakdown.getByTestId("match-panel-timeline");
+    await expect(panel.getByTestId("timeline-loading")).toHaveCount(0, { timeout: 15_000 });
+    if (await panel.getByTestId("gold-chart").count()) timeline = panel;
+    else await card.tap({ position: { x: 24, y: 16 } });
+  }
+  expect(timeline, "a demo game with a timeline among the newest six").not.toBeNull();
+  const chart = timeline!.getByTestId("gold-chart");
+  const readout = chart.getByTestId("gold-chart-readout");
+  const mark = chart.getByTestId("timeline-objective").first();
+  await mark.scrollIntoViewIfNeeded();
+  await mark.tap();
+  await expect(readout).toContainText(/since the minute before: .*for (your team|the other team)/);
+  await page.waitForTimeout(300);
+  await expect(readout).toContainText("since the minute before: ");
+  // Opened, the minute table runs with the page instead of scrolling inside it.
+  await timeline!.getByText("Every minute as a table").tap();
+  expect(await timeline!.getByTestId("gold-chart-table").locator("xpath=..").evaluate((el) => getComputedStyle(el).overflowY)).toBe("visible");
+  await fitsWidth(page, "the Timeline");
+});
+
 test("Encounters: each player's badge, chips and record share the line under the name, and a Mixed player's window splits the games by side", async ({ page }) => {
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-SUPPORT").getAttribute("data-player-id"))!;

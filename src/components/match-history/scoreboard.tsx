@@ -16,14 +16,15 @@ import { IconImg, ItemRow } from "./icon-img";
 
 /*
   A game's scoreboard: both teams, the player's first, each in lane order. Every row is one player:
-  champion (level, spells, keystone), name and current or last-known rank, KDA with kill
+  champion (level, spells, keystone), name and rank (read around the game, or marked), KDA with kill
   participation, damage to champions with its share of the team's, gold, CS and vision, and the
   final items. The player's row is lit, team members carry their profile name in the accent colour
   and the lane opponent is marked. Under a card, a player the player met in other games of the
   list's season and game mode carries "Met N×", which opens their Encounters window. The columns
   follow the room the breakdown has (a container query, so the same scoreboard fits a match card's
   expansion and the match window): every figure on one line from 60rem, the figures grouped under
-  the damage bar from 36rem, and on a phone a line of figures and a line of items under each player.
+  the damage bar from 36rem, and on a phone the items and the damage on one line under each player,
+  the other figures on the next.
 */
 
 const OBJECTIVES: Array<[string, string, string]> = [
@@ -245,15 +246,25 @@ export function GroupsNote({ result, teams }: { result: MatchGroupsResult | null
   const sides = (list: MatchGroupsTeam[]) => list.map((t) => side(t.teamId)).join(" and ");
   const members = open.filter(nobody);
   const thin = open.filter((t) => !nobody(t));
+  // One statement: nothing to infer from on either side, or the inference and then the sides it could not cover.
   return (
     <p className="text-2xs text-fg-subtle" data-testid="possible-groups-note" data-state="ok">
-      {thin.length ? (
+      {thin.length === result.teams.length ? (
         <span className="text-fg-muted" data-testid="possible-groups-insufficient">
-          {thin.length === result.teams.length ? "Possible groups: not enough recorded history to assess." : `${sides(thin)}: not enough recorded history to assess possible groups.`}{" "}
+          Possible groups: not enough recorded history to assess.
         </span>
-      ) : null}
-      {members.length ? <span className="text-fg-muted">{sides(members)}: no other players to assess. </span> : null}
-      Possible groups: an inference from {formatCount(result.gamesSearched)} earlier recorded {result.gamesSearched === 1 ? "game" : "games"}.{" "}
+      ) : (
+        <>
+          Possible groups: an inference from {formatCount(result.gamesSearched)} earlier recorded {result.gamesSearched === 1 ? "game" : "games"}.
+          {thin.length ? (
+            <span className="text-fg-muted" data-testid="possible-groups-insufficient">
+              {" "}
+              {sides(thin)}: not enough recorded history to assess possible groups.
+            </span>
+          ) : null}
+        </>
+      )}
+      {members.length ? <span className="text-fg-muted"> {sides(members)}: no other players to assess.</span> : null}{" "}
       <InfoTip
         label="About possible groups"
         testId="groups-info"
@@ -359,9 +370,13 @@ function ParticipantRow({ x, champ, maxDamage, group, lane, rank, queueId, check
           {x.killParticipation !== null ? <span className="sr-only"> kill participation</span> : null}
         </span>
       </span>
-      {/* Damage, then (one-line layout) gold, CS and vision in their own columns; grouped under the bar below it. */}
+      {/* Damage, then (one-line layout) gold, CS and vision in their own columns; grouped under the
+          bar below it. On a phone the items lead the damage's line, so a row is three lines. */}
       <span className="leading-tight @max-[36rem]/bd:col-span-2" title={x.damage !== null ? `${formatCount(x.damage)} damage to champions${share ? `, ${share} of the team's` : ""}` : undefined}>
         <span className="flex items-center gap-1.5 text-2xs tabular-nums text-fg-muted">
+          <span className="shrink-0 @min-[36rem]/bd:hidden" data-testid="participant-items-phone">
+            <ItemRow items={x.items} size={18} />
+          </span>
           <span className="whitespace-nowrap">
             <span className="font-medium text-fg">{x.damage === null ? "—" : formatKilo(x.damage)}</span> dmg{share ? ` · ${share}` : ""}
           </span>
@@ -385,7 +400,7 @@ function ParticipantRow({ x, champ, maxDamage, group, lane, rank, queueId, check
         <span className="block text-xs font-medium tabular-nums text-fg">{intText(x.vision)}</span>
         <span className="block text-2xs tabular-nums text-fg-subtle">{x.wardsPlaced === null ? "" : `${x.wardsPlaced} wards`}</span>
       </span>
-      <span className="@max-[36rem]/bd:col-span-2">
+      <span className="hidden @min-[36rem]/bd:block">
         <span className="@min-[60rem]/bd:hidden">
           <ItemRow items={x.items} size={20} />
         </span>

@@ -94,7 +94,7 @@ export async function ProfileFrame({ db, header, session, basePath, children }: 
     <div className="mx-auto max-w-[var(--content-max)] space-y-4" data-testid="player-profile">
       {/* The section bar belongs to the profile card: tucked right under it. */}
       <div className="space-y-1.5">
-        <ProfileHeader identity={headerIdentity(header)} self={self} editable={editable} champions={champions} />
+        <ProfileHeader identity={headerIdentity(header)} self={self} editable={editable} champions={champions} basePath={basePath} />
         <ProfileTabs basePath={basePath} />
       </div>
       {children}
