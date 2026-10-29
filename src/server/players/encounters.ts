@@ -222,6 +222,68 @@ export async function loadEncounterDetail(db: Db, scope: EncounterScope, key: st
   };
 }
 
+/** A player of one game whom the player also met in other games of the scope (Match History's scoreboard). */
+export interface MatchMeeting {
+  /** Their place in the game's record (the scoreboard's slot). */
+  slot: number;
+  /** Their Encounters key: their window opens from it. */
+  key: string;
+  /** The player's games in the scope with them, this one included: the count their window shows. */
+  games: number;
+  /** Of those, the games on the player's side and on the other (both, with duplicated records). */
+  ally: number;
+  opponent: number;
+}
+
+/**
+ * The players of one of the player's games whom the player met in at least one other game of the
+ * scope, counted as Encounters counts them, so a game's scoreboard can mark them and open their
+ * window. Null when the game is not one of the player's in the scope. One statement: the game's
+ * record names the players (the ones Encounters lists), and only the records holding them are
+ * opened (match_details_puuids_idx), each counted when it is one of the player's games in the scope.
+ * Accounts stay in the database, as for the list.
+ */
+export async function loadMatchMeetings(db: Db, scope: EncounterScope, matchId: string): Promise<MatchMeeting[] | null> {
+  if (!scope.accountIds.length) return null;
+  const queues = sql.join(seasonModeInfo(scope.mode).queues.map((q) => sql`${q}`), sql`, `);
+  // The player's row of a game in the scope, as mine reads it in encounterCtes (the first account's).
+  const mineIn = (match: SQL) => sql`SELECT am.team_id FROM account_matches am ${SEASON_OF_PATCH}
+    WHERE am.match_id = ${match} AND am.account_id IN (${list(scope.accountIds)}) AND am.champion_id IS NOT NULL
+      AND am.queue_id IN (${queues}) AND pv.season = ${scope.season}
+    ORDER BY am.account_id LIMIT 1`;
+  const result = await db.execute(sql`
+    WITH here AS (${mineIn(sql`${matchId}`)}),
+    target AS MATERIALIZED (
+      SELECT (p.n - 1)::int AS slot, p.v->>'puuid' AS puuid
+      FROM match_details d CROSS JOIN LATERAL jsonb_array_elements(d.participants) WITH ORDINALITY p(v, n)
+      WHERE d.match_id = ${matchId} AND EXISTS (SELECT 1 FROM here)
+        AND coalesce(p.v->>'puuid', '') <> '' AND coalesce(p.v->>'name', '') <> ''
+        AND NOT EXISTS (SELECT 1 FROM riot_accounts l WHERE l.owner_type = 'player' AND l.puuid = p.v->>'puuid')
+    ),
+    seen AS (
+      SELECT t.slot, d.match_id,
+        bool_or(coalesce(NULLIF(p->>'teamId', '')::int = m.team_id, false)) AS ally,
+        bool_or(NOT coalesce(NULLIF(p->>'teamId', '')::int = m.team_id, false)) AS opponent
+      FROM match_details d
+      CROSS JOIN LATERAL (${mineIn(sql`d.match_id`)}) m
+      CROSS JOIN LATERAL jsonb_array_elements(d.participants) p
+      JOIN target t ON t.puuid = p->>'puuid'
+      WHERE jsonb_path_query_array(d.participants, '$[*].puuid') ?| (SELECT array_agg(puuid) FROM target)
+        AND m.team_id IS NOT NULL AND coalesce(p->>'name', '') <> ''
+      GROUP BY t.slot, d.match_id
+    )
+    SELECT json_build_object(
+      'here', EXISTS (SELECT 1 FROM here),
+      'met', (SELECT json_agg(json_build_array(s.slot, ${keyOf(sql`t.puuid`)}, s.games, s.ally, s.opponent) ORDER BY s.slot)
+        FROM (SELECT slot, count(*)::int AS games, count(*) FILTER (WHERE ally)::int AS ally, count(*) FILTER (WHERE opponent)::int AS opponent
+          FROM seen GROUP BY slot HAVING count(*) FILTER (WHERE match_id <> ${matchId}) > 0) s
+        JOIN target t ON t.slot = s.slot)
+    ) AS payload`);
+  const payload = parsed<{ here: boolean; met: Array<[number, string, number, number, number]> | null }>(rowsOf<{ payload: unknown }>(result)[0]?.payload);
+  if (!payload.here) return null;
+  return (payload.met ?? []).map(([slot, key, games, ally, opponent]) => ({ slot: Number(slot), key, games: Number(games), ally: Number(ally), opponent: Number(opponent) }));
+}
+
 /** A player's games in one season and queue (one per match); `chosen` counts the chosen account's alone. */
 export interface SeasonQueueGames {
   season: number;

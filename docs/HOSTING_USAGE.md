@@ -299,7 +299,27 @@ Match History's Refine counts, for every visit, how many of the listed games eac
 
 Both found the same 137 games with a member and 138 against. Cold, the first version would have read every stored record from disk on each visit (the cost that makes Encounters slow cold in production, `docs/PERFORMANCE.md`); the shipped one reads narrow rows only.
 
-- **Production after the deploy:** pending (the post-deploy `perf-probe`, step `profile.historyMembers`, counts only).
+- **Production after the deploy** (Data jobs run 40825361632, 29 Oct 2026, commit 19b73c3): the `perf-probe` step `profile.historyMembers` took 78.6 ms and sent 0.5 KB for the player with the most games: 1,150 games, 6 members with a linked account, 1,115 member placements. That is one first call, including the round trip from Vercel's Sydney region to the database.
+
+## 29 Oct 2026: players met in other games (Match History's scoreboard)
+
+When a game opens under its card, the scoreboard marks the players the player met in other games of the list's season and game mode (`loadMatchMeetings`, `src/server/players/encounters.ts`).
+
+**How it reads:** one statement, once per game opened (kept by the list's cache): the game's record names its players (those Encounters lists), then only the records holding one of them are found through the participants' index (`match_details_puuids_idx`), each kept when it is one of the player's games in the scope (a primary-key lookup in `account_matches`). The answer is a few rows: place in the scoreboard, Encounters key, and three counts (about 70 bytes a marked player). Not the player's whole history: the Encounters list reads every record of the season, this reads only the records of the nine other players.
+
+**Measured locally** (PostgreSQL 16, the synthetic history above: 5,000 stored records, the player with 1,100 games on two accounts, plus 40 recurring players placed in every 5th and 7th of the player's games and every 9th of the other members' games; `EXPLAIN (ANALYZE, BUFFERS)`, warm):
+
+| Game | Records found through the index | Of them the player's | Database time | Buffers | Statement round trip |
+|---|---|---|---|---|---|
+| Two recurring players (10 games each; answer 139 bytes) | 41 | 19 | 2.0–4.3 ms | 355–358 | 3.5–9.2 ms |
+| No recurring player (only the game itself) | 1 | 1 | 0.5 ms | 48 | 2.8–3.8 ms (one of 24 ms) |
+| Not the player's game (answered "not found"; the index is not used) | – | – | 0.2 ms | 3 | 3.0–4.3 ms |
+
+The higher figures in each range were taken while the browser tests ran on the same machine.
+
+The counts equal the Encounters window's for the same players (checked on this history, and on every game of a randomised one in `tests/db/profile-encounters.test.ts`).
+
+- **Production after the deploy:** pending (the post-deploy `perf-probe`, step `profile.matchMeetings`, counts only).
 
 ## What still needs attention
 

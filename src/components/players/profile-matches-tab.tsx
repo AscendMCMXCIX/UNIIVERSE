@@ -75,7 +75,7 @@ async function ProfileMatchesTabBody({ db, header, session, basePath, search }: 
     newestGameAt: syncStatus.newestGameAt,
     notes: data.missingOnPage > 0 ? [{ label: `Items and runes of ${data.missingOnPage} older game${data.missingOnPage === 1 ? "" : "s"} on this page are still being collected`, detail: "The account sync adds them; their results already count." }] : [],
   });
-  return <MatchHistoryView data={data} championsById={championsById} basePath={`${basePath}/matches`} playerId={player.id} status={status} refresh={refreshFor(session, player.id, syncStatus)} />;
+  return <MatchHistoryView data={data} championsById={championsById} basePath={`${basePath}/matches`} playerId={player.id} playerName={player.displayName} status={status} refresh={refreshFor(session, player.id, syncStatus)} />;
 }
 
 /**

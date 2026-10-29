@@ -8,7 +8,8 @@ import type { Session } from "@/server/auth/permissions";
   profile's Match History; a personal-use account sees only its own. Only the list's opaque key
   shape is accepted, never seasons before 2026 or an account of another player, and the answer
   never carries an account id (PUUID). A rename seen in a later stored game is followed for the
-  OP.GG link.
+  OP.GG link. A game's scoreboard in Match History marks the players met in other games under the
+  same rules.
 */
 
 const state = vi.hoisted(() => ({ db: null as unknown, session: null as unknown }));
@@ -20,6 +21,7 @@ import type { DbHandle } from "@/server/db/create";
 import { accountMatches, matchDetails, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { getEncounterDetailAction } from "@/server/actions/encounters";
+import { getMatchMeetingsAction } from "@/server/actions/match-history";
 import { STANDARD_PLAYER } from "@/server/auth/permissions";
 
 let handle: DbHandle;
@@ -99,5 +101,45 @@ describe("a profile's Encounters window", () => {
     expect(await getEncounterDetailAction(ace, key, { ...season16, mode: "aram" })).toMatchObject({ status: "not-found" });
     // Ranked Flex has none of these games.
     expect(await getEncounterDetailAction(ace, key, { ...season16, mode: "flex" })).toMatchObject({ status: "not-found" });
+  });
+});
+
+describe("a game's scoreboard: the players met in other games", () => {
+  const rival = { slot: 1, key, games: 2, ally: 0, opponent: 2 };
+
+  it("refuses without a session, and another player's to a personal-use account or without the teammate-statistics right", async () => {
+    state.session = null;
+    expect(await getMatchMeetingsAction(ace, "OC1_2", season16)).toEqual({ status: "not-found", message: "Sign in to see match details." });
+    for (const session of [player({ teamMember: false }), player({ capabilities: STANDARD_PLAYER.filter((c) => c !== "view-teammate-stats") })]) {
+      state.session = session;
+      expect(await getMatchMeetingsAction(ace, "OC1_2", season16)).toEqual({ status: "not-found", message: "Teammates' match details are not part of your access." });
+    }
+  });
+
+  it("marks them with their window's key and counts for you and a teammate, never with the account id", async () => {
+    for (const session of [player({ playerId: ace }), player({ playerId: ace, teamMember: false, capabilities: STANDARD_PLAYER.filter((c) => c !== "view-teammate-stats") }), player({ playerId: bea })]) {
+      state.session = session;
+      const res = await getMatchMeetingsAction(ace, "OC1_2", season16);
+      expect(res).toEqual({ status: "ok", players: [rival] });
+      expect(JSON.stringify(res)).not.toContain("secret-puuid-x");
+    }
+    // The same counts as the window the mark opens.
+    expect(await getEncounterDetailAction(ace, key, season16)).toMatchObject({ status: "ok", summary: { games: 2, ally: { games: 0 }, opponent: { games: 2 } } });
+  });
+
+  it("answers only for the player's own games in the list's season, game mode and account", async () => {
+    state.session = player({ playerId: ace });
+    const missing = { status: "not-found", message: "This match is not in this player's history." };
+    // A Season 2025 game, and Season 2025 itself.
+    expect(await getMatchMeetingsAction(ace, "OC1_0", season16)).toEqual(missing);
+    expect(await getMatchMeetingsAction(ace, "OC1_0", { ...season16, season: 15 })).toEqual(missing);
+    // Bea's game, another player's account, a game mode without the game, and unknown inputs.
+    expect(await getMatchMeetingsAction(ace, "OC1_3", season16)).toEqual(missing);
+    expect(await getMatchMeetingsAction(ace, "OC1_2", { ...season16, accountId: beaAccount })).toEqual(missing);
+    expect(await getMatchMeetingsAction(ace, "OC1_2", { ...season16, accountId: account })).toEqual({ status: "ok", players: [rival] });
+    expect(await getMatchMeetingsAction(ace, "OC1_2", { ...season16, mode: "flex" })).toEqual(missing);
+    expect(await getMatchMeetingsAction(ace, "OC1_2", { ...season16, mode: "aram" })).toEqual(missing);
+    expect(await getMatchMeetingsAction(ace, "'; DROP TABLE x;--", season16)).toEqual(missing);
+    expect(await getMatchMeetingsAction("not-a-player", "OC1_2", season16)).toEqual(missing);
   });
 });

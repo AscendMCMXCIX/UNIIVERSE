@@ -4,6 +4,7 @@ import { ChevronRight, UserX } from "lucide-react";
 import type { MatchGroupsResult, MatchGroupsTeam, MatchGroupView } from "@/server/matches/possible-groups";
 import { groupEvidenceText } from "@/domain/possible-groups";
 import type { DetailParticipant, DetailTeam, MatchRanksResult } from "@/server/players/match-history";
+import type { MatchMeeting } from "@/server/players/encounters";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { formatCount, formatDate, formatKilo } from "@/lib/format";
 import { cn } from "@/lib/cn";
@@ -17,10 +18,11 @@ import { IconImg, ItemRow } from "./icon-img";
   champion (level, spells, keystone), name and current or last-known rank, KDA with kill
   participation, damage to champions with its share of the team's, gold, CS and vision, and the
   final items. The player's row is lit, team members carry their profile name in the accent colour
-  and the lane opponent is marked. The columns follow the room the breakdown has (a container query,
-  so the same scoreboard fits a match card's expansion and the match window): every figure on one
-  line from 60rem, the figures grouped under the damage bar from 36rem, and on a phone a line of
-  figures and a line of items under each player.
+  and the lane opponent is marked. Under a card, a player the player met in other games of the
+  list's season and game mode carries "Met N×", which opens their Encounters window. The columns
+  follow the room the breakdown has (a container query, so the same scoreboard fits a match card's
+  expansion and the match window): every figure on one line from 60rem, the figures grouped under
+  the damage bar from 36rem, and on a phone a line of figures and a line of items under each player.
 */
 
 const OBJECTIVES: Array<[string, string, string]> = [
@@ -50,7 +52,13 @@ export interface RankProps {
   checking: boolean;
 }
 
-export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, queueId, checking }: { team: DetailTeam; champ: (id: string | null) => PortraitChampion; maxDamage: number; groups: MatchGroupsTeam | null; /** The player's lane opponent, by place in the record. */ laneSlot: number | null } & RankProps) {
+/** The players met in the player's other games, by place in the record, and how to open one's Encounters window. */
+export interface MeetProps {
+  met?: ReadonlyMap<number, MatchMeeting>;
+  onMeet?: ((x: DetailParticipant, key: string) => void) | null;
+}
+
+export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, queueId, checking, met, onMeet }: { team: DetailTeam; champ: (id: string | null) => PortraitChampion; maxDamage: number; groups: MatchGroupsTeam | null; /** The player's lane opponent, by place in the record. */ laneSlot: number | null } & RankProps & MeetProps) {
   const objectives = OBJECTIVES.filter(([k]) => team.objectives[k] !== undefined);
   const found = groups?.groups ?? [];
   const groupOf = new Map(found.flatMap((g, i) => g.slots.map((s) => [s, { index: i, label: g.label }] as const)));
@@ -102,7 +110,7 @@ export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, qu
       </div>
       <ul className="divide-y divide-border/70">
         {team.participants.map((x, i) => (
-          <ParticipantRow key={i} x={x} champ={champ} maxDamage={maxDamage} group={groupOf.get(x.slot) ?? null} lane={laneSlot !== null && x.slot === laneSlot} rank={rankOf(x)} queueId={queueId} checking={checking} />
+          <ParticipantRow key={i} x={x} champ={champ} maxDamage={maxDamage} group={groupOf.get(x.slot) ?? null} lane={laneSlot !== null && x.slot === laneSlot} rank={rankOf(x)} queueId={queueId} checking={checking} met={onMeet ? (met?.get(x.slot) ?? null) : null} onMeet={onMeet ?? null} />
         ))}
       </ul>
     </section>
@@ -246,7 +254,30 @@ function RemovedRow() {
   );
 }
 
-function ParticipantRow({ x, champ, maxDamage, group, lane, rank, queueId, checking }: { x: DetailParticipant; champ: (id: string | null) => PortraitChampion; maxDamage: number; group: { index: number; label: string } | null; lane: boolean; rank: ParticipantRank; queueId: number | null; checking: boolean }) {
+/**
+ * "Met 4×" after a player's name: the player's recorded games with them in the list's season and
+ * game mode, this one included (the count their Encounters window shows), and the window on a press.
+ */
+function MetChip({ met, onOpen }: { met: MatchMeeting; onOpen: () => void }) {
+  const sides = [met.opponent ? `${formatCount(met.opponent)} against` : null, met.ally ? `${formatCount(met.ally)} alongside` : null].filter(Boolean).join(", ");
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      title={`Met in ${formatCount(met.games)} recorded games, this one included (${sides}). Opens their encounters.`}
+      className="relative shrink-0 rounded border border-border px-1 text-3xs font-medium leading-4 tabular-nums text-fg-muted transition-colors hover:border-accent/50 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']"
+      data-testid="participant-met"
+      data-games={met.games}
+    >
+      {/* Read as "Met 4 times, this game included (3 against, 1 alongside). Open their encounters". */}
+      Met {formatCount(met.games)}
+      <span aria-hidden>×</span>
+      <span className="sr-only"> times, this game included ({sides}). Open their encounters</span>
+    </button>
+  );
+}
+
+function ParticipantRow({ x, champ, maxDamage, group, lane, rank, queueId, checking, met, onMeet }: { x: DetailParticipant; champ: (id: string | null) => PortraitChampion; maxDamage: number; group: { index: number; label: string } | null; lane: boolean; rank: ParticipantRank; queueId: number | null; checking: boolean; met: MatchMeeting | null; onMeet: ((x: DetailParticipant, key: string) => void) | null }) {
   if (x.removed) return <RemovedRow />;
   const c = champ(x.championId);
   const kda = x.deaths === 0 ? "Perfect" : x.kda.toFixed(2);
@@ -268,11 +299,14 @@ function ParticipantRow({ x, champ, maxDamage, group, lane, rank, queueId, check
           <IconImg icon={x.keystone} size={14} rounded="rounded-full" />
         </span>
         <span className="min-w-0 leading-tight">
-          <span className={cn("block truncate text-sm", x.isPlayer ? "font-semibold text-fg" : "text-fg")} title={x.name ?? undefined} data-testid="participant-name">
-            <PlayerLink memberId={x.memberId} opgg={x.opgg} label={x.teamMember ?? x.name?.split("#")[0] ?? c.name}>
-              {x.name ? x.name.split("#")[0] : c.name}
-            </PlayerLink>
-            {group ? <span className="sr-only"> ({group.label.toLowerCase()})</span> : null}
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className={cn("min-w-0 truncate text-sm", x.isPlayer ? "font-semibold text-fg" : "text-fg")} title={x.name ?? undefined} data-testid="participant-name">
+              <PlayerLink memberId={x.memberId} opgg={x.opgg} label={x.teamMember ?? x.name?.split("#")[0] ?? c.name}>
+                {x.name ? x.name.split("#")[0] : c.name}
+              </PlayerLink>
+              {group ? <span className="sr-only"> ({group.label.toLowerCase()})</span> : null}
+            </span>
+            {met && onMeet ? <MetChip met={met} onOpen={() => onMeet(x, met.key)} /> : null}
           </span>
           <span className="flex min-w-0 items-center gap-1 text-2xs text-fg-subtle">
             <span className="truncate">

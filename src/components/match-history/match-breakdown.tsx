@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { getMatchGroupsAction, getMatchRanksAction, getMatchTimelineAction } from "@/server/actions/match-history";
+import { getMatchGroupsAction, getMatchMeetingsAction, getMatchRanksAction, getMatchTimelineAction, type MatchMeetingsResult } from "@/server/actions/match-history";
 import type { MatchGroupsResult } from "@/server/matches/possible-groups";
 import type { MatchTimelineResult } from "@/server/accounts/match-timeline";
 import type { DetailParticipant, MatchDetailView, MatchRanksResult } from "@/server/players/match-history";
@@ -9,7 +9,7 @@ import type { PortraitChampion } from "@/components/champion-portrait";
 import { BookmarkButton } from "@/components/matches/bookmark-button";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { MatchDetailCacheContext } from "./match-detail-cache";
+import { MatchDetailCacheContext, type MeetingScope } from "./match-detail-cache";
 import { OpggHistoryLink } from "./opgg-history-link";
 import { GroupsNote, RanksNote, TeamTable } from "./scoreboard";
 import { AnalysisPanel } from "./match-analysis-panel";
@@ -21,7 +21,9 @@ import { BuildPanel } from "./build-panel";
   and in the match window from Team Matches, Matchups and Encounters. One row of sections, no
   deeper navigation:
   - Scoreboard: both teams with ranks, members and possible groups (stored record; ranks missing or
-    stale are checked with Riot once it is open, possible groups load after it).
+    stale are checked with Riot once it is open, possible groups load after it). Under a card, the
+    players met in other games of the list's season and game mode are marked too (after it as well),
+    each opening their Encounters window.
   - Analysis: the player's shares, place and lane, their usual, objectives (stored record; the
     lane's 10:00 and 15:00 from the match timeline).
   - Timeline: the gold difference over the game (match timeline).
@@ -32,6 +34,16 @@ import { BuildPanel } from "./build-panel";
 */
 
 type Tab = "scoreboard" | "analysis" | "timeline" | "build";
+
+/** Match History's way from a game's scoreboard to Encounters: the list's scope, and a player's window. */
+export interface EncounterLink {
+  scope: MeetingScope;
+  open(target: { key: string; name: string }): void;
+}
+
+/** Given by Match History's list; a breakdown under a card marks the players met in its other games. */
+export const EncounterLinkContext = React.createContext<EncounterLink | null>(null);
+
 const TABS: Array<[Tab, string]> = [
   ["scoreboard", "Scoreboard"],
   ["analysis", "Analysis"],
@@ -101,6 +113,25 @@ export function MatchBreakdown({ playerId, view, champ, variant }: { playerId: s
     };
   }, [cache, playerId, view.matchId, view.rankCheck]);
   const checked = React.useMemo(() => new Map(ranks?.status === "ok" ? ranks.ranks.map((r) => [r.slot, r.rank]) : []), [ranks]);
+  // The players met in other games of the list's scope, under a card only (the window has no way to
+  // another window); after the scoreboard, like the possible groups.
+  const link = React.useContext(EncounterLinkContext);
+  const meetScope = variant === "inline" ? (link?.scope ?? null) : null;
+  const [meetings, setMeetings] = React.useState<MatchMeetingsResult | null>(null);
+  React.useEffect(() => {
+    if (!meetScope) return;
+    let live = true;
+    void (cache ? cache.meetings(playerId, view.matchId, meetScope) : getMatchMeetingsAction(playerId, view.matchId, meetScope))
+      .catch((): MatchMeetingsResult => ({ status: "not-found", message: "" }))
+      .then((r) => {
+        if (live) React.startTransition(() => setMeetings(r));
+      });
+    return () => {
+      live = false;
+    };
+  }, [cache, playerId, view.matchId, meetScope]);
+  const met = React.useMemo(() => new Map(meetings?.status === "ok" ? meetings.players.map((m) => [m.slot, m]) : []), [meetings]);
+  const onMeet = link && meetScope ? (x: DetailParticipant, key: string) => link.open({ key, name: x.name ?? "Player" }) : null;
   const rankOf = React.useCallback((x: DetailParticipant) => checked.get(x.slot) ?? x.rank, [checked]);
   const checking = view.rankCheck && !ranks;
   // The match timeline: requested when a section that reads it first opens, then kept.
@@ -127,7 +158,7 @@ export function MatchBreakdown({ playerId, view, champ, variant }: { playerId: s
   const panelId = (key: Tab) => `${uid}-panel-${key}`;
   const actions = view.share.eligible || p.opgg;
   return (
-    <div className="@container/bd space-y-3" data-testid="match-breakdown" data-variant={variant}>
+    <div className="@container/bd space-y-3" data-testid="match-breakdown" data-variant={variant} data-met={meetings ? (meetings.status === "ok" ? meetings.players.length : 0) : undefined}>
       {variant === "window" ? (
         <section aria-label="Your performance" className="space-y-2">
           <Figures p={p} />
@@ -179,7 +210,7 @@ export function MatchBreakdown({ playerId, view, champ, variant }: { playerId: s
         {tab === "scoreboard" ? (
           <div className="space-y-3">
             {view.teams.map((t) => (
-              <TeamTable key={t.teamId} team={t} champ={champ} maxDamage={view.maxDamage} groups={groups?.status === "ok" ? (groups.teams.find((g) => g.teamId === t.teamId) ?? null) : null} laneSlot={view.comparison.opponent?.slot ?? null} rankOf={rankOf} queueId={view.queueId} checking={checking} />
+              <TeamTable key={t.teamId} team={t} champ={champ} maxDamage={view.maxDamage} groups={groups?.status === "ok" ? (groups.teams.find((g) => g.teamId === t.teamId) ?? null) : null} laneSlot={view.comparison.opponent?.slot ?? null} rankOf={rankOf} queueId={view.queueId} checking={checking} met={met} onMeet={onMeet} />
             ))}
             <RanksNote ranks={view.teams.flatMap((t) => t.participants.filter((x) => !x.removed).map(rankOf))} queueId={view.queueId} checking={checking} result={ranks} />
             <GroupsNote result={groups} teams={view.teams} />

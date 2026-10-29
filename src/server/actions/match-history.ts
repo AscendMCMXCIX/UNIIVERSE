@@ -6,6 +6,11 @@ import { canManageRiotAccounts, hasPermission, isTeamMember } from "@/server/aut
 import { getMatchDetail, getMatchRanks, type MatchDetailResult, type MatchRanksResult } from "@/server/players/match-history";
 import { getMatchTimeline, type MatchTimelineResult } from "@/server/accounts/match-timeline";
 import { getMatchGroups, type MatchGroupsResult } from "@/server/matches/possible-groups";
+import { loadMatchMeetings, type MatchMeeting } from "@/server/players/encounters";
+import { listAccountsForPlayer } from "@/server/accounts/repository";
+import { currentSeason } from "@/server/accounts/sync";
+import { isOfferedSeason } from "@/domain/season";
+import { isSeasonMode } from "@/domain/season-stats";
 import { catchUpPlayerFigures, refreshPlayerMatches, type CatchUpOutcome, type RefreshOutcome } from "@/server/accounts/refresh";
 import { pendingFiguresForPlayer } from "@/server/accounts/figures-backfill";
 import { createRiotClient } from "@/server/riot/api/client";
@@ -61,6 +66,29 @@ export async function getMatchGroupsAction(playerId: string, matchId: string): P
   if (!/^[0-9a-f-]{36}$/i.test(playerId) || !MATCH_ID.test(matchId)) return { status: "not-found", message: "This match is not in this player's history." };
   const db = await getAppDb();
   return getMatchGroups(db, playerId, matchId);
+}
+
+export type MatchMeetingsResult = { status: "ok"; players: MatchMeeting[] } | { status: "not-found"; message: string };
+
+/**
+ * The players of one match whom the player also met in other games of the list's season, game mode
+ * and account (Match History → Encounters counts them the same way), loaded after its details open
+ * (same access rule). Stored games only: no Riot request. Each comes with their Encounters key, never
+ * their account.
+ */
+export async function getMatchMeetingsAction(playerId: string, matchId: string, filters: { season: number; mode: string; accountId: string | null }): Promise<MatchMeetingsResult> {
+  const session = await getSession();
+  if (!session) return { status: "not-found", message: "Sign in to see match details." };
+  const self = session.playerId === playerId;
+  if (!self && !hasPermission(session, "view-teammate-stats")) return { status: "not-found", message: "Teammates' match details are not part of your access." };
+  const mode = filters?.mode;
+  if (!/^[0-9a-f-]{36}$/i.test(playerId) || !MATCH_ID.test(matchId) || !isSeasonMode(mode)) return { status: "not-found", message: "This match is not in this player's history." };
+  const db = await getAppDb();
+  const [accounts, seasonNow] = await Promise.all([listAccountsForPlayer(db, playerId), currentSeason(db)]);
+  // Only offered seasons (Season 2026 to the current one) and the player's own accounts, as Encounters.
+  if (!isOfferedSeason(filters.season, seasonNow) || (filters.accountId && !accounts.some((a) => a.id === filters.accountId))) return { status: "not-found", message: "This match is not in this player's history." };
+  const players = await loadMatchMeetings(db, { accountIds: filters.accountId ? [filters.accountId] : accounts.map((a) => a.id), season: filters.season, mode }, matchId);
+  return players ? { status: "ok", players } : { status: "not-found", message: "This match is not in this player's history." };
 }
 
 /**
