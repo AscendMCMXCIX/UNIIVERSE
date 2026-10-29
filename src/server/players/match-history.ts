@@ -19,8 +19,8 @@ import { assetUrl, ddragonVersionOf, loadRiotAssets, type RiotAssets } from "@/s
 import { createRiotClient, RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
 import { getCurrentPatch } from "@/server/repositories/champions";
 import { isRemoved } from "@/server/privacy/redact";
-import { lookUpRanks, NO_CHECK, rankChecksAvailable, rankLookupClient, storedRankReadings, type RankCheck } from "@/server/players/participant-ranks";
-import { participantRank, UNKNOWN_RANK, type ParticipantRank } from "@/domain/known-rank";
+import { lookUpRanks, NO_CHECK, rankChecksAvailable, rankLookupClient, recordedRanksBefore, storedRankReadings, type RankCheck } from "@/server/players/participant-ranks";
+import { participantRank, UNKNOWN_RANK, type GameTime, type ParticipantRank, type RankReading } from "@/domain/known-rank";
 import { narrowsGames, patchOptions, readRefine, refineGames, sessionKeys, sessionSummaries, type HistoryRefine, type MembersInGame, type RefineParams, type SessionSummary } from "@/domain/history-refine";
 import { historyMembers, memberGameCounts, memberPlacements } from "@/server/players/history-members";
 import { isoDay } from "@/lib/format";
@@ -153,6 +153,14 @@ export interface MatchHistoryPage {
   sessions: Record<string, SessionSummary>;
 }
 
+/** When a stored game was played, to read its players' ranks against. */
+const gameTimeOf = (d: { gameCreation: number; gameDuration: number }): GameTime => ({ start: d.gameCreation, end: d.gameCreation + d.gameDuration * 1000 });
+/** A player's stored readings for one game: their newest ones, and a member's rank going into it. */
+function readingsAt(readings: ReadonlyMap<string, RankReading[]>, before: ReadonlyMap<string, ReadonlyMap<string, RankReading>>, matchId: string, puuid: string): RankReading[] {
+  const going = before.get(matchId)?.get(puuid);
+  return going ? [...(readings.get(puuid) ?? []), going] : (readings.get(puuid) ?? []);
+}
+
 const perMinute = (value: number | null, durationS: number | null) => (value === null || !durationS || durationS < MIN_VALID_DURATION_S ? null : value / (durationS / 60));
 
 function icons(p: MatchParticipantDetail, assets: RiotAssets | null, version: string | null) {
@@ -262,18 +270,21 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
   // Players who renamed since a game on this page are linked by their newer Riot ID.
   const pagePuuids = details.flatMap((d) => d.participants.map((p) => p.puuid));
   const ownPuuids = new Set(accounts.map((a) => a.puuid).filter(Boolean));
-  // Everyone else in this page's games: their stored ranks, read together for the page (three
-  // queries in all, no Riot request). Ranks missing or stale are checked only when a match is opened.
-  const others = details.flatMap((d) => d.participants.filter((p) => p.puuid && !ownPuuids.has(p.puuid) && !isRemoved(p)).map((p) => p.puuid));
+  // Everyone else in this page's games: their stored ranks, read together for the page (five
+  // queries in all, no Riot request), with the members' ranks going into each game from their rank
+  // history. The rank checks after collection and an opened match fill in the rest.
+  const othersOf = (d: (typeof details)[number]) => d.participants.filter((p) => p.puuid && !ownPuuids.has(p.puuid) && !isRemoved(p)).map((p) => p.puuid);
+  const others = details.flatMap(othersOf);
   // The newest games of the filter, for the summary: their team kills, from the stored summaries
   // (one narrow query; the cached game rows do not carry them).
   const newest = [...sorted].slice(0, FORM_RECENT);
   const ladderQueue = filter.season === seasonNow && filter.mode !== "normal" ? (filter.mode === "flex" ? "flex" : "solo") : null;
   const ladderAccount = filter.accountId ? accounts.find((a) => a.id === filter.accountId) : accounts[0];
-  const [pageMembers, known, readings, teamKillRows, ladder] = await Promise.all([
+  const [pageMembers, known, readings, before, teamKillRows, ladder] = await Promise.all([
     owner ? teamMembersByPuuid(db, owner.teamId, pagePuuids) : Promise.resolve(new Map<string, { id: string; name: string }>()),
     knownRiotIds(db, pagePuuids, Math.min(...details.map((d) => d.gameCreation))),
     storedRankReadings(db, others),
+    recordedRanksBefore(db, details.map((d) => ({ matchId: d.matchId, start: d.gameCreation, puuids: othersOf(d) }))),
     newest.length
       ? db
           .select({ matchId: accountMatches.matchId, accountId: accountMatches.accountId, teamKills: accountMatches.teamKills })
@@ -303,7 +314,8 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     const version = ddragonVersionOf(d?.gameVersion, fallbackVersion);
     const ic = me ? icons(me, assets, version) : { items: null, spells: null, keystone: null, secondary: null };
     const tk = me && d ? teamKills(d.participants, me.teamId, d.teams) : 0;
-    const teams = d ? compositionOf(d.participants, pageMembers, (puuid) => puuid === me?.puuid, me?.teamId ?? null, { platform: platformOfMatchId(g.matchId), known, rankOf: (puuid) => participantRank(readings.get(puuid) ?? [], g.queueId, nowMs) }) : null;
+    const played = d ? gameTimeOf(d) : null;
+    const teams = d ? compositionOf(d.participants, pageMembers, (puuid) => puuid === me?.puuid, me?.teamId ?? null, { platform: platformOfMatchId(g.matchId), known, rankOf: (puuid) => participantRank(readingsAt(readings, before, g.matchId, puuid), g.queueId, nowMs, played) }) : null;
     const standout = standoutOf(personalComparison(g, history));
     return {
       matchId: g.matchId,
@@ -570,14 +582,17 @@ export type MatchRanksResult = { status: "ok"; ranks: Array<{ slot: number; rank
  */
 export async function getMatchRanks(db: Db, playerId: string, matchId: string, options: { lookup: boolean; client?: RiotApiClient | null; now?: Date; perDay?: number }): Promise<MatchRanksResult> {
   if (!(await matchOfPlayer(db, playerId, matchId))) return { status: "not-found", message: "This match is not in this player's history." };
-  const [d] = await db.select({ queueId: matchDetails.queueId, platform: matchDetails.platform }).from(matchDetails).where(eq(matchDetails.matchId, matchId));
+  const [d] = await db.select({ queueId: matchDetails.queueId, platform: matchDetails.platform, gameCreation: matchDetails.gameCreation, gameDuration: matchDetails.gameDuration }).from(matchDetails).where(eq(matchDetails.matchId, matchId));
   const parts = (await loadCompositionParticipants(db, [matchId])).get(matchId) ?? [];
   if (!d || !parts.length) return { status: "ok", ranks: [], check: NO_CHECK };
   const now = options.now ?? new Date();
+  const played = gameTimeOf(d);
   const listed = parts.map((p, slot) => ({ slot, puuid: p.removed ? "" : p.puuid, name: p.name }));
+  // A member's rank going into the game does not change with a check: read once.
+  const before = await recordedRanksBefore(db, [{ matchId, start: d.gameCreation, puuids: listed.map((p) => p.puuid) }]);
   const rankOf = async () => {
     const readings = await storedRankReadings(db, listed.map((p) => p.puuid));
-    return listed.map((p) => ({ ...p, rank: p.puuid ? participantRank(readings.get(p.puuid) ?? [], d.queueId, now.getTime()) : { ...UNKNOWN_RANK, stale: false } }));
+    return listed.map((p) => ({ ...p, rank: p.puuid ? participantRank(readingsAt(readings, before, matchId, p.puuid), d.queueId, now.getTime(), played) : { ...UNKNOWN_RANK, stale: false } }));
   };
   let ranked = await rankOf();
   let check = NO_CHECK;
@@ -631,11 +646,13 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
   // Active profiles link inside UNIIVERSE; everyone else (archived profiles included) to OP.GG when the record allows.
   const profileOf = new Map(members.filter((m) => !m.archivedAt).map((m) => [m.puuid, m.id]));
   const platform = platformOfMatchId(matchId);
-  const [readings, known] = await Promise.all([storedRankReadings(db, d.participants.map((p) => p.puuid)), knownRiotIds(db, d.participants.map((p) => p.puuid), d.gameCreation)]);
+  const inGame = d.participants.map((p) => p.puuid);
+  const [readings, before, known] = await Promise.all([storedRankReadings(db, inGame), recordedRanksBefore(db, [{ matchId, start: d.gameCreation, puuids: inGame }]), knownRiotIds(db, inGame, d.gameCreation)]);
   const [assets, patch] = await Promise.all([loadRiotAssets(db), getCurrentPatch(db)]);
   const version = ddragonVersionOf(d.gameVersion, patch?.ddragonVersion ?? null);
   const now = Date.now();
-  const rankOf = (p: MatchParticipantDetail): ParticipantRank => (isRemoved(p) || !p.puuid ? { ...UNKNOWN_RANK, stale: false } : participantRank(readings.get(p.puuid) ?? [], d!.queueId, now));
+  const played = gameTimeOf(d);
+  const rankOf = (p: MatchParticipantDetail): ParticipantRank => (isRemoved(p) || !p.puuid ? { ...UNKNOWN_RANK, stale: false } : participantRank(readingsAt(readings, before, matchId, p.puuid), d!.queueId, now, played));
   const killsOf = new Map<number, number>();
   const damageOf = new Map<number, number | null>();
   for (const teamId of new Set(d.participants.map((x) => x.teamId))) {

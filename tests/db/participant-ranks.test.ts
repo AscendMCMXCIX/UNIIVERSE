@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { accountMatches, lastKnownRanks, matchDetails, privacyErasures, rankSnapshots, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { addAccount } from "@/server/accounts/repository";
 import { getMatchHistory, getMatchRanks } from "@/server/players/match-history";
-import { lookUpRanks, rankChecksAvailable, rankCoverage, resetRankLookups, RANK_LOOKUP_SHARE } from "@/server/players/participant-ranks";
+import { checkRecentGameRanks, lookUpRanks, rankChecksAvailable, rankCoverage, resetRankLookups, RANK_LOOKUP_SHARE } from "@/server/players/participant-ranks";
 import { forgetErasureCache } from "@/server/privacy/ledger";
 import { keyCheckOf, tagged } from "@/server/privacy/tokens";
 import { RiotApiClient } from "@/server/riot/api/client";
@@ -26,6 +26,7 @@ import type { ParticipantRank } from "@/domain/known-rank";
 
 let handle: DbHandle;
 let memberId: string;
+let memberAccountId: string;
 let strangerPlayerId: string;
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -44,6 +45,7 @@ const ANSWERS: Record<string, unknown[] | number> = {
   "x-7": [entry("RANKED_SOLO_5x5", "SILVER", "I", 99)],
   // A PUUID this key cannot read (stored under an earlier key): Riot answers 400.
   "x-9": 400,
+  "y-1": [entry("RANKED_SOLO_5x5", "IRON", "IV", 3)],
 };
 
 function riot(options: { limiter?: RateLimiter; noWait?: boolean } = {}) {
@@ -116,6 +118,7 @@ beforeAll(async () => {
   memberId = member.id;
   strangerPlayerId = stranger.id;
   const one = await addAccount(db, { ownerType: "player", playerId: member.id, riotId: "MemberOne#OCE", platform: "oc1", puuid: "m-1" });
+  memberAccountId = one.id;
   const two = await addAccount(db, { ownerType: "player", playerId: second.id, riotId: "MemberTwo#OCE", platform: "oc1", puuid: "m-2" });
   await addAccount(db, { ownerType: "player", playerId: stranger.id, riotId: "Elsewhere#OCE", platform: "oc1", puuid: "e-1" });
   // x-7 also has an account from the retired Draft scouting: never synced, so no reading of its own.
@@ -327,5 +330,88 @@ describe("ranks on the collapsed match cards", () => {
     const { red } = await opponents("OC1_100");
     expect(red.get(6)?.rank?.state).toBe("unranked");
     expect(red.get(7)?.rank?.state).toBe("unknown");
+  });
+});
+
+describe("ranks around each game", () => {
+  // A game played this morning, six hours before NOW: the same players, but y-1 in place of x-7,
+  // who was only in the member's older games.
+  const RECENT = "OC1_300";
+  const start = NOW.getTime() - 6 * HOUR;
+  beforeAll(async () => {
+    const players = PLAYERS.map((p) => (p.puuid === "x-7" ? { ...p, puuid: "y-1", name: "YOne#OCE" } : p));
+    await handle.db.insert(matchDetails).values({ matchId: RECENT, platform: "oc1", queueId: 420, gameCreation: start, gameDuration: 1800, gameVersion: "16.21.1", teams: [], participants: players });
+    await handle.db.insert(accountMatches).values({ accountId: memberAccountId, matchId: RECENT, gameCreation: start, queueId: 420, championId: "Ahri", role: "MID", win: true, patch: "16.21" });
+  });
+  afterAll(async () => {
+    await handle.db.delete(accountMatches).where(eq(accountMatches.matchId, RECENT));
+    await handle.db.delete(matchDetails).where(eq(matchDetails.matchId, RECENT));
+  });
+
+  it("check the other players of the members' recent games once the game is collected, never members, the removed or older games' players", async () => {
+    const { client, asked } = riot();
+    const run = await checkRecentGameRanks(handle.db, client, { now: NOW });
+    // x-1's and x-2's readings are older than the game; x-3 was only seen by the retired scouting.
+    // x-7 played only in the older games, the members are read by their sync, the removed player never.
+    expect(asked.sort()).toEqual(["x-1", "x-2", "x-3", "x-4", "x-5", "x-6", "y-1"]);
+    expect(run).toMatchObject({ waiting: 7, games: 1, asked: 7, found: 6, failed: 1, skipped: 0, reason: null });
+    // The game's scoreboard now shows each of them as read around the game, a few hours after it.
+    const ranks = await getMatchRanks(handle.db, memberId, RECENT, { lookup: false, now: NOW });
+    if (ranks.status !== "ok") throw new Error(ranks.message);
+    const r = bySlot(ranks.ranks);
+    expect(r.get(3)).toMatchObject({ tier: "EMERALD", timing: "after", stale: false });
+    expect(r.get(8)).toMatchObject({ tier: "IRON", timing: "after" });
+    // x-5's check failed: still unknown, and worth asking again.
+    expect(r.get(6)).toMatchObject({ state: "unknown", stale: true });
+    // The next run asks no one again: x-5 waits out its pause on this server.
+    const again = riot();
+    expect(await checkRecentGameRanks(handle.db, again.client, { now: NOW })).toMatchObject({ waiting: 1, asked: 0 });
+    expect(again.asked).toEqual([]);
+  });
+
+  it("take a few players a run, newest game first, within their share of the day's checks", async () => {
+    const first = riot();
+    expect(await checkRecentGameRanks(handle.db, first.client, { now: NOW, limit: 3 })).toMatchObject({ waiting: 7, asked: 3 });
+    expect(first.asked.sort()).toEqual(["x-1", "x-2", "x-3"]);
+    // The day's share: the three checks just made are the day's (x-1's earlier one was replaced); a
+    // share of five leaves room for two more, and the run stops there.
+    const second = riot();
+    const run = await checkRecentGameRanks(handle.db, second.client, { now: NOW, perDay: 5 });
+    expect(run).toMatchObject({ waiting: 4, asked: 2, skipped: 2, reason: "budget" });
+    expect(second.asked.sort()).toEqual(["x-4", "x-5"]);
+  });
+
+  it("show a member's rank going into the game: the last one recorded before it, over their current one", async () => {
+    // m-1 was Silver I before this morning's game, and Gold II after it (two readings of their sync).
+    await handle.db.insert(rankSnapshots).values([
+      { accountId: memberAccountId, queue: "solo", tier: "SILVER", division: "I", leaguePoints: 61, wins: 9, losses: 9, capturedAt: new Date(start - 2 * HOUR) },
+      { accountId: memberAccountId, queue: "solo", tier: "GOLD", division: "II", leaguePoints: 62, wins: 10, losses: 9, capturedAt: new Date(NOW.getTime() - HOUR) },
+    ]);
+    try {
+      const ranks = await getMatchRanks(handle.db, memberId, RECENT, { lookup: false, now: NOW });
+      if (ranks.status !== "ok") throw new Error(ranks.message);
+      expect(bySlot(ranks.ranks).get(0)).toMatchObject({ tier: "SILVER", division: "I", leaguePoints: 61, timing: "before", stale: false });
+      // A teammate's on the card the same way: m-2's last reading (ten days ago) was before this game,
+      // but after the older one, which shows it as read later.
+      const page = await getMatchHistory(handle.db, memberId, { per: 25 });
+      const recent = page.rows.find((r) => r.matchId === RECENT)!.teams!;
+      expect(recent.blue.find((s) => s.slot === 1)?.rank).toMatchObject({ tier: "SILVER", division: "I", timing: "before" });
+      const old = page.rows.find((r) => r.matchId === "OC1_100")!.teams!;
+      expect(old.blue.find((s) => s.slot === 1)?.rank).toMatchObject({ tier: "SILVER", division: "I", timing: "later" });
+      // The older game, from before m-1's history began: their current rank, read later.
+      const detail = await getMatchRanks(handle.db, memberId, "OC1_100", { lookup: false, now: NOW });
+      if (detail.status !== "ok") throw new Error(detail.message);
+      expect(bySlot(detail.ranks).get(0)).toMatchObject({ tier: "GOLD", division: "II", leaguePoints: 62, timing: "later" });
+    } finally {
+      await handle.db.delete(rankSnapshots).where(inArray(rankSnapshots.leaguePoints, [61, 62]));
+    }
+  });
+
+  it("ask, when a recent game is opened, for players last read before it", async () => {
+    const { client, asked } = riot();
+    const result = await getMatchRanks(handle.db, memberId, RECENT, { lookup: true, client, now: NOW });
+    if (result.status !== "ok") throw new Error(result.message);
+    // x-1 was checked 20 hours ago, which is current, but before this game: asked again; m-2's sync is ten days old.
+    expect(asked.sort()).toEqual(["m-2", "x-1", "x-2", "x-3", "x-4", "x-5", "x-6", "y-1"]);
   });
 });

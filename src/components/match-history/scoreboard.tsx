@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, UserX } from "lucide-react";
+import { ChevronRight, Clock3, UserX } from "lucide-react";
 import type { MatchGroupsResult, MatchGroupsTeam, MatchGroupView } from "@/server/matches/possible-groups";
 import { groupEvidenceText } from "@/domain/possible-groups";
 import type { DetailParticipant, DetailTeam, MatchRanksResult } from "@/server/players/match-history";
@@ -8,7 +8,8 @@ import type { MatchMeeting } from "@/server/players/encounters";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { formatCount, formatDate, formatKilo } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { matchRankQueue, rankBadgeLabel, rankChecksWhen, type ParticipantRank } from "@/domain/known-rank";
+import { matchRankQueue, rankBadgeLabel, rankTimingCounts, type ParticipantRank } from "@/domain/known-rank";
+import { InfoTip } from "@/components/ui/info-tip";
 import { RankEmblem } from "@/components/players/rank-emblem";
 import { PlayerLink } from "./player-link";
 import { IconImg, ItemRow } from "./icon-img";
@@ -118,10 +119,11 @@ export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, qu
 }
 
 /**
- * A player's current or last-checked rank, compact (domain/known-rank.ts): the tier's crest and
- * "Gold 2" (a rank in the match's other ranked queue is marked "Flex" or "Solo"; one read over a
- * month ago carries its month), "Unranked" when a check found no ranked entry, and "—" when
- * nothing is known. One being checked pulses until the answer arrives.
+ * A player's rank, compact (domain/known-rank.ts): the tier's crest and "Gold 2" (a rank in the
+ * match's other ranked queue is marked "Flex" or "Solo"; one read over a month ago carries its
+ * month), "Unranked" when a check found no ranked entry, and "—" when nothing is known. A clock
+ * marks a rank read away from the game (later, or before it): not the rank at the time of the game.
+ * One being checked pulses until the answer arrives.
  */
 function RankBadge({ rank, queueId, checking }: { rank: ParticipantRank; queueId: number | null; checking: boolean }) {
   const base = "inline-flex h-4 shrink-0 items-center gap-1 rounded border px-1 text-3xs font-medium leading-4";
@@ -131,47 +133,65 @@ function RankBadge({ rank, queueId, checking }: { rank: ParticipantRank; queueId
         <span className="sr-only">Checking rank</span>
       </span>
     );
-  const { text, queueMark, spoken, title } = rankBadgeLabel(rank, queueId);
+  const { text, queueMark, spoken, title, aroundGame } = rankBadgeLabel(rank, queueId);
   return (
-    <span className={cn(base, rank.state === "ranked" ? "border-border text-fg-muted" : rank.state === "unranked" ? "border-border text-fg-subtle" : "border-dashed border-border text-fg-subtle")} title={title} data-testid="participant-rank" data-state={rank.state} data-queue={rank.queue ?? undefined}>
+    <span className={cn(base, rank.state === "ranked" ? "border-border text-fg-muted" : rank.state === "unranked" ? "border-border text-fg-subtle" : "border-dashed border-border text-fg-subtle")} title={title} data-testid="participant-rank" data-state={rank.state} data-queue={rank.queue ?? undefined} data-timing={rank.timing ?? undefined}>
       {rank.state === "ranked" ? <RankEmblem tier={rank.tier} className="-ml-px h-3 w-3" /> : null}
       <span aria-hidden className="whitespace-nowrap" data-testid="participant-rank-text">
         {queueMark ? <span className="text-fg-subtle">{queueMark} </span> : null}
         {text}
       </span>
+      {aroundGame === false ? <Clock3 className="-mr-px h-2.5 w-2.5 text-fg-subtle" aria-hidden data-testid="rank-read-later" /> : null}
       <span className="sr-only">{spoken}</span>
     </span>
   );
 }
 
 /**
- * Under the scoreboard: what the badges are (current or last-known ranks, never the rank in the
- * game, which Riot's match records do not hold), when they were checked, and what a missing one
- * means; plus the state of the rank check when it could not ask for every player.
+ * Under the scoreboard, one line: whether the ranks are the ones around this game or were read
+ * away from it (the clock), and the state of a rank check that could not ask for every player. What
+ * a rank is, and is not, is in its (i).
  */
 export function RanksNote({ ranks, queueId, checking, result }: { ranks: ParticipantRank[]; queueId: number | null; checking: boolean; result: MatchRanksResult | null }) {
-  const queue = matchRankQueue(queueId);
-  const when = rankChecksWhen(ranks);
-  // "Current" only while every rank shown was checked in the last three days.
-  const lead = ranks.some((r) => r.state !== "unknown" && r.stale) ? "Last-known" : "Current";
-  const unranked = ranks.some((r) => r.state === "unranked");
-  // A rank still being checked shows the pulse, not "—".
-  const unknown = ranks.some((r) => r.state === "unknown" && !(checking && r.stale));
+  const { around, away } = rankTimingCounts(ranks);
   const check = result?.status === "ok" ? result.check : null;
   const status = checking
     ? "Checking ranks with Riot…"
     : check?.reason === "budget"
       ? "Today's rank checks are used up, so some ranks are older or missing."
       : check?.reason === "busy"
-        ? "Riot was busy, so some ranks were not checked; they are checked when this match is next opened."
+        ? "Riot was busy, so some ranks were not checked; they are checked when this game is next opened."
         : check?.failed
           ? `Riot did not answer for ${check.failed === 1 ? "one player" : `${check.failed} players`}; they are checked again later.`
           : null;
+  // The clock as on the badges; screen readers hear words in its place.
+  const clock = (words: string) => (
+    <>
+      <Clock3 className="inline h-2.5 w-2.5 align-[-1px]" aria-hidden />
+      <span className="sr-only">{words}</span>
+    </>
+  );
+  const lead =
+    around + away === 0 ? (
+      checking ? null : (
+        "No ranks read for these players yet."
+      )
+    ) : away === 0 ? (
+      "Ranks around the time of this game."
+    ) : around === 0 ? (
+      <>Ranks read later {clock("(marked)")}, not at the time of this game.</>
+    ) : (
+      <>Ranks around the time of this game; {clock("marked ones were")} read later.</>
+    );
+  const queue = matchRankQueue(queueId) === "flex" ? "Ranked Flex ranks, as this is a Flex game (Solo/Duo where marked)" : "Ranked Solo/Duo ranks (Flex where marked)";
   return (
-    <p className="text-2xs text-fg-subtle" data-testid="ranks-note" data-state={checking ? "checking" : (check?.reason ?? (check?.failed ? "failed" : "done"))}>
-      {lead} {queue === "flex" ? "Ranked Flex ranks (Solo/Duo where marked)" : "Ranked Solo/Duo ranks (Flex where marked)"}
-      {when ? `, checked ${when}` : ""}: not the ranks players had in this game, which Riot&apos;s match records do not include.
-      {unranked || unknown ? ` ${[unranked ? "Unranked: no ranked entry." : null, unknown ? "—: not available." : null].filter(Boolean).join(" ")}` : ""}
+    <p className="text-2xs text-fg-subtle" data-testid="ranks-note" data-state={checking ? "checking" : (check?.reason ?? (check?.failed ? "failed" : "done"))} data-around={around} data-away={away}>
+      {lead ? <span data-testid="ranks-note-lead">{lead}</span> : null}{" "}
+      <InfoTip
+        label="About the ranks"
+        testId="ranks-info"
+        text={`Riot's game records hold no ranks, so each rank is a reading: a member's last rank recorded before the game, or another player's rank checked with Riot within a day after it (the players of members' games are checked when a game is collected). A clock marks a rank read later than that, or before the game: the player's rank then, not at the time of this game. ${queue}. Unranked: no ranked entry when checked. —: not read.`}
+      />
       {status ? <span className="text-fg-muted"> {status}</span> : null}
     </p>
   );
@@ -208,9 +228,10 @@ function GroupLine({ group: g, mark, names }: { group: MatchGroupView; mark: str
 }
 
 /**
- * What the possible groups are based on, under the scoreboard: an inference from stored games, the
- * window searched, and which sides could not be assessed. Absence of a group is never presented as
- * "no premade": most players appear in stored games only when they shared a game with a member.
+ * What the possible groups are based on, under the scoreboard, in one line: which sides could not be
+ * assessed and how many stored games were searched, with the rules in its (i). Absence of a group is
+ * never presented as "no premade": most players appear in stored games only when they shared a game
+ * with a member.
  */
 export function GroupsNote({ result, teams }: { result: MatchGroupsResult | null; teams: DetailTeam[] }) {
   if (!result) return <p className="text-2xs text-fg-subtle" data-testid="possible-groups-note" data-state="loading">Checking stored games for players who may have queued together…</p>;
@@ -232,7 +253,12 @@ export function GroupsNote({ result, teams }: { result: MatchGroupsResult | null
         </span>
       ) : null}
       {members.length ? <span className="text-fg-muted">{sides(members)}: no other players to assess. </span> : null}
-      Possible groups only cover players who are not members: the same players all on one team in at least three of the {formatCount(result.gamesSearched)} earlier recorded {result.gamesSearched === 1 ? "game" : "games"} found for them (the {result.windowDays} days before this match), and far more often as teammates than as opponents. They are an inference, not confirmed parties; members are never labelled, and players who rarely share a game with a member cannot be assessed.
+      Possible groups: an inference from {formatCount(result.gamesSearched)} earlier recorded {result.gamesSearched === 1 ? "game" : "games"}.{" "}
+      <InfoTip
+        label="About possible groups"
+        testId="groups-info"
+        text={`Possible groups only cover players who are not members: the same players all on one team in at least three of the earlier recorded games found for them (the ${result.windowDays} days before this match), and far more often as teammates than as opponents. They are an inference, not confirmed parties; members are never labelled, and players who rarely share a game with a member cannot be assessed.`}
+      />
     </p>
   );
 }

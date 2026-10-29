@@ -1,4 +1,4 @@
-import { desc, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, lte, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { lastKnownRanks, rankSnapshots, riotAccounts } from "@/server/db/schema";
 import { createRiotClient, RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
@@ -6,21 +6,30 @@ import type { LeagueEntry } from "@/server/riot/api/schemas";
 import { browserTestRiot, browserTestRiotClient } from "@/server/riot/browser-test";
 import { erasureFilter } from "@/server/privacy/ledger";
 import { isRiotPlatform } from "@/domain/riot-platforms";
-import { RANK_FRESH_DAYS, type QueueRank, type RankReading } from "@/domain/known-rank";
+import { RANK_ENRICH_DAYS, RANK_FRESH_DAYS, type QueueRank, type RankReading } from "@/domain/known-rank";
 
 /*
   The ranks shown beside a match's players (domain/known-rank.ts for what is shown).
 
-  Stored first: a linked account's last sync (riot_accounts and its rank_snapshots, both queues)
-  and last_known_ranks (one row per other player). When a member opens a match, the players whose
-  newest reading is missing or older than RANK_FRESH_DAYS are looked up with LEAGUE-V4
-  (/lol/league/v4/entries/by-puuid, one request each, on the match's server) and the answer is kept
-  in last_known_ranks, both queues, "UNRANKED" where Riot lists no entry. Nothing else asks: no
-  list, page or job looks anyone up, and no player is looked up again within three days.
+  Stored first: a linked account's last sync and its rank history (rank_snapshots, both queues:
+  the last rank recorded before a game is that member's rank going into it), and
+  last_known_ranks (one row per other player). The other players are checked with LEAGUE-V4
+  (/lol/league/v4/entries/by-puuid, one request each, on the match's server), and the answer is
+  kept in last_known_ranks, both queues, "UNRANKED" where Riot lists no entry, in two ways:
+  - after a game is collected (checkRecentGameRanks, the "rank-checks" job of the scheduler tick):
+    the players of the members' games of the last RANK_ENRICH_DAYS days with no reading since the
+    game ended, newest game first, a few dozen a run, so every recent card and scoreboard has the
+    ranks around its game whether or not anyone opened it;
+  - when a member opens a match: its players whose newest reading is missing or older than
+    RANK_FRESH_DAYS (or older than the game, for a recent one).
+  Nothing else asks: no list, page or search looks anyone up, nobody outside the members' games
+  is checked, and nobody is followed: a player is checked again only for another game with a member,
+  or when a game of theirs is opened and their reading is over three days old.
 
   Limits, so the rank checks never crowd out account sync or overrun the key:
-  - only the players of the one match being opened (ten at most), only when their reading is stale;
-  - RANK_LOOKUPS_PER_DAY checks in any 24 hours across the site, counted from the rows written;
+  - RANK_LOOKUPS_PER_DAY checks in any 24 hours across the site, counted from the rows written,
+    of which the checks after collection may use RANK_CHECKS_AFTER_GAMES_SHARE, so opened matches
+    always have the rest;
   - at most half of each rate-limit window of the match's server (RANK_LOOKUP_SHARE), and never a
     wait: a request with no free slot is skipped, and the match says so;
   - no retries; a player whose check failed is not asked again on this server for 30 minutes (for
@@ -35,6 +44,10 @@ export const LOOKUP_SOURCE = "match lookup";
 export const RANK_LOOKUPS_PER_DAY = 1_000;
 /** The share of each rate-limit window (per Riot server) the checks may fill; account sync keeps the rest. */
 export const RANK_LOOKUP_SHARE = 0.5;
+/** Of the daily checks, the share the checks after a game is collected may use: opened matches keep the rest. */
+export const RANK_CHECKS_AFTER_GAMES_SHARE = 0.6;
+/** Players checked per run of the rank-checks job (a run every 15 minutes at most). */
+export const RANK_CHECKS_PER_RUN = 30;
 const FAILED_PAUSE_MS = 30 * 60_000;
 /** Riot answers 400 (or 404) for a PUUID this key cannot read, which asking again soon will not change. */
 const UNREADABLE_PAUSE_MS = 24 * 60 * 60_000;
@@ -89,6 +102,44 @@ export async function storedRankReadings(db: Db, puuids: readonly string[]): Pro
     const at = r.observedAt.getTime();
     if (r.source === LOOKUP_SOURCE) add(r.puuid, { at, kind: "check", solo: queueRank(r.tier, r.division, r.leaguePoints), flex: queueRank(r.flexTier, r.flexDivision, r.flexLeaguePoints) });
     else add(r.puuid, { at, kind: "sighting", solo: queueRank(r.tier, r.division, r.leaguePoints), flex: null });
+  }
+  return out;
+}
+
+/**
+ * Each linked account's rank going into each of these games: the last reading of its rank history
+ * (rank_snapshots, which account sync writes whenever the rank or record changes) captured before
+ * the game began, both queues ("unranked" for a queue with none). Nothing for an account whose
+ * history starts after the game. By match id, then PUUID. Two indexed queries for any number of games.
+ */
+export async function recordedRanksBefore(db: Db, games: ReadonlyArray<{ matchId: string; start: number; puuids: readonly string[] }>): Promise<Map<string, Map<string, RankReading>>> {
+  const out = new Map<string, Map<string, RankReading>>();
+  const puuids = [...new Set(games.flatMap((g) => g.puuids).filter(Boolean))];
+  if (!games.length || !puuids.length) return out;
+  const accounts = await db.select({ id: riotAccounts.id, puuid: riotAccounts.puuid }).from(riotAccounts).where(and(inArray(riotAccounts.puuid, puuids), eq(riotAccounts.ownerType, "player")));
+  if (!accounts.length) return out;
+  const ids = accounts.map((a) => a.id);
+  const first = new Date(Math.min(...games.map((g) => g.start)));
+  const last = new Date(Math.max(...games.map((g) => g.start)));
+  const columns = { accountId: rankSnapshots.accountId, queue: rankSnapshots.queue, tier: rankSnapshots.tier, division: rankSnapshots.division, leaguePoints: rankSnapshots.leaguePoints, capturedAt: rankSnapshots.capturedAt };
+  // The readings during the games' span, and each queue's last one before it.
+  const [during, before] = await Promise.all([
+    db.select(columns).from(rankSnapshots).where(and(inArray(rankSnapshots.accountId, ids), gte(rankSnapshots.capturedAt, first), lte(rankSnapshots.capturedAt, last))),
+    db.selectDistinctOn([rankSnapshots.accountId, rankSnapshots.queue], columns).from(rankSnapshots).where(and(inArray(rankSnapshots.accountId, ids), lt(rankSnapshots.capturedAt, first))).orderBy(rankSnapshots.accountId, rankSnapshots.queue, desc(rankSnapshots.capturedAt)),
+  ]);
+  const history = [...before, ...during].sort((a, b) => b.capturedAt.getTime() - a.capturedAt.getTime());
+  for (const g of games) {
+    const atGame = new Map<string, RankReading>();
+    for (const a of accounts) {
+      if (!a.puuid || !g.puuids.includes(a.puuid)) continue;
+      const lastOf = (queue: "solo" | "flex") => history.find((h) => h.accountId === a.id && h.queue === queue && h.capturedAt.getTime() < g.start);
+      const solo = lastOf("solo");
+      const flex = lastOf("flex");
+      if (!solo && !flex) continue;
+      const at = Math.max(solo?.capturedAt.getTime() ?? 0, flex?.capturedAt.getTime() ?? 0);
+      atGame.set(a.puuid, { at, kind: "check", beforeGame: true, solo: solo ? queueRank(solo.tier, solo.division, solo.leaguePoints) : "unranked", flex: flex ? queueRank(flex.tier, flex.division, flex.leaguePoints) : "unranked" });
+    }
+    if (atGame.size) out.set(g.matchId, atGame);
   }
   return out;
 }
@@ -211,6 +262,69 @@ export async function lookUpRanks(
       outcome.skipped++;
       outcome.reason ??= r === "busy" ? "busy" : "unavailable";
     }
+  }
+  return outcome;
+}
+
+/** What one run of the checks after collection did: the RankCheck of its matches, and what is left. */
+export interface RecentGameChecks extends RankCheck {
+  /** Before this run: the players still to check (each once), and the games they were last seen in. */
+  waiting: number;
+  games: number;
+}
+
+/**
+ * The checks after a game is collected (the "rank-checks" job): the other players of the members'
+ * games of the last RANK_ENRICH_DAYS days with no check since that game ended, newest game first,
+ * at most `limit` players a run, within the daily share and the rate-limit share above. Members are
+ * read by their own sync, and erased players never (lookUpRanks). One statement finds them, and at
+ * most four times the run's share of rows leaves the database. Never throws for Riot's sake.
+ */
+export async function checkRecentGameRanks(db: Db, client: RiotApiClient | null, options: { now?: Date; limit?: number; perDay?: number; deadline?: number } = {}): Promise<RecentGameChecks> {
+  const now = options.now ?? new Date();
+  const t = now.getTime();
+  const limit = options.limit ?? RANK_CHECKS_PER_RUN;
+  // Each player once, at their newest such game; a few more rows than the run takes, for players
+  // this instance has paused after a failure. The two counts say what is left in all.
+  const rows = rowsOf<{ match_id: string; platform: string | null; puuid: string; name: string | null; waiting: string | number; games: string | number }>(
+    await db.execute(sql`
+      WITH games AS (
+        SELECT DISTINCT am.match_id FROM account_matches am JOIN riot_accounts a ON a.id = am.account_id
+        WHERE a.owner_type = 'player' AND am.champion_id IS NOT NULL AND am.game_creation >= ${t - RANK_ENRICH_DAYS * 86_400_000}
+      ),
+      waiting AS (
+        SELECT DISTINCT ON (x->>'puuid') d.match_id, d.platform, d.game_creation, x->>'puuid' AS puuid, x->>'name' AS name
+        FROM match_details d JOIN games g ON g.match_id = d.match_id
+        CROSS JOIN LATERAL jsonb_array_elements(d.participants) x
+        LEFT JOIN riot_accounts m ON m.puuid = x->>'puuid' AND m.owner_type = 'player'
+        LEFT JOIN last_known_ranks k ON k.puuid = x->>'puuid' AND k.source = ${LOOKUP_SOURCE}
+        WHERE d.platform IS NOT NULL AND coalesce(x->>'removed', '') <> 'true' AND coalesce(x->>'puuid', '') <> '' AND m.id IS NULL
+          AND (k.puuid IS NULL OR k.observed_at < to_timestamp((d.game_creation + d.game_duration * 1000) / 1000.0))
+        ORDER BY x->>'puuid', d.game_creation DESC
+      )
+      SELECT w.match_id, w.platform, w.puuid, w.name, (SELECT count(*) FROM waiting) AS waiting, (SELECT count(DISTINCT match_id) FROM waiting) AS games
+      FROM waiting w ORDER BY w.game_creation DESC, w.match_id, w.puuid LIMIT ${limit * 4}`),
+  );
+  const outcome: RecentGameChecks = { ...NO_CHECK, games: Number(rows[0]?.games ?? 0), waiting: Number(rows[0]?.waiting ?? 0) };
+  const byMatch = new Map<string, { platform: string | null; players: Array<{ puuid: string; name: string | null }> }>();
+  for (const r of rows.filter((r) => (failedUntil.get(r.puuid) ?? 0) <= t).slice(0, limit)) {
+    const m = byMatch.get(r.match_id) ?? { platform: r.platform, players: [] };
+    m.players.push({ puuid: r.puuid, name: r.name });
+    byMatch.set(r.match_id, m);
+  }
+  for (const [matchId, m] of byMatch) {
+    if (options.deadline && Date.now() > options.deadline) {
+      outcome.skipped += m.players.length;
+      continue;
+    }
+    const check = await lookUpRanks(db, client, { matchId, platform: m.platform }, m.players, { now, perDay: options.perDay ?? Math.floor(RANK_LOOKUPS_PER_DAY * RANK_CHECKS_AFTER_GAMES_SHARE) });
+    outcome.asked += check.asked;
+    outcome.found += check.found;
+    outcome.failed += check.failed;
+    outcome.skipped += check.skipped;
+    outcome.reason ??= check.reason;
+    // The daily share is used up, or Riot's window is full: the next run carries on.
+    if (check.reason === "budget" || check.reason === "busy") break;
   }
   return outcome;
 }

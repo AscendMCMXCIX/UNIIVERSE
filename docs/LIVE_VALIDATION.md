@@ -513,3 +513,12 @@ A profile's Match History opens each game under its card (`docs/ARCHITECTURE.md`
 - [ ] On a phone: the Refine fields sit in the opened filter panel without a sideways scroll, and the date fields are usable with the system date picker.
 - [ ] Players met in other games: open a few games under their cards. A player met in another game this season (same game mode filter) carries "Met N×" after their name, and its hover text gives the games against and alongside. Teammates with a profile and players without a recorded Riot ID are never marked. Pressing it opens their Encounters window with "N recorded games with <player>" (the same N) and those games; Escape returns to the mark. A game opened in the window (Team → Matches, Encounters) has no marks. On a phone the mark fits beside the name without a sideways scroll.
 - [ ] Data jobs → `perf-probe`: the step `profile.matchMeetings` passes, with counts only.
+
+## Match History: ranks around each game (29 Oct 2026)
+
+Ranks are read against the game they are shown for (`docs/ARCHITECTURE.md` → Match History 2.0 → Ranks around each game). On the live site, after the deployment:
+- [ ] Data jobs → `smoke data-audit`: `participantRanks.lookupsByDay` stays under 1,000 a day; over the next days `gamesLast30Days.othersNothingStored` falls as the `rank-checks` job reaches the last week's games.
+- [ ] Admin Mode → System (or Data jobs → `tick`): the `rank-checks` job runs after `account-sync`, with "N checked … M players in K recent games were waiting" in its summary, and is never "failed" because Riot was busy.
+- [ ] Your profile → Match History: the cards of games from the last week show their players' ranks (tier colour) without anyone opening them; an older game's ranks, read later, are in the caption colour.
+- [ ] Open a recent game: the note under the scoreboard says "Ranks around the time of this game."; hover a badge: "checked … after this game", or for a member "the last rank recorded before this game". Open a game from a month ago: badges read later carry a clock, and the note says so. The (i) explains both, by keyboard and by touch.
+- [ ] The note under the scoreboard about possible groups is one line with its (i); the groups themselves are unchanged.

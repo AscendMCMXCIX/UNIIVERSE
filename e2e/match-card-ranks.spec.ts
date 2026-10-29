@@ -62,7 +62,7 @@ async function openMatch(card: Locator) {
 
 /** Each rank shown on a card: what it says and its whole statement, in order. */
 const ranksOn = (card: Locator) =>
-  card.getByTestId("slot-rank").evaluateAll((els) => els.map((e) => ({ text: e.textContent ?? "", title: e.getAttribute("title") ?? "", state: e.getAttribute("data-state"), tier: e.getAttribute("data-tier"), classes: e.className })));
+  card.getByTestId("slot-rank").evaluateAll((els) => els.map((e) => ({ text: e.textContent ?? "", title: e.getAttribute("title") ?? "", state: e.getAttribute("data-state"), tier: e.getAttribute("data-tier"), timing: e.getAttribute("data-timing"), classes: e.className })));
 
 test("a player's rank shows on the card once the opened game has checked it, and on every later visit, without asking Riot again", async ({ page }) => {
   const actions = watchActions(page);
@@ -85,16 +85,17 @@ test("a player's rank shows on the card once the opened game has checked it, and
   await expect(card.locator("[data-you] [data-testid='slot-rank']")).toHaveCount(0);
   for (const r of shown) {
     expect(r.text, r.title).toMatch(RANK_TEXT);
-    // The same statement as the breakdown's badge: the queue, the rank, when it was read, and never the rank in this game.
+    // The same statement as the breakdown's badge: the queue, the rank, and when it was read against this game.
     expect(statements).toContain(r.title);
+    const around = r.timing === "before" || r.timing === "after";
     if (r.state === "ranked") {
-      expect(r.title).toMatch(/^Ranked (Solo\/Duo|Flex): .+, checked \d{1,2} [A-Z][a-z]{2} \d{4}\. Their rank then, not at the time of this match$/);
-      // Just read, so in its tier's colour.
-      expect(r.classes).toContain(`text-tier-${r.tier!.toLowerCase()}`);
+      expect(r.title).toMatch(/^Ranked (Solo\/Duo|Flex): .+, (the last rank recorded before this game|checked \d+ (min|h) after this game|checked \d{1,2} [A-Z][a-z]{2} \d{4}, (\d+ days? after|before) this game: their rank then, not at the time of this game)$/);
+      // Read around the game: in its tier's colour; read later (just now, for an older game): the caption colour.
+      expect(r.classes).toContain(around ? `text-tier-${r.tier!.toLowerCase()}` : "text-fg-subtle");
     } else {
       expect(r.state).toBe("unranked");
       expect(r.text).toBe("Unr");
-      expect(r.title).toMatch(/^Unranked: no Ranked Solo\/Duo or Flex entry when checked/);
+      expect(r.title).toMatch(/^Unranked(:| before this game:) no Ranked Solo\/Duo or Flex entry/);
     }
   }
   // Screen readers hear them in the card's description.
