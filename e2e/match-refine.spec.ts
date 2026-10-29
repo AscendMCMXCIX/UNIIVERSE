@@ -1,13 +1,14 @@
 import { expect, test, type Locator, type Page } from "./test";
 import { openFilterBar } from "./filters";
+import { openGame } from "./match-history";
 
 /*
   Match History's own Refine choices (demo data, in memory): the result, the patch, the days
   played, a team member with or against the player and the highlights narrow the list; each shows
   as a chip that removes itself, rides along the shared filters and the address; and the list can
   be grouped into playing sessions, newest first. The Mid demo player shares games with the other
-  demo players (Team → Matches), one of them with the Top player on the other side, and has one
-  evening of three back-to-back games.
+  demo players (Team → Matches), one of them with the Top player on the other side, and its own
+  three newest games are one evening of back-to-back games (demo/seed).
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -26,10 +27,17 @@ async function openHistory(page: Page, query = "") {
   return id;
 }
 
-/** Refine's panel: behind its button on wide screens, in the opened filter bar on phones. */
+/** Refine's panel: behind its button on wide screens (it stays open after a choice), in the opened filter bar on phones. */
 async function openRefine(page: Page): Promise<Locator> {
   const filters = page.getByTestId("match-filters");
-  if (!(await openFilterBar(filters))) await filters.getByTestId("refine-filters").click();
+  if (!(await openFilterBar(filters))) {
+    const button = filters.getByTestId("refine-filters");
+    // Retried: a click before the page is interactive does nothing.
+    await expect(async () => {
+      if ((await button.getAttribute("aria-expanded")) !== "true") await button.click();
+      await expect(button).toHaveAttribute("aria-expanded", "true", { timeout: 1000 });
+    }).toPass({ timeout: 15_000 });
+  }
   const panel = filters.getByTestId("refine-panel");
   await expect(panel).toBeVisible();
   return panel;
@@ -66,7 +74,7 @@ test("Refine narrows to wins or losses; the choice shows as a chip, rides along 
   await fitsWidth(page);
 });
 
-test("a team member's games, with them or against them, as the stored records place them", async ({ page }) => {
+test("a team member's games, with them or against them, as their stored games place them", async ({ page }) => {
   await openHistory(page);
   const panel = await openRefine(page);
   const member = panel.getByTestId("refine-member");
@@ -121,15 +129,19 @@ test("a patch, the days played and a highlight narrow the list; an address with 
   await fitsWidth(page);
 });
 
-test("the list groups into playing sessions, newest first, each with its record; games stay where they were", async ({ page }) => {
+test("Refine groups the list into playing sessions, newest first, each with its record; games stay where they were", async ({ page }) => {
   await openHistory(page);
   const before = await page.getByTestId("match-row").evaluateAll((els) => els.map((e) => e.getAttribute("data-match")));
-  const toggle = page.getByTestId("group-sessions");
-  await expect(toggle).toHaveAttribute("aria-checked", "false");
-  await toggle.click();
+  // The layout under the header is unchanged until grouping is chosen.
+  await expect(page.getByTestId("session")).toHaveCount(0);
+  let group = (await openRefine(page)).getByTestId("refine-group");
+  await expect(group.getByRole("radio", { name: "Every game" })).toHaveAttribute("aria-checked", "true");
+  await group.getByRole("radio", { name: "By playing session" }).click();
   await expect(page).toHaveURL(/group=sessions/);
-  await expect(toggle).toHaveAttribute("aria-checked", "true");
+  await expect(group.getByRole("radio", { name: "By playing session" })).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Escape");
   const sessions = page.getByTestId("session");
+  await expect(sessions.first()).toBeVisible();
   expect(await sessions.count()).toBeGreaterThan(1);
   // The same games in the same order, now under their sessions.
   expect(await page.getByTestId("match-row").evaluateAll((els) => els.map((e) => e.getAttribute("data-match")))).toEqual(before);
@@ -139,13 +151,13 @@ test("the list groups into playing sessions, newest first, each with its record;
   await expect(evening.getByTestId("match-card")).toHaveCount(3);
   await expect(evening.getByTestId("session-header")).toContainText(/3 games · \d+W \d+L/);
   await expect(evening.getByTestId("session-header")).toContainText(/\d{1,2}:\d{2} [ap]m – \d{1,2}:\d{2} [ap]m/);
-  // A game still opens under its card inside a session.
-  const card = evening.getByTestId("match-card").first();
-  await card.click({ position: { x: 24, y: 16 } });
-  await expect(card.getByTestId("match-row")).toHaveAttribute("aria-expanded", "true");
+  // A game still opens under its card inside a session, and grouping kept the address's game.
+  await openGame(evening.getByTestId("match-card").first());
+  await expect(page).toHaveURL(/group=sessions/);
   await fitsWidth(page);
-  // Off again: one list.
-  await page.getByTestId("group-sessions").click();
+  // Back to every game: one list.
+  group = (await openRefine(page)).getByTestId("refine-group");
+  await group.getByRole("radio", { name: "Every game" }).click();
   await expect(page).not.toHaveURL(/group=sessions/);
   await expect(page.getByTestId("session")).toHaveCount(0);
 });

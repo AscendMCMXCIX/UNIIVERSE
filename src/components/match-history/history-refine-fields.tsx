@@ -4,24 +4,33 @@ import * as React from "react";
 import { FilterField } from "@/components/ui/filter-bar";
 import { Input, Select } from "@/components/ui/input";
 import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
-import { HIGHLIGHTS, type HistoryRefine, type ResultChoice } from "@/domain/history-refine";
+import { InfoTip } from "@/components/ui/info-tip";
+import { HIGHLIGHTS, SESSION_GAP_MINUTES, type HistoryRefine, type ResultChoice } from "@/domain/history-refine";
 import { formatCount, formatIsoDay } from "@/lib/format";
 import type { MatchHistoryPage } from "@/server/players/match-history";
 
 /*
   Match History's own Refine fields (rules in domain/history-refine), at the end of the profile's
   shared Refine panel (players/overview-filters): the result, the patch, the days played, a team
-  member with or against the player, and the highlights. Each choice is an address parameter, so a
-  link keeps it; `set` replaces the address (the list's own navigation, which closes an open game).
+  member with or against the player, the highlights, and whether the list is grouped into playing
+  sessions. Each choice is an address parameter, so a link keeps it; `set` replaces the address
+  (the list's own navigation, which closes an open game and starts at the newest games); `group`
+  keeps the page and the open game, since grouping changes neither the games nor their order.
 */
 
 type SetChoices = (patch: Record<string, string | null>) => void;
+type SetGroup = (sessions: boolean) => void;
 type Options = Pick<MatchHistoryPage, "patchOptions" | "memberOptions">;
 
 const RESULTS: ReadonlyArray<{ key: ResultChoice | null; label: string }> = [
   { key: null, label: "All" },
   { key: "win", label: "Wins" },
   { key: "loss", label: "Losses" },
+];
+
+const GROUPS: ReadonlyArray<{ sessions: boolean; label: string }> = [
+  { sessions: false, label: "Every game" },
+  { sessions: true, label: "By playing session" },
 ];
 
 /** Every member parameter at once: choosing one side clears the other. */
@@ -38,7 +47,7 @@ function memberWords(refine: HistoryRefine, options: Options): string | null {
 }
 
 /** Refine's choices in effect, as the shared chips show them (each removes itself). */
-export function historyRefinements(refine: HistoryRefine, options: Options, set: SetChoices): Array<{ key: string; text: string; clear: () => void }> {
+export function historyRefinements(refine: HistoryRefine, options: Options, set: SetChoices, group: SetGroup): Array<{ key: string; text: string; clear: () => void }> {
   const out: Array<{ key: string; text: string; clear: () => void }> = [];
   if (refine.result) out.push({ key: "result", text: refine.result === "win" ? "Wins" : "Losses", clear: () => set({ result: null }) });
   if (refine.patch) out.push({ key: "patch", text: `Patch ${options.patchOptions.find((p) => p.patch === refine.patch)?.label ?? refine.patch}`, clear: () => set({ patch: null }) });
@@ -51,10 +60,11 @@ export function historyRefinements(refine: HistoryRefine, options: Options, set:
   const member = memberWords(refine, options);
   if (member) out.push({ key: "member", text: member, clear: () => set({ with: null, against: null }) });
   if (refine.highlight) out.push({ key: "highlight", text: HIGHLIGHTS.find((h) => h.key === refine.highlight)!.label, clear: () => set({ hl: null }) });
+  if (refine.sessions) out.push({ key: "group", text: "By playing session", clear: () => group(false) });
   return out;
 }
 
-export function HistoryRefineFields({ refine, options, set, pending }: { refine: HistoryRefine; options: Options; set: SetChoices; pending: boolean }) {
+export function HistoryRefineFields({ refine, options, set, group, pending }: { refine: HistoryRefine; options: Options; set: SetChoices; group: SetGroup; pending: boolean }) {
   const id = React.useId();
   const members = options.memberOptions;
   const memberValue = refine.member ? `${refine.member.side}:${refine.member.id}` : "";
@@ -114,6 +124,21 @@ export function HistoryRefineFields({ refine, options, set, pending }: { refine:
         </FilterField>
       ) : null}
       <DaysField from={refine.from} to={refine.to} set={set} pending={pending} />
+      <FilterField label="Show the games" labelId={`${id}-group`} alwaysLabel className="md:col-span-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <div role="radiogroup" aria-labelledby={`${id}-group`} className={segmentedGroupClass("w-fit")} data-testid="refine-group">
+            {GROUPS.map((g) => {
+              const on = refine.sessions === g.sessions;
+              return (
+                <button key={g.label} type="button" role="radio" aria-checked={on} disabled={pending} onClick={() => group(g.sessions)} className={segmentClass(on)} data-value={g.sessions ? "sessions" : "games"}>
+                  {g.label}
+                </button>
+              );
+            })}
+          </div>
+          <InfoTip label="About playing sessions" text={`Games less than ${SESSION_GAP_MINUTES} minutes apart (from the end of one to the start of the next) count as one sitting, whatever their game mode. Each session's header counts the games the filters list; the games and their order stay the same.`} />
+        </div>
+      </FilterField>
     </div>
   );
 }

@@ -153,7 +153,7 @@ export interface MatchHistoryPage {
   sessions: Record<string, SessionSummary>;
 }
 
-const perMinute =(value: number | null, durationS: number | null) => (value === null || !durationS || durationS < MIN_VALID_DURATION_S ? null : value / (durationS / 60));
+const perMinute = (value: number | null, durationS: number | null) => (value === null || !durationS || durationS < MIN_VALID_DURATION_S ? null : value / (durationS / 60));
 
 function icons(p: MatchParticipantDetail, assets: RiotAssets | null, version: string | null) {
   const item = (id: number): Icon | null => (id > 0 && version ? { url: assetUrl.item(version, id), name: assets?.items[String(id)] ?? `Item ${id}` } : null);

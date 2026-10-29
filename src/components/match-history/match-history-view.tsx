@@ -2,18 +2,16 @@
 
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight, Layers } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { MULTIKILL_NAMES } from "@/domain/multikills";
 import { QUEUE_GROUP_WORDS, figureText, queueGroup, type FigureKey } from "@/domain/match-analysis";
-import { narrowsGames, refineParams, SESSION_GAP_MINUTES, type SessionSummary } from "@/domain/history-refine";
+import { narrowsGames, refineParams, type SessionSummary } from "@/domain/history-refine";
 import type { MatchDetailResult, MatchHistoryPage, MatchRow } from "@/server/players/match-history";
 import type { Composition } from "@/server/matches/compositions";
 import type { ParticipantRank } from "@/domain/known-rank";
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
-import { chipClass } from "@/components/ui/segmented";
-import { InfoTip } from "@/components/ui/info-tip";
 import { timeAgo, formatCount, formatDayMonth, formatNumber, formatTimeOfDay } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { MatchDetailModal } from "./match-detail";
@@ -413,6 +411,8 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, stat
   // Refine's own choices ride along every change of the shared filters; a change of them starts again at the newest games.
   const keep = { per: String(data.per), ...refineParams(data.refine) };
   const refineTo = (patch: Record<string, string | null>) => go({ ...patch, page: null });
+  // Grouping keeps the page and an open game: the games and their order stay the same.
+  const groupTo = (sessions: boolean) => go({ group: sessions ? "sessions" : null }, { keepMatch: true });
   // The page's games by playing session, when grouped (a session cut by the page break shows its part here).
   const sessionGroups = data.refine.sessions && data.rows.length ? groupBySession(data.rows, data.sessionOf) : null;
   const card = (r: MatchRow) => <MatchCard key={r.matchId} row={r} playerId={playerId} champion={championsById[r.championId] ?? fallbackChampion(r.championId)} champ={champOrUnknown} onToggle={toggle} onPrefetch={prefetch} expanded={inline === r.matchId} checked={checkedRanks[r.matchId]} />;
@@ -442,24 +442,14 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, stat
               modeCounts={data.modes.counts}
               testId="match-filters"
               refineLabel="Refine the games"
-              extraFields={<HistoryRefineFields refine={data.refine} options={data} set={refineTo} pending={pending} />}
-              extraRefinements={historyRefinements(data.refine, data, refineTo)}
+              extraFields={<HistoryRefineFields refine={data.refine} options={data} set={refineTo} group={groupTo} pending={pending} />}
+              extraRefinements={historyRefinements(data.refine, data, refineTo, groupTo)}
             />
           </div>
         }
       />
 
       {data.summary ? <HistorySummaryStrip summary={data.summary} ladder={data.ladder} championsById={championsById} /> : null}
-
-      {data.total > 0 ? (
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <button type="button" role="switch" aria-checked={data.refine.sessions} disabled={pending} onClick={() => go({ group: data.refine.sessions ? null : "sessions" }, { keepMatch: true })} className={chipClass(data.refine.sessions)} data-testid="group-sessions">
-            <Layers className="h-3.5 w-3.5" aria-hidden />
-            Group by playing session
-          </button>
-          <InfoTip label="About playing sessions" text={`Games less than ${SESSION_GAP_MINUTES} minutes apart (from the end of one to the start of the next) count as one sitting, whatever their game mode; each session's figures count the games the filters list. The order stays newest first.`} />
-        </div>
-      ) : null}
 
       <MatchDetailCacheContext.Provider value={cache}>
         <div ref={listRef} className={cn("transition-opacity", pending && "opacity-60")}>
@@ -507,7 +497,7 @@ function groupBySession(rows: readonly MatchRow[], sessionOf: Readonly<Record<st
   return groups;
 }
 
-/** "Thu 29 Oct, 7:12 pm – 10:40 pm · 5 games · 3W 2L · 3.21 KDA · 7.4 CS/min · 2 h 10 min played". */
+/** "29 Oct, 7:12 pm – 10:40 pm · 5 games · 3W 2L · 3.21 KDA · 7.4 CS/min · 2 h 10 min played" (wins and losses in the cards' colours). */
 function SessionHeader({ summary: s, onPage }: { summary: SessionSummary; onPage: number }) {
   const minutes = Math.round(s.minutes);
   const played = minutes >= 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} min` : `${minutes} min`;
@@ -517,7 +507,7 @@ function SessionHeader({ summary: s, onPage }: { summary: SessionSummary; onPage
         {formatDayMonth(s.start)}, {formatTimeOfDay(s.start)} – {formatTimeOfDay(s.end)}
       </h3>
       <span className="tabular-nums">
-        {formatCount(s.games)} {s.games === 1 ? "game" : "games"} · <span className="text-good">{formatCount(s.wins)}W</span> <span className="text-bad">{formatCount(s.losses)}L</span>
+        {formatCount(s.games)} {s.games === 1 ? "game" : "games"} · <span className="text-blue">{formatCount(s.wins)}W</span> <span className="text-red">{formatCount(s.losses)}L</span>
       </span>
       {s.kda !== null ? <span className="tabular-nums">{s.perfect ? "Perfect KDA" : `${formatNumber(s.kda, 2)} KDA`}</span> : null}
       {s.csPerMinute !== null ? <span className="tabular-nums">{formatNumber(s.csPerMinute, 1)} CS/min</span> : null}

@@ -648,28 +648,37 @@ describe("Refine and playing sessions (Match History 2.0)", () => {
     playerId = (await createPlayer(db, teamId, { displayName: "Refiner", primaryRole: "MID", primaryPool: ["Ahri"] })).id;
     const account = (await addAccount(db, { ownerType: "player", playerId, riotId: "Refiner#OCE", platform: "oc1", puuid: "r-me" })).id;
     mateA = (await createPlayer(db, teamId, { displayName: "Mate A", primaryRole: "JUNGLE", primaryPool: ["LeeSin"] })).id;
-    await addAccount(db, { ownerType: "player", playerId: mateA, riotId: "MateA#OCE", platform: "oc1", puuid: "r-mate-a" });
+    const mateAccountA = (await addAccount(db, { ownerType: "player", playerId: mateA, riotId: "MateA#OCE", platform: "oc1", puuid: "r-mate-a" })).id;
     mateB = (await createPlayer(db, teamId, { displayName: "Mate B", primaryRole: "TOP", primaryPool: ["Gwen"] })).id;
-    await addAccount(db, { ownerType: "player", playerId: mateB, riotId: "MateB#OCE", platform: "oc1", puuid: "r-mate-b" });
+    const mateAccountB = (await addAccount(db, { ownerType: "player", playerId: mateB, riotId: "MateB#OCE", platform: "oc1", puuid: "r-mate-b" })).id;
     // An archived profile is not a team member: never counted, never offered.
     const gone = (await createPlayer(db, teamId, { displayName: "Former", primaryRole: "ADC", primaryPool: ["Jinx"] })).id;
-    await addAccount(db, { ownerType: "player", playerId: gone, riotId: "Former#OCE", platform: "oc1", puuid: "r-former" });
+    const goneAccount = (await addAccount(db, { ownerType: "player", playerId: gone, riotId: "Former#OCE", platform: "oc1", puuid: "r-former" })).id;
     await db.execute(sql`UPDATE players SET archived_at = now() WHERE id = ${gone}::uuid`);
     const counts = (doubleKills: number, tripleKills: number, quadraKills: number, pentaKills: number) => ({ doubleKills, tripleKills, quadraKills, pentaKills });
     const game = (matchId: string, created: number, over: Partial<typeof accountMatches.$inferInsert> = {}): typeof accountMatches.$inferInsert => ({ accountId: account, matchId, gameCreation: created, queueId: 420, championId: "Ahri", role: "MID", win: true, patch: "16.20", kills: 5, deaths: 2, assists: 6, cs: 210, damage: 21_000, visionScore: 30, gameDuration: 1800, extraStats: counts(0, 0, 0, 0), ...over });
     // One evening: g1, g2 15 minutes after it ended, a normal game 15 minutes after that. Two days later g3, then g4 (no record).
+    // Each side (team_id) as the summary of a stored record keeps it (accounts/match-summary); g4 has none.
     await db.insert(accountMatches).values([
-      game(ids.g1, t0, { extraStats: counts(1, 0, 0, 0) }),
-      game(ids.g2, t0 + 45 * minute, { win: false, kills: 1, deaths: 6, assists: 2 }),
-      game(ids.normal, t0 + 90 * minute, { queueId: 400, win: false }),
-      game(ids.g3, t0 + 2 * day, { patch: "16.19", extraStats: counts(0, 0, 0, 1) }),
+      game(ids.g1, t0, { teamId: 100, extraStats: counts(1, 0, 0, 0) }),
+      game(ids.g2, t0 + 45 * minute, { teamId: 100, win: false, kills: 1, deaths: 6, assists: 2 }),
+      game(ids.normal, t0 + 90 * minute, { teamId: 100, queueId: 400, win: false }),
+      game(ids.g3, t0 + 2 * day, { teamId: 100, patch: "16.19", extraStats: counts(0, 0, 0, 1) }),
       game(ids.g4, t0 + 4 * day, { patch: "16.19", win: false }),
     ]);
     await db.insert(matchDetails).values([
       record(ids.g1, t0, { blue: ["r-mate-a", "r-former"] }),
       record(ids.g2, t0 + 45 * minute, { red: ["r-mate-a"] }),
       { ...record(ids.normal, t0 + 90 * minute, {}), queueId: 400 },
-      record(ids.g3, t0 + 2 * day, { blue: ["r-mate-b"] }),
+      // Mate A is in g3's record too, but their account never stored g3: not counted (the rule of Played together).
+      record(ids.g3, t0 + 2 * day, { blue: ["r-mate-b"], red: ["r-mate-a"] }),
+    ]);
+    // The members' own stored games, as their accounts' sync keeps them, each with its side.
+    await db.insert(accountMatches).values([
+      game(ids.g1, t0, { accountId: mateAccountA, teamId: 100, championId: "LeeSin", role: "JUNGLE" }),
+      game(ids.g1, t0, { accountId: goneAccount, teamId: 100, championId: "Jinx", role: "ADC" }),
+      game(ids.g2, t0 + 45 * minute, { accountId: mateAccountA, teamId: 200, championId: "LeeSin", role: "JUNGLE", win: true }),
+      game(ids.g3, t0 + 2 * day, { accountId: mateAccountB, teamId: 100, championId: "Gwen", role: "TOP", patch: "16.19" }),
     ]);
   });
 
@@ -695,7 +704,7 @@ describe("Refine and playing sessions (Match History 2.0)", () => {
     expect(wins.summary!.form.recent.games).toBe(2);
   });
 
-  it("keeps the games a team member played with the player or against them, as the stored records place them", async () => {
+  it("keeps the games a team member played with the player or against them, as their stored games place them", async () => {
     const all = await page({});
     // Counted per member over the games the other filters leave; the archived profile is not offered.
     expect(all.memberOptions).toEqual([

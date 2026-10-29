@@ -396,14 +396,50 @@ request is a game's match timeline, once per game, when a section that needs it 
   one before it, two indexed queries, the same arithmetic as the Overview's `rankProgress`; LP with
   100 for a division; Flex when the list is Flex, otherwise Solo/Duo; the account filtered on, else
   the Main account; current season only).
+- **Refine** (`src/domain/history-refine.ts`, `history-refine-fields.tsx`,
+  `src/server/players/history-members.ts`): Match History's own fields at the end of the profile's
+  shared Refine panel (`OverviewFilters`' `extraFields`; their chips join the shared ones): the
+  result (a game without a recorded result is neither a win nor a loss), the patch (the patches of
+  the games the other filters leave, newest first, with their counts; an address may name a patch
+  by its public name, 26.20 for 16.20), the days played (calendar days in the installation's time
+  zone, either end optional, followed 600 ms after the last change), a team member played with or
+  against, or any member, and the highlights (a multikill of at least a given size from the stored
+  counts, or a personal best by `standoutOf`). Each is an address parameter (`result`, `patch`,
+  `from`, `to`, `with` or `against`, `hl`), so a link keeps it; one that cannot be read narrows
+  nothing, and neither does a member who is not a current member of the team. They narrow the games
+  after the shared filters and before paging, so the summary, the pages and "Games 1–N of M"
+  follow them. Members are matched deterministically, never by name, by the rule of Team →
+  Matches → Played together: a current member (on the team, not archived, a team member) was in a
+  game when one of their verified linked accounts stored it, and on the player's side when that
+  stored game's side (`account_matches.team_id`, copied from the record by `summariseMatches`)
+  equals the player's own. No record's JSON is read: the counts beside each member (with and
+  against, over the games the other filters leave) are one aggregated query over `account_matches`'
+  keys (a row per member), and the games of a member are read only while one is chosen. Locally, at
+  production volume (1,100 games of the player, 7 members, 5,000 records), it runs in about 6 ms
+  in the database; reading the members from the records' participants instead scanned every
+  record (73 ms warm, every participant list opened), so it was not used. A game a member's
+  account has not stored (or not summarised) yet places nobody until it has. A game is counted once
+  however many of the player's accounts stored it, and a member's accounts count as that member.
+- **Playing sessions** (`sessionKeys`, `sessionSummaries`; Refine's "Show the games: By playing
+  session", `?group=sessions`, with its chip): games less than 45 minutes apart, from one game's end (its start plus its
+  length) to the next one's start, are one sitting. Sittings are found from every stored game of
+  the player whatever the filters, so a game of another mode in between keeps an evening whole;
+  each sitting's header (when it started and ended, the record, KDA, CS per minute, time in game)
+  counts the games the filters list, all of them and not only the page's, and says how many are on
+  the page when a page break cuts the sitting. The order stays newest first, choosing it keeps the
+  page and an open game, and a game opens under its card inside its sitting. It lives in Refine, so
+  the layout under the header (the summary line, then the games) does not change.
 - **Demo data** (`src/server/demo/seed.ts`): synthetic frames, builds and skills for all ten
   players of every demo game, with each game's own seeded randomness; the Encounters fixture renames
-  the same players in the timelines as in the records.
+  the same players in the timelines as in the records. Each demo player's three newest games of
+  their own follow each other within minutes, so the demo has a three-game playing session.
 - **Tests:** `src/domain/match-analysis.test.ts`, `src/domain/history-summary.test.ts`,
+  `src/domain/history-refine.test.ts` (reading the address, each choice, sessions),
   `src/lib/format.test.ts` (`formatKilo`), `tests/db/match-timeline.test.ts` (fetch once, 429, the
   lane and the gold difference of a stored game, a removed player, a short game),
   `tests/db/match-history.test.ts` (standout, summary, ladder, `ladderChange` against
-  `rankProgress`, the detail's personal comparison and shares), `tests/db/participant-ranks.test.ts`
+  `rankProgress`, the detail's personal comparison and shares; Refine's result, patch, days,
+  members with and against, highlights and sessions on Postgres), `tests/db/participant-ranks.test.ts`
   (teammates' stored ranks), and the browser tests through `e2e/match-history.ts` (`openGame`,
   `closeGame`): `detail-panel`, `match-teams`, `match-ranks`, `match-card-ranks`,
-  `possible-groups`, `multikills`, `webkit`.
+  `possible-groups`, `multikills`, `webkit`, `match-breakdown` and `match-refine`.
