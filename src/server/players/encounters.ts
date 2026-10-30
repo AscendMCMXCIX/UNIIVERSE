@@ -148,7 +148,9 @@ export async function loadEncounterPage(db: Db, scope: EncounterScope, o: Encoun
   const shown = sql`${rec.games} >= ${o.min} ${q ? sql`AND strpos(lower(name), ${q}) > 0` : sql``} ${o.sort === "games" ? sql`` : sql`AND ${rec.wins} + ${rec.losses} >= ${o.min}`}`;
   const byGames = sql`${rec.games} DESC, last_at DESC, key COLLATE "C"`;
   const order = o.sort === "best" ? sql`${rate} DESC, ${byGames}` : o.sort === "worst" ? sql`${rate} ASC, ${byGames}` : byGames;
-  const highlight = (where: SQL, orderBy: SQL) => sql`(SELECT ${SUMMARY_JSON} FROM players WHERE ${where} ORDER BY ${orderBy}, games DESC, last_at DESC, key COLLATE "C" LIMIT 1)`;
+  // Each highlight is the first player of the list it sums up: ties go to more games in that
+  // relation (the larger sample), then the most recent (as encounterInsights).
+  const highlight = (where: SQL, orderBy: SQL, games: SQL) => sql`(SELECT ${SUMMARY_JSON} FROM players WHERE ${where} ORDER BY ${orderBy}, ${games} DESC, last_at DESC, key COLLATE "C" LIMIT 1)`;
   const pct = (w: SQL, l: SQL) => sql`(${w}::float8 / nullif(${w} + ${l}, 0))`;
   // Postgres plans many more participants a game than the ten there are, which can put this over
   // its JIT threshold; compiling would take longer than running it (as for the team query before).
@@ -161,10 +163,10 @@ export async function loadEncounterPage(db: Db, scope: EncounterScope, o: Encoun
         'total', (SELECT count(*) FROM players WHERE ${shown}),
         'list', (SELECT json_agg(s) FROM (SELECT ${SUMMARY_JSON} AS s FROM players WHERE ${shown} ORDER BY ${order} LIMIT ${o.limit}) page),
         'insights', json_build_array(
-          ${highlight(sql`og >= ${INSIGHT_MIN_GAMES.frequent}`, sql`og DESC`)},
-          ${highlight(sql`ag >= ${INSIGHT_MIN_GAMES.frequent}`, sql`ag DESC`)},
-          ${highlight(sql`aw + al >= ${INSIGHT_MIN_GAMES.record}`, sql`${pct(sql`aw`, sql`al`)} DESC`)},
-          ${highlight(sql`ow + ol >= ${INSIGHT_MIN_GAMES.record}`, sql`${pct(sql`ow`, sql`ol`)} ASC`)}
+          ${highlight(sql`og >= ${INSIGHT_MIN_GAMES.frequent}`, sql`og DESC`, sql`og`)},
+          ${highlight(sql`ag >= ${INSIGHT_MIN_GAMES.frequent}`, sql`ag DESC`, sql`ag`)},
+          ${highlight(sql`aw + al >= ${INSIGHT_MIN_GAMES.record} AND aw > al`, sql`${pct(sql`aw`, sql`al`)} DESC`, sql`ag`)},
+          ${highlight(sql`ow + ol >= ${INSIGHT_MIN_GAMES.record} AND ol > ow`, sql`${pct(sql`ow`, sql`ol`)} ASC`, sql`og`)}
         )
       ) AS payload`);
   });

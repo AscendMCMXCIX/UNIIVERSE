@@ -56,6 +56,23 @@ export function objectiveLabel(o: Pick<TimelineObjective, "kind" | "detail" | "c
 /** Voidgrubs one team took within this many minutes of the previous one count as one entry. */
 export const GRUBS_TOGETHER = 1.5;
 
+/**
+ * Markers that would touch move to the first row with room, and a row is added when none has: no
+ * two ever overlap, so each stays legible and can be touched on its own (a phone fits fewer per
+ * row, so a busy minute takes more rows there).
+ */
+export function lanesFor<T extends { x: number }>(items: readonly T[], width: number): Array<T & { lane: number }> {
+  const ends: number[] = [];
+  return [...items]
+    .sort((a, b) => a.x - b.x)
+    .map((it) => {
+      let lane = ends.findIndex((end) => it.x - width / 2 >= end + 1);
+      if (lane < 0) lane = ends.length;
+      ends[lane] = it.x + width / 2;
+      return { ...it, lane };
+    });
+}
+
 /** Objectives in order, with each team's voidgrubs taken together (one camp) as one entry, at the first one's time. */
 export function mergeGrubs(objectives: readonly TimelineObjective[]): TimelineObjective[] {
   const out: TimelineObjective[] = [];

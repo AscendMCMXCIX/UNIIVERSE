@@ -185,6 +185,13 @@ test("Timeline marks the kills and objectives, lists the largest swings beside w
     else await expect(legend).not.toContainText(word);
   }
   for (const own of await markers.evaluateAll((els) => els.map((e) => e.getAttribute("data-own")))) expect(["true", "false"]).toContain(own);
+  // No two marks under the curve overlap, on a phone too: a busy minute takes more rows, so each
+  // mark stays legible and can be touched on its own.
+  const overlapping = await chart.getByTestId("gold-chart-events").evaluate((el) => {
+    const boxes = [...el.querySelectorAll("[data-minute]")].map((e) => e.getBoundingClientRect());
+    return boxes.flatMap((a, i) => boxes.slice(i + 1).filter((b) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5)).length;
+  });
+  expect(overlapping, "marks under the curve that overlap").toBe(0);
   // A minute read by keyboard says what happened since the minute before, somewhere in the game.
   const frames = await timeline.getByTestId("gold-chart-table").locator("tbody tr").count();
   await chart.getByTestId("gold-chart-svg").focus();

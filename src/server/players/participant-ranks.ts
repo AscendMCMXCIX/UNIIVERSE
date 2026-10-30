@@ -384,8 +384,10 @@ export async function checkRecentGameRanks(
 
 /**
  * For the read-only data audit (counts only, nobody named): the readings kept, the lookups
- * answered on each of the last seven days (one LEAGUE-V4 request each), and how many places in
- * the games stored over the last 30 days have a rank to show, by where it comes from.
+ * answered on each of the last seven days (one LEAGUE-V4 request each), how many places in
+ * the games stored over the last 30 days have a rank to show, by where it comes from, and the
+ * last runs of the rank checks after collection with the players waiting before each (whether
+ * the backlog shrinks from run to run).
  */
 export async function rankCoverage(db: Db, now = new Date()) {
   const n = (v: unknown) => Number(v ?? 0);
@@ -419,10 +421,17 @@ export async function rankCoverage(db: Db, now = new Date()) {
         count(*) FILTER (WHERE a.puuid IS NULL AND k.puuid IS NULL) AS nothing
       FROM p LEFT JOIN riot_accounts a ON a.puuid = p.puuid LEFT JOIN last_known_ranks k ON k.puuid = p.puuid`),
   );
+  // Newest first: what each run found waiting (before its checks) and what it did; summaries hold counts only.
+  const recentChecks = rowsOf<Record<string, unknown>>(
+    await db.execute(sql`
+      SELECT started_at, trigger, summary->>'waiting' AS waiting, summary->>'games' AS games, summary->>'found' AS found, summary->>'failed' AS failed, summary->>'waits' AS waits, summary->>'reason' AS reason
+      FROM job_runs WHERE job = 'rank-checks' AND finished_at IS NOT NULL ORDER BY started_at DESC LIMIT 24`),
+  ).map((r) => ({ at: new Date(String(r.started_at)).toISOString(), trigger: String(r.trigger), waiting: n(r.waiting), games: n(r.games), checked: n(r.found), failed: n(r.failed), waits: n(r.waits), reason: r.reason ? String(r.reason) : null }));
   return {
     limits: { lookupsPerDay: RANK_LOOKUPS_PER_DAY, rateLimitShare: RANK_LOOKUP_SHARE, freshDays: RANK_FRESH_DAYS },
     kept,
     lookupsByDay,
+    recentChecks,
     gamesLast30Days: {
       games: n(c?.games),
       places: n(c?.places),

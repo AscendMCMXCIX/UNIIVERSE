@@ -3,7 +3,7 @@
 import * as React from "react";
 import { X } from "lucide-react";
 import { goldStory, LEAD_MIN, type GoldPoint } from "@/domain/match-analysis";
-import { eventsBetween, goldSwings, mergeGrubs, objectiveLabel, objectiveLegend, OBJECTIVE_MARK, type EventsInWindow, type ObjectiveKind, type TimelineEventsView } from "@/domain/match-events";
+import { eventsBetween, goldSwings, lanesFor, mergeGrubs, objectiveLabel, objectiveLegend, OBJECTIVE_MARK, type EventsInWindow, type ObjectiveKind, type TimelineEventsView } from "@/domain/match-events";
 import type { MatchTimelineResult } from "@/server/accounts/match-timeline";
 import { InfoTip } from "@/components/ui/info-tip";
 import { formatCount } from "@/lib/format";
@@ -214,19 +214,6 @@ function EventList({ events }: { events: TimelineEventsView }) {
   );
 }
 
-/** Markers that would touch move to the next row (at most `rows` rows; past that, the emptiest one). */
-function lanesFor<T extends { x: number }>(items: readonly T[], width: number, rows: number): Array<T & { lane: number }> {
-  const ends: number[] = [];
-  return [...items]
-    .sort((a, b) => a.x - b.x)
-    .map((it) => {
-      let lane = ends.findIndex((end) => it.x - width / 2 >= end + 1);
-      if (lane < 0) lane = ends.length < rows ? ends.length : ends.indexOf(Math.min(...ends));
-      ends[lane] = it.x + width / 2;
-      return { ...it, lane };
-    });
-}
-
 /**
  * The gold difference as one line around zero, washed blue where the player's team was ahead and red
  * where it was behind (the site's colours for a won and a lost game). Drawn at the width it is
@@ -292,10 +279,12 @@ export function GoldChart({ points, events = null, testId = "gold-chart" }: { po
   const placed = lanesFor(
     objectives.map((o) => ({ o, x: x(o.minute) })),
     marker,
-    3,
   );
   const objectiveRows = placed.length ? Math.max(...placed.map((p) => p.lane)) + 1 : 0;
   const you = events?.you ?? null;
+  // The player's kills (dots) and deaths (crosses), 16px rows like before, laid out the same way.
+  const yours = you ? lanesFor([...you.kills.map((m) => ({ m, death: false, x: x(m) })), ...you.deaths.map((m) => ({ m, death: true, x: x(m) }))], 12) : [];
+  const yourRows = yours.length ? Math.max(...yours.map((p) => p.lane)) + 1 : 0;
   return (
     <figure className="min-w-0" data-testid={testId}>
       <figcaption className="mb-1.5 flex items-start gap-1.5 text-xs text-fg-muted">
@@ -391,17 +380,18 @@ export function GoldChart({ points, events = null, testId = "gold-chart" }: { po
                 ))}
               </div>
             ) : null}
-            {you && (you.kills.length || you.deaths.length) ? (
-              <div className="relative h-4" data-testid={`${testId}-you`}>
+            {yours.length ? (
+              <div className="relative" style={{ height: yourRows * 16 }} data-testid={`${testId}-you`}>
                 <span className="absolute left-0 top-0 pr-1.5 text-right text-3xs leading-4 text-fg-subtle" style={{ width: pad.l }}>
                   You
                 </span>
-                {you.kills.map((m, i) => (
-                  <span key={`k${i}`} className="absolute top-1 h-2 w-2 -translate-x-1/2 rounded-full bg-good" style={{ left: x(m) }} title={`${gameClock(m)} your kill`} data-testid="timeline-you-kill" data-minute={m} />
-                ))}
-                {you.deaths.map((m, i) => (
-                  <X key={`d${i}`} className="absolute top-0.5 h-3 w-3 -translate-x-1/2 text-bad" strokeWidth={3} style={{ left: x(m) }} data-testid="timeline-you-death" data-minute={m} />
-                ))}
+                {yours.map(({ m, death, x: left, lane }, i) =>
+                  death ? (
+                    <X key={i} className="absolute h-3 w-3 -translate-x-1/2 text-bad" strokeWidth={3} style={{ left, top: lane * 16 + 2 }} data-testid="timeline-you-death" data-minute={m} />
+                  ) : (
+                    <span key={i} className="absolute h-2 w-2 -translate-x-1/2 rounded-full bg-good" style={{ left, top: lane * 16 + 4 }} title={`${gameClock(m)} your kill`} data-testid="timeline-you-kill" data-minute={m} />
+                  ),
+                )}
               </div>
             ) : null}
           </div>

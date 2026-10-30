@@ -2,7 +2,7 @@
 
 import { ChevronRight, Clock3, UserX } from "lucide-react";
 import type { MatchGroupsResult, MatchGroupsTeam, MatchGroupView } from "@/server/matches/possible-groups";
-import { groupEvidenceText } from "@/domain/possible-groups";
+import { groupEvidenceText, groupsNoteState } from "@/domain/possible-groups";
 import type { DetailParticipant, DetailTeam, MatchRanksResult } from "@/server/players/match-history";
 import type { MatchMeeting } from "@/server/players/encounters";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
@@ -240,31 +240,30 @@ export function GroupsNote({ result, teams }: { result: MatchGroupsResult | null
   const side = (teamId: number) => (teams.find((t) => t.teamId === teamId)?.side === "blue" ? "Blue side" : "Red side");
   if (result.teams.some((t) => t.note === "clash")) return <p className="text-2xs text-fg-subtle" data-testid="possible-groups-note" data-state="clash">Clash: each side is a registered team of five, so no groups are inferred.</p>;
   if (result.teams.every((t) => t.note === "not-assessed")) return <p className="text-2xs text-fg-subtle" data-testid="possible-groups-note" data-state="not-assessed">Possible groups are only assessed for matchmade queues.</p>;
-  const open = result.teams.filter((t) => t.groups.length === 0);
-  // A side made up of team members (or with one other player) has nobody to group.
-  const nobody = (t: MatchGroupsTeam) => t.assessed < 2;
-  const sides = (list: MatchGroupsTeam[]) => list.map((t) => side(t.teamId)).join(" and ");
-  const members = open.filter(nobody);
-  const thin = open.filter((t) => !nobody(t));
-  // One statement: nothing to infer from on either side, or the inference and then the sides it could not cover.
+  // One statement: the inference (only when a side has a group) and then the sides it could not
+  // cover, or that there was not enough recorded history, or that there was nobody to assess.
+  const note = groupsNoteState(result.teams);
+  const sides = (ids: number[]) => ids.map(side).join(" and ");
   return (
-    <p className="text-2xs text-fg-subtle" data-testid="possible-groups-note" data-state="ok">
-      {thin.length === result.teams.length ? (
+    <p className="text-2xs text-fg-subtle" data-testid="possible-groups-note" data-state="ok" data-kind={note.kind}>
+      {note.kind === "inferred" ? (
+        <>
+          Possible groups: an inference from {formatCount(result.gamesSearched)} earlier recorded {result.gamesSearched === 1 ? "game" : "games"}.
+          {note.thin.length ? (
+            <span className="text-fg-muted" data-testid="possible-groups-insufficient">
+              {" "}
+              {sides(note.thin)}: not enough recorded history to assess possible groups.
+            </span>
+          ) : null}
+        </>
+      ) : note.kind === "insufficient" ? (
         <span className="text-fg-muted" data-testid="possible-groups-insufficient">
           Possible groups: not enough recorded history to assess.
         </span>
       ) : (
-        <>
-          Possible groups: an inference from {formatCount(result.gamesSearched)} earlier recorded {result.gamesSearched === 1 ? "game" : "games"}.
-          {thin.length ? (
-            <span className="text-fg-muted" data-testid="possible-groups-insufficient">
-              {" "}
-              {sides(thin)}: not enough recorded history to assess possible groups.
-            </span>
-          ) : null}
-        </>
+        <span className="text-fg-muted">Possible groups: no other players to assess.</span>
       )}
-      {members.length ? <span className="text-fg-muted"> {sides(members)}: no other players to assess.</span> : null}{" "}
+      {note.kind !== "nobody" && note.nobody.length ? <span className="text-fg-muted"> {sides(note.nobody)}: no other players to assess.</span> : null}{" "}
       <InfoTip
         label="About possible groups"
         testId="groups-info"

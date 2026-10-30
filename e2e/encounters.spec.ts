@@ -66,6 +66,8 @@ test("Encounters lists the opponents and allies a player keeps meeting, with hon
   await expect(page.getByTestId("match-view-encounters")).toHaveAttribute("aria-current", "page");
   // What encounters prove is behind (i); never premade, duo-partner or "counter" language.
   await expect(page.getByRole("button", { name: "How encounters are counted" })).toHaveAccessibleDescription(/not parties, friendships/);
+  // How the highlights are chosen, sample sizes included.
+  await expect(page.getByRole("button", { name: "How encounters are counted" })).toHaveAccessibleDescription(/toughest record against is the lowest win rate against one player, shown only when they beat you more often than not.* at least 5 games with a result/);
   await expect(page.getByTestId("encounters")).not.toContainText(/premade|duo partner|\bcounters?\b/i);
 
   // Opponents by default, met twice or more, the player's own record against them.

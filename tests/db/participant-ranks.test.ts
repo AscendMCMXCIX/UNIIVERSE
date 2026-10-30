@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { eq, inArray } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { accountMatches, lastKnownRanks, matchDetails, privacyErasures, rankSnapshots, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
+import { accountMatches, jobRuns, lastKnownRanks, matchDetails, privacyErasures, rankSnapshots, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { addAccount } from "@/server/accounts/repository";
 import { getMatchHistory, getMatchRanks } from "@/server/players/match-history";
@@ -264,6 +264,22 @@ describe("rank checks for an opened match", () => {
     // Two stored games of nine named players each: m-1 and m-2 linked, x-7 a legacy opponent account, x-5 (Riot failed) without anything.
     expect(report.gamesLast30Days).toEqual({ games: 2, places: 18, linkedAccounts: 4, linkedAccountsSynced: 4, legacyOpponentAccounts: 2, othersChecked: 10, othersCheckedCurrent: 10, othersCheckedUnranked: 2, othersSightingOnly: 0, othersNothingStored: 2 });
     expect(JSON.stringify(report)).not.toMatch(/"[mx]-\d"|#OCE/);
+  });
+
+  it("report the last runs of the checks after collection, newest first, with what each found waiting", async () => {
+    await handle.db.delete(jobRuns);
+    await handle.db.insert(jobRuns).values([
+      { job: "rank-checks", trigger: "tick", startedAt: new Date(NOW.getTime() - 3_600_000), finishedAt: new Date(NOW.getTime() - 3_590_000), ok: "true", summary: { asked: 30, found: 29, failed: 1, skipped: 0, reason: null, games: 105, waiting: 764, waits: 2 } },
+      { job: "rank-checks", trigger: "tick", startedAt: new Date(NOW.getTime() - 900_000), finishedAt: new Date(NOW.getTime() - 890_000), ok: "true", summary: { asked: 30, found: 30, failed: 0, skipped: 0, reason: null, games: 104, waiting: 735, waits: 1 } },
+      // Still running, and another job: neither is listed.
+      { job: "rank-checks", trigger: "tick", startedAt: new Date(NOW.getTime() - 60_000) },
+      { job: "account-sync", trigger: "tick", startedAt: new Date(NOW.getTime() - 120_000), finishedAt: new Date(NOW.getTime() - 100_000), ok: "true", summary: { synced: 3 } },
+    ]);
+    const { recentChecks } = await rankCoverage(handle.db, NOW);
+    expect(recentChecks.map(({ waiting, games, checked, failed, waits, reason, trigger }) => ({ waiting, games, checked, failed, waits, reason, trigger }))).toEqual([
+      { waiting: 735, games: 104, checked: 30, failed: 0, waits: 1, reason: null, trigger: "tick" },
+      { waiting: 764, games: 105, checked: 29, failed: 1, waits: 2, reason: null, trigger: "tick" },
+    ]);
   });
 
   it("never ask about or keep a rank for someone erased, or for anyone no longer in the stored match", async () => {

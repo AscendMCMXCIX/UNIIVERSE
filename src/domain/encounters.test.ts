@@ -86,6 +86,43 @@ describe("encounters of one player", () => {
     ]);
   });
 
+  it("highlights the toughest record against from 5 decided games, ties going to more games against: the first of the worst-record list", () => {
+    const rows = [
+      // a: lost all 5 games against, and was an ally in 10 more (15 games together in all).
+      ...Array.from({ length: 5 }, (_, i) => row({ matchId: `A${i}`, key: "a", relation: "opponent", win: false })),
+      ...Array.from({ length: 10 }, (_, i) => row({ matchId: `AA${i}`, key: "a", relation: "ally", win: true })),
+      // b: lost all 8 games against: the same record over more games against.
+      ...Array.from({ length: 8 }, (_, i) => row({ matchId: `B${i}`, key: "b", relation: "opponent", win: false })),
+      // c: lost 4 of 4 decided games against, plus one without a recorded result: not 5 decided games.
+      ...Array.from({ length: 4 }, (_, i) => row({ matchId: `C${i}`, key: "c", relation: "opponent", win: false })),
+      row({ matchId: "C9", key: "c", relation: "opponent", win: null }),
+    ];
+    const all = summariseEncounters(rows);
+    const toughest = encounterInsights(all).find((i) => i.kind === "toughest-opponent")!;
+    expect(toughest.summary.key).toBe("b");
+    expect(toughest.record).toEqual({ games: 8, wins: 0, losses: 8 });
+    expect(listEncounters(all, { relation: "opponents", min: 5, sort: "worst" })[0]!.key).toBe("b");
+    // The most faced opponent is b too (8 games against, not a's 15 together); the most frequent ally is a.
+    expect(encounterInsights(all).find((i) => i.kind === "frequent-opponent")!.summary.key).toBe("b");
+    expect(encounterInsights(all).find((i) => i.kind === "frequent-ally")!.summary.key).toBe("a");
+  });
+
+  it("calls a record toughest only when it is a losing one, and best only when it is a winning one", () => {
+    // d: beaten 8–4 as an opponent (the lowest win rate against anyone, but a winning record); e: 2–4 as an ally.
+    const rows = [
+      ...Array.from({ length: 12 }, (_, i) => row({ matchId: `D${i}`, key: "d", relation: "opponent", win: i < 8 })),
+      ...Array.from({ length: 6 }, (_, i) => row({ matchId: `E${i}`, key: "e", relation: "ally", win: i < 2 })),
+    ];
+    const kinds = encounterInsights(summariseEncounters(rows)).map((i) => [i.kind, i.summary.key]);
+    expect(kinds).toEqual([
+      ["frequent-opponent", "d"],
+      ["frequent-ally", "e"],
+    ]);
+    // An even record is neither: 3–3 against is not a toughest record.
+    const even = Array.from({ length: 6 }, (_, i) => row({ matchId: `F${i}`, key: "f", relation: "opponent", win: i < 3 }));
+    expect(encounterInsights(summariseEncounters(even)).map((i) => i.kind)).toEqual(["frequent-opponent"]);
+  });
+
   it("lists one player's games newest first, each game once (its first record decides the side)", () => {
     const rows = [row({ matchId: "G1", key: "x", relation: "ally", gameCreation: T }), row({ matchId: "G2", key: "x", relation: "opponent", gameCreation: T + 20 }), row({ matchId: "G2", key: "x", relation: "ally", gameCreation: T + 20 }), row({ matchId: "G3", key: "y", relation: "ally" })];
     expect(encounterGames(rows, "x").map((g) => [g.matchId, g.relation])).toEqual([
