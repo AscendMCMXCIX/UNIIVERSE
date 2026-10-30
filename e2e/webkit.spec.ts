@@ -1,6 +1,7 @@
 import { devices, expect, test, type Locator, type Page } from "./test";
 import { emulateKeyboard, keyboard } from "./keyboard";
 import { expectClearCorner } from "./modal-corner";
+import { besideAMark } from "./match-history";
 import path from "node:path";
 
 /*
@@ -194,7 +195,7 @@ test("Match History: a game opens under its card, and once it has checked the pl
   await fitsWidth(page, "Match History");
 });
 
-test("Match History's Timeline: a tap on a mark under the curve reads its minute, the reading stays after the finger lifts, and the tables run with the page", async ({ page }) => {
+test("Match History's Timeline: a tap on or just beside a mark under the curve reads its minute, the reading stays after the finger lifts, and the tables run with the page", async ({ page }) => {
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-MID").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}/matches`);
@@ -217,6 +218,13 @@ test("Match History's Timeline: a tap on a mark under the curve reads its minute
   expect(timeline, "a demo game with a timeline among the newest six").not.toBeNull();
   const chart = timeline!.getByTestId("gold-chart");
   const readout = chart.getByTestId("gold-chart-readout");
+  // Just beside an objective: its reading (the first frame at or after it), not the minute under the finger.
+  const spot = await besideAMark(chart);
+  expect(spot, "an objective with room beside it").not.toBeNull();
+  await page.touchscreen.tap(spot!.x, spot!.y);
+  await expect(readout).toContainText(/since the minute before: .*for (your team|the other team)/);
+  const [m, s] = (await readout.innerText()).split(" · ")[0]!.split(":").map(Number);
+  expect(m! + s! / 60).toBeGreaterThanOrEqual(spot!.minute - 1 / 60);
   const mark = chart.getByTestId("timeline-objective").first();
   await mark.scrollIntoViewIfNeeded();
   await mark.tap();

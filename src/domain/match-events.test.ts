@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { eventsBetween, goldSwings, mergeGrubs, objectiveLabel, objectiveLegend, SWING_MIN, type TimelineEventsView, type TimelineObjective } from "./match-events";
+import { eventsBetween, goldSwings, lanesFor, mergeGrubs, objectiveLabel, objectiveLegend, SWING_MIN, type TimelineEventsView, type TimelineObjective } from "./match-events";
 
 const objective = (minute: number, kind: TimelineObjective["kind"], own = true, detail: string | null = null): TimelineObjective => ({ minute, kind, own, detail });
 
@@ -66,5 +66,18 @@ describe("what happened in a window", () => {
 
   it("says nothing of team kills when they are not all kept", () => {
     expect(eventsBetween({ ...events, kills: null }, 0, 20).kills).toBeNull();
+  });
+});
+
+describe("the chart's marks in rows", () => {
+  it("never overlaps two marks: a busy minute takes as many rows as it needs, in time order", () => {
+    // A phone's 14px marks about 7px a minute apart: a late push of six objectives within a minute and a half.
+    const at = [35, 35.2, 35.4, 35.8, 36.1, 36.5].map((m) => ({ m, x: 48 + m * 7 }));
+    const placed = lanesFor(at, 14);
+    expect(placed.map((p) => p.m)).toEqual([35, 35.2, 35.4, 35.8, 36.1, 36.5]);
+    expect(new Set(placed.map((p) => p.lane)).size).toBe(6);
+    for (const a of placed) for (const b of placed) if (a !== b && a.lane === b.lane) expect(Math.abs(a.x - b.x)).toBeGreaterThanOrEqual(15);
+    // Marks far enough apart share the first row; one that would touch moves down, and later ones reuse rows with room.
+    expect(lanesFor([{ x: 10 }, { x: 40 }, { x: 50 }, { x: 70 }], 14).map((p) => p.lane)).toEqual([0, 0, 1, 0]);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analysePossibleGroups, groupEvidenceText, partySizesFor, type Appearance, type MatchPlayer } from "./possible-groups";
+import { analysePossibleGroups, groupEvidenceText, groupsNoteState, partySizesFor, type Appearance, type MatchPlayer } from "./possible-groups";
 
 const DAY = 86_400_000;
 const NOW = Date.UTC(2026, 9, 17);
@@ -125,5 +125,20 @@ describe("possible groups in a completed match", () => {
     expect(groupEvidenceText(3, 4)).toBe("These three players appeared on the same team in four previous recorded games.");
     expect(groupEvidenceText(2, 3, 1)).toBe("These two players appeared on the same team in three previous recorded games. They were on opposite teams in one.");
     expect(groupEvidenceText(5, 14)).toBe("These five players appeared on the same team in 14 previous recorded games.");
+  });
+
+  it("describes an inference only when a side has a group, never one from no games", () => {
+    const duo = { teamId: 200, groups: [{}], assessed: 5 };
+    // A group on one side: the inference, then the side it could not cover.
+    expect(groupsNoteState([{ teamId: 100, groups: [], assessed: 5 }, duo])).toEqual({ kind: "inferred", thin: [100], nobody: [] });
+    // No group anywhere: not enough recorded history, whether or not the other side is all members
+    // (a five-member team game used to read "an inference from 0 earlier recorded games").
+    expect(groupsNoteState([{ teamId: 100, groups: [], assessed: 5 }, { teamId: 200, groups: [], assessed: 4 }])).toEqual({ kind: "insufficient", thin: [100, 200], nobody: [] });
+    expect(groupsNoteState([{ teamId: 100, groups: [], assessed: 0 }, { teamId: 200, groups: [], assessed: 5 }])).toEqual({ kind: "insufficient", thin: [200], nobody: [100] });
+    // Nobody to assess on either side.
+    expect(groupsNoteState([{ teamId: 100, groups: [], assessed: 0 }, { teamId: 200, groups: [], assessed: 1 }])).toEqual({ kind: "nobody", thin: [], nobody: [100, 200] });
+    // From a real analysis: all five members on blue, five players with no history on red.
+    const allMembers = players.map((p) => ({ ...p, registered: p.teamId === 100 }));
+    expect(groupsNoteState(analysePossibleGroups(match(), allMembers, []).teams)).toEqual({ kind: "insufficient", thin: [200], nobody: [100] });
   });
 });

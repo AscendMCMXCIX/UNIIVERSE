@@ -46,7 +46,7 @@ export interface EncountersData {
 }
 
 const CAVEAT =
-  "From this player's stored Riot games (no extra Riot requests). An ally was on the player's team, an opponent on the other team, and Mixed means both; the results are the player's own. A player is recognised by their Riot account, not their name (the latest Riot ID is shown), and teammates with a profile here are left out. Historical encounters only: not parties, friendships or every game they played. Games that were not recorded are not counted, so a missing game is not proof two players never met.";
+  "From this player's stored Riot games (no extra Riot requests). An ally was on the player's team, an opponent on the other team, and Mixed means both; the results are the player's own. A player is recognised by their Riot account, not their name (the latest Riot ID is shown), and teammates with a profile here are left out. Historical encounters only: not parties, friendships or every game they played. Games that were not recorded are not counted, so a missing game is not proof two players never met. Highlights cover the whole season and game mode: the toughest record against is the lowest win rate against one player, shown only when they beat you more often than not, and the best record alongside the highest with one, shown only when you won more often than not; each needs at least 5 games with a result, and the most faced opponent and most frequent ally need 3 games. Ties go to the larger sample, then the most recent.";
 
 const RELATIONS: Record<EncounterRelation, string> = { opponents: "Opponents", allies: "Allies", everyone: "Everyone" };
 const SORTS: Record<EncounterSort, (r: EncounterRelation) => string> = {

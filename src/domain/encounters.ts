@@ -180,15 +180,23 @@ export const INSIGHT_LABELS: Record<EncounterInsight["kind"], string> = {
   "toughest-opponent": "Toughest record against",
 };
 
-/** At most one of each, and only when enough games stand behind it. Neutral wording only. */
+/**
+ * At most one of each, and only when enough games stand behind it. Neutral wording only. Each is the
+ * first player of the list it sums up: the most games in that relation, or the best or worst
+ * record there from at least INSIGHT_MIN_GAMES.record decided games; ties go to more games in that
+ * relation (the larger sample), then the most recent. A record is only "best" when it is a winning
+ * one and only "toughest" when it is a losing one: an opponent beaten 8–4 is nobody's toughest.
+ */
 export function encounterInsights(all: readonly EncounterSummary[]): EncounterInsight[] {
-  const pick = (score: (s: EncounterSummary) => number | null) => {
+  const pick = (record: (s: EncounterSummary) => WinLoss, score: (s: EncounterSummary) => number | null) => {
     let best: EncounterSummary | null = null;
     let bestScore = -Infinity;
     for (const s of all) {
       const v = score(s);
       if (v === null) continue;
-      if (!best || v > bestScore || (v === bestScore && (s.games > best.games || (s.games === best.games && (s.lastPlayedAt > best.lastPlayedAt || (s.lastPlayedAt === best.lastPlayedAt && byKey(s, best) < 0)))))) {
+      const games = record(s).games;
+      const bestGames = best ? record(best).games : 0;
+      if (!best || v > bestScore || (v === bestScore && (games > bestGames || (games === bestGames && (s.lastPlayedAt > best.lastPlayedAt || (s.lastPlayedAt === best.lastPlayedAt && byKey(s, best) < 0)))))) {
         best = s;
         bestScore = v;
       }
@@ -196,13 +204,15 @@ export function encounterInsights(all: readonly EncounterSummary[]): EncounterIn
     return best;
   };
   const insights: EncounterInsight[] = [];
-  const add = (kind: EncounterInsight["kind"], s: EncounterSummary | null, record: (s: EncounterSummary) => WinLoss) => {
+  const add = (kind: EncounterInsight["kind"], record: (s: EncounterSummary) => WinLoss, score: (s: EncounterSummary) => number | null) => {
+    const s = pick(record, score);
     if (s) insights.push({ kind, summary: s, record: record(s) });
   };
-  add("frequent-opponent", pick((s) => (s.opponent.games >= INSIGHT_MIN_GAMES.frequent ? s.opponent.games : null)), (s) => s.opponent);
-  add("frequent-ally", pick((s) => (s.ally.games >= INSIGHT_MIN_GAMES.frequent ? s.ally.games : null)), (s) => s.ally);
-  add("best-ally", pick((s) => (s.ally.wins + s.ally.losses >= INSIGHT_MIN_GAMES.record ? rate(s.ally) : null)), (s) => s.ally);
-  add("toughest-opponent", pick((s) => (s.opponent.wins + s.opponent.losses >= INSIGHT_MIN_GAMES.record ? -rate(s.opponent)! : null)), (s) => s.opponent);
+  const decided = (wl: WinLoss) => wl.wins + wl.losses >= INSIGHT_MIN_GAMES.record;
+  add("frequent-opponent", (s) => s.opponent, (s) => (s.opponent.games >= INSIGHT_MIN_GAMES.frequent ? s.opponent.games : null));
+  add("frequent-ally", (s) => s.ally, (s) => (s.ally.games >= INSIGHT_MIN_GAMES.frequent ? s.ally.games : null));
+  add("best-ally", (s) => s.ally, (s) => (decided(s.ally) && s.ally.wins > s.ally.losses ? rate(s.ally) : null));
+  add("toughest-opponent", (s) => s.opponent, (s) => (decided(s.opponent) && s.opponent.losses > s.opponent.wins ? -rate(s.opponent)! : null));
   return insights;
 }
 

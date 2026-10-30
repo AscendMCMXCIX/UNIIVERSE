@@ -48,6 +48,23 @@ export function groupEvidenceText(size: number, games: number, opposed = 0): str
   return opposed ? `${base} They were on opposite teams in ${countWord(opposed)}.` : base;
 }
 
+/**
+ * What the note under a scoreboard can say about a match's sides, as one statement:
+ * - "inferred": a side has a possible group, so there is an inference to describe (then the sides it
+ *   could not cover);
+ * - "insufficient": no side has one and some side had players to assess: not enough recorded
+ *   history to say anything (never "an inference from 0 games", never "no premades");
+ * - "nobody": no side had two players to assess.
+ * `thin` are the sides with players to assess and no group; `nobody` the sides with fewer than two
+ * (team members, or a single other player).
+ */
+export function groupsNoteState(teams: ReadonlyArray<{ teamId: number; groups: readonly unknown[]; assessed: number }>): { kind: "inferred" | "insufficient" | "nobody"; thin: number[]; nobody: number[] } {
+  const open = teams.filter((t) => t.groups.length === 0);
+  const thin = open.filter((t) => t.assessed >= 2).map((t) => t.teamId);
+  const nobody = open.filter((t) => t.assessed < 2).map((t) => t.teamId);
+  return { kind: open.length < teams.length ? "inferred" : thin.length ? "insufficient" : "nobody", thin, nobody };
+}
+
 export function groupLabel(size: number): string {
   return size === 2 ? "Possible duo" : size === 3 ? "Possible trio" : size === 4 ? "Possible four-player group" : "Possible five-player group";
 }

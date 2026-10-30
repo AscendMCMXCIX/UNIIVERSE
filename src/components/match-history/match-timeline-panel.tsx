@@ -3,7 +3,7 @@
 import * as React from "react";
 import { X } from "lucide-react";
 import { goldStory, LEAD_MIN, type GoldPoint } from "@/domain/match-analysis";
-import { eventsBetween, goldSwings, mergeGrubs, objectiveLabel, objectiveLegend, OBJECTIVE_MARK, type EventsInWindow, type ObjectiveKind, type TimelineEventsView } from "@/domain/match-events";
+import { eventsBetween, goldSwings, lanesFor, mergeGrubs, objectiveLabel, objectiveLegend, OBJECTIVE_MARK, type EventsInWindow, type ObjectiveKind, type TimelineEventsView } from "@/domain/match-events";
 import type { MatchTimelineResult } from "@/server/accounts/match-timeline";
 import { InfoTip } from "@/components/ui/info-tip";
 import { formatCount } from "@/lib/format";
@@ -30,6 +30,16 @@ const goldTone = (n: number) => (Math.abs(n) < 1 ? "text-fg-muted" : n > 0 ? "te
 
 /** "your team" / "the other team", for an objective. */
 const sideWords = (own: boolean) => (own ? "your team" : "the other team");
+
+/** The mark under the curve nearest a point, at most `reach` px from its edge; null when none is that near. */
+function markNear(area: Element, cx: number, cy: number, reach = 8): Element | null {
+  const gap = (el: Element) => {
+    const r = el.getBoundingClientRect();
+    return Math.hypot(Math.max(r.left - cx, 0, cx - r.right), Math.max(r.top - cy, 0, cy - r.bottom));
+  };
+  const near = [...area.querySelectorAll("[data-minute]")].map((el) => ({ el, d: gap(el) })).filter((m) => m.d <= reach);
+  return near.length ? near.reduce((a, b) => (b.d < a.d ? b : a)).el : null;
+}
 
 export function TimelinePanel({ result }: { result: MatchTimelineResult | null }) {
   if (!result) return <div className="h-56 animate-pulse rounded-panel bg-surface-2 motion-reduce:animate-none" aria-busy="true" aria-label="Loading the timeline" data-testid="timeline-loading" />;
@@ -214,19 +224,6 @@ function EventList({ events }: { events: TimelineEventsView }) {
   );
 }
 
-/** Markers that would touch move to the next row (at most `rows` rows; past that, the emptiest one). */
-function lanesFor<T extends { x: number }>(items: readonly T[], width: number, rows: number): Array<T & { lane: number }> {
-  const ends: number[] = [];
-  return [...items]
-    .sort((a, b) => a.x - b.x)
-    .map((it) => {
-      let lane = ends.findIndex((end) => it.x - width / 2 >= end + 1);
-      if (lane < 0) lane = ends.length < rows ? ends.length : ends.indexOf(Math.min(...ends));
-      ends[lane] = it.x + width / 2;
-      return { ...it, lane };
-    });
-}
-
 /**
  * The gold difference as one line around zero, washed blue where the player's team was ahead and red
  * where it was behind (the site's colours for a won and a lost game). Drawn at the width it is
@@ -234,9 +231,10 @@ function lanesFor<T extends { x: number }>(items: readonly T[], width: number, r
  * team's kills as short ticks (the player's team's along the top, the other's along the bottom),
  * and under the curve the objectives each team took and the player's own kills and deaths, at the
  * same scale. Hover, touch or the arrow keys read one frame, with what happened since the frame
- * before; Home and End jump to the ends. The marks under the curve read too: a mark reads the frame
- * that covers it, so its event is in the reading. A touch keeps its reading after the finger
- * lifts (a mouse's ends when it leaves). GoldTable and EventList hold every value in words.
+ * before; Home and End jump to the ends. The marks under the curve read too (a touch just beside one
+ * counts): a mark reads the frame that covers it, so its event is in the reading. A touch keeps its
+ * reading after the finger lifts (a mouse's ends when it leaves). GoldTable and EventList hold every
+ * value in words.
  */
 export function GoldChart({ points, events = null, testId = "gold-chart" }: { points: GoldPoint[]; events?: TimelineEventsView | null; testId?: string }) {
   const box = React.useRef<HTMLDivElement>(null);
@@ -276,9 +274,11 @@ export function GoldChart({ points, events = null, testId = "gold-chart" }: { po
     setAt(best);
   };
   // A mark reads the first frame at or after its moment (the frame whose "since the minute before" holds it); elsewhere, the nearest frame.
+  // Under the curve a touch just beside a mark reads it too: the nearest within 8px (the marks are 14px on phones).
   const read = (e: React.PointerEvent) => {
     via.current = "pointer";
-    const mark = (e.target as Element).closest?.("[data-minute]");
+    const target = e.target as Element;
+    const mark = target.closest?.("[data-minute]") ?? (box.current?.contains(target) ? null : markNear(e.currentTarget, e.clientX, e.clientY));
     if (mark) {
       const i = points.findIndex((p) => p.minute >= Number(mark.getAttribute("data-minute")));
       setAt(i < 0 ? points.length - 1 : i);
@@ -292,10 +292,12 @@ export function GoldChart({ points, events = null, testId = "gold-chart" }: { po
   const placed = lanesFor(
     objectives.map((o) => ({ o, x: x(o.minute) })),
     marker,
-    3,
   );
   const objectiveRows = placed.length ? Math.max(...placed.map((p) => p.lane)) + 1 : 0;
   const you = events?.you ?? null;
+  // The player's kills (dots) and deaths (crosses), 16px rows like before, laid out the same way.
+  const yours = you ? lanesFor([...you.kills.map((m) => ({ m, death: false, x: x(m) })), ...you.deaths.map((m) => ({ m, death: true, x: x(m) }))], 12) : [];
+  const yourRows = yours.length ? Math.max(...yours.map((p) => p.lane)) + 1 : 0;
   return (
     <figure className="min-w-0" data-testid={testId}>
       <figcaption className="mb-1.5 flex items-start gap-1.5 text-xs text-fg-muted">
@@ -391,17 +393,18 @@ export function GoldChart({ points, events = null, testId = "gold-chart" }: { po
                 ))}
               </div>
             ) : null}
-            {you && (you.kills.length || you.deaths.length) ? (
-              <div className="relative h-4" data-testid={`${testId}-you`}>
+            {yours.length ? (
+              <div className="relative" style={{ height: yourRows * 16 }} data-testid={`${testId}-you`}>
                 <span className="absolute left-0 top-0 pr-1.5 text-right text-3xs leading-4 text-fg-subtle" style={{ width: pad.l }}>
                   You
                 </span>
-                {you.kills.map((m, i) => (
-                  <span key={`k${i}`} className="absolute top-1 h-2 w-2 -translate-x-1/2 rounded-full bg-good" style={{ left: x(m) }} title={`${gameClock(m)} your kill`} data-testid="timeline-you-kill" data-minute={m} />
-                ))}
-                {you.deaths.map((m, i) => (
-                  <X key={`d${i}`} className="absolute top-0.5 h-3 w-3 -translate-x-1/2 text-bad" strokeWidth={3} style={{ left: x(m) }} data-testid="timeline-you-death" data-minute={m} />
-                ))}
+                {yours.map(({ m, death, x: left, lane }, i) =>
+                  death ? (
+                    <X key={i} className="absolute h-3 w-3 -translate-x-1/2 text-bad" strokeWidth={3} style={{ left, top: lane * 16 + 2 }} data-testid="timeline-you-death" data-minute={m} />
+                  ) : (
+                    <span key={i} className="absolute h-2 w-2 -translate-x-1/2 rounded-full bg-good" style={{ left, top: lane * 16 + 4 }} title={`${gameClock(m)} your kill`} data-testid="timeline-you-kill" data-minute={m} />
+                  ),
+                )}
               </div>
             ) : null}
           </div>

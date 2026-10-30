@@ -80,10 +80,32 @@ test("no history means a neutral note, not 'no premades'", async ({ page }) => {
     await expect(note).toHaveAttribute("data-state", "ok", { timeout: 15_000 });
     if ((await breakdown.getByTestId("possible-group").count()) === 0) {
       await expect(note).toContainText("Possible groups: not enough recorded history to assess.");
+      await expect(note).not.toContainText("an inference from");
       await expect(breakdown.getByTestId("possible-groups")).toHaveCount(0);
       return;
     }
     await closeGame(card);
   }
   throw new Error("expected a demo match without a possible group");
+});
+
+test("a game with the team on one side is never 'an inference from 0 earlier recorded games'", async ({ page }) => {
+  await page.goto("/team");
+  const id = (await page.getByTestId("lineup-row-JUNGLE").getAttribute("data-player-id"))!;
+  await page.goto(`/players/${id}/matches`);
+  await page.waitForLoadState("networkidle");
+  // The demo's Flex game with four members and one other player on blue (the newest card): nobody to assess there.
+  const card = page.getByTestId("match-card").filter({ has: page.locator('[data-testid="match-members"][data-with="3"]') }).first();
+  const breakdown = await openGame(card);
+  const note = breakdown.getByTestId("possible-groups-note");
+  await expect(note).toHaveAttribute("data-state", "ok", { timeout: 15_000 });
+  await expect(note).toContainText("Blue side: no other players to assess.");
+  // The other side's players were placed at random among the demo's recurring players: without a
+  // group there, the note says there is not enough history, and never describes an inference.
+  if ((await breakdown.getByTestId("possible-group").count()) === 0) {
+    await expect(note).toHaveAttribute("data-kind", "insufficient");
+    await expect(note).toContainText("Possible groups: not enough recorded history to assess.");
+    await expect(note).not.toContainText("an inference from");
+  }
+  await closeGame(card);
 });
