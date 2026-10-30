@@ -31,6 +31,16 @@ const goldTone = (n: number) => (Math.abs(n) < 1 ? "text-fg-muted" : n > 0 ? "te
 /** "your team" / "the other team", for an objective. */
 const sideWords = (own: boolean) => (own ? "your team" : "the other team");
 
+/** The mark under the curve nearest a point, at most `reach` px from its edge; null when none is that near. */
+function markNear(area: Element, cx: number, cy: number, reach = 8): Element | null {
+  const gap = (el: Element) => {
+    const r = el.getBoundingClientRect();
+    return Math.hypot(Math.max(r.left - cx, 0, cx - r.right), Math.max(r.top - cy, 0, cy - r.bottom));
+  };
+  const near = [...area.querySelectorAll("[data-minute]")].map((el) => ({ el, d: gap(el) })).filter((m) => m.d <= reach);
+  return near.length ? near.reduce((a, b) => (b.d < a.d ? b : a)).el : null;
+}
+
 export function TimelinePanel({ result }: { result: MatchTimelineResult | null }) {
   if (!result) return <div className="h-56 animate-pulse rounded-panel bg-surface-2 motion-reduce:animate-none" aria-busy="true" aria-label="Loading the timeline" data-testid="timeline-loading" />;
   if (result.status !== "ok")
@@ -221,9 +231,10 @@ function EventList({ events }: { events: TimelineEventsView }) {
  * team's kills as short ticks (the player's team's along the top, the other's along the bottom),
  * and under the curve the objectives each team took and the player's own kills and deaths, at the
  * same scale. Hover, touch or the arrow keys read one frame, with what happened since the frame
- * before; Home and End jump to the ends. The marks under the curve read too: a mark reads the frame
- * that covers it, so its event is in the reading. A touch keeps its reading after the finger
- * lifts (a mouse's ends when it leaves). GoldTable and EventList hold every value in words.
+ * before; Home and End jump to the ends. The marks under the curve read too (a touch just beside one
+ * counts): a mark reads the frame that covers it, so its event is in the reading. A touch keeps its
+ * reading after the finger lifts (a mouse's ends when it leaves). GoldTable and EventList hold every
+ * value in words.
  */
 export function GoldChart({ points, events = null, testId = "gold-chart" }: { points: GoldPoint[]; events?: TimelineEventsView | null; testId?: string }) {
   const box = React.useRef<HTMLDivElement>(null);
@@ -263,9 +274,11 @@ export function GoldChart({ points, events = null, testId = "gold-chart" }: { po
     setAt(best);
   };
   // A mark reads the first frame at or after its moment (the frame whose "since the minute before" holds it); elsewhere, the nearest frame.
+  // Under the curve a touch just beside a mark reads it too: the nearest within 8px (the marks are 14px on phones).
   const read = (e: React.PointerEvent) => {
     via.current = "pointer";
-    const mark = (e.target as Element).closest?.("[data-minute]");
+    const target = e.target as Element;
+    const mark = target.closest?.("[data-minute]") ?? (box.current?.contains(target) ? null : markNear(e.currentTarget, e.clientX, e.clientY));
     if (mark) {
       const i = points.findIndex((p) => p.minute >= Number(mark.getAttribute("data-minute")));
       setAt(i < 0 ? points.length - 1 : i);

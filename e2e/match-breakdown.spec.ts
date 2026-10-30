@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "./test";
-import { closeGame, openGame } from "./match-history";
+import { besideAMark, closeGame, openGame } from "./match-history";
 
 /*
   A game's breakdown under its Match History card (demo data, in memory): the four sections share
@@ -244,6 +244,23 @@ test("a mark under the curve reads the minute that holds it; a touch keeps its r
     await page.mouse.move(1, 1);
     await expect(readout).toHaveText(/^Hover, touch or use the arrow keys/);
   }
+});
+
+test("a touch just beside a mark under the curve reads that mark, not the minute under the finger", async ({ page }) => {
+  await openHistory(page);
+  const { timeline } = await gameWithTimeline(page);
+  const chart = timeline.getByTestId("gold-chart");
+  const readout = chart.getByTestId("gold-chart-readout");
+  const spot = await besideAMark(chart);
+  expect(spot, "an objective with room beside it").not.toBeNull();
+  if (await page.evaluate(() => matchMedia("(pointer: coarse)").matches)) await page.touchscreen.tap(spot!.x, spot!.y);
+  else await page.mouse.move(spot!.x, spot!.y);
+  // The objective's reading: the first frame at or after it, naming it.
+  await expect(readout).toContainText(/since the minute before: .*for (your team|the other team)/);
+  const [m, s] = (await readout.innerText()).split(" · ")[0]!.split(":").map(Number);
+  const read = m! + s! / 60;
+  expect(read).toBeGreaterThanOrEqual(spot!.minute - 1 / 60);
+  expect(read - spot!.minute).toBeLessThan(1.5);
 });
 
 test("Build lists what was bought minute by minute, the skill order and the runes", async ({ page }) => {

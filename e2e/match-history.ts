@@ -35,3 +35,26 @@ export async function closeGame(card: Locator) {
   await expect(card.getByTestId("match-row")).toHaveAttribute("aria-expanded", "false");
   await expect(expandedOf(card)).toHaveCount(0);
 }
+
+/**
+ * A point 4px left of an objective under a Timeline chart (`gold-chart`), on no mark and with no
+ * other mark within 6px, so that objective is the nearest; with the objective's minute. Null when no
+ * objective has that room. Left of a mark, the minute under the finger is an earlier frame.
+ */
+export async function besideAMark(chart: Locator): Promise<{ x: number; y: number; minute: number } | null> {
+  await chart.getByTestId("gold-chart-objectives").evaluate((el) => el.scrollIntoView({ block: "center" }));
+  return chart.getByTestId("gold-chart-events").evaluate((strip) => {
+    const marks = [...strip.querySelectorAll("[data-minute]")];
+    const gap = (el: Element, x: number, y: number) => {
+      const r = el.getBoundingClientRect();
+      return Math.hypot(Math.max(r.left - x, 0, x - r.right), Math.max(r.top - y, 0, y - r.bottom));
+    };
+    for (const mark of strip.querySelectorAll("[data-testid='timeline-objective']")) {
+      const r = mark.getBoundingClientRect();
+      const [x, y] = [r.left - 4, r.top + r.height / 2];
+      const room = Math.min(...marks.filter((m) => m !== mark).map((m) => gap(m, x, y)));
+      if (room > 6 && strip.contains(document.elementFromPoint(x, y))) return { x, y, minute: Number(mark.getAttribute("data-minute")) };
+    }
+    return null;
+  });
+}
