@@ -32,6 +32,6 @@ export async function loadProfileHeader(db: Db, playerId: string): Promise<Profi
     avatarUrl: user ? avatarUrl(user.id, user.avatarVersion) : null,
     lineupRole: ROLES.find((r) => lineup.slots[r] === playerId) ?? null,
     rank: (ranked.find((a) => a.label === "main") ?? ranked[0])?.rank ?? null,
-    social: visibleSocialLinks(social.get(playerId), "team"),
+    social: visibleSocialLinks(social.get(playerId)),
   };
 }

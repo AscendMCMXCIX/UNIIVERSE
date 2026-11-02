@@ -240,7 +240,7 @@ function rosterCard(p: PlayerRecord & PlayerProfile, role: Role, from: { season:
       poolIds: featurableChampions(p),
       cardAccent: isCardAccent(p.cardAccent) ? p.cardAccent : "default",
       look: cardLookFor(p),
-      social: visibleSocialLinks(from.social, "team"),
+      social: visibleSocialLinks(from.social),
       season: season && summary && summary.record.games > 0 ? seasonFigures(summary) : null,
       rankChange: statsVisible ? from.rankChange : null,
       statsVisible,

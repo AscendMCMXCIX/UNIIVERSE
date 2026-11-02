@@ -201,7 +201,7 @@ ones lazily, and keep uploaded brand images small ([HOSTING_USAGE.md](HOSTING_US
   (`src/server/db/migration-grants.test.ts`). Nothing destructive without a tested recovery path
   and the owner's approval.
 - Personal data stays with the team: what is stored and for how long is on the privacy page; a
-  public social icon appears only when its owner chose to show it.
+  social icon appears only when its owner switched on its Show publicly switch.
 - Browser storage (`localStorage`, `sessionStorage`, IndexedDB) holds per-viewer conveniences only
   (layout choices, recent picks, favourites), never personal data read or typed in the app.
 - Code that stores Riot identities (match records, sync, linking an account) honours

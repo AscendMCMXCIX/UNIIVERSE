@@ -50,7 +50,7 @@ export async function changeDisplayNameAction(displayName: string): Promise<Resu
 }
 
 /**
- * The member's own YouTube, Twitch and Discord as stored, every audience included, for the Player
+ * The member's own YouTube, Twitch and Discord as stored, shown publicly or not, for the Player
  * Card Studio's Links step (it loads them when it opens). Always the session's own profile.
  */
 export async function ownSocialLinksAction(): Promise<Result<{ links: SocialLinks | null }>> {
@@ -65,10 +65,11 @@ export async function ownSocialLinksAction(): Promise<Result<{ links: SocialLink
 }
 
 /**
- * The member's own YouTube, Twitch and Discord and who may see each (Settings, the welcome step and
- * the Player Card Studio). Always the session's own profile; every value is checked again here.
+ * The member's own YouTube, Twitch and Discord, each with "Show publicly" (Settings, the welcome
+ * step and the Player Card Studio). Always the session's own profile; every value is checked again
+ * here, and a link is public only when the form says so in so many words (isShownPublicly).
  */
-export async function saveSocialLinksAction(input: Partial<Record<SocialKind, { value?: unknown; show?: unknown }>>): Promise<Result<{ links: SocialLinks | null }>> {
+export async function saveSocialLinksAction(input: Partial<Record<SocialKind, { value?: unknown; public?: unknown }>>): Promise<Result<{ links: SocialLinks | null }>> {
   try {
     const session = await requireSession();
     if (!session.playerId) return { ok: false, error: "Social links belong to a player profile, and this account has none." };

@@ -561,3 +561,12 @@ On the live site, after the deployment (the sandbox renders demo data without Ri
 - [ ] Fields, dropdowns, Refine, Refresh and the segmented choices show a visible edge on every page, also in a window; the keyboard focus ring is visible on each.
 - [ ] Browser zoom at 200% and the phone's largest text size: nothing overlaps and no page scrolls sideways (wide tables scroll inside their box).
 
+
+## Social links: one Show publicly switch (migration 0061, 2 Nov 2026)
+
+On the live site, after the deployment:
+- [ ] Data jobs → `smoke auth-audit`: every step passes, `deployment.commit` is the merge commit, `migrationsApplied` ends with `0061_social_links_public`, and `socialLinks.oldShape` is 0 (`switchedOn` is the number of links that were set to the public page before; nothing else is switched on).
+- [ ] Settings → Profile on a computer, a phone and the installed app: YouTube, Twitch and Discord each have their name and a Show publicly switch on one line, the field under it, and no dropdown. A link that was shown on the public page is switched on; one that was kept to the team or to yourself is switched off, and shows nowhere until you switch it on.
+- [ ] On a phone, tapping the words "Show publicly" turns the switch on and off, as well as tapping the switch; on is the blue track with the knob at the right.
+- [ ] Switch a link on and save: it shows on your Team card, your profile, the Players directory and, signed out, the public team page. Switch it off and save: it is gone from all of them.
+- [ ] The Player Card Studio → Links and the welcome step (Personalise) show the same switches; the privacy notice says "Only you, until you switch on Show publicly for a link".

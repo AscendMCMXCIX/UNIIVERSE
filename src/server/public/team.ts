@@ -95,8 +95,8 @@ function publicCard(p: RosterCardPlayer, champions: RosterChampion[], member: Pu
       poolIds: [],
       cardAccent: p.cardAccent,
       look: publicLook(p.look),
-      // Only the links the player chose for the public page, never the team-only ones.
-      social: p.social.filter((l) => l.public).map((l) => ({ kind: l.kind, label: l.label, text: l.text, href: l.href, public: true })),
+      // Only links switched on to "Show publicly" reach the roster (visibleSocialLinks); their display fields only.
+      social: p.social.map((l) => ({ kind: l.kind, label: l.label, text: l.text, href: l.href })),
       season: season
         ? { games: season.games, wins: season.wins, losses: season.losses, winRate: season.winRate, kda: season.kda, perfectKda: season.perfectKda, kills: season.kills, deaths: season.deaths, assists: season.assists, csPerMinute: season.csPerMinute, visionPerGame: season.visionPerGame, damagePerMinute: season.damagePerMinute }
         : null,

@@ -870,5 +870,13 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
     "statements": [
       "ALTER TABLE \"match_timelines\" ADD COLUMN \"events\" jsonb;"
     ]
+  },
+  {
+    "idx": 61,
+    "tag": "0061_social_links_public",
+    "hash": "1000f4c7bfe30984a79310ed8fd82538bd989709a0bff5a05121be7e87cbb4d1",
+    "statements": [
+      "-- Social links: one switch per link (\"Show publicly\") instead of three audiences.\n-- Each stored link { value, show } becomes { value, public }. Only the \"public\" audience is\n-- switched on (true). The team-only (\"team\") and owner-only (\"hidden\") audiences, and anything\n-- unrecognised, are switched off (false), so no link is shown to anyone who could not see it\n-- before. A link already in the new shape keeps its switch (only a JSON true counts). Each value,\n-- and anything else stored with it, is kept as it was: the pages check a value again before they\n-- show it. Entries that are not objects, empty objects and rows without links are left alone.\nUPDATE \"players\" AS p\nSET \"social_links\" = (\n  SELECT jsonb_object_agg(\n    e.key,\n    CASE\n      WHEN jsonb_typeof(e.value) = 'object' THEN\n        (e.value - 'show' - 'public')\n        || jsonb_build_object('public', COALESCE(e.value ->> 'show' = 'public', false) OR COALESCE(e.value -> 'public' = 'true'::jsonb, false))\n      ELSE e.value\n    END\n  )\n  FROM jsonb_each(p.\"social_links\") AS e(key, value)\n)\nWHERE jsonb_typeof(p.\"social_links\") = 'object' AND p.\"social_links\" <> '{}'::jsonb;"
+    ]
   }
 ];

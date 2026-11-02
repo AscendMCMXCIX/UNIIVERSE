@@ -14,7 +14,7 @@ The Studio is the editor behind **Customise** on a player's card. It opens from 
   3. **Position**: focus, zoom, darkness, blur and vignette.
   4. **Colours**: a palette, custom colours, the colour wash, highlight, border and avatar frame.
   5. **Identity**: tagline, emblem, name style and theme.
-  6. **Links**: your YouTube, Twitch and Discord, each with who may see it.
+  6. **Links**: your YouTube, Twitch and Discord, each with its Show publicly switch (off until you switch it on; on, teammates and the public team page see it).
   7. **Effects**: glow, shimmer, moving colour wash, motif and intensity.
 - **Presets.** One tap sets a whole look: UNIIVERSE, Minimal, Competitive, Arcane, Crimson, Monochrome or Neon.
   - A preset sets colours, frame, effects, name style, theme and the background veil.
