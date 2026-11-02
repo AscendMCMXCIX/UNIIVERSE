@@ -9,7 +9,7 @@ import { cn, withDefaults } from "@/lib/cn";
 export function Input({ className, ...props }: React.ComponentProps<"input">) {
   return (
     <input
-      className={withDefaults("h-11 w-full rounded-md border border-border bg-bg-elevated px-3 text-base text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none md:text-sm md:pointer-fine:h-9", className)}
+      className={withDefaults("h-11 w-full rounded-md border border-border-control bg-bg-elevated px-3 text-base text-fg placeholder:text-fg-subtle hover:border-fg-subtle focus:border-accent focus:outline-none md:text-sm md:pointer-fine:h-9", className)}
       {...props}
     />
   );
@@ -18,7 +18,7 @@ export function Input({ className, ...props }: React.ComponentProps<"input">) {
 export function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
   return (
     <textarea
-      className={withDefaults("w-full rounded-md border border-border bg-bg-elevated px-3 py-2 text-base text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none md:text-sm", className)}
+      className={withDefaults("w-full rounded-md border border-border-control bg-bg-elevated px-3 py-2 text-base text-fg placeholder:text-fg-subtle hover:border-fg-subtle focus:border-accent focus:outline-none md:text-sm", className)}
       {...props}
     />
   );
@@ -32,7 +32,7 @@ export function Label({ className, children, htmlFor }: { className?: string; ch
   );
 }
 
-const SELECT = "h-11 w-full min-w-0 truncate rounded-md border border-border bg-bg-elevated px-2 text-base text-fg hover:border-border-strong focus:border-accent focus:outline-none disabled:opacity-50 md:text-sm md:pointer-fine:h-9";
+const SELECT = "h-11 w-full min-w-0 truncate rounded-md border border-border-control bg-bg-elevated px-2 text-base text-fg hover:border-fg-subtle focus:border-accent focus:outline-none disabled:opacity-50 md:text-sm md:pointer-fine:h-9";
 
 /** The one dropdown look (for a <select> rendered elsewhere, e.g. inside a form helper). Pass width overrides as className. */
 export function selectClass(className?: string): string {

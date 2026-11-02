@@ -23,6 +23,9 @@ test("a profile shows recent form and ranked progress per queue", async ({ page 
   expect(squares).toBeLessThanOrEqual(20);
   await expect(strip).toHaveAttribute("aria-label", /Last \d+ games: \d+ wins, \d+ losses/);
   await expect(strip).toHaveAttribute("href", `/players/${id}/matches`);
+  // Not by colour alone: a win's bar rises above the line, a loss's hangs below it.
+  const drop = await strip.locator("[data-result]").evaluateAll((els) => els.map((e) => ({ result: e.getAttribute("data-result"), offset: e.firstElementChild!.getBoundingClientRect().top - e.getBoundingClientRect().top })));
+  for (const d of drop) expect(d.offset > 8, `${d.result}: its bar's place`).toBe(d.result === "L");
   await expect(page.getByTestId("recent-form-trend")).toBeVisible();
   // Recent KDA beside the whole sample (sample-aware: an arrow only on enough games and a clear gap).
   await expect(page.getByTestId("recent-form-kda")).toContainText(/\d\.\d vs \d\.\d/);

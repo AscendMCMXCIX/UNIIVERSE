@@ -4,28 +4,28 @@ import * as React from "react";
 import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { timeAgo } from "@/lib/format";
-import { Button } from "@/components/ui/button";
+import { toolbarButtonClass } from "@/components/ui/filter-bar";
 import { InfoTip } from "@/components/ui/info-tip";
 import { useNow } from "@/components/ui/relative-time";
 import { CATCH_UP_LIMIT } from "@/domain/refresh";
 import type { DataStatus, DataStatusState } from "@/domain/data-status";
-import { usePlayerRefresh, type RefreshStep } from "./refresh-store";
+import { usePlayerRefresh, usePlayerRefreshState, type RefreshStep } from "./refresh-store";
 
 /*
   THE refresh control and data status of every page that shows Riot data (domain/data-status.ts),
-  in one place under the page's or section's heading (components/ui/section-header.tsx): a quiet
-  Refresh, for the player and those who manage Riot accounts, and one ⓘ beside it with the page's
-  status: the word (Up to date, Syncing, Partial data, Delayed, Needs attention), each part
+  in the same two places on each (components/ui/section-header.tsx): Refresh at the end of the
+  section's toolbar, after its filters, for the player and those who manage Riot accounts; and,
+  beside the line that says which games are counted, the status in a few quiet words ("Synced 5 min
+  ago", or Syncing, Partial data, Delayed, Needs attention) with one ⓘ holding the rest: each part
   (multikills counted in 21 of 43 games, and why), when the accounts were last checked and last read
   successfully, the newest game, and this visit's Refresh. A dot on the ⓘ marks anything short of Up
-  to date, so figures from only some of the games are never presented as complete. No banner, and
-  nothing else beside the button.
+  to date, so figures from only some of the games are never presented as complete. No banner.
 
   Refresh is real (components/ui/refresh-store.ts): Riot is read now, missing multikill counts are
   fetched in batches, the page is read again and the result arrives as a notification; the button
   says "Refreshing…" until then, on whichever tab of the profile is open. It is offered only where it
   can work: a page without the right to refresh, without a Riot account Riot can be asked about, or
-  on a server without Riot, shows the ⓘ alone.
+  on a server without Riot, shows the status alone.
 */
 
 /**
@@ -45,6 +45,16 @@ const STEP_TEXT: Record<RefreshStep, string> = {
   games: "Checking Riot for new games, rank and mastery…",
   multikills: `Fetching the multikill counts of up to ${CATCH_UP_LIMIT} older games…`,
   reloading: "Updating the figures…",
+};
+
+/**
+ * The step in a few words beside the scope line, so a Refresh shows which part is running: asking
+ * Riot (a new sync), then reading the page again from what is stored here (no further Riot request).
+ */
+const STEP_WORDS: Record<RefreshStep, string> = {
+  games: "Checking Riot…",
+  multikills: "Fetching multikills…",
+  reloading: "Updating the page…",
 };
 
 export interface DataRefreshTarget {
@@ -68,16 +78,18 @@ function statusTimes(status: DataStatus, now: Date): Array<{ label: string; valu
 }
 
 /**
- * Refresh under a page's or section's heading, and nothing beside it but one ⓘ with the page's
- * status. Without `refresh` (no right to refresh, nothing Riot can be asked about, no Riot on this
- * server), the ⓘ stays on its own; with `info={false}` (a list whose rows already show each
- * account's state), Refresh does.
+ * How current the section's Riot data is, beside its scope line: "Synced 5 min ago" when it is up to
+ * date (or the state in words when it is not: Syncing, Partial data, Delayed, Needs attention, with
+ * its dot), the step while this visit's Refresh runs ("Checking Riot…", then "Updating the page…"),
+ * and one ⓘ with every detail (each part, when the accounts were last checked and read, the newest
+ * game, this visit's Refresh). Quiet text: it informs, the Refresh button acts.
  */
-export function DataRefresh({ status, refresh, info = true, className, testId = "data-refresh" }: { status: DataStatus; refresh?: DataRefreshTarget | null; info?: boolean; className?: string; testId?: string }) {
+export function DataStatusNote({ status, refresh, className, testId = "data-refresh" }: { status: DataStatus; refresh?: DataRefreshTarget | null; className?: string; testId?: string }) {
   const now = useNow();
   const offered = !!refresh && status.state !== "none";
-  const { step, last, busy, press } = usePlayerRefresh(offered ? refresh!.playerId : null, refresh?.onNewGames);
+  const { step, last } = usePlayerRefreshState(offered ? refresh!.playerId : null);
   const times = statusTimes(status, now);
+  const synced = status.checkedAt ?? status.attemptedAt;
   // Inside the tooltip's bubble (a span), so spans only.
   const details = (
     <span className="block space-y-1.5">
@@ -118,24 +130,53 @@ export function DataRefresh({ status, refresh, info = true, className, testId = 
     </span>
   );
   const flagged = status.state !== "current" && status.state !== "none";
+  // The line's words: the Refresh's step while one runs; else the state when something is short of up to date, else when Riot was last read.
+  const words = step ? STEP_WORDS[step] : flagged ? status.label : status.state === "current" && synced ? `Synced ${timeAgo(synced, now)}` : null;
   return (
-    <div className={cn("flex w-fit items-center gap-3", className)} data-testid={testId} data-state={status.state}>
-      {offered ? (
-        <Button size="sm" variant="outline" onClick={press} aria-disabled={busy || undefined} data-testid={`${testId}-button`} data-busy={busy || undefined} data-step={step ?? undefined} className="border-border font-medium text-fg-muted hover:border-border-strong hover:text-fg">
-          <RefreshCw className={cn("h-3.5 w-3.5", busy && "motion-safe:animate-spin")} aria-hidden />
-          {busy ? "Refreshing…" : "Refresh"}
-        </Button>
-      ) : null}
-      {info ? (
-        <span className="relative inline-flex">
-          <InfoTip text={details} label={`Data status: ${status.label}`} testId={`${testId}-info`} />
-          {flagged ? <span className={cn("pointer-events-none absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full ring-2 ring-bg", DOT[status.state])} aria-hidden data-testid={`${testId}-flag`} /> : null}
+    <span className={cn("inline-flex min-w-0 items-center gap-1.5 text-xs text-fg-subtle", className)} data-testid={testId} data-state={status.state}>
+      {words ? (
+        <span className={cn("truncate", flagged && !step && "text-fg-muted")} suppressHydrationWarning data-testid={`${testId}-words`}>
+          {words}
         </span>
       ) : null}
+      <span className="relative inline-flex">
+        <InfoTip text={details} label={`Data status: ${status.label}`} testId={`${testId}-info`} />
+        {flagged ? <span className={cn("pointer-events-none absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full ring-2 ring-bg", DOT[status.state])} aria-hidden data-testid={`${testId}-flag`} /> : null}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * The section's Refresh, at the end of its toolbar (after the filters): it reads Riot now (new games,
+ * rank and mastery; missing multikill counts in batches), then the page is read again and the result
+ * arrives as a notification. Says "Refreshing…" with a turning icon until then and takes no second
+ * press meanwhile (a press during the server's cooldown is answered without asking it: refresh-store).
+ * Offered to the player and those who manage Riot accounts, where Riot can be asked; null elsewhere.
+ */
+export function RefreshButton({ status, refresh, className, testId = "data-refresh-button" }: { status: DataStatus; refresh?: DataRefreshTarget | null; className?: string; testId?: string }) {
+  const offered = !!refresh && status.state !== "none";
+  const { step, busy, press } = usePlayerRefresh(offered ? refresh!.playerId : null, refresh?.onNewGames);
+  if (!offered) return null;
+  return (
+    <>
+      <button
+        type="button"
+        onClick={press}
+        aria-disabled={busy || undefined}
+        title="Check Riot for new games, rank and mastery now, then update this page"
+        className={toolbarButtonClass(false, cn(busy && "cursor-progress text-fg", className))}
+        data-testid={testId}
+        data-busy={busy || undefined}
+        data-step={step ?? undefined}
+      >
+        <RefreshCw className={cn("h-4 w-4", busy && "motion-safe:animate-spin")} aria-hidden />
+        {busy ? "Refreshing…" : "Refresh"}
+      </button>
       {/* The steps, said to screen readers as they happen (the result arrives as a notification). */}
       <span className="sr-only" role="status" aria-live="polite">
         {step ? STEP_TEXT[step] : ""}
       </span>
-    </div>
+    </>
   );
 }

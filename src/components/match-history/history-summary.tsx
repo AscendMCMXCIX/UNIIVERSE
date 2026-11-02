@@ -35,7 +35,7 @@ export function HistorySummaryStrip({ summary, ladder, championsById }: { summar
   const champ = (id: string) => championsById[id] ?? { id, name: id, portraitUrl: "" };
   const kp = summary.killParticipation;
   return (
-    <section aria-label={`Your last ${form.recent.games} games in this list`} className="rounded-panel border border-border bg-surface/60 px-3 py-2.5" data-testid="history-summary">
+    <section aria-label={`Your last ${form.recent.games} games in this list`} className="rounded-panel border border-border bg-surface px-3 py-2.5" data-testid="history-summary">
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
         <div className="flex min-w-0 items-center gap-2">
           <span className="whitespace-nowrap text-xs text-fg-subtle">Last {form.recent.games}</span>

@@ -34,7 +34,7 @@ import { RemoteImage } from "@/components/ui/remote-image";
  */
 const STACKED = "max-md:flex-col max-md:gap-px md:@max-[13rem]/teams:flex-col md:@max-[13rem]/teams:gap-px";
 const RANK_LINE =
-  "ml-auto flex shrink-0 justify-center text-3xs leading-4 md:@min-[32rem]/teams:ml-0 max-md:ml-0 max-md:h-2.5 max-md:text-4xs max-md:leading-none md:@max-[13rem]/teams:ml-0 md:@max-[13rem]/teams:h-2.5 md:@max-[13rem]/teams:text-4xs md:@max-[13rem]/teams:leading-none";
+  "ml-auto flex shrink-0 justify-center text-2xs leading-4 md:@min-[32rem]/teams:ml-0 max-md:ml-0 max-md:h-2.5 max-md:text-4xs max-md:leading-none md:@max-[13rem]/teams:ml-0 md:@max-[13rem]/teams:h-2.5 md:@max-[13rem]/teams:text-4xs md:@max-[13rem]/teams:leading-none";
 
 const SIDE = {
   blue: { label: "Blue team", rail: "border-blue/70", dot: "bg-blue" },

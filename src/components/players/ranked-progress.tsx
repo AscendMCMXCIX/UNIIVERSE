@@ -20,7 +20,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
   const progress = rankProgress(queue, account.snapshots, now);
   const names = accountShortNames(accounts);
   return (
-    <section aria-labelledby="ranked-progress" className="h-full space-y-2.5 rounded-card border border-border bg-surface/60 p-4" data-testid="ranked-progress">
+    <section aria-labelledby="ranked-progress" className="h-full space-y-2.5 rounded-card border border-border bg-surface p-4" data-testid="ranked-progress">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h2 id="ranked-progress" className="flex items-center gap-1.5 text-lg font-semibold text-fg">
@@ -106,7 +106,7 @@ function ProgressBody({ progress, queue }: { progress: RankProgress; queue: Rank
         {progress.points.length >= 2 ? (
           <RankChart progress={progress} label={`${QUEUE_LABEL[queue]} rank over time`} />
         ) : (
-          // The chart's own proportions (600×150, at most 10rem tall): nothing is drawn from a single
+          // The chart's own proportions (400×100, at most 10rem tall): nothing is drawn from a single
           // reading or none, and nothing is invented to fill it.
           <div className="grid aspect-[4/1] max-h-40 w-full place-items-center rounded-md border border-dashed border-border px-3 text-center text-xs text-fg-muted" data-testid="ranked-chart-empty">
             Not enough rank history to display progression.
@@ -135,10 +135,11 @@ function EventRow({ e }: { e: RankEvent }) {
 /** A step line on the ladder scale, with tier bands labelled; segments are not joined across a reset. */
 function RankChart({ progress, label }: { progress: RankProgress; label: string }) {
   // Wide and short: the chart takes the column's width at its own proportions (no empty bands
-  // above and below), and its labels are drawn large enough to stay legible when scaled down.
-  const W = 600;
-  const H = 150;
-  const pad = { l: 92, r: 8, t: 10, b: 24 };
+  // above and below). Drawn at 400×100 so its 15-unit labels are 11px or more where the column is
+  // narrowest (about 300px wide, on a laptop beside Recent form) and about 17px where it is widest.
+  const W = 400;
+  const H = 100;
+  const pad = { l: 96, r: 6, t: 8, b: 20 };
   const pts = progress.points;
   const t0 = pts[0]!.at;
   const t1 = Math.max(pts.at(-1)!.at, t0 + 1);
@@ -181,10 +182,10 @@ function RankChart({ progress, label }: { progress: RankProgress; label: string 
             <title>{`${p.label} ${p.leaguePoints} LP · ${formatDate(new Date(p.at))}`}</title>
           </circle>
         ))}
-        <text x={pad.l} y={H - 4} className="fill-fg-subtle text-[15px]">
+        <text x={pad.l} y={H - 3} className="fill-fg-subtle text-[15px]">
           {formatDate(new Date(t0))}
         </text>
-        <text x={W - pad.r} y={H - 4} textAnchor="end" className="fill-fg-subtle text-[15px]">
+        <text x={W - pad.r} y={H - 3} textAnchor="end" className="fill-fg-subtle text-[15px]">
           {formatDate(new Date(t1))}
         </text>
       </svg>

@@ -2,7 +2,7 @@ import { rankShortLabel, type ParticipantRank } from "@/domain/known-rank";
 import { cn } from "@/lib/cn";
 
 /** Each ranked tier's text colour (globals.css --color-tier-*), as literal class names so Tailwind keeps them. */
-const TIER_TEXT: Record<string, string> = {
+export const TIER_TEXT: Record<string, string> = {
   IRON: "text-tier-iron",
   BRONZE: "text-tier-bronze",
   SILVER: "text-tier-silver",

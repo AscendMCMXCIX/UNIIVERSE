@@ -26,7 +26,7 @@ import { ModeElsewhere, OverviewFilters } from "@/components/players/overview-fi
 import { HistoryRefineFields, historyRefinements } from "./history-refine-fields";
 import { EncounterWindow, MatchViewSwitch } from "./encounters-view";
 import type { DataStatus } from "@/domain/data-status";
-import { DataRefresh, type DataRefreshTarget } from "@/components/ui/data-status";
+import { DataStatusNote, RefreshButton, type DataRefreshTarget } from "@/components/ui/data-status";
 import { SectionHeader } from "@/components/ui/section-header";
 import { useNow } from "@/components/ui/relative-time";
 
@@ -143,7 +143,14 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
             </span>
             {members.with.length || members.against.length ? (
               <span className="block truncate text-2xs" title={[members.with.length ? `With team members: ${members.with.map((m) => m.name).join(", ")}` : null, members.against.length ? `Against team members: ${members.against.map((m) => m.name).join(", ")}` : null].filter(Boolean).join(". ")} data-testid="match-members" data-with={members.with.length} data-against={members.against.length}>
-                {members.with.length ? <span className="font-medium text-accent">With <MemberNames names={members.with.map((m) => m.name)} /></span> : null}
+                {members.with.length ? (
+                  <span className="text-fg-subtle">
+                    With{" "}
+                    <span className="font-medium text-fg-muted">
+                      <MemberNames names={members.with.map((m) => m.name)} />
+                    </span>
+                  </span>
+                ) : null}
                 {members.with.length && members.against.length ? <span className="text-fg-subtle"> · </span> : null}
                 {members.against.length ? <span className="text-fg-muted">Against <MemberNames names={members.against.map((m) => m.name)} /></span> : null}
               </span>
@@ -151,14 +158,14 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
           </span>
           {/* KDA: the primary performance figure */}
           <span className="text-right leading-snug @min-[50rem]/mh:text-left">
-            <span className="block whitespace-nowrap text-base font-semibold tabular-nums text-fg">{kda}</span>
+            <span className="block whitespace-nowrap text-lg font-semibold tabular-nums leading-snug text-fg">{kda}</span>
             <span className={cn("block text-xs tabular-nums", row.perfect ? "text-good" : (row.kda ?? 0) >= 3 ? "text-fg-muted" : "text-fg-subtle")}>{ratio}</span>
             {/* The game's largest multikill, quietly (see MultikillTag), and at most one "best" figure. */}
             {row.multikill || standout ? (
               <span className="mt-0.5 flex flex-wrap items-center justify-end gap-x-1.5 gap-y-0.5 @min-[50rem]/mh:justify-start">
                 {row.multikill ? <MultikillTag size={row.multikill} /> : null}
                 {standout ? (
-                  <span className="whitespace-nowrap rounded border border-accent/40 px-1 text-3xs font-semibold leading-4 text-accent" title={standoutTitle} data-testid="match-standout" data-key={standout.key}>
+                  <span className="whitespace-nowrap rounded border border-accent/40 px-1 text-2xs font-semibold leading-4 text-accent" title={standoutTitle} data-testid="match-standout" data-key={standout.key}>
                     Best {STANDOUT_SHORT[standout.key]} in {standout.games}
                     <span className="sr-only">: {standoutTitle}</span>
                   </span>
@@ -190,7 +197,7 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
         </span>
       </div>
       {expanded ? (
-        <div id={regionId} role="region" aria-label={`${tone.word} on ${champion.name}: match details`} className="rounded-b-panel border border-t-0 border-border bg-surface/70 p-3 motion-safe:rise-in sm:p-4" data-testid="match-expanded">
+        <div id={regionId} role="region" aria-label={`${tone.word} on ${champion.name}: match details`} className="rounded-b-panel border border-t-0 border-border bg-bg-elevated p-3 motion-safe:rise-in sm:p-4" data-testid="match-expanded">
           <InlineMatch playerId={playerId} matchId={row.matchId} champ={champ} />
           {/* The way back from the end of a long breakdown: closes the game and brings its card
               into view (the list goes on from where it was), with the focus on it. */}
@@ -460,15 +467,16 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
   return (
     <section className="space-y-3" aria-labelledby="match-history" data-testid="match-history" data-accounts-linked={data.accountsLinked} data-total={data.total} data-ready={interactive ? "true" : undefined}>
       {/* Browsing individual games: the profile's one heading layout (as Overview and All
-          Champions): the title and the switch to the players met (Encounters), Refresh with the
-          data status under them, the filters on the right (the scope they set is readable in them);
-          then a line about the newest games, then the games. Season totals and averages belong to
-          the profile's Overview. */}
+          Champions): the title and the switch to the players met (Encounters), the data status
+          under them, and the toolbar: the filters (the scope they set is readable in them), then
+          Refresh; then a line about the newest games, then the games. Season totals and averages
+          belong to the profile's Overview. */}
       <SectionHeader
         id="match-history"
         title="Match History"
         aside={<MatchViewSwitch view="games" basePath={basePath} filter={f} />}
-        status={status ? <DataRefresh status={status} refresh={refresh ? { ...refresh, onNewGames: data.page > 1 ? { label: "Show the newest", run: () => go({ page: "1" }) } : undefined } : null} /> : null}
+        status={status ? <DataStatusNote status={status} refresh={refresh} /> : null}
+        refresh={status ? <RefreshButton status={status} refresh={refresh ? { ...refresh, onNewGames: data.page > 1 ? { label: "Show the newest", run: () => go({ page: "1" }) } : undefined } : null} /> : null}
         controls={
           <div aria-busy={pending} className="min-w-0">
             <OverviewFilters

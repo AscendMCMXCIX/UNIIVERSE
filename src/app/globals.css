@@ -2,31 +2,37 @@
 
 /*
   UNIIVERSE design tokens.
-  Deep-space navy with the brand's cyan as the single accent, flat panels, no decoration inside
-  the work surfaces. The brand glow lives only at the page edges and on the sign-in pages.
+  Neutral charcoal with a faint cool undertone, in clear steps: the page, the panels and cards on
+  it, raised rows and controls, the selected or hovered. Text in three greys (off-white, a readable
+  grey, a quieter grey that still meets 4.5:1 on every surface). Colour carries meaning, not
+  decoration: the brand accent marks what can be pressed and what is chosen, blue and red the two
+  sides of a match and its result, good/warn/bad states. The brand's light lives at the page edges,
+  in a player's banner and on the sign-in pages, never behind dense data.
 */
 @theme {
-  --color-bg: #080c24;
-  --color-bg-elevated: #0c1130;
-  --color-surface: #10163a;
-  --color-surface-2: #161e4a;
-  --color-surface-3: #1e295f;
-  --color-border: #222c5f;
-  --color-border-strong: #34428c;
-  --color-fg: #e8edfb;
-  --color-fg-muted: #9aa8d4;
-  --color-fg-subtle: #7b89b9; /* 4.5:1 on panels and cards (WCAG AA for small text) */
+  --color-bg: #0d0e12;
+  --color-bg-elevated: #1a1c21; /* menus, popovers and fields: a step above the panel they sit on */
+  --color-surface: #16181d;
+  --color-surface-2: #1e2126;
+  --color-surface-3: #282b32;
+  --color-border: #2b2f37;
+  --color-border-strong: #464c58;
+  --color-border-control: #666c78; /* the edge of a field or toolbar control: 3:1 against the page, panels and popovers (WCAG 1.4.11) */
+  --color-fg: #edeef1;
+  --color-fg-muted: #b0b5be;
+  --color-fg-subtle: #8c929d; /* 4.5:1 on every surface, surface-3 included (WCAG AA for small text) */
   --color-accent: #1fc3ff; /* brand cyan */
   --color-accent-strong: #7fdcff;
   /* Branding can change these (Admin → Branding); defaults keep the original look. */
   --color-accent-2: #58a8f2;
   --color-highlight: #7fdcff;
-  --color-blue: #5f8ff5;
-  --color-red: #e0566b;
-  --color-good: #3fc98a;
-  --color-warn: #e8b64a;
-  --color-bad: #e0566b;
-  --color-info: #58a8f2;
+  /* A match's two sides and its result (Victory blue, Defeat red), lifted for text on the charcoal. */
+  --color-blue: #6e9dff;
+  --color-red: #f26b7e;
+  --color-good: #45cf8f;
+  --color-warn: #ebba4f;
+  --color-bad: #f26b7e;
+  --color-info: #5eaef5;
 
   /* --font-inter: Inter and its size-matched fallback (app/layout.tsx). */
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -58,9 +64,8 @@
     only the size: the line height stays the surrounding one. src/app/design-tokens.test.ts refuses
     font sizes in px and arbitrary values that repeat one of these. See docs/STANDARDS.md.
   */
-  --text-4xs: 0.5625rem; /* 9px: letters inside small tiles and badges (initials, a count) */
-  --text-3xs: 0.625rem; /* 10px: dense chips, badges and small print */
-  --text-2xs: 0.6875rem; /* 11px: captions, column headings, labels and metadata */
+  --text-4xs: 0.625rem; /* 10px: letters inside small tiles (initials, a count); never running text */
+  --text-2xs: 0.6875rem; /* 11px: the smallest text: chips, badges, captions, column headings, labels, metadata */
   --text-md: 0.9375rem; /* 15px: a list row's primary value or name */
   --text-figure: 1.75rem; /* 28px: headline figures (from sm up) */
 
@@ -118,8 +123,9 @@ html, body {
 */
 
 body {
-  /* The wallpaper's cyan horizon, kept faint so panels stay flat and legible. */
-  background-image: radial-gradient(ellipse 70% 45% at 50% 115%, color-mix(in srgb, var(--color-accent) 16%, transparent), transparent 70%), radial-gradient(ellipse 45% 35% at 100% 0%, color-mix(in srgb, var(--color-accent-2) 7%, transparent), transparent 70%);
+  /* A trace of the brand's light at the page's bottom edge and top corner: atmosphere only, faint
+     enough that the panels and the text on them keep a neutral ground. */
+  background-image: radial-gradient(ellipse 70% 45% at 50% 115%, color-mix(in srgb, var(--color-accent) 7%, transparent), transparent 70%), radial-gradient(ellipse 45% 35% at 100% 0%, color-mix(in srgb, var(--color-accent-2) 4%, transparent), transparent 70%);
   background-attachment: fixed;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;

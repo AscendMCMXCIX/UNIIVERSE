@@ -156,7 +156,7 @@ export function ChampionDetail({
                 onTab(next);
                 document.getElementById(`champion-tab-${next}`)?.focus();
               }}
-              className={cn("-mb-px h-10 border-b-2 px-3 text-sm font-medium transition-colors", sel.tab === key ? "border-accent text-fg" : "border-transparent text-fg-muted hover:text-fg")}
+              className={cn("-mb-px h-10 border-b-2 px-3 text-sm font-medium transition-colors", sel.tab === key ? "border-accent text-fg" : "border-transparent text-fg-muted hover:border-border-strong hover:text-fg")}
               data-testid={`champion-tab-${key}`}
             >
               {label}

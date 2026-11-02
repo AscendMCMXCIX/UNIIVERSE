@@ -11,6 +11,8 @@ import { cn } from "@/lib/cn";
 import { matchRankQueue, rankBadgeLabel, rankTimingCounts, type ParticipantRank } from "@/domain/known-rank";
 import { InfoTip } from "@/components/ui/info-tip";
 import { RankEmblem } from "@/components/players/rank-emblem";
+import { Badge } from "@/components/ui/badge";
+import { TIER_TEXT } from "./rank-short";
 import { PlayerLink } from "./player-link";
 import { IconImg, ItemRow } from "./icon-img";
 
@@ -70,17 +72,27 @@ export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, qu
     return x ? (x.teamMember ?? x.name?.split("#")[0] ?? champ(x.championId).name) : "Player";
   };
   return (
-    <section className={cn("overflow-hidden rounded-panel border", team.win ? "border-blue/30" : "border-red/30")} data-testid={`team-${team.side}`} aria-label={`${team.side === "blue" ? "Blue" : "Red"} team, ${team.win ? "victory" : "defeat"}`}>
-      <header className={cn("flex flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-1.5 text-xs", team.win ? "bg-blue/10" : "bg-red/10")}>
-        <span className="font-semibold uppercase tracking-label">
-          <span className={team.side === "blue" ? "text-blue" : "text-red"}>{team.side === "blue" ? "Blue side" : "Red side"}</span> · {team.win ? "Victory" : "Defeat"}
+    <section className={cn("overflow-hidden rounded-panel border bg-surface", team.win ? "border-blue/35" : "border-red/35")} data-testid={`team-${team.side}`} aria-label={`${team.side === "blue" ? "Blue" : "Red"} team, ${team.win ? "victory" : "defeat"}`}>
+      {/* The team's band: its side and result first (the word, never the colour alone), then its totals, each number brighter than its word. */}
+      <header className={cn("flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-3 py-2 text-xs", team.win ? "border-blue/25 bg-blue/10" : "border-red/25 bg-red/10")}>
+        <span className="flex items-center gap-2">
+          <span className={cn("font-semibold uppercase tracking-label", team.side === "blue" ? "text-blue" : "text-red")}>{team.side === "blue" ? "Blue side" : "Red side"}</span>
+          <Badge tone={team.win ? "blue" : "red"} className="font-semibold">
+            {team.win ? "Victory" : "Defeat"}
+          </Badge>
         </span>
-        <span className="flex flex-wrap gap-x-3 text-fg-muted">
-          <span>{team.kills} kills</span>
-          {team.gold !== null ? <span>{formatKilo(team.gold)} gold</span> : null}
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-fg-muted">
+          <span>
+            <span className="font-semibold tabular-nums text-fg">{team.kills}</span> kills
+          </span>
+          {team.gold !== null ? (
+            <span>
+              <span className="font-semibold tabular-nums text-fg">{formatKilo(team.gold)}</span> gold
+            </span>
+          ) : null}
           {objectives.map(([k, one, many]) => (
             <span key={k}>
-              {team.objectives[k]} {team.objectives[k] === 1 ? one : many}
+              <span className="font-semibold tabular-nums text-fg">{team.objectives[k]}</span> {team.objectives[k] === 1 ? one : many}
             </span>
           ))}
           {team.bans.length ? (
@@ -101,7 +113,7 @@ export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, qu
         </div>
       ) : null}
       {/* Column names over the one-line layout only: below it each figure says what it is. */}
-      <div className={cn(ROW, "hidden border-b border-border/70 px-3 py-1 text-3xs font-medium uppercase tracking-label text-fg-subtle @min-[60rem]/bd:grid")} aria-hidden>
+      <div className={cn(ROW, "hidden border-b border-border bg-surface-2/60 px-3 py-1.5 text-2xs font-semibold uppercase tracking-label text-fg-subtle @min-[60rem]/bd:grid")} aria-hidden>
         <span>Player</span>
         <span>KDA · KP</span>
         <span>Damage</span>
@@ -110,7 +122,7 @@ export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, qu
         <span>Vision</span>
         <span>Items</span>
       </div>
-      <ul className="divide-y divide-border/70">
+      <ul className="divide-y divide-border">
         {team.participants.map((x, i) => (
           <ParticipantRow key={i} x={x} champ={champ} maxDamage={maxDamage} group={groupOf.get(x.slot) ?? null} lane={laneSlot !== null && x.slot === laneSlot} rank={rankOf(x)} queueId={queueId} checking={checking} met={onMeet ? (met?.get(x.slot) ?? null) : null} onMeet={onMeet ?? null} />
         ))}
@@ -127,7 +139,7 @@ export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, qu
  * One being checked pulses until the answer arrives.
  */
 function RankBadge({ rank, queueId, checking }: { rank: ParticipantRank; queueId: number | null; checking: boolean }) {
-  const base = "inline-flex h-4 shrink-0 items-center gap-1 rounded border px-1 text-3xs font-medium leading-4";
+  const base = "inline-flex h-4 shrink-0 items-center gap-1 rounded border px-1 text-2xs font-medium leading-4";
   if (checking && rank.state === "unknown")
     return (
       <span className={cn(base, "w-10 animate-pulse border-dashed border-border motion-reduce:animate-none")} data-testid="participant-rank" data-state="checking">
@@ -135,8 +147,10 @@ function RankBadge({ rank, queueId, checking }: { rank: ParticipantRank; queueId
       </span>
     );
   const { text, queueMark, spoken, title, aroundGame } = rankBadgeLabel(rank, queueId);
+  // The tier in its own colour (5:1 or more on the panels) when it is the rank around the game; one read away from it stays in the quiet caption colour.
+  const tierColour = rank.state === "ranked" && rank.tier && aroundGame !== false ? (TIER_TEXT[rank.tier] ?? "text-fg-muted") : null;
   return (
-    <span className={cn(base, rank.state === "ranked" ? "border-border text-fg-muted" : rank.state === "unranked" ? "border-border text-fg-subtle" : "border-dashed border-border text-fg-subtle")} title={title} data-testid="participant-rank" data-state={rank.state} data-queue={rank.queue ?? undefined} data-timing={rank.timing ?? undefined}>
+    <span className={cn(base, rank.state === "ranked" ? cn("border-border-strong/70", tierColour ?? "text-fg-muted") : rank.state === "unranked" ? "border-border text-fg-subtle" : "border-dashed border-border text-fg-subtle")} title={title} data-testid="participant-rank" data-state={rank.state} data-queue={rank.queue ?? undefined} data-timing={rank.timing ?? undefined}>
       {rank.state === "ranked" ? <RankEmblem tier={rank.tier} className="-ml-px h-3 w-3" /> : null}
       <span aria-hidden className="whitespace-nowrap" data-testid="participant-rank-text">
         {queueMark ? <span className="text-fg-subtle">{queueMark} </span> : null}
@@ -301,7 +315,7 @@ function MetChip({ met, onOpen }: { met: MatchMeeting; onOpen: () => void }) {
       type="button"
       onClick={onOpen}
       title={`Met in ${formatCount(met.games)} recorded games, this one included (${sides}). Opens their encounters.`}
-      className="relative shrink-0 rounded border border-border px-1 text-3xs font-medium leading-4 tabular-nums text-fg-muted transition-colors hover:border-accent/50 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']"
+      className="relative shrink-0 rounded border border-border px-1 text-2xs font-medium leading-4 tabular-nums text-fg-muted transition-colors hover:border-accent/50 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']"
       data-testid="participant-met"
       data-games={met.games}
     >
@@ -319,13 +333,13 @@ function ParticipantRow({ x, champ, maxDamage, group, lane, rank, queueId, check
   const kda = x.deaths === 0 ? "Perfect" : x.kda.toFixed(2);
   const share = x.damageShare === null ? null : pctText(x.damageShare);
   return (
-    <li className={cn("relative px-3 py-1.5", ROW, x.isPlayer && "bg-accent/10")} data-testid="participant" data-player={x.isPlayer || undefined} data-group={group ? group.index : undefined} data-lane={lane || undefined}>
+    <li className={cn("relative px-3 py-2 transition-colors", ROW, x.isPlayer ? "bg-accent/10" : "hover:bg-surface-2/70")} data-testid="participant" data-player={x.isPlayer || undefined} data-group={group ? group.index : undefined} data-lane={lane || undefined}>
       {group ? <span className={cn("absolute inset-y-1.5 left-0 w-[3px] rounded-r-full", GROUP_MARK[group.index] ?? GROUP_MARK[0])} aria-hidden /> : null}
       <span className="flex min-w-0 items-center gap-2">
         <span className="relative shrink-0">
           <ChampionPortrait champion={c} size="sm" />
           {x.champLevel !== null ? (
-            <span className="absolute -bottom-1 -right-1 rounded bg-bg px-0.5 text-3xs font-semibold tabular-nums text-fg-muted" title={`Level ${x.champLevel}`}>
+            <span className="absolute -bottom-1 -right-1 rounded bg-bg px-0.5 text-2xs font-semibold tabular-nums text-fg-muted" title={`Level ${x.champLevel}`}>
               {x.champLevel}
             </span>
           ) : null}
@@ -344,13 +358,13 @@ function ParticipantRow({ x, champ, maxDamage, group, lane, rank, queueId, check
             </span>
             {met && onMeet ? <MetChip met={met} onOpen={() => onMeet(x, met.key)} /> : null}
           </span>
-          <span className="flex min-w-0 items-center gap-1 text-2xs text-fg-subtle">
+          <span className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-fg-muted">
             <span className="truncate">
               {c.name}
               {x.teamMember && !x.isPlayer ? <span className="text-accent"> · {x.teamMember}</span> : null}
             </span>
             {lane ? (
-              <span className="shrink-0 rounded border border-border px-1 text-3xs leading-4 text-fg-muted" title="The enemy in the same recorded position" data-testid="lane-opponent-mark">
+              <span className="shrink-0 rounded border border-border px-1 text-2xs leading-4 text-fg-muted" title="The enemy in the same recorded position" data-testid="lane-opponent-mark">
                 Lane
               </span>
             ) : null}
@@ -362,7 +376,7 @@ function ParticipantRow({ x, champ, maxDamage, group, lane, rank, queueId, check
         <span className="block text-sm font-semibold tabular-nums">
           {x.kills}/{x.deaths}/{x.assists}
         </span>
-        <span className="block whitespace-nowrap text-2xs tabular-nums text-fg-subtle">
+        <span className="block whitespace-nowrap text-xs tabular-nums text-fg-muted">
           {kda}
           {x.deaths === 0 ? "" : " KDA"}
           {x.killParticipation !== null ? ` · ${pctText(x.killParticipation)}` : ""}
@@ -372,31 +386,32 @@ function ParticipantRow({ x, champ, maxDamage, group, lane, rank, queueId, check
       {/* Damage, then (one-line layout) gold, CS and vision in their own columns; grouped under the
           bar below it. On a phone the items lead the damage's line, so a row is three lines. */}
       <span className="leading-tight @max-[36rem]/bd:col-span-2" title={x.damage !== null ? `${formatCount(x.damage)} damage to champions${share ? `, ${share} of the team's` : ""}` : undefined}>
-        <span className="flex items-center gap-1.5 text-2xs tabular-nums text-fg-muted">
+        <span className="flex items-center gap-1.5 text-xs tabular-nums text-fg-muted">
           <span className="shrink-0 @min-[36rem]/bd:hidden" data-testid="participant-items-phone">
             <ItemRow items={x.items} size={18} />
           </span>
           <span className="whitespace-nowrap">
             <span className="font-medium text-fg">{x.damage === null ? "—" : formatKilo(x.damage)}</span> dmg{share ? ` · ${share}` : ""}
           </span>
+          {/* Everyone's bar in a quiet grey, the player's own in the accent: who did the most stands out by length, the player by colour and their bold name. */}
           <span className="h-1.5 min-w-6 flex-1 overflow-hidden rounded-full bg-surface-3" aria-hidden>
-            <span className="block h-full rounded-full bg-accent/70" style={{ width: `${Math.round(((x.damage ?? 0) / maxDamage) * 100)}%` }} />
+            <span className={cn("block h-full rounded-full", x.isPlayer ? "bg-accent" : "bg-fg-muted/55")} style={{ width: `${Math.round(((x.damage ?? 0) / maxDamage) * 100)}%` }} />
           </span>
         </span>
-        <span className="block truncate text-2xs tabular-nums text-fg-subtle @min-[60rem]/bd:hidden">
+        <span className="block truncate text-xs tabular-nums text-fg-subtle @min-[60rem]/bd:hidden">
           {x.gold === null ? "—" : formatKilo(x.gold)} gold · {intText(x.cs)} CS ({decText(x.csPerMin)}) · {intText(x.vision)} vision
         </span>
       </span>
       <span className="hidden leading-tight @min-[60rem]/bd:block" data-testid="participant-gold">
-        <span className="block text-xs font-medium tabular-nums text-fg">{x.gold === null ? "—" : formatKilo(x.gold)}</span>
+        <span className="block text-sm font-medium tabular-nums text-fg">{x.gold === null ? "—" : formatKilo(x.gold)}</span>
         <span className="block text-2xs tabular-nums text-fg-subtle">{decText(x.goldPerMin, 0)}/min</span>
       </span>
       <span className="hidden leading-tight @min-[60rem]/bd:block" data-testid="participant-cs">
-        <span className="block text-xs font-medium tabular-nums text-fg">{intText(x.cs)}</span>
+        <span className="block text-sm font-medium tabular-nums text-fg">{intText(x.cs)}</span>
         <span className="block text-2xs tabular-nums text-fg-subtle">{decText(x.csPerMin)}/min</span>
       </span>
       <span className="hidden leading-tight @min-[60rem]/bd:block" title={x.wardsPlaced !== null ? `${x.wardsPlaced} wards placed${x.stats?.wardsKilled !== undefined ? `, ${x.stats.wardsKilled} destroyed` : ""}` : undefined}>
-        <span className="block text-xs font-medium tabular-nums text-fg">{intText(x.vision)}</span>
+        <span className="block text-sm font-medium tabular-nums text-fg">{intText(x.vision)}</span>
         <span className="block text-2xs tabular-nums text-fg-subtle">{x.wardsPlaced === null ? "" : `${x.wardsPlaced} wards`}</span>
       </span>
       <span className="hidden @min-[36rem]/bd:block">

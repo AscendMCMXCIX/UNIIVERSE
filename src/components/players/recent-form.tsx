@@ -9,8 +9,8 @@ import { cn } from "@/lib/cn";
 const fmt = (m: Pick<FormMetric, "key" | "recent">) => (m.recent === null ? "—" : m.recent.toFixed(m.key === "vision" ? 0 : 1));
 
 /**
- * Recent form as a compact card: the last results of the current filter as squares (oldest on the
- * left, newest on the right; the strip opens Match History), the recent win rate beside the whole
+ * Recent form as a compact card: the last results of the current filter as bars (oldest on the
+ * left, newest on the right; a win above the line, a loss below it; the strip opens Match History), the recent win rate beside the whole
  * sample, and the same comparison for KDA and CS/min (vision for supports). "Better lately" /
  * "worse lately" only appear with enough games on both sides. Hidden below five games.
  */
@@ -21,7 +21,7 @@ export function RecentFormStrip({ form, championsById, historyHref, narrowed = n
   const pct = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)}%`);
   const champ = (id: string) => championsById[id] ?? { id, name: id, portraitUrl: "" };
   return (
-    <section aria-labelledby="recent-form-title" className="@container flex h-full flex-col gap-2.5 rounded-card border border-border bg-surface/60 p-4" data-testid="recent-form">
+    <section aria-labelledby="recent-form-title" className="@container flex h-full flex-col gap-2.5 rounded-card border border-border bg-surface p-4" data-testid="recent-form">
       <div className="flex items-baseline justify-between gap-2">
         <h2 id="recent-form-title" className="text-lg font-semibold text-fg">
           Recent form
@@ -33,9 +33,12 @@ export function RecentFormStrip({ form, championsById, historyHref, narrowed = n
           Filtered: {narrowed}
         </p>
       ) : null}
-      <Link href={historyHref} className="flex min-h-6 flex-wrap items-center gap-0.5 rounded-sm" aria-label={`Last ${strip.length} games: ${wins} wins, ${strip.length - wins} losses, newest last. Open Match History`} data-testid="recent-form-strip">
+      {/* A win rises above the line and a loss hangs below it, so the run reads without its colours too. */}
+      <Link href={historyHref} className="flex flex-wrap items-center gap-0.5 rounded-sm" aria-label={`Last ${strip.length} games: ${wins} wins, ${strip.length - wins} losses, newest last. Open Match History`} data-testid="recent-form-strip">
         {strip.map((g) => (
-          <span key={g.matchId} title={`${g.win ? "Win" : "Loss"} · ${champ(g.championId).name}`} className={cn("h-6 w-3 rounded-[3px]", g.win ? "bg-blue/85" : "bg-red/75")} data-result={g.win ? "W" : "L"} />
+          <span key={g.matchId} title={`${g.win ? "Win" : "Loss"} · ${champ(g.championId).name}`} className={cn("flex h-8 w-3 flex-col", g.win ? "justify-start" : "justify-end")} data-result={g.win ? "W" : "L"}>
+            <span className={cn("h-4 rounded-[3px]", g.win ? "bg-blue/85" : "bg-red/75")} />
+          </span>
         ))}
       </Link>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm @md:grid-cols-4" data-testid="recent-form-rates">

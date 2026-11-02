@@ -141,7 +141,7 @@ export function ResourcesManager({ initial }: { initial: ManagedResources }) {
       </div>
 
       {data.removed.length ? (
-        <section aria-labelledby="removed-defaults" className="space-y-2 rounded-panel border border-border bg-surface/60 p-3" data-testid="resources-removed">
+        <section aria-labelledby="removed-defaults" className="space-y-2 rounded-panel border border-border bg-surface p-3" data-testid="resources-removed">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 id="removed-defaults" className="text-sm font-semibold text-fg">
               Removed defaults <span className="font-normal text-fg-muted">· {data.removed.length}</span>

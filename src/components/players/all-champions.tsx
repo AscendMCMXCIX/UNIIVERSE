@@ -23,7 +23,7 @@ import { ChampionWindow, useChampionWindow } from "./champion-window";
 import { MULTIKILL_KINDS, compareMultikills, multikillCoverage, rarestMultikill, type MultikillCounts, type MultikillSummary } from "@/domain/multikills";
 import { MULTIKILL_HELP, MULTIKILL_SHORT } from "./multikill-summary";
 import { InfoTip } from "@/components/ui/info-tip";
-import { DataRefresh, type DataRefreshTarget } from "@/components/ui/data-status";
+import { DataStatusNote, RefreshButton, type DataRefreshTarget } from "@/components/ui/data-status";
 import { SectionHeader } from "@/components/ui/section-header";
 import type { DataStatus } from "@/domain/data-status";
 
@@ -105,7 +105,7 @@ function multikillText(c: OverviewCard): string {
 function PartialMark() {
   return (
     <>
-      <span className="ml-0.5 align-super text-3xs font-semibold text-warn" aria-hidden>
+      <span className="ml-0.5 align-super text-2xs font-semibold text-warn" aria-hidden>
         *
       </span>
       <span className="sr-only"> (from some of its games only)</span>
@@ -336,7 +336,8 @@ export function AllChampions({ data, basePath, championsById, playerId, detail, 
             {f.role ? ` · as ${ROLE_LABELS[f.role]}` : ""}
           </p>
         }
-        status={status ? <DataRefresh status={status} refresh={refresh} /> : null}
+        status={status ? <DataStatusNote status={status} refresh={refresh} /> : null}
+        refresh={status ? <RefreshButton status={status} refresh={refresh} /> : null}
         controls={<OverviewFilters basePath={basePath} filter={f} seasons={data.seasons} currentSeason={data.currentSeason} champions={[]} accounts={data.accountOptions} showChampions={false} modeCounts={data.modes.counts} testId="all-champions-filters" />}
       />
       {/* The search keeps at least 12rem: on narrow phones it takes its own line above Sort by. */}

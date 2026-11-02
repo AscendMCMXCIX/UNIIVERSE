@@ -271,7 +271,7 @@ export function taglineProblem(tagline: string): string | null {
 
 // ── Colour helpers ──────────────────────────────────────────────────────────────────────────────
 
-const SURFACE = "#10163a";
+const SURFACE = "#16181d";
 
 function rgb(h: string): [number, number, number] {
   const n = parseInt(h.slice(1), 16);

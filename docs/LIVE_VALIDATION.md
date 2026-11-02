@@ -351,7 +351,7 @@ Never erase a real member to test this: the erasure itself is tested on syntheti
 - [ ] Data jobs → `smoke perf-probe`: every step passes, and `deployment.commit` is the merge commit.
 - [ ] On your profile, on a computer and on a phone, open Overview, All Champions, Match History and its Encounters:
   - no status banner on any of them;
-  - **Refresh** (an icon and the word) sits under the section's title, at the same place on every tab, with an ⓘ beside it and nothing else;
+  - **Refresh** (an icon and the word) sits under the section's title, at the same place on every tab, with an ⓘ beside it and nothing else (since 2 Nov 2026 at the toolbar's end, after the filters: see "Readability, colour and the toolbar's Refresh");
   - the filters stay on the right (on a phone, under Refresh).
 - [ ] Press **Refresh**:
   - it reads "Refreshing…" until the figures are in, and ends with a notification of what happened (new games, no new games, multikill counts fetched, or when to try again), never "Up to date" for the press alone;
@@ -360,7 +360,7 @@ Never erase a real member to test this: the erasure itself is tested on syntheti
 - [ ] Press it again within 2 minutes: "Refreshed … · try again in …", and nothing new is asked of Riot.
 - [ ] Press it, then change tab straight away: the next tab shows "Refreshing…", and the result arrives there.
 - [ ] A teammate's profile (not as an administrator): the ⓘ alone, no Refresh.
-- [ ] Riot accounts: the same Refresh under the panel's title; the account menu has no "Sync now"; Retry sync (only on a Delayed or Needs attention account) right after a Refresh says the account was checked recently.
+- [ ] Riot accounts: the same Refresh under the panel's title (since 2 Nov 2026 at its right, on its row); the account menu has no "Sync now"; Retry sync (only on a Delayed or Needs attention account) right after a Refresh says the account was checked recently.
 - [ ] Team → Leaderboards: an ⓘ under the title with the team's status ("Every member's games, rank and mastery are up to date", or how many member accounts are being read or delayed, without names) and "The boards follow the account syncs"; no Refresh, and no "Updated from the last account sync" line.
 
 ## Total kills (22 Oct 2026)
@@ -549,3 +549,15 @@ On the live site, after the deployment:
 - [ ] Timeline on a phone, in a long game: the lettered objectives and your kill and death marks never overlap (a busy minute takes more rows); tap each one and the reading names it, also when the tap lands just beside the mark.
 - [ ] Encounters: the (i) "How encounters are counted" says how the highlights are chosen. "Toughest record against" is the first player of Opponents sorted by Worst record with a minimum of 5 (ties: more games against, then the most recent), and appears only when that record is a losing one; "Best record alongside" only with a winning one.
 - [ ] **Riot images (manual: the development sandbox cannot reach the live site or Riot's image servers, so they were never seen there).** On a phone and a computer, a profile's Match History shows champion portraits on the cards. Open a game: the scoreboard shows champion portraits, items, summoner spells, runes and rank crests; Build shows the item steps and the rune page. In the browser's Network tab nothing to `ddragon.leagueoflegends.com` (champions, items, spells, runes) or `raw.communitydragon.org` (rank crests, role icons) fails. If one does, its fallback shows instead of a broken image: letters for a champion, an empty grey slot for an item, spell or rune, a dot in the tier's colour for a rank crest.
+
+## Readability, colour and the toolbar's Refresh (2 Nov 2026)
+
+On the live site, after the deployment (the sandbox renders demo data without Riot's images, so these are the checks it could not make):
+- [ ] Data jobs → `smoke`: every step passes, `deployment.commit` is the merge commit, and the manifest's `theme_color` is `#0d0e12`. If it still reads `#080c24`, the install saved the old navy as its own colours: Admin → Branding → Reset (or choose the colours there) brings the new ones.
+- [ ] Every page on a computer, a tablet and a phone (portrait and landscape) and in the installed app: a neutral charcoal page with panels a visible step lighter, no blue cast behind tables, scoreboards or lists of games; the Team banner and the player cards keep their art and light.
+- [ ] Your profile → Overview, All Champions, Match History and its Encounters: Refresh is the last control of the toolbar, after the filters, never on a row of its own, at the same place on every tab; the status beside the line under the title reads "Synced … ago" (or the state in words), with one ⓘ. On a phone, the folded Filters button and Refresh share one row.
+- [ ] Press Refresh: the button reads "Refreshing…" and cannot be pressed again; beside the scope line, "Checking Riot…" and then "Updating the page…"; a notification says what happened. A second press within 2 minutes says when to try again, without a request.
+- [ ] Match History: each card reads Victory or Defeat in words (with its colour) and the duration, then the queue and when; the KDA stands out; the "With" line names teammates without the accent colour. Open a game: each team's band names the side, its result and its totals; your row has a tint, your name in bold and the one bright damage bar (the bars at the left edge stay for possible groups); the damage bars, gold, CS and vision are readable at arm's length on a phone. Scoreboard, Analysis, Timeline and Build: the selected tab is underlined.
+- [ ] Fields, dropdowns, Refine, Refresh and the segmented choices show a visible edge on every page, also in a window; the keyboard focus ring is visible on each.
+- [ ] Browser zoom at 200% and the phone's largest text size: nothing overlaps and no page scrolls sideways (wide tables scroll inside their box).
+
