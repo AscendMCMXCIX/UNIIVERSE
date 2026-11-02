@@ -11,6 +11,7 @@ import { filterTogether } from "@/domain/played-together";
 import { rankCoverage } from "@/server/players/participant-ranks";
 import { opggCoverage } from "@/server/players/riot-names";
 import { matchViewConsistency } from "@/server/players/match-consistency";
+import { riotIdFamily } from "@/server/riot/id-family";
 
 type Row = Record<string, unknown>;
 function rows(result: unknown): Row[] {
@@ -188,6 +189,9 @@ defineJob({
         opggLinks: await opggCoverage(db),
         // Each stored game's record against its timeline (gold, CS, kills, objectives), counts only.
         matchViews: await matchViewConsistency(db),
+        // Which stored games carry the members' current Riot ids, i.e. were stored under the key
+        // family in use (ids are encrypted per Riot application), counts only.
+        riotIdFamily: await riotIdFamily(db),
       },
     };
   },
