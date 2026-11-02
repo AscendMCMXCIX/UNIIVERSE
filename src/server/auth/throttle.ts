@@ -22,15 +22,40 @@ function hashKey(key: string): string {
 
 /** Seconds to wait before another attempt is allowed, or 0 when the key is not blocked. */
 export async function blockedFor(db: Db, key: string, now = new Date()): Promise<number> {
+  return waitAfter(db, key, now, MAX_FAILURES);
+}
+
+/** Seconds until fewer than `limit` rows of the key are inside the window (0 when already so). */
+async function waitAfter(db: Db, key: string, now: Date, limit: number): Promise<number> {
   const recent = await db
     .select({ at: authFailures.at })
     .from(authFailures)
     .where(and(eq(authFailures.keyHash, hashKey(key)), gt(authFailures.at, new Date(now.getTime() - WINDOW_MS))))
     .orderBy(desc(authFailures.at))
-    .limit(MAX_FAILURES);
-  if (recent.length < MAX_FAILURES) return 0;
+    .limit(limit);
+  if (recent.length < limit) return 0;
   const oldest = recent[recent.length - 1]!.at.getTime();
   return Math.max(1, Math.ceil((oldest + WINDOW_MS - now.getTime()) / 1000));
+}
+
+/**
+ * Counts an attempt before it is checked. One row per key is written first and the window is
+ * counted with it, so attempts made at the same moment see each other: a burst of parallel
+ * requests gets no more tries than the same requests one after another (checking first and
+ * recording after the slow password check let every request of a burst through).
+ * - `wait` > 0: refused; the attempt's rows are withdrawn (it was never checked).
+ * - Right: call `succeeded()` to withdraw them too.
+ * - Wrong: do nothing; its rows are its recorded failure.
+ */
+export async function claimAttempt(db: Db, keys: string[], now = new Date()): Promise<{ wait: number; succeeded: () => Promise<void> }> {
+  const ids = (await db.insert(authFailures).values(keys.map((key) => ({ keyHash: hashKey(key), at: now }))).returning({ id: authFailures.id })).map((r) => r.id);
+  const withdraw = async () => {
+    if (ids.length) await db.delete(authFailures).where(inArray(authFailures.id, ids));
+  };
+  const wait = Math.max(0, ...(await Promise.all(keys.map((key) => waitAfter(db, key, now, MAX_FAILURES + 1)))));
+  if (wait > 0) await withdraw();
+  else await db.delete(authFailures).where(lt(authFailures.at, new Date(now.getTime() - WINDOW_MS)));
+  return { wait, succeeded: withdraw };
 }
 
 /** Records one failure for each key, and deletes every failure older than the window. */

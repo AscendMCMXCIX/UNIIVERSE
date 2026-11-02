@@ -1,9 +1,10 @@
 "use server";
 
+import { publicErrorMessage } from "@/server/errors";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAppDb } from "@/server/bootstrap";
-import { blockedFor, clearFailures, recordFailure, throttleKey } from "@/server/auth/throttle";
+import { claimAttempt, clearFailures, throttleKey } from "@/server/auth/throttle";
 import { getAuthState, signIn } from "@/server/auth/session";
 import { listOwnerAccounts, recoverOwnerAccount, setupKeyConfigured, verifySetupKey } from "@/server/auth/recovery";
 import { UserError } from "@/server/repositories/users";
@@ -37,13 +38,14 @@ export async function recoveryAction(_prev: RecoveryState, formData: FormData): 
   if (!setupKeyConfigured()) return { step: "key", error: "Owner recovery needs the setup key. Add UNIIVERSE_ACCESS_PASSWORD in the hosting environment (on Vercel: Project → Settings → Environment Variables, Production), redeploy, then return here." };
   const key = throttleKey("owner-recovery", await clientIp());
   const db = await getAppDb();
-  const wait = await blockedFor(db, key);
-  if (wait > 0) return { step: "key", error: `Too many failed attempts. Try again in ${Math.ceil(wait / 60)} minute${wait > 60 ? "s" : ""}.` };
+  // Counted before the key is checked, so parallel attempts cannot all slip through.
+  const attempt = await claimAttempt(db, [key]);
+  if (attempt.wait > 0) return { step: "key", error: `Too many failed attempts. Try again in ${Math.ceil(attempt.wait / 60)} minute${attempt.wait > 60 ? "s" : ""}.` };
   if (!verifySetupKey(setupKey)) {
-    await recordFailure(db, [key]);
     await new Promise((r) => setTimeout(r, 400));
     return { step: "key", error: "The setup key does not match UNIIVERSE_ACCESS_PASSWORD." };
   }
+  await attempt.succeeded();
   await clearFailures(db, key);
   const owners = (await listOwnerAccounts(db)).map((o) => ({ id: o.id, username: o.username, displayName: o.displayName, hasPassword: o.hasPassword, hasPlayer: o.hasPlayer, isActive: o.isActive }));
   if (owners.length === 0) return { step: "key", error: "There is no owner account in this database. If accounts were never created, use the setup page instead." };
@@ -58,7 +60,7 @@ export async function recoveryAction(_prev: RecoveryState, formData: FormData): 
     await signIn(db, user);
     destination = user.playerId ? "/team" : "/me";
   } catch (err) {
-    return { step: "choose", owners, error: err instanceof UserError ? err.message : (err as Error).message, values: { setupKey, ...values } };
+    return { step: "choose", owners, error: err instanceof UserError ? err.message : publicErrorMessage(err), values: { setupKey, ...values } };
   }
   redirect(destination);
 }

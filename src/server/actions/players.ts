@@ -1,5 +1,6 @@
 "use server";
 
+import { publicErrorMessage } from "@/server/errors";
 import { revalidatePath } from "next/cache";
 import { invalidatePublicTeam } from "@/server/public/team";
 import { z } from "zod";
@@ -29,7 +30,7 @@ export type ActionResult<T = undefined> = { ok: true; data?: T } | { ok: false; 
 function fail(err: unknown): ActionResult<never> {
   if (err instanceof PlayerValidationError || (err as Error).name === "NotAuthorizedError" || (err as Error).constructor?.name === "UserError") return { ok: false, error: (err as Error).message };
   if (err instanceof z.ZodError) return { ok: false, error: err.issues.map((i) => i.message).join("; ") };
-  return { ok: false, error: (err as Error).message ?? "Something went wrong." };
+  return { ok: false, error: publicErrorMessage(err, "Something went wrong.") };
 }
 
 function touch() {
