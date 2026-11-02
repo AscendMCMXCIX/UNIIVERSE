@@ -6,6 +6,19 @@ import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useScrollEdges } from "@/components/ui/scroll-row";
 
+/**
+ * The look of a tab and its indicator, shared by every row of tabs (a page's sections, a game's
+ * Scoreboard/Analysis/Timeline/Build, a champion's views): the label in the secondary grey, brighter
+ * while pointed at with a quiet line under it; the selected tab in the main text colour over a short
+ * bar in the brand gradient (accent to accent-2). The 2px border keeps every tab the same height.
+ */
+export function tabIndicatorClass(on: boolean): string {
+  return cn(
+    "relative border-b-2 border-transparent after:pointer-events-none after:absolute after:inset-x-2 after:-bottom-0.5 after:h-0.5 after:rounded-full after:transition-opacity after:duration-150",
+    on ? "text-fg after:bg-gradient-to-r after:from-accent after:to-accent-2" : "text-fg-muted after:bg-border-strong after:opacity-0 hover:text-fg hover:after:opacity-100",
+  );
+}
+
 export interface TabBarItem {
   key: string;
   href: string;
@@ -36,11 +49,7 @@ export function TabBar({ label, items, current, keepScroll = false, dense = fals
                 href={s.href}
                 aria-current={on ? "page" : undefined}
                 scroll={!keepScroll}
-                className={cn(
-                  "inline-flex min-h-11 items-center gap-2 whitespace-nowrap border-b-2 px-3 text-sm font-medium transition-colors duration-150 max-sm:w-full max-sm:justify-center max-sm:px-2",
-                  dense && "lg:min-h-10",
-                  on ? "border-accent text-fg" : "border-transparent text-fg-muted hover:border-border-strong hover:text-fg",
-                )}
+                className={cn("inline-flex min-h-11 items-center gap-2 whitespace-nowrap px-3 text-sm font-medium transition-colors duration-150 max-sm:w-full max-sm:justify-center max-sm:px-2", dense && "lg:min-h-10", tabIndicatorClass(on))}
                 data-testid={s.testId}
               >
                 <s.icon className={cn("hidden h-4 w-4 sm:block", on ? "text-accent" : "text-fg-subtle")} aria-hidden />

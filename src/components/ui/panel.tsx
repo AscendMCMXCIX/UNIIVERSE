@@ -3,7 +3,7 @@ import { cn } from "@/lib/cn";
 
 export function Panel({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <section className={cn("min-w-0 rounded-lg border border-border bg-surface", className)} {...props}>
+    <section className={cn("panel-depth min-w-0 rounded-panel border border-border bg-surface", className)} {...props}>
       {children}
     </section>
   );

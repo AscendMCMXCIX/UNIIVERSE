@@ -17,7 +17,7 @@ import {
   taglineProblem,
 } from "./card-style";
 
-const SURFACE = "#16181d";
+const SURFACE = "#12131c";
 
 describe("cards saved before the Studio", () => {
   it("look exactly as before: their accent, the original veil and glow, no frame or effects", () => {

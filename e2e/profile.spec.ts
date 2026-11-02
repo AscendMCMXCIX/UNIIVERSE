@@ -31,6 +31,16 @@ test("All Champions: column headings sort both ways within the current filters; 
   await expect(rows.first().getByTestId("mastery-points")).toBeVisible();
   // Sorting never touches the filters (they live in the address).
   expect(new URL(page.url()).search).toBe(before);
+  // No Experience: no column, no sort, no badges or their words (mastery and the figures stay).
+  await expect(page.getByTestId("sort-proficiency")).toHaveCount(0);
+  await expect(page.getByTestId("all-champions-header")).not.toContainText(/Experience/i);
+  await expect(page.getByTestId("all-champions")).not.toContainText(/Played a lot|Played regularly|Not played lately|Some experience/);
+  // The champion's window neither.
+  await rows.first().getByTestId("open-champion").click();
+  await expect(page.getByTestId("champion-detail")).toBeVisible();
+  await expect(page.getByTestId("champion-detail-tier")).toHaveCount(0);
+  await expect(page.getByTestId("champion-proficiency")).toHaveCount(0);
+  await expect(page.getByTestId("champion-detail")).not.toContainText(/Played a lot|Played regularly|Not played lately|Some experience/);
 });
 
 test("All Champions on a phone: a Sort by control with a direction toggle, no sideways scrolling", async ({ page }) => {

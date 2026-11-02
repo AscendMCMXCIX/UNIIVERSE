@@ -16,7 +16,7 @@ export function PageSkeleton({ panels = 3, title = true }: { panels?: number; ti
         </div>
       ) : null}
       {Array.from({ length: panels }, (_, i) => (
-        <div key={i} className="rounded-lg border border-border bg-surface">
+        <div key={i} className="rounded-card border border-border bg-surface panel-depth">
           <div className="border-b border-border px-4 py-3">
             <Skeleton className="h-4 w-40" />
           </div>

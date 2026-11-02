@@ -539,7 +539,7 @@ Labels before October 2026: Very strong / Strong / Comfortable / Limited data / 
 
 Mastery alone (no games in supported queues) caps the tier at Familiar.
 
-**Used by** profiles (All Champions, Roles & champion pools, player details) and the Team Overview cards. It never changes the pools.
+**Used by** the Team Overview cards and the player details window (where its label still shows), and by lineup eligibility and team advice. It never changes the pools. Since 2 Nov 2026 the profile no longer shows it: All Champions has no Experience column, sort or badge, the champion window no Experience line, and the Overview's pools no label under each champion (`docs/CHAMPION_EXPERIENCE_LABELS.md`). The estimate itself is unchanged.
 
 ### E2. Global evidence (removed with Meta & Trends, 19 Oct 2026)
 
@@ -742,8 +742,8 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 
 - **Where:** a row of All Champions opens the champion window (the shared `DetailModal`) in the list's scope and the row's role. The URL holds it (`champion`, `crole`, `tab`, `vs`); the old `/overview/matchups` and `/players/[id]/matchups` redirect into it (`matchupsRedirect` in `src/lib/nav.ts`), keeping champion, opponent and filters. Matchups is no longer a profile section.
 - **Roles & champion pools open the same window.** A pool card on a profile Overview (`ProfilePools` in `src/components/players/profile-pools.tsx`) opens it in that pool's role, through the same hook and component as All Champions (`useChampionWindow` / `ChampionWindow` in `src/components/players/champion-window.tsx`), with the same server data (`getPlayerMatchups`, loaded by `profile-sections.tsx` only when the address names a champion). On the Overview the champion's key is `champ` (`champion` is already the Overview's stats filter); `crole`, `tab` and `vs` are shared. There is one window and one data path, never a second champion popup.
-- **Pool cards: inspect, drag, remove, add** (`SortablePool` with `onInspect`):
-  - **Inspect:** the whole card is a link to the champion's window address (`pool-inspect`, `aria-haspopup="dialog"`, reached with Tab, opened with Enter or a tap). Once the page is interactive the window opens in place; a click that lands before that still works, because it loads the address and the server opens the window. The name underlines on hover.
+- **Pool rows (cards in the setup forms): inspect, drag, remove, add** (`SortablePool` with `onInspect`):
+  - **Inspect:** the whole row (or card) is a link to the champion's window address (`pool-inspect`, `aria-haspopup="dialog"`, reached with Tab, opened with Enter or a tap). Once the page is interactive the window opens in place; a click that lands before that still works, because it loads the address and the server opens the window. The name underlines on hover.
   - **Drag:** a mouse drags from anywhere on the card, but only after it moves past the drag threshold. The click that ends a drag opens nothing. On touch screens only the grip drags, so a tap always inspects. The grip has its own keys: Space picks the card up, the arrows move it, Escape cancels.
   - **Remove** (×) and **Add** (the dashed slot) are separate buttons above the card's button.
   - **Art:** cards with figures show the champion's default splash behind them: a static, lazily loaded image at 55 % opacity (70 % on hover) under two dark gradients, so the labels stay readable. If the image fails it is hidden, and the card stays as it was.
@@ -770,15 +770,15 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 
 ### H1. Visual identity (`src/app/globals.css`, Tailwind v4 `@theme`)
 
-- **Aesthetic:** dark "esports client" look on a neutral charcoal (2 Nov 2026; it was navy). Restrained, card-based, cyan accent kept for what is selected or can be acted on, no decorative animation. Each surface is one visible step lighter than the one below it; colour carries meaning (the brand, the sides and results of a match, states); the brand's light stays at the page's edges, the Team banner, player cards' own art and sign-in, and dense content sits on opaque surfaces.
+- **Aesthetic:** a premium dark "esports client" look on a deep ink with a faint indigo undertone (2 Nov 2026, after a brief neutral charcoal; navy before that). The identity is a pair: the brand blue (accent) for what is selected or can be acted on, violet (accent-2) for the light: the page's ambient glow, the brand gradient (accent to accent-2) on selected tabs, the sorted column and the headline card's top edge, the rank chart's line. Each surface is one visible step lighter than the one below it, and panels have depth (`panel-depth`: a faint top sheen, a hairline of light on the top edge, a soft shadow). Colour carries meaning (the brand, the sides and results of a match, states); the light stays at the edges (ambient glow, the banner's own colours spilling onto the top of a profile, player cards' art), and dense data sits on opaque panels. Motion is short and purposeful (hover lifts and tints, the tab indicator), instant with reduced motion.
 - **Colour tokens:**
 
   | Group | Tokens |
   |---|---|
-  | Backgrounds | `bg #0d0e12`, `surface #16181d`, `bg-elevated #1a1c21` (fields, menus, popovers: a step above the panels), `surface-2 #1e2126`, `surface-3 #282b32` |
-  | Borders | `border #2b2f37` (structure), `border-strong #464c58` (emphasis), `border-control #666c78` (fields and toolbar controls, 3:1 on the page, panels and popovers) |
-  | Text | `fg #edeef1`, `fg-muted #b0b5be`, `fg-subtle #8c929d` (4.5:1 or more on every surface) |
-  | Accent | `accent #1fc3ff`, `accent-strong #7fdcff`, `accent-2 #58a8f2`, `highlight #7fdcff` |
+  | Backgrounds | `bg #0a0b12`, `surface #12131c`, `bg-elevated #181a25` (fields, menus, popovers: a step above the panels), `surface-2 #1b1d29`, `surface-3 #252837` |
+  | Borders | `border #262939` (structure), `border-strong #3a3e53` (emphasis), `border-control #646a8c` (fields and toolbar controls, 3:1 on the page, panels and popovers) |
+  | Text | `fg #eef0f6`, `fg-muted #b4b8c9`, `fg-subtle #8f95aa` (4.5:1 or more on every surface; 4.9:1 on `surface-3`) |
+  | Accent | `accent #1fc3ff` (brand blue), `accent-strong #7fdcff`, `accent-2 #9a7dff` (violet), `highlight #7fdcff` |
   | Sides and results | `blue #6e9dff` (Victory), `red #f26b7e` (Defeat), always with the word |
   | Status | `good #45cf8f`, `warn #ebba4f`, `bad #f26b7e`, `info #5eaef5` |
 
@@ -891,14 +891,15 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
     - **Earlier per-browser preference removed:** the Appearance popover and its cookie `uniiverse_team_backdrop` are gone; the cookie is no longer read, so an old value changes nothing.
     - Demo: the screenshot fixture draws an artwork (`src/server/demo/backdrop-art.ts`).
   - **Tests:** `e2e/home-layout.spec.ts` (1366 × 768 with the sidebar open, 1920, 2560), `e2e/team-layout.spec.ts`, `e2e/team-backdrop.spec.ts` (admin preview, Cancel, Save, a second team-member account before and after signing in again, an old cookie ignored, no access for a member, Reset to default, every page at the same level), `tests/db/branding-backdrop.test.ts` (stored server-side, the same for every viewer, refused without `manage-branding`, range, reset), `src/lib/backdrop.test.ts`.
-- **Profile Overview, compact** (`ProfileOverviewTab`):
-  - **Order:** season figures, rank and form, then the primary pool, which starts within the first screen at 1440 × 900.
-  - **Season summary:** the season's completeness and last update sit on the scope line.
-  - **Ranked progress:** one short row, with the current rank and rank changes beside a chart drawn at its own proportions.
-  - **Pools heading:** one line, with how editing works and the save state beside Add champion.
-  - **Pool cards:** even rows (`poolColumns`: six as 3 + 3, or 6 across on wide screens).
+- **Profile Overview, a dashboard** (`ProfileOverviewTab`, `SeasonSummary` and `OverviewDashboard` in `src/components/players/player-overview.tsx`; 2 Nov 2026):
+  - **Heading:** Season performance with its scope line and data status, and the toolbar (game mode, Refine, Refresh), which govern the whole dashboard.
+  - **Season card** (`PerformanceCard`, test id `season-figures`): one card in three bands. Headline: win rate (with a wins/losses bar), KDA and games, the page's largest figures. Supporting: CS/min, damage/min and vision, a size smaller. Kills: Total kills and the four multikill kinds in one row, all alike, with "By champion" at its end (on its own short line under 48rem). A faint brand line and wash in its top corner.
+  - **Arrangement** (a container query on the dashboard, so the sidebar is allowed for): from 58rem two columns, the season card then the pools on the left, Recent form then Ranked progress in a 18–21rem column on the right, the first row level; narrower, one column in that order, each card in its own wider layout. A card without data is left out and the rest close up.
+  - **Recent form:** the bars share the card's width; a win rises above a centre line and a loss hangs below it.
+  - **Ranked progress** (`@container/rank`): the crest, rank and record, the rank changes, and the chart beside them from 34rem or under them in the narrow column. Without two readings there is no chart, one quiet line instead (in the chart's column when side by side), so the card never grows to keep a shape.
+  - **Pools:** one row per champion (`SortablePool variant="rows"`): position, portrait, name, the champion's splash art fading along the row's left, and games, win rate, KDA and CS/min (vision for Support) under one row of column names (`<pool>-columns`; three columns in a narrow list). No Experience label. Edit, dragging, the keyboard, Add and the role menus are unchanged.
   - **Off roles:** one-line summaries (`PoolSection collapsible`, test ids `<pool>-preview`, `<pool>-expand`) whose portraits still open the champion window. "Show and edit" opens the full pool with adding, removing and reordering.
-  - **Tests:** `e2e/home-layout.spec.ts`.
+  - **Tests:** `e2e/home-layout.spec.ts`, `e2e/multikills.spec.ts`, `e2e/progress.spec.ts`.
 - **Team navigation:** the sidebar has one Team entry; its sections (`TEAM_SECTIONS`) are tabs at the top of each of its pages. One component draws the tab bars: `SECTION_HUBS` in `src/lib/nav.ts` lists each entry that stands for several pages (key, accessible label, sections: Team, and Admin Mode's Platform Settings), and `currentTab` uses it so a section without its own phone tab marks its entry's first tabbed section. Neither mode has collapsible groups (Admin Mode's People and Site groups, and their `uniiverse_nav_closed` cookie, went with the six Admin Mode sections on 21 Oct 2026).
 - **Touch and inputs:** 44 px touch targets on phones and coarse pointers; 16 px inputs on phones (no iOS zoom).
 - **Constraints:** no horizontal page scroll at any width (checked by Playwright on phone/tablet/desktop and a 9-width manual pass on 14 Oct). Wide tables become cards on phones.
@@ -1211,7 +1212,7 @@ These are stable and working; extend them instead:
 
 8. **UI architecture.**
    - **Server components** with client islands (editors, menus, dialogs).
-   - **Shell:** dark neutral charcoal theme with a cyan accent; Inter; tokens in `src/app/globals.css`.
+   - **Shell:** deep ink theme with a blue and violet identity; Inter; tokens in `src/app/globals.css`.
    - **Navigation:** collapsible sidebar (My Profile, one Team entry, Resources); the sections of Team as tabs at the top of its pages (`SectionTabs`, `SECTION_HUBS`, `TEAM_SECTIONS`); account menu; phone tab bar (Profile, Team, Resources).
    - **Shared primitives** in `src/components/ui` (Menu never clips, Dialog, Toast, InfoTip).
    - **One card identity** (featured champion art + skin + accent) across Team, Players and profiles.

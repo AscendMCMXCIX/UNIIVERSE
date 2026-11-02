@@ -43,9 +43,9 @@ export interface Branding extends BrandColours {
   assets: { logo: BrandAssetMeta | null; background: BrandAssetMeta | null; appBackground: BrandAssetMeta | null };
 }
 
-export const DEFAULT_COLOURS = { accent: "#1fc3ff", accent2: "#58a8f2", background: "#0d0e12", surface: "#16181d", highlight: "#7fdcff" } as const;
+export const DEFAULT_COLOURS = { accent: "#1fc3ff", accent2: "#9a7dff", background: "#0a0b12", surface: "#12131c", highlight: "#7fdcff" } as const;
 /** The app's text colour (light on dark); custom backgrounds and surfaces must keep it readable. */
-export const TEXT_COLOUR = "#edeef1";
+export const TEXT_COLOUR = "#eef0f6";
 
 /** Team Overview's background visibility until an admin chooses another. */
 export const DEFAULT_BACKDROP_LEVEL = 50;

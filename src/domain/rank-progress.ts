@@ -78,7 +78,7 @@ export interface RankPoint {
 export interface RankProgress {
   queue: RankQueue;
   trackingSince: number | null;
-  current: { label: string; leaguePoints: number | null; wins: number | null; losses: number | null; at: number } | null;
+  current: { label: string; tier: string | null; leaguePoints: number | null; wins: number | null; losses: number | null; at: number } | null;
   points: RankPoint[];
   events: RankEvent[];
   /** Ladder points gained or lost in the window, within the current segment only (null without two points there). */
@@ -123,7 +123,7 @@ export function rankProgress(queue: RankQueue, snapshots: readonly RankSnapshot[
   return {
     queue,
     trackingSince: list[0]?.capturedAt ?? null,
-    current: last ? { label: rankLabel(last.tier, last.division), leaguePoints: last.tier ? last.leaguePoints : null, wins: last.wins, losses: last.losses, at: last.capturedAt } : null,
+    current: last ? { label: rankLabel(last.tier, last.division), tier: last.tier ?? null, leaguePoints: last.tier ? last.leaguePoints : null, wins: last.wins, losses: last.losses, at: last.capturedAt } : null,
     points,
     events: events.reverse(),
     change,
