@@ -74,6 +74,7 @@ list fades out before the figures (a pool row's left half).
 | Token | Use |
 | --- | --- |
 | `bg`, `bg-elevated` | page background; fields, menus and popovers (a step above the panel they sit on) |
+| `chrome` | the app's frame: sidebar, top bar, drawer and tab bar. A near-neutral charcoal, so navigation recedes; colour in it marks only the current page (a neutral lift, the brand gradient as a thin bar, the icon in `accent`) |
 | `surface`, `surface-2`, `surface-3` | panels and cards; raised rows and tiles inside them; selected or hovered |
 | `border`, `border-strong`, `border-control` | structure (dividers, panel and card edges); emphasis (a menu's or dialog's edge, a hovered row); the edge of a field, toolbar button, segmented group or switch, 3:1 against the page, the panels and popovers (WCAG 1.4.11; Branding derives it from custom colours) |
 | `fg`, `fg-muted`, `fg-subtle` | text: main, secondary, captions and metadata; all three 4.5:1 or more on every surface, `surface-3` included |
