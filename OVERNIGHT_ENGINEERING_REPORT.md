@@ -53,7 +53,7 @@ From the owner's brief and `CLAUDE.md`:
 | `security/page-guards` | #170 | Every member page checks access itself (high finding) | Verified locally (full suites green); **CI green** (all four jobs, 2 Nov); **merge first** |
 | `security/hardening` | #172 | Redirects, throttle, errors, Riot hosts, public images, timing, dead actions | Verified locally (unit 556, database 470, browser 516 passed); **CI green** (all four jobs, 2 Nov) |
 | `perf/season-patch-memo` | #169 | Season figures read each game's patch once | Verified locally; **CI green** (all four jobs, 2 Nov) |
-| `a11y/label-in-name-scroll-regions` | #173 | Names that match what controls show; wide tables the keyboard can scroll; axe at phone width and in two windows | Verified locally (unit 548, browser 517 passed); CI running |
+| `a11y/label-in-name-scroll-regions` | #173 | Names that match what controls show; wide tables the keyboard can scroll; axe at phone width and in two windows | Verified locally (unit 548, browser 517 passed); **CI green** (all four jobs, 2 Nov) |
 | `pwa-windows-integration` | #171 (draft) | Installed app: jump-list shortcuts, one reused window | Optional; unit tests, build and its browser spec pass; full suite in CI when marked ready |
 | `overnight/engineering-report` | #174 | This report | Docs only (CI and Vercel skip it) |
 
@@ -419,7 +419,7 @@ until a native capability is approved.
 
 ## Executive summary
 
-**Completed and verified** (local suites green; CI green where marked):
+**Completed and verified** (local suites and CI green on every ready PR):
 - **Security, high (#170, CI green).** A teammate's profile data reached signed-out requests. I
   reproduced it, fixed it, verified the fix, and added a test that stops it coming back. Merge it
   first.
@@ -430,7 +430,7 @@ until a native capability is approved.
 - **Performance (#169, CI green).** Team Overview's roster is 62% faster warm and 41% faster on
   first load, measured locally at production volume. Every profile Overview and All Champions page
   benefits too. Production confirmation is one `perf-probe` run after the merge.
-- **Accessibility (#173, CI running).** Four serious issues fixed through shared components:
+- **Accessibility (#173, CI green).** Four serious issues fixed through shared components:
   three label-in-name cases and one table the keyboard could not scroll. axe now also runs at phone
   width and in the Team player and champion windows. The full browser suite passed locally.
 
