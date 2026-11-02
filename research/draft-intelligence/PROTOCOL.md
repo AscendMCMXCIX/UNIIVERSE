@@ -105,4 +105,9 @@ These thresholds are judgement calls, fixed now so the results cannot move them.
 
 ## Changes after freezing
 
-(none yet)
+- **2 Nov 2026, after the first run (exploratory additions only; no frozen rule, measure or threshold changed):**
+    - coverage also at 30, 40 and 50 candidates;
+    - a "popularity and role fit" enemy model without team comfort, the realistic case when the opponent is unknown (Normal Draft, Flex);
+    - descriptive diagnostics of the RQ1 features.
+
+  These were added to explain rule 4's result and to check that the comfort feature is not degenerate. They are reported as exploratory.
