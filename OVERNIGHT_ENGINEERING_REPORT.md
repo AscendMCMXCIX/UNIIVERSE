@@ -50,7 +50,7 @@ From the owner's brief and `CLAUDE.md`:
 
 | Branch | PR | What | Status |
 |---|---|---|---|
-| `security/page-guards` | #170 | Every member page checks access itself (high finding) | Verified locally (full suites green); CI running; **merge first** |
+| `security/page-guards` | #170 | Every member page checks access itself (high finding) | Verified locally (full suites green); **CI green** (all four jobs, 2 Nov); **merge first** |
 | `security/hardening` | PR_HARDENING | Redirects, throttle, errors, Riot hosts, public images, timing, dead actions | Verified locally |
 | `perf/season-patch-memo` | #169 | Season figures read each game's patch once | Verified locally; **CI green** (all four jobs, 2 Nov) |
 | `a11y/label-in-name-scroll-regions` | PR_A11Y | Names that start with their visible words; wide tables the keyboard can scroll; wider axe coverage | Verified locally (verify); browser suite pending |
