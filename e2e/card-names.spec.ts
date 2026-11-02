@@ -69,7 +69,7 @@ test("a member's own card shows their whole name, whatever else the card carries
   }).toPass({ timeout: 30_000 });
   await links.getByLabel("Twitch", { exact: true }).fill("ascend_live");
   await links.getByLabel("Discord", { exact: true }).fill("ascend.oce");
-  for (let i = 0; i < 3; i++) await links.getByLabel("Who can see it").nth(i).selectOption("team");
+  for (const kind of ["youtube", "twitch", "discord"]) await links.getByTestId(`social-public-${kind}`).click();
   await page.getByTestId("social-links-save").click();
   await expect(page.getByText("Social links saved.")).toBeVisible();
   await page.goto("/overview");

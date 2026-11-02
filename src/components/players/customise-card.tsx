@@ -219,7 +219,7 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
       live = false;
     };
   }, [playerId, preview]);
-  // Your own card: your links as stored (every audience), loaded once when the Studio opens.
+  // Your own card: your links as stored (shown publicly or not), loaded once when the Studio opens.
   const [links, setLinks] = React.useState<LinksState | null>(ownLinks ? { kind: "loading" } : null);
   React.useEffect(() => {
     if (!ownLinks) return;
@@ -239,7 +239,7 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
   const linksChanged = links?.kind === "ready" && socialDraftChanged(links.draft, links.saved);
   const linksProblem = linksDraft ? (Object.values(socialDraftProblems(linksDraft)).find(Boolean) ?? null) : null;
   // The preview's icons follow the links as they are edited (what teammates would see).
-  const previewSocial = React.useMemo(() => (linksDraft ? visibleSocialLinks(socialDraftLinks(linksDraft), "team") : undefined), [linksDraft]);
+  const previewSocial = React.useMemo(() => (linksDraft ? visibleSocialLinks(socialDraftLinks(linksDraft)) : undefined), [linksDraft]);
   const previewData = React.useMemo<StudioPreviewData | null>(() => (preview ? { ...preview, season: figures === "loading" ? null : figures, ...(previewSocial ? { social: previewSocial } : {}) } : null), [preview, figures, previewSocial]);
 
   const bannerUrl = banner.kind === "new" ? banner.dataUrl : banner.kind === "remove" ? null : (look?.bannerUrl ?? null);
@@ -1217,13 +1217,13 @@ function IdentityPanel({ style, set, problem }: { style: CardStyle; set: Setter;
 }
 
 /**
- * Your YouTube, Twitch and Discord, each with who may see it: the same links (and the same checks)
- * as Settings → Profile, saved with the card. The preview's icons follow them as you type.
+ * Your YouTube, Twitch and Discord, each with its Show publicly switch: the same links (and the same
+ * checks) as Settings → Profile, saved with the card. The preview's icons follow them as you type.
  */
 function LinksPanel({ state, onChange }: { state: LinksState; onChange: (kind: SocialKind, patch: Partial<SocialDraft[SocialKind]>) => void }) {
   return (
     <div className="space-y-3" data-testid="studio-links">
-      <p className="text-xs text-fg-subtle">Optional. Nothing shows until you choose who can see it. YouTube and Twitch open your channel; Discord shows your username for others to copy, or opens your Discord profile when you paste its address.</p>
+      <p className="text-xs text-fg-subtle">Optional. A link stays private until you switch on Show publicly: then teammates and visitors to the public team page see it. YouTube and Twitch open your channel; Discord shows your username for others to copy, or opens your Discord profile when you paste its address.</p>
       {state.kind === "loading" ? (
         <p className="text-sm text-fg-muted" role="status">
           Loading your links…

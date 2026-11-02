@@ -64,7 +64,7 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
       <PlayersDirectory
         archived={admin ? { on: showArchived } : null}
         championsById={championsById}
-        entries={visible.map((p) => ({ player: p, lineupRole: lineupRoleOf(p.id), isYou: session.playerId === p.id, riot: riot[p.id] ?? null, avatarUrl: avatars[p.id] ?? null, rank: rankOf(p.id), riotIds: accounts.filter((a) => a.playerId === p.id).map((a) => a.riotId), social: visibleSocialLinks(social.get(p.id), "team") }))}
+        entries={visible.map((p) => ({ player: p, lineupRole: lineupRoleOf(p.id), isYou: session.playerId === p.id, riot: riot[p.id] ?? null, avatarUrl: avatars[p.id] ?? null, rank: rankOf(p.id), riotIds: accounts.filter((a) => a.playerId === p.id).map((a) => a.riotId), social: visibleSocialLinks(social.get(p.id)) }))}
       />
     </div>
   );
