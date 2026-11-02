@@ -22,6 +22,8 @@ export function SiteBackdrop({ branding: b }: { branding: Branding }) {
           <style data-testid="backdrop-style">{backdropCss(b.backdropLevel)}</style>
           <BrandImage src={backdrop} still={backdropStill} className="h-full w-full object-cover opacity-[var(--backdrop-art,0.75)]" />
           <div className="absolute inset-0 bg-bg opacity-[var(--backdrop-veil,0.62)]" data-testid="brand-backdrop-veil" />
+          {/* The page's ambient light (globals.css), over the veil, so it is the same with or without artwork. */}
+          <div className="absolute inset-0 bg-[image:var(--ambient-light)]" />
           {/* The edges stay calmer than the middle, and a little depth at the bottom for long pages. */}
           <div className="absolute inset-0 opacity-[var(--backdrop-vignette,0.425)]" style={{ background: "radial-gradient(ellipse 75% 65% at 55% 40%, transparent 40%, var(--color-bg) 100%)" }} />
           <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-b from-transparent to-bg/40" />

@@ -7,6 +7,7 @@ import { loadProfileHeader, type ProfileHeaderData } from "@/server/players/prof
 import { refreshAvailable, type MatchSyncStatus } from "@/server/accounts/refresh";
 import type { DataRefreshTarget } from "@/components/ui/data-status";
 import { ProfileHeader } from "@/components/players/profile-header";
+import { bannerLightStyle } from "@/components/players/banner-light";
 import { ProfileIdentityProvider, ProfileIdentitySync, type HeaderIdentity } from "@/components/players/profile-identity";
 import { cardArt, featurableChampions, isCardAccent } from "@/domain/player-card";
 import { cardLookFor } from "@/domain/card-style";
@@ -91,7 +92,7 @@ export async function ProfileFrame({ db, header, session, basePath, children }: 
   const champions = editable ? Object.values(await championMap(db)) : [];
   return (
     <ProfileIdentityProvider initial={headerIdentity(header)}>
-    <div className="mx-auto max-w-[var(--content-max)] space-y-4" data-testid="player-profile">
+    <div className="mx-auto max-w-[var(--content-max)] space-y-4" style={bannerLightStyle(headerIdentity(header).look.style.colours)} data-testid="player-profile">
       {/* The section bar belongs to the profile card: tucked right under it. */}
       <div className="space-y-1.5">
         <ProfileHeader identity={headerIdentity(header)} self={self} editable={editable} champions={champions} basePath={basePath} />

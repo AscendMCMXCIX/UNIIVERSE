@@ -48,7 +48,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#0d0e12",
+  themeColor: "#0a0b12",
   width: "device-width",
   initialScale: 1,
   // Lets the shell draw under the notch and home indicator; safe-area insets pad the bars.

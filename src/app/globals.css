@@ -2,31 +2,32 @@
 
 /*
   UNIIVERSE design tokens.
-  Neutral charcoal with a faint cool undertone, in clear steps: the page, the panels and cards on
-  it, raised rows and controls, the selected or hovered. Text in three greys (off-white, a readable
-  grey, a quieter grey that still meets 4.5:1 on every surface). Colour carries meaning, not
-  decoration: the brand accent marks what can be pressed and what is chosen, blue and red the two
-  sides of a match and its result, good/warn/bad states. The brand's light lives at the page edges,
-  in a player's banner and on the sign-in pages, never behind dense data.
+  A deep ink with a faint indigo undertone, in clear steps: the page, the panels and cards on it,
+  raised rows and controls, the selected or hovered. Text in three greys (off-white, a readable grey,
+  a quieter grey that still meets 4.5:1 on every surface). The identity is a pair: the brand blue
+  (accent) marks what can be pressed and what is chosen; violet (accent-2) carries the light, in the
+  page's ambient glow and the brand gradient (accent to accent-2) on selected indicators and
+  headline cards. Blue and red stay the two sides of a match and its result, good/warn/bad states.
+  Light stays at the edges: dense data sits on panels with their own depth, never on a glow.
 */
 @theme {
-  --color-bg: #0d0e12;
-  --color-bg-elevated: #1a1c21; /* menus, popovers and fields: a step above the panel they sit on */
-  --color-surface: #16181d;
-  --color-surface-2: #1e2126;
-  --color-surface-3: #282b32;
-  --color-border: #2b2f37;
-  --color-border-strong: #464c58;
-  --color-border-control: #666c78; /* the edge of a field or toolbar control: 3:1 against the page, panels and popovers (WCAG 1.4.11) */
-  --color-fg: #edeef1;
-  --color-fg-muted: #b0b5be;
-  --color-fg-subtle: #8c929d; /* 4.5:1 on every surface, surface-3 included (WCAG AA for small text) */
-  --color-accent: #1fc3ff; /* brand cyan */
+  --color-bg: #0a0b12;
+  --color-bg-elevated: #181a25; /* menus, popovers and fields: a step above the panel they sit on */
+  --color-surface: #12131c;
+  --color-surface-2: #1b1d29;
+  --color-surface-3: #252837;
+  --color-border: #262939;
+  --color-border-strong: #3a3e53;
+  --color-border-control: #646a8c; /* the edge of a field or toolbar control: 3:1 against the page, panels and popovers (WCAG 1.4.11) */
+  --color-fg: #eef0f6;
+  --color-fg-muted: #b4b8c9;
+  --color-fg-subtle: #8f95aa; /* 4.5:1 on every surface, surface-3 included (WCAG AA for small text) */
+  --color-accent: #1fc3ff; /* brand blue */
   --color-accent-strong: #7fdcff;
-  /* Branding can change these (Admin → Branding); defaults keep the original look. */
-  --color-accent-2: #58a8f2;
+  /* Branding can change these (Admin → Branding); the defaults are the blue and violet pair. */
+  --color-accent-2: #9a7dff; /* violet: the light and the second stop of the brand gradient */
   --color-highlight: #7fdcff;
-  /* A match's two sides and its result (Victory blue, Defeat red), lifted for text on the charcoal. */
+  /* A match's two sides and its result (Victory blue, Defeat red), lifted for text on the dark ground. */
   --color-blue: #6e9dff;
   --color-red: #f26b7e;
   --color-good: #45cf8f;
@@ -122,10 +123,18 @@ html, body {
     >= 1024  desktop : sidebar; >= 1280 the draft room uses its three-column layout
 */
 
+:root {
+  /*
+    The ambient light: violet from the top (left of centre), the brand blue from the top right and a low violet
+    horizon, faint and fixed to the window's edges, so the middle of the page (where the data is)
+    stays a calm ground. The body wears it; the team's background artwork, when there is one, wears
+    it over its veil (site-backdrop.tsx), so the light is the same with or without artwork.
+  */
+  --ambient-light: radial-gradient(56rem 30rem at 32% -9rem, color-mix(in srgb, var(--color-accent-2) 14%, transparent), transparent 70%), radial-gradient(48rem 26rem at 90% -11rem, color-mix(in srgb, var(--color-accent) 10%, transparent), transparent 70%), radial-gradient(ellipse 80% 42% at 50% 118%, color-mix(in srgb, var(--color-accent-2) 7%, transparent), transparent 70%);
+}
+
 body {
-  /* A trace of the brand's light at the page's bottom edge and top corner: atmosphere only, faint
-     enough that the panels and the text on them keep a neutral ground. */
-  background-image: radial-gradient(ellipse 70% 45% at 50% 115%, color-mix(in srgb, var(--color-accent) 7%, transparent), transparent 70%), radial-gradient(ellipse 45% 35% at 100% 0%, color-mix(in srgb, var(--color-accent-2) 4%, transparent), transparent 70%);
+  background-image: var(--ambient-light);
   background-attachment: fixed;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -233,6 +242,44 @@ p a.text-accent {
 }
 
 /* Motion: short, purposeful transitions; everything collapses to instant for reduced motion. */
+/*
+  Depth for panels and cards (Panel, the profile's dashboard cards, the champion table): a faint
+  sheen along the top, a hairline of light on the top edge and a soft shadow underneath, so a
+  surface reads as raised from the page without a glow. Pair it with the surface's own background
+  colour and border (it sets the image and shadow only).
+*/
+@utility panel-depth {
+  background-image: linear-gradient(to bottom, color-mix(in srgb, var(--color-fg) 3%, transparent), transparent 5rem);
+  box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--color-fg) 6%, transparent), 0 1px 2px 0 rgb(0 0 0 / 0.35), 0 18px 36px -22px rgb(0 0 0 / 0.8);
+}
+
+/* The card a page leads with (the profile's season card): panel-depth plus a faint wash of the violet light in its top corner. */
+@utility panel-featured {
+  background-image: radial-gradient(28rem 16rem at 0% 0%, color-mix(in srgb, var(--color-accent-2) 11%, transparent), transparent 70%), linear-gradient(to bottom, color-mix(in srgb, var(--color-fg) 3%, transparent), transparent 5rem);
+  box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--color-fg) 6%, transparent), 0 1px 2px 0 rgb(0 0 0 / 0.35), 0 18px 36px -22px rgb(0 0 0 / 0.8);
+}
+
+/*
+  A card that opens something: it rises a pixel and its edge brightens while pointed at, and it
+  settles back when pressed. Instant with reduced motion (the rule below).
+*/
+@utility panel-lift {
+  transition: transform 160ms var(--ease-emphasized), box-shadow 160ms var(--ease-emphasized), border-color 160ms ease-out;
+  &:hover {
+    transform: translateY(-1px);
+    border-color: var(--color-border-strong);
+    box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--color-fg) 8%, transparent), 0 2px 4px 0 rgb(0 0 0 / 0.35), 0 22px 40px -22px rgb(0 0 0 / 0.85);
+  }
+  &:active {
+    transform: translateY(0);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    &:hover {
+      transform: none;
+    }
+  }
+}
+
 @keyframes toast-in {
   from {
     opacity: 0;

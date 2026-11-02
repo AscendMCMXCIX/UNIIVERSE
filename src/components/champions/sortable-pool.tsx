@@ -17,6 +17,9 @@ export function moveItem<T>(list: readonly T[], from: number, to: number): T[] {
   return copy;
 }
 
+/** The width of a row's grip and × (the column names leave the same room while editing). */
+export const POOL_ROW_CONTROLS = "w-[3.75rem] justify-end pointer-coarse:w-[4.75rem]";
+
 /** A mouse drag starts after this many pixels, so a plain click never turns into a drag. */
 const DRAG_THRESHOLD_PX = 4;
 const SLIDE_MS = 170;
@@ -90,7 +93,13 @@ export function SortablePool({
   inspectHref,
   inspectLabel = "statistics and matchups",
   controls = "hover",
+  variant = "cards",
 }: {
+  /**
+   * cards: a grid of cards (the setup forms). rows: one line per champion in a single column, its
+   * figures in fixed columns at the line's end under one row of column names (the profile's pools).
+   */
+  variant?: "cards" | "rows";
   /** The grip and ×: shown on hover and focus (always on touch screens), or always (an explicit edit mode). */
   controls?: "hover" | "always";
   /** Opens the champion (the profile's champion window). A click opens it; a drag never does. */
@@ -320,12 +329,121 @@ export function SortablePool({
 
   return (
     <div className="relative">
-      <ol ref={listRef} className={cn("relative grid gap-2", gridClassName ?? "grid-cols-1 @sm:grid-cols-2 @2xl:grid-cols-3")} data-testid={testId} aria-label="Champion pool in order of preference" aria-describedby={editable ? `${testId ?? "pool"}-help` : undefined}>
+      <ol ref={listRef} className={cn("relative grid", variant === "rows" ? "grid-cols-1 gap-0.5" : cn("gap-2", gridClassName ?? "grid-cols-1 @sm:grid-cols-2 @2xl:grid-cols-3"))} data-testid={testId} aria-label="Champion pool in order of preference" aria-describedby={editable ? `${testId ?? "pool"}-help` : undefined}>
         {drag ? <li ref={placeholderRef} role="presentation" aria-hidden className="pointer-events-none absolute left-0 top-0 rounded-panel border-2 border-dashed border-accent/50 bg-accent/5" data-testid="pool-placeholder" /> : null}
         {order.map((id, index) => {
           const c = championsById.get(id);
           const isDragged = drag?.id === id;
           const isLifted = kbd?.id === id;
+          const inspector = onInspect && inspectHref ? (
+            // The whole item opens the champion; the grip and × sit above it. Keyboard: Tab reaches it
+            // (Enter opens); the grip has its own reordering keys. A real link: before the page is
+            // interactive a click loads the champion's address instead (the server opens the window);
+            // afterwards it opens in place. Not draggable, so the browser never drags the address
+            // instead of the item.
+            <a
+              href={inspectHref(id)}
+              draggable={false}
+              data-inspect
+              onClick={(e) => {
+                if (dragged.current) {
+                  e.preventDefault();
+                  dragged.current = false;
+                  return;
+                }
+                // A new tab or window keeps the browser's own behaviour.
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                e.preventDefault();
+                onInspect(id);
+              }}
+              className="absolute inset-0 z-0 rounded-panel focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+              aria-label={`${c?.name ?? id}: ${inspectLabel}`}
+              aria-haspopup="dialog"
+              data-testid="pool-inspect"
+            />
+          ) : onInspect ? (
+            <button
+              type="button"
+              data-inspect
+              onClick={() => {
+                if (dragged.current) {
+                  dragged.current = false;
+                  return;
+                }
+                onInspect(id);
+              }}
+              className="absolute inset-0 z-0 rounded-panel focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+              aria-label={`${c?.name ?? id}: ${inspectLabel}`}
+              aria-haspopup="dialog"
+              data-testid="pool-inspect"
+            />
+          ) : null;
+          const controlsEl = editable ? (
+            // In an explicit edit mode the controls are always there; otherwise they stay out of
+            // the way until the item is pointed at or focused (always on touch screens).
+            <span className={cn("flex shrink-0 items-center gap-0.5", variant === "rows" ? POOL_ROW_CONTROLS : "self-start", controls === "hover" && "opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100")}>
+              <span
+                role="button"
+                tabIndex={0}
+                data-grip
+                aria-roledescription="sortable"
+                aria-pressed={isLifted}
+                aria-label={`${c?.name ?? id}, position ${index + 1} of ${order.length}. Press Space to pick up and reorder.`}
+                className="grid h-8 w-7 cursor-grab touch-none place-items-center rounded-md text-fg-subtle hover:bg-surface-2 hover:text-fg focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-accent active:cursor-grabbing pointer-coarse:h-10 pointer-coarse:w-9"
+                onPointerDown={onPointerDown(id, true)}
+                onKeyDown={onGripKey(id)}
+                onBlur={() => {
+                  if (kbd?.id === id) {
+                    setKbd(null);
+                    setAnnounce("Reorder cancelled.");
+                  }
+                }}
+                data-testid="pool-grip"
+              >
+                <GripVertical className="h-4 w-4" aria-hidden />
+              </span>
+              <button type="button" className="grid h-8 w-7 place-items-center rounded-md text-fg-subtle hover:bg-bad/15 hover:text-bad pointer-coarse:h-10 pointer-coarse:w-9" onClick={() => onRemove(id)} aria-label={`Remove ${c?.name ?? id}`} data-testid="pool-remove">
+                <X className="h-4 w-4" />
+              </button>
+            </span>
+          ) : null;
+          if (variant === "rows")
+            return (
+              <li
+                key={id}
+                ref={(el) => {
+                  if (el) refs.current.set(id, el);
+                  else refs.current.delete(id);
+                }}
+                className={cn(
+                  "group relative isolate flex min-w-0 items-center gap-2.5 overflow-hidden rounded-panel border border-transparent py-1.5 pl-2 pr-1.5 transition-[background-color,border-color,box-shadow] duration-150 hover:border-border hover:bg-surface-2/70 @lg:gap-3 @lg:pl-2.5",
+                  editable && "md:cursor-grab",
+                  isDragged && "z-20 cursor-grabbing border-accent bg-surface-2 shadow-2xl shadow-black/50 will-change-transform",
+                  isLifted && "z-10 border-accent bg-surface-2 ring-2 ring-accent/40",
+                )}
+                data-testid="pool-item"
+                data-champion={id}
+                data-dragging={isDragged || undefined}
+                onPointerDown={editable ? onPointerDown(id, false) : undefined}
+              >
+                {/* The champion's own splash art along the item's left half, faint and fading into the
+                    panel (a static, lazy image; no blur), a little brighter while pointed at. */}
+                <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 -z-10 w-3/5 overflow-hidden [mask-image:linear-gradient(to_right,black_20%,transparent)]" data-testid="pool-splash">
+                  <RemoteImage src={championArtUrl({ championId: id, skinNum: 0 }, "splash")} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover object-[60%_22%] opacity-25 transition-opacity duration-300 group-hover:opacity-40" />
+                </span>
+                {inspector}
+                <span className={cn("flex min-w-0 flex-1 items-center gap-2.5 @lg:gap-3", onInspect && "pointer-events-none relative z-[1] [&_button]:pointer-events-auto")}>
+                  <span className="w-4 shrink-0 text-right text-xs font-semibold tabular-nums text-fg-subtle" aria-hidden>
+                    {index + 1}
+                  </span>
+                  <ChampionPortrait champion={c ?? { id, name: id, portraitUrl: "" }} size="sm" className="rounded-lg shadow-md shadow-black/30" />
+                  <span className={cn("min-w-0 flex-1 select-none truncate text-sm font-semibold text-fg", onInspect && "group-hover:underline group-hover:decoration-fg-subtle group-hover:underline-offset-2")}>{c?.name ?? id}</span>
+                  {renderMeta ? <span className="hidden shrink-0 @lg:block">{renderMeta(id)}</span> : null}
+                  {renderStats ? renderStats(id) : null}
+                </span>
+                {controlsEl ? <span className="relative z-[1]">{controlsEl}</span> : null}
+              </li>
+            );
           return (
             <li
               key={id}
@@ -357,49 +475,7 @@ export function SortablePool({
                 // A faint wash of the champion's own colours, so each card is recognisable at a glance.
                 <span aria-hidden className="pointer-events-none absolute -inset-6 -z-10 scale-110 bg-cover bg-center opacity-[0.13] blur-2xl" style={{ backgroundImage: `url(${c.portraitUrl})` }} />
               ) : null}
-              {onInspect && inspectHref ? (
-                // The whole card opens the champion; the grip, × and the proficiency note sit above it.
-                // Keyboard: Tab reaches it (Enter opens); the grip has its own reordering keys. A real
-                // link: before the page is interactive a click loads the champion's address instead
-                // (the server opens the window); afterwards it opens in place. Not draggable, so the
-                // browser never drags the address instead of the card.
-                <a
-                  href={inspectHref(id)}
-                  draggable={false}
-                  data-inspect
-                  onClick={(e) => {
-                    if (dragged.current) {
-                      e.preventDefault();
-                      dragged.current = false;
-                      return;
-                    }
-                    // A new tab or window keeps the browser's own behaviour.
-                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-                    e.preventDefault();
-                    onInspect(id);
-                  }}
-                  className="absolute inset-0 z-0 rounded-panel focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
-                  aria-label={`${c?.name ?? id}: ${inspectLabel}`}
-                  aria-haspopup="dialog"
-                  data-testid="pool-inspect"
-                />
-              ) : onInspect ? (
-                <button
-                  type="button"
-                  data-inspect
-                  onClick={() => {
-                    if (dragged.current) {
-                      dragged.current = false;
-                      return;
-                    }
-                    onInspect(id);
-                  }}
-                  className="absolute inset-0 z-0 rounded-panel focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
-                  aria-label={`${c?.name ?? id}: ${inspectLabel}`}
-                  aria-haspopup="dialog"
-                  data-testid="pool-inspect"
-                />
-              ) : null}
+              {inspector}
               <div className={cn("flex min-w-0 items-center gap-3", renderStats ? "p-2.5 @max-md:p-2" : "p-2", onInspect && "pointer-events-none relative z-[1] [&_button]:pointer-events-auto [&_[role=button]]:pointer-events-auto")}>
                 <span className="pointer-events-none relative shrink-0">
                   {/* A little smaller in a narrow column (phones), so a long pool scrolls less. */}
@@ -411,35 +487,7 @@ export function SortablePool({
                   <span className={cn("block truncate font-semibold text-fg", renderStats ? "max-w-full text-base leading-tight" : "text-sm", onInspect && "group-hover:underline group-hover:decoration-fg-subtle group-hover:underline-offset-2")}>{c?.name ?? id}</span>
                   {renderMeta ? <span className={cn("block", !renderStats && "mt-1")}>{renderMeta(id)}</span> : null}
                 </span>
-                {editable ? (
-                  // In an explicit edit mode the controls are always there; otherwise they stay out of
-                  // the way until the card is pointed at or focused (always on touch screens).
-                  <span className={cn("flex shrink-0 items-center gap-0.5 self-start", controls === "hover" && "opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100")}>
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      data-grip
-                      aria-roledescription="sortable"
-                      aria-pressed={isLifted}
-                      aria-label={`${c?.name ?? id}, position ${index + 1} of ${order.length}. Press Space to pick up and reorder.`}
-                      className="grid h-8 w-7 cursor-grab touch-none place-items-center rounded-md text-fg-subtle hover:bg-surface-2 hover:text-fg focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-accent active:cursor-grabbing pointer-coarse:h-10 pointer-coarse:w-9"
-                      onPointerDown={onPointerDown(id, true)}
-                      onKeyDown={onGripKey(id)}
-                      onBlur={() => {
-                        if (kbd?.id === id) {
-                          setKbd(null);
-                          setAnnounce("Reorder cancelled.");
-                        }
-                      }}
-                      data-testid="pool-grip"
-                    >
-                      <GripVertical className="h-4 w-4" aria-hidden />
-                    </span>
-                    <button type="button" className="grid h-8 w-7 place-items-center rounded-md text-fg-subtle hover:bg-bad/15 hover:text-bad pointer-coarse:h-10 pointer-coarse:w-9" onClick={() => onRemove(id)} aria-label={`Remove ${c?.name ?? id}`} data-testid="pool-remove">
-                      <X className="h-4 w-4" />
-                    </button>
-                  </span>
-                ) : null}
+                {controlsEl}
               </div>
               {renderStats ? <div className={cn("mt-auto border-t border-border/60 bg-bg/55", onInspect && "pointer-events-none relative z-[1]")}>{renderStats(id)}</div> : null}
             </li>

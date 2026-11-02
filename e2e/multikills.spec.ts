@@ -40,49 +40,40 @@ test("Overview: the multikill totals as figures of their own, from the same game
   await expect(page.getByTestId("data-status")).toHaveCount(0);
   await expect(page.getByTestId("data-refresh")).toHaveCount(1);
   await expect(page.getByTestId("data-refresh").locator("[data-part=multikills]")).toHaveCount(0);
-  // Five cards like the season's other figures: Total kills and its average, then each multikill
-  // kind, its total and how often it came.
+  // The season card's kills row: Total kills and its average, then each multikill kind, its total
+  // and how often it came.
   await expect(strip.getByTestId("stat-total-kills")).toHaveText(/^Total kills\s*[\d,]+\s*\d+(\.\d)? a game$/);
   for (const [key, label] of KINDS) await expect(strip.getByTestId(`multikill-${key}`)).toHaveText(new RegExp(`^${label}\\s*\\d+\\s*(1 every [\\d,]+ games|About every game|Every game|None yet)$`));
-  // No heading of their own on screen (each card names what it counts); screen readers keep one.
+  // No heading of their own on screen (each count names itself); screen readers keep one.
   const heading = strip.getByRole("heading", { name: /^Kills and multikills/ });
   await expect(heading).toHaveCount(1);
   expect((await heading.boundingBox())!.height).toBeLessThanOrEqual(1);
+  // Inside the season's card, under its headline and supporting figures.
+  expect(await strip.evaluate((el) => !!el.closest("[data-testid=season-figures]"))).toBe(true);
   // One group: every count (a zero too) in the same colour, size and weight, none highlighted for
-  // its kind; in the colour and weight of the season's figures one size smaller (they support
-  // them), on the same cards.
-  const look = (testId: string, part: "value" | "card") =>
-    page.getByTestId(part === "value" ? `${testId}-value` : testId).evaluate((el, p) => {
+  // its kind; in the colour and weight of the season's headline figures, smaller (they support them).
+  const look = (testId: string) =>
+    page.getByTestId(`${testId}-value`).evaluate((el) => {
       const s = getComputedStyle(el);
-      return p === "value" ? [s.color, s.fontSize, s.fontWeight] : [s.borderTopColor, s.backgroundColor, s.borderTopWidth];
-    }, part);
-  const [season, kills] = [await look("stat-games", "value"), await look("stat-total-kills", "value")];
+      return [s.color, s.fontSize, s.fontWeight];
+    });
+  const [season, kills] = [await look("stat-games"), await look("stat-total-kills")];
   expect([kills[0], kills[2]], "the season's colour and weight").toEqual([season[0], season[2]]);
-  expect(parseFloat(kills[1]!), "a size below the season's figures").toBeLessThan(parseFloat(season[1]!));
-  for (const testId of ["stat-total-kills", ...KINDS.map(([key]) => `multikill-${key}`)]) {
-    expect(await look(testId, "value"), `${testId}: its count`).toEqual(kills);
-    expect(await look(testId, "card"), `${testId}: its card`).toEqual(await look("stat-games", "card"));
-  }
-  // Total kills first. Never five squeezed side by side: one row where five fit (49rem), Total
-  // kills on a row of its own above the four from 39rem, and across the top of two by two below.
+  expect(parseFloat(kills[1]!), "smaller than the season's headline figures").toBeLessThan(parseFloat(season[1]!));
+  for (const testId of ["stat-total-kills", ...KINDS.map(([key]) => `multikill-${key}`)]) expect(await look(testId), `${testId}: its count`).toEqual(kills);
+  // Total kills first; one row of five where the card is 34rem wide or more, else Total kills
+  // across the top and the four two by two.
   const tiles = strip.getByTestId("multikill-tiles").locator(":scope > div");
   await expect(tiles.first()).toHaveAttribute("data-testid", "stat-total-kills");
   const rem = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
-  const room = (await strip.boundingBox())!.width / rem;
+  const room = (await page.getByTestId("season-figures").boundingBox())!.width / rem;
   const tops = await tiles.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
-  expect(new Set(tops).size).toBe(room >= 49 ? 1 : room >= 39 ? 2 : 3);
-  // No card cuts its figures short.
+  expect(new Set(tops).size).toBe(room >= 34 ? 1 : 3);
+  // No count cuts its figures short.
   expect(await tiles.evaluateAll((els) => els.filter((e) => [...e.querySelectorAll("div")].some((d) => d.scrollWidth > d.clientWidth + 1)).map((e) => e.getAttribute("data-testid")))).toEqual([]);
-  // Straight under the season's figures, as far from them as their own rows are from each other.
-  const spacing = await page.evaluate(() => {
-    const figures = document.querySelector<HTMLElement>("[data-testid=season-figures]")!;
-    const tiles = document.querySelector<HTMLElement>("[data-testid=multikill-tiles]")!;
-    return { gap: tiles.getBoundingClientRect().top - figures.getBoundingClientRect().bottom, rowGap: parseFloat(getComputedStyle(figures).rowGap) };
-  });
-  expect(Math.abs(spacing.gap - spacing.rowGap)).toBeLessThanOrEqual(1);
-  // A compact section: no per-champion or per-account lists of its own, and no filters of its own.
+  // A compact row: no per-champion or per-account lists of its own, and no filters of its own.
   await expect(strip.locator("details, ul, select, [role=radiogroup]")).toHaveCount(0);
-  expect((await strip.boundingBox())!.height).toBeLessThan(room >= 49 ? 150 : room >= 39 ? 240 : 330);
+  expect((await strip.boundingBox())!.height).toBeLessThan(room >= 34 ? 120 : 280);
   // The champions behind the totals are in All Champions, with the same filters, most multikills first.
   await page.goto(`${href}?mode=solo`);
   const solo = await seasonGames(page);

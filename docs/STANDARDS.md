@@ -55,12 +55,18 @@ panel and card radii, colours written as hex in a class, easing curves that are 
 uppercase labels spaced other than `tracking-label`. SVG charts drawn 1:1 in px keep their text in
 px, so it fits the chart's fixed gutters; the test lists them.
 
-**Colour** (semantic, never raw values). The ground is a neutral charcoal, each surface one
-visible step lighter than the one below it, so panels separate from the page without glows or
-tints; colour is kept for meaning (the brand's accent for what is selected or can be acted on, the
-sides and results of a match, states). The brand's light stays at the edges of the page, on the
-Team page's banner and player cards' own art, and on sign-in; dense content (tables, scoreboards,
-lists of games) sits on opaque surfaces, never on a translucent panel over imagery.
+**Colour** (semantic, never raw values). The ground is a deep ink with a faint indigo undertone,
+each surface one visible step lighter than the one below it. The identity is a pair: the brand
+blue (`accent`) for what is selected or can be acted on, and violet (`accent-2`) for the light: the
+page's ambient glow (`--ambient-light`, at the window's top edge and a low horizon, also over the
+team's background artwork), and the **brand gradient** (`from-accent to-accent-2`) on a few chosen
+marks only: the selected tab (`tabIndicatorClass`), the sorted column of a table, the headline
+card's top edge, a chart's line. Violet also marks emphasis that is not a control (a "Primary role"
+label). Beyond that colour is kept for meaning: the sides and results of a match, states. The light
+stays at the edges: the ambient glow, the player's own card colours spilling from their banner
+over the top of their profile, player cards' art. Dense content (tables, scoreboards, lists of
+games) sits on opaque panels, never on a translucent panel over imagery; champion art inside a
+list fades out before the figures (a pool row's left half).
 
 | Token | Use |
 | --- | --- |
@@ -68,7 +74,7 @@ lists of games) sits on opaque surfaces, never on a translucent panel over image
 | `surface`, `surface-2`, `surface-3` | panels and cards; raised rows and tiles inside them; selected or hovered |
 | `border`, `border-strong`, `border-control` | structure (dividers, panel and card edges); emphasis (a menu's or dialog's edge, a hovered row); the edge of a field, toolbar button, segmented group or switch, 3:1 against the page, the panels and popovers (WCAG 1.4.11; Branding derives it from custom colours) |
 | `fg`, `fg-muted`, `fg-subtle` | text: main, secondary, captions and metadata; all three 4.5:1 or more on every surface, `surface-3` included |
-| `accent`, `accent-strong`, `accent-2`, `highlight` | the brand (Branding can change them); selected states pair it with a ring or weight, not colour alone |
+| `accent`, `accent-strong`, `accent-2`, `highlight` | the brand: blue (`accent`) for controls and selected states, violet (`accent-2`) for light, emphasis and the second stop of the brand gradient (Branding can change them); selected states pair colour with a ring, weight or bar, never colour alone |
 | `good`, `warn`, `bad`, `info` | states and outcomes; never the only signal (pair with text or an icon) |
 | `blue`, `red` | the two sides of a match, and its result (Victory blue, Defeat red), always with the word |
 | `gold`, `violet`, `bronze`, `bronze-fg` | rarities and places (third place in bronze); never to set one statistic apart from its neighbours: multikill counts are plain `fg` like every other figure |
@@ -99,9 +105,20 @@ which are the same sizes under other names. Page widths: `--content-max` (text a
 pickers and popovers: `z-50`. Menus and toasts: `z-[60]`. Tooltips: `z-[100]`. Detail windows and
 dialogs are native `<dialog>` elements in the browser's top layer, above everything.
 
-**Elevation.** Panels and cards lie flat on the page: a border, no shadow, an opaque surface. What
-floats above it (a menu, picker or popover, a card being dragged) is `bg-bg-elevated`, lighter
-than the panels, with a border and `shadow-2xl`.
+**Elevation.** Panels and cards sit slightly raised from the page: an opaque surface, a hairline
+border and `panel-depth` (globals.css: a faint sheen along the top, a hairline of light on the top
+edge, a soft shadow; `Panel` has it). The card a page leads with may use `panel-featured` instead
+(the same depth with a faint wash of the violet light in its corner). A card that opens something
+can add `panel-lift` (it rises a pixel and its edge brightens while pointed at; no movement with
+reduced motion). None of them makes a stacking context, so tooltips and menus inside keep their layer. What floats above
+the page (a menu, picker or popover, a card being dragged) is `bg-bg-elevated`, lighter than the
+panels, with a border and `shadow-2xl`. No blur filters on content.
+
+**Density by context.** One system, not one look: the profile Overview is a compact dashboard
+(several related cards on the first screen, the figures in a clear order of importance, no card
+kept at a size its content does not fill); All Champions is a dense analytical table; Match
+History is detailed and scannable; banners are expressive; Settings and forms are plain and
+roomy. Empty or thin data shrinks a card rather than leaving a frame to fill.
 
 **Motion.** Short and purposeful: entrances 160 to 220ms with `--ease-emphasized`, exits about
 140ms with ease-in, the sidebar with `--ease-glide`, the Team card's turn (460ms) with
@@ -122,7 +139,7 @@ Use the shared component before writing a new one (`src/components/ui`):
 | Choices in a list | `Menu`, `MenuItem`, `MenuLink` |
 | Filters | `FilterBar`, `RefineButton`, `FilterField`, `SearchInput`, `ToggleChip` |
 | One choice out of a few (a role, a view, a sort) | `segmentedGroupClass` with `segmentClass`, `RoleSegmented` |
-| Sections of a page | `TabBar`, `TabLinks`, `SubNav` |
+| Sections of a page | `TabBar`, `TabLinks`, `SubNav`; any other row of tabs takes its look from `tabIndicatorClass` |
 | Buttons and links that look like buttons | `Button`, `buttonClass` (links never wrap buttons) |
 | Fields | `Input`, `Textarea`, `Select`, `Label`, `Switch` |
 | A section that opens and closes | `Disclosure` |
