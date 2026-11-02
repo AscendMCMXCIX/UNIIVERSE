@@ -1,3 +1,4 @@
+import { AxeBuilder } from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "./test";
 import { memberContext } from "./member-account";
 
@@ -43,6 +44,9 @@ test("a member switches on the links to show; teammates see only those, and noth
   await expect(preview.getByTestId("social-youtube")).toBeVisible();
   await expect(preview.getByTestId("social-discord")).toHaveAttribute("aria-label", /e2e\.player/);
   await expect(preview.getByTestId("social-twitch")).toHaveCount(0);
+  // The switches, on and off, as an accessibility checker reads them: named, with enough contrast.
+  const scan = await new AxeBuilder({ page }).include("[data-testid=social-links-form]").withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+  expect(scan.violations.map((v) => `${v.id}: ${v.help} (${v.nodes.slice(0, 3).map((n) => n.target.join(" ")).join(" | ")})`)).toEqual([]);
   await page.getByTestId("social-links-save").click();
   await expect(page.getByText("Social links saved.")).toBeVisible();
   await page.reload();
@@ -102,7 +106,12 @@ async function expectOnLabelLine(page: Page, platform: string, kind: string) {
 
 test("on touch screens each switch is a finger-sized target on its platform's line, and its words toggle it", async ({ browser, page: admin }, info) => {
   test.skip(info.project.name === "desktop", "the touch sizes; the desktop flow above covers the rest");
-  const { context, page } = await memberContext(browser, admin);
+  // The member's session, opened again as this project's phone or tablet (touch, its own size).
+  const member = await memberContext(browser, admin);
+  const { viewport, isMobile, hasTouch, deviceScaleFactor } = info.project.use;
+  const context = await browser.newContext({ viewport, isMobile, hasTouch, deviceScaleFactor, storageState: await member.context.storageState() });
+  await member.context.close();
+  const page = await context.newPage();
   await page.goto("/settings");
   const form = page.getByTestId("social-links-form");
   await expect(form).toBeVisible();
