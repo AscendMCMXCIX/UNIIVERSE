@@ -1,16 +1,15 @@
 import { redirect } from "next/navigation";
-import { getSession } from "@/server/auth/session";
 import { defaultPlatform } from "@/server/auth/signup";
 import { ChangePasswordPanel } from "@/components/settings/change-password-panel";
 import { CompleteProfileForm } from "@/components/auth/complete-profile-form";
+import { requirePageAccess } from "@/server/auth/page-access";
 
 export const dynamic = "force-dynamic";
 
 /** "My profile" is the member's own player profile. An account from before automatic profiles finishes its profile here first. */
 export default async function MePage() {
-  const session = await getSession();
-  if (session?.playerId) redirect(`/players/${session.playerId}`);
-  if (!session?.userId) redirect("/");
+  const session = await requirePageAccess();
+  if (session.playerId) redirect(`/players/${session.playerId}`);
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <div>
