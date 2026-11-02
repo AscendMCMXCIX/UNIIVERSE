@@ -510,24 +510,50 @@ export function PoolChampionRow({ index, champion, row, support, withStats = tru
   );
 }
 
+/** The pool list's columns (Team player window): the champion, then its figures, right-aligned. */
+const POOL_TILE_GRID = "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 sm:grid-cols-[auto_minmax(0,1fr)_4.75rem_3.5rem_3.25rem_4rem]";
+
+/** The column names over the pool list, from small tablets up (phones put each champion's figures in a short block). */
+export function PoolColumnNames({ support }: { support: boolean }) {
+  const head = "whitespace-nowrap text-right text-2xs font-semibold uppercase tracking-label text-fg-subtle";
+  return (
+    <div className={cn(POOL_TILE_GRID, "hidden border-b border-border/70 bg-bg/30 px-3 py-1.5 sm:grid")} aria-hidden data-testid="pool-columns">
+      <span className="w-10" />
+      <span className="text-2xs font-semibold uppercase tracking-label text-fg-subtle">Champion</span>
+      <span className={head}>Win rate</span>
+      <span className={head}>Games</span>
+      <span className={head}>KDA</span>
+      <span className={head}>{support ? "Vision" : "CS/min"}</span>
+    </div>
+  );
+}
+
 /**
- * One champion of a pool as a tile (the Team player window): portrait, name, place in the order,
- * the experience label and the season's figures in this role. The first choice is a wider tile in
- * the card's own colour. Same data and test ids as PoolChampionRow.
+ * One champion of a pool as a row of the Team player window's list: its place, portrait, name and
+ * experience label, then the season's figures in this role in aligned columns (a short block on
+ * phones). The first choice is marked in its row in the card's own colour, never set apart, so the
+ * pool reads as one list. Same data and test ids as PoolChampionRow.
  */
 export function PoolChampionTile({ index, champion, row, support, withStats = true }: { index: number; champion: PortraitChampion; row: PoolRowChampion; support: boolean; withStats?: boolean }) {
   const first = index === 0;
+  const rate = row.winRate === null ? "—" : `${Math.round(row.winRate * 100)}%`;
+  const kda = row.perfectKda ? "Perfect" : row.kdaRatio === null ? "—" : row.kdaRatio.toFixed(1);
+  const third = support ? (row.visionPerGame === null ? "—" : String(Math.round(row.visionPerGame))) : row.csPerMinute === null ? "—" : row.csPerMinute.toFixed(1);
+  const tone = WIN_RATE_TONE_CLASS[winRateTone(row.winRate, row.games, WIN_RATE_MIN_GAMES.champion)];
   return (
-    <li className={cn("flex min-w-0 items-center gap-3 rounded-panel border p-2.5", first ? "border-[color-mix(in_srgb,var(--card-accent)_45%,transparent)] bg-[color-mix(in_srgb,var(--card-accent)_10%,transparent)] sm:col-span-2" : "border-border/70 bg-surface/60")} data-testid="pool-champion" data-champion={row.championId} data-first={first || undefined}>
+    <li className={cn(POOL_TILE_GRID, "relative px-3 py-2", first && "bg-[color-mix(in_srgb,var(--card-accent)_8%,transparent)]")} data-testid="pool-champion" data-champion={row.championId} data-first={first || undefined}>
+      {first ? <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-r-full bg-[var(--card-accent)]" aria-hidden /> : null}
       <span className="relative shrink-0">
-        <ChampionPortrait champion={champion} size={first ? "lg" : "md"} className="rounded-lg" />
+        <ChampionPortrait champion={champion} size="md" className="h-10 w-10 rounded-lg" />
         <span className="absolute -left-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full border border-border bg-bg-elevated px-1 text-2xs font-semibold tabular-nums text-fg-muted" aria-hidden>
           {index + 1}
         </span>
       </span>
-      <span className="min-w-0 flex-1">
-        <span className={cn("block truncate font-semibold text-fg", first ? "text-base" : "text-sm")}>{champion.name}</span>
-        {first ? <span className="block text-2xs font-medium uppercase tracking-label text-[var(--card-accent)]">First choice</span> : null}
+      <span className="min-w-0">
+        <span className="flex min-w-0 items-baseline gap-2">
+          <span className="truncate text-sm font-semibold text-fg">{champion.name}</span>
+          {first ? <span className="shrink-0 text-2xs font-semibold uppercase tracking-label text-[var(--card-accent)]">First choice</span> : null}
+        </span>
         {withStats ? (
           <span className="mt-0.5 block">
             <TierBadge tier={row.tier as ProficiencyTier} label={row.tierLabel} why={row.tierWhy} evidence={row.evidence} quiet />
@@ -535,29 +561,37 @@ export function PoolChampionTile({ index, champion, row, support, withStats = tr
         ) : null}
       </span>
       {withStats ? (
-        <span className="shrink-0 text-right leading-tight" data-testid="pool-champion-stats">
-          {row.games ? (
-            <>
-              <span className={cn("block font-semibold tabular-nums", first ? "text-lg" : "text-sm", WIN_RATE_TONE_CLASS[winRateTone(row.winRate, row.games, WIN_RATE_MIN_GAMES.champion)])}>{row.winRate === null ? "—" : `${Math.round(row.winRate * 100)}%`}</span>
+        row.games ? (
+          <>
+            {/* Phones: the win rate and games, then KDA and CS (vision for supports), in one short block. */}
+            <span className="text-right leading-tight sm:hidden" data-testid="pool-champion-stats">
+              <span className={cn("block text-sm font-semibold tabular-nums", tone)}>{rate}</span>
               <span className="block text-2xs tabular-nums text-fg-subtle">
                 {row.games} game{row.games === 1 ? "" : "s"}
               </span>
               <span className="block text-2xs tabular-nums text-fg-muted" data-testid={support ? "pool-champion-kda-vision" : "pool-champion-kda-cs"}>
-                {row.perfectKda ? "Perfect" : row.kdaRatio === null ? "—" : row.kdaRatio.toFixed(1)} KDA · {support ? `${row.visionPerGame === null ? "—" : Math.round(row.visionPerGame)} vis` : `${row.csPerMinute === null ? "—" : row.csPerMinute.toFixed(1)} CS`}
+                {kda} KDA · {third} {support ? "vis" : "CS"}
               </span>
-            </>
-          ) : row.masteryPoints ? (
-            <span className="inline-flex items-center gap-1">
-              <span className="block text-right">
-                <span className="block text-sm font-semibold tabular-nums text-fg-muted">{formatCompactCount(row.masteryPoints)}</span>
-                <span className="block text-2xs text-fg-subtle">mastery</span>
-              </span>
-              <InfoTip label="About mastery points" text={`${formatCount(row.masteryPoints)} mastery points: lifetime experience on the champion, not this season's results. No games in this role this season.`} />
             </span>
-          ) : (
-            <span className="block text-2xs text-fg-subtle">No games this season</span>
-          )}
-        </span>
+            <span className={cn("hidden text-right text-sm font-semibold tabular-nums sm:block", tone)}>{rate}</span>
+            <span className="hidden text-right text-sm tabular-nums text-fg-muted sm:block">{row.games}</span>
+            <span className="hidden text-right text-sm tabular-nums text-fg-muted sm:block">{kda}</span>
+            <span className="hidden text-right text-sm tabular-nums text-fg-muted sm:block">{third}</span>
+          </>
+        ) : (
+          <span className="text-right sm:col-span-4" data-testid="pool-champion-stats">
+            {row.masteryPoints ? (
+              <span className="inline-flex items-center gap-1">
+                <span className="text-xs tabular-nums text-fg-muted">
+                  <span className="font-semibold">{formatCompactCount(row.masteryPoints)}</span> mastery · no games this season
+                </span>
+                <InfoTip label="About mastery points" text={`${formatCount(row.masteryPoints)} mastery points: lifetime experience on the champion, not this season's results. No games in this role this season.`} />
+              </span>
+            ) : (
+              <span className="text-xs text-fg-subtle">No games this season</span>
+            )}
+          </span>
+        )
       ) : null}
     </li>
   );

@@ -31,6 +31,10 @@ from each section; this page does not repeat them.
   figure). A sample too small to mean much says so.
 - Never present an uncertain identity or relationship as certain: what is only possible is
   labelled as possible (a match's possible groups, for example, never "premade").
+- Two players' relationship is what the stored games record: against (opposite teams) or
+  alongside (the same team), each with its own record and its own last game. Someone met both ways
+  is listed under both, never folded into a third "mixed" kind; the All view shows the two records
+  side by side, each with its word, not told apart by colour alone (`src/domain/encounters.ts`).
 - Explanations sit next to the figure (`InfoTip`, `Metric` labels from `src/domain/metrics.ts`),
   in plain language.
 - How current a page's Riot data is goes in the same two places on every page, in the fixed words
@@ -60,8 +64,7 @@ each surface one visible step lighter than the one below it. The identity is a p
 blue (`accent`) for what is selected or can be acted on, and violet (`accent-2`) for the light: the
 page's ambient glow (`--ambient-light`, at the window's top edge and a low horizon, also over the
 team's background artwork), and the **brand gradient** (`from-accent to-accent-2`) on a few chosen
-marks only: the selected tab (`tabIndicatorClass`), the sorted column of a table, the headline
-card's top edge, a chart's line. Violet also marks emphasis that is not a control (a "Primary role"
+marks only: the selected tab (`tabIndicatorClass`), the headline card's top edge, a chart's line. Violet also marks emphasis that is not a control (a "Primary role"
 label). Beyond that colour is kept for meaning: the sides and results of a match, states. The light
 stays at the edges: the ambient glow, the player's own card colours spilling from their banner
 over the top of their profile, player cards' art. Dense content (tables, scoreboards, lists of
@@ -120,6 +123,22 @@ kept at a size its content does not fill); All Champions is a dense analytical t
 History is detailed and scannable; banners are expressive; Settings and forms are plain and
 roomy. Empty or thin data shrinks a card rather than leaving a frame to fill.
 
+**Tables and rankings.** Columns of figures are right-aligned in `tabular-nums` under headings
+that never wrap (`whitespace-nowrap`; the sort arrow sits outside the heading's text, so a
+heading keeps its place when it is sorted). The sorted column is marked by its arrow and by its
+figures in the main text weight; no gradient, glow or bar behind a figure unless the bar is the
+comparison itself (a leaderboard's gap to the leader, one quiet line). Win rates take their colour
+only from `winRateTone` (`src/domain/stats/win-rate.ts`); below the minimum games they stay grey
+and say "small sample", and a sort by win rate ranks established records before small samples. A
+ranking gives equal values the same place, written "2=" (titled "Tied for 2nd"), and never repeats
+who is already shown large: the podium (tablets up) or the leader's spotlight (phones) is followed
+by the rest. On phones a table becomes compact rows: the one or two figures that matter most at the
+right, the others as labelled pairs underneath (`dl`), every figure still there.
+
+**Windows.** A detail window (`DetailModal`) is as tall as its content, up to the screen: no
+empty band under a short window. Its header holds who or what it is about and the actions that
+belong to them (Full profile, OP.GG beside the name), then a summary, then the detail.
+
 **Motion.** Short and purposeful: entrances 160 to 220ms with `--ease-emphasized`, exits about
 140ms with ease-in, the sidebar with `--ease-glide`, the Team card's turn (460ms) with
 `--ease-turn`. Script-driven animations use the same curves. Everything becomes instant for
@@ -134,7 +153,7 @@ Use the shared component before writing a new one (`src/components/ui`):
 | Page title, eyebrow, actions | `PageHeader` |
 | A titled section | `Panel`, `PanelHeader`, `PanelBody`, `SectionLabel` |
 | A figure with its label and explanation | `Metric`, `MetricLabel`, `InfoTip` |
-| Details over the page (a match, a player, a champion) | `DetailModal`; a custom `header` keeps clear of the close button's corner with `CLEAR_OF_CONTROLS` (content beside it) or `BELOW_CONTROLS` (content that starts under it), never a fixed padding |
+| Details over the page (a match, a player, a champion) | `DetailModal` (the standard size fits its content up to the screen's height); a custom `header` keeps clear of the close button's corner with `CLEAR_OF_CONTROLS` (content beside it) or `BELOW_CONTROLS` (content that starts under it), never a fixed padding |
 | A question or a short form | `Dialog`, `ConfirmDialog` |
 | Choices in a list | `Menu`, `MenuItem`, `MenuLink` |
 | Filters | `FilterBar`, `RefineButton`, `FilterField`, `SearchInput`, `ToggleChip` |
@@ -153,6 +172,10 @@ Use the shared component before writing a new one (`src/components/ui`):
 | A section of Riot data's heading: title, scope line and status, a toolbar of filters ending in Refresh | `SectionHeader` |
 | A button in a toolbar beside the filters (Refine, Refresh) | `toolbarButtonClass` (`filter-bar.tsx`) |
 | A player's identity on a card (picture and links, name, rank and labels, tagline) | `CardIdentity` (`players/player-card.tsx`) inside a `@container/card`; on Players, `layout="rows"` on the directory card's grid (`DirectoryCardLayout`) |
+| A champion pool's rows (first choice marked, win rate, games, KDA, CS) | `PoolChampionTile` under `PoolColumnNames` (`players/player-card.tsx`) |
+| Both teams of a game | `TeamComposition` (`match-history/team-composition.tsx`); `keepNames` where the line-ups are what the card is for (Team → Matches), so phones keep the names too |
+| Two players' relationship in recorded games (against, alongside) | `RelationTag` (`match-history/encounters-view.tsx`): the word with the side's colour |
+| Bookmarking a game from a dense card | `BookmarkButton` with `iconOnly` (a 44px target on touch screens, its label kept for screen readers) |
 
 ## Dates and numbers
 

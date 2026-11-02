@@ -132,7 +132,7 @@ export interface EncounterPage {
   list: EncounterSummary[];
   /** Players matching the list's choices (the list shows the first `limit`). */
   total: number;
-  /** Players each relation would list with the same minimum and search (the choice's counts). */
+  /** Players each relation's list would hold with the same minimum, search and sort (the switches' counts). */
   counts: Record<EncounterRelation, number>;
   insights: EncounterInsight[];
 }
@@ -158,7 +158,13 @@ export async function loadEncounterPage(db: Db, scope: EncounterScope, o: Encoun
   // Records with enough decided games come before smaller samples, whatever their rate.
   const established = sql`(${rec.wins} + ${rec.losses} >= ${ESTABLISHED_GAMES}) DESC`;
   const order = sort === "best" ? sql`${established}, ${rate} DESC, ${byGames}` : sort === "worst" ? sql`${established}, ${rate} ASC, ${byGames}` : sort === "recent" ? sql`${rec.last} DESC NULLS LAST, ${rec.games} DESC, key COLLATE "C"` : byGames;
-  const counted = (r: EncounterRelation) => sql`(SELECT count(*) FROM players WHERE ${RECORD[r].games} >= ${o.min} ${search})`;
+  // Each switch's count is the length of the list it opens: the same minimum, search and sort (a
+  // win-rate sort, kept on Against and Alongside, also asks for that many decided games).
+  const counted = (r: EncounterRelation) => {
+    const c = RECORD[r];
+    const ratedHere = (o.sort === "best" || o.sort === "worst") && r !== "all";
+    return sql`(SELECT count(*) FROM players WHERE ${c.games} >= ${o.min} ${search} ${ratedHere ? sql`AND ${c.wins} + ${c.losses} >= ${o.min}` : sql``})`;
+  };
   // Each highlight is the first player of the list it sums up: ties go to more games in that
   // relation (the larger sample), then the most recent (as encounterInsights).
   const highlight = (where: SQL, orderBy: SQL, games: SQL) => sql`(SELECT ${SUMMARY_JSON} FROM players WHERE ${where} ORDER BY ${orderBy}, ${games} DESC, last_at DESC, key COLLATE "C" LIMIT 1)`;

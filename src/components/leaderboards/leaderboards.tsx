@@ -57,7 +57,7 @@ export function Leaderboards({ view, champions, status }: { view: LeaderboardVie
       <header className="flex flex-col gap-3 2xl:flex-row 2xl:items-end 2xl:justify-between">
         <div className="min-w-0">
           <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-fg">
-            <Trophy className="h-6 w-6 text-warn" aria-hidden /> Team Leaderboards
+            <Trophy className="h-6 w-6 text-fg-subtle" aria-hidden /> Team Leaderboards
           </h1>
           {/* The scope, then how fresh the boards are: the same status note beside it as on a
               profile (there is no Refresh here: the boards follow each player's account syncs and
@@ -132,12 +132,14 @@ export function Leaderboards({ view, champions, status }: { view: LeaderboardVie
                 ) : (
                   <>
                     <Podium entries={b.ranked.slice(0, 3)} player={player} champ={champ} viewer={viewer} />
-                    <LeaderSpotlight e={b.ranked[0]!} p={player(b.ranked[0]!.playerId)} champ={champ(b.ranked[0]!.championId)} you={b.ranked[0]!.playerId === viewer} />
+                    <LeaderSpotlight e={b.ranked[0]!} p={player(b.ranked[0]!.playerId)} champ={champ(b.ranked[0]!.championId)} you={b.ranked[0]!.playerId === viewer} joint={(b.ranked[1]?.rank ?? 0) === 1} />
                     {view.you ? <YouStrip view={view} player={player} /> : null}
-                    {/* The podium shows the top three from tablets up: the list continues from fourth there (phones list everyone). */}
-                    <ol className={cn("mt-3 space-y-1.5", b.ranked.length <= 3 && "sm:hidden")} data-testid="board-rows" aria-label="Full ranking">
+                    {/* The list never repeats who is already shown large: from tablets up the podium has the
+                        top three and the list continues from fourth; on phones the spotlight has the leader
+                        and the list continues from second. */}
+                    <ol className={cn("mt-3 divide-y divide-border/60 overflow-hidden rounded-panel border border-border/70", b.ranked.length === 1 ? "hidden" : b.ranked.length <= 3 && "sm:hidden")} data-testid="board-rows" aria-label="Full ranking">
                       {b.ranked.map((e, i) => (
-                        <Row key={e.playerId} e={e} p={player(e.playerId)} champ={champ(e.championId)} you={e.playerId === viewer} onPodium={i < 3} />
+                        <Row key={e.playerId} e={e} p={player(e.playerId)} champ={champ(e.championId)} you={e.playerId === viewer} onPodium={i < 3} spotlit={i === 0} tied={b.ranked.filter((x) => x.rank === e.rank).length > 1} />
                       ))}
                     </ol>
                   </>
@@ -209,9 +211,7 @@ export function Leaderboards({ view, champions, status }: { view: LeaderboardVie
                             <span className="block truncate text-xs text-fg-subtle">{r.label}</span>
                             <span className="block truncate text-sm font-medium text-fg">{p.name}</span>
                           </span>
-                          <span className="shrink-0 text-sm font-semibold tabular-nums" style={{ color: accentOf(p.look) }}>
-                            {r.valueText}
-                          </span>
+                          <span className="shrink-0 text-sm font-semibold tabular-nums text-fg">{r.valueText}</span>
                         </Link>
                       </li>
                     );
@@ -281,7 +281,7 @@ function HighlightsGrid({ view, player }: { view: LeaderboardView; player: (id: 
                         <Crown className="absolute -right-1.5 -top-2 h-4 w-4 rounded-full bg-surface p-px text-warn" aria-hidden />
                       </span>
                       <span className="relative min-w-0 flex-1 [text-shadow:0_1px_8px_rgb(0_0_0/0.6)]">
-                        <span className="block text-2xs font-semibold uppercase tracking-label text-warn">Leader</span>
+                        <span className="block text-2xs font-semibold uppercase tracking-label text-fg-subtle">Leader</span>
                         <span className="flex min-w-0 items-center gap-1.5 text-base font-semibold leading-tight text-fg" data-testid="highlight-leader" title={lead.name}>
                           <span className="truncate">{lead.name}</span>
                           {lead.role ? <RoleIcon role={lead.role} className="h-3.5 w-3.5 shrink-0 text-fg-muted" title={ROLE_LABELS[lead.role]} /> : null}
@@ -297,7 +297,7 @@ function HighlightsGrid({ view, player }: { view: LeaderboardView; player: (id: 
                 <span className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 px-3.5 pt-2.5">
                   {lead && t.leader ? (
                     <>
-                      <span className="text-2xl font-bold leading-tight tabular-nums" style={{ color: "var(--card-accent)" }} data-testid="highlight-value">
+                      <span className="text-2xl font-bold leading-tight tabular-nums text-fg" data-testid="highlight-value">
                         {t.leader.valueText}
                       </span>
                       {t.leader.sampleText ? <span className="text-xs tabular-nums text-fg-subtle">{t.leader.sampleText}</span> : null}
@@ -440,7 +440,7 @@ function Podium({ entries, player, champ, viewer }: { entries: ViewEntry[]; play
               </span>
             </ProfileLink>
             <RankInline rank={p.rank} className="text-xs text-fg-muted" />
-            <span className={cn("mt-1 font-semibold tabular-nums leading-none", first ? "text-3xl" : "text-2xl")} style={{ color: "var(--card-accent)" }} data-testid="podium-value">
+            <span className={cn("mt-1 font-semibold tabular-nums leading-none text-fg", first ? "text-3xl" : "text-2xl")} data-testid="podium-value">
               {e.valueText}
             </span>
             <span className="mt-1 flex max-w-full items-center gap-1 truncate text-xs text-fg-muted">
@@ -457,42 +457,48 @@ function Podium({ entries, player, champ, viewer }: { entries: ViewEntry[]; play
   );
 }
 
-/** Phones: the leader, large, before the ranking. */
-function LeaderSpotlight({ e, p, champ, you }: { e: ViewEntry; p: ViewPlayer; champ: PortraitChampion | null; you: boolean }) {
+/** Phones: the leader, large, before the ranking ("Joint leader" when first place is shared). */
+function LeaderSpotlight({ e, p, champ, you, joint }: { e: ViewEntry; p: ViewPlayer; champ: PortraitChampion | null; you: boolean; joint: boolean }) {
   return (
-    <div className="flex items-center gap-3 rounded-card border border-warn/40 bg-gradient-to-r from-warn/15 to-transparent p-3 sm:hidden" style={{ ["--card-accent" as string]: accentOf(p.look) }} data-testid="leader-spotlight" data-player-id={e.playerId}>
+    <div className="relative flex items-center gap-3 overflow-hidden rounded-card border border-border bg-surface-2/40 p-3 pl-4 sm:hidden" style={{ ["--card-accent" as string]: accentOf(p.look) }} data-testid="leader-spotlight" data-player-id={e.playerId}>
+      <span className="absolute inset-y-0 left-0 w-1 bg-warn" aria-hidden />
       <span className="relative">
         <Crown className="absolute -top-3 left-1/2 h-4 w-4 -translate-x-1/2 text-warn" aria-hidden />
         <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="lg" className="ring-2 ring-warn/70 ring-offset-2 ring-offset-surface" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-xs font-medium uppercase tracking-label text-warn">Leader</span>
+        <span className="block text-2xs font-semibold uppercase tracking-label text-fg-subtle" data-testid="leader-spotlight-label">{joint ? "Joint leader" : "Leader"}</span>
         <ProfileLink href={p.profileHref} className="flex items-center gap-1.5 text-base font-semibold text-fg">
           <span className="truncate">{p.name}</span>
           {you ? <Badge tone="accent">You</Badge> : null}
         </ProfileLink>
         <span className="block truncate text-xs text-fg-muted">{[champ?.name, e.note, e.when, e.sampleText].filter(Boolean).join(" · ")}</span>
       </span>
-      <span className="shrink-0 text-2xl font-semibold tabular-nums" style={{ color: "var(--card-accent)" }}>
-        {e.valueText}
-      </span>
+      <span className="shrink-0 text-2xl font-semibold tabular-nums text-fg">{e.valueText}</span>
     </div>
   );
 }
 
-/** One player in the ranking: place, identity, a bar against the leader, the value. */
-function Row({ e, p, champ, you, onPodium = false }: { e: ViewEntry; p: ViewPlayer; champ: PortraitChampion | null; you: boolean; onPodium?: boolean }) {
+/**
+ * One player in the ranking, a line of one list: place (shared places marked, "2="), identity, a
+ * quiet bar against the leader, the value. Gold marks first place and the accent marks you; the
+ * numbers stay in the text colour, so they compare at a glance.
+ */
+function Row({ e, p, champ, you, onPodium = false, spotlit = false, tied = false }: { e: ViewEntry; p: ViewPlayer; champ: PortraitChampion | null; you: boolean; onPodium?: boolean; spotlit?: boolean; tied?: boolean }) {
   const top = e.rank <= 3 ? PLACE[e.rank - 1]! : null;
   return (
-    <li className={cn("relative isolate flex min-h-14 items-center gap-3 overflow-hidden rounded-panel border px-3 py-2", you ? "border-accent/50 bg-accent/10" : "border-border/60 bg-bg-elevated/40", onPodium && "sm:hidden")} style={{ ["--card-accent" as string]: accentOf(p.look) }} data-testid="board-row" data-rank={e.rank} data-player-id={e.playerId} data-you={you ? "true" : undefined}>
-      {/* A restrained crop of the player's own artwork behind the value end of the row (from tablets
-          up), fading out before the name: identity without a full card per row. */}
-      <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 -z-10 hidden w-2/5 overflow-hidden [mask-image:linear-gradient(to_right,transparent,#000_70%)] sm:block" data-testid="row-art">
-        <CardArtLayer art={p.art} accent={accentOf(p.look)} kind="splash" position="center 22%" look={p.look} decorate={false} strength="strong" testId="row-art-image" />
-      </span>
+    <li className={cn("relative flex min-h-14 items-center gap-3 px-3 py-2", you ? "bg-accent/5" : "bg-transparent", spotlit ? "hidden" : onPodium && "sm:hidden")} data-testid="board-row" data-rank={e.rank} data-player-id={e.playerId} data-you={you ? "true" : undefined} data-tied={tied || undefined}>
       {/* The leader and you are told apart at a glance: gold rail for first place, accent for you. */}
-      {e.rank === 1 || you ? <span className={cn("absolute inset-y-0 left-0 w-1", e.rank === 1 ? "bg-warn" : "bg-accent")} aria-hidden data-testid="row-rail" data-kind={e.rank === 1 ? "leader" : "you"} /> : null}
-      <span className={cn("w-6 shrink-0 text-center text-sm font-bold tabular-nums", top ? top.text : "text-fg-subtle")}>{e.rank}</span>
+      {e.rank === 1 || you ? <span className={cn("absolute inset-y-0 left-0 w-0.5", e.rank === 1 ? "bg-warn" : "bg-accent")} aria-hidden data-testid="row-rail" data-kind={e.rank === 1 ? "leader" : "you"} /> : null}
+      <span className={cn("w-7 shrink-0 text-center text-sm font-bold tabular-nums", top ? top.text : "text-fg-subtle")} title={tied ? `Tied for ${ordinal(e.rank)}` : undefined}>
+        {e.rank}
+        {tied ? (
+          <>
+            <span aria-hidden>=</span>
+            <span className="sr-only"> (tied)</span>
+          </>
+        ) : null}
+      </span>
       <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="md" />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">
@@ -502,8 +508,8 @@ function Row({ e, p, champ, you, onPodium = false }: { e: ViewEntry; p: ViewPlay
           {you ? <Badge tone="accent">You</Badge> : null}
         </span>
         {/* The gap to the leader at a glance (the leader's bar is full). */}
-        <span className="mt-1 block h-1.5 w-full max-w-md overflow-hidden rounded-full bg-surface-3" aria-hidden>
-          <span className="block h-full rounded-full" style={{ width: `${Math.max(4, Math.round(e.bar * 100))}%`, background: "var(--card-accent)" }} data-testid="row-bar" />
+        <span className="mt-1 block h-1 w-full max-w-md overflow-hidden rounded-full bg-surface-3" aria-hidden>
+          <span className={cn("block h-full rounded-full", e.rank === 1 ? "bg-warn/70" : "bg-fg-subtle/60")} style={{ width: `${Math.max(4, Math.round(e.bar * 100))}%` }} data-testid="row-bar" />
         </span>
         <span className="mt-1 flex items-center gap-1.5 truncate text-xs text-fg-muted">
           {champ ? <ChampionPortrait champion={champ} size="xs" title={champ.name} /> : null}
@@ -526,7 +532,7 @@ function YouStrip({ view, player }: { view: LeaderboardView; player: (id: string
   const me = player(you.playerId);
   const leader = you.leader ? player(you.leader.playerId) : null;
   return (
-    <div className="mt-3 flex items-center gap-3 rounded-panel border border-accent/40 bg-accent/10 px-3 py-2 2xl:hidden" data-testid="you-strip">
+    <div className="mt-3 flex items-center gap-3 rounded-panel border border-accent/30 bg-accent/5 px-3 py-2 2xl:hidden" data-testid="you-strip">
       <CardAvatar look={me.look} name={me.name} src={me.avatarUrl} size="sm" />
       <span className="min-w-0 flex-1 text-sm">
         <span className="font-semibold text-fg">{you.rank ? `You: #${you.rank} of ${you.of}` : "You: not ranked"}</span>
@@ -544,7 +550,7 @@ function YouPanel({ view, player }: { view: LeaderboardView; player: (id: string
   const me = player(you.playerId);
   const leader = you.leader ? player(you.leader.playerId) : null;
   return (
-    <section className="rounded-card border border-accent/40 bg-gradient-to-b from-accent/10 to-surface p-4" data-testid="your-position">
+    <section className="rounded-card border border-accent/30 bg-surface p-4 panel-depth" data-testid="your-position">
       <h3 className="flex items-center gap-1.5 text-sm font-semibold text-fg">
         <Target className="h-4 w-4 text-accent" aria-hidden /> Your position · {b.label}
       </h3>
@@ -556,9 +562,7 @@ function YouPanel({ view, player }: { view: LeaderboardView; player: (id: string
           <div className="mt-2 flex items-center gap-2">
             <CardAvatar look={leader.look} name={leader.name} src={leader.avatarUrl} size="sm" />
             <span className="min-w-0 flex-1 truncate text-sm text-fg">{leader.name}</span>
-            <span className="text-sm font-semibold tabular-nums" style={{ color: accentOf(leader.look) }}>
-              {you.leader.valueText}
-            </span>
+            <span className="text-sm font-semibold tabular-nums text-fg">{you.leader.valueText}</span>
           </div>
           <div className="mt-1.5 flex items-center gap-2">
             <CardAvatar look={me.look} name={me.name} src={me.avatarUrl} size="sm" />

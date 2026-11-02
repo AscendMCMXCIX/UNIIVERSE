@@ -155,8 +155,9 @@ describe("a player's Encounters, counted in the database", () => {
             const where = JSON.stringify({ scope: { ...scope, accountIds: scope.accountIds.length }, relation, sort, min, q });
             expect(page.list, where).toEqual(expected.slice(0, 25));
             expect(page.total, where).toBe(expected.length);
-            // Each side's count is the number of players its own list would hold (same minimum and search).
-            const count = (r: EncounterRelation) => listEncounters(all, { relation: r, min, sort: "games", query: q }).length;
+            // Each side's count is the number of players its own list would hold (same minimum, search
+            // and sort: a win-rate sort carries over to Against and Alongside, All lists by games).
+            const count = (r: EncounterRelation) => listEncounters(all, { relation: r, min, sort, query: q }).length;
             expect(page.counts, where).toEqual({ against: count("against"), alongside: count("alongside"), all: count("all") });
             expect(page.games, where).toBe(games);
             expect(page.withPlayers, where).toBe(new Set(rows.map((r) => r.matchId)).size);

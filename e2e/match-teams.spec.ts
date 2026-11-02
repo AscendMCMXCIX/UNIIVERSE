@@ -5,8 +5,9 @@ import { expandedOf, openGame } from "./match-history";
   Both teams on every match card (synthetic demo games: the other players are named "Demo Ally"
   and "Demo Rival", never real people). A player's Match History and Team → Matches use the same
   preview: blue then red, five a side, the player in bold, team members marked, the player's side
-  tinted. Wide cards show names without any interaction; phones keep the icons in one line (the
-  names stay readable to screen readers) and nothing overflows. The game still opens under its card.
+  tinted. Wide cards show names without any interaction; a player's Match History on phones keeps
+  the icons in one line (the names stay readable to screen readers), while Team → Matches shows the
+  names on every screen, and nothing overflows. The game still opens under its card.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -65,8 +66,15 @@ test("Team → Matches: the same preview, with the team members marked", async (
   const game = page.getByTestId("together-game").first();
   await expect(game).toBeVisible();
   const teams = game.getByTestId("match-teams");
-  await expect(teams).toHaveAttribute("data-variant", "strip");
+  // Two columns of five, as on a player's own match cards (beside the members on wide cards),
+  // with every name readable on phones too: the full line-ups are what these cards are for.
+  await expect(teams).toHaveAttribute("data-variant", "columns");
   await expect(teams.locator('[data-testid="team-slot"]')).toHaveCount(10);
+  const names = teams.getByTestId("team-slot-name");
+  for (const i of [0, 9]) {
+    await expect(names.nth(i)).toBeVisible();
+    expect(await names.nth(i).evaluate((e) => e.getBoundingClientRect().width)).toBeGreaterThan(24);
+  }
   // At least the members listed on the card are marked in the preview, on their side.
   const members = Number(await game.getAttribute("data-members"));
   expect(await teams.locator("[data-own] [data-member]").count()).toBeGreaterThanOrEqual(members);
