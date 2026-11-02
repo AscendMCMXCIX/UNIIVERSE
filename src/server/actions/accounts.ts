@@ -135,12 +135,6 @@ export async function syncPlayerAccountAction(playerId: string, accountId: strin
   }
 }
 
-export async function listPlayerAccountsAction(playerId: string): Promise<RiotAccountRecord[]> {
-  await requirePermission("view-players");
-  const db = await getAppDb();
-  return listAccountsForPlayer(db, playerId);
-}
-
 /** Owner: re-run the sync for every linked account that is not currently synced (bounded). */
 export async function retryPendingAccountsAction(): Promise<Result<{ attempted: number; synced: number; pending: number; failed: number }>> {
   try {
