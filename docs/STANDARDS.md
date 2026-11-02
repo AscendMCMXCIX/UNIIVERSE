@@ -240,7 +240,14 @@ ones lazily, and keep uploaded brand images small ([HOSTING_USAGE.md](HOSTING_US
   `(app)` or `(admin)` that does not call it; pages that only redirect, and the "no access" page,
   are listed there with the reason.
 - No secrets in URLs, logs, error messages or reports. Job endpoints take the secret in the
-  `Authorization` header only.
+  `Authorization` header only. An action shows a caught error through `publicErrorMessage`
+  (`src/server/errors.ts`): database and driver errors, which carry SQL text and values, become a
+  plain sentence and are logged without their parameters.
+- An address a visitor supplies is never followed as it is: a return path after signing in goes
+  through `safeReturnPath` (`src/lib/return-path.ts`), and Riot requests only go to hosts built from
+  a known routing value (`RiotApiClient`).
+- Sign-in, setup and recovery count an attempt before checking it (`claimAttempt`,
+  `src/server/auth/throttle.ts`), so parallel requests get no more tries than sequential ones.
 - Database changes follow [DATABASE_PERMISSIONS.md](DATABASE_PERMISSIONS.md): grants in the
   migration that creates the table, Row Level Security on, no grants to the Data API roles
   (`src/server/db/migration-grants.test.ts`). Nothing destructive without a tested recovery path

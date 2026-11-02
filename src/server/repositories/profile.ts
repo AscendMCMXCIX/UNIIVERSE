@@ -5,6 +5,7 @@ import type { Db } from "@/server/db/types";
 import { players, userAvatars, users } from "@/server/db/schema";
 import { sniffImage } from "@/server/images";
 import { getUser, updateUser, UserError } from "./users";
+import { invalidateCache } from "@/server/observability/cache";
 
 /*
   Self-service account details: display name, username and profile picture. The display name is
@@ -84,12 +85,14 @@ export async function setAvatar(db: Db, userId: string, data: Buffer): Promise<n
   await db.insert(userAvatars).values({ userId, contentType: info.type, data, updatedAt: now }).onConflictDoUpdate({ target: userAvatars.userId, set: { contentType: info.type, data, updatedAt: now } });
   const version = Math.floor(now.getTime() / 1000);
   await db.update(users).set({ avatarVersion: version, updatedAt: now }).where(eq(users.id, userId));
+  invalidateCache(`public-image:avatar:${userId}`);
   return version;
 }
 
 export async function removeAvatar(db: Db, userId: string): Promise<void> {
   await db.delete(userAvatars).where(eq(userAvatars.userId, userId));
   await db.update(users).set({ avatarVersion: null, updatedAt: new Date() }).where(eq(users.id, userId));
+  invalidateCache(`public-image:avatar:${userId}`);
 }
 
 export async function getAvatar(db: Db, userId: string): Promise<{ contentType: string; data: Buffer } | null> {

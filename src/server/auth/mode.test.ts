@@ -13,9 +13,13 @@ describe("deployment mode", () => {
     expect(requiresAccounts({ NODE_ENV: "production", VERCEL: "1" })).toBe(true);
     expect(requiresAccounts({ NODE_ENV: "production", DATABASE_URL: "postgres://x" })).toBe(true);
   });
-  it("honours the explicit flag in both directions", () => {
+  it("honours the explicit flag in both directions off Vercel", () => {
     expect(requiresAccounts({ NODE_ENV: "development", UNIIVERSE_REQUIRE_AUTH: "true" })).toBe(true);
-    expect(requiresAccounts({ NODE_ENV: "production", VERCEL: "1", UNIIVERSE_REQUIRE_AUTH: "false" })).toBe(false);
+    expect(requiresAccounts({ NODE_ENV: "production", DATABASE_URL: "postgres://x", UNIIVERSE_REQUIRE_AUTH: "false" })).toBe(false);
+  });
+  it("never opens a Vercel deployment, whatever the flag says", () => {
+    expect(requiresAccounts({ NODE_ENV: "production", VERCEL: "1", UNIIVERSE_REQUIRE_AUTH: "false" })).toBe(true);
+    expect(requiresAccounts({ NODE_ENV: "production", VERCEL: "1", VERCEL_ENV: "preview", UNIIVERSE_REQUIRE_AUTH: "false" })).toBe(true);
   });
   it("names what a production deployment still lacks", () => {
     expect(missingProductionSetup({ NODE_ENV: "production", VERCEL: "1" })).toEqual(["DATABASE_URL", "UNIIVERSE_AUTH_SECRET"]);

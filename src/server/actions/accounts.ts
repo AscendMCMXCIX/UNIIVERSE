@@ -1,5 +1,6 @@
 "use server";
 
+import { publicErrorMessage } from "@/server/errors";
 import { revalidatePath } from "next/cache";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePermission, requireRiotAccountEditor } from "@/server/auth/session";
@@ -14,7 +15,7 @@ import { invalidateProficiencyCache } from "@/server/proficiency/service";
 import { defaultPlatform } from "@/server/auth/signup";
 
 type Result<T = null> = { ok: true; data: T } | { ok: false; error: string };
-const fail = (err: unknown): Result<never> => ({ ok: false, error: err instanceof AccountError ? err.message : (err as Error).message });
+const fail = (err: unknown): Result<never> => ({ ok: false, error: err instanceof AccountError ? err.message : publicErrorMessage(err) });
 
 function touch() {
   revalidatePath("/team");
@@ -132,12 +133,6 @@ export async function syncPlayerAccountAction(playerId: string, accountId: strin
   } catch (err) {
     return fail(err);
   }
-}
-
-export async function listPlayerAccountsAction(playerId: string): Promise<RiotAccountRecord[]> {
-  await requirePermission("view-players");
-  const db = await getAppDb();
-  return listAccountsForPlayer(db, playerId);
 }
 
 /** Owner: re-run the sync for every linked account that is not currently synced (bounded). */

@@ -1,6 +1,6 @@
 import { getAppDb } from "@/server/bootstrap";
 import { getAvatar } from "@/server/repositories/profile";
-import { publicImageOwner, publicImageResponse } from "@/server/public/image-response";
+import { publicImageOwner, publicImageBytes, publicImageResponse } from "@/server/public/image-response";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +9,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pla
   const { playerId } = await params;
   const db = await getAppDb();
   const owner = await publicImageOwner(db, playerId);
-  const avatar = owner?.userId ? await getAvatar(db, owner.userId) : null;
+  const avatar = owner?.userId ? await publicImageBytes(db, "avatar", owner.userId, () => getAvatar(db, owner.userId!)) : null;
   return avatar ? publicImageResponse(avatar) : new Response("Not found", { status: 404 });
 }
