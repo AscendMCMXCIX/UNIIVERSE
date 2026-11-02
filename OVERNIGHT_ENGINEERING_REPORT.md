@@ -269,6 +269,19 @@ against the code before acting; the high one was reproduced.
   results only. Nothing was found about 16.4.4.
 - Dependabot PR #163 was green on 31 Oct and needs `main` merged in. It is useful, not urgent.
 
+### 4b. Riot compliance (status; no change made)
+
+The compliance review of earlier today (`docs/RIOT_COMPLIANCE.md`, PR #168) still stands. Nothing
+in this session changed what UNIIVERSE reads from Riot or shows.
+- **A Personal key is enough** while public pages carry no Riot data (the default).
+- **Open:** production runs on a Development key, and any new key changes every stored player id.
+  A re-keying job, rehearsed on a copy of the database, must come first. Both steps need you.
+- **Hardened tonight:** the Riot API key can only travel to `*.api.riotgames.com` (L7), and every
+  page that shows Riot data checks access itself (the high finding).
+- **No League client integration,** game-memory access or automation exists or was added. Since
+  6 Oct 2026, Riot blocks third-party game-memory access anyway. A desktop companion using the League
+  client would need its own registration and Riot's approval (section 2).
+
 ### 4a. Maintainability (Verified by reference counts and the test suites)
 
 - **Removed** (hardening branch):
