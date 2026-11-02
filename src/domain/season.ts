@@ -1,4 +1,4 @@
-import { canonicalPatch } from "./patch";
+import { canonicalPatch, remember } from "./patch";
 
 /*
   League seasons. Since 2024 a ranked season runs for a calendar year and every patch of that
@@ -12,9 +12,15 @@ import { canonicalPatch } from "./patch";
 /** Game-version major of a patch ("16.20" → 16), or null for anything unreadable. */
 export function seasonOfPatch(patch: string | null | undefined): number | null {
   if (!patch) return null;
+  const known = SEASONS.get(patch);
+  if (known !== undefined) return known;
   const m = /^(\d+)\.\d+$/.exec(canonicalPatch(patch));
-  return m ? Number(m[1]) : null;
+  const season = m ? Number(m[1]) : null;
+  remember(SEASONS, patch, season);
+  return season;
 }
+/** Answers of seasonOfPatch by patch text (null for unreadable text); see `remember`. */
+const SEASONS = new Map<string, number | null>();
 
 /** Calendar year of a season (16 → 2026). */
 export function seasonYear(season: number): number {
