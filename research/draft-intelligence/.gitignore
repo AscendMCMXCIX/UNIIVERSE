@@ -1,0 +1,4 @@
+# Never commit data: the professional dataset and any team export stay outside git.
+data/
+*.csv
+__pycache__/
