@@ -161,6 +161,13 @@ export async function createUser(db: Db, input: CreateUserInput): Promise<UserRe
   return (await getUser(db, row!.id))!;
 }
 
+let standIn: Promise<string> | null = null;
+/** A hash of a random secret, made once per server instance: what a missing account is checked against. */
+function standInHash(): Promise<string> {
+  standIn ??= hashPassword(randomToken());
+  return standIn;
+}
+
 /**
  * Username + password. An account without a password can never sign in: there is deliberately
  * no username-only login. A temporary password stops working when it expires (and, being
@@ -168,9 +175,16 @@ export async function createUser(db: Db, input: CreateUserInput): Promise<UserRe
  */
 export async function authenticate(db: Db, login: string, password: string, now: Date = new Date()) {
   const user = await findUserByLogin(db, login);
-  if (!user || !user.isActive || !user.passwordHash || !password) return null;
+  if (!user || !user.isActive || !user.passwordHash || !password) {
+    // Check against a stand-in hash, so a wrong username takes as long as a wrong password and the
+    // time taken does not tell which usernames exist.
+    if (password) await verifyPassword(password, await standInHash());
+    return null;
+  }
+  // The password is checked before the expiry for the same reason.
+  const right = await verifyPassword(password, user.passwordHash);
   if (user.mustChangePassword && user.temporaryPasswordExpiresAt && user.temporaryPasswordExpiresAt <= now) return null;
-  if (!(await verifyPassword(password, user.passwordHash))) return null;
+  if (!right) return null;
   await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
   return user;
 }

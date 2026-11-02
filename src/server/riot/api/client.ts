@@ -102,6 +102,9 @@ export class RiotApiClient {
   }
 
   private url(host: string, path: string): string {
+    // The host part of Riot's addresses is a routing value ("oc1", "asia"). Anything else could
+    // move the request, and the API key in its header, to another server.
+    if (!/^[a-z0-9]{2,12}$/i.test(host)) throw new RiotApiError(`Not a Riot routing value: "${host.slice(0, 20)}"`, 0, false);
     return `${this.baseUrl.replace("{host}", host)}${path}`;
   }
 

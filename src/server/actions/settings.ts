@@ -1,5 +1,6 @@
 "use server";
 
+import { publicErrorMessage } from "@/server/errors";
 import { revalidatePath } from "next/cache";
 import { recordAudit } from "@/server/audit/log";
 import { getAppDb } from "@/server/bootstrap";
@@ -26,7 +27,7 @@ export async function runJobAction(key: string): Promise<Result<{ ok: boolean; e
     touch();
     return { ok: true, data: { ok: result.ok, error: result.error, summary: result.summary, durationMs: result.durationMs } };
   } catch (err) {
-    return { ok: false, error: (err as Error).message };
+    return { ok: false, error: publicErrorMessage(err) };
   }
 }
 
@@ -41,7 +42,7 @@ export async function saveScheduleAction(intervals: Record<string, number>): Pro
     touch();
     return { ok: true, data: null };
   } catch (err) {
-    return { ok: false, error: (err as Error).message };
+    return { ok: false, error: publicErrorMessage(err) };
   }
 }
 
@@ -55,6 +56,6 @@ export async function demoDataAction(): Promise<Result<string>> {
     touch();
     return { ok: true, data: r.created ? `Created ${r.created} demo players.` : "Players already exist; nothing created." };
   } catch (err) {
-    return { ok: false, error: (err as Error).message };
+    return { ok: false, error: publicErrorMessage(err) };
   }
 }
