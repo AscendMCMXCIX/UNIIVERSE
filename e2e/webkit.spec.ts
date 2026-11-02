@@ -237,29 +237,33 @@ test("Match History's Timeline: a tap on or just beside a mark under the curve r
   await fitsWidth(page, "the Timeline");
 });
 
-test("Encounters: each player's badge, chips and record share the line under the name, and a Mixed player's window splits the games by side", async ({ page }) => {
+test("Encounters: each player's records sit under the name with their side in words, and a player met both ways opens with the games filtered by side", async ({ page }) => {
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-SUPPORT").getAttribute("data-player-id"))!;
-  // Everyone, every player met at least once (the demo has each member meet one player on both sides).
-  await page.goto(`/players/${id}/matches?view=encounters&rel=everyone&min=1`);
+  // All, every player met at least once (the demo has each member meet one player on both sides).
+  await page.goto(`/players/${id}/matches?view=encounters&rel=all&min=1`);
   await expect(page.locator("[data-testid='encounters'][data-ready]")).toBeVisible();
   const rows = page.getByTestId("encounter-row");
   await expect(rows.first()).toBeVisible();
   for (const row of (await rows.all()).slice(0, 6)) {
     expect(await row.locator("[title]").first().evaluate((name) => name.scrollWidth - name.clientWidth), "the name is whole").toBeLessThanOrEqual(1);
-    const [badge, record] = [(await row.getByTestId("encounter-kind").boundingBox())!, (await row.getByTestId("encounter-record").boundingBox())!];
-    expect(Math.abs(badge.y + badge.height / 2 - (record.y + record.height / 2)), "the badge and the record on one line").toBeLessThanOrEqual(2);
+    // On a phone each side's record is a line of its own, opened by its side's word.
+    for (const record of await row.getByTestId("encounter-record").all()) {
+      const games = Number(await record.getAttribute("data-games"));
+      if (games) await expect(record.getByTestId("relation-tag")).toHaveText(/^(Against|Alongside)$/);
+    }
   }
   await fitsWidth(page, "Encounters");
-  // A Mixed player's window: the games against them, then those alongside them.
+  // A player met both ways: both records, and the games filtered by side.
   const detail = page.getByTestId("encounter-detail");
-  const mixed = page.locator("[data-testid='encounter-row'][data-kind='mixed']").first();
+  const both = page.locator("[data-testid='encounter-row']:not([data-against='0']):not([data-alongside='0'])").first();
   await expect(async () => {
-    if (!(await detail.isVisible())) await mixed.tap({ timeout: 2_000 });
+    if (!(await detail.isVisible())) await both.getByTestId("open-encounter").tap({ timeout: 2_000 });
     await expect(detail).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
-  await expect(detail.getByTestId("encounter-kind")).toHaveText("Mixed");
-  await expect(detail.getByTestId("encounter-games-section")).toHaveCount(2);
+  await expect(detail.getByTestId("encounter-detail-record")).toHaveCount(2);
+  await detail.getByTestId("encounter-games-against").tap();
+  for (const r of await detail.getByTestId("encounter-game").evaluateAll((els) => els.map((e) => e.getAttribute("data-relation")))) expect(r).toBe("opponent");
   expect((await page.locator("dialog[open]").boundingBox())!.width).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
   await expectClearCorner(page);
   await page.keyboard.press("Escape");

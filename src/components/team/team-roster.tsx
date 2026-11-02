@@ -17,7 +17,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { CardArtLayer } from "@/components/players/card-art";
 import { CustomiseCardButton } from "@/components/players/customise-card-button";
-import { CardIdentity, CardPerformance, CardPool, CardRoleChip, PoolChampionTile } from "@/components/players/player-card";
+import { CardIdentity, CardPerformance, CardPool, CardRoleChip, PoolChampionTile, PoolColumnNames } from "@/components/players/player-card";
 import { BELOW_CONTROLS, DetailModal } from "@/components/ui/detail-modal";
 import { InfoTip } from "@/components/ui/info-tip";
 import { BrandMark } from "@/components/brand-mark";
@@ -546,9 +546,11 @@ function LineupCard({ openSide, onOpenSide, ...props }: Omit<React.ComponentProp
 }
 
 /**
- * A lineup player in detail, in the shared centred window (the whole screen on phones): the season in the role they hold, then their whole pool for it with each champion's
- * figures and proficiency, and the way to their full profile. Previous / next move through the
- * lineup without closing it. Editing the champions opens the same editor as before.
+ * A lineup player in detail, in the shared centred window (the whole screen on phones), as tall as
+ * its content: their card opened up (artwork, role, identity and rank, the way to their full
+ * profile), then the season in the role they hold as one strip of figures, then their whole pool
+ * for it as one aligned list, the first choice marked in its row. Previous / next move through the
+ * lineup without closing it; the pool is edited on the profile.
  */
 function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profileHref, editHref, onClose, onPrev, onNext, position }: { slot: RosterSlot; championsById: ChampionsById; canEdit: boolean; canViewProfile: boolean; profileHref: string; /** Where this viewer edits the pool: their own profile, or the player's profile for admins. */ editHref: string; onClose: () => void; onPrev: (() => void) | null; onNext: (() => void) | null; position: string }) {
   const p = slot.player!;
@@ -568,8 +570,8 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profi
 
   const figure = (label: string, value: string, sub: React.ReactNode, tone?: string) => (
     <div className="min-w-0">
-      <dt className="text-2xs font-medium uppercase tracking-label text-fg-subtle">{label}</dt>
-      <dd className={cn("text-2xl font-bold leading-tight tabular-nums sm:text-figure", tone ?? "text-fg")}>{value}</dd>
+      <dt className="text-2xs font-semibold uppercase tracking-label text-fg-subtle">{label}</dt>
+      <dd className={cn("text-2xl font-bold leading-tight tabular-nums", tone ?? "text-fg")}>{value}</dd>
       <dd className="truncate text-xs tabular-nums text-fg-muted">{sub}</dd>
     </div>
   );
@@ -589,7 +591,7 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profi
       header={
         <div className="relative isolate" style={{ ...cardShellStyle(p.look, { glow: false }), borderColor: undefined, ["--card-accent" as string]: accentCss(p.look.style) }} data-testid="player-detail-hero">
           <CardArtLayer art={p.art} accent={accentCss(p.look.style)} kind="splash" position="center 22%" look={p.look} decorate={false} strength="normal" testId="detail-art" foot />
-          <div className={cn("relative flex min-h-[13rem] flex-col justify-end gap-3 px-4 pb-4 sm:min-h-[15rem] sm:px-6 sm:pb-5", BELOW_CONTROLS)}>
+          <div className={cn("relative flex min-h-[11rem] flex-col justify-end gap-2.5 px-4 pb-4 sm:min-h-[12.5rem] sm:px-6 sm:pb-5", BELOW_CONTROLS)}>
             <h2 id="player-detail-title" className="sr-only">
               {p.name} · {slot.roleLabel}
             </h2>
@@ -603,14 +605,14 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profi
               ) : null}
             </div>
             <SocialLinks links={p.social} owner={p.name} className="[text-shadow:none]" />
-            <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-fg-muted" data-testid="player-detail-position">
+            <p className="flex flex-col gap-y-0.5 text-xs text-fg-muted" data-testid="player-detail-position">
               <span>
                 {slot.roleLabel} · {position}{p.statsVisible ? ` · ${p.seasonLabel}` : ""}
               </span>
-              {/* One line of ranked progress; the chart and every rank change are on the profile. */}
+              {/* One line of ranked progress (its own line, wrapping as a sentence); the chart and every rank change are on the profile. */}
               {p.rankChange ? (
-                <Link href={`/players/${p.id}${p.rankChange.queue === "flex" ? "?rq=flex" : ""}#ranked-progress`} className="inline-flex flex-wrap items-center gap-x-1 hover:text-fg" data-testid="detail-rank-change">
-                  <span aria-hidden className="text-fg-subtle">·</span> Ranked {p.rankChange.queue === "flex" ? "Flex" : "Solo/Duo"}{" "}
+                <Link href={`/players/${p.id}${p.rankChange.queue === "flex" ? "?rq=flex" : ""}#ranked-progress`} className="self-start hover:text-fg" data-testid="detail-rank-change">
+                  Ranked {p.rankChange.queue === "flex" ? "Flex" : "Solo/Duo"}{" "}
                   <span className={cn("font-semibold tabular-nums", p.rankChange.points > 0 ? "text-good" : p.rankChange.points < 0 ? "text-bad" : "text-fg-muted")}>
                     {p.rankChange.points > 0 ? "+" : ""}
                     {p.rankChange.points} ladder points
@@ -619,47 +621,6 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profi
                 </Link>
               ) : null}
             </p>
-            {/* This season in the role, part of the identity block: the three figures a lineup is
-                judged on, the record as a bar, then the rest in one quiet line. */}
-            {p.statsVisible ? (
-              season ? (
-                <section aria-labelledby="detail-season" className="rounded-panel border border-white/10 bg-bg/70 p-3 sm:p-3.5" data-testid="detail-season">
-                  <h3 id="detail-season" className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-fg-muted">
-                    {slot.roleLabel} this season
-                    <InfoTip text="Supported games this season (Ranked Solo/Duo, Ranked Flex, Normal games) played in this role, on any champion, from every linked Riot account." label="What these figures count" />
-                  </h3>
-                  <dl className="grid grid-cols-3 gap-3">
-                    {figure("Win rate", season.winRate === null ? "—" : `${Math.round(season.winRate * 100)}%`, `${season.wins}W ${season.losses}L${season.games < WIN_RATE_MIN_GAMES.season ? " · small sample" : ""}`, WIN_RATE_TONE_CLASS[winRateTone(season.winRate, season.games, WIN_RATE_MIN_GAMES.season)])}
-                    {figure("KDA", season.perfectKda ? "Perfect" : season.kda === null ? "—" : season.kda.toFixed(2), season.kills !== null && season.deaths !== null && season.assists !== null ? `${season.kills.toFixed(1)} / ${season.deaths.toFixed(1)} / ${season.assists.toFixed(1)}` : "\u00a0")}
-                    {figure(support ? "Vision" : "CS/min", support ? (season.visionPerGame === null ? "—" : season.visionPerGame.toFixed(1)) : season.csPerMinute === null ? "—" : season.csPerMinute.toFixed(1), support ? "per game" : "per minute")}
-                  </dl>
-                  <div className="mt-2.5 flex h-1.5 overflow-hidden rounded-full bg-bad/25" aria-hidden>
-                    {season.wins + season.losses > 0 ? <span className="h-full rounded-full bg-good/80" style={{ width: `${(season.wins / (season.wins + season.losses)) * 100}%` }} /> : null}
-                  </div>
-                  <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-fg-muted tabular-nums">
-                    <span>
-                      <span className="font-semibold text-fg">{season.games}</span> game{season.games === 1 ? "" : "s"}
-                    </span>
-                    <span>
-                      <span className="font-semibold text-fg">{season.damagePerMinute === null ? "—" : formatCount(season.damagePerMinute)}</span> damage/min
-                    </span>
-                    {support ? (
-                      <span>
-                        <span className="font-semibold text-fg">{season.csPerMinute === null ? "—" : season.csPerMinute.toFixed(1)}</span> CS/min
-                      </span>
-                    ) : (
-                      <span>
-                        <span className="font-semibold text-fg">{season.visionPerGame === null ? "—" : season.visionPerGame.toFixed(1)}</span> vision per game
-                      </span>
-                    )}
-                  </p>
-                </section>
-              ) : (
-                <p className="rounded-panel border border-dashed border-white/15 bg-bg/60 px-3 py-2.5 text-sm text-fg-muted" data-testid="detail-season-empty">
-                  No {slot.roleLabel} games stored this season yet.
-                </p>
-              )
-            ) : null}
           </div>
         </div>
       }
@@ -675,6 +636,47 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profi
         </>
       }
     >
+      {/* This season in the role: the three figures a lineup is judged on, the record as a bar,
+          then the rest in one quiet line. */}
+      {p.statsVisible ? (
+        season ? (
+          <section aria-labelledby="detail-season" className="mb-5 rounded-panel border border-border bg-bg/40 p-3 sm:p-3.5" data-testid="detail-season">
+            <h3 id="detail-season" className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-fg-muted">
+              {slot.roleLabel} this season
+              <InfoTip text="Supported games this season (Ranked Solo/Duo, Ranked Flex, Normal games) played in this role, on any champion, from every linked Riot account." label="What these figures count" />
+            </h3>
+            <dl className="grid grid-cols-3 gap-3">
+              {figure("Win rate", season.winRate === null ? "—" : `${Math.round(season.winRate * 100)}%`, `${season.wins}W ${season.losses}L${season.games < WIN_RATE_MIN_GAMES.season ? " · small sample" : ""}`, WIN_RATE_TONE_CLASS[winRateTone(season.winRate, season.games, WIN_RATE_MIN_GAMES.season)])}
+              {figure("KDA", season.perfectKda ? "Perfect" : season.kda === null ? "—" : season.kda.toFixed(2), season.kills !== null && season.deaths !== null && season.assists !== null ? `${season.kills.toFixed(1)} / ${season.deaths.toFixed(1)} / ${season.assists.toFixed(1)}` : "\u00a0")}
+              {figure(support ? "Vision" : "CS/min", support ? (season.visionPerGame === null ? "—" : season.visionPerGame.toFixed(1)) : season.csPerMinute === null ? "—" : season.csPerMinute.toFixed(1), support ? "per game" : "per minute")}
+            </dl>
+            <div className="mt-2.5 flex h-1 overflow-hidden rounded-full bg-red/30" aria-hidden>
+              {season.wins + season.losses > 0 ? <span className="h-full rounded-full bg-blue/80" style={{ width: `${(season.wins / (season.wins + season.losses)) * 100}%` }} /> : null}
+            </div>
+            <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-fg-muted tabular-nums">
+              <span>
+                <span className="font-semibold text-fg">{season.games}</span> game{season.games === 1 ? "" : "s"}
+              </span>
+              <span>
+                <span className="font-semibold text-fg">{season.damagePerMinute === null ? "—" : formatCount(season.damagePerMinute)}</span> damage/min
+              </span>
+              {support ? (
+                <span>
+                  <span className="font-semibold text-fg">{season.csPerMinute === null ? "—" : season.csPerMinute.toFixed(1)}</span> CS/min
+                </span>
+              ) : (
+                <span>
+                  <span className="font-semibold text-fg">{season.visionPerGame === null ? "—" : season.visionPerGame.toFixed(1)}</span> vision per game
+                </span>
+              )}
+            </p>
+          </section>
+        ) : (
+          <p className="mb-5 rounded-panel border border-dashed border-border px-3 py-2.5 text-sm text-fg-muted" data-testid="detail-season-empty">
+            No {slot.roleLabel} games stored this season yet.
+          </p>
+        )
+      ) : null}
       <section aria-labelledby="detail-pool" className="space-y-2.5" style={{ ["--card-accent" as string]: accentCss(p.look.style) }}>
         <div className="flex items-center justify-between gap-2">
           <h3 id="detail-pool" className="text-sm font-semibold text-fg">
@@ -690,13 +692,16 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profi
         {slot.champions.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border px-3 py-3 text-sm text-warn">No {slot.roleLabel} champions yet.</p>
         ) : (
-          // The first choice is a wide tile in the card's own colour; the rest follow in order, two
-          // to a row from small tablets up.
-          <ol className="grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="pool-list" aria-label={`${slot.roleLabel} champion pool, in order of preference`}>
-            {slot.champions.map((c, i) => (
-              <PoolChampionTile key={c.championId} index={i} champion={lookup(championsById, c.championId)} row={c} support={support} withStats={p.statsVisible} />
-            ))}
-          </ol>
+          // One aligned list, in order of preference, under one row of column names (as the
+          // profile's pools); the first choice is marked in its row, in the card's own colour.
+          <div className="overflow-hidden rounded-panel border border-border">
+            {p.statsVisible ? <PoolColumnNames support={support} /> : null}
+            <ol className="divide-y divide-border/60" data-testid="pool-list" aria-label={`${slot.roleLabel} champion pool, in order of preference`}>
+              {slot.champions.map((c, i) => (
+                <PoolChampionTile key={c.championId} index={i} champion={lookup(championsById, c.championId)} row={c} support={support} withStats={p.statsVisible} />
+              ))}
+            </ol>
+          </div>
         )}
       </section>
     </DetailModal>

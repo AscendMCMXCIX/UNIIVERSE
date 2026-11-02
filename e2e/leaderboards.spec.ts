@@ -134,9 +134,14 @@ test("a board is current-season, all supported games, with the leader and the fu
     expect(rows[i]![1]).toBeLessThanOrEqual(rows[i - 1]![1]);
   }
   if (isPhone(page)) {
-    // Phones: the leader first, large; no squeezed podium.
-    await expect(page.getByTestId("leader-spotlight")).toBeVisible();
+    // Phones: the leader first, large; no squeezed podium; the list carries on from there without
+    // repeating the leader.
+    const spotlight = page.getByTestId("leader-spotlight");
+    await expect(spotlight).toBeVisible();
     await expect(page.getByTestId("podium")).toBeHidden();
+    const leader = (await spotlight.getAttribute("data-player-id"))!;
+    await expect(page.getByTestId("board-row").filter({ visible: true }).first()).not.toHaveAttribute("data-player-id", leader);
+    await expect(page.locator(`[data-testid=board-row][data-player-id="${leader}"]`)).toBeHidden();
   } else {
     const top = await podium(page);
     expect(top.map((t) => t.rank)).toEqual(rows.slice(0, top.length).map((r) => r[0]));

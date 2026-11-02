@@ -12,7 +12,7 @@ import { cn } from "@/lib/cn";
  * member sharing one of their own games; the server checks the game is theirs. `canRemove` false
  * shows the state without the control to undo it (someone else's bookmark).
  */
-export function BookmarkButton({ matchId, bookmarked, canRemove = true, share = false, compact = false }: { matchId: string; bookmarked: boolean; canRemove?: boolean; share?: boolean; compact?: boolean }) {
+export function BookmarkButton({ matchId, bookmarked, canRemove = true, share = false, compact = false, iconOnly = false }: { matchId: string; bookmarked: boolean; canRemove?: boolean; share?: boolean; compact?: boolean; /** A square icon button (a card's corner): the words for screen readers and in its tooltip. */ iconOnly?: boolean }) {
   const router = useRouter();
   const [on, setOn] = React.useState(bookmarked);
   const [busy, setBusy] = React.useState(false);
@@ -29,8 +29,8 @@ export function BookmarkButton({ matchId, bookmarked, canRemove = true, share = 
   const Icon = on ? BookmarkCheck : share ? Share2 : Bookmark;
   if (on && !canRemove)
     return (
-      <span className="inline-flex items-center gap-1 text-xs text-accent" data-testid="bookmark-state">
-        <Icon className="h-3.5 w-3.5" aria-hidden /> {label}
+      <span className={cn("inline-flex items-center gap-1 text-xs text-accent", iconOnly && "h-8 w-8 justify-center pointer-coarse:h-11 pointer-coarse:w-11")} title={iconOnly ? label : undefined} data-testid="bookmark-state">
+        <Icon className="h-3.5 w-3.5" aria-hidden /> <span className={cn(iconOnly && "sr-only")}>{label}</span>
       </span>
     );
   return (
@@ -41,15 +41,16 @@ export function BookmarkButton({ matchId, bookmarked, canRemove = true, share = 
       aria-label={on ? `${label}: remove` : label}
       title={on ? "Remove from the team's bookmarks" : share ? "Show this game to the team under Matches → Bookmarked" : "Keep this game under Matches → Bookmarked"}
       className={cn(
-        "inline-flex min-h-8 items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors pointer-coarse:min-h-11",
+        "inline-flex min-h-8 items-center gap-1.5 rounded-md text-xs font-medium transition-colors pointer-coarse:min-h-11",
+        iconOnly ? "w-8 justify-center pointer-coarse:w-11" : "px-2",
         on ? "text-accent hover:bg-accent/10" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
-        !compact && "border border-border",
+        !compact && !iconOnly && "border border-border",
       )}
       data-testid={share ? "share-game" : "bookmark-game"}
       data-bookmarked={on || undefined}
     >
-      <Icon className="h-3.5 w-3.5" aria-hidden />
-      <span className={cn(compact && "max-sm:sr-only")}>{label}</span>
+      <Icon className={cn(iconOnly ? "h-4 w-4" : "h-3.5 w-3.5")} aria-hidden fill={on && iconOnly ? "currentColor" : "none"} />
+      <span className={cn(iconOnly ? "sr-only" : compact && "max-sm:sr-only")}>{label}</span>
     </button>
   );
 }

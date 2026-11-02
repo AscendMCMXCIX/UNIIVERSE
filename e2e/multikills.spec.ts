@@ -121,7 +121,7 @@ test("Total kills: each game's own kills over the same games as the other figure
   expect(sorted).toEqual([...sorted].sort((a, b) => b - a));
   // The figure is in the row: its own column, or the summary line on phones.
   const first = rows.first();
-  if (page.viewportSize()!.width < 768) await expect(first.getByTestId("champion-summary")).toContainText(`${sorted[0]!.toLocaleString("en")} kills`);
+  if (page.viewportSize()!.width < 640) await expect(first.getByTestId("champion-summary")).toContainText(`Kills ${sorted[0]!.toLocaleString("en")}`);
   else await expect(first.getByTestId("champion-kills")).toHaveText(sorted[0]!.toLocaleString("en"));
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
 });
@@ -175,8 +175,9 @@ test("partial counts are said once, in the page's status (the ⓘ), and in each 
   await expect(none).toHaveAttribute("data-multikills", "");
   const phone = page.viewportSize()!.width < 640;
   if (phone) {
-    await expect(none.getByTestId("champion-summary")).toContainText("multikills not counted yet");
-    await expect(partial.getByTestId("champion-summary")).toContainText(/(\d+ (double|triple|quadra|penta)|no multikills)\*/);
+    // Narrow rows: the rarest kind as a labelled figure, a dash where nothing is counted yet.
+    await expect(none.getByTestId("champion-summary")).toContainText("Multikills —");
+    await expect(partial.getByTestId("champion-summary")).toContainText(/Multikills (\d+ (double|triple|quadra|penta)|none)\*/);
   } else {
     // Tablets and narrower desktops: one Multikills column, the rarest kind.
     await expect(none.getByTestId("champion-multikills")).toHaveText(/^—/);
