@@ -52,7 +52,7 @@ From the owner's brief and `CLAUDE.md`:
 |---|---|---|---|
 | `security/page-guards` | #170 | Every member page checks access itself (high finding) | Verified locally (full suites green); CI running; **merge first** |
 | `security/hardening` | PR_HARDENING | Redirects, throttle, errors, Riot hosts, public images, timing, dead actions | Verified locally |
-| `perf/season-patch-memo` | #169 | Season figures read each game's patch once | Verified locally; CI running |
+| `perf/season-patch-memo` | #169 | Season figures read each game's patch once | Verified locally; **CI green** (all four jobs, 2 Nov) |
 | `a11y/label-in-name-scroll-regions` | PR_A11Y | Names that start with their visible words; wide tables the keyboard can scroll; wider axe coverage | Verified locally (verify); browser suite pending |
 | `pwa-windows-integration` | #171 (draft) | Installed app: jump-list shortcuts, one reused window | Optional; typecheck and lint only; CI when marked ready |
 | `overnight/engineering-report` | PR_REPORT | This report | Docs only |
@@ -202,8 +202,11 @@ and you approve the signing cost. Then build a Tauri 2 thin shell around the dep
   | Roster, warm | 185 ms | 71 ms |
   | One player's season overview, warm | 28.3 ms | 10.3 ms |
 
-- **Checks:** `pnpm verify` (550 unit tests), the database suite (466) and the full browser suite
-  (867) pass. Production confirmation is one `perf-probe` run after the merge.
+- **Checks:**
+  - locally: `pnpm verify` (550 unit tests), the database suite (466) and the full browser suite
+    (867) pass;
+  - CI on PR #169 is green on every job.
+  - Production confirmation is one `perf-probe` run after the merge.
 
 **Found, not changed:** 38 places call `router.refresh()` after a server action. Several follow
 actions that already revalidate the page, so the server renders the page twice; the user does not
@@ -293,9 +296,12 @@ against the code before acting; the high one was reproduced.
 - Production's Next.js 16.4.2 already carries the 14 October 2026 security fixes, which shipped in
   16.4.1 ([Next.js security update](https://nextjs.org/blog/nextjs-security-update-october-14-2026)).
   `sharp` 0.35.5 meets that advisory's workaround.
-- 16.4.3 is described as bug fixes only; that comes from a secondary source
-  ([guardlayer](https://www.guardlayer.io/blog/nextjs-latest-safe-version)), checked through search
-  results only. Nothing was found about 16.4.4.
+- No advisory is newer than 14 October: that is the latest entry on Next.js's own
+  [advisory page](https://github.com/vercel/next.js/security/advisories), read on 2 Nov.
+  - 16.4.3 (23 Oct) is described as bug fixes only. That comes from a secondary source
+    ([guardlayer](https://www.guardlayer.io/blog/nextjs-latest-safe-version)), checked through
+    search results only.
+  - 16.4.4 reached npm on 2 Nov at 10:49 UTC. Its GitHub release had no notes yet when read.
 - Dependabot PR #163 was green on 31 Oct and needs `main` merged in. It is useful, not urgent.
 
 ### 4b. Riot compliance (status; no change made)
@@ -376,7 +382,7 @@ in this session changed what UNIIVERSE reads from Riot or shows.
 | Security | Every server action and every member page establishes access itself | `guards.test.ts`; `page-guards.test.ts` (new) |
 | Security | No known advisories in production dependencies; Dependabot PRs reviewed weekly | `pnpm audit --prod`; Dependabot |
 | Security | Production refuses to run without its secrets; Vercel never runs open | `auth/mode.ts` and its tests |
-| Accessibility | No serious or critical axe violations on any player or admin page | `quality.spec.ts` (desktop width) |
+| Accessibility | No serious or critical axe violations on any player or admin page, at phone and desktop width | `quality.spec.ts`: desktop width today; phone width, a teammate's profile and the player window once the accessibility branch merges |
 | Performance, server | `perf-probe` after data changes. Proposed budgets: roster at most 120 ms warm and 400 ms cold; no step over 1 s cold | Manual Data jobs run; the budgets are not automated |
 | Performance, members | Field LCP at the 75th percentile at most 2.5 s, INP at most 200 ms, CLS at most 0.1 | System Health field data; you read it |
 | Reliability | Health, failing jobs, stale sync and egress budget checked about 4 times a day; alert by GitHub email | Scheduled Data jobs |
