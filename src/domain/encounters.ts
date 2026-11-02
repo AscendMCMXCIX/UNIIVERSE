@@ -1,22 +1,25 @@
 /*
-  Encounters: the players someone keeps meeting in their recorded games, as allies (same team) or
-  opponents. Shown in each profile (Match History → Players met). Historical encounters only:
-  never a claim that anyone queued together, knows each other or "counters" anyone.
+  Encounters: the players someone keeps meeting in their recorded games, as teammates (alongside:
+  the same team) or opponents (against: the other team). Shown in each profile (Match History →
+  Encounters). Historical encounters only: never a claim that anyone queued together, knows each
+  other or "counters" anyone.
 
   Counting rules (the database computes them for a page, server/players/encounters.ts; these
   functions state the same rules and are what that query is tested against):
   - An encounter row is the player in one recorded game with one other player. A game is counted
     once however many of the player's linked accounts stored it.
   - The result is the player's own (they won or lost the game), whichever side the other player was on.
-  - A game in which duplicated records put the other player on both sides counts once in each relation.
+  - The two relations are kept apart: a player met on both sides has a record against and a record
+    alongside, and is listed under both. A game in which duplicated records put the other player on
+    both sides counts once in each relation.
   - A player is identified by their account (an opaque key), never by name; the name shown is the
     most recent one recorded.
 */
 
 export type Relation = "ally" | "opponent";
-/** Which encounters a list is about. */
-export type EncounterRelation = "opponents" | "allies" | "everyone";
-export type EncounterSort = "games" | "best" | "worst";
+/** Which encounters a list is about: games against them, games alongside them, or every game with them. */
+export type EncounterRelation = "against" | "alongside" | "all";
+export type EncounterSort = "games" | "recent" | "best" | "worst";
 
 /** The list's choices: which relation, a minimum of games, the order, a Riot ID search, how many shown. */
 export interface EncounterListChoice {
@@ -32,21 +35,29 @@ export const ENCOUNTER_PAGE = 25;
 const MAX_SHOWN = 500;
 /** The minimums a list offers. */
 export const ENCOUNTER_MINIMUMS = [1, 2, 3, 5, 10] as const;
-const RELATIONS: readonly EncounterRelation[] = ["opponents", "allies", "everyone"];
-const SORTS: readonly EncounterSort[] = ["games", "best", "worst"];
+const RELATIONS: readonly EncounterRelation[] = ["against", "alongside", "all"];
+/** The names an older address used (Opponents, Allies, Everyone): they still open the same list. */
+const LEGACY_RELATIONS: Readonly<Record<string, EncounterRelation>> = { opponents: "against", allies: "alongside", everyone: "all" };
+const SORTS: readonly EncounterSort[] = ["games", "recent", "best", "worst"];
+/** Win rates are ranked within one relation only: every game with a player mixes two different records. */
+export const sortsFor = (relation: EncounterRelation): readonly EncounterSort[] => (relation === "all" ? ["games", "recent"] : SORTS);
 
 /** Met twice or more by default; once or more while searching for someone. */
 export const defaultMinimum = (q: string) => (q ? 1 : 2);
 
-/** The choices an address names; anything missing or unknown is the default (opponents, most games first). */
+/**
+ * The choices an address names; anything missing or unknown is the default (against, most games
+ * first). A win-rate order asked of every game with a player reads as most games.
+ */
 export function encounterListChoice(sp: { rel?: string; min?: string; sort?: string; q?: string; limit?: string }): EncounterListChoice {
   const q = (sp.q ?? "").trim().slice(0, 32);
   const min = Number(sp.min);
   const limit = Math.round(Number(sp.limit));
+  const relation = RELATIONS.find((r) => r === sp.rel) ?? (sp.rel ? LEGACY_RELATIONS[sp.rel] : undefined) ?? "against";
   return {
-    relation: RELATIONS.find((r) => r === sp.rel) ?? "opponents",
+    relation,
     min: (ENCOUNTER_MINIMUMS as readonly number[]).includes(min) ? min : defaultMinimum(q),
-    sort: SORTS.find((x) => x === sp.sort) ?? "games",
+    sort: sortsFor(relation).find((x) => x === sp.sort) ?? "games",
     q,
     limit: limit > ENCOUNTER_PAGE ? Math.min(MAX_SHOWN, limit) : ENCOUNTER_PAGE,
   };
@@ -55,7 +66,7 @@ export function encounterListChoice(sp: { rel?: string; min?: string; sort?: str
 /** The address parameters of a choice, defaults left out (the reverse of encounterListChoice). */
 export function encounterListParams(c: EncounterListChoice): Record<string, string> {
   const out: Record<string, string> = {};
-  if (c.relation !== "opponents") out.rel = c.relation;
+  if (c.relation !== "against") out.rel = c.relation;
   if (c.min !== defaultMinimum(c.q)) out.min = String(c.min);
   if (c.sort !== "games") out.sort = c.sort;
   if (c.q) out.q = c.q;
@@ -88,34 +99,42 @@ export interface WinLoss {
   losses: number;
 }
 
+/** The player's record in one relation, and when that relation last happened (null: never). */
+export interface RelationRecord extends WinLoss {
+  lastPlayedAt: number | null;
+}
+
 export interface EncounterSummary {
   key: string;
   /** The most recently recorded Riot ID. */
   name: string;
   /** Distinct games with the player (either relation). */
   games: number;
-  ally: WinLoss;
-  opponent: WinLoss;
+  /** Games on the player's team. */
+  ally: RelationRecord;
+  /** Games on the other team. */
+  opponent: RelationRecord;
   lastPlayedAt: number;
   /** The match of the most recent encounter (for the server it was on). */
   lastMatchId: string;
 }
 
-const empty = (): WinLoss => ({ games: 0, wins: 0, losses: 0 });
+const empty = (): RelationRecord => ({ games: 0, wins: 0, losses: 0, lastPlayedAt: null });
 
 /** Newest first; among games of the same moment, the later match id first. */
 const newer = (a: { gameCreation: number; matchId: string }, b: { gameCreation: number; matchId: string }) => b.gameCreation - a.gameCreation || (a.matchId < b.matchId ? 1 : a.matchId > b.matchId ? -1 : 0);
 
 /** Every player in the rows, with their records. */
 export function summariseEncounters(rows: readonly EncounterRow[]): EncounterSummary[] {
-  const byKey = new Map<string, { latest: EncounterRow; games: Map<string, { ally: boolean; opponent: boolean; win: boolean | null }> }>();
+  const byKey = new Map<string, { latest: EncounterRow; games: Map<string, { ally: boolean; opponent: boolean; win: boolean | null; at: number }> }>();
   for (const r of rows) {
     let a = byKey.get(r.key);
     if (!a) byKey.set(r.key, (a = { latest: r, games: new Map() }));
     if (newer(r, a.latest) < 0) a.latest = r;
-    const g = a.games.get(r.matchId) ?? { ally: false, opponent: false, win: r.win };
+    const g = a.games.get(r.matchId) ?? { ally: false, opponent: false, win: r.win, at: r.gameCreation };
     if (r.relation === "ally") g.ally = true;
     else g.opponent = true;
+    g.at = Math.min(g.at, r.gameCreation);
     a.games.set(r.matchId, g);
   }
   const out: EncounterSummary[] = [];
@@ -131,6 +150,7 @@ export function summariseEncounters(rows: readonly EncounterRow[]): EncounterSum
         wl.games++;
         if (g.win === true) wl.wins++;
         if (g.win === false) wl.losses++;
+        wl.lastPlayedAt = Math.max(wl.lastPlayedAt ?? -Infinity, g.at);
       }
     }
     out.push({ key, name: a.latest.name, games: a.games.size, ally, opponent, lastPlayedAt: a.latest.gameCreation, lastMatchId: a.latest.matchId });
@@ -140,31 +160,40 @@ export function summariseEncounters(rows: readonly EncounterRow[]): EncounterSum
 
 const rate = (wl: WinLoss) => (wl.wins + wl.losses > 0 ? wl.wins / (wl.wins + wl.losses) : null);
 
-/** The record a list is about: as opponents, as allies, or every game. */
-export function recordFor(s: EncounterSummary, relation: EncounterRelation): WinLoss {
-  if (relation === "allies") return s.ally;
-  if (relation === "opponents") return s.opponent;
-  return { games: s.games, wins: s.ally.wins + s.opponent.wins, losses: s.ally.losses + s.opponent.losses };
+/**
+ * The record a list is about: against them, alongside them, or (for counting and dates only) every
+ * game with them. The "all" record's wins and losses add two different relations together, so
+ * pages show the two records side by side rather than this sum.
+ */
+export function recordFor(s: EncounterSummary, relation: EncounterRelation): RelationRecord {
+  if (relation === "alongside") return s.ally;
+  if (relation === "against") return s.opponent;
+  return { games: s.games, wins: s.ally.wins + s.opponent.wins, losses: s.ally.losses + s.opponent.losses, lastPlayedAt: s.lastPlayedAt };
 }
 
 const byKey = (a: EncounterSummary, b: EncounterSummary) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
+/** A win rate rests on enough games to be ranked first (a smaller sample follows, marked as one). */
+export const isEstablished = (wl: WinLoss) => wl.wins + wl.losses >= ESTABLISHED_GAMES;
 
 /**
- * One list: players met at least `min` times in the relation. Sorted by games, or by the best or
- * worst record (records need at least `min` decided games), then the most games and the most recent.
+ * One list: players met at least `min` times in the relation (so a player met on both sides is in
+ * both lists). Sorted by games in the relation, by the most recent game in it, or by the highest
+ * or lowest win rate in it (against or alongside only; at least `min` decided games, and records
+ * with ESTABLISHED_GAMES decided games ahead of smaller samples). Ties: more games, then the most
+ * recent, then the key.
  */
 export function listEncounters(all: readonly EncounterSummary[], o: { relation: EncounterRelation; min: number; sort: EncounterSort; query?: string }): EncounterSummary[] {
   const q = (o.query ?? "").trim().toLowerCase();
-  const list = all.filter((s) => (!q || s.name.toLowerCase().includes(q)) && recordFor(s, o.relation).games >= o.min);
-  const byGames = (a: EncounterSummary, b: EncounterSummary) => recordFor(b, o.relation).games - recordFor(a, o.relation).games || b.lastPlayedAt - a.lastPlayedAt || byKey(a, b);
-  if (o.sort === "games") return list.sort(byGames);
+  const rec = (s: EncounterSummary) => recordFor(s, o.relation);
+  const list = all.filter((s) => (!q || s.name.toLowerCase().includes(q)) && rec(s).games >= o.min);
+  const last = (s: EncounterSummary) => rec(s).lastPlayedAt ?? -Infinity;
+  const byGames = (a: EncounterSummary, b: EncounterSummary) => rec(b).games - rec(a).games || last(b) - last(a) || byKey(a, b);
+  if (o.sort === "games" || (o.relation === "all" && o.sort !== "recent")) return list.sort(byGames);
+  if (o.sort === "recent") return list.sort((a, b) => last(b) - last(a) || rec(b).games - rec(a).games || byKey(a, b));
   const sign = o.sort === "best" ? -1 : 1;
   return list
-    .filter((s) => {
-      const r = recordFor(s, o.relation);
-      return r.wins + r.losses >= o.min;
-    })
-    .sort((a, b) => sign * (rate(recordFor(a, o.relation))! - rate(recordFor(b, o.relation))!) || byGames(a, b));
+    .filter((s) => rec(s).wins + rec(s).losses >= o.min)
+    .sort((a, b) => Number(isEstablished(rec(b))) - Number(isEstablished(rec(a))) || sign * (rate(rec(a))! - rate(rec(b))!) || byGames(a, b));
 }
 
 export interface EncounterInsight {
@@ -174,11 +203,13 @@ export interface EncounterInsight {
 }
 
 export const INSIGHT_LABELS: Record<EncounterInsight["kind"], string> = {
-  "frequent-opponent": "Most faced opponent",
-  "frequent-ally": "Most frequent ally",
+  "frequent-opponent": "Most games against",
+  "frequent-ally": "Most games alongside",
   "best-ally": "Best record alongside",
   "toughest-opponent": "Toughest record against",
 };
+/** Which relation each highlight is about. */
+export const INSIGHT_RELATION: Record<EncounterInsight["kind"], Relation> = { "frequent-opponent": "opponent", "frequent-ally": "ally", "best-ally": "ally", "toughest-opponent": "opponent" };
 
 /**
  * At most one of each, and only when enough games stand behind it. Neutral wording only. Each is the

@@ -22,8 +22,10 @@ const WHOLE_SCREEN = "short:h-dvh short:w-full short:max-h-none short:rounded-no
 const SIZE: Record<ModalSize, string> = {
   // Phones: a centred card with a margin (short content).
   compact: "w-[calc(100vw-1.5rem)] max-h-[85dvh] rounded-card sm:w-[min(28rem,calc(100vw-2rem))] short:max-h-[calc(100dvh-1rem)]",
-  // Phones: the whole screen (a small window would be hard to use); wider screens: a centred window.
-  standard: `h-dvh w-full max-h-none rounded-none max-sm:pt-safe sm:h-auto sm:max-h-[min(88dvh,56rem)] sm:w-[min(42rem,calc(100vw-3rem))] sm:rounded-card ${WHOLE_SCREEN}`,
+  // Phones: the whole screen (a small window would be hard to use); wider screens: a centred window
+  // as tall as its content (fit-content: `auto` would stretch a dialog between its top and bottom
+  // insets, leaving a short window mostly empty), up to most of the screen, then the body scrolls.
+  standard: `h-dvh w-full max-h-none rounded-none max-sm:pt-safe sm:h-fit sm:max-h-[min(88dvh,56rem)] sm:w-[min(42rem,calc(100vw-3rem))] sm:rounded-card ${WHOLE_SCREEN}`,
   // A fixed height on wide screens, so switching tabs inside never makes the window jump.
   wide: `h-dvh w-full max-h-none rounded-none max-sm:pt-safe sm:h-[min(90dvh,58rem)] sm:w-[min(76rem,calc(100vw-3rem))] sm:rounded-card ${WHOLE_SCREEN}`,
   full: `h-dvh w-full max-h-none rounded-none max-sm:pt-safe sm:h-[calc(100dvh-3rem)] sm:w-[calc(100vw-3rem)] sm:rounded-card ${WHOLE_SCREEN}`,

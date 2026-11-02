@@ -55,9 +55,9 @@ export function matchupsRedirect(profile: string, sp: Record<string, string | st
 
 /**
  * Where Team → Matches → Encounters leads now that encounters belong to each profile: your own
- * Match History → Encounters, with the season, the game mode, the list (Frequent allies, Frequent
- * opponents; Met by several members becomes Everyone), the minimum, the order and the search.
- * Clash has no game mode of its own there: it stays among All supported games.
+ * Match History → Encounters, with the season, the game mode, the list (Frequent allies becomes
+ * Alongside, Frequent opponents Against; Met by several members becomes All), the minimum, the
+ * order and the search. Clash has no game mode of its own there: it stays among All supported games.
  */
 export function encountersRedirect(sp: Record<string, string | string[] | undefined>): string {
   const str = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : "");
@@ -67,7 +67,7 @@ export function encountersRedirect(sp: Record<string, string | string[] | undefi
   q.set("view", "encounters");
   // The old list showed Frequent allies unless told otherwise.
   const rel = str("rel");
-  if (rel !== "opponents") q.set("rel", rel === "shared" ? "everyone" : "allies");
+  if (rel !== "opponents") q.set("rel", rel === "shared" ? "all" : "alongside");
   for (const k of ["min", "sort", "q"] as const) if (str(k)) q.set(k, str(k));
   return `/overview/matches?${q.toString()}`;
 }

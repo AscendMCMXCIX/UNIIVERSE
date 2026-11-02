@@ -6,7 +6,7 @@ import { CLEARANCE, expectClearCorner, untilStill } from "./modal-corner";
   in the window comes within 12 px of the corner's controls (the close button, and the window's own
   Back or previous / next to its left, past a divider), the close button is a 44 px target on touch
   screens, and Escape closes the window with focus back on what opened it. The Encounters window's
-  OP.GG link sits under the player's name, away from the close button. Demo roster, in-memory only.
+  OP.GG link sits with the player's name, away from the close button. Demo roster, in-memory only.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -37,7 +37,7 @@ test("the match window: the close button alone in its corner, Escape back to the
   await expectEscapeReturnsTo(page, win, card.getByTestId("together-open"));
 });
 
-test("Encounters: OP.GG under the player's name, and the match window's Back set apart from the close button", async ({ page }) => {
+test("Encounters: OP.GG with the player's name, and the match window's Back set apart from the close button", async ({ page }) => {
   // Demo games have no real Riot server, so the window would have no OP.GG link: the test gives the
   // window's answer one (an address in OP.GG's form), to see where the link is placed.
   const OPGG = "https://op.gg/lol/summoners/oce/Demo%20Rival-OCE";
@@ -50,17 +50,18 @@ test("Encounters: OP.GG under the player's name, and the match window's Back set
   });
   await page.goto(`/players/${await topPlayer(page)}/matches?view=encounters`);
   await expect(page.locator("[data-testid='encounters'][data-ready]")).toBeVisible();
-  const row = page.getByTestId("encounter-row").first();
+  const row = page.getByTestId("encounter-row").first().getByTestId("open-encounter");
   await row.click();
   const win = page.getByTestId("encounter-detail");
   await expect(win.getByTestId("encounter-detail-records")).toBeVisible();
   const m = await expectClearCorner(page);
-  // The link is in the name's column: under the summary, left of the corner, and opens a new tab.
+  // The link is with the player's name (beside it, or under it where the name is long), above the
+  // summary, left of the corner, and opens a new tab.
   const opgg = win.getByTestId("encounter-opgg");
   await expect(opgg).toHaveAttribute("href", OPGG);
   await expect(opgg).toHaveAttribute("target", "_blank");
   const [link, summary] = [(await opgg.boundingBox())!, (await win.getByTestId("encounter-detail-summary").boundingBox())!];
-  expect(link.y).toBeGreaterThanOrEqual(summary.y + summary.height);
+  expect(link.y + link.height).toBeLessThanOrEqual(summary.y + 1);
   expect(link.x + link.width).toBeLessThanOrEqual(m.clusterLeft - CLEARANCE);
   if (await page.evaluate(() => matchMedia("(pointer: coarse)").matches)) expect(link.height).toBeGreaterThanOrEqual(44);
 

@@ -20,8 +20,17 @@ describe("encounters of one player", () => {
       "x",
     );
     expect(s.games).toBe(3);
-    expect(s.ally).toEqual({ games: 2, wins: 1, losses: 1 });
-    expect(s.opponent).toEqual({ games: 1, wins: 1, losses: 0 });
+    expect(s.ally).toMatchObject({ games: 2, wins: 1, losses: 1 });
+    expect(s.opponent).toMatchObject({ games: 1, wins: 1, losses: 0 });
+  });
+
+  it("keeps each relation's latest game: against and alongside are two records", () => {
+    const s = one([row({ matchId: "G1", key: "x", relation: "ally", gameCreation: T }), row({ matchId: "G2", key: "x", relation: "opponent", gameCreation: T + 50 }), row({ matchId: "G3", key: "x", relation: "ally", gameCreation: T + 20 })], "x");
+    expect(s.ally).toEqual({ games: 2, wins: 2, losses: 0, lastPlayedAt: T + 20 });
+    expect(s.opponent).toEqual({ games: 1, wins: 1, losses: 0, lastPlayedAt: T + 50 });
+    expect(s.lastPlayedAt).toBe(T + 50);
+    // Never met one way: no date for that side.
+    expect(one([row({ matchId: "G9", key: "y", relation: "opponent" })], "y").ally).toEqual({ games: 0, wins: 0, losses: 0, lastPlayedAt: null });
   });
 
   it("counts a game once however many records it has, and a game with records on both sides once in each relation", () => {
@@ -35,8 +44,8 @@ describe("encounters of one player", () => {
       "x",
     );
     expect(s.games).toBe(2);
-    expect(s.ally).toEqual({ games: 2, wins: 1, losses: 1 });
-    expect(s.opponent).toEqual({ games: 1, wins: 0, losses: 1 });
+    expect(s.ally).toMatchObject({ games: 2, wins: 1, losses: 1 });
+    expect(s.opponent).toMatchObject({ games: 1, wins: 0, losses: 1 });
   });
 
   it("identifies players by account: a rename keeps one player with the latest name; one name on two accounts stays two players", () => {
@@ -52,10 +61,10 @@ describe("encounters of one player", () => {
 
   it("does not count unknown results as wins or losses", () => {
     const s = one([row({ matchId: "G1", key: "x", relation: "ally", win: null }), row({ matchId: "G2", key: "x", relation: "ally", win: true })], "x");
-    expect(s.ally).toEqual({ games: 2, wins: 1, losses: 0 });
+    expect(s.ally).toMatchObject({ games: 2, wins: 1, losses: 0 });
   });
 
-  it("lists by relation with a minimum, and records sort best or worst", () => {
+  it("lists by relation with a minimum, and sorts by games, the latest game or the win rate", () => {
     const rows = [
       // x: ally 3 times (2W 1L); y: opponent 3 times (1W 2L); z: opponent once.
       ...["G1", "G2", "G3"].map((m, i) => row({ matchId: m, key: "x", relation: "ally", win: i < 2 })),
@@ -65,15 +74,39 @@ describe("encounters of one player", () => {
       row({ matchId: "G7", key: "z", relation: "opponent" }),
     ];
     const all = summariseEncounters(rows);
-    expect(listEncounters(all, { relation: "allies", min: 2, sort: "games" }).map((s) => s.key)).toEqual(["x"]);
-    expect(listEncounters(all, { relation: "allies", min: 5, sort: "games" })).toEqual([]);
-    expect(listEncounters(all, { relation: "opponents", min: 2, sort: "games" }).map((s) => s.key)).toEqual(["y"]);
-    expect(listEncounters(all, { relation: "everyone", min: 2, sort: "games" }).map((s) => s.key)).toEqual(["y", "x"]);
-    expect(recordFor(all.find((s) => s.key === "y")!, "opponents")).toEqual({ games: 3, wins: 1, losses: 2 });
-    expect(recordFor(all.find((s) => s.key === "x")!, "everyone")).toEqual({ games: 3, wins: 2, losses: 1 });
-    expect(listEncounters(all, { relation: "opponents", min: 1, sort: "worst" }).map((s) => s.key)).toEqual(["y", "z"]);
-    expect(listEncounters(all, { relation: "opponents", min: 1, sort: "best" }).map((s) => s.key)).toEqual(["z", "y"]);
-    expect(listEncounters(all, { relation: "opponents", min: 1, sort: "games", query: "Z#" }).map((s) => s.key)).toEqual(["z"]);
+    expect(listEncounters(all, { relation: "alongside", min: 2, sort: "games" }).map((s) => s.key)).toEqual(["x"]);
+    expect(listEncounters(all, { relation: "alongside", min: 5, sort: "games" })).toEqual([]);
+    expect(listEncounters(all, { relation: "against", min: 2, sort: "games" }).map((s) => s.key)).toEqual(["y"]);
+    expect(listEncounters(all, { relation: "all", min: 2, sort: "games" }).map((s) => s.key)).toEqual(["y", "x"]);
+    expect(recordFor(all.find((s) => s.key === "y")!, "against")).toMatchObject({ games: 3, wins: 1, losses: 2 });
+    expect(recordFor(all.find((s) => s.key === "x")!, "all")).toMatchObject({ games: 3, wins: 2, losses: 1 });
+    expect(listEncounters(all, { relation: "against", min: 1, sort: "worst" }).map((s) => s.key)).toEqual(["y", "z"]);
+    expect(listEncounters(all, { relation: "against", min: 1, sort: "best" }).map((s) => s.key)).toEqual(["z", "y"]);
+    expect(listEncounters(all, { relation: "against", min: 1, sort: "games", query: "Z#" }).map((s) => s.key)).toEqual(["z"]);
+    // The most recent game in the relation first: z (G7) after y's last game (G6).
+    expect(listEncounters(all, { relation: "against", min: 1, sort: "recent" }).map((s) => s.key)).toEqual(["z", "y"]);
+    // All ranks no win rates (two different records): a win-rate order reads as most games.
+    expect(listEncounters(all, { relation: "all", min: 1, sort: "best" })).toEqual(listEncounters(all, { relation: "all", min: 1, sort: "games" }));
+  });
+
+  it("lists a player met both ways under Against and under Alongside, each with its own record", () => {
+    const rows = [...["A1", "A2"].map((m) => row({ matchId: m, key: "w", relation: "opponent", win: false })), ...["B1", "B2", "B3"].map((m) => row({ matchId: m, key: "w", relation: "ally", win: true }))];
+    const all = summariseEncounters(rows);
+    expect(listEncounters(all, { relation: "against", min: 2, sort: "games" }).map((s) => recordFor(s, "against"))).toMatchObject([{ games: 2, wins: 0, losses: 2 }]);
+    expect(listEncounters(all, { relation: "alongside", min: 2, sort: "games" }).map((s) => recordFor(s, "alongside"))).toMatchObject([{ games: 3, wins: 3, losses: 0 }]);
+    expect(listEncounters(all, { relation: "all", min: 2, sort: "games" })).toHaveLength(1);
+  });
+
+  it("ranks win rates from enough games ahead of small samples", () => {
+    // p: 1 win from 1 game (100%, a small sample); q: 4 wins from 5 games (80%); r: 1 win from 5 (20%).
+    const rows = [
+      row({ matchId: "P1", key: "p", relation: "opponent", win: true }),
+      ...Array.from({ length: 5 }, (_, i) => row({ matchId: `Q${i}`, key: "q", relation: "opponent", win: i < 4 })),
+      ...Array.from({ length: 5 }, (_, i) => row({ matchId: `R${i}`, key: "r", relation: "opponent", win: i < 1 })),
+    ];
+    const all = summariseEncounters(rows);
+    expect(listEncounters(all, { relation: "against", min: 1, sort: "best" }).map((s) => s.key)).toEqual(["q", "r", "p"]);
+    expect(listEncounters(all, { relation: "against", min: 1, sort: "worst" }).map((s) => s.key)).toEqual(["r", "q", "p"]);
   });
 
   it("gives highlights only with enough games behind them", () => {
@@ -100,8 +133,8 @@ describe("encounters of one player", () => {
     const all = summariseEncounters(rows);
     const toughest = encounterInsights(all).find((i) => i.kind === "toughest-opponent")!;
     expect(toughest.summary.key).toBe("b");
-    expect(toughest.record).toEqual({ games: 8, wins: 0, losses: 8 });
-    expect(listEncounters(all, { relation: "opponents", min: 5, sort: "worst" })[0]!.key).toBe("b");
+    expect(toughest.record).toMatchObject({ games: 8, wins: 0, losses: 8 });
+    expect(listEncounters(all, { relation: "against", min: 5, sort: "worst" })[0]!.key).toBe("b");
     // The most faced opponent is b too (8 games against, not a's 15 together); the most frequent ally is a.
     expect(encounterInsights(all).find((i) => i.kind === "frequent-opponent")!.summary.key).toBe("b");
     expect(encounterInsights(all).find((i) => i.kind === "frequent-ally")!.summary.key).toBe("a");
@@ -132,15 +165,20 @@ describe("encounters of one player", () => {
   });
 
   it("reads the list's choices from an address and writes them back, defaults left out", () => {
-    expect(encounterListChoice({})).toEqual({ relation: "opponents", min: 2, sort: "games", q: "", limit: ENCOUNTER_PAGE });
+    expect(encounterListChoice({})).toEqual({ relation: "against", min: 2, sort: "games", q: "", limit: ENCOUNTER_PAGE });
+    // The earlier names still open the same lists; All has no win-rate order.
+    expect(encounterListChoice({ rel: "opponents" }).relation).toBe("against");
+    expect(encounterListChoice({ rel: "allies", sort: "best" })).toMatchObject({ relation: "alongside", sort: "best" });
+    expect(encounterListChoice({ rel: "everyone", sort: "worst" })).toMatchObject({ relation: "all", sort: "games" });
+    expect(encounterListChoice({ rel: "all", sort: "recent" }).sort).toBe("recent");
     // Searching shows players met once too, unless a minimum is chosen.
     expect(encounterListChoice({ q: "  Kestrel " })).toMatchObject({ q: "Kestrel", min: 1 });
     expect(encounterListChoice({ q: "Kestrel", min: "3" })).toMatchObject({ min: 3 });
     // Unknown values fall back to the defaults; the list never grows past 500 players.
-    expect(encounterListChoice({ rel: "friends", min: "4", sort: "random", limit: "-3" })).toEqual({ relation: "opponents", min: 2, sort: "games", q: "", limit: ENCOUNTER_PAGE });
+    expect(encounterListChoice({ rel: "friends", min: "4", sort: "random", limit: "-3" })).toEqual({ relation: "against", min: 2, sort: "games", q: "", limit: ENCOUNTER_PAGE });
     expect(encounterListChoice({ limit: "100000" }).limit).toBe(500);
     expect(encounterListChoice({ q: "x".repeat(80) }).q).toHaveLength(32);
-    for (const sp of [{}, { rel: "allies", min: "5", sort: "worst", q: "Moon", limit: "50" }, { rel: "everyone", q: "Moon" }, { min: "1" }]) {
+    for (const sp of [{}, { rel: "alongside", min: "5", sort: "worst", q: "Moon", limit: "50" }, { rel: "all", q: "Moon", sort: "recent" }, { min: "1" }, { rel: "allies" }]) {
       const choice = encounterListChoice(sp);
       expect(encounterListChoice(encounterListParams(choice))).toEqual(choice);
     }

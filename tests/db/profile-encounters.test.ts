@@ -146,14 +146,18 @@ describe("a player's Encounters, counted in the database", () => {
       const all = summariseEncounters(rows);
       const insights = encounterInsights(all);
       highlighted += insights.length;
-      for (const relation of ["opponents", "allies", "everyone"] as EncounterRelation[]) {
-        for (const sort of ["games", "best", "worst"] as EncounterSort[]) {
+      for (const relation of ["against", "alongside", "all"] as EncounterRelation[]) {
+        // "all" is asked for win-rate orders too: it answers them as most games, as listEncounters does.
+        for (const sort of ["games", "recent", "best", "worst"] as EncounterSort[]) {
           for (const [min, q] of [[1, ""], [2, ""], [3, "renamed"], [5, ""], [1, "same NAME"]] as const) {
             const page = await loadEncounterPage(handle.db, scope, { relation, min, sort, q, limit: 25 });
             const expected = listEncounters(all, { relation, min, sort, query: q });
             const where = JSON.stringify({ scope: { ...scope, accountIds: scope.accountIds.length }, relation, sort, min, q });
             expect(page.list, where).toEqual(expected.slice(0, 25));
             expect(page.total, where).toBe(expected.length);
+            // Each side's count is the number of players its own list would hold (same minimum and search).
+            const count = (r: EncounterRelation) => listEncounters(all, { relation: r, min, sort: "games", query: q }).length;
+            expect(page.counts, where).toEqual({ against: count("against"), alongside: count("alongside"), all: count("all") });
             expect(page.games, where).toBe(games);
             expect(page.withPlayers, where).toBe(new Set(rows.map((r) => r.matchId)).size);
             expect(page.insights, where).toEqual(insights);
@@ -173,7 +177,7 @@ describe("a player's Encounters, counted in the database", () => {
       const { rows } = await reference(scope);
       const all = summariseEncounters(rows);
       // The most met, the ones met once, and the namesakes.
-      const keys = new Set([...listEncounters(all, { relation: "everyone", min: 1, sort: "games" }).slice(0, 6), ...all.filter((s) => s.games === 1).slice(0, 3), ...all.filter((s) => s.name === "Same Name#OCE")].map((s) => s.key));
+      const keys = new Set([...listEncounters(all, { relation: "all", min: 1, sort: "games" }).slice(0, 6), ...all.filter((s) => s.games === 1).slice(0, 3), ...all.filter((s) => s.name === "Same Name#OCE")].map((s) => s.key));
       for (const key of keys) {
         const detail = await loadEncounterDetail(handle.db, scope, key);
         expect(detail?.summary).toEqual(all.find((s) => s.key === key));
@@ -193,7 +197,7 @@ describe("a player's Encounters, counted in the database", () => {
     for (const mode of MODES) {
       for (const accountId of [null, acc.ace!, acc.ace2!]) {
         const history = await getMatchHistory(handle.db, ids.Ace!, { season: 16, mode, accountId });
-        const page = await loadEncounterPage(handle.db, { accountIds: accountId ? [accountId] : [acc.ace!, acc.ace2!], season: 16, mode }, { relation: "everyone", min: 1, sort: "games", q: "", limit: 1 });
+        const page = await loadEncounterPage(handle.db, { accountIds: accountId ? [accountId] : [acc.ace!, acc.ace2!], season: 16, mode }, { relation: "all", min: 1, sort: "games", q: "", limit: 1 });
         expect(page.games, `${mode} ${accountId}`).toBe(history.total);
         expect(page.games).toBeGreaterThan(0);
       }
@@ -235,14 +239,14 @@ describe("a player's Encounters, counted in the database", () => {
 
   it("sends a small page with opaque keys, never an account identifier", async () => {
     const scope: EncounterScope = { accountIds: [acc.ace!, acc.ace2!], season: 16, mode: "all" };
-    const page = await loadEncounterPage(handle.db, scope, { relation: "everyone", min: 1, sort: "games", q: "", limit: 25 });
+    const page = await loadEncounterPage(handle.db, scope, { relation: "all", min: 1, sort: "games", q: "", limit: 25 });
     const detail = await loadEncounterDetail(handle.db, scope, page.list[0]!.key);
     const met = await loadMatchMeetings(handle.db, scope, detail!.games[0]!.matchId);
     expect(met?.length).toBeGreaterThan(0);
     for (const answer of [JSON.stringify(page), JSON.stringify(detail), JSON.stringify(met)]) expect(answer).not.toMatch(/"(p|r|f|n)-[\w-]*"/);
     expect(page.list.every((s) => /^[\w-]{16}$/.test(s.key))).toBe(true);
     expect(JSON.stringify(page).length).toBeLessThan(10_000);
-    expect(await loadEncounterPage(handle.db, { ...scope, accountIds: [] }, { relation: "everyone", min: 1, sort: "games", q: "", limit: 25 })).toEqual({ games: 0, withPlayers: 0, list: [], total: 0, insights: [] });
+    expect(await loadEncounterPage(handle.db, { ...scope, accountIds: [] }, { relation: "all", min: 1, sort: "games", q: "", limit: 25 })).toEqual({ games: 0, withPlayers: 0, list: [], total: 0, counts: { against: 0, alongside: 0, all: 0 }, insights: [] });
     expect(await loadEncounterDetail(handle.db, { ...scope, accountIds: [] }, page.list[0]!.key)).toBeNull();
     expect(await loadMatchMeetings(handle.db, { ...scope, accountIds: [] }, detail!.games[0]!.matchId)).toBeNull();
   });
