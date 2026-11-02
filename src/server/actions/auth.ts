@@ -73,16 +73,19 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
   const attempt = await claimAttempt(db, keys);
   if (attempt.wait > 0) return { error: `Too many failed attempts. Try again in ${Math.ceil(attempt.wait / 60)} minute${attempt.wait > 60 ? "s" : ""}.`, values: keep(formData, "username") };
   if (!username.trim() || !password) {
-    await attempt.succeeded(); // nothing was tried
+    await attempt.withdraw(); // nothing was tried
     return { error: "Enter your username and your password.", values: keep(formData, "username") };
   }
-  const user = await authenticate(db, username, password);
+  const user = await authenticate(db, username, password).catch(async (err: unknown) => {
+    await attempt.withdraw(); // an error is not a wrong guess
+    throw err;
+  });
   if (!user) {
     // The attempt's rows stay: they are this failure.
     await new Promise((r) => setTimeout(r, 400));
     return { error: explainLoginFailure(username), values: keep(formData, "username") };
   }
-  await attempt.succeeded();
+  await attempt.withdraw();
   await clearFailures(db, keys[0]!);
   const target = user.mustChangePassword || (!user.setupCompletedAt && user.playerId) ? "/welcome" : next;
   // One account per browser: signing in ends any session this browser held before.
@@ -111,7 +114,7 @@ export async function setupOwnerAction(_prev: FormState, formData: FormData): Pr
       await new Promise((r) => setTimeout(r, 400));
       return { error: "The setup key does not match UNIIVERSE_ACCESS_PASSWORD.", values };
     }
-    await attempt.succeeded();
+    await attempt.withdraw();
   }
   const weak = validatePasswordStrength(signup.password);
   if (weak) return { error: `The owner account needs a password. ${weak}`, values };

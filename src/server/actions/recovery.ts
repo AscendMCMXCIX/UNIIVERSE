@@ -45,7 +45,7 @@ export async function recoveryAction(_prev: RecoveryState, formData: FormData): 
     await new Promise((r) => setTimeout(r, 400));
     return { step: "key", error: "The setup key does not match UNIIVERSE_ACCESS_PASSWORD." };
   }
-  await attempt.succeeded();
+  await attempt.withdraw();
   await clearFailures(db, key);
   const owners = (await listOwnerAccounts(db)).map((o) => ({ id: o.id, username: o.username, displayName: o.displayName, hasPassword: o.hasPassword, hasPlayer: o.hasPlayer, isActive: o.isActive }));
   if (owners.length === 0) return { step: "key", error: "There is no owner account in this database. If accounts were never created, use the setup page instead." };

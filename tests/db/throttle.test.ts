@@ -85,7 +85,7 @@ describe("attempts counted before they are checked", () => {
     const key = throttleKey("member", "8.8.8.8");
     const right = await claimAttempt(handle.db, [key], at(0));
     expect(right.wait).toBe(0);
-    await right.succeeded();
+    await right.withdraw();
     expect(await rowList()).toEqual([]);
     for (let i = 0; i < 8; i++) expect((await claimAttempt(handle.db, [key], at(i + 1))).wait).toBe(0); // eight wrong ones stay
     const refused = await claimAttempt(handle.db, [key], at(20));
