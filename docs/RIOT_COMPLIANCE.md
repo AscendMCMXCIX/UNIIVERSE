@@ -4,6 +4,27 @@ UNIIVERSE uses Riot Games data in two ways: **Data Dragon** (public static files
 
 The authoritative sources are Riot's Developer Portal policies (https://developer.riotgames.com/policies/general) and the Legal Jibber Jabber (https://www.riotgames.com/en/legal). If anything here disagrees with those pages, the pages win.
 
+## Compliance review (2 November 2026)
+
+UNIIVERSE needs a **Personal** key, not a Production key, as long as its public pages carry no Riot API data (the default). Two items are open: the app runs on a Development key, and moving to any other key changes Riot's player ids, which needs a planned migration first. Riot's own pages could not be opened from the review's environment; the rules below are as Riot's Developer Portal, General Policies, FAQ and API Terms were quoted in several independent sources, and should be re-read in the portal when registering.
+
+| # | Finding | Riot's rule (as quoted) | Status | What to do |
+| --- | --- | --- | --- | --- |
+| 1 | Production runs on a **Development key** (the owner's statement; `docs/DEPLOYMENT.md`) | Development keys are for prototyping and deactivate every 24 hours; "you may not maintain a public product with a development API key". Products for "just the developer or a small private community" use a Personal key, registered without verification. All products must be registered and audited through the Developer Portal. | Open | Register UNIIVERSE as a personal product with the description below, after item 2 is ready |
+| 2 | **A new key changes every stored player id.** Riot encrypts PUUIDs per registered application. Linked accounts already re-verify from their Riot ID after a key change (`src/server/accounts/sync.ts`), and erasures also match by Riot ID (`docs/PRIVACY.md`), but the stored games keep the old ids | IDs obtained with one application's key do not work with another's | Open | Before switching: a one-off re-keying job that fetches each stored game again under the new key (about 4,900 requests; at 100 per 2 minutes, roughly 100 minutes of the key's budget, spread over a day), maps players by their place in the game, and rewrites the stored ids. Rehearse it on a copy of the database. Without it, games from before the switch treat members as strangers and split each opponent into two (Encounters, possible groups, rank badges) |
+| 3 | **Public pages carry no Riot API data** while `UNIIVERSE_PUBLIC_RIOT_DATA` is unset: only what the team entered (display names, pictures, card styles, roles, champion pools) and Data Dragon art; no rank, statistic, Riot ID or match (`src/server/public/team.ts`, `publicCard`) | "You may not run your application for public consumption using a personal key." Production keys need a verified website, one product per key | Compliant while unset | Keep it unset; confirm it on the live site (signed out: no ranks or figures on the cards, `/public/leaderboards` not found). Set it only with a Production key and a registration that describes the public pages |
+| 4 | The registration must describe every use | New features or changes need their own audit | Open, with 1 | Register with the description below and update it whenever a feature changes what is read or shown |
+| 5 | **Data of non-members kept for removed features**: about 1.1 million rows in the retired tables (high-Elo games and bans, 20,423 tracked ladder players, aggregated statistics, professional games) and 32,729 ladder ranks in `last_known_ranks`. Nothing collects more of it | The API Terms require deleting game information when the terms end and acting on the deletion requests Riot forwards; keeping unused data of other players is a data-minimisation risk rather than a stated breach | Held until the backup is verified and an offline copy kept | Run the held drops (PRs #86 and #138) and prune `last_known_ranks` rows not tied to a stored game. That also frees about 217 MB (`docs/HOSTING_USAGE.md`) |
+| 6 | **Deletion requests Riot forwards** about players who are not members have no documented step | Riot passes players' deletion requests to developers as identifiers, through Riot's channels | Open, low | The owner watches the Developer Portal for such notices and applies them with the existing erasure tool, which matches by PUUID or Riot ID |
+| 7 | Game integrity | No advantage others could not have; no information unavailable in the client; no acting for the player; enemy ultimate timers banned from 13 March 2025 | Compliant: post-game features only; no live data, client access or automation | Keep it that way |
+| 8 | Monetisation | Requires an Approved or Acknowledged product | Compliant: none | — |
+
+**Description for the registration** (a Personal key):
+
+> Private team tool for one amateur League of Legends team (about eleven accounts, sign-in required). Reads the match history, match timelines, champion mastery and ranks of the Riot accounts that members link on purpose; stores their games and per-champion statistics. Shows members the current rank of the other players in those games, checked after each game is collected and when a member opens a game (at most 1,000 checks a day). A public team page shows only what the team enters (names, pictures, roles, champion pools) with Data Dragon art, and no Riot API data. No live-game or champion-select features, no client integration, no data shared outside the team.
+
+Sources quoted for the rules: Riot Developer Portal (key types, https://developer.riotgames.com/docs/portal; FAQ, https://developer.riotgames.com/docs/faqs), General Policies (https://developer.riotgames.com/policies/general and https://support-developer.riotgames.com/hc/en-us/articles/22698591841939-General-Policies), API Terms (https://support-developer.riotgames.com/hc/en-us/articles/22698917218323-API-Terms-and-Conditions), Riot Developer Relations on the ultimate-timer ban (https://x.com/RiotGamesDevRel/status/1899532362637250955); per-application id encryption as described in community documentation of Riot's ids (https://hextechdocs.dev/getting-started-with-the-riot-games-api/).
+
 ## Required notice
 
 Riot requires products using its IP to show the following text. It is shown in the app sidebar ("Not endorsed by Riot Games" → Details) and in Settings → Riot Games compliance:
@@ -158,10 +179,13 @@ a held clean-up deletes them (`docs/DATA_PIPELINES.md`, "Retired tables").
 - No live-game (Spectator API) features, opponent scouting during a game, or pre-game or live premade detection. (Post-game possible groups from stored matches are allowed: see above.)
 - No sharing of collected data outside the team. The public team page (`/public`) shows only what the team entered itself: display names, pictures, card styles, roles and champion pools, with Riot's static champion art. No Riot ID or match reaches it. Rank and statistics reach the public pages only where the deployment sets `UNIIVERSE_PUBLIC_RIOT_DATA=true`, which is meant only for a Production key whose registration describes the public pages: then the cards carry the figures members see, and `/public/leaderboards` ranks the players on the public page (nobody else on the team). Without it, that address is not found.
 
-## Before you register a production key
+## Registering the product (Personal key)
 
-1. Confirm the required notice is visible (sidebar and Settings).
-2. Make sure `RIOT_API_KEY` is only set in the host's environment variables, never in the repository.
-3. Describe the product honestly: "private team tool for one amateur team; reads the match history of consenting team members; stores their games and champion statistics; shows the current rank of the players in those games when a member opens one".
-4. Keep this file and the Settings compliance panel in sync with reality when features change.
-5. Riot checks that the product's address is yours by fetching a code from `/riot.txt`. It is `public/riot.txt` (the code alone, no newline), and `src/proxy.ts` lets it through without sign-in. If Riot issues a new code, replace the file.
+A Personal key is the right key while the public pages carry no Riot API data (Compliance review above). A Production key is needed only if `UNIIVERSE_PUBLIC_RIOT_DATA=true` is ever wanted.
+
+1. Prepare the re-keying of stored player ids first (Compliance review, item 2): switching keys changes them.
+2. Confirm the required notice is visible (sidebar and Settings).
+3. Make sure `RIOT_API_KEY` is only set in the host's environment variables, never in the repository.
+4. Describe the product honestly, with the description in the Compliance review above.
+5. Keep this file and the Settings compliance panel in sync with reality when features change.
+6. Riot checks that the product's address is yours by fetching a code from `/riot.txt`. It is `public/riot.txt` (the code alone, no newline), and `src/proxy.ts` lets it through without sign-in. If Riot issues a new code, replace the file.

@@ -332,3 +332,23 @@ The counts equal the Encounters window's for the same players (checked on this h
 - **Leaderboards** was then the largest read (about 835 KB a cold load, 17 MB on 21 Oct by 10:10 UTC). It now sends about a third of that (21 Oct, above); its production figure follows the deploy.
 - **Check the Vercel usage page** after a few days. Confirm which item was at 100% (deployment storage or Fast Origin Transfer) and that it is falling.
 - **Supabase egress** resets with the billing cycle. Watch the next cycle: the removed draft engine and the changes here should keep it well under 5 GB. The `db-usage` job shows the remaining top queries at any time.
+
+## 2 Nov 2026: database size and the retired tables
+
+Read-only `data-audit` and `db-usage` runs on 2 Nov 2026 (after the deploy of 8b079e9):
+
+- **Size:** `db-usage` reports 361 MB (`data-audit`: 378,042,035 bytes) of the free plan's 0.5 GB. On 26 Oct it was 346 MB, so it grows by about 2 MB a day: roughly two months of headroom at this pace.
+- **About 217 MB of it is retired data** that nothing reads or writes:
+    - `ranked_participants` 71.2 MB;
+    - `champion_matchups` 70.7 MB;
+    - `champion_synergies` 29.2 MB;
+    - `ranked_bans` 23.1 MB;
+    - `tracked_summoners` 11 MB;
+    - `ranked_matches` 4.8 MB;
+    - `match_fetch_queue` 3.5 MB;
+    - the professional, statistics and Draft tables, about 5 MB together.
+
+  `last_known_ranks` (8.4 MB) also holds 32,729 ladder ranks from the retired collection.
+- **Live data:** `match_details` 44.9 MB, `match_timelines` 39.5 MB, `brand_assets` 18.4 MB, `account_matches` 5.8 MB.
+- **What to do:** the held drops (PRs #86 and #138, `docs/DATA_PIPELINES.md`, "Retired tables") free most of it, once the owner has verified a backup and kept an offline copy. Until then nothing is deleted.
+- **Egress:** 27.2 MB on 2 Nov (budget 120 MB a day), on a day with several manual runs.
