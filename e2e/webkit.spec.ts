@@ -2,7 +2,6 @@ import { devices, expect, test, type Locator, type Page } from "./test";
 import { emulateKeyboard, keyboard } from "./keyboard";
 import { expectClearCorner } from "./modal-corner";
 import { besideAMark } from "./match-history";
-import { memberContext } from "./member-account";
 import path from "node:path";
 
 /*
@@ -324,33 +323,34 @@ test("forms: text fields are at least 16px (Safari zooms into smaller ones) and 
   await guest.close();
 });
 
-test("Settings → social links: a tap on Show publicly's words turns it on and off, a finger-sized target on its platform's line", async ({ browser, page }) => {
-  // A member with a profile (the demo's local owner has none), opened again as an iPhone.
-  const member = await memberContext(browser, page);
-  const { defaultBrowserType: _, ...iphone } = devices["iPhone 15"];
-  const context = await browser.newContext({ ...iphone, storageState: await member.context.storageState() });
-  await member.context.close();
-  const phone = await context.newPage();
-  await phone.goto("/settings");
-  const form = phone.getByTestId("social-links-form");
-  const toggle = form.getByRole("switch", { name: "Show publicly: YouTube" });
-  const target = form.getByTestId("social-public-youtube");
-  await expect(toggle).not.toBeChecked();
-  const box = (await target.boundingBox())!;
-  const label = (await form.locator("label[for='social-youtube']").boundingBox())!;
-  expect(box.height).toBeGreaterThanOrEqual(44);
-  expect(Math.abs(box.y + box.height / 2 - (label.y + label.height / 2))).toBeLessThan(4);
-  // The words, not only the knob (WebKit hydrates late: tap until the page has taken it).
+test("a switch turns on and off with a tap on its words, not only the knob (the Studio's effects; Settings' Show publicly switches are the same control)", async ({ page }) => {
+  // The demo's local owner, on Top's card: a test here cannot stay signed in as a member (the
+  // session cookie is Secure, which WebKit does not keep on http://localhost), and Settings'
+  // social links need one. The control is the same Switch; its sizes on a phone and its place on
+  // the platform's line are checked in Chromium (e2e/social-links.spec.ts).
+  await page.goto("/team");
+  const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
+  await page.goto(`/players/${id}`);
+  await expect(page.getByTestId("profile-header")).toBeVisible();
   await expect(async () => {
-    await target.getByText("Show publicly").tap();
-    await expect(target).toHaveAttribute("data-state", "on", { timeout: 2_000 });
-  }).toPass({ timeout: 30_000 });
-  await expect(toggle).toBeChecked();
-  await target.tap();
-  await expect(target).toHaveAttribute("data-state", "off");
-  await expect(toggle).not.toBeChecked();
-  await fitsWidth(phone, "Settings");
-  await context.close();
+    await page.getByTestId("profile-header").getByTestId("customise-card").tap();
+    await expect(page.getByTestId("card-studio")).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  await page.getByTestId("studio-section-toggle").tap();
+  await page.getByTestId("studio-section-effects").tap();
+  await expect(page.getByTestId("card-studio")).toHaveAttribute("data-step", "effects");
+  const glow = page.getByRole("switch", { name: /Ambient glow/ });
+  const words = page.locator("label[for=fx-glow]").getByText("Ambient glow", { exact: true });
+  const was = await glow.isChecked();
+  await words.tap();
+  await expect(glow).toBeChecked({ checked: !was });
+  await expect(page.locator("label[for=fx-glow]")).toHaveAttribute("data-state", was ? "off" : "on");
+  await words.tap();
+  await expect(glow).toBeChecked({ checked: was });
+  await page.getByTestId("studio-cancel").tap();
+  const discard = page.getByTestId("studio-confirm-yes");
+  if (await discard.isVisible()) await discard.tap();
+  await expect(page.getByTestId("card-studio")).toBeHidden();
 });
 
 test("the sign-in window on an iPhone: the whole screen, the fields and Sign in above the keyboard, an error in view, and Close back to Sign in", async ({ browser, baseURL }) => {
