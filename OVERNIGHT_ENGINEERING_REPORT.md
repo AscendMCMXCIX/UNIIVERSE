@@ -51,13 +51,14 @@ From the owner's brief and `CLAUDE.md`:
 | Branch | PR | What | Status |
 |---|---|---|---|
 | `security/page-guards` | #170 | Every member page checks access itself (high finding) | Verified locally (full suites green); **CI green** (all four jobs, 2 Nov); **merge first** |
-| `security/hardening` | #172 | Redirects, throttle, errors, Riot hosts, public images, timing, dead actions | Verified locally (unit 556, database 470, browser 516 passed); CI running |
+| `security/hardening` | #172 | Redirects, throttle, errors, Riot hosts, public images, timing, dead actions | Verified locally (unit 556, database 470, browser 516 passed); **CI green** (all four jobs, 2 Nov) |
 | `perf/season-patch-memo` | #169 | Season figures read each game's patch once | Verified locally; **CI green** (all four jobs, 2 Nov) |
-| `a11y/label-in-name-scroll-regions` | PR_A11Y | Names that start with their visible words; wide tables the keyboard can scroll; wider axe coverage | Verified locally (verify); browser suite pending |
-| `pwa-windows-integration` | #171 (draft) | Installed app: jump-list shortcuts, one reused window | Optional; typecheck and lint only; CI when marked ready |
+| `a11y/label-in-name-scroll-regions` | #173 | Names that match what controls show; wide tables the keyboard can scroll; axe at phone width and in two windows | Verified locally (unit 548, browser 517 passed); CI running |
+| `pwa-windows-integration` | #171 (draft) | Installed app: jump-list shortcuts, one reused window | Optional; unit tests, build and its browser spec pass; full suite in CI when marked ready |
 | `overnight/engineering-report` | PR_REPORT | This report | Docs only |
 
-All five branches merge cleanly with one another in any order (`git merge-tree`).
+All six branches merge cleanly with `main` and with one another: all 15 pairs, checked with
+`git merge-tree` after the last change on 2 Nov.
 
 ## Findings and work
 
@@ -232,11 +233,21 @@ found two serious issue types and nothing moderate or minor:
   the keyboard could reach.
 
 **Fixed through shared components** (branch `a11y/label-in-name-scroll-regions`):
-- `ChampionPortrait` names its stand-in like the picture.
 - A new `ScrollRegion` makes a wide table focusable and named; five tables use it.
-- The link's name starts with its visible words.
-- `e2e/quality.spec.ts` now runs axe at 375px on every page, on a teammate's profile and in the
-  player window, so these stay fixed.
+- Team's link name now starts with its visible words.
+- **Links and game cards named by what they show:**
+  - The first fix named the portrait stand-in like a picture and hid its letters from screen
+    readers. Unit tests passed, but the full browser suite showed axe still failing the links: axe
+    compares an `aria-label` with the text on screen, hidden or not.
+  - A speech-control user sees the same letters, so the fault was real.
+  - The pool preview's links now take their name from the portrait ("Rumble") plus hidden words
+    (": open its statistics"), the pattern already used in Access.
+  - Checking the windows the sweep had not opened (the champion window, Encounters' details, the
+    match window, a game's four tabs) found one more case: the champion window's game cards, whose
+    name left out the figures they show. They are now named by their content.
+  - Every other window was clean at desktop and phone width.
+- **Kept fixed:** `e2e/quality.spec.ts` now runs axe at 375px on every page, on a teammate's
+  profile, and in the Team player and champion windows.
 
 **Not covered by automation:** screen reader and speech-control behaviour on real devices. Those
 belong on the real-device checklist.
@@ -345,13 +356,15 @@ in this session changed what UNIIVERSE reads from Riot or shows.
   - auth mode on Vercel;
   - throttle bursts;
   - the public picture cache;
-  - PWA shortcuts.
+  - PWA shortcuts;
+  - axe at phone width, on a teammate's profile and in the Team player and champion windows.
 
 ### 5. Roadmap (ordered; Proposal)
 
 **Necessary: the platform you already have.**
 1. **Merge the security fix for profile pages** (#170): a confirmed data exposure.
-2. **Merge the hardening PR** (#172) and the season figures speed-up (#169).
+2. **Merge the hardening PR** (#172), the season figures speed-up (#169) and the accessibility
+   fixes (#173).
    Afterwards, run one Data jobs run with `smoke perf-probe`.
 3. **Free database space before it runs out:**
    - 361 MB of the free plan's 0.5 GB, growing about 2 MB a day: about two months left;
@@ -406,27 +419,40 @@ until a native capability is approved.
 
 ## Executive summary
 
-**Completed and verified:**
-- **Security, high.** A teammate's profile data reached signed-out requests. I reproduced it,
-  fixed it, verified the fix, and added a test that stops it coming back. The PR is ready; merge it
+**Completed and verified** (local suites green; CI green where marked):
+- **Security, high (#170, CI green).** A teammate's profile data reached signed-out requests. I
+  reproduced it, fixed it, verified the fix, and added a test that stops it coming back. Merge it
   first.
-- **Security, medium and low.** Nine more fixes, each with tests: an open redirect, a throttle
-  race, an egress risk, raw database errors, Riot host validation, open mode on Vercel, two timing
-  leaks, statistics without access. Unreachable actions and an unused package were removed.
-- **Performance.** Team Overview's roster is 62% faster warm and 41% faster on first load, measured
-  locally at production volume. Every profile Overview and All Champions page benefits too.
-  Production confirmation is one `perf-probe` run after the merge.
+- **Security, medium and low (#172, CI green).** Nine more fixes, each with tests: an open
+  redirect, a throttle race, an egress risk, raw database errors, Riot host validation, open mode
+  on Vercel, two timing leaks, statistics without access. Unreachable actions and an unused
+  package were removed.
+- **Performance (#169, CI green).** Team Overview's roster is 62% faster warm and 41% faster on
+  first load, measured locally at production volume. Every profile Overview and All Champions page
+  benefits too. Production confirmation is one `perf-probe` run after the merge.
+- **Accessibility (#173, CI running).** Four serious issues fixed through shared components:
+  three label-in-name cases and one table the keyboard could not scroll. axe now also runs at phone
+  width and in the Team player and champion windows. The full browser suite passed locally.
+
+**Corrected during the session:**
+- My first accessibility fix did not satisfy axe. Its unit tests passed, but the full browser
+  suite failed the new axe test before any PR was opened.
+- The cause (axe compares a label with the text on screen) is now in `docs/STANDARDS.md`, and
+  the fix is verified by the full suite.
+
+**Prototype or draft:**
+- **The PWA's Windows integration (#171, draft):** shortcuts and window reuse. Unit tests, build
+  and its own browser spec pass. The full suite runs in CI if you mark it ready.
 
 **Proposals, not built:**
 - **Desktop.** Keep the web app and PWA; no native app now (section 2).
 - The roadmap, release requirements and approvals in sections 5 to 7.
 
-**Prototype or draft:**
-- the PWA's Windows integration (shortcuts and window reuse), as a draft PR with targeted checks
-  only.
-
 **Not done:**
 - production measurements, since nothing was deployed;
 - field data, which only you can read;
-- Windows device tests: there is no native app, and this session has no Windows machine;
+- Windows and real-device checks: this session has no Windows machine or phone, and screen reader
+  and speech-control behaviour belong on the real-device checklist;
 - the summary table for Encounters, which waits for database space.
+
+**Merged:** nothing. All six pull requests (five ready, one draft) wait for your review.
