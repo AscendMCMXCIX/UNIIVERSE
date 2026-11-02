@@ -33,13 +33,18 @@ from each section; this page does not repeat them.
   labelled as possible (a match's possible groups, for example, never "premade").
 - Explanations sit next to the figure (`InfoTip`, `Metric` labels from `src/domain/metrics.ts`),
   in plain language.
-- How current a page's Riot data is goes in one place per page, in the fixed words of
-  `src/domain/data-status.ts`: under the page's or section's heading, a quiet Refresh with the
-  status one ⓘ away (`DataRefresh`, placed by `SectionHeader`), never a banner. Figures and cards
-  carry no status marks of their own. A Refresh does something real (it reads Riot and re-reads
-  the page) and says what happened, never "updated" for a click alone; where nothing can be
-  refreshed (no right to, no Riot account Riot can be asked about, no Riot on the server) the ⓘ
-  stands alone, with no button that does nothing.
+- How current a page's Riot data is goes in the same two places on every page, in the fixed words
+  of `src/domain/data-status.ts`, never a banner: the status in a few quiet words ("Synced 5 min
+  ago", or the state when it is short of up to date) with one ⓘ holding the details, beside the
+  line that says what is counted (`DataStatusNote`); and Refresh at the end of the section's
+  toolbar, after the filters, never on a row of its own (`RefreshButton`). `SectionHeader` places
+  both; a panel puts Refresh in its header's actions. Figures and cards carry no status marks of
+  their own. A Refresh does something real (it asks Riot now, then reads the page again from what
+  is stored), shows which of the two is running beside the scope line, and says what happened,
+  never "updated" for a click alone; a second press joins the run, and a press during the cooldown
+  is answered without a request. Where nothing can be refreshed (no right to, no Riot account Riot
+  can be asked about, no Riot on the server) the status stands alone, with no button that does
+  nothing.
 
 ## Design tokens
 
@@ -50,26 +55,35 @@ panel and card radii, colours written as hex in a class, easing curves that are 
 uppercase labels spaced other than `tracking-label`. SVG charts drawn 1:1 in px keep their text in
 px, so it fits the chart's fixed gutters; the test lists them.
 
-**Colour** (semantic, never raw values):
+**Colour** (semantic, never raw values). The ground is a neutral charcoal, each surface one
+visible step lighter than the one below it, so panels separate from the page without glows or
+tints; colour is kept for meaning (the brand's accent for what is selected or can be acted on, the
+sides and results of a match, states). The brand's light stays at the edges of the page, on the
+Team page's banner and player cards' own art, and on sign-in; dense content (tables, scoreboards,
+lists of games) sits on opaque surfaces, never on a translucent panel over imagery.
 
 | Token | Use |
 | --- | --- |
-| `bg`, `bg-elevated` | page background; menus and popovers above it |
-| `surface`, `surface-2`, `surface-3` | panels and cards; inputs and raised rows; selected or hovered |
-| `border`, `border-strong` | dividers and panel edges; inputs and emphasis |
-| `fg`, `fg-muted`, `fg-subtle` | text: main, secondary, captions (`fg-subtle` is 4.5:1 on panels) |
-| `accent`, `accent-strong`, `accent-2`, `highlight` | the brand (Branding can change `accent-2` and `highlight`) |
+| `bg`, `bg-elevated` | page background; fields, menus and popovers (a step above the panel they sit on) |
+| `surface`, `surface-2`, `surface-3` | panels and cards; raised rows and tiles inside them; selected or hovered |
+| `border`, `border-strong`, `border-control` | structure (dividers, panel and card edges); emphasis (a menu's or dialog's edge, a hovered row); the edge of a field, toolbar button, segmented group or switch, 3:1 against the page, the panels and popovers (WCAG 1.4.11; Branding derives it from custom colours) |
+| `fg`, `fg-muted`, `fg-subtle` | text: main, secondary, captions and metadata; all three 4.5:1 or more on every surface, `surface-3` included |
+| `accent`, `accent-strong`, `accent-2`, `highlight` | the brand (Branding can change them); selected states pair it with a ring or weight, not colour alone |
 | `good`, `warn`, `bad`, `info` | states and outcomes; never the only signal (pair with text or an icon) |
-| `blue`, `red` | the two sides of a match |
+| `blue`, `red` | the two sides of a match, and its result (Victory blue, Defeat red), always with the word |
 | `gold`, `violet`, `bronze`, `bronze-fg` | rarities and places (third place in bronze); never to set one statistic apart from its neighbours: multikill counts are plain `fg` like every other figure |
 | `tier-iron` … `tier-challenger` | a ranked tier written as small text (an opponent's "E2" in a match card); each 5:1 or more on the panels |
 
 Rank crests keep their own artwork and fallback colours (`rank-emblem.tsx`, `tierTextClass` for the text tokens), as do social brands (`brand-icons.tsx`).
 
-**Type.** Tailwind's scale from `text-xs` (12px) up, plus `text-2xs` (11px: captions, column
-headings, labels), `text-3xs` (10px: dense chips), `text-4xs` (9px: letters inside small tiles),
-`text-md` (15px: a list row's primary value) and `text-figure` (28px: headline figures from `sm`
-up). Sizes are rem, so they follow the reader's browser text size; the root size grows gently above
+**Type.** Tailwind's scale from `text-xs` (12px) up, plus `text-2xs` (11px: the smallest text:
+chips, badges, captions, column headings, labels), `text-4xs` (10px: letters inside small tiles,
+such as initials or a count, never running text), `text-md` (15px: a list row's primary value) and
+`text-figure` (28px: headline figures from `sm` up). Hierarchy comes from size and weight first:
+a page's title, a section's title (`text-xl`), a panel's title (`text-base` semibold); a headline
+figure, then a supporting figure a step smaller; a label in `fg-muted`, its metadata and
+timestamps in `fg-subtle` at `text-xs`. Statistics a reader compares (a scoreboard's KDA, damage,
+gold, CS and vision) are `text-xs` or larger. Sizes are rem, so they follow the reader's browser text size; the root size grows gently above
 1536px wide (globals.css). Uppercase labels, eyebrows and section headings use `tracking-label`; a
 small pill badge (`rounded-full`, such as "You") may stay at `tracking-wide`. The team's name as a
 wordmark uses `tracking-wordmark`, and the Team page's backdrop name `tracking-tagline`. Numbers
@@ -85,8 +99,9 @@ which are the same sizes under other names. Page widths: `--content-max` (text a
 pickers and popovers: `z-50`. Menus and toasts: `z-[60]`. Tooltips: `z-[100]`. Detail windows and
 dialogs are native `<dialog>` elements in the browser's top layer, above everything.
 
-**Elevation.** Panels and cards lie flat on the page: a border, no shadow. What floats above it (a
-menu, picker or popover, a card being dragged) is `bg-bg-elevated` with a border and `shadow-2xl`.
+**Elevation.** Panels and cards lie flat on the page: a border, no shadow, an opaque surface. What
+floats above it (a menu, picker or popover, a card being dragged) is `bg-bg-elevated`, lighter
+than the panels, with a border and `shadow-2xl`.
 
 **Motion.** Short and purposeful: entrances 160 to 220ms with `--ease-emphasized`, exits about
 140ms with ease-in, the sidebar with `--ease-glide`, the Team card's turn (460ms) with
@@ -117,8 +132,9 @@ Use the shared component before writing a new one (`src/components/ui`):
 | Saving | `SaveStatusIndicator`, `toast` |
 | Images from Riot or another host | `RemoteImage`, `useImageFailure`, `ChampionPortrait`, `Avatar` |
 | A time ago that stays current | `RelativeTime`, `useNow` |
-| How current a page's Riot data is, and Refresh | `DataRefresh` (one per page; `usePlayerRefresh` in `refresh-store.ts` behind every Refresh of a player) |
-| A section of Riot data's heading: title, scope line, Refresh, filters | `SectionHeader` |
+| How current a page's Riot data is, and Refresh | `DataStatusNote` beside the scope line, `RefreshButton` at the toolbar's end (`usePlayerRefresh` in `refresh-store.ts` behind every Refresh of a player, `usePlayerRefreshState` for what only shows it) |
+| A section of Riot data's heading: title, scope line and status, a toolbar of filters ending in Refresh | `SectionHeader` |
+| A button in a toolbar beside the filters (Refine, Refresh) | `toolbarButtonClass` (`filter-bar.tsx`) |
 | A player's identity on a card (picture and links, name, rank and labels, tagline) | `CardIdentity` (`players/player-card.tsx`) inside a `@container/card`; on Players, `layout="rows"` on the directory card's grid (`DirectoryCardLayout`) |
 
 ## Dates and numbers

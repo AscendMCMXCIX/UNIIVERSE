@@ -43,9 +43,9 @@ export interface Branding extends BrandColours {
   assets: { logo: BrandAssetMeta | null; background: BrandAssetMeta | null; appBackground: BrandAssetMeta | null };
 }
 
-export const DEFAULT_COLOURS = { accent: "#1fc3ff", accent2: "#58a8f2", background: "#080c24", surface: "#10163a", highlight: "#7fdcff" } as const;
+export const DEFAULT_COLOURS = { accent: "#1fc3ff", accent2: "#58a8f2", background: "#0d0e12", surface: "#16181d", highlight: "#7fdcff" } as const;
 /** The app's text colour (light on dark); custom backgrounds and surfaces must keep it readable. */
-export const TEXT_COLOUR = "#e8edfb";
+export const TEXT_COLOUR = "#edeef1";
 
 /** Team Overview's background visibility until an admin chooses another. */
 export const DEFAULT_BACKDROP_LEVEL = 50;
@@ -221,18 +221,31 @@ export function brandThemeVars(c: BrandColours): Record<string, string> {
   }
   if (c.accent2) vars["--color-accent-2"] = c.accent2;
   if (c.highlight) vars["--color-highlight"] = c.highlight;
-  if (c.background) {
-    vars["--color-bg"] = c.background;
-    vars["--color-bg-elevated"] = `color-mix(in srgb, ${c.background} 96%, #ffffff)`;
-  }
+  if (c.background) vars["--color-bg"] = c.background;
   if (c.surface) {
     vars["--color-surface"] = c.surface;
+    // Fields, menus and popovers: a step above the panels they sit on.
+    vars["--color-bg-elevated"] = `color-mix(in srgb, ${c.surface} 97%, #ffffff)`;
     vars["--color-surface-2"] = `color-mix(in srgb, ${c.surface} 94%, #ffffff)`;
     vars["--color-surface-3"] = `color-mix(in srgb, ${c.surface} 88%, #ffffff)`;
     vars["--color-border"] = `color-mix(in srgb, ${c.surface} 86%, #ffffff)`;
     vars["--color-border-strong"] = `color-mix(in srgb, ${c.surface} 76%, #ffffff)`;
   }
+  if (c.background || c.surface) vars["--color-border-control"] = controlEdge(c.surface ?? DEFAULT_COLOURS.surface, c.background ?? DEFAULT_COLOURS.background);
   return vars;
+}
+
+/**
+ * The edge of a field or toolbar control for a custom page or panel colour: the panel's colour
+ * lightened just enough for 3:1 against the page, the panels and what floats above them (WCAG 1.4.11).
+ */
+export function controlEdge(surface: string, background: string): string {
+  const raised = lightenHex(surface, 0.06);
+  for (let step = 15; step <= 45; step++) {
+    const edge = lightenHex(surface, step / 50);
+    if ([surface, background, raised].every((on) => contrastRatio(edge, on) >= 3.05)) return edge;
+  }
+  return lightenHex(surface, 0.9);
 }
 
 /** The theme as a :root rule (values are validated hex colours only, so this is safe to inline). */

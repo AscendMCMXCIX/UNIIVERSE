@@ -8,7 +8,7 @@ export function Switch({ checked, onChange, label, description, disabled, id }: 
     <label htmlFor={id} className={cn("flex min-h-11 cursor-pointer items-start gap-3 rounded-md px-2 py-2 transition-colors hover:bg-surface-2/60 md:min-h-0", disabled && "cursor-not-allowed opacity-60")}>
       <span className="relative mt-0.5 inline-flex shrink-0">
         <input id={id} type="checkbox" role="switch" className="peer sr-only" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
-        <span className="h-5 w-9 rounded-full border border-border-strong bg-surface-3 transition-colors peer-checked:border-accent peer-checked:bg-accent/80 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent" aria-hidden />
+        <span className="h-5 w-9 rounded-full border border-border-control bg-surface-3 transition-colors peer-checked:border-accent peer-checked:bg-accent/80 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent" aria-hidden />
         <span className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-fg shadow transition-transform peer-checked:translate-x-4" aria-hidden />
       </span>
       <span className="min-w-0">

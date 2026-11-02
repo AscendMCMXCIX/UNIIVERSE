@@ -3,12 +3,13 @@ import { createMember } from "./member-account";
 
 /*
   THE Refresh of every profile tab (components/ui/data-status.tsx, refresh-store.ts): one quiet
-  button under the section's title, in the same place on Overview, All Champions, Match History and
-  Encounters, with the page's data status behind one ⓘ beside it, no banner and nothing else. A
-  press reads Riot for real: the e2e server plays Riot with a stand-in for the accounts made in
-  these tests (server/riot/browser-test.ts, three Ranked Solo games each), so the games arrive, the
-  page is read again, the status moves on and a notification says what happened. Demo players are
-  sample data, never read from Riot: their pages show the ⓘ alone.
+  button at the end of the section's toolbar, after the filters, in the same place on Overview, All
+  Champions, Match History and Encounters, with the page's data status in a few words and one ⓘ
+  beside the scope line, no banner. A press reads Riot for real: the e2e server plays Riot with a
+  stand-in for the accounts made in these tests (server/riot/browser-test.ts, three Ranked Solo
+  games each), so the games arrive, the page is read again, the status moves on and a notification
+  says what happened. Demo players are sample data, never read from Riot: their pages show the
+  status alone.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -49,7 +50,7 @@ async function press(page: Page) {
   else await button.click();
 }
 
-test("Refresh sits in the same place on every tab of a profile, alone with its ⓘ, and never in a banner", async ({ page }) => {
+test("Refresh ends the toolbar in the same place on every tab of a profile, never on a row of its own, with the status beside the scope line and no banner", async ({ page }) => {
   const href = await freshProfile(page, "Place");
   const seen = new Set<string>();
   for (const [tab, heading, filterBar] of [
@@ -60,33 +61,39 @@ test("Refresh sits in the same place on every tab of a profile, alone with its �
   ] as const) {
     await page.goto(`${href}${tab}`, { waitUntil: "networkidle" });
     const button = page.getByTestId("data-refresh-button");
-    // One control, no banner: an icon and the word, and the ⓘ.
+    // One control, no banner: an icon and the word; the status in words with its ⓘ.
     await expect(page.getByTestId("data-status"), tab).toHaveCount(0);
     await expect(page.getByTestId("data-refresh"), tab).toHaveCount(1);
     await expect(button, tab).toHaveText("Refresh");
     await expect(button.locator("svg"), tab).toHaveCount(1);
     await expect(page.getByTestId("data-refresh-info"), tab).toBeVisible();
-    // Under the heading, lined up with it, and never part of the filters.
-    const [title, at] = await Promise.all([page.locator(heading).boundingBox(), button.boundingBox()]);
-    expect(at!.y, tab).toBeGreaterThanOrEqual(title!.y + title!.height - 1);
-    expect(Math.abs(at!.x - title!.x), tab).toBeLessThanOrEqual(1);
+    await expect(page.getByTestId("data-refresh-words"), tab).toHaveText("Syncing");
+    // In the section's toolbar, after the filters but never part of them.
+    expect(await button.evaluate((el) => !!el.closest("[data-testid=section-toolbar]")), tab).toBe(true);
     expect(await button.evaluate((el) => !el.closest("form, [data-testid$=filters]")), tab).toBe(true);
-    // Apart from the filters, which stay on the right wherever there is room for both.
+    const [title, at, note] = await Promise.all([page.locator(heading).boundingBox(), button.boundingBox(), page.getByTestId("data-refresh").boundingBox()]);
     const filters = (await page.getByTestId(filterBar).boundingBox())!;
-    const apart = at!.x + at!.width <= filters.x || filters.x + filters.width <= at!.x || at!.y + at!.height <= filters.y || filters.y + filters.height <= at!.y;
-    expect(apart, `${tab}: Refresh and the filters do not touch`).toBe(true);
-    if (!isPhone(page)) expect(filters.x, tab).toBeGreaterThan(at!.x + at!.width);
+    expect(at!.x, `${tab}: Refresh after the filters`).toBeGreaterThanOrEqual(filters.x + filters.width - 1);
+    // On the filters' row: its top level with theirs (the folded Filters button on a phone), never a row below them.
+    expect(Math.abs(at!.y - filters.y), `${tab}: Refresh on the filters' row`).toBeLessThanOrEqual(2);
+    // The status sits under the heading, on the scope line.
+    expect(note!.y, tab).toBeGreaterThanOrEqual(title!.y + title!.height - 1);
     // Touch screens: a finger-sized button.
     if (isPhone(page)) expect(at!.height, tab).toBeGreaterThanOrEqual(44);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), tab).toBeLessThanOrEqual(1);
-    seen.add(`${Math.round(at!.x)}:${Math.round(at!.width)}×${Math.round(at!.height)}`);
+    const right = await page.evaluate(() => window.innerWidth);
+    seen.add(`${Math.round(right - at!.x - at!.width)}:${Math.round(at!.width)}×${Math.round(at!.height)}`);
   }
-  // The same button at the same distance from the edge on every tab.
+  // The same button at the same distance from the right edge on every tab.
   expect([...seen]).toHaveLength(1);
-  // Riot accounts: the same Refresh under the panel's title, without an ⓘ (each account says its own state there).
+  // Riot accounts: the same Refresh in the panel header's toolbar, at the right of its title, without a status (each account says its own state there).
   await page.goto(`${href}/accounts`, { waitUntil: "networkidle" });
-  await expect(page.getByTestId("data-refresh-button")).toHaveText("Refresh");
+  const button = page.getByTestId("data-refresh-button");
+  await expect(button).toHaveText("Refresh");
   await expect(page.getByTestId("data-refresh-info")).toHaveCount(0);
+  const [panelTitle, at] = await Promise.all([page.getByRole("heading", { name: "Riot accounts", exact: true }).boundingBox(), button.boundingBox()]);
+  expect(at!.x, "Refresh at the title's right").toBeGreaterThan(panelTitle!.x + panelTitle!.width);
+  expect(at!.y, "on the title's row").toBeLessThan(panelTitle!.y + panelTitle!.height);
 });
 
 test("Refresh reads Riot, shows its progress, re-reads the page, and a second press is answered without asking again", async ({ page }, info) => {
@@ -104,6 +111,8 @@ test("Refresh reads Riot, shows its progress, re-reads the page, and a second pr
   await press(page);
   await expect(button).toHaveText("Refreshing…");
   await expect(button).toHaveAttribute("aria-disabled", "true");
+  // Beside the scope line, which step runs: asking Riot now (then reading the page again).
+  await expect(page.getByTestId("data-refresh-words")).toHaveText("Checking Riot…");
   // The result arrives as a notification once the page has been read again, with the new figures.
   const toast = page.getByTestId("toast");
   await expect(toast).toContainText("3 new games", { timeout: 30_000 });

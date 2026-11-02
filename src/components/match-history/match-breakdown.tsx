@@ -186,7 +186,7 @@ export function MatchBreakdown({ playerId, view, champ, variant }: { playerId: s
                 document.getElementById(tabId(next))?.focus();
               }}
               tabIndex={tab === key ? 0 : -1}
-              className={cn("h-10 min-w-0 flex-1 border-b-2 px-1 text-sm font-medium transition-colors pointer-coarse:h-11 sm:flex-none sm:px-3 md:h-9", tab === key ? "border-accent text-fg" : "border-transparent text-fg-muted hover:text-fg")}
+              className={cn("h-10 min-w-0 flex-1 border-b-2 px-1 text-sm font-medium transition-colors pointer-coarse:h-11 sm:flex-none sm:px-3 md:h-9", tab === key ? "border-accent text-fg" : "border-transparent text-fg-muted hover:border-border-strong hover:text-fg")}
               data-testid={`match-tab-${key}`}
             >
               {label}
@@ -196,7 +196,7 @@ export function MatchBreakdown({ playerId, view, champ, variant }: { playerId: s
         {actions || variant === "inline" ? (
           <div className="flex flex-wrap items-center gap-2 pb-1.5">
             {variant === "inline" ? (
-              <span className="text-2xs tabular-nums text-fg-subtle" data-testid="match-breakdown-when">
+              <span className="text-xs tabular-nums text-fg-subtle" data-testid="match-breakdown-when">
                 {formatDateTime(new Date(view.playedAt))}
                 {view.patch ? ` · Patch ${view.patch}` : ""}
               </span>

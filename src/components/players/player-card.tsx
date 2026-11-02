@@ -252,7 +252,7 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
   const decided = (wins ?? 0) + (losses ?? 0);
   const per = (n: number | null | undefined) => (n == null ? "–" : n.toFixed(1));
   const kdaLine = season && season.kills != null && season.deaths != null && season.assists != null ? `${per(season.kills)} / ${per(season.deaths)} / ${per(season.assists)}` : null;
-  const label = "block whitespace-nowrap text-2xs md:text-3xs font-medium uppercase tracking-label text-fg-subtle @max-[15rem]/card:tracking-[0.04em]";
+  const label = "block whitespace-nowrap text-2xs font-medium uppercase tracking-label text-fg-subtle @max-[15rem]/card:tracking-[0.04em]";
   const sub = "block truncate text-2xs tabular-nums text-fg-subtle";
   return (
     <div className="rounded-lg bg-bg/55 px-3 pb-2.5 pt-2 ring-1 ring-inset ring-white/[0.06]" data-testid="card-season">

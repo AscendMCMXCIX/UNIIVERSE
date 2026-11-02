@@ -41,7 +41,7 @@ export function BuildPanel({ result, runePage, player }: { result: MatchTimeline
                     {step.items.map((it) => (
                       <span key={it.id} className="relative">
                         <IconImg icon={it.url ? { url: it.url, name: it.name } : null} size={28} />
-                        {it.count > 1 ? <span className="absolute -bottom-1 -right-1 rounded bg-bg px-0.5 text-3xs font-semibold tabular-nums text-fg">{it.count}</span> : null}
+                        {it.count > 1 ? <span className="absolute -bottom-1 -right-1 rounded bg-bg px-0.5 text-2xs font-semibold tabular-nums text-fg">{it.count}</span> : null}
                       </span>
                     ))}
                   </span>
@@ -63,7 +63,7 @@ export function BuildPanel({ result, runePage, player }: { result: MatchTimeline
             {build.skills.map((k, i) => (
               <li key={i} className="flex w-7 flex-col items-center gap-0.5" title={`Level ${i + 1}: ${k}`}>
                 <span className={cn("grid h-7 w-7 place-items-center rounded-md text-xs font-bold", SKILL_TONE[k])}>{k}</span>
-                <span className="text-3xs tabular-nums text-fg-subtle">{i + 1}</span>
+                <span className="text-2xs tabular-nums text-fg-subtle">{i + 1}</span>
               </li>
             ))}
           </ol>

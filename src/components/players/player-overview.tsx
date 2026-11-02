@@ -15,7 +15,7 @@ import { ModeElsewhere, OverviewFilters } from "./overview-filters";
 import { WIN_RATE_MIN_GAMES, winRateTone, type WinRateTone } from "@/domain/stats/win-rate";
 import { MULTIKILL_KINDS, type MultikillCounts, type MultikillSummary } from "@/domain/multikills";
 import type { DataStatus } from "@/domain/data-status";
-import { DataRefresh, type DataRefreshTarget } from "@/components/ui/data-status";
+import { DataStatusNote, RefreshButton, type DataRefreshTarget } from "@/components/ui/data-status";
 import { SectionHeader } from "@/components/ui/section-header";
 
 /** A season win rate is highlighted only on enough games (see domain/stats/win-rate). */
@@ -29,17 +29,22 @@ export const fmt = {
   csm: (p: PerformanceSummary) => (p.csPerMinute === null ? "—" : p.csPerMinute.toFixed(1)),
 };
 
-/** One figure as a card: its name, the number, and a short line of context. */
-function HeroFigure({ label, value, sub, info, tone, testId, className, valueClassName }: { label: string; value: React.ReactNode; sub?: React.ReactNode; info?: string; tone?: "good" | "muted"; testId?: string; className?: string; valueClassName?: string }) {
+/**
+ * One figure as a card, read in three steps: its name (secondary grey, medium), the number (the
+ * largest and brightest thing on the card, coloured only when it says something: a good season win
+ * rate), and a short line of context (the quietest grey). `compact`: a supporting figure (the kill
+ * counts under the season's main figures), smaller so the main ones lead.
+ */
+function HeroFigure({ label, value, sub, info, tone, compact = false, testId, className, valueClassName }: { label: string; value: React.ReactNode; sub?: React.ReactNode; info?: string; tone?: "good" | "muted"; compact?: boolean; testId?: string; className?: string; valueClassName?: string }) {
   return (
-    <div className={cn("min-w-0 rounded-card border border-border bg-surface px-3 py-2.5 sm:px-4", className)} data-testid={testId}>
+    <div className={cn("min-w-0 rounded-card border border-border bg-surface", compact ? "px-3 py-2 sm:px-3.5" : "px-3 py-3 sm:px-4", className)} data-testid={testId}>
       <div className="flex items-center gap-1 text-xs font-medium text-fg-muted">
         <span className="min-w-0 leading-tight">{label}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
       </div>
-      <div className={cn("mt-0.5 text-2xl font-semibold tabular-nums leading-tight tracking-tight sm:text-figure", tone === "good" ? "text-good" : tone === "muted" ? "text-fg-muted" : "text-fg", valueClassName)} data-testid={testId ? `${testId}-value` : undefined}>
+      <div className={cn("font-semibold tabular-nums leading-tight tracking-tight", compact ? "mt-0.5 text-xl" : "mt-1 text-2xl sm:text-figure", tone === "good" ? "text-good" : tone === "muted" ? "text-fg-subtle" : "text-fg", valueClassName)} data-testid={testId ? `${testId}-value` : undefined}>
         {value}
       </div>
-      {sub ? <div className="mt-0.5 truncate text-xs text-fg-muted">{sub}</div> : null}
+      {sub ? <div className="mt-0.5 truncate text-xs text-fg-subtle">{sub}</div> : null}
     </div>
   );
 }
@@ -54,11 +59,12 @@ function multikillRate(count: number, counted: number): string {
 /**
  * The kills: Total kills, then the four multikill kinds, as cards like the season's other figures,
  * straight under them: every count in the same colour, size and weight (no kind is highlighted
- * for being rare), and no heading of their own, since each card names what it counts (the heading
- * is for screen readers). Total kills adds up each game's own kill count over the same games as
- * the figures above (never the multikills); the multikills add up Riot's counts. Whether every
- * game has its counts is the page's status, one ⓘ under the title (components/ui/data-status.tsx),
- * never a mark on a card. A count no game has yet is a dash, never 0. The champions behind them
+ * for being rare), in the figures' colour and weight a size smaller (they support the season's
+ * figures, which are read first), and no heading of their own, since each card names what it
+ * counts (the heading is for screen readers). Total kills adds up each game's own kill count over
+ * the same games as the figures above (never the multikills); the multikills add up Riot's
+ * counts. Whether every game has its counts is the page's status, beside the scope line under the
+ * title (components/ui/data-status.tsx), never a mark on a card. A count no game has yet is a dash, never 0. The champions behind them
  * are one quiet link away. Phones: Total kills across the top, then two by two; wider, Total
  * kills on a row of its own above the four; where five fit side by side, one row.
  */
@@ -87,11 +93,12 @@ function KillCards({ perf, m, byChampionHref }: { perf: PerformanceSummary; m: M
           value={perf.totalKills === null ? notYet : formatCount(perf.totalKills)}
           tone={perf.totalKills === null ? "muted" : undefined}
           sub={perf.totalKills === null ? "Not counted yet" : `${fmt.one(perf.kills)} a game`}
+          compact
           className="col-span-2 @min-[39rem]:col-span-4 @min-[49rem]:col-span-1"
           testId="stat-total-kills"
         />
         {MULTIKILL_KINDS.map((k) => (
-          <HeroFigure key={k.key} label={kinds[k.key]} value={unknown ? notYet : formatCount(m[k.key])} tone={unknown ? "muted" : undefined} sub={unknown ? "Not counted yet" : multikillRate(m[k.key], m.counted)} testId={`multikill-${k.key}`} />
+          <HeroFigure key={k.key} label={kinds[k.key]} value={unknown ? notYet : formatCount(m[k.key])} tone={unknown ? "muted" : undefined} sub={unknown ? "Not counted yet" : multikillRate(m[k.key], m.counted)} compact testId={`multikill-${k.key}`} />
         ))}
       </div>
       <div className="mt-1 flex justify-end">
@@ -140,9 +147,9 @@ export const REFINE_SCOPE = "Applies to Season performance, its multikills and R
  * Season performance, most important first: win rate, games, KDA, CS/min, damage/min and vision
  * side by side; then the champions behind the numbers. By default it counts every champion, every
  * linked account and every supported mode this season; the filters narrow it down and the line
- * under the title always says exactly which games are counted. Under that line, Refresh (the
- * player's and an admin's; a real read from Riot) with the page's data status one ⓘ beside it:
- * how complete the figures are is there, not in a banner above the section.
+ * under the title always says exactly which games are counted, with the page's data status beside
+ * it; Refresh (the player's and an admin's; a real read from Riot) ends the toolbar after the
+ * filters. How complete the figures are is in that status, not in a banner above the section.
  */
 export function SeasonSummary({ data, basePath, championsById, status, refresh }: { data: PlayerOverviewData; basePath: string; championsById: Record<string, PortraitChampion>; /** The page's data status (domain/data-status). */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts, where Riot can be asked. */ refresh?: DataRefreshTarget | null }) {
   const nameOf = (id: string) => championsById[id]?.name ?? id;
@@ -153,7 +160,8 @@ export function SeasonSummary({ data, basePath, championsById, status, refresh }
   return (
     <section aria-labelledby="season-stats" className="space-y-3" data-testid="season-summary">
       {/* The profile's one heading layout (as All Champions and Match History): what the figures
-          count under the title; how complete they are under the ⓘ beside Refresh. */}
+          count under the title, how complete they are beside it, and the toolbar: the filters, then
+          Refresh. */}
       <SectionHeader
         id="season-stats"
         title="Season performance"
@@ -162,7 +170,8 @@ export function SeasonSummary({ data, basePath, championsById, status, refresh }
             {scopeLabel(data, nameOf)}
           </p>
         }
-        status={status ? <DataRefresh status={status} refresh={refresh} /> : null}
+        status={status ? <DataStatusNote status={status} refresh={refresh} /> : null}
+        refresh={status ? <RefreshButton status={status} refresh={refresh} /> : null}
         controls={<OverviewFilters basePath={basePath} filter={data.filter} seasons={data.seasons} currentSeason={data.currentSeason} champions={champions} accounts={data.accountOptions} modeCounts={data.modes.counts} refineScope={REFINE_SCOPE} />}
       />
       {/* The figures, then the multikills right under them, as far apart as the figures' own rows. */}

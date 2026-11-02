@@ -159,7 +159,7 @@ function EventMarkIcon({ mark }: { mark: EventMark }) {
   if (mark === "kill") return <span className="h-2 w-2 rounded-full bg-good" />;
   if (mark === "assist") return <span className="h-2 w-2 rounded-full border-[1.5px] border-good" />;
   if (mark === "death") return <X className="h-3 w-3 text-bad" strokeWidth={3} />;
-  return <span className={cn("grid h-4 w-4 place-items-center rounded text-3xs font-bold leading-none", mark.own ? "bg-blue/20 text-blue" : "bg-red/20 text-red")}>{OBJECTIVE_MARK[mark.kind]}</span>;
+  return <span className={cn("grid h-4 w-4 place-items-center rounded text-2xs font-bold leading-none", mark.own ? "bg-blue/20 text-blue" : "bg-red/20 text-red")}>{OBJECTIVE_MARK[mark.kind]}</span>;
 }
 
 /** Every objective and the player's own kills, assists and deaths, in order: the markers in words. */
@@ -359,12 +359,12 @@ export function GoldChart({ points, events = null, testId = "gold-chart" }: { po
           </svg>
           {/* Axis labels: HTML over the drawing, in the site's text sizes. */}
           {ticks.map((v) => (
-            <span key={v} className="pointer-events-none absolute -translate-y-1/2 pr-1.5 text-right text-3xs tabular-nums text-fg-subtle" style={{ left: 0, width: pad.l, top: y(v) }} aria-hidden>
+            <span key={v} className="pointer-events-none absolute -translate-y-1/2 pr-1.5 text-right text-2xs tabular-nums text-fg-subtle" style={{ left: 0, width: pad.l, top: y(v) }} aria-hidden>
               {v === 0 ? "0" : signedGold(v)}
             </span>
           ))}
           {minutes.map((m) => (
-            <span key={m} className="pointer-events-none absolute -translate-x-1/2 text-3xs tabular-nums text-fg-subtle" style={{ left: x(m), top: H - pad.b + 4 }} aria-hidden>
+            <span key={m} className="pointer-events-none absolute -translate-x-1/2 text-2xs tabular-nums text-fg-subtle" style={{ left: x(m), top: H - pad.b + 4 }} aria-hidden>
               {m}:00
             </span>
           ))}
@@ -374,13 +374,13 @@ export function GoldChart({ points, events = null, testId = "gold-chart" }: { po
           <div className="mt-1 space-y-1" aria-hidden data-testid={`${testId}-events`}>
             {objectives.length ? (
               <div className="relative" style={{ height: objectiveRows * (marker + 2) }} data-testid={`${testId}-objectives`}>
-                <span className="absolute left-0 top-0 pr-1.5 text-right text-3xs leading-4 text-fg-subtle" style={{ width: pad.l }}>
+                <span className="absolute left-0 top-0 pr-1.5 text-right text-2xs leading-4 text-fg-subtle" style={{ width: pad.l }}>
                   Objectives
                 </span>
                 {placed.map(({ o, x: left, lane }, i) => (
                   <span
                     key={i}
-                    className={cn("absolute grid -translate-x-1/2 place-items-center rounded text-3xs font-bold leading-none", o.own ? "bg-blue/20 text-blue" : "bg-red/20 text-red")}
+                    className={cn("absolute grid -translate-x-1/2 place-items-center rounded text-2xs font-bold leading-none", o.own ? "bg-blue/20 text-blue" : "bg-red/20 text-red")}
                     style={{ left, top: lane * (marker + 2), width: marker, height: marker }}
                     title={`${gameClock(o.minute)} ${objectiveLabel(o)} for ${sideWords(o.own)}`}
                     data-testid="timeline-objective"
@@ -395,7 +395,7 @@ export function GoldChart({ points, events = null, testId = "gold-chart" }: { po
             ) : null}
             {yours.length ? (
               <div className="relative" style={{ height: yourRows * 16 }} data-testid={`${testId}-you`}>
-                <span className="absolute left-0 top-0 pr-1.5 text-right text-3xs leading-4 text-fg-subtle" style={{ width: pad.l }}>
+                <span className="absolute left-0 top-0 pr-1.5 text-right text-2xs leading-4 text-fg-subtle" style={{ width: pad.l }}>
                   You
                 </span>
                 {yours.map(({ m, death, x: left, lane }, i) =>
@@ -411,7 +411,7 @@ export function GoldChart({ points, events = null, testId = "gold-chart" }: { po
         ) : null}
       </div>
       {events ? (
-        <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-3xs text-fg-subtle" style={{ paddingLeft: pad.l }} aria-hidden>
+        <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-2xs text-fg-subtle" style={{ paddingLeft: pad.l }} aria-hidden>
           <span>
             <span className="text-blue">■</span> your team · <span className="text-red">■</span> the other team
           </span>

@@ -19,7 +19,7 @@ export function SearchInput({ value, onChange, label, placeholder, className, te
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         aria-label={label}
-        className="h-11 w-full rounded-md border border-border bg-bg-elevated pl-9 pr-9 text-base text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none md:text-sm md:pointer-fine:h-9 [&::-webkit-search-cancel-button]:hidden"
+        className="h-11 w-full rounded-md border border-border-control bg-bg-elevated pl-9 pr-9 text-base text-fg placeholder:text-fg-subtle hover:border-fg-subtle focus:border-accent focus:outline-none md:text-sm md:pointer-fine:h-9 [&::-webkit-search-cancel-button]:hidden"
         data-testid={testId}
         {...props}
       />

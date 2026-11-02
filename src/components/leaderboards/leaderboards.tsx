@@ -17,7 +17,7 @@ import { leaderboardHref, type LeaderboardView, type ViewEntry, type ViewPlayer 
 import { LeaderboardFilterBar, ScrollCurrentIntoView } from "./filter-bar";
 import { LeaderboardsRoot } from "./leaderboards-root";
 import { formatCount, formatDateTime } from "@/lib/format";
-import { DataRefresh } from "@/components/ui/data-status";
+import { DataStatusNote } from "@/components/ui/data-status";
 import type { DataStatus } from "@/domain/data-status";
 
 /*
@@ -59,21 +59,24 @@ export function Leaderboards({ view, champions, status }: { view: LeaderboardVie
           <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-fg">
             <Trophy className="h-6 w-6 text-warn" aria-hidden /> Team Leaderboards
           </h1>
-          <p className="mt-1 text-sm text-fg-muted">
-            <span className="font-medium text-fg" data-testid="scope-label">
-              {view.scopeLabel}
-            </span>{" "}
-            · {formatCount(view.gamesInScope)} games · {view.playerCount} player{view.playerCount === 1 ? "" : "s"}
-          </p>
-          {/* How fresh the boards are: the same ⓘ, in the same place, as on a profile (there is no
-              Refresh here: the boards follow each player's account syncs and their own Refresh). */}
-          {status ? (
-            <DataRefresh status={status} className="mt-2" testId="leaderboards-status" />
-          ) : (
-            <p className="mt-0.5 text-xs text-fg-subtle" data-testid="last-updated" title="Leaderboards follow the account syncs: new games appear after the next sync, not live.">
-              {updated ? `Updated from the last account sync: ${updated}` : "No account sync yet"}
+          {/* The scope, then how fresh the boards are: the same status note beside it as on a
+              profile (there is no Refresh here: the boards follow each player's account syncs and
+              their own Refresh). */}
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+            <p className="text-sm text-fg-muted">
+              <span className="font-medium text-fg" data-testid="scope-label">
+                {view.scopeLabel}
+              </span>{" "}
+              · {formatCount(view.gamesInScope)} games · {view.playerCount} player{view.playerCount === 1 ? "" : "s"}
             </p>
-          )}
+            {status ? (
+              <DataStatusNote status={status} testId="leaderboards-status" />
+            ) : (
+              <p className="text-xs text-fg-subtle" data-testid="last-updated" title="Leaderboards follow the account syncs: new games appear after the next sync, not live.">
+                {updated ? `Updated from the last account sync: ${updated}` : "No account sync yet"}
+              </p>
+            )}
+          </div>
         </div>
         <LeaderboardFilterBar filters={f} seasons={view.seasons} currentSeason={view.currentSeason} basePath={view.basePath} />
       </header>
@@ -278,7 +281,7 @@ function HighlightsGrid({ view, player }: { view: LeaderboardView; player: (id: 
                         <Crown className="absolute -right-1.5 -top-2 h-4 w-4 rounded-full bg-surface p-px text-warn" aria-hidden />
                       </span>
                       <span className="relative min-w-0 flex-1 [text-shadow:0_1px_8px_rgb(0_0_0/0.6)]">
-                        <span className="block text-2xs font-semibold uppercase tracking-label text-warn md:text-3xs">Leader</span>
+                        <span className="block text-2xs font-semibold uppercase tracking-label text-warn">Leader</span>
                         <span className="flex min-w-0 items-center gap-1.5 text-base font-semibold leading-tight text-fg" data-testid="highlight-leader" title={lead.name}>
                           <span className="truncate">{lead.name}</span>
                           {lead.role ? <RoleIcon role={lead.role} className="h-3.5 w-3.5 shrink-0 text-fg-muted" title={ROLE_LABELS[lead.role]} /> : null}
@@ -548,7 +551,7 @@ function YouPanel({ view, player }: { view: LeaderboardView; player: (id: string
       <p className="mt-1 text-3xl font-semibold tabular-nums text-fg">{you.rank ? `#${you.rank}` : "Unranked"}</p>
       <p className="text-xs text-fg-muted">{you.rank ? `of ${you.of} ranked` : you.status}</p>
       {you.rank && you.rank > 1 && leader && you.leader ? (
-        <div className="mt-3 rounded-panel border border-border/70 bg-surface/70 p-3" data-testid="chase-leader">
+        <div className="mt-3 rounded-panel border border-border bg-surface-2 p-3" data-testid="chase-leader">
           <p className="text-xs font-medium uppercase tracking-label text-fg-subtle">Chase #1</p>
           <div className="mt-2 flex items-center gap-2">
             <CardAvatar look={leader.look} name={leader.name} src={leader.avatarUrl} size="sm" />

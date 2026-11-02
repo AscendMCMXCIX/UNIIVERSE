@@ -430,9 +430,9 @@ Riot ID typed (account creation, or an Alt added on the profile)
     - A fixed word: Up to date, Syncing, Partial data, Delayed, Needs attention or No Riot account.
     - Its parts: the accounts, the season's collection, multikill counts ("Multikills counted in 277 of 1,104 games"), game details and positions.
     - Its times: **Last checked** (the latest attempt, successful or not: `last_sync_at`), **Last successful sync** (said only when an attempt has failed since: the oldest `sync_cursor` of the player's accounts) and **Newest game**. Demo accounts (seeded, never read) count in none of them.
-  - **Where: `DataRefresh`, under the heading, in one layout (`SectionHeader`).** The title and its line of scope; Refresh with its ⓘ under them on the left; the filters on the right. Phones: title, Refresh, then the filter bar, one under another. Tablets: Refresh and the filters on one row. Wide screens: the filters beside the title, Refresh under it. So Refresh and the filters never trade sides between pages.
-    - Profile → Overview (Season performance), All Champions, Match History and its Encounters: the same Refresh, at the same place.
-    - Profile → Riot accounts: the same Refresh under the panel's title, without the ⓘ (each account's row says its own state). The account menu's "Sync now" is gone; Retry sync (Delayed and Needs attention only) stays.
+  - **Where: two places, in one layout (`SectionHeader`; 2 Nov 2026).** The status in a few quiet words beside the line of scope under the title (`DataStatusNote`: "Synced 5 min ago", or Syncing, Partial data, Delayed, Needs attention), with one ⓘ holding the rest; and Refresh at the end of the section's toolbar, after the filters (`RefreshButton`), never on a row of its own. Phones: title, scope line and status, then one row with the folded Filters button and Refresh. Tablets: the same, the filters inline (game mode, Refine) and Refresh after them. Wide screens (`xl`): the toolbar beside the title at the right edge. Refresh is a 36px toolbar button (44px on touch screens and phones) with an icon and the word, styled like Refine (`toolbarButtonClass`).
+    - Profile → Overview (Season performance), All Champions, Match History and its Encounters: the same Refresh, at the same distance from the right edge.
+    - Profile → Riot accounts: the same Refresh in the panel header's actions, at the right of its title, without the status (each account's row says its own state). The account menu's "Sync now" is gone; Retry sync (Delayed and Needs attention only) stays.
     - Team → Leaderboards (members): the team's status in the same ⓘ, under the title (`teamDataStatus`, from `membersDataStatus`): member accounts counted by state ("2 member accounts still being read"), never named, and "The boards follow the account syncs". No Refresh: the boards follow each player's account syncs and their own Refresh. The public boards keep their one "Updated from the last account sync" line (no account states in public).
     - The ⓘ (hover, focus or tap) shows the word, the parts, the times and this visit's Refresh ("Refreshed 2m ago: 3 new games"); it carries a dot whenever the status is not Up to date, so figures from only some of the games are never presented as complete.
   - **Refresh is offered only where it can work** (`refreshFor` in `profile-sections.tsx`, checked on the server): to the player and to those who manage Riot accounts, for a player with an account Riot can be asked about (not demo), on a server with Riot (`refreshAvailable`). Otherwise the ⓘ stands alone.
@@ -440,6 +440,7 @@ Riot ID typed (account creation, or an Alt added on the profile)
     1. `refreshMatchesAction` runs the same sync for the player's accounts now, limited to new games: 15 per account, no back-fills, about 40 s. It asks every queue, also those that had no games (`recheckEmptyQueues`; the scheduler asks those only twice a day), so a first Ranked Flex game is found at once.
     2. While some of the player's games lack multikill counts, `catchUpFiguresAction` fetches up to 40 of their records again, newest first (a 25-second budget, the `figures-backfill` job's rate limiter and rules).
     3. When either changed something, the page is read again in place (`router.refresh()`; the pages are dynamic, the proficiency cache is cleared after new games or counts, and the Leaderboards and Played Together caches rebuild when the stored games change), keeping its URL filters. Only then does the notification say what happened, so it never arrives before the figures.
+    - The status beside the scope line names the step while it runs: "Checking Riot…" (and "Fetching multikills…") for the new sync, then "Updating the page…" for the re-read of what is stored, which asks Riot nothing.
   - **Leases and repeats.** Every sync, scheduled or manual, first claims a per-account lease in `app_settings` (`account_sync:<id>`; 2 min for a refresh or Retry sync, 1 min for the scheduler). A catch-up claims one per player (`figures_catchup:<id>`, 2 min). So two syncs never run on one account. A second press while one runs joins it; one within 2 minutes is answered in the browser ("Refreshed 1m ago · try again in 2 min") without a request, and from another browser or device the server answers "checked recently" from the lease, without asking Riot.
   - **Outcomes are stated as they happened** (`refreshNote`, `REFRESH_TOAST`): N new games; no new games (Riot can take a few minutes to list a finished game); multikills for N more games and how many follow automatically; checked recently (with when to try again); failed; or not available. Never "updated" or "Up to date" for a click alone: the word in the ⓘ comes from the accounts as the sync left them. The button reads "Refreshing…" until the figures are in, on whichever tab of the profile is open (a run carries on when the tab changes); screen readers hear the steps.
   - Played Together and Leaderboards read the same stored games, so a refresh updates them as well.
@@ -769,20 +770,20 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 
 ### H1. Visual identity (`src/app/globals.css`, Tailwind v4 `@theme`)
 
-- **Aesthetic:** dark navy "esports client" look. Restrained, card-based, cyan accent, no decorative animation.
+- **Aesthetic:** dark "esports client" look on a neutral charcoal (2 Nov 2026; it was navy). Restrained, card-based, cyan accent kept for what is selected or can be acted on, no decorative animation. Each surface is one visible step lighter than the one below it; colour carries meaning (the brand, the sides and results of a match, states); the brand's light stays at the page's edges, the Team banner, player cards' own art and sign-in, and dense content sits on opaque surfaces.
 - **Colour tokens:**
 
   | Group | Tokens |
   |---|---|
-  | Backgrounds | `bg #080c24`, `bg-elevated #0c1130`, `surface #10163a`, `surface-2 #161e4a`, `surface-3 #1e295f` |
-  | Borders | `border #222c5f`, `border-strong #34428c` |
-  | Text | `fg #e8edfb`, `fg-muted #9aa8d4`, `fg-subtle #7b89b9` (4.5:1 on cards) |
+  | Backgrounds | `bg #0d0e12`, `surface #16181d`, `bg-elevated #1a1c21` (fields, menus, popovers: a step above the panels), `surface-2 #1e2126`, `surface-3 #282b32` |
+  | Borders | `border #2b2f37` (structure), `border-strong #464c58` (emphasis), `border-control #666c78` (fields and toolbar controls, 3:1 on the page, panels and popovers) |
+  | Text | `fg #edeef1`, `fg-muted #b0b5be`, `fg-subtle #8c929d` (4.5:1 or more on every surface) |
   | Accent | `accent #1fc3ff`, `accent-strong #7fdcff`, `accent-2 #58a8f2`, `highlight #7fdcff` |
-  | Sides | `blue #5f8ff5`, `red #e0566b` |
-  | Status | `good #3fc98a`, `warn #e8b64a`, `bad #e0566b`, `info #58a8f2` |
+  | Sides and results | `blue #6e9dff` (Victory), `red #f26b7e` (Defeat), always with the word |
+  | Status | `good #45cf8f`, `warn #ebba4f`, `bad #f26b7e`, `info #5eaef5` |
 
-  Branding can override the primary/secondary accent, background, surface and highlight. Overrides go through contrast checks (`brandThemeCss` in `src/domain/branding.ts`).
-- **Typography:** Inter Variable; system monospace for numbers and IDs. Minimum readable sizes are enforced (10–11 px text was removed in Phase 4).
+  Branding can override the primary/secondary accent, background, surface and highlight. Overrides go through contrast checks (`brandThemeCss` in `src/domain/branding.ts`); a custom surface derives the other shades, and a custom background or surface derives `border-control` to keep 3:1 (`controlEdge`). An install that saved the old navy as its own colours keeps it until Admin → Branding → Reset.
+- **Typography:** Inter Variable; system monospace for numbers and IDs. The smallest text is `text-2xs` (11px: chips, badges, captions, column headings); `text-4xs` (10px) is only for letters inside small tiles. A scoreboard's figures are 12px or larger.
 - **Radii:** `sm 4px`, `md 6px`, `lg 10px`; cards mostly use `rounded-2xl`.
 - **Backgrounds:** the sign-in page uses `background`; the signed-in app uses `appBackground` at about 30 % opacity under a dark veil. Reduced-motion users get static frames.
 - **Animation:** short transitions only (collapsible nav groups, dialogs), respecting `prefers-reduced-motion`.
@@ -1210,7 +1211,7 @@ These are stable and working; extend them instead:
 
 8. **UI architecture.**
    - **Server components** with client islands (editors, menus, dialogs).
-   - **Shell:** dark navy theme with a cyan accent; Inter; tokens in `src/app/globals.css`.
+   - **Shell:** dark neutral charcoal theme with a cyan accent; Inter; tokens in `src/app/globals.css`.
    - **Navigation:** collapsible sidebar (My Profile, one Team entry, Resources); the sections of Team as tabs at the top of its pages (`SectionTabs`, `SECTION_HUBS`, `TEAM_SECTIONS`); account menu; phone tab bar (Profile, Team, Resources).
    - **Shared primitives** in `src/components/ui` (Menu never clips, Dialog, Toast, InfoTip).
    - **One card identity** (featured champion art + skin + accent) across Team, Players and profiles.

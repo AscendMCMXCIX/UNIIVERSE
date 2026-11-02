@@ -33,32 +33,32 @@ export function MatchRail({ win }: { win: MatchOutcome }) {
   return <span className={cn("absolute inset-y-0 left-0 w-1.5", matchTone(win).rail)} aria-hidden />;
 }
 
-/** Below this width the result column lies down as one line (the result word first). */
+/** Below this width the result column lies down as one line. */
 const LINE_BELOW = {
-  sm: { wrap: "max-sm:flex-row max-sm:flex-wrap max-sm:items-baseline max-sm:gap-x-2", word: "max-sm:order-first", rule: "max-sm:hidden" },
-  md: { wrap: "max-md:flex-row max-md:flex-wrap max-md:items-baseline max-md:gap-x-2", word: "max-md:order-first", rule: "max-md:hidden" },
-  lg: { wrap: "max-lg:flex-row max-lg:flex-wrap max-lg:items-baseline max-lg:gap-x-2", word: "max-lg:order-first", rule: "max-lg:hidden" },
+  sm: { wrap: "max-sm:flex-row max-sm:flex-wrap max-sm:items-baseline max-sm:gap-x-2" },
+  md: { wrap: "max-md:flex-row max-md:flex-wrap max-md:items-baseline max-md:gap-x-2" },
+  lg: { wrap: "max-lg:flex-row max-lg:flex-wrap max-lg:items-baseline max-lg:gap-x-2" },
 } as const;
 
 /**
- * Queue, when, the result and the game's length: the column at the start of a wide card (queue and
- * time over a short rule, then the result word and length). With `lineBelow`, narrower screens
- * show it as one line instead, the result word first.
+ * The result, then the game: the column at the start of a wide card, read top down in order of
+ * importance: Victory or Defeat (the largest, in the result's colour, the word saying it without the
+ * colour) with the game's length, the queue in the secondary grey, and when in the quietest. With
+ * `lineBelow`, narrower screens show it as one line instead, in the same order.
  */
 export function MatchResult({ win, queue, when, duration, lineBelow, className }: { win: MatchOutcome; queue: string; when: string; duration: string | null; lineBelow?: keyof typeof LINE_BELOW; className?: string }) {
   const t = matchTone(win);
   const line = lineBelow ? LINE_BELOW[lineBelow] : null;
   return (
     <span className={cn("flex min-w-0 flex-col leading-snug", line?.wrap, className)}>
-      <span className={cn("truncate text-xs font-semibold", t.text)}>{queue}</span>
+      <span className="flex items-baseline gap-1.5">
+        <span className={cn("text-base font-bold", t.text)}>{t.word}</span>
+        {duration ? <span className="text-xs tabular-nums text-fg-subtle">{duration}</span> : null}
+      </span>
+      <span className="truncate text-xs font-medium text-fg-muted">{queue}</span>
       {/* "3h ago" is measured on the server first, then by the browser's own clock (useNow). */}
       <span className="truncate text-xs tabular-nums text-fg-subtle" suppressHydrationWarning>
         {when}
-      </span>
-      <span className={cn("my-1 block h-px w-10 bg-border-strong/70", line?.rule)} aria-hidden />
-      <span className={cn("flex items-baseline gap-1.5", line?.word)}>
-        <span className={cn("text-sm font-bold", t.text)}>{t.word}</span>
-        {duration ? <span className="text-xs tabular-nums text-fg-subtle">{duration}</span> : null}
       </span>
     </span>
   );
@@ -76,7 +76,7 @@ export function ChampionLoadout({ champion, spells, keystone, secondary, level =
       <span className="relative flex shrink-0">
         <ChampionPortrait champion={champion} size={size} className={portraitClassName} />
         {level !== null ? (
-          <span className="absolute -bottom-1 -right-1 rounded bg-bg px-1 text-3xs font-semibold tabular-nums leading-4 text-fg-muted" title={`Level ${level}`} data-testid="champion-level">
+          <span className="absolute -bottom-1 -right-1 rounded bg-bg px-1 text-2xs font-semibold tabular-nums leading-4 text-fg-muted" title={`Level ${level}`} data-testid="champion-level">
             {level}
           </span>
         ) : null}

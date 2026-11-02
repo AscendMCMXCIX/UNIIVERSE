@@ -12,7 +12,7 @@ import { getEncounterDetailAction, type EncounterDetailResult } from "@/server/a
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { CLEAR_OF_CONTROLS, DetailModal } from "@/components/ui/detail-modal";
 import { InfoTip } from "@/components/ui/info-tip";
-import { DataRefresh, type DataRefreshTarget } from "@/components/ui/data-status";
+import { DataStatusNote, RefreshButton, type DataRefreshTarget } from "@/components/ui/data-status";
 import { SectionHeader } from "@/components/ui/section-header";
 import type { DataStatus } from "@/domain/data-status";
 import { Select } from "@/components/ui/input";
@@ -175,7 +175,8 @@ export function EncountersView({ data, basePath, playerId, playerName, champions
         id="match-history"
         title="Match History"
         aside={<MatchViewSwitch view="encounters" basePath={basePath} filter={f} />}
-        status={status ? <DataRefresh status={status} refresh={refresh} /> : null}
+        status={status ? <DataStatusNote status={status} refresh={refresh} /> : null}
+        refresh={status ? <RefreshButton status={status} refresh={refresh} /> : null}
         controls={
           <div aria-busy={pending} className="min-w-0">
             <OverviewFilters basePath={basePath} filter={f} seasons={data.seasons} currentSeason={data.currentSeason} champions={[]} accounts={data.accountOptions} keep={keep} resetQuery={new URLSearchParams(keep).toString()} modeCounts={data.modes.counts} showChampions={false} showRole={false} testId="encounter-filters" />
@@ -313,7 +314,7 @@ function EncounterRow({ s, relation, onOpen }: { s: EncounterSummary; relation: 
             ))}
             {lead ? null : record}
             {rec.games < ESTABLISHED_GAMES ? (
-              <span className="shrink-0 rounded border border-border px-1 text-3xs font-medium leading-4 text-fg-subtle" title={`Fewer than ${ESTABLISHED_GAMES} games: a small sample`} data-testid="encounter-small-sample">
+              <span className="shrink-0 rounded border border-border px-1 text-2xs font-medium leading-4 text-fg-subtle" title={`Fewer than ${ESTABLISHED_GAMES} games: a small sample`} data-testid="encounter-small-sample">
                 small sample
               </span>
             ) : null}

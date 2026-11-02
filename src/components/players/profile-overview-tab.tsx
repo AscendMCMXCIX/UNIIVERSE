@@ -131,7 +131,7 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
         </>
       ) : <p className="rounded-panel border border-border bg-surface p-4 text-sm text-fg-muted">Season statistics of teammates are not part of your access; their roles and champions are below.</p>}
       {/* The section's border turns to the accent while its pools are being edited. */}
-      <section aria-labelledby="champion-pools" className="space-y-4 rounded-card border border-border bg-surface/60 p-4 transition-colors duration-150 has-[[data-editing]]:border-accent/50 sm:p-5" data-testid="champion-pools">
+      <section aria-labelledby="champion-pools" className="space-y-4 rounded-card border border-border bg-surface p-4 transition-colors duration-150 has-[[data-editing]]:border-accent/50 sm:p-5" data-testid="champion-pools">
         {player.primaryRole ? (
         <div data-testid={editable ? "pool-editor" : "pool-cards"}>
           <ProfilePools

@@ -48,15 +48,19 @@ test("Overview: the multikill totals as figures of their own, from the same game
   const heading = strip.getByRole("heading", { name: /^Kills and multikills/ });
   await expect(heading).toHaveCount(1);
   expect((await heading.boundingBox())!.height).toBeLessThanOrEqual(1);
-  // One group: every count (a zero too) in the colour, size and weight of the season's other
-  // figures, on the same cards, none highlighted for its kind.
+  // One group: every count (a zero too) in the same colour, size and weight, none highlighted for
+  // its kind; in the colour and weight of the season's figures one size smaller (they support
+  // them), on the same cards.
   const look = (testId: string, part: "value" | "card") =>
     page.getByTestId(part === "value" ? `${testId}-value` : testId).evaluate((el, p) => {
       const s = getComputedStyle(el);
       return p === "value" ? [s.color, s.fontSize, s.fontWeight] : [s.borderTopColor, s.backgroundColor, s.borderTopWidth];
     }, part);
+  const [season, kills] = [await look("stat-games", "value"), await look("stat-total-kills", "value")];
+  expect([kills[0], kills[2]], "the season's colour and weight").toEqual([season[0], season[2]]);
+  expect(parseFloat(kills[1]!), "a size below the season's figures").toBeLessThan(parseFloat(season[1]!));
   for (const testId of ["stat-total-kills", ...KINDS.map(([key]) => `multikill-${key}`)]) {
-    expect(await look(testId, "value"), `${testId}: its count`).toEqual(await look("stat-games", "value"));
+    expect(await look(testId, "value"), `${testId}: its count`).toEqual(kills);
     expect(await look(testId, "card"), `${testId}: its card`).toEqual(await look("stat-games", "card"));
   }
   // Total kills first. Never five squeezed side by side: one row where five fit (49rem), Total
