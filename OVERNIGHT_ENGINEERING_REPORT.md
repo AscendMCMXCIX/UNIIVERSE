@@ -51,7 +51,7 @@ From the owner's brief and `CLAUDE.md`:
 | Branch | PR | What | Status |
 |---|---|---|---|
 | `security/page-guards` | #170 | Every member page checks access itself (high finding) | Verified locally (full suites green); **CI green** (all four jobs, 2 Nov); **merge first** |
-| `security/hardening` | PR_HARDENING | Redirects, throttle, errors, Riot hosts, public images, timing, dead actions | Verified locally |
+| `security/hardening` | #172 | Redirects, throttle, errors, Riot hosts, public images, timing, dead actions | Verified locally (unit 556, database 470, browser 516 passed); CI running |
 | `perf/season-patch-memo` | #169 | Season figures read each game's patch once | Verified locally; **CI green** (all four jobs, 2 Nov) |
 | `a11y/label-in-name-scroll-regions` | PR_A11Y | Names that start with their visible words; wide tables the keyboard can scroll; wider axe coverage | Verified locally (verify); browser suite pending |
 | `pwa-windows-integration` | #171 (draft) | Installed app: jump-list shortcuts, one reused window | Optional; typecheck and lint only; CI when marked ready |
@@ -188,7 +188,7 @@ and you approve the signing cost. Then build a Tauri 2 thin shell around the dep
 - **Perceived:** loading states cover each section group and the profile tabs; pages update
   themselves without a reload.
 
-**Fix: season figures read each game's patch once** (branch `perf/season-patch-memo`):
+**Fix: season figures read each game's patch once** (PR #169, branch `perf/season-patch-memo`):
 - **Found:** a CPU profile of the roster at production volume. Re-parsing each game's patch text
   took about 920 of the 1,537 ms spent building player overviews.
 - **Change:** memoise two pure functions (bounded), and group a season's games by champion in one
@@ -247,7 +247,7 @@ A read-only review of the whole repository (all 13 server-action modules, all 12
 sessions, uploads, headers, dependencies) found no critical issue. Every finding below was checked
 against the code before acting; the high one was reproduced.
 
-**High: a teammate's profile data reached signed-out requests** (branch `security/page-guards`,
+**High: a teammate's profile data reached signed-out requests** (PR #170, branch `security/page-guards`,
 **merge first**):
 - **What happened:**
   - Next.js renders a layout and its page at the same time, so the profile layout's access check
@@ -267,7 +267,7 @@ against the code before acting; the high one was reproduced.
 - **Production:** it runs the same code, so it was very likely exposed. This cannot be confirmed
   without probing production, which this session did not do.
 
-**Medium and low** (branch `security/hardening`):
+**Medium and low** (PR #172, branch `security/hardening`):
 - **Open redirect after sign-in:** `/login?next=/\evil.example` passed the check.
 - **Throttle race:** parallel sign-in, setup-key or recovery attempts all passed the 8-per-15-minutes
   check. Attempts are now counted before they are checked.
@@ -350,8 +350,8 @@ in this session changed what UNIIVERSE reads from Riot or shows.
 ### 5. Roadmap (ordered; Proposal)
 
 **Necessary: the platform you already have.**
-1. **Merge the security fix for profile pages** (`security/page-guards`): a confirmed data exposure.
-2. **Merge the hardening branch** (`security/hardening`) and the season figures speed-up (#169).
+1. **Merge the security fix for profile pages** (#170): a confirmed data exposure.
+2. **Merge the hardening PR** (#172) and the season figures speed-up (#169).
    Afterwards, run one Data jobs run with `smoke perf-probe`.
 3. **Free database space before it runs out:**
    - 361 MB of the free plan's 0.5 GB, growing about 2 MB a day: about two months left;
@@ -395,7 +395,7 @@ until a native capability is approved.
 
 ### 7. Decisions and approvals that are yours
 
-1. **Merge `security/page-guards` as soon as its CI is green:** it closes a confirmed exposure.
+1. **Merge #170 (`security/page-guards`):** its CI is green, and it closes a confirmed exposure.
 2. **Merge the other ready PRs** after review. Nothing was merged in this session.
 3. **Verify the encrypted backup and keep an offline copy,** so the held table drops can run
    before the database fills.
