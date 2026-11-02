@@ -17,7 +17,7 @@ import { publicRiotDataAllowed } from "./access";
   their display name, while they are on the team, not archived, and (when they have a sign-in
   account) that account is active. Nobody else on the team is named or sent. What appears: the
   card (picture, look, artwork, roles and the role's champion pool) and the social links the
-  player chose to show on the public page (domain/social-links). Never: usernames, Riot IDs,
+  player switched on to Show publicly (domain/social-links). Never: usernames, Riot IDs,
   sign-in or permission details, settings, nor the lineup-management lists.
 
   Rank and statistics are Riot data: they appear only where the deployment allows Riot data on the
