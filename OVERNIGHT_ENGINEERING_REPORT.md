@@ -46,6 +46,18 @@ From the owner's brief and `CLAUDE.md`:
 6. Maintainability: dead code, dependencies, tests.
 7. Recommendation, roadmap, release requirements and approvals.
 
+## Branches and pull requests (nothing merged)
+
+| Branch | PR | What | Status |
+|---|---|---|---|
+| `security/page-guards` | PR_PAGE_GUARDS | Every member page checks access itself (high finding) | Verified locally; **merge first** |
+| `security/hardening` | PR_HARDENING | Redirects, throttle, errors, Riot hosts, public images, timing, dead actions | Verified locally |
+| `perf/season-patch-memo` | #169 | Season figures read each game's patch once | Verified locally; CI running |
+| `pwa-windows-integration` | PR_PWA | Installed app: jump-list shortcuts, one reused window | Draft (optional); targeted checks only |
+| `overnight/engineering-report` | PR_REPORT | This report | Docs only |
+
+All five branches merge cleanly with one another in any order (`git merge-tree`).
+
 ## Findings and work
 
 ### 1. Architecture audit (verified from the repository)
@@ -343,3 +355,30 @@ until a native capability is approved.
 5. **Optional:** the draft PWA branch, a Microsoft Store listing (your account), Web Push.
 6. **A native desktop app needs two things you would have to approve:** a Riot-approved League
    client use, and a signing certificate's yearly cost.
+
+## Executive summary
+
+**Completed and verified:**
+- **Security, high.** A teammate's profile data reached signed-out requests. I reproduced it,
+  fixed it, verified the fix, and added a test that stops it coming back. The PR is ready; merge it
+  first.
+- **Security, medium and low.** Nine more fixes, each with tests: an open redirect, a throttle
+  race, an egress risk, raw database errors, Riot host validation, open mode on Vercel, two timing
+  leaks, statistics without access. Unreachable actions and an unused package were removed.
+- **Performance.** Team Overview's roster is 62% faster warm and 41% faster on first load, measured
+  locally at production volume. Every profile Overview and All Champions page benefits too.
+  Production confirmation is one `perf-probe` run after the merge.
+
+**Proposals, not built:**
+- **Desktop.** Keep the web app and PWA; no native app now (section 2).
+- The roadmap, release requirements and approvals in sections 5 to 7.
+
+**Prototype or draft:**
+- the PWA's Windows integration (shortcuts and window reuse), as a draft PR with targeted checks
+  only.
+
+**Not done:**
+- production measurements, since nothing was deployed;
+- field data, which only you can read;
+- Windows device tests: there is no native app, and this session has no Windows machine;
+- the summary table for Encounters, which waits for database space.
