@@ -247,9 +247,45 @@ against the code before acting; the high one was reproduced.
 - `/api/health` naming missing variables and the pooler host in errors;
 - the setup key's strength. It is a permanent Owner credential, so make it long and random.
 
-**Dependencies:** `pnpm audit --prod` reports 0 advisories across 106 packages. Dependabot PR #163
-(next 16.4.3 and four others) was green on 31 Oct and needs `main` merged in; next 16.4.4 is out
-since.
+**Dependencies:**
+- `pnpm audit --prod` reports 0 advisories across 106 packages.
+- Production's Next.js 16.4.2 already carries the 14 October 2026 security fixes, which shipped in
+  16.4.1 ([Next.js security update](https://nextjs.org/blog/nextjs-security-update-october-14-2026)).
+  `sharp` 0.35.5 meets that advisory's workaround.
+- 16.4.3 is described as bug fixes only; that comes from a secondary source
+  ([guardlayer](https://www.guardlayer.io/blog/nextjs-latest-safe-version)), checked through search
+  results only. Nothing was found about 16.4.4.
+- Dependabot PR #163 was green on 31 Oct and needs `main` merged in. It is useful, not urgent.
+
+### 4a. Maintainability (Verified by reference counts and the test suites)
+
+- **Removed** (hardening branch):
+  - five server actions with no caller anywhere, which Next.js gave no action id;
+  - the `jose` package, unused since sessions moved to the database.
+- **Candidates left for you to decide** (a reference count over `src`, `e2e`, `tests` and `scripts`;
+  running knip was refused by this session's permission policy, so a local script did the count):
+  - 39 exported names are used nowhere, not even in their own file. Some are deliberate: schema
+    tables of retired features stay while their tables exist.
+  - Clear examples of dead code: `SeasonTiles` (`players/player-card.tsx`), `RoleTag`
+    (`role-icon.tsx`), three unused profile-model functions in `champion-model/derived.ts`, invite
+    helpers in `repositories/users.ts`, `getDb` in `db/client.ts`.
+  - `updatePlayerAction` and `deletePlayerAction` are reachable only from the database tests, which
+    use them to check permissions. Retiring them means moving those checks to the live actions.
+  - 359 more exports are used only inside their own file: `export` could go, cosmetic only.
+- **Boundaries:** the client-imports, action-guard and (new) page-guard tests keep server code,
+  identity checks and page checks where they belong. The domain layer (62 modules) has no
+  framework imports.
+- **Tests added this session:**
+  - season-figure equivalence;
+  - patch memo;
+  - page guards;
+  - return paths;
+  - error words;
+  - Riot hosts;
+  - auth mode on Vercel;
+  - throttle bursts;
+  - the public picture cache;
+  - PWA shortcuts.
 
 ### 5. Roadmap (ordered; Proposal)
 
