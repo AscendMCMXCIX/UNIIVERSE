@@ -158,7 +158,7 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
           </span>
           {/* KDA: the primary performance figure */}
           <span className="text-right leading-snug @min-[50rem]/mh:text-left">
-            <span className="block whitespace-nowrap text-lg font-semibold tabular-nums leading-snug text-fg">{kda}</span>
+            <span className="block whitespace-nowrap text-base font-semibold tabular-nums leading-snug text-fg @min-[50rem]/mh:text-lg">{kda}</span>
             <span className={cn("block text-xs tabular-nums", row.perfect ? "text-good" : (row.kda ?? 0) >= 3 ? "text-fg-muted" : "text-fg-subtle")}>{ratio}</span>
             {/* The game's largest multikill, quietly (see MultikillTag), and at most one "best" figure. */}
             {row.multikill || standout ? (
