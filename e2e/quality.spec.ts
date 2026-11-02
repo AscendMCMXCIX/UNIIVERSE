@@ -128,6 +128,33 @@ test.describe("accessibility", () => {
       await audit(page, route);
     }
   });
+
+  // Found by a wider sweep on 2 Nov 2026: a phone-width table on System Health that the keyboard
+  // could not scroll, and lettered champion tiles (shown when a portrait cannot load, as here)
+  // whose two letters were missing from the name of the link around them.
+  test("pages at phone width, a teammate's profile and the Team player window have no critical or serious violations", async ({ page }) => {
+    test.setTimeout(240_000);
+    await page.goto("/players");
+    const teammate = await page.locator("main a[data-testid='player-card'][data-player-name='Demo Mid']").getAttribute("href");
+    expect(teammate).toBeTruthy();
+    const profile = [teammate!, `${teammate}/champions`, `${teammate}/matches`, `${teammate}/accounts`];
+    for (const route of profile) {
+      await page.goto(route);
+      await page.waitForLoadState("networkidle");
+      await audit(page, route);
+    }
+    await page.goto("/team");
+    await page.waitForLoadState("networkidle");
+    await page.getByTestId("lineup-card-MID").click({ position: { x: 40, y: 60 } });
+    await expect(page.locator("dialog[open]")).toBeVisible();
+    await audit(page, "/team player window");
+    await page.setViewportSize({ width: 375, height: 667 });
+    for (const route of [...PLAYER_ROUTES, ...profile, ...ADMIN_ROUTES]) {
+      await page.goto(route);
+      await page.waitForLoadState("networkidle");
+      await audit(page, `${route} at 375px`);
+    }
+  });
 });
 
 test.describe("shell, motion and notifications", () => {

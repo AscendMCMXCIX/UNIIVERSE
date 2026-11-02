@@ -10,6 +10,7 @@ import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { timeAgo, formatNumber } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { useNow } from "@/components/ui/relative-time";
+import { ScrollRegion } from "@/components/ui/scroll-region";
 
 /*
   The lane parts of the champion window: the checkpoint table, the lane chart and the game card.
@@ -48,7 +49,7 @@ export function LaneTable({ checkpoints, testId = "lane-checkpoints" }: { checkp
     { label: "Ahead in gold", value: (c) => `${c.aheadInGold} of ${c.games}` },
   ];
   return (
-    <div className="overflow-x-auto">
+    <ScrollRegion label="Lane differences by minute">
       <table className="w-full text-xs sm:text-sm" data-testid={testId}>
         <caption className="sr-only">Average difference with the lane opponent at each minute (yours minus theirs), with the games behind each column</caption>
         <thead>
@@ -88,7 +89,7 @@ export function LaneTable({ checkpoints, testId = "lane-checkpoints" }: { checkp
           </tr>
         </tbody>
       </table>
-    </div>
+    </ScrollRegion>
   );
 }
 
