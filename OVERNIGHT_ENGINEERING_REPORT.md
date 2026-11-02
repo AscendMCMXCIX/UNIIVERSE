@@ -73,8 +73,8 @@ Playwright suite on phone, tablet and desktop).
 **Size and tests:**
 - 47 pages, 10 API route groups, 114 client modules, 13 server-action modules exporting 88 actions,
   158 server modules, 62 domain modules;
-- 550 unit tests (83 files), 466 database tests (71 files), 63 Playwright specs run on three
-  viewports, and page-wide axe scans of every player and admin page (desktop width).
+- on `main`: 548 unit tests (83 files), 466 database tests (71 files), 63 Playwright specs run on
+  three viewports, and page-wide axe scans of every player and admin page (desktop width).
 
 **Boundaries already enforced by tests:**
 - browser code never reaches server-only code (`client-imports.test.ts`);
