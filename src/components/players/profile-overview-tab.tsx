@@ -123,7 +123,9 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
               heading: poolsHeading,
               intro: poolsIntro,
             }}
-            scope={{ topChampions: overview.topChampions, season: overview.season, seasons: overview.seasons, currentSeason: overview.currentSeason, mode: overview.mode, filter: overview.filter, accountOptions: overview.accountOptions }}
+            // Without statistics access the champion window never opens, so its figures and the Riot IDs of
+            // the account filter stay on the server.
+            scope={{ topChampions: showStats ? overview.topChampions : [], season: overview.season, seasons: overview.seasons, currentSeason: overview.currentSeason, mode: overview.mode, filter: overview.filter, accountOptions: showStats ? overview.accountOptions : [] }}
             detail={detail}
             championsById={championsById}
             playerId={player.id}

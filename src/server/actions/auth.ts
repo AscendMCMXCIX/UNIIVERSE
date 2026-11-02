@@ -1,11 +1,12 @@
 "use server";
 
+import { publicErrorMessage } from "@/server/errors";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { kickoffAccountSync } from "@/server/accounts/kickoff";
 import { getAppDb } from "@/server/bootstrap";
-import { blockedFor, clearFailures, recordFailure, throttleKey } from "@/server/auth/throttle";
+import { claimAttempt, clearFailures, throttleKey } from "@/server/auth/throttle";
 import { isProductionDeployment, requireSessionForSetup, SESSION_COOKIE, signIn, signOut } from "@/server/auth/session";
 import { revokeOtherSessions } from "@/server/auth/sessions";
 import { cookies } from "next/headers";
@@ -19,6 +20,7 @@ import { authenticate, countUsers, setPassword, UserError } from "@/server/repos
 import { ROLES, type Role } from "@/domain/roles";
 import { explainLoginFailure, verifySetupKey } from "@/server/auth/recovery";
 import { recordAudit } from "@/server/audit/log";
+import { safeReturnPath } from "@/lib/return-path";
 
 export type FormState = { error: string; values?: Record<string, string> } | undefined;
 /** Sign-in answers with an error; a successful sign-in redirects. */
@@ -29,10 +31,6 @@ function keep(formData: FormData, ...names: string[]): Record<string, string> {
   return Object.fromEntries(names.map((n) => [n, String(formData.get(n) ?? "")]));
 }
 
-function safeNext(next: string | null | undefined): string {
-  // No page asked for: "/" sends each account to its own start page (see app/page.tsx).
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
-}
 
 async function clientIp(): Promise<string | null> {
   const h = await headers();
@@ -66,19 +64,28 @@ function readSignup(formData: FormData) {
 export async function loginAction(_prev: LoginState, formData: FormData): Promise<LoginState> {
   const username = String(formData.get("username") ?? "");
   const password = String(formData.get("password") ?? formData.get("secret") ?? "");
-  const next = safeNext(String(formData.get("next") ?? ""));
+  // No page asked for, or one off the site: "/" sends each account to its own start page (app/page.tsx).
+  const next = safeReturnPath(String(formData.get("next") ?? ""));
   const ip = await clientIp();
   const keys = [throttleKey(username, ip), throttleKey("*", ip)];
   const db = await getAppDb();
-  const wait = Math.max(...(await Promise.all(keys.map((k) => blockedFor(db, k)))));
-  if (wait > 0) return { error: `Too many failed attempts. Try again in ${Math.ceil(wait / 60)} minute${wait > 60 ? "s" : ""}.`, values: keep(formData, "username") };
-  if (!username.trim() || !password) return { error: "Enter your username and your password.", values: keep(formData, "username") };
-  const user = await authenticate(db, username, password);
+  // Counted before the password is checked, so parallel attempts cannot all slip through.
+  const attempt = await claimAttempt(db, keys);
+  if (attempt.wait > 0) return { error: `Too many failed attempts. Try again in ${Math.ceil(attempt.wait / 60)} minute${attempt.wait > 60 ? "s" : ""}.`, values: keep(formData, "username") };
+  if (!username.trim() || !password) {
+    await attempt.withdraw(); // nothing was tried
+    return { error: "Enter your username and your password.", values: keep(formData, "username") };
+  }
+  const user = await authenticate(db, username, password).catch(async (err: unknown) => {
+    await attempt.withdraw(); // an error is not a wrong guess
+    throw err;
+  });
   if (!user) {
-    await recordFailure(db, keys);
+    // The attempt's rows stay: they are this failure.
     await new Promise((r) => setTimeout(r, 400));
     return { error: explainLoginFailure(username), values: keep(formData, "username") };
   }
+  await attempt.withdraw();
   await clearFailures(db, keys[0]!);
   const target = user.mustChangePassword || (!user.setupCompletedAt && user.playerId) ? "/welcome" : next;
   // One account per browser: signing in ends any session this browser held before.
@@ -101,13 +108,13 @@ export async function setupOwnerAction(_prev: FormState, formData: FormData): Pr
   if (isProductionDeployment()) {
     if (!bootstrap) return { error: "Set UNIIVERSE_ACCESS_PASSWORD in the hosting environment and redeploy before creating the owner account.", values };
     const key = throttleKey("setup", await clientIp());
-    const wait = await blockedFor(db, key);
-    if (wait > 0) return { error: `Too many failed attempts. Try again in ${Math.ceil(wait / 60)} minute${wait > 60 ? "s" : ""}.`, values };
+    const attempt = await claimAttempt(db, [key]);
+    if (attempt.wait > 0) return { error: `Too many failed attempts. Try again in ${Math.ceil(attempt.wait / 60)} minute${attempt.wait > 60 ? "s" : ""}.`, values };
     if (!verifySetupKey(String(formData.get("setupKey") ?? ""))) {
-      await recordFailure(db, [key]);
       await new Promise((r) => setTimeout(r, 400));
       return { error: "The setup key does not match UNIIVERSE_ACCESS_PASSWORD.", values };
     }
+    await attempt.withdraw();
   }
   const weak = validatePasswordStrength(signup.password);
   if (weak) return { error: `The owner account needs a password. ${weak}`, values };
@@ -118,7 +125,7 @@ export async function setupOwnerAction(_prev: FormState, formData: FormData): Pr
     // Verify the Riot accounts right after the response; Riot being down never blocks sign-up.
     if (user.playerId) after(() => kickoffAccountSync(db, user.playerId!));
   } catch (err) {
-    return { error: err instanceof UserError ? err.message : (err as Error).message, values };
+    return { error: err instanceof UserError ? err.message : publicErrorMessage(err), values };
   }
   redirect("/");
 }

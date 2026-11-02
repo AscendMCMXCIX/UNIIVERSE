@@ -1,5 +1,6 @@
 "use server";
 
+import { publicErrorMessage } from "@/server/errors";
 import { revalidatePath } from "next/cache";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePermission } from "@/server/auth/session";
@@ -28,7 +29,7 @@ async function saveBrandingAs(input: Partial<Branding>, action: "branding.save" 
     revalidatePath("/", "layout");
     return { ok: true, data: saved };
   } catch (err) {
-    return { ok: false, error: (err as Error).message };
+    return { ok: false, error: publicErrorMessage(err) };
   }
 }
 
@@ -38,7 +39,7 @@ export async function resetBrandingAction(): Promise<Result> {
     await requirePermission("manage-branding");
     return saveBrandingAs(resetLook(await getBranding(await getAppDb())), "branding.reset");
   } catch (err) {
-    return { ok: false, error: (err as Error).message };
+    return { ok: false, error: publicErrorMessage(err) };
   }
 }
 
@@ -60,7 +61,7 @@ export async function uploadBrandAssetAction(kind: BrandAssetKind, dataUrl: stri
     revalidatePath("/", "layout");
     return { ok: true, data: await getBranding(db) };
   } catch (err) {
-    return { ok: false, error: (err as Error).message };
+    return { ok: false, error: publicErrorMessage(err) };
   }
 }
 
@@ -80,7 +81,7 @@ export async function finishBrandUploadAction(kind: BrandAssetKind, uploadId: st
     revalidatePath("/", "layout");
     return { ok: true, data: await getBranding(db) };
   } catch (err) {
-    return { ok: false, error: (err as Error).message };
+    return { ok: false, error: publicErrorMessage(err) };
   }
 }
 
@@ -94,6 +95,6 @@ export async function removeBrandAssetAction(kind: BrandAssetKind): Promise<Resu
     revalidatePath("/", "layout");
     return { ok: true, data: await getBranding(db) };
   } catch (err) {
-    return { ok: false, error: (err as Error).message };
+    return { ok: false, error: publicErrorMessage(err) };
   }
 }
