@@ -57,3 +57,17 @@ describe("offered seasons (every season choice)", () => {
     for (const p of ["15", 15, "all", "", "abc", "16.5", null, undefined, "18"]) expect(chooseSeason(p, seasons, 17)).toBe(17);
   });
 });
+
+describe("seasons and patches read through their memo", () => {
+  it("answers the same on the first and later reads, and after the memo starts over", () => {
+    const cases: Array<[string, number | null, string]> = [["16.20", 16, "16.20"], ["26.20", 16, "16.20"], [" 25.3 ", 15, "15.3"], ["unknown", null, "unknown"], ["16.20.712.6386", null, "16.20.712.6386"]];
+    for (let round = 0; round < 3; round++) {
+      for (const [patch, season, canonical] of cases) {
+        expect(seasonOfPatch(patch)).toBe(season);
+        expect(canonicalPatch(patch)).toBe(canonical);
+      }
+      // Fill past the bound so the memo is cleared and read again.
+      for (let i = 0; i < 1100; i++) seasonOfPatch(`9.${i}`);
+    }
+  });
+});

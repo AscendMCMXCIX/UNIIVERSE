@@ -546,3 +546,36 @@ median of 5 `EXPLAIN (ANALYZE, BUFFERS)`):
   not done here.
 - The two statements' new mean times come from `db-usage` once enough calls have accumulated (its
   figures run from 13 Oct, so the old statements stay listed under their old text).
+
+## Season figures: reading each game's patch once (2 Nov 2026)
+
+**Found by** profiling `getTeamRoster` (Team Overview's cards) at production volume: production's
+`perf-probe` on 2 Nov read `team.roster` at 535 ms cold and 256 ms warm. A local database scaled to the
+same volume (3,878 stored games, 3,724 records; the demo seed copied 13 times with earlier dates)
+reproduced it: 255–268 ms warm. In a CPU profile of 13 roster loads, `seasonOfPatch` and
+`canonicalPatch` took about 920 of the 1,537 ms spent in `getPlayerOverview`:
+`seasonChampionStats` filtered every game four times per champion (the selected mode, then Solo/Duo,
+Flex and Normal), and each filter re-read each game's patch with two regular expressions. A season
+holds a few patch names and thousands of games.
+
+**What changed:**
+- `seasonOfPatch` and `canonicalPatch` keep their answer per patch text (`remember` in
+  `src/domain/patch.ts`, at most 1,024 entries, then the memo starts over, so arbitrary input cannot
+  grow it).
+- `seasonChampionStats` groups the season's games by champion in one pass, keeping their order, and
+  filters each champion's own games. A unit test compares it with the four-scan version on 600
+  generated games across seasons, modes and odd patch texts (`src/domain/season-stats.test.ts`).
+
+**Measured locally** (the scaled database; `tsx` in one process; interleaved, the code switched back
+and forth three times; median of the three):
+
+| Measure | Before | After |
+|---|---|---|
+| First roster load in a fresh process (in-memory caches empty) | 388 ms | 229 ms |
+| Roster, warm (mean of 20 loads) | 185 ms | 71 ms |
+| One player's season overview, warm (mean of 20) | 28.3 ms | 10.3 ms |
+
+`perf-probe-local` agreed (medians of 5): `team.roster` 316 → 231 ms cold, 212 → 86 ms warm;
+`player.overview` 29 → 12 ms. Steps that do not read season figures stayed within the run-to-run
+noise (±15–20%). The database work is unchanged, so production's cold figure keeps its reads; the
+production effect is to be confirmed by `perf-probe` after a deploy.
