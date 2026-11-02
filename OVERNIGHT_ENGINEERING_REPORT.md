@@ -55,7 +55,7 @@ From the owner's brief and `CLAUDE.md`:
 | `perf/season-patch-memo` | #169 | Season figures read each game's patch once | Verified locally; **CI green** (all four jobs, 2 Nov) |
 | `a11y/label-in-name-scroll-regions` | #173 | Names that match what controls show; wide tables the keyboard can scroll; axe at phone width and in two windows | Verified locally (unit 548, browser 517 passed); CI running |
 | `pwa-windows-integration` | #171 (draft) | Installed app: jump-list shortcuts, one reused window | Optional; unit tests, build and its browser spec pass; full suite in CI when marked ready |
-| `overnight/engineering-report` | PR_REPORT | This report | Docs only |
+| `overnight/engineering-report` | #174 | This report | Docs only (CI and Vercel skip it) |
 
 All six branches merge cleanly with `main` and with one another: all 15 pairs, checked with
 `git merge-tree` after the last change on 2 Nov.
