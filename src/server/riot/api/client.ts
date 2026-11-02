@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { parseRateLimits, processRiotLimiters, RateLimiterPool, type Limiter } from "./rate-limiter";
+import { DEFAULT_RATE_LIMITS, parseRateLimits, processRiotLimiters, RateLimiterPool, sameLimits, type Limiter } from "./rate-limiter";
 import { accountSchema, activeRegionSchema, championMasterySchema, leagueEntriesSchema, matchIdsSchema, matchSchema, matchTimelineSchema, platformStatusSchema, summonerSchema, type ChampionMastery, type LeagueEntry, type RiotAccount, type RiotMatch, type RiotMatchTimeline } from "./schemas";
 import { accountRegionFor, DEFAULT_RIOT_PLATFORM, parsePlatforms as parsePlatformList, regionFor as regionForPlatform, type RiotRegion } from "@/domain/riot-platforms";
 
@@ -85,6 +85,11 @@ export class RiotApiClient {
   public keyWarning: string | undefined;
   /** Last characters of the key in use, so an operator can tell which key a deployment carries. */
   public keyFingerprint: string | undefined;
+  /**
+   * The application limits Riot last stated for this key (X-App-Rate-Limit, e.g. "20:1,100:120"),
+   * read even when RIOT_RATE_LIMITS pins the limiter. Not a secret: it tells the key's tier.
+   */
+  public reportedAppLimits: string | undefined;
 
   /** Limits pinned by RIOT_RATE_LIMITS (or a test) are never replaced by the response headers. */
   private readonly pinnedLimits: boolean;
@@ -130,10 +135,11 @@ export class RiotApiClient {
         continue;
       }
       clearTimeout(timer);
-      if (!this.pinnedLimits) {
-        // Riot states this key's application limits on every response; follow them.
-        const reported = res.headers.get("x-app-rate-limit");
-        if (reported) this.limiters.adopt(parseRateLimits(reported, []));
+      // Riot states this key's application limits on every response; follow them (unless pinned).
+      const reported = res.headers.get("x-app-rate-limit");
+      if (reported) {
+        this.reportedAppLimits = reported;
+        if (!this.pinnedLimits) this.limiters.adopt(parseRateLimits(reported, []));
       }
 
       if (res.status === 429) {
@@ -235,6 +241,19 @@ export const RIOT_KEY_PATTERN = /^RGAPI-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9
 /** Riot keys (development, personal and production alike) are "RGAPI-" followed by a UUID. */
 export function riotKeyWarning(key: string): string | undefined {
   return RIOT_KEY_PATTERN.test(key) ? undefined : "RIOT_API_KEY does not look like a Riot key (expected RGAPI-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx); check the value in the host's environment variables.";
+}
+
+/**
+ * The key's tier from the application limits Riot states for it. Development and Personal keys
+ * share Riot's default limits (20 per second, 100 per 2 minutes), so only expiry tells those two
+ * apart (a Development key stops working 24 hours after it is issued); a Production key has more.
+ */
+export function riotKeyTier(reported: string | undefined): "development or personal" | "production" | "unknown" {
+  if (!reported) return "unknown";
+  const limits = parseRateLimits(reported, []);
+  if (!limits.length) return "unknown";
+  if (sameLimits(limits, DEFAULT_RATE_LIMITS)) return "development or personal";
+  return limits.some((l) => l.requests / l.seconds > 20) ? "production" : "unknown";
 }
 
 /** The key's last four characters, enough to tell which key a deployment is using without revealing it. */

@@ -1,5 +1,5 @@
 import { defineJob } from "./registry";
-import { createRiotClient, parsePlatforms } from "@/server/riot/api/client";
+import { createRiotClient, parsePlatforms, riotKeyTier } from "@/server/riot/api/client";
 import { checkRiotCredential } from "@/server/riot/credential";
 
 /**
@@ -18,6 +18,8 @@ defineJob({
     const platform = parsePlatforms(process.env.RIOT_PLATFORMS)[0] ?? "oc1";
     const result = await checkRiotCredential(ctx.db, client, platform);
     ctx.log(result.message);
-    return { ok: true, degraded: !result.ok, error: result.ok ? undefined : result.message, summary: { state: result.state, statusCode: result.statusCode, platform, keyInUse: client.keyFingerprint } };
+    // The limits Riot states for the key tell a Production key from the other two; expiry tells a
+    // Development key from a Personal one (it stops working 24 hours after it is issued).
+    return { ok: true, degraded: !result.ok, error: result.ok ? undefined : result.message, summary: { state: result.state, statusCode: result.statusCode, platform, keyInUse: client.keyFingerprint, appRateLimit: client.reportedAppLimits ?? null, tier: riotKeyTier(client.reportedAppLimits) } };
   },
 });
