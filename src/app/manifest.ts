@@ -7,6 +7,14 @@ import { DEFAULT_BRANDING, DEFAULT_COLOURS } from "@/domain/branding";
 // install shows its own name (never built in at build time, when no database is reachable).
 export const dynamic = "force-dynamic";
 
+/** The main pages, named as in the navigation (Team → Overview reads "Team Overview" out of context). */
+const SHORTCUTS = [
+  { name: "Team Overview", url: "/team" },
+  { name: "My Profile", url: "/overview" },
+  { name: "Matches", url: "/matches" },
+  { name: "Leaderboards", url: "/leaderboards" },
+] as const;
+
 /**
  * The web app manifest: the app installs to a phone's home screen or a desktop, opens without
  * browser bars and starts on the home page (which sends each account to its own start). Public,
@@ -19,14 +27,6 @@ export const dynamic = "force-dynamic";
  * - `launch_handler`: opening the app again, or one of those shortcuts, uses the window already
  *   open and goes to that page, instead of opening another window.
  */
-/** The main pages, named as in the navigation (Team → Overview reads "Team Overview" out of context). */
-const SHORTCUTS = [
-  { name: "Team Overview", url: "/team" },
-  { name: "My Profile", url: "/overview" },
-  { name: "Matches", url: "/matches" },
-  { name: "Leaderboards", url: "/leaderboards" },
-] as const;
-
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const branding = await getAppDb()
     .then(getBranding)
