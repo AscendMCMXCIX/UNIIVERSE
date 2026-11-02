@@ -3,6 +3,7 @@ import { getAppDb } from "@/server/bootstrap";
 import { getSession } from "@/server/auth/session";
 import { profileHeader } from "@/components/players/profile-sections";
 import { ProfileAccountsTab } from "@/components/players/profile-accounts-tab";
+import { requirePageAccess } from "@/server/auth/page-access";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function PlayerAccountsRoute({ params }: { params: Promise<{ id: string }> }) {
   const [{ id }, session, db] = await Promise.all([params, getSession(), getAppDb()]);
   if (session?.playerId === id) redirect("/overview/accounts");
+  await requirePageAccess("view-players");
   const header = await profileHeader(db, id);
   if (!header) notFound();
   return <ProfileAccountsTab db={db} header={header} session={session} />;
