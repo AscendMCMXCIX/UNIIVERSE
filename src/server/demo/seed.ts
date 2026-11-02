@@ -59,13 +59,13 @@ export async function seedDemoRoster(db: Db): Promise<{ created: number }> {
   // Two designated substitutes, so the demo shows cards that turn over (Jungle, Mid and Bottom have none).
   await setLineupSubstitute(db, team.id, "TOP", created["Demo Sub (Top)"]!);
   await setLineupSubstitute(db, team.id, "SUPPORT", created["Demo Sub (Support)"]!);
-  // Synthetic social links (domain/social-links) in every audience, so the cards, the public page
-  // and the substitute side show them: Mid has one public, two for the team; the Support
-  // substitute one public; Support one kept to themselves, which must show nowhere.
+  // Synthetic social links (domain/social-links), switched on and off, so the cards, the public
+  // page and the substitute side show them: Mid has YouTube and Discord shown publicly and Twitch
+  // off; the Support substitute their Twitch shown; Support a Discord kept off, which must show nowhere.
   const social = (playerId: string, socialLinks: typeof players.$inferInsert.socialLinks) => db.update(players).set({ socialLinks }).where(eq(players.id, playerId));
-  await social(created["Demo Mid"]!, { youtube: { value: "https://www.youtube.com/@DemoMidChannel", show: "public" }, twitch: { value: "https://www.twitch.tv/demo_mid_live", show: "team" }, discord: { value: "demo.mid", show: "team" } });
-  await social(created["Demo Sub (Support)"]!, { twitch: { value: "https://www.twitch.tv/demo_sub_support", show: "public" } });
-  await social(created["Demo Support"]!, { discord: { value: "demo.support.private", show: "hidden" } });
+  await social(created["Demo Mid"]!, { youtube: { value: "https://www.youtube.com/@DemoMidChannel", public: true }, twitch: { value: "https://www.twitch.tv/demo_mid_live", public: false }, discord: { value: "demo.mid", public: true } });
+  await social(created["Demo Sub (Support)"]!, { twitch: { value: "https://www.twitch.tv/demo_sub_support", public: true } });
+  await social(created["Demo Support"]!, { discord: { value: "demo.support.private", public: false } });
   await seedDemoNewcomers(db, team.id, known);
   return { created: DEMO_PLAYERS.length + 2 };
 }

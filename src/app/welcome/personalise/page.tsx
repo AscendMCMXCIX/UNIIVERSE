@@ -34,7 +34,7 @@ export default async function PersonalisePage() {
   return (
     <BrandFrame eyebrow={welcomeEyebrow} width="max-w-4xl">
       <PersonaliseStep
-        card={{ playerId: player.id, name: player.displayName, avatarUrl: picture, look: cardLookFor(player), art: cardArt(player), role: player.primaryRole, poolIds: featurableChampions(player), social: visibleSocialLinks(social.get(player.id), "team") }}
+        card={{ playerId: player.id, name: player.displayName, avatarUrl: picture, look: cardLookFor(player), art: cardArt(player), role: player.primaryRole, poolIds: featurableChampions(player), social: visibleSocialLinks(social.get(player.id)) }}
         champions={champions}
         customised={customised}
         social={social.get(player.id) ?? null}

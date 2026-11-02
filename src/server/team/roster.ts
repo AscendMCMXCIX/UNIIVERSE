@@ -76,7 +76,7 @@ export interface RosterSlot {
     cardAccent: CardAccent;
     /** The player's personal card look (Player Card Studio), the same on every card. */
     look: CardLook;
-    /** The YouTube, Twitch and Discord the player chose to show to team members (domain/social-links). */
+    /** The YouTube, Twitch and Discord the player switched on to Show publicly (domain/social-links): team members see the same ones as the public page. */
     social: SocialLinkView[];
     /** This season in the lineup role, every champion, all supported games (null when nothing collected). */
     season: { games: number; wins: number; losses: number; winRate: number | null; kda: number | null; perfectKda: boolean; kills: number | null; deaths: number | null; assists: number | null; csPerMinute: number | null; visionPerGame: number | null; damagePerMinute: number | null } | null;
@@ -240,7 +240,7 @@ function rosterCard(p: PlayerRecord & PlayerProfile, role: Role, from: { season:
       poolIds: featurableChampions(p),
       cardAccent: isCardAccent(p.cardAccent) ? p.cardAccent : "default",
       look: cardLookFor(p),
-      social: visibleSocialLinks(from.social, "team"),
+      social: visibleSocialLinks(from.social),
       season: season && summary && summary.record.games > 0 ? seasonFigures(summary) : null,
       rankChange: statsVisible ? from.rankChange : null,
       statsVisible,

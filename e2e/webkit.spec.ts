@@ -323,6 +323,36 @@ test("forms: text fields are at least 16px (Safari zooms into smaller ones) and 
   await guest.close();
 });
 
+test("a switch turns on and off with a tap on its words, not only the knob (the Studio's effects; Settings' Show publicly switches are the same control)", async ({ page }) => {
+  // The demo's local owner, on Top's card: a test here cannot stay signed in as a member (the
+  // session cookie is Secure, which WebKit does not keep on http://localhost), and Settings'
+  // social links need one. The control is the same Switch; its sizes on a phone and its place on
+  // the platform's line are checked in Chromium (e2e/social-links.spec.ts).
+  await page.goto("/team");
+  const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
+  await page.goto(`/players/${id}`);
+  await expect(page.getByTestId("profile-header")).toBeVisible();
+  await expect(async () => {
+    await page.getByTestId("profile-header").getByTestId("customise-card").tap();
+    await expect(page.getByTestId("card-studio")).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  await page.getByTestId("studio-section-toggle").tap();
+  await page.getByTestId("studio-section-effects").tap();
+  await expect(page.getByTestId("card-studio")).toHaveAttribute("data-step", "effects");
+  const glow = page.getByRole("switch", { name: /Ambient glow/ });
+  const words = page.locator("label[for=fx-glow]").getByText("Ambient glow", { exact: true });
+  const was = await glow.isChecked();
+  await words.tap();
+  await expect(glow).toBeChecked({ checked: !was });
+  await expect(page.locator("label[for=fx-glow]")).toHaveAttribute("data-state", was ? "off" : "on");
+  await words.tap();
+  await expect(glow).toBeChecked({ checked: was });
+  await page.getByTestId("studio-cancel").tap();
+  const discard = page.getByTestId("studio-confirm-yes");
+  if (await discard.isVisible()) await discard.tap();
+  await expect(page.getByTestId("card-studio")).toBeHidden();
+});
+
 test("the sign-in window on an iPhone: the whole screen, the fields and Sign in above the keyboard, an error in view, and Close back to Sign in", async ({ browser, baseURL }) => {
   // As a visitor (locally, a browser holding the guest cookie), with the keyboard emulated: WebKit
   // here has none either (keyboard.ts). What the real iOS keyboard does still needs a device.

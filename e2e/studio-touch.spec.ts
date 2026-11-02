@@ -159,7 +159,8 @@ test("on a phone, each kind of control works by touch, and Save keeps it all, li
   // Links: typed, with who may see them; the preview shows the icon at once.
   await goTo(page, "links");
   await page.getByLabel("YouTube", { exact: true }).fill("youtube.com/@FingerPlays");
-  await page.getByTestId("social-field-youtube").getByLabel("Who can see it").selectOption("team");
+  await page.getByTestId("social-public-youtube").tap();
+  await expect(page.getByRole("switch", { name: "Show publicly: YouTube" })).toBeChecked();
   await expect(page.getByTestId("card-preview").getByTestId("card-social-preview").locator(":scope > span")).toHaveCount(1);
 
   // Effects: a switch.
@@ -183,7 +184,7 @@ test("on a phone, each kind of control works by touch, and Save keeps it all, li
   await expect(page.getByRole("radiogroup", { name: "Emblem" }).locator("[data-value=star]")).toHaveAttribute("aria-checked", "true");
   await goTo(page, "links");
   await expect(page.getByLabel("YouTube", { exact: true })).toHaveValue("youtube.com/@FingerPlays");
-  await expect(page.getByTestId("social-field-youtube").getByLabel("Who can see it")).toHaveValue("team");
+  await expect(page.getByRole("switch", { name: "Show publicly: YouTube" })).toBeChecked();
   await goTo(page, "effects");
   await expect(page.getByRole("switch", { name: /Ambient glow/ })).toBeChecked({ checked: !glowWas });
   await goTo(page, "colours");

@@ -65,8 +65,8 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
   },
   {
     what: "Social links, only if you add them: a YouTube or Twitch channel address and a Discord username",
-    why: "So teammates, or visitors if you choose, can find you there",
-    who: "Whoever you choose for each one: only you, team members, or also the public team page",
+    why: "So teammates and visitors to the public team page can find you there, if you choose",
+    who: "Only you, until you switch on Show publicly for a link: then team members and the public team page",
     kept: "Until you clear them; removed when your account is deleted",
   },
   {
@@ -156,7 +156,7 @@ export default async function PrivacyPage() {
         {name} is a private app for one League of Legends team. Administrators create every account; there is no public sign-up. This notice explains what it stores about members, why, who can see it, how long it stays, and how to reach us about it.
       </p>
       <p className="mt-1 text-xs text-fg-subtle">
-        Updated <time dateTime="2026-10-29">{PRIVACY_UPDATED}</time>
+        Updated <time dateTime="2026-11-02">{PRIVACY_UPDATED}</time>
       </p>
 
       <nav aria-label="On this page" className="mt-4" data-testid="privacy-index">
@@ -215,7 +215,7 @@ export default async function PrivacyPage() {
 
       <Section id="public-page" title="The public team page">
         <p className="mt-1 text-sm text-fg-muted" data-testid="privacy-public-page">
-          Anyone can open the team page without an account. It shows the lineup and substitutes: display names, profile pictures, card designs, roles and champion pools, and a social link only where its owner chose to show it there.{" "}
+          Anyone can open the team page without an account. It shows the lineup and substitutes: display names, profile pictures, card designs, roles and champion pools, and a social link only when its owner has switched on Show publicly for it.{" "}
           {publicFigures ? "On this site it also shows their ranks and this season's statistics, and the team's Leaderboards among them. It never shows usernames or Riot IDs." : "It never shows usernames, Riot IDs, ranks or statistics."}
         </p>
       </Section>
