@@ -50,10 +50,11 @@ From the owner's brief and `CLAUDE.md`:
 
 | Branch | PR | What | Status |
 |---|---|---|---|
-| `security/page-guards` | PR_PAGE_GUARDS | Every member page checks access itself (high finding) | Verified locally; **merge first** |
+| `security/page-guards` | #170 | Every member page checks access itself (high finding) | Verified locally (full suites green); CI running; **merge first** |
 | `security/hardening` | PR_HARDENING | Redirects, throttle, errors, Riot hosts, public images, timing, dead actions | Verified locally |
 | `perf/season-patch-memo` | #169 | Season figures read each game's patch once | Verified locally; CI running |
-| `pwa-windows-integration` | PR_PWA | Installed app: jump-list shortcuts, one reused window | Draft (optional); targeted checks only |
+| `a11y/label-in-name-scroll-regions` | PR_A11Y | Names that start with their visible words; wide tables the keyboard can scroll; wider axe coverage | Verified locally (verify); browser suite pending |
+| `pwa-windows-integration` | #171 (draft) | Installed app: jump-list shortcuts, one reused window | Optional; typecheck and lint only; CI when marked ready |
 | `overnight/engineering-report` | PR_REPORT | This report | Docs only |
 
 All five branches merge cleanly with one another in any order (`git merge-tree`).
@@ -208,6 +209,34 @@ and you approve the signing cost. Then build a Tauri 2 thin shell around the dep
 actions that already revalidate the page, so the server renders the page twice; the user does not
 wait for the second render, but it costs server time and database reads. Each needs its own check
 before removal.
+
+### 3a. UI consistency and accessibility (Verified locally)
+
+The visual consistency passes of the last two weeks (readability, premium identity, consistency
+across Encounters, All Champions, Team Matches and Leaderboards) are recent and documented in
+`docs/STANDARDS.md`. Redoing them would only repeat that work. The evidence-based gap was
+accessibility coverage: axe ran only at desktop width, and never on a teammate's profile or in
+the Team player window.
+
+**A wider sweep** (axe, WCAG 2.0 to 2.2 A and AA, every impact level) covered every player and admin
+page on phone, tablet and desktop, a teammate's four profile tabs, and the Team player window. It
+found two serious issue types and nothing moderate or minor:
+- **Label in name (2.5.3):**
+  - a champion's lettered stand-in, shown whenever a portrait cannot load, put two letters into
+    links named "Rumble: open its statistics";
+  - Team's "Edit on profile" link carried a name that did not contain its visible words.
+- **Keyboard (2.1.1):** System Health's field-data table scrolled sideways on phones with nothing
+  the keyboard could reach.
+
+**Fixed through shared components** (branch `a11y/label-in-name-scroll-regions`):
+- `ChampionPortrait` names its stand-in like the picture.
+- A new `ScrollRegion` makes a wide table focusable and named; five tables use it.
+- The link's name starts with its visible words.
+- `e2e/quality.spec.ts` now runs axe at 375px on every page, on a teammate's profile and in the
+  player window, so these stay fixed.
+
+**Not covered by automation:** screen reader and speech-control behaviour on real devices. Those
+belong on the real-device checklist.
 
 ### 4. Security (one high finding fixed; branches ready)
 
