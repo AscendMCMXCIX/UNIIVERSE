@@ -561,6 +561,18 @@ On the live site, after the deployment (the sandbox renders demo data without Ri
 - [ ] Fields, dropdowns, Refine, Refresh and the segmented choices show a visible edge on every page, also in a window; the keyboard focus ring is visible on each.
 - [ ] Browser zoom at 200% and the phone's largest text size: nothing overlaps and no page scrolls sideways (wide tables scroll inside their box).
 
+## Premium identity, Overview dashboard and All Champions (2 Nov 2026)
+
+On the live site, after the deployment (the sandbox has no Riot images, so the artwork checks are manual):
+- [ ] Data jobs → `smoke web`: every step passes, `deployment.commit` is the merge commit, and the manifest's `theme_color` is `#0a0b12`.
+- [ ] Every page: a deep ink ground with a faint violet glow at the top (left of centre) and a blue one at the top right, never behind the middle of the page; panels slightly raised (a faint top sheen and a soft shadow); fields with a visible edge.
+- [ ] Your profile → Overview on a computer (1440 × 900 and 1280 × 800): the banner, then Season performance's heading, then one season card (win rate with a blue/red bar, KDA and games large; CS/min, damage/min and vision smaller; the kills and multikills in one row) beside Recent form, with Ranked progress starting under Recent form on the first screen; the pools under the season card. The banner's own colours light the top of the page faintly.
+- [ ] The same on a tablet and a phone: one column (season card, Recent form, Ranked progress, pools), nothing squeezed, no empty band in any card, no sideways scroll.
+- [ ] Ranked progress on an account with little history (or Flex with one reading): one quiet line instead of the chart, and the card no taller than with a chart.
+- [ ] Roles & champion pools: one row per champion under one row of column names (games, win rate, KDA, CS/min or vision), the champion's splash art fading along the row's left behind the name, no "Played a lot" or other Experience words. Edit: drag a row to reorder, the grip with the keyboard, ×, Add, the role menus; Done puts them away; a row opens the champion window.
+- [ ] All Champions: no Experience column, badge or sort; the search and the champion count inside the table's card; column names in small capitals, the sorted one with a short blue-to-violet bar; a row lights up when pointed at (a tint, the portrait's ring, a bar at its left) and opens the champion window, which has no Experience line either. On a phone: Sort by and its direction toggle beside the search.
+- [ ] Team Overview cards and the player details window still show the Experience label (unchanged).
+- [ ] Selected tabs (a profile's sections, Team's sections, a game's Scoreboard/Analysis/Timeline/Build, a champion window's views) show the short blue-to-violet bar.
 
 ## Social links: one Show publicly switch (migration 0061, 2 Nov 2026)
 

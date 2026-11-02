@@ -9,14 +9,12 @@ import { type ProfileHeaderData } from "@/server/players/profile-header";
 import { loadPickerChampions } from "@/server/champions/picker";
 import { getMatchSyncStatus } from "@/server/accounts/refresh";
 import { dataStatus } from "@/domain/data-status";
-import { PROFICIENCY_HELP, SeasonSummary, refinementLabel } from "@/components/players/player-overview";
-import { InfoTip } from "@/components/ui/info-tip";
+import { SeasonSummary, refinementLabel } from "@/components/players/player-overview";
 import { seasonLabel } from "@/domain/season";
 import { ProfilePools } from "./profile-pools";
 import { FirstRole } from "@/components/profile/first-role";
 import { loadRankHistory } from "@/server/accounts/rank-history";
 import { RankedProgress } from "@/components/players/ranked-progress";
-import { cn } from "@/lib/cn";
 import { RecentFormStrip } from "@/components/players/recent-form";
 import { FORM_MIN_GAMES } from "@/domain/recent-form";
 import type { PoolStats } from "@/components/profile/pool-stats";
@@ -25,15 +23,11 @@ import { championMap, IdentitySync, refreshFor, type ProfileSearch } from "./pro
 
 /* The player profile's Overview tab (components/players/profile-sections.tsx has the frame shared by every tab). */
 
-/** The pool cards' statistics, per role and champion, from the overview's per-role cards. */
+/** The pool rows' statistics, per role and champion, from the overview's per-role cards. */
 function poolStats(cards: OverviewCard[]): PoolStats {
   const out: PoolStats = {};
   for (const c of cards) {
     (out[c.role] ??= {})[c.championId] = {
-      tier: c.tier,
-      tierLabel: c.tierLabel,
-      tierWhy: c.tierWhy,
-      evidence: c.evidence,
       games: c.selected.games,
       winRate: c.selected.winRate,
       kdaRatio: c.performance.kdaRatio,
@@ -101,38 +95,22 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
     : null;
   // The pools' heading (Edit sits at the end of its line) and what the figures on the cards count.
   const poolsHeading = (
-    <h2 id="champion-pools" className="flex items-center gap-1.5 text-lg font-semibold text-fg">
-      Roles &amp; champion pools {showStats ? <InfoTip text={PROFICIENCY_HELP} label="How proficiency is rated" /> : null}
+    <h2 id="champion-pools" className="text-base font-semibold text-fg">
+      Roles &amp; champion pools
     </h2>
   );
   const poolsIntro = (
-    <p className="text-sm text-fg-muted">
-      {self ? "The roles and champions you play, in your order of preference." : `The roles and champions ${player.displayName} plays, in their order of preference.`}
-      {showStats ? (
-        <span className="text-xs text-fg-subtle" data-testid="pool-scope">
-          {" "}
-          Figures: games played in that role · {scope}
-        </span>
-      ) : null}
+    <p className="text-xs text-fg-subtle">
+      {self ? "Your roles and champions, in your order of preference." : `${player.displayName}'s roles and champions, in their order of preference.`}
+      {showStats ? <span data-testid="pool-scope"> Figures: games in that role · {scope}</span> : null}
     </p>
   );
-  return (
-    <div className="space-y-5">
-      {showStats ? (
-        <>
-          <SeasonSummary data={overview} basePath={basePath} championsById={championsById} status={status} refresh={refreshFor(session, player.id, sync, m.games - m.counted - m.unavailable > 0)} />
-          {/* Rank and recent form share one row on wide screens, as equals in height. The ranked card
-              keeps the wider column in every state: its chart's space is kept even without a line
-              to draw, so switching queue or account never resizes it. */}
-          <div className={cn("grid grid-cols-[minmax(0,1fr)] items-stretch gap-4", rankHistory.accounts.length && overview.form.season.games >= FORM_MIN_GAMES ? "xl:grid-cols-[minmax(0,1.65fr)_minmax(19rem,1fr)]" : "")} data-testid="profile-progress">
-            {rankHistory.accounts.length ? <RankedProgress accounts={rankHistory.accounts} queue={rankQueue} accountId={search.ra ?? null} href={rankHref} now={rankHistory.readAt} /> : null}
-            <RecentFormStrip form={overview.form} championsById={championsById} historyHref={`${basePath}/matches`} narrowed={refinementLabel(overview, (id) => championsById[id]?.name ?? id)} />
-          </div>
-        </>
-      ) : <p className="rounded-panel border border-border bg-surface p-4 text-sm text-fg-muted">Season statistics of teammates are not part of your access; their roles and champions are below.</p>}
-      {/* The section's border turns to the accent while its pools are being edited. */}
-      <section aria-labelledby="champion-pools" className="space-y-4 rounded-card border border-border bg-surface p-4 transition-colors duration-150 has-[[data-editing]]:border-accent/50 sm:p-5" data-testid="champion-pools">
-        {player.primaryRole ? (
+  // The pools (the player's own choice of roles and champions, in order), with each champion's
+  // figures in that role over the page's games; the owner and admins edit them in place.
+  const pools = (
+    // The section's border turns to the accent while its pools are being edited.
+    <section aria-labelledby="champion-pools" className="space-y-3 rounded-card border border-border bg-surface p-3 panel-depth transition-colors duration-150 has-[[data-editing]]:border-accent/50 sm:p-4" data-testid="champion-pools">
+      {player.primaryRole ? (
         <div data-testid={editable ? "pool-editor" : "pool-cards"}>
           <ProfilePools
             editor={{
@@ -152,17 +130,35 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
             inspect={showStats}
           />
         </div>
-        ) : (
-          <>
-            <div className="space-y-1">
-              {poolsHeading}
-              {poolsIntro}
-            </div>
-            <FirstRole playerId={player.id} name={player.displayName} self={self} editable={editable} />
-          </>
-        )}
-        {showStats && !overview.hasHistory ? <p className="text-xs text-fg-muted">{overview.accounts.length === 0 ? "No Riot account linked: games and win rates appear once an account is linked and synced." : "No stored games yet: figures appear after the first account sync, a few minutes after linking; this page updates by itself."}</p> : null}
-      </section>
-    </div>
+      ) : (
+        <>
+          <div className="space-y-1">
+            {poolsHeading}
+            {poolsIntro}
+          </div>
+          <FirstRole playerId={player.id} name={player.displayName} self={self} editable={editable} />
+        </>
+      )}
+      {showStats && !overview.hasHistory ? <p className="text-xs text-fg-muted">{overview.accounts.length === 0 ? "No Riot account linked: games and win rates appear once an account is linked and synced." : "No stored games yet: figures appear after the first account sync, a few minutes after linking; this page updates by itself."}</p> : null}
+    </section>
+  );
+  if (!showStats)
+    return (
+      <div className="space-y-4">
+        <p className="rounded-panel border border-border bg-surface p-4 text-sm text-fg-muted">Season statistics of teammates are not part of your access; their roles and champions are below.</p>
+        {pools}
+      </div>
+    );
+  return (
+    <SeasonSummary
+      data={overview}
+      basePath={basePath}
+      championsById={championsById}
+      status={status}
+      refresh={refreshFor(session, player.id, sync, m.games - m.counted - m.unavailable > 0)}
+      form={overview.form.season.games >= FORM_MIN_GAMES ? <RecentFormStrip form={overview.form} championsById={championsById} historyHref={`${basePath}/matches`} narrowed={refinementLabel(overview, (id) => championsById[id]?.name ?? id)} /> : null}
+      ranked={rankHistory.accounts.length ? <RankedProgress accounts={rankHistory.accounts} queue={rankQueue} accountId={search.ra ?? null} href={rankHref} now={rankHistory.readAt} /> : null}
+      pools={pools}
+    />
   );
 }

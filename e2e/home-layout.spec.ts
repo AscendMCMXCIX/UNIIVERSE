@@ -119,18 +119,29 @@ async function openTeammate(page: Page) {
   await expect(page.getByTestId("pool-editor")).toBeVisible();
 }
 
-test("profile Overview: season, multikills, rank and form on the first screen, the pools straight after; off roles open in place", async ({ page }, info) => {
+test("profile Overview: a dashboard with the season, its multikills and recent form on the first screen, the pools under the season; off roles open in place", async ({ page }, info) => {
   await openTeammate(page);
   if (info.project.name === "desktop") {
-    // 1440 × 900: the status line, the season's figures and multikills, then rank and form, all on
-    // the first screen; the pools' section starts right below them.
+    // 1440 × 900: the season's card (with its multikills) and recent form side by side, level, both
+    // ending on the first screen, and ranked progress starting there under recent form; the pools
+    // follow the season's card in its column.
     const scrollY = await page.evaluate(() => window.scrollY);
-    const progress = await box(page.getByTestId("profile-progress"));
-    expect(progress.y + progress.height + scrollY, "rank and form end on the first screen").toBeLessThanOrEqual(900);
-    const pools = await box(page.getByTestId("champion-pools"));
-    expect(pools.y - (progress.y + progress.height), "the pools follow straight after").toBeLessThanOrEqual(32);
+    const [figures, form, ranked, pools] = await Promise.all([box(page.getByTestId("season-figures")), box(page.getByTestId("recent-form")), box(page.getByTestId("ranked-progress")), box(page.getByTestId("champion-pools"))]);
+    expect(figures.y + figures.height + scrollY, "the season's card ends on the first screen").toBeLessThanOrEqual(900);
+    expect(form.y + form.height + scrollY, "recent form ends on the first screen").toBeLessThanOrEqual(900);
+    expect(ranked.y + scrollY, "ranked progress starts on the first screen").toBeLessThan(900);
+    expect(form.x, "recent form in the column beside the season's card").toBeGreaterThan(figures.x + figures.width);
+    expect(Math.abs(form.y - figures.y), "level with it").toBeLessThanOrEqual(1);
+    expect(Math.abs(ranked.x - form.x), "ranked progress under recent form").toBeLessThanOrEqual(1);
+    expect(pools.y - (figures.y + figures.height), "the pools follow straight after the season's card").toBeLessThanOrEqual(24);
+    expect(Math.abs(pools.x - figures.x), "in its column").toBeLessThanOrEqual(1);
   }
-  // Off roles: one line each, with the champions as portraits; the cards are behind "Show".
+  // The pools: one row per champion under one row of column names; no Experience labels.
+  const primary = page.getByTestId("primary-pool");
+  await expect(primary.getByTestId("primary-pool-columns")).toHaveCount(1);
+  await expect(primary.getByTestId("pool-item").first().getByTestId("pool-card-stats")).toBeVisible();
+  await expect(page.getByTestId("champion-pools")).not.toContainText(/Played a lot|Played regularly|Not played lately|Some experience/);
+  // Off roles: one line each, with the champions as portraits; the rows are behind "Show".
   const off = page.getByTestId("secondary-pool");
   await expect(off).toHaveAttribute("data-open", "false");
   await expect(off.getByTestId("secondary-pool-preview")).toBeVisible();

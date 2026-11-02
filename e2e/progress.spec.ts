@@ -53,17 +53,17 @@ test("a profile shows recent form and ranked progress per queue", async ({ page 
     expect(new Set(heights).size).toBe(1);
   }
 
-  // Flex is its own ladder: one reading so far, so no line yet, in the same space the chart takes.
-  const chartBox = (await page.getByTestId("ranked-chart").boundingBox())!;
+  // Flex is its own ladder: one reading so far, so no line yet. The card says so in one quiet line
+  // and keeps to what it shows: nothing is drawn to fill the chart's space.
+  const withChart = (await ranked.boundingBox())!.height;
   await page.getByTestId("ranked-queue-flex").click();
   await expect(page).toHaveURL(/rq=flex/);
   await expect(page.getByTestId("ranked-current")).toContainText("Silver I");
   const empty = page.getByTestId("ranked-chart-empty");
   await expect(empty).toHaveText("Not enough rank history to display progression.");
   await expect(page.getByTestId("ranked-chart")).toHaveCount(0);
-  const emptyBox = (await empty.boundingBox())!;
-  expect(Math.abs(emptyBox.width - chartBox.width)).toBeLessThanOrEqual(2);
-  expect(Math.abs(emptyBox.height - chartBox.height)).toBeLessThanOrEqual(2);
+  expect((await empty.boundingBox())!.height, "one line").toBeLessThanOrEqual(24);
+  expect((await ranked.boundingBox())!.height, "never a taller card without a history to draw").toBeLessThanOrEqual(withChart + 1);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(1);
 });

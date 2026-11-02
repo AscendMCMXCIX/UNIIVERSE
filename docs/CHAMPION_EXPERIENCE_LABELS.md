@@ -1,6 +1,14 @@
 # Champion experience labels: audit (October 2026)
 
-What every label on **My Profile → All Champions** means, how it is worked out, and where else the
+> **2 November 2026: Experience is no longer shown on the profile.** All Champions has no
+> Experience column, sort, badge or evidence bars; the champion window has no "Experience: …" line;
+> the Overview's champion pools have no label under each champion (they show games, win rate, KDA
+> and CS/min or vision instead). The labels still appear on the **Team Overview** cards and in the
+> **player details** window, and the estimate (`estimateProficiency`, `getProficiencyLookup`) is
+> unchanged: it also feeds lineup eligibility and team advice. Nothing was dropped from the database.
+> The tables below describe the October 2026 state; the Experience rows apply to Team only now.
+
+What every label on **My Profile → All Champions** meant, how it is worked out, and where else the
 same label appears. The rule behind the October 2026 correction:
 
 - **Player preference** is what the player chooses: their roles, their champion pools and the
@@ -47,10 +55,11 @@ The label comes from one place (`TIER_LABELS`, `TIER_DESCRIPTIONS` and `tierPhra
 `src/domain/proficiency`) and the same estimate (`getProficiencyLookup`), so it is the same word for
 the same champion and role on:
 
-- My Profile → **All Champions** (column *Experience*) and the **champion window** ("Experience: …");
-- My Profile → **Roles & champion pools** (the quiet label under each pool champion);
-- the **player details** window and teammate profiles (table column *Experience*);
+- the **player details** window (table column *Experience*);
 - **Team Overview** cards (first pool champion, when teammate statistics are visible).
+
+Until 2 November 2026 it also appeared on My Profile → All Champions (column *Experience*), in the
+champion window ("Experience: …") and under each champion of Roles & champion pools.
 
 ## How Experience is worked out (revision 2, October 2026)
 

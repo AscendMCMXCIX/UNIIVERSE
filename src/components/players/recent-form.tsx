@@ -21,9 +21,9 @@ export function RecentFormStrip({ form, championsById, historyHref, narrowed = n
   const pct = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)}%`);
   const champ = (id: string) => championsById[id] ?? { id, name: id, portraitUrl: "" };
   return (
-    <section aria-labelledby="recent-form-title" className="@container flex h-full flex-col gap-2.5 rounded-card border border-border bg-surface p-4" data-testid="recent-form">
+    <section aria-labelledby="recent-form-title" className="@container flex h-full flex-col gap-3 rounded-card border border-border bg-surface p-4 panel-depth" data-testid="recent-form">
       <div className="flex items-baseline justify-between gap-2">
-        <h2 id="recent-form-title" className="text-lg font-semibold text-fg">
+        <h2 id="recent-form-title" className="text-base font-semibold text-fg">
           Recent form
         </h2>
         <span className="text-xs text-fg-subtle">Last {strip.length} · oldest to newest</span>
@@ -34,14 +34,15 @@ export function RecentFormStrip({ form, championsById, historyHref, narrowed = n
         </p>
       ) : null}
       {/* A win rises above the line and a loss hangs below it, so the run reads without its colours too. */}
-      <Link href={historyHref} className="flex flex-wrap items-center gap-0.5 rounded-sm" aria-label={`Last ${strip.length} games: ${wins} wins, ${strip.length - wins} losses, newest last. Open Match History`} data-testid="recent-form-strip">
+      {/* The bars share the card's width (up to a fixed size each), over a faint centre line. */}
+      <Link href={historyHref} className="group/strip relative flex items-center gap-0.5 rounded-sm before:pointer-events-none before:absolute before:inset-x-0 before:top-1/2 before:h-px before:bg-border/70" aria-label={`Last ${strip.length} games: ${wins} wins, ${strip.length - wins} losses, newest last. Open Match History`} data-testid="recent-form-strip">
         {strip.map((g) => (
-          <span key={g.matchId} title={`${g.win ? "Win" : "Loss"} · ${champ(g.championId).name}`} className={cn("flex h-8 w-3 flex-col", g.win ? "justify-start" : "justify-end")} data-result={g.win ? "W" : "L"}>
-            <span className={cn("h-4 rounded-[3px]", g.win ? "bg-blue/85" : "bg-red/75")} />
+          <span key={g.matchId} title={`${g.win ? "Win" : "Loss"} · ${champ(g.championId).name}`} className={cn("relative flex h-8 min-w-1.5 max-w-3.5 flex-1 flex-col @xl:max-w-5", g.win ? "justify-start" : "justify-end")} data-result={g.win ? "W" : "L"}>
+            <span className={cn("h-4 rounded-[3px] transition-opacity duration-150 group-hover/strip:opacity-100", g.win ? "bg-blue opacity-90" : "bg-red opacity-80")} />
           </span>
         ))}
       </Link>
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm @md:grid-cols-4" data-testid="recent-form-rates">
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm @lg:grid-cols-4" data-testid="recent-form-rates">
         <div>
           <dt className="text-xs text-fg-subtle">Last {form.recent.games}</dt>
           <dd className="text-lg font-semibold tabular-nums text-fg">

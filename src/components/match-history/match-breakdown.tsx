@@ -9,6 +9,7 @@ import type { PortraitChampion } from "@/components/champion-portrait";
 import { BookmarkButton } from "@/components/matches/bookmark-button";
 import { formatCount, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { tabIndicatorClass } from "@/components/ui/tab-bar";
 import { MatchDetailCacheContext, type MeetingScope } from "./match-detail-cache";
 import { OpggHistoryLink } from "./opgg-history-link";
 import { GroupsNote, RanksNote, TeamTable } from "./scoreboard";
@@ -186,7 +187,7 @@ export function MatchBreakdown({ playerId, view, champ, variant }: { playerId: s
                 document.getElementById(tabId(next))?.focus();
               }}
               tabIndex={tab === key ? 0 : -1}
-              className={cn("h-10 min-w-0 flex-1 border-b-2 px-1 text-sm font-medium transition-colors pointer-coarse:h-11 sm:flex-none sm:px-3 md:h-9", tab === key ? "border-accent text-fg" : "border-transparent text-fg-muted hover:border-border-strong hover:text-fg")}
+              className={cn("h-10 min-w-0 flex-1 px-1 text-sm font-medium transition-colors pointer-coarse:h-11 sm:flex-none sm:px-3 md:h-9", tabIndicatorClass(tab === key))}
               data-testid={`match-tab-${key}`}
             >
               {label}

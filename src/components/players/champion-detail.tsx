@@ -21,6 +21,7 @@ import { Select } from "@/components/ui/input";
 import { FilterField, RefineButton } from "@/components/ui/filter-bar";
 import { percent, formatCount } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { tabIndicatorClass } from "@/components/ui/tab-bar";
 import { accountShortNames } from "@/domain/account-names";
 
 /*
@@ -123,11 +124,6 @@ export function ChampionDetail({
                 <span>Every role</span>
               )}
               {card?.inPool ? <span className="rounded-full border border-accent/40 bg-accent/10 px-2 text-xs font-medium leading-5 text-accent">{card.inPool === "primary" ? "Primary pool" : card.inPool === "secondary" ? "Secondary pool" : "In pool"}</span> : null}
-              {card && card.tier !== "unknown" ? (
-                <span className="text-xs" data-testid="champion-detail-tier">
-                  Experience <span className="font-semibold text-fg">{card.tierLabel}</span>
-                </span>
-              ) : null}
             </p>
           </div>
         </div>
@@ -156,7 +152,7 @@ export function ChampionDetail({
                 onTab(next);
                 document.getElementById(`champion-tab-${next}`)?.focus();
               }}
-              className={cn("-mb-px h-10 border-b-2 px-3 text-sm font-medium transition-colors", sel.tab === key ? "border-accent text-fg" : "border-transparent text-fg-muted hover:border-border-strong hover:text-fg")}
+              className={cn("-mb-px h-10 px-3 text-sm font-medium transition-colors", tabIndicatorClass(sel.tab === key))}
               data-testid={`champion-tab-${key}`}
             >
               {label}
@@ -320,11 +316,6 @@ function OverviewPanel({ me, card, data, champ, multiAccount, onOpponent, onMatc
       )}
       {/* The champion's multikills in the same games, with how many of them have counts. */}
       {card?.multikills && r && r.games > 0 ? <MultikillSummaryRow m={card.multikills} className="rounded-panel border border-border/70 bg-bg-elevated/60 px-3 py-2" testId="champion-multikills-summary" /> : null}
-      {card && card.tier !== "unknown" ? (
-        <p className="text-xs text-fg-muted" data-testid="champion-proficiency">
-          <span className="font-medium text-fg">Experience: {card.tierLabel}.</span> {card.tierWhy}
-        </p>
-      ) : null}
       {!r || r.games === 0 ? null : !data ? (
         <Loading label={`Loading ${me.name}'s lanes`} />
       ) : !lane || lane.games === 0 ? (
