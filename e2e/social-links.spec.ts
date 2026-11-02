@@ -53,7 +53,7 @@ test("a member switches on the links to show; teammates see only those, and noth
   const saved = page.getByTestId("social-links-form");
   await expect(saved.getByLabel("YouTube", { exact: true })).toHaveValue("youtube.com/@E2EChannel");
   await expect(saved.getByLabel("Discord", { exact: true })).toHaveValue("e2e.player");
-  await expect(saved.getByLabel("Twitch", { exact: true })).toHaveValue("e2e_live_stream");
+  await expect(saved.getByLabel("Twitch", { exact: true })).toHaveValue("twitch.tv/e2e_live_stream");
   await expect(toggle(saved, "YouTube")).toBeChecked();
   await expect(toggle(saved, "Twitch")).not.toBeChecked();
   await expect(toggle(saved, "Discord")).toBeChecked();
