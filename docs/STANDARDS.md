@@ -232,8 +232,13 @@ ones lazily, and keep uploaded brand images small ([HOSTING_USAGE.md](HOSTING_US
   `requireSession`, ..., or `getSession` followed at once by a refusal when there is none).
   `src/server/actions/guards.test.ts` reads every `"use server"` module and fails for an action
   whose first asynchronous step is anything else; the few public ones (signing in, setup,
-  recovery) are listed there with what protects them. Pages use `requirePageAccess`; hiding a
-  control is never the protection.
+  recovery) are listed there with what protects them. Hiding a control is never the protection.
+- Every member and admin page calls `requirePageAccess` itself (signed in, setup finished, and
+  the permission). A layout's check does not protect its pages: Next.js renders a layout and its
+  page at the same time, so a page without its own check still runs and its data is sent in the
+  response even when the layout redirects. `src/app/page-guards.test.ts` fails for a page under
+  `(app)` or `(admin)` that does not call it; pages that only redirect, and the "no access" page,
+  are listed there with the reason.
 - No secrets in URLs, logs, error messages or reports. Job endpoints take the secret in the
   `Authorization` header only. An action shows a caught error through `publicErrorMessage`
   (`src/server/errors.ts`): database and driver errors, which carry SQL text and values, become a

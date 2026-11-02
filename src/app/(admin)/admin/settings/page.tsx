@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { AccountSettings } from "@/components/settings/account-settings";
-import { getSession } from "@/server/auth/session";
 import { isAdmin } from "@/server/auth/permissions";
+import { requirePageAccess } from "@/server/auth/page-access";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +11,6 @@ export const dynamic = "force-dynamic";
  * administrator has this page in Player Mode.
  */
 export default async function AdminSettingsPage() {
-  if (!isAdmin(await getSession())) redirect("/settings");
+  if (!isAdmin(await requirePageAccess())) redirect("/settings");
   return <AccountSettings mode="admin" />;
 }
