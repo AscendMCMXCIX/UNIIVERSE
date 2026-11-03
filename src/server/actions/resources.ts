@@ -1,5 +1,6 @@
 "use server";
 
+import { publicErrorMessage } from "@/server/errors";
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { getAppDb } from "@/server/bootstrap";
@@ -57,7 +58,7 @@ async function change(action: AuditAction, apply: (lib: ResourceLibrary) => { li
     revalidatePath("/admin/resources");
     return { ok: true, data: managed(lib) };
   } catch (err) {
-    return { ok: false, error: (err as Error).message };
+    return { ok: false, error: publicErrorMessage(err) };
   }
 }
 
@@ -67,7 +68,7 @@ export async function getManagedResourcesAction(): Promise<Result> {
     await requirePermission("manage-branding");
     return { ok: true, data: managed(await readResourceLibrary(await getAppDb())) };
   } catch (err) {
-    return { ok: false, error: (err as Error).message };
+    return { ok: false, error: publicErrorMessage(err) };
   }
 }
 

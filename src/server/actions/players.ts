@@ -1,5 +1,6 @@
 "use server";
 
+import { publicErrorMessage } from "@/server/errors";
 import { revalidatePath } from "next/cache";
 import { invalidatePublicTeam } from "@/server/public/team";
 import { z } from "zod";
@@ -8,7 +9,7 @@ import { MAX_POOL_SIZE, type RolePool } from "@/domain/roster";
 import { CARD_ACCENTS } from "@/domain/player-card";
 import { getAppDb } from "@/server/bootstrap";
 import { getSession, hasPermission, requirePermission, requirePlayerEditor } from "@/server/auth/session";
-import { applyLineupPreset, archivePlayer, createPlayer, deleteLineupPreset, getOrCreateTeam, PlayerValidationError, saveCurrentLineupAs, setLineupSlot, setLineupSubstitute, updatePlayer } from "@/server/repositories/team";
+import { archivePlayer, getOrCreateTeam, PlayerValidationError, setLineupSlot, setLineupSubstitute, updatePlayer } from "@/server/repositories/team";
 import { traced } from "@/server/observability/log";
 
 const playerSchema = z.object({
@@ -29,7 +30,7 @@ export type ActionResult<T = undefined> = { ok: true; data?: T } | { ok: false; 
 function fail(err: unknown): ActionResult<never> {
   if (err instanceof PlayerValidationError || (err as Error).name === "NotAuthorizedError" || (err as Error).constructor?.name === "UserError") return { ok: false, error: (err as Error).message };
   if (err instanceof z.ZodError) return { ok: false, error: err.issues.map((i) => i.message).join("; ") };
-  return { ok: false, error: (err as Error).message ?? "Something went wrong." };
+  return { ok: false, error: publicErrorMessage(err, "Something went wrong.") };
 }
 
 function touch() {
@@ -48,20 +49,6 @@ function touch() {
 
 export async function currentSessionAction() {
   return getSession();
-}
-
-export async function createPlayerAction(input: PlayerFormInput): Promise<ActionResult<{ id: string }>> {
-  try {
-    await requirePermission("manage-players");
-    const parsed = playerSchema.parse(input);
-    const db = await getAppDb();
-    const team = await getOrCreateTeam(db);
-    const player = await createPlayer(db, team.id, parsed);
-    touch();
-    return { ok: true, data: { id: player.id } };
-  } catch (err) {
-    return fail(err);
-  }
 }
 
 export async function updatePlayerAction(playerId: string, input: PlayerFormInput): Promise<ActionResult> {
@@ -145,45 +132,6 @@ export async function setLineupSubstituteAction(role: (typeof ROLES)[number], pl
     const db = await getAppDb();
     const team = await getOrCreateTeam(db);
     await setLineupSubstitute(db, team.id, r, id);
-    touch();
-    return { ok: true };
-  } catch (err) {
-    return fail(err);
-  }
-}
-
-export async function saveLineupPresetAction(name: string): Promise<ActionResult<{ id: string }>> {
-  try {
-    await requirePermission("manage-lineup");
-    const db = await getAppDb();
-    const team = await getOrCreateTeam(db);
-    const preset = await saveCurrentLineupAs(db, team.id, name);
-    touch();
-    return { ok: true, data: { id: preset.id } };
-  } catch (err) {
-    return fail(err);
-  }
-}
-
-export async function applyLineupPresetAction(presetId: string): Promise<ActionResult> {
-  try {
-    await requirePermission("manage-lineup");
-    const db = await getAppDb();
-    const team = await getOrCreateTeam(db);
-    await applyLineupPreset(db, team.id, presetId);
-    touch();
-    return { ok: true };
-  } catch (err) {
-    return fail(err);
-  }
-}
-
-export async function deleteLineupPresetAction(presetId: string): Promise<ActionResult> {
-  try {
-    await requirePermission("manage-lineup");
-    const db = await getAppDb();
-    const team = await getOrCreateTeam(db);
-    await deleteLineupPreset(db, team.id, presetId);
     touch();
     return { ok: true };
   } catch (err) {
