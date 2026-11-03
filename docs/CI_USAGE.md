@@ -206,3 +206,10 @@ The day-to-day rules are in `CLAUDE.md`. In short:
 - Merge with the "Create a merge commit" method once CI is green and the PR is up to date with `main`, so the push to `main` reuses the result.
 - After a deploy that changes app behaviour, run one `Data jobs` run (`smoke`; add `perf-probe` when data loading changed, since each probe reads about 6 MB of the daily egress budget).
 - **Re-running a job** costs as much as the first run. Do it only when the failure was clearly not caused by the code.
+
+## 3 Nov 2026: the Production check and the workflow lint
+
+- **Production check** (`production-check.yml`): about 3 billed minutes a run (install with the pnpm and Playwright caches, then the live check at three widths). It runs after each successful production deployment (a docs-only merge is not deployed, so it does not run) and once a day: with about one deployment a day, about 180 minutes a month. Mondays add the perf probe (under a minute). It does not start CI.
+- **Workflow lint** (`workflow-lint.yml`): about 15 seconds, only on pull requests that change a workflow. It does not start CI.
+- **Database backup:** the size summary and the manifest artifact add a few seconds a week. Changes to `backup.yml` no longer start CI.
+

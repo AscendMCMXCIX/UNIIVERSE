@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "./test";
+import { expectClearCorner } from "./modal-corner";
 
 /*
   All Champions → a champion's window on the demo roster (synthetic demo games with lane opponents
@@ -70,6 +71,9 @@ test("a champion opens its window: overview, then a matchup with its record, lan
   await page.getByTestId("lane-game").first().click();
   await expect(page.getByTestId("match-detail")).toBeVisible();
   expect(await openDialogs(page)).toBe(1);
+  // Back sits left of the close button, past a divider (the corner stays clear).
+  await expect(page.getByTestId("match-detail").getByTestId("match-result")).toBeVisible();
+  await expectClearCorner(page, { nav: true });
   await page.getByTestId("match-detail-back").click();
   await expect(page.getByTestId("matchup-summary")).toBeVisible();
   await expect(page.getByTestId("champion-tab-matchups")).toHaveAttribute("aria-selected", "true");

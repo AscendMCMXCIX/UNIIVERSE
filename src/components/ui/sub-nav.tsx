@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
-import { TabLinks } from "./tab-links";
+import { SubTabs } from "./sub-tabs";
 
 export interface SubNavItem {
   href: string;
@@ -12,8 +12,12 @@ export interface SubNavItem {
   exact?: boolean;
 }
 
-/** Section tabs under a page title (Settings, Admin, a profile…), current tab from the path. Same look as TabLinks. */
-export function SubNav({ items, label }: { items: SubNavItem[]; label: string }) {
+/**
+ * Secondary tabs between related pages (Admin's Users & Permissions), the current one from the
+ * path: the same look and behaviour as a section's views (SubTabs), each page starting at the top.
+ */
+export function SubNav({ items, label, testId }: { items: SubNavItem[]; label: string; testId?: string }) {
   const pathname = usePathname();
-  return <TabLinks label={label} items={items.map(({ href, label: text, icon, exact }) => ({ href, label: text, icon, active: exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`) }))} />;
+  const active = items.find(({ href, exact }) => (exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`)));
+  return <SubTabs label={label} current={active?.href ?? ""} keepScroll={false} testId={testId} items={items.map(({ href, label: text, icon }) => ({ key: href, href, label: text, icon }))} />;
 }

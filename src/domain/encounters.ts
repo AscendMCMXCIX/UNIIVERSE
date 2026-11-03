@@ -35,7 +35,8 @@ export const ENCOUNTER_PAGE = 25;
 const MAX_SHOWN = 500;
 /** The minimums a list offers. */
 export const ENCOUNTER_MINIMUMS = [1, 2, 3, 5, 10] as const;
-const RELATIONS: readonly EncounterRelation[] = ["against", "alongside", "all"];
+/** The relations in the order a list offers them: every player first, then each side. */
+export const RELATIONS: readonly EncounterRelation[] = ["all", "against", "alongside"];
 /** The names an older address used (Opponents, Allies, Everyone): they still open the same list. */
 const LEGACY_RELATIONS: Readonly<Record<string, EncounterRelation>> = { opponents: "against", allies: "alongside", everyone: "all" };
 const SORTS: readonly EncounterSort[] = ["games", "recent", "best", "worst"];
@@ -46,14 +47,15 @@ export const sortsFor = (relation: EncounterRelation): readonly EncounterSort[] 
 export const defaultMinimum = (q: string) => (q ? 1 : 2);
 
 /**
- * The choices an address names; anything missing or unknown is the default (against, most games
- * first). A win-rate order asked of every game with a player reads as most games.
+ * The choices an address names; anything missing or unknown is the default (every player met, both
+ * records side by side, most games first). A win-rate order asked of every game with a player reads
+ * as most games.
  */
 export function encounterListChoice(sp: { rel?: string; min?: string; sort?: string; q?: string; limit?: string }): EncounterListChoice {
   const q = (sp.q ?? "").trim().slice(0, 32);
   const min = Number(sp.min);
   const limit = Math.round(Number(sp.limit));
-  const relation = RELATIONS.find((r) => r === sp.rel) ?? (sp.rel ? LEGACY_RELATIONS[sp.rel] : undefined) ?? "against";
+  const relation = RELATIONS.find((r) => r === sp.rel) ?? (sp.rel ? LEGACY_RELATIONS[sp.rel] : undefined) ?? "all";
   return {
     relation,
     min: (ENCOUNTER_MINIMUMS as readonly number[]).includes(min) ? min : defaultMinimum(q),
@@ -66,12 +68,34 @@ export function encounterListChoice(sp: { rel?: string; min?: string; sort?: str
 /** The address parameters of a choice, defaults left out (the reverse of encounterListChoice). */
 export function encounterListParams(c: EncounterListChoice): Record<string, string> {
   const out: Record<string, string> = {};
-  if (c.relation !== "against") out.rel = c.relation;
+  if (c.relation !== "all") out.rel = c.relation;
   if (c.min !== defaultMinimum(c.q)) out.min = String(c.min);
   if (c.sort !== "games") out.sort = c.sort;
   if (c.q) out.q = c.q;
   if (c.limit !== ENCOUNTER_PAGE) out.limit = String(c.limit);
   return out;
+}
+
+/**
+ * One player met, opened from Encounters (or a game's scoreboard): their games in Match History,
+ * all of them or the ones on one side. `key` is the list's opaque key (never an account).
+ */
+export interface EncounterFocus {
+  key: string;
+  side: EncounterRelation;
+}
+
+const ENCOUNTER_KEY = /^[A-Za-z0-9_-]{16}$/;
+
+/** The player an address names (`met`, and `side`: against or alongside, else every game); null without a readable key. */
+export function readEncounterFocus(sp: { met?: string; side?: string }): EncounterFocus | null {
+  if (!sp.met || !ENCOUNTER_KEY.test(sp.met)) return null;
+  return { key: sp.met, side: sp.side === "against" || sp.side === "alongside" ? sp.side : "all" };
+}
+
+/** The address parameters of a focus (the reverse of readEncounterFocus). */
+export function encounterFocusParams(f: EncounterFocus): Record<string, string> {
+  return f.side === "all" ? { met: f.key } : { met: f.key, side: f.side };
 }
 
 /** Below this many games a record is a small sample (shown, never highlighted). */

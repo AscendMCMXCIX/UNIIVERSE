@@ -27,6 +27,8 @@ Each item says what to do, what to expect and where to look when it fails.
 
 ## Automated live check
 
+**It runs by itself (3 Nov 2026):** GitHub's Production check (`.github/workflows/production-check.yml`) runs it after each production deployment and every day, from GitHub's runner, with no setup by anyone. Without the verification account's secrets it checks the public pages and the signed-out security, and reports the member pages as pending. The items below that need a signed-in member stay for a person, or for the check once those secrets exist (`docs/MONITORING.md`).
+
 `scripts/live-check.mjs` checks the deployed site from a browser. It runs the read-only checks that people otherwise do by hand, at desktop (1440 px), tablet (768 px) and phone (390 px) widths, and saves a screenshot of every page for review.
 
 ```
@@ -540,7 +542,7 @@ A profile's Match History opens each game under its card (`docs/ARCHITECTURE.md`
 - [ ] Team members: "Against <name>" lists only games where that member was on the other side (their name on the card's other team), "With any team member" only games with a member on your side; the counts match the number of games listed.
 - [ ] Refine → Show the games → By playing session (a chip shows it): the games fall under headers (date, start and end times, games, W/L, KDA, CS/min, time played) in the same newest-first order; a session cut by the page break says how many of its games are on the page; a game still opens under its card; Every game (or the chip) restores the plain list.
 - [ ] On a phone: the Refine fields sit in the opened filter panel without a sideways scroll, and the date fields are usable with the system date picker.
-- [ ] Players met in other games: open a few games under their cards. A player met in another game this season (same game mode filter) carries "Met N×" after their name, and its hover text gives the games against and alongside. Teammates with a profile and players without a recorded Riot ID are never marked. Pressing it opens their Encounters window with "N recorded games with <player>" (the same N) and those games; Escape returns to the mark. A game opened in the window (Team → Matches, Encounters) has no marks. On a phone the mark fits beside the name without a sideways scroll.
+- [ ] Players met in other games: open a few games under their cards. A player met in another game this season (same game mode filter) carries "Met N×" after their name, and its hover text gives the games against and alongside. Teammates with a profile and players without a recorded Riot ID are never marked. Pressing it opens their games in Match History → Encounters with "N games with <player>" (the same N) and those games; Back returns to the game. A game opened in the window (Team → Matches, Encounters) has no marks. On a phone the mark fits beside the name without a sideways scroll.
 - [ ] Data jobs → `perf-probe`: the step `profile.matchMeetings` passes, with counts only.
 
 ## Match History: one game, one set of figures (29 Oct 2026)
@@ -636,3 +638,17 @@ On the live site, after the deployment (checked locally on demo data at 1440, 19
 - [ ] The keyboard: Tab reaches each card once, Enter or Space opens and closes the game, and the focus stays on the card.
 - [ ] A copied Team Matches link with `?match=` opens that game under its card. Back and Forward follow the open game.
 - [ ] Matchups, Encounters and a Match History link to a game not on the page still open the match window, as before.
+
+## Match History and Encounters: one navigation, All first, a player's games in Match History (3 Nov 2026)
+
+On the live site, after the deployment (checked locally on demo data at 1440, 768 and 390 px; no physical devices were used):
+- [ ] Data jobs → `smoke` and `perf-probe`: every step passes and `deployment.commit` is the merge commit.
+- [ ] A profile → Match History, on a computer and on a phone: Games and Encounters are two tabs directly under the profile's tabs, where the "Match History" title was; the current one is a lit pill with a blue icon. On a phone they share the width. Switching keeps the season, game mode and account, the page does not jump, and Back and Forward switch back.
+- [ ] Games: the line under the tabs reads "N games · Season … · …" with the one ⓘ for how current the data is; no ⓘ stands alone.
+- [ ] Encounters opens on **All** (no `rel` in the address): one row per player, the Against games, record and win rate in their own columns, a rule, then the same for Alongside, then when you last met. "never" where a side has no games. Against and Alongside filter the list (each with its count); the ⓘ beside them says how encounters are counted.
+- [ ] The highlights sit in one line above the table, like the summary line on Games; each opens that player's games.
+- [ ] A player (a row or a highlight): their games open in Match History itself, Encounters still the current tab, with "All encounters", their name (and OP.GG for a real Riot ID, in a new tab), "N games with … · last met …", the Against and Alongside records, and All / Against / Alongside when they were met both ways. The games are ordinary Match History cards; a game opens under its card with Scoreboard, Analysis, Timeline and Build, as on Games. There is no Encounters window any more.
+- [ ] "All encounters" returns to the list as it was (the same filter, minimum and search); Back does too. A copied link to a player's games opens the same games and side.
+- [ ] A game's scoreboard: "Met N×" opens that player's games with the same N.
+- [ ] Admin Mode → Users & Permissions: Accounts, Access levels & groups and Personal data are the same pill tabs.
+- [ ] Leaderboards is unchanged (its rules wait for your decision).

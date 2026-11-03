@@ -7,7 +7,9 @@ A backup only counts once it has been restored and checked. This page says how t
 - **Role check passed:** `uniiverse_backup` is not a superuser, bypasses Row Level Security, starts every session read-only, owns nothing, and could read all 69 tables and write none.
 - **Restore check passed:** the dump (69 tables, 56 MB) was restored into a throw-away PostgreSQL 17 and matched production: 1 team, 16 users, 15 players, 18 Riot accounts, 7,208 match details, newest migration `0054_web_vitals`.
 - **The copy:** encrypted with AES-256, 55 MB, kept as the run's artifact `database-backup-39686307330` until 18 Nov 2026. From now on it runs every Monday at 02:43 UTC, the first on 26 Oct.
-- **Not yet done:** the owner's own check (one-time setup, step 4): download this backup, open it with the passphrase from the password manager, and keep that file offline. The retired tables are not dropped (#86) until the owner confirms both.
+- **Weekly runs since then:** 26 Oct and 2 Nov 2026 both passed every check. The 2 Nov copy ([run 41424554552](https://github.com/AscendMCMXCIX/UNIIVERSE/actions/runs/41424554552)) is 67 MB encrypted and kept until 30 Nov 2026.
+- **Growth:** the encrypted copy grew from 55 MB (21 Oct) to 67 MB (2 Nov), about 1 MB a day. At that pace the run's 100 MB limit (Limits, below) is reached in early December. Dropping the retired tables shrinks it; raising `max_mb` is the other way.
+- **Not yet done:** the owner's own check (one-time setup, step 4): download a backup, open it with the passphrase from the password manager, and keep that file offline. The retired tables are not dropped (#86, #138) until the owner confirms both.
 - Supabase's free plan includes no automatic backups and no point-in-time recovery; both come with paid plans. The project's own Backups page was not checked for this note, so these weekly copies are the ones to rely on.
 
 ## What is worth keeping
@@ -115,7 +117,7 @@ The daily `integrity` job also re-applies the records to anything stored in the 
 
 Each run:
 1. dumps the `public` schema (all of UNIIVERSE's tables) in one consistent snapshot, reading only;
-2. restores it into a throw-away Postgres on the runner and checks that the number of tables, teams, accounts, players, Riot accounts and stored games, and the newest migration, match production;
+2. restores it into a throw-away Postgres on the runner and checks that the number of tables, teams, accounts, players, Riot accounts and stored games, and the newest migration, match production. It also checks every retired table that a held pull request would drop (#86, #138) and that still exists: each must restore with all its rows, and the manifest lists them under `retiredTableRows`;
 3. encrypts it with AES-256 and checks the encrypted file opens again;
 4. keeps it for 28 days as a private artifact of the run: about four weekly copies. A manifest beside it lists sizes, row counts and checksums, with no data and no secrets.
 
@@ -176,3 +178,9 @@ To remove the role later: `DROP OWNED BY uniiverse_backup; DROP ROLE uniiverse_b
   - The script fails above 100 MB, so four weekly copies fit and a growing database is noticed rather than cut off. A run started by hand can allow more (`max_mb`), for example the last backup before the retired tables are dropped; the copies after the drop are much smaller.
   - Production was 300 MB on 19 Oct 2026 (`db-usage`), about 200 MB of it the retired Meta & Trends tables. Most of that is numbers that compress well: the first backup (21 Oct 2026) was a 56 MB dump and 55 MB encrypted, under the limit.
 - **The window between backups.** Up to a week of changes can be lost. A paid Supabase plan (daily backups, optional point-in-time recovery) shortens that, at a monthly cost.
+
+## Monitoring (3 Nov 2026)
+
+- **Each run** writes the encrypted size against `MAX_MB` and the rows it proved to its summary, and keeps its manifest (sizes, counts and checksums: no data, no secret) for 90 days as `database-backup-manifest-<run>`, so growth can be followed.
+- **A failed run, or a copy over 80% of `MAX_MB`,** opens one issue labelled `database-backup` (later runs comment on it); the next healthy run closes it.
+- **The daily Production check** fails when no backup has passed for 8 days (`docs/MONITORING.md`).
