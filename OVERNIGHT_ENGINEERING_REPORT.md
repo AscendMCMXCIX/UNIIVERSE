@@ -64,8 +64,11 @@ From the owner's brief and `CLAUDE.md`:
 | `a11y/label-in-name-scroll-regions` | #173 | Names that match what controls show; wide tables the keyboard can scroll; axe at phone width and in two windows | **Deployed** (90dabfb), smoke passed. Not yet production-verified: its screens were not checked on the live site |
 | `pwa-windows-integration` | #171 (draft) | Installed app: jump-list shortcuts, one reused window | Optional; unit tests, build and its browser spec pass; full suite in CI when marked ready |
 | `overnight/engineering-report` | #174 | This report | Docs only (CI and Vercel skip it) |
-| `ops/riot-id-family-audit` | #175 (draft) | Riot key evidence: the key's tier from Riot's stated limits, and which stored games carry the current player ids | **Tested** (unit 563, database tests, after merging `main`); not deployed; waits for your approval |
-| `leaderboards-model` | #177 (ready; CI running) | Leaderboards' proposed model, as tested domain code, and its production audit; the page is unchanged | **Tested** (unit 580, database 473, build and the leaderboards specs, after merging `main` at #178); not deployed; waits for your approval to merge |
+| `ops/riot-id-family-audit` | #175 (ready; CI running) | Riot key evidence: the key's tier from Riot's stated limits, and which stored games carry the current player ids | **Tested** (unit 581, database 476, after merging `main` at #177); confirmed strictly read only; approved in principle, merges once CI passes |
+| `leaderboards-model` | #177 | Leaderboards' proposed model, as tested domain code, and its production audit; the page is unchanged | **Deployed** (`d72619a`), smoke passed; its audit ran on production (run 41597099104). Findings and the proposed rules: [the Leaderboards report](https://claude.ai/artifact/UtfbhTL5RJqub513acZpDJ) |
+| `dependabot/…minor-and-patch…` | #176 | next 16.4.3, eslint-config-next 16.4.3, lucide-react 1.65.0, PGlite 0.5.13 | **Tested** locally after merging `main`: unit 580, database 473, build, the desktop browser suite (250 passed); approved, merges after #175 once CI passes |
+| `ops/backup-retired-tables` | #179 (draft) | Each backup proves the 23 retired tables that #86 and #138 would drop restore with all their rows | **Tested** end to end on a local PostgreSQL 16, including the failing case; tooling only |
+| `ops/live-check` | #180 (draft) | A read-only live check of the deployed site at three widths (#170, #173, #178) | **Tested** against a local demo build (200 checks passed); runs on production once this environment can reach it |
 | `ux/layout-consistency` | #178 | Neutral frame, compact All Champions, Team Matches opens games under their cards, the layout rules | **Deployed** (5e11ba5), smoke passed. Not yet production-verified: its screens were not checked on the live site (this environment cannot reach it, section 7) |
 
 Before the release, all six original branches merged cleanly with `main` and with one another (all 15
@@ -87,6 +90,7 @@ Each one was:
 | #172 hardening | `37c19f6` | all four jobs green (run 41533293385) | smoke, run 41540033680: production on `37c19f6`, database 5 ms, no failing job |
 | #169 season figures | `33590c7` | all four jobs green (run 41540441511) | smoke and perf-probe, run 41546289924: production on `33590c7`, health ok, database 3 ms, no failing job |
 | #173 accessibility | `90dabfb` | all four jobs green (run 41547593587) | smoke and perf-probe, run 41553164525: production on `90dabfb`, health ok, no failing job |
+| #177 Leaderboards model (no page change) | `d72619a` | all jobs green on the PR's head (run 41584341897) | smoke and data-audit, run 41597099104: production on `d72619a`, health ok, database 5 ms, no failing job; the audit's findings are in [the Leaderboards report](https://claude.ai/artifact/UtfbhTL5RJqub513acZpDJ) |
 | #178 UX consistency | `5e11ba5` | all jobs green on the PR's head (run 41579132017: 517 browser tests passed, 353 skipped by design, none retried) and WebKit (run 41579431950); the push to `main` reused that result | smoke, run 41583580731: production on `5e11ba5`, health ok, database 2 ms, no failing job; member pages redirect signed-out visitors to sign-in |
 
 Every pre-merge revalidation passed:
@@ -533,11 +537,10 @@ until a native capability is approved.
 
    It should print 0 (before the fix, the redirect's body carried the player's ids). Alternatively,
    add `team-uniiverse.vercel.app` to this environment's allowed hosts and I will run it.
-2. **Merge #175** (the Riot key evidence): it only adds read-only reports. Then one
-   `riot-check data-audit` run answers whether any stored game needs re-keying (section 4b).
-3. **Approve merging the Leaderboards model (#177).** It changes no page; it is ready and its CI
-   is running. Its read-only audit then measures the proposed boards on the team's own games, and I
-   bring you the final ranking rules to approve before the page switches.
+2. **#175 (the Riot key evidence)** is approved in principle and merges once its CI passes. Then
+   one `riot-check data-audit` run answers whether any stored game needs re-keying (section 4b).
+3. **Decide the Leaderboards rules** in [the Leaderboards report](https://claude.ai/artifact/UtfbhTL5RJqub513acZpDJ): a decision on each
+   of the ten rules. The live Leaderboards stay as they are until then.
 4. **Check #178 on the live site** (it is deployed; I could not see its pages). Either:
    - go through the checklist in `docs/LIVE_VALIDATION.md` → "UX consistency" on a computer and a
      phone; or
@@ -545,9 +548,13 @@ until a native capability is approved.
      it a non-admin verification account as `UNIIVERSE_VERIFY_USER` and `UNIIVERSE_VERIFY_PASSWORD`.
      I then run the scripted live check, which reads pages only, at 1440 and 390 px, with
      screenshots.
-5. **Verify the encrypted backup and keep an offline copy,** so the held table drops (#86, #138) can
-   run before the database fills.
-6. **Dependabot #176** (next 16.4.3 and others; CI green): merge when convenient.
+5. **Your backup check** before any table drop: download a backup, open it with the passphrase from
+   your password manager, and keep that file offline (`docs/BACKUPS.md`, "Open and check a
+   backup"). Only you can do this: the passphrase never reaches me. The weekly backups pass every
+   check (21 Oct, 26 Oct, 2 Nov), and #179 adds proof of the 23 retired tables' rows. The encrypted
+   copy grows about 1 MB a day and reaches the run's 100 MB limit in early December.
+6. **Dependabot #176** is approved and merges after #175 once its CI passes. The one moderate
+   alert left (`minimatch`, inside ESLint) is development-only and not part of what is deployed.
 7. **Optional:** the draft PWA branch (#171), a Microsoft Store listing (your account), Web Push.
 8. **A native desktop app needs two things you would have to approve:** a Riot-approved League
    client use, and a signing certificate's yearly cost.
@@ -578,12 +585,14 @@ commit; one production check after each deploy):
   environment can reach the site (section 7).
 
 **Prepared, waiting for you:**
-- **Riot key evidence (#175, draft).** The key works and is very likely Personal. Merging #175 lets
-  one audit say whether any older stored game needs re-keying.
-- **Leaderboards model (#177, ready, CI running). Tested.** Everyone is compared on their latest
-  20 games, with honest statuses for small samples and role figures within their role only. It is
-  tested as domain code. Once merged, its read-only audit measures it on the team's games, including
-  how often places tie, before the page changes.
+- **Riot key evidence (#175). Tested; merges once CI passes.** The key works and is very likely
+  Personal. After the merge, one audit says whether any older stored game needs re-keying.
+- **Leaderboards (#177). Deployed** (the model and its audit; the page is unchanged). Measured on
+  the team's own games: the overall All games board ranks all 7 members, but role boards and the
+  Ranked view are too thin or tied to rank. Ten proposed rules wait for your decision in
+  [the Leaderboards report](https://claude.ai/artifact/UtfbhTL5RJqub513acZpDJ).
+- **Backup proof for the retired tables (#179, draft)** and **the automated live check (#180,
+  draft)**: both tested; tooling only.
 - **The PWA's Windows integration (#171, draft).**
 
 **Remaining concerns:**
