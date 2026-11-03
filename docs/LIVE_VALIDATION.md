@@ -27,6 +27,8 @@ Each item says what to do, what to expect and where to look when it fails.
 
 ## Automated live check
 
+**It runs by itself (3 Nov 2026):** GitHub's Production check (`.github/workflows/production-check.yml`) runs it after each production deployment and every day, from GitHub's runner, with no setup by anyone. Without the verification account's secrets it checks the public pages and the signed-out security, and reports the member pages as pending. The items below that need a signed-in member stay for a person, or for the check once those secrets exist (`docs/MONITORING.md`).
+
 `scripts/live-check.mjs` checks the deployed site from a browser. It runs the read-only checks that people otherwise do by hand, at desktop (1440 px), tablet (768 px) and phone (390 px) widths, and saves a screenshot of every page for review.
 
 ```

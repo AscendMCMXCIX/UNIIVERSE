@@ -10,6 +10,12 @@
     roster. They are read from the environment and never printed or written anywhere.
   - LIVE_LOCAL=1 checks a local demo build instead (`pnpm start` with the browser tests' demo
     settings): no sign-in, and the security checks are skipped.
+  - Without a sign-in (no verification account yet), the public run: the deployed commit, health,
+    the signed-out and forged-session checks, the security headers, and the public pages at every
+    width (no errors, no sideways scroll, no serious axe violation); the signed-in checks are
+    reported as pending, not failed. LIVE_REQUIRE_SIGN_IN=1 makes a missing sign-in a failure.
+  - EXPECTED_COMMIT: the commit just deployed (GitHub's Production check passes it): the check waits
+    up to LIVE_WAIT_SECONDS (default 300) for production to answer from it, and fails otherwise.
 
   It only reads. It signs in, opens pages, opens and closes games and windows, switches a view, and
   presses Back, Forward, Enter and Escape. It never submits a form after signing in, and never
@@ -41,6 +47,9 @@ const out = process.argv[3] ?? `live-check-${new Date().toISOString().slice(0, 1
 const local = process.env.LIVE_LOCAL === "1";
 const user = process.env.UNIIVERSE_VERIFY_USER;
 const password = process.env.UNIIVERSE_VERIFY_PASSWORD;
+const signedIn = local || !!(user && password);
+const expected = (process.env.EXPECTED_COMMIT ?? "").trim().slice(0, 7);
+const waitSeconds = Number(process.env.LIVE_WAIT_SECONDS ?? 300);
 mkdirSync(out, { recursive: true });
 
 const report = { base, startedAt: new Date().toISOString(), local, deployment: null, checks: [], axe: [], pages: [], blockedByEnvironment: 0 };
@@ -62,14 +71,14 @@ async function guarded(area, name, fn) {
 // ── HTTP, through curl (it follows the environment's proxy and certificates) ────────────────────
 function http(path, cookie) {
   const head = `${out}/.headers`, body = `${out}/.body`;
-  const args = ["-s", "--max-time", "30", "-D", head, "-o", body, "-w", "%{http_code} %{redirect_url}"];
+  const args = ["-s", "--max-time", "30", "-D", head, "-o", body, "-w", "%{http_code}|%{redirect_url}|%{time_total}"];
   if (cookie) args.push("-H", `Cookie: ${cookie}`);
   args.push(`${base}${path}`);
   try {
-    const [status, redirect = ""] = execFileSync("curl", args, { encoding: "utf8" }).trim().split(" ");
-    return { status: Number(status), redirect, headers: readFileSync(head, "utf8").toLowerCase(), text: readFileSync(body, "utf8") };
+    const [status, redirect = "", seconds = "0"] = execFileSync("curl", args, { encoding: "utf8" }).trim().split("|");
+    return { status: Number(status), redirect, seconds: Number(seconds), headers: readFileSync(head, "utf8").toLowerCase(), text: readFileSync(body, "utf8") };
   } catch (e) {
-    return { status: 0, redirect: "", headers: "", text: "", error: String(e?.message ?? e).slice(0, 200) };
+    return { status: 0, redirect: "", seconds: 0, headers: "", text: "", error: String(e?.message ?? e).slice(0, 200) };
   } finally {
     rmSync(head, { force: true });
     rmSync(body, { force: true });
@@ -78,14 +87,36 @@ function http(path, cookie) {
 const turnedAway = (r) => ((r.status >= 300 && r.status < 400 && /\/login/.test(r.redirect)) || r.status === 401 || r.status === 403);
 const leaks = (r) => /puuid|data-player-id|data-player-name|gameName|tagLine/i.test(r.text);
 
-function healthAndSecurity(playerId) {
-  const health = http("/api/health");
-  try {
-    report.deployment = JSON.parse(health.text).deployment ?? null;
-  } catch {
-    report.deployment = null;
+/** Production's health and commit; with EXPECTED_COMMIT, waits for the deployment to answer from it. */
+async function deployment() {
+  const deadline = Date.now() + (expected ? waitSeconds * 1000 : 0);
+  let health;
+  for (;;) {
+    health = http("/api/health");
+    let body = null;
+    try {
+      body = JSON.parse(health.text);
+    } catch {
+      body = null;
+    }
+    report.deployment = body?.deployment ?? null;
+    report.health = body ? { ok: body.ok === true, db: body.db?.ok ?? null } : null;
+    if (!expected || report.deployment?.commit === expected || Date.now() > deadline) break;
+    await new Promise((r) => setTimeout(r, 15_000));
   }
-  pass("security", "the site answers /api/health", health.status === 200, { status: health.status, deployment: report.deployment });
+  pass("deploy", "the site answers /api/health, with the app and its database ok", health.status === 200 && report.health?.ok === true && report.health?.db !== false, { status: health.status, health: report.health });
+  if (expected) pass("deploy", `production answers from the commit just deployed (${expected})`, report.deployment?.commit === expected, { answering: report.deployment?.commit ?? null, waitedUpToSeconds: waitSeconds });
+  else check("deploy", "the deployed commit", "PASS", report.deployment?.commit ?? "unknown");
+  // Response times, measured where the check runs: slow is a warning (a cold start can be), not a failure.
+  for (const path of ["/api/health", "/login"]) {
+    const r = path === "/api/health" ? health : http(path);
+    report.timings = { ...(report.timings ?? {}), [path]: r.seconds };
+    if (r.seconds > 3) warn("performance", `${path} answered slowly`, `${r.seconds.toFixed(2)} s`);
+    else check("performance", `${path} answered in ${r.seconds.toFixed(2)} s`, "PASS", r.seconds);
+  }
+}
+
+function healthAndSecurity(playerId) {
   if (local) return warn("security", "security checks skipped", "LIVE_LOCAL=1: the demo build has no sign-in");
   const forged = `uniiverse_session=s1.${"x".repeat(40)}`;
   const paths = ["/team", "/players", "/matches", "/leaderboards", "/overview", "/me", "/settings", "/admin/players"];
@@ -138,7 +169,7 @@ const settle = async (page) => {
 const shot = (page, file, fullPage = false) => page.screenshot({ path: `${out}/${file}.png`, fullPage }).catch(() => {});
 
 /** Opens a page and checks what every page must meet; returns false when it did not load. */
-async function visit(page, log, kind, name, path, { fullPage = true } = {}) {
+async function visit(page, log, kind, name, path, { fullPage = true, publicPage = false } = {}) {
   const from = { c: log.console.length, e: log.pageErrors.length, f: log.failed.length };
   const res = await page.goto(`${base}${path}`, { waitUntil: "domcontentloaded", timeout: 45_000 });
   await settle(page);
@@ -151,8 +182,8 @@ async function visit(page, log, kind, name, path, { fullPage = true } = {}) {
   const consoleErrors = log.console.slice(from.c), pageErrors = log.pageErrors.slice(from.e), failed = log.failed.slice(from.f);
   const status = res?.status() ?? 0;
   report.pages.push({ kind, name, path, status, ...facts, consoleErrors, pageErrors, failed });
-  const loaded = status > 0 && status < 400 && !facts.at.startsWith("/login") && !facts.at.startsWith("/no-access");
-  pass(kind, `${name}: loads signed in (${path})`, loaded, { status, at: facts.at });
+  const loaded = status > 0 && status < 400 && (publicPage || (!facts.at.startsWith("/login") && !facts.at.startsWith("/no-access")));
+  pass(kind, `${name}: loads${publicPage ? "" : " signed in"} (${path})`, loaded, { status, at: facts.at });
   if (!loaded) return false;
   pass(kind, `${name}: no sideways scroll`, facts.scrollX <= 1, facts.scrollX);
   pass(kind, `${name}: no page error or app console error`, pageErrors.length + consoleErrors.length === 0, [...pageErrors, ...consoleErrors].slice(0, 3));
@@ -359,13 +390,28 @@ async function matchHistory(page, log, kind, playerId) {
 }
 
 // ── Run ─────────────────────────────────────────────────────────────────────────────────────────
-if (!local && (!user || !password)) {
-  check("setup", "sign-in credentials", "FAIL", "UNIIVERSE_VERIFY_USER / UNIIVERSE_VERIFY_PASSWORD are not set; only the signed-out checks ran");
-}
+if (!signedIn) check("setup", "signed-in checks", process.env.LIVE_REQUIRE_SIGN_IN === "1" ? "FAIL" : "WARN", "pending: UNIIVERSE_VERIFY_USER / UNIIVERSE_VERIFY_PASSWORD are not set, so the member pages were not opened; the public pages and the signed-out checks ran");
+if (!local) await deployment();
 const browser = await chromium.launch({ executablePath, proxy });
 let playerId = null;
+// The public pages, signed out, at every width: what anyone can open (the public team page and its
+// leaderboards only where the team turned them on).
+if (!local) {
+  for (const [kind, options] of Object.entries(VIEWPORTS)) {
+    const context = await browser.newContext({ ...options, reducedMotion: "reduce" });
+    const page = await context.newPage();
+    const log = instrument(page);
+    for (const [name, path] of [["sign-in", "/login"], ["privacy", "/privacy"], ["home", "/"], ["public-team", "/public"]]) {
+      await guarded(kind, `public ${name}`, async () => {
+        if (path === "/public" && http(path).status !== 200) return check(kind, "public team page", "PASS", "not turned on: nothing public to check");
+        if (await visit(page, log, kind, `public-${name}`, path, { publicPage: true })) await axe(page, kind, `public-${name}`);
+      });
+    }
+    await context.close();
+  }
+}
 for (const [kind, options] of Object.entries(VIEWPORTS)) {
-  if (!local && (!user || !password)) break;
+  if (!signedIn) break;
   const context = await browser.newContext({ ...options, reducedMotion: "reduce" });
   await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: base }]);
   if (local) await context.addCookies([{ name: "uniiverse_view", value: "player", url: base }]);

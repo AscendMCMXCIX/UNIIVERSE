@@ -176,3 +176,9 @@ To remove the role later: `DROP OWNED BY uniiverse_backup; DROP ROLE uniiverse_b
   - The script fails above 100 MB, so four weekly copies fit and a growing database is noticed rather than cut off. A run started by hand can allow more (`max_mb`), for example the last backup before the retired tables are dropped; the copies after the drop are much smaller.
   - Production was 300 MB on 19 Oct 2026 (`db-usage`), about 200 MB of it the retired Meta & Trends tables. Most of that is numbers that compress well: the first backup (21 Oct 2026) was a 56 MB dump and 55 MB encrypted, under the limit.
 - **The window between backups.** Up to a week of changes can be lost. A paid Supabase plan (daily backups, optional point-in-time recovery) shortens that, at a monthly cost.
+
+## Monitoring (3 Nov 2026)
+
+- **Each run** writes the encrypted size against `MAX_MB` and the rows it proved to its summary, and keeps its manifest (sizes, counts and checksums: no data, no secret) for 90 days as `database-backup-manifest-<run>`, so growth can be followed.
+- **A failed run, or a copy over 80% of `MAX_MB`,** opens one issue labelled `database-backup` (later runs comment on it); the next healthy run closes it.
+- **The daily Production check** fails when no backup has passed for 8 days (`docs/MONITORING.md`).
