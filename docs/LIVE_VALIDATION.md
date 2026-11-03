@@ -25,6 +25,37 @@ Verified before deployment, on a real PostgreSQL 16 server in production mode (a
 
 Each item says what to do, what to expect and where to look when it fails.
 
+## Automated live check
+
+**It runs by itself (3 Nov 2026):** GitHub's Production check (`.github/workflows/production-check.yml`) runs it after each production deployment and every day, from GitHub's runner, with no setup by anyone. Without the verification account's secrets it checks the public pages and the signed-out security, and reports the member pages as pending. The items below that need a signed-in member stay for a person, or for the check once those secrets exist (`docs/MONITORING.md`).
+
+`scripts/live-check.mjs` checks the deployed site from a browser. It runs the read-only checks that people otherwise do by hand, at desktop (1440 px), tablet (768 px) and phone (390 px) widths, and saves a screenshot of every page for review.
+
+```
+node scripts/live-check.mjs [base url] [output folder]
+```
+
+- **Base url:** defaults to https://team-uniiverse.vercel.app.
+- **Output folder:** defaults to `live-check-<time>`. It holds the screenshots, `report.json` and `summary.md`. The run exits with 1 when any check fails.
+- **Sign-in:** `UNIIVERSE_VERIFY_USER` and `UNIIVERSE_VERIFY_PASSWORD`, for a non-admin account kept off the roster. They are read from the environment and never printed. In a cloud session they go in the environment's settings, and the site must be under its allowed domains.
+- **Read only:** it signs in, opens pages and opens and closes games and windows. It also switches a view and presses Back, Forward, Enter and Escape. It never submits a form after sign-in, and never presses a bookmark, edit, save, sync, refresh, invite or admin control. As with any member's visit, an open game can start the app's own background reads (rank checks).
+- **What it checks:**
+  - Signed-out and forged-cookie requests to member pages are turned away to sign-in and carry no player data (#170). Security headers on the sign-in page.
+  - The charcoal frame (#178): the sidebar open and folded, the current page's gradient bar, and the top bar, drawer and tab bar on tablets and phones.
+  - All Champions (#178): compact rows, sorted by games, no heading cut short. The champion window still opens and closes.
+  - Games (#178):
+    - Team Matches opens a game under its card, with no window and `?match=` in the address;
+    - a copied link opens it, and Back returns to it;
+    - Enter toggles it, and "Close this game" closes it with the focus back on the card;
+    - Match History and its Encounters view still open.
+  - axe (#173) on the main pages at every width, with a game open, and in the champion window: WCAG 2.1 A and AA plus `label-content-name-mismatch`, with no serious or critical violation.
+  - Every page at every width loads signed in, with:
+    - no sideways scroll;
+    - no page error or app console error;
+    - no failed request to the app;
+    - no broken image from the app.
+- **Locally:** `LIVE_LOCAL=1 node scripts/live-check.mjs http://127.0.0.1:<port>` checks a demo build started like the browser tests' server. There is no sign-in, and the security checks are skipped. On 3 Nov 2026 the demo build of `main` at `d72619a` passed all 200 checks, with no axe violation.
+
 ## 1. Data Dragon (champions, patches, portraits)
 
 - [ ] Admin → Data & Riot → run `version-check`. Expect status *ok* and Data health showing the real current patch (e.g. `15.19`) instead of `0.0 / offline fixture`.
