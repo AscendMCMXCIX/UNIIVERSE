@@ -29,24 +29,26 @@ export function subTabClass(on: boolean, className?: string): string {
 /** While the view a tab opens is loading: a thin bar along the tab's foot, so nothing moves. */
 function Pending() {
   const { pending } = useLinkStatus();
-  return <span className={cn("pointer-events-none absolute inset-x-3 bottom-1 h-0.5 rounded-full bg-accent/70 transition-opacity duration-150 motion-safe:animate-pulse", pending ? "opacity-100" : "opacity-0")} aria-hidden data-testid="sub-tab-pending" />;
+  return <span className={cn("pointer-events-none absolute inset-x-3 bottom-1 h-0.5 rounded-full bg-accent/70 transition-opacity duration-150", pending ? "opacity-100 motion-safe:animate-pulse" : "opacity-0")} aria-hidden data-testid="sub-tab-pending" data-pending={pending || undefined} />;
 }
 
 /**
  * Secondary navigation: the views of one section that are equally important (Match History's Games
  * and Encounters), directly under the section's primary tabs. Every view is a link with its own
  * address, so Back/Forward, new tabs and the keyboard work, and the current one is
- * aria-current="page". The page keeps its scroll position. On phones the tabs share the width.
+ * aria-current="page". `keepScroll` (the default): the page stays where it is, as views of one
+ * section do; separate pages (SubNav) start at the top. On phones the tabs share the width, and
+ * wrap onto a second line rather than run off the screen.
  */
-export function SubTabs({ label, items, current, className, testId }: { label: string; items: readonly SubTab[]; current: string; className?: string; testId?: string }) {
+export function SubTabs({ label, items, current, keepScroll = true, className, testId }: { label: string; items: readonly SubTab[]; current: string; keepScroll?: boolean; className?: string; testId?: string }) {
   return (
     <nav aria-label={label} className={cn("min-w-0 max-sm:w-full", className)} data-testid={testId}>
-      <ul className="flex min-w-0 items-center gap-1">
+      <ul className="flex min-w-0 flex-wrap items-center gap-1">
         {items.map((t) => {
           const on = t.key === current;
           return (
             <li key={t.key} className="max-sm:flex-1">
-              <Link href={t.href} scroll={false} aria-current={on ? "page" : undefined} className={subTabClass(on, "max-sm:w-full")} data-testid={t.testId}>
+              <Link href={t.href} scroll={!keepScroll} aria-current={on ? "page" : undefined} className={subTabClass(on, "max-sm:w-full")} data-testid={t.testId}>
                 {t.icon ? <t.icon className={cn("h-4 w-4 shrink-0", on ? "text-accent" : "text-fg-subtle")} aria-hidden /> : null}
                 {t.label}
                 <Pending />

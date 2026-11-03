@@ -317,7 +317,7 @@ When a game opens under its card, the scoreboard marks the players the player me
 
 The higher figures in each range were taken while the browser tests ran on the same machine.
 
-The counts equal the Encounters window's for the same players (checked on this history, and on every game of a randomised one in `tests/db/profile-encounters.test.ts`).
+The counts equal those of the player's games in Encounters for the same players (checked on this history, and on every game of a randomised one in `tests/db/profile-encounters.test.ts`).
 
 - **Production after the deploy** (Data jobs run 40829460360, 29 Oct 2026, commit 1a24d17): the `perf-probe` step `profile.matchMeetings` took 25.9 ms and sent 0.1 KB for the newest game of the player with the most games (1,150 games this season). No player in that game had been met in another game this season, so this is the light case, the table's second row. A game with players met before has not been timed in production yet; later probe runs time whichever game is newest then. That is one first call, including the round trip from Vercel's Sydney region to the database.
 

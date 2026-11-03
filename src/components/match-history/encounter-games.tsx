@@ -9,7 +9,7 @@ import { InfoTip } from "@/components/ui/info-tip";
 import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { formatCount, formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { ENCOUNTERS_CAVEAT, REL, Rate, RiotId, gamesText, recordText, relationOf } from "./encounters-view";
+import { ENCOUNTERS_CAVEAT, REL, Rate, RelationTag, RiotId, gamesText, recordText, relationOf } from "./encounters-view";
 
 /*
   One player met, opened from Encounters (a row or a highlight) or from a game's scoreboard: their
@@ -83,9 +83,8 @@ export function EncounterGamesPanel({ basePath, filter, encounter, playerName }:
                 const wl = s[relation];
                 return (
                   <div key={relation} className="flex min-w-0 items-baseline gap-2 text-sm" data-testid="encounter-detail-record" data-relation={relation} data-games={wl.games}>
-                    <dt className="flex items-center gap-1.5 self-center text-xs font-medium">
-                      <span className={cn("h-1.5 w-1.5 rounded-full", REL[relation].dot)} aria-hidden />
-                      <span className={REL[relation].text}>{REL[relation].word}</span>
+                    <dt className="self-center">
+                      <RelationTag relation={relation} />
                     </dt>
                     {wl.games ? (
                       <dd className="flex items-baseline gap-x-2 tabular-nums">

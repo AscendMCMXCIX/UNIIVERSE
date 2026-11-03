@@ -2,7 +2,8 @@
 
 import type * as React from "react";
 import { Swords, Users } from "lucide-react";
-import { statsQuery, type StatsFilter } from "@/domain/season-stats";
+import { seasonModeInfo, statsQuery, type StatsFilter } from "@/domain/season-stats";
+import { seasonLabel } from "@/domain/season";
 import { SectionHeader } from "@/components/ui/section-header";
 import { SubTabs } from "@/components/ui/sub-tabs";
 
@@ -16,6 +17,12 @@ import { SubTabs } from "@/components/ui/sub-tabs";
 */
 
 export type MatchHistoryViewKey = "games" | "encounters";
+
+/** What the filters choose, in words: "Season 2026 · All supported games · All accounts" (the account only when several are linked). */
+export function scopeText(filter: Pick<StatsFilter, "season" | "mode" | "accountId">, accounts: ReadonlyArray<{ id: string; riotId: string }>, accountsLinked: number): string {
+  const account = filter.accountId ? accounts.find((a) => a.id === filter.accountId) : null;
+  return [seasonLabel(filter.season), seasonModeInfo(filter.mode).label, account ? account.riotId : accountsLinked > 1 ? "All accounts" : null].filter(Boolean).join(" · ");
+}
 
 export function MatchHistoryHeader({ view, basePath, filter, description, status, controls, refresh }: {
   view: MatchHistoryViewKey;

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight } from "lucide-react";
 import { ENCOUNTER_MINIMUMS, ENCOUNTER_PAGE, ESTABLISHED_GAMES, INSIGHT_LABELS, INSIGHT_RELATION, RELATIONS, defaultMinimum, encounterFocusParams, encounterListParams, recordFor, sortsFor, type EncounterInsight, type EncounterListChoice, type EncounterRelation, type EncounterSort, type EncounterSummary, type Relation, type RelationRecord, type WinLoss } from "@/domain/encounters";
-import { seasonModeInfo, statsQuery, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
+import { statsQuery, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
 import { seasonLabel } from "@/domain/season";
 import { WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
 import type { EncounterPage } from "@/server/players/encounters";
@@ -18,7 +18,7 @@ import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { ModeElsewhere, OverviewFilters } from "@/components/players/overview-filters";
 import { formatCount, formatDate, percent } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { MatchHistoryHeader } from "./match-history-header";
+import { MatchHistoryHeader, scopeText } from "./match-history-header";
 
 /*
   Match History → Encounters: the players this profile's player keeps meeting in their recorded
@@ -172,8 +172,7 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
 
   const keep = { view: "encounters", ...encounterListParams({ ...c, limit: ENCOUNTER_PAGE }) };
   const narrowed = f.accountId || f.mode !== "all" || f.season !== data.currentSeason;
-  const account = f.accountId ? data.accountOptions.find((a) => a.id === f.accountId) : null;
-  const scope = [seasonLabel(f.season), seasonModeInfo(f.mode).label, account ? account.riotId : data.accountsLinked > 1 ? "All accounts" : null].filter(Boolean).join(" · ");
+  const scope = scopeText(f, data.accountOptions, data.accountsLinked);
   // Highlights about the side in view (both sides' in All), hidden while searching for someone.
   const insights = c.q ? [] : page.insights.filter((i) => c.relation === "all" || INSIGHT_RELATION[i.kind] === relationOf(c.relation));
   const shownSmall = page.list.some((s) => (c.relation === "all" ? [s.opponent, s.ally].some((wl) => wl.games > 0 && isSmall(wl)) : isSmall(recordFor(s, c.relation))));
@@ -191,7 +190,6 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
               <span>{page.withPlayers === page.games ? `Players met in ${gamesText(page.games)}` : `Players met in ${formatCount(page.withPlayers)} of ${gamesText(page.games)} (the others have no recorded players yet)`}</span>
               <span aria-hidden>·</span>
               <span>{scope}</span>
-              <InfoTip text={ENCOUNTERS_CAVEAT} label="How encounters are counted" testId="encounters-caveat" />
             </p>
           ) : null
         }
@@ -230,6 +228,8 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
                   </Link>
                 ))}
               </nav>
+              {/* What Against and Alongside mean, and what the records count: beside the choice it explains. */}
+              <InfoTip text={ENCOUNTERS_CAVEAT} label="How encounters are counted" testId="encounters-caveat" />
               <SearchInput value={query} onChange={setQuery} label="Find a player by name or Riot ID" placeholder="Find a player or Riot ID" className="flex-[1_1_12rem] @min-[40rem]/enc:max-w-72" maxLength={32} testId="encounter-search" />
               {/* The minimum and, where the column names are not shown, their orders as one Sort by control: one line. */}
               <div className="flex w-full gap-2 @min-[40rem]/enc:ml-auto @min-[40rem]/enc:w-auto">
@@ -297,9 +297,12 @@ function Highlights({ insights, gamesOf }: { insights: EncounterInsight[]; games
           const relation = INSIGHT_RELATION[i.kind];
           return (
             <li key={i.kind} className="min-w-0">
-              <Link href={gamesOf(i.summary.key, relation === "opponent" ? "against" : "alongside")} className="group flex min-h-10 min-w-0 items-center gap-x-2 rounded-lg px-2 py-1 transition-colors hover:bg-surface-2/60 focus-visible:outline-2 focus-visible:outline-accent" data-testid="encounter-insight" data-kind={i.kind}>
-                <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", REL[relation].dot)} aria-hidden />
-                <span className="whitespace-nowrap text-xs text-fg-muted">{INSIGHT_LABELS[i.kind]}</span>
+              {/* What it is, then who and the record; on a narrow screen the two wrap onto lines of their own rather than cut the name. */}
+              <Link href={gamesOf(i.summary.key, relation === "opponent" ? "against" : "alongside")} className="group flex min-h-10 min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 rounded-lg px-2 py-1 transition-colors hover:bg-surface-2/60 focus-visible:outline-2 focus-visible:outline-accent" data-testid="encounter-insight" data-kind={i.kind}>
+                <span className="flex items-center gap-x-2">
+                  <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", REL[relation].dot)} aria-hidden />
+                  <span className="whitespace-nowrap text-xs text-fg-muted">{INSIGHT_LABELS[i.kind]}</span>
+                </span>
                 <RiotId name={i.summary.name} className="text-sm" />
                 <span className="flex items-baseline gap-x-1.5 whitespace-nowrap text-xs tabular-nums text-fg-muted">
                   <span>{formatCount(i.record.games)}</span>
@@ -335,7 +338,7 @@ function ColumnHeads({ relation, sort, href }: { relation: EncounterRelation; so
   if (relation === "all") {
     const group = (side: Relation) => (
       <span className={cn(SIDE_GROUP, "py-1.5")}>
-        <span className={cn(HEAD, "col-span-3 flex items-center gap-1.5 pt-1", REL[side].text)}>
+        <span className={cn(HEAD, "col-span-3 flex items-center gap-1.5 pt-1", REL[side].text)} data-testid="relation-tag" data-relation={side}>
           <span className={cn("h-1.5 w-1.5 rounded-full", REL[side].dot)} aria-hidden />
           {REL[side].word}
         </span>
@@ -376,9 +379,9 @@ function SideFigures({ relation, wl }: { relation: Relation; wl: RelationRecord 
   return (
     // Narrow, a side never met is left out of the stack (the wide table says "never" in its column).
     <span className={cn("flex min-w-0 items-baseline gap-x-2 text-sm tabular-nums", SIDE_GROUP_WIDE, !wl.games && "@max-[60rem]/enc:hidden")} data-testid="encounter-record" data-relation={relation} data-games={wl.games}>
-      <span className="flex w-24 shrink-0 items-center gap-1.5 text-xs font-medium @min-[60rem]/enc:hidden">
+      <span className={cn("flex w-24 shrink-0 items-center gap-1.5 text-xs font-medium @min-[60rem]/enc:hidden", REL[relation].text)} data-testid="relation-tag" data-relation={relation}>
         <span className={cn("h-1.5 w-1.5 rounded-full", REL[relation].dot)} aria-hidden />
-        <span className={REL[relation].text}>{REL[relation].word}</span>
+        {REL[relation].word}
       </span>
       {wl.games ? (
         <>

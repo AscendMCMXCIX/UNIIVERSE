@@ -26,7 +26,7 @@ import { TeamComposition } from "./team-composition";
 import { ModeElsewhere, OverviewFilters } from "@/components/players/overview-filters";
 import { HistoryRefineFields, historyRefinements } from "./history-refine-fields";
 import { EncounterGamesPanel, type EncounterGamesFocus } from "./encounter-games";
-import { MatchHistoryHeader } from "./match-history-header";
+import { MatchHistoryHeader, scopeText } from "./match-history-header";
 import { encounterFocusParams, encounterListParams } from "@/domain/encounters";
 import { statsQuery } from "@/domain/season-stats";
 import type { DataStatus } from "@/domain/data-status";
@@ -438,6 +438,12 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
         view={encounter ? "encounters" : "games"}
         basePath={basePath}
         filter={f}
+        description={
+          // What the list holds, in one line, as on Encounters and All Champions.
+          <p className="text-sm text-fg-muted" data-testid="match-scope">
+            {formatCount(data.total)} game{data.total === 1 ? "" : "s"} · {scopeText(f, data.accountOptions, data.accountsLinked)}
+          </p>
+        }
         status={status ? <DataStatusNote status={status} refresh={refresh} /> : null}
         refresh={status ? <RefreshButton status={status} refresh={refresh ? { ...refresh, onNewGames: data.page > 1 ? { label: "Show the newest", run: () => go({ page: "1" }) } : undefined } : null} /> : null}
         controls={
