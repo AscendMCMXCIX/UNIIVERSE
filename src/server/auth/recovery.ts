@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import type { Db } from "@/server/db/types";
 import { getUser, listUsers, setPassword, updateUser, UserError, type UserRecord } from "@/server/repositories/users";
 import { validatePasswordStrength } from "./password";
@@ -23,9 +23,10 @@ export function setupKeyConfigured(env: RecoveryEnv = process.env): boolean {
 export function verifySetupKey(provided: string, env: RecoveryEnv = process.env): boolean {
   const expected = (env.UNIIVERSE_ACCESS_PASSWORD ?? "").trim();
   if (!expected) return false;
-  const a = Buffer.from(provided.trim(), "utf8");
-  const b = Buffer.from(expected, "utf8");
-  return a.length === b.length && timingSafeEqual(a, b);
+  // Both sides hashed first: equal lengths whatever was typed, so the time taken tells nothing
+  // about the key, not even its length.
+  const digest = (text: string) => createHash("sha256").update(text, "utf8").digest();
+  return timingSafeEqual(digest(provided.trim()), digest(expected));
 }
 
 export interface OwnerAccountSummary {
