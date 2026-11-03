@@ -116,7 +116,7 @@ export default async function AdminSystemPage() {
         <PanelHeader title="Riot Games compliance" subtitle={`How ${branding.productName} uses Riot data, and the notice Riot requires.`} />
         <PanelBody className="space-y-2 text-xs text-fg-muted">
           <p>{riotLegal(branding.productName)}</p>
-          <p>Riot API keys stay on the server and are never sent to browsers. Only public game data (ranked matches, champion mastery, ranked tier) is read, only for accounts a player linked on purpose, and it is used solely for this team&apos;s own preparation and improvement. {branding.productName} never attempts to de-anonymise players or discover hidden real identities, and removes a linked account&apos;s data when the account is unlinked.</p>
+          <p>Riot API keys stay on the server and are never sent to browsers. Game data (matches and their timelines, champion mastery and ranks) is read only for accounts a player linked on purpose, plus the current rank of the other players in those accounts&apos; games, and it is used solely for this team&apos;s own preparation and improvement. {branding.productName} never attempts to de-anonymise players or discover hidden real identities, and removes a linked account&apos;s data when the account is unlinked.</p>
           <p>The full checklist is in docs/RIOT_COMPLIANCE.md in the repository.</p>
         </PanelBody>
       </Panel>

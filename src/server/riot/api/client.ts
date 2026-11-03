@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import { DEFAULT_RATE_LIMITS, parseRateLimits, processRiotLimiters, RateLimiterPool, sameLimits, type Limiter } from "./rate-limiter";
-import { accountSchema, activeRegionSchema, championMasterySchema, leagueEntriesSchema, matchIdsSchema, matchSchema, matchTimelineSchema, platformStatusSchema, summonerSchema, type ChampionMastery, type LeagueEntry, type RiotAccount, type RiotMatch, type RiotMatchTimeline } from "./schemas";
+import { accountSchema, activeRegionSchema, championMasterySchema, leagueEntriesSchema, matchIdsSchema, matchSchema, matchTimelineSchema, platformStatusSchema, type ChampionMastery, type LeagueEntry, type RiotAccount, type RiotMatch, type RiotMatchTimeline } from "./schemas";
 import { accountRegionFor, DEFAULT_RIOT_PLATFORM, parsePlatforms as parsePlatformList, regionFor as regionForPlatform, type RiotRegion } from "@/domain/riot-platforms";
 
 export type Region = RiotRegion;
@@ -171,11 +171,6 @@ export class RiotApiClient {
     return this.get(platform, `/lol/status/v4/platform-data`, platformStatusSchema);
   }
 
-  async puuidBySummonerId(platform: string, summonerId: string): Promise<string> {
-    const s = await this.get(platform, `/lol/summoner/v4/summoners/${encodeURIComponent(summonerId)}`, summonerSchema);
-    return s.puuid;
-  }
-
   /** Match ids of one queue, newest first; `start` pages further back through the list. */
   matchIdsByPuuid(platform: string, puuid: string, options: { startTime?: number; endTime?: number; queue?: number; count?: number; start?: number } = {}): Promise<string[]> {
     const params = new URLSearchParams();
@@ -213,15 +208,6 @@ export class RiotApiClient {
   async activePlatformByPuuid(platformHint: string, puuid: string): Promise<string | null> {
     const r = await this.get(accountRegionFor(platformHint), `/riot/account/v1/region/by-game/lol/by-puuid/${encodeURIComponent(puuid)}`, activeRegionSchema);
     return r.region ?? null;
-  }
-
-  /** All match ids for a player (any queue) since a time, newest first. */
-  allMatchIdsByPuuid(platform: string, puuid: string, options: { startTime?: number; count?: number; start?: number } = {}): Promise<string[]> {
-    const params = new URLSearchParams();
-    if (options.startTime) params.set("startTime", String(Math.floor(options.startTime)));
-    params.set("count", String(options.count ?? 100));
-    if (options.start) params.set("start", String(options.start));
-    return this.get(regionFor(platform), `/lol/match/v5/matches/by-puuid/${encodeURIComponent(puuid)}/ids?${params.toString()}`, matchIdsSchema);
   }
 
   championMasteries(platform: string, puuid: string): Promise<ChampionMastery[]> {
