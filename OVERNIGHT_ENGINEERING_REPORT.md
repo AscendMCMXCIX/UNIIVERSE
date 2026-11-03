@@ -65,15 +65,16 @@ From the owner's brief and `CLAUDE.md`:
 | `pwa-windows-integration` | #171 (draft) | Installed app: jump-list shortcuts, one reused window | Optional; unit tests, build and its browser spec pass; full suite in CI when marked ready |
 | `overnight/engineering-report` | #174 | This report | Docs only (CI and Vercel skip it) |
 | `ops/riot-id-family-audit` | #175 (draft) | Riot key evidence: the key's tier from Riot's stated limits, and which stored games carry the current player ids | **Tested** (unit 563, database tests, after merging `main`); not deployed; waits for your approval |
-| `leaderboards-model` | #177 (draft) | Leaderboards' proposed model, as tested domain code, and its production audit; the page is unchanged | **Tested** (unit 578, database tests, after merging `main`); not deployed |
-| `ux/layout-consistency` | #178 | Neutral frame, compact All Champions, Team Matches opens games under their cards, the layout rules | **Tested** (unit 561, the full browser suite with no failure; again after merging `main`); release approved on 3 Nov, CI and WebKit running |
+| `leaderboards-model` | #177 (ready; CI running) | Leaderboards' proposed model, as tested domain code, and its production audit; the page is unchanged | **Tested** (unit 580, database 473, build and the leaderboards specs, after merging `main` at #178); not deployed; waits for your approval to merge |
+| `ux/layout-consistency` | #178 | Neutral frame, compact All Champions, Team Matches opens games under their cards, the layout rules | **Deployed** (5e11ba5), smoke passed. Not yet production-verified: its screens were not checked on the live site (this environment cannot reach it, section 7) |
 
 Before the release, all six original branches merged cleanly with `main` and with one another (all 15
 pairs, checked with `git merge-tree` on 2 Nov).
 
 ## Release (2–3 Nov 2026, approved by you)
 
-You approved releasing #170, #172, #169 and #173, in that order and one at a time. Each one was:
+You approved releasing #170, #172, #169 and #173, in that order and one at a time, and #178 on 3 Nov.
+Each one was:
 1. reviewed;
 2. brought up to date with `main` (`main` merged in, never rebased) and validated locally again;
 3. merged with the merge method and its expected head commit, once every CI job on that commit had
@@ -86,6 +87,7 @@ You approved releasing #170, #172, #169 and #173, in that order and one at a tim
 | #172 hardening | `37c19f6` | all four jobs green (run 41533293385) | smoke, run 41540033680: production on `37c19f6`, database 5 ms, no failing job |
 | #169 season figures | `33590c7` | all four jobs green (run 41540441511) | smoke and perf-probe, run 41546289924: production on `33590c7`, health ok, database 3 ms, no failing job |
 | #173 accessibility | `90dabfb` | all four jobs green (run 41547593587) | smoke and perf-probe, run 41553164525: production on `90dabfb`, health ok, no failing job |
+| #178 UX consistency | `5e11ba5` | all jobs green on the PR's head (run 41579132017: 517 browser tests passed, 353 skipped by design, none retried) and WebKit (run 41579431950); the push to `main` reused that result | smoke, run 41583580731: production on `5e11ba5`, health ok, database 2 ms, no failing job; member pages redirect signed-out visitors to sign-in |
 
 Every pre-merge revalidation passed:
 - #172: unit 560, database 470, build, 9 targeted browser specs (52 passed).
@@ -93,6 +95,17 @@ Every pre-merge revalidation passed:
 - #173: unit 562, build, 5 targeted browser specs (48 passed).
 
 Nothing failed, so the sequence never had to stop.
+
+**#178's first CI run failed, and was fixed before the merge.** On d07a35f two browser tests failed in
+CI only (run 41573700916). Neither failure came from #178's changes:
+- **A scoreboard rank badge on a 375 px phone** ended 7.5 px inside the KDA column. The badge, and the
+  pulsing stand-in shown while ranks are checked, were fixed-width. The badge now shrinks and ends
+  its text in an ellipsis; the whole rank stays in its title and for screen readers.
+- **The champion window's accessibility audit** ran while the window was dimmed on purpose, during
+  loading. The test now waits for the window to settle. The page is unchanged.
+
+Both were validated locally (verify, build, the affected specs on every viewport) before the push,
+and the next CI run and WebKit passed.
 
 **Performance in production:** perf-probe before the release (run 41412153154, 2 Nov 08:19 UTC,
 `8b079e9`), then twice after it (run 41546289924 at 23:33 UTC on `33590c7`, and run 41553164525 at
@@ -522,11 +535,16 @@ until a native capability is approved.
    add `team-uniiverse.vercel.app` to this environment's allowed hosts and I will run it.
 2. **Merge #175** (the Riot key evidence): it only adds read-only reports. Then one
    `riot-check data-audit` run answers whether any stored game needs re-keying (section 4b).
-3. **Review the Leaderboards model (#177) and approve its merge.** It changes no page. Its audit
-   then measures the proposed boards on the team's own games before the page switches.
-4. **Review the UX PR (#178, draft):** the neutral frame, compact All Champions, and Team
-   Matches opening games under their cards. It changes how pages look and behave, so it waits for
-   you.
+3. **Approve merging the Leaderboards model (#177).** It changes no page; it is ready and its CI
+   is running. Its read-only audit then measures the proposed boards on the team's own games, and I
+   bring you the final ranking rules to approve before the page switches.
+4. **Check #178 on the live site** (it is deployed; I could not see its pages). Either:
+   - go through the checklist in `docs/LIVE_VALIDATION.md` → "UX consistency" on a computer and a
+     phone; or
+   - add `team-uniiverse.vercel.app` to this environment's allowed domains (Network access) and give
+     it a non-admin verification account as `UNIIVERSE_VERIFY_USER` and `UNIIVERSE_VERIFY_PASSWORD`.
+     I then run the scripted live check, which reads pages only, at 1440 and 390 px, with
+     screenshots.
 5. **Verify the encrypted backup and keep an offline copy,** so the held table drops (#86, #138) can
    run before the database fills.
 6. **Dependabot #176** (next 16.4.3 and others; CI green): merge when convenient.
@@ -536,31 +554,36 @@ until a native capability is approved.
 
 ## Executive summary
 
-**Released and verified in production** (approved by you; one PR at a time; CI green on each merged
+**Released** (approved by you; one PR at a time; CI green on each merged
 commit; one production check after each deploy):
-- **Security, high (#170).** A teammate's profile data reached signed-out requests. It was
-  reproduced and fixed, and a test now stops it coming back. Production runs the fixed code (smoke
-  run 41532558447). One request from you confirms it from outside (section 7).
-- **Security, medium and low (#172).** Nine fixes, each with tests: an open redirect, a throttle
+- **Security, high (#170). Deployed.** A teammate's profile data reached signed-out requests. It
+  was reproduced and fixed, and a test now stops it coming back. Production runs the fixed code
+  (smoke run 41532558447). One request from you confirms it from outside (section 7).
+- **Security, medium and low (#172). Deployed.** Nine fixes, each with tests: an open redirect, a throttle
   race, an egress risk, raw database errors, Riot host validation, open mode on Vercel, two timing
   leaks, and statistics without access.
-- **Performance (#169).** Team Overview's roster in production, in two runs after the release:
+- **Performance (#169). Production-verified.** Team Overview's roster in production, in two runs after the release:
   535 → 329–353 ms cold and 256 → 183–185 ms warm.
-- **Accessibility (#173).** Four serious axe findings fixed through shared components: three
-  label-in-name cases and a table the keyboard could not scroll. axe now also runs at phone width
-  and in the Team player and champion windows. The final production check passed (run 41553164525).
-
-**Prepared, waiting for you:**
-- **Riot key evidence (#175, draft).** The key works and is very likely Personal. Merging #175 lets
-  one audit say whether any older stored game needs re-keying.
-- **Leaderboards model (#177, draft).** Everyone is compared on their latest 20 games, with honest
-  statuses for small samples and role figures within their role only. It is tested as domain code,
-  and its audit will measure it on the team's games before the page changes.
-- **UX consistency (#178, draft):**
+- **Accessibility (#173). Deployed.** Four serious axe findings fixed through shared components:
+  three label-in-name cases and a table the keyboard could not scroll. axe now also runs at phone
+  width and in the Team player and champion windows. The production smoke passed (run
+  41553164525); its screens were not checked on the live site.
+- **UX consistency (#178). Deployed** (`5e11ba5`; smoke run 41583580731):
   - a neutral charcoal frame with restrained blue and violet;
   - All Champions rows 57 → 51 px on a laptop and 74 → 51 px on a tablet, with the figures grouped;
   - Team Matches opens games under their cards, like Match History;
   - layout rules in `docs/STANDARDS.md`.
+
+  Not yet production-verified: its screens need a live check, by you or by me once this
+  environment can reach the site (section 7).
+
+**Prepared, waiting for you:**
+- **Riot key evidence (#175, draft).** The key works and is very likely Personal. Merging #175 lets
+  one audit say whether any older stored game needs re-keying.
+- **Leaderboards model (#177, ready, CI running). Tested.** Everyone is compared on their latest
+  20 games, with honest statuses for small samples and role figures within their role only. It is
+  tested as domain code. Once merged, its read-only audit measures it on the team's games, including
+  how often places tie, before the page changes.
 - **The PWA's Windows integration (#171, draft).**
 
 **Remaining concerns:**
@@ -568,8 +591,9 @@ commit; one production check after each deploy):
   games). The fix, a stored summary table, waits for database space.
 - **Database space:** 361 MB of 512 MB, growing about 2 MB a day. The held table drops need your
   backup check first.
-- **Not verified from here:** the forged-cookie request against production (section 7), field
-  data, Windows, and real devices with a screen reader.
+- **Not verified from here:** the forged-cookie request against production (section 7), the
+  deployed screens of #173 and #178 on the live site, field data, Windows, and real devices with a
+  screen reader.
 
 **Corrected during the session:** my first accessibility fix did not satisfy axe. The full browser
 suite caught it before any PR was opened, and the cause is now in `docs/STANDARDS.md`.
