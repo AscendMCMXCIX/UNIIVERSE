@@ -5,8 +5,9 @@
 # scripts/live-check.mjs runs from GitHub's runner (which reaches the site) at 1440, 768 and 390 px:
 # after a deployment, production must answer from the commit just deployed; /api/health is ok;
 # signed-out and forged-session requests to member pages are turned away with no player data; the
-# security headers are there; the public pages load with no error, no sideways scroll and no
-# serious axe violation (WCAG 2.1 AA). The member pages are checked too once the repository secrets
+# security headers are there; Riot's rules for a Personal key hold (no Riot API data on the public
+# pages, Riot's required notice, /riot.txt served for the Developer Portal); the public pages load
+# with no error, no sideways scroll and no serious axe violation (WCAG 2.1 AA). The member pages are checked too once the repository secrets
 # UNIIVERSE_VERIFY_USER and UNIIVERSE_VERIFY_PASSWORD exist (a non-admin account kept off the
 # roster); until then they are reported as pending, never as a failure.
 # The daily run also checks that a database backup passed within the last 8 days and the database's

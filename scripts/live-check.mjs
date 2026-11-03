@@ -11,9 +11,10 @@
   - LIVE_LOCAL=1 checks a local demo build instead (`pnpm start` with the browser tests' demo
     settings): no sign-in, and the security checks are skipped.
   - Without a sign-in (no verification account yet), the public run: the deployed commit, health,
-    the signed-out and forged-session checks, the security headers, and the public pages at every
-    width (no errors, no sideways scroll, no serious axe violation); the signed-in checks are
-    reported as pending, not failed. LIVE_REQUIRE_SIGN_IN=1 makes a missing sign-in a failure.
+    the signed-out and forged-session checks, the security headers, the Riot checks, and the public
+    pages at every width (no errors, no sideways scroll, no serious axe violation); the signed-in
+    checks are reported as pending, not failed. LIVE_REQUIRE_SIGN_IN=1 makes a missing sign-in a
+    failure.
   - EXPECTED_COMMIT: the commit just deployed (GitHub's Production check passes it): the check waits
     up to LIVE_WAIT_SECONDS (default 300) for production to answer from it, and fails otherwise.
 
@@ -25,6 +26,10 @@
   Checks:
   - security (#170): signed-out and forged-cookie requests to member pages are turned away to the
     sign-in page and carry no player data; security headers on the sign-in page.
+  - riot (docs/RIOT_COMPLIANCE.md), signed out: /riot.txt, the code Riot's Developer Portal fetches,
+    is served as plain text; public Riot data is off, as a Personal key requires
+    (/public/leaderboards is not found and the public team page shows no rank); the public team
+    page shows Riot's required notice.
   - frame (#178): the charcoal frame token; the sidebar, open and folded, with the gradient bar on
     the current page; the phone and tablet top bar, drawer and tab bar.
   - All Champions (#178): compact rows, sorted by games, no heading cut short.
@@ -132,6 +137,24 @@ function healthAndSecurity(playerId) {
   pass("security", "sign-in page: Strict-Transport-Security", /strict-transport-security:/.test(login.headers));
   pass("security", "sign-in page: framing refused (frame-ancestors or X-Frame-Options)", /frame-ancestors|x-frame-options:/.test(login.headers));
   pass("security", "sign-in page: Referrer-Policy", /referrer-policy:/.test(login.headers));
+}
+
+/** A rank as the app draws one: a tier crest, LP, or a tier and division ("Gold II"). */
+const RANK = /ranked-mini-crests|\b\d{1,4} LP\b|\b(?:Iron|Bronze|Silver|Gold|Platinum|Emerald|Diamond) (?:I|II|III|IV)\b/g;
+
+/** What a Personal key's terms require of the pages anyone can open (docs/RIOT_COMPLIANCE.md). */
+function riotCompliance() {
+  if (local) return warn("riot", "Riot checks skipped", "LIVE_LOCAL=1: the demo build's settings are not production's");
+  const code = http("/riot.txt");
+  // Only its size is reported: the code is public, but nothing needs it in a report.
+  pass("riot", "/riot.txt, the code Riot's Developer Portal checks, is served signed out as plain text", code.status === 200 && /content-type:\s*text\/plain/.test(code.headers) && code.text.trim().length > 0, { status: code.status, to: code.redirect.replace(base, ""), bytes: code.text.length });
+  const board = http("/public/leaderboards");
+  pass("riot", "public Riot data is off, as a Personal key requires: /public/leaderboards is not found", board.status === 404, { status: board.status, to: board.redirect.replace(base, "") });
+  const team = http("/public");
+  if (team.status !== 200) return check("riot", "public team page", "PASS", "not turned on: no public page to check");
+  const ranks = [...new Set(team.text.match(RANK) ?? [])].slice(0, 3);
+  pass("riot", "the public team page shows no rank (no Riot API data)", ranks.length === 0, ranks);
+  pass("riot", "the public team page shows Riot's required notice", /endorsed by Riot Games/.test(team.text));
 }
 
 // ── Browser ───────────────────────────────────────────────────────────────────────────────────
@@ -448,6 +471,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
 }
 await browser.close();
 healthAndSecurity(playerId);
+riotCompliance();
 
 // ── Report ──────────────────────────────────────────────────────────────────────────────────────
 const count = (s) => report.checks.filter((c) => c.status === s).length;
