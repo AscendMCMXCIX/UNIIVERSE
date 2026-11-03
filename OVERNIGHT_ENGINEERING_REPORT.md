@@ -58,7 +58,7 @@ From the owner's brief and `CLAUDE.md`:
 | `overnight/engineering-report` | #174 | This report | Docs only (CI and Vercel skip it) |
 | `ops/riot-id-family-audit` | #175 (draft) | Riot key evidence: the key's tier from Riot's stated limits, and which stored games carry the current player ids | Verified locally (unit 553, database 469); waits for your approval to merge |
 | `leaderboards-model` | #177 (draft) | Leaderboards' proposed model, as tested domain code, and its production audit; the page is unchanged | Verified locally (unit 568, database 469); waits for your review |
-| `ux/layout-consistency` | #178 (draft) | Neutral frame, compact All Champions, Team Matches opens games under their cards, the layout rules | Verified locally (unit 561, 159 targeted browser tests, the full phone project); the full suite's tablet and desktop projects are being run again (the first full run was stopped by the environment, not by a test); waits for your review |
+| `ux/layout-consistency` | #178 (draft) | Neutral frame, compact All Champions, Team Matches opens games under their cards, the layout rules | Verified locally: unit 561 and the full browser suite with no failure (867 tests); then merged with the released `main` and tested again (unit 563, the touched and accessibility specs). Waits for your review |
 
 Before the release, all six original branches merged cleanly with `main` and with one another (all 15
 pairs, checked with `git merge-tree` on 2 Nov).
