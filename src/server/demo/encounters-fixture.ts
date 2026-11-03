@@ -10,7 +10,9 @@ import { matchDetails, matchTimelines, type MatchParticipantDetail } from "@/ser
   Encounters (Match History) has something realistic to show. One more is met once on each side by
   every member (BOTH_SIDES), so every profile has a player who was both an ally and an opponent
   (Mixed). A game's stored timeline is renamed with it. Real (non-DEMO_) records are never read or
-  changed. Running it twice changes nothing.
+  changed. Running it twice changes nothing, and every fresh demo gets the same placements: a
+  member's games are named after their player id, which is new each time the demo is seeded, so
+  where the regulars go follows the member's name and the game's number, never the match id.
 */
 
 /** Recurring demo players: realistic Riot IDs (spaces, accents, other scripts, long names). */
@@ -36,7 +38,13 @@ export async function applyDemoEncounters(db: Db): Promise<void> {
   for (const { matchId, participants } of rows) {
     // Games with the demo's recurring duo (the match window's possible groups) are left as they are.
     if (!participants.length || participants.some((p) => p.puuid.startsWith("demo-regular-") || p.puuid.startsWith("demo-duo-") || p.puuid.startsWith(`demo-filler-${matchId}`))) continue;
-    const h = hash(matchId);
+    // A member's own game (DEMO_<account>_<n>, named after the member's PUUID, which is demo-<player
+    // id>), and the member, found by PUUID: on the red side they come after the blue side's five, as
+    // in Riot's records. The game is keyed by the member's name and its number, which every seed
+    // repeats (the player id is random); the other demo games have fixed ids.
+    const own = /^DEMO_([^_]+)_(\d+)$/.exec(matchId);
+    const me = own ? participants.find((p) => p.puuid.startsWith(`demo-${own[1]}`)) : undefined;
+    const h = hash(me && own ? `${me.name}_${own[2]}` : matchId);
     let changed = false;
     const next: MatchParticipantDetail[] = participants.map((p) => {
       if (!p.puuid.startsWith("demo-filler-")) return p;
@@ -53,11 +61,7 @@ export async function applyDemoEncounters(db: Db): Promise<void> {
     };
     if (h % 5 < 2) place(h % 7, REGULARS[h % REGULARS.length]!);
     if (h % 11 === 0) place((h >>> 3) % 7, REGULARS[(h >>> 4) % REGULARS.length]!);
-    // A member's own game (DEMO_<account>_<n>, named after the member's PUUID, which is demo-<player
-    // id>): BOTH_SIDES on their side in their first game, on the other side in the next. The member
-    // is found by PUUID: on the red side they come after the blue side's five, as in Riot's records.
-    const account = /^DEMO_([^_]+)_\d+$/.exec(matchId)?.[1];
-    const me = account ? next.find((p) => p.puuid.startsWith(`demo-${account}`)) : undefined;
+    // In a member's own game: BOTH_SIDES on their side in their first game, on the other side in the next.
     if (me) {
       const met = bothSides.get(me.puuid) ?? 0;
       const slot = met < 2 ? next.findIndex((p) => (p.puuid.startsWith("demo-filler-") || p.puuid.startsWith("demo-together-")) && (p.teamId === me.teamId) === (met === 0)) : -1;

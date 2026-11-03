@@ -46,6 +46,7 @@ Most of the testing happens here, not on GitHub. Run what the change touches:
 
 - **App behaviour changed:** run one `Data jobs` workflow run on `main` with `job: "smoke"` (add `auth-audit` after a migration). Check `deployment.commit` in the output. The run fails if health is not ok or a page errors.
 - **Add `perf-probe`** when the change touches data loading, queries or caching. One probe reads about 6 MB from the production database, against an egress budget of 120 MB a day (`docs/HOSTING_USAGE.md`).
+- **Visible changes:** when the environment can reach the site and `UNIIVERSE_VERIFY_USER` / `UNIIVERSE_VERIFY_PASSWORD` are set, also run `node scripts/live-check.mjs` (read only; docs/LIVE_VALIDATION.md → Automated live check) and review its screenshots. Until it has run on the deployed commit, the change is deployed, not production-verified.
 - **Docs- or tooling-only merges:** skip the check.
 - **Don't loop manual runs.** Each run bills at least 1 minute.
 
