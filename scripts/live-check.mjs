@@ -24,8 +24,10 @@
   visit, an open game can start the app's own background reads (rank checks).
 
   Checks:
-  - security (#170): signed-out and forged-cookie requests to member pages are turned away to the
-    sign-in page and carry no player data; security headers on the sign-in page.
+  - security (#170): signed-out and forged-cookie requests to member pages, including a real
+    member's profile, champions and matches (the id from the roster, or without a sign-in from the
+    public team page's cards), are turned away to the sign-in page and carry no player data;
+    security headers on the sign-in page.
   - riot (docs/RIOT_COMPLIANCE.md), signed out: /riot.txt, the code Riot's Developer Portal fetches,
     is served as plain text; public Riot data is off, as a Personal key requires
     (/public/leaderboards is not found and the public team page shows no rank); the public team
@@ -121,11 +123,24 @@ async function deployment() {
   }
 }
 
+/**
+ * A member's player id as the public team page carries it (its cards' data, or a picture's
+ * address), so a run without a sign-in can still try a real member's own pages: the profile
+ * pages #170 closed to signed-out and forged-session requests.
+ */
+function publicPlayerId() {
+  const page = http("/public");
+  if (page.status !== 200) return null;
+  return /(?:\/api\/public\/avatars\/|player\\?":\{\\?"id\\?":\\?")([A-Za-z0-9_-]{8,})/.exec(page.text)?.[1] ?? null;
+}
+
 function healthAndSecurity(playerId) {
   if (local) return warn("security", "security checks skipped", "LIVE_LOCAL=1: the demo build has no sign-in");
   const forged = `uniiverse_session=s1.${"x".repeat(40)}`;
   const paths = ["/team", "/players", "/matches", "/leaderboards", "/overview", "/me", "/settings", "/admin/players"];
+  playerId ??= publicPlayerId();
   if (playerId) paths.push(`/players/${playerId}`, `/players/${playerId}/champions`, `/players/${playerId}/matches`);
+  else warn("security", "a member's own pages were not tried", "no player id: not signed in, and the public team page lists no member");
   for (const path of paths) {
     const anon = http(path);
     pass("security", `signed out: ${path} is turned away to sign-in, with no player data`, turnedAway(anon) && !leaks(anon), { status: anon.status, to: anon.redirect.replace(base, ""), leak: leaks(anon) });
