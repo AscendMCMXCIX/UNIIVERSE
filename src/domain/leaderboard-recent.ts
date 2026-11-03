@@ -248,6 +248,10 @@ export interface RecentSampleBoard {
   tenOrMore: number;
   /** Median days from the oldest to the newest game of an established member's window. */
   windowDaysMedian: number | null;
+  /** Established members who share their place with another, by win rate as the page shows it (whole points). */
+  sharedPlaces: number;
+  /** The established members' win rates as the page shows them (whole points), highest first, without labels. */
+  establishedWinRates: number[];
 }
 
 export interface RecentSamples {
@@ -292,12 +296,16 @@ export function recentSamples(games: readonly LeaderboardGame[], members: Readon
         return recentEntry(p.id, mine, scope);
       });
       const established = entries.filter((e) => e.status === "established");
+      // The board as the page would rank it (win rate): how often a place is shared, and the spread.
+      const placed = rankRecentBoard(entries, board, "winRate").rows.filter((r) => r.rank !== null);
       boards[board] = {
         established: established.length,
         provisional: entries.filter((e) => e.status === "provisional").length,
         insufficient: entries.filter((e) => e.status === "insufficient").length,
         tenOrMore: entries.filter((e) => e.games >= RECENT_PROVISIONAL_GAMES).length,
         windowDaysMedian: median(established.map((e) => Math.round((e.to! - e.from!) / DAY_MS))),
+        sharedPlaces: placed.filter((r) => placed.some((o) => o !== r && o.rank === r.rank)).length,
+        establishedWinRates: placed.map((r) => shownValue("winRate", r.entry.figures.winRate!.value!)),
       };
       acceptable[board] = established.length >= (board === "overall" ? ACCEPT_OVERALL : ACCEPT_ROLE);
     }

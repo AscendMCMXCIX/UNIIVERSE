@@ -168,8 +168,8 @@ describe("the data audit's summary of the team's samples", () => {
     const members = [{ id: "a", label: "p1" }, { id: "b", label: "p2" }, { id: "c", label: "p3" }, { id: "d", label: "p4" }];
     const s = recentSamples(games, members, NOW);
     expect(s.window).toEqual({ games: 20, provisionalFrom: 10, days: 60 });
-    expect(s.modes.all.boards.overall).toEqual({ established: 1, provisional: 1, insufficient: 2, tenOrMore: 2, windowDaysMedian: 19 });
-    expect(s.modes.all.boards.SUPPORT).toEqual({ established: 0, provisional: 1, insufficient: 3, tenOrMore: 1, windowDaysMedian: null });
+    expect(s.modes.all.boards.overall).toEqual({ established: 1, provisional: 1, insufficient: 2, tenOrMore: 2, windowDaysMedian: 19, sharedPlaces: 0, establishedWinRates: [60] });
+    expect(s.modes.all.boards.SUPPORT).toEqual({ established: 0, provisional: 1, insufficient: 3, tenOrMore: 1, windowDaysMedian: null, sharedPlaces: 0, establishedWinRates: [] });
     expect(s.modes.all.byMember).toEqual([
       { member: "p1", overall: 25, TOP: 0, JUNGLE: 0, MID: 25, ADC: 0, SUPPORT: 0 },
       { member: "p2", overall: 12, TOP: 0, JUNGLE: 0, MID: 0, ADC: 0, SUPPORT: 12 },
@@ -181,5 +181,13 @@ describe("the data audit's summary of the team's samples", () => {
     // Normal Draft counts in All games only.
     const draft = recentSamples(run("a", 20, 10, 0, { queueId: 400 }), members.slice(0, 1), NOW);
     expect([draft.modes.all.boards.overall.established, draft.modes.ranked.boards.overall.established]).toEqual([1, 0]);
+  });
+
+  it("says how often established members share a place, and their win rates as the page shows them", () => {
+    // Two windows at 11 of 20 read 55% and share a place; a provisional member is not counted.
+    const games = [...run("a", 20, 11), ...run("b", 20, 11), ...run("c", 20, 14), ...run("d", 12, 12)];
+    const members = ["a", "b", "c", "d"].map((id, i) => ({ id, label: `p${i + 1}` }));
+    const overall = recentSamples(games, members, NOW).modes.all.boards.overall;
+    expect(overall).toMatchObject({ established: 3, provisional: 1, sharedPlaces: 2, establishedWinRates: [70, 55, 55] });
   });
 });

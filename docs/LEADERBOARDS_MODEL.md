@@ -171,7 +171,9 @@ expected of a record.
 change) reads the members' games exactly as the boards count them (one per match per player,
 members only, read only) and reports, for All games and for Ranked:
 - per board: established, provisional and not-enough members; members with 10 or more games (those
-  a 10-game window would rank); and the median days an established member's 20 games span;
+  a 10-game window would rank); the median days an established member's 20 games span; how many
+  established members share a place; and their win rates as the page would show them, without
+  labels (how far apart the places are, and how often a 20-game window ties);
 - per member (anonymous labels, as elsewhere in the audit): eligible games in the last 60 days,
   overall and per role, not capped at 20;
 - whether each board passes the acceptance below.
