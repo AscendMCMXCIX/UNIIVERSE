@@ -13,6 +13,8 @@ import { filterTogether } from "@/domain/played-together";
 import { rankCoverage } from "@/server/players/participant-ranks";
 import { opggCoverage } from "@/server/players/riot-names";
 import { matchViewConsistency } from "@/server/players/match-consistency";
+import { riotIdFamily } from "@/server/riot/id-family";
+import { publicRiotDataAllowed } from "@/server/public/access";
 
 type Row = Record<string, unknown>;
 function rows(result: unknown): Row[] {
@@ -199,6 +201,9 @@ defineJob({
       summary: {
         currentPatch: current?.patch ?? null,
         riotKeyConfigured: !!process.env.RIOT_API_KEY,
+        // A Personal key may not serve Riot data publicly: this must stay false unless the product
+        // holds a Production key registered for the public pages (server/public/access.ts).
+        publicRiotData: publicRiotDataAllowed(),
         linkedAccounts: linked,
         matchups,
         multikills,
@@ -208,6 +213,9 @@ defineJob({
         opggLinks: await opggCoverage(db),
         // Each stored game's record against its timeline (gold, CS, kills, objectives), counts only.
         matchViews: await matchViewConsistency(db),
+        // Which stored games carry the members' current Riot ids, i.e. were stored under the key
+        // family in use (ids are encrypted per Riot application), counts only.
+        riotIdFamily: await riotIdFamily(db),
       },
     };
   },
