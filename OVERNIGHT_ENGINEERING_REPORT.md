@@ -64,11 +64,12 @@ From the owner's brief and `CLAUDE.md`:
 | `a11y/label-in-name-scroll-regions` | #173 | Names that match what controls show; wide tables the keyboard can scroll; axe at phone width and in two windows | **Deployed** (90dabfb), smoke passed. Not yet production-verified: its screens were not checked on the live site |
 | `pwa-windows-integration` | #171 (draft) | Installed app: jump-list shortcuts, one reused window | Optional; unit tests, build and its browser spec pass; full suite in CI when marked ready |
 | `overnight/engineering-report` | #174 | This report | Docs only (CI and Vercel skip it) |
-| `ops/riot-id-family-audit` | #175 (ready; CI running) | Riot key evidence: the key's tier from Riot's stated limits, and which stored games carry the current player ids | **Tested** (unit 581, database 476, after merging `main` at #177); confirmed strictly read only; approved in principle, merges once CI passes |
+| `ops/riot-id-family-audit` | #175 | Riot key evidence: the key's tier from Riot's stated limits, and which stored games carry the current player ids | **Production-verified** (`1538524`): its reports ran on production (run 41602528625). The key is Personal and no stored game needs re-keying; `docs/RIOT_COMPLIANCE.md` is updated in #181 |
 | `leaderboards-model` | #177 | Leaderboards' proposed model, as tested domain code, and its production audit; the page is unchanged | **Deployed** (`d72619a`), smoke passed; its audit ran on production (run 41597099104). Findings and the proposed rules: [the Leaderboards report](https://claude.ai/artifact/UtfbhTL5RJqub513acZpDJ) |
-| `dependabot/…minor-and-patch…` | #176 | next 16.4.3, eslint-config-next 16.4.3, lucide-react 1.65.0, PGlite 0.5.13 | **Tested** locally after merging `main`: unit 580, database 473, build, the desktop browser suite (250 passed); approved, merges after #175 once CI passes |
-| `ops/backup-retired-tables` | #179 (draft) | Each backup proves the 23 retired tables that #86 and #138 would drop restore with all their rows | **Tested** end to end on a local PostgreSQL 16, including the failing case; tooling only |
-| `ops/live-check` | #180 (draft) | A read-only live check of the deployed site at three widths (#170, #173, #178) | **Tested** against a local demo build (200 checks passed); runs on production once this environment can reach it |
+| `dependabot/…minor-and-patch…` | #176 | next 16.4.3, eslint-config-next 16.4.3, lucide-react 1.65.0, PGlite 0.5.13 | **Deployed** (`cda9a66`), smoke and perf-probe passed (run 41606535813) |
+| `ops/backup-retired-tables` | #179 (ready; CI running) | Each backup proves the 23 retired tables that #86 and #138 would drop restore with all their rows | **Tested** end to end on a local PostgreSQL 16, including the failing case; tooling only |
+| `ops/live-check` | #180 (ready; CI running) |
+| `docs/riot-key-evidence` | #181 | `docs/RIOT_COMPLIANCE.md`: the key in use is Personal; no stored game needs re-keying | Docs only (CI and Vercel skip it); waits for your approval to merge | A read-only live check of the deployed site at three widths (#170, #173, #178) | **Tested** against a local demo build (200 checks passed); runs on production once this environment can reach it |
 | `ux/layout-consistency` | #178 | Neutral frame, compact All Champions, Team Matches opens games under their cards, the layout rules | **Deployed** (5e11ba5), smoke passed. Not yet production-verified: its screens were not checked on the live site (this environment cannot reach it, section 7) |
 
 Before the release, all six original branches merged cleanly with `main` and with one another (all 15
@@ -91,6 +92,8 @@ Each one was:
 | #169 season figures | `33590c7` | all four jobs green (run 41540441511) | smoke and perf-probe, run 41546289924: production on `33590c7`, health ok, database 3 ms, no failing job |
 | #173 accessibility | `90dabfb` | all four jobs green (run 41547593587) | smoke and perf-probe, run 41553164525: production on `90dabfb`, health ok, no failing job |
 | #177 Leaderboards model (no page change) | `d72619a` | all jobs green on the PR's head (run 41584341897) | smoke and data-audit, run 41597099104: production on `d72619a`, health ok, database 5 ms, no failing job; the audit's findings are in [the Leaderboards report](https://claude.ai/artifact/UtfbhTL5RJqub513acZpDJ) |
+| #175 Riot key evidence (read only) | `1538524` | all jobs green on the PR's head (run 41597156093) | smoke, riot-check and data-audit, run 41602528625: production on `1538524`, health ok. The key was accepted with Riot's default limits (not Production) and has not expired in more than seven days (not Development), so it is Personal. All 4,951 member places in stored games carry the current ids. Public Riot data is off |
+| #176 Dependabot (next 16.4.3 and others) | `cda9a66` | all jobs green on the PR's head after updating it with `main` (run 41602111811) | smoke and perf-probe, run 41606535813: production on `cda9a66`, health ok, database 4 ms, no failing job. Warm times unchanged (roster 188 ms); the first cold reading after the deploy was higher (roster 429 ms, Encounters 1,113 ms), within the spread single readings have shown, so it is re-measured before any conclusion |
 | #178 UX consistency | `5e11ba5` | all jobs green on the PR's head (run 41579132017: 517 browser tests passed, 353 skipped by design, none retried) and WebKit (run 41579431950); the push to `main` reused that result | smoke, run 41583580731: production on `5e11ba5`, health ok, database 2 ms, no failing job; member pages redirect signed-out visitors to sign-in |
 
 Every pre-merge revalidation passed:
@@ -537,8 +540,9 @@ until a native capability is approved.
 
    It should print 0 (before the fix, the redirect's body carried the player's ids). Alternatively,
    add `team-uniiverse.vercel.app` to this environment's allowed hosts and I will run it.
-2. **#175 (the Riot key evidence)** is approved in principle and merges once its CI passes. Then
-   one `riot-check data-audit` run answers whether any stored game needs re-keying (section 4b).
+2. **The Riot key (#175, released):** production's key is Personal and no stored game needs
+   re-keying. What is left is your confirmation in the Developer Portal that UNIIVERSE is
+   registered as a personal product. #181 records this in `docs/RIOT_COMPLIANCE.md`.
 3. **Decide the Leaderboards rules** in [the Leaderboards report](https://claude.ai/artifact/UtfbhTL5RJqub513acZpDJ): a decision on each
    of the ten rules. The live Leaderboards stay as they are until then.
 4. **Check #178 on the live site** (it is deployed; I could not see its pages). Either:
@@ -553,10 +557,12 @@ until a native capability is approved.
    backup"). Only you can do this: the passphrase never reaches me. The weekly backups pass every
    check (21 Oct, 26 Oct, 2 Nov), and #179 adds proof of the 23 retired tables' rows. The encrypted
    copy grows about 1 MB a day and reaches the run's 100 MB limit in early December.
-6. **Dependabot #176** is approved and merges after #175 once its CI passes. The one moderate
-   alert left (`minimatch`, inside ESLint) is development-only and not part of what is deployed.
-7. **Optional:** the draft PWA branch (#171), a Microsoft Store listing (your account), Web Push.
-8. **A native desktop app needs two things you would have to approve:** a Riot-approved League
+6. **Dependabot #176 is released** (`cda9a66`). The one moderate alert left (`minimatch`, inside
+   ESLint) is development-only and not part of what is deployed.
+7. **Approve merging #179, #180 and #181** once their checks pass: the backup proof, the live check
+   and the compliance note. All three are tooling or docs; none changes what users see.
+8. **Optional:** the draft PWA branch (#171), a Microsoft Store listing (your account), Web Push.
+9. **A native desktop app needs two things you would have to approve:** a Riot-approved League
    client use, and a signing certificate's yearly cost.
 
 ## Executive summary
@@ -585,8 +591,9 @@ commit; one production check after each deploy):
   environment can reach the site (section 7).
 
 **Prepared, waiting for you:**
-- **Riot key evidence (#175). Tested; merges once CI passes.** The key works and is very likely
-  Personal. After the merge, one audit says whether any older stored game needs re-keying.
+- **Riot key evidence (#175). Production-verified.** The key is Personal (Riot's default limits,
+  no 24-hour expiry), every stored game carries the current player ids, and public Riot data is off.
+- **Dependencies (#176). Deployed** (`cda9a66`): Next.js 16.4.3 and three smaller updates.
 - **Leaderboards (#177). Deployed** (the model and its audit; the page is unchanged). Measured on
   the team's own games: the overall All games board ranks all 7 members, but role boards and the
   Ranked view are too thin or tied to rank. Ten proposed rules wait for your decision in
