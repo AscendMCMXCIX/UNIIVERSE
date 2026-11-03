@@ -73,7 +73,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   return (
     <>
       <header
-        className="sticky top-0 z-40 flex items-center gap-2 border-b border-border bg-bg-elevated/90 px-safe-3 pt-safe backdrop-blur-md transition-transform duration-200 ease-out data-[hidden=true]:not-focus-within:-translate-y-full sm:px-safe-4 lg:hidden"
+        className="sticky top-0 z-40 flex items-center gap-2 border-b border-border bg-chrome/90 px-safe-3 pt-safe backdrop-blur-md transition-transform duration-200 ease-out data-[hidden=true]:not-focus-within:-translate-y-full sm:px-safe-4 lg:hidden"
         data-hidden={hidden && !open}
         data-testid="mobile-topbar"
       >
@@ -95,7 +95,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
       {open ? (
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Menu" id="mobile-drawer">
           <button type="button" className="fade-in absolute inset-0 bg-black/60 backdrop-blur-sm" aria-label="Close menu" onClick={() => setOpen(false)} />
-          <div className="drawer-in absolute inset-y-0 left-0 flex w-[min(calc(20rem+env(safe-area-inset-left)),86vw)] flex-col overflow-y-auto overscroll-contain border-r border-border bg-bg-elevated pt-safe pl-[env(safe-area-inset-left)] pb-safe shadow-2xl" data-testid="mobile-drawer-panel">
+          <div className="drawer-in absolute inset-y-0 left-0 flex w-[min(calc(20rem+env(safe-area-inset-left)),86vw)] flex-col overflow-y-auto overscroll-contain border-r border-border bg-chrome pt-safe pl-[env(safe-area-inset-left)] pb-safe shadow-2xl" data-testid="mobile-drawer-panel">
             <div className="flex items-center justify-between gap-2 px-4 py-3">
               {user ? (
                 <Link href={hasPlayer && !adminMode ? "/overview" : (accountLinks[0]?.href ?? "/settings")} onClick={() => setOpen(false)} className="flex min-w-0 items-center gap-2.5">
@@ -143,7 +143,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
       ) : null}
 
       {tabs.length > 0 ? (
-        <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg-elevated/95 px-safe pb-safe backdrop-blur-md short:hidden md:hidden" aria-label="Primary">
+        <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-chrome/95 px-safe pb-safe backdrop-blur-md short:hidden md:hidden" aria-label="Primary">
           {/* Equal columns, one per tab (three for team members, four in Admin Mode). The current tab
               is lit twice over: its icon sits in an accent pill and its label turns bright, so it
               reads at a glance without colour alone. */}

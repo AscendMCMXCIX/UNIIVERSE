@@ -2,12 +2,12 @@
 
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { MULTIKILL_NAMES } from "@/domain/multikills";
 import { QUEUE_GROUP_WORDS, figureText, queueGroup, type FigureKey } from "@/domain/match-analysis";
 import { narrowsGames, refineParams, type SessionSummary } from "@/domain/history-refine";
-import type { MatchDetailResult, MatchHistoryPage, MatchRow } from "@/server/players/match-history";
+import type { MatchHistoryPage, MatchRow } from "@/server/players/match-history";
 import type { Composition } from "@/server/matches/compositions";
 import type { ParticipantRank } from "@/domain/known-rank";
 import type { PortraitChampion } from "@/components/champion-portrait";
@@ -16,7 +16,8 @@ import { timeAgo, formatCount, formatDayMonth, formatNumber, formatTimeOfDay } f
 import { cn } from "@/lib/cn";
 import { MatchDetailModal } from "./match-detail";
 import { MatchDetailCacheContext, createMatchDetailCache, type MatchDetailCache } from "./match-detail-cache";
-import { EncounterLinkContext, MatchBreakdown, type EncounterLink } from "./match-breakdown";
+import { EncounterLinkContext, type EncounterLink } from "./match-breakdown";
+import { MatchExpansion, revealIfAbove, revealOpened } from "./inline-match";
 import { HistorySummaryStrip } from "./history-summary";
 import { ItemRow } from "./icon-img";
 import { MultikillTag } from "./multikill-tag";
@@ -197,29 +198,22 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
         </span>
       </div>
       {expanded ? (
-        <div id={regionId} role="region" aria-label={`${tone.word} on ${champion.name}: match details`} className="rounded-b-panel border border-t-0 border-border bg-bg-elevated p-3 motion-safe:rise-in sm:p-4" data-testid="match-expanded">
-          <InlineMatch playerId={playerId} matchId={row.matchId} champ={champ} />
-          {/* The way back from the end of a long breakdown: closes the game and brings its card
-              into view (the list goes on from where it was), with the focus on it. */}
-          <div className="mt-3 flex justify-end border-t border-border/60 pt-2">
-            <button
-              type="button"
-              onClick={() => {
-                onToggle(row.matchId);
-                requestAnimationFrame(() => {
-                  const card = document.getElementById(`match-${row.matchId}`);
-                  if (card && card.getBoundingClientRect().top < 0) card.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
-                  open.current?.focus({ preventScroll: true });
-                });
-              }}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11"
-              data-testid="match-close"
-            >
-              <ChevronUp className="h-3.5 w-3.5" aria-hidden />
-              Close this game
-            </button>
-          </div>
-        </div>
+        <MatchExpansion
+          id={regionId}
+          label={`${tone.word} on ${champion.name}: match details`}
+          playerId={playerId}
+          matchId={row.matchId}
+          champ={champ}
+          onClose={() => {
+            // The way back from the end of a long breakdown: closes the game and brings its card
+            // into view (the list goes on from where it was), with the focus on it.
+            onToggle(row.matchId);
+            requestAnimationFrame(() => {
+              revealIfAbove(document.getElementById(`match-${row.matchId}`));
+              open.current?.focus({ preventScroll: true });
+            });
+          }}
+        />
       ) : null}
     </li>
   );
@@ -236,37 +230,6 @@ function MemberNames({ names }: { names: string[] }) {
       </span>
     </>
   );
-}
-
-/** The breakdown under a card: loaded once opened (or from the press that opened it), kept by the list's cache. */
-function InlineMatch({ playerId, matchId, champ }: { playerId: string; matchId: string; champ: (id: string | null) => PortraitChampion }) {
-  const cache = React.useContext(MatchDetailCacheContext);
-  const [result, setResult] = React.useState<MatchDetailResult | null>(null);
-  React.useEffect(() => {
-    let live = true;
-    void (cache ? cache.load(playerId, matchId) : Promise.reject(new Error("no cache")))
-      .catch((): MatchDetailResult => ({ status: "unavailable", message: "The match could not be loaded just now. Close it and open it again in a moment." }))
-      .then((r) => {
-        if (live) React.startTransition(() => setResult(r));
-      });
-    return () => {
-      live = false;
-    };
-  }, [cache, playerId, matchId]);
-  if (!result)
-    return (
-      <div className="space-y-2" aria-busy="true" aria-label="Loading the match" data-testid="match-expanded-loading">
-        <div className="h-9 w-72 max-w-full animate-pulse rounded-lg bg-surface-2 motion-reduce:animate-none" />
-        <div className="h-48 animate-pulse rounded-panel bg-surface-2 motion-reduce:animate-none" />
-      </div>
-    );
-  if (result.status !== "ok")
-    return (
-      <p className="rounded-panel border border-dashed border-border p-4 text-sm text-fg-muted" data-testid="match-detail-message">
-        {result.message}
-      </p>
-    );
-  return <MatchBreakdown key={matchId} playerId={playerId} view={result.view} champ={champ} variant="inline" />;
 }
 
 function Stat({ label, value, extra = null, title, testId }: { label: string; value: string; /** A quieter figure after it: the total or the share. */ extra?: string | null; title?: string; testId?: string }) {
@@ -429,10 +392,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
   React.useLayoutEffect(() => {
     if (!inline || reveal.current !== inline) return;
     reveal.current = null;
-    const el = document.getElementById(`match-${inline}`);
-    if (!el) return;
-    const top = el.getBoundingClientRect().top;
-    if (top < 0 || top > window.innerHeight * 0.55) el.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    revealOpened(document.getElementById(`match-${inline}`));
   }, [inline]);
   const returnFocus = React.useRef<HTMLElement | null>(null);
   React.useEffect(() => {

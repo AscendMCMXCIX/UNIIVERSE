@@ -35,8 +35,10 @@ function NavItem({ link, active, large, onNavigate, testId }: { link: NavLink; a
         active ? "text-fg" : "text-fg-muted hover:text-fg",
       )}
     >
-      <span className={cn(RAIL_HIGHLIGHT, active ? "bg-accent/10" : "group-hover:bg-surface-2")} aria-hidden data-testid="nav-highlight" />
-      <span className={cn("absolute inset-y-2 left-0 w-0.5 rounded-full transition-colors", active ? "bg-accent" : "bg-transparent")} aria-hidden />
+      {/* The current page: a quiet neutral lift, the brand gradient as a thin bar at the edge and the
+          icon in the brand blue. The frame stays neutral; colour marks only where you are. */}
+      <span className={cn(RAIL_HIGHLIGHT, active ? "bg-fg/7" : "group-hover:bg-fg/5")} aria-hidden data-testid="nav-highlight" />
+      <span className={cn("absolute inset-y-2 left-0 w-0.5 rounded-full", active ? "bg-gradient-to-b from-accent to-accent-2" : "bg-transparent")} aria-hidden />
       <Icon className={cn("h-[1.125rem] w-[1.125rem] shrink-0 transition-colors", active ? "text-accent" : "text-fg-subtle group-hover:text-fg-muted")} aria-hidden />
       {/* Collapsed sidebar: icon only; the label stays for screen readers and as the tooltip (title). */}
       <span className={cn("truncate", FADE)}>{link.label}</span>
