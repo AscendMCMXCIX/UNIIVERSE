@@ -10,12 +10,17 @@ import { cn } from "@/lib/cn";
     phones   the title, the scope line, then the toolbar: the folded filters and Refresh on one row;
     tablets  the same, with the filters inline (game mode, Refine) and Refresh after them;
     wide     the toolbar beside the title, at the right edge; the scope line under the title.
+  A section with views of equal weight (Match History: Games and Encounters) shows their secondary
+  tabs (`nav`, ui/sub-tabs) in the title's place: the title stays the section's heading for screen
+  readers, and is not repeated on screen under the primary tab that already names it.
 */
-export function SectionHeader({ id, title, aside, description, status, controls, refresh, className, testId }: {
+export function SectionHeader({ id, title, nav, aside, description, status, controls, refresh, className, testId }: {
   /** The heading's id, for the section's aria-labelledby. */
   id: string;
   title: React.ReactNode;
-  /** Beside the title (Match History's switch to Encounters). */
+  /** The section's views (SubTabs), shown in the title's place; the title is then read by screen readers only. */
+  nav?: React.ReactNode;
+  /** Beside the title. */
   aside?: React.ReactNode;
   /** The line under the title: what the figures count. */
   description?: React.ReactNode;
@@ -32,9 +37,10 @@ export function SectionHeader({ id, title, aside, description, status, controls,
     <div className={cn("grid grid-cols-[minmax(0,1fr)] gap-y-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start xl:gap-x-6", className)} data-testid={testId}>
       <div className="min-w-0 xl:pt-0.5">
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-          <h2 id={id} className="min-w-0 text-xl font-semibold tracking-tight text-fg">
+          <h2 id={id} className={nav ? "sr-only" : "min-w-0 text-xl font-semibold tracking-tight text-fg"}>
             {title}
           </h2>
+          {nav}
           {aside}
         </div>
         {description || status ? (
