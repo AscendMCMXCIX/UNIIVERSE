@@ -162,6 +162,7 @@ Use the shared component before writing a new one (`src/components/ui`):
 | Buttons and links that look like buttons | `Button`, `buttonClass` (links never wrap buttons) |
 | Fields | `Input`, `Textarea`, `Select`, `Label`, `Switch` |
 | A section that opens and closes | `Disclosure` |
+| A table that can be wider than the screen | `ScrollRegion` with a `label`: the keyboard can focus and scroll it, and screen readers name it |
 | A status or a tag | `Badge` |
 | Nothing to show | `EmptyState` |
 | Loading | `Skeleton`, `PageSkeleton` (route `loading.tsx`) |
@@ -206,6 +207,16 @@ ones lazily, and keep uploaded brand images small ([HOSTING_USAGE.md](HOSTING_US
 - WCAG 2.2 AA: visible focus, text contrast of 4.5:1 (3:1 for large text and controls), labels on
   every control (an icon button has `aria-label`), headings in order, no meaning by colour alone,
   motion that respects reduced motion. Links inside running text are underlined.
+- A link's or button's accessible name starts with its visible words (WCAG 2.5.3): an
+  `aria-label` that adds detail keeps them first ("Edit on profile: Demo Mid's champions").
+  - An `aria-label` replaces everything the control shows, and axe and speech control compare it
+    with the text on screen, even text hidden from screen readers.
+  - So a control that shows a lot (a game card, a portrait whose letters stand in for it) is named
+    by its content, plus hidden words where needed (`<span className="sr-only">`), not by
+    `aria-label`.
+  - A lettered stand-in for a picture is named like the picture (`ChampionPortrait`).
+- Axe runs on every player and admin page at desktop and phone width, on a teammate's profile, and
+  in the Team player and champion windows (`e2e/quality.spec.ts`).
 - Valid nesting: no block inside a paragraph, no link inside a link or button. The browser
   rearranges such markup and the page fails to hydrate.
 
