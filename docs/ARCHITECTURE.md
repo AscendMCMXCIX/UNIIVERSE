@@ -345,7 +345,7 @@ request is a game's match timeline, once per game, when a section that needs it 
   `getMatchMeetingsAction`): under a card, a scoreboard row carries "Met N×" after the name when the
   player met that player in another game of the list's season, game mode and account. N counts
   their games together as Encounters counts them, this one included, and the mark opens their
-  Encounters window, which shows the same N. Only the players Encounters lists are marked (a
+  games in Match History (Encounters → the player), which counts the same N. Only the players Encounters lists are marked (a
   recorded Riot ID and no UNIIVERSE profile). One statement after the scoreboard: the game's record
   names them, then only the records holding them are opened, through the participants' index
   (`match_details_puuids_idx`), each counted when it is one of the player's games in the scope.

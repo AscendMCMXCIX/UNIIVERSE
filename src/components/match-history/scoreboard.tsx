@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { ChevronRight, Clock3, UserX } from "lucide-react";
 import type { MatchGroupsResult, MatchGroupsTeam, MatchGroupView } from "@/server/matches/possible-groups";
 import { groupEvidenceText, groupsNoteState } from "@/domain/possible-groups";
@@ -56,13 +57,13 @@ export interface RankProps {
   checking: boolean;
 }
 
-/** The players met in the player's other games, by place in the record, and how to open one's Encounters window. */
+/** The players met in the player's other games, by place in the record, and the address of one's games (Match History → Encounters). */
 export interface MeetProps {
   met?: ReadonlyMap<number, MatchMeeting>;
-  onMeet?: ((x: DetailParticipant, key: string) => void) | null;
+  meetHref?: ((key: string) => string) | null;
 }
 
-export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, queueId, checking, met, onMeet }: { team: DetailTeam; champ: (id: string | null) => PortraitChampion; maxDamage: number; groups: MatchGroupsTeam | null; /** The player's lane opponent, by place in the record. */ laneSlot: number | null } & RankProps & MeetProps) {
+export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, queueId, checking, met, meetHref }: { team: DetailTeam; champ: (id: string | null) => PortraitChampion; maxDamage: number; groups: MatchGroupsTeam | null; /** The player's lane opponent, by place in the record. */ laneSlot: number | null } & RankProps & MeetProps) {
   const objectives = OBJECTIVES.filter(([k]) => team.objectives[k] !== undefined);
   const found = groups?.groups ?? [];
   const groupOf = new Map(found.flatMap((g, i) => g.slots.map((s) => [s, { index: i, label: g.label }] as const)));
@@ -124,7 +125,7 @@ export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, qu
       </div>
       <ul className="divide-y divide-border">
         {team.participants.map((x, i) => (
-          <ParticipantRow key={i} x={x} champ={champ} maxDamage={maxDamage} group={groupOf.get(x.slot) ?? null} lane={laneSlot !== null && x.slot === laneSlot} rank={rankOf(x)} queueId={queueId} checking={checking} met={onMeet ? (met?.get(x.slot) ?? null) : null} onMeet={onMeet ?? null} />
+          <ParticipantRow key={i} x={x} champ={champ} maxDamage={maxDamage} group={groupOf.get(x.slot) ?? null} lane={laneSlot !== null && x.slot === laneSlot} rank={rankOf(x)} queueId={queueId} checking={checking} met={meetHref ? (met?.get(x.slot) ?? null) : null} meetHref={meetHref ?? null} />
         ))}
       </ul>
     </section>
@@ -309,28 +310,28 @@ function RemovedRow() {
 
 /**
  * "Met 4×" after a player's name: the player's recorded games with them in the list's season and
- * game mode, this one included (the count their Encounters window shows), and the window on a press.
+ * game mode, this one included (the count their games show), and those games on a press: Match
+ * History's own list, filtered to them (Match History → Encounters).
  */
-function MetChip({ met, onOpen }: { met: MatchMeeting; onOpen: () => void }) {
+function MetChip({ met, href }: { met: MatchMeeting; href: string }) {
   const sides = [met.opponent ? `${formatCount(met.opponent)} against` : null, met.ally ? `${formatCount(met.ally)} alongside` : null].filter(Boolean).join(", ");
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      title={`Met in ${formatCount(met.games)} recorded games, this one included (${sides}). Opens their encounters.`}
+    <Link
+      href={href}
+      title={`Met in ${formatCount(met.games)} recorded games, this one included (${sides}). Shows your games with them.`}
       className="relative shrink-0 rounded border border-border px-1 text-2xs font-medium leading-4 tabular-nums text-fg-muted transition-colors hover:border-accent/50 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']"
       data-testid="participant-met"
       data-games={met.games}
     >
-      {/* Read as "Met 4 times, this game included (3 against, 1 alongside). Open their encounters". */}
+      {/* Read as "Met 4 times, this game included (3 against, 1 alongside). Show your games with them". */}
       Met {formatCount(met.games)}
       <span aria-hidden>×</span>
-      <span className="sr-only"> times, this game included ({sides}). Open their encounters</span>
-    </button>
+      <span className="sr-only"> times, this game included ({sides}). Show your games with them</span>
+    </Link>
   );
 }
 
-function ParticipantRow({ x, champ, maxDamage, group, lane, rank, queueId, checking, met, onMeet }: { x: DetailParticipant; champ: (id: string | null) => PortraitChampion; maxDamage: number; group: { index: number; label: string } | null; lane: boolean; rank: ParticipantRank; queueId: number | null; checking: boolean; met: MatchMeeting | null; onMeet: ((x: DetailParticipant, key: string) => void) | null }) {
+function ParticipantRow({ x, champ, maxDamage, group, lane, rank, queueId, checking, met, meetHref }: { x: DetailParticipant; champ: (id: string | null) => PortraitChampion; maxDamage: number; group: { index: number; label: string } | null; lane: boolean; rank: ParticipantRank; queueId: number | null; checking: boolean; met: MatchMeeting | null; meetHref: ((key: string) => string) | null }) {
   if (x.removed) return <RemovedRow />;
   const c = champ(x.championId);
   const kda = x.deaths === 0 ? "Perfect" : x.kda.toFixed(2);
@@ -359,7 +360,7 @@ function ParticipantRow({ x, champ, maxDamage, group, lane, rank, queueId, check
               </PlayerLink>
               {group ? <span className="sr-only"> ({group.label.toLowerCase()})</span> : null}
             </span>
-            {met && onMeet ? <MetChip met={met} onOpen={() => onMeet(x, met.key)} /> : null}
+            {met && meetHref ? <MetChip met={met} href={meetHref(met.key)} /> : null}
           </span>
           <span className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-fg-muted">
             <span className="truncate">
