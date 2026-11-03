@@ -68,7 +68,7 @@ From the owner's brief and `CLAUDE.md`:
 | `leaderboards-model` | #177 | Leaderboards' proposed model, as tested domain code, and its production audit; the page is unchanged | **Deployed** (`d72619a`), smoke passed; its audit ran on production (run 41597099104). Findings and the proposed rules: [the Leaderboards report](https://claude.ai/artifact/UtfbhTL5RJqub513acZpDJ) |
 | `dependabot/…minor-and-patch…` | #176 | next 16.4.3, eslint-config-next 16.4.3, lucide-react 1.65.0, PGlite 0.5.13 | **Deployed** (`cda9a66`), smoke and perf-probe passed (run 41606535813) |
 | `ops/backup-retired-tables` | #179 | Each backup proves the 23 retired tables that #86 and #138 would drop restore with all their rows | **Tested** end to end on a local PostgreSQL 16, including the failing case; CI green (run 41607087797). Tooling only; waits for your approval to merge |
-| `ops/live-check` | #180 | A read-only live check of the deployed site at three widths (#170, #173, #178), and the fix for a flaky Encounters browser test on `main` (Findings, 3b) | **Tested** against a local demo build (200 checks passed); runs on production once this environment can reach it. CI on `f630004` failed on the flaky test; the fix (`021a0a0`) passed the full browser suite locally, and CI on it is running (run 41619446379). Waits for your approval to merge |
+| `ops/live-check` | #180 | A read-only live check of the deployed site at three widths (#170, #173, #178), and the fix for a flaky Encounters browser test on `main` (Findings, 3b) | **Tested** against a local demo build (200 checks passed); runs on production once this environment can reach it. CI on `f630004` failed on the flaky test; with the fix (`021a0a0`) CI is green (run 41619446379). Waits for your approval to merge |
 | `docs/riot-key-evidence` | #181 | `docs/RIOT_COMPLIANCE.md`: the key in use is Personal; no stored game needs re-keying | Docs only (CI and Vercel skip it); waits for your approval to merge |
 | `ux/layout-consistency` | #178 | Neutral frame, compact All Champions, Team Matches opens games under their cards, the layout rules | **Deployed** (5e11ba5), smoke passed. Not yet production-verified: its screens were not checked on the live site (this environment cannot reach it, section 7) |
 
@@ -621,8 +621,8 @@ commit; one production check after each deploy):
   Ranked view are too thin or tied to rank. Ten proposed rules wait for your decision in
   [the Leaderboards report](https://claude.ai/artifact/UtfbhTL5RJqub513acZpDJ).
 - **Backup proof for the retired tables (#179)**: tested; CI green; waits for your approval to merge.
-- **The automated live check (#180)**: tested against a local demo build; waits for this
-  environment to reach the live site. It also fixes a browser test that fails on `main` whenever a
+- **The automated live check (#180)**: tested against a local demo build; CI green; waits for your
+  approval to merge, and for this environment to reach the live site to run it there. It also fixes a browser test that fails on `main` whenever a
   fresh demo leaves one list empty: 2 of 12 measured (Findings, 3b).
 - **The PWA's Windows integration (#171, draft).**
 
