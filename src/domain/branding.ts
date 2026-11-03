@@ -231,7 +231,11 @@ export function brandThemeVars(c: BrandColours): Record<string, string> {
     vars["--color-border"] = `color-mix(in srgb, ${c.surface} 86%, #ffffff)`;
     vars["--color-border-strong"] = `color-mix(in srgb, ${c.surface} 76%, #ffffff)`;
   }
-  if (c.background || c.surface) vars["--color-border-control"] = controlEdge(c.surface ?? DEFAULT_COLOURS.surface, c.background ?? DEFAULT_COLOURS.background);
+  if (c.background || c.surface) {
+    vars["--color-border-control"] = controlEdge(c.surface ?? DEFAULT_COLOURS.surface, c.background ?? DEFAULT_COLOURS.background);
+    // The app's frame (sidebar, top bar, drawer, tab bar): between the team's page and panel colours, in their own hue.
+    vars["--color-chrome"] = `color-mix(in srgb, ${c.surface ?? DEFAULT_COLOURS.surface} 70%, ${c.background ?? DEFAULT_COLOURS.background})`;
+  }
   return vars;
 }
 

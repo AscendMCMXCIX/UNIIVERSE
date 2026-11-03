@@ -280,20 +280,31 @@ export function seasonChampionStats(
   championIds: readonly string[],
   options: { season: number; mode: SeasonMode },
 ): SeasonChampionStats[] {
+  // One pass groups the season's games by champion (in their original order), so each champion's
+  // four filters below read only its own games instead of every game four times.
+  const wanted = new Set(championIds);
+  const byChampion = new Map<string, SeasonGame[]>();
+  for (const g of games) {
+    if (!wanted.has(g.championId) || seasonOfPatch(g.patch) !== options.season) continue;
+    const list = byChampion.get(g.championId);
+    if (list) list.push(g);
+    else byChampion.set(g.championId, [g]);
+  }
   return championIds.map((championId) => {
-    const selected = gamesFor(games, { ...options, championId });
+    const own = byChampion.get(championId) ?? [];
+    const selected = gamesFor(own, { ...options, championId });
     return {
       championId,
       selected: recordOf(selected),
       performance: performanceOfGames(selected),
       solo: recordOf(
-        gamesFor(games, { season: options.season, mode: "solo", championId }),
+        gamesFor(own, { season: options.season, mode: "solo", championId }),
       ),
       flex: recordOf(
-        gamesFor(games, { season: options.season, mode: "flex", championId }),
+        gamesFor(own, { season: options.season, mode: "flex", championId }),
       ),
       normal: recordOf(
-        gamesFor(games, { season: options.season, mode: "normal", championId }),
+        gamesFor(own, { season: options.season, mode: "normal", championId }),
       ),
     };
   });

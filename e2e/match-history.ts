@@ -3,8 +3,8 @@ import { expect, type Locator, type Page } from "./test";
 /*
   Match History's games open under their card (components/match-history/match-breakdown.tsx): the
   card is a toggle (its button's aria-expanded), and the breakdown (Scoreboard, Analysis, Timeline,
-  Build) loads into the region below it. The match window is for Team Matches, Matchups, Encounters
-  and links to a game that is not on the page shown.
+  Build) loads into the region below it. Team → Matches opens its games the same way. The match
+  window is for Matchups, Encounters and links to a game that is not on the page shown.
 */
 
 /** A card of the page by its match id. */
@@ -27,6 +27,36 @@ export async function openGame(card: Locator): Promise<Locator> {
   const breakdown = expandedOf(card).getByTestId("match-breakdown");
   await expect(breakdown).toBeVisible({ timeout: 15_000 });
   return breakdown;
+}
+
+/** Opens a Team → Matches game (its list item, `together-game`) under its card and waits for its breakdown. */
+export async function openTogether(game: Locator): Promise<Locator> {
+  const button = game.getByTestId("together-open");
+  await expect(async () => {
+    if ((await button.getAttribute("aria-expanded")) !== "true") await game.getByTestId("together-card").click({ position: { x: 24, y: 12 }, timeout: 2_000 });
+    await expect(button).toHaveAttribute("aria-expanded", "true", { timeout: 2_000 });
+  }).toPass({ timeout: 15_000 });
+  const breakdown = game.getByTestId("match-expanded").getByTestId("match-breakdown");
+  await expect(breakdown).toBeVisible({ timeout: 15_000 });
+  return breakdown;
+}
+
+/**
+ * Opens the shared match window the way a page still does: a link to a game that is not on the
+ * page shown (the first game of the second page of the Top player's Match History).
+ */
+export async function openMatchWindow(page: Page): Promise<Locator> {
+  await page.goto("/team");
+  const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
+  await page.goto(`/players/${id}/matches`);
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  await page.getByTestId("match-next").click();
+  await expect(page).toHaveURL(/page=2/);
+  const elsewhere = (await page.getByTestId("match-row").first().getAttribute("data-match"))!;
+  await page.goto(`/players/${id}/matches?match=${elsewhere}`);
+  const win = page.getByTestId("match-detail");
+  await expect(win).toBeVisible();
+  return win;
 }
 
 /** Closes a game opened under its card (the card toggles it). */

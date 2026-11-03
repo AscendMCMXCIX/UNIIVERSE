@@ -74,6 +74,7 @@ list fades out before the figures (a pool row's left half).
 | Token | Use |
 | --- | --- |
 | `bg`, `bg-elevated` | page background; fields, menus and popovers (a step above the panel they sit on) |
+| `chrome` | the app's frame: sidebar, top bar, drawer and tab bar. A near-neutral charcoal, so navigation recedes; colour in it marks only the current page (a neutral lift, the brand gradient as a thin bar, the icon in `accent`) |
 | `surface`, `surface-2`, `surface-3` | panels and cards; raised rows and tiles inside them; selected or hovered |
 | `border`, `border-strong`, `border-control` | structure (dividers, panel and card edges); emphasis (a menu's or dialog's edge, a hovered row); the edge of a field, toolbar button, segmented group or switch, 3:1 against the page, the panels and popovers (WCAG 1.4.11; Branding derives it from custom colours) |
 | `fg`, `fg-muted`, `fg-subtle` | text: main, secondary, captions and metadata; all three 4.5:1 or more on every surface, `surface-3` included |
@@ -123,6 +124,26 @@ kept at a size its content does not fill); All Champions is a dense analytical t
 History is detailed and scannable; banners are expressive; Settings and forms are plain and
 roomy. Empty or thin data shrinks a card rather than leaving a frame to fill.
 
+**Page layout.** One frame for every page, so pages differ by their content, not their scaffolding:
+- **Width:** `--content-max` for profiles, lists of cards, documents and forms; `--content-wide` for
+  the grids that gain from more columns (Team Overview's lineup, Leaderboards). The page's padding
+  comes from the app shell; a page adds none of its own.
+- **Headings, in three tiers:**
+  - a team or admin page opens with `PageHeader` (one `h1`, `text-2xl`, then its scope line);
+  - a profile's `h1` is the player's name in its banner, and each section of it opens with
+    `SectionHeader` (an `h2`, `text-xl`);
+  - the two landing pages (Team Overview and a profile's Overview) have a larger hero title. They
+    are the only exceptions.
+- **Toolbars:** the filters first, then the page's own actions at the end (Refine, Refresh,
+  Bookmarked), never on a row of their own. A page's toolbar sits under its scope line; a profile
+  section's moves beside its title from `xl` (`SectionHeader`).
+- **Density, by what the page is for:**
+  - an analytical table has 2rem portraits and rows of about 48px wherever it is a table. Its
+    figure columns are as wide as their heading needs and a little more, and the name column takes
+    the rest, so figures stay together on a wide screen. On phones the rows become compact pairs;
+  - a list of games is one card per game, and a game opens under its card;
+  - a dashboard's cards are as large as their content.
+
 **Tables and rankings.** Columns of figures are right-aligned in `tabular-nums` under headings
 that never wrap (`whitespace-nowrap`; the sort arrow sits outside the heading's text, so a
 heading keeps its place when it is sorted). The sorted column is marked by its arrow and by its
@@ -153,6 +174,7 @@ Use the shared component before writing a new one (`src/components/ui`):
 | Page title, eyebrow, actions | `PageHeader` |
 | A titled section | `Panel`, `PanelHeader`, `PanelBody`, `SectionLabel` |
 | A figure with its label and explanation | `Metric`, `MetricLabel`, `InfoTip` |
+| A game in a list of games (Match History, Team → Matches) | Opens under its card: `MatchExpansion` (`match-history/inline-match.tsx`), one game at a time, `?match=` in the address. The match window is only for where a list cannot open it in place (inside another window, or a link to a game not on the page) |
 | Details over the page (a match, a player, a champion) | `DetailModal` (the standard size fits its content up to the screen's height); a custom `header` keeps clear of the close button's corner with `CLEAR_OF_CONTROLS` (content beside it) or `BELOW_CONTROLS` (content that starts under it), never a fixed padding |
 | A question or a short form | `Dialog`, `ConfirmDialog` |
 | Choices in a list | `Menu`, `MenuItem`, `MenuLink` |
@@ -162,6 +184,7 @@ Use the shared component before writing a new one (`src/components/ui`):
 | Buttons and links that look like buttons | `Button`, `buttonClass` (links never wrap buttons) |
 | Fields | `Input`, `Textarea`, `Select`, `Label`, `Switch` |
 | A section that opens and closes | `Disclosure` |
+| A table that can be wider than the screen | `ScrollRegion` with a `label`: the keyboard can focus and scroll it, and screen readers name it |
 | A status or a tag | `Badge` |
 | Nothing to show | `EmptyState` |
 | Loading | `Skeleton`, `PageSkeleton` (route `loading.tsx`) |
@@ -206,6 +229,16 @@ ones lazily, and keep uploaded brand images small ([HOSTING_USAGE.md](HOSTING_US
 - WCAG 2.2 AA: visible focus, text contrast of 4.5:1 (3:1 for large text and controls), labels on
   every control (an icon button has `aria-label`), headings in order, no meaning by colour alone,
   motion that respects reduced motion. Links inside running text are underlined.
+- A link's or button's accessible name starts with its visible words (WCAG 2.5.3): an
+  `aria-label` that adds detail keeps them first ("Edit on profile: Demo Mid's champions").
+  - An `aria-label` replaces everything the control shows, and axe and speech control compare it
+    with the text on screen, even text hidden from screen readers.
+  - So a control that shows a lot (a game card, a portrait whose letters stand in for it) is named
+    by its content, plus hidden words where needed (`<span className="sr-only">`), not by
+    `aria-label`.
+  - A lettered stand-in for a picture is named like the picture (`ChampionPortrait`).
+- Axe runs on every player and admin page at desktop and phone width, on a teammate's profile, and
+  in the Team player and champion windows (`e2e/quality.spec.ts`).
 - Valid nesting: no block inside a paragraph, no link inside a link or button. The browser
   rearranges such markup and the page fails to hydrate.
 

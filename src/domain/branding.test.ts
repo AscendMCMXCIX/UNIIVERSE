@@ -73,6 +73,12 @@ describe("branding", () => {
     expect(vars["--color-bg-elevated"]).toBeUndefined();
   });
 
+  it("keeps the app's frame in the team's own colours when they choose a page or panel colour", () => {
+    expect(brandThemeVars(DEFAULT_BRANDING)["--color-chrome"]).toBeUndefined();
+    expect(brandThemeVars({ ...DEFAULT_BRANDING, surface: "#2a1a40", background: "#140c22" })["--color-chrome"]).toBe("color-mix(in srgb, #2a1a40 70%, #140c22)");
+    expect(brandThemeVars({ ...DEFAULT_BRANDING, background: "#140c22" })["--color-chrome"]).toBe(`color-mix(in srgb, ${DEFAULT_COLOURS.surface} 70%, #140c22)`);
+  });
+
   it("derives a lighter accent and a readable text colour", () => {
     expect(lightenHex("#000000", 0.5)).toBe("#808080");
     expect(lightenHex("#c8aa6e", 0)).toBe("#c8aa6e");

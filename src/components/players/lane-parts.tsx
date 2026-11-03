@@ -4,12 +4,13 @@ import * as React from "react";
 import { ChevronRight } from "lucide-react";
 import { CURVE_MINUTES, MIN_CURVE_GAMES, type MinuteSummary } from "@/domain/matchups";
 import type { LaneSummary, MatchupGameView } from "@/server/players/matchups";
-import { MatchRail, MatchResult, matchCardClass, matchTone } from "@/components/match-history/match-card";
+import { MatchRail, MatchResult, matchCardClass } from "@/components/match-history/match-card";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { timeAgo, formatNumber } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { useNow } from "@/components/ui/relative-time";
+import { ScrollRegion } from "@/components/ui/scroll-region";
 
 /*
   The lane parts of the champion window: the checkpoint table, the lane chart and the game card.
@@ -48,7 +49,7 @@ export function LaneTable({ checkpoints, testId = "lane-checkpoints" }: { checkp
     { label: "Ahead in gold", value: (c) => `${c.aheadInGold} of ${c.games}` },
   ];
   return (
-    <div className="overflow-x-auto">
+    <ScrollRegion label="Lane differences by minute">
       <table className="w-full text-xs sm:text-sm" data-testid={testId}>
         <caption className="sr-only">Average difference with the lane opponent at each minute (yours minus theirs), with the games behind each column</caption>
         <thead>
@@ -88,7 +89,7 @@ export function LaneTable({ checkpoints, testId = "lane-checkpoints" }: { checkp
           </tr>
         </tbody>
       </table>
-    </div>
+    </ScrollRegion>
   );
 }
 
@@ -255,7 +256,9 @@ export function LaneGameCard({ g, showAccount, onOpen, stated, opponent }: { g: 
   const when = timeAgo(new Date(g.playedAt), useNow());
   return (
     <li>
-      <button type="button" onClick={onOpen} className={cn("group w-full text-left focus-visible:outline-2 focus-visible:outline-accent", matchCardClass(g.win, { interactive: true }))} data-testid="lane-game" data-match={g.matchId} aria-label={`${matchTone(g.win).word}, ${g.queue}, ${when}${opponent ? ` against ${opponent.name}` : ""}. Open the match details.`}>
+      {/* Named by what it shows, then a hidden "Open the match details.": an aria-label would have to
+          repeat every figure on the card to keep its visible words in the name (WCAG 2.5.3). */}
+      <button type="button" onClick={onOpen} className={cn("group w-full text-left focus-visible:outline-2 focus-visible:outline-accent", matchCardClass(g.win, { interactive: true }))} data-testid="lane-game" data-match={g.matchId}>
         <MatchRail win={g.win} />
         <span className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 px-3 py-2.5 sm:grid-cols-[6.5rem_minmax(0,1fr)_auto]">
           <MatchResult win={g.win} queue={g.queue} when={when} duration={fmtDuration(g.durationSeconds)} lineBelow="sm" className="max-sm:col-span-2" />
@@ -263,7 +266,10 @@ export function LaneGameCard({ g, showAccount, onOpen, stated, opponent }: { g: 
             {opponent ? (
               <span className="flex items-center gap-1.5">
                 <span className="text-fg-subtle">vs</span>
-                <ChampionPortrait champion={opponent} size="xs" />
+                {/* The name beside it says who: the portrait is not read twice. */}
+                <span aria-hidden className="flex shrink-0">
+                  <ChampionPortrait champion={opponent} size="xs" />
+                </span>
                 <span className="font-medium text-fg">{opponent.name}</span>
               </span>
             ) : null}
@@ -286,6 +292,7 @@ export function LaneGameCard({ g, showAccount, onOpen, stated, opponent }: { g: 
           </span>
           <ChevronRight className="h-4 w-4 text-fg-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-fg motion-reduce:transition-none" aria-hidden />
         </span>
+        <span className="sr-only">. Open the match details.</span>
       </button>
     </li>
   );
