@@ -437,24 +437,21 @@ and this report does not repeat it.
 **The key, from evidence** (your questions of 2 Nov):
 1. **Is there a working key?** Yes. `riot-check` succeeds in production (last on 2 Nov at
    22:08 UTC), and account syncs keep succeeding.
-2. **Development or Personal?** Very likely Personal:
+2. **Development or Personal?** **Personal (confirmed 3 Nov at 22:47 UTC).**
    - The same key, by fingerprint, has answered for at least seven days. A Development key expires
      24 hours after it is issued.
    - The limits Riot applies are 20 requests a second and 100 every 2 minutes. Development and
      Personal keys share those limits; a Production key has more.
-   - **To make it certain:** one more `riot-check` 24 hours after the 2 Nov reading (scheduled for
-     3 Nov 22:20 UTC). The same fingerprint then rules out a Development key.
+   - **Made certain:** the `riot-check` of 3 Nov at 22:47 UTC (run 41733812716) found the same
+     fingerprint, accepted, 24 h 39 min after the one of 2 Nov at 22:08 UTC (run 41534575560). That
+     rules out a Development key. The fingerprint is not written here.
    - #175 also makes `riot-check` report the limits Riot states for the key and the tier they imply.
-3. **Can it be used without migrating the stored player ids?** For recent data, yes:
-   - The games of the last 30 days carry ids from the current key's family.
-   - Older stored games were not checked. #175's audit (`data-audit` → `riotIdFamily`) counts, by
-     age, which games carry the current ids, another family's, or none.
-4. **What a safe transition needs:**
-   - merge #175 (your approval) and run `riot-check data-audit`;
-   - if every age bucket carries the current ids, nothing needs migrating; `docs/RIOT_COMPLIANCE.md`
-     item 1 is then corrected in a docs PR;
-   - only if older games carry another family is a re-keying migration needed, rehearsed on a copy
-     of the database first.
+3. **Can it be used without migrating the stored player ids?** Yes, for every stored game:
+   #175's audit (`data-audit` → `riotIdFamily`, run 41602528625) found all 4,951 member places in
+   stored games carrying the member's current id, at every age, and none carrying another.
+4. **What a safe transition needs:** nothing, while the key stays the same. #175 is merged, its
+   audit ran, every age carries the current ids, and `docs/RIOT_COMPLIANCE.md` item 1 is corrected
+   (#181). A re-keying job is needed only if production ever moves to another application's key.
 
    No Vercel setting or key change is needed for any of this.
 
