@@ -607,3 +607,17 @@ On the live site, after the deployment (checked locally on demo data at 1440, 19
 - [ ] The keyboard: Tab reaches each card once, Enter or Space opens and closes the game, and the focus stays on the card.
 - [ ] A copied Team Matches link with `?match=` opens that game under its card. Back and Forward follow the open game.
 - [ ] Matchups, Encounters and a Match History link to a game not on the page still open the match window, as before.
+
+## Match History and Encounters: one navigation, All first, a player's games in Match History (3 Nov 2026)
+
+On the live site, after the deployment (checked locally on demo data at 1440, 768 and 390 px; no physical devices were used):
+- [ ] Data jobs → `smoke` and `perf-probe`: every step passes and `deployment.commit` is the merge commit.
+- [ ] A profile → Match History, on a computer and on a phone: Games and Encounters are two tabs directly under the profile's tabs, where the "Match History" title was; the current one is a lit pill with a blue icon. On a phone they share the width. Switching keeps the season, game mode and account, the page does not jump, and Back and Forward switch back.
+- [ ] Games: the line under the tabs reads "N games · Season … · …" with the one ⓘ for how current the data is; no ⓘ stands alone.
+- [ ] Encounters opens on **All** (no `rel` in the address): one row per player, the Against games, record and win rate in their own columns, a rule, then the same for Alongside, then when you last met. "never" where a side has no games. Against and Alongside filter the list (each with its count); the ⓘ beside them says how encounters are counted.
+- [ ] The highlights sit in one line above the table, like the summary line on Games; each opens that player's games.
+- [ ] A player (a row or a highlight): their games open in Match History itself, Encounters still the current tab, with "All encounters", their name (and OP.GG for a real Riot ID, in a new tab), "N games with … · last met …", the Against and Alongside records, and All / Against / Alongside when they were met both ways. The games are ordinary Match History cards; a game opens under its card with Scoreboard, Analysis, Timeline and Build, as on Games. There is no Encounters window any more.
+- [ ] "All encounters" returns to the list as it was (the same filter, minimum and search); Back does too. A copied link to a player's games opens the same games and side.
+- [ ] A game's scoreboard: "Met N×" opens that player's games with the same N.
+- [ ] Admin Mode → Users & Permissions: Accounts, Access levels & groups and Personal data are the same pill tabs.
+- [ ] Leaderboards is unchanged (its rules wait for your decision).
