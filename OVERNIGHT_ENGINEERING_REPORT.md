@@ -67,9 +67,12 @@ From the owner's brief and `CLAUDE.md`:
 | `ops/riot-id-family-audit` | #175 | Riot key evidence: the key's tier from Riot's stated limits, and which stored games carry the current player ids | **Production-verified** (`1538524`): its reports ran on production (run 41602528625). The key is Personal and no stored game needs re-keying; `docs/RIOT_COMPLIANCE.md` is updated in #181 |
 | `leaderboards-model` | #177 | Leaderboards' proposed model, as tested domain code, and its production audit; the page is unchanged | **Deployed** (`d72619a`), smoke passed; its audit ran on production (run 41597099104). Findings and the proposed rules: [the Leaderboards report](https://claude.ai/artifact/UtfbhTL5RJqub513acZpDJ) |
 | `dependabot/…minor-and-patch…` | #176 | next 16.4.3, eslint-config-next 16.4.3, lucide-react 1.65.0, PGlite 0.5.13 | **Deployed** (`cda9a66`), smoke and perf-probe passed (run 41606535813) |
-| `ops/backup-retired-tables` | #179 | Each backup proves the 23 retired tables that #86 and #138 would drop restore with all their rows | **Tested** end to end on a local PostgreSQL 16, including the failing case; CI green (run 41607087797). Tooling only; waits for your approval to merge |
-| `ops/live-check` | #180 | A read-only live check of the deployed site at three widths (#170, #173, #178), and the fix for a flaky Encounters browser test on `main` (Findings, 3b) | **Tested** against a local demo build (200 checks passed); runs on production once this environment can reach it. CI on `f630004` failed on the flaky test; with the fix (`021a0a0`) CI is green (run 41619446379). Waits for your approval to merge |
-| `docs/riot-key-evidence` | #181 | `docs/RIOT_COMPLIANCE.md`: the key in use is Personal; no stored game needs re-keying | Docs only (CI and Vercel skip it); waits for your approval to merge |
+| `ops/backup-retired-tables` | #179 | Each backup proves the retired tables that #86 and #138 would drop restore with all their rows | **Deployed** (`9b6c09f`). Its first production run (Database backup, run 41732063033) restored all 72 tables with matching counts, including the 24 retired ones (992,581 rows), and the encrypted copy (67 MB) decrypts to the same dump |
+| `ops/live-check` | #180 | A read-only live check of the deployed site at three widths, and the fix for a flaky Encounters browser test (Findings, 3b) | **Deployed** (`e2c5169`). It now runs from GitHub's runner after every production deployment and daily, inside the Production check (#182) |
+| `docs/riot-key-evidence` | #181 | `docs/RIOT_COMPLIANCE.md`: the key is Personal, no re-keying, and every check that needs no portal access | **Merged** (`4391e51`, docs only). The Personal key is confirmed by a second `riot-check` 24 h 39 min after the first |
+| `ops/production-automation` | #182 | The Production check after every deployment and daily (security, Riot rules, public pages at three widths with axe, backup age, database size, Monday perf probe), one issue per failing check, the Riot endpoints pinned by a test | **Deployed** (`7bdaf42`). Its first run on production: 100 checks passed, none failed (run 41736960841) |
+| `ux/encounters-navigation` | #183 | Match History and Encounters: one navigation, All first, a player's games in Match History itself | **Deployed** (`508f0b3`). CI and WebKit green; the Production check passed on the deployed commit (run 41739546456). Not production-verified: the member pages need the verification account (section 7) |
+| `ops/db-size-alert` | #184 | The database's size reaches you from 80% (one issue, with the remedy); a real member's pages tried signed out and with a forged session on every check | See the end of this table's update in section 7 |
 | `ux/layout-consistency` | #178 | Neutral frame, compact All Champions, Team Matches opens games under their cards, the layout rules | **Deployed** (5e11ba5), smoke passed. Not yet production-verified: its screens were not checked on the live site (this environment cannot reach it, section 7) |
 
 Before the release, all six original branches merged cleanly with `main` and with one another (all 15
@@ -544,47 +547,42 @@ until a native capability is approved.
 
 ### 7. Decisions and approvals that are yours
 
-**Done with your approval:** the release of #170, #172, #169 and #173 (Release, above).
+**Done with your approval:** the release of #170, #172, #169, #173 and #178; on 3 Nov, #179, #180, #181, #182 and #183, each once every check on its head had passed.
 
-**Still yours:**
-1. **Confirm the high fix in production, once.** This session's network cannot reach the site. Take a
-   player id from the public team page, then run:
+**Now automatic, with nothing for you to do:**
+- **The Production check** (#182) runs after every production deployment and every day, from GitHub's runner, which reaches the site. It checks:
+  - that production answers from the commit just deployed, and its health;
+  - that member pages turn away signed-out and forged-session requests;
+  - the security headers and Riot's rules for a Personal key;
+  - the public pages at three widths, with axe.
 
-   ```
-   curl -s -H "Cookie: uniiverse_session=s1.$(head -c 40 /dev/zero | tr '\0' x)" \
-     https://team-uniiverse.vercel.app/players/<player id>/champions | grep -ci puuid
-   ```
+  Daily it also checks that a backup passed within 8 days, and the database's size. A failure opens one GitHub issue with what failed; the next passing run closes it.
+- **#184** adds a real member's own pages to the forged-session checks (the case of the high finding, which replaces the `curl` this section asked you to run) and an issue from 80% of the database's plan.
+- **The weekly backup** proves that every table restores, including the retired ones, and opens an issue if it fails or nears its size limit.
 
-   It should print 0 (before the fix, the redirect's body carried the player's ids). Alternatively,
-   add `team-uniiverse.vercel.app` to this environment's allowed hosts and I will run it.
-2. **The Riot key (#175, released):** production's key is Personal and no stored game needs
-   re-keying. What is left is your confirmation in the Developer Portal that UNIIVERSE is
-   registered as a personal product. #181 records this in `docs/RIOT_COMPLIANCE.md`.
-3. **Decide the Leaderboards rules** in [the Leaderboards report](https://claude.ai/artifact/UtfbhTL5RJqub513acZpDJ): a decision on each
-   of the ten rules. The live Leaderboards stay as they are until then.
-4. **Check #178 on the live site** (it is deployed; I could not see its pages). Either:
-   - go through the checklist in `docs/LIVE_VALIDATION.md` → "UX consistency" on a computer and a
-     phone; or
-   - add `team-uniiverse.vercel.app` to this environment's allowed domains (Network access) and give
-     it a non-admin verification account as `UNIIVERSE_VERIFY_USER` and `UNIIVERSE_VERIFY_PASSWORD`.
-     I then run the scripted live check, which reads pages only, at 1440 and 390 px, with
-     screenshots.
-5. **Your backup check** before any table drop: download a backup, open it with the passphrase from
-   your password manager, and keep that file offline (`docs/BACKUPS.md`, "Open and check a
-   backup"). Only you can do this: the passphrase never reaches me. The weekly backups pass every
-   check (21 Oct, 26 Oct, 2 Nov), and #179 adds proof of the 23 retired tables' rows. The encrypted
-   copy grows about 1 MB a day and reaches the run's 100 MB limit in early December.
-6. **Dependabot #176 is released** (`cda9a66`). The one moderate alert left (`minimatch`, inside
-   ESLint) is development-only and not part of what is deployed.
-7. **Approve merging #179, #180 and #181** once their checks pass: the backup proof, the live check
-   and the compliance note. None changes what users see. Merging #179 or #180 still builds
-   production, because Vercel's ignore step counts `scripts/` (and #180's demo fixture in `src/`) as
-   app files; production behaves the same.
-8. **Optional:** the draft PWA branch (#171), a Microsoft Store listing (your account), Web Push.
-9. **A native desktop app needs two things you would have to approve:** a Riot-approved League
-   client use, and a signing certificate's yearly cost.
+**Still yours (only these):**
+1. **Your backup check before any table drop** (#86, #138):
+   - download the newest Database backup artifact (run 41732063033 keeps one until 1 Dec);
+   - open it with the passphrase from your password manager (`docs/BACKUPS.md`, "Open and check a backup");
+   - keep that file offline;
+   - then approve the drops, which free about 217 MB.
+
+   The database is 378 MB of the free plan's 500 MB and grows about 2 MB a day, so this matters within about two months. The Production check opens an issue from 80%.
+2. **Leaderboards:** one decision (Approve, Change or Reject) under "Final recommendation" in [the Leaderboards report](https://claude.ai/artifact/UtfbhTL5RJqub513acZpDJ).
+3. **The Riot Developer Portal** (about 10 minutes): check that the application is a Personal product and that its description matches `docs/RIOT_COMPLIANCE.md` ("Registering the product"). Keep the key.
+4. **Optional:** a non-admin verification account, stored as the repository secrets `UNIIVERSE_VERIFY_USER` and `UNIIVERSE_VERIFY_PASSWORD`. With it, the Production check also opens the member pages (Team, Match History, Encounters). Without it, changes to member pages stay "deployed", and you see them on the live site yourself.
+
+Nothing else needs you: the PWA draft (#171) and a desktop app stay optional ideas, and the one moderate Dependabot alert (`minimatch`, inside ESLint) is development-only.
 
 ## Executive summary
+
+**3 Nov, evening: the autonomous maintenance you asked for.**
+- **Production is now checked automatically** (#182, deployed): after every deployment and every day. Both runs so far passed: on #182's own deployment (100 checks, none failed) and on #183's.
+- **Backups proved on production** (#179, deployed): every table restores with matching counts, including the 24 retired ones (992,581 rows), and the encrypted copy decrypts to the same dump.
+- **Match History and Encounters** (#183, deployed): one navigation, All first, a player's games in Match History itself. The live check covered the public pages and security. The member pages are checked automatically only with the verification account (section 7, optional).
+- **Riot:** the key is confirmed Personal, and everything that can be checked without the portal is checked (#181); a test pins the endpoints.
+- **Leaderboards:** one final recommendation and one decision, in the Leaderboards report.
+- **What is left for you:** section 7, three items and one optional.
 
 **Released** (approved by you; one PR at a time; CI green on each merged
 commit; one production check after each deploy):
@@ -626,11 +624,11 @@ commit; one production check after each deploy):
 **Remaining concerns:**
 - **Encounters is the slowest step** in production (about 1 s cold, and growing with the season's
   games). The fix, a stored summary table, waits for database space.
-- **Database space:** 361 MB of 512 MB, growing about 2 MB a day. The held table drops need your
-  backup check first.
-- **Not verified from here:** the forged-cookie request against production (section 7), the
-  deployed screens of #173 and #178 on the live site, field data, Windows, and real devices with a
-  screen reader.
+- **Database space:** 378 MB of the free plan's 500 MB, growing about 2 MB a day. The held table
+  drops need your backup check first; the Production check opens an issue from 80%.
+- **Not verified automatically:** the member pages' screens on the live site (they need the
+  verification account), field data, Windows, and real devices with a screen reader. The
+  forged-cookie requests against production now run on every Production check.
 
 **Corrected during the session:** my first accessibility fix did not satisfy axe. The full browser
 suite caught it before any PR was opened, and the cause is now in `docs/STANDARDS.md`.
