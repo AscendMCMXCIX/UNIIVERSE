@@ -223,12 +223,14 @@ function PoolPreview({ ids, championsById, onInspect, inspectHref, testId }: { i
                   onInspect(id);
                 }}
                 className="block rounded-md transition-transform hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent motion-reduce:hover:translate-y-0"
-                aria-label={`${c.name}: open its statistics`}
                 aria-haspopup="dialog"
                 title={c.name}
                 data-testid="pool-preview-inspect"
               >
+                {/* Named by the portrait itself ("Rumble"), so its lettered stand-in never contradicts
+                    a label set over it (WCAG 2.5.3, label in name). */}
                 {portrait}
+                <span className="sr-only">: open its statistics</span>
               </a>
             ) : (
               <span title={c.name}>{portrait}</span>

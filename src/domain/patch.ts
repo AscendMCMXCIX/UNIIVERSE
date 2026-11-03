@@ -16,10 +16,28 @@ export function patchFromVersion(version: string): string | null {
  * meet: any patch whose major number is 25 or more is a year name and maps to major - 10.
  */
 export function canonicalPatch(patch: string): string {
+  const known = CANONICAL.get(patch);
+  if (known !== undefined) return known;
   const m = /^(\d+)\.(\d+)$/.exec(patch.trim());
-  if (!m) return patch.trim();
-  const major = Number(m[1]);
-  return `${major >= 25 ? major - 10 : major}.${Number(m[2])}`;
+  const major = m ? Number(m[1]) : 0;
+  const canonical = m ? `${major >= 25 ? major - 10 : major}.${Number(m[2])}` : patch.trim();
+  remember(CANONICAL, patch, canonical);
+  return canonical;
+}
+
+/*
+  Season figures read each stored game's patch many times over (once per champion and game mode on
+  a profile, for every lineup player on Team Overview), and a season holds a few patch names but
+  thousands of games. The answers depend only on the text, so they are kept, up to a bound that
+  arbitrary input cannot grow past.
+*/
+const MEMO_LIMIT = 1024;
+const CANONICAL = new Map<string, string>();
+
+/** Keeps a pure function's answer for `key`, starting over once the map reaches its bound. */
+export function remember<T>(memo: Map<string, T>, key: string, value: T): void {
+  if (memo.size >= MEMO_LIMIT) memo.clear();
+  memo.set(key, value);
 }
 
 /** The public, year-based name of a patch ("16.20" → "26.20"); older patches keep their number. */
