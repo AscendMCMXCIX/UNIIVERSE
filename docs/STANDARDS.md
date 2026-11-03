@@ -154,6 +154,7 @@ Use the shared component before writing a new one (`src/components/ui`):
 | Page title, eyebrow, actions | `PageHeader` |
 | A titled section | `Panel`, `PanelHeader`, `PanelBody`, `SectionLabel` |
 | A figure with its label and explanation | `Metric`, `MetricLabel`, `InfoTip` |
+| A game in a list of games (Match History, Team → Matches) | Opens under its card: `MatchExpansion` (`match-history/inline-match.tsx`), one game at a time, `?match=` in the address. The match window is only for where a list cannot open it in place (inside another window, or a link to a game not on the page) |
 | Details over the page (a match, a player, a champion) | `DetailModal` (the standard size fits its content up to the screen's height); a custom `header` keeps clear of the close button's corner with `CLEAR_OF_CONTROLS` (content beside it) or `BELOW_CONTROLS` (content that starts under it), never a fixed padding |
 | A question or a short form | `Dialog`, `ConfirmDialog` |
 | Choices in a list | `Menu`, `MenuItem`, `MenuLink` |

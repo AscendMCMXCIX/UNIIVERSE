@@ -2,7 +2,7 @@ import * as React from "react";
 import Link from "next/link";
 import { Bookmark, ChevronRight } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
-import { SOLO_DUO_QUEUE, type TogetherGame, type TogetherSummary } from "@/domain/played-together";
+import { SOLO_DUO_QUEUE, togetherEntry, type TogetherGame, type TogetherSummary } from "@/domain/played-together";
 import { seasonLabel } from "@/domain/season";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -16,7 +16,7 @@ import { CardAvatar } from "@/components/players/card-look";
 import { RoleIcon } from "@/components/role-icon";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { TogetherCardFrame } from "./together-details";
+import { TogetherCardFrame, TogetherList } from "./together-details";
 import { BookmarkButton } from "./bookmark-button";
 import { LinkSelect, MemberPicker } from "./match-filters";
 import { MatchRail, MatchResult, matchCardClass } from "@/components/match-history/match-card";
@@ -145,11 +145,11 @@ export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams 
           )}
         </EmptyState>
       ) : (
-        <ol className="space-y-2.5" data-testid="together-list">
+        <TogetherList entries={shown.map((g) => ({ entry: togetherEntry(g.matchId, g.teamId), matchId: g.matchId }))} className="space-y-2.5">
           {shown.map((g) => (
-            <TogetherCard key={`${g.matchId}|${g.teamId}`} g={g} p={p} champions={champions} teams={teams[g.matchId] ?? null} />
+            <TogetherCard key={togetherEntry(g.matchId, g.teamId)} g={g} p={p} champions={champions} teams={teams[g.matchId] ?? null} />
           ))}
-        </ol>
+        </TogetherList>
       )}
       {shown.length < total ? (
         <Link href={href({ limit: filters.limit + 20 })} scroll={false} className="block rounded-panel border border-border py-2.5 text-center text-sm text-fg-muted hover:border-border-strong hover:text-fg" data-testid="together-more">
@@ -241,15 +241,15 @@ function TogetherSummaryPanel({ summary: s, players, champ }: { summary: Togethe
   teams in full. The members are one aligned row each (two to a row once four or more played), so
   a game of two reads as naturally as a game of five; both teams sit beside them on wide cards, as
   in a player's Match History, and under them otherwise. The bookmark is a small control in the
-  card's corner. The whole card opens the match window (TogetherCardFrame); names and the bookmark
-  keep their own action.
+  card's corner. The whole card opens the game under it, as in Match History (TogetherCardFrame);
+  names and the bookmark keep their own action.
 */
 function TogetherCard({ g, p, champions, teams }: { g: TogetherListGame; p: (id: string) => PlayedTogether["players"][string] | undefined; champions: Record<string, PortraitChampion>; teams: Composition | null }) {
   const champ = (id: string) => champions[id] ?? { id, name: id, portraitUrl: "" };
   const champOrUnknown = (id: string | null) => (id ? champ(id) : { id: "unknown", name: "Unknown champion", portraitUrl: "" });
   const bookmark = g.bookmark ? <BookmarkButton matchId={g.matchId} bookmarked={g.bookmark.on} canRemove={g.bookmark.canRemove} share={!!g.sharedBy} iconOnly /> : null;
   return (
-    <TogetherCardFrame playerId={g.members[0]!.playerId} matchId={g.matchId} championsById={champions} label={`${g.win === null ? "Game" : g.win ? "Victory" : "Defeat"}, ${queueLabel(g.queueId)}, ${formatDate(new Date(g.gameCreation))}, ${g.members.map((m) => p(m.playerId)?.name ?? "Player").join(", ")}`} className={matchCardClass(g.win, { interactive: true })} data-testid="together-game" data-match-id={g.matchId} data-members={g.members.length}>
+    <TogetherCardFrame entry={togetherEntry(g.matchId, g.teamId)} playerId={g.members[0]!.playerId} matchId={g.matchId} championsById={champions} label={`${g.win === null ? "Game" : g.win ? "Victory" : "Defeat"}, ${queueLabel(g.queueId)}, ${formatDate(new Date(g.gameCreation))}, ${g.members.map((m) => p(m.playerId)?.name ?? "Player").join(", ")}`} className={matchCardClass(g.win, { interactive: true })} data-testid="together-game" data-match-id={g.matchId} data-members={g.members.length}>
       <MatchRail win={g.win} />
       <div className="relative grid gap-x-4 gap-y-2.5 px-3 py-2.5 lg:grid-cols-[9rem_minmax(0,1fr)_minmax(0,20rem)_auto] lg:items-center lg:py-3">
         {/* The result and the game, then who played it: one line on narrower cards, clear of the
@@ -319,7 +319,7 @@ function TogetherCard({ g, p, champions, teams }: { g: TogetherListGame; p: (id:
             column on wide ones. */}
         <span className="absolute right-1.5 top-1.5 lg:relative lg:inset-auto lg:flex lg:flex-col lg:items-center lg:gap-1">
           {bookmark}
-          <ChevronRight className="hidden h-4 w-4 text-fg-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-fg motion-reduce:transition-none lg:block" aria-hidden />
+          <ChevronRight className="hidden h-4 w-4 text-fg-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-fg group-data-[expanded=true]/together:translate-x-0 group-data-[expanded=true]/together:rotate-90 group-data-[expanded=true]/together:text-fg motion-reduce:transition-none lg:block" aria-hidden />
         </span>
       </div>
       {g.queueId === SOLO_DUO_QUEUE && g.members.length > 2 ? <p className="relative border-t border-border/60 px-3 py-1.5 text-xs text-fg-subtle">Ranked Solo/Duo allows parties of two at most, so not all of them queued together.</p> : null}
