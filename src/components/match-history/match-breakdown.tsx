@@ -36,10 +36,10 @@ import { BuildPanel } from "./build-panel";
 
 type Tab = "scoreboard" | "analysis" | "timeline" | "build";
 
-/** Match History's way from a game's scoreboard to Encounters: the list's scope, and a player's window. */
+/** Match History's way from a game's scoreboard to Encounters: the list's scope, and the address of a player's games. */
 export interface EncounterLink {
   scope: MeetingScope;
-  open(target: { key: string; name: string }): void;
+  href(key: string): string;
 }
 
 /** Given by Match History's list; a breakdown under a card marks the players met in its other games. */
@@ -132,7 +132,7 @@ export function MatchBreakdown({ playerId, view, champ, variant }: { playerId: s
     };
   }, [cache, playerId, view.matchId, meetScope]);
   const met = React.useMemo(() => new Map(meetings?.status === "ok" ? meetings.players.map((m) => [m.slot, m]) : []), [meetings]);
-  const onMeet = link && meetScope ? (x: DetailParticipant, key: string) => link.open({ key, name: x.name ?? "Player" }) : null;
+  const meetHref = link && meetScope ? link.href : null;
   const rankOf = React.useCallback((x: DetailParticipant) => checked.get(x.slot) ?? x.rank, [checked]);
   const checking = view.rankCheck && !ranks;
   // The match timeline: requested when a section that reads it first opens, then kept.
@@ -211,7 +211,7 @@ export function MatchBreakdown({ playerId, view, champ, variant }: { playerId: s
         {tab === "scoreboard" ? (
           <div className="space-y-3">
             {view.teams.map((t) => (
-              <TeamTable key={t.teamId} team={t} champ={champ} maxDamage={view.maxDamage} groups={groups?.status === "ok" ? (groups.teams.find((g) => g.teamId === t.teamId) ?? null) : null} laneSlot={view.comparison.opponent?.slot ?? null} rankOf={rankOf} queueId={view.queueId} checking={checking} met={met} onMeet={onMeet} />
+              <TeamTable key={t.teamId} team={t} champ={champ} maxDamage={view.maxDamage} groups={groups?.status === "ok" ? (groups.teams.find((g) => g.teamId === t.teamId) ?? null) : null} laneSlot={view.comparison.opponent?.slot ?? null} rankOf={rankOf} queueId={view.queueId} checking={checking} met={met} meetHref={meetHref} />
             ))}
             <RanksNote ranks={view.teams.flatMap((t) => t.participants.filter((x) => !x.removed).map(rankOf))} queueId={view.queueId} checking={checking} result={ranks} />
             <GroupsNote result={groups} teams={view.teams} />
