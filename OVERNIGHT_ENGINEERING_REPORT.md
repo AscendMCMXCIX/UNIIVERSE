@@ -46,19 +46,77 @@ From the owner's brief and `CLAUDE.md`:
 6. Maintainability: dead code, dependencies, tests.
 7. Recommendation, roadmap, release requirements and approvals.
 
-## Branches and pull requests (nothing merged)
+## Branches and pull requests (at the end of the session; the release is below)
 
 | Branch | PR | What | Status |
 |---|---|---|---|
-| `security/page-guards` | #170 | Every member page checks access itself (high finding) | Verified locally (full suites green); **CI green** (all four jobs, 2 Nov); **merge first** |
-| `security/hardening` | #172 | Redirects, throttle, errors, Riot hosts, public images, timing, dead actions | Verified locally (unit 556, database 470, browser 516 passed); **CI green** (all four jobs, 2 Nov) |
-| `perf/season-patch-memo` | #169 | Season figures read each game's patch once | Verified locally; **CI green** (all four jobs, 2 Nov) |
-| `a11y/label-in-name-scroll-regions` | #173 | Names that match what controls show; wide tables the keyboard can scroll; axe at phone width and in two windows | Verified locally (unit 548, browser 517 passed); **CI green** (all four jobs, 2 Nov) |
+| `security/page-guards` | #170 | Every member page checks access itself (high finding) | **Merged and deployed** (c17b002); production smoke passed |
+| `security/hardening` | #172 | Redirects, throttle, errors, Riot hosts, public images, timing, dead actions | **Merged and deployed** (37c19f6); production smoke passed |
+| `perf/season-patch-memo` | #169 | Season figures read each game's patch once | **Merged and deployed** (33590c7); production smoke and perf-probe passed |
+| `a11y/label-in-name-scroll-regions` | #173 | Names that match what controls show; wide tables the keyboard can scroll; axe at phone width and in two windows | **Merged and deployed** (90dabfb); production smoke passed |
 | `pwa-windows-integration` | #171 (draft) | Installed app: jump-list shortcuts, one reused window | Optional; unit tests, build and its browser spec pass; full suite in CI when marked ready |
 | `overnight/engineering-report` | #174 | This report | Docs only (CI and Vercel skip it) |
+| `ops/riot-id-family-audit` | #175 (draft) | Riot key evidence: the key's tier from Riot's stated limits, and which stored games carry the current player ids | Verified locally (unit 553, database 469); waits for your approval to merge |
+| `leaderboards-model` | #177 (draft) | Leaderboards' proposed model, as tested domain code, and its production audit; the page is unchanged | Verified locally (unit 568, database 469); waits for your review |
+| `ux/layout-consistency` | #178 (draft) | Neutral frame, compact All Champions, Team Matches opens games under their cards, the layout rules | Verified locally (unit 561, 159 targeted browser tests, the full phone project); UX_FULL_STATUS; waits for your review |
 
-All six branches merge cleanly with `main` and with one another: all 15 pairs, checked with
-`git merge-tree` after the last change on 2 Nov.
+Before the release, all six original branches merged cleanly with `main` and with one another (all 15
+pairs, checked with `git merge-tree` on 2 Nov).
+
+## Release (2–3 Nov 2026, approved by you)
+
+You approved releasing #170, #172, #169 and #173, in that order and one at a time. Each one was:
+1. reviewed;
+2. brought up to date with `main` (`main` merged in, never rebased) and validated locally again;
+3. merged with the merge method and its expected head commit, once every CI job on that commit had
+   passed;
+4. checked in production with one Data jobs run before the next one started.
+
+| PR | Merged as | CI on the merged commit | Production check (Data jobs) |
+|---|---|---|---|
+| #170 page guards (high) | `c17b002` | all four jobs green | smoke, run 41532558447: production on `c17b002`, health ok |
+| #172 hardening | `37c19f6` | all four jobs green (run 41533293385) | smoke, run 41540033680: production on `37c19f6`, database 5 ms, no failing job |
+| #169 season figures | `33590c7` | all four jobs green (run 41540441511) | smoke and perf-probe, run 41546289924: production on `33590c7`, health ok, database 3 ms, no failing job |
+| #173 accessibility | `90dabfb` | all four jobs green (run 41547593587) | smoke and perf-probe, run 41553164525: production on `90dabfb`, health ok, no failing job |
+
+Every pre-merge revalidation passed:
+- #172: unit 560, database 470, build, 9 targeted browser specs (52 passed).
+- #169: unit 562, database 470, build, 5 targeted browser specs (35 passed).
+- #173: unit 562, build, 5 targeted browser specs (48 passed).
+
+Nothing failed, so the sequence never had to stop.
+
+**Performance in production:** perf-probe before the release (run 41412153154, 2 Nov 08:19 UTC,
+`8b079e9`), then twice after it (run 41546289924 at 23:33 UTC on `33590c7`, and run 41553164525 at
+00:29 UTC on `90dabfb`, the final state). Times are in ms, cold / warm:
+
+| Step | Before | After (23:33) | After (00:29) |
+|---|---|---|---|
+| Team Overview roster (`team.roster`) | 535 / 256 | 353 / 183 | 329 / 185 |
+| A player's overview (`player.overview`) | 71 / 30 | 58 / 29 | 71 / 19 |
+| Leaderboards data (`leaderboards.data`) | 281 / 48 | 224 / 42 | 289 / 100 |
+| Played together (`matches.playedTogether`) | 94 / 51 | 104 / 41 | 98 / 34 |
+| Matchup window (`matchups.window`) | 623 / 39 | 651 / 87 | 565 / 39 |
+| Encounters (`profile.encounters`) | 828 | 1,031 | 737 |
+| Database round trip (`db.ping`) | 4.3 | 3.5 | 2.8 |
+
+- **The roster's gain is #169's,** and both runs agree: cold 535 → 329–353 ms (about −36%), warm
+  256 → 183–185 ms (−28%). Locally it was 62% faster warm. In production the warm read still includes
+  its database reads (76 KB) and the function's own overhead.
+- **Single readings move a lot:** Encounters read 1,031 ms and then 737 ms, an hour apart, on the
+  same data. Leaderboards' warm read moved from 42 to 100 ms. So only differences that both runs
+  agree on, like the roster's, count. Neither the matchup window nor Encounters is touched by the
+  released changes.
+- **Encounters stays the slowest step,** at 0.7 to 1 s cold. The planned fix is a stored summary
+  table (section 3).
+
+**Security in production:**
+- **The high finding (#170):** production runs code that refuses these requests. The page-guards
+  test fails any page that does not check access itself.
+- **Not done:** a request to production with a made-up session cookie, as the local reproduction
+  used. This session's network cannot reach the production site. Section 7 gives the one command
+  that confirms it.
+- **#172's fixes** are in the deployed commit, each covered by its own tests.
 
 ## Findings and work
 
@@ -169,7 +227,7 @@ and you approve the signing cost. Then build a Tauri 2 thin shell around the dep
 - single-instance with deep links, start at login off by default;
 - a signed updater whose private key is held outside the repository.
 
-### 3. Performance (Verified locally; production effect to be confirmed after a deploy)
+### 3. Performance (Verified locally, then in production: see Release)
 
 **Where the time goes,** by layer, from existing measurements first:
 - **Network:** the functions (Vercel `syd1`) and the database sit in the same region. A database
@@ -207,14 +265,15 @@ and you approve the signing cost. Then build a Tauri 2 thin shell around the dep
   - locally: `pnpm verify` (550 unit tests), the database suite (466) and the full browser suite
     (867) pass;
   - CI on PR #169 is green on every job.
-  - Production confirmation is one `perf-probe` run after the merge.
+  - In production after the merge: the roster went from 535 to 353 ms cold and from 256 to 183 ms
+    warm (Release, above).
 
 **Found, not changed:** 38 places call `router.refresh()` after a server action. Several follow
 actions that already revalidate the page, so the server renders the page twice; the user does not
 wait for the second render, but it costs server time and database reads. Each needs its own check
 before removal.
 
-### 3a. UI consistency and accessibility (Verified locally)
+### 3a. UI consistency and accessibility (Verified locally; released with #173)
 
 The visual consistency passes of the last two weeks (readability, premium identity, consistency
 across Encounters, All Champions, Team Matches and Leaderboards) are recent and documented in
@@ -314,16 +373,48 @@ against the code before acting; the high one was reproduced.
     search results only.
   - 16.4.4 reached npm on 2 Nov at 10:49 UTC. Its GitHub release had no notes yet when read.
 - Dependabot PR #163 was green on 31 Oct and needs `main` merged in. It is useful, not urgent.
+  - Dependabot opened #176 on 2 Nov with the same group (next 16.4.3, lucide-react, PGlite,
+    eslint-config-next). Its CI is green. Merging it is yours to approve.
+- **Dependabot alert #9 (moderate):** minimatch below 11.0.1 (GHSA-g3hv-75wg-m249), reached only
+  through eslint and eslint-config-next. It is development tooling and never ships; `pnpm audit
+  --prod` stays clean.
 
-### 4b. Riot compliance (status; no change made)
+### 4b. Riot compliance and the key (investigated 2 Nov; no credential or data changed)
 
 The compliance review of earlier today (`docs/RIOT_COMPLIANCE.md`, PR #168) still stands. Nothing
-in this session changed what UNIIVERSE reads from Riot or shows.
+in this session changed what UNIIVERSE reads from Riot or shows, and no key or secret was read,
+changed or printed. The key is identified only by the four-character fingerprint the app reports,
+and this report does not repeat it.
+
+**The key, from evidence** (your questions of 2 Nov):
+1. **Is there a working key?** Yes. `riot-check` succeeds in production (last on 2 Nov at
+   22:08 UTC), and account syncs keep succeeding.
+2. **Development or Personal?** Very likely Personal:
+   - The same key, by fingerprint, has answered for at least seven days. A Development key expires
+     24 hours after it is issued.
+   - The limits Riot applies are 20 requests a second and 100 every 2 minutes. Development and
+     Personal keys share those limits; a Production key has more.
+   - **To make it certain:** one more `riot-check` 24 hours after the 2 Nov reading (scheduled for
+     3 Nov 22:20 UTC). The same fingerprint then rules out a Development key.
+   - #175 also makes `riot-check` report the limits Riot states for the key and the tier they imply.
+3. **Can it be used without migrating the stored player ids?** For recent data, yes:
+   - The games of the last 30 days carry ids from the current key's family.
+   - Older stored games were not checked. #175's audit (`data-audit` → `riotIdFamily`) counts, by
+     age, which games carry the current ids, another family's, or none.
+4. **What a safe transition needs:**
+   - merge #175 (your approval) and run `riot-check data-audit`;
+   - if every age bucket carries the current ids, nothing needs migrating; `docs/RIOT_COMPLIANCE.md`
+     item 1 is then corrected in a docs PR;
+   - only if older games carry another family is a re-keying migration needed, rehearsed on a copy
+     of the database first.
+
+   No Vercel setting or key change is needed for any of this.
+
+**Also:**
 - **A Personal key is enough** while public pages carry no Riot data (the default).
-- **Open:** production runs on a Development key, and any new key changes every stored player id.
-  A re-keying job, rehearsed on a copy of the database, must come first. Both steps need you.
-- **Hardened tonight:** the Riot API key can only travel to `*.api.riotgames.com` (L7), and every
-  page that shows Riot data checks access itself (the high finding).
+  `UNIIVERSE_PUBLIC_RIOT_DATA` stays off; #175's audit reports it.
+- **Hardened tonight:** the Riot API key can only travel to `*.api.riotgames.com` (L7, now deployed
+  with #172), and every page that shows Riot data checks access itself (#170, deployed).
 - **No League client integration,** game-memory access or automation exists or was added. Since
   6 Oct 2026, Riot blocks third-party game-memory access anyway. A desktop companion using the League
   client would need its own registration and Riot's approval (section 2).
@@ -408,51 +499,69 @@ until a native capability is approved.
 
 ### 7. Decisions and approvals that are yours
 
-1. **Merge #170 (`security/page-guards`):** its CI is green, and it closes a confirmed exposure.
-2. **Merge the other ready PRs** after review. Nothing was merged in this session.
-3. **Verify the encrypted backup and keep an offline copy,** so the held table drops can run
-   before the database fills.
-4. **Register the Riot Personal key** after giving the go-ahead for the re-keying job.
-5. **Optional:** the draft PWA branch, a Microsoft Store listing (your account), Web Push.
-6. **A native desktop app needs two things you would have to approve:** a Riot-approved League
+**Done with your approval:** the release of #170, #172, #169 and #173 (Release, above).
+
+**Still yours:**
+1. **Confirm the high fix in production, once.** This session's network cannot reach the site. Take a
+   player id from the public team page, then run:
+
+   ```
+   curl -s -H "Cookie: uniiverse_session=s1.$(head -c 40 /dev/zero | tr '\0' x)" \
+     https://team-uniiverse.vercel.app/players/<player id>/champions | grep -ci puuid
+   ```
+
+   It should print 0 (before the fix, the redirect's body carried the player's ids). Alternatively,
+   add `team-uniiverse.vercel.app` to this environment's allowed hosts and I will run it.
+2. **Merge #175** (the Riot key evidence): it only adds read-only reports. Then one
+   `riot-check data-audit` run answers whether any stored game needs re-keying (section 4b).
+3. **Review the Leaderboards model (#177) and approve its merge.** It changes no page. Its audit
+   then measures the proposed boards on the team's own games before the page switches.
+4. **Review the UX PR (#178, draft):** the neutral frame, compact All Champions, and Team
+   Matches opening games under their cards. It changes how pages look and behave, so it waits for
+   you.
+5. **Verify the encrypted backup and keep an offline copy,** so the held table drops (#86, #138) can
+   run before the database fills.
+6. **Dependabot #176** (next 16.4.3 and others; CI green): merge when convenient.
+7. **Optional:** the draft PWA branch (#171), a Microsoft Store listing (your account), Web Push.
+8. **A native desktop app needs two things you would have to approve:** a Riot-approved League
    client use, and a signing certificate's yearly cost.
 
 ## Executive summary
 
-**Completed and verified** (local suites and CI green on every ready PR):
-- **Security, high (#170, CI green).** A teammate's profile data reached signed-out requests. I
-  reproduced it, fixed it, verified the fix, and added a test that stops it coming back. Merge it
-  first.
-- **Security, medium and low (#172, CI green).** Nine more fixes, each with tests: an open
-  redirect, a throttle race, an egress risk, raw database errors, Riot host validation, open mode
-  on Vercel, two timing leaks, statistics without access. Unreachable actions and an unused
-  package were removed.
-- **Performance (#169, CI green).** Team Overview's roster is 62% faster warm and 41% faster on
-  first load, measured locally at production volume. Every profile Overview and All Champions page
-  benefits too. Production confirmation is one `perf-probe` run after the merge.
-- **Accessibility (#173, CI green).** Four serious issues fixed through shared components:
-  three label-in-name cases and one table the keyboard could not scroll. axe now also runs at phone
-  width and in the Team player and champion windows. The full browser suite passed locally.
+**Released and verified in production** (approved by you; one PR at a time; CI green on each merged
+commit; one production check after each deploy):
+- **Security, high (#170).** A teammate's profile data reached signed-out requests. It was
+  reproduced and fixed, and a test now stops it coming back. Production runs the fixed code (smoke
+  run 41532558447). One request from you confirms it from outside (section 7).
+- **Security, medium and low (#172).** Nine fixes, each with tests: an open redirect, a throttle
+  race, an egress risk, raw database errors, Riot host validation, open mode on Vercel, two timing
+  leaks, and statistics without access.
+- **Performance (#169).** Team Overview's roster in production, in two runs after the release:
+  535 → 329–353 ms cold and 256 → 183–185 ms warm.
+- **Accessibility (#173).** Four serious axe findings fixed through shared components: three
+  label-in-name cases and a table the keyboard could not scroll. axe now also runs at phone width
+  and in the Team player and champion windows. The final production check passed (run 41553164525).
 
-**Corrected during the session:**
-- My first accessibility fix did not satisfy axe. Its unit tests passed, but the full browser
-  suite failed the new axe test before any PR was opened.
-- The cause (axe compares a label with the text on screen) is now in `docs/STANDARDS.md`, and
-  the fix is verified by the full suite.
+**Prepared, waiting for you:**
+- **Riot key evidence (#175, draft).** The key works and is very likely Personal. Merging #175 lets
+  one audit say whether any older stored game needs re-keying.
+- **Leaderboards model (#177, draft).** Everyone is compared on their latest 20 games, with honest
+  statuses for small samples and role figures within their role only. It is tested as domain code,
+  and its audit will measure it on the team's games before the page changes.
+- **UX consistency (#178, draft):**
+  - a neutral charcoal frame with restrained blue and violet;
+  - All Champions rows 57 → 51 px on a laptop and 74 → 51 px on a tablet, with the figures grouped;
+  - Team Matches opens games under their cards, like Match History;
+  - layout rules in `docs/STANDARDS.md`.
+- **The PWA's Windows integration (#171, draft).**
 
-**Prototype or draft:**
-- **The PWA's Windows integration (#171, draft):** shortcuts and window reuse. Unit tests, build
-  and its own browser spec pass. The full suite runs in CI if you mark it ready.
+**Remaining concerns:**
+- **Encounters is the slowest step** in production (about 1 s cold, and growing with the season's
+  games). The fix, a stored summary table, waits for database space.
+- **Database space:** 361 MB of 512 MB, growing about 2 MB a day. The held table drops need your
+  backup check first.
+- **Not verified from here:** the forged-cookie request against production (section 7), field
+  data, Windows, and real devices with a screen reader.
 
-**Proposals, not built:**
-- **Desktop.** Keep the web app and PWA; no native app now (section 2).
-- The roadmap, release requirements and approvals in sections 5 to 7.
-
-**Not done:**
-- production measurements, since nothing was deployed;
-- field data, which only you can read;
-- Windows and real-device checks: this session has no Windows machine or phone, and screen reader
-  and speech-control behaviour belong on the real-device checklist;
-- the summary table for Encounters, which waits for database space.
-
-**Merged:** nothing. All six pull requests (five ready, one draft) wait for your review.
+**Corrected during the session:** my first accessibility fix did not satisfy axe. The full browser
+suite caught it before any PR was opened, and the cause is now in `docs/STANDARDS.md`.
