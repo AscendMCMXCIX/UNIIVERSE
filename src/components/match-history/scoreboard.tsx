@@ -139,10 +139,13 @@ export function TeamTable({ team, champ, maxDamage, groups, laneSlot, rankOf, qu
  * One being checked pulses until the answer arrives.
  */
 function RankBadge({ rank, queueId, checking }: { rank: ParticipantRank; queueId: number | null; checking: boolean }) {
-  const base = "inline-flex h-4 shrink-0 items-center gap-1 rounded border px-1 text-2xs font-medium leading-4";
+  // It may shrink (its text then ends in an ellipsis; the whole rank is in its title and for screen
+  // readers), so on a narrow phone a long rank, or the pulsing stand-in while ranks are checked, never
+  // reaches into the KDA column beside it.
+  const base = "inline-flex h-4 min-w-0 items-center gap-1 rounded border px-1 text-2xs font-medium leading-4";
   if (checking && rank.state === "unknown")
     return (
-      <span className={cn(base, "w-10 animate-pulse border-dashed border-border motion-reduce:animate-none")} data-testid="participant-rank" data-state="checking">
+      <span className={cn(base, "w-10 shrink animate-pulse border-dashed border-border motion-reduce:animate-none")} data-testid="participant-rank" data-state="checking">
         <span className="sr-only">Checking rank</span>
       </span>
     );
@@ -151,12 +154,12 @@ function RankBadge({ rank, queueId, checking }: { rank: ParticipantRank; queueId
   const tierColour = rank.state === "ranked" && rank.tier && aroundGame !== false ? (TIER_TEXT[rank.tier] ?? "text-fg-muted") : null;
   return (
     <span className={cn(base, rank.state === "ranked" ? cn("border-border-strong/70", tierColour ?? "text-fg-muted") : rank.state === "unranked" ? "border-border text-fg-subtle" : "border-dashed border-border text-fg-subtle")} title={title} data-testid="participant-rank" data-state={rank.state} data-queue={rank.queue ?? undefined} data-timing={rank.timing ?? undefined}>
-      {rank.state === "ranked" ? <RankEmblem tier={rank.tier} className="-ml-px h-3 w-3" /> : null}
-      <span aria-hidden className="whitespace-nowrap" data-testid="participant-rank-text">
+      {rank.state === "ranked" ? <RankEmblem tier={rank.tier} className="-ml-px h-3 w-3 shrink-0" /> : null}
+      <span aria-hidden className="min-w-0 truncate" data-testid="participant-rank-text">
         {queueMark ? <span className="text-fg-subtle">{queueMark} </span> : null}
         {text}
       </span>
-      {aroundGame === false ? <Clock3 className="-mr-px h-2.5 w-2.5 text-fg-subtle" aria-hidden data-testid="rank-read-later" /> : null}
+      {aroundGame === false ? <Clock3 className="-mr-px h-2.5 w-2.5 shrink-0 text-fg-subtle" aria-hidden data-testid="rank-read-later" /> : null}
       <span className="sr-only">{spoken}</span>
     </span>
   );
