@@ -4,11 +4,19 @@ A record of one autonomous session on UNIIVERSE's long-term quality: desktop evo
 UI consistency, security and maintainability. It is updated as the work goes. Every claim says how it
 was checked; anything not verified is marked as such.
 
-Status labels used below:
-- **Verified**: checked by a test, a measurement or a CI run named in the text.
+**Delivery status** (from 3 Nov, at your request, every change is described by where it actually is):
+- **Implemented:** the code exists on a branch, and nothing more is claimed.
+- **Tested:** it passed the named checks (unit, database, browser suites, CI), on a branch.
+- **Deployed:** merged to `main` and running in production (Vercel deploys `main`).
+- **Production-verified:** deployed, and checked on the live site after the deploy (smoke run, and
+  for anything visible, the live pages themselves).
+
+Only production-verified work is described as done. Work in a draft or open pull request is at most
+tested.
+
+Other labels used below:
 - **Prototype**: works in isolation, not intended for production as is.
 - **Proposal**: a recommendation, not built.
-- **Untested**: built but not yet checked by the means named.
 
 ## Starting state (2 Nov 2026, 11:23 UTC)
 
@@ -50,15 +58,15 @@ From the owner's brief and `CLAUDE.md`:
 
 | Branch | PR | What | Status |
 |---|---|---|---|
-| `security/page-guards` | #170 | Every member page checks access itself (high finding) | **Merged and deployed** (c17b002); production smoke passed |
-| `security/hardening` | #172 | Redirects, throttle, errors, Riot hosts, public images, timing, dead actions | **Merged and deployed** (37c19f6); production smoke passed |
-| `perf/season-patch-memo` | #169 | Season figures read each game's patch once | **Merged and deployed** (33590c7); production smoke and perf-probe passed |
-| `a11y/label-in-name-scroll-regions` | #173 | Names that match what controls show; wide tables the keyboard can scroll; axe at phone width and in two windows | **Merged and deployed** (90dabfb); production smoke passed |
+| `security/page-guards` | #170 | Every member page checks access itself (high finding) | **Deployed** (c17b002), smoke passed. Not yet production-verified: the live forged-cookie request is still to run (section 7) |
+| `security/hardening` | #172 | Redirects, throttle, errors, Riot hosts, public images, timing, dead actions | **Deployed** (37c19f6), smoke passed. Its fixes are server-side and covered by tests; none was exercised on the live site |
+| `perf/season-patch-memo` | #169 | Season figures read each game's patch once | **Production-verified** (33590c7): the production perf-probe measured the gain |
+| `a11y/label-in-name-scroll-regions` | #173 | Names that match what controls show; wide tables the keyboard can scroll; axe at phone width and in two windows | **Deployed** (90dabfb), smoke passed. Not yet production-verified: its screens were not checked on the live site |
 | `pwa-windows-integration` | #171 (draft) | Installed app: jump-list shortcuts, one reused window | Optional; unit tests, build and its browser spec pass; full suite in CI when marked ready |
 | `overnight/engineering-report` | #174 | This report | Docs only (CI and Vercel skip it) |
-| `ops/riot-id-family-audit` | #175 (draft) | Riot key evidence: the key's tier from Riot's stated limits, and which stored games carry the current player ids | Verified locally (unit 553, database 469); waits for your approval to merge |
-| `leaderboards-model` | #177 (draft) | Leaderboards' proposed model, as tested domain code, and its production audit; the page is unchanged | Verified locally (unit 568, database 469); waits for your review |
-| `ux/layout-consistency` | #178 (draft) | Neutral frame, compact All Champions, Team Matches opens games under their cards, the layout rules | Verified locally: unit 561 and the full browser suite with no failure (867 tests); then merged with the released `main` and tested again (unit 563, the touched and accessibility specs). Waits for your review |
+| `ops/riot-id-family-audit` | #175 (draft) | Riot key evidence: the key's tier from Riot's stated limits, and which stored games carry the current player ids | **Tested** (unit 563, database tests, after merging `main`); not deployed; waits for your approval |
+| `leaderboards-model` | #177 (draft) | Leaderboards' proposed model, as tested domain code, and its production audit; the page is unchanged | **Tested** (unit 578, database tests, after merging `main`); not deployed |
+| `ux/layout-consistency` | #178 | Neutral frame, compact All Champions, Team Matches opens games under their cards, the layout rules | **Tested** (unit 561, the full browser suite with no failure; again after merging `main`); release approved on 3 Nov, CI and WebKit running |
 
 Before the release, all six original branches merged cleanly with `main` and with one another (all 15
 pairs, checked with `git merge-tree` on 2 Nov).
