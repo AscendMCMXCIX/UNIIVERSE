@@ -269,7 +269,11 @@ export interface RecentSamples {
  */
 export function recentSamples(games: readonly LeaderboardGame[], members: ReadonlyArray<{ id: string; label: string }>, now: Date): RecentSamples {
   const byPlayer = new Map<string, LeaderboardGame[]>();
-  for (const g of games) byPlayer.set(g.playerId, [...(byPlayer.get(g.playerId) ?? []), g]);
+  for (const g of games) {
+    const mine = byPlayer.get(g.playerId);
+    if (mine) mine.push(g);
+    else byPlayer.set(g.playerId, [g]);
+  }
   const median = (xs: number[]) => {
     if (!xs.length) return null;
     const sorted = [...xs].sort((a, b) => a - b);
