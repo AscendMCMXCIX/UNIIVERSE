@@ -124,6 +124,26 @@ kept at a size its content does not fill); All Champions is a dense analytical t
 History is detailed and scannable; banners are expressive; Settings and forms are plain and
 roomy. Empty or thin data shrinks a card rather than leaving a frame to fill.
 
+**Page layout.** One frame for every page, so pages differ by their content, not their scaffolding:
+- **Width:** `--content-max` for profiles, lists of cards, documents and forms; `--content-wide` for
+  the grids that gain from more columns (Team Overview's lineup, Leaderboards). The page's padding
+  comes from the app shell; a page adds none of its own.
+- **Headings, in three tiers:**
+  - a team or admin page opens with `PageHeader` (one `h1`, `text-2xl`, then its scope line);
+  - a profile's `h1` is the player's name in its banner, and each section of it opens with
+    `SectionHeader` (an `h2`, `text-xl`);
+  - the two landing pages (Team Overview and a profile's Overview) have a larger hero title. They
+    are the only exceptions.
+- **Toolbars:** the filters first, then the page's own actions at the end (Refine, Refresh,
+  Bookmarked), never on a row of their own. A page's toolbar sits under its scope line; a profile
+  section's moves beside its title from `xl` (`SectionHeader`).
+- **Density, by what the page is for:**
+  - an analytical table has 2rem portraits and rows of about 48px wherever it is a table. Its
+    figure columns are as wide as their heading needs and a little more, and the name column takes
+    the rest, so figures stay together on a wide screen. On phones the rows become compact pairs;
+  - a list of games is one card per game, and a game opens under its card;
+  - a dashboard's cards are as large as their content.
+
 **Tables and rankings.** Columns of figures are right-aligned in `tabular-nums` under headings
 that never wrap (`whitespace-nowrap`; the sort arrow sits outside the heading's text, so a
 heading keeps its place when it is sorted). The sorted column is marked by its arrow and by its
