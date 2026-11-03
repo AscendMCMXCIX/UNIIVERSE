@@ -2,6 +2,7 @@ import { VITALS, formatVitalBound, type VitalMetric, type VitalSummary } from "@
 import type { VitalsReport } from "@/server/observability/web-vitals";
 import { Panel, PanelBody, PanelHeader, SectionLabel } from "@/components/ui/panel";
 import { formatCount } from "@/lib/format";
+import { ScrollRegion } from "@/components/ui/scroll-region";
 
 /*
   Admin Mode → System Health: page speed as members experienced it (field data, server/observability/
@@ -33,7 +34,7 @@ export function FieldPerformancePanel({ report }: { report: VitalsReport }) {
           </p>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <ScrollRegion label="Page speed by measure">
               <table className="w-full">
                 <thead className="text-left text-fg-subtle">
                   <tr>
@@ -75,11 +76,11 @@ export function FieldPerformancePanel({ report }: { report: VitalsReport }) {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </ScrollRegion>
             {report.pages.length ? (
               <div>
                 <SectionLabel className="mb-1">By page (where the app was opened)</SectionLabel>
-                <div className="overflow-x-auto">
+                <ScrollRegion label="Page speed by page">
                   <table className="w-full">
                     <thead className="text-left text-fg-subtle">
                       <tr>
@@ -106,7 +107,7 @@ export function FieldPerformancePanel({ report }: { report: VitalsReport }) {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </ScrollRegion>
               </div>
             ) : null}
           </>

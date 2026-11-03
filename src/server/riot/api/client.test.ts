@@ -86,3 +86,16 @@ describe("Riot API client rate limits", () => {
     expect(slept).toBe(0);
   });
 });
+
+describe("Riot API client addresses", () => {
+  it("refuses a host that is not a Riot routing value, before any request carries the key", async () => {
+    const calls: string[] = [];
+    const client = clientWith(calls);
+    for (const platform of ["x.example#", "oc1.evil.example", "oc1/../x", "oc1@evil", "oc1:8080", ""]) {
+      await expect(client.platformStatus(platform)).rejects.toThrow();
+    }
+    expect(calls).toEqual([]);
+    await client.platformStatus("oc1");
+    expect(calls).toHaveLength(1);
+  });
+});

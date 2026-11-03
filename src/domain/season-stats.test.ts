@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { combineMastery, dedupeGames, gamesFor, otherSeasonChampions, recordOf, seasonChampionStats, seasonsInGames, type SeasonGame } from "./season-stats";
+import { combineMastery, dedupeGames, gamesFor, otherSeasonChampions, performanceOfGames, recordOf, seasonChampionStats, seasonsInGames, type SeasonGame } from "./season-stats";
 
 let n = 0;
 const g = (championId: string, queueId: number, win: boolean, patch = "16.18", accountId = "acc-a", matchId?: string): SeasonGame => ({ matchId: matchId ?? `M${++n}`, accountId, queueId, championId, role: "TOP", win, patch, gameCreation: 1_780_000_000_000 + n });
@@ -52,5 +52,49 @@ describe("season statistics", () => {
     expect(m.accounts.map((a) => a.account)).toEqual(["A#OCE", "B#OCE"]);
     expect(m.lastPlayedAt?.toISOString()).toBe("2026-10-01T00:00:00.000Z");
     expect(combineMastery([])).toBeNull();
+  });
+});
+
+describe("season statistics by champion, grouped in one pass", () => {
+  // The implementation before the one-pass grouping: four scans of every game per champion.
+  const reference = (games: readonly SeasonGame[], championIds: readonly string[], options: { season: number; mode: "all" | "solo" | "flex" | "normal" }) =>
+    championIds.map((championId) => {
+      const selected = gamesFor(games, { ...options, championId });
+      return {
+        championId,
+        selected: recordOf(selected),
+        solo: recordOf(gamesFor(games, { season: options.season, mode: "solo", championId })),
+        flex: recordOf(gamesFor(games, { season: options.season, mode: "flex", championId })),
+        normal: recordOf(gamesFor(games, { season: options.season, mode: "normal", championId })),
+        performance: performanceOfGames(selected),
+      };
+    });
+
+  it("gives the same records and the same games, in the same order, as four scans per champion", () => {
+    let seed = 7;
+    const next = () => (seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648) / 2_147_483_648;
+    const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(next() * xs.length)]!;
+    const champions = ["Riven", "Gwen", "Jax", "Ahri", "Lulu", "Nami"];
+    const games: SeasonGame[] = Array.from({ length: 600 }, (_, i) => ({
+      matchId: `R${i}`,
+      accountId: pick(["acc-a", "acc-b"]),
+      queueId: pick([420, 440, 400, 430, 490, 450, null]),
+      championId: pick(champions),
+      role: "TOP",
+      win: pick([true, false, null]),
+      patch: pick(["16.18", "26.4", "15.24", "25.3", null, "unknown", " 16.2 "]),
+      gameCreation: 1_780_000_000_000 + Math.floor(next() * 1e9),
+      kills: Math.floor(next() * 12),
+      deaths: Math.floor(next() * 8),
+      assists: Math.floor(next() * 15),
+    }));
+    const asked = [...champions, "Teemo", "Riven"]; // one with no games, one asked twice
+    for (const season of [16, 15]) {
+      for (const mode of ["all", "solo", "flex", "normal"] as const) {
+        const fast = seasonChampionStats(games, asked, { season, mode });
+        const slow = reference(games, asked, { season, mode });
+        expect(fast).toEqual(slow);
+      }
+    }
   });
 });
