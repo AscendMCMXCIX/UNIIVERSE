@@ -157,9 +157,17 @@ test.describe("accessibility", () => {
       if (!(await win.isVisible())) await open.click({ timeout: 2_000 });
       await expect(win).toBeVisible({ timeout: 1_000 });
     }).toPass({ timeout: 15_000 });
+    // Audit the window once it has settled: while it loads or updates, its body is dimmed on purpose
+    // (opacity-70 while pending), and a slow runner would otherwise measure that passing state.
+    const settled = async () => {
+      await expect(win.getByTestId("champion-detail-loading")).toHaveCount(0, { timeout: 15_000 });
+      await expect(page.getByTestId("champion-detail-body")).toHaveCSS("opacity", "1", { timeout: 15_000 });
+    };
+    await settled();
     await audit(page, "champion window");
     await page.getByTestId("champion-tab-matchups").click();
     await expect(win.getByTestId("lane-game").first()).toBeVisible();
+    await settled();
     await audit(page, "champion window, matchups");
     await page.setViewportSize({ width: 375, height: 667 });
     for (const route of [...PLAYER_ROUTES, ...profile, ...ADMIN_ROUTES]) {

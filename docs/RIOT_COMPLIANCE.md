@@ -94,7 +94,7 @@ Members may add their own YouTube channel, Twitch channel and Discord username (
 
 ## Possible groups in completed matches
 
-A game's scoreboard (under its Match History card, or in the match window from Team → Matches) can mark players outside UNIIVERSE on one team who may have queued together, for example "Possible trio · These three players appeared on the same team in four previous recorded games." It is a post-game, historical inference from data UNIIVERSE already stores:
+A game's scoreboard (under its card in Match History or Team → Matches, or in the match window) can mark players outside UNIIVERSE on one team who may have queued together, for example "Possible trio · These three players appeared on the same team in four previous recorded games." It is a post-game, historical inference from data UNIIVERSE already stores:
 
 | Rule | Where |
 | --- | --- |

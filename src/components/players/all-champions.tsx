@@ -54,11 +54,13 @@ const FIRST = 20;
   taken into account. Below 44rem: phones and narrow windows, one compact row per champion (its win
   rate and games at the right, the other figures as labelled pairs under it). From 44rem: Champion,
   Games, Win rate, KDA, CS/min, Kills, Multikills (the rarest kind) and Mastery, each column wide
-  enough for its name, so headings are never cut; the champion takes what is left. From 76rem the
-  four multikills get their own columns (Double, Triple, Quadra, Penta).
+  enough for its name, so headings are never cut. From 76rem the four multikills get their own
+  columns (Double, Triple, Quadra, Penta). The figure columns grow only to a little more than their
+  heading needs and the champion takes the rest, so on a wide screen the figures stay together
+  (compared down the column and along the row) instead of spreading across the page.
 */
 const GRID =
-  "@min-[44rem]:grid-cols-[minmax(9rem,1fr)_minmax(3.25rem,0.45fr)_minmax(4.75rem,0.6fr)_minmax(3.25rem,0.45fr)_minmax(3.75rem,0.45fr)_minmax(3.25rem,0.45fr)_minmax(5.25rem,0.6fr)_minmax(4.25rem,0.5fr)] @min-[44rem]:gap-x-3 @min-[44rem]:px-4 @min-[76rem]:grid-cols-[minmax(14rem,1.9fr)_minmax(4rem,0.5fr)_minmax(6rem,0.75fr)_minmax(3.5rem,0.45fr)_minmax(4rem,0.45fr)_minmax(3.5rem,0.45fr)_repeat(4,minmax(3.75rem,0.4fr))_minmax(4.5rem,0.5fr)] @min-[76rem]:gap-x-4 @min-[76rem]:px-5";
+  "@min-[44rem]:grid-cols-[minmax(9rem,1fr)_minmax(3.25rem,4.5rem)_minmax(4.75rem,6rem)_minmax(3.25rem,4.25rem)_minmax(3.75rem,4.5rem)_minmax(3.25rem,4.25rem)_minmax(5.25rem,6.5rem)_minmax(4.25rem,5.25rem)] @min-[44rem]:gap-x-3 @min-[44rem]:px-4 @min-[76rem]:grid-cols-[minmax(14rem,1fr)_minmax(4rem,4.5rem)_minmax(6rem,6.5rem)_minmax(3.5rem,4.25rem)_minmax(4rem,4.5rem)_minmax(3.5rem,4.25rem)_repeat(4,minmax(3.75rem,4.25rem))_minmax(4.5rem,5.25rem)] @min-[76rem]:gap-x-4 @min-[76rem]:px-5";
 /** A sortable number, or null when the figure is missing (missing rows always sort last). */
 function sortValue(c: OverviewCard, key: SortKey): number | null {
   switch (key) {
@@ -260,15 +262,15 @@ export function AllChampions({ data, basePath, championsById, playerId, detail, 
           const multi = multikillValue(c);
           return (
             // A row lights up while pointed at or focused (a quiet tint; the whole row opens the champion's window).
-            <li key={`${c.championId}-${c.role}`} className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2.5 transition-colors duration-150 hover:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:outline has-[[data-open-champion]:focus-visible]:outline-2 has-[[data-open-champion]:focus-visible]:-outline-offset-2 has-[[data-open-champion]:focus-visible]:outline-accent @min-[44rem]:py-2", GRID)} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-kills={p.totalKills ?? ""} data-mastery={c.mastery?.points ?? ""} data-multikills={c.multikills?.counted ? MULTIKILL_KINDS.map((k) => c.multikills![k.key]).join(",") : ""} data-multikill-coverage={c.multikills ? multikillCoverage(c.multikills).state : ""}>
+            <li key={`${c.championId}-${c.role}`} className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2.5 transition-colors duration-150 hover:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:outline has-[[data-open-champion]:focus-visible]:outline-2 has-[[data-open-champion]:focus-visible]:-outline-offset-2 has-[[data-open-champion]:focus-visible]:outline-accent @min-[44rem]:py-1.5", GRID)} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-kills={p.totalKills ?? ""} data-mastery={c.mastery?.points ?? ""} data-multikills={c.multikills?.counted ? MULTIKILL_KINDS.map((k) => c.multikills![k.key]).join(",") : ""} data-multikill-coverage={c.multikills ? multikillCoverage(c.multikills).state : ""}>
               <span className="flex min-w-0 items-center gap-3">
                 <span className="hidden w-5 shrink-0 text-right text-xs tabular-nums text-fg-subtle @4xl:block" aria-hidden>
                   {i + 1}
                 </span>
-                <ChampionPortrait champion={ch} size="sm" className="h-10 w-10 rounded-lg ring-1 ring-border-strong/60 transition-[box-shadow] duration-150 group-hover/row:ring-fg-subtle/60" />
+                <ChampionPortrait champion={ch} size="sm" className="h-10 w-10 rounded-lg ring-1 ring-border-strong/60 transition-[box-shadow] duration-150 group-hover/row:ring-fg-subtle/60 @min-[44rem]:h-8 @min-[44rem]:w-8 @min-[44rem]:rounded-md" />
                 <span className="min-w-0">
                   {/* The whole row opens the champion's window (the button covers it). */}
-                  <button type="button" onClick={() => openRef.current(c)} className="block max-w-full truncate text-left text-md font-semibold leading-tight text-fg outline-none after:absolute after:inset-0 after:content-[''] focus-visible:underline" aria-label={`${ch.name}, ${ROLE_LABELS[c.role]}: open the champion's overview and matchups`} data-open-champion data-testid="open-champion">
+                  <button type="button" onClick={() => openRef.current(c)} className="block max-w-full truncate text-left text-md font-semibold leading-tight text-fg outline-none after:absolute after:inset-0 after:content-[''] focus-visible:underline @min-[44rem]:text-sm" aria-label={`${ch.name}, ${ROLE_LABELS[c.role]}: open the champion's overview and matchups`} data-open-champion data-testid="open-champion">
                     {ch.name}
                   </button>
                   <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-fg-subtle">

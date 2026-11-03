@@ -13,6 +13,7 @@
 @theme {
   --color-bg: #0a0b12;
   --color-bg-elevated: #181a25; /* menus, popovers and fields: a step above the panel they sit on */
+  --color-chrome: #131418; /* the app's frame (sidebar, top bar, drawer, tab bar): a near-neutral charcoal, so navigation recedes and the content leads */
   --color-surface: #12131c;
   --color-surface-2: #1b1d29;
   --color-surface-3: #252837;
