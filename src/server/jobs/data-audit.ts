@@ -5,7 +5,9 @@ import { MIN_LANE_GAME_SECONDS, timelineCoverage } from "@/server/accounts/timel
 import { SYNC_QUEUE_IDS, currentSeason } from "@/server/accounts/sync";
 import { loadSeasonGames } from "@/server/players/season-games";
 import { gameRole, gamesFor, seasonsInGames } from "@/domain/season-stats";
-import { getOrCreateTeam } from "@/server/repositories/team";
+import { getOrCreateTeam, listPlayers } from "@/server/repositories/team";
+import { readLeaderboardGames } from "@/server/leaderboards/service";
+import { RECENT_WINDOW_DAYS, recentSamples } from "@/domain/leaderboard-recent";
 import { loadPlayedTogether } from "@/server/matches/played-together";
 import { filterTogether } from "@/domain/played-together";
 import { rankCoverage } from "@/server/players/participant-ranks";
@@ -26,7 +28,7 @@ function rows(result: unknown): Row[] {
  */
 defineJob({
   key: "data-audit",
-  description: "Read-only check of the data actually stored: linked-account sync, matches per queue, Solo/Duo vs Flex classification, mastery, Matchups timeline coverage, multikill counts, the ranks shown in match windows (coverage and lookups per day), OP.GG link coverage and why links are missing, whether each stored game's record and timeline agree (gold, CS, kills, objectives), patches. Changes nothing.",
+  description: "Read-only check of the data actually stored: linked-account sync, matches per queue, Solo/Duo vs Flex classification, mastery, Matchups timeline coverage, multikill counts, the ranks shown in match windows (coverage and lookups per day), OP.GG link coverage and why links are missing, whether each stored game's record and timeline agree (gold, CS, kills, objectives), how many members the proposed Recent performance boards would rank, patches. Changes nothing.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,
   run: async (ctx) => {
@@ -176,6 +178,23 @@ defineJob({
       outOfOrder: { triplesOverDoubles: num(mk?.triples_over_doubles), quadrasOverTriples: num(mk?.quadras_over_triples), pentasOverQuadras: num(mk?.pentas_over_quadras), largestWithoutDouble: num(mk?.large_without_double) },
       riotCounting: num(mk?.with_triple) < 20 ? "unclear: fewer than 20 games with a triple kill" : outOfOrder === 0 ? "nested: a larger multikill also counts as each smaller one" : "separate: each multikill counts once, at its largest",
     };
+    // Leaderboards (docs/LEADERBOARDS_MODEL.md §6): what the proposed Recent performance boards
+    // would show with the team's own games: established, provisional and not-enough members per
+    // board and mode, and each member's eligible games in the last 60 days, through the model's own
+    // window and the boards' own de-duplication. Members are the labels above (p1, p2…). Read only.
+    const leaderboardSamples = await (async () => {
+      const now = new Date();
+      const team = await getOrCreateTeam(db);
+      const members = await listPlayers(db, team.id);
+      const memberIds = new Set(members.map((m) => m.id));
+      const own = accounts.filter((a) => memberIds.has(String(a.player_id)));
+      const games = await readLeaderboardGames(db, own.map((a) => String(a.id)), new Map(own.map((a) => [String(a.id), String(a.player_id)])), now.getTime() - RECENT_WINDOW_DAYS * 86_400_000);
+      const labelOf = (id: string) => {
+        if (!playerIndex.has(id)) playerIndex.set(id, `p${playerIndex.size + 1}`);
+        return playerIndex.get(id)!;
+      };
+      return recentSamples(games, members.map((m) => ({ id: m.id, label: labelOf(m.id) })), now);
+    })();
     const queueClassification = { flexVisibility, ledgerByQueue, accountVsDetailsQueueMismatch: { games: num(queueMismatch?.games), soloFlexSwapped: num(queueMismatch?.solo_flex_swapped) }, championHistoryByGroup: historyByGroup, rankSnapshotsByQueue, sharedGamesByQueue: sharedByQueue };
     return {
       ok: true,
@@ -189,6 +208,7 @@ defineJob({
         matchups,
         multikills,
         queueClassification,
+        leaderboardSamples,
         participantRanks: await rankCoverage(db),
         opggLinks: await opggCoverage(db),
         // Each stored game's record against its timeline (gold, CS, kills, objectives), counts only.

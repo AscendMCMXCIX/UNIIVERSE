@@ -1,4 +1,5 @@
 import { devices, expect, test, type Browser, type Locator, type Page } from "./test";
+import { openMatchWindow } from "./match-history";
 import { CLEARANCE, expectClearCorner, untilStill } from "./modal-corner";
 
 /*
@@ -25,16 +26,15 @@ async function topPlayer(page: Page) {
   return (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
 }
 
-test("the match window: the close button alone in its corner, Escape back to the game", async ({ page }) => {
-  // Team Matches opens a game in the window (Match History opens its games under their cards).
-  await page.goto("/matches");
-  const card = page.getByTestId("together-game").first();
-  await card.click({ position: { x: 24, y: 12 } });
-  const win = page.getByTestId("match-detail");
+test("the match window: the close button alone in its corner, Escape closes it", async ({ page }) => {
+  // A link to a game that is not on the page shown opens it in the window (lists open their games
+  // under their cards).
+  const win = await openMatchWindow(page);
   await expect(win.getByTestId("match-result")).toBeVisible();
   await expect(win.getByTestId("match-detail-close")).toBeFocused();
   await expectClearCorner(page);
-  await expectEscapeReturnsTo(page, win, card.getByTestId("together-open"));
+  await page.keyboard.press("Escape");
+  await expect(win).toBeHidden();
 });
 
 test("Encounters: OP.GG with the player's name, and the match window's Back set apart from the close button", async ({ page }) => {
@@ -159,8 +159,7 @@ async function sideways(browser: Browser, baseURL: string): Promise<Page> {
 test("held sideways, the floating corner keeps clear of the headers too", async ({ browser, baseURL }, info) => {
   test.skip(info.project.name !== "phone", "a phone held sideways, once");
   const page = await sideways(browser, baseURL!);
-  await page.goto("/matches");
-  await page.getByTestId("together-game").first().click({ position: { x: 24, y: 12 } });
+  await openMatchWindow(page);
   await expect(page.getByTestId("match-result")).toBeVisible();
   await expectClearCorner(page);
   await page.keyboard.press("Escape");
