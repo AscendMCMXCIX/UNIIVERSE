@@ -67,9 +67,9 @@ From the owner's brief and `CLAUDE.md`:
 | `ops/riot-id-family-audit` | #175 | Riot key evidence: the key's tier from Riot's stated limits, and which stored games carry the current player ids | **Production-verified** (`1538524`): its reports ran on production (run 41602528625). The key is Personal and no stored game needs re-keying; `docs/RIOT_COMPLIANCE.md` is updated in #181 |
 | `leaderboards-model` | #177 | Leaderboards' proposed model, as tested domain code, and its production audit; the page is unchanged | **Deployed** (`d72619a`), smoke passed; its audit ran on production (run 41597099104). Findings and the proposed rules: [the Leaderboards report](https://claude.ai/artifact/UtfbhTL5RJqub513acZpDJ) |
 | `dependabot/…minor-and-patch…` | #176 | next 16.4.3, eslint-config-next 16.4.3, lucide-react 1.65.0, PGlite 0.5.13 | **Deployed** (`cda9a66`), smoke and perf-probe passed (run 41606535813) |
-| `ops/backup-retired-tables` | #179 (ready; CI running) | Each backup proves the 23 retired tables that #86 and #138 would drop restore with all their rows | **Tested** end to end on a local PostgreSQL 16, including the failing case; tooling only |
-| `ops/live-check` | #180 (ready; CI running) |
-| `docs/riot-key-evidence` | #181 | `docs/RIOT_COMPLIANCE.md`: the key in use is Personal; no stored game needs re-keying | Docs only (CI and Vercel skip it); waits for your approval to merge | A read-only live check of the deployed site at three widths (#170, #173, #178) | **Tested** against a local demo build (200 checks passed); runs on production once this environment can reach it |
+| `ops/backup-retired-tables` | #179 | Each backup proves the 23 retired tables that #86 and #138 would drop restore with all their rows | **Tested** end to end on a local PostgreSQL 16, including the failing case; CI green (run 41607087797). Tooling only; waits for your approval to merge |
+| `ops/live-check` | #180 | A read-only live check of the deployed site at three widths (#170, #173, #178), and the fix for a flaky Encounters browser test on `main` (Findings, 3b) | **Tested** against a local demo build (200 checks passed); runs on production once this environment can reach it. CI on `f630004` failed on the flaky test; the fix (`021a0a0`) passed the full browser suite locally, and CI on it is running (run 41619446379). Waits for your approval to merge |
+| `docs/riot-key-evidence` | #181 | `docs/RIOT_COMPLIANCE.md`: the key in use is Personal; no stored game needs re-keying | Docs only (CI and Vercel skip it); waits for your approval to merge |
 | `ux/layout-consistency` | #178 | Neutral frame, compact All Champions, Team Matches opens games under their cards, the layout rules | **Deployed** (5e11ba5), smoke passed. Not yet production-verified: its screens were not checked on the live site (this environment cannot reach it, section 7) |
 
 Before the release, all six original branches merged cleanly with `main` and with one another (all 15
@@ -339,6 +339,26 @@ found two serious issue types and nothing moderate or minor:
 **Not covered by automation:** screen reader and speech-control behaviour on real devices. Those
 belong on the real-device checklist.
 
+### 3b. A flaky browser test on `main` (found by #180's CI; fix in #180)
+
+- **What failed:** `e2e/encounters.spec.ts` ("Against, Alongside and All") on phone, tablet and
+  desktop at once, on #180, whose diff has no app code. Alongside listed nobody.
+- **Cause:** the demo's Encounters fixture placed its recurring players by a hash of each game's
+  match id. A member's games are named after their player id, which is random, so every fresh demo
+  placed them differently. **Measured on `main`:** in 12 fresh demos, the Mid laner met nobody twice
+  alongside in 2, the list this test opens. CI starts one demo per run, so roughly one run in six
+  would fail (an estimate from those 12).
+- **Fix (in #180, 021a0a0):** the placement follows the member's name and the game's number, so
+  every fresh demo is the same. `tests/db/demo-encounters.test.ts` seeds two demos and checks the
+  placements match and the lists the test reads are not empty. It fails on `main`'s fixture and
+  passes with the fix. Production is unaffected: the fixture never runs against its database.
+- **How often it cost a run:** of the last 60 CI runs (36 passed, 21 skipped as docs only, 3
+  failed), this failure is one. A second, on 29 Oct, failed another test in the same spec on every
+  device at once, the same pattern; its log does not prove the cause. The third was #178's two
+  real bugs.
+- **Left as it is:** the demo's game timelines are also seeded from those ids, so they vary
+  between starts too. No failure in those 60 runs traces to them, so they are unchanged.
+
 ### 4. Security (one high finding fixed; branches ready)
 
 A read-only review of the whole repository (all 13 server-action modules, all 12 route handlers,
@@ -560,7 +580,9 @@ until a native capability is approved.
 6. **Dependabot #176 is released** (`cda9a66`). The one moderate alert left (`minimatch`, inside
    ESLint) is development-only and not part of what is deployed.
 7. **Approve merging #179, #180 and #181** once their checks pass: the backup proof, the live check
-   and the compliance note. All three are tooling or docs; none changes what users see.
+   and the compliance note. None changes what users see. Merging #179 or #180 still builds
+   production, because Vercel's ignore step counts `scripts/` (and #180's demo fixture in `src/`) as
+   app files; production behaves the same.
 8. **Optional:** the draft PWA branch (#171), a Microsoft Store listing (your account), Web Push.
 9. **A native desktop app needs two things you would have to approve:** a Riot-approved League
    client use, and a signing certificate's yearly cost.
@@ -598,8 +620,10 @@ commit; one production check after each deploy):
   the team's own games: the overall All games board ranks all 7 members, but role boards and the
   Ranked view are too thin or tied to rank. Ten proposed rules wait for your decision in
   [the Leaderboards report](https://claude.ai/artifact/UtfbhTL5RJqub513acZpDJ).
-- **Backup proof for the retired tables (#179, draft)** and **the automated live check (#180,
-  draft)**: both tested; tooling only.
+- **Backup proof for the retired tables (#179)**: tested; CI green; waits for your approval to merge.
+- **The automated live check (#180)**: tested against a local demo build; waits for this
+  environment to reach the live site. It also fixes a browser test that fails on `main` whenever a
+  fresh demo leaves one list empty: 2 of 12 measured (Findings, 3b).
 - **The PWA's Windows integration (#171, draft).**
 
 **Remaining concerns:**
