@@ -34,14 +34,15 @@ permissions:
   issues: write
   actions: read
 
-concurrency:
-  group: production-check
-  cancel-in-progress: true
-
 jobs:
   check:
     # A successful production deployment only: never a preview, a pending or a failed deployment.
     if: github.event_name != 'deployment_status' || (github.event.deployment_status.state == 'success' && startsWith(github.event.deployment.environment, 'Production'))
+    # On the job, not the workflow: every Preview deployment also sends a status event, and its run
+    # (whose job is skipped) must not cancel a production check in progress.
+    concurrency:
+      group: production-check
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -77,8 +78,10 @@ jobs:
           UNIIVERSE_VERIFY_PASSWORD: ${{ secrets.UNIIVERSE_VERIFY_PASSWORD }}
           EXPECTED_COMMIT: ${{ github.event_name == 'deployment_status' && github.event.deployment.sha || '' }}
         run: |
-          node scripts/live-check.mjs "$APP_URL" live-check
-          cat live-check/summary.md >> "$GITHUB_STEP_SUMMARY"
+          status=0
+          node scripts/live-check.mjs "$APP_URL" live-check || status=$?
+          if [ -f live-check/summary.md ]; then cat live-check/summary.md >> "$GITHUB_STEP_SUMMARY"; fi
+          exit $status
 
       - name: Backups and database size
         id: data
@@ -92,8 +95,9 @@ jobs:
           {
             echo "## Backups and database size"
             # The newest database backup that passed every check (Database backup, weekly).
-            at="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow backup.yml --status success --limit 1 --json createdAt --jq '.[0].createdAt // empty')"
-            if [ -z "$at" ]; then
+            if ! at="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow backup.yml --status success --limit 1 --json createdAt --jq '.[0].createdAt // empty')"; then
+              echo "- FAIL: the Database backup runs could not be read (gh run list)."; status=1
+            elif [ -z "$at" ]; then
               echo "- FAIL: no database backup has passed (Actions → Database backup)."; status=1
             else
               age=$(( ( $(date -u +%s) - $(date -u -d "$at" +%s) ) / 86400 ))
@@ -113,7 +117,9 @@ jobs:
                 else echo "- ok: the database is $mb MB, $pct% of its $DB_PLAN_MB MB plan."; fi
               fi
             fi
-          } | tee -a "$GITHUB_STEP_SUMMARY" data-check.md
+          } > data-check.md
+          cat data-check.md >> "$GITHUB_STEP_SUMMARY"
+          cat data-check.md
           exit $status
 
       - name: Perf probe (Mondays, or when asked)
@@ -124,7 +130,11 @@ jobs:
         run: |
           if [ "$EVENT" = "schedule" ] && [ "$(date -u +%u)" != "1" ]; then echo "The perf probe runs on Mondays."; exit 0; fi
           if [ -z "$CRON_SECRET" ]; then echo "::warning::The CRON_SECRET secret is not set."; exit 0; fi
-          curl --fail --silent --show-error --max-time 290 -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/jobs/perf-probe" | head -c 64000
+          if curl --fail --silent --show-error --max-time 290 -H "Authorization: Bearer $CRON_SECRET" -o perf-probe.json "$APP_URL/api/jobs/perf-probe"; then
+            head -c 64000 perf-probe.json
+          else
+            echo "::warning::The perf probe did not answer (see this step's log); production's pages were checked above."
+          fi
 
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
