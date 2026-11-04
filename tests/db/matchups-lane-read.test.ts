@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { accountMatches, matchDetails, matchTimelines, type MatchFrames, type MatchParticipantDetail } from "@/server/db/schema";
@@ -10,6 +10,7 @@ import { addAccount } from "@/server/accounts/repository";
 import { forgetMatchupLanes, getPlayerMatchups } from "@/server/players/matchups";
 import { forgetAccountRows } from "@/server/accounts/account-rows";
 import { processEgress } from "@/server/db/egress";
+import { clearLocalCaches } from "@/server/observability/cache";
 
 /*
   The champion window reads each game's lane in one query that matches the players in Postgres and
@@ -97,5 +98,19 @@ describe("the champion window's lane read", () => {
     expect(processEgress().rows - rowsBefore).toBeLessThanOrEqual(3);
     expect(processEgress().bytes - before).toBeLessThan(whole / 20);
     if (process.env.EGRESS_TEST_PRINT) console.log(`whole records ${whole} B; champion window cold ${cold} B, warm ${processEgress().bytes - before} B`);
+  });
+
+  it("forgets the lanes it kept when an erasure clears this instance's caches", async () => {
+    // Kept: OC1_L1's lane, with the lane opponent's frames.
+    expect((await open()).detail!.matches.find((m) => m.matchId === "OC1_L1")!.timeline).toBe("frames");
+    // Erasing the lane opponent deletes their per-minute frames (privacy/erasure.ts), then clears
+    // every local cache (afterErasure in actions/privacy.ts). The kept lane must go with them.
+    const [row] = await handle.db.select({ frames: matchTimelines.frames }).from(matchTimelines).where(eq(matchTimelines.matchId, "OC1_L1"));
+    const p = Object.fromEntries(Object.entries(row!.frames!.p).filter(([puuid]) => puuid !== "enemy-1-0"));
+    await handle.db.update(matchTimelines).set({ frames: { t: row!.frames!.t, p } }).where(eq(matchTimelines.matchId, "OC1_L1"));
+    clearLocalCaches();
+    const after = (await open()).detail!.matches.find((m) => m.matchId === "OC1_L1")!;
+    expect(after.timeline).toBe("unavailable");
+    expect(after.curves.gold).toEqual([]);
   });
 });

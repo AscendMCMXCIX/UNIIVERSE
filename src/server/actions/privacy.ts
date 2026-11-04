@@ -10,8 +10,7 @@ import { parseRiotId } from "@/server/accounts/repository";
 import { defaultPlatform } from "@/server/auth/signup";
 import { createVerificationClient } from "@/server/riot/verify-identity";
 import { RiotApiError } from "@/server/riot/api/client";
-import { clearLocalCaches, invalidateCache } from "@/server/observability/cache";
-import { invalidatePublicTeam } from "@/server/public/team";
+import { clearCachesAfterErasure } from "@/server/privacy/after-erasure";
 import { eraseSubject, formerMemberSubject, guardErasure, memberSubject, previewErasure, type ErasureCounts, type ErasurePreview, type ErasureSubject, type Mention } from "@/server/privacy/erasure";
 import { exportErasures, importErasures, listErasureRecords, parseErasureFile, releaseErasure, type ErasureExport, type ErasureRecordView } from "@/server/privacy/ledger";
 import { reconcileErasures, type ReconcileResult } from "@/server/privacy/reconcile";
@@ -34,10 +33,7 @@ const fail = (err: unknown): Result<never> => {
 
 /** After an erasure every page, cache and public view must stop showing the person at once (other server instances follow within their cache times). */
 function afterErasure() {
-  invalidateCache("team");
-  invalidateCache("shell-facts");
-  invalidatePublicTeam();
-  clearLocalCaches();
+  clearCachesAfterErasure();
   revalidatePath("/", "layout");
 }
 
