@@ -1,5 +1,5 @@
-import { benjaminiHochberg, compareStratified, Z_95, type StratifiedComparison, type Stratum } from "./stats/inference";
-import { fitLogistic, pointsFor, type GroupedRow } from "./stats/logistic";
+import { benjaminiHochberg, compareStratified, erfc, twoSidedZ, Z_95, type StratifiedComparison, type Stratum } from "./stats/inference";
+import { designStructure, fitLogistic, isEstimable, pointsFor, type GroupedRow } from "./stats/logistic";
 import { MIN_VALID_DURATION_S, SEASON_MODES } from "./season-stats";
 import { seasonOfGame } from "./season";
 
@@ -9,14 +9,12 @@ import { seasonOfGame } from "./season";
 
   Three questions, each answered by comparing a member's record in two kinds of game:
   - With teammates or alone: games with at least one other member on their side, against games
-    with no other member in the game at all.
-  - With one teammate: among a member's games with teammates, the association of each teammate
-    being on their side with the result, every other teammate's presence held fixed (a logistic
-    regression, domain/stats/logistic.ts). Comparing within games with teammates keeps "playing
-    with the team" apart from "playing with this person", and holding the others fixed keeps one
-    strong teammate from making everyone else look weak by their absence.
-  - The team lately: games with two or more members on one side in the last 30 days, against the
-    same kind of game earlier in the season.
+    with no other member in the game.
+  - With one teammate: games with this teammate on the side against games without them (alone or
+    with others), with every other teammate's presence held equal (a logistic regression, below),
+    so a teammate who often plays alongside a strong one is not credited with that teammate's games.
+  - The team lately: sides with two or more members in the last 30 days, against the same kind of
+    side earlier in the season.
 
   Rules, the same for every comparison:
   - Like with like: a member's games are only compared within the same game mode (queue) and the
@@ -24,15 +22,18 @@ import { seasonOfGame } from "./season";
     other modes in one kind of game disappears (Mantel–Haenszel, domain/stats/inference.ts; the
     regression has one intercept per mode and role).
   - One person is one member: several linked accounts in one game count once; a member seen on
-    both sides of one game (two of their accounts against each other) is left out of that game.
-  - Who was in a game is read from the stored match record (every player's account), not from
-    the other members' own histories, so a teammate whose history does not reach back that far
-    is still found. A game without its stored record is left out and counted.
+    both sides of one game (two of their accounts against each other) is left out of that game. A
+    game with members on both sides is left out of every comparison.
+  - Who was in a game comes from each member's own stored game (its side) and from the stored match
+    record (every player's account), so a teammate whose history does not reach back that far is
+    still found. A game whose side cannot be read is left out and counted.
   - Supported Summoner's Rift queues of the season only; remakes (under five minutes) and games
     without a result are left out, as everywhere else in UNIIVERSE.
   - A comparison is tested only with at least MIN_GAMES_EACH_SIDE comparable games on each side.
     Every tested comparison counts towards the multiple-comparison adjustment (Benjamini–Hochberg
-    at a 5% false discovery rate), and a finding must also differ by at least five points.
+    at a 5% false discovery rate). A finding must also differ by at least five points, with its 95%
+    interval clear of zero. A finding's interval is widened for the number of findings
+    (Benjamini–Yekutieli false coverage).
   - Nothing is weighted, shrunk or predicted: a finding describes these games. Matchmaking adjusts
     opponents to results, and who plays together is chosen, so a difference never says why.
 */
@@ -72,6 +73,7 @@ export interface InsightPresence {
 }
 
 export type ComparisonKind = "with-team" | "with-teammate" | "team-recent";
+export type UntestedReason = "too-few-games" | "inseparable" | "no-fit" | "no-others";
 
 export interface InsightComparison {
   /** Stable key: "with-team:<player>", "with-teammate:<player>:<teammate>", "team-recent". */
@@ -79,7 +81,7 @@ export interface InsightComparison {
   kind: ComparisonKind;
   /**
    * How the difference was formed: Mantel–Haenszel within mode and role (with-team, team-recent),
-   * or the regression with the other teammates held fixed (with-teammate). Either way `difference`,
+   * or the regression against the other teammates, every other teammate held equal (with-teammate). Either way `difference`,
    * `low` and `high` are win-rate points (0–1) and `pValue` is two-sided.
    */
   method: "mantel-haenszel" | "logistic";
@@ -90,12 +92,21 @@ export interface InsightComparison {
   result: StratifiedComparison;
   /** Whether it had enough comparable games on each side to be tested (and, for the regression, a stable fit). */
   tested: boolean;
-  /** Why it was not tested, when it was not. */
-  untestedReason: "too-few-games" | "inseparable" | null;
+  /**
+   * Why it was not tested: too few comparable games; a teammate whose effect these games cannot
+   * tell apart from other teammates' (always together, or in a fixed pattern); a fit the games
+   * cannot support (every game with them won, say); or no other teammate to compare with.
+   */
+  untestedReason: UntestedReason | null;
   /** Benjamini–Hochberg adjusted p-value among every tested comparison; null when not tested. */
   qValue: number | null;
-  /** Tested, adjusted value within the false discovery rate, and a difference of five points or more. */
+  /** Tested, adjusted value within the false discovery rate, a difference of five points or more, and a 95% interval clear of zero. */
   finding: boolean;
+  /**
+   * The interval the page shows: a finding's is widened for the number of findings (false
+   * coverage), every other tested comparison's is its 95% interval.
+   */
+  shown: { low: number; high: number; adjusted: boolean } | null;
   /** The first and last game the comparison used (any side), ms. */
   from: number | null;
   to: number | null;
@@ -104,8 +115,8 @@ export interface InsightComparison {
 export interface ExcludedGames {
   /** A member's games outside the season, outside the supported queues, remakes or without a result. */
   ineligible: number;
-  /** Eligible games whose stored match record has no entry for the member (no record stored yet). */
-  noRecord: number;
+  /** Eligible games whose side could not be read: no side on the member's stored game and no stored record listing them. */
+  unknownSide: number;
   /** Games where one member's accounts were on both sides. */
   bothSides: number;
 }
@@ -116,6 +127,8 @@ export interface TeamInsights {
   members: number;
   /** One per member per game: the games every comparison draws from. */
   memberGames: number;
+  /** Distinct games among them (a game several members played counts once). */
+  matches: number;
   /** Games with two or more members on one side (each side of a match once). */
   teamGames: number;
   /** Every comparison that could be formed, tested or not, findings first. */
@@ -125,8 +138,9 @@ export interface TeamInsights {
   /** The findings, strongest evidence first. */
   findings: InsightComparison[];
   /**
-   * The median half-width (points, 0–1) of the tested comparisons' 95% intervals: about how large a
-   * difference has to be before these games can tell it from chance. Null when nothing was tested.
+   * About how large a difference (points, 0–1) has to be before it can stand out: the median, over
+   * the tested comparisons, of the half-width of the interval at the level a single finding must
+   * reach after the adjustment, and never less than the five-point floor. Null when nothing was tested.
    */
   typicalMargin: number | null;
   excluded: ExcludedGames;
@@ -166,10 +180,10 @@ export function isEligibleInsightGame(g: InsightGame, season: number): boolean {
 
 /**
  * Each member's eligible games (one per match), with the members on each side read from the
- * stored records' presences. Pure; the input order does not matter.
+ * presences (their own stored games' sides and the stored records). Pure; the input order does not matter.
  */
 export function memberGamesOf(games: readonly InsightGame[], presences: readonly InsightPresence[], season: number): { games: MemberGame[]; excluded: ExcludedGames } {
-  const excluded: ExcludedGames = { ineligible: 0, noRecord: 0, bothSides: 0 };
+  const excluded: ExcludedGames = { ineligible: 0, unknownSide: 0, bothSides: 0 };
   // Who was in each match, and on which sides (a member can appear twice through two accounts).
   const sidesOf = new Map<string, Map<string, Set<number>>>();
   for (const p of presences) {
@@ -195,7 +209,7 @@ export function memberGamesOf(games: readonly InsightGame[], presences: readonly
     const inMatch = sidesOf.get(g.matchId);
     const own = inMatch?.get(g.playerId);
     if (!inMatch || !own || own.size === 0) {
-      excluded.noRecord += 1;
+      excluded.unknownSide += 1;
       continue;
     }
     if (own.size > 1) {
@@ -266,144 +280,148 @@ interface TeamGame {
 function teamGamesOf(games: readonly MemberGame[]): TeamGame[] {
   const out = new Map<string, TeamGame>();
   for (const g of games) {
-    if (g.teammates.size === 0) continue;
+    // A match with members on both sides is one win and one loss for the team: left out.
+    if (g.teammates.size === 0 || g.opponents.size > 0) continue;
     const key = `${g.matchId}|${g.teamId}`;
     if (!out.has(key)) out.set(key, { matchId: g.matchId, teamId: g.teamId, queueId: g.queueId, win: g.win, gameCreation: g.gameCreation });
   }
   return [...out.values()];
 }
 
+/** Teammates with fewer games than this together (in the regression's games) are pooled as one "other teammate". */
+const MODEL_MIN_GAMES = 5;
+
+/** Interval ends (points) at a given z, for comparisons whose interval can be redrawn after the adjustment. */
+type IntervalAt = (z: number) => { low: number; high: number };
+
 /**
- * One member's teammates, compared at once: among their games with teammates (and no member
- * against them), a logistic regression of the result on one intercept per game mode and role and
- * one indicator per teammate with enough games both with and without them. Teammates below the
- * minimum are listed, untested, with their raw records.
+ * One member's teammates: among the member's games with no member against them (alone or with
+ * teammates), a logistic regression of the result on one intercept per game mode and role and one
+ * indicator per teammate with at least MODEL_MIN_GAMES games together (the others pooled as one).
+ * A teammate's figure is their own coefficient: "with this teammate on the side, against without
+ * them, every other teammate's presence held equal". So a teammate who often plays alongside a
+ * strong one is not credited with that teammate's games, and a strong one does not make the others
+ * look weak. Effects add up on the log-odds scale, and a general "playing with teammates" effect
+ * shows in every teammate's figure (the with-teammates comparison measures it on its own).
+ *
+ * Which figures the games can estimate is decided exactly, from the design's null space: two
+ * teammates who always play together, or a member with no games without teammates in a mode and
+ * role, are reported as not separable, and stay in the model so the others are held equal to them.
+ * Teammates below the minimum comparable games are listed, untested, with their raw records.
  */
-function teammateComparisons(playerId: string, mine: readonly MemberGame[], ids: readonly string[]): Array<Omit<InsightComparison, "qValue" | "finding">> {
-  const teamGames = mine.filter((g) => g.teammates.size > 0 && g.opponents.size === 0);
-  const mates = ids.filter((id) => id !== playerId && teamGames.some((g) => g.teammates.has(id)));
+function teammateComparisons(playerId: string, mine: readonly MemberGame[], ids: readonly string[], intervals: Map<string, IntervalAt>): Array<Omit<InsightComparison, "qValue" | "finding" | "shown">> {
+  const usable = mine.filter((g) => g.opponents.size === 0);
+  const mates = ids.filter((id) => id !== playerId && usable.some((g) => g.teammates.has(id)));
   if (mates.length === 0) return [];
   // Strata where the result varies: a stratum of only wins (or only losses) says nothing about
   // who made the difference, and would have no finite intercept.
   const outcomes = new Map<string, Set<boolean>>();
-  for (const g of teamGames) outcomes.set(roleStratum(g), (outcomes.get(roleStratum(g)) ?? new Set<boolean>()).add(g.win));
-  const informative = teamGames.filter((g) => outcomes.get(roleStratum(g))!.size === 2);
-  const counts = (games: readonly MemberGame[], id: string) => {
-    const withIt = games.filter((g) => g.teammates.has(id));
-    return { with: withIt.length, withWins: withIt.filter((g) => g.win).length, without: games.length - withIt.length, withoutWins: games.filter((g) => !g.teammates.has(id) && g.win).length };
-  };
-  const eligible = mates.filter((id) => {
-    const c = counts(informative, id);
-    return c.with >= MIN_GAMES_EACH_SIDE && c.without >= MIN_GAMES_EACH_SIDE;
-  });
+  for (const g of usable) outcomes.set(roleStratum(g), (outcomes.get(roleStratum(g)) ?? new Set<boolean>()).add(g.win));
+  const games = usable.filter((g) => outcomes.get(roleStratum(g))!.size === 2);
 
-  const strataKeys = [...new Set(informative.map(roleStratum))].sort();
-  const { modelled: candidates, fit } = separableTeammates(informative, strataKeys, eligible);
-  const span = (games: readonly MemberGame[]) => (games.length ? { from: Math.min(...games.map((g) => g.gameCreation)), to: Math.max(...games.map((g) => g.gameCreation)) } : { from: null, to: null });
-  const { from, to } = span(teamGames);
+  // Comparable games for a teammate: in the modes and roles where the member played both with and without them.
+  const comparable = (id: string) => {
+    const byStratum = new Map<string, { with: number; without: number }>();
+    for (const g of games) {
+      const s = byStratum.get(roleStratum(g)) ?? { with: 0, without: 0 };
+      if (g.teammates.has(id)) s.with += 1;
+      else s.without += 1;
+      byStratum.set(roleStratum(g), s);
+    }
+    let w = 0;
+    let wo = 0;
+    for (const s of byStratum.values()) {
+      if (s.with > 0 && s.without > 0) {
+        w += s.with;
+        wo += s.without;
+      }
+    }
+    return { with: w, without: wo };
+  };
+  const raw = (id: string) => {
+    const withIt = usable.filter((g) => g.teammates.has(id));
+    const without = usable.filter((g) => !g.teammates.has(id));
+    return { with: withIt.length, withWins: withIt.filter((g) => g.win).length, without: without.length, withoutWins: without.filter((g) => g.win).length };
+  };
+  const together = (id: string) => games.filter((g) => g.teammates.has(id)).length;
+  const modelled = mates.filter((id) => together(id) >= MODEL_MIN_GAMES).sort((a, b) => together(b) - together(a) || a.localeCompare(b));
+  const pooledIds = new Set(mates.filter((id) => !modelled.includes(id)));
+  const pooledPresent = (g: MemberGame) => [...g.teammates].some((id) => pooledIds.has(id));
+  const pooled = games.filter(pooledPresent).length >= MODEL_MIN_GAMES;
+
+  // Design: strata intercepts, the pooled teammates, then each modelled teammate.
+  const strataKeys = [...new Set(games.map(roleStratum))].sort();
+  const columns = strataKeys.length + (pooled ? 1 : 0) + modelled.length;
+  const firstMate = strataKeys.length + (pooled ? 1 : 0);
+  const xOf = (g: MemberGame): number[] => [...strataKeys.map((k) => (k === roleStratum(g) ? 1 : 0)), ...(pooled ? [pooledPresent(g) ? 1 : 0] : []), ...modelled.map((id) => (g.teammates.has(id) ? 1 : 0))];
+  const grouped = new Map<string, { x: number[]; wins: number; games: number }>();
+  for (const g of games) {
+    const x = xOf(g);
+    const key = x.join("");
+    const row = grouped.get(key) ?? { x, wins: 0, games: 0 };
+    row.games += 1;
+    if (g.win) row.wins += 1;
+    grouped.set(key, row);
+  }
+  const rows = [...grouped.values()];
+  const structure = modelled.length ? designStructure(rows.map((r) => r.x), columns) : { pivots: [], nullSpace: [] };
+  const fit = modelled.length && structure.pivots.length ? fitLogistic(rows.map((r): GroupedRow => ({ x: structure.pivots.map((c) => r.x[c]!), wins: r.wins, games: r.games }))) : null;
+  // The fitted coefficients on every column (zero on the columns the pivots already explain) and their covariance.
+  const theta = new Array<number>(columns).fill(0);
+  const cov = Array.from({ length: columns }, () => new Array<number>(columns).fill(0));
+  if (fit) {
+    structure.pivots.forEach((c, i) => {
+      theta[c] = fit.coefficients[i]!;
+      structure.pivots.forEach((d, j) => {
+        cov[c]![d] = fit.covariance[i]![j]!;
+      });
+    });
+  }
+  const linear = (x: readonly number[]) => x.reduce((s, v, i) => s + v * theta[i]!, 0);
+  const span = usable.length ? { from: Math.min(...usable.map((g) => g.gameCreation)), to: Math.max(...usable.map((g) => g.gameCreation)) } : { from: null, to: null };
 
   return mates.map((teammateId) => {
-    const raw = counts(teamGames, teammateId);
-    const inModel = counts(informative, teammateId);
+    const r = raw(teammateId);
+    const c = comparable(teammateId);
     const base: StratifiedComparison = {
-      exposed: { wins: raw.withWins, games: raw.with },
-      other: { wins: raw.withoutWins, games: raw.without },
+      exposed: { wins: r.withWins, games: r.with },
+      other: { wins: r.withoutWins, games: r.without },
       informativeStrata: 0,
-      comparedGames: { exposed: inModel.with, other: inModel.without },
+      comparedGames: { exposed: c.with, other: c.without },
       difference: null,
       low: null,
       high: null,
       pValue: null,
+      se: null,
     };
-    const common = { id: `with-teammate:${playerId}:${teammateId}`, kind: "with-teammate" as const, method: "logistic" as const, playerId, teammateId, from, to };
-    if (!eligible.includes(teammateId)) return { ...common, result: base, tested: false, untestedReason: "too-few-games" as const };
-    const j = candidates.indexOf(teammateId);
-    if (j === -1) return { ...common, result: base, tested: false, untestedReason: "inseparable" as const };
-    const coefficient = fit?.coefficients[strataKeys.length + j];
-    const se = fit?.standardErrors[strataKeys.length + j];
-    if (!fit || coefficient === undefined || se === undefined || !Number.isFinite(coefficient) || Math.abs(coefficient) > 10) {
-      return { ...common, result: base, tested: false, untestedReason: "inseparable" as const };
-    }
-    // The fitted log-odds of each game with this teammate, without their coefficient.
-    const without = informative.filter((g) => g.teammates.has(teammateId)).map((g) => linear(fit.coefficients, strataKeys, candidates, g) - coefficient);
+    const common = { id: `with-teammate:${playerId}:${teammateId}`, kind: "with-teammate" as const, method: "logistic" as const, playerId, teammateId, from: span.from, to: span.to };
+    const untested = (reason: UntestedReason) => ({ ...common, result: base, tested: false, untestedReason: reason });
+    if (c.with < MIN_GAMES_EACH_SIDE || c.without < MIN_GAMES_EACH_SIDE) return untested("too-few-games");
+    const j = modelled.indexOf(teammateId);
+    if (j === -1) return untested("no-others");
+    const l = new Array<number>(columns).fill(0);
+    l[firstMate + j] = 1;
+    if (!isEstimable(l, structure.nullSpace)) return untested("inseparable");
+    if (!fit) return untested("no-fit");
+    const estimate = theta[firstMate + j]!;
+    const se = Math.sqrt(Math.max(0, cov[firstMate + j]![firstMate + j]!));
+    if (!Number.isFinite(estimate) || !Number.isFinite(se) || se === 0 || Math.abs(estimate) > 10) return untested("no-fit");
+    // The games with this teammate, as if they had not been there (everything else equal).
+    const without = games.filter((g) => g.teammates.has(teammateId)).map((g) => linear(xOf(g)) - estimate);
+    const at: IntervalAt = (z) => ({ low: pointsFor(without, estimate - z * se), high: pointsFor(without, estimate + z * se) });
+    intervals.set(common.id, at);
+    const ci = at(Z_95);
     const result: StratifiedComparison = {
       ...base,
-      informativeStrata: new Set(informative.filter((g) => g.teammates.has(teammateId)).map(roleStratum)).size,
-      difference: pointsFor(without, coefficient),
-      low: pointsFor(without, coefficient - Z_95 * se),
-      high: pointsFor(without, coefficient + Z_95 * se),
-      pValue: fit.pValues[strataKeys.length + j]!,
+      informativeStrata: new Set(games.filter((g) => g.teammates.has(teammateId)).map(roleStratum)).size,
+      difference: pointsFor(without, estimate),
+      low: ci.low,
+      high: ci.high,
+      pValue: Math.min(1, erfc(Math.abs(estimate / se) / Math.SQRT2)),
+      se: (ci.high - ci.low) / (2 * Z_95),
     };
     return { ...common, result, tested: true, untestedReason: null };
   });
-}
-
-/** Whether a fit gives every teammate a finite, believable coefficient (a huge one means the games separate perfectly). */
-const stableFit = (fit: ReturnType<typeof fitLogistic>, strata: number): fit is NonNullable<ReturnType<typeof fitLogistic>> =>
-  !!fit && fit.coefficients.slice(strata).every((c) => Number.isFinite(c) && Math.abs(c) <= 10);
-
-/** Pearson correlation of two teammates' presence over the same games (0 when either never changes). */
-function presenceCorrelation(games: readonly MemberGame[], a: string, b: string): number {
-  const n = games.length;
-  if (n === 0) return 0;
-  let sa = 0;
-  let sb = 0;
-  let sab = 0;
-  for (const g of games) {
-    const x = g.teammates.has(a) ? 1 : 0;
-    const y = g.teammates.has(b) ? 1 : 0;
-    sa += x;
-    sb += y;
-    sab += x * y;
-  }
-  const cov = sab / n - (sa / n) * (sb / n);
-  const va = sa / n - (sa / n) ** 2;
-  const vb = sb / n - (sb / n) ** 2;
-  return va > 0 && vb > 0 ? cov / Math.sqrt(va * vb) : 0;
-}
-
-/**
- * The teammates whose effects the games can tell apart, and the fit with them. Teammates are added
- * one at a time (most games together first); one that makes the fit singular or unstable is left
- * out, and so is any teammate already in whose presence moves with theirs (|r| ≥ 0.9: always
- * together, or always one or the other), so the joint effect of two is never credited to one.
- */
-function separableTeammates(games: readonly MemberGame[], strataKeys: readonly string[], eligible: readonly string[]): { modelled: string[]; fit: NonNullable<ReturnType<typeof fitLogistic>> | null } {
-  const together = (id: string) => games.filter((g) => g.teammates.has(id)).length;
-  const ordered = [...eligible].sort((a, b) => together(b) - together(a) || a.localeCompare(b));
-  const kept: string[] = [];
-  const rejected: string[] = [];
-  for (const id of ordered) {
-    if (stableFit(fitGrouped(games, strataKeys, [...kept, id]), strataKeys.length)) kept.push(id);
-    else rejected.push(id);
-  }
-  const entangled = new Set(kept.filter((k) => rejected.some((r) => Math.abs(presenceCorrelation(games, k, r)) >= 0.9)));
-  const modelled = kept.filter((k) => !entangled.has(k));
-  if (modelled.length === 0) return { modelled, fit: null };
-  const fit = fitGrouped(games, strataKeys, modelled);
-  return stableFit(fit, strataKeys.length) ? { modelled, fit } : { modelled: [], fit: null };
-}
-
-function linear(beta: readonly number[], strataKeys: readonly string[], candidates: readonly string[], g: MemberGame): number {
-  let eta = beta[strataKeys.indexOf(roleStratum(g))]!;
-  candidates.forEach((id, j) => {
-    if (g.teammates.has(id)) eta += beta[strataKeys.length + j]!;
-  });
-  return eta;
-}
-
-/** Groups the games by stratum and teammate pattern, and fits the regression. */
-function fitGrouped(games: readonly MemberGame[], strataKeys: readonly string[], candidates: readonly string[]) {
-  const rows = new Map<string, GroupedRow & { x: number[] }>();
-  for (const g of games) {
-    const x = [...strataKeys.map((k) => (k === roleStratum(g) ? 1 : 0)), ...candidates.map((id) => (g.teammates.has(id) ? 1 : 0))];
-    const key = x.join("");
-    const row = rows.get(key) ?? { x, wins: 0, games: 0 };
-    row.games += 1;
-    if (g.win) row.wins += 1;
-    rows.set(key, row);
-  }
-  return fitLogistic([...rows.values()]);
 }
 
 /**
@@ -418,23 +436,30 @@ export function teamInsights(input: { games: readonly InsightGame[]; presences: 
     input.season,
   );
   const ids = [...members].sort();
-  const comparisons: Array<Omit<InsightComparison, "qValue" | "finding">> = [];
+  const intervals = new Map<string, IntervalAt>();
+  const comparisons: Array<Omit<InsightComparison, "qValue" | "finding" | "shown">> = [];
   const addStratified = (kind: ComparisonKind, id: string, playerId: string | null, built: { strata: Stratum[]; from: number | null; to: number | null }) => {
     const result = compareStratified(built.strata);
     const enough = result.difference !== null && result.comparedGames.exposed >= MIN_GAMES_EACH_SIDE && result.comparedGames.other >= MIN_GAMES_EACH_SIDE;
+    if (enough && result.se !== null) {
+      const d = result.difference!;
+      const se = result.se;
+      intervals.set(id, (z) => ({ low: Math.max(-1, d - z * se), high: Math.min(1, d + z * se) }));
+    }
     comparisons.push({ id, kind, method: "mantel-haenszel", playerId, teammateId: null, result, tested: enough, untestedReason: enough ? null : "too-few-games", from: built.from, to: built.to });
   };
 
   for (const playerId of ids) {
     const mine = games.filter((g) => g.playerId === playerId);
     if (mine.length === 0) continue;
+    // A game with members on both sides is neither "with teammates" nor "alone".
     addStratified(
       "with-team",
       `with-team:${playerId}`,
       playerId,
-      stratify(mine, (g) => (g.teammates.size > 0 ? "exposed" : g.opponents.size === 0 ? "other" : null), roleStratum, (g) => g.win, (g) => g.gameCreation),
+      stratify(mine, (g) => (g.opponents.size > 0 ? null : g.teammates.size > 0 ? "exposed" : "other"), roleStratum, (g) => g.win, (g) => g.gameCreation),
     );
-    comparisons.push(...teammateComparisons(playerId, mine, ids));
+    comparisons.push(...teammateComparisons(playerId, mine, ids, intervals));
   }
 
   const team = teamGamesOf(games);
@@ -449,17 +474,31 @@ export function teamInsights(input: { games: readonly InsightGame[]; presences: 
   }
 
   const q = benjaminiHochberg(comparisons.map((c) => (c.tested ? c.result.pValue : null)));
+  const tested = comparisons.filter((c) => c.tested).length;
+  const isFinding = (c: (typeof comparisons)[number], qValue: number | null) =>
+    c.tested && qValue !== null && qValue <= FALSE_DISCOVERY_RATE && Math.abs(c.result.difference!) >= MIN_FINDING_DIFFERENCE && (c.result.low! > 0 || c.result.high! < 0);
+  const findingsCount = comparisons.filter((c, i) => isFinding(c, q[i] ?? null)).length;
+  // Benjamini–Yekutieli: the findings' intervals at level 1 − R·q/m, so their stated confidence
+  // allows for their having been picked out of m comparisons.
+  const zFindings = findingsCount ? twoSidedZ((findingsCount * FALSE_DISCOVERY_RATE) / tested) : Z_95;
   const all: InsightComparison[] = comparisons.map((c, i) => {
     const qValue = q[i] ?? null;
-    const finding = c.tested && qValue !== null && qValue <= FALSE_DISCOVERY_RATE && Math.abs(c.result.difference!) >= MIN_FINDING_DIFFERENCE;
-    return { ...c, qValue, finding };
+    const finding = isFinding(c, qValue);
+    const at = intervals.get(c.id);
+    const shown = !c.tested || !at ? null : finding ? { ...at(Math.max(Z_95, zFindings)), adjusted: true } : { low: c.result.low!, high: c.result.high!, adjusted: false };
+    return { ...c, qValue, finding, shown };
   });
   const strongestFirst = (a: InsightComparison, b: InsightComparison) =>
     Number(b.finding) - Number(a.finding) || Number(b.tested) - Number(a.tested) || (a.qValue ?? 2) - (b.qValue ?? 2) || Math.abs(b.result.difference ?? 0) - Math.abs(a.result.difference ?? 0) || a.id.localeCompare(b.id);
   all.sort(strongestFirst);
+  // What a lone finding needs: p ≤ q/m after the adjustment.
+  const zLone = tested ? twoSidedZ(FALSE_DISCOVERY_RATE / tested) : Z_95;
   const margins = all
-    .filter((c) => c.tested)
-    .map((c) => (c.result.high! - c.result.low!) / 2)
+    .filter((c) => c.tested && intervals.has(c.id))
+    .map((c) => {
+      const r = intervals.get(c.id)!(zLone);
+      return (r.high - r.low) / 2;
+    })
     .sort((a, b) => a - b);
   const median = margins.length ? (margins.length % 2 ? margins[(margins.length - 1) / 2]! : (margins[margins.length / 2 - 1]! + margins[margins.length / 2]!) / 2) : null;
   const times = games.map((g) => g.gameCreation);
@@ -467,11 +506,12 @@ export function teamInsights(input: { games: readonly InsightGame[]; presences: 
     season: input.season,
     members: new Set(games.map((g) => g.playerId)).size,
     memberGames: games.length,
+    matches: new Set(games.map((g) => g.matchId)).size,
     teamGames: team.length,
     comparisons: all,
-    tested: all.filter((c) => c.tested).length,
+    tested,
     findings: all.filter((c) => c.finding),
-    typicalMargin: median,
+    typicalMargin: median === null ? null : Math.max(MIN_FINDING_DIFFERENCE, median),
     excluded,
     from: times.length ? Math.min(...times) : null,
     to: times.length ? Math.max(...times) : null,

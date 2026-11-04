@@ -44,6 +44,8 @@ export interface StratifiedComparison {
   high: number | null;
   /** Two-sided p-value of the CMH test; null without an informative stratum. */
   pValue: number | null;
+  /** Standard error of `difference` (Sato); null without an informative stratum. */
+  se: number | null;
 }
 
 /** z for a two-sided 95% interval. */
@@ -70,6 +72,23 @@ export function erfc(x: number): number {
 export function chiSquare1Survival(x: number): number {
   if (!Number.isFinite(x) || x <= 0) return 1;
   return Math.min(1, Math.max(0, erfc(Math.sqrt(x / 2))));
+}
+
+/**
+ * z such that P(|Z| ≥ z) = p for a standard normal Z (two-sided), by bisection on erfc: exact to
+ * well below the precision any interval here is shown with. p is clamped to (1e-15, 1].
+ */
+export function twoSidedZ(p: number): number {
+  const target = Math.min(1, Math.max(1e-15, p));
+  if (target >= 1) return 0;
+  let lo = 0;
+  let hi = 10;
+  for (let i = 0; i < 200; i += 1) {
+    const mid = (lo + hi) / 2;
+    if (erfc(mid / Math.SQRT2) > target) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
 }
 
 /** Wilson score interval for one record (wins of games); null without games. */
@@ -133,7 +152,7 @@ export function compareStratified(strata: readonly Stratum[], z = Z_95): Stratif
     if (n > 1) variance += (n1 * n0 * wins * (n - wins)) / (n * n * (n - 1));
   }
   if (informative === 0 || weight === 0) {
-    return { exposed, other, informativeStrata: 0, comparedGames: compared, difference: null, low: null, high: null, pValue: null };
+    return { exposed, other, informativeStrata: 0, comparedGames: compared, difference: null, low: null, high: null, pValue: null, se: null };
   }
   const difference = num / weight;
   const varRd = Math.max(0, (difference * satoP + satoQ) / (weight * weight));
@@ -151,6 +170,7 @@ export function compareStratified(strata: readonly Stratum[], z = Z_95): Stratif
     low: Math.max(-1, difference - half),
     high: Math.min(1, difference + half),
     pValue,
+    se: Math.sqrt(varRd),
   };
 }
 

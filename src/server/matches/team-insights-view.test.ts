@@ -51,14 +51,15 @@ describe("buildTeamInsightsPage", () => {
     expect(page.findings).toEqual([]);
     expect(page.nothing).toMatch(/no games to compare yet/);
     expect(page.rows).toEqual([]);
-    expect(page.scope).toBe("Season 2026 · 0 games of 0 members, 0 played together");
+    expect(page.scope).toBe("Season 2026 · No games yet");
   });
 
   it("says how many games are still needed when nothing could be tested", () => {
     const games: InsightGame[] = [{ matchId: "M1", playerId: "a", queueId: 400, role: "TOP", win: true, gameCreation: NOW, durationS: 1800, patch: "16.20" }];
     const page = buildTeamInsightsPage({ insights: teamInsights({ games, presences: [{ matchId: "M1", playerId: "a", teamId: 100 }], memberIds: ["a"], season: 16, now: NOW }), names, computedAt: NOW });
-    expect(page.nothing).toBe("Nothing has enough games to compare yet: a comparison needs 20 games on each side.");
+    expect(page.nothing).toBe("Nothing has enough games to compare yet: a comparison needs 20 comparable games on each side.");
     expect(page.rows[0]).toMatchObject({ label: "Ace with teammates, against alone", records: "With teammates: no games · Alone: 100% of 1 game", status: "untested", result: "Needs 20 comparable games on each side (has 0)" });
+    expect(page.rows.map((r) => r.key)).toEqual(["with-team:a"]);
   });
 
   it("writes findings as plain statements with their records, interval and dates", () => {
@@ -72,9 +73,9 @@ describe("buildTeamInsightsPage", () => {
     // Never causal words.
     for (const f of page.findings) expect(`${f.headline} ${f.detail}`).not.toMatch(/because|better|worse|should|predict/i);
     expect(page.nothing).toBeNull();
-    // Every comparison is listed, findings first.
+    // Every comparison is listed, in the engine's order (findings first).
     expect(page.rows[0]!.status).toBe("finding");
-    expect(page.rows.map((r) => r.key).sort()).toEqual(page.rows.map((r) => r.key).sort());
+    expect(page.rows.map((r) => r.key)).toEqual(strongSeason().comparisons.map((c) => c.id));
   });
 
   it("explains its method, including what it does not say", () => {

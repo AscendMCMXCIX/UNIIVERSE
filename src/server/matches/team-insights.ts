@@ -16,9 +16,11 @@ import { teamInsights, type InsightGame, type InsightPresence, type TeamInsights
   Two reads:
   - the current members' stored games of the season (their own linked accounts; remakes and
     unsupported queues have no champion and are never read);
-  - who of the members was in each of those games, and on which side, from the stored match
-    record itself (every player's account in it), expanded inside the database so only the
-    members' places leave it: a few bytes per member per game, never the records.
+  - who of the members was in each of those games, and on which side: from each member's own
+    stored game (the side copied from the record, which survives a change of Riot key) and from
+    the stored match record itself (every player's account in it, which finds a member whose own
+    history does not reach back that far), expanded inside the database so only the members'
+    places leave it: a few bytes per member per game, never the records.
   Both come back as one compact JSON answer (as Team Leaderboards reads its games).
 
   Cached per team: dropped as soon as the members, their accounts, or the season's stored games and
@@ -73,6 +75,16 @@ export async function readInsightInputs(db: Db, accounts: ReadonlyArray<{ id: st
       SELECT match_id, (row_number() OVER (ORDER BY match_id) - 1)::int AS m FROM (SELECT DISTINCT match_id FROM own) d
     ),
     places AS (
+      -- Each member's own stored games, with the side copied from the record when it was
+      -- summarised: this survives a change of Riot key, which gives everyone new PUUIDs that
+      -- the stored records do not carry.
+      SELECT x.m, acc.p, am.team_id AS side
+      FROM account_matches am
+      JOIN acc ON acc.id = am.account_id
+      JOIN matches x ON x.match_id = am.match_id
+      WHERE am.champion_id IS NOT NULL AND am.team_id IN (100, 200)
+      UNION
+      -- The stored record: finds a member whose own history does not reach back to the game.
       SELECT x.m, acc.p, (pt.value->>'teamId')::int AS side
       FROM matches x
       JOIN match_details md ON md.match_id = x.match_id

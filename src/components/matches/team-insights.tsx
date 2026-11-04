@@ -18,18 +18,20 @@ type Row = TeamInsightsPageView["rows"][number];
 
 const STATUS: Record<Exclude<Row["status"], "untested">, { label: string; tone: "accent" | "neutral" }> = {
   finding: { label: "Stands out", tone: "accent" },
+  small: { label: "Under 5 points", tone: "neutral" },
   chance: { label: "Within chance", tone: "neutral" },
 };
 
-/** Every comparison: the checked ones with their interval and status, then those still waiting for games, compactly. */
+/** Every comparison: the checked ones with their interval and status, then the rest, compactly: those waiting for more games, and those these games cannot compare. */
 function Comparisons({ rows }: { rows: readonly Row[] }) {
   const checked = rows.filter((r) => r.status !== "untested");
-  const waiting = rows.filter((r) => r.status === "untested");
-  const description = [checked.length ? `${checked.length} checked` : null, waiting.length ? `${waiting.length} waiting for more games` : null].filter(Boolean).join(", ");
+  const waiting = rows.filter((r) => r.status === "untested" && r.reason === "too-few-games");
+  const blocked = rows.filter((r) => r.status === "untested" && r.reason !== "too-few-games");
+  const description = [checked.length ? `${checked.length} checked` : null, waiting.length ? `${waiting.length} waiting for more games` : null, blocked.length ? `${blocked.length} not compared` : null].filter(Boolean).join(", ");
   return (
     <Disclosure title="Every comparison" description={description} testId="insights-all">
       {checked.length ? (
-        <ul className="divide-y divide-border" data-testid="insights-rows">
+        <ul className="divide-y divide-border" aria-label="Comparisons checked" data-testid="insights-rows">
           {checked.map((r) => {
             const status = STATUS[r.status as keyof typeof STATUS];
             return (
@@ -47,24 +49,29 @@ function Comparisons({ rows }: { rows: readonly Row[] }) {
           })}
         </ul>
       ) : null}
-      {waiting.length ? (
-        <section aria-labelledby="insights-waiting" className="space-y-2">
-          <h3 id="insights-waiting" className="text-sm font-semibold text-fg">
-            Waiting for more games
-          </h3>
-          <ul className="space-y-2" data-testid="insights-waiting">
-            {waiting.map((r) => (
-              <li key={r.key} className="text-sm" data-testid="insight-waiting">
-                <span className="text-fg">{r.label}</span>
-                <span className="block text-xs text-fg-subtle">
-                  {r.records} · {r.result}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+      <UncheckedList title="Waiting for more games" rows={waiting} testId="insights-waiting" />
+      <UncheckedList title="Not compared" rows={blocked} testId="insights-blocked" />
     </Disclosure>
+  );
+}
+
+/** A compact list of comparisons that were not checked, under a plain label (not a heading: the findings' panel owns the outline). */
+function UncheckedList({ title, rows, testId }: { title: string; rows: readonly Row[]; testId: string }) {
+  if (!rows.length) return null;
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-semibold text-fg">{title}</p>
+      <ul className="space-y-2" aria-label={title} data-testid={testId}>
+        {rows.map((r) => (
+          <li key={r.key} className="text-sm" data-testid="insight-unchecked">
+            <span className="text-fg">{r.label}</span>
+            <span className="block text-xs text-fg-subtle">
+              {r.records} · {r.result}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

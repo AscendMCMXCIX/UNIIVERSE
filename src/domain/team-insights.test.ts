@@ -90,7 +90,7 @@ describe("memberGamesOf: who was in each game", () => {
     const { games, presences } = build([{ id: "M1", daysAgo: 1, blue: { a: "MID" }, blueWins: true, noRecord: true }]);
     const r = memberGamesOf(games, presences, SEASON);
     expect(r.games).toHaveLength(0);
-    expect(r.excluded.noRecord).toBe(1);
+    expect(r.excluded.unknownSide).toBe(1);
   });
 
   it("leaves out remakes, other seasons, unsupported queues and games without a result", () => {
@@ -210,11 +210,16 @@ describe("teamInsights: telling findings from chance", () => {
     }
   });
 
-  it("keeps the effect of one teammate apart from the effect of playing with the team", () => {
-    // Having any teammate helps (+15 points); nobody in particular matters: no teammate finding.
+  it("shows a general benefit of playing with teammates in every teammate's figure, singling nobody out", () => {
+    // Having any teammate helps (+15 points); nobody in particular matters.
     const r = season(2, { members: ["a", "b", "c", "d"], games: 6000, pSide: (side) => (mates(side) ? 0.6 : 0.45) });
     expect(r.findings.some((f) => f.kind === "with-team")).toBe(true);
-    expect(r.findings.filter((f) => f.kind === "with-teammate")).toEqual([]);
+    const a = r.comparisons.filter((c) => c.kind === "with-teammate" && c.playerId === "a" && c.tested);
+    expect(a.length).toBe(3);
+    // Every teammate carries the same general effect, within noise: nobody stands apart.
+    const d = a.map((c) => c.result.difference!);
+    expect(Math.min(...d)).toBeGreaterThan(0);
+    expect(Math.max(...d) - Math.min(...d)).toBeLessThan(0.06);
   });
 
   it("finds the one teammate who makes a difference, and nobody else", () => {
@@ -247,6 +252,80 @@ describe("teamInsights: telling findings from chance", () => {
     expect(Math.abs(ab.result.difference!)).toBeLessThan(0.06);
     // And a's own record with teammates is no finding either: same role, same chance.
     expect(r.findings.find((f) => f.id === "with-team:a")).toBeUndefined();
+  });
+
+  /** Plays out one member's games from explicit groups: each group is [teammates, games, win chance]. */
+  function groups(seed: number, plan: Array<[string[], number, number]>, others: Record<string, string> = {}) {
+    const random = rng(seed);
+    const matches: MatchSpec[] = [];
+    let n = 0;
+    for (const [teammates, count, p] of plan) {
+      for (let i = 0; i < count; i += 1) {
+        const blue: Record<string, string> = { a: "MID" };
+        for (const m of teammates) blue[m] = others[m] ?? "TOP";
+        matches.push({ id: `G${seed}-${n++}`, daysAgo: Math.floor(random() * 120), blue, blueWins: random() < p, queueId: 420 });
+      }
+    }
+    return run(matches, [...new Set(["a", ...plan.flatMap(([t]) => t)])]);
+  }
+
+  it("duo partners: only the partner who differs stands out, and nobody is measured against another partner", () => {
+    // Solo games at 47%; duos with b, c, d at 50% (no real difference); with e at 35%.
+    const r = groups(31, [[[], 600, 0.47], [["b"], 300, 0.5], [["c"], 250, 0.5], [["d"], 200, 0.5], [["e"], 150, 0.35]]);
+    const byId = (id: string) => r.comparisons.find((c) => c.id === id)!;
+    for (const m of ["b", "c", "d"]) {
+      expect(byId(`with-teammate:a:${m}`).finding).toBe(false);
+      expect(Math.abs(byId(`with-teammate:a:${m}`).result.difference!)).toBeLessThan(0.08);
+    }
+    const e = byId("with-teammate:a:e");
+    expect(e.tested).toBe(true);
+    expect(e.result.difference!).toBeLessThan(-0.05);
+  });
+
+  it("duo partners with no games alone: nothing can be compared, and the page is not told otherwise", () => {
+    // Every game has exactly one partner: whether a partner helps cannot be told from these games.
+    const r = groups(32, [[["b"], 200, 0.59], [["e"], 200, 0.37]]);
+    const ab = r.comparisons.find((c) => c.id === "with-teammate:a:b")!;
+    expect(ab.tested).toBe(false);
+    expect(ab.untestedReason).toBe("inseparable");
+    expect(r.findings.filter((f) => f.kind === "with-teammate")).toEqual([]);
+  });
+
+  it("a pair who always play together is not separated, and a teammate who avoids them is not blamed for their effect", () => {
+    // b and c together lift a's chance to 60% (45% otherwise); d is mostly in the other games and changes nothing.
+    const random = rng(33);
+    const plan: Array<[string[], number, number]> = [];
+    for (let i = 0; i < 1600; i += 1) {
+      const pair = random() < 0.5;
+      const d = random() < (pair ? 0.2 : 0.8);
+      const solo = random() < 0.3;
+      const t = solo ? [] : [...(pair ? ["b", "c"] : []), ...(d ? ["d"] : [])];
+      plan.push([t, 1, t.includes("b") ? 0.6 : 0.45]);
+    }
+    const r = groups(34, plan);
+    const byId = (id: string) => r.comparisons.find((c) => c.id === id)!;
+    expect(byId("with-teammate:a:b").untestedReason).toBe("inseparable");
+    expect(byId("with-teammate:a:c").untestedReason).toBe("inseparable");
+    const d = byId("with-teammate:a:d");
+    expect(d.tested).toBe(true);
+    expect(d.finding).toBe(false);
+    expect(Math.abs(d.result.difference!)).toBeLessThan(0.05);
+  });
+
+  it("a teammate fixed by two others (always with one of them) is not credited with their effect", () => {
+    // d plays exactly when b or c does (never both): d = b + c. Only c makes a difference.
+    const plan: Array<[string[], number, number]> = [
+      [[], 500, 0.48],
+      [["d", "b"], 300, 0.48],
+      [["d", "c"], 300, 0.66],
+      [["e"], 200, 0.48],
+      [["f"], 200, 0.48],
+      [["e", "f"], 150, 0.48],
+    ];
+    const r = groups(35, plan);
+    const byId = (id: string) => r.comparisons.find((c) => c.id === id)!;
+    for (const m of ["b", "c", "d"]) expect(byId(`with-teammate:a:${m}`).untestedReason).toBe("inseparable");
+    for (const m of ["e", "f"]) expect(byId(`with-teammate:a:${m}`).finding).toBe(false);
   });
 
   it("finds nothing in pure noise (false findings stay rare across many seasons)", () => {

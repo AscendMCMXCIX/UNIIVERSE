@@ -23,7 +23,7 @@ test("the preview says what it read, what stands out (or that nothing does), and
   await expect(root.getByRole("heading", { level: 1, name: "Team insights" })).toBeVisible();
   await expect(root.getByText("Preview for administrators")).toBeVisible();
   // What was read: the season, the games, the members and the dates.
-  await expect(root).toContainText(/Season 2026 · [\d,]+ games? of \d+ members?, [\d,]+ played together/);
+  await expect(root).toContainText(/Season 2026 · ([\d,]+ games? of \d+ members?, [\d,]+ played together|No games yet)/);
   // Either findings, each a plain statement with its records and interval, or a plain "nothing".
   const findings = root.getByTestId("insight-finding");
   const nothing = root.getByTestId("insights-nothing");
@@ -32,7 +32,8 @@ test("the preview says what it read, what stands out (or that nothing does), and
     await expect(findings.first()).toContainText(/has won (more|less) often/);
     await expect(findings.first()).toContainText(/likely between/);
   } else {
-    await expect(nothing).toContainText(/Nothing (stands out|has enough games)|no games to compare/);
+    // The sentence itself, not just the empty state's title.
+    await expect(nothing).toContainText(/Nothing has enough games to compare yet: a comparison needs 20 comparable games on each side\.|Nothing could be compared yet\.|Nothing stands out\. \d+ comparisons? (was|were) checked|There are no games to compare yet/);
   }
   // The method is one click away and says what it does not claim.
   const method = root.getByTestId("insights-method");
@@ -42,7 +43,7 @@ test("the preview says what it read, what stands out (or that nothing does), and
   const all = root.getByTestId("insights-all");
   if (await all.count()) {
     await all.locator("summary").click();
-    const row = all.getByTestId("insight-row").or(all.getByTestId("insight-waiting")).first();
+    const row = all.getByTestId("insight-row").or(all.getByTestId("insight-unchecked")).first();
     await expect(row).toBeVisible();
     await expect(row).toContainText(/With teammates: .* · Alone: |With .*: .* · With other teammates: |Last 30 days: .* · Earlier: /);
     await expect(all).not.toContainText("— of 0");

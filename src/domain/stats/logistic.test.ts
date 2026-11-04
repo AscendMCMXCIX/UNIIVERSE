@@ -53,8 +53,7 @@ describe("fitLogistic", () => {
       { x: [1, 0], wins: 10, games: 20 },
       { x: [1, 1], wins: 30, games: 30 },
     ];
-    const fit = fitLogistic(rows);
-    if (fit) expect(Math.abs(fit.coefficients[1]!)).toBeGreaterThan(10);
+    expect(fitLogistic(rows)).toBeNull();
   });
 
   it("refuses empty or malformed input", () => {

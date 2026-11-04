@@ -109,18 +109,19 @@ describe("team insights from stored games", () => {
     expect(r.season).toBe(16);
     expect(view.names[ids.Ace!]).toBe("Ace");
     expect(view.names[ids.Solo!]).toBeUndefined();
-    // Ace: G1 (with Bea), G3 (alone: Solo is not a member), G4 (with Bea, from the record).
+    // Ace: G1 (with Bea, but Cy against them: members on both sides, left out of every comparison),
+    // G3 (alone: Solo is not a member), G4 (with Bea, from the record).
     // Bea: G1 (with Ace), G2 (alone), G4 is not in her history. Cy: G1 (against members), G9 (alone).
     expect(r.memberGames).toBe(7);
-    expect(r.excluded).toEqual({ ineligible: 1, noRecord: 1, bothSides: 1 });
+    expect(r.excluded).toEqual({ ineligible: 1, unknownSide: 1, bothSides: 1 });
     const ace = r.comparisons.find((c) => c.id === `with-team:${ids.Ace}`)!;
-    expect(ace.result.exposed.games).toBe(2);
+    expect(ace.result.exposed.games).toBe(1);
     expect(ace.result.other.games).toBe(1);
     const cy = r.comparisons.find((c) => c.id === `with-team:${ids.Cy}`)!;
-    // G1 had members only on the other side: neither with teammates nor alone.
+    // G1 had members on the other side: neither with teammates nor alone. G9 was alone.
     expect(cy.result.exposed.games + cy.result.other.games).toBe(1);
-    // Ace and Bea's sides of G1 and G4: two team games.
-    expect(r.teamGames).toBe(2);
+    // Ace and Bea's side of G4 (G1 had members on both sides): one team game.
+    expect(r.teamGames).toBe(1);
     // Far too few games to test anything.
     expect(r.tested).toBe(0);
     expect(r.findings).toEqual([]);
@@ -163,6 +164,24 @@ describe("team insights from stored games", () => {
       expect(view.insights.comparisons.some((c) => c.playerId === ids.Bea || c.teammateId === ids.Bea)).toBe(false);
     } finally {
       await setTeamMember(handle.db, teamId, ids.Bea!, true);
+    }
+  });
+
+  it("keeps working after a Riot key change gives every account new PUUIDs the stored records do not carry", async () => {
+    // The sides were copied onto the members' stored games when they were summarised (the first load did that).
+    const before = await loadTeamInsights(handle.db, teamId, NOW);
+    for (const [k, id] of Object.entries(acc)) await handle.db.update(riotAccounts).set({ puuid: `new-key-${k}` }).where(eq(riotAccounts.id, id));
+    try {
+      invalidateTeamInsightsCache();
+      const after = await loadTeamInsights(handle.db, teamId, NOW);
+      // Games found only through a record (Bea's G4) are lost until the records are refetched; every
+      // member's own game keeps its side, so nothing else changes.
+      expect(after.insights.memberGames).toBe(before.insights.memberGames);
+      expect(after.insights.teamGames).toBe(before.insights.teamGames - 1);
+      expect(after.insights.excluded.unknownSide).toBe(before.insights.excluded.unknownSide);
+    } finally {
+      for (const [k, id] of Object.entries(acc)) await handle.db.update(riotAccounts).set({ puuid: `p-${k}` }).where(eq(riotAccounts.id, id));
+      invalidateTeamInsightsCache();
     }
   });
 

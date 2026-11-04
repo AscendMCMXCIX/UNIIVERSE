@@ -22,6 +22,8 @@ export interface GroupedRow {
 export interface LogisticFit {
   coefficients: number[];
   standardErrors: number[];
+  /** The coefficients' covariance (the inverse of the information at the solution). */
+  covariance: number[][];
   /** Two-sided Wald p-values. */
   pValues: number[];
   iterations: number;
@@ -72,14 +74,15 @@ function solve(l: number[][], b: readonly number[]): number[] {
   return x;
 }
 
-/** The diagonal of (L·Lᵀ)⁻¹. */
-function inverseDiagonal(l: number[][]): number[] {
+/** (L·Lᵀ)⁻¹, column by column. */
+function inverse(l: number[][]): number[][] {
   const n = l.length;
-  return Array.from({ length: n }, (_, i) => {
+  const columns = Array.from({ length: n }, (_, i) => {
     const e = new Array<number>(n).fill(0);
     e[i] = 1;
-    return solve(l, e)[i]!;
+    return solve(l, e);
   });
+  return Array.from({ length: n }, (_, r) => columns.map((c) => c[r]!));
 }
 
 function deviance(rows: readonly GroupedRow[], beta: readonly number[]): number {
@@ -143,10 +146,11 @@ export function fitLogistic(rows: readonly GroupedRow[]): LogisticFit | null {
       for (let i = 0; i < p; i += 1) for (let j = 0; j < i; j += 1) infoAt[j]![i] = infoAt[i]![j]!;
       const lAt = cholesky(infoAt);
       if (!lAt) return null;
-      const se = inverseDiagonal(lAt).map((v) => Math.sqrt(Math.max(0, v)));
+      const covariance = inverse(lAt);
+      const se = covariance.map((row, i) => Math.sqrt(Math.max(0, row[i]!)));
       if (se.some((s) => !Number.isFinite(s))) return null;
       const pValues = beta.map((b, i) => (se[i]! > 0 ? Math.min(1, erfc(Math.abs(b / se[i]!) / Math.SQRT2)) : 1));
-      return { coefficients: beta, standardErrors: se, pValues, iterations: iteration, deviance: dev };
+      return { coefficients: beta, standardErrors: se, covariance, pValues, iterations: iteration, deviance: dev };
     }
   }
   return null;
@@ -160,4 +164,49 @@ export function fitLogistic(rows: readonly GroupedRow[]): LogisticFit | null {
 export function pointsFor(linearWithout: readonly number[], b: number): number {
   if (linearWithout.length === 0) return 0;
   return linearWithout.reduce((s, eta) => s + sigmoid(eta + b) - sigmoid(eta), 0) / linearWithout.length;
+}
+
+/**
+ * The structure of a design matrix (rows: covariate patterns; columns: coefficients), by
+ * Gauss–Jordan elimination: which columns carry information of their own (`pivots`, in column
+ * order) and a basis of the directions the data cannot see (`nullSpace`: every v with Xv = 0).
+ * A combination of coefficients Lᵀβ can be estimated from these data exactly when L is
+ * orthogonal to every null-space vector; the model fitted on the pivot columns alone gives it.
+ * The entries are small whole numbers here, so the tolerance only absorbs rounding.
+ */
+export function designStructure(rows: readonly (readonly number[])[], columns: number): { pivots: number[]; nullSpace: number[][] } {
+  const m = rows.map((r) => [...r]);
+  const pivots: number[] = [];
+  let r = 0;
+  for (let c = 0; c < columns && r < m.length; c += 1) {
+    let best = r;
+    for (let i = r + 1; i < m.length; i += 1) if (Math.abs(m[i]![c]!) > Math.abs(m[best]![c]!)) best = i;
+    if (Math.abs(m[best]![c]!) < 1e-9) continue;
+    [m[r], m[best]] = [m[best]!, m[r]!];
+    const pivot = m[r]![c]!;
+    for (let j = 0; j < columns; j += 1) m[r]![j]! /= pivot;
+    for (let i = 0; i < m.length; i += 1) {
+      if (i === r) continue;
+      const f = m[i]![c]!;
+      if (Math.abs(f) < 1e-12) continue;
+      for (let j = 0; j < columns; j += 1) m[i]![j]! -= f * m[r]![j]!;
+    }
+    pivots.push(c);
+    r += 1;
+  }
+  const free = Array.from({ length: columns }, (_, c) => c).filter((c) => !pivots.includes(c));
+  const nullSpace = free.map((f) => {
+    const v = new Array<number>(columns).fill(0);
+    v[f] = 1;
+    pivots.forEach((c, i) => {
+      v[c] = -m[i]![f]!;
+    });
+    return v;
+  });
+  return { pivots, nullSpace };
+}
+
+/** Whether Lᵀβ can be estimated: L is orthogonal to the design's null space. */
+export function isEstimable(l: readonly number[], nullSpace: readonly (readonly number[])[]): boolean {
+  return nullSpace.every((v) => Math.abs(v.reduce((s, x, i) => s + x * (l[i] ?? 0), 0)) < 1e-7 * (1 + Math.sqrt(v.reduce((s, x) => s + x * x, 0))));
 }
