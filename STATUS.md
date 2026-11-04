@@ -42,7 +42,11 @@
 ## Outstanding, by impact
 
 1. **Member pages are not verified on the live site.** The Production check opens them only with a verification account, which needs the owner (about 10 minutes, docs/LIVE_VALIDATION.md, "Setting up the verification account"). Until then, every member-page change stays "Deployed".
-2. **The server's first byte on a first visit.** Field TTFB p75 was ≤ 3 s on every page, and only 37% of loads were good (≤ 0.8 s), while the Team page's own server work is 0.41 s cold. The likely cause is cold functions on a site opened 4–5 times a day. The lever is Vercel's Fluid compute, a project setting for the owner: check whether it is on, and its cost on the plan.
+2. **The server's first byte on a first visit.** Field TTFB p75 was ≤ 3 s on every page, and only 37% of loads were good (≤ 0.8 s), while the Team page's own server work is 0.41 s cold.
+   - **The likely cause** is cold functions on a site opened 4–5 times a day.
+   - **Team has one more step.** The installed app opens `/`, which looks up the session and redirects to `/team`, so Team's TTFB holds two server answers. If the two run in different functions, both can start cold. This is not checked: Vercel's function layout cannot be seen from here.
+   - **The test:** #191's probe reports TTFB per page and device. A week after it deploys, compare Team's with the other pages'.
+   - **The lever** is Vercel's Fluid compute, a project setting for the owner: check whether it is on, and its cost on the plan.
 3. **GitHub Actions minutes.** About 29 full CI runs from 1 to 4 Nov, at about 40 billed minutes each: roughly 1,000–1,200 of the month's 3,000. GitHub's billing page has the exact figure. Concurrent sessions each spend a full run per ready PR.
 4. **Database size.** It was 378 MB of the free plan's 500 MB, growing about 2 MB a day. #86 (deployed 4 Nov) should free about 217 MB; confirm with the next `db-usage`.
 5. **Real devices.** Safari on an iPhone, the installed app, and screen readers need a person (docs/RESPONSIVE.md, the real-device checklist).
