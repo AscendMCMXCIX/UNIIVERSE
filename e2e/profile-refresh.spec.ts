@@ -139,7 +139,8 @@ test("Refresh reads Riot, shows its progress, re-reads the page, and a second pr
   await expect(page.getByTestId("toast").filter({ hasText: "try again in" })).toContainText(/Refreshed just now · try again in (\d+ min|\d+ s)/);
   expect(counter.posts).toBe(asked);
   // Match History, by the profile's tab: the same games, and its Refresh knows the profile was just refreshed.
-  await page.getByTestId("profile-tab-matches").click();
+  // (On a phone the profile's sections ride in the top bar.)
+  await page.getByTestId(isPhone(page) ? "profile-chrome-tab-matches" : "profile-tab-matches").click();
   await expect(page).toHaveURL(/\/matches/);
   await expect(page.getByTestId("match-row")).toHaveCount(3);
   await dismissToasts(page);

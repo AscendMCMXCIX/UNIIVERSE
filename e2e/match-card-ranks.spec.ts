@@ -65,6 +65,7 @@ const ranksOn = (card: Locator) =>
   card.getByTestId("slot-rank").evaluateAll((els) => els.map((e) => ({ text: e.textContent ?? "", title: e.getAttribute("title") ?? "", state: e.getAttribute("data-state"), tier: e.getAttribute("data-tier"), timing: e.getAttribute("data-timing"), classes: e.className })));
 
 test("a player's rank shows on the card once the opened game has checked it, and on every later visit, without asking Riot again", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1440) < 768, "a phone's card leaves both teams and their ranks to the game's own screen (docs/MOBILE.md)");
   const actions = watchActions(page);
   await openHistory(page, "ADC");
   // Listing the games calls nothing: no rank check, so nothing asked of Riot.
