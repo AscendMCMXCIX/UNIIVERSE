@@ -82,7 +82,8 @@ causes were architectural:
   migration (one `SELECT` per cold start).
 - `src/server/observability/cache.ts`: a small per-instance TTL cache for champions, patch,
   branding, team, custom formats, pro patterns and shell facts, invalidated by the writers
-  (static sync, branding save, team update, format save, aggregation).
+  (static sync, branding save, team update, format save, aggregation). A load still running when
+  its key is invalidated, or replaced by a newer load, answers its callers but is not kept.
 - `getAuthState` is wrapped in React `cache()`, so the layout and the page share one session
   and user lookup per request.
 - Jobs: `startJobRun` claims the job atomically; a second scheduler gets `skipped` instead of

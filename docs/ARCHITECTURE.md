@@ -180,14 +180,14 @@ separated: the champion map (`src/server/champions/map.ts`), the statistics desc
 and the champion model (Team Overview suggestions), team bookmarks, Played Together, Encounters and
 Pro Play.
 
-Migration `0063_retire_draft_tables` drops what was left of it in the database (audit decision 3):
+Migration `0063_retire_draft_tables` dropped what was left of it in the database on 4 Nov 2026 (#86, audit decision 3):
 the Draft tables (`drafts`, `draft_actions`, `draft_role_swaps`, `draft_presence`,
 `draft_enemy_scouting`, `matches` (the drafted-match archive), `series`, `opponent_teams`,
 `opponent_players`), `riot_accounts.opponent_player_id`, `teams.engine_config` and the enum types
 only they used. Nothing had read them since migration `0048` copied the scouted ranks Match History
-shows into `last_known_ranks`. It merges only after a production backup that holds them has been
-restored and checked (`docs/BACKUPS.md`), and without CASCADE, so an unexpected dependency fails it
-instead of being dropped too. Recovery: `pg_restore --table` from that backup, then revert the
+shows into `last_known_ranks`. It merged only after a production backup that holds them had been
+restored and checked (`docs/BACKUPS.md`), and without CASCADE, so an unexpected dependency would have
+failed it instead of being dropped too. Recovery: `pg_restore --table` from that backup, then revert the
 change. Team Matches' bookmarks (`team_bookmarks`) stay.
 
 ## Meta & Trends removed (October 2026)
@@ -205,9 +205,9 @@ Shared pieces were kept: champion and skin sync (`version-check` still fetches t
 files for skins), win-rate shrinkage for proficiency (`src/domain/stats/shrinkage.ts`), the
 per-host Riot rate limiter, Match History's last-known ranks (copied to `last_known_ranks` by migration `0048`), and every
 personal statistic (profiles, Leaderboards, Matchups, Played Together, Encounters), which comes
-from the linked players' own games. The retired tables stay in the database, untouched and no
-longer written; dropping them is a separate, approval-gated migration (`docs/DATA_PIPELINES.md`,
-"Retired tables").
+from the linked players' own games. Migration `0062` dropped 12 of the retired tables (about 206 MB) on
+4 Nov 2026, after a verified backup; the rest stay in the database, untouched and no longer written,
+until the owner decides (`docs/DATA_PIPELINES.md`, "Retired tables").
 
 ## Installable app (October 2026)
 
@@ -248,7 +248,7 @@ pieces are unchanged: champion portraits, the OP.GG link builder (`src/domain/op
 linking and sync, champion mastery, Match History, and the Clash queue (700) in game-mode filters.
 
 The saved scouts went with their tables, `clash_scouts` and `clash_scout_accounts`, which migration
-`0057` dropped after the owner had verified a recent backup (`docs/DATA_PIPELINES.md`, "Retired
+`0064` dropped after the owner had verified a recent backup (`docs/DATA_PIPELINES.md`, "Retired
 tables"); the schema and the erasure code for them went in the same change. The browser-storage
 cleanup (`src/components/legacy-storage.tsx`) stays: it deletes what earlier versions left in
 members' browsers.

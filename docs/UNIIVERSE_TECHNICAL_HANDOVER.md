@@ -548,7 +548,7 @@ Mastery alone (no games in supported queues) caps the tier at Familiar.
 
 ### E2. Global evidence (removed with Meta & Trends, 19 Oct 2026)
 
-Meta & Trends (Solo Queue Meta, Duo Synergies, Pro Play) and the global evidence behind it are gone: the Emerald+ ladder sampling and ranked collection, rank and three-patch weighting, champion rework detection, Leaguepedia professional games and the aggregation jobs. Everything UNIIVERSE shows now comes from the linked players' own games. The tables stay in the database untouched until an approval-gated cleanup (`docs/DATA_PIPELINES.md`, "Retired tables"); `docs/ARCHITECTURE.md`, "Meta & Trends removed", lists what was kept.
+Meta & Trends (Solo Queue Meta, Duo Synergies, Pro Play) and the global evidence behind it are gone: the Emerald+ ladder sampling and ranked collection, rank and three-patch weighting, champion rework detection, Leaguepedia professional games and the aggregation jobs. Everything UNIIVERSE shows now comes from the linked players' own games. 12 of its tables (about 206 MB) were dropped on 4 Nov 2026 (migration `0062`, after a verified backup); the rest stay in the database, untouched, until the owner decides (`docs/DATA_PIPELINES.md`, "Retired tables"). `docs/ARCHITECTURE.md`, "Meta & Trends removed", lists what was kept.
 
 ### E3. Data limitations
 
@@ -562,9 +562,8 @@ Meta & Trends (Solo Queue Meta, Duo Synergies, Pro Play) and the global evidence
 
 The Draft feature (setup, Draft Room, live drafts, recommendation engine, scouting, series and
 Fearless rules, Match Playbook, the drafted-match archive and its editor, opponents, competition
-modes and Draft Settings) was **removed in October 2026**. Its database tables are still present
-and untouched until a separate, approval-gated cleanup migration drops them (see
-`docs/ARCHITECTURE.md`, "Draft removed").
+modes and Draft Settings) was **removed in October 2026**. Migration `0063` dropped its database
+tables on 4 Nov 2026, after a verified backup (see `docs/ARCHITECTURE.md`, "Draft removed").
 
 **Team → Matches** (`/matches`, `src/server/matches/*`) now holds only Riot games:
 - **Played together:** games where two or more current members were on the same side, with
@@ -928,7 +927,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 ### I1. Architecture
 
 - **Caching:**
-  - Per-instance TTL cache (`src/server/observability/cache.ts`) for champions, patch, branding, team, formats, pro patterns, shell facts and skins (10 min), invalidated by writers.
+  - Per-instance TTL cache (`src/server/observability/cache.ts`) for champions, patch, branding, team, formats, pro patterns, shell facts and skins (10 min; kept only for champions in the game, as Card Studio asks for any id), invalidated by writers. A load that an invalidation or a newer load overtook still answers the requests waiting on it but is not kept, so a value read before a change never outlives the change on the instance that made it.
   - React `cache()` for the session and user per request.
   - The statistics description is cached per instance for a minute and dropped when the stats version changes.
 - **Database:** single-digit-millisecond queries Sydney→Sydney. No pipelining through the pooler. Parallel reads only where measured safe; pool max 5.
@@ -1200,8 +1199,8 @@ These are stable and working; extend them instead:
    - **Settings.**
    - **Admin Mode** (administrators): Dashboard, Users & Permissions, Platform Settings, Data & Integrations, System Health, Audit Logs.
 
-5. **Removed: Draft.** The draft setup, Draft Room, engine, scouting, series, Playbook and drafted-match archive are gone. Their tables stay in the database until an approval-gated cleanup migration.
-   **Removed: Meta & Trends** (19 Oct 2026). Solo Queue Meta, Duo Synergies, Pro Play and the global ranked, professional and aggregation jobs are gone; their tables also stay until an approval-gated cleanup.
+5. **Removed: Draft.** The draft setup, Draft Room, engine, scouting, series, Playbook and drafted-match archive are gone. Migration `0063` dropped their tables on 4 Nov 2026, after a verified backup.
+   **Removed: Meta & Trends** (19 Oct 2026). Solo Queue Meta, Duo Synergies, Pro Play and the global ranked, professional and aggregation jobs are gone; migration `0062` dropped 12 of their tables on 4 Nov 2026; the rest stay until the owner decides.
    **Removed: Clash Scout** (23 Oct 2026). Screenshot reading, opponent identification, saved scouts, the Testing Lab and the `lab-benchmark` job are gone; migration `0064` dropped their two tables, saved scouts and all, after a verified backup (`docs/CLASH_SCOUT.md`).
 
 6. **Current Riot data status** (14 Oct):

@@ -5,6 +5,7 @@ import { INTERRUPTED_RUN_ERROR, closeInterruptedRuns } from "@/server/ops/refres
 import { deleteEndedSessions } from "@/server/auth/sessions";
 import { pruneAuthFailures } from "@/server/auth/throttle";
 import { reconcileErasures } from "@/server/privacy/reconcile";
+import { clearCachesAfterErasure } from "@/server/privacy/after-erasure";
 
 defineJob({
   key: "integrity",
@@ -29,6 +30,9 @@ defineJob({
     // Erasures stay in force: anything stored in the last two days that names an erased person
     // is removed again (the sync should never store it; this is the safety net).
     const erasures = await reconcileErasures(ctx.db, { mode: "recent" });
+    // What it removed must not live on in this instance's caches either (the same list as an
+    // administrator's erasure).
+    if (erasures.people || erasures.traces) clearCachesAfterErasure();
     const unusable = erasures.unusable ? `${erasures.unusable} erasure record(s) were made under another UNIIVERSE_AUTH_SECRET and cannot be applied (docs/BACKUPS.md).` : undefined;
     return {
       ok: true,

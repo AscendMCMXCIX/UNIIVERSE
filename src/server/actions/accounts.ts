@@ -4,7 +4,7 @@ import { publicErrorMessage } from "@/server/errors";
 import { revalidatePath } from "next/cache";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePermission, requireRiotAccountEditor } from "@/server/auth/session";
-import { AccountError, addAccount, listAccountsForPlayer, listPendingAccounts, removeAccount, reorderAccounts, setMainAccount, type RiotAccountRecord } from "@/server/accounts/repository";
+import { AccountError, accountForBrowser, addAccount, listAccountsForPlayer, listPendingAccounts, removeAccount, reorderAccounts, setMainAccount, type RiotAccountRecord } from "@/server/accounts/repository";
 import { syncAccount } from "@/server/accounts/sync";
 import { REFRESH_COOLDOWN_MS, accountSyncRetryIn, claimAccountSync, isSyncableAccount } from "@/server/accounts/refresh";
 import { changeAccountRiotId, type RiotIdChange } from "@/server/accounts/change-riot-id";
@@ -39,7 +39,8 @@ export async function addPlayerAccountAction(playerId: string, input: { riotId: 
     invalidateProficiencyCache();
     touch();
     const fresh = (await listAccountsForPlayer(db, playerId)).find((a) => a.id === account.id) ?? account;
-    return { ok: true, data: fresh };
+    // The answer reaches the browser: never the PUUID.
+    return { ok: true, data: accountForBrowser(fresh) };
   } catch (err) {
     return fail(err);
   }
