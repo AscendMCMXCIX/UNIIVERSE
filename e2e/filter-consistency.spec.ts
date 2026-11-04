@@ -61,7 +61,7 @@ async function checkBar(page: Page, scope: Locator, toggleTestId = "filter-toggl
   await noHorizontalOverflow(page);
 }
 
-test("every filter bar folds on phones and lines up on wide screens", async ({ page }, info) => {
+test("every filter bar folds on phones and lines up on wide screens", async ({ page }) => {
   test.setTimeout(120_000);
   await page.goto("/players");
   const card = page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']");
@@ -77,33 +77,30 @@ test("every filter bar folds on phones and lines up on wide screens", async ({ p
     await checkBar(page, page.getByTestId(testId));
   }
 
-  await page.goto("/leaderboards");
-  const lb = page.getByTestId("leaderboard-filters");
-  // Leaderboards keep the filters folded up to large screens (the board comes first on tablets).
-  if (info.project.name !== "desktop") await expect(lb.getByTestId("filter-toggle")).toBeVisible();
-  await checkBar(page, lb);
-
   await page.goto("/matches");
   await checkBar(page, page.getByTestId("together-filters"), "together-filters-toggle");
 });
 
 test("Reset appears only when something is narrowed and puts every filter back", async ({ page }, info) => {
   test.skip(info.project.name === "tablet", "runs on phone and desktop");
-  await page.goto("/leaderboards");
-  const bar = page.getByTestId("leaderboard-filters");
-  await openFilterBar(bar);
+  // Team → Matches: the game mode and the team members in the game are filters with defaults.
+  await page.goto("/matches");
+  const bar = page.getByTestId("together-filters");
+  const toggle = "together-filters-toggle";
+  await openFilterBar(bar, toggle);
   await expect(bar.getByTestId("reset-filters")).toHaveCount(0);
-  await bar.getByTestId("filter-queue").selectOption("solo");
+  await bar.getByTestId("together-queue").selectOption("solo");
   await expect(page).toHaveURL(/queue=solo/);
-  await bar.getByTestId("filter-lineup").click();
-  await expect(page).toHaveURL(/lineup=1/);
+  await openFilterBar(bar, toggle);
+  await bar.getByTestId("together-min").selectOption("3");
+  await expect(page).toHaveURL(/min=3/);
   // The folded button counts the narrowed filters.
-  if (await bar.getByTestId("filter-toggle").isVisible()) await expect(bar.getByTestId("filter-toggle")).toContainText("2");
-  await openFilterBar(bar);
+  if (await bar.getByTestId(toggle).isVisible()) await expect(bar.getByTestId(toggle)).toContainText("2");
+  await openFilterBar(bar, toggle);
   await bar.getByTestId("reset-filters").click();
-  await expect(page).not.toHaveURL(/queue=|lineup=/);
-  await expect(bar.getByTestId("filter-queue")).toHaveValue("all");
-  await expect(bar.getByTestId("filter-lineup")).toHaveAttribute("aria-pressed", "false");
+  await expect(page).not.toHaveURL(/queue=|min=/);
+  await expect(bar.getByTestId("together-queue")).toHaveValue("all");
+  await expect(bar.getByTestId("together-min")).toHaveValue("2");
 });
 
 test("Refine looks and counts the same in a champion's window as in the profile's filters", async ({ page }, info) => {

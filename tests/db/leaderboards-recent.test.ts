@@ -5,7 +5,7 @@ import { accountMatches, accountMastery, riotAccounts } from "@/server/db/schema
 import { currentSeason } from "@/server/accounts/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { invalidateLeaderboardCache, loadLeaderboardData } from "@/server/leaderboards/service";
-import { buildRecentLeaderboardView, recentLeaderboardHref, RECENT_FORM_PREVIEW } from "@/server/leaderboards/recent-view";
+import { buildRecentLeaderboardView, recentLeaderboardHref } from "@/server/leaderboards/recent-view";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 
@@ -134,14 +134,15 @@ describe("Records & achievements on stored games", () => {
     expect(r.championGames).toEqual([{ playerId: id.Gu, items: [{ championId: "Riven", value: "30 games", milestone: "25+ games", tier: 1 }], more: 0 }]);
   });
 
-  it("links nowhere on the public boards, and every link keeps the admins' preview", async () => {
+  it("links nowhere on the public boards, whose links keep to the public address", async () => {
     const data = await loadLeaderboardData(handle.db, teamId);
     const open = buildRecentLeaderboardView(data, { tab: "records" }, null, { now: NOW, profiles: false, basePath: "/public/leaderboards" });
     expect(open.records!.records.every((x) => x.holder === null || x.holder.href === null)).toBe(true);
     expect(Object.values(open.players).every((p) => p.profileHref === null)).toBe(true);
     expect(open.tabs.form).toBe("/public/leaderboards");
-    const preview = buildRecentLeaderboardView(data, { tab: "form" }, null, { now: NOW, keep: { preview: RECENT_FORM_PREVIEW } });
-    expect(preview.tabs).toEqual({ form: "/leaderboards?preview=recent-form", records: "/leaderboards?preview=recent-form&view=records" });
+    expect(open.tabs.records).toBe("/public/leaderboards?view=records");
+    const members = buildRecentLeaderboardView(data, { tab: "form" }, null, { now: NOW });
+    expect(members.tabs).toEqual({ form: "/leaderboards", records: "/leaderboards?view=records" });
     expect(recentLeaderboardHref({ tab: "records", season: 15 })).toBe("/leaderboards?view=records&season=15");
   });
 });
