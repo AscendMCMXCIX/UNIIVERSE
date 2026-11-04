@@ -189,8 +189,9 @@ export function buildRecords(input: { games: readonly LeaderboardGame[]; mastery
   const multi = new Map<string, MultikillRow>();
   let multikillGames = 0;
   for (const g of games) {
-    // A game carries the figures when it carries Riot's extra figures at all (as on the season boards).
-    if (!g.extra) continue;
+    // A game carries the counts when its record carries them (the rule of the profiles' multikill
+    // coverage: extra figures without the counts, as a record Riot sent without them, are none).
+    if (!g.extra || typeof g.extra.doubleKills !== "number") continue;
     multikillGames += 1;
     const { pentaKills = 0, quadraKills = 0, tripleKills = 0 } = g.extra;
     if (pentaKills + quadraKills + tripleKills === 0) continue;

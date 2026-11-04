@@ -266,9 +266,10 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
       if (err instanceof RiotApiError && (err.status === 401 || err.status === 403)) throw err;
       log(`${accountRef(account)}: rank lookup failed: ${(err as Error).message}`);
     }
+    // The champion key → id map, once per sync (mastery and every match below).
+    const keyToId = new Map((await db.select({ key: champions.key, id: champions.id }).from(champions)).map((c) => [c.key, c.id]));
     try {
       const masteries = await client.championMasteries(platform, puuid);
-      const keyToId = new Map((await db.select({ key: champions.key, id: champions.id }).from(champions)).map((c) => [c.key, c.id]));
       const rows = masteries
         .map((m) => ({ accountId: account.id, championId: keyToId.get(m.championId), points: m.championPoints, level: m.championLevel, lastPlayedAt: m.lastPlayTime ? new Date(m.lastPlayTime) : null }))
         .filter((r): r is typeof r & { championId: string } => !!r.championId);
@@ -285,7 +286,7 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
     }
 
     // Match history: every supported queue, the whole current season, collected incrementally.
-    const history = await collectSeasonHistory(db, client, { ...account, puuid, platform }, options, result, log);
+    const history = await collectSeasonHistory(db, client, { ...account, puuid, platform }, options, result, log, keyToId);
     await db.update(riotAccounts).set({ lastSyncAt: new Date(), syncStatus: "ok", syncError: null, resolveAttempts: 0, syncCursor: Math.floor(Date.now() / 1000), historyBackfill: history, updatedAt: new Date() }).where(eq(riotAccounts.id, account.id));
     result.history = summariseBackfill(history);
     await recordRiotOutcome(db, client, { ok: true });
@@ -340,7 +341,7 @@ export function summariseBackfill(state: HistoryBackfill): { season: number; com
  * long season fills in over several runs while new games always come first. Ids already stored
  * cost nothing; queues without a game this season are re-checked twice a day.
  */
-async function collectSeasonHistory(db: Db, client: RiotApiClient, account: RiotAccountRecord & { puuid: string }, options: AccountSyncOptions, result: AccountSyncResult, log: (m: string) => void): Promise<HistoryBackfill> {
+async function collectSeasonHistory(db: Db, client: RiotApiClient, account: RiotAccountRecord & { puuid: string }, options: AccountSyncOptions, result: AccountSyncResult, log: (m: string) => void, keyToId: Map<number, string>): Promise<HistoryBackfill> {
   const now = options.now?.() ?? new Date();
   const season = options.season ?? (await currentSeason(db, now));
   const queueIds = options.queueIds ?? SYNC_QUEUE_IDS;
@@ -349,7 +350,6 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
   const previous = row?.state ?? null;
   const state: HistoryBackfill = previous && previous.season === season ? { ...previous, queues: { ...previous.queues } } : { season, queues: {}, startedAt: now.toISOString(), completedAt: null };
   const startTime = await seasonListStart(db, season);
-  const keyToId = new Map((await db.select({ key: champions.key, id: champions.id }).from(champions)).map((c) => [c.key, c.id]));
   const erased = await erasureFilter(db);
   let fetched = 0;
   const budgetLeft = () => fetched < limit && !options.outOfTime?.();
@@ -391,7 +391,7 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
         continue;
       }
       result.matchesFetched += 1;
-      if (await foldMatch(db, account, match, keyToId, queueIds, erased)) result.matchesFolded += 1;
+      if (await foldMatch(db, account, match, keyToId, queueIds, erased, log)) result.matchesFolded += 1;
     }
     return { ids: ids.length, fresh, complete: true };
   };
@@ -464,8 +464,10 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
         continue;
       }
       const me = match.info.participants.find((p) => p.puuid === account.puuid);
+      // Riot's record without this account's player (its id has changed since): the game keeps
+      // its result with no figures, and the record is kept for everyone else in it.
       await db.update(accountMatches).set(me ? performanceOf(me) : DETAILS_UNAVAILABLE).where(and(eq(accountMatches.accountId, account.id), eq(accountMatches.matchId, matchId)));
-      if (me) await storeMatchDetail(db, account.platform, match, keyToId);
+      await storeMatchDetail(db, account.platform, match, keyToId);
       result.matchesFetched += 1;
     }
   }
@@ -526,10 +528,19 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
  * statistics) and the champion history bucket it adds to, in one transaction. Returns false when
  * the match was already stored or does not include this account.
  */
-async function foldMatch(db: Db, account: RiotAccountRecord & { puuid: string }, match: RiotMatch, keyToId: Map<number, string>, queueIds: readonly number[], erased: ErasureFilter): Promise<boolean> {
+async function foldMatch(db: Db, account: RiotAccountRecord & { puuid: string }, match: RiotMatch, keyToId: Map<number, string>, queueIds: readonly number[], erased: ErasureFilter, log: (m: string) => void = () => {}): Promise<boolean> {
   const matchId = match.metadata.matchId;
   const me = match.info.participants.find((p) => p.puuid === account.puuid);
-  const championId = me ? keyToId.get(me.championId) : undefined;
+  // A champion key the champions table does not know yet (a champion released since the last Data
+  // Dragon sync, which can lag a release by hours) takes Riot's own name for it, the id Data Dragon
+  // gives it: the game is stored and counted at once, never as a stub that is never folded again.
+  const championOf = (p: RiotParticipant) => keyToId.get(p.championId) ?? (p.championName?.trim() || undefined);
+  const championId = me ? championOf(me) : undefined;
+  if (me && !championId) {
+    // Neither known nor named: left unstored, so it is fetched again once the champion is known.
+    log(`match ${matchId}: champion key ${me.championId} is unknown and Riot named none; not stored yet`);
+    return false;
+  }
   if (!me || !championId || match.info.gameDuration < 300 || !queueIds.includes(match.info.queueId)) {
     // Remakes and games without this account are remembered so they are never fetched again.
     await db.insert(accountMatches).values({ accountId: account.id, matchId, gameCreation: match.info.gameCreation, queueId: match.info.queueId }).onConflictDoNothing();
@@ -542,7 +553,7 @@ async function foldMatch(db: Db, account: RiotAccountRecord & { puuid: string },
   // personal data was erased is left unknown (their champion is about them).
   const opponent = me.teamPosition ? match.info.participants.find((p) => p.teamId !== me.teamId && p.teamPosition === me.teamPosition) : undefined;
   const opponentErased = !!opponent && (erased.puuid(opponent.puuid) || erased.riotId(opponent.riotIdGameName && opponent.riotIdTagline ? `${opponent.riotIdGameName}#${opponent.riotIdTagline}` : null));
-  const enemyChampionId = opponent && !opponentErased ? (keyToId.get(opponent.championId) ?? null) : null;
+  const enemyChampionId = opponent && !opponentErased ? (championOf(opponent) ?? null) : null;
   // The full match (both teams, items, runes) for the personal match history: same fetch, no extra request.
   await storeMatchDetail(db, account.platform, match, keyToId);
   let folded = false;

@@ -6,11 +6,12 @@ import { accountMatches, appSettings, matchDetails, patches, rankSnapshots, riot
 import { patchSortKey } from "@/domain/patch";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
-import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
+import { createPlayer, getOrCreateTeam, setTeamMember } from "@/server/repositories/team";
 import { addAccount, listAccountsForPlayer } from "@/server/accounts/repository";
 import { DETAILS_UNAVAILABLE, syncAccount } from "@/server/accounts/sync";
 import { storeMatchDetail } from "@/server/accounts/match-details";
 import { compareInMatch, getMatchDetail, getMatchHistory } from "@/server/players/match-history";
+import type { MatchDetailView } from "@/server/players/match-history";
 import { compositionOf, loadCompositionParticipants, teamMembersByPuuid } from "@/server/matches/compositions";
 import { compactAssets, ddragonVersionOf } from "@/server/riot/static/assets";
 import { invalidateCache } from "@/server/observability/cache";
@@ -443,6 +444,23 @@ describe("personal match history", () => {
     expect(totals.damage).toMatchObject({ own: 87_000, enemy: 75_000 });
     expect(totals.tower).toMatchObject({ own: 8, enemy: 3 });
     expect(totals.dragon).toMatchObject({ own: 3, enemy: 1 });
+  });
+
+  it("names and links current team members only: a personal-use profile in the game stays a stranger, as on the cards", async () => {
+    const db = handle.db;
+    const [record] = await db.select({ participants: matchDetails.participants }).from(matchDetails).where(eq(matchDetails.matchId, "OC1_700000019"));
+    const stranger = record!.participants.find((p) => !["h-main", "h-alt", "h-mate"].includes(p.puuid))!;
+    const solo = (await createPlayer(db, teamId, { displayName: "Personal Use", primaryRole: "ADC", primaryPool: ["Jinx"] })).id;
+    await setTeamMember(db, teamId, solo, false);
+    const account = (await addAccount(db, { ownerType: "player", playerId: solo, riotId: "Personal#OCE", platform: "oc1" })).id;
+    await db.update(riotAccounts).set({ puuid: stranger.puuid }).where(eq(riotAccounts.id, account));
+    const r = await getMatchDetail(db, playerId, "OC1_700000019", { viewerIsOwner: true });
+    expect(r.status).toBe("ok");
+    const seen = (r as { view: MatchDetailView }).view.teams.flatMap((t) => t.participants).find((p) => p.name === stranger.name)!;
+    expect(seen).toMatchObject({ teamMember: null, memberId: null });
+    // A team member stays named and linked.
+    expect((r as { view: MatchDetailView }).view.teams.flatMap((t) => t.participants).find((p) => p.teamMember === "Duo Mate")).toMatchObject({ memberId: mateId });
+    await db.delete(riotAccounts).where(eq(riotAccounts.id, account));
   });
 
   it("compares from the player's side wherever they played, and pairs no opponent without positions", () => {

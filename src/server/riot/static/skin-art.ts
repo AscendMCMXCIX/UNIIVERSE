@@ -20,6 +20,9 @@ export function splashUrl(championId: string, num: number, base = BASE): string 
 }
 
 /** Checks up to `budget` unchecked (or long-missing) real skins. Returns how many were checked. */
+/** How long one check of the CDN may take (ddragon.ts bounds its reads the same way). */
+export const CDN_TIMEOUT_MS = 10_000;
+
 export async function checkSkinSplashes(db: Db, options: { budget?: number; fetchImpl?: typeof fetch; now?: Date; concurrency?: number } = {}): Promise<{ checked: number; ok: number; missing: number }> {
   const now = options.now ?? new Date();
   const fetchImpl = options.fetchImpl ?? fetch;
@@ -36,7 +39,8 @@ export async function checkSkinSplashes(db: Db, options: { budget?: number; fetc
     let status: "ok" | "missing" | null = null;
     let signature: string | null = null;
     try {
-      const res = await fetchImpl(splashUrl(s.championId, s.num), { method: "HEAD" });
+      // Bounded like every Data Dragon read: a stalled CDN must not hold the version check, and the tick behind it.
+      const res = await fetchImpl(splashUrl(s.championId, s.num), { method: "HEAD", signal: AbortSignal.timeout(CDN_TIMEOUT_MS) });
       if (res.ok) {
         status = "ok";
         signature = `${res.headers.get("etag") ?? ""}|${res.headers.get("content-length") ?? ""}`;

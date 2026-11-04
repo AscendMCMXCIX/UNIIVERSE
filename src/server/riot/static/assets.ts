@@ -41,7 +41,7 @@ export async function syncRiotAssets(db: Db, version: string, fetchImpl: typeof 
   const current = await loadRiotAssets(db);
   if (current?.version === version) return false;
   const get = async (path: string) => {
-    const res = await fetchImpl(`${BASE}/cdn/${version}/data/${locale}/${path}`);
+    const res = await fetchImpl(`${BASE}/cdn/${version}/data/${locale}/${path}`, { signal: AbortSignal.timeout(15_000) });
     if (!res.ok) throw new Error(`Data Dragon ${path}: HTTP ${res.status}`);
     return res.json();
   };

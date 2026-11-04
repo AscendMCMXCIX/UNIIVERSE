@@ -28,7 +28,10 @@ type Result<T = null> = { ok: true; data: T } | { ok: false; error: string };
 
 const fail = (err: unknown): Result<never> => {
   if (err instanceof UserError || (err as Error).name === "NotAuthorizedError") return { ok: false, error: (err as Error).message };
-  console.error(err);
+  // Never the raw error: a query's error carries its parameters, here the person's identifiers,
+  // which no erasure would reach in the host's logs. publicErrorMessage logs its kind, code and
+  // statement without them.
+  publicErrorMessage(err);
   return { ok: false, error: "Something went wrong. Nothing was changed. Please try again." };
 };
 

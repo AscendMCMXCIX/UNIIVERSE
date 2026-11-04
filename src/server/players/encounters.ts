@@ -227,10 +227,13 @@ export async function loadEncounterDetail(db: Db, scope: EncounterScope, key: st
         'summary', (SELECT ${SUMMARY_JSON} FROM players LIMIT 1),
         'games', (SELECT json_agg(json_build_array(match_id, at, queue_id, CASE WHEN win THEN 1 WHEN NOT win THEN 0 END, mine, theirs, CASE WHEN side THEN 1 ELSE 0 END) ORDER BY at DESC, match_id COLLATE "C" DESC)
           FROM (SELECT * FROM per_game ORDER BY at DESC, match_id COLLATE "C" DESC LIMIT ${ENCOUNTER_GAMES_SHOWN}) g),
-        -- Only games newer than the last one here are opened; only real Riot games count (a demo game's name is made up).
+        -- Only games newer than the last one here are opened, found through the players' index
+        -- (match_details_puuids_idx: the expression must stay the index's own), never by unpacking
+        -- every newer record; only real Riot games count (a demo game's name is made up).
         'newer', (SELECT json_build_array(p->>'name', d.match_id)
           FROM match_details d CROSS JOIN LATERAL jsonb_array_elements(d.participants) p
-          WHERE d.game_creation > (SELECT max(at) FROM per_game) AND d.match_id ~ '^[A-Z]+[0-9]*_[0-9]+$'
+          WHERE jsonb_path_query_array(d.participants, '$[*].puuid') ?| ARRAY[(SELECT min(puuid) FROM per_game)]::text[]
+            AND d.game_creation > (SELECT max(at) FROM per_game) AND d.match_id ~ '^[A-Z]+[0-9]*_[0-9]+$'
             AND p->>'puuid' = (SELECT min(puuid) FROM per_game) AND strpos(coalesce(p->>'name', ''), '#') > 0
           ORDER BY d.game_creation DESC, d.match_id COLLATE "C" DESC LIMIT 1)
       ) AS payload`);

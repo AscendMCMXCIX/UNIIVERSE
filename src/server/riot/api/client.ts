@@ -15,6 +15,18 @@ export function parsePlatforms(spec: string | undefined, fallback: string[] = [D
   return parsePlatformList(spec, fallback);
 }
 
+/**
+ * A request's path with the identifiers it names elided (a PUUID, a Riot ID), so an error message
+ * names nobody: the messages reach job logs, run summaries, the Data health page and the host's
+ * logs, which no erasure reaches. A match id stays: it names no one.
+ */
+export function routeLabel(path: string): string {
+  return path
+    .replace(/\/by-puuid\/[^/?]+/g, "/by-puuid/…")
+    .replace(/\/by-riot-id\/[^/?]+\/[^/?]+/g, "/by-riot-id/…")
+    .replace(/\?.*$/, "");
+}
+
 export class RiotApiError extends Error {
   constructor(
     message: string,
@@ -120,24 +132,34 @@ export class RiotApiClient {
   async get<T>(host: string, path: string, schema: z.ZodType<T>): Promise<T> {
     let attempt = 0;
     const limiter = this.limiterFor(host);
+    const url = this.url(host, path);
+    const route = routeLabel(path);
     for (;;) {
       if (this.options.noWait && limiter.tryAcquire) {
-        if (!limiter.tryAcquire(this.limitShare)) throw new RiotApiError(`No room in the rate limits for ${path} now`, 429, true);
+        if (!limiter.tryAcquire(this.limitShare)) throw new RiotApiError(`No room in the rate limits for ${route} now`, 429, true);
       } else await limiter.acquire(this.limitShare);
       this.requestCount += 1;
       this.requestsByHost.set(host, (this.requestsByHost.get(host) ?? 0) + 1);
+      // One timer for the whole exchange, the headers and the body: an answer whose body stalls
+      // after its headers (Node's own bound is 300 s) must not hold a job past its budget.
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const timedOut = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          controller.abort();
+          reject(new Error(`timed out after ${this.timeoutMs} ms`));
+        }, this.timeoutMs);
+      });
+      timedOut.catch(() => undefined);
       let res: Response;
       try {
-        res = await this.fetchImpl(this.url(host, path), { headers: { "X-Riot-Token": this.options.apiKey }, signal: controller.signal });
+        res = await this.fetchImpl(url, { headers: { "X-Riot-Token": this.options.apiKey }, signal: controller.signal });
       } catch (err) {
         clearTimeout(timer);
-        if (attempt++ >= this.maxRetries) throw new RiotApiError(`Network error calling ${path}: ${(err as Error).message}`, 0, true);
+        if (attempt++ >= this.maxRetries) throw new RiotApiError(`Network error calling ${route}: ${(err as Error).message}`, 0, true);
         await this.sleep(500 * 2 ** attempt);
         continue;
       }
-      clearTimeout(timer);
       // Riot states this key's application limits on every response; follow them (unless pinned).
       const reported = res.headers.get("x-app-rate-limit");
       if (reported) {
@@ -146,22 +168,35 @@ export class RiotApiClient {
       }
 
       if (res.status === 429) {
+        clearTimeout(timer);
         const retryAfter = Number(res.headers.get("retry-after") ?? "2");
         limiter.pause(Number.isFinite(retryAfter) ? retryAfter : 2);
-        if (attempt++ >= this.maxRetries) throw new RiotApiError(`Rate limited on ${path}`, 429, true);
+        if (attempt++ >= this.maxRetries) throw new RiotApiError(`Rate limited on ${route}`, 429, true);
         continue;
       }
       if (res.status >= 500) {
-        if (attempt++ >= this.maxRetries) throw new RiotApiError(`Riot API ${res.status} on ${path}`, res.status, true);
+        clearTimeout(timer);
+        if (attempt++ >= this.maxRetries) throw new RiotApiError(`Riot API ${res.status} on ${route}`, res.status, true);
         await this.sleep(500 * 2 ** attempt);
         continue;
       }
       if (!res.ok) {
-        throw new RiotApiError(`Riot API ${res.status} on ${path}`, res.status, false);
+        clearTimeout(timer);
+        throw new RiotApiError(`Riot API ${res.status} on ${route}`, res.status, false);
       }
-      const json = await res.json();
+      let json: unknown;
+      try {
+        json = await Promise.race([res.json(), timedOut]);
+      } catch (err) {
+        // A body that stalled or is not JSON (a proxy's error page): a network failure, retried the same way.
+        clearTimeout(timer);
+        if (attempt++ >= this.maxRetries) throw new RiotApiError(`Unreadable answer from ${route}: ${(err as Error).message}`, 0, true);
+        await this.sleep(500 * 2 ** attempt);
+        continue;
+      }
+      clearTimeout(timer);
       const parsed = schema.safeParse(json);
-      if (!parsed.success) throw new RiotApiError(`Unexpected response shape on ${path}: ${parsed.error.issues[0]?.message ?? "schema mismatch"}`, res.status, false);
+      if (!parsed.success) throw new RiotApiError(`Unexpected response shape on ${route}: ${parsed.error.issues[0]?.message ?? "schema mismatch"}`, res.status, false);
       return parsed.data;
     }
   }
