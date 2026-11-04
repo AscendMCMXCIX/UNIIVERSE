@@ -1,7 +1,7 @@
 import { inArray, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountMatches, champions, matchDetails } from "@/server/db/schema";
-import { RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
+import { MAX_SKIPPED_RECORDS, recordFailure, RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
 import { FIRST_SEASON } from "@/domain/season";
 import { erasureFilter } from "@/server/privacy/ledger";
 import { matchDetailRow } from "./match-details";
@@ -16,8 +16,10 @@ import { seasonListStart } from "./sync";
   - newest games first, and only games of a season the app offers (Season 2026 on);
   - one request per match, even when several linked accounts played it, to the server the record
     was first read from (an account that has since moved keeps its old games' server);
-  - a few per run, one at a time through the shared rate limiter, stopping at the first refusal or
-    error (Riot's limits are shared with the account sync).
+  - a few per run, one at a time through the shared rate limiter, stopping at the first refusal
+    (Riot's limits are shared with the account sync). A record Riot cannot serve right now (its 5xx
+    for one game, which can last for good) is skipped, a few a run, so the games behind it are not
+    held up; it is asked for again on a later run (recordFailure in riot/api/client).
   The fresh record replaces the stored one (the same fields, now with the figures) and the game's
   summary is copied again, so profiles, Leaderboards and match history show the counts on their next
   read. A record Riot no longer provides is marked as checked ({} in extra_stats) and never asked
@@ -26,6 +28,9 @@ import { seasonListStart } from "./sync";
 
 type Row = Record<string, unknown>;
 const rows = (r: unknown): Row[] => ((r as { rows?: Row[] }).rows ?? (r as Row[])) as Row[];
+
+/** Why a run stopped, for the job summary (no match id, no URL: the log line has those). */
+export const describeStop = (err: unknown): string => (err instanceof RiotApiError ? `Riot answered ${err.status || "with an error"}` : "a network error");
 
 /** Marks games as checked: their record has no figures, now or ever. */
 const CHECKED = sql`'{}'::jsonb`;
@@ -73,6 +78,8 @@ export interface FiguresBackfillResult {
   fetched: number;
   /** Records Riot no longer provides (or never had the figures): marked, not asked for again. */
   unavailable: number;
+  /** Records Riot could not serve this run (by match id): passed over, asked for again next time. */
+  skipped: string[];
   /** Why the run stopped early, if it did (a refusal, an error, the time budget). */
   stoppedBy: string | null;
 }
@@ -82,7 +89,7 @@ export interface FiguresBackfillResult {
  * the deadline or the first refusal. With `playerId`, only that player's games (a profile's Refresh).
  */
 export async function backfillFigures(db: Db, client: RiotApiClient, options: { limit: number; deadline: number; playerId?: string; log?: (m: string) => void }): Promise<FiguresBackfillResult> {
-  const result: FiguresBackfillResult = { fetched: 0, unavailable: 0, stoppedBy: null };
+  const result: FiguresBackfillResult = { fetched: 0, unavailable: 0, skipped: [], stoppedBy: null };
   if (options.limit <= 0) return result;
   // A game whose stored record is itself marked unavailable (no players) has nothing to ask for.
   await db.execute(sql`
@@ -113,26 +120,33 @@ export async function backfillFigures(db: Db, client: RiotApiClient, options: { 
     }
     const matchId = String(r.match_id);
     const platform = String(r.platform);
+    let match;
     try {
-      const row = matchDetailRow(platform, await client.match(platform, matchId), keyToId, erased);
-      // A record with a "Removed player" keeps its players as they are: a fresh copy from Riot
-      // never brings an erased player back, even one the erasure records no longer recognise.
-      await db
-        .update(matchDetails)
-        .set({ teams: row.teams, participants: sql`CASE WHEN ${matchDetails.participants} @> '[{"removed": true}]'::jsonb THEN ${matchDetails.participants} ELSE ${JSON.stringify(row.participants)}::jsonb END`, gameVersion: row.gameVersion })
-        .where(sql`${matchDetails.matchId} = ${matchId}`);
-      refreshed.push(matchId);
-      result.fetched += 1;
+      match = await client.match(platform, matchId);
     } catch (err) {
-      if (err instanceof RiotApiError && err.status === 404) {
+      const kind = recordFailure(err);
+      if (kind === "unavailable") {
         checked.push(matchId);
         result.unavailable += 1;
         continue;
       }
-      result.stoppedBy = err instanceof RiotApiError ? `Riot answered ${err.status || "with an error"}` : "a network error";
       options.log?.(`${matchId}: ${(err as Error).message}`);
+      if (kind === "skip" && result.skipped.length < MAX_SKIPPED_RECORDS) {
+        result.skipped.push(matchId);
+        continue;
+      }
+      result.stoppedBy = kind === "skip" ? `${MAX_SKIPPED_RECORDS} records could not be read` : describeStop(err);
       break;
     }
+    const row = matchDetailRow(platform, match, keyToId, erased);
+    // A record with a "Removed player" keeps its players as they are: a fresh copy from Riot
+    // never brings an erased player back, even one the erasure records no longer recognise.
+    await db
+      .update(matchDetails)
+      .set({ teams: row.teams, participants: sql`CASE WHEN ${matchDetails.participants} @> '[{"removed": true}]'::jsonb THEN ${matchDetails.participants} ELSE ${JSON.stringify(row.participants)}::jsonb END`, gameVersion: row.gameVersion })
+      .where(sql`${matchDetails.matchId} = ${matchId}`);
+    refreshed.push(matchId);
+    result.fetched += 1;
   }
   await erased.remember(db);
   // Each refreshed game's summary is copied again from its new record (one pass for the run).

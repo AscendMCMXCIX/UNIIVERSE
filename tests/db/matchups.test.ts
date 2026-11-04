@@ -208,7 +208,7 @@ describe("timeline backfill", () => {
     };
     const client = new RiotApiClient({ apiKey: "k", fetchImpl, limiter: new RateLimiter([{ requests: 1000, seconds: 1 }]), sleep: async () => {}, maxRetries: 0 });
     const first = await backfillTimelines(db, client, { limit: 2, deadline: Date.now() + 60_000 });
-    expect(first).toEqual({ fetched: 2, unavailable: 0, stoppedBy: null });
+    expect(first).toEqual({ fetched: 2, unavailable: 0, skipped: [], stoppedBy: null });
     // Newest first: game 3 (3 days old), then game 5.
     expect(calls.map((u) => u.match(/OC1_\d/)![0])).toEqual(["OC1_3", "OC1_5"]);
     const [kept] = await db.select().from(matchTimelines).where(eq(matchTimelines.matchId, "OC1_5"));
@@ -216,11 +216,11 @@ describe("timeline backfill", () => {
     expect(kept!.participants).toEqual([{ puuid: "me-main", purchases: [[2000, 3078]], skills: [3], kills: [], deaths: [], assists: [] }]);
     expect(kept!.frames!.t).toEqual([0, 60_100, 120_300]);
     const second = await backfillTimelines(db, client, { limit: 5, deadline: Date.now() + 60_000 });
-    expect(second).toEqual({ fetched: 0, unavailable: 1, stoppedBy: null });
+    expect(second).toEqual({ fetched: 0, unavailable: 1, skipped: [], stoppedBy: null });
     expect(await timelineCoverage(db)).toMatchObject({ laneGames: 6, withFrames: 5, unavailable: 1, pending: 0 });
     // Nothing left: no request at all. A refusal stops the run without writing anything.
     calls.length = 0;
-    expect(await backfillTimelines(db, client, { limit: 5, deadline: Date.now() + 60_000 })).toEqual({ fetched: 0, unavailable: 0, stoppedBy: null });
+    expect(await backfillTimelines(db, client, { limit: 5, deadline: Date.now() + 60_000 })).toEqual({ fetched: 0, unavailable: 0, skipped: [], stoppedBy: null });
     expect(calls).toHaveLength(0);
     await db.update(matchTimelines).set({ frames: null }).where(eq(matchTimelines.matchId, "OC1_3"));
     refuse = true;

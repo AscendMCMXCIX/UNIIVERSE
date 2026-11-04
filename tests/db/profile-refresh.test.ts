@@ -100,7 +100,7 @@ describe("a profile's Refresh: multikill counts on demand", () => {
   it("a player-scoped backfill never asks for another player's games", async () => {
     const calls: string[] = [];
     const run = await backfillFigures(handle.db, client(calls), { limit: 2, deadline: Date.now() + 60_000, playerId: players.mate.id });
-    expect(run).toEqual({ fetched: 2, unavailable: 0, stoppedBy: null });
+    expect(run).toEqual({ fetched: 2, unavailable: 0, skipped: [], stoppedBy: null });
     expect(askedFor(calls).every((id) => id?.startsWith("OC1_MATE"))).toBe(true);
     expect(await pendingFiguresForPlayer(handle.db, players.mate.id)).toBe(1);
     expect(await pendingFiguresForPlayer(handle.db, players.me.id)).toBe(CATCH_UP_LIMIT + 5);

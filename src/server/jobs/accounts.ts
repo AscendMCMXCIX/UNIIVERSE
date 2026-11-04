@@ -38,7 +38,7 @@ defineJob({
 
 defineJob({
   key: "timeline-backfill",
-  description: "Fetch the match timelines Matchups needs (the linked players' own rift games with a lane opponent), newest first, a few per run, stopping at the first Riot refusal. Timelines Riot no longer provides are recorded and not asked for again.",
+  description: "Fetch the match timelines Matchups needs (the linked players' own rift games with a lane opponent), newest first, a few per run, stopping at the first Riot refusal. Timelines Riot no longer provides are recorded and not asked for again; one Riot cannot serve right now is passed over, a few a run, and asked for again later.",
   defaultIntervalMinutes: 60,
   run: async (ctx) => {
     const client = createRiotClient({ maxRetries: 0, timeoutMs: 7_000 });
@@ -46,14 +46,14 @@ defineJob({
     const limit = Number(process.env.TIMELINE_BACKFILL_PER_RUN ?? 30);
     const run = await backfillTimelines(ctx.db, client, { limit, deadline: ctx.startedAt + ctx.budgetMs, log: ctx.log });
     const coverage = await timelineCoverage(ctx.db);
-    ctx.log(`timelines: fetched ${run.fetched}, unavailable ${run.unavailable}${run.stoppedBy ? `, stopped by ${run.stoppedBy}` : ""}; ${coverage.withFrames} of ${coverage.laneGames} lane games have frames, ${coverage.pending} to go`);
+    ctx.log(`timelines: fetched ${run.fetched}, unavailable ${run.unavailable}${run.skipped.length ? `, could not read ${run.skipped.join(", ")}` : ""}${run.stoppedBy ? `, stopped by ${run.stoppedBy}` : ""}; ${coverage.withFrames} of ${coverage.laneGames} lane games have frames, ${coverage.pending} to go`);
     return { ok: true, degraded: run.stoppedBy !== null && run.stoppedBy !== "time budget" && run.fetched === 0, error: run.stoppedBy && run.fetched === 0 && run.stoppedBy !== "time budget" ? `Stopped: ${run.stoppedBy}` : undefined, summary: { ...run, coverage, requests: client.requestCount } };
   },
 });
 
 defineJob({
   key: "figures-backfill",
-  description: "Fetch again, once, the full record of the linked players' games stored before multikills and the other extra figures were kept (Season 2026 on), newest first, a few per run, stopping at the first Riot refusal. Records Riot no longer provides are marked and not asked for again.",
+  description: "Fetch again, once, the full record of the linked players' games stored before multikills and the other extra figures were kept (Season 2026 on), newest first, a few per run, stopping at the first Riot refusal. Records Riot no longer provides are marked and not asked for again; one Riot cannot serve right now is passed over, a few a run, and asked for again later.",
   defaultIntervalMinutes: 60,
   run: async (ctx) => {
     const client = createRiotClient({ maxRetries: 0, timeoutMs: 7_000 });
@@ -63,7 +63,7 @@ defineJob({
     const limit = Number(process.env.FIGURES_BACKFILL_PER_RUN ?? 60);
     const run = await backfillFigures(ctx.db, client, { limit, deadline: ctx.startedAt + ctx.budgetMs, log: ctx.log });
     const coverage = await figuresCoverage(ctx.db);
-    ctx.log(`figures: fetched ${run.fetched}, unavailable ${run.unavailable}${run.stoppedBy ? `, stopped by ${run.stoppedBy}` : ""}; ${coverage.withFigures} of ${coverage.games} games have them, ${coverage.pending} to go`);
+    ctx.log(`figures: fetched ${run.fetched}, unavailable ${run.unavailable}${run.skipped.length ? `, could not read ${run.skipped.join(", ")}` : ""}${run.stoppedBy ? `, stopped by ${run.stoppedBy}` : ""}; ${coverage.withFigures} of ${coverage.games} games have them, ${coverage.pending} to go`);
     return { ok: true, degraded: run.stoppedBy !== null && run.stoppedBy !== "time budget" && run.fetched === 0, error: run.stoppedBy && run.fetched === 0 && run.stoppedBy !== "time budget" ? `Stopped: ${run.stoppedBy}` : undefined, summary: { ...run, coverage, requests: client.requestCount } };
   },
 });

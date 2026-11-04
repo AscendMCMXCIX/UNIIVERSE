@@ -219,6 +219,28 @@ export class RiotApiClient {
   }
 }
 
+/**
+ * How a run that reads one record at a time (the figures and timeline backfills, the account
+ * sync's catch-up of older games) treats a failed request for one record:
+ * - "stop": the run must stop, because every further request would fail the same way: the key
+ *   was refused (401, 403), the rate limit is full (429) or Riot could not be reached (0);
+ * - "unavailable": Riot no longer serves the record (404); it is marked so and never asked for again;
+ * - "skip": this one record could not be read: Riot answers 5xx for some games for good (a
+ *   corrupted game), or 400, or a body of an unexpected shape. The run goes on to the next record,
+ *   so one unreadable game never holds up every game behind it (newest first, it would stop every
+ *   run at the same place), and asks for it again on a later run. MAX_SKIPPED_RECORDS bounds how
+ *   many such requests a run spends, so an outage that fails every record stops the run as before.
+ */
+export function recordFailure(err: unknown): "stop" | "unavailable" | "skip" {
+  if (!(err instanceof RiotApiError)) return "stop";
+  if (err.status === 401 || err.status === 403 || err.status === 429 || err.status === 0) return "stop";
+  if (err.status === 404) return "unavailable";
+  return "skip";
+}
+
+/** Records a run skips before it stops (see recordFailure). */
+export const MAX_SKIPPED_RECORDS = 3;
+
 /** Trims whitespace and stray quotes that sometimes come along when a key is pasted into a dashboard. */
 export function normaliseRiotKey(raw: string | undefined): string | null {
   const key = (raw ?? "").trim().replace(/^["']+|["']+$/g, "").trim();

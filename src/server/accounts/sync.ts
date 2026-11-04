@@ -3,7 +3,7 @@ import { summariseMatches } from "./match-summary";
 import { and, desc, eq, inArray, isNotNull, isNull, like, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountChampionHistory, accountMastery, accountMatches, champions, patches, players, riotAccounts } from "@/server/db/schema";
-import { RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
+import { MAX_SKIPPED_RECORDS, recordFailure, RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
 import type { RiotMatch, RiotParticipant } from "@/server/riot/api/schemas";
 import { patchFromVersion } from "@/domain/patch";
 import { normaliseRiotRegionAnswer, platformLabel } from "@/domain/riot-platforms";
@@ -339,6 +339,23 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
   let fetched = 0;
   const budgetLeft = () => fetched < limit && !options.outOfTime?.();
 
+  /*
+    A listed game Riot cannot serve (its 5xx for one game, which can last for good; a 404 for an
+    id it has just listed; a body of an unexpected shape) is passed over, a few a run, so it never
+    holds up the games behind it: before this, one such game at the head of a queue's list stopped
+    that queue's collection, and one at the head of the catch-ups below stopped them, on every run.
+    It stays unstored and is asked for again while the list still names it (recordFailure in
+    riot/api/client). A refused key fails the sync; a full rate limit or an unreachable Riot stops
+    the page, as every further request would fail the same way.
+  */
+  const skipped: string[] = [];
+  const unreadable = (matchId: string, err: unknown, what: string): "continue" | "break" => {
+    log(`match ${matchId} ${what} failed: ${(err as Error).message}`);
+    if (recordFailure(err) === "stop" || skipped.length >= MAX_SKIPPED_RECORDS) return "break";
+    skipped.push(matchId);
+    return "continue";
+  };
+
   // Reads one page of a queue's season list and stores every game on it that is not stored yet.
   // Returns whether the whole page is now stored (false when the run's limit stopped it).
   const readPage = async (queueId: number, start: number, window: { startTime: number; endTime?: number } = { startTime }): Promise<{ ids: number; fresh: number; complete: boolean }> => {
@@ -355,8 +372,8 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
         match = await client.match(account.platform, matchId);
       } catch (err) {
         if (err instanceof RiotApiError && (err.status === 403 || err.status === 401)) throw err;
-        log(`match ${matchId} failed: ${(err as Error).message}`);
-        return { ids: ids.length, fresh, complete: false };
+        if (unreadable(matchId, err, "fetch") === "break") return { ids: ids.length, fresh, complete: false };
+        continue;
       }
       result.matchesFetched += 1;
       if (await foldMatch(db, account, match, keyToId, queueIds, erased)) result.matchesFolded += 1;
@@ -415,12 +432,9 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
     for (const { matchId } of missing) {
       if (!budgetLeft()) break;
       fetched += 1;
+      let match: RiotMatch;
       try {
-        const match = await client.match(account.platform, matchId);
-        const me = match.info.participants.find((p) => p.puuid === account.puuid);
-        await db.update(accountMatches).set(me ? performanceOf(me) : DETAILS_UNAVAILABLE).where(and(eq(accountMatches.accountId, account.id), eq(accountMatches.matchId, matchId)));
-        if (me) await storeMatchDetail(db, account.platform, match, keyToId);
-        result.matchesFetched += 1;
+        match = await client.match(account.platform, matchId);
       } catch (err) {
         if (err instanceof RiotApiError && (err.status === 403 || err.status === 401)) throw err;
         if (err instanceof RiotApiError && err.status === 404) {
@@ -428,9 +442,13 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
           await db.update(accountMatches).set(DETAILS_UNAVAILABLE).where(and(eq(accountMatches.accountId, account.id), eq(accountMatches.matchId, matchId)));
           continue;
         }
-        log(`match ${matchId} details failed: ${(err as Error).message}`);
-        break;
+        if (unreadable(matchId, err, "details") === "break") break;
+        continue;
       }
+      const me = match.info.participants.find((p) => p.puuid === account.puuid);
+      await db.update(accountMatches).set(me ? performanceOf(me) : DETAILS_UNAVAILABLE).where(and(eq(accountMatches.accountId, account.id), eq(accountMatches.matchId, matchId)));
+      if (me) await storeMatchDetail(db, account.platform, match, keyToId);
+      result.matchesFetched += 1;
     }
   }
   // 2c. Full match records (both teams, items, runes) for the match history, for games stored
@@ -440,10 +458,9 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
     for (const matchId of await matchesWithoutDetails(db, account.id, limit - fetched)) {
       if (!budgetLeft()) break;
       fetched += 1;
+      let match: RiotMatch;
       try {
-        const match = await client.match(account.platform, matchId);
-        await storeMatchDetail(db, account.platform, match, keyToId);
-        result.matchesFetched += 1;
+        match = await client.match(account.platform, matchId);
       } catch (err) {
         if (err instanceof RiotApiError && (err.status === 403 || err.status === 401)) throw err;
         if (err instanceof RiotApiError && err.status === 404) {
@@ -451,9 +468,11 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
           await storeMatchUnavailable(db, account.id, matchId);
           continue;
         }
-        log(`match ${matchId} record failed: ${(err as Error).message}`);
-        break;
+        if (unreadable(matchId, err, "record") === "break") break;
+        continue;
       }
+      await storeMatchDetail(db, account.platform, match, keyToId);
+      result.matchesFetched += 1;
     }
   }
   // 3. The previous season, oldest priority: only once this season is complete, with what is
@@ -480,7 +499,7 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
     state.previous = prev;
   }
   const games = Object.entries(state.queues).map(([id, q]) => `${id}:${q.offset}${q.done ? "" : "+"}`).join(" ");
-  log(`${accountRef(account)}: season ${season} history ${allDone ? "complete" : "in progress"} (${games}); fetched ${fetched}`);
+  log(`${accountRef(account)}: season ${season} history ${allDone ? "complete" : "in progress"} (${games}); fetched ${fetched}${skipped.length ? `; could not read ${skipped.join(", ")}` : ""}`);
   return state;
 }
 
