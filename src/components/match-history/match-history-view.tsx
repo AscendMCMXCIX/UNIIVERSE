@@ -99,8 +99,9 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
           below 56rem the build is left to the breakdown. */}
       {/* The whole card opens and closes the match's breakdown under it. The player links in the
           teams cannot sit inside a button, so the card is a box: a click anywhere on it (but a
-          link) toggles it, and one button behind the content is the card for the keyboard and
-          screen readers (one stop per card, Enter or Space toggles it, its outline marks the card). */}
+          link, or the LP's tooltip, which keeps its tap) toggles it, and one button behind the
+          content is the card for the keyboard and screen readers (one stop per card, Enter or
+          Space toggles it, its outline marks the card). */}
       <div
         className={cn("group cursor-pointer", matchCardClass(row.win, { interactive: true }), expanded && "rounded-b-none border-b-border/40")}
         onClick={(e) => {
