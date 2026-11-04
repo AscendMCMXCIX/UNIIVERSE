@@ -28,8 +28,12 @@ import { failedEarly } from "@/components/ui/remote-image";
  * - `foot`: where a player's name and details sit on the art's lower part (cards, the profile
  *   header), a shade rises from the bottom in the card's own surface colour, whatever darkness the
  *   player chose, so light artwork never washes the text out. The top keeps the chosen darkness.
+ * - `priority`: the page's main picture (Team Overview's first card): fetched at once and ahead of
+ *   the other pictures, instead of lazily. On a phone it is the page's largest element, and lazily
+ *   it started only after layout, sharing the connection with the next cards' art
+ *   (docs/PERFORMANCE.md, "Team Overview's first card"). Every other art stays lazy.
  */
-export function CardArtLayer({ art, accent, kind, position = "center 20%", strength = "normal", className, testId = "card-art-image", look, decorate = true, motion = "always", smooth = true, foot = false }: { art: CardArt | null; accent: string; kind: "splash" | "loading"; position?: string; strength?: "light" | "normal" | "strong"; className?: string; testId?: string; look?: CardLook | null; decorate?: boolean; motion?: "always" | "hover"; smooth?: boolean; foot?: boolean }) {
+export function CardArtLayer({ art, accent, kind, position = "center 20%", strength = "normal", className, testId = "card-art-image", look, decorate = true, motion = "always", smooth = true, foot = false, priority = false }: { art: CardArt | null; accent: string; kind: "splash" | "loading"; position?: string; strength?: "light" | "normal" | "strong"; className?: string; testId?: string; look?: CardLook | null; decorate?: boolean; motion?: "always" | "hover"; smooth?: boolean; foot?: boolean; priority?: boolean }) {
   const style = look?.style ?? null;
   const source = style?.art.source ?? "champion";
   const banner = source === "banner" && look?.bannerUrl ? look.bannerUrl : null;
@@ -42,7 +46,7 @@ export function CardArtLayer({ art, accent, kind, position = "center 20%", stren
   const fx = (style?.effects.intensity ?? 50) / 100;
   return (
     <div aria-hidden className={cn("pointer-events-none absolute inset-0 overflow-hidden", motion === "hover" && "card-fx-hover", className)} data-art-layer={testId} data-art={banner ? "banner" : art && source !== "none" ? `${art.championId}:${art.skinNum}` : "none"} data-art-source={banner ? "banner" : source === "none" ? "none" : "champion"}>
-      {urls.length ? <ArtImage key={urls.join("|")} urls={urls} position={focus} testId={testId} art={art} zoom={style?.art.zoom ?? 1} blur={style?.art.blur ?? 0} smooth={smooth} /> : null}
+      {urls.length ? <ArtImage key={urls.join("|")} urls={urls} position={focus} testId={testId} art={art} zoom={style?.art.zoom ?? 1} blur={style?.art.blur ?? 0} smooth={smooth} priority={priority} /> : null}
       {style && style.colours.gradient !== "none" ? <div className={cn("absolute", style.effects.drift && decorate ? "card-fx-drift -inset-x-[15%] inset-y-0" : "inset-0")} style={washStyle(style)} data-testid="card-wash" /> : null}
       <div className="absolute inset-0" style={{ background: `linear-gradient(to bottom, rgb(8 12 36 / ${darkness * 0.6}%), rgb(8 12 36 / ${darkness}%), var(--card-surface, var(--color-surface)))` }} />
       {style && style.art.vignette > 0 ? <div className="absolute inset-0" style={{ background: `radial-gradient(ellipse at 50% 40%, transparent 45%, rgb(8 12 36 / ${style.art.vignette}%) 100%)` }} /> : null}
@@ -89,7 +93,7 @@ function motifStyle(style: CardStyle, fx: number): React.CSSProperties {
 }
 
 /** The image itself, with its fallback chain (remounted whenever the art changes). */
-function ArtImage({ urls, position, testId, art, zoom, blur, smooth }: { urls: string[]; position: string; testId: string; art: CardArt | null; zoom: number; blur: number; smooth: boolean }) {
+function ArtImage({ urls, position, testId, art, zoom, blur, smooth, priority }: { urls: string[]; position: string; testId: string; art: CardArt | null; zoom: number; blur: number; smooth: boolean; priority: boolean }) {
   const [failed, setFailed] = React.useState(0);
   // A picture that failed before the page was interactive moves on down the chain too.
   const early = React.useCallback((img: HTMLImageElement | null) => {
@@ -106,7 +110,8 @@ function ArtImage({ urls, position, testId, art, zoom, blur, smooth }: { urls: s
       key={src}
       src={src}
       alt=""
-      loading="lazy"
+      loading={priority ? "eager" : "lazy"}
+      fetchPriority={priority ? "high" : undefined}
       decoding="async"
       ref={early}
       onError={() => setFailed((n) => n + 1)}
