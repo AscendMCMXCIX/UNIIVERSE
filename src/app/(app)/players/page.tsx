@@ -32,11 +32,7 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
   const [riot, accounts, social] = await Promise.all([accountStatesForPlayers(db, players.map((p) => p.id), !!process.env.RIOT_API_KEY), listAccountsForPlayers(db, players.map((p) => p.id)), loadSocialLinks(db, players.map((p) => p.id))]);
   const championsById = Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
   const lineupRoleOf = (playerId: string): Role | null => ROLES.find((r) => lineup.slots[r] === playerId) ?? null;
-  // A teammate's rank is a statistic: shown to viewers with "view teammates' statistics", as on
-  // the Team page and the profile header; one's own always.
-  const seeStats = hasPermission(session, "view-teammate-stats");
   const rankOf = (playerId: string) => {
-    if (!seeStats && playerId !== session.playerId) return null;
     const mine = accounts.filter((a) => a.playerId === playerId);
     const ranked = (mine.find((a) => a.label === "main" && a.tier) ?? mine.find((a) => a.tier)) ?? null;
     const r = ranked ? rankView(ranked) : null;
