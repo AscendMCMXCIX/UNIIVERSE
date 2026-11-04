@@ -2,6 +2,7 @@ import { eq, inArray, sql, type SQL } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { activationCodes, appSettings, auditEvents, dataRefreshStatus, invites, jobRuns, lastKnownRanks, matchDetails, players, privacyErasures, riotAccounts, users, type MatchParticipantDetail } from "@/server/db/schema";
 import { pruneAuthFailures } from "@/server/auth/throttle";
+import { accountSyncLeaseKey, figuresCatchUpLeaseKey, viewRefreshLeaseKey } from "@/server/jobs/background";
 import { summariseMatches } from "@/server/accounts/match-summary";
 import type { AccessRole } from "@/server/auth/permissions";
 import { getUser, UserError } from "@/server/repositories/users";
@@ -614,7 +615,7 @@ async function applyPlan(tx: Db, plan: Plan): Promise<void> {
     await tx.delete(invites).where(eq(invites.userId, s.userId));
   }
   if (s.playerId) await tx.delete(invites).where(eq(invites.playerId, s.playerId));
-  const leases = [...s.accountIds.map((id) => `account_sync:${id}`), ...(s.playerId ? [`account_refresh:${s.playerId}`] : [])];
+  const leases = [...s.accountIds.map(accountSyncLeaseKey), ...(s.playerId ? [viewRefreshLeaseKey(s.playerId), figuresCatchUpLeaseKey(s.playerId)] : [])];
   if (leases.length) await tx.delete(appSettings).where(inArray(appSettings.key, leases));
 
   // 5. The account and the profile: sessions, picture, pools, card, banner, Riot accounts with their

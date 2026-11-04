@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { appSettings } from "@/server/db/schema";
-import { RiotApiError, riotKeyFingerprint, type RiotApiClient } from "@/server/riot/api/client";
+import { RiotApiError, normaliseRiotKey, riotKeyFingerprint, type RiotApiClient } from "@/server/riot/api/client";
 import { cachedFor, invalidateCache } from "@/server/observability/cache";
 
 /*
@@ -80,7 +80,9 @@ export async function recordRiotOutcome(db: Db, client: RiotApiClient | { keyFin
 
 /** Current credential status for Data health (cached briefly; never includes the key). */
 export async function getRiotCredentialStatus(db: Db, env: Record<string, string | undefined> = process.env): Promise<RiotCredentialStatus> {
-  const key = (env.RIOT_API_KEY ?? "").trim();
+  // The key as the client uses it (quotes pasted with it stripped), so the fingerprint matches the
+  // one the jobs record outcomes under; otherwise a quoted key would read "unknown" for ever.
+  const key = normaliseRiotKey(env.RIOT_API_KEY) ?? "";
   const configured = key.length > 0;
   const fingerprint = configured ? riotKeyFingerprint(key) : null;
   return cachedFor(

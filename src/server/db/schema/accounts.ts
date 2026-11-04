@@ -71,7 +71,12 @@ export const riotAccounts = pgTable(
 export interface HistoryBackfill {
   /** Game-version major of the season being collected (16 = the 2026 season). */
   season: number;
-  queues: Record<string, { offset: number; done: boolean; checkedAt?: string }>;
+  /**
+   * Per queue. `rescan`: a run stopped partway down the newest page, so games below the ones it
+   * stored may have been pushed past the offset by new games; once a later run completes the
+   * newest page, the older pages are read again from there (the queue stays finished until then).
+   */
+  queues: Record<string, { offset: number; done: boolean; checkedAt?: string; rescan?: boolean }>;
   startedAt: string;
   completedAt: string | null;
   /**
@@ -363,9 +368,10 @@ export interface ParticipantExtraStats {
 /**
  * Ranked history of a linked account, one row per change and queue (Solo/Duo and Flex apart).
  * Riot only reports the current rank, so the first row is when tracking started: there is no
- * earlier history and none is invented. A row is written by account sync from the league entries
- * it already reads (no extra Riot request), only when something changed since the last row; an
- * unranked row (tier null) records a season reset.
+ * earlier history and none is invented. A row is written from the league entries account sync and
+ * the rank watch read (server/accounts/rank-history), only when something changed since the last
+ * row; an unchanged reading moves the last row's confirmed_at instead. An unranked row (tier null)
+ * records a season reset.
  */
 export const rankSnapshots = pgTable(
   "rank_snapshots",
@@ -380,6 +386,12 @@ export const rankSnapshots = pgTable(
     wins: integer("wins"),
     losses: integer("losses"),
     capturedAt: timestamp("captured_at", { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * The last reading that still showed these values (each unchanged reading moves it on; it never
+     * goes back). Null on rows stored before it was kept. A game's LP is read between this and the
+     * next row's captured_at (domain/lp-attribution).
+     */
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
   },
   (t) => [uniqueIndex("rank_snapshots_account_queue_idx").on(t.accountId, t.queue, t.capturedAt)],
 );

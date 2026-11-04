@@ -19,13 +19,17 @@ export function splashUrl(championId: string, num: number, base = BASE): string 
   return `${base}/cdn/img/champion/splash/${championId}_${num}.jpg`;
 }
 
-/** Checks up to `budget` unchecked (or long-missing) real skins. Returns how many were checked. */
-/** How long one check of the CDN may take (ddragon.ts bounds its reads the same way). */
-export const CDN_TIMEOUT_MS = 10_000;
-
-export async function checkSkinSplashes(db: Db, options: { budget?: number; fetchImpl?: typeof fetch; now?: Date; concurrency?: number } = {}): Promise<{ checked: number; ok: number; missing: number }> {
+/**
+ * Checks up to `budget` unchecked (or long-missing) real skins. Returns how many were checked.
+ * Each HEAD is given up after `timeoutMs`, and none is started after `deadline` (ms since the
+ * epoch: the job's budget); a skin not checked either way stays unknown for the next run. Without
+ * them, a Data Dragon that stopped answering held the version-check job, the first of every
+ * scheduler tick, for as long as the connection stayed open.
+ */
+export async function checkSkinSplashes(db: Db, options: { budget?: number; fetchImpl?: typeof fetch; now?: Date; concurrency?: number; timeoutMs?: number; deadline?: number } = {}): Promise<{ checked: number; ok: number; missing: number }> {
   const now = options.now ?? new Date();
   const fetchImpl = options.fetchImpl ?? fetch;
+  const timeoutMs = options.timeoutMs ?? 10_000;
   const recheckBefore = new Date(now.getTime() - SPLASH_RECHECK_DAYS * 86_400_000);
   const due = await db
     .select({ championId: championSkins.championId, num: championSkins.num })
@@ -36,17 +40,17 @@ export async function checkSkinSplashes(db: Db, options: { budget?: number; fetc
   let ok = 0;
   let missing = 0;
   await mapWithConcurrency(due, options.concurrency ?? 8, async (s) => {
+    if (options.deadline !== undefined && Date.now() > options.deadline) return;
     let status: "ok" | "missing" | null = null;
     let signature: string | null = null;
     try {
-      // Bounded like every Data Dragon read: a stalled CDN must not hold the version check, and the tick behind it.
-      const res = await fetchImpl(splashUrl(s.championId, s.num), { method: "HEAD", signal: AbortSignal.timeout(CDN_TIMEOUT_MS) });
+      const res = await fetchImpl(splashUrl(s.championId, s.num), { method: "HEAD", signal: AbortSignal.timeout(timeoutMs) });
       if (res.ok) {
         status = "ok";
         signature = `${res.headers.get("etag") ?? ""}|${res.headers.get("content-length") ?? ""}`;
       } else if (res.status === 403 || res.status === 404) status = "missing";
     } catch {
-      // Network trouble: leave it unknown and try again next run.
+      // Network trouble or no answer within the timeout: leave it unknown and try again next run.
     }
     if (!status) return;
     if (status === "ok") ok += 1;

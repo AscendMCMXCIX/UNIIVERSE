@@ -11,14 +11,17 @@ import { listAccountsForPlayer } from "@/server/accounts/repository";
 import { currentSeason } from "@/server/accounts/sync";
 import { isOfferedSeason } from "@/domain/season";
 import { isSeasonMode } from "@/domain/season-stats";
-import { catchUpPlayerFigures, refreshPlayerMatches, type CatchUpOutcome, type RefreshOutcome } from "@/server/accounts/refresh";
+import { CATCH_UP_BUDGET_MS, REFRESH_BUDGET_MS, catchUpPlayerFigures, refreshPlayerMatches, type CatchUpOutcome, type RefreshOutcome } from "@/server/accounts/refresh";
 import { pendingFiguresForPlayer } from "@/server/accounts/figures-backfill";
 import { createRiotClient } from "@/server/riot/api/client";
 import { browserTestRiotClient } from "@/server/riot/browser-test";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 
-/** Riot for a profile's Refresh: quick answers, no retries (the button must answer within a minute); the stand-in in browser tests. */
-const refreshClient = () => createRiotClient({ maxRetries: 0, timeoutMs: 10_000 }) ?? browserTestRiotClient();
+/**
+ * Riot for a profile's Refresh: quick answers, no retries, and no wait for Riot's rate limits past
+ * the step's budget (the button must answer within a minute); the stand-in in browser tests.
+ */
+const refreshClient = (budgetMs: number) => createRiotClient({ maxRetries: 0, timeoutMs: 10_000, deadline: Date.now() + budgetMs }) ?? browserTestRiotClient();
 
 /** A Riot match id ("OC1_123…"), or a synthetic demo id ("DEMO_1a2b3c4d_7", demo data only). The match must still belong to the player. */
 const MATCH_ID = /^(?:[A-Z0-9]+_\d+|DEMO_[0-9a-f]{8}_\d+)$/;
@@ -119,7 +122,7 @@ export async function refreshMatchesAction(playerId: string): Promise<RefreshOut
   if (!session) return { status: "unavailable", message: "Sign in to refresh." };
   if (!/^[0-9a-f-]{36}$/i.test(playerId)) return { status: "unavailable", message: "This profile cannot be refreshed." };
   if (session.playerId !== playerId && !canManageRiotAccounts(session, playerId)) return { status: "unavailable", message: "Only the player (or an admin) can refresh this profile." };
-  const client = refreshClient();
+  const client = refreshClient(REFRESH_BUDGET_MS);
   if (!client) return { status: "unavailable", message: "Refresh is not available right now; games keep arriving through the regular sync." };
   const db = await getAppDb();
   try {
@@ -142,7 +145,7 @@ export async function catchUpFiguresAction(playerId: string): Promise<CatchUpOut
   if (!session) return { status: "unavailable", message: "Sign in to refresh." };
   if (!/^[0-9a-f-]{36}$/i.test(playerId)) return { status: "unavailable", message: "This profile cannot be refreshed." };
   if (session.playerId !== playerId && !canManageRiotAccounts(session, playerId)) return { status: "unavailable", message: "Only the player (or an admin) can refresh this profile." };
-  const client = refreshClient();
+  const client = refreshClient(CATCH_UP_BUDGET_MS);
   if (!client) return { status: "unavailable", message: "Refresh is not available right now; the counts keep arriving through the regular sync." };
   const db = await getAppDb();
   try {

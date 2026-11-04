@@ -10,6 +10,7 @@ export type JobKey =
   | "timeline-backfill"
   | "figures-backfill"
   | "rank-checks"
+  | "rank-watch"
   | "auth-audit"
   | "access-audit"
   | "perf-probe"
@@ -33,65 +34,43 @@ export interface JobOutcome {
 
 /** A run older than this that still says "running" is treated as dead (process killed). */
 export const JOB_STALE_RUNNING_MS = 15 * 60_000;
-export const INTERRUPTED_RUN_MESSAGE = "Run never finished (process was interrupted).";
 
-/**
- * A run whose process died (the host's limit, an instance recycled) never reaches its finish:
- * records it as the failure it was, so Data health counts it and nothing stays open for ever: the
- * failure count and time on the job's status, and its open job_runs row closed with the reason.
- * The status itself is left to the caller: the run taking the key over sets "running", the
- * housekeeping sets "failed".
- */
-export async function recordInterruptedRun(db: Db, key: JobKey, startedAt: Date | null, now = new Date()): Promise<void> {
-  await db.update(jobRuns).set({ finishedAt: now, ok: "false", error: INTERRUPTED_RUN_MESSAGE }).where(and(eq(jobRuns.job, key), isNull(jobRuns.finishedAt), ...(startedAt ? [lt(jobRuns.startedAt, now)] : [])));
-  await db
-    .update(dataRefreshStatus)
-    .set({ lastFailureAt: startedAt ?? now, lastError: INTERRUPTED_RUN_MESSAGE, consecutiveFailures: sql`${dataRefreshStatus.consecutiveFailures} + 1`, updatedAt: now })
-    .where(eq(dataRefreshStatus.key, key));
-}
-
-/**
- * Housekeeping (the integrity job): every run still "running" after JOB_STALE_RUNNING_MS, the
- * same rule a new run uses to take the key over, is marked failed and recorded as interrupted.
- * Returns the keys.
- */
-export async function unstickDeadRuns(db: Db, now = new Date()): Promise<string[]> {
-  const stale = new Date(now.getTime() - JOB_STALE_RUNNING_MS);
-  const dead = await db
-    .select({ key: dataRefreshStatus.key, lastStartedAt: dataRefreshStatus.lastStartedAt })
-    .from(dataRefreshStatus)
-    .where(and(eq(dataRefreshStatus.status, "running"), lt(dataRefreshStatus.lastStartedAt, stale)));
-  for (const run of dead) {
-    const freed = await db
-      .update(dataRefreshStatus)
-      .set({ status: "failed", updatedAt: now })
-      .where(and(eq(dataRefreshStatus.key, run.key), eq(dataRefreshStatus.status, "running"), lt(dataRefreshStatus.lastStartedAt, stale)))
-      .returning({ key: dataRefreshStatus.key });
-    if (freed.length) await recordInterruptedRun(db, run.key as JobKey, run.lastStartedAt, now);
-  }
-  return dead.map((d) => d.key);
-}
+/** What a run that never finished is recorded with, once it is found (status row and run row). */
+export const INTERRUPTED_RUN_ERROR = "Run never finished (process was interrupted).";
 
 /**
  * Records the start of a job and returns a finish function that records the outcome, or null
  * when the same job is already running (another scheduler fired, or the previous run has not
  * finished). The claim is one atomic statement, so two ticks starting at the same second cannot
  * both run the expensive work; a run that died keeps the key for at most JOB_STALE_RUNNING_MS.
+ *
+ * A run that died (a function timeout, a crash) records no outcome, so the claim that takes its
+ * key over records it: one more failure in a row, its time and INTERRUPTED_RUN_ERROR, in the same
+ * statement (two claims cannot both count it), and its run row is closed as a failed run.
+ * Otherwise a job killed on every run would never count as failing anywhere.
  */
 export async function startJobRun(db: Db, key: JobKey, trigger: string, options: { allowConcurrent?: boolean } = {}) {
   const startedAt = new Date();
   const staleBefore = new Date(startedAt.getTime() - JOB_STALE_RUNNING_MS);
+  const at = startedAt.toISOString();
   await db.insert(dataRefreshStatus).values({ key, status: "never", updatedAt: startedAt }).onConflictDoNothing();
-  // What the row said before the claim: a stale "running" row is a run whose process died.
-  const [before] = await db.select({ status: dataRefreshStatus.status, lastStartedAt: dataRefreshStatus.lastStartedAt }).from(dataRefreshStatus).where(eq(dataRefreshStatus.key, key));
+  // Read from the row as it was before this claim (an UPDATE's expressions see the old values).
+  const died = sql`(${dataRefreshStatus.status} = 'running' AND (${dataRefreshStatus.lastStartedAt} IS NULL OR ${dataRefreshStatus.lastStartedAt} < ${staleBefore.toISOString()}::timestamptz))`;
   const claimed = await db
     .update(dataRefreshStatus)
-    .set({ status: "running", lastStartedAt: startedAt, updatedAt: startedAt })
-    .where(options.allowConcurrent ? eq(dataRefreshStatus.key, key) : sql`${dataRefreshStatus.key} = ${key} AND (${dataRefreshStatus.status} <> 'running' OR ${dataRefreshStatus.lastStartedAt} IS NULL OR ${dataRefreshStatus.lastStartedAt} < ${staleBefore.toISOString()}::timestamptz)`)
-    .returning({ key: dataRefreshStatus.key });
+    .set({
+      status: "running",
+      lastStartedAt: startedAt,
+      updatedAt: startedAt,
+      consecutiveFailures: sql`CASE WHEN ${died} THEN ${dataRefreshStatus.consecutiveFailures} + 1 ELSE ${dataRefreshStatus.consecutiveFailures} END`,
+      lastFailureAt: sql`CASE WHEN ${died} THEN ${at}::timestamptz ELSE ${dataRefreshStatus.lastFailureAt} END`,
+      lastError: sql`CASE WHEN ${died} THEN ${INTERRUPTED_RUN_ERROR} ELSE ${dataRefreshStatus.lastError} END`,
+    })
+    .where(options.allowConcurrent ? eq(dataRefreshStatus.key, key) : sql`${dataRefreshStatus.key} = ${key} AND (${dataRefreshStatus.status} <> 'running' OR ${died})`)
+    // The failure time is this claim's own start only when it recorded a run that died.
+    .returning({ key: dataRefreshStatus.key, tookOverDeadRun: sql<boolean>`coalesce(${dataRefreshStatus.lastFailureAt} = ${at}::timestamptz, false)` });
   if (claimed.length === 0) return null;
-  // The key was taken over from a run that never finished: counted and closed before this one starts.
-  if (!options.allowConcurrent && before?.status === "running" && before.lastStartedAt && before.lastStartedAt < staleBefore) await recordInterruptedRun(db, key, before.lastStartedAt, startedAt);
+  if (claimed[0]!.tookOverDeadRun) await closeInterruptedRuns(db, { job: key, startedBefore: staleBefore, at: startedAt });
   const [run] = await db.insert(jobRuns).values({ job: key, trigger, startedAt }).returning({ id: jobRuns.id });
 
   return async function finish(outcome: JobOutcome) {
@@ -130,6 +109,35 @@ export async function startJobRun(db: Db, key: JobKey, trigger: string, options:
     }
     return { durationMs };
   };
+}
+
+/**
+ * Closes the runs that never finished, started before `startedBefore`, as failed runs with
+ * INTERRUPTED_RUN_ERROR (their process died, so nothing else ever will): one job's, or every
+ * job's. Their duration stays unknown. A run that was only slow and finishes after all still
+ * records its own outcome over this one. Returns how many were closed.
+ */
+export async function closeInterruptedRuns(db: Db, { job, startedBefore, at = new Date() }: { job?: string; startedBefore: Date; at?: Date }): Promise<number> {
+  const closed = await db
+    .update(jobRuns)
+    .set({ finishedAt: at, ok: "false", error: INTERRUPTED_RUN_ERROR })
+    .where(and(isNull(jobRuns.finishedAt), lt(jobRuns.startedAt, startedBefore), job ? eq(jobRuns.job, job) : undefined))
+    .returning({ id: jobRuns.id });
+  return closed.length;
+}
+
+/**
+ * How many runs of a job have failed in a row, as the alerts count them. Only a run that finishes
+ * resets the count, so a job being run again after failing (status "running") still has its
+ * failures; and a run that still says "running" past JOB_STALE_RUNNING_MS has died, so it counts
+ * already, before the next run or the integrity job records it. A job killed on every run is
+ * therefore reported like one that fails on every run.
+ */
+export function failuresInARow(s: { status: string; consecutiveFailures: number; lastStartedAt: Date | null }, now: number = Date.now()): number {
+  if (s.status === "failed") return Math.max(1, s.consecutiveFailures);
+  if (s.status !== "running") return 0;
+  const died = !s.lastStartedAt || now - s.lastStartedAt.getTime() > JOB_STALE_RUNNING_MS;
+  return s.consecutiveFailures + (died ? 1 : 0);
 }
 
 /**

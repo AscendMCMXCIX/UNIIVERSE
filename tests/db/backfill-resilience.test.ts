@@ -16,13 +16,14 @@ import { RateLimiter } from "@/server/riot/api/rate-limiter";
 import fixture from "@/server/riot/fixtures/champions.fixture.json";
 
 /*
-  One game Riot cannot serve never holds up the games behind it. Riot answers 5xx for some games
-  for good (a corrupted game), and every collection here reads games newest first and used to stop
-  at the first error: one such game at the head of a queue's season list stopped that queue's
-  collection for the account, and one at the head of the figures and timeline backfills and of the
-  sync's catch-up of older games stopped those, on every run, forever. Now such a game is passed
-  over, a few a run, asked for again later, and never marked as anything it is not; a refused key,
-  a full rate limit and an unreachable Riot still stop a run at once.
+  A game Riot cannot serve (its servers answer 5xx for some games for good: a corrupted game; or
+  an answer of an unexpected shape) and the collections that read games newest first. On a queue's
+  season list such a game holds its queue at that page and is asked for again next run (sync's
+  readPage: only an answer that is the same every time, a 404 or an unreadable format, records it
+  as unavailable). In the figures and timeline backfills and in the sync's catch-up of older games
+  it used to stop the whole run at the head, on every run, forever; now it is passed over, a few a
+  run, asked for again later, and never marked as anything it is not. A refused key, a full rate
+  limit and an unreachable Riot still stop a run at once.
 */
 
 const keyOf = (id: string) => fixture.champions.find((c) => c.id === id)!.key;
@@ -72,12 +73,15 @@ let handle: DbHandle;
 let account: RiotAccountRecord;
 let playerId: string;
 const PUUID = "puuid-resilient";
-/** Newest first: the unreadable game is the newest, the two readable ones behind it. */
+/** The two readable games. */
 const games: Record<string, Spec> = {
-  OC1_POISON: { created: IN_SEASON + 3 * DAY, answer: 500 },
   OC1_OK_1: { created: IN_SEASON + 2 * DAY },
   OC1_OK_2: { created: IN_SEASON + DAY },
 };
+/** A game Riot's servers fail for, every time. */
+const poison = (created: number): Spec => ({ created, answer: 500 });
+/** The unreadable game newest, the two readable ones behind it. */
+const withPoison: Record<string, Spec> = { OC1_POISON: poison(IN_SEASON + 3 * DAY), ...games };
 const ids = () => Object.keys(games);
 const fresh = async () => (await listAccountsForPlayer(handle.db, playerId)).find((a) => a.id === account.id)!;
 const asked = (calls: string[]) => calls.map(matchIdOf).filter(Boolean);
@@ -105,23 +109,29 @@ describe("how a failed request for one record is treated", () => {
   });
 });
 
-describe("a game Riot cannot serve at the head of a queue's season list", () => {
-  it("is passed over: the games behind it are collected, the list's offset moves on, and it is asked for again next run", async () => {
+describe("a game Riot's servers fail for on a queue's season list", () => {
+  it("holds the queue at that page: the games above it are stored, nothing is recorded for it, and it is asked for again next run", async () => {
+    // The unreadable game is the oldest listed: the two above it read.
+    const listed = { ...games, OC1_POISON: poison(IN_SEASON) };
     const calls: string[] = [];
     const lines: string[] = [];
-    const first = await syncAccount(handle.db, riot(PUUID, games, { calls }), account, { season: 16, log: (m) => lines.push(m) });
+    const first = await syncAccount(handle.db, riot(PUUID, listed, { calls }), account, { season: 16, log: (m) => lines.push(m) });
     expect(first.status).toBe("ok");
     expect(first.matchesFolded).toBe(2);
     expect(await storedKills()).toEqual({ OC1_OK_1: 2, OC1_OK_2: 2 });
-    expect(first.history).toMatchObject({ complete: true, queuesDone: 7 });
-    expect(lines.some((l) => /match OC1_POISON fetch failed/.test(l))).toBe(true);
-    expect(lines.some((l) => /could not read OC1_POISON/.test(l))).toBe(true);
+    // Riot's servers failing is not an answer that lasts, so the game is not recorded as
+    // unavailable: the queue is left unfinished for a later run.
+    expect(first.history).toMatchObject({ complete: false, queuesDone: 6 });
+    expect(lines.some((l) => /match OC1_POISON failed/.test(l))).toBe(true);
     // Next run: the two stored games cost nothing; the unreadable one is asked for again, and stays unstored.
     const again: string[] = [];
-    const second = await syncAccount(handle.db, riot(PUUID, games, { calls: again }), await fresh(), { season: 16 });
+    const second = await syncAccount(handle.db, riot(PUUID, listed, { calls: again }), await fresh(), { season: 16 });
     expect(second.status).toBe("ok");
     expect(asked(again)).toEqual(["OC1_POISON"]);
     expect(Object.keys(await storedKills()).sort()).toEqual(["OC1_OK_1", "OC1_OK_2"]);
+    // Once Riot's list no longer names it, the queue finishes (and the tests below start from a complete season).
+    const third = await syncAccount(handle.db, riot(PUUID, games), await fresh(), { season: 16 });
+    expect(third.history).toMatchObject({ complete: true, queuesDone: 7 });
   });
 
   it("a full rate limit still stops the page at once, storing nothing", async () => {
@@ -141,14 +151,14 @@ describe("a game Riot cannot serve at the head of the sync's catch-up of older g
     await handle.db.update(accountMatches).set({ kills: null, deaths: null, assists: null, cs: null, damage: null, visionScore: null }).where(eq(accountMatches.accountId, a.id));
     await handle.db.delete(matchDetails).where(inArray(matchDetails.matchId, [...ids(), ...Object.keys(poisons)]));
     const all = { ...games, ...poisons };
-    // Four unreadable games sit ahead of the readable ones. The bound is one run's: the listed game
-    // (step 1) is the first pass, two of the catch-up's games the second and third; the fourth
-    // failure stops the catch-up, and the records' catch-up stops at its first failure likewise.
+    // Four unreadable games sit ahead of the readable ones. The bound is one run's: the figures'
+    // catch-up passes over three and its fourth failure stops it; the records' catch-up stops at
+    // its first failure likewise. The list itself names only stored games, so step 1 asks nothing.
     const calls: string[] = [];
     const capped = await syncAccount(handle.db, riot(PUUID, all, { calls }), a, { season: 16 });
     expect(capped.status).toBe("ok");
-    expect(asked(calls)).toEqual(["OC1_POISON", "OC1_POISON_3", "OC1_POISON_2", "OC1_POISON_1", "OC1_POISON_3"]);
-    expect(await handle.db.select({ matchId: accountMatches.matchId }).from(accountMatches).where(and(eq(accountMatches.accountId, a.id), isNull(accountMatches.kills)))).toHaveLength(ids().length - 1 + Object.keys(poisons).length);
+    expect(asked(calls)).toEqual(["OC1_POISON_3", "OC1_POISON_2", "OC1_POISON_1", "OC1_POISON_0", "OC1_POISON_3"]);
+    expect(await handle.db.select({ matchId: accountMatches.matchId }).from(accountMatches).where(and(eq(accountMatches.accountId, a.id), isNull(accountMatches.kills)))).toHaveLength(ids().length + Object.keys(poisons).length);
     // With one unreadable game ahead, the readable ones behind it get their figures (2b) and their records (2c) in one run.
     await handle.db.delete(accountMatches).where(inArray(accountMatches.matchId, Object.keys(poisons).slice(1)));
     const one = { ...games, OC1_POISON_0: poisons.OC1_POISON_0! };
@@ -159,7 +169,8 @@ describe("a game Riot cannot serve at the head of the sync's catch-up of older g
     expect(await storedKills()).toEqual({ OC1_OK_1: 2, OC1_OK_2: 2, OC1_POISON_0: null });
     const records = await handle.db.select({ matchId: matchDetails.matchId }).from(matchDetails).where(inArray(matchDetails.matchId, Object.keys(one)));
     expect(records.map((d) => d.matchId).sort()).toEqual(["OC1_OK_1", "OC1_OK_2"]);
-    expect(lines.some((l) => /could not read OC1_POISON_0, OC1_POISON/.test(l) || /could not read OC1_POISON, OC1_POISON_0/.test(l))).toBe(true);
+    // Named once for its figures and once for its record.
+    expect(lines.some((l) => /could not read OC1_POISON_0, OC1_POISON_0/.test(l))).toBe(true);
     await handle.db.delete(accountMatches).where(eq(accountMatches.matchId, "OC1_POISON_0"));
   });
 });
@@ -204,22 +215,22 @@ describe("a ledger row marked gone before the unavailable record was also stored
 describe("the figures and timeline backfills", () => {
   it("pass over a record Riot cannot serve, fetch the ones behind it, mark nothing, and ask for it again next run", async () => {
     const a = await fresh();
-    await handle.db.insert(accountMatches).values({ accountId: a.id, matchId: "OC1_POISON", gameCreation: games.OC1_POISON!.created, queueId: 420, championId: "Gwen", role: "TOP", win: true, patch: "16.11", gameDuration: 1800, kills: 2, deaths: 1, assists: 3, enemyChampionId: "Ahri", summarisedAt: new Date() });
-    await handle.db.insert(matchDetails).values({ matchId: "OC1_POISON", platform: "oc1", queueId: 420, gameCreation: games.OC1_POISON!.created, gameDuration: 1800, gameVersion: "16.11.1.1", teams: [], participants: [{ puuid: PUUID, name: null, teamId: 100, championId: "Gwen", championKey: keyOf("Gwen"), champLevel: 15, position: "TOP", win: true, kills: 2, deaths: 1, assists: 3, cs: 160, gold: 9000, damage: 15_000, damageTaken: 15_000, vision: 20, wardsPlaced: 8, items: null, spells: null, runes: null }] });
+    await handle.db.insert(accountMatches).values({ accountId: a.id, matchId: "OC1_POISON", gameCreation: withPoison.OC1_POISON!.created, queueId: 420, championId: "Gwen", role: "TOP", win: true, patch: "16.11", gameDuration: 1800, kills: 2, deaths: 1, assists: 3, enemyChampionId: "Ahri", summarisedAt: new Date() });
+    await handle.db.insert(matchDetails).values({ matchId: "OC1_POISON", platform: "oc1", queueId: 420, gameCreation: withPoison.OC1_POISON!.created, gameDuration: 1800, gameVersion: "16.11.1.1", teams: [], participants: [{ puuid: PUUID, name: null, teamId: 100, championId: "Gwen", championKey: keyOf("Gwen"), champLevel: 15, position: "TOP", win: true, kills: 2, deaths: 1, assists: 3, cs: 160, gold: 9000, damage: 15_000, damageTaken: 15_000, vision: 20, wardsPlaced: 8, items: null, spells: null, runes: null }] });
     await handle.db.update(accountMatches).set({ extraStats: null, enemyChampionId: "Ahri" }).where(eq(accountMatches.accountId, a.id));
     const calls: string[] = [];
-    const figures = await backfillFigures(handle.db, riot(PUUID, games, { calls }), { limit: 10, deadline: Date.now() + 60_000 });
+    const figures = await backfillFigures(handle.db, riot(PUUID, withPoison, { calls }), { limit: 10, deadline: Date.now() + 60_000 });
     expect(figures).toEqual({ fetched: 2, unavailable: 0, skipped: ["OC1_POISON"], stoppedBy: null });
     expect(asked(calls)).toEqual(["OC1_POISON", "OC1_OK_1", "OC1_OK_2"]);
     const stats = Object.fromEntries((await handle.db.select({ matchId: accountMatches.matchId, extraStats: accountMatches.extraStats }).from(accountMatches).where(eq(accountMatches.accountId, a.id))).map((r) => [r.matchId, r.extraStats]));
     expect(stats.OC1_OK_1).toMatchObject({ doubleKills: 1 });
     expect(stats.OC1_POISON).toBeNull();
     const again: string[] = [];
-    expect(await backfillFigures(handle.db, riot(PUUID, games, { calls: again }), { limit: 10, deadline: Date.now() + 60_000 })).toEqual({ fetched: 0, unavailable: 0, skipped: ["OC1_POISON"], stoppedBy: null });
+    expect(await backfillFigures(handle.db, riot(PUUID, withPoison, { calls: again }), { limit: 10, deadline: Date.now() + 60_000 })).toEqual({ fetched: 0, unavailable: 0, skipped: ["OC1_POISON"], stoppedBy: null });
     expect(asked(again)).toEqual(["OC1_POISON"]);
 
     const tl: string[] = [];
-    const timelines = await backfillTimelines(handle.db, riot(PUUID, games, { calls: tl }), { limit: 10, deadline: Date.now() + 60_000 });
+    const timelines = await backfillTimelines(handle.db, riot(PUUID, withPoison, { calls: tl }), { limit: 10, deadline: Date.now() + 60_000 });
     expect(timelines).toEqual({ fetched: 2, unavailable: 0, skipped: ["OC1_POISON"], stoppedBy: null });
     expect(asked(tl)).toEqual(["OC1_POISON", "OC1_OK_1", "OC1_OK_2"]);
     expect((await handle.db.select({ matchId: matchTimelines.matchId }).from(matchTimelines)).map((t) => t.matchId).sort()).toEqual(["OC1_OK_1", "OC1_OK_2"]);

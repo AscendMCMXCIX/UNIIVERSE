@@ -28,7 +28,9 @@ import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { accountMatches, matchDetails, riotAccounts, teamBookmarks, users, type MatchParticipantDetail } from "@/server/db/schema";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
-import { listTeamBookmarks } from "@/server/matches/links";
+import { eq } from "drizzle-orm";
+import { listTeamBookmarks, sharedGameRows } from "@/server/matches/links";
+import { DETAILS_UNAVAILABLE } from "@/server/accounts/sync";
 import { invalidatePlayedTogetherCache } from "@/server/matches/played-together";
 import { setTeamBookmarkAction } from "@/server/actions/matches";
 import { STANDARD_PLAYER } from "@/server/auth/permissions";
@@ -123,6 +125,21 @@ describe("team bookmarks", () => {
     state.session = asPlayer(ids.Top!, "55555555-5555-4555-8555-555555555555");
     expect((await setTeamBookmarkAction("OC1_300", false)).ok).toBe(true);
     expect(await handle.db.select().from(teamBookmarks)).toEqual([]);
+  });
+
+  it("lists a shared game whose details Riot no longer serves without a kill count (kills = -1 is a marker)", async () => {
+    const db = handle.db;
+    await db.update(accountMatches).set(DETAILS_UNAVAILABLE).where(eq(accountMatches.matchId, "OC1_300"));
+    try {
+      const [row, ...rest] = await sharedGameRows(db, [{ riotMatchId: "OC1_300", playerId: ids.Top! }]);
+      expect(rest).toEqual([]);
+      // The game and its result stay listed; the figures Riot did not give read as absent.
+      expect(row).toMatchObject({ matchId: "OC1_300", playerId: ids.Top, championId: "Ornn", win: true, kills: null, deaths: null, assists: null, cs: null, damage: null, vision: null });
+      await db.update(accountMatches).set({ kills: 3, deaths: 2, assists: 4 }).where(eq(accountMatches.matchId, "OC1_300"));
+      expect((await sharedGameRows(db, [{ riotMatchId: "OC1_300", playerId: ids.Top! }]))[0]).toMatchObject({ kills: 3, deaths: 2, assists: 4 });
+    } finally {
+      await db.update(accountMatches).set({ kills: null, deaths: null, assists: null }).where(eq(accountMatches.matchId, "OC1_300"));
+    }
   });
 
   it("rejects malformed match ids and personal-use sessions", async () => {

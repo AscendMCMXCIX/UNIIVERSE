@@ -15,6 +15,9 @@ export function parsePlatforms(spec: string | undefined, fallback: string[] = [D
   return parsePlatformList(spec, fallback);
 }
 
+/** How long one Riot request may take before it is abandoned (and retried, when there is time). */
+export const RIOT_REQUEST_TIMEOUT_MS = 15_000;
+
 /**
  * A request's path with the identifiers it names elided (a PUUID, a Riot ID), so an error message
  * names nobody: the messages reach job logs, run summaries, the Data health page and the host's
@@ -35,6 +38,23 @@ export class RiotApiError extends Error {
   ) {
     super(message);
     this.name = "RiotApiError";
+  }
+}
+
+/**
+ * A Riot request given up because of the caller's deadline (the client's `deadline`): it has
+ * passed, or Riot's rate limits (a full window, or a 429's Retry-After) would have kept the request
+ * waiting beyond it. It is a run out of time, not a failure: nothing is wrong with the key or the
+ * account, so callers stop as they do when their time budget runs out and the next run carries
+ * on; it is never recorded as a failed sync or as a problem with the key. Code that does not know
+ * it sees a retryable 429, which is what leaves no time. (A retry after a network error or a 5xx
+ * whose back-off would end past the deadline is not this error: the client throws the failure
+ * itself, because Riot did fail.)
+ */
+export class RiotDeadlineError extends RiotApiError {
+  constructor(host: string, waitingFor: string) {
+    super(`Riot request to ${host} given up: ${waitingFor} would end after this run's deadline`, 429, true);
+    this.name = "RiotDeadlineError";
   }
 }
 
@@ -72,9 +92,22 @@ export interface RiotClientOptions {
   fetchImpl?: typeof fetch;
   maxRetries?: number;
   timeoutMs?: number;
+  /**
+   * When the caller's work must end (ms since the epoch, as Date.now()). No request starts after
+   * it, and none waits past it for the rate limits or a 429's Retry-After: such a request fails at
+   * once with RiotDeadlineError. A request that met a network error or a 5xx and cannot be tried
+   * again in time (its back-off, or the wait for the rate limits after it, would end past the
+   * deadline, or the deadline has passed) throws that error instead. A request already sent can
+   * still take up to `timeoutMs` beyond it (its answer's body included), so work bound by a
+   * deadline ends by the deadline plus one request's timeout.
+   * Every caller with a time budget (a job, a refresh) sets it; without one, requests wait.
+   */
+  deadline?: number;
   /** Base URL template; `{host}` is replaced by the platform/region host. Overridable for tests. */
   baseUrl?: string;
   sleep?: (ms: number) => Promise<void>;
+  /** Clock the deadline is read with; tests pass the one their limiter and `sleep` use. */
+  now?: () => number;
 }
 
 /**
@@ -89,7 +122,10 @@ export class RiotApiClient {
   private readonly timeoutMs: number;
   private readonly baseUrl: string;
   private readonly sleep: (ms: number) => Promise<void>;
+  private readonly now: () => number;
   private readonly limitShare: number;
+  /** See RiotClientOptions.deadline. */
+  public readonly deadline: number | undefined;
   public requestCount = 0;
   /** Requests per host, for job summaries (which regions consumed the budget). */
   public readonly requestsByHost = new Map<string, number>();
@@ -113,9 +149,16 @@ export class RiotApiClient {
     this.limitShare = options.limitShare ?? 1;
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.maxRetries = options.maxRetries ?? 4;
-    this.timeoutMs = options.timeoutMs ?? 15_000;
+    this.timeoutMs = options.timeoutMs ?? RIOT_REQUEST_TIMEOUT_MS;
     this.baseUrl = options.baseUrl ?? "https://{host}.api.riotgames.com";
     this.sleep = options.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+    this.now = options.now ?? (() => Date.now());
+    this.deadline = options.deadline;
+  }
+
+  /** Whether waiting `ms` from now still ends by the deadline (always, without one). */
+  private canWait(ms: number): boolean {
+    return this.deadline === undefined || this.now() + ms <= this.deadline;
   }
 
   private url(host: string, path: string): string {
@@ -131,35 +174,42 @@ export class RiotApiClient {
 
   async get<T>(host: string, path: string, schema: z.ZodType<T>): Promise<T> {
     let attempt = 0;
+    // The network error or 5xx this request last met, if any. When the deadline then leaves no
+    // time to try again, that failure is the answer, not a stop for time: Riot did fail.
+    let failure: RiotApiError | null = null;
     const limiter = this.limiterFor(host);
-    const url = this.url(host, path);
     const route = routeLabel(path);
     for (;;) {
+      // Once the deadline has passed, no request starts (the limiter would still give a free slot):
+      // whatever holds an account for this run lets go of it by the deadline plus one timeout.
+      if (this.deadline !== undefined && this.now() >= this.deadline) throw failure ?? new RiotDeadlineError(host, "starting another request");
+      // With a deadline, the wait for a slot (a 429's Retry-After included: it pauses the limiter)
+      // is not started when it would end after the deadline.
       if (this.options.noWait && limiter.tryAcquire) {
         if (!limiter.tryAcquire(this.limitShare)) throw new RiotApiError(`No room in the rate limits for ${route} now`, 429, true);
-      } else await limiter.acquire(this.limitShare);
+      } else if (!(await limiter.acquire(this.limitShare, this.deadline))) throw failure ?? new RiotDeadlineError(host, "waiting for Riot's rate limits");
       this.requestCount += 1;
       this.requestsByHost.set(host, (this.requestsByHost.get(host) ?? 0) + 1);
-      // One timer for the whole exchange, the headers and the body: an answer whose body stalls
-      // after its headers (Node's own bound is 300 s) must not hold a job past its budget.
       const controller = new AbortController();
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      const timedOut = new Promise<never>((_, reject) => {
-        timer = setTimeout(() => {
-          controller.abort();
-          reject(new Error(`timed out after ${this.timeoutMs} ms`));
-        }, this.timeoutMs);
-      });
-      timedOut.catch(() => undefined);
+      const timer = setTimeout(() => controller.abort(), this.timeoutMs);
       let res: Response;
+      // A successful answer's body is read under the same timeout as the request: a body that
+      // trickles in is abandoned like a request that hangs, so a request takes at most `timeoutMs`.
+      let text: string | null = null;
       try {
-        res = await this.fetchImpl(url, { headers: { "X-Riot-Token": this.options.apiKey }, signal: controller.signal });
+        res = await this.fetchImpl(this.url(host, path), { headers: { "X-Riot-Token": this.options.apiKey }, signal: controller.signal });
+        if (res.ok) text = await res.text();
       } catch (err) {
         clearTimeout(timer);
-        if (attempt++ >= this.maxRetries) throw new RiotApiError(`Network error calling ${route}: ${(err as Error).message}`, 0, true);
+        failure = new RiotApiError(`Network error calling ${route}: ${(err as Error).message}`, 0, true);
+        // Out of retries, or no time left to back off before one: the failure itself is the answer.
+        // It is Riot (or the network) failing, not the run running out of time, so callers record
+        // it as such (an account waits as pending, the key's status says Riot is unavailable).
+        if (attempt++ >= this.maxRetries || !this.canWait(500 * 2 ** attempt)) throw failure;
         await this.sleep(500 * 2 ** attempt);
         continue;
       }
+      clearTimeout(timer);
       // Riot states this key's application limits on every response; follow them (unless pinned).
       const reported = res.headers.get("x-app-rate-limit");
       if (reported) {
@@ -168,33 +218,35 @@ export class RiotApiClient {
       }
 
       if (res.status === 429) {
-        clearTimeout(timer);
+        // Riot answered: an earlier failure in this request is no longer the reason it may not be
+        // tried again in time. If the Retry-After leaves no time, that is a stop for time.
+        failure = null;
         const retryAfter = Number(res.headers.get("retry-after") ?? "2");
         limiter.pause(Number.isFinite(retryAfter) ? retryAfter : 2);
         if (attempt++ >= this.maxRetries) throw new RiotApiError(`Rate limited on ${route}`, 429, true);
         continue;
       }
       if (res.status >= 500) {
-        clearTimeout(timer);
-        if (attempt++ >= this.maxRetries) throw new RiotApiError(`Riot API ${res.status} on ${route}`, res.status, true);
+        // As above: a failing Riot is reported as failing, even when there is no time left to retry.
+        failure = new RiotApiError(`Riot API ${res.status} on ${route}`, res.status, true);
+        if (attempt++ >= this.maxRetries || !this.canWait(500 * 2 ** attempt)) throw failure;
         await this.sleep(500 * 2 ** attempt);
         continue;
       }
       if (!res.ok) {
-        clearTimeout(timer);
         throw new RiotApiError(`Riot API ${res.status} on ${route}`, res.status, false);
       }
       let json: unknown;
       try {
-        json = await Promise.race([res.json(), timedOut]);
+        json = JSON.parse(text ?? "");
       } catch (err) {
-        // A body that stalled or is not JSON (a proxy's error page): a network failure, retried the same way.
-        clearTimeout(timer);
-        if (attempt++ >= this.maxRetries) throw new RiotApiError(`Unreadable answer from ${route}: ${(err as Error).message}`, 0, true);
+        // A body that is not JSON (a proxy's error page in place of Riot's answer): a failed
+        // request like a network error, retried the same way, never a crash in the caller.
+        failure = new RiotApiError(`Unreadable answer from ${route}: ${(err as Error).message}`, 0, true);
+        if (attempt++ >= this.maxRetries || !this.canWait(500 * 2 ** attempt)) throw failure;
         await this.sleep(500 * 2 ** attempt);
         continue;
       }
-      clearTimeout(timer);
       const parsed = schema.safeParse(json);
       if (!parsed.success) throw new RiotApiError(`Unexpected response shape on ${route}: ${parsed.error.issues[0]?.message ?? "schema mismatch"}`, res.status, false);
       return parsed.data;
@@ -258,7 +310,8 @@ export class RiotApiClient {
  * How a run that reads one record at a time (the figures and timeline backfills, the account
  * sync's catch-up of older games) treats a failed request for one record:
  * - "stop": the run must stop, because every further request would fail the same way: the key
- *   was refused (401, 403), the rate limit is full (429) or Riot could not be reached (0);
+ *   was refused (401, 403), the rate limit is full (429), Riot could not be reached (0) or the
+ *   run's deadline passed (RiotDeadlineError);
  * - "unavailable": Riot no longer serves the record (404); it is marked so and never asked for again;
  * - "skip": this one record could not be read: Riot answers 5xx for some games for good (a
  *   corrupted game), or 400, or a body of an unexpected shape. The run goes on to the next record,
@@ -267,7 +320,7 @@ export class RiotApiClient {
  *   many such requests a run spends, so an outage that fails every record stops the run as before.
  */
 export function recordFailure(err: unknown): "stop" | "unavailable" | "skip" {
-  if (!(err instanceof RiotApiError)) return "stop";
+  if (!(err instanceof RiotApiError) || err instanceof RiotDeadlineError) return "stop";
   if (err.status === 401 || err.status === 403 || err.status === 429 || err.status === 0) return "stop";
   if (err.status === 404) return "unavailable";
   return "skip";
@@ -307,7 +360,7 @@ export function riotKeyFingerprint(key: string): string {
   return `…${key.slice(-4)}`;
 }
 
-export function createRiotClient(overrides: Pick<RiotClientOptions, "maxRetries" | "timeoutMs" | "limitShare" | "noWait"> = {}): RiotApiClient | null {
+export function createRiotClient(overrides: Pick<RiotClientOptions, "maxRetries" | "timeoutMs" | "limitShare" | "noWait" | "deadline"> = {}): RiotApiClient | null {
   const apiKey = normaliseRiotKey(process.env.RIOT_API_KEY);
   if (!apiKey) return null;
   // Every client in the process shares one limiter pool, as Riot counts the key as a whole.

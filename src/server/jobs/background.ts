@@ -15,6 +15,19 @@ import { log } from "@/server/observability/log";
 
 const LEASE_KEY = "tick_lease";
 
+/**
+ * A profile view's background refresh (server/accounts/kickoff.ts) runs one slice per player per
+ * this long; the open page asks faster while the lease stands (server/ops/freshness.ts).
+ */
+export const VIEW_REFRESH_LEASE_MS = 2 * 60_000;
+
+/** The leases' keys in app_settings, here so that erasure (privacy/erasure.ts) removes every one. */
+export const viewRefreshLeaseKey = (playerId: string) => `account_refresh:${playerId}`;
+/** One sync per Riot account at a time (server/accounts/refresh.ts claimAccountSync). */
+export const accountSyncLeaseKey = (accountId: string) => `account_sync:${accountId}`;
+/** One figures catch-up per player at a time (server/accounts/refresh.ts). */
+export const figuresCatchUpLeaseKey = (playerId: string) => `figures_catchup:${playerId}`;
+
 /** Minutes between visit-started ticks (UNIIVERSE_VISIT_TICK_MINUTES, default 30). */
 export function visitTickIntervalMinutes(): number {
   const n = Number(process.env.UNIIVERSE_VISIT_TICK_MINUTES ?? 30);
@@ -43,6 +56,14 @@ export async function claimLease(db: Db, key: string, minIntervalMs: number, now
     WHERE app_settings.updated_at < ${cutoff.toISOString()}::timestamptz
     RETURNING key`);
   return rowsOf(result).length > 0;
+}
+
+/**
+ * Gives back a lease claimed at `claimedAt`, so the next caller need not wait out its interval.
+ * Only that claim: if anyone claimed the key since, their lease stays.
+ */
+export async function releaseLease(db: Db, key: string, claimedAt: Date): Promise<void> {
+  await db.execute(sql`DELETE FROM app_settings WHERE key = ${key} AND updated_at = ${claimedAt.toISOString()}::timestamptz`);
 }
 
 /** Claims the scheduler-tick lease (see claimLease). */

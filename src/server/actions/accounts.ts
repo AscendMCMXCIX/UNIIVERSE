@@ -142,13 +142,14 @@ export async function retryPendingAccountsAction(): Promise<Result<{ attempted: 
   try {
     await requirePermission("manage-data");
     const db = await getAppDb();
-    const client = createRiotClient();
+    const started = Date.now();
+    // The client carries the 40-second budget, so no request waits for Riot's rate limits past it.
+    const client = createRiotClient({ deadline: started + 40_000 });
     if (!client) return { ok: false, error: "RIOT_API_KEY is not configured on the server." };
     const pending = await listPendingAccounts(db, 20);
     let synced = 0;
     let stillPending = 0;
     let failed = 0;
-    const started = Date.now();
     for (const account of pending) {
       if (Date.now() - started > 40_000) break;
       // An account the scheduler or a Refresh is syncing right now is left to that run.
@@ -157,6 +158,8 @@ export async function retryPendingAccountsAction(): Promise<Result<{ attempted: 
       if (r.status === "ok") synced += 1;
       else if (r.status === "pending") stillPending += 1;
       else failed += 1;
+      // Out of time (the account is left as it was): the next one would wait the same way.
+      if (r.outOfTime) break;
     }
     invalidateProficiencyCache();
     touch();

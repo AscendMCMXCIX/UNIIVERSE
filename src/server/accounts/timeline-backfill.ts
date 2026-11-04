@@ -1,7 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { matchTimelines } from "@/server/db/schema";
-import { MAX_SKIPPED_RECORDS, recordFailure, type RiotApiClient } from "@/server/riot/api/client";
+import { MAX_SKIPPED_RECORDS, recordFailure, RiotDeadlineError, type RiotApiClient } from "@/server/riot/api/client";
 import { describeStop } from "./figures-backfill";
 import { SYNC_QUEUE_IDS } from "./sync";
 import { completedTimeline, keptTimeline, timelineRow } from "./match-timeline";
@@ -10,11 +10,9 @@ import { completedTimeline, keptTimeline, timelineRow } from "./match-timeline";
   Timeline backfill for Matchups: the linked players' own Summoner's Rift games that have an
   identified lane opponent get their timeline fetched once and kept compactly (gold, experience and
   CS per frame; build and skill order). Newest games first, a small number per run, one request at
-  a time through the shared rate limiter, and the run stops at the first refusal (Riot's limits
-  are shared with the account sync). A timeline Riot no longer provides is recorded as unavailable
-  and never asked for again; one Riot cannot serve right now (its 5xx for one game, which can last
-  for good) is passed over, a few a run, so it never holds up the games behind it, and is asked for
-  again later (recordFailure in riot/api/client). Remakes (under five minutes) are skipped.
+  a time through the shared rate limiter, and the run stops at the first refusal or error (Riot's
+  limits are shared with ranked collection). A timeline Riot no longer provides is recorded as
+  unavailable and never asked for again. Remakes (under five minutes) are skipped.
 */
 
 /** Games shorter than this are remakes: no lane to compare. */
@@ -47,7 +45,7 @@ export async function timelineCoverage(db: Db): Promise<{ laneGames: number; wit
 export interface BackfillResult {
   fetched: number;
   unavailable: number;
-  /** Timelines Riot could not serve this run (by match id): passed over, asked for again next time. */
+  /** Timelines Riot could not serve this run (by match id): passed over, asked for again next time (recordFailure). */
   skipped: string[];
   /** Why the run stopped early, if it did (a refusal, an error, the time budget). */
   stoppedBy: string | null;
@@ -80,12 +78,19 @@ export async function backfillTimelines(db: Db, client: RiotApiClient, options: 
       row = await keptTimeline(db, timelineRow(matchId, platform, await client.matchTimeline(platform, matchId)));
       result.fetched += 1;
     } catch (err) {
+      if (err instanceof RiotDeadlineError) {
+        // The client's deadline: Riot's rate limits would have kept the request waiting past the
+        // run's budget. The same stop as the time check above, nothing recorded.
+        result.stoppedBy = "time budget";
+        break;
+      }
       const kind = recordFailure(err);
       if (kind === "unavailable") {
         row = timelineRow(matchId, platform, null);
         result.unavailable += 1;
       } else {
         options.log?.(`${matchId}: ${(err as Error).message}`);
+        // A timeline Riot cannot serve right now: passed over, a few a run, asked for again next time.
         if (kind === "skip" && result.skipped.length < MAX_SKIPPED_RECORDS) {
           result.skipped.push(matchId);
           continue;

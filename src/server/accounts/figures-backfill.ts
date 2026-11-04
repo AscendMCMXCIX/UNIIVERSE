@@ -1,7 +1,7 @@
 import { inArray, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountMatches, champions, matchDetails } from "@/server/db/schema";
-import { MAX_SKIPPED_RECORDS, recordFailure, RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
+import { MAX_SKIPPED_RECORDS, recordFailure, RiotApiError, RiotDeadlineError, type RiotApiClient } from "@/server/riot/api/client";
 import { FIRST_SEASON } from "@/domain/season";
 import { erasureFilter } from "@/server/privacy/ledger";
 import { matchDetailRow } from "./match-details";
@@ -16,10 +16,8 @@ import { seasonListStart } from "./sync";
   - newest games first, and only games of a season the app offers (Season 2026 on);
   - one request per match, even when several linked accounts played it, to the server the record
     was first read from (an account that has since moved keeps its old games' server);
-  - a few per run, one at a time through the shared rate limiter, stopping at the first refusal
-    (Riot's limits are shared with the account sync). A record Riot cannot serve right now (its 5xx
-    for one game, which can last for good) is skipped, a few a run, so the games behind it are not
-    held up; it is asked for again on a later run (recordFailure in riot/api/client).
+  - a few per run, one at a time through the shared rate limiter, stopping at the first refusal or
+    error (Riot's limits are shared with the account sync).
   The fresh record replaces the stored one (the same fields, now with the figures) and the game's
   summary is copied again, so profiles, Leaderboards and match history show the counts on their next
   read. A record Riot no longer provides is marked as checked ({} in extra_stats) and never asked
@@ -61,7 +59,7 @@ export async function figuresCoverage(db: Db): Promise<{ games: number; withFigu
   return { games, withFigures, unavailable, pending: Math.max(0, games - withFigures - unavailable) };
 }
 
-/** One player's games of the offered seasons still waiting for their figures (a profile's Refresh says how many are left); a game Riot no longer serves (kills = -1) never will. */
+/** One player's games of the offered seasons still waiting for their figures (a profile's Refresh says how many are left). */
 export async function pendingFiguresForPlayer(db: Db, playerId: string): Promise<number> {
   const since = (await seasonListStart(db, FIRST_SEASON)) * 1000;
   const [r] = rows(
@@ -78,7 +76,7 @@ export interface FiguresBackfillResult {
   fetched: number;
   /** Records Riot no longer provides (or never had the figures): marked, not asked for again. */
   unavailable: number;
-  /** Records Riot could not serve this run (by match id): passed over, asked for again next time. */
+  /** Records Riot could not serve this run (by match id): passed over, asked for again next time (recordFailure). */
   skipped: string[];
   /** Why the run stopped early, if it did (a refusal, an error, the time budget). */
   stoppedBy: string | null;
@@ -127,6 +125,12 @@ export async function backfillFigures(db: Db, client: RiotApiClient, options: { 
     try {
       match = await client.match(platform, matchId);
     } catch (err) {
+      if (err instanceof RiotDeadlineError) {
+        // The client's deadline: Riot's rate limits would have kept the request waiting past the
+        // run's budget. The same stop as the time check above, nothing marked.
+        result.stoppedBy = "time budget";
+        break;
+      }
       const kind = recordFailure(err);
       if (kind === "unavailable") {
         checked.push(matchId);
@@ -134,6 +138,7 @@ export async function backfillFigures(db: Db, client: RiotApiClient, options: { 
         continue;
       }
       options.log?.(`${matchId}: ${(err as Error).message}`);
+      // A record Riot cannot serve right now: passed over, a few a run, asked for again next time.
       if (kind === "skip" && result.skipped.length < MAX_SKIPPED_RECORDS) {
         result.skipped.push(matchId);
         continue;

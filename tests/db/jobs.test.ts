@@ -1,12 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
+import type { Db } from "@/server/db/types";
 import { dataRefreshStatus, jobRuns } from "@/server/db/schema";
-import { INTERRUPTED_RUN_MESSAGE, JOB_STALE_RUNNING_MS, getRefreshStatuses, startJobRun, type JobKey } from "@/server/ops/refresh-status";
-import { TICK_JOB_ORDER, defineJob, getJob, runJob, runTick, setScheduleOverrides } from "@/server/jobs";
+import { JOB_STALE_RUNNING_MS, getRefreshStatuses, startJobRun, type JobKey } from "@/server/ops/refresh-status";
 import { getDataHealth } from "@/server/ops/status";
 import { runMigrations } from "@/server/db/migrator";
+import { TICK_JOB_ORDER, defineJob, getJob, runJob, runTick, setScheduleOverrides } from "@/server/jobs";
 
 let handle: DbHandle;
 beforeAll(async () => {
@@ -80,13 +81,91 @@ describe("job status reads", () => {
   });
 });
 
+/** Makes a job's open run look as if its process was killed `minutes` ago: the status row and the run row. */
+async function killOpenRun(db: Db, key: JobKey, minutes: number) {
+  const at = new Date(Date.now() - minutes * 60_000);
+  await db.update(dataRefreshStatus).set({ lastStartedAt: at }).where(eq(dataRefreshStatus.key, key));
+  await db.update(jobRuns).set({ startedAt: at }).where(and(eq(jobRuns.job, key), isNull(jobRuns.finishedAt)));
+}
+const statusOf = async (db: Db, key: string) => (await db.select().from(dataRefreshStatus).where(eq(dataRefreshStatus.key, key)))[0]!;
+
+describe("interrupted runs", () => {
+  it("count as failed runs once the next run finds them, so a job killed on every run is reported as failing", async () => {
+    const db = handle.db;
+    const key: JobKey = "skin-audit";
+    // Every run is killed before it finishes (a function timeout, a crash): none records an outcome.
+    expect(await startJobRun(db, key, "test")).not.toBeNull();
+    for (let killed = 1; killed <= 3; killed++) {
+      await killOpenRun(db, key, 20);
+      expect(await startJobRun(db, key, "test")).not.toBeNull();
+      const s = await statusOf(db, key);
+      expect(s.status).toBe("running");
+      expect(s.consecutiveFailures).toBe(killed);
+      expect(s.lastFailureAt).not.toBeNull();
+    }
+    // Each run that died is closed as a failed run; only the live one is still open.
+    const runs = await db.select().from(jobRuns).where(eq(jobRuns.job, key)).orderBy(asc(jobRuns.id));
+    expect(runs.map((r) => r.ok)).toEqual(["false", "false", "false", null]);
+    for (const r of runs.slice(0, 3)) {
+      expect(r.finishedAt).not.toBeNull();
+      expect(r.error).toMatch(/interrupted/);
+    }
+    // Admin Mode says so while the fourth attempt runs, and once that one has died too.
+    expect((await getDataHealth(db)).warnings).toContain(`${key} has failed 3 times in a row`);
+    await killOpenRun(db, key, 20);
+    expect((await getDataHealth(db)).warnings).toContain(`${key} has failed 4 times in a row`);
+    // A run that finishes resets the count.
+    const finish = await startJobRun(db, key, "test");
+    expect((await statusOf(db, key)).consecutiveFailures).toBe(4);
+    await finish!({ ok: true, summary: {} });
+    expect((await statusOf(db, key)).consecutiveFailures).toBe(0);
+    expect((await getDataHealth(db)).warnings.filter((w) => w.startsWith(key))).toEqual([]);
+  });
+
+  it("never count a run of a concurrent job that is still going", async () => {
+    const db = handle.db;
+    const a = await startJobRun(db, "perf-probe", "test", { allowConcurrent: true });
+    const b = await startJobRun(db, "perf-probe", "test", { allowConcurrent: true });
+    expect((await statusOf(db, "perf-probe")).consecutiveFailures).toBe(0);
+    await a!({ ok: true });
+    await b!({ ok: true });
+    expect(await db.select().from(jobRuns).where(and(eq(jobRuns.job, "perf-probe"), isNull(jobRuns.finishedAt)))).toEqual([]);
+  });
+
+  it("are counted by the daily housekeeping too, which closes every run left open", async () => {
+    const db = handle.db;
+    const key: JobKey = "db-usage";
+    expect(await startJobRun(db, key, "test")).not.toBeNull();
+    await killOpenRun(db, key, 40);
+    // A run of another job left open long ago, whose status row has moved on since.
+    const [orphan] = await db.insert(jobRuns).values({ job: "egress", trigger: "tick", startedAt: new Date(Date.now() - 2 * 86_400_000) }).returning({ id: jobRuns.id });
+    const result = await runJob(db, "integrity", "test");
+    expect(result.ok).toBe(true);
+    expect((result.summary as { unstuck: string[] }).unstuck).toEqual([key]);
+    const s = await statusOf(db, key);
+    expect(s.status).toBe("failed");
+    expect(s.consecutiveFailures).toBe(1);
+    expect(s.lastError).toMatch(/interrupted/);
+    const closed = await db.select().from(jobRuns).where(inArray(jobRuns.job, [key, "egress"]));
+    expect(closed.map((r) => r.id)).toContain(orphan!.id);
+    for (const r of closed) {
+      expect(r.ok, r.job).toBe("false");
+      expect(r.finishedAt, r.job).not.toBeNull();
+      expect(r.error, r.job).toMatch(/interrupted/);
+    }
+    // The next run starts normally and does not count the same run twice.
+    const next = await startJobRun(db, key, "test");
+    expect((await statusOf(db, key)).consecutiveFailures).toBe(1);
+    await next!({ ok: true });
+  });
+});
+
 /*
-  Failed and interrupted runs. A job that throws is one failed run, not a failed tick; a run whose
-  process died keeps its key for a bounded time only; and two schedulers starting at the same
-  moment run the work once. Each test sets up and removes its own rows; the first also replaces a
-  job definition in the (module-wide) registry and puts the real one back.
+  Failed runs. A job that throws is one failed run, not a failed tick, and two schedulers starting
+  at the same moment run the work once. The first test replaces a job definition in the
+  (module-wide) registry and puts the real one back.
 */
-describe("failed and interrupted runs", () => {
+describe("failed runs and simultaneous starts", () => {
   it("a tick carries on past a job that throws, records the failure, and the next good run clears it", async () => {
     const db = handle.db;
     // Any job would do; the first in the tick order makes the point best: everything after it still runs.
@@ -97,7 +176,7 @@ describe("failed and interrupted runs", () => {
       await db.delete(dataRefreshStatus).where(eq(dataRefreshStatus.key, key));
       // The Riot jobs stay out of this tick (disabled), so nothing here reaches Riot; `force`
       // still runs the two under test.
-      await setScheduleOverrides(db, { intervals: { "account-sync": 0, "rank-checks": 0, "timeline-backfill": 0, "figures-backfill": 0 } });
+      await setScheduleOverrides(db, { intervals: { "rank-watch": 0, "account-sync": 0, "rank-checks": 0, "timeline-backfill": 0, "figures-backfill": 0 } });
       defineJob({
         ...original,
         run: async () => {
@@ -134,43 +213,6 @@ describe("failed and interrupted runs", () => {
     }
   });
 
-  it("the integrity job frees a run left running by a dead process and leaves a recent one alone", async () => {
-    const db = handle.db;
-    const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000);
-    // What a killed process leaves behind: "running", with the time it started and nothing since.
-    const leftRunning = (key: JobKey, lastStartedAt: Date) =>
-      db
-        .insert(dataRefreshStatus)
-        .values({ key, status: "running", lastStartedAt, updatedAt: lastStartedAt })
-        .onConflictDoUpdate({ target: dataRefreshStatus.key, set: { status: "running", lastStartedAt, lastError: null, lastFailureAt: null, updatedAt: lastStartedAt } });
-    const statusOf = async (key: JobKey) => (await db.select().from(dataRefreshStatus).where(eq(dataRefreshStatus.key, key)))[0]!;
-    try {
-      // Two thresholds: a claim treats a run as dead after JOB_STALE_RUNNING_MS (15 minutes, the
-      // first test above); the housekeeping marks it failed after 30 minutes.
-      await leftRunning("account-sync", minutesAgo(31));
-      await leftRunning("rank-checks", minutesAgo(5));
-      // Five minutes in, someone is running it: a second start is refused.
-      expect(await startJobRun(db, "rank-checks", "test")).toBeNull();
-
-      const result = await runJob(db, "integrity", "test");
-      expect(result.ok).toBe(true);
-      expect((result.summary as { unstuck: string[] }).unstuck).toEqual(["account-sync"]);
-      const freed = await statusOf("account-sync");
-      expect(freed.status).toBe("failed");
-      expect(freed.lastError).toMatch(/interrupted/);
-      expect(freed.lastFailureAt).toBeInstanceOf(Date);
-      expect(await statusOf("rank-checks")).toMatchObject({ status: "running", lastError: null, lastFailureAt: null });
-
-      // Marked failed, the key is free: the next run claims it.
-      const claim = await startJobRun(db, "account-sync", "test");
-      expect(claim).not.toBeNull();
-      await claim!({ ok: true, summary: {} });
-      expect((await statusOf("account-sync")).status).toBe("ok");
-    } finally {
-      await db.delete(dataRefreshStatus).where(inArray(dataRefreshStatus.key, ["account-sync", "rank-checks"]));
-    }
-  });
-
   it("exactly one of two simultaneous starts claims a job, and the key is free again once it finishes", async () => {
     const db = handle.db;
     const recordedRuns = async () => (await db.select({ id: jobRuns.id }).from(jobRuns).where(eq(jobRuns.job, "timeline-backfill"))).length;
@@ -189,50 +231,6 @@ describe("failed and interrupted runs", () => {
       await next!({ ok: true, summary: {} });
     } finally {
       await db.delete(dataRefreshStatus).where(eq(dataRefreshStatus.key, "timeline-backfill"));
-    }
-  });
-
-  it("records a run whose process died when its key is taken over: a failure counted, its open run closed", async () => {
-    const db = handle.db;
-    const key: JobKey = "figures-backfill";
-    const died = new Date(Date.now() - JOB_STALE_RUNNING_MS - 60_000);
-    try {
-      await db.insert(dataRefreshStatus).values({ key, status: "running", lastStartedAt: died, consecutiveFailures: 0, updatedAt: died }).onConflictDoUpdate({ target: dataRefreshStatus.key, set: { status: "running", lastStartedAt: died, consecutiveFailures: 0, lastError: null, lastFailureAt: null } });
-      const [open] = await db.insert(jobRuns).values({ job: key, trigger: "tick", startedAt: died }).returning({ id: jobRuns.id });
-      const finish = await startJobRun(db, key, "test");
-      expect(finish).not.toBeNull();
-      const [taken] = await db.select().from(dataRefreshStatus).where(eq(dataRefreshStatus.key, key));
-      expect(taken).toMatchObject({ status: "running", consecutiveFailures: 1, lastError: INTERRUPTED_RUN_MESSAGE });
-      expect(taken!.lastFailureAt?.getTime()).toBe(died.getTime());
-      const [closed] = await db.select().from(jobRuns).where(eq(jobRuns.id, open!.id));
-      expect(closed).toMatchObject({ ok: "false", error: INTERRUPTED_RUN_MESSAGE });
-      expect(closed!.finishedAt).toBeInstanceOf(Date);
-      // The new run is its own open row, and finishes as usual.
-      expect((await db.select().from(jobRuns).where(and(eq(jobRuns.job, key), isNull(jobRuns.finishedAt)))).length).toBe(1);
-      await finish!({ ok: true, summary: {} });
-      expect((await db.select().from(dataRefreshStatus).where(eq(dataRefreshStatus.key, key)))[0]).toMatchObject({ status: "ok", consecutiveFailures: 0 });
-      expect((await db.select().from(jobRuns).where(and(eq(jobRuns.job, key), isNull(jobRuns.finishedAt)))).length).toBe(0);
-    } finally {
-      await db.delete(jobRuns).where(eq(jobRuns.job, key));
-      await db.delete(dataRefreshStatus).where(eq(dataRefreshStatus.key, key));
-    }
-  });
-
-  it("the housekeeping frees a run after the same time a new run would take its key over, and records it the same way", async () => {
-    const db = handle.db;
-    const key: JobKey = "timeline-backfill";
-    // Between the takeover time and the old 30-minute rule: before, such a run was neither taken over nor freed by the housekeeping.
-    const died = new Date(Date.now() - JOB_STALE_RUNNING_MS - 60_000);
-    try {
-      await db.insert(dataRefreshStatus).values({ key, status: "running", lastStartedAt: died, updatedAt: died }).onConflictDoUpdate({ target: dataRefreshStatus.key, set: { status: "running", lastStartedAt: died, consecutiveFailures: 0, lastError: null, lastFailureAt: null } });
-      const [open] = await db.insert(jobRuns).values({ job: key, trigger: "tick", startedAt: died }).returning({ id: jobRuns.id });
-      const result = await runJob(db, "integrity", "test");
-      expect((result.summary as { unstuck: string[] }).unstuck).toContain(key);
-      expect((await db.select().from(dataRefreshStatus).where(eq(dataRefreshStatus.key, key)))[0]).toMatchObject({ status: "failed", consecutiveFailures: 1, lastError: INTERRUPTED_RUN_MESSAGE });
-      expect((await db.select().from(jobRuns).where(eq(jobRuns.id, open!.id)))[0]).toMatchObject({ ok: "false", error: INTERRUPTED_RUN_MESSAGE });
-    } finally {
-      await db.delete(jobRuns).where(eq(jobRuns.job, key));
-      await db.delete(dataRefreshStatus).where(eq(dataRefreshStatus.key, key));
     }
   });
 });

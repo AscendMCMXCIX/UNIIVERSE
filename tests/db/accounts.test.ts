@@ -1,13 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { accountChampionHistory, accountMatches, patches, type HistoryBackfill } from "@/server/db/schema";
+import { accountChampionHistory, accountMatches, champions, patches } from "@/server/db/schema";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
-import { AccountError, addAccount, listAccountsForPlayer, parseRiotId, type RiotAccountRecord } from "@/server/accounts/repository";
-import { seasonListStart, syncAccount, type AccountSyncOptions, type AccountSyncResult } from "@/server/accounts/sync";
+import { AccountError, addAccount, listAccountsForPlayer, parseRiotId } from "@/server/accounts/repository";
+import { seasonListStart, syncAccount } from "@/server/accounts/sync";
 import { RiotApiClient } from "@/server/riot/api/client";
 import { RateLimiter } from "@/server/riot/api/rate-limiter";
 import { getProficiencyLookup, invalidateProficiencyCache } from "@/server/proficiency/service";
@@ -23,7 +23,14 @@ afterAll(async () => {
   await handle.close();
 });
 
-function fakeFetch(puuid: string, matches: Record<string, { champion: string; role: string; win: boolean; queue: number; created: number; version?: string }>, options: { activeRegion?: string | null; down?: boolean; calls?: string[] } = {}) {
+/**
+ * One game the fake Riot serves. `championKey` overrides the champion's key (a champion missing
+ * from the champions table); `answer` makes its match request fail: 404 (Riot does not have it),
+ * 503 (Riot's servers failing) or "unreadable" (an answer that is not a readable match).
+ */
+type GameSpec = { champion: string; role: string; win: boolean; queue: number; created: number; version?: string; championKey?: number; answer?: 404 | 503 | "unreadable" };
+
+function fakeFetch(puuid: string, matches: Record<string, GameSpec>, options: { activeRegion?: string | null; down?: boolean; calls?: string[] } = {}) {
   return async (input: string | URL | Request): Promise<Response> => {
     const url = String(input);
     options.calls?.push(url);
@@ -57,10 +64,12 @@ function fakeFetch(puuid: string, matches: Record<string, { champion: string; ro
     const m = /\/lol\/match\/v5\/matches\/([^/?]+)$/.exec(url);
     if (m) {
       const spec = matches[decodeURIComponent(m[1]!)];
-      if (!spec) return json({}, 404);
+      if (!spec || spec.answer === 404) return json({ status: { message: "Data not found - match file not found", status_code: 404 } }, 404);
+      if (spec.answer === 503) return json({ status: { message: "Service unavailable", status_code: 503 } }, 503);
       const positions = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
-      const participants = Array.from({ length: 10 }, (_, i) => ({ puuid: i === 0 ? puuid : `other-${i}`, teamId: i < 5 ? 100 : 200, championId: i === 0 ? keyOf(spec.champion) : keyOf("Ahri") + i, teamPosition: i === 0 ? spec.role : positions[i % 5], win: i < 5 ? spec.win : !spec.win, kills: 1, deaths: 1, assists: 1, totalMinionsKilled: 150, neutralMinionsKilled: 30, totalDamageDealtToChampions: 21000, visionScore: 25 }));
-      return json({ metadata: { matchId: m[1] }, info: { gameCreation: spec.created, gameDuration: 1800, gameVersion: spec.version ?? "16.19.1.1", queueId: spec.queue, teams: [], participants } });
+      const participants = Array.from({ length: 10 }, (_, i) => ({ puuid: i === 0 ? puuid : `other-${i}`, teamId: i < 5 ? 100 : 200, championId: i === 0 ? (spec.championKey ?? keyOf(spec.champion)) : keyOf("Ahri") + i, teamPosition: i === 0 ? spec.role : positions[i % 5], win: i < 5 ? spec.win : !spec.win, kills: 1, deaths: 1, assists: 1, totalMinionsKilled: 150, neutralMinionsKilled: 30, totalDamageDealtToChampions: 21000, visionScore: 25 }));
+      // "unreadable": the game's version is empty, which the match schema refuses.
+      return json({ metadata: { matchId: m[1] }, info: { gameCreation: spec.created, gameDuration: 1800, gameVersion: spec.answer === "unreadable" ? "" : (spec.version ?? "16.19.1.1"), queueId: spec.queue, teams: [], participants } });
     }
     return json({}, 404);
   };
@@ -298,125 +307,242 @@ describe("riot accounts", () => {
   });
 });
 
-type MatchSpec = { champion: string; role: string; win: boolean; queue: number; created: number; version?: string };
+describe("season history: gaps and games that cannot be stored", () => {
+  const NOW = Date.UTC(2026, 9, 20);
+  const HOUR = 3_600_000;
 
-/** A season like the paging test's: 130 Ranked Solo/Duo games, 30 Normal Draft and 12 Swiftplay. The prefix keeps each account's match ids its own. */
-function seasonGames(prefix: string, now: number): Record<string, MatchSpec> {
-  const day = 86_400_000;
-  const matches: Record<string, MatchSpec> = {};
-  for (let i = 0; i < 130; i++) matches[`${prefix}_S${i}`] = { champion: i % 3 ? "Ahri" : "Syndra", role: "MIDDLE", win: i % 2 === 0, queue: 420, created: now - (i + 1) * day * 2, version: "16.10.1.1" };
-  for (let i = 0; i < 30; i++) matches[`${prefix}_N${i}`] = { champion: "Ahri", role: "MIDDLE", win: true, queue: 400, created: now - (i + 1) * day * 3, version: "16.8.1.1" };
-  for (let i = 0; i < 12; i++) matches[`${prefix}_W${i}`] = { champion: "Orianna", role: "MIDDLE", win: false, queue: 480, created: now - (i + 1) * day, version: "16.19.1.1" };
-  return matches;
-}
-
-/*
-  How a season's match lists are paged (accounts/sync.ts, collectSeasonHistory). Riot lists a
-  queue's ids newest first, 100 a page. Each run reads page 0 of every queue (new games first),
-  then resumes each unfinished queue from its stored offset. The offset only moves once a page is
-  stored in full, so a run that stops in the middle of a page lists it again next time (stored ids
-  cost nothing); a page shorter than 100 ends the queue's list. These tests pin that state after
-  every run, because a wrong offset silently loses games for the rest of the season.
-*/
-describe("season paging", () => {
-  const now = Date.UTC(2026, 9, 14);
-  const at = new Date(now).toISOString();
-  const riot = (puuid: string, matches: Record<string, MatchSpec>) => new RiotApiClient({ apiKey: "k", fetchImpl: fakeFetch(puuid, matches), limiter: new RateLimiter([{ requests: 10_000, seconds: 1 }]), sleep: async () => {} });
-
-  /** A player with one freshly linked account. */
-  async function freshAccount(name: string): Promise<RiotAccountRecord> {
+  async function linkedAccount(name: string) {
     const db = handle.db;
     const team = await getOrCreateTeam(db);
     const player = await createPlayer(db, team.id, { displayName: name, primaryRole: "MID", primaryPool: ["Ahri"] });
-    return addAccount(db, { ownerType: "player", playerId: player.id, riotId: `${name}#OCE`, platform: "oc1" });
+    const account = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: `${name}#OCE`, platform: "oc1" });
+    return {
+      account,
+      reload: async () => (await listAccountsForPlayer(db, player.id)).find((a) => a.id === account.id)!,
+      stored: async () => new Map((await db.select().from(accountMatches).where(eq(accountMatches.accountId, account.id))).map((r) => [r.matchId, r])),
+    };
   }
-  const latest = async (account: RiotAccountRecord): Promise<RiotAccountRecord> => (await listAccountsForPlayer(handle.db, account.playerId!)).find((a) => a.id === account.id)!;
-  /** Syncs until the season is complete (at most six runs): each run's result and the state it left the account in. */
-  async function collect(account: RiotAccountRecord, client: RiotApiClient, opts: AccountSyncOptions): Promise<{ runs: AccountSyncResult[]; states: HistoryBackfill[]; account: RiotAccountRecord }> {
-    const runs: AccountSyncResult[] = [];
-    const states: HistoryBackfill[] = [];
-    let current = await latest(account);
-    for (let i = 0; i < 6; i++) {
-      runs.push(await syncAccount(handle.db, client, current, opts));
-      current = await latest(current);
-      states.push(current.historyBackfill!);
-      if (runs.at(-1)!.history?.complete) break;
-    }
-    return { runs, states, account: current };
-  }
-  const storedIds = async (accountId: string) => (await handle.db.select({ matchId: accountMatches.matchId }).from(accountMatches).where(eq(accountMatches.accountId, accountId))).map((r) => r.matchId).sort();
+  const clientFor = (puuid: string, matches: Record<string, GameSpec>, calls?: string[]) => new RiotApiClient({ apiKey: "k", fetchImpl: fakeFetch(puuid, matches, { calls }), limiter: new RateLimiter([{ requests: 10_000, seconds: 1 }]), sleep: async () => {} });
+  const solo = (hoursAgo: number, extra: Partial<GameSpec> = {}): GameSpec => ({ champion: "Ahri", role: "MIDDLE", win: true, queue: 420, created: NOW - hoursAgo * HOUR, ...extra });
 
-  it("moves a queue's offset only once a page is stored in full, and marks the season complete when every queue's list ran out", async () => {
-    const account = await freshAccount("Paging Offsets");
-    const { runs, states } = await collect(account, riot("puuid-paging-offsets", seasonGames("OC1_PO", now)), { season: 16, maxMatchesPerRun: 60, now: () => new Date(now) });
-    expect(runs.map((r) => r.matchesFolded)).toEqual([60, 60, 52]);
-    // Run 1: page 0 of Solo/Duo lists 100 ids, but the run's 60 fetches end before the page is
-    // stored in full, so its offset stays 0 (the page is listed again next run) and no other queue
-    // is reached: Riot was asked once about one queue.
-    expect(states[0]!.queues).toEqual({ "420": { offset: 0, done: false, checkedAt: at } });
-    expect(states[0]!.completedAt).toBeNull();
-    // Run 2: the 40 games left on that page finish it (offset 100; not done, a full page may have
-    // more behind it). Ranked Flex lists nothing: done at 0. Normal Draft lists 30 and the last 20
-    // fetches take 20 of them, so its offset also stays 0. The queues after it are not reached,
-    // and the budget is gone before Solo/Duo could resume from 100.
-    expect(states[1]!.queues).toEqual({ "420": { offset: 100, done: false, checkedAt: at }, "440": { offset: 0, done: true, checkedAt: at }, "400": { offset: 0, done: false, checkedAt: at } });
-    expect(states[1]!.completedAt).toBeNull();
-    // Run 3: Normal Draft's other 10 end its list (a short page: done at 30), Swiftplay's 12 end
-    // theirs, the queues without a game are done at 0 (Flex, answered within the last twelve hours,
-    // is not asked again), then Solo/Duo resumes from 100: 30 more ids, a short page, done at 130.
-    // Every queue done: the season is complete, with each queue's offset equal to its games.
-    expect(states[2]).toEqual({
-      season: 16,
-      startedAt: at,
-      completedAt: at,
-      queues: { "420": { offset: 130, done: true, checkedAt: at }, "440": { offset: 0, done: true, checkedAt: at }, "400": { offset: 30, done: true, checkedAt: at }, "430": { offset: 0, done: true, checkedAt: at }, "480": { offset: 12, done: true, checkedAt: at }, "490": { offset: 0, done: true, checkedAt: at }, "700": { offset: 0, done: true, checkedAt: at } },
-    });
-    expect(runs.at(-1)!.history).toEqual({ season: 16, complete: true, queuesDone: 7, queues: 7 });
+  it("collects every game of a long gap between syncs, more than one run fetches and more than the newest page holds", async () => {
+    const { account, reload, stored } = await linkedAccount("Gap Player");
+    const matches: Record<string, GameSpec> = {};
+    // 150 Solo/Duo games, all collected: the queue's list was read to its end.
+    for (let i = 0; i < 150; i++) matches[`OC1_GAPOLD${i}`] = solo(200 + i);
+    const client = clientFor("puuid-gap", matches);
+    const opts = { season: 16, queueIds: [420], now: () => new Date(NOW) };
+    const first = await syncAccount(handle.db, client, account, { ...opts, maxMatchesPerRun: 200 });
+    expect(first.matchesFolded).toBe(150);
+    expect(first.history).toMatchObject({ complete: true });
+    // No sync for a while, and 130 more games: more than a run fetches (80), more than a page (100).
+    for (let i = 0; i < 130; i++) matches[`OC1_GAPNEW${i}`] = solo(1 + i);
+    const folded: number[] = [];
+    for (let run = 0; run < 4; run++) folded.push((await syncAccount(handle.db, client, await reload(), { ...opts, maxMatchesPerRun: 80 })).matchesFolded);
+    // The newest 80, then the other 50 (20 on the newest page and the 30 beyond it), then nothing left.
+    expect(folded).toEqual([80, 50, 0, 0]);
+    expect((await stored()).size).toBe(280);
+    expect((await reload()).historyBackfill).toMatchObject({ completedAt: expect.any(String), queues: { "420": { done: true } } });
   });
 
-  it("misses nothing when new games push the list down between runs: every game stored once, none fetched twice", async () => {
-    const account = await freshAccount("Paging Shift");
-    const matches = seasonGames("OC1_PS", now);
-    const client = riot("puuid-paging-shift", matches);
-    const opts = { season: 16, maxMatchesPerRun: 60, now: () => new Date(now) };
+  it("records a listed game Riot does not have, or sends in a form that cannot be read, so its queue still finishes; a game Riot cannot serve right now is tried again", async () => {
+    const { account, reload, stored } = await linkedAccount("Refused Player");
+    const matches: Record<string, GameSpec> = {};
+    for (let i = 0; i < 120; i++) matches[`OC1_REF${i}`] = solo(1 + i);
+    matches.OC1_REF5!.answer = 404; // on the newest page
+    matches.OC1_REF100!.answer = "unreadable"; // first on the page after it: a newer stored game is read again first
+    matches.OC1_REF7!.answer = 503; // Riot's servers failing for now
+    const calls: string[] = [];
+    const client = clientFor("puuid-refused", matches, calls);
+    const opts = { season: 16, queueIds: [420], maxMatchesPerRun: 200, now: () => new Date(NOW) };
     const first = await syncAccount(handle.db, client, account, opts);
-    expect(first.matchesFolded).toBe(60);
-    // Three Solo/Duo games played since, newer than everything: the three oldest ids of page 0
-    // (list positions 97–99) move to page 1, behind the offset the next run records.
-    for (let i = 0; i < 3; i++) matches[`OC1_PS_NEW${i}`] = { champion: "Ahri", role: "MIDDLE", win: true, queue: 420, created: now - (3 - i) * 3_600_000, version: "16.20.1.1" };
-    const { runs, account: after } = await collect(account, client, opts);
-    expect(runs.map((r) => r.matchesFolded)).toEqual([60, 55]);
-    expect(await storedIds(account.id)).toEqual(Object.keys(matches).sort());
-    const all = [first, ...runs];
-    expect(all.reduce((n, r) => n + r.matchesFolded, 0)).toBe(175);
-    expect(all.reduce((n, r) => n + r.matchesFetched, 0)).toBe(175);
-    expect(after.historyBackfill?.queues["420"]).toEqual({ offset: 133, done: true, checkedAt: at });
+    // The first run records the 404 and stops at the 503, which is not recorded.
+    expect(first.history).toMatchObject({ complete: false });
+    let rows = await stored();
+    expect(rows.get("OC1_REF5")).toMatchObject({ championId: null, gameCreation: 0, queueId: 420 });
+    expect(rows.has("OC1_REF7")).toBe(false);
+    delete matches.OC1_REF7!.answer;
+    const runs = [first];
+    for (let run = 0; run < 3 && !runs.at(-1)!.history?.complete; run++) runs.push(await syncAccount(handle.db, client, await reload(), opts));
+    expect(runs.at(-1)!.history).toMatchObject({ complete: true });
+    rows = await stored();
+    expect(rows.size).toBe(120);
+    expect(rows.get("OC1_REF7")).toMatchObject({ championId: "Ahri" });
+    expect(rows.get("OC1_REF100")).toMatchObject({ championId: null, gameCreation: 0, queueId: 420 });
+    expect([...rows.values()].filter((r) => r.championId === "Ahri")).toHaveLength(118);
+    // Neither is asked for again.
+    calls.length = 0;
+    await syncAccount(handle.db, client, await reload(), opts);
+    expect(calls.filter((u) => u.includes("/matches/OC1_REF"))).toEqual([]);
   });
 
-  it("scans back again after a full page of new games, so a long gap between runs skips nothing", async () => {
-    const account = await freshAccount("Paging Rescan");
-    const matches = seasonGames("OC1_PR", now);
-    const client = riot("puuid-paging-rescan", matches);
-    const done = await collect(account, client, { season: 16, maxMatchesPerRun: 200, now: () => new Date(now) });
-    expect(done.runs).toHaveLength(1);
-    expect(done.account.historyBackfill?.queues["420"]).toEqual({ offset: 130, done: true, checkedAt: at });
-    // Two days later, 150 Solo/Duo games have been played since: more than a page of new games.
-    const later = now + 2 * 86_400_000;
-    for (let i = 0; i < 150; i++) matches[`OC1_PR_R${i}`] = { champion: "Ahri", role: "MIDDLE", win: i % 2 === 0, queue: 420, created: later - (i + 1) * 600_000, version: "16.20.1.1" };
-    const run = await syncAccount(handle.db, client, done.account, { season: 16, maxMatchesPerRun: 200, now: () => new Date(later) });
-    expect(run.matchesFolded).toBe(150);
-    expect(run.history).toEqual({ season: 16, complete: true, queuesDone: 7, queues: 7 });
-    const state = (await latest(account)).historyBackfill!;
-    // Page 0 was new from end to end (100 of 100), so the queue was scanned back from there: the
-    // page at 100 held the other 50 new games (and 50 stored ones, free), the page at 200 the
-    // remaining 80 stored games, a short page. Done at 280: the whole list, nothing to resume.
-    expect(state.queues["420"]).toEqual({ offset: 280, done: true, checkedAt: new Date(later).toISOString() });
-    expect(state.completedAt).toBe(at);
-    expect(await storedIds(account.id)).toEqual(Object.keys(matches).sort());
-    // Without the rescan, a full page of new games would leave the queue done at its old offset
-    // (130, now deep inside the new games): no run reads a done queue's later pages and page 0
-    // only ever shows the newest 100, so the 50 new games at list positions 100–149 would be
-    // missing for the rest of the season.
+  it("leaves a queue's newest game for later when Riot does not have it (it may still be preparing it), without holding the queue, and records it once a newer game is read", async () => {
+    const { account, reload, stored } = await linkedAccount("Newest Player");
+    const matches: Record<string, GameSpec> = {};
+    for (let i = 0; i < 5; i++) matches[`OC1_TOP${i}`] = solo(1 + i, { queue: 440 });
+    matches.OC1_TOP0!.answer = 404;
+    const calls: string[] = [];
+    const client = clientFor("puuid-newest", matches, calls);
+    const opts = { season: 16, queueIds: [440], now: () => new Date(NOW) };
+    const first = await syncAccount(handle.db, client, account, opts);
+    expect(first.matchesFolded).toBe(4);
+    expect(first.history).toMatchObject({ complete: true });
+    expect((await stored()).has("OC1_TOP0")).toBe(false);
+    // Asked for again by the next run, still not recorded.
+    calls.length = 0;
+    await syncAccount(handle.db, client, await reload(), opts);
+    expect(calls.filter((u) => u.includes("/matches/OC1_TOP0"))).toHaveLength(1);
+    expect((await stored()).has("OC1_TOP0")).toBe(false);
+    // A newer game is read: the missing one is a problem of that game alone, recorded once.
+    matches.OC1_TOPNEXT = solo(-1, { queue: 440 });
+    const next = await syncAccount(handle.db, client, await reload(), { ...opts, now: () => new Date(NOW + 2 * HOUR) });
+    expect(next.matchesFolded).toBe(1);
+    expect((await stored()).get("OC1_TOP0")).toMatchObject({ championId: null, gameCreation: 0 });
+    calls.length = 0;
+    await syncAccount(handle.db, client, await reload(), { ...opts, now: () => new Date(NOW + 3 * HOUR) });
+    expect(calls.filter((u) => u.includes("/matches/OC1_TOP"))).toEqual([]);
+  });
+
+  it("keeps a finished queue finished when Riot fails at its newest game, and reads a newer stored game again before recording one Riot refuses", async () => {
+    const { account, reload, stored } = await linkedAccount("Outage Player");
+    const matches: Record<string, GameSpec> = { OC1_OUT3: solo(30), OC1_OUT4: solo(40) };
+    const calls: string[] = [];
+    const client = clientFor("puuid-outage", matches, calls);
+    const opts = { season: 16, queueIds: [420], now: () => new Date(NOW) };
+    expect((await syncAccount(handle.db, client, account, opts)).history).toMatchObject({ complete: true });
+    // Riot failing at the newest game: the games still to fetch are the newest, nothing can move
+    // past them, so the queue stays finished and the next run finds them at the top.
+    matches.OC1_OUT1 = solo(2, { answer: 503 });
+    matches.OC1_OUT2 = solo(3);
+    expect((await syncAccount(handle.db, client, await reload(), opts)).history).toMatchObject({ complete: true });
+    expect((await stored()).has("OC1_OUT2")).toBe(false);
+    // Riot serves the newest again but fails at the one below it: the queue stays finished, marked
+    // for a rescan of its older pages once a later run completes the newest page.
+    delete matches.OC1_OUT1!.answer;
+    matches.OC1_OUT2!.answer = 503;
+    const partial = await syncAccount(handle.db, client, await reload(), opts);
+    expect(partial.matchesFolded).toBe(1);
+    expect(partial.history).toMatchObject({ complete: true });
+    expect((await reload()).historyBackfill?.queues["420"]).toMatchObject({ done: true, rescan: true });
+    // Then Riot says it does not have that game. Nothing newer was read in this run, so the stored
+    // game above it is read again first; it reads, so the refusal is that game's own: recorded.
+    matches.OC1_OUT2!.answer = 404;
+    calls.length = 0;
+    const last = await syncAccount(handle.db, client, await reload(), opts);
+    expect(calls.filter((u) => u.includes("/matches/OC1_OUT1"))).toHaveLength(1);
+    expect((await stored()).get("OC1_OUT2")).toMatchObject({ championId: null, gameCreation: 0 });
+    expect(last.history).toMatchObject({ complete: true });
+    // The newest page completed, so the rescan ran and is cleared.
+    expect((await reload()).historyBackfill?.queues["420"]?.rescan).toBeUndefined();
+  });
+
+  it("records a game Riot refuses for good when only a game stored without a champion (a remake) sits above it", async () => {
+    const { account, reload, stored } = await linkedAccount("Remake Player");
+    const matches: Record<string, GameSpec> = { OC1_RM3: solo(30) };
+    const calls: string[] = [];
+    const client = clientFor("puuid-remake", matches, calls);
+    const opts = { season: 16, queueIds: [420], now: () => new Date(NOW) };
+    expect((await syncAccount(handle.db, client, account, opts)).history).toMatchObject({ complete: true });
+    // The newest game was a remake (stored without a champion); the one below it Riot refuses for good.
+    matches.OC1_RM1 = solo(1);
+    await handle.db.insert(accountMatches).values({ accountId: account.id, matchId: "OC1_RM1", gameCreation: matches.OC1_RM1.created, queueId: 420 });
+    matches.OC1_RM2 = solo(2, { answer: 404 });
+    calls.length = 0;
+    const r = await syncAccount(handle.db, client, await reload(), opts);
+    // The remake above shows it is not the season's newest game: the queue's newest folded game is
+    // read for the check, and the refusal is recorded, so the queue finishes.
+    expect(calls.filter((u) => u.includes("/matches/OC1_RM3"))).toHaveLength(1);
+    expect((await stored()).get("OC1_RM2")).toMatchObject({ championId: null, gameCreation: 0 });
+    expect(r.history).toMatchObject({ complete: true });
+    expect((await reload()).historyBackfill?.queues["420"]?.rescan).toBeUndefined();
+  });
+
+  it("a game Riot fails every time just below the newest leaves a finished queue finished, run after run", async () => {
+    const { account, reload } = await linkedAccount("Stuck Player");
+    const matches: Record<string, GameSpec> = { OC1_ST3: solo(30), OC1_ST4: solo(40) };
+    const client = clientFor("puuid-stuck", matches);
+    const opts = { season: 16, queueIds: [420], now: () => new Date(NOW) };
+    expect((await syncAccount(handle.db, client, account, opts)).history).toMatchObject({ complete: true });
+    matches.OC1_ST1 = solo(2);
+    matches.OC1_ST2 = solo(3, { answer: 503 });
+    for (let run = 0; run < 3; run++) {
+      const r = await syncAccount(handle.db, client, await reload(), opts);
+      // Finished, as before the gap fix: the account is not put back at the front of the sync
+      // queue, and the season statistics are not shown as partial because of one game.
+      expect(r.history).toMatchObject({ complete: true });
+    }
+    expect((await reload()).historyBackfill?.completedAt).not.toBeNull();
+    // Once Riot serves it, the newest page completes, the rescan runs, and the game is stored.
+    delete matches.OC1_ST2!.answer;
+    const fixed = await syncAccount(handle.db, client, await reload(), opts);
+    expect(fixed.matchesFolded).toBe(1);
+    expect(fixed.history).toMatchObject({ complete: true });
+  });
+
+  it("records nothing when no game can be read at all (a format change, or a fault in reading them), and collects everything once reading works again", async () => {
+    const { account, reload, stored } = await linkedAccount("Format Player");
+    const matches: Record<string, GameSpec> = {};
+    for (let i = 0; i < 6; i++) matches[`OC1_FMT${i}`] = solo(1 + i);
+    // The first run stores the newest three and stops at a 503.
+    matches.OC1_FMT3!.answer = 503;
+    const client = clientFor("puuid-format", matches);
+    const opts = { season: 16, queueIds: [420], now: () => new Date(NOW) };
+    await syncAccount(handle.db, client, account, opts);
+    expect([...(await stored()).keys()].sort()).toEqual(["OC1_FMT0", "OC1_FMT1", "OC1_FMT2"]);
+    // Now no game reads, the stored ones included: nothing is recorded as unavailable.
+    for (const m of Object.values(matches)) m.answer = "unreadable";
+    for (let run = 0; run < 2; run++) expect((await syncAccount(handle.db, client, await reload(), opts)).history).toMatchObject({ complete: false });
+    expect((await stored()).size).toBe(3);
+    // Reading works again: every game is collected.
+    for (const m of Object.values(matches)) delete m.answer;
+    const back = await syncAccount(handle.db, client, await reload(), opts);
+    expect(back.matchesFolded).toBe(3);
+    expect(back.history).toMatchObject({ complete: true });
+    expect([...(await stored()).values()].filter((r) => r.championId === "Ahri")).toHaveLength(6);
+  });
+
+  it("leaves a game on a champion UNIIVERSE does not know yet for a later run, folds it once the champion list has it, and stops waiting after three days", async () => {
+    const db = handle.db;
+    const { account, reload, stored } = await linkedAccount("Newcomer Player");
+    const matches: Record<string, GameSpec> = {
+      OC1_NCNEW: solo(2, { championKey: 9001 }), // a champion Data Dragon adds below
+      OC1_NCGONE: solo(1, { championKey: 9002 }), // a champion that never appears
+      OC1_NCK1: solo(3, { win: false }),
+      // Played four days ago and still unknown: not waited for (stored without a champion, like a remake).
+      OC1_NCOLD: solo(96, { championKey: 9001 }),
+      OC1_NCK2: solo(120),
+    };
+    const calls: string[] = [];
+    const client = clientFor("puuid-newcomer", matches, calls);
+    const opts = { season: 16, queueIds: [420], now: () => new Date(NOW) };
+    const first = await syncAccount(db, client, account, opts);
+    expect(first.matchesFolded).toBe(2);
+    // The queue is not held by the games left for later.
+    expect(first.history).toMatchObject({ complete: true });
+    let rows = await stored();
+    expect(rows.has("OC1_NCNEW")).toBe(false);
+    expect(rows.has("OC1_NCGONE")).toBe(false);
+    expect(rows.get("OC1_NCOLD")).toMatchObject({ championId: null });
+    // Data Dragon's new version brings the champion: the next run folds its game.
+    await db.insert(champions).values({ id: "Newcomer", key: 9001, name: "Newcomer", imageFull: "Newcomer.png", firstSeenVersion: "16.20.1", lastSeenVersion: "16.20.1" });
+    try {
+      calls.length = 0;
+      const next = await syncAccount(db, client, await reload(), { ...opts, now: () => new Date(NOW + HOUR) });
+      expect(next.matchesFolded).toBe(1);
+      rows = await stored();
+      expect(rows.get("OC1_NCNEW")).toMatchObject({ championId: "Newcomer", win: true });
+      expect(await db.select().from(accountChampionHistory).where(and(eq(accountChampionHistory.accountId, account.id), eq(accountChampionHistory.championId, "Newcomer")))).toHaveLength(1);
+      // The other is still waited for (asked again), until three days after it was played.
+      expect(calls.filter((u) => u.includes("/matches/OC1_NCGONE"))).toHaveLength(1);
+      expect(rows.has("OC1_NCGONE")).toBe(false);
+      await syncAccount(db, client, await reload(), { ...opts, now: () => new Date(NOW + 4 * 24 * HOUR) });
+      expect((await stored()).get("OC1_NCGONE")).toMatchObject({ championId: null });
+      calls.length = 0;
+      await syncAccount(db, client, await reload(), { ...opts, now: () => new Date(NOW + 4 * 24 * HOUR + HOUR) });
+      expect(calls.filter((u) => u.includes("/matches/OC1_NC"))).toEqual([]);
+    } finally {
+      await db.delete(champions).where(eq(champions.id, "Newcomer"));
+    }
   });
 });
 

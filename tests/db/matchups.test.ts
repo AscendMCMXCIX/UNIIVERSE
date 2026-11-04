@@ -8,8 +8,8 @@ import { syncStaticData } from "@/server/riot/static/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { addAccount } from "@/server/accounts/repository";
 import { getPlayerMatchups, parseMatchupFilter } from "@/server/players/matchups";
-import { backfillTimelines, timelineCoverage } from "@/server/accounts/timeline-backfill";
 import { DETAILS_UNAVAILABLE } from "@/server/accounts/sync";
+import { backfillTimelines, timelineCoverage } from "@/server/accounts/timeline-backfill";
 import { RiotApiClient } from "@/server/riot/api/client";
 import { RateLimiter } from "@/server/riot/api/rate-limiter";
 import { runJob } from "@/server/jobs";
@@ -178,6 +178,22 @@ describe("Matchups for a profile", () => {
     expect(parseMatchupFilter({ role: "TOP" }).role).toBe("TOP");
     expect(parseMatchupFilter({ role: "nonsense" }).role).toBeNull();
   });
+
+  it("shows no kill count for a game whose details Riot no longer serves (kills = -1 is a marker, not a score)", async () => {
+    const db = handle.db;
+    await db.update(accountMatches).set(DETAILS_UNAVAILABLE).where(eq(accountMatches.matchId, "OC1_1"));
+    try {
+      const d = (await getPlayerMatchups(db, playerId, { account: null, mode: "all", champion: "Gwen", vs: "Nasus" })).detail!;
+      // Still in the record (a known result), with no figures shown for it.
+      expect(d).toMatchObject({ games: 4, wins: 2 });
+      expect(d.matches.find((x) => x.matchId === "OC1_1")).toMatchObject({ kills: null, deaths: null, assists: null, cs: null });
+      expect(d.matches.find((x) => x.matchId === "OC1_2")).toMatchObject({ kills: 4, deaths: 2, assists: 5 });
+      const w = await getPlayerMatchups(db, playerId, { account: "all", mode: "all", champion: "Gwen", vs: null, exact: true });
+      expect(w.lane!.recent.find((x) => x.matchId === "OC1_1")!.kills).toBeNull();
+    } finally {
+      await db.update(accountMatches).set({ kills: 4, deaths: 2, assists: 5, cs: 200 }).where(eq(accountMatches.matchId, "OC1_1"));
+    }
+  });
 });
 
 describe("timeline backfill", () => {
@@ -228,6 +244,28 @@ describe("timeline backfill", () => {
     const refused = await backfillTimelines(db, client, { limit: 5, deadline: Date.now() + 60_000 });
     expect(refused.fetched).toBe(0);
     expect(refused.stoppedBy).toMatch(/429/);
+    const [still] = await db.select().from(matchTimelines).where(eq(matchTimelines.matchId, "OC1_3"));
+    expect(still!.frames).toBeNull();
+  });
+
+  it("stops for time, not as a refusal, when Riot's rate limits would keep the next request waiting past the deadline", async () => {
+    const db = handle.db;
+    let t = Date.now();
+    const now = () => t;
+    const sleep = async (ms: number) => void (t += ms);
+    const limiter = new RateLimiter([{ requests: 100, seconds: 120 }], now, sleep);
+    // A 429 has just paused the key for 90 s; the run has 25 s.
+    limiter.pause(90);
+    const calls: string[] = [];
+    const fetchImpl = async (input: string | URL | Request) => {
+      calls.push(String(input));
+      return new Response(JSON.stringify({ status: { message: "not found" } }), { status: 404, headers: { "content-type": "application/json" } });
+    };
+    const client = new RiotApiClient({ apiKey: "k", fetchImpl, limiter, now, sleep, maxRetries: 0, deadline: t + 25_000 });
+    const run = await backfillTimelines(db, client, { limit: 5, deadline: t + 25_000 });
+    expect(run).toEqual({ fetched: 0, unavailable: 0, skipped: [], stoppedBy: "time budget" });
+    expect(calls).toHaveLength(0);
+    // Nothing is recorded as unavailable: the timeline is asked for again next run.
     const [still] = await db.select().from(matchTimelines).where(eq(matchTimelines.matchId, "OC1_3"));
     expect(still!.frames).toBeNull();
   });

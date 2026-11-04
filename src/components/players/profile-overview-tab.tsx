@@ -14,7 +14,8 @@ import { seasonLabel } from "@/domain/season";
 import { ProfilePools } from "./profile-pools";
 import { FirstRole } from "@/components/profile/first-role";
 import { loadRankHistory } from "@/server/accounts/rank-history";
-import { RankedProgress } from "@/components/players/ranked-progress";
+import { RankedProgress, type RankedProgressHref } from "@/components/players/ranked-progress";
+import { isRankView, type RankView } from "@/domain/rank-timeline";
 import { RecentFormStrip } from "@/components/players/recent-form";
 import { FORM_MIN_GAMES } from "@/domain/recent-form";
 import type { PoolStats } from "@/components/profile/pool-stats";
@@ -75,12 +76,15 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
   // Ranked progress opens on the queue the header's rank comes from (Solo/Duo unless only Flex is ranked).
   const defaultQueue = header.rank?.queue === "flex" ? "flex" : "solo";
   const rankQueue = search.rq === "flex" || search.rq === "solo" ? search.rq : defaultQueue;
-  const rankHref = (change: { rq?: "solo" | "flex"; ra?: string | null }) => {
+  const rankView: RankView = isRankView(search.rv) ? search.rv : "year";
+  const rankHref: RankedProgressHref = (change) => {
     const q = new URLSearchParams(Object.entries(search).filter((e): e is [string, string] => typeof e[1] === "string" && !!e[1]));
     if (change.rq === defaultQueue) q.delete("rq");
     else if (change.rq) q.set("rq", change.rq);
     if (change.ra) q.set("ra", change.ra);
     else if (change.ra === null) q.delete("ra");
+    if (change.rv === "year") q.delete("rv");
+    else if (change.rv) q.set("rv", change.rv);
     const query = q.toString();
     return `${basePath}${query ? `?${query}` : ""}#ranked-progress`;
   };
@@ -159,7 +163,7 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
       status={status}
       refresh={refreshFor(session, player.id, sync, m.games - m.counted - m.unavailable > 0)}
       form={overview.form.season.games >= FORM_MIN_GAMES ? <RecentFormStrip form={overview.form} championsById={championsById} historyHref={`${basePath}/matches`} narrowed={refinementLabel(overview, (id) => championsById[id]?.name ?? id)} /> : null}
-      ranked={rankHistory.accounts.length ? <RankedProgress accounts={rankHistory.accounts} queue={rankQueue} accountId={search.ra ?? null} href={rankHref} now={rankHistory.readAt} /> : null}
+      ranked={rankHistory.accounts.length ? <RankedProgress accounts={rankHistory.accounts} queue={rankQueue} view={rankView} accountId={search.ra ?? null} href={rankHref} now={rankHistory.readAt} /> : null}
       pools={pools}
     />
   );

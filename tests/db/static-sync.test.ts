@@ -7,6 +7,8 @@ import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import type { DdragonChampion, DdragonChampionDetail, StaticDataProvider } from "@/server/riot/static/provider";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { listChampions } from "@/server/repositories/champions";
+import { loadRiotAssets, syncRiotAssets } from "@/server/riot/static/assets";
+import { invalidateCache } from "@/server/observability/cache";
 
 function champ(id: string, key: number, extra: Partial<DdragonChampion> = {}): DdragonChampion {
   return { id, key: String(key), name: id, title: "", tags: ["Fighter"], partype: "Mana", info: { attack: 5, defense: 5, magic: 5, difficulty: 5 }, stats: { attackrange: 125 }, image: { full: `${id}.png` }, ...extra };
@@ -155,4 +157,25 @@ describe("fixture fallback", () => {
     expect(allPatches.map((p) => p.id)).toEqual(["15.19"]);
     await fresh.close();
   });
+});
+
+/*
+  Data Dragon downloads made by the version-check job carry a timeout: a request that never
+  answers is given up, so the job (the first of every scheduler tick) cannot hold the tick past the
+  function limit. Item, spell and rune names keep their stored version until the next run.
+*/
+describe("Data Dragon timeouts", () => {
+  /** A Data Dragon that accepts the connection and then never answers (until the request is aborted). */
+  const hanging = ((_input: string | URL | Request, init?: RequestInit) =>
+    new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(init.signal!.reason));
+    })) as typeof fetch;
+
+  it("gives up an item, spell and rune download that does not answer in time, keeping what is stored", async () => {
+    const started = Date.now();
+    await expect(syncRiotAssets(handle.db, "16.21.1", hanging, "en_US", 50)).rejects.toThrow();
+    expect(Date.now() - started).toBeLessThan(5_000);
+    invalidateCache("riot_assets");
+    expect((await loadRiotAssets(handle.db))?.version).not.toBe("16.21.1");
+  }, 10_000);
 });
