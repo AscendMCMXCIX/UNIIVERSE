@@ -2,7 +2,7 @@
 
 > **Meta & Trends was removed on 19 Oct 2026** (Solo Queue Meta, Duo Synergies, Pro Play and the global ranked, professional and aggregation jobs behind them). The first-run record below keeps those jobs as they ran then; the checks for them were removed from the list, and §21 checks that the feature is gone.
 >
-> **Clash Scout was removed on 23 Oct 2026** (the workspace, saved scouts, the Testing Lab and the `lab-benchmark` job). Its checks were removed from the list in the same way, and the phone tab bar checks name its three tabs (Profile, Team, Resources); "Clash Scout removed" at the end checks that it is gone. Migration 0057 later dropped the scouts saved before then, with their tables.
+> **Clash Scout was removed on 23 Oct 2026** (the workspace, saved scouts, the Testing Lab and the `lab-benchmark` job). Its checks were removed from the list in the same way, and the phone tab bar checks name its three tabs (Profile, Team, Resources); "Clash Scout removed" at the end checks that it is gone. Migration 0064 later dropped the scouts saved before then, with their tables.
 
 **Status (13 Oct 2026, first production run at team-uniiverse.vercel.app):** the database path, accounts, the job endpoint, the GitHub Actions trigger and Data Dragon are verified live. The Riot API and Leaguepedia are not yet: the first tick showed the Riot key being rejected on every request and Leaguepedia refusing the pro query. Both now report their exact cause in Admin → Data & Riot; the Leaguepedia query was corrected (see the table below). `statistics: none · 0 games` is the expected consequence of those two failures, not a third problem: `aggregate` ran fine and had nothing to fold in.
 
