@@ -1,6 +1,6 @@
 # UNIIVERSE status
 
-**The one status record.** Each session updates it in place: what is live, what is verified and what is still open, with the evidence for each. Detail stays in the linked PRs and docs. Last updated 4 Nov 2026, 09:40 UTC.
+**The one status record.** Each session updates it in place: what is live, what is verified and what is still open, with the evidence for each. Detail stays in the linked PRs and docs. Last updated 4 Nov 2026, 10:55 UTC.
 
 **Statuses:**
 - **Verified:** deployed and checked on the live site after the deploy.
@@ -14,7 +14,7 @@
 |---|---|---|---|
 | Security: every member page checks access | #170 | Verified | Every Production check run turns away signed-out and forged-session requests to member pages, including a real member's profile, champions and matches |
 | Security hardening | #172 | Deployed | Server-side fixes, each with its own tests |
-| Production monitoring | #180, #182, #184 | Verified | 15 Production check runs since 3 Nov: 13 passed, 2 cancelled by a newer deploy, none failed |
+| Production monitoring | #180, #182, #184 | Verified | 17 Production check runs since 3 Nov: 15 passed, 2 cancelled by a newer deploy, none failed |
 | Backups | #179 | Verified | The Database backup run of 3 Nov restored all 72 tables with matching counts |
 | Riot key and compliance | #175, #181 | Verified | The key is Personal: the same key was accepted 24 h 39 min apart. Public pages carry no Riot API data (checked on every run) |
 | Season figures speed | #169 | Verified | Production perf probe: Team roster 535 → 329–353 ms cold |
@@ -30,6 +30,7 @@
 | Retired tables dropped (Meta & Trends, Draft, Clash Scout) | #86, #138 | Verified | Production check run 12 passed on the merge commit. Run 15 read the database at 161 MB, 32% of the plan, down from 378 MB |
 | Field page speed in members' browsers | #186, #191 | Verified | Production check run 15's probe returned it with #191's split by page, device and the last 7 days |
 | Team Overview's first load on phones | #191 | Deployed 4 Nov, 08:52 | Every CI job passed on the merged tree. The browser suite finished at 09:09, 19 minutes after the merge. Production check run 14 passed: the public Team page, which has the same cards, at three widths. The field result comes from a probe after 11 Nov (`last7`): Team on phones was LCP p75 ≤ 6 s, 10% good, before it |
+| Start page: every page in one Vercel function | #197 | Deployed 4 Nov, 10:45 | Every CI job passed on the PR's last commit, up to date with `main`, before the merge. Production check run 17 passed on the merge commit (75166d5): 106 checks, none failed, 1 warning (the member pages, Outstanding 1). The field result comes from the probe's `last7` on Monday 16 Nov: Team's TTFB p75 was > 3 s on desktop before it |
 
 ## In progress
 
@@ -51,7 +52,9 @@
 
    **Found:** Vercel's builder, run locally, put `/` (the app's start page, which redirects to `/team`) and the member pages in two separate functions, because their `maxDuration` differed. Opening the app started both, one after the other.
 
-   **In progress:** the start-page PR puts every page in one function (docs/PERFORMANCE.md, "The start page's two functions"). If Team's TTFB is still high a week after it deploys, the remaining lever is Vercel's Fluid compute: the owner's project setting, with its cost on the plan checked first.
+   **Deployed:** #197 puts every page in one function (docs/PERFORMANCE.md, "The start page's two functions"), live since 4 Nov, 10:45; Production check run 17 passed on it.
+
+   **Next:** Monday 16 Nov's scheduled probe is the first whose `last7` is all after the deploy. Record Team's TTFB p75 from it here and in docs/PERFORMANCE.md. If it is still high, the remaining lever is Vercel's Fluid compute: the owner's project setting, with its cost on the plan checked first.
 3. **GitHub Actions minutes.** About 29 full CI runs from 1 to 4 Nov, at about 40 billed minutes each: roughly 1,000–1,200 of the month's 3,000. GitHub's billing page has the exact figure. Concurrent sessions each spend a full run per ready PR.
 4. **Real devices.** Safari on an iPhone, the installed app, and screen readers need a person (docs/RESPONSIVE.md, the real-device checklist).
 
