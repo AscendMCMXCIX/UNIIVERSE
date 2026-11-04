@@ -190,7 +190,7 @@ p a.text-accent {
   padding-left: max(calc(var(--spacing) * --value(integer)), env(safe-area-inset-left));
   padding-right: max(calc(var(--spacing) * --value(integer)), env(safe-area-inset-right));
 }
-/* Small inline text links ("Every Highlights statistic", a name in a list) keep
+/* Small inline text links ("Switch to Admin Mode", a name in a list) keep
    their look but get a finger-sized hit area on touch screens: an invisible box around the text, at
    least 44px tall, that does not move anything around it. */
 @utility touch-target {
@@ -563,6 +563,13 @@ p a.text-accent {
   will-change exists only then. No CSS transition on rotate or scale: it would override the turn.
   Reduced motion: no turn, the faces simply swap.
 */
+/* Team Overview on a phone, where the lineup is a track showing one card at a time: until the first
+   card's art has arrived, the other cards' art is not displayed, and a lazy image that is not
+   displayed is not fetched, so the first card's art has the connection to itself (team-roster.tsx,
+   docs/PERFORMANCE.md "Team Overview's first card"). From @xl the lineup is a grid and nothing waits. */
+@container lineup (width < 36rem) {
+  [data-art-wait] > [data-art-later] .card-art-img { display: none; }
+}
 .flip-card { perspective: 1800px; }
 .flip-card-inner { transform-style: preserve-3d; }
 .flip-card[data-flipped] .flip-card-inner { rotate: y 180deg; }

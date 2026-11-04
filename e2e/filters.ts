@@ -1,8 +1,8 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
 /**
- * Opens a filter bar that is folded behind its "Filters" button (phones, and tablets for
- * Leaderboards). Returns false when the filters are already inline.
+ * Opens a filter bar that is folded behind its "Filters" button (phones: a sheet). Returns false
+ * when the filters are already inline.
  */
 export async function openFilterBar(scope: Locator, toggleTestId = "filter-toggle"): Promise<boolean> {
   // Streamed pages swap their content in after load: wait for the bar itself first.

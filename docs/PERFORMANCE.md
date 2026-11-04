@@ -580,6 +580,92 @@ and forth three times; median of the three):
 noise (±15–20%). The database work is unchanged, so production's cold figure keeps its reads; the
 production effect is to be confirmed by `perf-probe` after a deploy.
 
+## Field data: Team Overview is the slow first load (4 Nov 2026)
+
+**Source.** The perf probe's new `fieldVitals` (#186), run by hand on production (Production check run 8, commit b04c167): the 28 days from 8 Oct, 125 page loads. A load counts for the page the app was opened on.
+
+| Page group | Loads | LCP p75 | Good LCP | INP p75 | CLS p75 |
+|---|---|---|---|---|---|
+| Team | 81 | ≤ 5 s (poor) | 38% | ≤ 100 ms | ≤ 0.01 |
+| Overview (a profile) | 22 | ≤ 2 s | 85% | ≤ 50 ms | ≤ 0.01 |
+| Players | 8 | ≤ 2.5 s | 100% | ≤ 50 ms | ≤ 0.01 |
+| Leaderboards | 5 | ≤ 2 s | 100% | ≤ 50 ms | ≤ 0.01 |
+| Admin, Matches, Resources | 2–5 each | ≤ 1.5 s | 100% | ≤ 50 ms | ≤ 0.01 |
+
+- **All pages:**
+  - TTFB p75 ≤ 3 s (37% good);
+  - FCP p75 ≤ 4 s (57% good);
+  - INP and CLS are good everywhere.
+- **The slow part is the first screen of the page the app opens on.** Team is that page two times in three. Interactions after it are fast.
+
+**What it is not: the page's own server work.**
+- **The probe on production:** Team's data (`team.roster`) takes 409 ms cold and 144 ms warm, 849 KB cold and 77 KB warm.
+- **Locally, on a fresh demo server:** the page answers in 0.09–0.29 s; 27 KB gzipped.
+
+**What it most likely is.**
+1. **Server response on a cold function.** The site serves about 4–5 opened pages a day, so most visits start a new function instance. TTFB p75 is ≤ 3 s on every page. The app's own cold-start work was cut in October (one migration `SELECT`, cached layout reads; see "What changed" above), so what remains is the platform starting the function and the first database connection.
+2. **The cards' artwork.** Each Team card draws a full Data Dragon splash (about 1215×717, around 200 KB) with `loading="lazy"`. In production the first card's art may be the largest element on a phone, and a lazy image starts loading only after layout.
+   - It could not be measured here: the sandbox cannot reach Data Dragon, and the demo's first cards draw no art.
+   - **In the lab** (synthetic art of the real size; slow 4G with 150 ms and 1.6 Mbps; 4× CPU on the phone), the largest element was the page's text:
+     - **phone:** 1.17 s median of 5 loads (the subtitle);
+     - **desktop:** 0.92 s (the heading).
+
+**Next steps, in order.**
+1. **Record the LCP element** with the field figures (the `web-vitals` attribution build gives a CSS selector, which holds no personal data). That tells (1) from (2).
+2. **If it is the artwork:** load the first card's art eagerly, with `fetchpriority="high"`. Leave the others lazy, since on phones they start off screen.
+3. **If it is server time:** Vercel's Fluid compute is meant to cut cold starts. It is a project setting for the owner. Check that it adds no cost on the plan before turning it on.
+
+A keep-warm ping is not proposed: a frequent GitHub Actions schedule would exceed the minutes budget, and Vercel's free cron runs once a day.
+
+## Team Overview's first card (4 Nov 2026)
+
+**The lab above missed the artwork.** `scripts/phone-load.mjs` aborts every Data Dragon request, so no lab run had drawn a card's art. Measured again with it, a phone's largest element on Team Overview is the first card's splash art, not text.
+
+**How it was measured.** A production build of `main` (659cce0) with the in-memory demo. Chromium was pointed at a local HTTP/2 stand-in for Data Dragon (`--host-resolver-rules`), which served synthetic art with the entropy of a photo at Data Dragon's sizes:
+- the splash (1215×717) at 207 KB;
+- each new connection held for one handshake: 450 ms on the phone, 120 ms on the desktop.
+
+The phone is `phone-load.mjs`'s: a Pixel 7, 4× CPU, 150 ms and 1.6 Mbps. The desktop is 1440×900 at 40 ms and 20 Mbps. The cache was empty, five loads each, medians. LCP's sub-parts are from the LCP entry and the image's resource timing.
+
+| Load | LCP | Largest element | TTFB | Art request starts | Art load | Render delay |
+|---|---|---|---|---|---|---|
+| Phone, `/team`, before | 5.65 s | the first card's splash | 0.13 s | 0.97 s | 4.19 s | 0.03 s |
+| Phone, `/` (the app's start, a redirect), before | 5.80 s | the same | 0.32 s | 1.15 s | 4.16 s | 0.02 s |
+| Phone, `/team`, after | **3.04 s** | the same | 0.15 s | 0.20 s | 2.30 s | 0.05 s |
+| Phone, `/`, after | **3.20 s** | the same | 0.28 s | 0.35 s | 2.32 s | 0.06 s |
+| Desktop, `/team`, before → after | 0.38 → 0.36 s | the header's text | 0.13 → 0.10 s | 0.29 → 0.13 s | | |
+
+**Why it was slow on a phone.**
+1. The art was lazy, so its request waited for layout.
+2. Chrome's lazy-loading margin also started the next two cards' splashes, which a phone shows only after a swipe. The three (621 KB) shared the connection, so the first finished with the others.
+
+The server's part was small: TTFB 0.13 s here. The redirect from `/` added about 0.18 s, one round trip.
+
+**What changed** (`card-art.tsx`, `team-roster.tsx`, `globals.css`, the member and public layouts):
+- **The first lineup card's art loads at once,** eager with `fetchPriority="high"`. React also emits a preload hint for it.
+  - Alone, this started the art at 0.20 s, but LCP only moved from 5.65 to 5.52 s, because the art still shared the connection.
+- **On a phone, the other cards' art waits** while the lineup is a track (under `@xl` of the lineup container). It waits until the first card's art has loaded or failed, or until the member touches the track or moves to another card.
+  - A lazy image that is not displayed is not fetched.
+  - Wider screens show all five cards and never wait.
+- **Member and public pages preconnect to Data Dragon.** Next sends the hint as a `Link` response header (checked on a local production build). The layout sends it, so it does not wait for the page's data: the connection can open while the server is still building the roster.
+
+`e2e/team-layout.spec.ts` checks the order on all three viewports.
+
+**What it does not change.**
+- The same art in the same quality, the same bytes and the same layout.
+- The server's first byte. The field's TTFB p75 was ≤ 3 s on every page (see above), and only a cold-start fix moves it (Fluid compute, the owner's setting).
+
+**Reading the field result.** The probe's `fieldVitals` now also reports:
+- each page's TTFB;
+- each page's loads, LCP and TTFB per device class;
+- the same figures for the last 7 days (`last7`).
+
+So:
+- **Before:** the first run after the deploy gives Team's split by device and how much of its LCP was TTFB, from loads that are all from before the change.
+- **After:** a run at least 7 days after the deploy reads `last7` alone. Monday's scheduled probe does this with no manual run.
+- **The target:** Team's LCP p75 ≤ 2.5 s on phones, as on every other page.
+- **If it stays above that,** check TTFB first. The art then arrives about 2.3 s after the server answers on slow 4G, and TTFB adds to it.
+
 ## Mobile redesign (4 Nov 2026)
 
 The phone redesign (docs/MOBILE.md) measured against `main` at b04c167, both production builds on the

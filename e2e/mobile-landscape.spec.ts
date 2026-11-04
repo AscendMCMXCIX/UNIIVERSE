@@ -179,13 +179,13 @@ test("turning the phone keeps the open window, the chosen filters and the place 
 });
 
 test("tab rows too wide for the screen fade only where more is hidden, and keep the current tab in view", async ({ browser, baseURL }) => {
-  // Leaderboards' eight categories do not fit a small phone: the row scrolls on its own.
-  const page = await phone(browser, baseURL!, devices["iPhone SE"]);
-  await page.goto("/leaderboards");
-  const list = page.getByTestId("leaderboard-categories");
+  // Audit Logs' six categories do not fit a small phone: the row scrolls on its own.
+  const page = await phone(browser, baseURL!, devices["iPhone SE"], "admin");
+  await page.goto("/admin/audit");
+  const list = page.getByTestId("audit-categories");
   await expect(list).toHaveAttribute("data-fade-start", "false");
   await expect(list).toHaveAttribute("data-fade-end", "true");
-  await page.goto("/leaderboards?category=records");
+  await page.goto("/admin/audit?category=privacy");
   await expect(list).toHaveAttribute("data-fade-start", "true");
   const current = await list.locator("[aria-current=page]").boundingBox();
   const row = await list.boundingBox();

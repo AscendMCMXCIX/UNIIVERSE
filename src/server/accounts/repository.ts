@@ -11,7 +11,6 @@ export interface RiotAccountRecord {
   id: string;
   ownerType: "player" | "opponent";
   playerId: string | null;
-  opponentPlayerId: string | null;
   gameName: string;
   tagLine: string;
   riotId: string;
@@ -49,7 +48,6 @@ function toRecord(row: typeof riotAccounts.$inferSelect): RiotAccountRecord {
     id: row.id,
     ownerType: row.ownerType,
     playerId: row.playerId,
-    opponentPlayerId: row.opponentPlayerId,
     gameName: row.gameName,
     tagLine: row.tagLine,
     riotId: `${row.gameName}#${row.tagLine}`,
@@ -107,7 +105,6 @@ export async function listAccountsForPlayers(db: Db, playerIds: string[]): Promi
 export interface AddAccountInput {
   ownerType: "player" | "opponent";
   playerId?: string | null;
-  opponentPlayerId?: string | null;
   riotId: string;
   platform: string;
   label?: string;
@@ -148,7 +145,6 @@ export async function addAccount(db: Db, input: AddAccountInput): Promise<RiotAc
     .values({
       ownerType: input.ownerType,
       playerId: input.ownerType === "player" ? (input.playerId ?? null) : null,
-      opponentPlayerId: input.ownerType === "opponent" ? (input.opponentPlayerId ?? null) : null,
       gameName: parsed.gameName,
       tagLine: parsed.tagLine,
       platform,

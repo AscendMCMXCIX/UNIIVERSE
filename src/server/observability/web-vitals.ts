@@ -36,8 +36,12 @@ export interface VitalsReport {
   days: number;
   /** Each metric across every page: all devices, then each device class with measurements. */
   metrics: Array<{ metric: VitalMetric; all: VitalSummary | null; byDevice: Array<{ device: DeviceClass; summary: VitalSummary }> }>;
-  /** Each page group with measurements: its page loads (TTFB is measured on every load) and the three Core Web Vitals. */
-  pages: Array<{ page: PageGroup; loads: number; LCP: VitalSummary | null; INP: VitalSummary | null; CLS: VitalSummary | null }>;
+  /**
+   * Each page group with measurements: its page loads (TTFB is measured on every load), the three
+   * Core Web Vitals and the server's first byte, then the loads, LCP and TTFB of each device class
+   * (a page can be slow on phones only, or only before the server's first byte).
+   */
+  pages: Array<{ page: PageGroup; loads: number; LCP: VitalSummary | null; INP: VitalSummary | null; CLS: VitalSummary | null; TTFB: VitalSummary | null; byDevice: Array<{ device: DeviceClass; loads: number; LCP: VitalSummary | null; TTFB: VitalSummary | null }> }>;
 }
 
 /** The last `days` UTC days (today included), summarised. One grouped query: at most a few hundred rows. */
@@ -47,7 +51,7 @@ export async function vitalsReport(db: Db, days = 28, now = new Date()): Promise
     await db.execute(sql`
       SELECT metric, page, device, bucket, sum(count) AS count FROM web_vitals_daily
       WHERE day >= ${since}::date
-      GROUP BY GROUPING SETS ((metric, device, bucket), (metric, page, bucket))`),
+      GROUP BY GROUPING SETS ((metric, device, bucket), (metric, page, bucket), (metric, page, device, bucket))`),
   );
   const counts = new Map<string, number[]>();
   const add = (key: string, metric: VitalMetric, bucket: number, n: number) => {
@@ -58,10 +62,14 @@ export async function vitalsReport(db: Db, days = 28, now = new Date()): Promise
   for (const r of rows) {
     if (!isVitalMetric(r.metric)) continue;
     const n = Number(r.count);
-    if (r.device !== null && isDeviceClass(r.device)) {
-      add(`${r.metric}|device|${r.device}`, r.metric, Number(r.bucket), n);
+    const device = r.device !== null && isDeviceClass(r.device) ? r.device : null;
+    const page = r.page !== null && isPageGroup(r.page) ? r.page : null;
+    // Each grouping set leaves the columns it does not group by empty.
+    if (page && device) add(`${r.metric}|page|${page}|${device}`, r.metric, Number(r.bucket), n);
+    else if (device && r.page === null) {
+      add(`${r.metric}|device|${device}`, r.metric, Number(r.bucket), n);
       add(`${r.metric}|all`, r.metric, Number(r.bucket), n);
-    } else if (r.page !== null && isPageGroup(r.page)) add(`${r.metric}|page|${r.page}`, r.metric, Number(r.bucket), n);
+    } else if (page && r.device === null) add(`${r.metric}|page|${page}`, r.metric, Number(r.bucket), n);
   }
   const summary = (metric: VitalMetric, key: string) => {
     const c = counts.get(key);
@@ -79,11 +87,17 @@ export async function vitalsReport(db: Db, days = 28, now = new Date()): Promise
       }),
     })),
     pages: PAGE_GROUPS.flatMap((page) => {
-      const loads = summary("TTFB", `TTFB|page|${page}`)?.count ?? 0;
+      const TTFB = summary("TTFB", `TTFB|page|${page}`);
+      const loads = TTFB?.count ?? 0;
       const LCP = summary("LCP", `LCP|page|${page}`);
       const INP = summary("INP", `INP|page|${page}`);
       const CLS = summary("CLS", `CLS|page|${page}`);
-      return loads || LCP || INP || CLS ? [{ page, loads, LCP, INP, CLS }] : [];
+      const byDevice = DEVICE_CLASSES.flatMap((device) => {
+        const ttfb = summary("TTFB", `TTFB|page|${page}|${device}`);
+        const lcp = summary("LCP", `LCP|page|${page}|${device}`);
+        return ttfb || lcp ? [{ device, loads: ttfb?.count ?? 0, LCP: lcp, TTFB: ttfb }] : [];
+      });
+      return loads || LCP || INP || CLS ? [{ page, loads, LCP, INP, CLS, TTFB, byDevice }] : [];
     }).sort((a, b) => b.loads - a.loads),
   };
 }

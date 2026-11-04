@@ -59,14 +59,12 @@ test("Back from a teammate's profile returns to where you came from, named after
 
   // From Leaderboards, Back is named after it.
   await page.goto("/leaderboards");
-  await page.getByTestId("highlight-row").first().click();
-  await expect(page).toHaveURL(/metric=/);
-  const leader = page.getByTestId("leader-spotlight").getByRole("link").first();
-  await leader.click();
+  await expect(page.getByTestId("leaderboards")).toHaveAttribute("data-ready", "true");
+  await page.getByTestId("form-row").first().click();
   await expect(page).toHaveURL(/\/players\/[^/]+$/);
   await expect(back).toContainText("Team Leaderboards");
   await back.click();
-  await expect(page).toHaveURL(/\/leaderboards\?/);
+  await expect(page).toHaveURL(/\/leaderboards$/);
 
   // Opened directly (no page of the app before it): Back leads to Players.
   await page.goto(`/players/${await idOf(page, "TOP")}`);
@@ -179,13 +177,23 @@ test("Team → Matches opens a game as a whole screen too, and its cards keep to
   await expect(page).toHaveURL(/\/matches$/);
 });
 
-test("Players and Leaderboards read as lists on a phone: a row per player, a row per statistic", async ({ page }) => {
+test("Players and Leaderboards read as lists on a phone: a row per player, a row per member, each row one tap", async ({ page }) => {
   await page.goto("/players");
   const rows = page.getByTestId("players-list").getByTestId("player-row");
   await expect(rows.first()).toBeVisible();
   await expect(page.getByTestId("players-directory")).toBeHidden();
   for (const h of await rows.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) expect(h).toBeGreaterThanOrEqual(44);
+  // Recent form: a row per member, the role, record and dates under the name; a tap anywhere on the
+  // row (not only on the name) opens the member's profile.
   await page.goto("/leaderboards");
-  await expect(page.getByTestId("highlight-rows").getByTestId("highlight-row")).toHaveCount(10);
-  await expect(page.getByTestId("highlight-tiles")).toBeHidden();
+  await expect(page.getByTestId("leaderboards")).toHaveAttribute("data-ready", "true");
+  const row = page.getByTestId("form-row").first();
+  await expect(row.getByTestId("form-meta")).toBeVisible();
+  await expect(page.getByTestId("form-heads")).toBeHidden();
+  const box = (await row.boundingBox())!;
+  expect(box.height).toBeGreaterThanOrEqual(44);
+  const id = await row.getAttribute("data-player-id");
+  // The win rate at the row's right end: no link drawn there, but the row's link covers it.
+  await page.touchscreen.tap(box.x + box.width - 12, box.y + box.height / 2);
+  await expect(page).toHaveURL(new RegExp(`/players/${id}$`));
 });

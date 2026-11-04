@@ -7,10 +7,9 @@ import type { SocialLinks } from "@/domain/social-links";
 export const teams = pgTable("teams", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
-  /** Pool limits and engine configuration overrides live here so they can change without code. */
+  /** Pool limits live here so they can change without code. */
   primaryPoolLimit: integer("primary_pool_limit").notNull().default(6),
   secondaryPoolLimit: integer("secondary_pool_limit").notNull().default(3),
-  engineConfig: jsonb("engine_config").$type<Record<string, unknown>>().notNull().default({}),
   ...timestamps,
 });
 

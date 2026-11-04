@@ -22,11 +22,10 @@ test("is public, linked from sign-in, and lists what is stored, who sees it and 
   await expect(guest).toHaveURL(/\/privacy$/);
   await expect(guest.getByRole("heading", { name: "Privacy", level: 1 })).toBeVisible();
   const stored = guest.getByTestId("privacy-stored").locator(":scope > li");
-  await expect(stored).toHaveCount(14);
+  await expect(stored).toHaveCount(13);
   await expect(stored.filter({ hasText: "Page speed counts" })).toContainText("Nothing identifies you");
-  // Clash Scout is retired: the scouts saved before then stay listed until the clean-up deletes them.
-  await expect(stored.filter({ hasText: "Clash scouts saved before Clash Scout was retired" })).toContainText("Nobody in the app");
-  await expect(stored.filter({ hasText: "Clash scouts saved before Clash Scout was retired" })).toContainText("Permanent removal already empties");
+  // Clash Scout's saved scouts were deleted with its tables (migration 0064): nothing about them is stored.
+  await expect(stored.filter({ hasText: "Clash" })).toHaveCount(0);
   await expect(guest.getByText("jsDelivr")).toHaveCount(0);
   await expect(stored.filter({ hasText: "Social links, only if you add them" })).toContainText("Only you, until you switch on Show publicly for a link: then team members and the public team page");
   await expect(stored.first()).toContainText("scrypt hash");
@@ -81,10 +80,10 @@ test("carries the approved wording on permanent removal and backups, and its ind
   await expect(page.getByTestId("privacy-backups")).toContainText(
     "An encrypted database backup is scheduled weekly. Each successful backup is tested by restoring it into a temporary database and is retained for 28 days as a private GitHub Actions artifact. Information removed from the live database may remain in existing encrypted backups until those backups expire.",
   );
-  await expect(page.getByTestId("privacy-clash-scout")).toContainText("They will be deleted in a database clean-up once a recent backup has been checked.");
+  await expect(page.getByTestId("privacy-clash-scout")).toHaveCount(0);
 
   const index = page.getByTestId("privacy-index").getByRole("link");
-  await expect(index).toHaveCount(9);
+  await expect(index).toHaveCount(8);
   for (const link of await index.all()) {
     const target = (await link.getAttribute("href"))!;
     await expect(page.locator(target)).toHaveCount(1);

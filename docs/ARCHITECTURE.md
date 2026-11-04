@@ -179,12 +179,15 @@ separated: the champion map (`src/server/champions/map.ts`), the statistics desc
 and the champion model (Team Overview suggestions), team bookmarks, Played Together, Encounters and
 Pro Play.
 
-The Draft tables (`drafts`, `draft_actions`, `draft_role_swaps`, `draft_presence`,
-`draft_enemy_scouting`, `matches`, `series`, `opponent_teams`, `opponent_players`) and
-`teams.engine_config` are still in the database, untouched, no longer written and, since migration
-`0048` copied the scouted ranks Match History shows into `last_known_ranks`, no longer read either.
-Dropping them is a separate migration that runs only after a production backup has been restored
-and checked.
+Migration `0063_retire_draft_tables` drops what was left of it in the database (audit decision 3):
+the Draft tables (`drafts`, `draft_actions`, `draft_role_swaps`, `draft_presence`,
+`draft_enemy_scouting`, `matches` (the drafted-match archive), `series`, `opponent_teams`,
+`opponent_players`), `riot_accounts.opponent_player_id`, `teams.engine_config` and the enum types
+only they used. Nothing had read them since migration `0048` copied the scouted ranks Match History
+shows into `last_known_ranks`. It merges only after a production backup that holds them has been
+restored and checked (`docs/BACKUPS.md`), and without CASCADE, so an unexpected dependency fails it
+instead of being dropped too. Recovery: `pg_restore --table` from that backup, then revert the
+change. Team Matches' bookmarks (`team_bookmarks`) stay.
 
 ## Meta & Trends removed (October 2026)
 
@@ -209,6 +212,7 @@ longer written; dropping them is a separate, approval-gated migration (`docs/DAT
 
 UNIIVERSE installs to a phone's home screen or a desktop as an app; no app store or native installer is involved.
 - **Manifest** (`src/app/manifest.ts`, served at `/manifest.webmanifest`): it takes the app name (`productName`), the short name and the background colour from Admin → Branding on each request, so another install shows its own name. It opens standalone at `/`, with 192 and 512 px icons in `public/icons` (the second also maskable). It is public, like the sign-in page, and holds nothing else.
+    - **On a computer** (Chrome and Edge; 2 Nov 2026): `shortcuts` puts Team Overview, My Profile, Matches and Leaderboards in the installed icon's menu (right-click on the Windows taskbar or Start, long-press on Android), and `launch_handler` (`navigate-existing`) makes opening the app or a shortcut reuse the window already open instead of adding one. Each page still checks who may open it. This is the desktop route chosen over a native app (OVERNIGHT_ENGINEERING_REPORT.md, "Desktop"); the same PWA can be listed in the Microsoft Store through PWABuilder without a code-signing certificate.
 - **Service worker** (`public/sw.js`, registered by `components/service-worker.tsx` in production builds only): when a page cannot load offline, it shows `public/offline.html`, which reloads itself once back online.
     - Nothing else is cached: no page, no data and nothing personal stays on the device, so an old version of the app is never served.
     - It turns on navigation preload, so pages load as fast as without it.
@@ -242,13 +246,11 @@ collapsed sidebar, phone menu and the phone tab bar's Scout). Old addresses are 
 pieces are unchanged: champion portraits, the OP.GG link builder (`src/domain/opgg.ts`), Riot account
 linking and sync, champion mastery, Match History, and the Clash queue (700) in game-mode filters.
 
-The tables `clash_scouts` and `clash_scout_accounts` are still in the database
-(`src/server/db/schema/clash.ts`, marked retired): nothing writes new rows, and only permanent
-erasure and its full reconciliation read and update them, so an erased person stays out of the
-scouts saved before the retirement. Dropping them is a separate held migration, after the owner has
-verified a recent backup (`docs/DATA_PIPELINES.md`, "Retired tables"). The browser-storage cleanup
-(`src/components/legacy-storage.tsx`) stays: it deletes what earlier versions left in members'
-browsers.
+The saved scouts went with their tables, `clash_scouts` and `clash_scout_accounts`, which migration
+`0057` dropped after the owner had verified a recent backup (`docs/DATA_PIPELINES.md`, "Retired
+tables"); the schema and the erasure code for them went in the same change. The browser-storage
+cleanup (`src/components/legacy-storage.tsx`) stays: it deletes what earlier versions left in
+members' browsers.
 
 ## Ranked Development removed (October 2026)
 

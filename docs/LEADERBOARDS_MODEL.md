@@ -1,6 +1,6 @@
-# Leaderboards: the proposed model
+# Leaderboards: the model
 
-Status: **proposal, built and tested; awaiting the owner's approval of the rules.**
+Status: **live.** The owner approved the rules, and these boards replaced the previous ones (section 1).
 - **Built as recommended on 3 Nov 2026:** one Recent form board (overall, All games, ranked by win
   rate) and the Records & achievements tab. Left out of the launch: the role boards, the Ranked
   switch and the lane figure (sections 3 and 5 describe the full model).
@@ -8,11 +8,12 @@ Status: **proposal, built and tested; awaiting the owner's approval of the rules
   - `src/domain/leaderboard-recent.ts` and `src/domain/leaderboard-records.ts`;
   - the view in `src/server/leaderboards/recent-view.ts`;
   - the page in `src/components/leaderboards/recent-leaderboards.tsx`.
-- **Who sees it:** administrators can open it on live data at `/leaderboards?preview=recent-form`.
-  Members keep today's boards (`docs/TEAM_LEADERBOARDS.md`) until the owner approves.
+- **Who sees it:** everyone who can open Team Leaderboards (`/leaderboards`), and the public
+  Leaderboards where the deployment allows Riot data on the public pages (`docs/TEAM_LEADERBOARDS.md`).
+  Section 1 describes the boards it replaced.
 - **Thresholds** were confirmed with the team's own figures (section 6; the 3 Nov data audit).
 
-## 1. What is wrong with the current boards
+## 1. What was wrong with the previous boards
 
 - **Small samples win, large ones freeze.** Rankings are season averages behind a flat minimum of
   10 games (5 in a role). A player at 12 games and 75% ranks above one at 400 games and 56%. The

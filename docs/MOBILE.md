@@ -17,7 +17,7 @@ text sizes, target sizes) and its interactions were walked through.
 | Finding | Root cause |
 |---|---|
 | Players, Leaderboards and Matches, the pages members open most after a game, were two taps away: the bottom bar had three entries (Profile, Team, Resources) and Team's four sections were a tab strip at the top of the page, which scrolled away with it. | The desktop's information architecture (sidebar entry → page tabs) was squeezed onto a phone instead of designed for one. |
-| Up to four levels of choice on one screen: bottom tab, page tabs, Games/Encounters, then Leaderboards' categories, a row of statistic cards and a 1/8 pager for the same statistic. | Each level was added for a desktop layout where it has room. |
+| Up to four levels of choice on one screen: bottom tab, page tabs, Games/Encounters, then Leaderboards' categories, a row of statistic cards and a 1/8 pager for the same statistic (those Leaderboards were replaced by Recent form and Records & achievements in #188, while this redesign was under way). | Each level was added for a desktop layout where it has room. |
 | The top bar always showed the team's wordmark, never where you were; nothing led back from a teammate's profile (the installed iPhone app has no browser Back). Two menus sat in the bar: the menu drawer at one end, the account menu at the other. | The bar was a branding strip, not navigation. |
 | Lists were desktop cards stacked one per row: Players 2,966px tall (9 players), Leaderboards' Highlights 2,830px (10 statistics), Matches 2,330px (6 games). | The cards were designed for a grid of several columns. |
 | A game opened under its card: on a phone that is a long scoreboard inside a list, with "Close this game" at its far end. | One interaction designed for a wide screen. |
@@ -83,8 +83,7 @@ opens.
 | Page | Phone layout | Height at 390px (before → after) |
 |---|---|---|
 | Players | One list, a row per player: picture in its frame, name, primary role and rank, the pool as many whole portraits as fit plus a count, and the status that matters (Lineup, Setup incomplete, Archived). The row opens the profile (the card, links and every pool). Cards from `sm` up. | 2,966 → 1,227px |
-| Leaderboards → Highlights | One list, a row per statistic: what is ranked, its leader and value, the runner-up and your place. A row opens the full ranking. Tiles from `sm` up. | 2,830 → 1,324px |
-| Leaderboards → a category | The statistics as one row of short pills (your place on each); the board without a frame of its own: title, definition, the leader, then the ranking. The 1/8 stepper is left to wider screens, where the pills are not a scrolling row. | |
+| Leaderboards | Built for phones in #188 (docs/LEADERBOARDS_MODEL.md): Recent form is one panel with a row per member (place, picture and name, the gap to the place above, then role, record and dates on one line, the win rate at the right end); Records & achievements are the season's records, the multikills and the milestones. The frame adds the tab, the title in the bar and Back; on phones the whole row of Recent form opens the member's profile, not only the name. | — |
 | Matches | Each game: result, length, queue and date, then the members who played (champion, role, multikill, K/D/A). Both full teams are in the game's screen, where the scoreboard lists all ten. Bookmarked sits beside Filters. | 2,330 → 1,528px |
 | Match History | Each game: the result line, the champion and role on one line, K/D/A with its ratio and largest multikill, kill participation, CS and damage, then the build. Both teams move to the game's screen. Ten games a page. | 2,257 → 2,000px |
 
@@ -121,7 +120,7 @@ inert), Escape and the backdrop close it, focus returns to what opened it, a she
 | Section title (`h2`) | `text-xl` semibold | "Season performance" |
 | Card title | `text-base` semibold | "Recent form" |
 | A row's name | `text-md` (15px) semibold | a player, a champion |
-| Headline figure | `text-2xl` semibold, `tabular-nums` | a win rate, a leaderboard value |
+| Headline figure | `text-2xl` semibold, `tabular-nums` | a win rate, a season record |
 | Row figure | `text-base` to `text-xl` semibold, `tabular-nums` | K/D/A, a statistic's leader value |
 | Scope line, body | `text-sm` in `fg-muted` | "36 games · Season 2026 · All supported games" |
 | Context, times | `text-xs` in `fg-subtle` | "42h ago", "46 games" |
@@ -132,7 +131,7 @@ inert), Escape and the backdrop close it, focus returns to what opened it, a she
 | Breakpoints | Phone below `md` (768px). Layout differences live in CSS (`max-md:`, `max-sm:`, container queries) so the first paint is right; behaviour that differs (how a game opens) reads `usePhone()` after hydration. |
 | Frame | Top bar 52px plus the status bar's inset (a profile adds its 44px sections row); tab bar 56px plus the home indicator's inset; `--mobile-chrome` holds the top bar's height and `scroll-padding` keeps whatever scrolls into view (anchors, the keyboard's focus) clear of both bars (WCAG 2.4.11). |
 | Gutters and spacing | 16px gutters (`px-safe-4`), 12–16px between sections; rows 12–14px horizontal padding, at least 64px tall when they carry two lines and a picture. |
-| Surfaces | One panel per list, hairline dividers inside; cards for objects that open (games); no frame around a single group that already has one (the Leaderboards board). Colour and gradient are kept for meaning (a game's result, a selected tab). |
+| Surfaces | One panel per list, hairline dividers inside; cards for objects that open (games); no frame around a single group that already has one. Colour and gradient are kept for meaning (a game's result, a selected tab). |
 | Touch targets | 44px for everything a finger presses (tabs, rows, chips through `touch-target`, sheet rows 48px). |
 | Titles | One `h1` per page; on phones the page tabs and the bar's title say where you are, so instructions under a title are left out (`PageHeader guide`), while a scope line ("Season 2026 · 6 games") always shows. |
 | Interactive states | Pressed rows darken to `surface-2` (`active:`); the current tab, section or view is marked twice (colour and a pill, bar or weight); narrowed filters are accent chips; focus keeps the accent ring everywhere. |

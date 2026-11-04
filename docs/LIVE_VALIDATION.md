@@ -2,7 +2,7 @@
 
 > **Meta & Trends was removed on 19 Oct 2026** (Solo Queue Meta, Duo Synergies, Pro Play and the global ranked, professional and aggregation jobs behind them). The first-run record below keeps those jobs as they ran then; the checks for them were removed from the list, and §21 checks that the feature is gone.
 >
-> **Clash Scout was removed on 23 Oct 2026** (the workspace, saved scouts, the Testing Lab and the `lab-benchmark` job). Its checks were removed from the list in the same way, and the phone tab bar checks name its three tabs (Profile, Team, Resources); "Clash Scout removed" at the end checks that it is gone. The scouts saved before then stay in the database until a held clean-up.
+> **Clash Scout was removed on 23 Oct 2026** (the workspace, saved scouts, the Testing Lab and the `lab-benchmark` job). Its checks were removed from the list in the same way, and the phone tab bar checks named its three tabs (Profile, Team, Resources; five since the phone redesign of November 2026, docs/MOBILE.md); "Clash Scout removed" at the end checks that it is gone. Migration 0057 later dropped the scouts saved before then, with their tables.
 
 **Status (13 Oct 2026, first production run at team-uniiverse.vercel.app):** the database path, accounts, the job endpoint, the GitHub Actions trigger and Data Dragon are verified live. The Riot API and Leaguepedia are not yet: the first tick showed the Riot key being rejected on every request and Leaguepedia refusing the pro query. Both now report their exact cause in Admin → Data & Riot; the Leaguepedia query was corrected (see the table below). `statistics: none · 0 games` is the expected consequence of those two failures, not a third problem: `aggregate` ran fine and had nothing to fold in.
 
@@ -37,7 +37,24 @@ node scripts/live-check.mjs [base url] [output folder]
 
 - **Base url:** defaults to https://team-uniiverse.vercel.app.
 - **Output folder:** defaults to `live-check-<time>`. It holds the screenshots, `report.json` and `summary.md`. The run exits with 1 when any check fails.
-- **Sign-in:** `UNIIVERSE_VERIFY_USER` and `UNIIVERSE_VERIFY_PASSWORD`, for a non-admin account kept off the roster. They are read from the environment and never printed. In a cloud session they go in the environment's settings, and the site must be under its allowed domains.
+- **Sign-in:** `UNIIVERSE_VERIFY_USER` and `UNIIVERSE_VERIFY_PASSWORD`, for a non-admin team member who is not in the lineup. They are read from the environment and never printed. In a cloud session they go in the environment's settings, and the site must be under its allowed domains.
+- **Setting up the verification account** (the owner, about 10 minutes):
+  1. Admin Mode → Users & Permissions → Add account:
+     - a username such as `verify`;
+     - a Riot ID of yours that no member uses here (Riot confirms it exists);
+     - **Member of the team**. "Personal use only" has no Team pages, so the check would fail on every one of them.
+  2. Give it no access group and leave it a standard member, not an administrator: the check only reads.
+  3. Sign in once as that account:
+     - replace the temporary password with a long random one;
+     - finish first-time setup;
+     - leave it out of the lineup.
+  4. GitHub → the repository's Settings → Secrets and variables → Actions: add `UNIIVERSE_VERIFY_USER` (the username) and `UNIIVERSE_VERIFY_PASSWORD` (the password).
+  5. Actions → Production check → Run workflow, once. Its summary then lists the member pages instead of "pending".
+
+  **What it costs:**
+  - The account appears under Players like any member.
+  - Its Riot account's games are collected like any member's.
+  - The app has no hidden, read-only account type. Adding one would be a product and security change, for your approval.
 - **Read only:** it signs in, opens pages and opens and closes games and windows. It also switches a view and presses Back, Forward, Enter and Escape. It never submits a form after sign-in, and never presses a bookmark, edit, save, sync, refresh, invite or admin control. As with any member's visit, an open game can start the app's own background reads (rank checks).
 - **What it checks:**
   - Signed-out and forged-cookie requests to member pages are turned away to sign-in and carry no player data (#170). Security headers on the sign-in page.
@@ -420,6 +437,13 @@ Never erase a real member to test this: the erasure itself is tested on syntheti
 - [ ] The privacy notice lists "Clash scouts saved before Clash Scout was retired" (seen by nobody in the app, kept until the clean-up), its Clash Scout section says it is retired, and it no longer mentions jsDelivr.
 - [ ] Team Overview, profiles (Overview, All Champions, Match History, Riot Accounts), Leaderboards, Matches and Encounters, Resources, the Card Studio and Admin Mode work as before. OP.GG links in the match window, Encounters, Team → Matches and Riot Accounts still open.
 - [ ] (For the held clean-up, not this release.) Data jobs → `db-usage`: `retired` lists `clash_scouts` and `clash_scout_accounts` with their rows, and no reads or writes between two runs a day apart.
+
+## Clash Scout's tables dropped (migration 0064)
+
+- [ ] Data jobs → `smoke auth-audit`: every step passes, `deployment.commit` is the merge commit, and the migrations applied end with `0064_retire_clash_scouts`.
+- [ ] Data jobs → `db-usage`: `retired` reports `clash_scouts` and `clash_scout_accounts` as gone, and the other retired tables as before.
+- [ ] The privacy notice has no Clash scouts entry under "What is stored" and no Clash Scout section; its index has eight entries.
+- [ ] Admin Mode → Users & Permissions → Personal data → an erasure's preview (then **Cancel**): no Clash Scout line, and nothing changes.
 
 ## Ranks in the match window (migration 0057, 24 Oct 2026)
 
