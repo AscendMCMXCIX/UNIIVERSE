@@ -924,7 +924,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 ### I1. Architecture
 
 - **Caching:**
-  - Per-instance TTL cache (`src/server/observability/cache.ts`) for champions, patch, branding, team, formats, pro patterns, shell facts and skins (10 min), invalidated by writers.
+  - Per-instance TTL cache (`src/server/observability/cache.ts`) for champions, patch, branding, team, formats, pro patterns, shell facts and skins (10 min; kept only for champions in the game, as Card Studio asks for any id), invalidated by writers. A load that an invalidation or a newer load overtook still answers the requests waiting on it but is not kept, so a value read before a change never outlives the change on the instance that made it.
   - React `cache()` for the session and user per request.
   - The statistics description is cached per instance for a minute and dropped when the stats version changes.
 - **Database:** single-digit-millisecond queries Sydney→Sydney. No pipelining through the pooler. Parallel reads only where measured safe; pool max 5.
