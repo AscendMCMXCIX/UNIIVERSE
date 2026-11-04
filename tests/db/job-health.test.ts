@@ -1,17 +1,24 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { inArray } from "drizzle-orm";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { eq, inArray } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { dataRefreshStatus } from "@/server/db/schema";
+import { appSettings, dataRefreshStatus, riotAccounts } from "@/server/db/schema";
+import { FixtureStaticProvider } from "@/server/riot/static/fixture";
+import { syncStaticData } from "@/server/riot/static/sync";
+import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
+import { addAccount } from "@/server/accounts/repository";
+import { accountSyncLeaseKey } from "@/server/accounts/refresh";
 import { RiotApiError, riotKeyFingerprint } from "@/server/riot/api/client";
 import { recordRiotOutcome } from "@/server/riot/credential";
 import { invalidateCache } from "@/server/observability/cache";
+import { runJob } from "@/server/jobs";
 import { GET as health } from "@/app/api/health/route";
 
 /*
   What the owner is told about the data jobs: /api/health (read by every scheduled Data jobs run,
-  which fails while `failingJobs` lists anything, so GitHub's email is the alert). A revoked Riot
-  key and runs that keep dying must show there, never as a plain success.
+  which fails while `failingJobs` lists anything, so GitHub's email is the alert) and the account
+  sync's own outcome (Admin Mode → Data & Integrations). A revoked Riot key, accounts that cannot
+  be synced and runs that keep dying must all show there, never as a plain success.
 */
 
 const KEY = "RGAPI-00000000-0000-0000-0000-0000000f1e2d";
@@ -20,6 +27,7 @@ const savedKey = process.env.RIOT_API_KEY;
 
 beforeAll(async () => {
   handle = await testDb();
+  await syncStaticData(handle.db, new FixtureStaticProvider(), { fingerprint: false });
   // The health endpoint opens the app's own database handle; this one stands in for it.
   globalThis.__uniiverseDb = Promise.resolve(handle);
 });
@@ -28,6 +36,7 @@ afterAll(async () => {
   await handle.close();
 });
 afterEach(() => {
+  vi.unstubAllGlobals();
   if (savedKey === undefined) delete process.env.RIOT_API_KEY;
   else process.env.RIOT_API_KEY = savedKey;
   invalidateCache("riot-credential");
@@ -89,5 +98,78 @@ describe("/api/health", () => {
     expect(body.failingJobs.filter((k) => k.startsWith("h-")).sort()).toEqual(["h-dead", "h-failed", "h-retrying"]);
     expect(body.jobs.map((j) => j.key)).toEqual(expect.arrayContaining(rows.map((r) => r.key)));
     await db.delete(dataRefreshStatus).where(inArray(dataRefreshStatus.key, rows.map((r) => r.key)));
+  });
+});
+
+/** Riot as the account sync sees it: `refuse` answers every request with that status; "Gone#OCE" does not exist. */
+function riot(refuse?: number) {
+  return async (input: string | URL | Request): Promise<Response> => {
+    const url = String(input);
+    const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+    if (refuse) return json({ status: { message: "Forbidden", status_code: refuse } }, refuse);
+    const byRiotId = url.match(/\/accounts\/by-riot-id\/([^/]+)\/([^/?]+)/);
+    if (byRiotId?.[1] === "Gone") return json({ status: { message: "Data not found", status_code: 404 } }, 404);
+    if (byRiotId) return json({ puuid: `puuid-${byRiotId[1]}`, gameName: byRiotId[1], tagLine: byRiotId[2] });
+    if (url.includes("/region/by-game/")) return json({ puuid: "puuid", game: "lol", region: "OC1" });
+    if (url.includes("/lol/league/v4/entries/by-puuid/")) return json([]);
+    if (url.includes("/lol/champion-mastery/v4/")) return json([]);
+    if (url.includes("/ids?")) return json([]);
+    return json({}, 404);
+  };
+}
+
+describe("the account sync's outcome", () => {
+  const link = async (name: string) => {
+    const db = handle.db;
+    const player = await createPlayer(db, (await getOrCreateTeam(db)).id, { displayName: `Health ${name}`, primaryRole: "MID", primaryPool: ["Ahri"] });
+    return addAccount(db, { ownerType: "player", playerId: player.id, riotId: `${name}#OCE`, platform: "oc1" });
+  };
+  /** Runs the sync as a later run would find these accounts: due again, their one-minute sync leases passed. */
+  const runAgain = async (accounts: Array<{ id: string }>) => {
+    const db = handle.db;
+    await db.update(riotAccounts).set({ lastSyncAt: null }).where(inArray(riotAccounts.id, accounts.map((a) => a.id)));
+    await db.delete(appSettings).where(inArray(appSettings.key, accounts.map((a) => accountSyncLeaseKey(a.id))));
+    return runJob(db, "account-sync", "test");
+  };
+
+  it("says so when Riot refuses every account, so Admin Mode shows it, and the key is reported failing", async () => {
+    const db = handle.db;
+    process.env.RIOT_API_KEY = KEY;
+    const accounts = [await link("Refused"), await link("AlsoRefused")];
+    vi.stubGlobal("fetch", riot(403));
+    const refused = await runJob(db, "account-sync", "test");
+    expect(refused.ok).toBe(true);
+    expect(refused.summary).toMatchObject({ synced: 2, failed: 2 });
+    expect(refused.degraded).toBe(true);
+    expect(refused.error).toMatch(/None of the 2 linked accounts/);
+    expect(refused.error).not.toMatch(/#|Refused|RGAPI/);
+    const [status] = await db.select().from(dataRefreshStatus).where(eq(dataRefreshStatus.key, "account-sync"));
+    expect(status!.status).toBe("degraded");
+    expect(status!.lastError).toBe(refused.error);
+    invalidateCache("riot-credential");
+    expect((await readHealth()).body.failingJobs).toContain("riot-key");
+    // Riot accepts the key again: the accounts sync and nothing is reported.
+    vi.stubGlobal("fetch", riot());
+    const recovered = await runAgain(accounts);
+    expect(recovered).toMatchObject({ ok: true, degraded: false, summary: { synced: 2, failed: 0 } });
+    expect(recovered.error).toBeUndefined();
+    invalidateCache("riot-credential");
+    expect((await readHealth()).body.failingJobs).not.toContain("riot-key");
+  });
+
+  it("is degraded when some accounts could not be synced, and says how many without naming them", async () => {
+    const db = handle.db;
+    process.env.RIOT_API_KEY = KEY;
+    const accounts = [await link("Good"), await link("Gone")];
+    // Riot does not know one of the two: a partial success, and the run says so.
+    vi.stubGlobal("fetch", riot());
+    const partial = await runAgain(accounts);
+    expect(partial.ok).toBe(true);
+    expect(partial.summary).toMatchObject({ failed: 1 });
+    expect(partial.degraded).toBe(true);
+    expect(partial.error).toMatch(/1 of the \d+ linked accounts/);
+    expect(partial.error).not.toMatch(/#|Gone|Good/);
+    const [status] = await db.select().from(dataRefreshStatus).where(eq(dataRefreshStatus.key, "account-sync"));
+    expect(status!.status).toBe("degraded");
   });
 });
