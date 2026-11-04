@@ -51,17 +51,22 @@ export interface AccountSyncResult {
   /** Season history collection after the run. */
   history?: { season: number; complete: boolean; queuesDone: number; queues: number };
   /**
-   * The run's time ran out (its budget, or the client's deadline: it had passed, or Riot's rate
-   * limits would have kept the next request waiting past it), before any of the history was read
-   * or partway through it. Callers stop here. Without `error` it is a run out of time, not a
-   * failure: what was collected is stored, and when none of the history was read the account is
-   * not marked synced. With `error`, Riot failed on the way (see syncAccount): a failure, and the
-   * caller still stops.
+   * The run's time ran out: before a current-season list that was due could be read (its budget,
+   * or the client's deadline: it had passed, or Riot's rate limits would have kept the next request
+   * waiting past it), or partway through the history when the client's deadline refused a request.
+   * (A budget that ends partway through the history is not flagged: callers check their own
+   * budget.) Callers stop here. Without `error` it is a run out of time, not a failure: what was
+   * collected is stored, and when a due current-season list was left unread before any was read
+   * the account is not marked synced. With `error`, Riot failed on the way (see syncAccount): a
+   * failure, and the caller still stops.
    */
   outOfTime?: boolean;
   /** Season match lists Riot answered in this run. */
   listsRead?: number;
-  /** A season match list that was due was left unread because the run's time ran out. */
+  /**
+   * A current-season list that was due (a queue's newest page, phase 1) was left unread because
+   * the run's time ran out. Older pages and the previous season wait for a later run by design.
+   */
   listsLeftForTime?: boolean;
 }
 
@@ -199,11 +204,10 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
   };
   // Riot's (or the network's) failure that a best-effort lookup below passed over: the Riot ID
   // check, the active server, rank or mastery. Passing over it is right while the sync goes on to
-  // read the history; when the run then runs out of time before any of it was read, it is the
+  // read the history; when the run then runs out of time before any list was read, it is the
   // run's outcome (the account Pending with Riot's reason, the key's failure recorded), never a
-  // run out of time or, worse, a sync marked complete. A later lookup Riot answers clears it (Riot
-  // is answering again), and a rate limit (429) is not a failure of Riot: when it leaves no time,
-  // that is a run out of time.
+  // run out of time or, worse, a sync marked complete. A later lookup that succeeds clears it (Riot
+  // is answering again); a rate limit (429) or another answer (a 404) neither sets nor clears it.
   let riotFailure: unknown = null;
   const lookupOutcome = (err: unknown) => {
     if (err === null) riotFailure = null;
@@ -323,9 +327,12 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
     const history = await collectSeasonHistory(db, client, { ...account, puuid, platform }, options, result, log);
     // Time ran out before any of the history that was due could be read: this run did not sync the
     // account, so it is not recorded as synced (no "ok", no new cursor, nothing said for the key).
-    // It stopped for time, unless Riot failed on the way, which is then the outcome. (A run with no
-    // list due, every queue checked lately and empty, is a sync like any other.)
+    // It stopped for time, unless Riot failed on the way, which is then the outcome. A run with no
+    // list due (every queue checked lately and empty) is a sync like any other, unless time ran out
+    // with Riot's failure as the lookups' last word: Riot did fail, and nothing in the run says
+    // otherwise.
     if (result.listsLeftForTime && !result.listsRead) return stoppedOrFailed();
+    if (!result.listsRead && riotFailure && (result.outOfTime || options.outOfTime?.())) return stoppedOrFailed();
     await db.update(riotAccounts).set({ lastSyncAt: new Date(), syncStatus: "ok", syncError: null, resolveAttempts: 0, syncCursor: Math.floor(Date.now() / 1000), historyBackfill: history, updatedAt: new Date() }).where(eq(riotAccounts.id, account.id));
     result.history = summariseBackfill(history);
     await recordRiotOutcome(db, client, { ok: true });

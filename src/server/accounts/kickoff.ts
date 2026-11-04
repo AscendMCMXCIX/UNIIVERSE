@@ -45,7 +45,7 @@ export async function kickoffAccountSync(db: Db, playerId: string, options: { ma
         // Done with the account: give its lease back, so the profile the new member is likely
         // looking at can carry its history on at its next render instead of 100 s later. The
         // release follows the sync's last write by one statement; the render that write causes
-        // comes at least one poll (10 s) and one server render later.
+        // comes only after the page's next poll (within 10 s) and a server render.
         await releaseLease(db, accountSyncLeaseKey(account.id), claimedAt);
       }
       if (r.outOfTime) break;

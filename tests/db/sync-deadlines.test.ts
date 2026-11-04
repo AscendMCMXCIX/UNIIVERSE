@@ -7,7 +7,7 @@ import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { addAccount, listAccountsForPlayer } from "@/server/accounts/repository";
-import { syncAccount } from "@/server/accounts/sync";
+import { SYNC_QUEUE_IDS, syncAccount } from "@/server/accounts/sync";
 import { refreshPlayerMatches } from "@/server/accounts/refresh";
 import { kickoffAccountSync, refreshPlayerAccountsIfDue } from "@/server/accounts/kickoff";
 import { RiotApiClient } from "@/server/riot/api/client";
@@ -292,31 +292,43 @@ describe("account sync with a deadline", () => {
     });
   }
 
-  it("a later lookup Riot answers clears an earlier failure: running out of time then is a stop for time", async () => {
-    const db = handle.db;
-    const player = await createPlayer(db, teamId, { displayName: "Recovered", primaryRole: "TOP", primaryPool: ["Gwen"] });
-    const added = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Recovered#OCE", platform: "oc1", puuid: "puuid-recovered" });
-    await db.update(riotAccounts).set({ platformSource: "riot", riotIdCheckedAt: new Date(), syncStatus: "ok", syncCursor: 7 }).where(eq(riotAccounts.id, added.id));
-    const account = (await listAccountsForPlayer(db, player.id))[0]!;
-    await resetCredential();
-    const c = clock();
-    const deadline = c.now() + 10_000;
-    const calls: string[] = [];
-    const fetchImpl = riotWith(calls, "puuid-recovered", async (url) => {
-      if (url.includes("/league/v4/")) return json({ status: { message: "Service unavailable", status_code: 503 } }, 503);
-      if (url.includes("/champion-mastery/")) {
-        await c.sleep(11_000);
-        return json([]);
-      }
-      return null;
+  // Each lookup that can clear an earlier failure: the failing one, then the one that answers as
+  // time runs out (the Riot ID check is first, so there is nothing before it to clear).
+  const clearing = [
+    ["the Riot ID check", "the active-server lookup"],
+    ["the active-server lookup", "the rank lookup"],
+    ["the rank lookup", "the mastery lookup"],
+  ] as const;
+  for (const [failing, answering] of clearing) {
+    it(`${answering} succeeding after ${failing} failed clears it: running out of time then is a stop for time`, async () => {
+      const db = handle.db;
+      const name = `Recovered ${answering.split(" ")[1]}`;
+      const puuid = `puuid-${name.replace(/ /g, "-").toLowerCase()}`;
+      const player = await createPlayer(db, teamId, { displayName: name, primaryRole: "TOP", primaryPool: ["Gwen"] });
+      const added = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: `${name}#OCE`, platform: "oc1", puuid });
+      // Every lookup runs: the Riot ID check is due and the server is the player's choice.
+      await db.update(riotAccounts).set({ platformSource: "user", riotIdCheckedAt: null, syncStatus: "ok", syncCursor: 7 }).where(eq(riotAccounts.id, added.id));
+      const account = (await listAccountsForPlayer(db, player.id))[0]!;
+      await resetCredential();
+      const c = clock();
+      const deadline = c.now() + 10_000;
+      const calls: string[] = [];
+      const fetchImpl = riotWith(calls, puuid, async (url) => {
+        if (url.includes(lookups[failing])) return json({ status: { message: "Service unavailable", status_code: 503 } }, 503);
+        if (url.includes(lookups[answering])) {
+          await c.sleep(11_000);
+          return null;
+        }
+        return null;
+      });
+      const client = new RiotApiClient({ apiKey: "k", fetchImpl, limiter: new RateLimiter([{ requests: 100, seconds: 120 }], c.now, c.sleep), now: c.now, sleep: c.sleep, maxRetries: 0, deadline });
+      const r = await syncAccount(db, client, account, { maxMatchesPerRun: 20, outOfTime: () => c.now() > deadline });
+      expect(r.outOfTime).toBe(true);
+      expect(r.error).toBeUndefined();
+      expect(await stored(account.id)).toMatchObject({ syncStatus: "ok", syncError: null, syncCursor: 7 });
+      expect((await credential())?.lastOutcome).not.toBe("error");
     });
-    const client = new RiotApiClient({ apiKey: "k", fetchImpl, limiter: new RateLimiter([{ requests: 100, seconds: 120 }], c.now, c.sleep), now: c.now, sleep: c.sleep, maxRetries: 0, deadline });
-    const r = await syncAccount(db, client, account, { maxMatchesPerRun: 20, outOfTime: () => c.now() > deadline });
-    expect(r.outOfTime).toBe(true);
-    expect(r.error).toBeUndefined();
-    expect(await stored(account.id)).toMatchObject({ syncStatus: "ok", syncError: null, syncCursor: 7 });
-    expect((await credential())?.lastOutcome).not.toBe("error");
-  });
+  }
 
   it("a rate limit on a lookup is not Riot failing: a Retry-After that leaves no time is a stop for time", async () => {
     // A Refresh's client does not retry: the 429 is thrown at once, and the next request finds the
@@ -337,6 +349,74 @@ describe("account sync with a deadline", () => {
     expect(calls).toHaveLength(1);
     expect(await stored(account.id)).toMatchObject({ syncStatus: "ok", syncError: null, syncCursor: 7 });
     expect((await credential())?.lastOutcome).not.toBe("error");
+  });
+
+  /** Every queue of the season checked within the last hours and empty: no list is due this run. */
+  const nothingDue = () => ({
+    season: 16,
+    queues: Object.fromEntries(SYNC_QUEUE_IDS.map((q) => [String(q), { offset: 0, done: true, checkedAt: new Date().toISOString() }])),
+    startedAt: new Date().toISOString(),
+    completedAt: new Date().toISOString(),
+  });
+  const nothingDueAccount = async (name: string) => {
+    const db = handle.db;
+    const puuid = `puuid-${name.replace(/ /g, "-").toLowerCase()}`;
+    const player = await createPlayer(db, teamId, { displayName: name, primaryRole: "TOP", primaryPool: ["Gwen"] });
+    const added = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: `${name}#OCE`, platform: "oc1", puuid });
+    await db.update(riotAccounts).set({ platformSource: "riot", riotIdCheckedAt: new Date(), syncStatus: "ok", syncCursor: 7, historyBackfill: nothingDue(), lastSyncAt: new Date(Date.now() - 6 * 3600_000) }).where(eq(riotAccounts.id, added.id));
+    return { puuid, account: (await listAccountsForPlayer(db, player.id))[0]! };
+  };
+
+  it("no list due and time running out after lookups Riot answered: a sync like any other", async () => {
+    const db = handle.db;
+    const { puuid, account } = await nothingDueAccount("Nothing Due");
+    const c = clock();
+    const deadline = c.now() + 10_000;
+    const calls: string[] = [];
+    const fetchImpl = riotWith(calls, puuid, async (url) => {
+      if (url.includes("/champion-mastery/")) await c.sleep(11_000);
+      return null;
+    });
+    const client = new RiotApiClient({ apiKey: "k", fetchImpl, limiter: new RateLimiter([{ requests: 100, seconds: 120 }], c.now, c.sleep), now: c.now, sleep: c.sleep, maxRetries: 0, deadline });
+    const r = await syncAccount(db, client, account, { maxMatchesPerRun: 20, season: 16, outOfTime: () => c.now() > deadline });
+    expect(calls.some((u) => u.includes("/ids?"))).toBe(false);
+    expect(r.error).toBeUndefined();
+    expect(r.outOfTime).toBeFalsy();
+    const row = await stored(account.id);
+    expect(row.syncStatus).toBe("ok");
+    expect(row.syncCursor).not.toBe(7);
+  });
+
+  it("no list due and Riot failing on the lookups as time runs out: a failure, as Riot's last word was", async () => {
+    const db = handle.db;
+    const { puuid, account } = await nothingDueAccount("Nothing Due Failing");
+    await resetCredential();
+    const c = clock();
+    const deadline = c.now() + 10_000;
+    const calls: string[] = [];
+    const fetchImpl = riotWith(calls, puuid, async (url) => {
+      if (!url.includes("/league/v4/") && !url.includes("/champion-mastery/")) return null;
+      await c.sleep(6_000);
+      return json({ status: { message: "Service unavailable", status_code: 503 } }, 503);
+    });
+    const client = new RiotApiClient({ apiKey: "k", fetchImpl, limiter: new RateLimiter([{ requests: 100, seconds: 120 }], c.now, c.sleep), now: c.now, sleep: c.sleep, maxRetries: 0, deadline });
+    const r = await syncAccount(db, client, account, { maxMatchesPerRun: 20, season: 16, outOfTime: () => c.now() > deadline });
+    expect(r).toMatchObject({ status: "pending", outOfTime: true });
+    expect(r.error).toMatch(/Riot's servers/);
+    expect(await stored(account.id)).toMatchObject({ syncStatus: "pending", syncCursor: 7 });
+    expect((await credential())?.lastOutcome).toBe("error");
+  });
+
+  it("no list due and the lookups failing with time to spare: best-effort lookups, the sync goes through as before", async () => {
+    const db = handle.db;
+    const { puuid, account } = await nothingDueAccount("Nothing Due Untimed");
+    const calls: string[] = [];
+    const fetchImpl = riotWith(calls, puuid, (url) => (url.includes("/league/v4/") || url.includes("/champion-mastery/") ? json({ status: { message: "Service unavailable", status_code: 503 } }, 503) : null));
+    const c = clock();
+    const client = new RiotApiClient({ apiKey: "k", fetchImpl, limiter: new RateLimiter([{ requests: 100, seconds: 120 }], c.now, c.sleep), now: c.now, sleep: c.sleep, maxRetries: 0 });
+    const r = await syncAccount(db, client, account, { maxMatchesPerRun: 20, season: 16 });
+    expect(r.error).toBeUndefined();
+    expect((await stored(account.id)).syncStatus).toBe("ok");
   });
 
   it("no time for a season list that was due, and no failure: a stop for time, and the account is not marked synced", async () => {
