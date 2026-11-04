@@ -14,7 +14,7 @@ interface Bundle {
 }
 
 declare global {
-  var __uniiverseProficiencyCache: { loadedAt: number; bundles: Map<string, Bundle> } | undefined;
+  var __uniiverseProficiencyCache: { loadedAt: number; bundles: Map<string, Bundle>; building: Map<string, Promise<Bundle>> } | undefined;
 }
 
 const TTL_MS = 5 * 60_000;
@@ -63,14 +63,22 @@ async function buildBundle(db: Db, ownerIds: string[]): Promise<Bundle> {
 export async function getProficiencyLookup(db: Db, playerIds: string[]): Promise<ProficiencyLookup & { hasData: (ownerId: string) => boolean }> {
   const key = [...playerIds].sort().join(",");
   // Installed before the build, so an invalidation during it (which drops the global) shows.
-  const cache = (globalThis.__uniiverseProficiencyCache ??= { loadedAt: Date.now(), bundles: new Map() });
+  const cache = (globalThis.__uniiverseProficiencyCache ??= { loadedAt: Date.now(), bundles: new Map(), building: new Map() });
   if (Date.now() - cache.loadedAt > TTL_MS) {
     cache.bundles.clear();
     cache.loadedAt = Date.now();
   }
   let bundle = cache.bundles.get(key);
   if (!bundle) {
-    bundle = await buildBundle(db, playerIds);
+    // Readers that arrive together share one build (it reads every account's history and
+    // mastery): the builds belong to this cache, so a reader after a drop never joins a build
+    // started before it.
+    let build = cache.building.get(key);
+    if (!build) {
+      build = buildBundle(db, playerIds).finally(() => cache.building.delete(key));
+      cache.building.set(key, build);
+    }
+    bundle = await build;
     // Kept only if the cache was not dropped while it was built (a sync, a new account, an
     // erasure): putting the old cache back would undo that, and this bundle may have been read
     // before the change. It still answers this lookup.

@@ -46,7 +46,7 @@ Deactivating, deleting and archiving are different actions, and none of them is 
 | Legacy opponent accounts | None are left; one that holds their Riot identity is deleted. |
 | Notes others wrote | Whole-word mentions of their names, Riot names and Riot IDs (3 characters or more) become "[removed]"; the rest of each note stays. This includes the private text other players kept in the retired Ranked Development: review learning points and adjustments, session focus and closing notes, objective titles and explanations, and If–Then plans. |
 | Admin activity | Entries keep what happened. Their name becomes **"Erased member"** as actor or target, and matching details become "[removed]". |
-| Job logs | Their Riot IDs are taken out of `job_runs` and `data_refresh_status`. Newer sync lines name an account only as `account 1a2b3c4d`. |
+| Job logs | Their Riot IDs are taken out of `job_runs` and `data_refresh_status`. Newer sync lines name an account only as `account 1a2b3c4d`. Run records are deleted after 60 days (the daily `integrity` job, in bounded batches). |
 | Caches | Team, public page, leaderboards, public pictures and banners, proficiency and lookup caches, and the lanes Matchups keeps, are cleared on this server instance (`src/server/privacy/after-erasure.ts`); other instances follow within their cache times. |
 
 It then records:
@@ -120,3 +120,5 @@ The notice says each of these:
   - the Owner and the administrator's own account are protected;
   - members are kept out.
 - `e2e/privacy.spec.ts`: the notice's wording, with nothing left about Clash scouts, and the old Clash Scout browser storage cleaned up on the next visit.
+
+**Riot's error messages name nobody (4 Nov 2026).** A failed Riot request's message, which reaches job log lines, run summaries, the Data health page and the host's logs, is built from the request's route with the identifiers it names elided (`routeLabel` in `src/server/riot/api/client.ts`): `/lol/league/v4/entries/by-puuid/…`, never the PUUID or the Riot ID the request was about. The Personal-data actions log a failed statement's kind, code and text without its parameters, never the raw error.
