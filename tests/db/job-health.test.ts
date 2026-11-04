@@ -109,6 +109,7 @@ function riot(refuse?: number) {
     if (refuse) return json({ status: { message: "Forbidden", status_code: refuse } }, refuse);
     const byRiotId = url.match(/\/accounts\/by-riot-id\/([^/]+)\/([^/?]+)/);
     if (byRiotId?.[1] === "Gone") return json({ status: { message: "Data not found", status_code: 404 } }, 404);
+    if (byRiotId?.[1] === "Locked") return json({ status: { message: "Forbidden", status_code: 403 } }, 403);
     if (byRiotId) return json({ puuid: `puuid-${byRiotId[1]}`, gameName: byRiotId[1], tagLine: byRiotId[2] });
     if (url.includes("/region/by-game/")) return json({ puuid: "puuid", game: "lol", region: "OC1" });
     if (url.includes("/lol/league/v4/entries/by-puuid/")) return json([]);
@@ -160,16 +161,26 @@ describe("the account sync's outcome", () => {
   it("is degraded when some accounts could not be synced, and says how many without naming them", async () => {
     const db = handle.db;
     process.env.RIOT_API_KEY = KEY;
-    const accounts = [await link("Good"), await link("Gone")];
-    // Riot does not know one of the two: a partial success, and the run says so.
+    const accounts = [await link("Good"), await link("Locked")];
+    // Riot refuses one of the two: a partial success, and the run says so.
     vi.stubGlobal("fetch", riot());
     const partial = await runAgain(accounts);
     expect(partial.ok).toBe(true);
-    expect(partial.summary).toMatchObject({ failed: 1 });
+    expect(partial.summary).toMatchObject({ failed: 1, needsAttention: 0 });
     expect(partial.degraded).toBe(true);
     expect(partial.error).toMatch(/1 of the \d+ linked accounts/);
-    expect(partial.error).not.toMatch(/#|Gone|Good/);
+    expect(partial.error).not.toMatch(/#|Locked|Good/);
     const [status] = await db.select().from(dataRefreshStatus).where(eq(dataRefreshStatus.key, "account-sync"));
     expect(status!.status).toBe("degraded");
+  });
+
+  it("does not stay degraded for an account that needs a person (a Riot ID Riot does not know)", async () => {
+    process.env.RIOT_API_KEY = KEY;
+    const accounts = [await link("Fine"), await link("Gone")];
+    vi.stubGlobal("fetch", riot());
+    // Retried every run until someone fixes or removes it, so counting it would leave every run degraded.
+    const r = await runAgain(accounts);
+    expect(r.summary).toMatchObject({ failed: 0, needsAttention: 1 });
+    expect(r.degraded).toBe(false);
   });
 });

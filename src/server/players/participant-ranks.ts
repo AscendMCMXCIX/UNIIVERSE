@@ -1,3 +1,4 @@
+import { INTERRUPTED_RUN_ERROR } from "@/server/ops/refresh-status";
 import { and, desc, eq, gte, inArray, lt, lte, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { lastKnownRanks, rankSnapshots, riotAccounts } from "@/server/db/schema";
@@ -425,7 +426,7 @@ export async function rankCoverage(db: Db, now = new Date()) {
   const recentChecks = rowsOf<Record<string, unknown>>(
     await db.execute(sql`
       SELECT started_at, trigger, summary->>'waiting' AS waiting, summary->>'games' AS games, summary->>'found' AS found, summary->>'failed' AS failed, summary->>'waits' AS waits, summary->>'reason' AS reason
-      FROM job_runs WHERE job = 'rank-checks' AND finished_at IS NOT NULL ORDER BY started_at DESC LIMIT 24`),
+      FROM job_runs WHERE job = 'rank-checks' AND finished_at IS NOT NULL AND error IS DISTINCT FROM ${INTERRUPTED_RUN_ERROR} ORDER BY started_at DESC LIMIT 24`),
   ).map((r) => ({ at: new Date(String(r.started_at)).toISOString(), trigger: String(r.trigger), waiting: n(r.waiting), games: n(r.games), checked: n(r.found), failed: n(r.failed), waits: n(r.waits), reason: r.reason ? String(r.reason) : null }));
   return {
     limits: { lookupsPerDay: RANK_LOOKUPS_PER_DAY, rateLimitShare: RANK_LOOKUP_SHARE, freshDays: RANK_FRESH_DAYS },

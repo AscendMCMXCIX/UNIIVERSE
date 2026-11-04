@@ -43,8 +43,9 @@ export async function getDataHealth(db: Db): Promise<DataHealth> {
     // Runs killed before they finished count too, and a job run again after failing keeps them.
     const failures = failuresInARow(s, now);
     if (failures >= 3) warnings.push(`${s.key} has failed ${failures} times in a row`);
-    // A degraded run finished but got nothing useful from its provider (key rejected, query
-    // refused…). It is the only place such a problem surfaces, so it must be visible here.
+    // A degraded run finished, but partly or wholly without its provider (accounts Riot or the
+    // network refused, a rejected key, a refused query…). It is the only place such a problem
+    // surfaces, so it must be visible here.
     // Runs that merely skipped because a provider is not configured stay quiet.
     if (s.status === "degraded" && s.lastError && !s.skipped) warnings.push(`${s.key}: ${s.lastError}`);
     const staleAfter = STALE_HOURS[s.key];
