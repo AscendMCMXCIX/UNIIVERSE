@@ -50,7 +50,7 @@ export async function figuresCoverage(db: Db): Promise<{ games: number; withFigu
     await db.execute(sql`
       SELECT count(*) AS games,
         count(*) FILTER (WHERE am.extra_stats->>'doubleKills' IS NOT NULL) AS with_figures,
-        count(*) FILTER (WHERE am.extra_stats IS NOT NULL AND am.extra_stats->>'doubleKills' IS NULL) AS unavailable
+        count(*) FILTER (WHERE (am.extra_stats IS NOT NULL AND am.extra_stats->>'doubleKills' IS NULL) OR (am.extra_stats IS NULL AND am.kills < 0)) AS unavailable
       FROM account_matches am
       JOIN riot_accounts a ON a.id = am.account_id AND a.owner_type = 'player'
       WHERE am.champion_id IS NOT NULL AND am.game_creation >= ${since}`),
@@ -61,7 +61,7 @@ export async function figuresCoverage(db: Db): Promise<{ games: number; withFigu
   return { games, withFigures, unavailable, pending: Math.max(0, games - withFigures - unavailable) };
 }
 
-/** One player's games of the offered seasons still waiting for their figures (a profile's Refresh says how many are left). */
+/** One player's games of the offered seasons still waiting for their figures (a profile's Refresh says how many are left); a game Riot no longer serves (kills = -1) never will. */
 export async function pendingFiguresForPlayer(db: Db, playerId: string): Promise<number> {
   const since = (await seasonListStart(db, FIRST_SEASON)) * 1000;
   const [r] = rows(
@@ -69,7 +69,7 @@ export async function pendingFiguresForPlayer(db: Db, playerId: string): Promise
       SELECT count(DISTINCT am.match_id) AS pending
       FROM account_matches am
       JOIN riot_accounts a ON a.id = am.account_id AND a.owner_type = 'player' AND a.player_id = ${playerId}
-      WHERE am.champion_id IS NOT NULL AND am.extra_stats IS NULL AND am.game_creation >= ${since}`),
+      WHERE am.champion_id IS NOT NULL AND am.extra_stats IS NULL AND coalesce(am.kills, 0) >= 0 AND am.game_creation >= ${since}`),
   );
   return Number(r?.pending ?? 0);
 }
@@ -91,11 +91,14 @@ export interface FiguresBackfillResult {
 export async function backfillFigures(db: Db, client: RiotApiClient, options: { limit: number; deadline: number; playerId?: string; log?: (m: string) => void }): Promise<FiguresBackfillResult> {
   const result: FiguresBackfillResult = { fetched: 0, unavailable: 0, skipped: [], stoppedBy: null };
   if (options.limit <= 0) return result;
-  // A game whose stored record is itself marked unavailable (no players) has nothing to ask for.
+  // A game whose stored record is itself marked unavailable (no players) has nothing to ask for;
+  // nor has a ledger row the sync marked kills = -1 (Riot no longer serves the game) before it
+  // also stored the unavailable record.
   await db.execute(sql`
     UPDATE account_matches am SET extra_stats = ${CHECKED}
     FROM match_details d
     WHERE d.match_id = am.match_id AND am.extra_stats IS NULL AND am.champion_id IS NOT NULL AND ${NO_PLAYERS}`);
+  await db.execute(sql`UPDATE account_matches SET extra_stats = ${CHECKED} WHERE extra_stats IS NULL AND champion_id IS NOT NULL AND kills < 0`);
   const since = (await seasonListStart(db, FIRST_SEASON)) * 1000;
   const due = rows(
     await db.execute(sql`

@@ -122,7 +122,20 @@ async function refreshRiotId(db: Db, client: RiotApiClient, account: RiotAccount
     const acc = await client.accountByPuuid(platform, puuid);
     const gameName = acc.gameName ?? account.gameName;
     const tagLine = acc.tagLine ?? account.tagLine;
-    const renamed = gameName !== account.gameName || tagLine !== account.tagLine;
+    let renamed = gameName !== account.gameName || tagLine !== account.tagLine;
+    if (renamed) {
+      // Another stored row already spells the new name on this server (the renamed account linked
+      // again before this check, under its new name): the unique index would refuse the rename.
+      // The stored name stays, the check is not repeated every sync, and the cause is logged.
+      const [taken] = await db
+        .select({ id: riotAccounts.id })
+        .from(riotAccounts)
+        .where(and(eq(riotAccounts.platform, platform), eq(riotAccounts.gameName, gameName), eq(riotAccounts.tagLine, tagLine), sql`${riotAccounts.id} <> ${account.id}`));
+      if (taken) {
+        log(`${accountRef(account)}: renamed in Riot, but another linked account already uses the new name; keeping the stored name`);
+        renamed = false;
+      }
+    }
     await db.update(riotAccounts).set({ ...(renamed ? { gameName, tagLine } : {}), riotIdCheckedAt: new Date(), updatedAt: new Date() }).where(eq(riotAccounts.id, account.id));
     if (renamed) {
       log(`${accountRef(account)}: renamed in Riot; data kept`);
@@ -192,7 +205,9 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
       const [clash] = await db.select({ id: riotAccounts.id, gameName: riotAccounts.gameName, tagLine: riotAccounts.tagLine, playerId: riotAccounts.playerId }).from(riotAccounts).where(and(eq(riotAccounts.puuid, puuid), sql`${riotAccounts.id} <> ${account.id}`));
       if (clash) {
         const message = clash.playerId === account.playerId ? `This is the same Riot account as ${clash.gameName}#${clash.tagLine}, which is already linked (renamed Riot ID). Remove one of the two; games are only ever counted once.` : `This Riot account is already linked to another player as ${clash.gameName}#${clash.tagLine}. Ask the owner to move it.`;
-        await db.update(riotAccounts).set({ syncStatus: "failed", syncError: message, lastSyncAt: new Date(), updatedAt: new Date() }).where(eq(riotAccounts.id, account.id));
+        // A failed attempt like any other: the scheduler's back-off (accountsForSyncRun) grows
+        // with the count, so a row a person has to remove is not re-resolved every few minutes.
+        await db.update(riotAccounts).set({ syncStatus: "failed", syncError: message, lastSyncAt: new Date(), resolveAttempts: sql`${riotAccounts.resolveAttempts} + 1`, updatedAt: new Date() }).where(eq(riotAccounts.id, account.id));
         return { ...result, error: message, status: "failed" };
       }
       // Adopt Riot's canonical spelling unless another stored account already uses it.

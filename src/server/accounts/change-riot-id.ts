@@ -3,6 +3,7 @@ import type { Db } from "@/server/db/types";
 import { players, riotAccounts } from "@/server/db/schema";
 import { RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
 import { AccountError, addAccount, listAccountsForPlayer, parseRiotId, reorderAccounts, setMainAccount, type RiotAccountRecord } from "./repository";
+import { SCHEDULED_SYNC_LEASE_MS, claimAccountSync } from "./refresh";
 import { syncAccount } from "./sync";
 
 export type RiotIdChange =
@@ -59,6 +60,6 @@ export async function changeAccountRiotId(db: Db, client: RiotApiClient, account
   if (account.playerId) await reorderAccounts(db, account.playerId, order);
   if (account.label === "main" && account.playerId) await setMainAccount(db, account.playerId, fresh.id);
   // First data straight away; the scheduled sync continues the season history.
-  await syncAccount(db, client, fresh, { maxMatchesPerRun: 20 }).catch(() => undefined);
+  if (await claimAccountSync(db, fresh.id, SCHEDULED_SYNC_LEASE_MS)) await syncAccount(db, client, fresh, { maxMatchesPerRun: 20 }).catch(() => undefined);
   return { kind: "replaced", riotId, accountId: fresh.id };
 }

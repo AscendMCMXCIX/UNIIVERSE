@@ -6,7 +6,7 @@ import { getAppDb } from "@/server/bootstrap";
 import { requirePermission, requireRiotAccountEditor } from "@/server/auth/session";
 import { AccountError, addAccount, listAccountsForPlayer, listPendingAccounts, removeAccount, reorderAccounts, setMainAccount, type RiotAccountRecord } from "@/server/accounts/repository";
 import { syncAccount } from "@/server/accounts/sync";
-import { REFRESH_COOLDOWN_MS, accountSyncRetryIn, claimAccountSync, isSyncableAccount } from "@/server/accounts/refresh";
+import { REFRESH_COOLDOWN_MS, SCHEDULED_SYNC_LEASE_MS, accountSyncRetryIn, claimAccountSync, isSyncableAccount } from "@/server/accounts/refresh";
 import { changeAccountRiotId, type RiotIdChange } from "@/server/accounts/change-riot-id";
 import { createRiotClient, parsePlatforms } from "@/server/riot/api/client";
 import { browserTestRiotClient } from "@/server/riot/browser-test";
@@ -33,9 +33,11 @@ export async function addPlayerAccountAction(playerId: string, input: { riotId: 
     await requireRiotAccountEditor(playerId);
     const db = await getAppDb();
     const account = await addAccount(db, { ownerType: "player", playerId, riotId: input.riotId, platform: input.platform?.trim() || defaultPlatform() });
-    // Resolve immediately when a key is available so the user sees whether the Riot ID exists.
+    // Resolve immediately when a key is available so the user sees whether the Riot ID exists
+    // (under the account's sync lease, like every sync: a new row is never claimed by anyone else,
+    // but a second press of the same form must not start a second sync on top of the first).
     const client = createRiotClient();
-    if (client) await syncAccount(db, client, account, { maxMatchesPerRun: 20 });
+    if (client && (await claimAccountSync(db, account.id, SCHEDULED_SYNC_LEASE_MS))) await syncAccount(db, client, account, { maxMatchesPerRun: 20 });
     invalidateProficiencyCache();
     touch();
     const fresh = (await listAccountsForPlayer(db, playerId)).find((a) => a.id === account.id) ?? account;
@@ -149,6 +151,8 @@ export async function retryPendingAccountsAction(): Promise<Result<{ attempted: 
     const started = Date.now();
     for (const account of pending) {
       if (Date.now() - started > 40_000) break;
+      // An account the scheduler or a Refresh is syncing right now is left to that run.
+      if (!(await claimAccountSync(db, account.id, SCHEDULED_SYNC_LEASE_MS))) continue;
       const r = await syncAccount(db, client, account, { maxMatchesPerRun: 20 });
       if (r.status === "ok") synced += 1;
       else if (r.status === "pending") stillPending += 1;

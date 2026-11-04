@@ -8,7 +8,7 @@ import { syncStaticData } from "@/server/riot/static/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { addAccount, listAccountsForPlayer, type RiotAccountRecord } from "@/server/accounts/repository";
 import { DETAILS_UNAVAILABLE, syncAccount } from "@/server/accounts/sync";
-import { backfillFigures } from "@/server/accounts/figures-backfill";
+import { backfillFigures, figuresCoverage, pendingFiguresForPlayer } from "@/server/accounts/figures-backfill";
 import { backfillTimelines } from "@/server/accounts/timeline-backfill";
 import { getMatchHistory } from "@/server/players/match-history";
 import { MAX_SKIPPED_RECORDS, RiotApiClient, recordFailure, RiotApiError } from "@/server/riot/api/client";
@@ -183,6 +183,21 @@ describe("a game Riot no longer serves (404) in the sync's catch-up", () => {
     expect(asked(again)).not.toContain("OC1_GONE");
     await handle.db.delete(accountMatches).where(eq(accountMatches.matchId, "OC1_GONE"));
     await handle.db.delete(matchDetails).where(eq(matchDetails.matchId, "OC1_GONE"));
+  });
+});
+
+describe("a ledger row marked gone before the unavailable record was also stored", () => {
+  it("is not pending for its figures, and the figures backfill marks it checked", async () => {
+    const a = await fresh();
+    await handle.db.insert(accountMatches).values({ accountId: a.id, matchId: "OC1_GONE_OLD", gameCreation: IN_SEASON + 6 * DAY, queueId: 420, championId: "Gwen", role: "TOP", win: true, patch: "16.11", gameDuration: 1800, ...DETAILS_UNAVAILABLE });
+    expect(await pendingFiguresForPlayer(handle.db, playerId)).toBe(0);
+    const calls: string[] = [];
+    await backfillFigures(handle.db, riot(PUUID, games, { calls }), { limit: 10, deadline: Date.now() + 60_000 });
+    expect(asked(calls)).not.toContain("OC1_GONE_OLD");
+    const [row] = await handle.db.select({ extraStats: accountMatches.extraStats }).from(accountMatches).where(eq(accountMatches.matchId, "OC1_GONE_OLD"));
+    expect(row?.extraStats).toEqual({});
+    expect((await figuresCoverage(handle.db)).unavailable).toBeGreaterThanOrEqual(1);
+    await handle.db.delete(accountMatches).where(eq(accountMatches.matchId, "OC1_GONE_OLD"));
   });
 });
 

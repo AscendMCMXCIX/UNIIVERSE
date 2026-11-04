@@ -2,6 +2,7 @@ import type { Db } from "@/server/db/types";
 import { dueForViewRefresh } from "@/domain/account-status";
 import { backgroundRefreshEnabled, claimLease } from "@/server/jobs/background";
 import { listAccountsForPlayer } from "./repository";
+import { SCHEDULED_SYNC_LEASE_MS, claimAccountSync } from "./refresh";
 import { syncAccount } from "./sync";
 import { createRiotClient } from "@/server/riot/api/client";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
@@ -21,6 +22,9 @@ export async function kickoffAccountSync(db: Db, playerId: string, options: { ma
     const accounts = (await listAccountsForPlayer(db, playerId)).filter((a) => a.syncStatus === "never" || a.syncStatus === "pending");
     for (const account of accounts) {
       if (Date.now() - startedAt > deadline) break;
+      // Every sync of an account claims its lease first (accounts/refresh.ts), so this never runs
+      // on top of the scheduler's or a Refresh's sync of the same account.
+      if (!(await claimAccountSync(db, account.id, SCHEDULED_SYNC_LEASE_MS))) continue;
       await syncAccount(db, client, account, { maxMatchesPerRun: options.maxMatchesPerRun ?? 20, outOfTime: () => Date.now() - startedAt > deadline });
     }
     invalidateProficiencyCache();
@@ -35,7 +39,8 @@ export async function kickoffAccountSync(db: Db, playerId: string, options: { ma
  * accounts not refreshed for 15 minutes get one bounded sync (about 40 seconds, 60 matches).
  * The page asks every ten seconds while this runs and reads itself again when the data changed
  * (components/ui/freshness-watcher.tsx), and each render may start the next slice, so a new account
- * fills in while it is being watched and nobody needs a Retry button. A two-minute lease per player keeps slices from overlapping.
+ * fills in while it is being watched and nobody needs a Retry button. A two-minute lease per player keeps slices from overlapping,
+ * and each account's own sync lease keeps a slice off an account another sync is reading.
  */
 export async function refreshPlayerAccountsIfDue(db: Db, playerId: string, options: { deadlineMs?: number; maxMatchesPerRun?: number } = {}): Promise<number> {
   if (!backgroundRefreshEnabled()) return 0;
@@ -50,6 +55,9 @@ export async function refreshPlayerAccountsIfDue(db: Db, playerId: string, optio
     let synced = 0;
     for (const account of due) {
       if (Date.now() - startedAt > deadline) break;
+      // The player lease paces the page's polling; the account's own lease (accounts/refresh.ts)
+      // keeps this slice off an account the scheduler or a Refresh is syncing right now.
+      if (!(await claimAccountSync(db, account.id, SCHEDULED_SYNC_LEASE_MS, now))) continue;
       await syncAccount(db, client, account, { maxMatchesPerRun: options.maxMatchesPerRun ?? 60, outOfTime: () => Date.now() - startedAt > deadline });
       synced += 1;
     }
