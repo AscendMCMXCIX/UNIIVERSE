@@ -36,6 +36,7 @@ import { auditEvents, players, privacyErasures, riotAccounts, users } from "@/se
 import { getOrCreateTeam } from "@/server/repositories/team";
 import { STANDARD_PLAYER } from "@/server/auth/permissions";
 import { eraseAction, exportErasuresAction, importErasuresAction, listErasuresAction, previewErasureAction, reconcileErasuresAction, releaseErasureAction } from "@/server/actions/privacy";
+import { publicImageBytes } from "@/server/public/image-response";
 
 let handle: DbHandle;
 const id = { owner: randomUUID(), dana: randomUUID(), eve: randomUUID(), pat: randomUUID(), patPlayer: randomUUID(), patAccount: randomUUID() };
@@ -156,5 +157,22 @@ describe("erasing a member", () => {
     expect(record!.releasedAt).toBeInstanceOf(Date);
     const [audit] = await handle.db.select().from(auditEvents).where(sql`${auditEvents.action} = 'privacy.release'`);
     expect(audit).toMatchObject({ actorName: "dana", targetType: "erasure", targetName: reference });
+  });
+});
+
+describe("after an erasure", () => {
+  it("drops the erased member's public picture and banner bytes kept by this instance", async () => {
+    const quinn = { user: randomUUID(), player: randomUUID() };
+    const teamId = (await getOrCreateTeam(handle.db)).id;
+    await handle.db.insert(players).values({ id: quinn.player, teamId, displayName: "Quinn Example", primaryRole: "MID" });
+    await handle.db.insert(users).values({ id: quinn.user, username: "quinn", displayName: "Quinn Example", passwordHash: "x", role: "player", playerId: quinn.player });
+    // The public picture routes keep the bytes for a minute (avatar by account, banner by profile).
+    const bytes = { contentType: "image/png", data: Buffer.from("quinn's picture") };
+    const kept = [["avatar", quinn.user], ["banner", quinn.player]] as const;
+    for (const [kind, owner] of kept) expect(await publicImageBytes(handle.db, kind, owner, async () => bytes)).toBe(bytes);
+    asAdmin();
+    expect((await eraseAction({ userId: quinn.user }, "quinn")).ok).toBe(true);
+    // Read again (and now there is nothing), never served from what was kept.
+    for (const [kind, owner] of kept) expect(await publicImageBytes(handle.db, kind, owner, async () => null)).toBeNull();
   });
 });
