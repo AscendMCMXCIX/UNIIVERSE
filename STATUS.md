@@ -36,7 +36,7 @@
 | Area | Who | State |
 |---|---|---|
 | Mobile redesign: phone navigation, filters, match cards, Players, Team Matches | Session "UNIIVERSE mobile redesign", since 4 Nov 06:44 | Not pushed. Its Leaderboards changes were made before #188 replaced those files |
-| Ranked history: why progress starts on 16 Oct, the whole 2026 season | Session "UNIIVERSE drafting platform": #190, a read-only `rank-audit` job, in CI | Why 16 Oct: rank readings are stored only since migration 0035 (generated 15 Oct, 15:39 UTC), and Riot's league API gives only the current rank, so no earlier rank or LP history exists to recover. Win/loss results do cover the whole season (stored games) |
+| Ranked history: why progress starts on 16 Oct, the whole 2026 season | Session "UNIIVERSE drafting platform": #190 merged on 4 Nov, a read-only `rank-audit` job; its Data jobs run reports the year's coverage | Why 16 Oct: rank readings are stored only since migration 0035 (generated 15 Oct, 15:39 UTC), and Riot's league API gives only the current rank, so no earlier rank or LP history exists to recover. Win/loss results do cover the whole season (stored games) |
 | LP gained or lost per ranked game | The same session | The rule is in #190 (`domain/lp-attribution`, 16 tests): a game gets a figure only where two rank readings enclose exactly that game. LP on match cards and a full-season Ranked progress are on a draft branch that waits for the owner's approval of migration 0065 |
 
 ## Outstanding, by impact
