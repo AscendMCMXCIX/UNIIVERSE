@@ -56,10 +56,12 @@ describe("migration 0048: last-known ranks", () => {
       await scout(d2, "JUNGLE", "F", "GOLD", "I", "2026-09-01T00:00:00Z");
       await ladder("F", "DIAMOND", "2026-09-15T00:00:00Z");
 
-      // Later migrations drop the sources; marking them applied keeps them here to compare.
-      for (const m of EMBEDDED_MIGRATIONS.filter((m) => m.tag > "0048_last_known_ranks")) await db.execute(sql`INSERT INTO uniiverse_migrations (tag, hash) VALUES (${m.tag}, ${m.hash})`);
+      // The held drops remove the sources; marking them (and what follows) applied keeps them here to compare.
+      const drop = EMBEDDED_MIGRATIONS.find((m) => m.tag.endsWith("_retire_meta_trends_tables"))!;
+      for (const m of EMBEDDED_MIGRATIONS.filter((m) => m.tag >= drop.tag)) await db.execute(sql`INSERT INTO uniiverse_migrations (tag, hash) VALUES (${m.tag}, ${m.hash})`);
       const result = await runMigrations(db, { useAdvisoryLock: false });
-      expect(result.applied).toEqual(["0048_last_known_ranks"]);
+      expect(result.applied[0]).toBe("0048_last_known_ranks");
+      expect(result.applied.filter((tag) => tag >= drop.tag)).toEqual([]);
 
       const copied = (await db.select().from(lastKnownRanks).orderBy(asc(lastKnownRanks.puuid))).map((r) => [r.puuid, r.tier, r.division, r.observedAt.toISOString(), r.source]);
       expect(copied).toEqual([
