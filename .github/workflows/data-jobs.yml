@@ -20,7 +20,9 @@
 # A scheduled run also reads /api/health and fails when production is unwell (the app or database
 # down, a job failing three times in a row, or no account sync for 12 hours), or when yesterday's
 # database egress went over its daily budget (the "egress" job), so GitHub's failed-workflow email
-# is the alert (docs/MONITORING.md).
+# is the alert (docs/MONITORING.md). When health lists "riot-key" (Riot rejected the API key), the
+# run first asks Riot again with one riot-check request: a key Riot accepts now is a warning, not a
+# failure; any other answer, or none, fails the run as before and names the re-check's result.
 # GitHub also disables scheduled workflows after 60 days without commits; re-enable it under the
 # Actions tab if that happens. Set the repository variable DATA_JOBS_ENABLED=false to pause it.
 name: Data jobs
@@ -127,6 +129,23 @@ jobs:
           # failing three times in a row, or no successful account sync for SYNC_STALE_HOURS.
           if [ "$EVENT" = "schedule" ]; then
             health="$(curl --silent --max-time 60 "$APP_URL/api/health" || true)"
+            # "riot-key" stays listed after Riot rejected the key until a request under it succeeds,
+            # which after a short Riot-side 401/403 incident can take hours (the accounts back off).
+            # So the run asks Riot once (riot-check, which records the answer) before failing on it.
+            # Only .summary.state is read: the answer also names the key's fingerprint, so it is
+            # never printed. Health is not read again (the app caches the key's state for 30 s).
+            recheck=""
+            if printf '%s' "$health" | jq -e --arg job riot-key 'any(.failingJobs[]?; . == $job)' >/dev/null 2>&1; then
+              answer="$(curl --silent --max-time 45 -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/jobs/riot-check" || true)"
+              recheck="$(printf '%s' "$answer" | jq -r '.summary.state | select(type == "string" and test("^[a-z-]{1,32}$"))' 2>/dev/null || true)"
+              [ -n "$answer" ] || recheck="no answer"
+              [ -n "$recheck" ] || recheck="an unreadable answer"
+              unset answer
+              if [ "$recheck" = "accepted" ]; then
+                health="$(printf '%s' "$health" | jq -c --arg job riot-key '.failingJobs -= [$job]' 2>/dev/null || true)"
+                echo "::warning::Riot had rejected the API key earlier and accepts it now (re-checked with riot-check)."
+              fi
+            fi
             problem="$(printf '%s' "$health" | jq -r --argjson hours "$SYNC_STALE_HOURS" '
               if .ok != true then "the app or its database is not answering"
               elif (.failingJobs | length) > 0 then "failing jobs: " + (.failingJobs | join(", "))
@@ -135,6 +154,7 @@ jobs:
                   then "no successful account sync for over \($hours) hours" else empty end
               end' 2>/dev/null || echo "the health check could not be read")"
             [ -n "$health" ] || problem="the health check could not be read"
+            case "$recheck" in ""|accepted) ;; *) problem="$problem (re-checked with riot-check: $recheck)" ;; esac
             if [ -n "$problem" ]; then echo "::error::Production health: $problem"; status=1; else echo "Production health: ok"; fi
             # Database egress: yesterday's estimate, counted by the app, against the daily budget
             # (docs/HOSTING_USAGE.md). Over budget fails the run, so the same email arrives. A
