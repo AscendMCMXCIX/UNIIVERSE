@@ -87,11 +87,14 @@ test("a phone's scoreboard row is three lines: the name and KDA, the champion an
 
 test("a narrow card keeps the time of its game in view", async ({ page }) => {
   test.skip(!isPhone(page), "the narrow card");
-  const profile = await profileOf(page, "ADC");
+  const profile = await profileOf(page, "TOP");
   await page.goto(`${profile}/matches`, { waitUntil: "networkidle" });
   const metas = page.getByTestId("match-card-meta");
-  const count = Math.min(await metas.count(), 6);
+  const count = await metas.count();
   expect(count).toBeGreaterThan(0);
+  // Cards with a "Best … in N" chip too: on a narrow card it sits in the figures' row, so the KDA
+  // column beside the line stays narrow.
+  expect(await page.locator('[data-testid="match-standout"]:visible').count()).toBeGreaterThan(0);
   for (let i = 0; i < count; i++) {
     const meta = metas.nth(i);
     // "Victory · Solo/Duo · 3h ago" as shown (the long queue name is hidden): without "Ranked", and nothing cut off.
