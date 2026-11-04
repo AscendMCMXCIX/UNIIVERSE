@@ -124,6 +124,33 @@ describe("account sync with a deadline", () => {
     expect((await stored(account.id)).historyBackfill?.queues["420"]).toMatchObject({ offset: 3, done: true });
   });
 
+  it("an outage with no time left to retry is a failed sync, not a run out of time", async () => {
+    // Review of the deadlines change: a back-off that would end past the deadline used to throw
+    // the deadline's error, so a Riot outage near the end of a budget read as "out of time" and
+    // the account was left as if nothing had happened. It is Riot failing: the account waits as
+    // pending with Riot's reason, and the run is a failure the job counts (degraded).
+    const db = handle.db;
+    const player = await createPlayer(db, teamId, { displayName: "Deadline Outage", primaryRole: "TOP", primaryPool: ["Gwen"] });
+    const account = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Deadline Outage#OCE", platform: "oc1", puuid: "puuid-outage-deadline" });
+    await db.update(riotAccounts).set({ platformSource: "riot", riotIdCheckedAt: new Date(), syncStatus: "ok" }).where(eq(riotAccounts.id, account.id));
+    const c = clock();
+    const calls: string[] = [];
+    const down = async (input: string | URL | Request) => {
+      calls.push(String(input));
+      return json({ status: { message: "Service unavailable", status_code: 503 } }, 503);
+    };
+    // One back-off (1 s) fits; the next (2 s) would end past the deadline.
+    const client = new RiotApiClient({ apiKey: "k", fetchImpl: down, limiter: new RateLimiter([{ requests: 100, seconds: 120 }], c.now, c.sleep), now: c.now, sleep: c.sleep, maxRetries: 4, deadline: c.now() + 1_500 });
+    const r = await syncAccount(db, client, (await listAccountsForPlayer(db, player.id))[0]!, { maxMatchesPerRun: 20 });
+    expect(r.outOfTime).toBeFalsy();
+    expect(r.error).toBeTruthy();
+    expect(r.status).toBe("pending");
+    expect(calls.length).toBeGreaterThan(0);
+    const row = await stored(account.id);
+    expect(row.syncStatus).toBe("pending");
+    expect(row.syncError).toMatch(/Riot's servers/);
+  });
+
   it("a Refresh that runs out of time says Riot did not answer in time, not that there is nothing new, and marks nothing", async () => {
     const db = handle.db;
     const player = await createPlayer(db, teamId, { displayName: "Deadline Refresh", primaryRole: "TOP", primaryPool: ["Gwen"] });

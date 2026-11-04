@@ -31,8 +31,10 @@ export async function setScheduleOverrides(db: Db, overrides: ScheduleOverrides)
  */
 const TICK_ORDER: JobKey[] = ["version-check", "account-sync", "rank-checks", "integrity", "timeline-backfill", "figures-backfill"];
 
+/** The account-sync job's cap inside one tick (the background sync lease outlasts it: accounts/refresh.ts). */
+export const ACCOUNT_SYNC_TICK_MS = 75_000;
 /** Budget caps inside one tick, so one job cannot take the whole tick. */
-const MAX_JOB_MS: Partial<Record<JobKey, number>> = { "account-sync": 75_000, "rank-checks": 15_000, integrity: 20_000, "timeline-backfill": 25_000, "figures-backfill": 25_000 };
+const MAX_JOB_MS: Partial<Record<JobKey, number>> = { "account-sync": ACCOUNT_SYNC_TICK_MS, "rank-checks": 15_000, integrity: 20_000, "timeline-backfill": 25_000, "figures-backfill": 25_000 };
 
 /** How long a job may run inside a tick with `remainingMs` left. */
 export function tickJobBudget(key: JobKey, remainingMs: number): number {

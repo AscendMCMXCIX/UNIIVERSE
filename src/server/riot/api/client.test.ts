@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RiotApiClient, riotKeyTier } from "./client";
+import { RiotApiClient, RiotApiError, RiotDeadlineError, riotKeyTier } from "./client";
 import { RateLimiter } from "./rate-limiter";
 
 function clientWith(calls: string[]) {
@@ -131,7 +131,7 @@ describe("Riot API client deadlines", () => {
     expect(c.now()).toBeGreaterThanOrEqual(2_000);
   });
 
-  it("a retry after a Riot error is not waited for past the deadline", async () => {
+  it("a retry after a Riot error is not waited for past the deadline, and the error is Riot's", async () => {
     const c = clock();
     const calls: string[] = [];
     const fetchImpl = async (input: string | URL | Request) => {
@@ -139,10 +139,30 @@ describe("Riot API client deadlines", () => {
       return new Response("{}", { status: 503 });
     };
     const client = new RiotApiClient({ apiKey: "RGAPI-test", fetchImpl, limiter: new RateLimiter([{ requests: 1000, seconds: 1 }], c.now, c.sleep), now: c.now, sleep: c.sleep, maxRetries: 4, deadline: 1_500 });
-    // The first retry waits 1 s (in time), the second would wait 2 s more (past it).
-    await expect(client.leagueEntriesByPuuid("oc1", "a")).rejects.toMatchObject({ name: "RiotDeadlineError" });
+    // The first retry waits 1 s (in time), the second would wait 2 s more (past it). What the
+    // caller gets is the outage, not "out of time": a run that met only a failing Riot reports a
+    // failure (the account waits as pending), never a clean stop for time.
+    const failure = await client.leagueEntriesByPuuid("oc1", "a").catch((err: unknown) => err);
+    expect(failure).toBeInstanceOf(RiotApiError);
+    expect(failure).toMatchObject({ name: "RiotApiError", status: 503, retryable: true });
+    expect(failure).not.toBeInstanceOf(RiotDeadlineError);
     expect(calls).toHaveLength(2);
     expect(c.now()).toBe(1_000);
+  });
+
+  it("a network failure with no time left to retry is reported as a network failure", async () => {
+    const c = clock();
+    const calls: string[] = [];
+    const fetchImpl = async (input: string | URL | Request) => {
+      calls.push(String(input));
+      throw new Error("ECONNRESET");
+    };
+    const client = new RiotApiClient({ apiKey: "RGAPI-test", fetchImpl, limiter: new RateLimiter([{ requests: 1000, seconds: 1 }], c.now, c.sleep), now: c.now, sleep: c.sleep, maxRetries: 4, deadline: 500 });
+    const failure = await client.leagueEntriesByPuuid("oc1", "a").catch((err: unknown) => err);
+    expect(failure).toMatchObject({ name: "RiotApiError", status: 0, retryable: true });
+    expect(String((failure as Error).message)).toContain("ECONNRESET");
+    expect(calls).toHaveLength(1);
+    expect(c.now()).toBe(0);
   });
 });
 

@@ -1,6 +1,6 @@
 import type { Db } from "@/server/db/types";
 import { dueForViewRefresh } from "@/domain/account-status";
-import { backgroundRefreshEnabled, claimLease } from "@/server/jobs/background";
+import { backgroundRefreshEnabled, claimLease, releaseLease } from "@/server/jobs/background";
 import { listAccountsForPlayer } from "./repository";
 import { syncAccount } from "./sync";
 import { SCHEDULED_SYNC_LEASE_MS, claimAccountSync } from "./refresh";
@@ -10,12 +10,15 @@ import { invalidateProficiencyCache } from "@/server/proficiency/service";
 /*
   Both background syncs here claim the per-account lease before syncing an account, as the
   scheduler, a profile's Refresh and Retry sync do (server/accounts/refresh.ts), and leave an
-  account another sync claimed in the last minute to that sync. Before they did, a profile view
+  account another sync claimed recently (SCHEDULED_SYNC_LEASE_MS) to that sync. Before they did, a profile view
   and the tick (or a Refresh) could sync one account at the same time: twice the Riot requests on
   a key allowed 100 per two minutes, and a Refresh answering "No new games" because the other
   sync had just stored them. A lease only defers: the account is synced by whoever holds it, and
-  by the next sync once a minute has passed.
+  by the next sync once the lease has passed.
 */
+
+/** One slice of a profile view's refresh per player per this long (see refreshPlayerAccountsIfDue). */
+export const VIEW_REFRESH_LEASE_MS = 2 * 60_000;
 
 /**
  * Best-effort first verification of a player's freshly linked accounts, run after the sign-up
@@ -65,16 +68,23 @@ export async function refreshPlayerAccountsIfDue(db: Db, playerId: string, optio
   try {
     const now = new Date();
     const due = (await listAccountsForPlayer(db, playerId)).filter((a) => dueForViewRefresh({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, history: a.historyBackfill }, now));
-    if (due.length === 0 || !(await claimLease(db, `account_refresh:${playerId}`, 2 * 60_000, now))) return 0;
+    const sliceKey = `account_refresh:${playerId}`;
+    if (due.length === 0 || !(await claimLease(db, sliceKey, VIEW_REFRESH_LEASE_MS, now))) return 0;
     let synced = 0;
+    let started = 0;
     for (const account of due) {
       if (outOfTime()) break;
       // Another sync (the scheduler, a Refresh, the first sync) is on this account or just was.
       if (!(await claimAccountSync(db, account.id, SCHEDULED_SYNC_LEASE_MS))) continue;
+      started += 1;
       const r = await syncAccount(db, client, account, { maxMatchesPerRun: options.maxMatchesPerRun ?? 60, outOfTime });
-      synced += 1;
+      // An account whose sync stopped for time before it read anything was not synced.
+      if (!r.outOfTime || r.matchesFolded > 0 || r.masteryRows > 0) synced += 1;
       if (r.outOfTime) break;
     }
+    // Every due account was held by another sync (the first sync right after sign-up, say): this
+    // slice did nothing, so the next render may start one at once instead of two minutes later.
+    if (started === 0) await releaseLease(db, sliceKey, now);
     if (synced) invalidateProficiencyCache();
     return synced;
   } catch (err) {

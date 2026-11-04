@@ -15,6 +15,9 @@ export function parsePlatforms(spec: string | undefined, fallback: string[] = [D
   return parsePlatformList(spec, fallback);
 }
 
+/** How long one Riot request may take before it is abandoned (and retried, when there is time). */
+export const RIOT_REQUEST_TIMEOUT_MS = 15_000;
+
 export class RiotApiError extends Error {
   constructor(
     message: string,
@@ -128,7 +131,7 @@ export class RiotApiClient {
     this.limitShare = options.limitShare ?? 1;
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.maxRetries = options.maxRetries ?? 4;
-    this.timeoutMs = options.timeoutMs ?? 15_000;
+    this.timeoutMs = options.timeoutMs ?? RIOT_REQUEST_TIMEOUT_MS;
     this.baseUrl = options.baseUrl ?? "https://{host}.api.riotgames.com";
     this.sleep = options.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
     this.now = options.now ?? (() => Date.now());
@@ -169,8 +172,11 @@ export class RiotApiClient {
         res = await this.fetchImpl(this.url(host, path), { headers: { "X-Riot-Token": this.options.apiKey }, signal: controller.signal });
       } catch (err) {
         clearTimeout(timer);
-        if (attempt++ >= this.maxRetries) throw new RiotApiError(`Network error calling ${path}: ${(err as Error).message}`, 0, true);
-        if (!this.canWait(500 * 2 ** attempt)) throw new RiotDeadlineError(host, "the back-off before a retry");
+        const failure = new RiotApiError(`Network error calling ${path}: ${(err as Error).message}`, 0, true);
+        // Out of retries, or no time left to back off before one: the failure itself is the answer.
+        // It is Riot (or the network) failing, not the run running out of time, so callers record
+        // it as such (an account waits as pending, the key's status says Riot is unavailable).
+        if (attempt++ >= this.maxRetries || !this.canWait(500 * 2 ** attempt)) throw failure;
         await this.sleep(500 * 2 ** attempt);
         continue;
       }
@@ -189,8 +195,8 @@ export class RiotApiClient {
         continue;
       }
       if (res.status >= 500) {
-        if (attempt++ >= this.maxRetries) throw new RiotApiError(`Riot API ${res.status} on ${path}`, res.status, true);
-        if (!this.canWait(500 * 2 ** attempt)) throw new RiotDeadlineError(host, "the back-off before a retry");
+        // As above: a failing Riot is reported as failing, even when there is no time left to retry.
+        if (attempt++ >= this.maxRetries || !this.canWait(500 * 2 ** attempt)) throw new RiotApiError(`Riot API ${res.status} on ${path}`, res.status, true);
         await this.sleep(500 * 2 ** attempt);
         continue;
       }

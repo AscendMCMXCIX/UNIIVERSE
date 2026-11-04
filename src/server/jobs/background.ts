@@ -45,6 +45,14 @@ export async function claimLease(db: Db, key: string, minIntervalMs: number, now
   return rowsOf(result).length > 0;
 }
 
+/**
+ * Gives back a lease claimed at `claimedAt`, so the next caller need not wait out its interval.
+ * Only that claim: if anyone claimed the key since, their lease stays.
+ */
+export async function releaseLease(db: Db, key: string, claimedAt: Date): Promise<void> {
+  await db.execute(sql`DELETE FROM app_settings WHERE key = ${key} AND updated_at = ${claimedAt.toISOString()}::timestamptz`);
+}
+
 /** Claims the scheduler-tick lease (see claimLease). */
 export function claimTickLease(db: Db, minIntervalMs: number, now: Date = new Date()): Promise<boolean> {
   return claimLease(db, LEASE_KEY, minIntervalMs, now);

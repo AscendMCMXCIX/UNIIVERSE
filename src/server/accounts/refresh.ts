@@ -31,9 +31,16 @@ export { CATCH_UP_LIMIT };
 export const REFRESH_COOLDOWN_MS = REFRESH_COOLDOWN_SECONDS * 1000;
 /**
  * Background syncs (the scheduler, a profile view's refresh, the first sync after sign-up) skip an
- * account another sync claimed this recently: longer than a refresh's run, so they never join one.
+ * account another sync claimed this recently. It outlasts the longest a sync started by the
+ * scheduler can hold an account (the tick's account-sync cap, ACCOUNT_SYNC_TICK_MS, plus one Riot
+ * request's timeout), and so every shorter one (a Refresh, a view's slice, the first sync): two
+ * never sync one account at once, which would double the Riot requests and let the last writer
+ * roll back the other's season-history position. It stays under a view's two-minute slice lease
+ * (VIEW_REFRESH_LEASE_MS), so a watched account's next slice is not refused by its own last one.
+ * Not covered: a manual run of the account-sync job given a longer budget (/api/jobs with
+ * budgetMs), which a background sync may join after this long.
  */
-export const SCHEDULED_SYNC_LEASE_MS = 60_000;
+export const SCHEDULED_SYNC_LEASE_MS = 100_000;
 /**
  * A refresh stops starting new work after this long, so the button answers within a minute. Its
  * Riot client carries the same deadline (actions/match-history.ts), so no request waits past it.

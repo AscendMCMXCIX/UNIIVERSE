@@ -7,9 +7,10 @@ import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { addAccount } from "@/server/accounts/repository";
-import { kickoffAccountSync, refreshPlayerAccountsIfDue } from "@/server/accounts/kickoff";
+import { VIEW_REFRESH_LEASE_MS, kickoffAccountSync, refreshPlayerAccountsIfDue } from "@/server/accounts/kickoff";
+import { ACCOUNT_SYNC_TICK_MS } from "@/server/jobs/scheduler";
 import { REFRESH_COOLDOWN_MS, SCHEDULED_SYNC_LEASE_MS, accountSyncLeaseKey, claimAccountSync, refreshPlayerMatches } from "@/server/accounts/refresh";
-import { RiotApiClient } from "@/server/riot/api/client";
+import { RIOT_REQUEST_TIMEOUT_MS, RiotApiClient } from "@/server/riot/api/client";
 import { RateLimiter, RateLimiterPool } from "@/server/riot/api/rate-limiter";
 
 /*
@@ -74,7 +75,7 @@ const age = (key: string, ms: number) => handle.db.execute(sql`UPDATE app_settin
 const testClient = () => new RiotApiClient({ apiKey: "k", fetchImpl: quietRiot(calls), limiter: new RateLimiter([{ requests: 1000, seconds: 1 }]), sleep: async () => {}, maxRetries: 0 });
 
 describe("a profile view's refresh", () => {
-  it("leaves an account another sync claimed in the last minute to that sync, and asks Riot nothing about it", async () => {
+  it("leaves an account another sync claimed recently to that sync, and asks Riot nothing about it", async () => {
     const db = handle.db;
     const player = await createPlayer(db, teamId, { displayName: "View Held", primaryRole: "TOP", primaryPool: ["Gwen"] });
     const account = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "View Held#OCE", platform: "oc1" });
@@ -83,12 +84,49 @@ describe("a profile view's refresh", () => {
     await refreshPlayerAccountsIfDue(db, player.id);
     expect(asked("View Held")).toBe(false);
     expect(await stored(account.id)).toMatchObject({ syncStatus: "never", lastSyncAt: null });
-    // A minute on, that sync is over: the next view's refresh (after its own two-minute lease) syncs it.
+    // Once the lease has passed, that sync is over: the next view's refresh syncs it.
     await age(accountSyncLeaseKey(account.id), SCHEDULED_SYNC_LEASE_MS + 1_000);
     await age(`account_refresh:${player.id}`, 3 * 60_000);
     await refreshPlayerAccountsIfDue(db, player.id);
     expect(asked("View Held")).toBe(true);
     expect((await stored(account.id)).syncStatus).toBe("ok");
+  });
+
+  it("a slice that found every account held gives its turn back, so the next render need not wait two minutes", async () => {
+    // Review of the leases change: the slice took the player's two-minute lease before it claimed
+    // any account, so when the first sync right after sign-up held the account, the slice synced
+    // nothing and still kept the next one from starting for two minutes.
+    const db = handle.db;
+    const player = await createPlayer(db, teamId, { displayName: "View Turn", primaryRole: "TOP", primaryPool: ["Gwen"] });
+    const account = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "View Turn#OCE", platform: "oc1" });
+    expect(await claimAccountSync(db, account.id, SCHEDULED_SYNC_LEASE_MS)).toBe(true);
+    expect(await refreshPlayerAccountsIfDue(db, player.id)).toBe(0);
+    expect(asked("View Turn")).toBe(false);
+    // The other sync is over; the player's own slice lease is not aged, yet the next render syncs.
+    await age(accountSyncLeaseKey(account.id), SCHEDULED_SYNC_LEASE_MS + 1_000);
+    expect(await refreshPlayerAccountsIfDue(db, player.id)).toBe(1);
+    expect(asked("View Turn")).toBe(true);
+    // That slice did sync, so it keeps its lease: the render after it starts nothing.
+    calls.length = 0;
+    await age(accountSyncLeaseKey(account.id), SCHEDULED_SYNC_LEASE_MS + 1_000);
+    expect(await refreshPlayerAccountsIfDue(db, player.id)).toBe(0);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("does not join a scheduled sync still running on the account, however long it runs", async () => {
+    // Review: the lease was 60 s, but a tick's account sync can hold an account for its 75 s cap
+    // plus a request's timeout; a view starting in that gap synced the same account at once.
+    expect(SCHEDULED_SYNC_LEASE_MS).toBeGreaterThan(ACCOUNT_SYNC_TICK_MS + RIOT_REQUEST_TIMEOUT_MS);
+    // And under a view's slice lease, so a watched account's next slice is not refused by its last.
+    expect(SCHEDULED_SYNC_LEASE_MS).toBeLessThan(VIEW_REFRESH_LEASE_MS);
+    const db = handle.db;
+    const player = await createPlayer(db, teamId, { displayName: "View Long", primaryRole: "TOP", primaryPool: ["Gwen"] });
+    const account = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "View Long#OCE", platform: "oc1" });
+    // The tick claimed it this long ago and its last request is still out.
+    expect(await claimAccountSync(db, account.id, SCHEDULED_SYNC_LEASE_MS)).toBe(true);
+    await age(accountSyncLeaseKey(account.id), ACCOUNT_SYNC_TICK_MS + RIOT_REQUEST_TIMEOUT_MS - 1_000);
+    expect(await refreshPlayerAccountsIfDue(db, player.id)).toBe(0);
+    expect(asked("View Long")).toBe(false);
   });
 
   it("claims each account it syncs, so a Refresh or the scheduler started meanwhile leaves it alone", async () => {
@@ -129,7 +167,7 @@ describe("the first sync after sign-up", () => {
     expect(asked("Kick Held")).toBe(false);
     expect((await stored(free.id)).syncStatus).toBe("ok");
     expect((await stored(held.id)).syncStatus).toBe("never");
-    // The lease only defers: a minute on, the account is synced like any other.
+    // The lease only defers: once it has passed, the account is synced like any other.
     await age(accountSyncLeaseKey(held.id), SCHEDULED_SYNC_LEASE_MS + 1_000);
     await kickoffAccountSync(db, player.id);
     expect(asked("Kick Held")).toBe(true);
