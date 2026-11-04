@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq, sql } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { dataRefreshStatus } from "@/server/db/schema";
-import { JOB_STALE_RUNNING_MS, getRefreshStatuses, startJobRun } from "@/server/ops/refresh-status";
+import { dataRefreshStatus, jobRuns } from "@/server/db/schema";
+import { JOB_STALE_RUNNING_MS, getRefreshStatuses, startJobRun, type JobKey } from "@/server/ops/refresh-status";
+import { TICK_JOB_ORDER, defineJob, getJob, runJob, runTick, setScheduleOverrides } from "@/server/jobs";
 import { getDataHealth } from "@/server/ops/status";
 import { runMigrations } from "@/server/db/migrator";
 
@@ -76,5 +77,118 @@ describe("job status reads", () => {
     for (const [key, , skipped] of runs) expect(warnings.includes(`${key}: ${key} failed`), key).toBe(!skipped);
     expect(jobs.find((j) => j.key === "skip-true")).not.toHaveProperty("details");
     await db.delete(dataRefreshStatus).where(sql`${dataRefreshStatus.key} like 'skip-%' or ${dataRefreshStatus.key} = 'no-flag'`);
+  });
+});
+
+/*
+  Failed and interrupted runs. A job that throws is one failed run, not a failed tick; a run whose
+  process died keeps its key for a bounded time only; and two schedulers starting at the same
+  moment run the work once. Each test sets up and removes its own rows; the first also replaces a
+  job definition in the (module-wide) registry and puts the real one back.
+*/
+describe("failed and interrupted runs", () => {
+  it("a tick carries on past a job that throws, records the failure, and the next good run clears it", async () => {
+    const db = handle.db;
+    // Any job would do; the first in the tick order makes the point best: everything after it still runs.
+    const key = TICK_JOB_ORDER[0]!;
+    expect(key).not.toBe("integrity");
+    const original = getJob(key)!;
+    try {
+      await db.delete(dataRefreshStatus).where(eq(dataRefreshStatus.key, key));
+      // The Riot jobs stay out of this tick (disabled), so nothing here reaches Riot; `force`
+      // still runs the two under test.
+      await setScheduleOverrides(db, { intervals: { "account-sync": 0, "rank-checks": 0, "timeline-backfill": 0, "figures-backfill": 0 } });
+      defineJob({
+        ...original,
+        run: async () => {
+          throw new Error("boom");
+        },
+      });
+
+      const tick = await runTick(db, "test", { force: [key, "integrity"] });
+      expect(tick.ran.map((r) => r.key)).toEqual([key, "integrity"]);
+      expect(tick.ran[0]).toMatchObject({ ok: false, error: "boom" });
+      // The integrity job did its work (a skipped run would only say so in its summary).
+      expect(tick.ran[1]).toMatchObject({ ok: true });
+      expect(tick.ran[1]).not.toHaveProperty("skipped");
+      expect(tick.ran[1]!.summary).toHaveProperty("unstuck");
+      // The failure is recorded where Settings → Data health reads it, and as a finished run.
+      const [failed] = await db.select().from(dataRefreshStatus).where(eq(dataRefreshStatus.key, key));
+      expect(failed).toMatchObject({ status: "failed", consecutiveFailures: 1, lastError: "boom" });
+      expect(failed!.lastFailureAt).toBeInstanceOf(Date);
+      const [run] = await db.select().from(jobRuns).where(eq(jobRuns.job, key)).orderBy(desc(jobRuns.id)).limit(1);
+      expect(run).toMatchObject({ ok: "false", error: "boom", trigger: "test" });
+      expect(run!.finishedAt).toBeInstanceOf(Date);
+
+      // The next good run clears the failure rather than adding to it.
+      defineJob({ ...original, run: async () => ({ ok: true, summary: {} }) });
+      const next = await runTick(db, "test", { force: [key] });
+      expect(next.ran.find((r) => r.key === key)).toMatchObject({ ok: true });
+      const [ok] = await db.select().from(dataRefreshStatus).where(eq(dataRefreshStatus.key, key));
+      expect(ok).toMatchObject({ status: "ok", consecutiveFailures: 0, lastError: null });
+      expect(ok!.lastSuccessAt).toBeInstanceOf(Date);
+    } finally {
+      defineJob(original);
+      await setScheduleOverrides(db, { intervals: {} });
+      await db.delete(dataRefreshStatus).where(eq(dataRefreshStatus.key, key));
+    }
+  });
+
+  it("the integrity job frees a run left running by a dead process and leaves a recent one alone", async () => {
+    const db = handle.db;
+    const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000);
+    // What a killed process leaves behind: "running", with the time it started and nothing since.
+    const leftRunning = (key: JobKey, lastStartedAt: Date) =>
+      db
+        .insert(dataRefreshStatus)
+        .values({ key, status: "running", lastStartedAt, updatedAt: lastStartedAt })
+        .onConflictDoUpdate({ target: dataRefreshStatus.key, set: { status: "running", lastStartedAt, lastError: null, lastFailureAt: null, updatedAt: lastStartedAt } });
+    const statusOf = async (key: JobKey) => (await db.select().from(dataRefreshStatus).where(eq(dataRefreshStatus.key, key)))[0]!;
+    try {
+      // Two thresholds: a claim treats a run as dead after JOB_STALE_RUNNING_MS (15 minutes, the
+      // first test above); the housekeeping marks it failed after 30 minutes.
+      await leftRunning("account-sync", minutesAgo(31));
+      await leftRunning("rank-checks", minutesAgo(5));
+      // Five minutes in, someone is running it: a second start is refused.
+      expect(await startJobRun(db, "rank-checks", "test")).toBeNull();
+
+      const result = await runJob(db, "integrity", "test");
+      expect(result.ok).toBe(true);
+      expect((result.summary as { unstuck: string[] }).unstuck).toEqual(["account-sync"]);
+      const freed = await statusOf("account-sync");
+      expect(freed.status).toBe("failed");
+      expect(freed.lastError).toMatch(/interrupted/);
+      expect(freed.lastFailureAt).toBeInstanceOf(Date);
+      expect(await statusOf("rank-checks")).toMatchObject({ status: "running", lastError: null, lastFailureAt: null });
+
+      // Marked failed, the key is free: the next run claims it.
+      const claim = await startJobRun(db, "account-sync", "test");
+      expect(claim).not.toBeNull();
+      await claim!({ ok: true, summary: {} });
+      expect((await statusOf("account-sync")).status).toBe("ok");
+    } finally {
+      await db.delete(dataRefreshStatus).where(inArray(dataRefreshStatus.key, ["account-sync", "rank-checks"]));
+    }
+  });
+
+  it("exactly one of two simultaneous starts claims a job, and the key is free again once it finishes", async () => {
+    const db = handle.db;
+    const recordedRuns = async () => (await db.select({ id: jobRuns.id }).from(jobRuns).where(eq(jobRuns.job, "timeline-backfill"))).length;
+    try {
+      const before = await recordedRuns();
+      const claims = await Promise.all([startJobRun(db, "timeline-backfill", "a"), startJobRun(db, "timeline-backfill", "b")]);
+      const claimed = claims.filter((c): c is NonNullable<typeof c> => c !== null);
+      expect(claimed).toHaveLength(1);
+      // Only the run that got the key is recorded.
+      expect(await recordedRuns()).toBe(before + 1);
+      expect((await db.select().from(dataRefreshStatus).where(eq(dataRefreshStatus.key, "timeline-backfill")))[0]?.status).toBe("running");
+
+      await claimed[0]!({ ok: true, summary: {} });
+      const next = await startJobRun(db, "timeline-backfill", "test");
+      expect(next).not.toBeNull();
+      await next!({ ok: true, summary: {} });
+    } finally {
+      await db.delete(dataRefreshStatus).where(eq(dataRefreshStatus.key, "timeline-backfill"));
+    }
   });
 });
