@@ -4,13 +4,12 @@ import { mainRoleOf, rankRecentBoard, recentEntry, RECENT_PROVISIONAL_GAMES, REC
 import { buildRecords, CHAMPION_GAME_MILESTONES, MASTERY_MILESTONES, shownRecordValue, type ChampionMilestone, type RecordMark, type SeasonRecordId } from "@/domain/leaderboard-records";
 import type { GameRole } from "@/domain/season-stats";
 import { formatCompactCount, formatCount, formatDate, formatDayMonth, formatNumber } from "@/lib/format";
-import { isAdmin, type Session } from "@/server/auth/permissions";
 import type { LeaderboardData, LeaderboardPlayer } from "./service";
 
 /*
-  What the proposed Leaderboards show (docs/LEADERBOARDS_MODEL.md, the owner's decision in
-  docs/TEAM_LEADERBOARDS.md → "Recent form"): two views of the cached team data, computed in a few
-  milliseconds, with only display fields sent to the browser.
+  What Team Leaderboards show (docs/LEADERBOARDS_MODEL.md, docs/TEAM_LEADERBOARDS.md): two views
+  of the cached team data, computed in a few milliseconds, with only display fields sent to the
+  browser.
     Recent form              one board: each member's latest 20 Summoner's Rift games from the
                              last 60 days, ranked by win rate (domain/leaderboard-recent);
     Records & achievements   one season's single-game records, multikills and milestones, which
@@ -19,18 +18,6 @@ import type { LeaderboardData, LeaderboardPlayer } from "./service";
 */
 
 export type LeaderboardTab = "form" | "records";
-
-/** The admins' preview of the proposed boards while their rules await approval (app/(app)/leaderboards/page.tsx). */
-export const RECENT_FORM_PREVIEW = "recent-form";
-
-/**
- * Whether this request opens the admins' preview: an administrator, with ?preview=recent-form.
- * Anyone else gets today's boards, whatever the address says, so members see no change until the
- * owner approves the rules.
- */
-export function opensRecentFormPreview(session: Pick<Session, "role" | "admin"> | null, params: Record<string, string | string[] | undefined>): boolean {
-  return isAdmin(session) && params.preview === RECENT_FORM_PREVIEW;
-}
 
 export interface BoardPlayer {
   id: string;
@@ -128,14 +115,12 @@ export interface RecentViewOptions {
   basePath?: string;
   /** Links to profiles and games (members only). */
   profiles?: boolean;
-  /** Query kept on every link (the admins' preview while the proposal awaits approval). */
-  keep?: Record<string, string>;
   now?: Date;
 }
 
 /** The address of a view of the boards: Recent form is the default (no `view`), Records & achievements takes the season. */
-export function recentLeaderboardHref(change: { tab: LeaderboardTab; season?: number | null }, options: Pick<RecentViewOptions, "basePath" | "keep"> = {}): string {
-  const q = new URLSearchParams(options.keep ?? {});
+export function recentLeaderboardHref(change: { tab: LeaderboardTab; season?: number | null }, options: Pick<RecentViewOptions, "basePath"> = {}): string {
+  const q = new URLSearchParams();
   if (change.tab === "records") {
     q.set("view", "records");
     if (change.season) q.set("season", String(change.season));
@@ -167,7 +152,7 @@ function groupMilestones(list: readonly ChampionMilestone[], steps: readonly num
 const kdaText = (m: RecordMark) => (m.game && m.game.kills !== null && m.game.deaths !== null && m.game.assists !== null ? `${m.game.kills}/${m.game.deaths}/${m.game.assists}` : null);
 
 export function buildRecentLeaderboardView(data: LeaderboardData, request: { tab: LeaderboardTab; season?: string | number | null }, viewerPlayerId: string | null, options: RecentViewOptions = {}): RecentLeaderboardView {
-  const { basePath = "/leaderboards", profiles = true, keep, now = new Date() } = options;
+  const { basePath = "/leaderboards", profiles = true, now = new Date() } = options;
   const names = new Map(data.players.map((p) => [p.id, p.name]));
   const viewer = viewerPlayerId && names.has(viewerPlayerId) ? viewerPlayerId : null;
   const ids = data.players.map((p) => p.id);
@@ -175,7 +160,7 @@ export function buildRecentLeaderboardView(data: LeaderboardData, request: { tab
   for (const g of data.games) byPlayer.get(g.playerId)?.push(g);
   const players = Object.fromEntries(data.players.map((p) => [p.id, { id: p.id, name: p.name, profileHref: profiles ? `/players/${p.id}` : null, avatarUrl: p.avatarUrl, look: p.look }]));
   const season = chooseSeason(request.season ?? null, data.seasons, data.currentSeason);
-  const tabs = { form: recentLeaderboardHref({ tab: "form" }, { basePath, keep }), records: recentLeaderboardHref({ tab: "records", season: season === data.currentSeason ? null : season }, { basePath, keep }) };
+  const tabs = { form: recentLeaderboardHref({ tab: "form" }, { basePath }), records: recentLeaderboardHref({ tab: "records", season: season === data.currentSeason ? null : season }, { basePath }) };
   const base = { tab: request.tab, tabs, players, playerCount: data.players.length, viewer, lastUpdated: data.lastUpdated };
 
   if (request.tab === "form") {
@@ -232,7 +217,7 @@ export function buildRecentLeaderboardView(data: LeaderboardData, request: { tab
     records: {
       season,
       seasonLabel: seasonLabel(season),
-      seasons: data.seasons.map((s) => ({ value: s, label: seasonLabel(s), href: recentLeaderboardHref({ tab: "records", season: s === data.currentSeason ? null : s }, { basePath, keep }) })),
+      seasons: data.seasons.map((s) => ({ value: s, label: seasonLabel(s), href: recentLeaderboardHref({ tab: "records", season: s === data.currentSeason ? null : s }, { basePath }) })),
       games: result.games,
       records,
       multikills,

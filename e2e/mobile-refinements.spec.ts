@@ -25,14 +25,17 @@ test("Matches and a profile's Encounters keep their caveats in an (i), one tap a
 });
 
 test("small text links have a 44px hit area on touch screens", async ({ page }) => {
-  await page.goto("/leaderboards");
-  const link = page.getByTestId("highlights-all");
+  // Settings' "Switch to Admin Mode": a line of text, but a 44px target on a touch screen.
+  await page.goto("/settings");
+  const link = page.getByTestId("settings-mode-switch");
   await expect(link).toBeVisible();
   expect(await link.evaluate((e) => getComputedStyle(e, "::after").height)).toBe("44px");
-  // Tapping just above the text still follows the link.
+  // Tapping just above the text still follows the link (in the middle of the screen: on a phone
+  // the link starts below the fold, and the tab bar covers the bottom edge).
+  await link.evaluate((e) => e.scrollIntoView({ block: "center" }));
   const box = (await link.boundingBox())!;
   await page.touchscreen.tap(box.x + box.width / 2, box.y - 8);
-  await expect(page).toHaveURL(/highlights=0|metric=/);
+  await expect(page).toHaveURL(/\/admin/);
 });
 
 test("the main pages fit 360 px without sideways scrolling", async ({ page }) => {

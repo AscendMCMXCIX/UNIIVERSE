@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ChevronRight, Crown, Eye, Flame, Medal, Sparkles, Trophy, TrendingUp } from "lucide-react";
+import { ChevronRight, Crown, Flame, Medal, Sparkles, Trophy, TrendingUp } from "lucide-react";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { CardAvatar } from "@/components/players/card-look";
 import { RoleIcon } from "@/components/role-icon";
@@ -17,7 +17,7 @@ import { LeaderboardsViews } from "./leaderboards-views";
 import { SeasonChoice } from "./season-choice";
 
 /*
-  TEAM LEADERBOARDS (the proposed page, docs/LEADERBOARDS_MODEL.md): two views of equal weight as
+  TEAM LEADERBOARDS (docs/LEADERBOARDS_MODEL.md): two views of equal weight as
   secondary tabs under the Team tabs, as Match History's Games and Encounters are under a profile's.
     Recent form              one board, everyone on the same 20 recent games, ranked by win rate.
                              Every row says what counts: the record, the dates and the main role,
@@ -32,7 +32,7 @@ const HEAD = "whitespace-nowrap text-2xs font-semibold uppercase tracking-label 
 const FORM_GRID = "@min-[40rem]/lb:grid-cols-[2.5rem_minmax(0,1fr)_7rem_5.5rem_4.5rem_8.5rem]";
 const MULTI_GRID = "grid-cols-[minmax(0,1fr)_repeat(3,4.5rem)]";
 
-export function RecentLeaderboards({ view, champions, status, preview = false }: { view: RecentLeaderboardView; champions: Record<string, PortraitChampion>; /** The members' page: the team's data status. */ status?: DataStatus | null; /** The admins' preview of the proposal (members still see today's boards). */ preview?: boolean }) {
+export function RecentLeaderboards({ view, champions, status }: { view: RecentLeaderboardView; champions: Record<string, PortraitChampion>; /** The members' page: the team's data status. */ status?: DataStatus | null }) {
   const player = (id: string) => view.players[id]!;
   const champ = (id: string | null) => (id ? (champions[id] ?? { id, name: id, portraitUrl: "" }) : null);
   const updated = view.lastUpdated ? formatDateTime(view.lastUpdated) : null;
@@ -45,17 +45,6 @@ export function RecentLeaderboards({ view, champions, status, preview = false }:
   return (
     <LeaderboardsRoot className="mx-auto flex w-full max-w-[var(--content-wide)] flex-col gap-4">
       <h1 className="sr-only">Team Leaderboards</h1>
-      {preview ? (
-        <p className="flex items-start gap-2 rounded-panel border border-accent/40 bg-accent/10 px-3 py-2 text-sm text-fg" data-testid="leaderboards-preview">
-          <Eye className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
-          <span>
-            <span className="font-semibold">Preview for admins:</span> the proposed Leaderboards on live data. Members still see today&apos;s Leaderboards until the rules are approved.{" "}
-            <Link href="/leaderboards" className="font-medium text-accent hover:underline">
-              Today&apos;s Leaderboards
-            </Link>
-          </span>
-        </p>
-      ) : null}
       <SectionHeader
         id="leaderboards-view-title"
         title={view.tab === "form" ? "Recent form" : "Records & achievements"}

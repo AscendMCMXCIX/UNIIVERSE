@@ -11,11 +11,19 @@ test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "the sa
 test("the manifest, icons and service worker are served to anyone, and pages link the manifest", async ({ request, page }) => {
   const res = await request.get("/manifest.webmanifest");
   expect(res.status()).toBe(200);
-  const manifest = (await res.json()) as { name: string; display: string; start_url: string; icons: Array<{ src: string; sizes: string }> };
+  const manifest = (await res.json()) as { name: string; display: string; start_url: string; scope: string; icons: Array<{ src: string; sizes: string }>; shortcuts: Array<{ name: string; url: string; icons: Array<{ src: string }> }>; launch_handler: { client_mode: string[] } };
   expect(manifest.name).toBeTruthy();
   expect(manifest.display).toBe("standalone");
   expect(manifest.start_url).toBe("/");
   expect(manifest.icons.map((i) => i.sizes)).toEqual(expect.arrayContaining(["192x192", "512x512"]));
+  // Installed on a computer: the main pages in the icon's menu, and one window reused.
+  expect(manifest.shortcuts.map((s) => s.name)).toEqual(["Team Overview", "My Profile", "Matches", "Leaderboards"]);
+  expect(manifest.launch_handler.client_mode[0]).toBe("navigate-existing");
+  for (const shortcut of manifest.shortcuts) {
+    expect(shortcut.url.startsWith(manifest.scope), shortcut.url).toBe(true);
+    expect((await page.goto(shortcut.url))?.ok(), shortcut.url).toBe(true);
+    expect((await request.get(shortcut.icons[0]!.src)).status()).toBe(200);
+  }
   for (const icon of manifest.icons) {
     const r = await request.get(icon.src);
     expect(r.status(), icon.src).toBe(200);

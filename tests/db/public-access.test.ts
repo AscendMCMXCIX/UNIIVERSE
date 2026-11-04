@@ -45,7 +45,7 @@ import { publicRiotDataAllowed } from "@/server/public/access";
 import { invalidatePublicTeam, loadPublicTeam, publicMemberUser, toPublicSlot } from "@/server/public/team";
 import { getTeamRoster } from "@/server/team/roster";
 import { loadPublicLeaderboardData } from "@/server/public/leaderboards";
-import { buildLeaderboardView, leaderboardHref, parseFilters } from "@/server/leaderboards/view";
+import { buildRecentLeaderboardView } from "@/server/leaderboards/recent-view";
 import { publicImageOwner } from "@/server/public/image-response";
 import { GET as publicAvatar } from "@/app/api/public/avatars/[playerId]/route";
 import { STANDARD_PLAYER } from "@/server/auth/permissions";
@@ -223,12 +223,16 @@ describe("where the deployment allows Riot data on the public pages", () => {
     expect(data.players.map((p) => p.id).sort()).toEqual([...ROLES.map(([name]) => ids[name]!), ids.benchsub!].sort());
     expect(data.players.find((p) => p.id === ids.top)).toMatchObject({ name: "Top Shown", avatarUrl: `/api/public/avatars/${ids.top}?v=3`, rank: { tier: "GOLD", division: "II" } });
     expect(new Set(data.games.map((g) => g.playerId))).not.toContain(ids.benchother);
-    const view = buildLeaderboardView(data, parseFilters({}, data), null, { basePath: "/public/leaderboards", profiles: false });
-    expect(Object.values(view.players).every((p) => p.profileHref === null)).toBe(true);
-    expect(leaderboardHref(view.filters, { metricId: "kda" }, view.basePath)).toMatch(/^\/public\/leaderboards\?/);
-    expect(view.you).toBeNull();
-    // What the page sends: the view, with no sign-in name, Riot ID, profile route or private picture route.
-    const json = JSON.stringify(view);
+    // Both views, as the public page builds them: no profile or game links, no viewer.
+    const views = (["form", "records"] as const).map((tab) => buildRecentLeaderboardView(data, { tab }, null, { basePath: "/public/leaderboards", profiles: false }));
+    for (const view of views) {
+      expect(Object.values(view.players).every((p) => p.profileHref === null)).toBe(true);
+      expect(Object.values(view.tabs).every((href) => href.startsWith("/public/leaderboards"))).toBe(true);
+      expect(view.viewer).toBeNull();
+    }
+    expect(views[1]!.records!.records.every((r) => r.holder === null || r.holder.href === null)).toBe(true);
+    // What the page sends: the views, with no sign-in name, Riot ID, profile route or private picture route.
+    const json = JSON.stringify(views);
     expect(json).not.toMatch(/_login|Riot#OCE|\/players\/|\/api\/avatars\//);
     expect(json).not.toContain(ids.benchother);
     for (const id of Object.values(userIds)) expect(json).not.toContain(id);
