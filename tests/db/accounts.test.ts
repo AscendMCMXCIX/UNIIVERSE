@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { accountChampionHistory, accountMatches, patches } from "@/server/db/schema";
+import { accountChampionHistory, accountMatches, champions, patches } from "@/server/db/schema";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
@@ -24,10 +24,11 @@ afterAll(async () => {
 });
 
 /**
- * One game the fake Riot serves. `answer` makes its match request fail: 404 (Riot does not have
- * it), 503 (Riot's servers failing) or "unreadable" (an answer that is not a readable match).
+ * One game the fake Riot serves. `championKey` overrides the champion's key (a champion missing
+ * from the champions table); `answer` makes its match request fail: 404 (Riot does not have it),
+ * 503 (Riot's servers failing) or "unreadable" (an answer that is not a readable match).
  */
-type GameSpec = { champion: string; role: string; win: boolean; queue: number; created: number; version?: string; answer?: 404 | 503 | "unreadable" };
+type GameSpec = { champion: string; role: string; win: boolean; queue: number; created: number; version?: string; championKey?: number; answer?: 404 | 503 | "unreadable" };
 
 function fakeFetch(puuid: string, matches: Record<string, GameSpec>, options: { activeRegion?: string | null; down?: boolean; calls?: string[] } = {}) {
   return async (input: string | URL | Request): Promise<Response> => {
@@ -66,7 +67,7 @@ function fakeFetch(puuid: string, matches: Record<string, GameSpec>, options: { 
       if (!spec || spec.answer === 404) return json({ status: { message: "Data not found - match file not found", status_code: 404 } }, 404);
       if (spec.answer === 503) return json({ status: { message: "Service unavailable", status_code: 503 } }, 503);
       const positions = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
-      const participants = Array.from({ length: 10 }, (_, i) => ({ puuid: i === 0 ? puuid : `other-${i}`, teamId: i < 5 ? 100 : 200, championId: i === 0 ? keyOf(spec.champion) : keyOf("Ahri") + i, teamPosition: i === 0 ? spec.role : positions[i % 5], win: i < 5 ? spec.win : !spec.win, kills: 1, deaths: 1, assists: 1, totalMinionsKilled: 150, neutralMinionsKilled: 30, totalDamageDealtToChampions: 21000, visionScore: 25 }));
+      const participants = Array.from({ length: 10 }, (_, i) => ({ puuid: i === 0 ? puuid : `other-${i}`, teamId: i < 5 ? 100 : 200, championId: i === 0 ? (spec.championKey ?? keyOf(spec.champion)) : keyOf("Ahri") + i, teamPosition: i === 0 ? spec.role : positions[i % 5], win: i < 5 ? spec.win : !spec.win, kills: 1, deaths: 1, assists: 1, totalMinionsKilled: 150, neutralMinionsKilled: 30, totalDamageDealtToChampions: 21000, visionScore: 25 }));
       // "unreadable": the game's version is empty, which the match schema refuses.
       return json({ metadata: { matchId: m[1] }, info: { gameCreation: spec.created, gameDuration: 1800, gameVersion: spec.answer === "unreadable" ? "" : (spec.version ?? "16.19.1.1"), queueId: spec.queue, teams: [], participants } });
     }
@@ -451,5 +452,49 @@ describe("season history: gaps and games that cannot be stored", () => {
     expect(back.matchesFolded).toBe(3);
     expect(back.history).toMatchObject({ complete: true });
     expect([...(await stored()).values()].filter((r) => r.championId === "Ahri")).toHaveLength(6);
+  });
+
+  it("leaves a game on a champion UNIIVERSE does not know yet for a later run, folds it once the champion list has it, and stops waiting after three days", async () => {
+    const db = handle.db;
+    const { account, reload, stored } = await linkedAccount("Newcomer Player");
+    const matches: Record<string, GameSpec> = {
+      OC1_NCNEW: solo(2, { championKey: 9001 }), // a champion Data Dragon adds below
+      OC1_NCGONE: solo(1, { championKey: 9002 }), // a champion that never appears
+      OC1_NCK1: solo(3, { win: false }),
+      // Played four days ago and still unknown: not waited for (stored without a champion, like a remake).
+      OC1_NCOLD: solo(96, { championKey: 9001 }),
+      OC1_NCK2: solo(120),
+    };
+    const calls: string[] = [];
+    const client = clientFor("puuid-newcomer", matches, calls);
+    const opts = { season: 16, queueIds: [420], now: () => new Date(NOW) };
+    const first = await syncAccount(db, client, account, opts);
+    expect(first.matchesFolded).toBe(2);
+    // The queue is not held by the games left for later.
+    expect(first.history).toMatchObject({ complete: true });
+    let rows = await stored();
+    expect(rows.has("OC1_NCNEW")).toBe(false);
+    expect(rows.has("OC1_NCGONE")).toBe(false);
+    expect(rows.get("OC1_NCOLD")).toMatchObject({ championId: null });
+    // Data Dragon's new version brings the champion: the next run folds its game.
+    await db.insert(champions).values({ id: "Newcomer", key: 9001, name: "Newcomer", imageFull: "Newcomer.png", firstSeenVersion: "16.20.1", lastSeenVersion: "16.20.1" });
+    try {
+      calls.length = 0;
+      const next = await syncAccount(db, client, await reload(), { ...opts, now: () => new Date(NOW + HOUR) });
+      expect(next.matchesFolded).toBe(1);
+      rows = await stored();
+      expect(rows.get("OC1_NCNEW")).toMatchObject({ championId: "Newcomer", win: true });
+      expect(await db.select().from(accountChampionHistory).where(and(eq(accountChampionHistory.accountId, account.id), eq(accountChampionHistory.championId, "Newcomer")))).toHaveLength(1);
+      // The other is still waited for (asked again), until three days after it was played.
+      expect(calls.filter((u) => u.includes("/matches/OC1_NCGONE"))).toHaveLength(1);
+      expect(rows.has("OC1_NCGONE")).toBe(false);
+      await syncAccount(db, client, await reload(), { ...opts, now: () => new Date(NOW + 4 * 24 * HOUR) });
+      expect((await stored()).get("OC1_NCGONE")).toMatchObject({ championId: null });
+      calls.length = 0;
+      await syncAccount(db, client, await reload(), { ...opts, now: () => new Date(NOW + 4 * 24 * HOUR + HOUR) });
+      expect(calls.filter((u) => u.includes("/matches/OC1_NC"))).toEqual([]);
+    } finally {
+      await db.delete(champions).where(eq(champions.id, "Newcomer"));
+    }
   });
 });

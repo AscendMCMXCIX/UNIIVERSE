@@ -313,6 +313,16 @@ const EMPTY_QUEUE_RECHECK_MS = 12 * 3_600_000;
 const PAGE = 100;
 
 /**
+ * How long a game on a champion missing from the champion list is waited for. version-check looks
+ * for a new Data Dragon version every hour and stores its champions at once, and Data Dragon has a
+ * new patch within a day or so; a champion still unknown three days after the game is not coming
+ * (or the champion list is broken), so the game is then stored without a champion, like a remake.
+ * Until then every run asks for the game again (one request), so a champion that never appears
+ * costs three days of those at most.
+ */
+const UNKNOWN_CHAMPION_WAIT_MS = 3 * 86_400_000;
+
+/**
  * Riot's answer about one listed game that will be the same every time: it does not have the game
  * (404), or it answered with something that is not a readable match (an unexpected format). Riot's
  * servers failing, the network and the rate limit are not: those are tried again.
@@ -334,7 +344,8 @@ export function summariseBackfill(state: HistoryBackfill): { season: number; com
  * long season fills in over several runs while new games always come first. Ids already stored
  * cost nothing; queues without a game this season are re-checked twice a day. No listed game is
  * passed over for good: a queue whose newest page a run left unfinished is read again from the
- * top, and a game Riot refuses for good is recorded without a champion (readPage below).
+ * top, a game Riot refuses for good is recorded without a champion, and a game on a champion not
+ * in the champion list yet is asked for again (readPage and foldMatch below).
  */
 async function collectSeasonHistory(db: Db, client: RiotApiClient, account: RiotAccountRecord & { puuid: string }, options: AccountSyncOptions, result: AccountSyncResult, log: (m: string) => void): Promise<HistoryBackfill> {
   const now = options.now?.() ?? new Date();
@@ -379,8 +390,8 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
   // Reads one page of a queue's season list and stores every game on it that is not stored yet.
   // `complete` says whether the page is done with: false when the run's limit, the time budget or a
   // failed request stopped it, at `stoppedAt` (the place on the page of the first game not got to).
-  // `later` counts games on it left for a later run, which do not stop the page: the season's
-  // newest game when Riot does not have it yet.
+  // `later` counts games on it left for a later run, which do not stop the page: a champion the
+  // champion list does not have yet, or the season's newest game when Riot does not have it yet.
   const readPage = async (queueId: number, start: number, window: { startTime: number; endTime?: number } = { startTime }): Promise<{ ids: number; fresh: number; complete: boolean; stoppedAt: number; later: number }> => {
     const ids = await client.matchIdsByPuuid(account.platform, account.puuid, { queue: queueId, startTime: window.startTime, endTime: window.endTime, count: PAGE, start });
     if (ids.length === 0) return { ids: 0, fresh: 0, complete: true, stoppedAt: 0, later: 0 };
@@ -433,7 +444,12 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
       }
       newerRead = true;
       result.matchesFetched += 1;
-      if (await foldMatch(db, account, match, keyToId, queueIds, erased)) result.matchesFolded += 1;
+      const outcome = await foldMatch(db, account, match, keyToId, queueIds, erased, now);
+      if (outcome === "folded") result.matchesFolded += 1;
+      if (outcome === "later") {
+        later += 1;
+        log(`match ${matchId}: champion not in the champion list yet; left for a later run`);
+      }
     }
     return { ids: ids.length, fresh, complete: true, stoppedAt: ids.length, later };
   };
@@ -477,7 +493,9 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
     if (!q || q.done || q.offset === 0) continue;
     while (budgetLeft()) {
       const page = await readPage(queueId, q.offset);
-      if (!page.complete) break;
+      // A game left for later holds the queue at this page, which the next run reads again (a
+      // champion not in the list yet: three days at most, see UNKNOWN_CHAMPION_WAIT_MS).
+      if (!page.complete || page.later) break;
       q.offset += page.ids;
       if (page.ids < PAGE) {
         q.done = true;
@@ -554,7 +572,7 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
       const q = prev.queues[String(queueId)] ?? { offset: 0, done: false };
       while (!q.done && budgetLeft()) {
         const page = await readPage(queueId, q.offset, window);
-        if (!page.complete) break;
+        if (!page.complete || page.later) break;
         q.offset += page.ids;
         if (page.ids < PAGE) q.done = true;
       }
@@ -571,17 +589,27 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
 
 /**
  * Stores one match for one account: the ledger row (dedupe key and per-game facts for season
- * statistics) and the champion history bucket it adds to, in one transaction. Returns false when
- * the match was already stored or does not include this account.
+ * statistics) and the champion history bucket it adds to, in one transaction. "folded" when it
+ * was added; "skipped" when it was already stored or is remembered without a champion (a remake,
+ * another queue, a game without this account); "later" when nothing was stored because the
+ * account's champion is not in the champion list yet.
  */
-async function foldMatch(db: Db, account: RiotAccountRecord & { puuid: string }, match: RiotMatch, keyToId: Map<number, string>, queueIds: readonly number[], erased: ErasureFilter): Promise<boolean> {
+async function foldMatch(db: Db, account: RiotAccountRecord & { puuid: string }, match: RiotMatch, keyToId: Map<number, string>, queueIds: readonly number[], erased: ErasureFilter, now: Date): Promise<"folded" | "skipped" | "later"> {
   const matchId = match.metadata.matchId;
   const me = match.info.participants.find((p) => p.puuid === account.puuid);
   const championId = me ? keyToId.get(me.championId) : undefined;
-  if (!me || !championId || match.info.gameDuration < 300 || !queueIds.includes(match.info.queueId)) {
-    // Remakes and games without this account are remembered so they are never fetched again.
+  const counted = !!me && match.info.gameDuration >= 300 && queueIds.includes(match.info.queueId);
+  if (counted && !championId && now.getTime() - match.info.gameCreation < UNKNOWN_CHAMPION_WAIT_MS) {
+    // A champion the list does not have yet (a new champion, before version-check has the Data
+    // Dragon version with it). Nothing is stored, so a run after the list has it folds the game;
+    // a row without a champion now would keep it out of every record for good.
+    return "later";
+  }
+  if (!counted || !championId) {
+    // Remakes, other queues, games without this account, and games on a champion still unknown
+    // three days later are remembered so they are never fetched again.
     await db.insert(accountMatches).values({ accountId: account.id, matchId, gameCreation: match.info.gameCreation, queueId: match.info.queueId }).onConflictDoNothing();
-    return false;
+    return "skipped";
   }
   const patch = patchFromVersion(match.info.gameVersion) ?? "unknown";
   const role = RIOT_POSITION_TO_ROLE[me.teamPosition] ?? "UNKNOWN";
@@ -619,7 +647,7 @@ async function foldMatch(db: Db, account: RiotAccountRecord & { puuid: string },
   });
   // The details were stored before this game's row existed: copy its figures now.
   if (folded) await summariseMatches(db, { accountIds: [account.id], matchIds: [matchId], maxBatches: 1 });
-  return folded;
+  return folded ? "folded" : "skipped";
 }
 
 /**
