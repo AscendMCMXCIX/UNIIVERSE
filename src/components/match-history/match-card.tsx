@@ -79,6 +79,8 @@ export function lpNote(lp: LpRecord): string {
   switch (lp.reason) {
     case "remake":
       return "A remake: Riot does not count it in wins and losses. No LP recorded.";
+    case "unknown-length":
+      return "LP not recorded: this game's length is not stored, so it cannot be matched to Riot's count of games.";
     case "before-tracking":
       return lp.trackingSince ? `LP not recorded: UNIIVERSE started reading this account's rank in this queue on ${formatDate(lp.trackingSince)}.` : "LP not recorded: UNIIVERSE has not read this account's rank in this queue.";
     case "awaiting-reading":

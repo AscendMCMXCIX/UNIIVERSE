@@ -61,13 +61,15 @@ Then:
 - **100 LP below Master**: a promotion series; no figure.
 - **Everything else**: `—`, with the reason in the hover text and for screen readers: before
   tracking, several games between the readings (their combined change is given for the run of
-  games, never to one of them), readings too far from the game, a reset, placements, or Riot's count
-  and the stored games disagreeing.
+  games, never to one of them), readings too far from the game, a reset, placements, a game whose
+  length is not stored, or Riot's count and the stored games disagreeing.
 
-**The one thing the readings cannot rule out.** A queue dodge in the minutes between a game's end
-and the next reading would be counted with that game: Riot reports no dodges, so no tracker can
-separate them. The rank watch keeps that window to a few minutes. Every figure's hover text names
-the two readings it rests on, with their times, so it can be checked.
+**What the readings cannot rule out.** A queue dodge in the minutes between a game's end and the
+next reading would be counted with that game: Riot reports no dodges, so no tracker can separate
+them. The same holds for decay (Diamond and above, after weeks without a game) in the last minutes
+of a game, after its last reading during play; decay earlier in the game shows in that reading,
+apart from the game. The rank watch keeps both windows to a few minutes. Every figure's hover text
+names the two readings it rests on, with their times, so it can be checked.
 
 ## Readings: when ranks are read
 
