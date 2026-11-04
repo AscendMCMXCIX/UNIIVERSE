@@ -113,10 +113,13 @@ dates of the games.
   records. Routine syncs that find nothing new do not recompute it; a new day does, so "the last 30
   days" moves on. Six hours is the most one server instance keeps an answer.
 - **Measured** locally on Postgres 16 with a production-like volume (5,000 stored matches with full
-  ten-player records, 14 accounts of 7 members, 7,657 member places, 4 Nov 2026):
-  - the read takes 87–89 ms and returns about 439 KB;
-  - a cold page computation takes 491 ms, including the bookkeeping;
-  - a cached one takes 13 ms.
+  ten-player records, 14 accounts of 7 members, 7,657 member places), on the final code, 4 Nov 2026.
+  Other test suites were running on the same four-core machine, so these are upper figures:
+  - the read takes 98–116 ms and returns about 435 KB for 7,353 member games;
+  - a cold page computation takes 709 ms, including the bookkeeping;
+  - a cached one takes 20 ms.
+  - On an idle machine, before the review changed the read (it now also reads each member's own
+    stored side), the same data took 87–89 ms, 491 ms and 13 ms.
   - The same data as separate rows with ids was about 1.9 MB as JSON.
   - Production's season is smaller: about 4,000–5,000 member games.
 - **Page:** server-rendered, no client JavaScript of its own (the disclosures are `<details>`).
@@ -131,7 +134,8 @@ only:
 - the typical detectable difference;
 - `placesMissingFromOwnHistory`: members' places in the season's stored records that are missing from
   that member's own history. Played Together reads the histories, so it misses those games. A non-zero
-  count points at a history gap (see the ingestion findings in the session report).
+  count points at a gap in that member's own season history: a game the sync never stored for them
+  (`docs/DATA_PIPELINES.md` describes how the history is collected).
 
 ## Code and tests
 
