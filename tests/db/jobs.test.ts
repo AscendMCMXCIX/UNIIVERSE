@@ -4,7 +4,7 @@ import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import type { Db } from "@/server/db/types";
 import { dataRefreshStatus, jobRuns } from "@/server/db/schema";
-import { JOB_STALE_RUNNING_MS, getRefreshStatuses, startJobRun, type JobKey } from "@/server/ops/refresh-status";
+import { JOB_RUN_KEEP_MS, JOB_STALE_RUNNING_MS, getRefreshStatuses, pruneJobRuns, startJobRun, type JobKey } from "@/server/ops/refresh-status";
 import { getDataHealth } from "@/server/ops/status";
 import { runMigrations } from "@/server/db/migrator";
 import { TICK_JOB_ORDER, defineJob, getJob, runJob, runTick, setScheduleOverrides } from "@/server/jobs";
@@ -231,6 +231,36 @@ describe("failed runs and simultaneous starts", () => {
       await next!({ ok: true, summary: {} });
     } finally {
       await db.delete(dataRefreshStatus).where(eq(dataRefreshStatus.key, "timeline-backfill"));
+    }
+  });
+});
+
+describe("run records", () => {
+  it("are kept for 60 days: the daily housekeeping deletes older ones, a bounded batch a run, and leaves the rest", async () => {
+    const db = handle.db;
+    const now = new Date();
+    const daysAgo = (d: number) => new Date(now.getTime() - d * 86_400_000);
+    const done = { finishedAt: now, ok: "true", durationMs: 1, trigger: "test" } as const;
+    try {
+      const [old, older, recent] = await db
+        .insert(jobRuns)
+        .values([
+          { job: "version-check", startedAt: daysAgo(61), ...done },
+          { job: "version-check", startedAt: daysAgo(90), ...done },
+          { job: "version-check", startedAt: daysAgo(59), ...done },
+        ])
+        .returning({ id: jobRuns.id });
+      expect(JOB_RUN_KEEP_MS).toBe(60 * 86_400_000);
+      // The batch bound: one a call here, so a backlog costs several runs and never one big delete.
+      expect(await pruneJobRuns(db, { now, limit: 1 })).toBe(1);
+      const result = await runJob(db, "integrity", "test");
+      expect(result.ok).toBe(true);
+      expect((result.summary as { oldJobRunsDeleted: number }).oldJobRunsDeleted).toBeGreaterThanOrEqual(1);
+      const left = (await db.select({ id: jobRuns.id }).from(jobRuns).where(inArray(jobRuns.id, [old!.id, older!.id, recent!.id]))).map((r) => r.id);
+      expect(left).toEqual([recent!.id]);
+      expect(await pruneJobRuns(db, { now })).toBe(0);
+    } finally {
+      await db.delete(jobRuns).where(and(eq(jobRuns.job, "version-check"), eq(jobRuns.trigger, "test")));
     }
   });
 });

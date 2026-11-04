@@ -224,7 +224,7 @@ Key single files:
   - Each session lasts **24 hours from sign-in**, and activity does not extend it.
   - **There is no "Remember this device".**
   - Logout deletes the session; a password change or reset deletes all of the user's sessions.
-  - The daily `integrity` job deletes sessions a week after they ended (`deleteEndedSessions`, at most 1,000 a run) and failed sign-ins older than the 15-minute throttling window (`pruneAuthFailures`); the privacy notice states both.
+  - The daily `integrity` job deletes sessions a week after they ended (`deleteEndedSessions`, at most 1,000 a run), failed sign-ins older than the 15-minute throttling window (`pruneAuthFailures`) and run records older than 60 days (`pruneJobRuns`, at most 5,000 a run); the privacy notice states all three.
 - **One account per browser** (`src/server/auth/account-jar.ts`, `browser-accounts.ts`, `session.ts`, `/api/auth/logout`):
   - The browser holds one session (`uniiverse_session`). Signing in ends any session it held before, on the server, then sets the new one. Signing in as someone else therefore means signing out first, or simply signing in again: there is no account switcher and no "Add another account".
   - **Signing out** (account menu, mobile drawer or Settings) ends the session on the server, clears the cookies and returns to the site's address (the public team page, where Sign in opens its window).
@@ -470,7 +470,7 @@ Riot ID typed (account creation, or an Alt added on the profile)
 - **Retry / back-off:**
   - Accounts: 5 min after the first failure, doubling up to 6 h.
   - Interrupted runs count as failed runs: the job's next start (after 15 min) or `integrity` records each one and closes its `job_runs` row.
-  - `integrity` unsticks interrupted runs, deletes sessions a week after they ended and prunes failed sign-ins past the throttling window (bounded batches).
+  - `integrity` unsticks interrupted runs, deletes sessions a week after they ended, prunes failed sign-ins past the throttling window and run records older than 60 days (bounded batches).
 - **Sync priorities (accounts):**
   1. New or failing links.
   2. Accounts still collecting this season.

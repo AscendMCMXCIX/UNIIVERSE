@@ -46,7 +46,7 @@ Deactivating, deleting and archiving are different actions, and none of them is 
 | Legacy opponent accounts | None are left; one that holds their Riot identity is deleted. |
 | Notes others wrote | Whole-word mentions of their names, Riot names and Riot IDs (3 characters or more) become "[removed]"; the rest of each note stays. This includes the private text other players kept in the retired Ranked Development: review learning points and adjustments, session focus and closing notes, objective titles and explanations, and If–Then plans. |
 | Admin activity | Entries keep what happened. Their name becomes **"Erased member"** as actor or target, and matching details become "[removed]". |
-| Job logs | Their Riot IDs are taken out of `job_runs` and `data_refresh_status`. Newer sync lines name an account only as `account 1a2b3c4d`. |
+| Job logs | Their Riot IDs are taken out of `job_runs` and `data_refresh_status`. Newer sync lines name an account only as `account 1a2b3c4d`. Run records are deleted after 60 days (the daily `integrity` job, in bounded batches). |
 | Caches | Team, public page, leaderboards, proficiency and lookup caches are cleared on this server instance; other instances follow within their cache times. |
 
 It then records:
