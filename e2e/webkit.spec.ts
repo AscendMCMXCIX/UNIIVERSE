@@ -181,21 +181,25 @@ test("Match History's Timeline: a tap on or just beside a mark under the curve r
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-MID").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}/matches`);
-  // The first of the newest games whose stored timeline draws (every sixth demo game has none).
+  // The first of the newest games whose stored timeline draws (every sixth demo game has none). On a
+  // phone a game opens as a whole screen of its own (the match window); Back closes it.
   let timeline: Locator | null = null;
+  const window_ = page.getByTestId("match-detail");
   for (let i = 0; i < 6 && !timeline; i++) {
     const card = page.getByTestId("match-card").nth(i);
-    const row = card.getByTestId("match-row");
     await expect(async () => {
-      if ((await row.getAttribute("aria-expanded")) !== "true") await card.tap({ position: { x: 24, y: 16 }, timeout: 2_000 });
-      await expect(row).toHaveAttribute("aria-expanded", "true", { timeout: 1_000 });
+      if (!(await window_.isVisible())) await card.tap({ position: { x: 24, y: 16 }, timeout: 2_000 });
+      await expect(window_).toBeVisible({ timeout: 1_000 });
     }).toPass({ timeout: 15_000 });
-    const breakdown = card.locator("xpath=..").getByTestId("match-breakdown");
+    const breakdown = window_.getByTestId("match-breakdown");
     await breakdown.getByTestId("match-tab-timeline").tap();
     const panel = breakdown.getByTestId("match-panel-timeline");
     await expect(panel.getByTestId("timeline-loading")).toHaveCount(0, { timeout: 15_000 });
     if (await panel.getByTestId("gold-chart").count()) timeline = panel;
-    else await card.tap({ position: { x: 24, y: 16 } });
+    else {
+      await page.goBack();
+      await expect(window_).toBeHidden();
+    }
   }
   expect(timeline, "a demo game with a timeline among the newest six").not.toBeNull();
   const chart = timeline!.getByTestId("gold-chart");
@@ -398,16 +402,30 @@ test("the sign-in window on an iPhone: the whole screen, the fields and Sign in 
   await guest.close();
 });
 
-test("held sideways: the pages fit and the phone tab bar steps aside", async ({ browser }) => {
+test("held sideways: the pages fit, the tab bar stays in reach as a compact row, and both bars step aside while reading", async ({ browser }) => {
   const { defaultBrowserType: _, ...landscape } = devices["iPhone 15 landscape"];
   const context = await browser.newContext(landscape);
   const page = await context.newPage();
+  const tabs = page.getByRole("navigation", { name: "Primary" });
   for (const route of ["/team", "/players", "/resources"]) {
     await page.goto(route);
     await expect(page.locator("main"), route).toBeVisible();
     await fitsWidth(page, `${route}, sideways`);
-    await expect(page.getByRole("navigation", { name: "Primary" }), route).toBeHidden();
+    // The places to go stay one tap away sideways too (there is no menu drawer on a phone).
+    await expect(tabs, route).toBeVisible();
+    expect((await tabs.boundingBox())!.height, `${route}: a compact row`).toBeLessThanOrEqual(56);
   }
+  // Reading down a long page, both bars slide away (scrolled by script: WebKit's touch emulation has no wheel).
+  await page.goto("/players");
+  await expect(page.locator("main")).toBeVisible();
+  await page.evaluate(async () => {
+    for (let i = 0; i < 12; i++) {
+      window.scrollBy(0, 60);
+      await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+    }
+  });
+  await expect(page.getByTestId("mobile-topbar")).toHaveAttribute("data-hidden", "true");
+  await expect(tabs).toHaveAttribute("data-hidden", "true");
   await context.close();
 });
 
@@ -476,9 +494,11 @@ test("an uploaded logo: at the start of the top bar, animated unless motion is r
       await expect.poll(() => link.locator("img").evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 0)).toBe(true);
       const shown = await link.evaluate((a) => {
         const img = a.querySelector("img")!;
-        return { inset: img.getBoundingClientRect().left - a.getBoundingClientRect().left, src: new URL(img.currentSrc).pathname };
+        // From the link's content edge: its padding lines the mark up with the page's gutter.
+        const start = a.getBoundingClientRect().left + parseFloat(getComputedStyle(a).paddingLeft);
+        return { inset: img.getBoundingClientRect().left - start, src: new URL(img.currentSrc).pathname };
       });
-      expect(Math.abs(shown.inset), `${reducedMotion}: the logo starts ${shown.inset}px into the top bar's link`).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(shown.inset), `${reducedMotion}: the logo starts ${shown.inset}px past the start of the top bar's link`).toBeLessThanOrEqual(0.5);
       expect(shown.src, reducedMotion).toBe(reducedMotion === "reduce" ? "/api/branding/logo-static" : "/api/branding/logo");
       await context.close();
     }

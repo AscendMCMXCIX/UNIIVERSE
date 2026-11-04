@@ -81,12 +81,12 @@ The rule: **the first screen answers the question the page exists for**, and mor
 tap away. Nothing is removed from the product: what a phone leaves out of a list is in the detail it
 opens.
 
-| Page | Phone layout | Height at 390px (before → after) |
+| Page | Phone layout | Height at 390px (`main` at f4e5372 → this redesign) |
 |---|---|---|
 | Players | One list, a row per player: picture in its frame, name, primary role and rank, the pool as many whole portraits as fit plus a count, and the status that matters (Lineup, Setup incomplete, Archived). The row opens the profile (the card, links and every pool). Cards from `sm` up. | 2,966 → 1,227px |
-| Leaderboards | Built for phones in #188 (docs/LEADERBOARDS_MODEL.md): Recent form is one panel with a row per member (place, picture and name, the gap to the place above, then role, record and dates on one line, the win rate at the right end); Records & achievements are the season's records, the multikills and the milestones. The frame adds the tab, the title in the bar and Back; on phones the whole row of Recent form opens the member's profile, not only the name. | — |
+| Leaderboards | Built for phones in #188 (docs/LEADERBOARDS_MODEL.md): Recent form is one panel with a row per member (place, picture and name, the gap to the place above, then role, record and dates on one line, the win rate at the right end); Records & achievements are the season's records, the multikills and the milestones. The frame adds the tab, the title in the bar and Back; on phones the whole row of Recent form opens the member's profile, not only the name. | 1,093 → 1,037px (Recent form) |
 | Matches | Each game: result, length, queue and date, then the members who played (champion, role, multikill, K/D/A). Both full teams are in the game's screen, where the scoreboard lists all ten. Bookmarked sits beside Filters. | 2,330 → 1,528px |
-| Match History | Each game: the result line, the champion and role on one line, K/D/A with its ratio and largest multikill, kill participation, CS and damage, then the build. Both teams move to the game's screen. Ten games a page. | 2,257 → 2,000px |
+| Match History | Each game: the result line, the champion and role on one line, K/D/A with its ratio and largest multikill, kill participation, CS and damage, then the build. Both teams move to the game's screen. Ten games a page. | 2,268 → 2,000px |
 
 Lists are **rows in one panel with hairline dividers** (people, a board's members): a single
 surface, not a card per item. **Games stay cards**: each is an object with its own result colour
