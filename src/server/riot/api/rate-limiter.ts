@@ -38,8 +38,12 @@ export function describeRateLimits(limits: WindowLimit[]): string {
 }
 
 export interface Limiter {
-  /** `share` (0..1] caps how much of each window this caller may fill (background work uses 0.8). */
-  acquire(share?: number): Promise<void>;
+  /**
+   * `share` (0..1] caps how much of each window this caller may fill (background work uses 0.8).
+   * With a `deadline` (ms, the limiter's clock) a wait that would end after it is not started:
+   * false, and nothing is recorded.
+   */
+  acquire(share?: number, deadline?: number): Promise<boolean>;
   /** Takes a slot only if one is free now (within `share`); never waits. */
   tryAcquire?(share?: number): boolean;
   pause(seconds: number): void;
@@ -73,11 +77,21 @@ export class RateLimiter implements Limiter {
   /**
    * Waits until a request may be sent, then records it. With `share` < 1 the caller waits as soon
    * as the window is that full, so callers at full share always find headroom.
+   *
+   * With a `deadline` it never sleeps past it: when the wait (a full window, or a 429's pause)
+   * would end after the deadline, it answers false at once and records nothing, so the caller can
+   * stop as it does when its time budget runs out. Without one, a full two-minute window kept an
+   * account sync waiting 121 s against its 75 s budget (production, 2026-10-14). A free slot is
+   * always taken, deadline or not: only waiting is refused.
    */
-  async acquire(share = 1): Promise<void> {
+  async acquire(share = 1, deadline = Number.POSITIVE_INFINITY): Promise<boolean> {
     for (;;) {
       const waitMs = this.waitFor(share);
-      if (waitMs <= 0) return this.admit();
+      if (waitMs <= 0) {
+        this.admit();
+        return true;
+      }
+      if (this.now() + waitMs > deadline) return false;
       this.waitedMs += waitMs;
       await this.sleep(waitMs);
     }

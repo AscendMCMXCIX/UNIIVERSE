@@ -42,7 +42,7 @@ Postgres counts calls and rows, not bytes, so the byte figures above are estimat
 - Pages no longer re-render on a timer (26 Oct): an open page asks for a short version of its data (`/api/freshness`, a few hundred bytes from the database) and is read again only when it changed. Before, a profile with an updating account re-rendered every 30 seconds (2 minutes while catching up on older games), changed or not.
 - **The champion window** (Matchups) read every game's whole match record and the whole timeline (all ten players) on every open, warm or cold: 1.6 MB on production (`perf-probe`, 20 Oct).
   - Now one query does the matching in Postgres: the player, the one enemy in the same assigned position, and only those two players' gold, experience and CS frames.
-  - A lane whose record and timeline are stored is final, so each instance keeps it; a lane still waiting for its timeline is read again.
+  - A lane whose record and timeline are stored is final, so each instance keeps it; a lane still waiting for its timeline is read again. An erasure drops every kept lane on the instance that ran it (it rewrites records and deletes frames).
   - Its game list comes from the per-account store above.
   - On Postgres with 12 games (`tests/db/matchups-lane-read.test.ts`): whole records 113 KB; the window 18 KB on a fresh instance and 1.5 KB when opened again. Every timeline status (frames, pending, unavailable, no details) is unchanged.
 

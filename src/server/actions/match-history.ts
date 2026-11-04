@@ -1,7 +1,7 @@
 "use server";
 
 import { getAppDb } from "@/server/bootstrap";
-import { getSession } from "@/server/auth/session";
+import { getSession, needsSetup } from "@/server/auth/session";
 import { canManageRiotAccounts, hasPermission, isTeamMember } from "@/server/auth/permissions";
 import { getMatchDetail, getMatchRanks, type MatchDetailResult, type MatchRanksResult } from "@/server/players/match-history";
 import { getMatchTimeline, type MatchTimelineResult } from "@/server/accounts/match-timeline";
@@ -11,14 +11,24 @@ import { listAccountsForPlayer } from "@/server/accounts/repository";
 import { currentSeason } from "@/server/accounts/sync";
 import { isOfferedSeason } from "@/domain/season";
 import { isSeasonMode } from "@/domain/season-stats";
-import { catchUpPlayerFigures, refreshPlayerMatches, type CatchUpOutcome, type RefreshOutcome } from "@/server/accounts/refresh";
+import { CATCH_UP_BUDGET_MS, REFRESH_BUDGET_MS, catchUpPlayerFigures, refreshPlayerMatches, type CatchUpOutcome, type RefreshOutcome } from "@/server/accounts/refresh";
 import { pendingFiguresForPlayer } from "@/server/accounts/figures-backfill";
 import { createRiotClient } from "@/server/riot/api/client";
 import { browserTestRiotClient } from "@/server/riot/browser-test";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 
-/** Riot for a profile's Refresh: quick answers, no retries (the button must answer within a minute); the stand-in in browser tests. */
-const refreshClient = () => createRiotClient({ maxRetries: 0, timeoutMs: 10_000 }) ?? browserTestRiotClient();
+/**
+ * Riot for a profile's Refresh: quick answers, no retries, and no wait for Riot's rate limits past
+ * the step's budget (the button must answer within a minute); the stand-in in browser tests.
+ */
+const refreshClient = (budgetMs: number) => createRiotClient({ maxRetries: 0, timeoutMs: 10_000, deadline: Date.now() + budgetMs }) ?? browserTestRiotClient();
+
+/*
+  Every action here refuses a caller who has not finished their temporary password and first-time
+  setup, as requireSession does for the rest of the app: the pages send them to /welcome, and an
+  action is a public endpoint that must not be the way around it.
+*/
+const SETUP_FIRST = "Finish your first-time setup first.";
 
 /** A Riot match id ("OC1_123…"), or a synthetic demo id ("DEMO_1a2b3c4d_7", demo data only). The match must still belong to the player. */
 const MATCH_ID = /^(?:[A-Z0-9]+_\d+|DEMO_[0-9a-f]{8}_\d+)$/;
@@ -30,7 +40,7 @@ const MATCH_ID = /^(?:[A-Z0-9]+_\d+|DEMO_[0-9a-f]{8}_\d+)$/;
  */
 export async function getMatchDetailAction(playerId: string, matchId: string): Promise<MatchDetailResult> {
   const session = await getSession();
-  if (!session) return { status: "not-found", message: "Sign in to see match details." };
+  if (!session || needsSetup(session)) return { status: "not-found", message: session ? SETUP_FIRST : "Sign in to see match details." };
   const self = session.playerId === playerId;
   if (!self && !hasPermission(session, "view-teammate-stats")) return { status: "not-found", message: "Teammates' match details are not part of your access." };
   if (!/^[0-9a-f-]{36}$/i.test(playerId) || !MATCH_ID.test(matchId)) return { status: "not-found", message: "This match is not in this player's history." };
@@ -46,7 +56,7 @@ export async function getMatchDetailAction(playerId: string, matchId: string): P
  */
 export async function getMatchTimelineAction(playerId: string, matchId: string): Promise<MatchTimelineResult> {
   const session = await getSession();
-  if (!session) return { status: "not-found", message: "Sign in to see match details." };
+  if (!session || needsSetup(session)) return { status: "not-found", message: session ? SETUP_FIRST : "Sign in to see match details." };
   const self = session.playerId === playerId;
   if (!self && !hasPermission(session, "view-teammate-stats")) return { status: "not-found", message: "Teammates' match details are not part of your access." };
   if (!/^[0-9a-f-]{36}$/i.test(playerId) || !MATCH_ID.test(matchId)) return { status: "not-found", message: "This match is not in this player's history." };
@@ -60,7 +70,7 @@ export async function getMatchTimelineAction(playerId: string, matchId: string):
  */
 export async function getMatchGroupsAction(playerId: string, matchId: string): Promise<MatchGroupsResult> {
   const session = await getSession();
-  if (!session) return { status: "not-found", message: "Sign in to see match details." };
+  if (!session || needsSetup(session)) return { status: "not-found", message: session ? SETUP_FIRST : "Sign in to see match details." };
   const self = session.playerId === playerId;
   if (!self && !hasPermission(session, "view-teammate-stats")) return { status: "not-found", message: "Teammates' match details are not part of your access." };
   if (!/^[0-9a-f-]{36}$/i.test(playerId) || !MATCH_ID.test(matchId)) return { status: "not-found", message: "This match is not in this player's history." };
@@ -78,7 +88,7 @@ export type MatchMeetingsResult = { status: "ok"; players: MatchMeeting[] } | { 
  */
 export async function getMatchMeetingsAction(playerId: string, matchId: string, filters: { season: number; mode: string; accountId: string | null }): Promise<MatchMeetingsResult> {
   const session = await getSession();
-  if (!session) return { status: "not-found", message: "Sign in to see match details." };
+  if (!session || needsSetup(session)) return { status: "not-found", message: session ? SETUP_FIRST : "Sign in to see match details." };
   const self = session.playerId === playerId;
   if (!self && !hasPermission(session, "view-teammate-stats")) return { status: "not-found", message: "Teammates' match details are not part of your access." };
   const mode = filters?.mode;
@@ -99,7 +109,7 @@ export async function getMatchMeetingsAction(playerId: string, matchId: string, 
  */
 export async function getMatchRanksAction(playerId: string, matchId: string): Promise<MatchRanksResult> {
   const session = await getSession();
-  if (!session) return { status: "not-found", message: "Sign in to see match details." };
+  if (!session || needsSetup(session)) return { status: "not-found", message: session ? SETUP_FIRST : "Sign in to see match details." };
   const self = session.playerId === playerId;
   if (!self && !hasPermission(session, "view-teammate-stats")) return { status: "not-found", message: "Teammates' match details are not part of your access." };
   if (!/^[0-9a-f-]{36}$/i.test(playerId) || !MATCH_ID.test(matchId)) return { status: "not-found", message: "This match is not in this player's history." };
@@ -116,10 +126,10 @@ export async function getMatchRanksAction(playerId: string, matchId: string): Pr
  */
 export async function refreshMatchesAction(playerId: string): Promise<RefreshOutcome & { pendingFigures?: number }> {
   const session = await getSession();
-  if (!session) return { status: "unavailable", message: "Sign in to refresh." };
+  if (!session || needsSetup(session)) return { status: "unavailable", message: session ? SETUP_FIRST : "Sign in to refresh." };
   if (!/^[0-9a-f-]{36}$/i.test(playerId)) return { status: "unavailable", message: "This profile cannot be refreshed." };
   if (session.playerId !== playerId && !canManageRiotAccounts(session, playerId)) return { status: "unavailable", message: "Only the player (or an admin) can refresh this profile." };
-  const client = refreshClient();
+  const client = refreshClient(REFRESH_BUDGET_MS);
   if (!client) return { status: "unavailable", message: "Refresh is not available right now; games keep arriving through the regular sync." };
   const db = await getAppDb();
   try {
@@ -139,10 +149,10 @@ export async function refreshMatchesAction(playerId: string): Promise<RefreshOut
  */
 export async function catchUpFiguresAction(playerId: string): Promise<CatchUpOutcome | { status: "unavailable"; message: string }> {
   const session = await getSession();
-  if (!session) return { status: "unavailable", message: "Sign in to refresh." };
+  if (!session || needsSetup(session)) return { status: "unavailable", message: session ? SETUP_FIRST : "Sign in to refresh." };
   if (!/^[0-9a-f-]{36}$/i.test(playerId)) return { status: "unavailable", message: "This profile cannot be refreshed." };
   if (session.playerId !== playerId && !canManageRiotAccounts(session, playerId)) return { status: "unavailable", message: "Only the player (or an admin) can refresh this profile." };
-  const client = refreshClient();
+  const client = refreshClient(CATCH_UP_BUDGET_MS);
   if (!client) return { status: "unavailable", message: "Refresh is not available right now; the counts keep arriving through the regular sync." };
   const db = await getAppDb();
   try {

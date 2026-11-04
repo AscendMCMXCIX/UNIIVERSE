@@ -405,6 +405,7 @@ Key single files:
 **Limits:**
 - Development/personal key: 20 requests per second and 100 per 2 minutes, **per host**. The client keeps one limiter per host (`RateLimiterPool`).
 - It honours `Retry-After`, backs off on 5xx and limits retries.
+- **Deadlines** (4 Nov 2026): every caller with a time budget gives its client a `deadline` (the account-sync, timeline-backfill and figures-backfill jobs; the first sync after sign-up, 20 s; a profile view's refresh, 40 s; Refresh, 40 s, and its catch-up, 25 s; Retry pending, 40 s). No request starts after it, and one that would wait past it, for a full rate-limit window or a 429's `Retry-After`, is not sent (`RiotDeadlineError`): the caller stops as when its time runs out. The account is not marked Pending, nor marked synced when a due current-season list was left unread before any was read; nothing is recorded against the key; what was collected is kept; and the next run carries on. A request that met a network error or a 5xx and cannot be tried again in time throws that error instead: an outage near the end of a budget is still a failure (the account Pending with Riot's reason, the run degraded), not a stop for time. That includes a sync whose best-effort lookups (the Riot ID check, the active server, rank, mastery) met such a failure, with no later lookup succeeding, and which then ran out of time before it read any season list. On a client that retries, a 429 whose Retry-After leaves no time is a stop for time (a Refresh does not retry: a 429 on its list request is reported as Riot rate-limiting, as before); a failed match request inside the history stops its page, as before. Before, a sync waited out Riot's two-minute window whatever its budget (121 s of a 75 s budget, 14 Oct), enough to push a tick past the 300 s function limit, which leaves its job "running". A request already sent can still take its timeout (7–15 s) past the deadline, so a sync bound by one ends by the deadline plus one timeout.
 - PUUIDs are encrypted per API key; linked accounts re-resolve from their Riot ID after a key change.
 - The registry lists 17 public platforms (PH2 and TH2 were merged into SG2 by Riot).
 
@@ -417,13 +418,15 @@ Riot ID typed (account creation, or an Alt added on the profile)
  → rank (League-V4) + champion mastery (Mastery-V4)
  → current-season match history for queues 420, 440, 400, 430, 480, 490, 700
    (newest page first, then older pages resumed from history_backfill until the season start;
-    the previous season afterwards, when the current one is complete)
+    the previous season afterwards, when the current one is complete; a queue whose newest page
+    was left unfinished is read again from the top; games Riot refuses for good are stored
+    without a champion, games on a champion not known yet are left for a later run)
  → account_matches ledger (each match folded once; per-match K/D/A, CS, damage, vision, role, result)
  → account_champion_history aggregates (per champion / role / queue group / patch)
  → proficiency (computed on read by src/server/proficiency/service.ts from history + mastery)
 ```
 
-- **Kick-off on link:** sign-up never waits for Riot. A best-effort verification runs right after linking (`kickoffAccountSync`); anything Riot could not answer is `pending` with a plain reason.
+- **Kick-off on link:** sign-up never waits for Riot. A best-effort verification runs right after linking (`kickoffAccountSync`); anything Riot could not answer is `pending` with a plain reason. It claims each account's sync lease first (below), so a profile view opened meanwhile does not verify the same account a second time.
 - **Sync states shown to players:** Updating · Catching up on history · Up to date · Delayed · Needs attention. "Retry sync" appears only for Delayed and Needs attention.
 - **How quickly a new game appears:** the scheduled sync reaches an active account at most every 45 minutes (others every 3 hours, 12 accounts per run) and only when a scheduler tick runs (a visit starts one every 30 minutes; the hourly GitHub run is best effort), so a game played just now usually takes 45–90 minutes. Rendering never waits for Riot; no page caches personal games.
 - **Data status and Refresh** (`src/domain/data-status.ts`, `src/components/ui/data-status.tsx`, `src/components/ui/refresh-store.ts`; 22 Oct 2026, one design on every page):
@@ -442,7 +445,7 @@ Riot ID typed (account creation, or an Alt added on the profile)
     2. While some of the player's games lack multikill counts, `catchUpFiguresAction` fetches up to 40 of their records again, newest first (a 25-second budget, the `figures-backfill` job's rate limiter and rules).
     3. When either changed something, the page is read again in place (`router.refresh()`; the pages are dynamic, the proficiency cache is cleared after new games or counts, and the Leaderboards and Played Together caches rebuild when the stored games change), keeping its URL filters. Only then does the notification say what happened, so it never arrives before the figures.
     - The status beside the scope line names the step while it runs: "Checking Riot…" (and "Fetching multikills…") for the new sync, then "Updating the page…" for the re-read of what is stored, which asks Riot nothing.
-  - **Leases and repeats.** Every sync, scheduled or manual, first claims a per-account lease in `app_settings` (`account_sync:<id>`; 2 min for a refresh or Retry sync, 1 min for the scheduler). A catch-up claims one per player (`figures_catchup:<id>`, 2 min). So two syncs never run on one account. A second press while one runs joins it; one within 2 minutes is answered in the browser ("Refreshed 1m ago · try again in 2 min") without a request, and from another browser or device the server answers "checked recently" from the lease, without asking Riot.
+  - **Leases and repeats.** Every sync first claims a per-account lease in `app_settings` (`account_sync:<id>`): Refresh and Retry sync refuse an account claimed in the last 2 min; the scheduler, a profile view's background refresh and the first sync after sign-up one claimed in the last 100 s (`SCHEDULED_SYNC_LEASE_MS`: longer than a tick's account sync can hold an account, its 75 s cap plus a request's 15 s timeout, as no request starts after the cap; the last two claim it since 4 Nov 2026: before, a view and the tick or a Refresh could sync one account at once, doubling the Riot requests, and the Refresh then found "No new games" the other had just stored). A catch-up claims one per player (`figures_catchup:<id>`, 2 min), and a view's slice one per player (`account_refresh:<id>`, 2 min, given back when every due account was held by another sync). A slice dates its account claims from its own start, so the next slice never finds them standing; the first sync after sign-up gives each account back as soon as it is done with it, so the profile the new member opens carries its history on at its next render. So no two of these syncs run on one account. (Not covered, as they can hold an account for more than 100 s, so a background sync may join them: a direct run of the account-sync job, Data jobs → `account-sync` or `pnpm job account-sync`, whose budget is `UNIIVERSE_JOB_BUDGET_MS`, 240 s by default; and Retry sync, which has no deadline.) The first sync's give-back means a Refresh or Retry sync right after it reaches Riot instead of answering "checked recently"; the cooldown runs from their own claim. (Two paths still sync without the lease: linking an account on the Riot accounts panel, whose first sync runs while the person waits, and the owner's Retry pending accounts.) A second press while one runs joins it; one within 2 minutes is answered in the browser ("Refreshed 1m ago · try again in 2 min") without a request, and from another browser or device the server answers "checked recently" from the lease, without asking Riot.
   - **Outcomes are stated as they happened** (`refreshNote`, `REFRESH_TOAST`): N new games; no new games (Riot can take a few minutes to list a finished game); multikills for N more games and how many follow automatically; checked recently (with when to try again); failed; or not available. Never "updated" or "Up to date" for a click alone: the word in the ⓘ comes from the accounts as the sync left them. The button reads "Refreshing…" until the figures are in, on whichever tab of the profile is open (a run carries on when the tab changes); screen readers hear the steps.
   - Played Together and Leaderboards read the same stored games, so a refresh updates them as well.
 
@@ -466,6 +469,7 @@ Riot ID typed (account creation, or an Alt added on the profile)
 - **Triggers:** GitHub hourly (best-effort; often skipped), Vercel daily 04:00 UTC, visits (every 30 min while people use the site), optional `pg_cron`.
 - **Retry / back-off:**
   - Accounts: 5 min after the first failure, doubling up to 6 h.
+  - Interrupted runs count as failed runs: the job's next start (after 15 min) or `integrity` records each one and closes its `job_runs` row.
   - `integrity` unsticks interrupted runs, deletes sessions a week after they ended and prunes failed sign-ins past the throttling window (bounded batches).
 - **Sync priorities (accounts):**
   1. New or failing links.
@@ -923,7 +927,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 ### I1. Architecture
 
 - **Caching:**
-  - Per-instance TTL cache (`src/server/observability/cache.ts`) for champions, patch, branding, team, formats, pro patterns, shell facts and skins (10 min), invalidated by writers.
+  - Per-instance TTL cache (`src/server/observability/cache.ts`) for champions, patch, branding, team, formats, pro patterns, shell facts and skins (10 min; kept only for champions in the game, as Card Studio asks for any id), invalidated by writers. A load that an invalidation or a newer load overtook still answers the requests waiting on it but is not kept, so a value read before a change never outlives the change on the instance that made it.
   - React `cache()` for the session and user per request.
   - The statistics description is cached per instance for a minute and dropped when the stats version changes.
 - **Database:** single-digit-millisecond queries Sydney→Sydney. No pipelining through the pooler. Parallel reads only where measured safe; pool max 5.
