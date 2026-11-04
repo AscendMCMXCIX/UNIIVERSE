@@ -684,7 +684,7 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profi
           </h3>
           {/* Pools are edited on the profile (one place, with every role); Team only shows them. */}
           {canEdit ? (
-            <Link href={editHref} className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-xs font-medium text-accent hover:bg-accent/10 pointer-coarse:min-h-11" aria-label={`Edit ${p.name}'s champions on the profile`} data-testid="edit-pool-on-profile">
+            <Link href={editHref} className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-xs font-medium text-accent hover:bg-accent/10 pointer-coarse:min-h-11" aria-label={`Edit on profile: ${p.name}'s champions`} data-testid="edit-pool-on-profile">
               <Pencil className="h-3.5 w-3.5" aria-hidden /> Edit on profile
             </Link>
           ) : null}

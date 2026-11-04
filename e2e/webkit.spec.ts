@@ -254,20 +254,22 @@ test("Encounters: each player's records sit under the name with their side in wo
     }
   }
   await fitsWidth(page, "Encounters");
-  // A player met both ways: both records, and the games filtered by side.
-  const detail = page.getByTestId("encounter-detail");
+  // A player met both ways: their games in Match History itself, both records, and the games filtered by side.
+  const panel = page.getByTestId("encounter-games");
   const both = page.locator("[data-testid='encounter-row']:not([data-against='0']):not([data-alongside='0'])").first();
+  const against = Number(await both.getAttribute("data-against"));
   await expect(async () => {
-    if (!(await detail.isVisible())) await both.getByTestId("open-encounter").tap({ timeout: 2_000 });
-    await expect(detail).toBeVisible({ timeout: 1_000 });
+    if (!(await panel.isVisible())) await both.getByTestId("open-encounter").tap({ timeout: 2_000 });
+    await expect(panel).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
-  await expect(detail.getByTestId("encounter-detail-record")).toHaveCount(2);
-  await detail.getByTestId("encounter-games-against").tap();
-  for (const r of await detail.getByTestId("encounter-game").evaluateAll((els) => els.map((e) => e.getAttribute("data-relation")))) expect(r).toBe("opponent");
-  expect((await page.locator("dialog[open]").boundingBox())!.width).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
-  await expectClearCorner(page);
-  await page.keyboard.press("Escape");
-  await expect(detail).toBeHidden();
+  await expect(panel.getByTestId("encounter-detail-record")).toHaveCount(2);
+  await panel.getByTestId("encounter-games-against").tap();
+  await expect(page).toHaveURL(/side=against/);
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-total", String(against));
+  await expect(page.locator("dialog[open]")).toHaveCount(0);
+  await fitsWidth(page, "a player's games");
+  await panel.getByTestId("encounter-back").tap();
+  await expect(page.locator("[data-testid='encounters'][data-ready]")).toBeVisible();
 });
 
 test("Player Customisation: the Studio opens, its sections switch from the section list, and Cancel keeps the saved card", async ({ page }) => {

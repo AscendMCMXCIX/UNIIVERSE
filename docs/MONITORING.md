@@ -2,7 +2,7 @@
 
 What tells the owner that UNIIVERSE is unwell, what does not yet, and how to close the gaps for free. Nothing here costs money on the current free plans.
 
-**Status (21 Oct 2026):** no paid monitoring and no third-party monitor are set up. The signals below come from GitHub, Vercel, Supabase and the app itself. Scheduled Data jobs runs fail when production is unwell (audit decision 10) or when a day's database egress goes over its budget.
+**Status (3 Nov 2026):** no paid monitoring and no third-party monitor are set up. The signals below come from GitHub, Vercel, Supabase and the app itself. Scheduled Data jobs runs fail when production is unwell (audit decision 10) or when a day's database egress goes over its budget. The **Production check** checks the live site in a browser after each production deployment and every day, and the **Database backup** watches its own size; both report through one GitHub issue each, opened while failing and closed on recovery.
 
 ## What is watched today
 
@@ -18,11 +18,14 @@ What tells the owner that UNIIVERSE is unwell, what does not yet, and how to clo
 | Accounts, sessions and migrations look wrong | Data jobs `auth-audit` (manual) | Only when run; the run's output names the problem |
 | Pages are slow on the server | Data jobs `perf-probe` (manual); `slowest` lists the five slowest steps | Only when run |
 | Pages are slow in members' browsers (field data) | Each signed-in page load reports its LCP, CLS, INP, FCP and TTFB as counts (`/api/vitals`, table `web_vitals_daily`, below) | Admin → System Health, "Page speed in members' browsers"; no alert |
+| A deployment breaks the live site: the wrong commit answering, an error on a page, a member page reachable signed out or with a forged session (the shared pages, and a real member's profile, champions and matches, the pages of the #170 fix), a missing security header, sideways scrolling or a serious axe violation at 1440, 768 or 390 px, or a Riot rule for a Personal key broken (Riot API data on the public pages, Riot's required notice missing, `/riot.txt` not served) | **Production check** (`.github/workflows/production-check.yml`, `scripts/live-check.mjs`): after each successful production deployment (Vercel's deployment status) and daily at 05:37 UTC. The member pages are checked once the `UNIIVERSE_VERIFY_USER` / `UNIIVERSE_VERIFY_PASSWORD` secrets exist; until then they are pending | An issue labelled `production-check` (one at a time; the next passing run closes it), with what failed and the run's link; screenshots in the run's artifact |
+| Backups stop passing, or near their size limit | **Database backup** (weekly): a failed run, or an encrypted copy over 80% of `MAX_MB`; the daily Production check fails when no backup passed for 8 days | An issue labelled `database-backup`; the Production check's issue for a stale backup |
+| The database nears its plan | Daily Production check: `db-usage`'s size, in decimal megabytes, against `DB_PLAN_MB` (default 500, the free plan's 0.5 GB read the safer way). It grows by about 2 MB a day | An issue labelled `database-size` from 80%, opened once and naming the remedy (the held drops of the retired tables); comments on it and the `production-check` issue from 95%; it closes itself under 80% |
 | Database egress goes over budget (Supabase Free includes 5 GB a month) | The app counts the bytes every query brings back (`server/db/egress.ts`, table `db_egress_daily`). Scheduled Data jobs runs call the `egress` job, which fails when yesterday (UTC) went over 120 MB (`EGRESS_DAILY_BUDGET_MB`) | GitHub's failed-workflow email (below); `db-usage` and `perf-probe` show where the bytes went |
 
 \* Their usual behaviour, not checked in this project's Vercel or Supabase settings.
 
-After every production deploy that changes the app, `CLAUDE.md` §5 asks for one manual Data jobs run (`smoke`, plus `perf-probe` when data loading changed and `auth-audit` after a migration). `smoke` fails when health is not ok or a page errors. That is a human check, not an alert.
+After every production deployment the Production check runs by itself (`CLAUDE.md` §5). A manual Data jobs run is only needed for `auth-audit` after a migration, or `perf-probe` outside the Production check's Monday run.
 
 ## Page speed in members' browsers (field data)
 
@@ -53,10 +56,13 @@ A failed scheduled run is reported by GitHub's usual email. It goes to the accou
 
 Each failing run sends one email until the problem is fixed, so a fault that lasts a day sends about four.
 
+The Production check and the Database backup report differently: one issue per check (labels `production-check` and `database-backup`, `scripts/report-issue.sh`), opened by the first failing run with what failed and the run's link, commented on by later failing runs, and closed by the next passing run. A new issue notifies the owner as any issue on their repository does; nothing needs tidying after a recovery.
+
 ## Still not covered
 
 - **Nothing checks from outside GitHub.** If GitHub Actions is paused (it disables scheduled workflows after 60 days without a commit), the alerts stop too. A free outside uptime monitor on `/api/health` would cover this; the owner creates its account, and no credentials go through the repository.
 - **Between scheduled runs,** a fault is noticed only at the next run (hours at worst).
+- **Signed-in pages from outside:** the Production check opens the member pages only once a non-admin verification account exists and its sign-in is stored as the repository secrets `UNIIVERSE_VERIFY_USER` and `UNIIVERSE_VERIFY_PASSWORD`. Until then it checks the public pages and the signed-out security only, and says the rest is pending.
 
 Until an outside monitor exists: open Admin → System Health now and then, or run Data jobs `smoke` after anything unusual.
 

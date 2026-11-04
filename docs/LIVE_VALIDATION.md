@@ -25,6 +25,37 @@ Verified before deployment, on a real PostgreSQL 16 server in production mode (a
 
 Each item says what to do, what to expect and where to look when it fails.
 
+## Automated live check
+
+**It runs by itself (3 Nov 2026):** GitHub's Production check (`.github/workflows/production-check.yml`) runs it after each production deployment and every day, from GitHub's runner, with no setup by anyone. Without the verification account's secrets it checks the public pages and the signed-out security, and reports the member pages as pending. The items below that need a signed-in member stay for a person, or for the check once those secrets exist (`docs/MONITORING.md`).
+
+`scripts/live-check.mjs` checks the deployed site from a browser. It runs the read-only checks that people otherwise do by hand, at desktop (1440 px), tablet (768 px) and phone (390 px) widths, and saves a screenshot of every page for review.
+
+```
+node scripts/live-check.mjs [base url] [output folder]
+```
+
+- **Base url:** defaults to https://team-uniiverse.vercel.app.
+- **Output folder:** defaults to `live-check-<time>`. It holds the screenshots, `report.json` and `summary.md`. The run exits with 1 when any check fails.
+- **Sign-in:** `UNIIVERSE_VERIFY_USER` and `UNIIVERSE_VERIFY_PASSWORD`, for a non-admin account kept off the roster. They are read from the environment and never printed. In a cloud session they go in the environment's settings, and the site must be under its allowed domains.
+- **Read only:** it signs in, opens pages and opens and closes games and windows. It also switches a view and presses Back, Forward, Enter and Escape. It never submits a form after sign-in, and never presses a bookmark, edit, save, sync, refresh, invite or admin control. As with any member's visit, an open game can start the app's own background reads (rank checks).
+- **What it checks:**
+  - Signed-out and forged-cookie requests to member pages are turned away to sign-in and carry no player data (#170). Security headers on the sign-in page.
+  - The charcoal frame (#178): the sidebar open and folded, the current page's gradient bar, and the top bar, drawer and tab bar on tablets and phones.
+  - All Champions (#178): compact rows, sorted by games, no heading cut short. The champion window still opens and closes.
+  - Games (#178):
+    - Team Matches opens a game under its card, with no window and `?match=` in the address;
+    - a copied link opens it, and Back returns to it;
+    - Enter toggles it, and "Close this game" closes it with the focus back on the card;
+    - Match History and its Encounters view still open.
+  - axe (#173) on the main pages at every width, with a game open, and in the champion window: WCAG 2.1 A and AA plus `label-content-name-mismatch`, with no serious or critical violation.
+  - Every page at every width loads signed in, with:
+    - no sideways scroll;
+    - no page error or app console error;
+    - no failed request to the app;
+    - no broken image from the app.
+- **Locally:** `LIVE_LOCAL=1 node scripts/live-check.mjs http://127.0.0.1:<port>` checks a demo build started like the browser tests' server. There is no sign-in, and the security checks are skipped. On 3 Nov 2026 the demo build of `main` at `d72619a` passed all 200 checks, with no axe violation.
+
 ## 1. Data Dragon (champions, patches, portraits)
 
 - [ ] Admin → Data & Riot → run `version-check`. Expect status *ok* and Data health showing the real current patch (e.g. `15.19`) instead of `0.0 / offline fixture`.
@@ -511,7 +542,7 @@ A profile's Match History opens each game under its card (`docs/ARCHITECTURE.md`
 - [ ] Team members: "Against <name>" lists only games where that member was on the other side (their name on the card's other team), "With any team member" only games with a member on your side; the counts match the number of games listed.
 - [ ] Refine → Show the games → By playing session (a chip shows it): the games fall under headers (date, start and end times, games, W/L, KDA, CS/min, time played) in the same newest-first order; a session cut by the page break says how many of its games are on the page; a game still opens under its card; Every game (or the chip) restores the plain list.
 - [ ] On a phone: the Refine fields sit in the opened filter panel without a sideways scroll, and the date fields are usable with the system date picker.
-- [ ] Players met in other games: open a few games under their cards. A player met in another game this season (same game mode filter) carries "Met N×" after their name, and its hover text gives the games against and alongside. Teammates with a profile and players without a recorded Riot ID are never marked. Pressing it opens their Encounters window with "N recorded games with <player>" (the same N) and those games; Escape returns to the mark. A game opened in the window (Team → Matches, Encounters) has no marks. On a phone the mark fits beside the name without a sideways scroll.
+- [ ] Players met in other games: open a few games under their cards. A player met in another game this season (same game mode filter) carries "Met N×" after their name, and its hover text gives the games against and alongside. Teammates with a profile and players without a recorded Riot ID are never marked. Pressing it opens their games in Match History → Encounters with "N games with <player>" (the same N) and those games; Back returns to the game. A game opened in the window (Team → Matches, Encounters) has no marks. On a phone the mark fits beside the name without a sideways scroll.
 - [ ] Data jobs → `perf-probe`: the step `profile.matchMeetings` passes, with counts only.
 
 ## Match History: one game, one set of figures (29 Oct 2026)
@@ -595,3 +626,29 @@ On the live site, after the deployment (the sandbox renders demo data without Ri
 - [ ] Team → a player's window: as tall as its content on a computer (no empty band), the hero with the name, rank, Full profile, links and position, then this season, then the pool under one row of column names with the first choice marked. Previous and next move between players; on a phone the window fills the screen and scrolls as one.
 - [ ] Team → Matches with 2, 3, 4 and 5 members in a game: result, duration, game mode and date first; one line per member (champion, name, role, KDA with its best multikill; CS and damage from tablets up), two columns from four members where there is room, no name cut short; both line-ups with every name, also on a phone; the bookmark icon in the corner turns on and off and the Bookmarked filter shows the game. Pointing at or tabbing to a card shows its state; the card opens the game.
 - [ ] Leaderboards: every category and game mode; the scope line says the season, the game mode and the games counted. From a tablet up the podium has the top three and the list continues from fourth; on a phone the leader's card is followed by the list from second (the leader is not listed twice). Equal values share a place ("2="), players under the minimum games are listed as "Not ranked yet", players without the figure as "No games with this figure". Values are in the text colour; gold marks first place only.
+
+## UX consistency: neutral frame, compact All Champions, Team Matches games under their cards (Nov 2026)
+
+On the live site, after the deployment (checked locally on demo data at 1440, 1920, 768 and 375 px; no physical devices were used):
+- [ ] Data jobs → `smoke`: every step passes and `deployment.commit` is the merge commit.
+- [ ] The sidebar on a computer, open and folded: a near-neutral charcoal, not blue. The current page shows a soft grey lift, a thin blue-to-violet bar at its left edge and a blue icon; other entries lift in grey when pointed at. Ctrl+\ folds and unfolds it, pointing at the folded rail opens it over the page, and tabbing into it opens it too. The phone and tablet top bar, the drawer and the tab bar use the same charcoal.
+- [ ] A team with its own page or panel colour (Admin → Branding): the frame follows those colours, not the default charcoal.
+- [ ] All Champions on a computer: rows are compact (a small portrait, the name with its role and In pool under it), the figures sit together on the right, and no heading is cut short. Folding the sidebar keeps the same. On a tablet no row wraps onto a third line. A phone still shows one compact row per champion with every figure.
+- [ ] Team → Matches: pointing at a card and clicking anywhere but a name or the bookmark opens the game under it, with Scoreboard, Analysis, Timeline and Build, and the address gains `?match=`. A name opens the profile and the bookmark toggles, without opening the game. "Close this game" closes it and returns to the card. Opening another game closes the first.
+- [ ] The keyboard: Tab reaches each card once, Enter or Space opens and closes the game, and the focus stays on the card.
+- [ ] A copied Team Matches link with `?match=` opens that game under its card. Back and Forward follow the open game.
+- [ ] Matchups, Encounters and a Match History link to a game not on the page still open the match window, as before.
+
+## Match History and Encounters: one navigation, All first, a player's games in Match History (3 Nov 2026)
+
+On the live site, after the deployment (checked locally on demo data at 1440, 768 and 390 px; no physical devices were used):
+- [ ] Data jobs → `smoke` and `perf-probe`: every step passes and `deployment.commit` is the merge commit.
+- [ ] A profile → Match History, on a computer and on a phone: Games and Encounters are two tabs directly under the profile's tabs, where the "Match History" title was; the current one is a lit pill with a blue icon. On a phone they share the width. Switching keeps the season, game mode and account, the page does not jump, and Back and Forward switch back.
+- [ ] Games: the line under the tabs reads "N games · Season … · …" with the one ⓘ for how current the data is; no ⓘ stands alone.
+- [ ] Encounters opens on **All** (no `rel` in the address): one row per player, the Against games, record and win rate in their own columns, a rule, then the same for Alongside, then when you last met. "never" where a side has no games. Against and Alongside filter the list (each with its count); the ⓘ beside them says how encounters are counted.
+- [ ] The highlights sit in one line above the table, like the summary line on Games; each opens that player's games.
+- [ ] A player (a row or a highlight): their games open in Match History itself, Encounters still the current tab, with "All encounters", their name (and OP.GG for a real Riot ID, in a new tab), "N games with … · last met …", the Against and Alongside records, and All / Against / Alongside when they were met both ways. The games are ordinary Match History cards; a game opens under its card with Scoreboard, Analysis, Timeline and Build, as on Games. There is no Encounters window any more.
+- [ ] "All encounters" returns to the list as it was (the same filter, minimum and search); Back does too. A copied link to a player's games opens the same games and side.
+- [ ] A game's scoreboard: "Met N×" opens that player's games with the same N.
+- [ ] Admin Mode → Users & Permissions: Accounts, Access levels & groups and Personal data are the same pill tabs.
+- [ ] Leaderboards is unchanged (its rules wait for your decision).

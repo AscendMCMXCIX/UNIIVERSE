@@ -56,6 +56,11 @@ export interface MatchHistoryQuery {
   per?: number;
   /** Match History's own choices: result, patch, days, a team member, highlights, sessions (domain/history-refine). */
   refine?: RefineParams;
+  /**
+   * Only these games (by match id), before every other choice: one player's games met in
+   * Encounters (server/players/encounters loadEncounterDetail), in the same season, game mode and account.
+   */
+  onlyMatchIds?: ReadonlySet<string>;
 }
 
 export interface Icon {
@@ -226,7 +231,8 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     championId: q.championId ?? null,
     accountId: q.accountId && ids.includes(q.accountId) ? q.accountId : null,
   };
-  const { games: unrefined } = filterGames(raw, filter, poolOf);
+  const { games: listed } = filterGames(raw, filter, poolOf);
+  const unrefined = q.onlyMatchIds ? listed.filter((g) => q.onlyMatchIds!.has(g.matchId)) : listed;
   const modes = modeBreakdown(raw, filter);
   // Every stored game once, whatever the filters: what each game on the page is compared with.
   const history = dedupeGames(raw);

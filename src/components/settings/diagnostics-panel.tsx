@@ -2,6 +2,7 @@ import type { Diagnostics } from "@/server/ops/diagnostics";
 import { Badge } from "@/components/ui/badge";
 import { Panel, PanelBody, PanelHeader, SectionLabel } from "@/components/ui/panel";
 import { timeAgo } from "@/lib/format";
+import { ScrollRegion } from "@/components/ui/scroll-region";
 
 /** Owner-only operational view: build, database latency from this function, jobs, errors. */
 export function DiagnosticsPanel({ d }: { d: Diagnostics }) {
@@ -45,7 +46,7 @@ export function DiagnosticsPanel({ d }: { d: Diagnostics }) {
         </div>
         <div>
           <SectionLabel className="mb-1">Recent job runs</SectionLabel>
-          <div className="overflow-x-auto">
+          <ScrollRegion label="Recent job runs">
             <table className="w-full">
               <thead className="text-left text-fg-subtle">
                 <tr>
@@ -70,7 +71,7 @@ export function DiagnosticsPanel({ d }: { d: Diagnostics }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollRegion>
         </div>
       </PanelBody>
     </Panel>

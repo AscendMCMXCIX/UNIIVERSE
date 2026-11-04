@@ -5,8 +5,8 @@ name: CI
 #   other branches no longer run CI on their own: open a PR, or start a run by hand
 #   (Actions → CI → Run workflow). Before this, every commit on a PR branch ran CI twice (push
 #   and pull_request events, in different concurrency groups).
-# - changes that cannot affect the build (documentation, the production-only workflows and the
-#   by-hand WebKit workflow) do not start CI.
+# - changes that cannot affect the build (documentation, the production-only workflows, the
+#   by-hand WebKit workflow and the workflow lint) do not start CI.
 # - a newer push to the same PR or branch cancels the run it supersedes.
 # - the browser and database suites wait for typecheck, lint and unit tests, so a broken commit
 #   stops after about two minutes instead of also running the 10-minute browser suite.
@@ -27,6 +27,9 @@ on:
       - ".github/workflows/probe.yml"
       - ".github/workflows/smoke.yml"
       - ".github/workflows/webkit.yml"
+      - ".github/workflows/backup.yml"
+      - ".github/workflows/production-check.yml"
+      - ".github/workflows/workflow-lint.yml"
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths-ignore:
@@ -37,6 +40,9 @@ on:
       - ".github/workflows/probe.yml"
       - ".github/workflows/smoke.yml"
       - ".github/workflows/webkit.yml"
+      - ".github/workflows/backup.yml"
+      - ".github/workflows/production-check.yml"
+      - ".github/workflows/workflow-lint.yml"
   workflow_dispatch:
 
 concurrency:

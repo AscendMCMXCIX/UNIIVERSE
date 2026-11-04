@@ -3,8 +3,6 @@ import { z } from "zod";
 /** Only the fields UNIIVERSE needs. Extra fields are ignored so minor upstream additions never break a sync. */
 export const platformStatusSchema = z.object({ id: z.string().min(1) });
 
-export const summonerSchema = z.object({ puuid: z.string().min(1) });
-
 export const matchIdsSchema = z.array(z.string().min(1));
 
 /** An optional extra figure: anything but a number reads as absent. */

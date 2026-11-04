@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "./test";
+import { openTogether } from "./match-history";
 import { openFilterBar } from "./filters";
 
 /*
@@ -124,42 +125,60 @@ test("teammate combinations: choose members in the searchable picker, see only t
 });
 
 
-test("a Team Matches card opens the match window, with the breakdown Match History opens under its cards; names and the bookmark keep their own action", async ({ page }) => {
+test("a Team Matches card opens its game under it, as Match History does; names and the bookmark keep their own action", async ({ page }) => {
   await page.goto("/matches");
-  const card = page.getByTestId("together-game").first();
-  await expect(card).toBeVisible();
-  const matchId = (await card.getAttribute("data-match-id"))!;
+  const game = page.getByTestId("together-game").first();
+  await expect(game).toBeVisible();
+  const matchId = (await game.getAttribute("data-match-id"))!;
+  const open = game.getByTestId("together-open");
+  const expanded = game.getByTestId("match-expanded");
   // The bookmark toggles without opening the match.
-  const bookmark = card.getByTestId("bookmark-game");
+  const bookmark = game.getByTestId("bookmark-game");
   if ((await bookmark.count()) && (await bookmark.getAttribute("data-bookmarked")) !== "true") {
     await bookmark.click();
     await expect(bookmark).toHaveAttribute("data-bookmarked", "true");
-    await expect(page.getByTestId("match-detail")).toHaveCount(0);
+    await expect(expanded).toHaveCount(0);
     await bookmark.click();
     await expect(bookmark).not.toHaveAttribute("data-bookmarked", "true");
   }
-  // A click on the card (not on a name) opens the shared match window, with both teams.
-  await card.click({ position: { x: 24, y: 12 } });
-  const detail = page.getByTestId("match-detail");
-  await expect(detail).toBeVisible();
-  await expect(detail.getByTestId("team-blue")).toBeVisible();
-  await expect(detail.getByTestId("team-red")).toBeVisible();
-  // Members are marked in the scoreboard as in Match History.
-  expect(await detail.locator("[data-player]").count()).toBeGreaterThanOrEqual(1);
-  // Escape closes it and the focus is back on the card.
-  await page.keyboard.press("Escape");
-  await expect(detail).toHaveCount(0);
-  await expect(card.getByTestId("together-open")).toBeFocused();
-  // The keyboard opens it too.
-  await page.keyboard.press("Enter");
-  await expect(page.getByTestId("match-detail")).toBeVisible();
-  await page.keyboard.press("Escape");
+  // A click on the card (not on a name) opens the game under it: the breakdown Match History opens,
+  // with both teams and the members marked; no window, so the page scrolls as one.
+  const breakdown = await openTogether(game);
+  await expect(breakdown).toHaveAttribute("data-variant", "inline");
+  await expect(breakdown.getByTestId("team-blue")).toBeVisible();
+  await expect(breakdown.getByTestId("team-red")).toBeVisible();
+  expect(await breakdown.locator("[data-player]").count()).toBeGreaterThanOrEqual(1);
   await expect(page.getByTestId("match-detail")).toHaveCount(0);
+  // The open game is in the address, and the filters are not touched.
+  await expect(page).toHaveURL(new RegExp(`/matches\\?match=${matchId}$`));
+  // "Close this game" closes it and puts the focus back on the card.
+  await expanded.getByTestId("match-close").click();
+  await expect(expanded).toHaveCount(0);
+  await expect(open).toBeFocused();
+  await expect(open).toHaveAttribute("aria-expanded", "false");
+  await expect(page).toHaveURL(/\/matches$/);
+  // The keyboard opens and closes it too (the card is a toggle button).
+  await page.keyboard.press("Enter");
+  await expect(expanded.getByTestId("match-breakdown")).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(expanded).toHaveCount(0);
+  // Opening another game closes the first: one at a time.
+  const second = page.getByTestId("together-game").nth(1);
+  if (await second.count()) {
+    await openTogether(game);
+    await openTogether(second);
+    await expect(expanded).toHaveCount(0);
+    await second.getByTestId("match-close").click();
+  }
+  // A link to the game opens it under its card.
+  await page.goto(`/matches?match=${matchId}`);
+  const linked = page.locator(`[data-testid="together-game"][data-match-id="${matchId}"]`).first();
+  await expect(linked.getByTestId("match-expanded").getByTestId("match-breakdown")).toBeVisible();
+  await expect(linked.getByTestId("together-open")).toHaveAttribute("aria-expanded", "true");
   // A member's name opens their profile, not the match.
-  const name = card.getByTestId("together-member").first().getByRole("link").first();
+  const name = linked.getByTestId("together-member").first().getByRole("link").first();
   await name.click();
   await expect(page).toHaveURL(/\/players\/[0-9a-f-]+$/);
-  expect(matchId.length).toBeGreaterThan(0);
 });
 
 test("old addresses for Season 2025 or all seasons open Season 2026", async ({ page }) => {

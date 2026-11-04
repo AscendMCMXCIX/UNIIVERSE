@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ENCOUNTER_PAGE, encounterGames, encounterInsights, encounterListChoice, encounterListParams, listEncounters, recordFor, summariseEncounters, type EncounterRow } from "./encounters";
+import { ENCOUNTER_PAGE, encounterFocusParams, encounterGames, encounterInsights, encounterListChoice, encounterListParams, listEncounters, readEncounterFocus, recordFor, summariseEncounters, type EncounterRow } from "./encounters";
 
 const T = Date.UTC(2026, 9, 1);
 let n = 0;
@@ -165,7 +165,8 @@ describe("encounters of one player", () => {
   });
 
   it("reads the list's choices from an address and writes them back, defaults left out", () => {
-    expect(encounterListChoice({})).toEqual({ relation: "against", min: 2, sort: "games", q: "", limit: ENCOUNTER_PAGE });
+    // Every player met by default, both records side by side.
+    expect(encounterListChoice({})).toEqual({ relation: "all", min: 2, sort: "games", q: "", limit: ENCOUNTER_PAGE });
     // The earlier names still open the same lists; All has no win-rate order.
     expect(encounterListChoice({ rel: "opponents" }).relation).toBe("against");
     expect(encounterListChoice({ rel: "allies", sort: "best" })).toMatchObject({ relation: "alongside", sort: "best" });
@@ -175,13 +176,29 @@ describe("encounters of one player", () => {
     expect(encounterListChoice({ q: "  Kestrel " })).toMatchObject({ q: "Kestrel", min: 1 });
     expect(encounterListChoice({ q: "Kestrel", min: "3" })).toMatchObject({ min: 3 });
     // Unknown values fall back to the defaults; the list never grows past 500 players.
-    expect(encounterListChoice({ rel: "friends", min: "4", sort: "random", limit: "-3" })).toEqual({ relation: "against", min: 2, sort: "games", q: "", limit: ENCOUNTER_PAGE });
+    expect(encounterListChoice({ rel: "friends", min: "4", sort: "random", limit: "-3" })).toEqual({ relation: "all", min: 2, sort: "games", q: "", limit: ENCOUNTER_PAGE });
     expect(encounterListChoice({ limit: "100000" }).limit).toBe(500);
     expect(encounterListChoice({ q: "x".repeat(80) }).q).toHaveLength(32);
-    for (const sp of [{}, { rel: "alongside", min: "5", sort: "worst", q: "Moon", limit: "50" }, { rel: "all", q: "Moon", sort: "recent" }, { min: "1" }, { rel: "allies" }]) {
+    for (const sp of [{}, { rel: "alongside", min: "5", sort: "worst", q: "Moon", limit: "50" }, { rel: "against" }, { rel: "all", q: "Moon", sort: "recent" }, { min: "1" }, { rel: "allies" }]) {
       const choice = encounterListChoice(sp);
       expect(encounterListChoice(encounterListParams(choice))).toEqual(choice);
     }
     expect(encounterListParams(encounterListChoice({}))).toEqual({});
+    expect(encounterListParams(encounterListChoice({ rel: "against" }))).toEqual({ rel: "against" });
+  });
+
+  it("reads the player a Match History address opens (their key, and a side) and writes it back", () => {
+    expect(readEncounterFocus({})).toBeNull();
+    // Only an opaque key: never an account or anything longer.
+    expect(readEncounterFocus({ met: "short" })).toBeNull();
+    expect(readEncounterFocus({ met: "abc$efghijklmnop" })).toBeNull();
+    expect(readEncounterFocus({ met: "AbC-def_ghijklmn" })).toEqual({ key: "AbC-def_ghijklmn", side: "all" });
+    expect(readEncounterFocus({ met: "AbC-def_ghijklmn", side: "against" })).toEqual({ key: "AbC-def_ghijklmn", side: "against" });
+    expect(readEncounterFocus({ met: "AbC-def_ghijklmn", side: "friends" })!.side).toBe("all");
+    for (const side of ["all", "against", "alongside"] as const) {
+      const focus = { key: "AbC-def_ghijklmn", side };
+      expect(readEncounterFocus(encounterFocusParams(focus))).toEqual(focus);
+    }
+    expect(encounterFocusParams({ key: "AbC-def_ghijklmn", side: "all" })).toEqual({ met: "AbC-def_ghijklmn" });
   });
 });

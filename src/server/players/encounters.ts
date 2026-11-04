@@ -2,7 +2,8 @@ import { sql, type SQL } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { FIRST_SEASON } from "@/domain/season";
 import { SEASON_MODES, seasonModeInfo, type SeasonMode } from "@/domain/season-stats";
-import { ESTABLISHED_GAMES, INSIGHT_MIN_GAMES, type EncounterGame, type EncounterInsight, type EncounterRelation, type EncounterSort, type EncounterSummary, type WinLoss } from "@/domain/encounters";
+import { ESTABLISHED_GAMES, INSIGHT_MIN_GAMES, type EncounterFocus, type EncounterGame, type EncounterInsight, type EncounterRelation, type EncounterSort, type EncounterSummary, type WinLoss } from "@/domain/encounters";
+import { opggLinkFor, platformOfMatchId } from "@/domain/opgg";
 
 /*
   A player's Encounters (their profile → Match History → Players met): the other players in that
@@ -200,7 +201,7 @@ export async function loadEncounterPage(db: Db, scope: EncounterScope, o: Encoun
   return { games: Number(payload.games), withPlayers: Number(payload.withPlayers), list: (payload.list ?? []).map(summaryOf), total: Number(payload.total), counts: { against, alongside, all }, insights };
 }
 
-/** The games shown in a player's window (the newest; the summary counts them all). */
+/** The games loadEncounterDetail returns (the newest; the summary counts them all). */
 export const ENCOUNTER_GAMES_SHOWN = 100;
 
 export interface EncounterDetail {
@@ -240,6 +241,53 @@ export async function loadEncounterDetail(db: Db, scope: EncounterScope, key: st
     summary: summaryOf(payload.summary),
     newer: payload.newer ? { riotId: payload.newer[0], matchId: payload.newer[1] } : null,
     games: (payload.games ?? []).map(([matchId, at, queueId, win, mine, theirs, ally]) => ({ matchId, playedAt: Number(at), queueId: queueId === null ? null : Number(queueId), memberChampion: mine, otherChampion: theirs, relation: ally === 1 ? "ally" : "opponent", win: win === null ? null : win === 1 })),
+  };
+}
+
+/**
+ * Every game in the scope with one encountered player, by match, and the sides they were on in it
+ * (both, with duplicated records), counted as the list counts them: Match History lists a player's
+ * games from it, so its All, Against and Alongside hold exactly the games their records count. One
+ * player's games: a few hundred rows at most.
+ */
+export async function loadEncounterSides(db: Db, scope: EncounterScope, key: string): Promise<Map<string, { ally: boolean; opponent: boolean }>> {
+  if (!scope.accountIds.length) return new Map();
+  const result = await db.transaction(async (tx) => {
+    await tx.execute(sql`SET LOCAL jit = off`);
+    return tx.execute(sql`${encounterCtes(scope, key)} SELECT match_id, ally, opponent FROM per_game`);
+  });
+  return new Map(rowsOf<{ match_id: string; ally: boolean; opponent: boolean }>(result).map((r) => [r.match_id, { ally: !!r.ally, opponent: !!r.opponent }]));
+}
+
+/** One player met, as Match History shows their games (Match History → Encounters → a player). */
+export interface EncounterFocusView {
+  /** Their records in the scope; null when they were not met there. */
+  summary: EncounterSummary | null;
+  /** The newer Riot ID the account took after the last game here, if any. */
+  renamed: string | null;
+  /** Their OP.GG profile, under that newer Riot ID when there is one (domain/opgg opggLinkFor). */
+  opgg: string | null;
+  /** The games to list: every game with them, or one side's (a game with duplicated records counts on both). */
+  matchIds: Set<string>;
+}
+
+/**
+ * One player met in the scope, by the list's opaque key (never an account): their records, the way
+ * to their OP.GG profile, and the games Match History lists for the side chosen. Every game comes
+ * from the profile player's own stored games, so it shows nothing the list did not already count.
+ */
+export async function loadEncounterFocus(db: Db, scope: EncounterScope, focus: EncounterFocus): Promise<EncounterFocusView> {
+  const [detail, sides] = await Promise.all([loadEncounterDetail(db, scope, focus.key), loadEncounterSides(db, scope, focus.key)]);
+  if (!detail) return { summary: null, renamed: null, opgg: null, matchIds: new Set() };
+  const { summary, newer } = detail;
+  const onSide = (s: { ally: boolean; opponent: boolean }) => focus.side === "all" || (focus.side === "against" ? s.opponent : s.ally);
+  // A newer game's Riot ID is linked on that game's server, and only on one OP.GG lists.
+  const newerPlatform = newer ? platformOfMatchId(newer.matchId) : null;
+  return {
+    summary,
+    renamed: newer && newer.riotId !== summary.name ? newer.riotId : null,
+    opgg: opggLinkFor(summary.name, platformOfMatchId(summary.lastMatchId), newer && newerPlatform ? { riotId: newer.riotId, platform: newerPlatform } : null),
+    matchIds: new Set([...sides].filter(([, s]) => onSide(s)).map(([matchId]) => matchId)),
   };
 }
 

@@ -65,9 +65,11 @@ export function encountersRedirect(sp: Record<string, string | string[] | undefi
   if (/^\d{1,3}$/.test(str("season"))) q.set("season", str("season"));
   if (["solo", "flex", "normal"].includes(str("queue"))) q.set("mode", str("queue"));
   q.set("view", "encounters");
-  // The old list showed Frequent allies unless told otherwise.
+  // The old list showed Frequent allies unless told otherwise; "Met by several members" is All, the
+  // list's default now, so it needs no rel.
   const rel = str("rel");
-  if (rel !== "opponents") q.set("rel", rel === "shared" ? "all" : "alongside");
+  const relation = rel === "opponents" ? "against" : rel === "shared" ? "all" : "alongside";
+  if (relation !== "all") q.set("rel", relation);
   for (const k of ["min", "sort", "q"] as const) if (str(k)) q.set(k, str(k));
   return `/overview/matches?${q.toString()}`;
 }

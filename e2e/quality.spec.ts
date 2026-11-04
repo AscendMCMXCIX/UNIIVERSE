@@ -128,6 +128,54 @@ test.describe("accessibility", () => {
       await audit(page, route);
     }
   });
+
+  // Found by a wider sweep on 2 Nov 2026: a phone-width table on System Health that the keyboard
+  // could not scroll; lettered champion tiles (shown when a portrait cannot load, as here) whose two
+  // letters were missing from the name of the link around them; game cards in the champion window
+  // named without the figures they show.
+  test("pages at phone width, a teammate's profile and the Team player and champion windows have no critical or serious violations", async ({ page }) => {
+    test.setTimeout(240_000);
+    await page.goto("/players");
+    const teammate = await page.locator("main a[data-testid='player-card'][data-player-name='Demo Mid']").getAttribute("href");
+    expect(teammate).toBeTruthy();
+    const profile = [teammate!, `${teammate}/champions`, `${teammate}/matches`, `${teammate}/accounts`];
+    for (const route of profile) {
+      await page.goto(route);
+      await page.waitForLoadState("networkidle");
+      await audit(page, route);
+    }
+    await page.goto("/team");
+    await page.waitForLoadState("networkidle");
+    await page.getByTestId("lineup-card-MID").click({ position: { x: 40, y: 60 } });
+    await expect(page.locator("dialog[open]")).toBeVisible();
+    await audit(page, "/team player window");
+    // The champion window, whose games are whole-card buttons (named by what they show).
+    await page.goto(`${teammate}/champions`);
+    const open = page.getByTestId("top-champion").first().getByTestId("open-champion");
+    const win = page.getByTestId("champion-detail");
+    await expect(async () => {
+      if (!(await win.isVisible())) await open.click({ timeout: 2_000 });
+      await expect(win).toBeVisible({ timeout: 1_000 });
+    }).toPass({ timeout: 15_000 });
+    // Audit the window once it has settled: while it loads or updates, its body is dimmed on purpose
+    // (opacity-70 while pending), and a slow runner would otherwise measure that passing state.
+    const settled = async () => {
+      await expect(win.getByTestId("champion-detail-loading")).toHaveCount(0, { timeout: 15_000 });
+      await expect(page.getByTestId("champion-detail-body")).toHaveCSS("opacity", "1", { timeout: 15_000 });
+    };
+    await settled();
+    await audit(page, "champion window");
+    await page.getByTestId("champion-tab-matchups").click();
+    await expect(win.getByTestId("lane-game").first()).toBeVisible();
+    await settled();
+    await audit(page, "champion window, matchups");
+    await page.setViewportSize({ width: 375, height: 667 });
+    for (const route of [...PLAYER_ROUTES, ...profile, ...ADMIN_ROUTES]) {
+      await page.goto(route);
+      await page.waitForLoadState("networkidle");
+      await audit(page, `${route} at 375px`);
+    }
+  });
 });
 
 test.describe("shell, motion and notifications", () => {
