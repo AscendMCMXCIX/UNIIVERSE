@@ -8,7 +8,7 @@
 export const PRIVACY_DISCORD = "ascend1999";
 
 /** The date the privacy notice last changed; update it with the text. */
-export const PRIVACY_UPDATED = "2 November 2026";
+export const PRIVACY_UPDATED = "4 November 2026";
 
 /** How long the encrypted database backups are kept (.github/workflows/backup.yml, retention-days). */
 export const BACKUP_RETENTION_DAYS = 28;

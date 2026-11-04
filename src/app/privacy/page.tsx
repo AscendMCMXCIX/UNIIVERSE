@@ -149,7 +149,7 @@ export default async function PrivacyPage() {
         {name} is a private app for one League of Legends team. Administrators create every account; there is no public sign-up. This notice explains what it stores about members, why, who can see it, how long it stays, and how to reach us about it.
       </p>
       <p className="mt-1 text-xs text-fg-subtle">
-        Updated <time dateTime="2026-11-02">{PRIVACY_UPDATED}</time>
+        Updated <time dateTime="2026-11-04">{PRIVACY_UPDATED}</time>
       </p>
 
       <nav aria-label="On this page" className="mt-4" data-testid="privacy-index">
