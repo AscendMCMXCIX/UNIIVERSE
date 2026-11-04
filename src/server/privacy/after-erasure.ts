@@ -6,7 +6,8 @@ import { invalidatePublicTeam } from "@/server/public/team";
   here keeps the person: the team and shell facts, the public page and leaderboards, the bytes of
   the public pictures and banners, and every module's own results (clearLocalCaches). Other
   instances follow within their cache times. One list for the administrator's actions and the
-  job, so the two cannot drift apart.
+  jobs that re-apply the records (the integrity job's daily pass among them), so they cannot
+  drift apart.
 */
 export function clearCachesAfterErasure(): void {
   invalidateCache("team");

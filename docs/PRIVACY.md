@@ -84,7 +84,7 @@ The notice says each of these:
 - **Riot's records.** Riot publishes every game it hosts. Anyone who looks up a shared game on Riot's services or sites such as OP.GG still sees everyone who played it. UNIIVERSE keeps the match id of a shared game, so a member could look it up there.
 - **Figures that can be worked out.** In a shared game, the removed player's kills are the team's total minus everyone else's.
 - **Other services' copies:** Vercel's and Supabase's request logs, GitHub's backup artifacts (28 days), any offline backup (until it is replaced), Discord messages, and members' browser caches of a picture they once loaded. Their deletion is not immediate and is not promised.
-- **Other server instances** keep cached pages and lists until their cache times run out (at most 30 minutes). The lanes Matchups keeps have no cache time: there an erased lane opponent's frames stay in memory until the instance stops, but are never shown, as their games no longer name a lane opponent.
+- **Other server instances** keep cached pages and lists until their cache times run out (at most 30 minutes). The lanes Matchups keeps have no cache time: there an erased player's frames (their own, or as someone's lane opponent) stay in memory until the instance stops, but are never shown: their accounts are gone, the erasure records stop them being linked again, and their games no longer name them as a lane opponent.
 - **A replaced `UNIIVERSE_AUTH_SECRET`** makes the records unusable. Erase the person again by Riot ID.
 - **A former member** erased by Riot ID is found by that Riot account and the names given. Very old games where they had both another name and another API key's PUUID can only be found through games of their own that are still stored.
 
