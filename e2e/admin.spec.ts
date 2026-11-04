@@ -92,25 +92,33 @@ test("an administrator moves between Player Mode and Admin Mode; each keeps its 
   await expect(page).toHaveURL(/\/admin$/);
 });
 
-test("on a phone the switch is in the menu, and each mode has its own tab bar and menu", async ({ browser }) => {
+test("on a phone the switch is in the account sheet, and each mode has its own tab bar and sheet", async ({ browser }) => {
   const { defaultBrowserType: _, ...iphone } = devices["iPhone 15"];
   const context = await browser.newContext(iphone);
   const page = await context.newPage();
   const tabs = page.getByRole("navigation", { name: "Primary" }).getByRole("link");
-  const drawer = page.getByRole("dialog", { name: "Menu" });
+  const sheet = page.getByTestId("account-sheet");
+  const openSheet = async () => {
+    await expect(async () => {
+      if (!(await sheet.isVisible())) await page.getByTestId("account-sheet-button").click({ timeout: 2_000 });
+      await expect(sheet).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 15_000 });
+  };
   await page.goto("/admin");
   await expect(page.getByTestId("mobile-topbar")).toContainText("Admin mode");
   await expect(tabs).toHaveText(["Dashboard", "Users", "Settings", "Health"]);
   await expect(tabs.first()).toHaveAttribute("aria-current", "page");
-  await page.getByRole("button", { name: "Open menu" }).click();
-  await expect(drawer.getByRole("navigation", { name: "Main" }).getByRole("link")).toHaveText(ADMIN_SECTIONS);
-  await expect(drawer.getByTestId("mode-switch")).toHaveText("Return to Player Mode");
-  await drawer.getByTestId("mode-switch").click();
+  // Admin Mode's sheet lists all its pages (its bar holds four) and the way back to Player Mode.
+  await openSheet();
+  await expect(sheet.getByRole("navigation", { name: "Main" }).getByRole("link")).toHaveText(ADMIN_SECTIONS);
+  await expect(sheet.getByTestId("mode-switch")).toHaveText("Return to Player Mode");
+  await sheet.getByTestId("mode-switch").click();
   await expect(page).toHaveURL(/\/team$/);
-  await expect(tabs).toHaveText(["Profile", "Team", "Resources"]);
-  await page.getByRole("button", { name: "Open menu" }).click();
-  await expect(drawer.getByRole("navigation", { name: "Main" }).getByRole("link")).toHaveText(PLAYER_ENTRIES);
-  await drawer.getByTestId("mode-switch").click();
+  // Player Mode: its five destinations in the bar; the sheet holds Resources, Settings and the switch.
+  await expect(tabs).toHaveText(["Team", "Players", "Leaderboards", "Matches", "Profile"]);
+  await openSheet();
+  await expect(sheet.getByRole("link", { name: "Resources" })).toBeVisible();
+  await sheet.getByTestId("mode-switch").click();
   await expect(page).toHaveURL(/\/admin$/);
   // The installed app opens at "/": the mode used last.
   await page.goto("/");

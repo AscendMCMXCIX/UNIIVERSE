@@ -32,15 +32,15 @@ import { statsQuery } from "@/domain/season-stats";
 import type { DataStatus } from "@/domain/data-status";
 import { DataStatusNote, RefreshButton, type DataRefreshTarget } from "@/components/ui/data-status";
 import { useNow } from "@/components/ui/relative-time";
+import { fmtDuration, fmtInt, fmtNum } from "./match-format";
+import { isPhone, usePhone } from "@/components/ui/use-phone";
 
 /** A card's rendered height in rem (about 6.4rem with both teams' five rows) plus the gap between cards; pixels follow the root size,
     so the page size is chosen for whole cards to fill the screen. */
 const ROW_REM = 6.4 + 0.375;
 const PHONE_PER = 10;
 
-export const fmtDuration = (s: number | null) => (s === null ? "—" : `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`);
-export const fmtNum = (v: number | null, digits = 1) => (v === null ? "—" : v.toFixed(digits));
-export const fmtInt = (v: number | null) => (v === null ? "—" : formatCount(v));
+export { fmtDuration, fmtNum, fmtInt } from "./match-format";
 
 /** Ranks the match window checked (by place in the stored record) over the opponents' stored ones. */
 function withChecked(teams: Composition, checked: ReadonlyMap<number, ParticipantRank>): Composition {
@@ -88,7 +88,7 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
     ) : null;
   const open = React.useRef<HTMLButtonElement>(null);
   return (
-    <li id={`match-${row.matchId}`} className="scroll-mt-16 lg:scroll-mt-3" data-testid="match-item" data-expanded={expanded || undefined}>
+    <li id={`match-${row.matchId}`} className="scroll-mt-0 lg:scroll-mt-3" data-testid="match-item" data-expanded={expanded || undefined}>
       {/* One game per card, read the way a player scans a match list: the result column (queue,
           when, Victory / Defeat, length), the champion (its level, spells and runes), the KDA
           with the game's largest multikill and, rarely, a figure the player never beat in their
@@ -150,15 +150,19 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
                 </span>
               ) : null}
             </span>
-            <span className="block truncate text-md font-semibold text-fg">{champion.name}</span>
-            <span className="flex min-w-0 items-center gap-1 text-xs text-fg-muted">
-              {row.role ? <RoleIcon role={row.role as Role} className="h-3.5 w-3.5 shrink-0" /> : null}
-              <span className="truncate">{roleName ?? "Role not recorded"}</span>
-              {account ? (
-                <span className="ml-0.5 truncate rounded bg-surface-2 px-1.5 py-px text-2xs text-fg-subtle" title={`Played on ${row.riotId}`} data-testid="match-row-account">
-                  {account}
-                </span>
-              ) : null}
+            {/* The champion, then the role and account: one line on a phone's card (the champion
+                keeps its whole name, the role and account give way), two on wider cards. */}
+            <span className="block @max-[36rem]/mh:flex @max-[36rem]/mh:min-w-0 @max-[36rem]/mh:items-center @max-[36rem]/mh:gap-2">
+              <span className="block truncate text-md font-semibold text-fg @max-[36rem]/mh:max-w-[70%] @max-[36rem]/mh:shrink-0">{champion.name}</span>
+              <span className="flex min-w-0 items-center gap-1 text-xs text-fg-muted">
+                {row.role ? <RoleIcon role={row.role as Role} className="h-3.5 w-3.5 shrink-0" /> : null}
+                <span className="truncate">{roleName ?? "Role not recorded"}</span>
+                {account ? (
+                  <span className="ml-0.5 truncate rounded bg-surface-2 px-1.5 py-px text-2xs text-fg-subtle" title={`Played on ${row.riotId}`} data-testid="match-row-account">
+                    {account}
+                  </span>
+                ) : null}
+              </span>
             </span>
             {members.with.length || members.against.length ? (
               <span className="block truncate text-2xs" title={[members.with.length ? `With team members: ${members.with.map((m) => m.name).join(", ")}` : null, members.against.length ? `Against team members: ${members.against.map((m) => m.name).join(", ")}` : null].filter(Boolean).join(". ")} data-testid="match-members" data-with={members.with.length} data-against={members.against.length}>
@@ -206,8 +210,10 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
               breakdown when the list is too narrow for it beside the teams); on narrower cards it
               shares the figures' row when there is room, in one line */}
           <span className="col-span-3 flex items-center overflow-hidden @min-[36rem]/mh:col-span-1 @min-[36rem]/mh:justify-end @min-[50rem]/mh:hidden @min-[56rem]/mh:flex @min-[56rem]/mh:justify-start">{build}</span>
-          {/* Both teams; without the full record, a quiet note instead of empty slots. */}
-          <span className="col-span-3 min-w-0 @min-[50rem]/mh:col-span-1">
+          {/* Both teams; without the full record, a quiet note instead of empty slots. A phone's card
+              leaves them to the game's own screen (its scoreboard lists all ten), so a screenful
+              holds several games instead of two. */}
+          <span className="col-span-3 min-w-0 @max-[36rem]/mh:hidden @min-[50rem]/mh:col-span-1">
             {teams ? (
               <TeamComposition teams={teams} champion={champ} queueId={row.queueId} id={teamsId} />
             ) : (
@@ -324,20 +330,45 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
   // One function for every card's team icons (stable while the champions are, so memoised cards stay equal).
   const champOrUnknown = React.useCallback((id: string | null): PortraitChampion => (id ? (championsById[id] ?? fallbackChampion(id)) : UNKNOWN_CHAMPION), [championsById]);
   const onPage = React.useMemo(() => new Set(data.rows.map((r) => r.matchId)), [data.rows]);
-  const inline = open && onPage.has(open.id) ? open.id : null;
-  const windowed = open && open.via === "link" && !onPage.has(open.id) ? open.id : null;
+  // Phones open a game as a whole screen of its own (the match window, which Back closes) instead of
+  // under its card: a breakdown inside a list is a long detour on a narrow screen. Asked only while a
+  // game is open, so the list does not render twice on a phone once it has hydrated.
+  const phone = usePhone(open !== null);
+  const inline = open && onPage.has(open.id) && !phone ? open.id : null;
+  const windowed = open && (phone || (open.via === "link" && !onPage.has(open.id))) ? open.id : null;
+  // The game this page added to the browser's history when a phone opened it, so closing it is Back.
+  const pushed = React.useRef<string | null>(null);
+  // A link from the open game to this list's other views (a mark on its scoreboard leads to that
+  // player's games) changes the list under it: the game closes. Back returns to it, as the address
+  // still names it there.
+  const listKey = React.useMemo(() => {
+    const q = new URLSearchParams(params.toString());
+    q.delete("match");
+    return q.toString();
+  }, [params]);
+  const [shownList, setShownList] = React.useState(listKey);
+  if (shownList !== listKey) {
+    setShownList(listKey);
+    if (open && params.get("match") !== open.id) setOpen(null);
+  }
 
   const latestParams = React.useRef({ params, pathname });
   React.useLayoutEffect(() => {
     latestParams.current = { params, pathname };
   });
-  /** The open game in the address, replacing the current entry (Back leaves the page, not the game). */
-  const writeMatch = React.useCallback((matchId: string | null) => {
+  /**
+   * The open game in the address. Under its card it replaces the current entry (Back leaves the
+   * page, not the game); on a phone, where the game takes the whole screen, it is a new entry, so
+   * Back (the button, the gesture, Android's key) closes it and returns to the list as it was.
+   */
+  const writeMatch = React.useCallback((matchId: string | null, { push = false }: { push?: boolean } = {}) => {
     const { params, pathname } = latestParams.current;
     const next = new URLSearchParams(params.toString());
     if (matchId) next.set("match", matchId);
     else next.delete("match");
-    window.history.replaceState(null, "", `${pathname}${next.size ? `?${next.toString()}` : ""}`);
+    const url = `${pathname}${next.size ? `?${next.toString()}` : ""}`;
+    if (push) window.history.pushState(null, "", url);
+    else window.history.replaceState(null, "", url);
   }, []);
 
   const go = React.useCallback(
@@ -405,7 +436,9 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
       const next = openRef.current?.id === matchId ? null : matchId;
       setOpen(next ? { id: next, via: "card" } : null);
       reveal.current = next;
-      writeMatch(next);
+      const push = !!next && isPhone();
+      pushed.current = push ? next : null;
+      writeMatch(next, { push });
     },
     [writeMatch],
   );
@@ -422,6 +455,12 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
     if (windowed) returnFocus.current = document.activeElement as HTMLElement | null;
   }, [windowed]);
   const closeWindow = () => {
+    // A game a phone opened from its card closes the way it came: Back (which the list follows below).
+    if (pushed.current && pushed.current === windowed) {
+      pushed.current = null;
+      window.history.back();
+      return;
+    }
     setOpen(null);
     writeMatch(null);
     requestAnimationFrame(() => returnFocus.current?.focus());
@@ -430,6 +469,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
   React.useEffect(() => {
     const onPop = () => {
       const id = new URLSearchParams(window.location.search).get("match");
+      if (pushed.current !== id) pushed.current = null;
       setOpen(id ? { id, via: "link" } : null);
     };
     window.addEventListener("popstate", onPop);
@@ -522,7 +562,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
 
           {data.pages > 1 ? <Pages page={data.page} pages={data.pages} total={data.total} per={data.per} pending={pending} go={(p) => go({ page: String(p) })} /> : null}
 
-          {windowed ? <MatchDetailModal playerId={playerId} matchId={windowed} championsById={championsById} onClose={closeWindow} /> : null}
+          {windowed ? <MatchDetailModal playerId={playerId} matchId={windowed} championsById={championsById} onClose={closeWindow} encounterLinks={phone} /> : null}
         </EncounterLinkContext.Provider>
       </MatchDetailCacheContext.Provider>
     </section>

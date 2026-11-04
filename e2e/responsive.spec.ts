@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "./test";
-import { openFilterBar } from "./filters";
+import { closeFilterSheet, openFilterBar } from "./filters";
+import { playerEntry } from "./players";
 
 /*
   Smoke tests for the responsive layout. Each project (phone 375, tablet 768, desktop 1440) runs
@@ -23,10 +24,17 @@ function isPhone(page: Page): boolean {
   return (page.viewportSize()?.width ?? 1440) < 768;
 }
 
-/** Opens a profile section: the tab bar under the profile card, the same on every screen (it scrolls sideways on phones). */
+/** A profile section's short name on a phone, where the four ride in the top bar (docs/MOBILE.md). */
+const PHONE_SECTION: Record<string, string> = { "All Champions": "Champions", "Match History": "History", "Riot Accounts": "Accounts" };
+
+/** Opens a profile section: the tab bar under the profile card; on phones, the sections in the top bar. */
 async function openProfileSection(page: Page, label: string) {
-  await page.getByTestId("profile-tabs").getByRole("link", { name: label }).click();
+  if (isPhone(page)) await page.getByTestId("profile-chrome-tabs").getByRole("link", { name: PHONE_SECTION[label] ?? label }).click();
+  else await page.getByTestId("profile-tabs").getByRole("link", { name: label }).click();
 }
+
+/** A player in the Players directory: their row on a phone, their card from sm up. */
+const playerLink = (page: Page, name: string) => playerEntry(page, name);
 
 test.describe("pages", () => {
   for (const route of ROUTES) {
@@ -42,27 +50,22 @@ test.describe("pages", () => {
 test("navigation is usable", async ({ page }) => {
   await page.goto("/team");
   if (isPhone(page)) {
-    // Bottom tab bar on phones: the sidebar's three entries, the current one lit.
+    // Bottom tab bar on phones: the five places members go to most, the current one lit
+    // (docs/MOBILE.md; e2e/mobile-nav.spec.ts checks the rest of the phone frame).
     const tabs = page.locator("nav[aria-label='Primary'] a");
-    await expect(tabs).toHaveText(["Profile", "Team", "Resources"]);
+    await expect(tabs).toHaveText(["Team", "Players", "Leaderboards", "Matches", "Profile"]);
     await expect(tabs.filter({ hasText: "Team" })).toHaveAttribute("aria-current", "page");
-    await tabs.filter({ hasText: "Resources" }).click();
-    await expect(page).toHaveURL(/\/resources$/);
-    await expect(tabs.filter({ hasText: "Resources" })).toHaveAttribute("aria-current", "page");
-    // Drawer holds the rest. It opens from the left, from the menu button at the top bar's left end.
-    const menu = (await page.getByTestId("menu-button").boundingBox())!;
-    expect(menu.x).toBeLessThan(24);
-    await page.getByRole("button", { name: "Open menu" }).click();
-    const drawer = page.getByRole("dialog", { name: "Menu" });
-    await expect(drawer).toBeVisible();
-    await expect(async () => {
-      const panel = (await page.getByTestId("mobile-drawer-panel").boundingBox())!;
-      expect(Math.round(panel.x)).toBe(0);
-      expect(panel.x + panel.width).toBeLessThan(page.viewportSize()!.width);
-    }).toPass();
-    await drawer.getByRole("link", { name: "Settings" }).click();
+    await tabs.filter({ hasText: "Matches" }).click();
+    await expect(page).toHaveURL(/\/matches$/);
+    await expect(tabs.filter({ hasText: "Matches" })).toHaveAttribute("aria-current", "page");
+    // The account sheet behind the avatar holds the rest; no menu drawer on a phone.
+    await expect(page.getByTestId("menu-button")).toBeHidden();
+    await page.getByTestId("account-sheet-button").click();
+    const sheet = page.getByTestId("account-sheet");
+    await expect(sheet).toBeVisible();
+    await sheet.getByRole("link", { name: "Settings" }).click();
     await expect(page).toHaveURL(/\/settings$/);
-    await expect(drawer).toBeHidden();
+    await expect(sheet).toBeHidden();
   } else if ((page.viewportSize()?.width ?? 0) < 1024) {
     await page.getByRole("button", { name: "Open menu" }).click();
     await page.getByRole("dialog", { name: "Menu" }).getByRole("link", { name: "Settings" }).click();
@@ -166,8 +169,8 @@ test("team cards: compact by default, the whole pool in a detail panel that neve
 
 test("players list and profile: browse, tabs, edit champions in place, season statistics", async ({ page }) => {
   await page.goto("/players");
-  await expect(page.getByTestId("players-directory")).toBeVisible();
-  await page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']").click();
+  await expect(page.getByTestId(isPhone(page) ? "players-list" : "players-directory")).toBeVisible();
+  await playerLink(page, "Demo Top").click();
   await page.waitForURL(/\/players\/[0-9a-f-]+$/);
   await expectNoHorizontalOverflow(page);
   const base = new URL(page.url()).pathname;
@@ -181,6 +184,7 @@ test("players list and profile: browse, tabs, edit champions in place, season st
   await page.selectOption("#overview-mode", "solo");
   await page.waitForURL(/mode=solo/);
   await expect(page.locator("#overview-mode")).toHaveValue("solo");
+  await closeFilterSheet(page);
   // The pools are on Overview: one card per champion; the local owner may edit any profile.
   await expect(page.getByRole("heading", { name: /Roles & champion pools/ })).toBeVisible();
   await expect(page.getByTestId("pool-editor").getByTestId("primary-pool")).toBeVisible();
@@ -210,6 +214,7 @@ test("players list and profile: browse, tabs, edit champions in place, season st
   else await expect(filters.getByLabel("Linked account")).toHaveCount(0);
   if ((await page.getByTestId("match-row").count()) === 0) await expect(page.getByTestId("match-empty")).toBeVisible();
   await expectNoHorizontalOverflow(page);
+  await closeFilterSheet(page);
   // Riot Accounts tab.
   await openProfileSection(page, "Riot Accounts");
   await page.waitForURL(new RegExp(`${base}/accounts`));
@@ -219,7 +224,7 @@ test("players list and profile: browse, tabs, edit champions in place, season st
 test("champion pools reorder by dragging and by keyboard, and the order is saved", async ({ page }) => {
   // The automatic local owner has no profile of its own; it may edit any player's.
   await page.goto("/players");
-  await page.locator("main a[data-testid='player-card'][data-player-name='Demo Jungle']").click();
+  await playerLink(page, "Demo Jungle").click();
   await page.waitForURL(/\/players\/[0-9a-f-]+$/);
   const list = page.getByTestId("primary-pool-list");
   const items = list.getByTestId("pool-item");
@@ -321,6 +326,7 @@ test("off roles are optional: added with their own button and removable", async 
 });
 
 test("a profile's sections are tabs on every screen, like Team's, with the current one in view", async ({ page }) => {
+  test.skip(isPhone(page), "phones show the sections in the top bar: e2e/mobile-nav.spec.ts");
   await page.goto("/players");
   const href = (await page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']").getAttribute("href"))!;
   // The last section first: on a phone the bar has scrolled it into view.

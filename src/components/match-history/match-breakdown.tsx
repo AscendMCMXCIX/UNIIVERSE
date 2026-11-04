@@ -55,10 +55,26 @@ const TABS: Array<[Tab, string]> = [
 const pct = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)}%`);
 const int = (v: number | null) => (v === null ? "—" : formatCount(v));
 
-function Figure({ label, value, sub }: { label: string; value: string; sub?: string }) {
+/**
+ * One of the player's figures. `short`: the label where three figures share a narrow row (a phone),
+ * so it reads whole instead of cut ("Damage to cha…"); the full label stays for screen readers and
+ * as the tooltip.
+ */
+function Figure({ label, short, value, sub }: { label: string; short?: string; value: string; sub?: string }) {
   return (
     <div className="min-w-0 rounded-lg bg-surface px-2.5 py-1.5">
-      <div className="truncate text-2xs text-fg-subtle">{label}</div>
+      <div className="truncate text-2xs text-fg-subtle" title={short ? label : undefined}>
+        {short ? (
+          <>
+            <span aria-hidden className="hidden @max-[40rem]/bd:inline">
+              {short}
+            </span>
+            <span className="@max-[40rem]/bd:sr-only">{label}</span>
+          </>
+        ) : (
+          label
+        )}
+      </div>
       <div className="text-base font-semibold tabular-nums leading-tight text-fg">{value}</div>
       {sub ? <div className="truncate text-2xs tabular-nums text-fg-muted">{sub}</div> : null}
     </div>
@@ -70,8 +86,8 @@ function Figures({ p }: { p: DetailParticipant }) {
   return (
     <div className="grid grid-cols-3 gap-1.5 @min-[40rem]/bd:grid-cols-6" data-testid="match-detail-figures">
       <Figure label="KDA" value={`${p.kills}/${p.deaths}/${p.assists}`} sub={p.deaths === 0 ? "Perfect" : `${p.kda.toFixed(2)} ratio`} />
-      <Figure label="Kill participation" value={pct(p.killParticipation)} />
-      <Figure label="Damage to champions" value={int(p.damage)} sub={p.damageShare !== null ? `${pct(p.damageShare)} of the team` : undefined} />
+      <Figure label="Kill participation" short="KP" value={pct(p.killParticipation)} />
+      <Figure label="Damage to champions" short="Damage" value={int(p.damage)} sub={p.damageShare !== null ? `${pct(p.damageShare)} of the team` : undefined} />
       <Figure label="Gold" value={int(p.gold)} sub={p.goldPerMin !== null ? `${formatCount(p.goldPerMin)} per min` : undefined} />
       <Figure label="CS" value={int(p.cs)} sub={`${p.csPerMin === null ? "—" : p.csPerMin.toFixed(1)} per min`} />
       <Figure label="Vision score" value={int(p.vision)} sub={p.wardsPlaced !== null ? `${formatCount(p.wardsPlaced)} wards placed` : undefined} />
@@ -79,7 +95,7 @@ function Figures({ p }: { p: DetailParticipant }) {
   );
 }
 
-export function MatchBreakdown({ playerId, view, champ, variant }: { playerId: string; view: MatchDetailView; champ: (id: string | null) => PortraitChampion; variant: "inline" | "window" }) {
+export function MatchBreakdown({ playerId, view, champ, variant, encounterLinks = false }: { playerId: string; view: MatchDetailView; champ: (id: string | null) => PortraitChampion; variant: "inline" | "window"; /** A window over the list itself (a phone's whole-screen game): its marks may lead to the list's Encounters, as under a card. */ encounterLinks?: boolean }) {
   const cache = React.useContext(MatchDetailCacheContext);
   const p = view.player;
   const uid = React.useId();
@@ -114,10 +130,11 @@ export function MatchBreakdown({ playerId, view, champ, variant }: { playerId: s
     };
   }, [cache, playerId, view.matchId, view.rankCheck]);
   const checked = React.useMemo(() => new Map(ranks?.status === "ok" ? ranks.ranks.map((r) => [r.slot, r.rank]) : []), [ranks]);
-  // The players met in other games of the list's scope, under a card only (the window has no way to
-  // another window); after the scoreboard, like the possible groups.
+  // The players met in other games of the list's scope, under a card and in a phone's whole-screen
+  // game over the list (a window opened from another window has no way to another window); after the
+  // scoreboard, like the possible groups.
   const link = React.useContext(EncounterLinkContext);
-  const meetScope = variant === "inline" ? (link?.scope ?? null) : null;
+  const meetScope = variant === "inline" || encounterLinks ? (link?.scope ?? null) : null;
   const [meetings, setMeetings] = React.useState<MatchMeetingsResult | null>(null);
   React.useEffect(() => {
     if (!meetScope) return;

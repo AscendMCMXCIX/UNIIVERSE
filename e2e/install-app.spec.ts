@@ -48,10 +48,19 @@ async function offerInstall(page: Page, outcome: "accepted" | "dismissed") {
   }, outcome);
 }
 
-/** The entry in the phone menu (the sidebar is not shown below desktop width). */
+/** Phones: the account sheet behind the avatar (docs/MOBILE.md); tablets: the menu drawer. */
+const phoneWidth = (page: Page) => (page.viewportSize()?.width ?? 1440) < 768;
+const menuOf = (page: Page) => page.locator(phoneWidth(page) ? "[data-testid=account-sheet]" : "#mobile-drawer");
+/** The button that opens it, where focus returns once Install App's window closes. */
+const menuButton = (page: Page) => (phoneWidth(page) ? page.getByTestId("account-sheet-button") : page.getByRole("button", { name: "Open menu" }));
+
+/** The entry in the phone's account sheet or the tablet menu (the sidebar is not shown below desktop width). */
 async function drawerEntry(page: Page) {
-  await page.getByRole("button", { name: "Open menu" }).click();
-  return page.locator("#mobile-drawer").getByTestId("install-app");
+  await expect(async () => {
+    if (!(await menuOf(page).isVisible())) await menuButton(page).click({ timeout: 2_000 });
+    await expect(menuOf(page)).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 15_000 });
+  return menuOf(page).getByTestId("install-app");
 }
 
 async function productName(page: Page) {
@@ -152,13 +161,13 @@ test("inside the installed app there is nothing to install: no entry, before or 
   await css.context.close();
   // iPhone and iPad: opened from the Home Screen.
   const ios = await open(browser, baseURL!, { ...devices["iPhone 15"] }, () => Object.defineProperty(Navigator.prototype, "standalone", { get: () => true }));
-  await ios.page.getByRole("button", { name: "Open menu" }).click();
-  await expect(ios.page.locator("#mobile-drawer").getByRole("link", { name: "Settings" })).toBeVisible();
-  await expect(ios.page.locator("#mobile-drawer").getByTestId("install-app")).toHaveCount(0);
+  await drawerEntry(ios.page);
+  await expect(menuOf(ios.page).getByRole("link", { name: "Settings" })).toBeVisible();
+  await expect(menuOf(ios.page).getByTestId("install-app")).toHaveCount(0);
   await ios.context.close();
 });
 
-test("iPhone, Safari: the menu's Install App closes the menu and shows Share → Add to Home Screen, no Install button", async ({ browser, baseURL }) => {
+test("iPhone, Safari: Install App in the account sheet closes it and shows Share → Add to Home Screen, no Install button", async ({ browser, baseURL }) => {
   for (const [label, options, webApp] of [
     ["iOS 17", { ...devices["iPhone 15"], userAgent: UA.iphone17 }, false],
     ["iOS 26", { ...devices["iPhone 15"], userAgent: UA.iphone26 }, true],
@@ -167,7 +176,7 @@ test("iPhone, Safari: the menu's Install App closes the menu and shows Share →
     // Safari makes no install offer: even a stray one could not make a button that does nothing here.
     const entry = await drawerEntry(page);
     await entry.click();
-    await expect(page.locator("#mobile-drawer")).toHaveCount(0);
+    await expect(menuOf(page)).toHaveCount(0);
     const win = page.getByTestId("install-window");
     await expect(win.getByTestId("install-body")).toHaveAttribute("data-guide", "ios");
     const steps = win.getByTestId("install-steps").locator("li");
@@ -192,8 +201,8 @@ test("iPhone, Safari: the menu's Install App closes the menu and shows Share →
     expect(box.x + box.width, label).toBeLessThanOrEqual(page.viewportSize()!.width + 0.5);
     await win.getByTestId("install-done").click();
     await expect(win).toBeHidden();
-    // Back where the person was: on the menu button (the menu itself has closed).
-    await expect(page.getByRole("button", { name: "Open menu" })).toBeFocused();
+    // Back where the person was: on the button that opened the menu (the menu itself has closed).
+    await expect(menuButton(page)).toBeFocused();
     await context.close();
   }
 });
