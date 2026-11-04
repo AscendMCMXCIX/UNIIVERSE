@@ -26,6 +26,21 @@ export class RiotApiError extends Error {
   }
 }
 
+/**
+ * A Riot request given up because the caller's deadline (the client's `deadline`) would pass
+ * first: Riot's rate limits (a full window, or a 429's Retry-After) or the back-off before a retry
+ * would have kept it waiting beyond it. It is a run out of time, not a failure: nothing is wrong
+ * with the key or the account, so callers stop as they do when their time budget runs out and the
+ * next run carries on; it is never recorded as a failed sync or as a problem with the key. Code
+ * that does not know it sees a retryable 429, which is what leaves no time.
+ */
+export class RiotDeadlineError extends RiotApiError {
+  constructor(host: string, waitingFor: string) {
+    super(`Riot request to ${host} given up: ${waitingFor} would end after this run's deadline`, 429, true);
+    this.name = "RiotDeadlineError";
+  }
+}
+
 /** Plain-language cause of a failed Riot request, for job summaries and the Data health panel. */
 export function explainRiotError(err: unknown): string {
   if (!(err instanceof RiotApiError)) return (err as Error)?.message ?? String(err);
@@ -60,9 +75,18 @@ export interface RiotClientOptions {
   fetchImpl?: typeof fetch;
   maxRetries?: number;
   timeoutMs?: number;
+  /**
+   * When the caller's work must end (ms since the epoch, as Date.now()): no request waits past it,
+   * for the rate limits, a 429's Retry-After or a retry's back-off. Such a request fails at once
+   * with RiotDeadlineError. A request already sent can still take up to `timeoutMs` beyond it.
+   * Every caller with a time budget (a job, a refresh) sets it; without one, requests wait.
+   */
+  deadline?: number;
   /** Base URL template; `{host}` is replaced by the platform/region host. Overridable for tests. */
   baseUrl?: string;
   sleep?: (ms: number) => Promise<void>;
+  /** Clock the deadline is read with; tests pass the one their limiter and `sleep` use. */
+  now?: () => number;
 }
 
 /**
@@ -77,7 +101,10 @@ export class RiotApiClient {
   private readonly timeoutMs: number;
   private readonly baseUrl: string;
   private readonly sleep: (ms: number) => Promise<void>;
+  private readonly now: () => number;
   private readonly limitShare: number;
+  /** See RiotClientOptions.deadline. */
+  public readonly deadline: number | undefined;
   public requestCount = 0;
   /** Requests per host, for job summaries (which regions consumed the budget). */
   public readonly requestsByHost = new Map<string, number>();
@@ -104,6 +131,13 @@ export class RiotApiClient {
     this.timeoutMs = options.timeoutMs ?? 15_000;
     this.baseUrl = options.baseUrl ?? "https://{host}.api.riotgames.com";
     this.sleep = options.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+    this.now = options.now ?? (() => Date.now());
+    this.deadline = options.deadline;
+  }
+
+  /** Whether waiting `ms` from now still ends by the deadline (always, without one). */
+  private canWait(ms: number): boolean {
+    return this.deadline === undefined || this.now() + ms <= this.deadline;
   }
 
   private url(host: string, path: string): string {
@@ -121,9 +155,11 @@ export class RiotApiClient {
     let attempt = 0;
     const limiter = this.limiterFor(host);
     for (;;) {
+      // With a deadline, the wait for a slot (a 429's Retry-After included: it pauses the limiter)
+      // is not started when it would end after the deadline.
       if (this.options.noWait && limiter.tryAcquire) {
         if (!limiter.tryAcquire(this.limitShare)) throw new RiotApiError(`No room in the rate limits for ${path} now`, 429, true);
-      } else await limiter.acquire(this.limitShare);
+      } else if (!(await limiter.acquire(this.limitShare, this.deadline))) throw new RiotDeadlineError(host, "waiting for Riot's rate limits");
       this.requestCount += 1;
       this.requestsByHost.set(host, (this.requestsByHost.get(host) ?? 0) + 1);
       const controller = new AbortController();
@@ -134,6 +170,7 @@ export class RiotApiClient {
       } catch (err) {
         clearTimeout(timer);
         if (attempt++ >= this.maxRetries) throw new RiotApiError(`Network error calling ${path}: ${(err as Error).message}`, 0, true);
+        if (!this.canWait(500 * 2 ** attempt)) throw new RiotDeadlineError(host, "the back-off before a retry");
         await this.sleep(500 * 2 ** attempt);
         continue;
       }
@@ -153,6 +190,7 @@ export class RiotApiClient {
       }
       if (res.status >= 500) {
         if (attempt++ >= this.maxRetries) throw new RiotApiError(`Riot API ${res.status} on ${path}`, res.status, true);
+        if (!this.canWait(500 * 2 ** attempt)) throw new RiotDeadlineError(host, "the back-off before a retry");
         await this.sleep(500 * 2 ** attempt);
         continue;
       }
@@ -250,7 +288,7 @@ export function riotKeyFingerprint(key: string): string {
   return `…${key.slice(-4)}`;
 }
 
-export function createRiotClient(overrides: Pick<RiotClientOptions, "maxRetries" | "timeoutMs" | "limitShare" | "noWait"> = {}): RiotApiClient | null {
+export function createRiotClient(overrides: Pick<RiotClientOptions, "maxRetries" | "timeoutMs" | "limitShare" | "noWait" | "deadline"> = {}): RiotApiClient | null {
   const apiKey = normaliseRiotKey(process.env.RIOT_API_KEY);
   if (!apiKey) return null;
   // Every client in the process shares one limiter pool, as Riot counts the key as a whole.
