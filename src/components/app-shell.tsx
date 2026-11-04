@@ -147,6 +147,14 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
             adminMode={adminMode}
             modeSwitch={status.isAdmin ? <ModeSwitch mode={adminMode ? "admin" : "player"} variant="drawer" /> : null}
             status={<DataLine status={status} />}
+            legal={
+              <p className="text-xs leading-snug text-fg-subtle" title={riotLegal(b.productName)}>
+                Not endorsed by Riot Games.{" "}
+                <Link href={`${adminMode ? "/admin" : ""}/settings#compliance`} className="underline underline-offset-2">
+                  Details
+                </Link>
+              </p>
+            }
           />
           <div className="relative flex min-w-0 flex-1 flex-col">
             {/* Team Overview's lineup is centred in the height left under the section tabs: on that page

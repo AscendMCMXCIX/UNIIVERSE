@@ -692,3 +692,90 @@ Opening the app asks for `/`, which looks up the session and redirects to the me
 **Not measurable here:** Vercel's cold starts. Read the field result from the probe's `last7` a week after the deploy:
 - **The target:** Team's TTFB p75 ≤ 1 s, like the pages people open directly.
 - **If it stays above that,** what remains is the first function's own cold start. Vercel's Fluid compute is the lever: a project setting for the owner, with its cost on the plan checked first.
+
+## Mobile redesign (4 Nov 2026)
+
+The phone redesign (docs/MOBILE.md) measured against `main` at f4e5372, which already has the new
+Leaderboards (#188) and Team Overview's first card (#191). Both are production builds on the
+in-memory demo roster, on the same machine.
+
+**App code each page loads up front** (gzip, every chunk the page's client-reference manifest lists;
+React and Next.js are the same on every page and not counted):
+
+| Page | Before | After |
+|---|---|---|
+| Profile Overview | 141.1 KB | 125.0 KB |
+| All Champions | 132.8 KB | 117.7 KB |
+| Match History | 117.1 KB | 121.0 KB |
+| Team | 74.3 KB | 76.7 KB |
+| Players | 65.8 KB | 69.1 KB |
+| Leaderboards | 49.1 KB | 52.1 KB |
+| Matches | 80.2 KB | 83.5 KB |
+| Settings | 52.4 KB | 54.9 KB |
+
+- **Found and fixed:** the match window took one formatter from `match-history-view.tsx`, so every
+  page that can open the window (a champion's matchups on the Overview and All Champions) carried the
+  whole Match History page. The formatters now live in `match-history/match-format.ts`: 15–16 KB less
+  on those two pages.
+- The phone frame (the account sheet, the profile's sections in the top bar) adds 2.3–3.9 KB to
+  every page. Team Matches loads the match window only when a phone opens a game (fetched ahead once a
+  phone shows the list), so tablets and desktops do not download it.
+
+**Found and fixed: a custom property on the root re-styled the whole page.**
+- **What happened:** the top bar first kept its height in `--mobile-chrome` on `<html>`, for the
+  page's `scroll-padding-top`. Setting it once the bar was measured re-styled every element of the
+  page. On a profile that was 868 elements: a 39–66 ms style recalculation and one more long task on
+  the phone below.
+- **Registering it did not help.** Registered as not inherited (`@property`), browsers ignored the
+  rule, because its initial value was in rem: an initial value must not depend on a font size. With a
+  valid registration, Chrome still re-styled the whole page.
+- **The fix:** the bar sets `scroll-padding-top` itself, which re-styles 4 elements (`useTopBarHeight`
+  in `mobile-nav.tsx`). Style work after the first paint on a profile went from 59–67 ms back to
+  main's 7 ms.
+
+**Page loads** (`scripts/phone-load.mjs`: Pixel 7, CPU 4×, 150 ms round trip at 1.6 Mbps, empty
+cache). The builds were measured in interleaved rounds: two rounds of 3 loads for every page, then
+three more rounds of 5 loads for Team, the profile, Match History and Matches. A range is the rounds'
+medians.
+
+| Page | Largest paint | Blocking time | Scripts transferred |
+|---|---|---|---|
+| Team | 932–964 → 916–936 ms | 168–213 → 174–193 ms | 317 → 301 KB |
+| Players | 932–952 → 860–880 ms | 192–228 → 193–226 ms | 308 → 293 KB |
+| Profile | 928–968 → 952–984 ms | 162–192 → 176–202 ms | 281 → 265 KB |
+| All Champions | 872–876 → 876–904 ms | 181–212 → 163–187 ms | 294 → 271 KB |
+| Match History | 1,032–1,104 → 936–1,000 ms | 146–222 → 194–234 ms | 290 → 286 KB |
+| Leaderboards | 848–860 → 856–860 ms | 161–171 → 156–172 ms | 291 → 276 KB |
+| Matches | 928–988 → 904–940 ms | 143–197 → 192–248 ms | 300 → 288 KB |
+
+- **Layout shift** stayed 0 everywhere.
+- **Less script arrives in the first seconds on every page:** 4–23 KB less.
+- **Largest paint** is 35–100 ms earlier on Players, Match History and Matches, and within 30 ms
+  on the other pages.
+- **Blocking time** moves 40–75 ms between rounds of the same build here. Within that, Team,
+  Players, All Champions and Leaderboards are level. The profile reads about 10 ms higher on
+  average, Match History about 25 ms and Matches about 50 ms. Three causes are known:
+  - **Prefetching the tab bar's destinations.** Next.js prefetches the tab bar's destinations once
+    the page has loaded, which is what makes those tabs open at once. With prefetches blocked, a
+    profile does the same main-thread work on both builds (script 684 → 669 ms in traced loads).
+  - **Matches fetches the match window's code.** On Matches, a phone fetches the match window's code
+    once the page is idle (`requestIdleCallback`), so the first game opens at once. Before, the
+    game opened under its card, with code already on the page.
+  - **Fixed: a second render of the whole list.** Match History and Team Matches rendered their
+    whole list a second time once a phone had hydrated, because `usePhone` was read during render.
+    They now ask only while a game is open (`usePhone(enabled)`), which took about 20 ms off Match
+    History's blocking time.
+
+**Opening a game on a phone** (Pixel 7, CPU 4×, median of 5 taps on the second card of Match History):
+
+| | Under its card (before) | Its own screen (after) |
+|---|---|---|
+| Tap to scoreboard on screen | 584 ms | 507 ms |
+| Longest frame while opening | 100 ms | 133 ms |
+| Long tasks while opening | 178 ms | 203 ms |
+
+The scoreboard arrives at least as quickly as before. The window costs one longer frame: `showModal()`
+makes the page behind inert, and the browser re-styles it (see "Not improved: opening a window on a
+long page" above). The native modal is kept for focus containment and the inert page. Closing the
+window with Back reads nothing again: the record, its possible groups and the encounter marks come
+from the list's cache.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, ADMIN_TABS, NAV_ENTRIES, NAV_LINKS, SECTION_HUBS, TAB_HREFS, TAB_LOOK, TEAM_SECTIONS, activeHref, canOpen, currentTab, encountersRedirect, entryLinks, isActivePath } from "./nav";
+import { ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, ADMIN_TABS, NAV_ENTRIES, NAV_LINKS, PHONE_TABS, PHONE_TAB_LIMIT, SECTION_HUBS, TEAM_SECTIONS, activeHref, canOpen, currentTab, encountersRedirect, entryLinks, isActivePath, phoneParent, phoneTabs, profileBase } from "./nav";
 import type { Session } from "@/server/auth/permissions";
 
 const entryId = (e: (typeof NAV_ENTRIES)[number]) => ("key" in e ? e.key : e.href);
@@ -39,7 +39,7 @@ describe("navigation entries", () => {
   });
 
   it("no navigation anywhere leads to the removed Meta & Trends or Clash Scout pages", () => {
-    const hrefs = [...NAV_LINKS, ...ADMIN_ENTRIES.flatMap(entryLinks), ...SECTION_HUBS.flatMap((h) => h.sections), ...ADMIN_TABS].map((l) => l.href).concat(TAB_HREFS);
+    const hrefs = [...NAV_LINKS, ...ADMIN_ENTRIES.flatMap(entryLinks), ...SECTION_HUBS.flatMap((h) => h.sections), ...ADMIN_TABS, ...PHONE_TABS].map((l) => l.href);
     expect(hrefs.filter((h) => h.startsWith("/trends") || h.startsWith("/clash"))).toEqual([]);
     expect(SECTION_HUBS.map((h) => h.key)).toEqual(["team", "admin-settings"]);
   });
@@ -50,46 +50,93 @@ describe("navigation entries", () => {
   });
 });
 
-describe("currentTab", () => {
-  // A team member's phone bar: every one of TAB_HREFS.
-  const member = [...TAB_HREFS];
-  // A personal-use account: no Team.
-  const personal = TAB_HREFS.filter((h) => h !== "/team");
+describe("phone tab bar", () => {
+  // A team member may open every Player Mode page.
+  const member = phoneTabs(NAV_LINKS.map((l) => l.href));
+  // An account outside the team: its profile and Resources only.
+  const personal = phoneTabs(["/overview", "/resources", "/settings"]);
+  const hrefs = (tabs: typeof member) => tabs.map((t) => t.href);
 
-  it("marks a page's own tab", () => {
-    expect(currentTab("/resources", member)).toBe("/resources");
-    expect(currentTab("/overview/champions", personal)).toBe("/overview");
-    expect(currentTab("/resources", personal)).toBe("/resources");
+  it("a team member's bar: Team, Players, Leaderboards, Matches and Profile, one tap each; Resources moves to the account sheet", () => {
+    expect(hrefs(member)).toEqual(["/team", "/players", "/leaderboards", "/matches", "/overview"]);
+    expect(member).toHaveLength(PHONE_TAB_LIMIT);
+    expect(hrefs(personal)).toEqual(["/overview", "/resources"]);
   });
 
-  it("marks the hub's first tabbed section for a section without a tab of its own", () => {
-    expect(currentTab("/players", member)).toBe("/team");
-    expect(currentTab("/leaderboards", member)).toBe("/team");
-    // Matches is one of Team's sections, without a tab of its own.
-    expect(currentTab("/matches", member)).toBe("/team");
+  it("offers only pages the account may open", () => {
+    expect(hrefs(phoneTabs(["/team", "/overview", "/resources"]))).toEqual(["/team", "/overview", "/resources"]);
   });
 
-  it("a team member's phone bar: Profile, Team, Resources (the sidebar's entries); no Draft, Meta or Clash Scout anywhere", () => {
-    expect(member).toEqual(["/overview", "/team", "/resources"]);
-    expect(personal).toEqual(["/overview", "/resources"]);
-    // The removed Clash Scout addresses belong to no tab (they are not found).
-    expect(currentTab("/clash", member)).toBeNull();
-    expect(currentTab("/clash/lab", member)).toBeNull();
-    expect(TEAM_SECTIONS.map((s) => s.href)).not.toContain("/draft");
-    expect(ADMIN_TABS.map((t) => t.href)).not.toContain("/draft");
-    expect(currentTab("/draft", member)).toBeNull();
-    expect(currentTab("/trends/solo", member)).toBeNull();
-  });
-
-  it("the tab bar draws each page with the sidebar's icon for it", () => {
-    for (const href of TAB_HREFS) {
-      const entry = NAV_ENTRIES.find((e) => ("sections" in e ? e.sections[0]!.href : e.href) === href)!;
-      expect(TAB_LOOK[href].icon, href).toBe(entry.icon);
+  it("uses the same names and icons as the sidebar and the Team tabs", () => {
+    for (const tab of PHONE_TABS) {
+      const team = TEAM_SECTIONS.find((s) => s.href === tab.href);
+      if (team && tab.href !== "/team") {
+        expect(tab.label, tab.href).toBe(team.label);
+        expect(tab.icon, tab.href).toBe(team.icon);
+      }
+      const entry = NAV_ENTRIES.find((e) => ("sections" in e ? e.sections[0]!.href : e.href) === tab.href);
+      if (entry) expect(tab.icon, tab.href).toBe(entry.icon);
     }
   });
 
-  it("marks nothing outside the tabs and hubs", () => {
-    expect(currentTab("/settings", member)).toBeNull();
+  it("marks a page's own tab: a teammate's profile is under Players, your own profile's sections under Profile", () => {
+    const m = hrefs(member);
+    expect(currentTab("/players", m)).toBe("/players");
+    expect(currentTab("/players/abc/matches", m)).toBe("/players");
+    expect(currentTab("/leaderboards", m)).toBe("/leaderboards");
+    expect(currentTab("/matches", m)).toBe("/matches");
+    expect(currentTab("/overview/champions", m)).toBe("/overview");
+    expect(currentTab("/me", m)).toBe("/overview");
+    expect(currentTab("/resources", hrefs(personal))).toBe("/resources");
+  });
+
+  it("Admin Mode's Platform Settings pages are its Settings tab", () => {
+    const admin = ADMIN_TABS.map((t) => t.href);
+    expect(currentTab("/admin/previews", admin)).toBe("/admin/branding");
+    expect(currentTab("/admin/people/access", admin)).toBe("/admin/people");
+  });
+
+  it("marks nothing outside the tabs and hubs; no Draft, Meta or Clash Scout anywhere", () => {
+    const m = hrefs(member);
+    expect(currentTab("/settings", m)).toBeNull();
+    expect(currentTab("/resources", m)).toBeNull();
+    expect(currentTab("/clash", m)).toBeNull();
+    expect(currentTab("/draft", m)).toBeNull();
+    expect(currentTab("/trends/solo", m)).toBeNull();
+    expect(ADMIN_TABS.map((t) => t.href)).not.toContain("/draft");
+  });
+});
+
+describe("phone top bar", () => {
+  const member = phoneTabs(NAV_LINKS.map((l) => l.href));
+
+  it("knows a profile's sections, yours and a teammate's", () => {
+    expect(profileBase("/overview")).toBe("/overview");
+    expect(profileBase("/overview/matches")).toBe("/overview");
+    expect(profileBase("/players/abc")).toBe("/players/abc");
+    expect(profileBase("/players/abc/accounts")).toBe("/players/abc");
+    expect(profileBase("/players")).toBeNull();
+    expect(profileBase("/players/abc/edit")).toBeNull();
+    expect(profileBase("/team")).toBeNull();
+  });
+
+  it("Back from a page opened directly leads to the page above it; a tab's pages have no Back", () => {
+    expect(phoneParent("/players/abc", member, "/team")).toEqual({ href: "/players", label: "Players" });
+    expect(phoneParent("/players/abc/matches", member, "/team")).toEqual({ href: "/players", label: "Players" });
+    expect(phoneParent("/settings", member, "/team")).toEqual({ href: "/team", label: "Team" });
+    expect(phoneParent("/resources", member, "/team")).toEqual({ href: "/team", label: "Team" });
+    expect(phoneParent("/me", member, "/team")).toEqual({ href: "/overview", label: "Profile" });
+    for (const tab of member) expect(phoneParent(tab.href, member, "/team"), tab.href).toBeNull();
+    expect(phoneParent("/overview/champions", member, "/team")).toBeNull();
+  });
+
+  it("Admin Mode: pages outside its tabs lead back to the Dashboard", () => {
+    const admin = ADMIN_TABS.map((t) => ({ ...t }));
+    expect(phoneParent("/admin", admin, ADMIN_HOME)).toBeNull();
+    expect(phoneParent("/admin/people", admin, ADMIN_HOME)).toBeNull();
+    expect(phoneParent("/admin/previews", admin, ADMIN_HOME)).toBeNull();
+    expect(phoneParent("/admin/data", admin, ADMIN_HOME)).toEqual({ href: ADMIN_HOME, label: "Dashboard" });
+    expect(phoneParent("/admin/audit", admin, ADMIN_HOME)).toEqual({ href: ADMIN_HOME, label: "Dashboard" });
   });
 });
 

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "./test";
 import { AxeBuilder } from "@axe-core/playwright";
+import { playerEntry } from "./players";
 
 /*
   Phase 3 quality gates, run once (desktop project) with explicit viewports:
@@ -292,7 +293,7 @@ test.describe("shell, motion and notifications", () => {
 /** A teammate's profile Overview (the demo's local owner has no player profile of its own). */
 async function openTeammateProfile(page: Page) {
   await page.goto("/players");
-  await page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']").click();
+  await playerEntry(page, "Demo Top").click();
   await page.waitForURL(/\/players\/[0-9a-f-]{36}/);
   await expect(page.getByTestId("season-summary")).toBeVisible();
 }

@@ -50,7 +50,7 @@ test("a changed card shows on Team, Players and the profile for someone who had 
   await expect(editor.getByTestId("profile-header")).toHaveAttribute("data-art-champion", picked);
 
   // The watcher sees it on the directory card and on the profile, without reloading.
-  await watcher.locator(`main a[href='${href}']`).first().click();
+  await watcher.locator(`main a[href='${href}']`).filter({ visible: true }).first().click();
   await watcher.waitForURL((u) => u.pathname === href);
   await expect(watcher.getByTestId("profile-header")).toHaveAttribute("data-art-champion", picked);
 
@@ -67,7 +67,7 @@ test("a changed card shows on Team, Players and the profile for someone who had 
   await editor.getByTestId("save-card-style").click();
   await expect(editor.getByTestId("profile-header")).toHaveAttribute("data-art-champion", again);
   await watcher.goto("/players");
-  await watcher.locator(`main a[href='${href}']`).first().click();
+  await watcher.locator(`main a[href='${href}']`).filter({ visible: true }).first().click();
   await watcher.waitForURL((u) => u.pathname === href);
   await expect(watcher.getByTestId("profile-header")).toHaveAttribute("data-art-champion", again);
 
