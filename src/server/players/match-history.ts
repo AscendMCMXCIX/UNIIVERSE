@@ -12,6 +12,8 @@ import { historySummary, type HistorySummary } from "@/domain/history-summary";
 import { FORM_RECENT } from "@/domain/recent-form";
 import { currentSeason } from "@/server/accounts/sync";
 import { ladderChange, type RankChange } from "@/server/accounts/rank-history";
+import { lpForGames } from "@/server/accounts/match-lp";
+import type { LpRecord } from "@/domain/lp-attribution";
 import { loadSeasonGames } from "@/server/players/season-games";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
 import { storeMatchDetail, storeMatchUnavailable } from "@/server/accounts/match-details";
@@ -109,6 +111,12 @@ export interface MatchRow {
    * queue group, at least BEST_MIN of them: domain/match-analysis); null in most games.
    */
   standout: { key: FigureKey; label: string; value: number; top: number; games: number } | null;
+  /**
+   * The LP the game gained or lost where the account's rank readings prove it, a promotion or
+   * demotion, or why it is not recorded (domain/lp-attribution); null outside Ranked Solo/Duo and
+   * Flex of the 2026 ranked year.
+   */
+  lp: LpRecord | null;
 }
 
 export interface MatchHistoryPage {
@@ -286,7 +294,7 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
   const newest = [...sorted].slice(0, FORM_RECENT);
   const ladderQueue = filter.season === seasonNow && filter.mode !== "normal" ? (filter.mode === "flex" ? "flex" : "solo") : null;
   const ladderAccount = filter.accountId ? accounts.find((a) => a.id === filter.accountId) : accounts[0];
-  const [pageMembers, known, readings, before, teamKillRows, ladder] = await Promise.all([
+  const [pageMembers, known, readings, before, teamKillRows, ladder, lpOf] = await Promise.all([
     owner ? teamMembersByPuuid(db, owner.teamId, pagePuuids) : Promise.resolve(new Map<string, { id: string; name: string }>()),
     knownRiotIds(db, pagePuuids, Math.min(...details.map((d) => d.gameCreation))),
     storedRankReadings(db, others),
@@ -298,6 +306,7 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
           .where(and(inArray(accountMatches.accountId, ids), inArray(accountMatches.matchId, newest.map((g) => g.matchId))))
       : Promise.resolve([]),
     ladderQueue && ladderAccount ? ladderChange(db, ladderAccount.id, ladderQueue, now.getTime()) : Promise.resolve(null),
+    lpForGames(db, slice.map((g) => ({ matchId: g.matchId, accountId: g.accountId, queueId: g.queueId, gameCreation: g.gameCreation }))),
   ]);
   const teamKillsOf = new Map<string, number>();
   for (const g of newest) {
@@ -351,6 +360,7 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
       multikill: largestMultikill(me?.stats),
       teams,
       standout: standout ? { key: standout.key, label: standout.label, value: standout.value, top: standout.top, games: standout.games } : null,
+      lp: lpOf.get(g.matchId) ?? null,
     };
   });
 

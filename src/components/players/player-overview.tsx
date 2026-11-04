@@ -191,31 +191,32 @@ function PerformanceCard({ data, basePath }: { data: PlayerOverviewData; basePat
 
 /*
   The Overview's dashboard, under Season performance's heading (whose filters and Refresh govern
-  all of it). Its own width decides the arrangement (a container query, so the sidebar is allowed for):
-    wide (58rem+)  two columns: the season's card and the champion pools on the left; recent form
-                   and ranked progress in a narrower column on the right, the first row level;
-    narrower       one column in that same order, each card in its own wider layout (never two
-                   side by side of different heights, which would leave one with an empty band).
+  the season's card, recent form and the pools). Its own width decides the arrangement (a
+  container query, so the sidebar is allowed for):
+    wide (58rem+)  the season's card and recent form side by side, level; under them ranked
+                   progress across the whole width (a year on one time axis needs it), then the
+                   champion pools across the whole width;
+    narrower       one column in that same order.
   A card without data is left out (fewer than five games: no recent form; no linked account: no
   ranked progress), and the others close up: nothing is padded out to keep a shape.
 */
 function OverviewDashboard({ perf, form, ranked, pools }: { perf: React.ReactNode; form?: React.ReactNode; ranked?: React.ReactNode; pools?: React.ReactNode }) {
-  const side = !!(form || ranked);
+  const wide = form ? "@min-[58rem]/ov:col-span-2" : undefined;
   return (
     <div className="@container/ov" data-testid="overview-dashboard">
-      <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start gap-3 sm:gap-4", side && "@min-[58rem]/ov:grid-cols-[minmax(0,1fr)_minmax(18rem,21rem)]")}>
-        <div className="order-1 min-w-0 self-stretch">{perf}</div>
+      <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start gap-3 sm:gap-4", form && "@min-[58rem]/ov:grid-cols-[minmax(0,1fr)_minmax(18rem,21rem)]")}>
+        <div className="min-w-0 self-stretch">{perf}</div>
         {form ? (
-          <div className="order-2 min-w-0 self-stretch" data-testid="overview-form">
+          <div className="min-w-0 self-stretch" data-testid="overview-form">
             {form}
           </div>
         ) : null}
         {ranked ? (
-          <div className={cn("min-w-0", form ? "order-3 @min-[58rem]/ov:order-4" : "order-2 self-stretch")} data-testid="overview-ranked">
+          <div className={cn("min-w-0", wide)} data-testid="overview-ranked">
             {ranked}
           </div>
         ) : null}
-        {pools ? <div className={cn("order-4 min-w-0", side && form && ranked ? "@min-[58rem]/ov:order-3" : "@min-[58rem]/ov:col-span-2")}>{pools}</div> : null}
+        {pools ? <div className={cn("min-w-0", wide)}>{pools}</div> : null}
       </div>
     </div>
   );

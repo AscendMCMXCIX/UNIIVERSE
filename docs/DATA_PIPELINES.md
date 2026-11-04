@@ -20,6 +20,10 @@ Raw facts (`riot_accounts`, `account_champion_history`, `account_mastery`) stay 
 
 `account_matches` also keeps per-match facts (queue, champion, role, result, enemy champion in the same position, patch, duration), which Match History, Played Together and possible groups read without another Riot call.
 
+## Rank readings and LP per game (`rank-watch`)
+
+A linked account's rank is read from LEAGUE-V4 (one request answers Solo/Duo and Flex) by account sync and by the rank watch. `rank_snapshots` keeps one row per change; an unchanged reading moves the last row's `confirmed_at` on (migration 0065), under a per-account-and-queue lock, so overlapping runs never duplicate a reading and a slow answer never moves one back. The rank watch (`src/server/jobs/rank-watch.ts`, in every tick, interval 5 minutes, and callable on its own at `/api/jobs/rank-watch`) reads the accounts that played ranked in the last 30 days every run and the others about hourly; at most 40 accounts a run, half of each rate-limit window, no retries, and a full limit or a refused key ends the run. A game's LP is never stored: it is worked out when a page shows it, from the readings around it (`src/domain/lp-attribution.ts`; the rule and its limits in [RANKED_PROGRESS.md](RANKED_PROGRESS.md)). `rank-audit` reports what the readings prove on real data, read-only.
+
 ## Ranks of a match's players
 
 LEAGUE-V4 (`/lol/league/v4/entries/by-puuid/{puuid}`, the match's server) is asked about the other players of the members' games, and each answer is kept in `last_known_ranks` (both ranked queues, `UNRANKED` for a queue with no entry, `source` "match lookup"), at two moments:

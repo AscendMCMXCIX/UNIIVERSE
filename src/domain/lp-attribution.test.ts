@@ -79,6 +79,15 @@ describe("attributeLp", () => {
     expect(out.get("m")).toMatchObject({ kind: "lp", delta: 24 });
   });
 
+  it("never calls a game without a stored length a remake, and still places the games after it", () => {
+    // Riot counted "x" (its count rises), but its length is unknown: it stays out of the match, the
+    // offset moves there, and "m" is matched from the readings after it.
+    const games = [...history, { ...game("x", 22, 25, true), durationS: null }, game("m", 60, 30, false)];
+    const out = attributeLp([read("GOLD", "II", 46, 10, 10, 0, 30), read("GOLD", "II", 70, 11, 10, 50, 58), read("GOLD", "II", 50, 11, 11, 95)], games);
+    expect(out.get("x")).toEqual({ kind: "none", reason: "unknown-length" });
+    expect(out.get("m")).toMatchObject({ kind: "lp", delta: -20 });
+  });
+
   it("marks games before the first reading, and after the last, as not recorded", () => {
     const games = [...history, game("m", 22, 25, true), game("later", 100, 25, false)];
     const out = attributeLp([read("GOLD", "II", 46, 10, 10, 0, 30), read("GOLD", "II", 70, 11, 10, 50)], games);
