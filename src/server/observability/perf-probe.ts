@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import type { VitalSummary } from "@/domain/web-vitals";
+import type { VitalsReport } from "@/server/observability/web-vitals";
 import { accountMatches, players, riotAccounts, users } from "@/server/db/schema";
 import { elapsed } from "./log";
 import { processEgress } from "@/server/db/egress";
@@ -495,21 +496,32 @@ export async function runPerfProbe(
 
 /**
  * What members' browsers measured over the last 28 days (domain/web-vitals; Admin Mode → System
- * Health shows the same): each page group's loads and its 75th percentile LCP, INP and CLS, with
- * the share of good LCPs. Counts and bucket bounds only: nothing about who loaded what. A read of a
- * few hundred grouped rows; never fails the probe.
+ * Health shows the same): each page group's loads and its 75th percentile LCP, INP, CLS and TTFB,
+ * with the shares of good LCPs and TTFBs, and each device class's loads, LCP and TTFB. The same for
+ * the last 7 days, so a run a week after a change reads only loads made since. Counts and bucket
+ * bounds only: nothing about who loaded what. Two reads of a few hundred grouped rows; never fails
+ * the probe.
  */
 export async function fieldVitals(db: Db) {
   try {
     const { vitalsReport } = await import("@/server/observability/web-vitals");
-    const r = await vitalsReport(db, 28);
+    const [r, week] = await Promise.all([vitalsReport(db, 28), vitalsReport(db, 7)]);
     const p75 = (s: VitalSummary | null) => (s ? s.p75AtMost : null);
-    const all = Object.fromEntries(r.metrics.map((m) => [m.metric, m.all ? { count: m.all.count, p75AtMost: m.all.p75AtMost, good: Math.round(m.all.good * 100) / 100 } : null]));
-    return {
-      since: r.since,
-      all,
-      pages: r.pages.map((p) => ({ page: p.page, loads: p.loads, lcpP75: p75(p.LCP), lcpGood: p.LCP ? Math.round(p.LCP.good * 100) / 100 : null, inpP75: p75(p.INP), clsP75: p75(p.CLS) })),
-    };
+    const good = (s: VitalSummary | null) => (s ? Math.round(s.good * 100) / 100 : null);
+    const all = Object.fromEntries(r.metrics.map((m) => [m.metric, m.all ? { count: m.all.count, p75AtMost: m.all.p75AtMost, good: good(m.all) } : null]));
+    const pages = (report: VitalsReport) =>
+      report.pages.map((p) => ({
+        page: p.page,
+        loads: p.loads,
+        lcpP75: p75(p.LCP),
+        lcpGood: good(p.LCP),
+        inpP75: p75(p.INP),
+        clsP75: p75(p.CLS),
+        ttfbP75: p75(p.TTFB),
+        ttfbGood: good(p.TTFB),
+        devices: p.byDevice.map((d) => ({ device: d.device, loads: d.loads, lcpP75: p75(d.LCP), lcpGood: good(d.LCP), ttfbP75: p75(d.TTFB) })),
+      }));
+    return { since: r.since, all, pages: pages(r), last7: { since: week.since, pages: pages(week) } };
   } catch (err) {
     return { error: (err as Error).message };
   }

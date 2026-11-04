@@ -11,6 +11,8 @@ import { getAppDb } from "@/server/bootstrap";
 import { getShellStatus } from "@/server/ops/shell";
 import { shellMetadata } from "@/server/ops/shell-metadata";
 import { runTickIfDue } from "@/server/jobs/background";
+import { preconnect } from "react-dom";
+import { DATA_DRAGON_ORIGIN } from "@/domain/player-card";
 
 export const dynamic = "force-dynamic";
 /** Room for the background refresh a visit may start after the page is sent (see runTickIfDue). */
@@ -32,6 +34,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   status.sidebarCollapsed = jar.get(SIDEBAR_COOKIE)?.value === "collapsed";
   // Keeps data fresh while the team uses the site; the page never waits for it.
   after(() => runTickIfDue(db));
+  // Champion art and portraits come from Data Dragon: the browser opens that connection while the
+  // page's own data is still on its way (docs/PERFORMANCE.md, "Team Overview's first card").
+  preconnect(DATA_DRAGON_ORIGIN);
   return (
     <>
       <AppShell status={status}>{children}</AppShell>
