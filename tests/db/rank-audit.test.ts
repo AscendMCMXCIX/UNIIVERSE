@@ -56,13 +56,25 @@ describe("rank-audit", () => {
     const before = await count();
     const result = await runJob(db, "rank-audit", "test");
     expect(result.ok).toBe(true);
-    const summary = result.summary as Record<string, any>;
+    interface Queue {
+      riotCountCheck: unknown;
+      gamesBetweenReadings: Record<string, number>;
+      lp: Record<string, number>;
+      samples: unknown[];
+    }
+    const summary = result.summary as unknown as {
+      year: { from: string };
+      firstReading: string | null;
+      accounts: Array<{ account: string; queues: Record<"solo" | "flex", Queue> }>;
+      lpTotals: Record<string, number>;
+      weeks: Array<{ week: string; solo: number; flex: number }>;
+    };
     const text = JSON.stringify(summary);
     for (const secret of ["Secret Name", "SecretRiotId", "secret-puuid"]) expect(text).not.toContain(secret);
 
     expect(summary.year.from).toBe("2026-01-08");
     expect(summary.firstReading).toBe("2026-10-20T08:20:00.000Z");
-    const [acc] = summary.accounts;
+    const acc = summary.accounts[0]!;
     expect(acc.account).toBe("P1/A1");
     const solo = acc.queues.solo;
     expect(solo).toMatchObject({ games: 5, remakes: 1, readings: 2, firstRank: "Gold II 46 LP", lastRank: "Gold II 70 LP" });
@@ -74,8 +86,8 @@ describe("rank-audit", () => {
     expect(acc.queues.flex).toMatchObject({ games: 1, readings: 0, lp: { "none:before-tracking": 1 } });
     expect(summary.lpTotals).toEqual({ "none:before-tracking": 5, lp: 1 });
     // The year by week starts with the week of 8 January; October's games are in their weeks.
-    expect(summary.weeks[0].week).toBe("2026-01-05");
-    expect(summary.weeks.find((w: { week: string }) => w.week === "2026-09-28")).toMatchObject({ solo: 4, flex: 0 });
+    expect(summary.weeks[0]!.week).toBe("2026-01-05");
+    expect(summary.weeks.find((w) => w.week === "2026-09-28")).toMatchObject({ solo: 4, flex: 0 });
     expect(await count()).toBe(before);
   });
 });

@@ -659,3 +659,11 @@ On the live site, after the deployment (checked locally on demo data at 1440, 76
 - [ ] A game's scoreboard: "Met N×" opens that player's games with the same N.
 - [ ] Admin Mode → Users & Permissions: Accounts, Access levels & groups and Personal data are the same pill tabs.
 - [ ] Leaderboards is unchanged (its rules wait for your decision).
+
+## Ranked progress and LP per game (migration 0065, November 2026)
+
+- [ ] After the deploy: Data jobs → `auth-audit` (a migration ran), then `rank-audit`: every account and queue reports its readings, `riotCountCheck.agrees` is true where the season history is complete, and `lp` counts how many games have a figure.
+- [ ] Data jobs → `rank-watch` by hand once: `read` equals `due`, no `stoppedBy`, and `requests` about one per due account.
+- [ ] Once the five-minute schedule runs (`docs/RANKED_PROGRESS.md`): Admin → Data & Riot shows `rank-watch` succeeding every few minutes; after a member's next ranked game, its Match History card shows `+N LP` or `−N LP`, and the hover text names two readings minutes before and after the game.
+- [ ] A member's Overview: Ranked progress opens on 2026, the stretch before the first reading reads "Not recorded before …", Season 1 and Season 2 show no rank and their weeks of games, and Flex is its own ladder.
+

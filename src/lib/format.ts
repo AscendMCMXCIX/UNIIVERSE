@@ -69,6 +69,12 @@ export function formatDayMonth(date: DateInput): string {
   return c ? `${c.day} ${MONTHS[c.month - 1]}` : "—";
 }
 
+/** "Oct": the month of an instant in the installation's time zone (a chart's time axis); "—" for no date. */
+export function formatMonth(date: DateInput): string {
+  const c = clock(date);
+  return c ? MONTHS[c.month - 1]! : "—";
+}
+
 /** "3:04 pm": the time of day in the installation's time zone; "—" for no date. */
 export function formatTimeOfDay(date: DateInput): string {
   const c = clock(date);

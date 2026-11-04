@@ -1,39 +1,62 @@
 import Link from "next/link";
 import { ArrowDown, ArrowUp, RotateCcw } from "lucide-react";
-import { rankProgress, TIERS, type RankEvent, type RankProgress, type RankQueue } from "@/domain/rank-progress";
+import { rankProgress, type RankQueue } from "@/domain/rank-progress";
+import { rankTimeline, RANK_VIEWS, type RankView, type TimelineMarker } from "@/domain/rank-timeline";
 import type { RankHistoryAccount } from "@/server/accounts/rank-history";
 import { InfoTip } from "@/components/ui/info-tip";
 import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
-import { formatDate } from "@/lib/format";
+import { formatCount, formatDate, formatDayMonth } from "@/lib/format";
 import { accountShortNames } from "@/domain/account-names";
 import { cn } from "@/lib/cn";
 import { RankEmblem } from "./rank-emblem";
+import { RankTimelineChart } from "./rank-timeline-chart";
 
 const QUEUE_LABEL: Record<RankQueue, string> = { solo: "Ranked Solo/Duo", flex: "Ranked Flex" };
+const VIEW_LABEL: Record<RankView, string> = { year: "2026", s1: "Season 1", s2: "Season 2", s3: "Season 3" };
+const VIEW_TITLE: Record<RankView, string> = { year: "the 2026 ranked year", s1: "2026 Season 1", s2: "2026 Season 2", s3: "2026 Season 3" };
+
+export type RankedProgressHref = (change: { rq?: RankQueue; ra?: string | null; rv?: RankView }) => string;
 
 /**
- * Ranked progress of one linked account (the Main account unless another is chosen), one queue at
- * a time. History starts when UNIIVERSE first read the rank; nothing before that is drawn.
+ * Ranked progress of one linked account (the Main account unless another is chosen), one queue
+ * at a time, over the 2026 ranked year (from 8 January) or one of its seasons. Only what UNIIVERSE
+ * read is drawn: Riot reports no past ranks, so the stretch before the first reading is shown as
+ * not recorded, and the games of each week (stored from 8 January on) are drawn under the rank.
  */
-export function RankedProgress({ accounts, queue, accountId, href, now }: { accounts: RankHistoryAccount[]; queue: RankQueue; accountId: string | null; href: (change: { rq?: RankQueue; ra?: string | null }) => string; now: number }) {
+export function RankedProgress({ accounts, queue, view = "year", accountId, href, now }: { accounts: RankHistoryAccount[]; queue: RankQueue; view?: RankView; accountId: string | null; href: RankedProgressHref; now: number }) {
   if (accounts.length === 0) return null;
   const account = accounts.find((a) => a.id === accountId) ?? accounts.find((a) => a.snapshots.length > 0) ?? accounts[0]!;
-  const progress = rankProgress(queue, account.snapshots, now);
+  const snapshots = account.snapshots.filter((s) => s.queue === queue);
+  const progress = rankProgress(queue, snapshots, now);
+  const timeline = rankTimeline(snapshots, account.weeks[queue], view, now);
   const names = accountShortNames(accounts);
+  const cur = progress.current;
+  const played = timeline.games.wins + timeline.games.losses;
+  const changes = [...timeline.markers].reverse().slice(0, 5);
   return (
-    <section aria-labelledby="ranked-progress" className="@container/rank h-full space-y-3 rounded-card border border-border bg-surface p-4 panel-depth" data-testid="ranked-progress">
-      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+    <section id="ranked-progress" aria-labelledby="ranked-progress-title" className="@container/rank space-y-4 rounded-card border border-border bg-surface p-4 panel-depth sm:p-5" data-testid="ranked-progress">
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
         <div className="min-w-0">
-          <h2 id="ranked-progress" className="flex items-center gap-1.5 text-base font-semibold text-fg">
+          <h2 id="ranked-progress-title" className="flex items-center gap-1.5 text-base font-semibold text-fg">
             Ranked progress
-            <InfoTip label="About ranked progress" text="Riot only reports the current rank, so the history starts when it was first read and grows with every sync that sees a change. Divisions are drawn as one ladder, so a promotion is a step up rather than an LP drop; a season reset starts a new line." />
+            <InfoTip
+              label="About ranked progress"
+              text="Riot reports only an account's current rank, never past ones, so the line starts when UNIIVERSE first read it and nothing earlier is drawn. Each reading is a rank Riot reported; the line continues only across at most one game, and a hatched band marks games played between two readings that were not seen one by one. The bars are the ranked games stored for each week, from 8 January."
+            />
           </h2>
           <p className="text-xs text-fg-subtle" data-testid="ranked-tracking">
             {account.riotId}
-            {progress.trackingSince ? ` · tracked since ${formatDate(new Date(progress.trackingSince))}` : ""}
+            {timeline.trackingSince ? ` · rank recorded since ${formatDate(timeline.trackingSince)}` : " · no rank recorded yet"}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <nav aria-label="Period" className={segmentedGroupClass()} data-testid="ranked-views">
+            {RANK_VIEWS.map((v) => (
+              <Link key={v} href={href({ rv: v })} scroll={false} aria-current={v === view ? "page" : undefined} className={segmentClass(v === view)} data-testid={`ranked-view-${v}`}>
+                {VIEW_LABEL[v]}
+              </Link>
+            ))}
+          </nav>
           <nav aria-label="Queue" className={segmentedGroupClass()}>
             {(["solo", "flex"] as const).map((q) => (
               <Link key={q} href={href({ rq: q })} scroll={false} aria-current={q === queue ? "page" : undefined} className={segmentClass(q === queue)} data-testid={`ranked-queue-${q}`}>
@@ -43,8 +66,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
           </nav>
           {accounts.length > 1 ? (
             // Every account the same way: its in-game name (with the tagline only where two share a
-            // name), the full Riot ID on hover. No badge marks the main one; the list is in the
-            // player's own order, which already puts it first.
+            // name), the full Riot ID on hover, in the player's own order (the Main account first).
             <nav aria-label="Account" className={segmentedGroupClass()}>
               {accounts.map((a) => (
                 <Link key={a.id} href={href({ ra: a.id })} scroll={false} aria-current={a.id === account.id ? "page" : undefined} title={a.riotId} className={segmentClass(a.id === account.id, { className: "max-w-[10rem]" })} data-testid="ranked-account">
@@ -55,151 +77,104 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
           ) : null}
         </div>
       </div>
-      <ProgressBody progress={progress} queue={queue} />
+
+      {/* Where the account stands, its highest recorded rank, the last 30 days and the period's games. */}
+      <dl className="grid grid-cols-2 gap-3 @min-[44rem]/rank:grid-cols-4">
+        <div className="col-span-2 flex min-w-0 items-center gap-3 @min-[44rem]/rank:col-span-1">
+          <RankEmblem tier={cur?.tier ?? null} className="h-10 w-10 shrink-0" />
+          <div className="min-w-0">
+            <dt className="text-2xs text-fg-subtle">Current</dt>
+            {cur ? (
+              <dd>
+                <span className="block truncate text-lg font-bold leading-tight text-fg" data-testid="ranked-current">
+                  {cur.label}
+                  {cur.leaguePoints !== null ? ` · ${cur.leaguePoints} LP` : ""}
+                </span>
+                {cur.wins !== null && cur.losses !== null ? (
+                  <span className="block text-2xs tabular-nums text-fg-muted">
+                    {cur.wins}W {cur.losses}L in 2026 (Riot)
+                  </span>
+                ) : null}
+              </dd>
+            ) : (
+              <dd className="text-sm text-fg-muted" data-testid="ranked-empty">
+                No {QUEUE_LABEL[queue]} rank recorded for this account yet.
+              </dd>
+            )}
+          </div>
+        </div>
+        <div className="min-w-0" data-testid="ranked-peak-stat">
+          <dt className="text-2xs text-fg-subtle">Highest recorded · {VIEW_LABEL[view]}</dt>
+          <dd>
+            {timeline.peak ? (
+              <>
+                <span className="block truncate text-sm font-semibold text-fg">
+                  {timeline.peak.label} · {timeline.peak.lp} LP
+                </span>
+                <span className="block text-2xs text-fg-subtle">first read {formatDayMonth(timeline.peak.at)}</span>
+              </>
+            ) : (
+              <span className="block text-sm text-fg-muted">Not recorded</span>
+            )}
+          </dd>
+        </div>
+        <div className="min-w-0">
+          <dt className="text-2xs text-fg-subtle">Last 30 days</dt>
+          <dd>
+            {progress.change ? (
+              <span className={cn("block text-sm font-semibold tabular-nums", progress.change.points > 0 ? "text-good" : progress.change.points < 0 ? "text-bad" : "text-fg-muted")} title={`${progress.change.from} → ${progress.change.to}`} data-testid="ranked-change">
+                {progress.change.points > 0 ? "+" : ""}
+                {progress.change.points} ladder points
+              </span>
+            ) : (
+              <span className="block text-sm text-fg-muted">Not enough readings</span>
+            )}
+          </dd>
+        </div>
+        <div className="col-span-2 min-w-0 @min-[44rem]/rank:col-span-1">
+          <dt className="text-2xs text-fg-subtle">Ranked games stored · {VIEW_LABEL[view]}</dt>
+          <dd className="text-sm font-semibold tabular-nums text-fg" data-testid="ranked-games">
+            {formatCount(played)}
+            {played > 0 ? (
+              <span className="ml-1 text-2xs font-normal text-fg-muted">
+                {timeline.games.wins}W {timeline.games.losses}L
+              </span>
+            ) : null}
+          </dd>
+        </div>
+      </dl>
+
+      <RankTimelineChart t={timeline} label={`${QUEUE_LABEL[queue]} rank over ${VIEW_TITLE[view]}`} />
+
+      <div className="min-w-0">
+        <h3 className="mb-1 text-xs font-medium text-fg-subtle">Rank changes · {VIEW_LABEL[view]}</h3>
+        {changes.length === 0 ? (
+          <p className="text-xs text-fg-muted">No promotion, demotion or reset recorded in this period.</p>
+        ) : (
+          <ol className="grid gap-x-6 gap-y-1 @min-[40rem]/rank:grid-cols-2" data-testid="ranked-events">
+            {changes.map((m, i) => (
+              <ChangeRow key={`${m.at}-${i}`} m={m} />
+            ))}
+          </ol>
+        )}
+      </div>
     </section>
   );
 }
 
-function ProgressBody({ progress, queue }: { progress: RankProgress; queue: RankQueue }) {
-  const cur = progress.current;
-  const chart = progress.points.length >= 2;
-  // Where you stand and how you got there, then the line: side by side where the card is wide
-  // enough (34rem), stacked in a narrow column. Only what there is: without two readings to join
-  // there is no chart, one quiet line says so (in the chart's column when side by side) and nothing
-  // is drawn to fill the space, so a card with little history never grows.
+function ChangeRow({ m }: { m: TimelineMarker }) {
+  const up = m.kind === "promotion" || m.kind === "placed";
+  const Icon = m.kind === "reset" ? RotateCcw : up ? ArrowUp : ArrowDown;
+  const word = { promotion: "Promoted", demotion: "Demoted", reset: "Season reset", placed: "Placed" }[m.kind];
   return (
-    <div className={cn("grid items-start gap-x-5 gap-y-3", cur !== null && "@min-[34rem]/rank:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]")}>
-      {cur === null ? (
-        <p className="min-w-0 text-sm text-fg-muted" data-testid="ranked-empty">
-          No {QUEUE_LABEL[queue]} rank recorded for this account yet. It appears after the next account sync that finds one.
-        </p>
-      ) : (
-        <div className="min-w-0 space-y-2.5">
-          <div className="flex items-center gap-3">
-            <RankEmblem tier={cur.tier} className="h-10 w-10 shrink-0" />
-            <div className="min-w-0">
-              <span className="block text-lg font-bold leading-tight text-fg" data-testid="ranked-current">
-                {cur.label}
-                {cur.leaguePoints !== null ? ` · ${cur.leaguePoints} LP` : ""}
-              </span>
-              <span className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-                {cur.wins !== null && cur.losses !== null ? <span className="text-xs tabular-nums text-fg-muted">{cur.wins}W {cur.losses}L this season</span> : null}
-                {progress.change ? (
-                  <span className={cn("text-xs font-medium tabular-nums", progress.change.points > 0 ? "text-good" : progress.change.points < 0 ? "text-bad" : "text-fg-muted")} data-testid="ranked-change" title={`${progress.change.from} → ${progress.change.to}`}>
-                    {progress.change.points > 0 ? "+" : ""}
-                    {progress.change.points} ladder points in {progress.change.days} days
-                  </span>
-                ) : null}
-              </span>
-            </div>
-          </div>
-          <div className="min-w-0">
-            <h3 className="mb-1 text-xs font-medium text-fg-subtle">Rank changes</h3>
-            {progress.events.length === 0 ? (
-              <p className="text-xs text-fg-muted">No promotion, demotion or reset recorded yet.</p>
-            ) : (
-              <ol className="space-y-1" data-testid="ranked-events">
-                {progress.events.slice(0, 4).map((e, i) => (
-                  <EventRow key={`${e.at}-${i}`} e={e} />
-                ))}
-              </ol>
-            )}
-          </div>
-        </div>
-      )}
-      {chart ? (
-        <div className="min-w-0 self-center">
-          <RankChart progress={progress} label={`${QUEUE_LABEL[queue]} rank over time`} />
-        </div>
-      ) : cur !== null ? (
-        <p className="text-xs text-fg-subtle @min-[34rem]/rank:self-center @min-[34rem]/rank:text-center" data-testid="ranked-chart-empty">
-          Not enough rank history to display progression.
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-function EventRow({ e }: { e: RankEvent }) {
-  const up = e.kind === "promotion" || e.kind === "tier-up" || e.kind === "placed";
-  const Icon = e.kind === "reset" ? RotateCcw : up ? ArrowUp : ArrowDown;
-  const word = { promotion: "Promoted", "tier-up": "Promoted", demotion: "Demoted", "tier-down": "Demoted", reset: "Season reset", placed: "Placed" }[e.kind];
-  return (
-    <li className="flex items-center gap-2 text-xs" data-kind={e.kind}>
-      <Icon className={cn("h-3.5 w-3.5 shrink-0", e.kind === "reset" ? "text-fg-muted" : up ? "text-good" : "text-bad")} aria-hidden />
+    <li className="flex items-center gap-2 text-xs" data-kind={m.kind} data-exact={m.exact}>
+      <Icon className={cn("h-3.5 w-3.5 shrink-0", m.kind === "reset" ? "text-fg-muted" : up ? "text-good" : "text-bad")} aria-hidden />
       <span className="min-w-0 flex-1 truncate text-fg">
-        {word}: {e.kind === "reset" ? `${e.from} → ${e.to}` : e.to}
+        {word}: {m.kind === "reset" ? `${m.from} → ${m.to}` : m.to}
       </span>
-      <span className="shrink-0 tabular-nums text-fg-subtle">{formatDate(new Date(e.at))}</span>
+      <span className="shrink-0 tabular-nums text-fg-subtle" title={m.exact ? "Between two readings one game apart" : "Somewhere between these two readings, several games apart"}>
+        {m.exact ? formatDate(m.at) : `${formatDayMonth(m.since)} – ${formatDayMonth(m.at)}`}
+      </span>
     </li>
-  );
-}
-
-/** A step line on the ladder scale, with tier bands labelled; segments are not joined across a reset. */
-function RankChart({ progress, label }: { progress: RankProgress; label: string }) {
-  // Wide and short: the chart takes the column's width at its own proportions (no empty bands
-  // above and below). Drawn at 400×100 so its 15-unit labels are 11px or more where the column is
-  // narrowest (about 300px wide, on a laptop beside Recent form) and about 17px where it is widest.
-  const W = 400;
-  const H = 100;
-  const pad = { l: 96, r: 6, t: 8, b: 20 };
-  const pts = progress.points;
-  const t0 = pts[0]!.at;
-  const t1 = Math.max(pts.at(-1)!.at, t0 + 1);
-  const lo = Math.floor((Math.min(...pts.map((p) => p.score)) - 30) / 100) * 100;
-  const hi = Math.ceil((Math.max(...pts.map((p) => p.score)) + 30) / 100) * 100;
-  const x = (at: number) => pad.l + ((at - t0) / (t1 - t0)) * (W - pad.l - pad.r);
-  const y = (s: number) => pad.t + (1 - (s - lo) / Math.max(1, hi - lo)) * (H - pad.t - pad.b);
-  const lines: string[] = [];
-  for (let seg = 0; seg < progress.segments; seg++) {
-    const p = pts.filter((q) => q.segment === seg);
-    if (p.length === 0) continue;
-    lines.push(p.map((q, i) => `${i ? "L" : "M"}${x(q.at).toFixed(1)},${y(q.score).toFixed(1)}`).join(" "));
-  }
-  // Division gridlines with labels (each 100 points is a division; Master+ is one band).
-  const grid: Array<{ s: number; label: string }> = [];
-  for (let s = lo; s <= hi; s += 100) {
-    const tier = TIERS[Math.min(Math.floor(s / 400), 7)]!;
-    const apex = s >= 2800;
-    const div = ["IV", "III", "II", "I"][Math.floor((s % 400) / 100)];
-    grid.push({ s, label: apex ? (s === 2800 ? "Master" : "") : `${tier[0]}${tier.slice(1).toLowerCase()} ${div}` });
-  }
-  return (
-    <figure className="m-0">
-      <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto max-h-40 w-full" role="img" aria-label={`${label}: from ${pts[0]!.label} ${pts[0]!.leaguePoints} LP to ${pts.at(-1)!.label} ${pts.at(-1)!.leaguePoints} LP`} data-testid="ranked-chart">
-        {/* The line in the brand gradient, older readings in the blue and the latest in the violet (one chart per page). */}
-        <defs>
-          {/* In the chart's own units: a flat line (no change) has no height, which a gradient sized to the line would not draw. */}
-          <linearGradient id="ranked-line" gradientUnits="userSpaceOnUse" x1={pad.l} x2={W - pad.r} y1={0} y2={0}>
-            <stop offset="0%" style={{ stopColor: "var(--color-accent)" }} />
-            <stop offset="100%" style={{ stopColor: "var(--color-accent-2)" }} />
-          </linearGradient>
-        </defs>
-        {grid.map((g) => (
-          <g key={g.s}>
-            <line x1={pad.l} x2={W - pad.r} y1={y(g.s)} y2={y(g.s)} className="stroke-border" strokeWidth={1} strokeDasharray="3 4" />
-            {g.label && g.s < hi ? (
-              <text x={pad.l - 8} y={y(g.s) + 5} textAnchor="end" className="fill-fg-subtle text-[15px]">
-                {g.label}
-              </text>
-            ) : null}
-          </g>
-        ))}
-        {lines.map((d, i) => (
-          <path key={i} d={d} fill="none" stroke="url(#ranked-line)" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
-        ))}
-        {pts.map((p, i) => (
-          <circle key={i} cx={x(p.at)} cy={y(p.score)} r={4} className="fill-accent">
-            <title>{`${p.label} ${p.leaguePoints} LP · ${formatDate(new Date(p.at))}`}</title>
-          </circle>
-        ))}
-        <text x={pad.l} y={H - 3} className="fill-fg-subtle text-[15px]">
-          {formatDate(new Date(t0))}
-        </text>
-        <text x={W - pad.r} y={H - 3} textAnchor="end" className="fill-fg-subtle text-[15px]">
-          {formatDate(new Date(t1))}
-        </text>
-      </svg>
-    </figure>
   );
 }
