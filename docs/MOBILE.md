@@ -66,7 +66,8 @@ Settings → home). A destination's own pages have no Back: they are where you s
   inside one screen do on a phone, so Back leaves the profile rather than stepping through its
   sections; a section opened far down the page starts at its top, just under the bar.
 - **Team's sections** are the bottom bar itself, so the page tabs are not repeated on phones.
-- **Match History's views** (Games, Encounters) stay the two pills under the profile's sections.
+- **Match History's views** (Games, Encounters) are a pair in one quiet track under the profile
+  card (`SubTabs`).
 
 ### Phones held sideways
 
@@ -100,7 +101,7 @@ text below 12px; 11px (`text-2xs`) only for badges and labels.
 | Need | Phone pattern | Why |
 |---|---|---|
 | Narrow a list | **Filters** opens a sheet from the bottom edge with every filter, each with its label, and Reset and Done at its foot (`FilterBar`). Beside the button, what is narrowed shows as chips that remove themselves with a tap. A search box shares the row with Filters. Choices apply at once, as on desktop. | The scope stays visible without opening anything; the sheet is within reach of the thumb and never pushes the page around. |
-| Open a game | The game takes the whole screen (the match window), as a new entry in the browser's history, so Back (the button, the edge swipe, Android's key) closes it and returns to the list exactly as it was. | A scoreboard inside a list is a detour on a narrow screen. Desktop keeps the game under its card. |
+| Open a game | The game takes the whole screen (the match window), as a new entry in the browser's history, so Back (the button, the edge swipe, Android's key) closes it and returns to the list exactly as it was. Its scoreboard keeps the marks for players met in other games; following one closes the game, and Back returns to it. | A scoreboard inside a list is a detour on a narrow screen. Desktop keeps the game under its card. |
 | A champion, a player from Team | The existing detail windows, which already take the whole screen on phones. | |
 | Account, Settings, Sign out | The account sheet. | One menu, not two. |
 | A short question or form | `Dialog` (a sheet on phones). | |
