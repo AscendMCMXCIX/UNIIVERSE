@@ -21,7 +21,7 @@ import { MatchExpansion, revealIfAbove, revealOpened } from "./inline-match";
 import { HistorySummaryStrip } from "./history-summary";
 import { ItemRow } from "./icon-img";
 import { MultikillTag } from "./multikill-tag";
-import { ChampionLoadout, MatchRail, MatchResult, matchCardClass, matchTone } from "./match-card";
+import { ChampionLoadout, LpChange, lpSpoken, MatchRail, MatchResult, matchCardClass, matchTone } from "./match-card";
 import { TeamComposition } from "./team-composition";
 import { ModeElsewhere, OverviewFilters } from "@/components/players/overview-filters";
 import { HistoryRefineFields, historyRefinements } from "./history-refine-fields";
@@ -119,7 +119,7 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
           ref={open}
           type="button"
           className="absolute inset-0 rounded-[inherit] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
-          aria-label={`${tone.word} on ${champion.name}, ${row.queue}, ${when}${multikill ? `, ${multikill.toLowerCase()}` : ""}. ${expanded ? "Hide" : "Show"} the match details.`}
+          aria-label={`${tone.word} on ${champion.name}, ${row.queue}, ${when}${row.lp ? `, ${lpSpoken(row.lp)}` : ""}${multikill ? `, ${multikill.toLowerCase()}` : ""}. ${expanded ? "Hide" : "Show"} the match details.`}
           aria-describedby={row.teams ? teamsId : undefined}
           aria-expanded={expanded}
           aria-controls={expanded ? regionId : undefined}
@@ -129,7 +129,7 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
         />
         <MatchRail win={row.win} />
         <span className="relative grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-3 py-2.5 @min-[50rem]/mh:grid-cols-[6.25rem_auto_minmax(6rem,0.8fr)_minmax(5.25rem,0.55fr)_minmax(5.5rem,0.55fr)_minmax(12rem,2fr)_auto] @min-[50rem]/mh:gap-x-4 @min-[50rem]/mh:py-2 @min-[56rem]/mh:grid-cols-[6.25rem_auto_minmax(6rem,0.8fr)_minmax(5.25rem,0.55fr)_minmax(5.5rem,0.55fr)_auto_minmax(12rem,2fr)_auto] @min-[72rem]/mh:gap-x-5">
-          <MatchResult win={row.win} queue={row.queue} when={when} duration={fmtDuration(row.durationS)} className="hidden @min-[50rem]/mh:flex" />
+          <MatchResult win={row.win} queue={row.queue} when={when} duration={fmtDuration(row.durationS)} extra={row.lp ? <LpChange lp={row.lp} /> : null} className="hidden @min-[50rem]/mh:flex" />
           <ChampionLoadout champion={champion} spells={row.spells} keystone={row.keystone} secondary={row.secondary} level={row.champLevel} size="md" icon={22} portraitClassName="@min-[50rem]/mh:h-14 @min-[50rem]/mh:w-14" iconsClassName="@max-[50rem]/mh:hidden" />
           {/* The champion, the role, the account it was played on and the team members in the game */}
           <span className="min-w-0 leading-snug">
@@ -141,6 +141,13 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
                 · <span className="@max-[36rem]/mh:hidden">{row.queue}</span>
                 <span className="hidden @max-[36rem]/mh:inline">{row.queue.replace(/^Ranked /, "")}</span> · {when}
               </span>
+              {/* From 36rem this line has room for a ranked game's LP; a narrower card keeps it under the KDA. */}
+              {row.lp ? (
+                <span className="hidden font-medium text-fg-subtle @min-[36rem]/mh:inline">
+                  {" · "}
+                  <LpChange lp={row.lp} dense className="align-middle" />
+                </span>
+              ) : null}
             </span>
             {/* The champion, then the role and account: one line on a phone's card (the champion
                 keeps its whole name, the role and account give way), two on wider cards. */}
@@ -175,6 +182,12 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
           <span className="text-right leading-snug @min-[50rem]/mh:text-left">
             <span className="block whitespace-nowrap text-base font-semibold tabular-nums leading-snug text-fg @min-[50rem]/mh:text-lg">{kda}</span>
             <span className={cn("block text-xs tabular-nums", row.perfect ? "text-good" : (row.kda ?? 0) >= 3 ? "text-fg-muted" : "text-fg-subtle")}>{ratio}</span>
+            {/* A phone-width card has no room beside the result: a ranked game's LP sits under the KDA, on the right. */}
+            {row.lp ? (
+              <span className="mt-0.5 flex justify-end @min-[36rem]/mh:hidden">
+                <LpChange lp={row.lp} />
+              </span>
+            ) : null}
             {/* The game's largest multikill, quietly (see MultikillTag), and at most one "best" figure.
                 A narrow card puts the best figure in the figures' row instead: beside the KDA it
                 widened this column and cut the queue and time off the line beside it. */}

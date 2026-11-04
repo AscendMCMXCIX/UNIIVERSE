@@ -24,6 +24,8 @@ export interface RankSnapshot {
   wins: number | null;
   losses: number | null;
   capturedAt: number;
+  /** The last reading that still showed these values (rank_snapshots.confirmed_at); absent on rows stored before it was kept. */
+  confirmedAt?: number | null;
 }
 
 export const TIERS = ["IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND", "MASTER", "GRANDMASTER", "CHALLENGER"] as const;
@@ -52,7 +54,7 @@ export function ladderScore(s: Pick<RankSnapshot, "tier" | "division" | "leagueP
 }
 
 /** Whether a new reading differs from the last stored one (otherwise nothing is stored). */
-export function snapshotChanged(prev: Omit<RankSnapshot, "capturedAt" | "queue"> | null, next: Omit<RankSnapshot, "capturedAt" | "queue">): boolean {
+export function snapshotChanged(prev: Omit<RankSnapshot, "capturedAt" | "queue" | "confirmedAt"> | null, next: Omit<RankSnapshot, "capturedAt" | "queue" | "confirmedAt">): boolean {
   if (!prev) return true;
   return prev.tier !== next.tier || prev.division !== next.division || prev.leaguePoints !== next.leaguePoints || prev.wins !== next.wins || prev.losses !== next.losses;
 }

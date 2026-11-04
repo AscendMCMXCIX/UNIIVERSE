@@ -24,7 +24,9 @@ import { rankLabel, TIERS } from "./rank-progress";
      records a game's length without its loading screen, so this is about ten minutes of real
      time): the one window a dodge could still share with the game. Riot reports no dodges, so this
      window cannot be closed, only kept short; with readings every five minutes during play it is
-     a few minutes. Decay needs weeks without a game, so it never falls inside.
+     a few minutes. Decay (Diamond and above, after weeks without a game) is a change like a dodge:
+     a reading during the game shows it apart from the game; one in the last minutes of the game,
+     after its last reading there, would be counted with it, and no reading can tell them apart.
   3. One ladder. Both readings ranked, in the same ranked season (the count never goes down), and
      the wins or the losses up by one as the game's result says.
 
@@ -70,6 +72,8 @@ export interface LpReading {
 export type LpGapReason =
   /** Riot does not count a remake (under five minutes). */
   | "remake"
+  /** The game's length is not stored, so it cannot be matched to Riot's count (it is left out of the count). */
+  | "unknown-length"
   /** Played before UNIIVERSE first read the account's rank in this queue. */
   | "before-tracking"
   /** No reading since the game: the next one will tell. */
@@ -89,7 +93,8 @@ export type LpGapReason =
 
 export type LpRecord =
   | { kind: "lp"; delta: number; before: LpReading; after: LpReading }
-  | { kind: "promoted" | "demoted"; before: LpReading; after: LpReading }
+  | { kind: "promoted"; before: LpReading; after: LpReading }
+  | { kind: "demoted"; before: LpReading; after: LpReading }
   | { kind: "none"; reason: LpGapReason; games?: number; before?: LpReading; after?: LpReading; trackingSince?: number };
 
 /** A game under this many seconds is a remake, which Riot does not count (domain/season-stats MIN_VALID_DURATION_S). */
@@ -150,7 +155,7 @@ export function lpOutcome(before: RankReadingRow, after: RankReadingRow, win: bo
   }
   const up = divisionOrder(after) > divisionOrder(before);
   if (up !== win) return { kind: "none", reason: "inconsistent", before: b, after: a };
-  return { kind: up ? "promoted" : "demoted", before: b, after: a };
+  return up ? { kind: "promoted", before: b, after: a } : { kind: "demoted", before: b, after: a };
 }
 
 /**
@@ -160,7 +165,7 @@ export function lpOutcome(before: RankReadingRow, after: RankReadingRow, win: bo
 export function attributeLp(readingRows: readonly RankReadingRow[], games: readonly QueueGame[]): Map<string, LpRecord> {
   const out = new Map<string, LpRecord>();
   const sorted = [...games].sort((a, b) => endEarliest(a) - endEarliest(b));
-  for (const g of sorted) if (!counted(g)) out.set(g.matchId, { kind: "none", reason: "remake" });
+  for (const g of sorted) if (!counted(g)) out.set(g.matchId, { kind: "none", reason: g.durationS === null ? "unknown-length" : "remake" });
   const list = sorted.filter(counted);
   const readings = mergeReadings(readingRows);
   if (readings.length === 0) {

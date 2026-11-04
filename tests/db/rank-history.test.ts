@@ -48,6 +48,27 @@ describe("rank snapshots", () => {
     expect(rows.filter((r) => r.queue === "flex")).toHaveLength(1);
   });
 
+  it("moves the last row's confirmation on with each unchanged reading, never back, and stores the same values once however many runs read at once", async () => {
+    const db = handle.db;
+    const team = await getOrCreateTeam(db);
+    const other = (await createPlayer(db, team.id, { displayName: "Watcher", primaryRole: "TOP", primaryPool: ["Garen"] })).id;
+    const [a] = await db.insert(riotAccounts).values({ ownerType: "player", playerId: other, gameName: "Watch", tagLine: "T", platform: "oc1", puuid: "p-watch", label: "main" }).returning({ id: riotAccounts.id });
+    const id = a!.id;
+    const rows = async () => (await db.select().from(rankSnapshots)).filter((r) => r.accountId === id && r.queue === "solo");
+    expect(await recordRankSnapshots(db, id, [solo("GOLD", "II", 46, 10, 10)], day(0))).toBe(1);
+    expect(await recordRankSnapshots(db, id, [solo("GOLD", "II", 46, 10, 10)], new Date(day(0).getTime() + 300_000))).toBe(0);
+    expect((await rows())[0]!.confirmedAt?.getTime()).toBe(day(0).getTime() + 300_000);
+    // A slower answer that arrives after a newer one changes nothing.
+    expect(await recordRankSnapshots(db, id, [solo("GOLD", "II", 50, 11, 10)], new Date(day(0).getTime() + 60_000))).toBe(0);
+    expect(await rows()).toHaveLength(1);
+    expect((await rows())[0]!.confirmedAt?.getTime()).toBe(day(0).getTime() + 300_000);
+    // Two runs reading the same change at the same time store it once.
+    const at = new Date(day(0).getTime() + 600_000);
+    const results = await Promise.all([recordRankSnapshots(db, id, [solo("GOLD", "II", 70, 11, 10)], at), recordRankSnapshots(db, id, [solo("GOLD", "II", 70, 11, 10)], new Date(at.getTime() + 1))]);
+    expect(results.reduce((x, y) => x + y, 0)).toBe(1);
+    expect((await rows()).map((r) => r.leaguePoints).sort()).toEqual([46, 70]);
+  });
+
   it("never records an account that was never ranked in a queue", async () => {
     expect(await recordRankSnapshots(handle.db, alt, [], day(0))).toBe(0);
   });

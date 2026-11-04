@@ -10,6 +10,7 @@ export type JobKey =
   | "timeline-backfill"
   | "figures-backfill"
   | "rank-checks"
+  | "rank-watch"
   | "auth-audit"
   | "access-audit"
   | "perf-probe"
