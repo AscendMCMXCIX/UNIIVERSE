@@ -138,6 +138,11 @@ jobs:
             # one API or routing host that Riot refuses on its own still fails the run. Only
             # .summary.state is read: the answer also names the key's fingerprint, so it is never
             # printed. Health is not read again (the app caches the key's state for 30 s).
+            # The wait for riot-check (--max-time 45) is longer than the check can take: it starts no
+            # Riot request after its 30 s deadline and a request already sent ends within its 7 s
+            # timeout (riotKeyCheckLimits, src/server/riot/credential.ts), so it answers within
+            # about 37 s plus the function's start and a few database queries. Raise the wait with
+            # those limits; a wait that ends first reads as "no answer" and fails the run.
             recheck=""
             if printf '%s' "$health" | jq -e --arg job riot-key 'any(.failingJobs[]?; . == $job)' >/dev/null 2>&1; then
               answer="$(curl --silent --max-time 45 -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/jobs/riot-check" || true)"

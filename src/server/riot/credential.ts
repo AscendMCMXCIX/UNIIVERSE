@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { appSettings } from "@/server/db/schema";
-import { RiotApiError, normaliseRiotKey, riotKeyFingerprint, type RiotApiClient } from "@/server/riot/api/client";
+import { RiotApiError, RiotDeadlineError, normaliseRiotKey, riotKeyFingerprint, type RiotApiClient, type RiotClientOptions } from "@/server/riot/api/client";
 import { cachedFor, invalidateCache } from "@/server/observability/cache";
 import { probeSyncRequests } from "@/server/accounts/sync-probe";
 
@@ -138,28 +138,57 @@ export async function getRiotCredentialStatus(db: Db, env: Record<string, string
   );
 }
 
+/** How long the key check may ask Riot, from its start (see riotKeyCheckLimits). */
+export const RIOT_KEY_CHECK_MS = 30_000;
+/** How long one of the key check's requests may take, its answer included. */
+export const RIOT_KEY_CHECK_REQUEST_TIMEOUT_MS = 7_000;
+
+/**
+ * The Riot client limits for a key check started at `startedAt` (its caller's start; with a time
+ * budget, the shorter of the two): a deadline, one retry and a short timeout. The check may ask
+ * up to 29 requests (platform status and the sync probe's); without these limits one slow host
+ * kept it going for minutes (four retries of 15 s each, and every rate-limit and Retry-After
+ * wait). No request starts after the deadline and none waits past it; a request already sent
+ * ends within its timeout. So the check's requests end by RIOT_KEY_CHECK_MS +
+ * RIOT_KEY_CHECK_REQUEST_TIMEOUT_MS (37 s) after it starts. The scheduled Data jobs run waits up
+ * to 45 s for riot-check's answer (`curl --max-time 45` in .github/workflows/data-jobs.yml),
+ * which leaves 8 s for the function to start and for the check's few database queries: keep
+ * that wait longer than the two together. The job route and Admin's pages allow 300 s.
+ */
+export function riotKeyCheckLimits(startedAt: number, budgetMs: number = RIOT_KEY_CHECK_MS): Required<Pick<RiotClientOptions, "deadline" | "maxRetries" | "timeoutMs">> {
+  return { deadline: startedAt + Math.min(budgetMs, RIOT_KEY_CHECK_MS), maxRetries: 1, timeoutMs: RIOT_KEY_CHECK_REQUEST_TIMEOUT_MS };
+}
+
 /**
  * Whether the key is accepted right now: one cheap authenticated request (platform status). While
  * a refusal (401/403) is recorded under this key, Riot accepting platform status is not enough to
  * clear it, as Riot may refuse one API or one routing host the sync needs and nothing else: the
  * check then also asks the requests an account sync makes (probeSyncRequests), and the key is
- * recorded as accepted only when Riot answers each of them and refuses none. The scheduled Data jobs run relies on
- * that: it drops "riot-key" when this check says "accepted".
+ * recorded as accepted only when Riot answers each of them and refuses none. The scheduled Data
+ * jobs run relies on that: it drops "riot-key" when this check says "accepted". Callers give the
+ * client riotKeyCheckLimits. A stop for time (RiotDeadlineError) is no answer from Riot: nothing
+ * is recorded, so a recorded refusal stands, and the check answers "unavailable".
  */
 export async function checkRiotCredential(db: Db, client: RiotApiClient, platform: string): Promise<{ ok: boolean; state: CredentialState; message: string; statusCode: number | null }> {
   const refusalRecorded = refusalRecordedFor(await readStored(db), client.keyFingerprint);
+  const stands = refusalRecorded ? " Riot's earlier refusal stands until it answers." : "";
   let accepted = `Riot accepted the key (platform status for ${platform} answered)`;
   let statusCode = 200;
   try {
     await client.platformStatus(platform);
   } catch (err) {
+    if (err instanceof RiotDeadlineError) {
+      // Riot's rate limits (a 429's Retry-After elsewhere under the key) would have kept the
+      // request waiting past the check's deadline: not an answer about the key, so nothing is
+      // recorded, as for a sync that stops for time.
+      return { ok: false, state: "unavailable", message: `The key check ran out of time before it could ask platform status for ${platform}; nothing was recorded.${stands}`, statusCode: null };
+    }
     const c = classifyRiotFailure(err);
     // Another answer (a 404) also means the key was accepted; after a refusal it is no more proof
     // than a 200, so the sync's requests are asked below as well.
     if (!(refusalRecorded && c.state === "accepted")) {
       await recordRiotOutcome(db, client, { ok: false, error: err });
-      const stands = refusalRecorded && c.state === "unavailable" ? " Riot's earlier refusal stands until it answers." : "";
-      return { ok: false, state: c.state, message: `${c.message}${stands}`, statusCode: c.statusCode };
+      return { ok: false, state: c.state, message: `${c.message}${c.state === "unavailable" ? stands : ""}`, statusCode: c.statusCode };
     }
     accepted = `Riot accepted the key (platform status for ${platform} answered ${c.statusCode})`;
     statusCode = c.statusCode ?? statusCode;
@@ -176,10 +205,13 @@ export async function checkRiotCredential(db: Db, client: RiotApiClient, platfor
     return { ok: false, state: "rejected", message, statusCode: error.status };
   }
   const unanswered = probe.failures.find((f) => classifyRiotFailure(f.error).state === "unavailable");
-  if (unanswered) {
-    // Not recorded: a request with no answer never replaces the refusal (recordRiotOutcome).
-    const c = classifyRiotFailure(unanswered.error);
-    return { ok: false, state: "unavailable", message: `${accepted}, but ${unanswered.request} did not get through. ${c.message} Riot's earlier refusal stands until that request is answered.`, statusCode: c.statusCode };
+  if (unanswered || probe.outOfTime) {
+    // Not recorded: a request with no answer, or one the check had no time left to ask, never
+    // replaces the refusal (recordRiotOutcome).
+    const c = unanswered ? classifyRiotFailure(unanswered.error) : null;
+    const notAnswered = unanswered && c ? `${unanswered.request} did not get through. ${c.message}` : "";
+    const notAsked = probe.outOfTime ? `${unanswered ? " The check then" : "the check"} ran out of time before it asked ${probe.outOfTime}.` : "";
+    return { ok: false, state: "unavailable", message: `${accepted}, but ${notAnswered}${notAsked} Riot's earlier refusal stands until ${unanswered && probe.outOfTime ? "those requests are" : "that request is"} answered.`, statusCode: c?.statusCode ?? null };
   }
   await recordRiotOutcome(db, client, { ok: true });
   const asked = probe.accounts > 0 ? ` and the requests an account sync makes (one linked account per server in use: ${probe.accounts})` : "";

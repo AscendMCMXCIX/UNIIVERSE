@@ -1,7 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { riotAccounts } from "@/server/db/schema";
-import { RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
+import { RiotApiError, RiotDeadlineError, type RiotApiClient } from "@/server/riot/api/client";
 import { accountRegionFor, isRiotPlatform, regionFor } from "@/domain/riot-platforms";
 import { erasureFilter } from "@/server/privacy/ledger";
 
@@ -11,7 +11,8 @@ import { erasureFilter } from "@/server/privacy/ledger";
  * before it clears a recorded refusal: Riot refusing one API, or one routing host (as the sea host
  * refused ACCOUNT-V1 before account lookups moved to asia), fails every sync exactly as a rejected
  * key does, while platform status still answers. The labels name an API and a host, never an
- * account: they reach job logs and the Data health page.
+ * account: they reach job logs and the Data health page. Bounded by the client's deadline (the
+ * key check's, riotKeyCheckLimits): asking stops at the first request the deadline refuses.
  */
 export interface SyncProbe {
   /** Linked accounts asked about (one per server in use, at most MAX_SERVERS). */
@@ -20,6 +21,12 @@ export interface SyncProbe {
   refused: { request: string; error: RiotApiError } | null;
   /** Requests that failed in another way (no answer, or another answer), in order. */
   failures: Array<{ request: string; error: unknown }>;
+  /**
+   * The request the client's deadline refused (RiotDeadlineError: the check's time ran out, or
+   * Riot's rate limits would have kept it waiting past the deadline). Asking stops there, so it
+   * and the requests after it were not asked.
+   */
+  outOfTime: string | null;
 }
 
 /** Servers asked about in one probe (with seven requests each at most). */
@@ -45,12 +52,16 @@ export async function probeSyncRequests(db: Db, client: RiotApiClient): Promise<
     if (byServer.size >= MAX_SERVERS) break;
   }
 
-  const probe: SyncProbe = { accounts: byServer.size, refused: null, failures: [] };
-  /** Asks one request; false once Riot refused it (nothing more is asked). */
+  const probe: SyncProbe = { accounts: byServer.size, refused: null, failures: [], outOfTime: null };
+  /** Asks one request; false once Riot refused it or the deadline did (nothing more is asked). */
   const ask = async (request: string, run: () => Promise<unknown>): Promise<boolean> => {
     try {
       await run();
     } catch (err) {
+      if (err instanceof RiotDeadlineError) {
+        probe.outOfTime = request;
+        return false;
+      }
       if (isRefusal(err)) {
         probe.refused = { request, error: err };
         return false;
