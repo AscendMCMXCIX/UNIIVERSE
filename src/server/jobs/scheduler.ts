@@ -24,15 +24,16 @@ export async function setScheduleOverrides(db: Db, overrides: ScheduleOverrides)
 }
 
 /**
- * Order matters: static data first, then our own players' accounts (what the team looks at), the
+ * Order matters: static data first, then the rank watch (a request per active account, so each
+ * ranked game is enclosed by readings: domain/lp-attribution), then our own players' accounts (what the team looks at), the
  * ranks of the other players in the games just collected, housekeeping, then the two backfills
  * last with small capped slices: the timelines (Matchups) and the older games' extra figures
  * (multikills), a few requests an hour each against the same Riot limits.
  */
-const TICK_ORDER: JobKey[] = ["version-check", "account-sync", "rank-checks", "integrity", "timeline-backfill", "figures-backfill"];
+const TICK_ORDER: JobKey[] = ["version-check", "rank-watch", "account-sync", "rank-checks", "integrity", "timeline-backfill", "figures-backfill"];
 
 /** Budget caps inside one tick, so one job cannot take the whole tick. */
-const MAX_JOB_MS: Partial<Record<JobKey, number>> = { "account-sync": 75_000, "rank-checks": 15_000, integrity: 20_000, "timeline-backfill": 25_000, "figures-backfill": 25_000 };
+const MAX_JOB_MS: Partial<Record<JobKey, number>> = { "rank-watch": 20_000, "account-sync": 75_000, "rank-checks": 15_000, integrity: 20_000, "timeline-backfill": 25_000, "figures-backfill": 25_000 };
 
 /** How long a job may run inside a tick with `remainingMs` left. */
 export function tickJobBudget(key: JobKey, remainingMs: number): number {

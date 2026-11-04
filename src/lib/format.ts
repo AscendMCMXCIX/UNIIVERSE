@@ -69,6 +69,12 @@ export function formatDayMonth(date: DateInput): string {
   return c ? `${c.day} ${MONTHS[c.month - 1]}` : "—";
 }
 
+/** "Oct": the month of an instant in the installation's time zone (a chart's time axis); "—" for no date. */
+export function formatMonth(date: DateInput): string {
+  const c = clock(date);
+  return c ? MONTHS[c.month - 1]! : "—";
+}
+
 /** "3:04 pm": the time of day in the installation's time zone; "—" for no date. */
 export function formatTimeOfDay(date: DateInput): string {
   const c = clock(date);
@@ -106,6 +112,12 @@ export function percent(value: number, digits = 1): string {
 export function signedPoints(value: number, digits = 1): string {
   const pts = value * 100;
   return `${pts >= 0 ? "+" : ""}${pts.toFixed(digits)}`;
+}
+
+/** A game's LP change as a match card writes it: "+24 LP", "−21 LP" (a true minus sign), "0 LP". */
+export function formatLpChange(delta: number): string {
+  const n = Math.round(delta);
+  return `${n > 0 ? "+" : n < 0 ? "\u2212" : ""}${Math.abs(n)} LP`;
 }
 
 /** A whole number with thousands separators, written the same in every browser ("12,345"). */

@@ -80,6 +80,8 @@ select cron.schedule(
 
 **d) Any other cron service** (cron-job.org, UptimeRobot heartbeat…): call the same URL every ten minutes with the bearer header. Check that the service waits long enough for the response (up to five minutes).
 
+**e) The rank watch, every five minutes** (recommended: it is what gives each ranked game its LP on Match History). A second pg_cron schedule that calls only `/api/jobs/rank-watch`, with the secret kept in Supabase Vault: the SQL, what it costs and how to remove it are in [RANKED_PROGRESS.md](RANKED_PROGRESS.md#the-five-minute-schedule-supabase-pg_cron-free-one-time-setup-by-the-owner).
+
 Check **Admin → Data & Riot** after an hour: every job should show *ok* with a recent success time, and a *degraded* job's message is repeated there as a warning.
 
 ## 5. After the first deployment: validate against the real services
