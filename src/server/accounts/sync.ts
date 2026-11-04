@@ -51,14 +51,18 @@ export interface AccountSyncResult {
   /** Season history collection after the run. */
   history?: { season: number; complete: boolean; queuesDone: number; queues: number };
   /**
-   * The client's deadline stopped the run: it had passed, or Riot's rate limits would have kept
-   * the next request waiting past it (RiotDeadlineError). A run out of time, not a failure: what
-   * was collected is stored, and when nothing was the account is left exactly as it was. Callers
-   * stop here.
+   * The run's time ran out (its budget, or the client's deadline: it had passed, or Riot's rate
+   * limits would have kept the next request waiting past it), before any of the history was read
+   * or partway through it. Callers stop here. Without `error` it is a run out of time, not a
+   * failure: what was collected is stored, and when none of the history was read the account is
+   * not marked synced. With `error`, Riot failed on the way (see syncAccount): a failure, and the
+   * caller still stops.
    */
   outOfTime?: boolean;
-  /** Season match lists Riot answered in this run (none: the history was not read at all). */
+  /** Season match lists Riot answered in this run. */
   listsRead?: number;
+  /** A season match list that was due was left unread because the run's time ran out. */
+  listsLeftForTime?: boolean;
 }
 
 export interface AccountSyncOptions {
@@ -127,7 +131,10 @@ const RIOT_ID_RECHECK_MS = 20 * 3600_000;
 /**
  * Case A of a Riot ID change: the player renamed their account through Riot. The PUUID is the
  * identity, so the stored name simply follows Riot; games, mastery, statistics and ownership are
- * untouched. A failure here never fails the sync (the old name stays until the next check).
+ * untouched. A failure here does not fail a sync that goes on to read the history (the old name
+ * stays until the next check); it is returned (null when Riot answered), so a sync that then runs
+ * out of time before the history can report it. A refused key (401/403) and the deadline are
+ * thrown.
  */
 async function refreshRiotId(db: Db, client: RiotApiClient, account: RiotAccountRecord, puuid: string, platform: string, log: (line: string) => void): Promise<unknown> {
   try {
@@ -181,24 +188,28 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
     log(`${accountRef(account)}: ${f.message} (${(err as Error)?.message ?? err})`);
     return { ...result, error: f.message, status: f.status };
   };
-  // The client's deadline came before the account was read (RiotDeadlineError): a run out of
-  // time, not a failed attempt. Nothing about the account is written (no Pending, no retry
-  // back-off, no problem recorded against the key); the next run starts it again.
+  // The run's time ran out before the account was read, or before any of its history was: a run
+  // out of time, not a failed attempt. Nothing about the account's state is written (no Pending,
+  // no retry back-off, not marked synced, no problem recorded against the key); what the lookups
+  // stored (rank, mastery) is kept, and the next run starts it again.
   const stoppedForTime = (): AccountSyncResult => {
     log(`${accountRef(account)}: out of time before the account was read; the next run carries on`);
     const status = account.syncStatus === "ok" || account.syncStatus === "unresolved" || account.syncStatus === "failed" ? account.syncStatus : "pending";
     return { ...result, status, outOfTime: true };
   };
-  // The first failure of Riot (or the network) that a best-effort lookup below passed over: the
-  // Riot ID check, the active server, rank or mastery. Passing over it is right while the sync
-  // goes on to read the history; when the run then stops for time before any of it was read, it
-  // is the run's outcome (the account Pending with Riot's reason, the key's failure recorded),
-  // never a run out of time or, worse, a sync marked complete.
+  // Riot's (or the network's) failure that a best-effort lookup below passed over: the Riot ID
+  // check, the active server, rank or mastery. Passing over it is right while the sync goes on to
+  // read the history; when the run then runs out of time before any of it was read, it is the
+  // run's outcome (the account Pending with Riot's reason, the key's failure recorded), never a
+  // run out of time or, worse, a sync marked complete. A later lookup Riot answers clears it (Riot
+  // is answering again), and a rate limit (429) is not a failure of Riot: when it leaves no time,
+  // that is a run out of time.
   let riotFailure: unknown = null;
-  const passedOver = (err: unknown) => {
-    if (!riotFailure && err instanceof RiotApiError && err.retryable && !(err instanceof RiotDeadlineError)) riotFailure = err;
+  const lookupOutcome = (err: unknown) => {
+    if (err === null) riotFailure = null;
+    else if (err instanceof RiotApiError && err.retryable && err.status !== 429) riotFailure = err;
   };
-  const stoppedOrFailed = (): Promise<AccountSyncResult> | AccountSyncResult => (riotFailure ? fail(riotFailure, "sync") : stoppedForTime());
+  const stoppedOrFailed = async (): Promise<AccountSyncResult> => (riotFailure ? { ...(await fail(riotFailure, "sync")), outOfTime: true } : stoppedForTime());
 
   // A Riot account whose owner's personal data was erased is never read again (it can only be
   // here in a database restored from before the erasure and not reconciled yet).
@@ -245,13 +256,14 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
       }
       result.resolved = true;
     } else if (options.refreshRiotId !== false && (!account.riotIdCheckedAt || (options.now?.() ?? new Date()).getTime() - account.riotIdCheckedAt.getTime() > RIOT_ID_RECHECK_MS)) {
-      passedOver(await refreshRiotId(db, client, account, puuid, platform, log));
+      lookupOutcome(await refreshRiotId(db, client, account, puuid, platform, log));
     }
 
     // Which server does the account actually play on? Riot knows; the selector was a hint.
     if (platformSource !== "riot") {
       try {
         const answer = normaliseRiotRegionAnswer(await client.activePlatformByPuuid(platform, puuid));
+        lookupOutcome(null);
         if (answer) {
           if (answer !== platform) log(`${accountRef(account)}: Riot says ${platformLabel(answer)}, not ${platformLabel(platform)}; following Riot`);
           platform = answer;
@@ -262,7 +274,7 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
         }
       } catch (err) {
         if (err instanceof RiotDeadlineError || (err instanceof RiotApiError && (err.status === 401 || err.status === 403))) throw err;
-        passedOver(err);
+        lookupOutcome(err);
         log(`${accountRef(account)}: active-server lookup unavailable (${(err as Error).message}); keeping ${platformLabel(platform)}`);
       }
     }
@@ -272,6 +284,7 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
     // Rank snapshot (solo queue preferred, flex as fallback) and mastery.
     try {
       const entries = await client.leagueEntriesByPuuid(platform, puuid);
+      lookupOutcome(null);
       // Ranked progress: one snapshot per queue when it changed (the same answer, no extra request).
       await recordRankSnapshots(db, account.id, entries);
       // The stored rank: Solo/Duo first, Flex as fallback; Riot reporting neither (a season reset)
@@ -283,11 +296,12 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
       }
     } catch (err) {
       if (err instanceof RiotDeadlineError || (err instanceof RiotApiError && (err.status === 401 || err.status === 403))) throw err;
-      passedOver(err);
+      lookupOutcome(err);
       log(`${accountRef(account)}: rank lookup failed: ${(err as Error).message}`);
     }
     try {
       const masteries = await client.championMasteries(platform, puuid);
+      lookupOutcome(null);
       const keyToId = new Map((await db.select({ key: champions.key, id: champions.id }).from(champions)).map((c) => [c.key, c.id]));
       const rows = masteries
         .map((m) => ({ accountId: account.id, championId: keyToId.get(m.championId), points: m.championPoints, level: m.championLevel, lastPlayedAt: m.lastPlayTime ? new Date(m.lastPlayTime) : null }))
@@ -301,16 +315,17 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
       result.masteryRows = rows.length;
     } catch (err) {
       if (err instanceof RiotDeadlineError || (err instanceof RiotApiError && (err.status === 401 || err.status === 403))) throw err;
-      passedOver(err);
+      lookupOutcome(err);
       log(`${accountRef(account)}: mastery lookup failed: ${(err as Error).message}`);
     }
 
     // Match history: every supported queue, the whole current season, collected incrementally.
     const history = await collectSeasonHistory(db, client, { ...account, puuid, platform }, options, result, log);
-    // Time ran out before any of the history was read: this run did not sync the account, so it is
-    // not recorded as synced (no "ok", no new cursor, nothing said for the key). It stopped for time,
-    // unless Riot failed on the way, which is then the outcome.
-    if (!result.listsRead && (result.outOfTime || options.outOfTime?.())) return stoppedOrFailed();
+    // Time ran out before any of the history that was due could be read: this run did not sync the
+    // account, so it is not recorded as synced (no "ok", no new cursor, nothing said for the key).
+    // It stopped for time, unless Riot failed on the way, which is then the outcome. (A run with no
+    // list due, every queue checked lately and empty, is a sync like any other.)
+    if (result.listsLeftForTime && !result.listsRead) return stoppedOrFailed();
     await db.update(riotAccounts).set({ lastSyncAt: new Date(), syncStatus: "ok", syncError: null, resolveAttempts: 0, syncCursor: Math.floor(Date.now() / 1000), historyBackfill: history, updatedAt: new Date() }).where(eq(riotAccounts.id, account.id));
     result.history = summariseBackfill(history);
     await recordRiotOutcome(db, client, { ok: true });
@@ -539,12 +554,19 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
 
   // 1. New games first, every queue.
   for (const queueId of queueIds) {
-    if (!budgetLeft()) break;
     const q = state.queues[String(queueId)] ?? { offset: 0, done: false };
     const emptySoFar = q.done && q.offset === 0;
     if (emptySoFar && !options.recheckEmptyQueues && q.checkedAt && now.getTime() - new Date(q.checkedAt).getTime() < EMPTY_QUEUE_RECHECK_MS) continue;
+    if (!budgetLeft()) {
+      // This queue's newest page was due: a run out of time (or at its limit) leaves it for later.
+      if (fetched < limit) result.listsLeftForTime = true;
+      break;
+    }
     const page = await readPage(queueId, 0);
-    if (!page) break;
+    if (!page) {
+      result.listsLeftForTime = true;
+      break;
+    }
     q.checkedAt = now.toISOString();
     if (page.complete) {
       if (q.offset > 0 && (q.rescan || (page.ids === PAGE && page.fresh === PAGE))) {
@@ -672,7 +694,7 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
     state.previous = prev;
   }
   const games = Object.entries(state.queues).map(([id, q]) => `${id}:${q.offset}${q.done ? "" : "+"}`).join(" ");
-  log(`${accountRef(account)}: season ${season} history ${allDone ? "complete" : "in progress"} (${games}); fetched ${fetched}${deadlinePassed ? "; out of time (Riot's rate limits), the next run carries on" : ""}`);
+  log(`${accountRef(account)}: season ${season} history ${allDone ? "complete" : "in progress"} (${games}); fetched ${fetched}${deadlinePassed ? "; out of time (the run's deadline, or Riot's rate limits would have kept the next request waiting past it), the next run carries on" : ""}`);
   return state;
 }
 

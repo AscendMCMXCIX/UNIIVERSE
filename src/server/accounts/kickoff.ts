@@ -43,8 +43,9 @@ export async function kickoffAccountSync(db: Db, playerId: string, options: { ma
         r = await syncAccount(db, client, account, { maxMatchesPerRun: options.maxMatchesPerRun ?? 20, outOfTime });
       } finally {
         // Done with the account: give its lease back, so the profile the new member is likely
-        // looking at can carry its history on at its next render instead of 100 s later. Its
-        // last write is what makes the open page render again, and that comes after this.
+        // looking at can carry its history on at its next render instead of 100 s later. The
+        // release follows the sync's last write by one statement; the render that write causes
+        // comes at least one poll (10 s) and one server render later.
         await releaseLease(db, accountSyncLeaseKey(account.id), claimedAt);
       }
       if (r.outOfTime) break;
@@ -63,9 +64,13 @@ export const VIEW_REFRESH_BUDGET_MS = 40_000;
  * page has been sent: unverified accounts, accounts still adding this season's history and
  * accounts not refreshed for 15 minutes get one bounded sync (about 40 seconds, 60 matches).
  * The page asks every ten seconds while this runs and reads itself again when the data changed
- * (components/ui/freshness-watcher.tsx), and each render may start the next slice, so a new account
- * fills in while it is being watched and nobody needs a Retry button. A two-minute lease per player keeps slices from overlapping;
- * the per-account lease keeps them from overlapping the scheduler, a Refresh or the first sync.
+ * (components/ui/freshness-watcher.tsx), and each render may start the next slice. A two-minute
+ * lease per player keeps slices from overlapping; the per-account lease keeps them from
+ * overlapping the scheduler, a Refresh or the first sync. What this does not do: the page renders
+ * again only when its data changes, and a slice's last write lands while its own lease (or another
+ * sync's account lease) still stands, so once a slice is over the next one waits for a later data
+ * change or for the person to open the page again. A new account therefore fills in a slice per
+ * visit, and the scheduler (every run until the season history is complete) does the rest.
  */
 export async function refreshPlayerAccountsIfDue(db: Db, playerId: string, options: { deadlineMs?: number; maxMatchesPerRun?: number } = {}): Promise<number> {
   if (!backgroundRefreshEnabled()) return 0;

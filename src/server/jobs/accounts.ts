@@ -47,8 +47,9 @@ defineJob({
       }
       const r = await syncAccount(ctx.db, client, account, { outOfTime, log: ctx.log, season, maxMatchesPerRun: Number(process.env.ACCOUNT_SYNC_MATCHES_PER_RUN ?? 80) });
       results.push(r);
-      // Riot's rate limits would have kept a request waiting past the deadline: the next account
-      // would wait the same way, so stop here rather than claim it and leave it unsynced.
+      // The run's time ran out (its deadline came, or Riot's rate limits would have kept a request
+      // waiting past it): the next account would stop the same way, so stop here rather than claim
+      // it and leave it unsynced.
       if (r.outOfTime) break;
     }
     if (results.some((r) => r.matchesFolded > 0 || r.masteryRows > 0)) invalidateProficiencyCache();
@@ -57,9 +58,10 @@ defineJob({
     // player's Riot Accounts tab, and is retried every run: counting it would leave every run
     // degraded until someone acts, so it is counted apart. A run out of time is neither.
     const needsAttention = results.filter((r) => r.status === "failed" || r.status === "unresolved").length;
-    const failed = results.filter((r) => r.error && !r.outOfTime && r.status !== "failed" && r.status !== "unresolved").length;
+    // (A run that met Riot failing and then ran out of time is a failure: it carries error and outOfTime.)
+    const failed = results.filter((r) => r.error && r.status !== "failed" && r.status !== "unresolved").length;
     const stoppedForTime = results.some((r) => r.outOfTime);
-    if (stoppedForTime) ctx.log("out of time: Riot's rate limits would have kept the next request waiting past the run's budget; the next run carries on");
+    if (stoppedForTime) ctx.log("out of time: the run's deadline came, or Riot's rate limits would have kept the next request waiting past it; the next run carries on");
     return { ok: true, degraded: failed > 0, error: syncFailureSummary(failed, results.length), summary: { season, synced: results.length, skippedRecentlySynced: skipped, failed, needsAttention, stoppedForTime, folded: results.reduce((s, r) => s + r.matchesFolded, 0), fromRecords: results.reduce((s, r) => s + (r.matchesFromRecords ?? 0), 0), seasonHistoryComplete: results.filter((r) => r.history?.complete).length, seasonHistoryInProgress: results.filter((r) => r.history && !r.history.complete).length, requests: client.requestCount, rateLimits: describeRateLimits(client.limiters.configured) } };
   },
 });

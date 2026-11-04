@@ -83,9 +83,11 @@ export interface RiotClientOptions {
   /**
    * When the caller's work must end (ms since the epoch, as Date.now()). No request starts after
    * it, and none waits past it for the rate limits or a 429's Retry-After: such a request fails at
-   * once with RiotDeadlineError. A retry whose back-off would end past it is not waited for either:
-   * the network error or 5xx itself is thrown. A request already sent can still take up to
-   * `timeoutMs` beyond it, so work bound by it ends by the deadline plus one request's timeout.
+   * once with RiotDeadlineError. A request that met a network error or a 5xx and cannot be tried
+   * again in time (its back-off, or the wait for the rate limits after it, would end past the
+   * deadline, or the deadline has passed) throws that error instead. A request already sent can
+   * still take up to `timeoutMs` beyond it (its answer's body included), so work bound by a
+   * deadline ends by the deadline plus one request's timeout.
    * Every caller with a time budget (a job, a refresh) sets it; without one, requests wait.
    */
   deadline?: number;
@@ -178,8 +180,12 @@ export class RiotApiClient {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), this.timeoutMs);
       let res: Response;
+      // A successful answer's body is read under the same timeout as the request: a body that
+      // trickles in is abandoned like a request that hangs, so a request takes at most `timeoutMs`.
+      let text: string | null = null;
       try {
         res = await this.fetchImpl(this.url(host, path), { headers: { "X-Riot-Token": this.options.apiKey }, signal: controller.signal });
+        if (res.ok) text = await res.text();
       } catch (err) {
         clearTimeout(timer);
         failure = new RiotApiError(`Network error calling ${path}: ${(err as Error).message}`, 0, true);
@@ -199,6 +205,9 @@ export class RiotApiClient {
       }
 
       if (res.status === 429) {
+        // Riot answered: an earlier failure in this request is no longer the reason it may not be
+        // tried again in time. If the Retry-After leaves no time, that is a stop for time.
+        failure = null;
         const retryAfter = Number(res.headers.get("retry-after") ?? "2");
         limiter.pause(Number.isFinite(retryAfter) ? retryAfter : 2);
         if (attempt++ >= this.maxRetries) throw new RiotApiError(`Rate limited on ${path}`, 429, true);
@@ -214,7 +223,7 @@ export class RiotApiClient {
       if (!res.ok) {
         throw new RiotApiError(`Riot API ${res.status} on ${path}`, res.status, false);
       }
-      const json = await res.json();
+      const json: unknown = JSON.parse(text ?? "");
       const parsed = schema.safeParse(json);
       if (!parsed.success) throw new RiotApiError(`Unexpected response shape on ${path}: ${parsed.error.issues[0]?.message ?? "schema mismatch"}`, res.status, false);
       return parsed.data;

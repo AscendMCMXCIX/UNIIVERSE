@@ -3,7 +3,7 @@ import type { Db } from "@/server/db/types";
 import { accountMatches, appSettings, riotAccounts } from "@/server/db/schema";
 import { normaliseRiotKey, type RiotApiClient } from "@/server/riot/api/client";
 import { browserTestRiot } from "@/server/riot/browser-test";
-import { claimLease } from "@/server/jobs/background";
+import { accountSyncLeaseKey, claimLease, figuresCatchUpLeaseKey } from "@/server/jobs/background";
 import { listAccountsForPlayer } from "./repository";
 import { currentSeason, syncAccount } from "./sync";
 import { backfillFigures, pendingFiguresForPlayer } from "./figures-backfill";
@@ -23,7 +23,9 @@ export { CATCH_UP_LIMIT };
   refresh, Retry sync, a profile view's background refresh or the first sync after sign-up
   (server/accounts/kickoff.ts), first claims a per-account lease (one atomic upsert in
   app_settings): two of them never sync the same account at once, and an account checked within
-  the cooldown is not asked again by a refresh. Riot itself may take a few minutes after a game
+  the cooldown is not asked again by a refresh. The first sync after sign-up gives its claim back
+  as soon as it is done, so a Refresh, Retry sync, the scheduler or a view's slice may follow it at
+  once (their cooldown runs from their own claim). Riot itself may take a few minutes after a game
   ends before the game is listed, so a refresh can honestly find nothing new.
 */
 
@@ -39,9 +41,11 @@ export const REFRESH_COOLDOWN_MS = REFRESH_COOLDOWN_SECONDS * 1000;
  * other's season-history position. It stays under a view's two-minute slice lease
  * (VIEW_REFRESH_LEASE_MS, jobs/background.ts), and a slice dates its claims from its own start, so
  * a watched account's next slice is never refused by its own last one.
- * Not covered: a direct run of the account-sync job (Data jobs → account-sync, `pnpm job
- * account-sync`), whose budget is UNIIVERSE_JOB_BUDGET_MS, 240 s by default. A background sync may
- * join it on an account it has held for longer than this.
+ * Not covered, as they can hold an account for longer than this, so a background sync may join
+ * them: a direct run of the account-sync job (Data jobs → account-sync, `pnpm job account-sync`),
+ * whose budget is UNIIVERSE_JOB_BUDGET_MS, 240 s by default; and Retry sync on the Riot accounts
+ * tab (actions/accounts.ts), which has no deadline (it can wait out Riot's limits while the
+ * person waits, within the page function's 300 s).
  */
 export const SCHEDULED_SYNC_LEASE_MS = 100_000;
 /**
@@ -52,7 +56,7 @@ export const REFRESH_BUDGET_MS = 40_000;
 /** New games fetched per account per refresh (each one is one Riot request). */
 const REFRESH_MATCHES_PER_ACCOUNT = 15;
 
-export const accountSyncLeaseKey = (accountId: string) => `account_sync:${accountId}`;
+export { accountSyncLeaseKey, figuresCatchUpLeaseKey };
 
 /** A demo account's games are seeded, never read from Riot: neither the scheduler nor a refresh asks for it. */
 export const isSyncableAccount = (a: { label: string; syncStatus: string }) => a.label !== "demo" && a.syncStatus !== "demo";
@@ -192,7 +196,6 @@ export async function refreshPlayerMatches(db: Db, client: RiotApiClient, player
  * minute. Its Riot client carries the same deadline (actions/match-history.ts).
  */
 export const CATCH_UP_BUDGET_MS = 25_000;
-export const figuresCatchUpLeaseKey = (playerId: string) => `figures_catchup:${playerId}`;
 
 export type CatchUpOutcome =
   | { status: "fetched"; fetched: number; unavailable: number; remaining: number }

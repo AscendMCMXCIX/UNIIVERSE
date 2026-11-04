@@ -20,7 +20,13 @@ const LEASE_KEY = "tick_lease";
  * this long; the open page asks faster while the lease stands (server/ops/freshness.ts).
  */
 export const VIEW_REFRESH_LEASE_MS = 2 * 60_000;
+
+/** The leases' keys in app_settings, here so that erasure (privacy/erasure.ts) removes every one. */
 export const viewRefreshLeaseKey = (playerId: string) => `account_refresh:${playerId}`;
+/** One sync per Riot account at a time (server/accounts/refresh.ts claimAccountSync). */
+export const accountSyncLeaseKey = (accountId: string) => `account_sync:${accountId}`;
+/** One figures catch-up per player at a time (server/accounts/refresh.ts). */
+export const figuresCatchUpLeaseKey = (playerId: string) => `figures_catchup:${playerId}`;
 
 /** Minutes between visit-started ticks (UNIIVERSE_VISIT_TICK_MINUTES, default 30). */
 export function visitTickIntervalMinutes(): number {
