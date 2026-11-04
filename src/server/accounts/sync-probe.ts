@@ -22,9 +22,10 @@ export interface SyncProbe {
   /** Requests that failed in another way (no answer, or another answer), in order. */
   failures: Array<{ request: string; error: unknown }>;
   /**
-   * The request the client's deadline refused (RiotDeadlineError: the check's time ran out, or
-   * Riot's rate limits would have kept it waiting past the deadline). Asking stops there, so it
-   * and the requests after it were not asked.
+   * The request the check could not finish in time (RiotDeadlineError): its deadline came, or
+   * Riot's rate limits would have kept it waiting past it (a 429's Retry-After, possibly Riot's
+   * answer to this very request). Asking stops there: neither it nor the requests after it got an
+   * answer that says anything about the key.
    */
   outOfTime: string | null;
 }

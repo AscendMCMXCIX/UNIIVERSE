@@ -8,7 +8,7 @@ vi.mock("@/server/auth/session", async (orig) => ({ ...(await orig<object>()), r
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 
 import { testDb } from "./helpers";
-import type { DbHandle } from "@/server/db/create";
+import { createDb, type DbHandle } from "@/server/db/create";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
@@ -328,19 +328,33 @@ describe("the key check's time limit", () => {
   const env = { ...process.env };
   const savedPool = globalThis.__uniiverseRiotLimiters;
   const refused = () => new RiotApiError("Riot API 403", 403, false);
-  const record = async () => (await handle.db.select({ value: appSettings.value, updatedAt: appSettings.updatedAt }).from(appSettings).where(eq(appSettings.key, "riot-credential")))[0];
+  const record = async () => (await local.db.select({ value: appSettings.value, updatedAt: appSettings.updatedAt }).from(appSettings).where(eq(appSettings.key, "riot-credential")))[0];
   const stateFor = async () => {
     invalidateCache("riot-credential");
-    return getRiotCredentialStatus(handle.db, { RIOT_API_KEY: KEY });
+    return getRiotCredentialStatus(local.db, { RIOT_API_KEY: KEY });
   };
 
+  // The first two tests fake Node's timers, to move a clock while Riot "hangs". The Postgres
+  // driver keeps timers of its own, which the faked clock would fire while a query is in flight, so
+  // this block runs on its own in-memory PGlite database whatever TEST_DATABASE_URL says: what it
+  // checks is the client's and the probe's timing, not SQL. (Found by review: on Postgres 16 both
+  // tests failed their timing assertions.)
+  let local: DbHandle;
+  let savedDb: unknown;
   beforeAll(async () => {
+    local = await createDb({ mode: "pglite-memory" });
+    savedDb = state.db;
+    state.db = local.db;
     // Two more servers in use, each with a resolved account (seven requests each): more requests
     // than fit before the deadline when each hangs, whichever server the probe asks first.
-    const team = await getOrCreateTeam(handle.db);
-    const player = await createPlayer(handle.db, team.id, { displayName: "Far Away", primaryRole: "JUNGLE", primaryPool: [] });
-    await addAccount(handle.db, { ownerType: "player", playerId: player.id, riotId: "Far#KR1", platform: "kr", puuid: "puuid-far-kr" });
-    await addAccount(handle.db, { ownerType: "player", playerId: player.id, riotId: "Far#NA1", platform: "na1", puuid: "puuid-far-na" });
+    const team = await getOrCreateTeam(local.db);
+    const player = await createPlayer(local.db, team.id, { displayName: "Far Away", primaryRole: "JUNGLE", primaryPool: [] });
+    await addAccount(local.db, { ownerType: "player", playerId: player.id, riotId: "Far#KR1", platform: "kr", puuid: "puuid-far-kr" });
+    await addAccount(local.db, { ownerType: "player", playerId: player.id, riotId: "Far#NA1", platform: "na1", puuid: "puuid-far-na" });
+  });
+  afterAll(async () => {
+    state.db = savedDb;
+    await local.close();
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -379,7 +393,7 @@ describe("the key check's time limit", () => {
     globalThis.__uniiverseRiotLimiters = new RateLimiterPool([{ requests: 1000, seconds: 1 }]);
     const log: Log = { sent: [], abandoned: [] };
     vi.stubGlobal("fetch", hangingRiot(log));
-    await recordRiotOutcome(handle.db, { keyFingerprint: "…beef" }, { ok: false, error: refused() });
+    await recordRiotOutcome(local.db, { keyFingerprint: "…beef" }, { ok: false, error: refused() });
     return log;
   };
 
@@ -423,10 +437,10 @@ describe("the key check's time limit", () => {
     const log = await setUp();
     const before = await record();
     const startedAt = Date.now();
-    const { value: result, elapsed } = await onFakeClock(() => runJob(handle.db, "riot-check", "test", { budgetMs: 240_000 }), 120_000);
+    const { value: result, elapsed } = await onFakeClock(() => runJob(local.db, "riot-check", "test", { budgetMs: 240_000 }), 120_000);
     await expectStoppedInTime(log, startedAt, elapsed, before);
     expect(result).toMatchObject({ ok: true, degraded: true, summary: { state: "unavailable", statusCode: null } });
-    expect(result?.error).toMatch(/ran out of time before it asked/);
+    expect(result?.error).toMatch(/could not finish asking .* in time/);
     expect(result?.error).toMatch(/refusal stands/);
   }, 20_000);
 
@@ -440,7 +454,7 @@ describe("the key check's time limit", () => {
   }, 20_000);
 
   it("the probe stops at the first request the deadline refuses, and asks nothing after it", async () => {
-    const db = handle.db;
+    const db = local.db;
     await recordRiotOutcome(db, { keyFingerprint: "…beef" }, { ok: false, error: refused() });
     const before = await record();
     // A 429 paused every regional host for 90 s: the first request of the probe (ACCOUNT-V1, on a
@@ -455,7 +469,7 @@ describe("the key check's time limit", () => {
     c.keyFingerprint = "…beef";
     const check = await checkRiotCredential(db, c, "oc1");
     expect(check).toMatchObject({ ok: false, state: "unavailable", statusCode: null });
-    expect(check.message).toMatch(/ran out of time before it asked ACCOUNT-V1 by Riot ID on (asia|americas)/);
+    expect(check.message).toMatch(/could not finish asking ACCOUNT-V1 by Riot ID on (asia|americas) in time/);
     // Asking stopped there: no LEAGUE-V4 or mastery request on a server's own host after it.
     expect(seen).toEqual(["https://oc1.api.riotgames.com/lol/status/v4/platform-data"]);
     expect(await record()).toEqual(before);
@@ -463,7 +477,7 @@ describe("the key check's time limit", () => {
   });
 
   it("a stop for time before platform status answers records nothing, whatever was recorded", async () => {
-    const db = handle.db;
+    const db = local.db;
     const stalled = () => {
       let t = Date.now();
       const now = () => t;
@@ -481,7 +495,7 @@ describe("the key check's time limit", () => {
     let run = stalled();
     let check = await checkRiotCredential(db, run.c, "oc1");
     expect(check).toMatchObject({ ok: false, state: "unavailable", statusCode: null });
-    expect(check.message).toMatch(/ran out of time/);
+    expect(check.message).toMatch(/could not ask platform status .* in time/);
     expect(run.seen).toEqual([]);
     expect(await record()).toEqual(before);
     expect((await stateFor()).state).toBe("accepted");
