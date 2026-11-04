@@ -1,7 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { matchTimelines } from "@/server/db/schema";
-import { RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
+import { RiotApiError, RiotDeadlineError, type RiotApiClient } from "@/server/riot/api/client";
 import { SYNC_QUEUE_IDS } from "./sync";
 import { completedTimeline, keptTimeline, timelineRow } from "./match-timeline";
 
@@ -75,6 +75,12 @@ export async function backfillTimelines(db: Db, client: RiotApiClient, options: 
       row = await keptTimeline(db, timelineRow(matchId, platform, await client.matchTimeline(platform, matchId)));
       result.fetched += 1;
     } catch (err) {
+      if (err instanceof RiotDeadlineError) {
+        // The client's deadline: Riot's rate limits would have kept the request waiting past the
+        // run's budget. The same stop as the time check above, nothing recorded.
+        result.stoppedBy = "time budget";
+        break;
+      }
       if (err instanceof RiotApiError && err.status === 404) {
         row = timelineRow(matchId, platform, null);
         result.unavailable += 1;

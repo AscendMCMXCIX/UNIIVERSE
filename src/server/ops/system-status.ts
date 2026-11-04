@@ -2,6 +2,7 @@ import type { Db } from "@/server/db/types";
 import { getAuthState } from "@/server/auth/session";
 import { getDbHandle } from "@/server/db/client";
 import { getDataHealth, type DataHealth } from "@/server/ops/status";
+import { failuresInARow } from "@/server/ops/refresh-status";
 import { deploymentInfo } from "@/server/ops/deployment";
 import { systemStatus } from "@/domain/system-health";
 import { sql } from "drizzle-orm";
@@ -24,7 +25,7 @@ export async function loadSystemStatus(db: Db): Promise<{ items: ReturnType<type
     website: { commit: deployment.commit, region: deployment.region, authMode: auth.mode },
     database: { mode: handle.mode, pingMs },
     answers: health.answers,
-    jobs: { lastRunAt: times.length ? new Date(Math.max(...times.map((d) => d.getTime()))) : null, failing: health.jobs.filter((j) => j.status === "failed" && j.consecutiveFailures >= 3).map((j) => j.key), everRan: times.length > 0 },
+    jobs: { lastRunAt: times.length ? new Date(Math.max(...times.map((d) => d.getTime()))) : null, failing: health.jobs.filter((j) => failuresInARow(j) >= 3).map((j) => j.key), everRan: times.length > 0 },
   });
   return { items, health };
 }
