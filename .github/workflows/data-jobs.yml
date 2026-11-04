@@ -20,9 +20,10 @@
 # A scheduled run also reads /api/health and fails when production is unwell (the app or database
 # down, a job failing three times in a row, or no account sync for 12 hours), or when yesterday's
 # database egress went over its daily budget (the "egress" job), so GitHub's failed-workflow email
-# is the alert (docs/MONITORING.md). When health lists "riot-key" (Riot rejected the API key), the
-# run first asks Riot again with one riot-check request: a key Riot accepts now is a warning, not a
-# failure; any other answer, or none, fails the run as before and names the re-check's result.
+# is the alert (docs/MONITORING.md). When health lists "riot-key" (Riot refused a request under the
+# API key), the run first asks again with one riot-check call: "accepted" (Riot accepts the key and
+# the requests an account sync makes) is a warning, not a failure; any other answer, or none, fails
+# the run as before and names the re-check's result.
 # GitHub also disables scheduled workflows after 60 days without commits; re-enable it under the
 # Actions tab if that happens. Set the repository variable DATA_JOBS_ENABLED=false to pause it.
 name: Data jobs
@@ -129,11 +130,14 @@ jobs:
           # failing three times in a row, or no successful account sync for SYNC_STALE_HOURS.
           if [ "$EVENT" = "schedule" ]; then
             health="$(curl --silent --max-time 60 "$APP_URL/api/health" || true)"
-            # "riot-key" stays listed after Riot rejected the key until a request under it succeeds,
-            # which after a short Riot-side 401/403 incident can take hours (the accounts back off).
-            # So the run asks Riot once (riot-check, which records the answer) before failing on it.
-            # Only .summary.state is read: the answer also names the key's fingerprint, so it is
-            # never printed. Health is not read again (the app caches the key's state for 30 s).
+            # "riot-key" stays listed after Riot refused a request under the key (401/403) until Riot
+            # accepts one again; a failure with no answer (5xx, 429, network) leaves it listed. After
+            # a short Riot-side incident that can take hours, as the accounts back off, so the run
+            # asks riot-check once (it records the answer) before failing on it. riot-check answers
+            # "accepted" only when Riot accepts the key and each request an account sync makes, so
+            # one API or routing host that Riot refuses on its own still fails the run. Only
+            # .summary.state is read: the answer also names the key's fingerprint, so it is never
+            # printed. Health is not read again (the app caches the key's state for 30 s).
             recheck=""
             if printf '%s' "$health" | jq -e --arg job riot-key 'any(.failingJobs[]?; . == $job)' >/dev/null 2>&1; then
               answer="$(curl --silent --max-time 45 -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/jobs/riot-check" || true)"
@@ -143,7 +147,7 @@ jobs:
               unset answer
               if [ "$recheck" = "accepted" ]; then
                 health="$(printf '%s' "$health" | jq -c --arg job riot-key '.failingJobs -= [$job]' 2>/dev/null || true)"
-                echo "::warning::Riot had rejected the API key earlier and accepts it now (re-checked with riot-check)."
+                echo "::warning::Riot had refused a request under the API key and accepts the key and the account sync's requests now (re-checked with riot-check)."
               fi
             fi
             problem="$(printf '%s' "$health" | jq -r --argjson hours "$SYNC_STALE_HOURS" '

@@ -3,6 +3,7 @@ import type { Db } from "@/server/db/types";
 import { appSettings } from "@/server/db/schema";
 import { RiotApiError, normaliseRiotKey, riotKeyFingerprint, type RiotApiClient } from "@/server/riot/api/client";
 import { cachedFor, invalidateCache } from "@/server/observability/cache";
+import { probeSyncRequests } from "@/server/accounts/sync-probe";
 
 /*
   Riot credential health. Every place that talks to Riot with a database at hand records the
@@ -39,6 +40,11 @@ interface Stored {
   lastStatusCode: number | null;
   /** The last outcome, so a rejection after a success is not hidden by the older success. */
   lastOutcome: "ok" | "error" | null;
+  /**
+   * The request refused while Riot accepted the key itself (an API and its routing host, as the
+   * key check's sync probe names it), when that was the last outcome; absent otherwise.
+   */
+  refusedRequest?: string | null;
 }
 
 /** Classifies a Riot failure for the credential record. */
@@ -59,17 +65,28 @@ async function readStored(db: Db): Promise<Stored | null> {
   return (row?.value as Stored | undefined) ?? null;
 }
 
-/** Records the outcome of a Riot interaction. Cheap: one upsert, called per job run or per account sync, never per request. */
-export async function recordRiotOutcome(db: Db, client: RiotApiClient | { keyFingerprint?: string }, outcome: { ok: boolean; error?: unknown }): Promise<void> {
+/** A refusal (401/403) recorded as the last outcome under this key (a record without a fingerprint counts, as in getRiotCredentialStatus). */
+const refusalRecordedFor = (s: Stored | null, fingerprint: string | null | undefined): boolean =>
+  !!s && s.lastOutcome === "error" && (s.lastStatusCode === 401 || s.lastStatusCode === 403) && (!s.fingerprint || !fingerprint || s.fingerprint === fingerprint);
+
+/**
+ * Records the outcome of a Riot interaction. Cheap: one upsert, called per job run or per account
+ * sync, never per request. A failure that is no answer from Riot (a rate limit, a 5xx, a network
+ * error) does not replace a refusal recorded under the same key: Riot's last answer was a refusal,
+ * and only an answer says otherwise. `refusedRequest` (with a 401/403 `error`) names the one
+ * request Riot refused while it accepted the key; `message` then replaces the usual wording.
+ */
+export async function recordRiotOutcome(db: Db, client: RiotApiClient | { keyFingerprint?: string }, outcome: { ok: boolean; error?: unknown; message?: string; refusedRequest?: string }): Promise<void> {
   try {
-    const previous = (await readStored(db)) ?? { fingerprint: null, lastOkAt: null, lastErrorAt: null, lastError: null, lastStatusCode: null, lastOutcome: null };
+    const previous: Stored = (await readStored(db)) ?? { fingerprint: null, lastOkAt: null, lastErrorAt: null, lastError: null, lastStatusCode: null, lastOutcome: null };
     const now = new Date().toISOString();
     const fingerprint = client.keyFingerprint ?? previous.fingerprint;
     let next: Stored;
-    if (outcome.ok) next = { ...previous, fingerprint, lastOkAt: now, lastOutcome: "ok" };
+    if (outcome.ok) next = { ...previous, fingerprint, lastOkAt: now, lastOutcome: "ok", refusedRequest: null };
     else {
-      const c = typeof outcome.error === "string" ? { statusCode: null, message: outcome.error } : classifyRiotFailure(outcome.error);
-      next = { ...previous, fingerprint, lastErrorAt: now, lastError: c.message, lastStatusCode: c.statusCode, lastOutcome: "error" };
+      const c = typeof outcome.error === "string" ? { state: "unavailable" as const, statusCode: null, message: outcome.error } : classifyRiotFailure(outcome.error);
+      if (c.state === "unavailable" && refusalRecordedFor(previous, fingerprint)) return;
+      next = { ...previous, fingerprint, lastErrorAt: now, lastError: outcome.message ?? c.message, lastStatusCode: c.statusCode, lastOutcome: "error", refusedRequest: outcome.refusedRequest ?? null };
     }
     await db.insert(appSettings).values({ key: KEY, value: next, updatedAt: new Date() }).onConflictDoUpdate({ target: appSettings.key, set: { value: next, updatedAt: new Date() } });
     invalidateCache("riot-credential");
@@ -103,6 +120,9 @@ export async function getRiotCredentialStatus(db: Db, env: Record<string, string
       } else if (!stored || !sameKey || (!lastOkAt && !lastErrorAt)) {
         state = "unknown";
         advice = "No Riot request has been recorded under this key yet. Run the Riot key check (Settings → Data jobs → riot-check) or link an account.";
+      } else if (stored.lastOutcome === "error" && (lastStatusCode === 401 || lastStatusCode === 403) && stored.refusedRequest) {
+        state = "rejected";
+        advice = `Riot accepts this key for its platform status but refused ${stored.refusedRequest}, a request the account sync makes, so linked accounts stay Pending. An expired or revoked key fails every request, so this is not one: the routing value may not serve that request, Riot may no longer serve that endpoint, or the key may have no access to that API. Check key now asks again.`;
       } else if (stored.lastOutcome === "error" && (lastStatusCode === 401 || lastStatusCode === 403)) {
         state = "rejected";
         advice = "Riot rejected this key. Generate a new development key (or use an approved production key) at developer.riotgames.com, replace RIOT_API_KEY in Vercel → your project → Settings → Environment Variables (Production), then redeploy. Linked accounts stay Pending and sync automatically afterwards.";
@@ -118,15 +138,50 @@ export async function getRiotCredentialStatus(db: Db, env: Record<string, string
   );
 }
 
-/** One cheap authenticated request to find out whether the key is accepted right now. */
+/**
+ * Whether the key is accepted right now: one cheap authenticated request (platform status). While
+ * a refusal (401/403) is recorded under this key, Riot accepting platform status is not enough to
+ * clear it, as Riot may refuse one API or one routing host the sync needs and nothing else: the
+ * check then also asks the requests an account sync makes (probeSyncRequests), and the key is
+ * recorded as accepted only when Riot answers each of them and refuses none. The scheduled Data jobs run relies on
+ * that: it drops "riot-key" when this check says "accepted".
+ */
 export async function checkRiotCredential(db: Db, client: RiotApiClient, platform: string): Promise<{ ok: boolean; state: CredentialState; message: string; statusCode: number | null }> {
+  const refusalRecorded = refusalRecordedFor(await readStored(db), client.keyFingerprint);
+  let accepted = `Riot accepted the key (platform status for ${platform} answered)`;
+  let statusCode = 200;
   try {
     await client.platformStatus(platform);
-    await recordRiotOutcome(db, client, { ok: true });
-    return { ok: true, state: "accepted", message: `Riot accepted the key (platform status for ${platform} answered).`, statusCode: 200 };
   } catch (err) {
-    await recordRiotOutcome(db, client, { ok: false, error: err });
     const c = classifyRiotFailure(err);
-    return { ok: false, state: c.state, message: c.message, statusCode: c.statusCode };
+    // Another answer (a 404) also means the key was accepted; after a refusal it is no more proof
+    // than a 200, so the sync's requests are asked below as well.
+    if (!(refusalRecorded && c.state === "accepted")) {
+      await recordRiotOutcome(db, client, { ok: false, error: err });
+      const stands = refusalRecorded && c.state === "unavailable" ? " Riot's earlier refusal stands until it answers." : "";
+      return { ok: false, state: c.state, message: `${c.message}${stands}`, statusCode: c.statusCode };
+    }
+    accepted = `Riot accepted the key (platform status for ${platform} answered ${c.statusCode})`;
+    statusCode = c.statusCode ?? statusCode;
   }
+  if (!refusalRecorded) {
+    await recordRiotOutcome(db, client, { ok: true });
+    return { ok: true, state: "accepted", message: `${accepted}.`, statusCode: 200 };
+  }
+  const probe = await probeSyncRequests(db, client);
+  if (probe.refused) {
+    const { request, error } = probe.refused;
+    const message = `${accepted}, but refused ${request} with ${error.status} for a linked account: a request the account sync makes, so linked accounts stay Pending. An expired or revoked key fails every request, platform status included.`;
+    await recordRiotOutcome(db, client, { ok: false, error, message, refusedRequest: request });
+    return { ok: false, state: "rejected", message, statusCode: error.status };
+  }
+  const unanswered = probe.failures.find((f) => classifyRiotFailure(f.error).state === "unavailable");
+  if (unanswered) {
+    // Not recorded: a request with no answer never replaces the refusal (recordRiotOutcome).
+    const c = classifyRiotFailure(unanswered.error);
+    return { ok: false, state: "unavailable", message: `${accepted}, but ${unanswered.request} did not get through. ${c.message} Riot's earlier refusal stands until that request is answered.`, statusCode: c.statusCode };
+  }
+  await recordRiotOutcome(db, client, { ok: true });
+  const asked = probe.accounts > 0 ? ` and the requests an account sync makes (one linked account per server in use: ${probe.accounts})` : "";
+  return { ok: true, state: "accepted", message: `${accepted}${asked}.`, statusCode };
 }

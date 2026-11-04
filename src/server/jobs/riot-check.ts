@@ -5,11 +5,13 @@ import { checkRiotCredential } from "@/server/riot/credential";
 /**
  * Riot key check: one request, no data stored beyond the credential record. Run it from Settings
  * or the data-jobs workflow to see whether the configured key is accepted, without waiting for
- * the next account sync to fail.
+ * the next account sync to fail. While Riot's refusal of a request is recorded, it also asks the
+ * requests an account sync makes before it records the key as accepted (checkRiotCredential): the
+ * scheduled Data jobs run asks it once when health lists "riot-key", and its "accepted" clears it.
  */
 defineJob({
   key: "riot-check",
-  description: "Check whether the configured Riot API key is accepted (one cheap request; records the credential status for Data health).",
+  description: "Check whether the configured Riot API key is accepted (one cheap request, plus the requests an account sync makes while a refusal is recorded; records the credential status for Data health).",
   defaultIntervalMinutes: null,
   allowConcurrent: true,
   run: async (ctx) => {
