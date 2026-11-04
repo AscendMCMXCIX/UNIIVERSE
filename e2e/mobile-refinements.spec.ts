@@ -30,7 +30,9 @@ test("small text links have a 44px hit area on touch screens", async ({ page }) 
   const link = page.getByTestId("settings-mode-switch");
   await expect(link).toBeVisible();
   expect(await link.evaluate((e) => getComputedStyle(e, "::after").height)).toBe("44px");
-  // Tapping just above the text still follows the link.
+  // Tapping just above the text still follows the link (in the middle of the screen: on a phone
+  // the link starts below the fold, and the tab bar covers the bottom edge).
+  await link.evaluate((e) => e.scrollIntoView({ block: "center" }));
   const box = (await link.boundingBox())!;
   await page.touchscreen.tap(box.x + box.width / 2, box.y - 8);
   await expect(page).toHaveURL(/\/admin/);
