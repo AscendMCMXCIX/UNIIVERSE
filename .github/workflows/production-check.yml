@@ -11,8 +11,9 @@
 # UNIIVERSE_VERIFY_USER and UNIIVERSE_VERIFY_PASSWORD exist (a non-admin account kept off the
 # roster); until then they are reported as pending, never as a failure.
 # The daily run also checks that a database backup passed within the last 8 days and the database's
-# size against its plan (DB_PLAN_MB, default 512: a warning from 80%, a failure from 95%), and on
-# Mondays runs the perf probe (about 6 MB of database egress, docs/HOSTING_USAGE.md).
+# size against its plan (DB_PLAN_MB, default 500: the free plan's 0.5 GB in decimal megabytes, the
+# safer reading). From 80% it opens one database-size issue, once, with the remedy; from 95% the
+# check fails too. On Mondays it runs the perf probe (about 6 MB of egress, docs/HOSTING_USAGE.md).
 # A failure opens one issue labelled production-check (or comments on the open one) with what failed
 # and the run's link; the next passing run closes it (scripts/report-issue.sh). About 3 Actions
 # minutes a run (docs/CI_USAGE.md).
@@ -89,7 +90,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          DB_PLAN_MB: ${{ vars.DB_PLAN_MB || '512' }}
+          DB_PLAN_MB: ${{ vars.DB_PLAN_MB || '500' }}
         run: |
           status=0
           {
@@ -111,7 +112,11 @@ jobs:
               mb="$(curl --silent --max-time 120 -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/jobs/db-usage" | jq -r '.summary.databaseMb // empty' 2>/dev/null || true)"
               if [ -z "$mb" ]; then echo "- FAIL: the database's size could not be read (db-usage)."; status=1
               else
+                # db-usage reports binary megabytes (MiB); the plan is read in decimal ones.
+                mb=$(( mb * 1048576 / 1000000 ))
                 pct=$(( mb * 100 / DB_PLAN_MB ))
+                echo "db_mb=$mb" >> "$GITHUB_OUTPUT"
+                echo "db_pct=$pct" >> "$GITHUB_OUTPUT"
                 if [ "$pct" -ge 95 ]; then echo "- FAIL: the database is $mb MB, $pct% of its $DB_PLAN_MB MB plan."; status=1
                 elif [ "$pct" -ge 80 ]; then echo "- warning: the database is $mb MB, $pct% of its $DB_PLAN_MB MB plan (docs/HOSTING_USAGE.md)."; echo "::warning::The database is $mb MB, $pct% of its $DB_PLAN_MB MB plan."
                 else echo "- ok: the database is $mb MB, $pct% of its $DB_PLAN_MB MB plan."; fi
@@ -153,7 +158,27 @@ jobs:
           DATA: ${{ steps.data.outcome }}
           EVENT: ${{ github.event_name }}
           COMMIT: ${{ github.event.deployment.sha || github.sha }}
+          DB_MB: ${{ steps.data.outputs.db_mb }}
+          DB_PCT: ${{ steps.data.outputs.db_pct }}
+          DB_PLAN_MB: ${{ vars.DB_PLAN_MB || '500' }}
         run: |
+          # The database's size: one issue from 80% of the plan, opened once since it grows slowly
+          # (about 2 MB a day), commented on from 95%, and closed once it is under 80% again.
+          if [ -n "$DB_PCT" ]; then
+            size_title="The database is nearing its plan's size limit"
+            if [ "$DB_PCT" -ge 80 ]; then
+              size_open="$(gh issue list --repo "$GITHUB_REPOSITORY" --label database-size --state open --limit 1 --json number --jq '.[0].number // empty' 2>/dev/null || true)"
+              if [ "$DB_PCT" -ge 95 ] || [ -z "$size_open" ]; then
+                printf '%s\n\n%s\n\n%s\n' \
+                  "The database is $DB_MB MB, $DB_PCT% of its $DB_PLAN_MB MB plan ($RUN_URL). It grows by about 2 MB a day (docs/HOSTING_USAGE.md); at the plan's limit Supabase can make it read only." \
+                  "The remedy needs you: the retired tables hold about 217 MB (#86 and #138 drop them). Before they merge, check that your own copy of the backup passphrase opens the latest Database backup's artifact (docs/BACKUPS.md), then approve the drops." \
+                  "This issue closes by itself once the database is under 80% again." > size-issue.md
+                scripts/report-issue.sh database-size "$size_title" fail size-issue.md
+              fi
+            else
+              scripts/report-issue.sh database-size "$size_title" ok
+            fi
+          fi
           if [ "$LIVE" = "failure" ] || [ "$DATA" = "failure" ]; then
             {
               echo "The production check failed ($EVENT, commit ${COMMIT:0:7}): $RUN_URL"
