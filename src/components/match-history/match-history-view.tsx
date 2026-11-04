@@ -78,6 +78,14 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
   const roleName = row.role ? ROLE_LABELS[row.role as Role] : null;
   const standout = row.standout;
   const standoutTitle = standout ? `Your highest ${standout.label} in your last ${standout.games} ${QUEUE_GROUP_WORDS[queueGroup(row.queueId)]} games${roleName ? ` as ${roleName}` : ""}: ${figureText(standout.key, standout.value)} (the highest before: ${figureText(standout.key, standout.top)})` : undefined;
+  /** "Best vision/min in 22": one chip, shown beside the KDA on wide cards and in the figures' row on narrow ones. */
+  const standoutChip = (className: string) =>
+    standout ? (
+      <span className={cn("whitespace-nowrap rounded border border-accent/40 px-1 text-2xs font-semibold leading-4 text-accent", className)} title={standoutTitle} data-testid="match-standout" data-key={standout.key}>
+        Best {STANDOUT_SHORT[standout.key]} in {standout.games}
+        <span className="sr-only">: {standoutTitle}</span>
+      </span>
+    ) : null;
   const open = React.useRef<HTMLButtonElement>(null);
   return (
     <li id={`match-${row.matchId}`} className="scroll-mt-16 lg:scroll-mt-3" data-testid="match-item" data-expanded={expanded || undefined}>
@@ -163,16 +171,13 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
           <span className="text-right leading-snug @min-[50rem]/mh:text-left">
             <span className="block whitespace-nowrap text-base font-semibold tabular-nums leading-snug text-fg @min-[50rem]/mh:text-lg">{kda}</span>
             <span className={cn("block text-xs tabular-nums", row.perfect ? "text-good" : (row.kda ?? 0) >= 3 ? "text-fg-muted" : "text-fg-subtle")}>{ratio}</span>
-            {/* The game's largest multikill, quietly (see MultikillTag), and at most one "best" figure. */}
+            {/* The game's largest multikill, quietly (see MultikillTag), and at most one "best" figure.
+                A narrow card puts the best figure in the figures' row instead: beside the KDA it
+                widened this column and cut the queue and time off the line beside it. */}
             {row.multikill || standout ? (
-              <span className="mt-0.5 flex flex-wrap items-center justify-end gap-x-1.5 gap-y-0.5 @min-[50rem]/mh:justify-start">
+              <span className={cn("mt-0.5 flex-wrap items-center justify-end gap-x-1.5 gap-y-0.5 @min-[50rem]/mh:justify-start", row.multikill ? "flex" : "hidden @min-[50rem]/mh:flex")}>
                 {row.multikill ? <MultikillTag size={row.multikill} /> : null}
-                {standout ? (
-                  <span className="whitespace-nowrap rounded border border-accent/40 px-1 text-2xs font-semibold leading-4 text-accent" title={standoutTitle} data-testid="match-standout" data-key={standout.key}>
-                    Best {STANDOUT_SHORT[standout.key]} in {standout.games}
-                    <span className="sr-only">: {standoutTitle}</span>
-                  </span>
-                ) : null}
+                {standoutChip("hidden @min-[50rem]/mh:inline")}
               </span>
             ) : null}
           </span>
@@ -181,6 +186,7 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
             <Stat label="KP" value={kp} />
             <Stat label="CS/min" value={fmtNum(row.csPerMin)} extra={row.cs === null ? null : formatCount(row.cs)} title={row.cs === null ? undefined : `${formatCount(row.cs)} CS in the game`} testId="match-cs" />
             <Stat label="dmg/min" value={fmtInt(row.damagePerMin)} extra={row.damageShare === null ? null : `${Math.round(row.damageShare * 100)}%`} title={row.damage === null ? undefined : `${formatCount(row.damage)} damage to champions${row.damageShare === null ? "" : `, ${Math.round(row.damageShare * 100)}% of the team's`}`} testId="match-damage" />
+            {standoutChip("self-center @min-[50rem]/mh:hidden")}
           </span>
           {/* The build: its own row on phones, a compact block on wide cards (left to the
               breakdown when the list is too narrow for it beside the teams); on narrower cards it
