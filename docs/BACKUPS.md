@@ -2,19 +2,22 @@
 
 A backup only counts once it has been restored and checked. This page says how to take one and how to prove it works. It costs nothing on the free plans.
 
-**Status (20 Oct 2026):** no automatic backup has run yet.
-- Supabase's free plan includes no automatic backups and no point-in-time recovery; both come with paid plans. The project's own Backups page was not checked for this note.
-- Nothing outside Supabase holds a copy, and no restore has ever been tested against production data.
-- The weekly encrypted backup with an automatic restore check (below) was approved (audit decision 5). It runs once the owner has created the read-only role and the two repository secrets (one-time setup, below); until then each scheduled run fails and says so.
-- The whole process (role, privilege check, dump, restore check, encryption, then opening and restoring the encrypted file by the steps on this page) was rehearsed on a local Postgres with Row Level Security on every table, as on production.
-- Until the first run succeeds, take a backup by hand before any migration that changes or removes data. The retired tables are not dropped before a production backup has succeeded.
+**Status (21 Oct 2026):** the first production backup succeeded, and restoring it matched production.
+- **The run:** Database backup run #3, 21 Oct 2026 at 22:25 UTC, on `main` at f15cd85 ([run 39686307330](https://github.com/AscendMCMXCIX/UNIIVERSE/actions/runs/39686307330)), after the owner created the read-only role and the two repository secrets (one-time setup, below).
+- **Role check passed:** `uniiverse_backup` is not a superuser, bypasses Row Level Security, starts every session read-only, owns nothing, and could read all 69 tables and write none.
+- **Restore check passed:** the dump (69 tables, 56 MB) was restored into a throw-away PostgreSQL 17 and matched production: 1 team, 16 users, 15 players, 18 Riot accounts, 7,208 match details, newest migration `0054_web_vitals`.
+- **The copy:** encrypted with AES-256, 55 MB, kept as the run's artifact `database-backup-39686307330` until 18 Nov 2026. From now on it runs every Monday at 02:43 UTC, the first on 26 Oct.
+- **Weekly runs since then:** 26 Oct and 2 Nov 2026 both passed every check. The 2 Nov copy ([run 41424554552](https://github.com/AscendMCMXCIX/UNIIVERSE/actions/runs/41424554552)) is 67 MB encrypted and kept until 30 Nov 2026.
+- **Growth:** the encrypted copy grew from 55 MB (21 Oct) to 67 MB (2 Nov), about 1 MB a day. At that pace the run's 100 MB limit (Limits, below) is reached in early December. Dropping the retired tables shrinks it; raising `max_mb` is the other way.
+- **Not yet done:** the owner's own check (one-time setup, step 4): download a backup, open it with the passphrase from the password manager, and keep that file offline. The retired tables are not dropped (#86, #138) until the owner confirms both.
+- Supabase's free plan includes no automatic backups and no point-in-time recovery; both come with paid plans. The project's own Backups page was not checked for this note, so these weekly copies are the ones to rely on.
 
 ## What is worth keeping
 
 All of it lives in the one Postgres database:
 - **Accounts:** usernames, password hashes, sessions, access levels, the admin activity record.
 - **The team:** players, pools, lineups and substitutes, branding.
-- **Game data:** linked Riot accounts, stored games and match details, Solo Queue Blocks.
+- **Game data:** linked Riot accounts, stored games and match details, and the records kept from the retired Ranked Development (sessions, reviews, objectives and plans) until their clean-up.
 
 Riot's static data (champions, patches, skins) can be fetched again, but restoring it with the rest is simpler.
 
@@ -67,9 +70,46 @@ Supabase-only roles and extensions may print warnings during the restore. They d
 This replaces live data, so do it only with the owner's explicit decision. Have a fresh backup of the current state first, even a damaged one.
 1. Restore into a new Supabase project, or into an empty schema, and point a test deployment at it.
 2. Check it with the steps above and by signing in.
-3. Only then switch `DATABASE_URL` in Vercel and redeploy.
+3. Apply the newest erasure records ("Restoring after an erasure" below).
+4. Only then switch `DATABASE_URL` in Vercel and redeploy.
 
 Never restore over the live database in place.
+
+## Backups and permanent removal
+
+Erasing someone's personal data (Admin Mode → Users & Permissions → Personal data; `docs/PRIVACY.md`) removes it from the live database at once. Copies made before the erasure still hold it:
+- **GitHub's copies** expire on their own: each weekly artifact is deleted 28 days after its run. Nothing to do.
+- **An offline copy** (one the owner downloaded and keeps) is never deleted by GitHub. Keep one offline copy at a time: replace it with a newer one every few weeks and before risky changes, and delete the one it replaces. Until it is replaced, an offline copy made before an erasure keeps that person's data.
+- **The erasure records** are what keep a restore from bringing anyone back. Each erasure leaves a record of keyed codes, never a name or Riot ID, in the database itself (`privacy_erasures`, backed up like every table). A backup made *before* an erasure cannot contain that erasure's record. So after each erasure:
+  1. export the records: Personal data → **Export records**, or `pnpm privacy:records export > erasures-YYYY-MM-DD.json` with `DATABASE_URL` pointing at production;
+  2. keep the file with the offline copy.
+
+  The file names no one, and it is useless without `UNIIVERSE_AUTH_SECRET`.
+- **`UNIIVERSE_AUTH_SECRET` belongs with the backups.** The records are keyed with it, so keep it in the password manager next to `BACKUP_PASSPHRASE`. If it is ever replaced, the older records show "Cannot be applied". Everyone they covered must then be erased again by Riot ID (Personal data → **Erase a former member**).
+
+### Restoring after an erasure (tested)
+
+Whenever any backup is restored, into production or a copy, apply the newest erasure records before anyone uses the restored database:
+1. Restore into a new database, as in "Restoring production" above.
+2. Set `DATABASE_URL` to the restored database and `UNIIVERSE_AUTH_SECRET` to production's, then run:
+
+   ```sh
+   pnpm privacy:records import erasures-YYYY-MM-DD.json
+   ```
+
+   - It adds the records the backup lacks (a release made since is kept).
+   - It then re-applies every record to the whole database: accounts, profiles, games, scouts, notes and logs that name an erased person are erased or de-identified again.
+   - It prints what it found, and fails if a record cannot be applied.
+
+   Instead, once a deployment points at the restored database and an administrator can sign in: Personal data → **Import records**, which also re-applies them.
+3. Check before going further:
+   - Personal data lists every record as "In force" or "Released", none as "Cannot be applied";
+   - a Data jobs `erasure-reconcile` run against that deployment reports nothing found again.
+4. Only then switch production to it.
+
+The daily `integrity` job also re-applies the records to anything stored in the last two days, as a safety net. It is not a substitute for step 2.
+
+`tests/db/privacy-erasure.test.ts` ("re-applies the erasure to a restored backup taken before it, from the exported records") runs this procedure: a database put back to its state before an erasure is reconciled from the exported file, and afterwards no table names the person.
 
 ## Automatic weekly backup
 
@@ -77,7 +117,7 @@ Never restore over the live database in place.
 
 Each run:
 1. dumps the `public` schema (all of UNIIVERSE's tables) in one consistent snapshot, reading only;
-2. restores it into a throw-away Postgres on the runner and checks that the number of tables, teams, accounts, players, Riot accounts and stored games, and the newest migration, match production;
+2. restores it into a throw-away Postgres on the runner and checks that the number of tables, teams, accounts, players, Riot accounts and stored games, and the newest migration, match production. It also checks every retired table that a held pull request would drop (#86, #138) and that still exists: each must restore with all its rows, and the manifest lists them under `retiredTableRows`;
 3. encrypts it with AES-256 and checks the encrypted file opens again;
 4. keeps it for 28 days as a private artifact of the run: about four weekly copies. A manifest beside it lists sizes, row counts and checksums, with no data and no secrets.
 
@@ -102,7 +142,7 @@ A failed run is a failed workflow, so GitHub's usual email reports it.
    3. Delete that query from the SQL Editor afterwards: the editor keeps the queries you run, and this one holds the password.
 
    What it gives:
-   - It can read UNIIVERSE's tables (the `public` schema), and only those. The `ALTER DEFAULT PRIVILEGES` lines cover tables added by later migrations, which run as `postgres`.
+   - It can read UNIIVERSE's tables (the `public` schema), and only those. The `ALTER DEFAULT PRIVILEGES` lines cover tables added by later migrations, which run as `postgres`. Each migration also grants the role `SELECT` on what it adds (`docs/DATABASE_PERMISSIONS.md`), so a new table is backed up even where those lines are missing.
    - It cannot change anything: no write privilege, no ownership, and every session starts read-only.
    - `BYPASSRLS` is needed because Row Level Security hides every row from roles other than the owner. Without it, `pg_dump` stops instead of saving empty tables.
    - Every run checks this before reading anything (`scripts/backup-db.sh`) and fails if the role could change data, create roles, or not read a table. The result is in the run's log and the backup's manifest (`backupRole`).
@@ -133,8 +173,14 @@ To remove the role later: `DROP OWNED BY uniiverse_backup; DROP ROLE uniiverse_b
 
 ### Limits
 
-- **Retention.** 28 days of weekly copies, so it protects against a mistake noticed within about four weeks. Keep a copy offline by hand before risky changes, such as dropping the retired Meta & Trends tables.
+- **Retention.** 28 days of weekly copies, so it protects against a mistake noticed within about four weeks. Keep a copy offline by hand before risky changes, such as dropping the retired Meta & Trends tables (one offline copy at a time; see "Backups and permanent removal").
 - **Storage.** GitHub Free keeps 500 MB of artifacts per account in all, CI's included.
   - The script fails above 100 MB, so four weekly copies fit and a growing database is noticed rather than cut off. A run started by hand can allow more (`max_mb`), for example the last backup before the retired tables are dropped; the copies after the drop are much smaller.
-  - Production was 300 MB on 19 Oct 2026 (`db-usage`), about 200 MB of it the retired Meta & Trends tables. Most of that is numbers that compress well, so a backup should be well under the limit. The first run shows the real size.
+  - Production was 300 MB on 19 Oct 2026 (`db-usage`), about 200 MB of it the retired Meta & Trends tables. Most of that is numbers that compress well: the first backup (21 Oct 2026) was a 56 MB dump and 55 MB encrypted, under the limit.
 - **The window between backups.** Up to a week of changes can be lost. A paid Supabase plan (daily backups, optional point-in-time recovery) shortens that, at a monthly cost.
+
+## Monitoring (3 Nov 2026)
+
+- **Each run** writes the encrypted size against `MAX_MB` and the rows it proved to its summary, and keeps its manifest (sizes, counts and checksums: no data, no secret) for 90 days as `database-backup-manifest-<run>`, so growth can be followed.
+- **A failed run, or a copy over 80% of `MAX_MB`,** opens one issue labelled `database-backup` (later runs comment on it); the next healthy run closes it.
+- **The daily Production check** fails when no backup has passed for 8 days (`docs/MONITORING.md`).

@@ -1,9 +1,15 @@
 /*
-  A member's optional YouTube, Twitch and Discord, on their profile. Each is off until they choose
-  who may see it: "hidden" (only them, in Settings), "team" (signed-in members: their profile and
-  Team card) or "public" (also the public team page). An icon is shown only for a link its owner
-  chose to show to that audience and that still passes the checks below: a stored value alone
-  never shows anything.
+  A member's optional YouTube, Twitch and Discord, on their profile. Each link has one switch,
+  "Show publicly", off until its owner turns it on: on, the link shows to signed-in team members
+  (their profile, Team card, the Players directory) and on the public team page alike; off, nobody
+  sees it but its owner, in Settings. An icon is shown only for a link switched on whose value still
+  passes the checks below: a stored value alone never shows anything.
+
+  Until November 2026 a link had one of three audiences ("hidden", "team", "public"). Migration
+  0061 (drizzle/0061_social_links_public.sql) turned "public" into on and the other two into off,
+  so no link became visible to anyone who could not see it before (a team-only link is now hidden
+  from the team too). isShownPublicly applies the same rule to a row still in the old shape (written
+  by the previous version while a deployment changed over) and to a save from a page loaded before.
 
   Nothing is fetched from these services, nothing is embedded and no account is connected: YouTube
   and Twitch are plain links to the channel. Discord is either a username to copy (Discord has no
@@ -15,18 +21,40 @@
 export const SOCIAL_KINDS = ["youtube", "twitch", "discord"] as const;
 export type SocialKind = (typeof SOCIAL_KINDS)[number];
 
-export const SOCIAL_AUDIENCES = ["hidden", "team", "public"] as const;
-export type SocialAudience = (typeof SOCIAL_AUDIENCES)[number];
-
 export interface SocialLink {
   /** The normalised value: a channel address for YouTube and Twitch, a username for Discord. */
   value: string;
-  show: SocialAudience;
+  /** "Show publicly": shown to team members and on the public team page. Off (the default): only its owner sees it, in Settings. */
+  public: boolean;
 }
 export type SocialLinks = Partial<Record<SocialKind, SocialLink>>;
 
 export const SOCIAL_LABELS: Readonly<Record<SocialKind, string>> = { youtube: "YouTube", twitch: "Twitch", discord: "Discord" };
-export const AUDIENCE_LABELS: Readonly<Record<SocialAudience, string>> = { hidden: "Only me", team: "Team members", public: "Team members and the public page" };
+
+/**
+ * Whether a stored or submitted link is switched on: only an explicit true, or the old "public"
+ * audience (see the note at the top). Anything else (missing, false, the old "team" or "hidden"
+ * audiences, nonsense) is off: a link is never shown more widely than its owner chose.
+ */
+export function isShownPublicly(item: unknown): boolean {
+  if (!item || typeof item !== "object") return false;
+  const o = item as { public?: unknown; show?: unknown };
+  return o.public === true || o.show === "public";
+}
+
+/** Links as stored (the column is JSON), in the current shape: each kind with a text value and its switch; anything malformed is dropped. */
+export function readSocialLinks(raw: unknown): SocialLinks | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const links: SocialLinks = {};
+  for (const kind of SOCIAL_KINDS) {
+    const item = (raw as Record<string, unknown>)[kind];
+    if (!item || typeof item !== "object") continue;
+    const value = (item as { value?: unknown }).value;
+    if (typeof value !== "string" || !value) continue;
+    links[kind] = { value, public: isShownPublicly(item) };
+  }
+  return Object.keys(links).length ? links : null;
+}
 
 type Checked = { ok: true; value: string } | { ok: false; error: string };
 
@@ -116,8 +144,6 @@ export interface SocialLinkView {
   /** "@name" for YouTube handles and Discord, the channel name for Twitch, the address otherwise. */
   text: string;
   href: string | null;
-  /** Chosen for the public page too (the public boundary keeps only these). */
-  public: boolean;
 }
 
 function textOf(kind: SocialKind, value: string): string {
@@ -127,34 +153,32 @@ function textOf(kind: SocialKind, value: string): string {
 }
 
 /**
- * The links `audience` may see, in a fixed order: only those their owner chose for it ("team" sees
- * team and public links, "public" only public ones), and only values that still pass the checks
- * (a changed rule or a hand-edited row hides a link rather than showing it).
+ * The links anyone but their owner may see (team members and the public page alike), in a fixed
+ * order: only those switched on (strictly true), and only values that still pass the checks (a
+ * changed rule or a hand-edited row hides a link rather than showing it).
  */
-export function visibleSocialLinks(links: SocialLinks | null | undefined, audience: "team" | "public"): SocialLinkView[] {
+export function visibleSocialLinks(links: SocialLinks | null | undefined): SocialLinkView[] {
   if (!links || typeof links !== "object") return [];
   const out: SocialLinkView[] = [];
   for (const kind of SOCIAL_KINDS) {
     const link = links[kind];
-    if (!link || typeof link.value !== "string") continue;
-    if (!(link.show === "public" || (audience === "team" && link.show === "team"))) continue;
+    if (!link || typeof link.value !== "string" || link.public !== true) continue;
     const checked = checkSocialValue(kind, link.value);
     if (!checked.ok || checked.value === null || checked.value !== link.value) continue;
-    out.push({ kind, label: SOCIAL_LABELS[kind], text: textOf(kind, link.value), href: kind !== "discord" || DISCORD_PROFILE.test(link.value) ? link.value : null, public: link.show === "public" });
+    out.push({ kind, label: SOCIAL_LABELS[kind], text: textOf(kind, link.value), href: kind !== "discord" || DISCORD_PROFILE.test(link.value) ? link.value : null });
   }
   return out;
 }
 
-/** Input from the Settings form, checked and normalised as a whole; the first problem is reported by service. */
-export function normaliseSocialLinks(input: Partial<Record<SocialKind, { value?: unknown; show?: unknown }>>): { ok: true; links: SocialLinks | null } | { ok: false; kind: SocialKind; error: string } {
+/** Input from the Settings form (a value and "Show publicly" per service), checked and normalised as a whole; the first problem is reported by service. */
+export function normaliseSocialLinks(input: Partial<Record<SocialKind, { value?: unknown; public?: unknown; show?: unknown }>>): { ok: true; links: SocialLinks | null } | { ok: false; kind: SocialKind; error: string } {
   const links: SocialLinks = {};
   for (const kind of SOCIAL_KINDS) {
     const item = input[kind];
     if (!item) continue;
-    const show = SOCIAL_AUDIENCES.includes(item.show as SocialAudience) ? (item.show as SocialAudience) : "hidden";
     const checked = checkSocialValue(kind, typeof item.value === "string" ? item.value : "");
     if (!checked.ok) return { ok: false, kind, error: checked.error };
-    if (checked.value !== null) links[kind] = { value: checked.value, show };
+    if (checked.value !== null) links[kind] = { value: checked.value, public: isShownPublicly(item) };
   }
   return { ok: true, links: Object.keys(links).length ? links : null };
 }

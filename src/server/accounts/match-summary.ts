@@ -39,7 +39,8 @@ export async function summariseMatches(db: Db, scope: { accountIds?: readonly st
                  NULLIF(p->>'gold', '')::int AS gold,
                  NULLIF(p->>'wardsPlaced', '')::int AS wards_placed,
                  CASE WHEN jsonb_typeof(p->'stats') = 'object' AND p->'stats' <> '{}'::jsonb THEN p->'stats' END AS extra_stats,
-                 (SELECT sum((q->>'kills')::int)::int FROM jsonb_array_elements(md.participants) q WHERE q->>'teamId' = p->>'teamId') AS team_kills,
+                 -- A team with a "Removed player" (erased personal data) takes its kills from Riot's team total: the placeholder's figures are not real.
+                 (SELECT CASE WHEN bool_or(q->>'removed' = 'true') THEN (SELECT NULLIF(t->'objectives'->>'champion', '')::int FROM jsonb_array_elements(md.teams) t WHERE t->>'teamId' = p->>'teamId' LIMIT 1) ELSE sum((q->>'kills')::int)::int END FROM jsonb_array_elements(md.participants) q WHERE q->>'teamId' = p->>'teamId') AS team_kills,
                  (SELECT CASE WHEN bool_and(q->>'damage' IS NOT NULL) THEN sum((q->>'damage')::bigint) END FROM jsonb_array_elements(md.participants) q WHERE q->>'teamId' = p->>'teamId') AS team_damage
           FROM match_details md, jsonb_array_elements(md.participants) p
           WHERE md.match_id = t.match_id AND t.puuid IS NOT NULL AND p->>'puuid' = t.puuid

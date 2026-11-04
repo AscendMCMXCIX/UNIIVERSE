@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test";
 
 /*
   Season 2026 is the earliest season offered anywhere (domain/season). No page offers Season 2025
@@ -10,7 +10,7 @@ test.beforeEach(async ({ context, baseURL }, info) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
 });
 
-const PAGES = ["/overview", "/overview/champions", "/overview/matches", "/overview/matchups", "/leaderboards", "/matches", "/matches?view=encounters"];
+const PAGES = ["/overview", "/overview/champions", "/overview/matches", "/overview/matchups", "/leaderboards", "/overview/matches?view=encounters", "/matches"];
 
 test("no season choice offers 2025 or older, on any page", async ({ page }) => {
   for (const path of PAGES) {

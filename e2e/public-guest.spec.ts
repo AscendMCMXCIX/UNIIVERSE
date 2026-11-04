@@ -1,15 +1,15 @@
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Page } from "./test";
 
 /*
-  THE PUBLIC PAGE. A visitor is a browser without an account (locally: the guest cookie, which
-  turns the automatic local owner off). It is the site's address for visitors ("/") and /public for
-  everyone: no switch, no banner, no per-member choice. It shows the lineup and each role's
-  substitute under their display names, with nothing that manages the team, and every link on it
-  stays public. Every members' page, API and picture stays closed to visitors.
+  THE PUBLIC TEAM PAGE. A visitor is a browser without an account (locally: the guest cookie, which
+  turns the automatic local owner off). /public is always open: no switch, no banner, no per-member
+  choice. It shows the lineup and each role's substitute under their display names, with nothing
+  that manages the team, and every link on it stays public. Every members' page, API and picture
+  stays closed to visitors.
 */
 
 const GUEST_COOKIE = "uniiverse_guest";
-const PRIVATE_PAGES = ["/team", "/players", "/matches", "/overview", "/overview/blocks", "/overview/matches", "/overview/matchups", "/overview/accounts", "/leaderboards", "/clash", "/settings", "/admin/people", "/admin/public-access"];
+const PRIVATE_PAGES = ["/team", "/players", "/matches", "/overview", "/overview/matches", "/overview/matchups", "/overview/accounts", "/leaderboards", "/settings", "/admin/people", "/admin/public-access"];
 
 async function guestPage(browser: Browser, baseURL: string, viewport?: { width: number; height: number }): Promise<Page> {
   const context = await browser.newContext(viewport ? { viewport } : {});
@@ -24,13 +24,12 @@ test("open to everyone: the lineup by display name, no management controls, no b
   test.skip(info.project.name !== "desktop", "the phone and tablet layout is checked below");
   const guest = await guestPage(browser, baseURL!);
   const response = await guest.goto("/");
-  // The site's address is the public page itself for visitors (no redirect).
-  await expect(guest).toHaveURL(new RegExp(`^${baseURL}/?$`));
+  await expect(guest).toHaveURL(/\/public$/);
   // A private page for each visitor: never stored by a shared cache.
   expect(response?.headers()["cache-control"] ?? "").toMatch(/private|no-store/);
-  await expect(guest.getByTestId("public-hero-title")).toBeVisible();
-  await expect(guest.getByRole("heading", { level: 2, name: "Meet the Team" })).toBeVisible();
+  await expect(guest.getByTestId("team-name")).toBeVisible();
   await expect(guest.getByTestId("lineup-cell")).toHaveCount(5);
+  await expect(guest.getByTestId("team-subtitle")).toHaveText("Main lineup");
   // Every role shows its player, by display name; no placeholders, no switch or preview banner.
   for (const role of ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"]) await expect(guest.getByTestId(`lineup-row-${role}`)).toHaveAttribute("data-player-name", /Demo/);
   await expect(guest.locator('[data-testid^="private-member-"]')).toHaveCount(0);
@@ -104,25 +103,29 @@ test("members' pages, APIs and pictures stay closed to visitors; sign in is one 
   for (const path of ["/api/avatars/00000000-0000-4000-8000-000000000000?v=1", "/api/card-banners/00000000-0000-4000-8000-000000000000?v=1"]) {
     expect((await api.get(path)).status(), path).toBe(401);
   }
-  // Clash Scout's champion prints are for members only.
+  // Clash Scout's champion prints went with Clash Scout (retired): not found, for anyone.
   expect((await api.get("/api/clash/champion-prints?v=1")).status()).toBe(404);
   // Public pictures: only for the players on the page.
   expect((await api.get("/api/public/avatars/00000000-0000-4000-8000-000000000000")).status()).toBe(404);
-  // Signing in is a window over the public page; /login stays for direct links and leads back.
+  // Riot data stays off the public pages unless the deployment allows it (not here): no public
+  // Leaderboards, in the header or at its address.
+  expect((await api.get("/public/leaderboards")).status()).toBe(404);
+  // Sign in is a window over the team page (a link to /login underneath); /login stays and leads back.
   await guest.goto("/public");
+  await expect(guest.getByTestId("public-leaderboards-link")).toHaveCount(0);
   await guest.getByTestId("public-sign-in").click();
   await expect(guest.getByRole("dialog", { name: "Sign in" })).toBeVisible();
   await expect(guest).toHaveURL(/\/public$/);
   await guest.goto("/login");
   await guest.getByTestId("login-public-link").click();
-  await expect(guest).toHaveURL(new RegExp(`^${baseURL}/?$`));
+  await expect(guest).toHaveURL(/\/public$/);
   await guest.context().close();
 });
 
 test("members see the same page, and no longer find a public switch or opt-in", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "one pass is enough");
   await page.goto("/public");
-  await expect(page.getByTestId("public-hero-title")).toBeVisible();
+  await expect(page.getByTestId("team-name")).toBeVisible();
   await expect(page.getByTestId("public-preview-banner")).toHaveCount(0);
   await expect(page.getByTestId("public-open-app")).toBeVisible();
   await expect(page.getByTestId("lineup-row-TOP")).toHaveAttribute("data-player-name", /Demo/);
@@ -137,7 +140,7 @@ test("the public page fits a phone and a tablet", async ({ page, browser, baseUR
   test.skip(info.project.name === "desktop", "desktop is covered above");
   const guest = await guestPage(browser, baseURL!, page.viewportSize() ?? undefined);
   await guest.goto("/public");
-  await expect(guest.getByTestId("public-hero-title")).toBeVisible();
+  await expect(guest.getByTestId("team-name")).toBeVisible();
   await expect(guest.getByTestId("public-sign-in")).toBeVisible();
   const overflow = await guest.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);

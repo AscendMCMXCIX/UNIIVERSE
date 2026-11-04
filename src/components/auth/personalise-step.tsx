@@ -5,7 +5,7 @@ import { ArrowLeft, Camera, Paintbrush } from "lucide-react";
 import type { CardLook } from "@/domain/card-style";
 import type { CardArt } from "@/domain/player-card";
 import type { Role } from "@/domain/roles";
-import type { PickerChampion } from "@/components/champion-picker";
+import type { PickerChampion } from "@/components/champions/types";
 import { CardPreview } from "@/components/players/card-preview";
 import { CustomiseCardButton } from "@/components/players/customise-card-button";
 import { AvatarEditor } from "@/components/settings/account-details";
@@ -41,7 +41,7 @@ export function PersonaliseStep({ card, champions, customised, social = null, pr
   const { productName } = useBrandNames();
   return (
     <div data-testid="personalise-step">
-      <h1 className="mt-1 text-xl font-bold tracking-[0.2em]">Make it yours</h1>
+      <h1 className="mt-1 text-xl font-bold tracking-wordmark">Make it yours</h1>
       <p className="mt-2 text-sm text-fg-muted">Optional: add a picture, style your card and add your social links. You can skip this and do it any time from My Profile or Settings.</p>
       <SetupSteps current="personalise" />
       <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-6">

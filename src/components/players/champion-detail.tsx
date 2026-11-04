@@ -11,15 +11,17 @@ import { MIN_PATTERN_GAMES } from "@/domain/matchups";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone } from "@/domain/stats/win-rate";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
-import { AfterOpen, DetailModal } from "@/components/ui/detail-modal";
+import { AfterOpen, CLEAR_OF_CONTROLS, DetailModal } from "@/components/ui/detail-modal";
+import { MultikillSummaryRow } from "./multikill-summary";
 import { MatchDetailModal } from "@/components/match-history/match-detail";
 import { CardArtLayer } from "./card-art";
 import { LaneChart, LaneGameCard, LaneTable, timelineCoverage, type LaneMetric } from "./lane-parts";
 import { OpponentPicker } from "./opponent-picker";
 import { Select } from "@/components/ui/input";
 import { FilterField, RefineButton } from "@/components/ui/filter-bar";
-import { percent } from "@/lib/format";
+import { percent, formatCount } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { tabIndicatorClass } from "@/components/ui/tab-bar";
 import { accountShortNames } from "@/domain/account-names";
 
 /*
@@ -57,7 +59,7 @@ export interface ChampionScope {
 
 export type RefineChange = Partial<{ season: number; mode: SeasonMode; account: string | null }>;
 
-const plural = (n: number, word: string) => `${n.toLocaleString("en")} ${word}${n === 1 ? "" : "s"}`;
+const plural = (n: number, word: string) => `${formatCount(n)} ${word}${n === 1 ? "" : "s"}`;
 
 export function ChampionDetail({
   playerId,
@@ -106,9 +108,9 @@ export function ChampionDetail({
   const header = (
     <div className="relative isolate overflow-hidden">
       <CardArtLayer art={{ championId: sel.championId, skinNum: 0 }} accent="var(--color-accent)" kind="splash" position="center 22%" strength="strong" testId="champion-detail-art" />
-      <div className="relative px-4 pt-4 pr-14 sm:px-6 sm:pr-16 sm:pt-5">
+      <div className={cn("relative pl-4 pt-4 sm:pl-6 sm:pt-5", CLEAR_OF_CONTROLS)}>
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-          <ChampionPortrait champion={me} size="lg" className="shrink-0 rounded-xl ring-2 ring-accent/50 shadow-lg shadow-black/40" />
+          <ChampionPortrait champion={me} size="lg" className="shrink-0 rounded-panel ring-2 ring-accent/50 shadow-lg shadow-black/40" />
           <div className="min-w-0 space-y-1">
             <h2 id="champion-detail-title" className="truncate text-2xl font-bold tracking-tight text-fg sm:text-3xl" data-testid="champion-detail-name">
               {me.name}
@@ -122,11 +124,6 @@ export function ChampionDetail({
                 <span>Every role</span>
               )}
               {card?.inPool ? <span className="rounded-full border border-accent/40 bg-accent/10 px-2 text-xs font-medium leading-5 text-accent">{card.inPool === "primary" ? "Primary pool" : card.inPool === "secondary" ? "Secondary pool" : "In pool"}</span> : null}
-              {card && card.tier !== "unknown" ? (
-                <span className="text-xs" data-testid="champion-detail-tier">
-                  Experience <span className="font-semibold text-fg">{card.tierLabel}</span>
-                </span>
-              ) : null}
             </p>
           </div>
         </div>
@@ -155,7 +152,7 @@ export function ChampionDetail({
                 onTab(next);
                 document.getElementById(`champion-tab-${next}`)?.focus();
               }}
-              className={cn("-mb-px h-10 border-b-2 px-3 text-sm font-medium transition-colors", sel.tab === key ? "border-accent text-fg" : "border-transparent text-fg-muted hover:text-fg")}
+              className={cn("-mb-px h-10 px-3 text-sm font-medium transition-colors", tabIndicatorClass(sel.tab === key))}
               data-testid={`champion-tab-${key}`}
             >
               {label}
@@ -262,7 +259,7 @@ function Tile({ label, value, sub, className, testId }: { label: string; value: 
     <div className="min-w-0 rounded-panel border border-border/70 bg-bg-elevated/60 px-3 py-2" data-testid={testId}>
       <dt className="truncate text-xs text-fg-subtle">{label}</dt>
       <dd className={cn("text-xl font-semibold tabular-nums text-fg", className)}>{value}</dd>
-      {sub ? <dd className="text-[11px] leading-tight text-fg-subtle">{sub}</dd> : null}
+      {sub ? <dd className="text-2xs leading-tight text-fg-subtle">{sub}</dd> : null}
     </div>
   );
 }
@@ -313,15 +310,12 @@ function OverviewPanel({ me, card, data, champ, multiAccount, onOpponent, onMatc
           <Tile label="Win rate" value={r.winRate === null ? "—" : percent(r.winRate, 0)} className={WIN_RATE_TONE_CLASS[winRateTone(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)]} sub={winRateSampleNote(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion) ?? undefined} testId="champion-stat-winrate" />
           <Tile label="KDA" value={p?.perfectKda ? "Perfect" : p?.kdaRatio == null ? "—" : p.kdaRatio.toFixed(2)} sub={p?.kills == null ? undefined : `${p.kills.toFixed(1)} / ${p.deaths!.toFixed(1)} / ${p.assists!.toFixed(1)}`} testId="champion-stat-kda" />
           <Tile label="CS per minute" value={p?.csPerMinute == null ? "—" : p.csPerMinute.toFixed(1)} sub={p?.csMinuteGames ? plural(p.csMinuteGames, "game") : "No CS recorded"} />
-          <Tile label="Damage per minute" value={p?.damagePerMinute == null ? "—" : Math.round(p.damagePerMinute).toLocaleString("en")} sub={p?.damageMinuteGames ? plural(p.damageMinuteGames, "game") : "Not in the stored details"} />
-          <Tile label="Mastery points" value={card.mastery?.points ? card.mastery.points.toLocaleString("en") : "—"} sub={card.mastery ? "All linked accounts" : "No mastery recorded"} />
+          <Tile label="Damage per minute" value={p?.damagePerMinute == null ? "—" : formatCount(p.damagePerMinute)} sub={p?.damageMinuteGames ? plural(p.damageMinuteGames, "game") : "Not in the stored details"} />
+          <Tile label="Mastery points" value={card.mastery?.points ? formatCount(card.mastery.points) : "—"} sub={card.mastery ? "All linked accounts" : "No mastery recorded"} />
         </dl>
       )}
-      {card && card.tier !== "unknown" ? (
-        <p className="text-xs text-fg-muted" data-testid="champion-proficiency">
-          <span className="font-medium text-fg">Experience: {card.tierLabel}.</span> {card.tierWhy}
-        </p>
-      ) : null}
+      {/* The champion's multikills in the same games, with how many of them have counts. */}
+      {card?.multikills && r && r.games > 0 ? <MultikillSummaryRow m={card.multikills} className="rounded-panel border border-border/70 bg-bg-elevated/60 px-3 py-2" testId="champion-multikills-summary" /> : null}
       {!r || r.games === 0 ? null : !data ? (
         <Loading label={`Loading ${me.name}'s lanes`} />
       ) : !lane || lane.games === 0 ? (
@@ -353,7 +347,7 @@ function OverviewPanel({ me, card, data, champ, multiAccount, onOpponent, onMatc
                 </li>
               ))}
             </ul>
-            <p className="mt-2 text-[11px] text-fg-subtle">Open one to see the lane, minute by minute, and every game.</p>
+            <p className="mt-2 text-2xs text-fg-subtle">Open one to see the lane, minute by minute, and every game.</p>
           </Panel>
         </div>
       )}

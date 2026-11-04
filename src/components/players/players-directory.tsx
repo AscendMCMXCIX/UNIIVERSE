@@ -10,6 +10,7 @@ import { RoleSegmented, chipClass } from "@/components/ui/segmented";
 import { FilterBar, FilterField } from "@/components/ui/filter-bar";
 import { SearchInput } from "@/components/ui/search-input";
 import { PlayerSummaryCard, type RiotState } from "./player-summary-card";
+import { cardLookFor } from "@/domain/card-style";
 import type { CompactRank } from "./rank-emblem";
 import type { SocialLinkView } from "@/domain/social-links";
 
@@ -47,6 +48,8 @@ export function PlayersDirectory({ entries, championsById, archived = null }: { 
     if (!q) return true;
     return fold(e.player.displayName).includes(q) || e.riotIds.some((id) => fold(id).includes(q));
   });
+  // Where any card shown has a tagline, the others keep its line too, so every card is the same height.
+  const taglines = shown.some((e) => cardLookFor(e.player).style.identity.tagline);
   return (
     <div className="space-y-4">
       <FilterBar
@@ -81,11 +84,19 @@ export function PlayersDirectory({ entries, championsById, archived = null }: { 
         {shown.length === entries.length ? `${entries.length} player${entries.length === 1 ? "" : "s"}` : `${shown.length} of ${entries.length} players`}
         {role !== "ALL" ? ` · ${ROLE_LABELS[role]} as primary or off role` : ""}
       </p>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4" data-testid="players-directory">
-        {shown.length === 0 ? <p className="text-sm text-fg-muted">{entries.length === 0 ? "No players yet." : "No player matches. Try another name or role."}</p> : null}
-        {shown.map((e) => (
-          <PlayerSummaryCard key={e.player.id} player={e.player} championsById={championsById} lineupRole={e.lineupRole} isYou={e.isYou} riot={e.riot} avatarUrl={e.avatarUrl} rank={e.rank} social={e.social} />
-        ))}
+      {/* As many columns as the directory's own width holds at 17.5rem a card, up to four, whatever
+          the screen (the sidebar open or closed). Each card spans seven of the grid's rows
+          (DirectoryCardLayout), so cards side by side keep their parts level; the space between
+          rows is the cards' own margin. The directory is also the cards' `card` container: beside
+          another card a card is never narrower than 17.5rem, and alone it is the directory's width,
+          so the directory answers each card's 17rem steps exactly as the card itself would. */}
+      <div className="@container [container-name:directory_card]">
+        <div className="grid grid-cols-1 gap-x-3 @min-[35.75rem]/directory:grid-cols-2 @min-[54rem]/directory:grid-cols-3 @min-[72.25rem]/directory:grid-cols-4" data-testid="players-directory">
+          {shown.length === 0 ? <p className="text-sm text-fg-muted">{entries.length === 0 ? "No players yet." : "No player matches. Try another name or role."}</p> : null}
+          {shown.map((e) => (
+            <PlayerSummaryCard key={e.player.id} player={e.player} championsById={championsById} lineupRole={e.lineupRole} isYou={e.isYou} riot={e.riot} avatarUrl={e.avatarUrl} rank={e.rank} social={e.social} reserveTagline={taglines} />
+          ))}
+        </div>
       </div>
     </div>
   );

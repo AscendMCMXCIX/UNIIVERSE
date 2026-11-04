@@ -13,6 +13,7 @@ import type { HistoryBackfill } from "@/server/db/schema";
 import { recordRiotOutcome } from "@/server/riot/credential";
 import type { RiotAccountRecord } from "./repository";
 import { recordRankSnapshots, storedRankFrom } from "./rank-history";
+import { erasureFilter, type ErasureFilter } from "@/server/privacy/ledger";
 
 /**
  * Riot queue ids UNIIVERSE collects for our players, all on Summoner's Rift:
@@ -67,6 +68,8 @@ export interface AccountSyncOptions {
   previousSeason?: boolean;
   /** Re-read the Riot ID by PUUID when it has not been checked for a day (default true). */
   refreshRiotId?: boolean;
+  /** Ask about queues with no game this season even when one was asked recently (a manual refresh: the first game of a queue shows at once). */
+  recheckEmptyQueues?: boolean;
 }
 
 /**
@@ -99,6 +102,13 @@ export function friendlyAccountError(err: unknown, context: "resolve" | "sync" =
   return { message: "Something went wrong while talking to Riot. Your account is saved and retried automatically.", status: "pending" };
 }
 
+/**
+ * How a log line names a linked account: by a short piece of its UNIIVERSE id, never its Riot ID.
+ * Job logs are kept with the job runs and printed by the Data jobs workflow, so they name nobody;
+ * an administrator finds the account under Admin Mode → Data & Integrations.
+ */
+export const accountRef = (account: Pick<RiotAccountRecord, "id">): string => `account ${account.id.slice(0, 8)}`;
+
 /** How often a linked account's Riot ID is re-read from Riot by PUUID. */
 const RIOT_ID_RECHECK_MS = 20 * 3600_000;
 
@@ -115,7 +125,7 @@ async function refreshRiotId(db: Db, client: RiotApiClient, account: RiotAccount
     const renamed = gameName !== account.gameName || tagLine !== account.tagLine;
     await db.update(riotAccounts).set({ ...(renamed ? { gameName, tagLine } : {}), riotIdCheckedAt: new Date(), updatedAt: new Date() }).where(eq(riotAccounts.id, account.id));
     if (renamed) {
-      log(`${account.gameName}#${account.tagLine} is now ${gameName}#${tagLine} (renamed in Riot); data kept`);
+      log(`${accountRef(account)}: renamed in Riot; data kept`);
       if (account.playerId) {
         await db
           .update(players)
@@ -125,7 +135,7 @@ async function refreshRiotId(db: Db, client: RiotApiClient, account: RiotAccount
     }
   } catch (err) {
     if (err instanceof RiotApiError && (err.status === 401 || err.status === 403)) throw err;
-    log(`${account.gameName}#${account.tagLine}: Riot ID check unavailable (${(err as Error).message}); keeping the stored name`);
+    log(`${accountRef(account)}: Riot ID check unavailable (${(err as Error).message}); keeping the stored name`);
   }
 }
 
@@ -154,9 +164,19 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
     // A 404 is an answer about this Riot ID, not about the key; everything else says something about the credential.
     if (!(err instanceof RiotApiError && err.status === 404)) await recordRiotOutcome(db, client, { ok: false, error: err });
     else await recordRiotOutcome(db, client, { ok: true });
-    log(`${account.gameName}#${account.tagLine}: ${f.message} (${(err as Error)?.message ?? err})`);
+    log(`${accountRef(account)}: ${f.message} (${(err as Error)?.message ?? err})`);
     return { ...result, error: f.message, status: f.status };
   };
+
+  // A Riot account whose owner's personal data was erased is never read again (it can only be
+  // here in a database restored from before the erasure and not reconciled yet).
+  const erased = await erasureFilter(db);
+  const refuseErased = async (): Promise<AccountSyncResult> => {
+    await db.update(riotAccounts).set({ syncStatus: "failed", syncError: ERASED_ACCOUNT_MESSAGE, lastSyncAt: new Date(), updatedAt: new Date() }).where(eq(riotAccounts.id, account.id));
+    log(`${accountRef(account)}: not synced (an erasure applies to it)`);
+    return { ...result, error: ERASED_ACCOUNT_MESSAGE, status: "failed" };
+  };
+  if (erased.puuid(puuid) || erased.riotId(`${account.gameName}#${account.tagLine}`)) return refuseErased();
 
   try {
     if (!puuid) {
@@ -167,6 +187,7 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
         return fail(err, "resolve");
       }
       puuid = acc.puuid;
+      if (erased.puuid(puuid)) return refuseErased();
       // Another linked account may already own this PUUID (same player, renamed Riot ID).
       const [clash] = await db.select({ id: riotAccounts.id, gameName: riotAccounts.gameName, tagLine: riotAccounts.tagLine, playerId: riotAccounts.playerId }).from(riotAccounts).where(and(eq(riotAccounts.puuid, puuid), sql`${riotAccounts.id} <> ${account.id}`));
       if (clash) {
@@ -199,16 +220,16 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
       try {
         const answer = normaliseRiotRegionAnswer(await client.activePlatformByPuuid(platform, puuid));
         if (answer) {
-          if (answer !== platform) log(`${account.gameName}#${account.tagLine}: Riot says ${platformLabel(answer)}, not ${platformLabel(platform)}; following Riot`);
+          if (answer !== platform) log(`${accountRef(account)}: Riot says ${platformLabel(answer)}, not ${platformLabel(platform)}; following Riot`);
           platform = answer;
           platformSource = "riot";
           await db.update(riotAccounts).set({ platform, platformSource: "riot", updatedAt: new Date() }).where(eq(riotAccounts.id, account.id));
         } else {
-          log(`${account.gameName}#${account.tagLine}: Riot did not report an active server; keeping ${platformLabel(platform)}`);
+          log(`${accountRef(account)}: Riot did not report an active server; keeping ${platformLabel(platform)}`);
         }
       } catch (err) {
         if (err instanceof RiotApiError && (err.status === 401 || err.status === 403)) throw err;
-        log(`${account.gameName}#${account.tagLine}: active-server lookup unavailable (${(err as Error).message}); keeping ${platformLabel(platform)}`);
+        log(`${accountRef(account)}: active-server lookup unavailable (${(err as Error).message}); keeping ${platformLabel(platform)}`);
       }
     }
     result.platform = platform;
@@ -228,7 +249,7 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
       }
     } catch (err) {
       if (err instanceof RiotApiError && (err.status === 401 || err.status === 403)) throw err;
-      log(`rank lookup failed for ${account.gameName}: ${(err as Error).message}`);
+      log(`${accountRef(account)}: rank lookup failed: ${(err as Error).message}`);
     }
     try {
       const masteries = await client.championMasteries(platform, puuid);
@@ -245,7 +266,7 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
       result.masteryRows = rows.length;
     } catch (err) {
       if (err instanceof RiotApiError && (err.status === 401 || err.status === 403)) throw err;
-      log(`mastery lookup failed for ${account.gameName}: ${(err as Error).message}`);
+      log(`${accountRef(account)}: mastery lookup failed: ${(err as Error).message}`);
     }
 
     // Match history: every supported queue, the whole current season, collected incrementally.
@@ -265,6 +286,8 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
     return fail(err, "sync");
   }
 }
+
+export const ERASED_ACCOUNT_MESSAGE = "This Riot account belongs to someone whose personal data was erased from UNIIVERSE, so it is not read. An administrator can reconcile erasures under Admin Mode → Users & Permissions → Personal data.";
 
 /** The season of the current patch (falls back to the calendar year without real static data). */
 export async function currentSeason(db: Db, now: Date = new Date()): Promise<number> {
@@ -312,6 +335,7 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
   const state: HistoryBackfill = previous && previous.season === season ? { ...previous, queues: { ...previous.queues } } : { season, queues: {}, startedAt: now.toISOString(), completedAt: null };
   const startTime = await seasonListStart(db, season);
   const keyToId = new Map((await db.select({ key: champions.key, id: champions.id }).from(champions)).map((c) => [c.key, c.id]));
+  const erased = await erasureFilter(db);
   let fetched = 0;
   const budgetLeft = () => fetched < limit && !options.outOfTime?.();
 
@@ -335,7 +359,7 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
         return { ids: ids.length, fresh, complete: false };
       }
       result.matchesFetched += 1;
-      if (await foldMatch(db, account, match, keyToId, queueIds)) result.matchesFolded += 1;
+      if (await foldMatch(db, account, match, keyToId, queueIds, erased)) result.matchesFolded += 1;
     }
     return { ids: ids.length, fresh, complete: true };
   };
@@ -345,7 +369,7 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
     if (!budgetLeft()) break;
     const q = state.queues[String(queueId)] ?? { offset: 0, done: false };
     const emptySoFar = q.done && q.offset === 0;
-    if (emptySoFar && q.checkedAt && now.getTime() - new Date(q.checkedAt).getTime() < EMPTY_QUEUE_RECHECK_MS) continue;
+    if (emptySoFar && !options.recheckEmptyQueues && q.checkedAt && now.getTime() - new Date(q.checkedAt).getTime() < EMPTY_QUEUE_RECHECK_MS) continue;
     const page = await readPage(queueId, 0);
     q.checkedAt = now.toISOString();
     if (page.complete) {
@@ -456,7 +480,7 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
     state.previous = prev;
   }
   const games = Object.entries(state.queues).map(([id, q]) => `${id}:${q.offset}${q.done ? "" : "+"}`).join(" ");
-  log(`${account.gameName}#${account.tagLine}: season ${season} history ${allDone ? "complete" : "in progress"} (${games}); fetched ${fetched}`);
+  log(`${accountRef(account)}: season ${season} history ${allDone ? "complete" : "in progress"} (${games}); fetched ${fetched}`);
   return state;
 }
 
@@ -465,7 +489,7 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
  * statistics) and the champion history bucket it adds to, in one transaction. Returns false when
  * the match was already stored or does not include this account.
  */
-async function foldMatch(db: Db, account: RiotAccountRecord & { puuid: string }, match: RiotMatch, keyToId: Map<number, string>, queueIds: readonly number[]): Promise<boolean> {
+async function foldMatch(db: Db, account: RiotAccountRecord & { puuid: string }, match: RiotMatch, keyToId: Map<number, string>, queueIds: readonly number[], erased: ErasureFilter): Promise<boolean> {
   const matchId = match.metadata.matchId;
   const me = match.info.participants.find((p) => p.puuid === account.puuid);
   const championId = me ? keyToId.get(me.championId) : undefined;
@@ -477,9 +501,11 @@ async function foldMatch(db: Db, account: RiotAccountRecord & { puuid: string },
   const patch = patchFromVersion(match.info.gameVersion) ?? "unknown";
   const role = RIOT_POSITION_TO_ROLE[me.teamPosition] ?? "UNKNOWN";
   const playedAt = new Date(match.info.gameCreation);
-  // The lane opponent: the enemy in the same position, when positions are known.
+  // The lane opponent: the enemy in the same position, when positions are known. An opponent whose
+  // personal data was erased is left unknown (their champion is about them).
   const opponent = me.teamPosition ? match.info.participants.find((p) => p.teamId !== me.teamId && p.teamPosition === me.teamPosition) : undefined;
-  const enemyChampionId = opponent ? (keyToId.get(opponent.championId) ?? null) : null;
+  const opponentErased = !!opponent && (erased.puuid(opponent.puuid) || erased.riotId(opponent.riotIdGameName && opponent.riotIdTagline ? `${opponent.riotIdGameName}#${opponent.riotIdTagline}` : null));
+  const enemyChampionId = opponent && !opponentErased ? (keyToId.get(opponent.championId) ?? null) : null;
   // The full match (both teams, items, runes) for the personal match history: same fetch, no extra request.
   await storeMatchDetail(db, account.platform, match, keyToId);
   let folded = false;

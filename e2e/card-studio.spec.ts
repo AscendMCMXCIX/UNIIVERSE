@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./test";
 
 /*
   Player Card Studio: presets and a live preview, nothing saved until Save (Cancel and Escape keep
@@ -30,14 +30,29 @@ async function openStudio(page: Page) {
   }).toPass({ timeout: 15_000 });
 }
 
-async function step(page: Page, id: "style" | "artwork" | "position" | "colours" | "identity" | "effects") {
-  await page.getByTestId(`studio-step-${id}`).click();
+/** Opens a step: from the step bar on a desktop, from the section list on phones and tablets. */
+async function step(page: Page, id: "style" | "artwork" | "position" | "colours" | "identity" | "links" | "effects") {
+  const pill = page.getByTestId(`studio-step-${id}`);
+  if (await pill.isVisible()) await pill.click();
+  else {
+    await page.getByTestId("studio-section-toggle").click();
+    await page.getByTestId(`studio-section-${id}`).click();
+  }
   await expect(page.getByTestId("card-studio")).toHaveAttribute("data-step", id);
+}
+
+/** Cancel with unsaved changes asks first (in the action bar); Discard closes and keeps the saved card. */
+async function discard(page: Page) {
+  await page.getByTestId("studio-cancel").click();
+  await page.getByTestId("studio-confirm-yes").click();
+  await expect(page.getByTestId("card-studio")).toBeHidden();
 }
 
 async function resetCard(page: Page) {
   await openStudio(page);
+  // Reset look asks first.
   await page.getByTestId("studio-reset-all").click();
+  await page.getByTestId("studio-confirm-yes").click();
   await step(page, "identity");
   await page.getByTestId("tagline-input").fill("");
   await page.getByRole("radiogroup", { name: "Emblem" }).getByRole("radio", { name: "None" }).click();
@@ -63,13 +78,18 @@ test("presets change the live preview only; Cancel and Escape keep the saved car
   await expect(page.getByTestId("card-preview")).toHaveAttribute("data-view", "phone");
   await page.getByTestId("preview-directory").click();
   await expect(page.getByTestId("card-preview")).toHaveAttribute("data-view", "directory");
-  // Escape with unsaved changes asks first; declining keeps the Studio open.
-  page.once("dialog", (d) => void d.dismiss());
+  // Escape with unsaved changes asks first, in the action bar; Keep editing keeps the Studio and the changes.
   await page.keyboard.press("Escape");
+  await expect(page.getByTestId("studio-confirm-discard")).toBeVisible();
+  await expect(page.getByTestId("studio-confirm-keep")).toBeFocused();
+  await page.getByTestId("studio-confirm-keep").click();
   await expect(page.getByTestId("card-studio")).toBeVisible();
-  // Cancel discards: nothing was saved.
-  await page.getByTestId("studio-cancel").click();
-  await expect(page.getByTestId("card-studio")).toBeHidden();
+  await expect(page.getByTestId("studio-confirm-discard")).toHaveCount(0);
+  // The last preset is still there (the Team card view shows its frame).
+  await page.getByTestId("preview-team").click();
+  await expect(page.getByTestId("card-preview")).toHaveAttribute("data-frame", FRAME_OF.neon!);
+  // Cancel asks the same; Discard leaves the saved card as it was: nothing was saved.
+  await discard(page);
   await expect(header).toHaveAttribute("data-frame", savedFrame ?? "none");
   await page.reload();
   await expect(page.getByTestId("profile-header")).toHaveAttribute("data-frame", savedFrame ?? "none");
@@ -145,8 +165,7 @@ test("animated effects stop for reduced motion", async ({ page }, info) => {
   expect(await shimmer.evaluate((e) => getComputedStyle(e).animationName)).toBe("card-shimmer");
   await page.emulateMedia({ reducedMotion: "reduce" });
   expect(await shimmer.evaluate((e) => getComputedStyle(e).animationName)).toBe("none");
-  await page.getByTestId("studio-cancel").click();
-  await expect(page.getByTestId("card-studio")).toBeHidden();
+  await discard(page);
 });
 
 test("on a phone: one column, the preview stays in view, nothing scrolls sideways", async ({ page }, info) => {
@@ -154,13 +173,16 @@ test("on a phone: one column, the preview stays in view, nothing scrolls sideway
   await openTopProfile(page);
   await openStudio(page);
   const width = page.viewportSize()!.width;
-  // Nothing wider than the screen except the presets and the step bar, which scroll on purpose.
-  const wide = await page.evaluate((w) => [...document.querySelectorAll("dialog *")].filter((e) => !e.closest("[data-testid=studio-presets]") && !e.closest("[data-testid=studio-steps]") && e.getBoundingClientRect().right > w + 1).map((e) => e.outerHTML.slice(0, 80)), width);
+  // Nothing wider than the screen: the presets wrap, and the sections are one bar, not a strip of steps.
+  const wide = await page.evaluate((w) => [...document.querySelectorAll("dialog *")].filter((e) => e.getBoundingClientRect().right > w + 1).map((e) => e.outerHTML.slice(0, 80)), width);
   expect(wide).toEqual([]);
-  await expect(page.getByTestId("studio-steps")).toBeInViewport();
-  // Style: scroll the controls to the bottom (frames): the preview is still on screen.
-  await page.locator("dialog [class*='overflow-y-auto']").first().evaluate((e) => e.scrollTo(0, e.scrollHeight));
+  await expect(page.getByTestId("studio-steps")).toBeHidden();
+  await expect(page.getByTestId("studio-section-bar")).toBeInViewport();
+  // Style: only the controls scroll; at their end the preview, the section bar and Save are still on screen.
+  await page.getByTestId("studio-panel-style").evaluate((e) => e.scrollTo(0, e.scrollHeight));
   await expect(page.getByTestId("card-preview")).toBeInViewport();
+  await expect(page.getByTestId("studio-section-bar")).toBeInViewport();
+  await expect(page.getByTestId("save-card-style")).toBeInViewport({ ratio: 1 });
   // A palette is one tap, and the custom colour on the same step follows it (one draft).
   await step(page, "colours");
   await page.getByTestId("palettes").getByRole("button", { name: /Ember/ }).click();
@@ -169,8 +191,7 @@ test("on a phone: one column, the preview stays in view, nothing scrolls sideway
   await step(page, "position");
   const slider = page.getByRole("slider", { name: "Zoom" });
   expect((await slider.boundingBox())!.height).toBeGreaterThanOrEqual(40);
-  await page.getByTestId("studio-cancel").click();
-  await expect(page.getByTestId("card-studio")).toBeHidden();
+  await discard(page);
 });
 
 test("on desktop sizes every step fits beside the preview without scrolling", async ({ page }, info) => {
@@ -212,6 +233,5 @@ test("a slider moves the preview without waiting for the whole Studio", async ({
   await page.mouse.up();
   const value = await zoom.inputValue();
   await expect(page.getByTestId("card-preview")).toHaveAttribute("data-zoom", String(Number(value)));
-  await page.getByTestId("studio-cancel").click();
-  await expect(page.getByTestId("card-studio")).toBeHidden();
+  await discard(page);
 });

@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronUp, ExternalLink, MoreHorizontal, Pencil, Plus, RefreshCw, Star, Trash2 } from "lucide-react";
 import { platformLabel } from "@/domain/platforms";
 import { opggProfileUrl } from "@/domain/opgg";
-import { canRetrySync, describeAccountSync, syncRefreshInterval } from "@/domain/account-status";
-import { AutoRefresh } from "@/components/ui/auto-refresh";
+import { canRetrySync, describeAccountSync } from "@/domain/account-status";
 import type { RiotAccountRecord } from "@/server/accounts/repository";
 import { addPlayerAccountAction, changeRiotIdAction, removePlayerAccountAction, reorderAccountsAction, setMainAccountAction, syncPlayerAccountAction } from "@/server/actions/accounts";
 import { moveAccount, orderAccounts } from "@/domain/account-order";
@@ -17,7 +16,11 @@ import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { toast } from "@/components/ui/toast";
-import { timeAgo } from "@/lib/format";
+import { RelativeTime } from "@/components/ui/relative-time";
+import { RefreshButton, type DataRefreshTarget } from "@/components/ui/data-status";
+import { waitText } from "@/components/ui/refresh-note";
+import { formatCount } from "@/lib/format";
+import type { DataStatus } from "@/domain/data-status";
 
 export { PLATFORMS } from "@/domain/platforms";
 
@@ -31,7 +34,7 @@ export { PLATFORMS } from "@/domain/platforms";
  * Alternatives are numbered and can be moved up or down (buttons, so keyboard and touch work the
  * same); that one order is used wherever the accounts are listed. Ordering changes no statistic.
  */
-export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable = true, title = "Linked Riot accounts" }: { playerId: string; accounts: RiotAccountRecord[]; riotConfigured: boolean; defaultPlatform?: string; editable?: boolean; title?: string }) {
+export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable = true, title = "Linked Riot accounts", status, refresh }: { playerId: string; accounts: RiotAccountRecord[]; riotConfigured: boolean; defaultPlatform?: string; editable?: boolean; title?: string; /** The accounts' data status, for the profile's Refresh (each row shows its own account's state). */ status?: DataStatus | null; refresh?: DataRefreshTarget | null }) {
   const router = useRouter();
   const [riotId, setRiotId] = React.useState("");
   const [adding, setAdding] = React.useState(false);
@@ -84,13 +87,16 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
     router.refresh();
   };
 
-  // While an account is still being verified or catching up on history, the list updates itself.
-  const refreshEvery = riotConfigured ? syncRefreshInterval(accounts.map((a) => describeAccountSync({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, history: a.historyBackfill, riotConfigured }).state)) : null;
-
   return (
     <Panel>
-      <AutoRefresh active={refreshEvery !== null} intervalMs={refreshEvery ?? undefined} />
-      <PanelHeader title={title} subtitle="The Main account is shown on the profile and used for rank; your alternatives follow in the order you set, wherever accounts are listed. Every linked account adds its games and mastery to the statistics; a game played on two accounts counts once." />
+      {/* The profile's Refresh, in the header's toolbar as on every tab (at its end, on the right);
+          the rows below already say each account's state and when it was updated, so no status
+          note repeats them. */}
+      <PanelHeader
+        title={title}
+        subtitle="The Main account is shown on the profile and used for rank; your alternatives follow in the order you set, wherever accounts are listed. Every linked account adds its games and mastery to the statistics; a game played on two accounts counts once."
+        actions={status && refresh ? <RefreshButton status={status} refresh={refresh} /> : null}
+      />
       <PanelBody className="space-y-3">
         <p className="sr-only" aria-live="polite" data-testid="riot-accounts-announce">
           {announce}
@@ -100,13 +106,16 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
           {ordered.map((a, index) => {
             const sync = describeAccountSync({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, resolveAttempts: a.resolveAttempts, history: a.historyBackfill, riotConfigured });
             const main = a.label === "main";
-            const syncNow = async () => {
+            // Retry sync (an account that is Delayed or needs attention): the same per-account cooldown
+            // as Refresh, and what the sync found, never "up to date" for the click alone.
+            const retry = async () => {
               setBusy(a.id);
               const r = await syncPlayerAccountAction(playerId, a.id);
               setBusy(null);
               if (!r.ok) toast.error(r.error);
+              else if (r.data.status === "recent") toast.info(`${a.riotId} was checked recently · try again in ${waitText(r.data.retryInSeconds)}`);
               else if (r.data.error) (r.data.status === "pending" ? toast.warning : toast.error)(r.data.error);
-              else toast.success(`${a.riotId} is up to date.`);
+              else toast.success(`${a.riotId}: ${r.data.newGames ? `${formatCount(r.data.newGames)} new game${r.data.newGames === 1 ? "" : "s"}` : "no new games"}`);
               router.refresh();
             };
             return (
@@ -195,11 +204,6 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
                       <MenuItem icon={<Pencil className="h-4 w-4" />} onSelect={() => setRenaming(a)}>
                         Change Riot ID
                       </MenuItem>
-                      {riotConfigured ? (
-                        <MenuItem icon={<RefreshCw className="h-4 w-4" />} onSelect={() => void syncNow()}>
-                          Sync now
-                        </MenuItem>
-                      ) : null}
                       <MenuSeparator />
                       <MenuItem tone="danger" icon={<Trash2 className="h-4 w-4" />} onSelect={() => setRemoving(a)}>
                         Remove
@@ -211,9 +215,9 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
                   <Badge tone={sync.tone} title={sync.detail}>
                     {sync.label}
                   </Badge>
-                  <span className="text-fg-subtle">{sync.lastUpdatedAt ? `Updated ${timeAgo(sync.lastUpdatedAt)}` : "Not updated yet"}</span>
+                  <span className="text-fg-subtle">{sync.lastUpdatedAt ? <>Updated <RelativeTime date={sync.lastUpdatedAt} /></> : "Not updated yet"}</span>
                   {editable && canRetrySync(sync) && riotConfigured ? (
-                    <Button size="sm" variant="outline" className="ml-auto" disabled={busy !== null} onClick={() => void syncNow()}>
+                    <Button size="sm" variant="outline" className="ml-auto" disabled={busy !== null} onClick={() => void retry()}>
                       <RefreshCw className={busy === a.id ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} /> Retry sync
                     </Button>
                   ) : null}

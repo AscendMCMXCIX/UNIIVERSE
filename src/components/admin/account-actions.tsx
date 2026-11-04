@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toast";
 import { useBrandNames } from "@/components/brand-names";
+import { formatDateTime, formatDayMonth } from "@/lib/format";
 
 /** An account's state in one word an admin acts on. */
 export type AccountStatus = "active" | "awaiting-login" | "setup" | "deactivated";
@@ -48,7 +49,7 @@ const PASSWORD_TEXT: Record<Exclude<AccountView["password"]["state"], "set">, { 
 export function PasswordStateBadge({ account }: { account: AccountView }) {
   if (account.password.state === "set") return null;
   const c = PASSWORD_TEXT[account.password.state];
-  const until = account.password.state === "temporary" && account.password.expiresAt ? ` · until ${new Date(account.password.expiresAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : "";
+  const until = account.password.state === "temporary" && account.password.expiresAt ? ` · until ${formatDayMonth(account.password.expiresAt)}` : "";
   return (
     <Badge tone={c.tone} title={c.hint}>
       {c.label}
@@ -105,7 +106,7 @@ export function TemporaryPasswordBox({ username, password, expiresAt }: { userna
         </p>
       ) : null}
       <p className="text-sm text-fg-muted">
-        Give the player the website address, their username and this password privately. At their first sign-in they choose their own password; this one then stops working. It expires {new Date(expiresAt).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} and is shown only now: reset again if it is lost.
+        Give the player the website address, their username and this password privately. At their first sign-in they choose their own password; this one then stops working. It expires {formatDateTime(expiresAt)} and is shown only now: reset again if it is lost.
       </p>
     </div>
   );
@@ -147,7 +148,7 @@ export function DeleteProfileButton({ playerId, name }: { playerId: string; name
  * actions confirm in a dialog; the server enforces the rules (never yourself, never the last
  * admin). Results arrive as notifications; a new temporary password opens in its own dialog.
  */
-export function AccountActions({ account, currentUserId }: { account: AccountView; currentUserId: string | null }) {
+export function AccountActions({ account, currentUserId, viewerIsOwner = false }: { account: AccountView; currentUserId: string | null; viewerIsOwner?: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
   const [issued, setIssued] = React.useState<{ temporaryPassword: string; expiresAt: string } | null>(null);
@@ -165,6 +166,8 @@ export function AccountActions({ account, currentUserId }: { account: AccountVie
   };
   const resetPassword = () => void run(() => resetPasswordAction(account.userId), null).then((d) => d && setIssued(d));
   if (self) return null;
+  // Only the Owner changes the Owner account; the server refuses anyone else too.
+  if (account.role === "owner" && !viewerIsOwner) return <span className="text-xs text-fg-subtle">Managed by the Owner</span>;
   return (
     <div className="flex flex-wrap items-center gap-1.5" data-testid="account-actions">
       {account.isActive ? (
@@ -207,7 +210,7 @@ export function AccountActions({ account, currentUserId }: { account: AccountVie
         open={confirming === "delete"}
         onClose={() => setConfirming(null)}
         title={`Delete ${account.username}?`}
-        description="This cannot be undone. Keep their player profile (archived, so match history and statistics stay) or erase everything (for test or mistaken entries)."
+        description="This cannot be undone. Keep their player profile (archived, so match history and statistics stay) or delete the profile too (for test or mistaken entries). Neither removes them from shared games, records or logs: for that, use Erase personal data."
         footer={
           <>
             <Button variant="ghost" disabled={busy} onClick={() => setConfirming(null)}>
@@ -217,7 +220,7 @@ export function AccountActions({ account, currentUserId }: { account: AccountVie
               Delete account, keep profile
             </Button>
             <Button variant="danger" disabled={busy} onClick={() => void run(() => deleteAccountAction(account.userId, { eraseProfile: true }), `${account.username} and their profile deleted.`)}>
-              Delete everything
+              Delete account and profile
             </Button>
           </>
         }

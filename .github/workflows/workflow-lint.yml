@@ -1,0 +1,29 @@
+# actionlint on every pull request that changes a workflow (CLAUDE.md §6), so a broken workflow is
+# caught before it merges even where actionlint is not installed: GitHub's runner downloads the
+# official release. Shell checks are left to review (the existing workflows' scripts predate them).
+# About 15 seconds a run.
+name: Workflow lint
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workflow-lint-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: actionlint
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
+          ./actionlint -color -shellcheck= -pyflakes=

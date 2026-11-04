@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./test";
 
 /*
   The desktop sidebar's collapse and expand. The visible edge clips everything in every frame, so
@@ -108,4 +108,31 @@ test("with reduced motion the sidebar switches at once", async ({ page }) => {
   // No frame in between: the edge is at the rail straight away.
   const edge = await page.evaluate(() => document.querySelector('[data-testid="sidebar-window"]')!.getBoundingClientRect().right);
   expect(Math.round(edge)).toBe(72);
+});
+
+test("collapsed, the logo and every icon sit on the rail's centre line, evenly spaced, and the current page's highlight is centred on its icon", async ({ page, context, baseURL }) => {
+  await context.addCookies([{ name: "uniiverse_sidebar", value: "collapsed", url: baseURL! }]);
+  await page.goto("/team");
+  await page.mouse.move(900, 600);
+  const aside = page.getByTestId("sidebar");
+  await expect(aside).toHaveAttribute("data-collapsed", "true");
+  await settled(page);
+  const rail = (await page.getByTestId("sidebar-slot").boundingBox())!;
+  const centre = rail.x + rail.width / 2;
+  const marks = await aside.evaluate((el) => {
+    const mid = (e: Element) => {
+      const r = e.getBoundingClientRect();
+      return { name: e.closest("[data-testid]")?.getAttribute("data-testid") ?? e.tagName, x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2 };
+    };
+    const logo = el.querySelector("a[title] img, a[title] [data-testid=brand-mark-text]")!;
+    const column = [logo, ...el.querySelectorAll("[data-testid=sidebar-toggle] svg, nav a svg")].map(mid);
+    const footer = [...el.querySelectorAll("[data-testid=mode-switch] svg, [data-testid=install-app] svg, [data-testid=account-menu-button] > :first-child")].map(mid);
+    const current = el.querySelector("nav a[aria-current=page] [data-testid=nav-highlight]")!.getBoundingClientRect();
+    return { column, footer, highlight: (current.left + current.right) / 2 };
+  });
+  for (const m of [...marks.column, ...marks.footer]) expect(Math.abs(m.x - centre), `${m.name} at ${m.x}, the rail's centre ${centre}`).toBeLessThanOrEqual(0.5);
+  expect(Math.abs(marks.highlight - centre), "the current page's highlight").toBeLessThanOrEqual(0.5);
+  // One step from the logo down through the entries.
+  const steps = marks.column.slice(1).map((m, i) => m.y - marks.column[i]!.y);
+  for (const step of steps) expect(Math.abs(step - steps[0]!), `steps ${steps.join(", ")}`).toBeLessThanOrEqual(1);
 });

@@ -13,6 +13,7 @@ import "./skin-audit";
 import "./proficiency-audit";
 import "./perf-probe";
 import "./riot-check";
+import "./privacy";
 
 export * from "./registry";
 export * from "./scheduler";

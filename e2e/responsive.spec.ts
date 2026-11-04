@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./test";
 import { openFilterBar } from "./filters";
 
 /*
@@ -6,7 +6,7 @@ import { openFilterBar } from "./filters";
   every test; the app runs in local open mode with the demo roster, so there is no sign-in step.
 */
 
-const ROUTES = ["/team", "/players", "/me", "/matches", "/clash", "/settings", "/overview", "/overview/champions", "/overview/accounts", "/overview/blocks", "/overview/blocks/history", "/overview/matches"];
+const ROUTES = ["/team", "/players", "/me", "/matches", "/settings", "/overview", "/overview/champions", "/overview/accounts", "/overview/matches"];
 
 async function expectNoHorizontalOverflow(page: Page) {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -23,14 +23,9 @@ function isPhone(page: Page): boolean {
   return (page.viewportSize()?.width ?? 1440) < 768;
 }
 
-/** Opens a profile section: the bar under the profile card, or the compact section picker on a phone. */
+/** Opens a profile section: the tab bar under the profile card, the same on every screen (it scrolls sideways on phones). */
 async function openProfileSection(page: Page, label: string) {
-  if (isPhone(page)) {
-    await page.getByTestId("profile-section-button").click();
-    await page.getByTestId("profile-section-menu").getByRole("menuitem", { name: label }).click();
-  } else {
-    await page.getByTestId("profile-tabs").getByRole("link", { name: label }).click();
-  }
+  await page.getByTestId("profile-tabs").getByRole("link", { name: label }).click();
 }
 
 test.describe("pages", () => {
@@ -47,16 +42,24 @@ test.describe("pages", () => {
 test("navigation is usable", async ({ page }) => {
   await page.goto("/team");
   if (isPhone(page)) {
-    // Bottom tab bar on phones.
-    // Profile, Team, Matches, Clash.
+    // Bottom tab bar on phones: the sidebar's three entries, the current one lit.
     const tabs = page.locator("nav[aria-label='Primary'] a");
-    await expect(tabs).toHaveText(["Profile", "Team", "Matches", "Clash"]);
-    await tabs.filter({ hasText: "Matches" }).click();
-    await expect(page).toHaveURL(/\/matches$/);
-    // Drawer holds the rest.
+    await expect(tabs).toHaveText(["Profile", "Team", "Resources"]);
+    await expect(tabs.filter({ hasText: "Team" })).toHaveAttribute("aria-current", "page");
+    await tabs.filter({ hasText: "Resources" }).click();
+    await expect(page).toHaveURL(/\/resources$/);
+    await expect(tabs.filter({ hasText: "Resources" })).toHaveAttribute("aria-current", "page");
+    // Drawer holds the rest. It opens from the left, from the menu button at the top bar's left end.
+    const menu = (await page.getByTestId("menu-button").boundingBox())!;
+    expect(menu.x).toBeLessThan(24);
     await page.getByRole("button", { name: "Open menu" }).click();
     const drawer = page.getByRole("dialog", { name: "Menu" });
     await expect(drawer).toBeVisible();
+    await expect(async () => {
+      const panel = (await page.getByTestId("mobile-drawer-panel").boundingBox())!;
+      expect(Math.round(panel.x)).toBe(0);
+      expect(panel.x + panel.width).toBeLessThan(page.viewportSize()!.width);
+    }).toPass();
     await drawer.getByRole("link", { name: "Settings" }).click();
     await expect(page).toHaveURL(/\/settings$/);
     await expect(drawer).toBeHidden();
@@ -68,12 +71,13 @@ test("navigation is usable", async ({ page }) => {
     const aside = page.locator("aside");
     await expect(aside).toBeVisible();
     // Team: one entry (its sections are the tabs at the top of its pages); My Profile: one link
-    // (its sections are the bar under the profile card); Clash Scout: its own entry below Team.
+    // (its sections are the bar under the profile card); Resources: its own entry below Team.
     const team = aside.getByTestId("nav-team");
     await expect(team).toHaveAttribute("href", "/team");
     await expect(team).toHaveAttribute("aria-current", "page");
     await expect(page.getByTestId("team-tabs").getByRole("link")).toHaveText(["Overview", "Players", "Leaderboards", "Matches"]);
-    await expect(aside.getByTestId("nav-clash")).toHaveAttribute("href", "/clash");
+    await expect(aside.getByTestId("nav-resources")).toHaveAttribute("href", "/resources");
+    await expect(aside.getByTestId("nav-clash")).toHaveCount(0);
     await expect(aside.getByRole("link", { name: "My Profile" })).toHaveAttribute("href", "/overview");
     await page.getByTestId("team-tab-matches").click();
     await expect(page).toHaveURL(/\/matches$/);
@@ -180,7 +184,8 @@ test("players list and profile: browse, tabs, edit champions in place, season st
   // The pools are on Overview: one card per champion; the local owner may edit any profile.
   await expect(page.getByRole("heading", { name: /Roles & champion pools/ })).toBeVisible();
   await expect(page.getByTestId("pool-editor").getByTestId("primary-pool")).toBeVisible();
-  // The cell at the end of the pool becomes a search box; a champion is one click away.
+  // Edit, then Add champion opens a search box; a champion is one click away.
+  await page.getByTestId("pools-edit").click();
   await page.getByTestId("primary-pool-toggle").click();
   await page.getByTestId("primary-pool-search").fill("a");
   await page.getByTestId("primary-pool-results").getByRole("option").first().click();
@@ -219,6 +224,7 @@ test("champion pools reorder by dragging and by keyboard, and the order is saved
   const list = page.getByTestId("primary-pool-list");
   const items = list.getByTestId("pool-item");
   await expect(items.first()).toBeVisible();
+  await page.getByTestId("pools-edit").click();
   // Make sure there are at least three champions to reorder.
   if ((await items.count()) < 3) {
     await page.getByTestId("primary-pool-toggle").click();
@@ -292,6 +298,7 @@ test("off roles are optional: added with their own button and removable", async 
   const editor = page.getByTestId("pool-editor");
   // The address changes before the profile has drawn: wait for the editor, or the checks below read the old page.
   await expect(editor).toBeVisible();
+  await page.getByTestId("pools-edit").click();
   // No "None" chip preselected: an explicit add button instead.
   await expect(editor.getByRole("radio", { name: "None" })).toHaveCount(0);
   if ((await page.getByTestId("secondary-pool").count()) > 0) {
@@ -306,8 +313,37 @@ test("off roles are optional: added with their own button and removable", async 
   await expect(page.getByTestId("save-status")).toHaveAttribute("data-status", "saved", { timeout: 15_000 });
   await page.reload();
   await expect(page.getByTestId("secondary-pool")).toBeVisible();
+  await page.getByTestId("pools-edit").click();
   await page.getByTestId("secondary-pool").getByRole("button", { name: /Remove the .* role/ }).click();
   await expect(page.getByTestId("save-status")).toHaveAttribute("data-status", "saved", { timeout: 15_000 });
   await expect(page.getByTestId("secondary-pool")).toHaveCount(0);
   await expect(page.getByTestId("add-off-role")).toBeVisible();
+});
+
+test("a profile's sections are tabs on every screen, like Team's, with the current one in view", async ({ page }) => {
+  await page.goto("/players");
+  const href = (await page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']").getAttribute("href"))!;
+  // The last section first: on a phone the bar has scrolled it into view.
+  await page.goto(`${href}/accounts`);
+  const tabs = page.getByTestId("profile-tabs");
+  await expect(tabs).toBeVisible();
+  await expect(tabs).toHaveAttribute("aria-label", "Profile sections");
+  const current = tabs.getByRole("link", { name: "Riot Accounts" });
+  await expect(current).toHaveAttribute("aria-current", "page");
+  await expect(current).toBeInViewport();
+  // The same bar as Team's sections: the same tab height and the same mark under the current tab.
+  const look = (l: ReturnType<typeof page.getByRole>) => l.evaluate((el) => ({ h: Math.round(el.getBoundingClientRect().height), mark: getComputedStyle(el).borderBottomWidth }));
+  const profileTab = await look(current);
+  await page.goto("/players");
+  const teamTab = await look(page.getByTestId("team-tabs").getByRole("link", { name: "Players" }));
+  expect(profileTab.mark).toBe(teamTab.mark);
+  expect(Math.abs(profileTab.h - teamTab.h)).toBeLessThanOrEqual(4);
+  // A tab opens its section, at its own address. The page streams in and hydrates after "load", and
+  // a tap before then can be lost: tap until the page has moved.
+  await page.goto(`${href}/accounts`);
+  await expect(async () => {
+    await tabs.getByRole("link", { name: "Overview" }).click();
+    await expect(page).toHaveURL(new RegExp(`${href}$`), { timeout: 5_000 });
+  }).toPass({ timeout: 20_000 });
+  await expect(tabs.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
 });

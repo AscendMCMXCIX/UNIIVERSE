@@ -24,15 +24,15 @@ export async function setScheduleOverrides(db: Db, overrides: ScheduleOverrides)
 }
 
 /**
- * Order matters: static data first, then our own players' accounts (what the team looks at),
- * housekeeping, then the two backfills last with small capped slices: the timelines (Matchups)
- * and the older games' extra figures (multikills), a few requests an hour each against the same
- * Riot limits.
+ * Order matters: static data first, then our own players' accounts (what the team looks at), the
+ * ranks of the other players in the games just collected, housekeeping, then the two backfills
+ * last with small capped slices: the timelines (Matchups) and the older games' extra figures
+ * (multikills), a few requests an hour each against the same Riot limits.
  */
-const TICK_ORDER: JobKey[] = ["version-check", "account-sync", "integrity", "timeline-backfill", "figures-backfill"];
+const TICK_ORDER: JobKey[] = ["version-check", "account-sync", "rank-checks", "integrity", "timeline-backfill", "figures-backfill"];
 
 /** Budget caps inside one tick, so one job cannot take the whole tick. */
-const MAX_JOB_MS: Partial<Record<JobKey, number>> = { "account-sync": 75_000, integrity: 20_000, "timeline-backfill": 25_000, "figures-backfill": 25_000 };
+const MAX_JOB_MS: Partial<Record<JobKey, number>> = { "account-sync": 75_000, "rank-checks": 15_000, integrity: 20_000, "timeline-backfill": 25_000, "figures-backfill": 25_000 };
 
 /** How long a job may run inside a tick with `remainingMs` left. */
 export function tickJobBudget(key: JobKey, remainingMs: number): number {
@@ -53,7 +53,7 @@ export async function runTick(db: Db, trigger: string, options: { budgetMs?: num
   // Every tick marks the lease so visits do not start another one on top of it.
   if (!options.leaseClaimed) await renewTickLease(db).catch(() => undefined);
   const overrides = await getScheduleOverrides(db);
-  const statuses = await db.select().from(dataRefreshStatus);
+  const statuses = await db.select({ key: dataRefreshStatus.key, status: dataRefreshStatus.status, lastStartedAt: dataRefreshStatus.lastStartedAt, lastSuccessAt: dataRefreshStatus.lastSuccessAt, lastFailureAt: dataRefreshStatus.lastFailureAt }).from(dataRefreshStatus);
   const statusByKey = new Map(statuses.map((s) => [s.key, s]));
   const jobs = new Map(listJobs().map((j) => [j.key, j]));
   const ran: RunJobResult[] = [];

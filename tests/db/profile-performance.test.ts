@@ -72,6 +72,33 @@ describe("profile statistics: defaults and filters", () => {
   });
 });
 
+describe("total kills", () => {
+  const overview = async (opts: Partial<Parameters<typeof getPlayerOverview>[2]> = {}) => getPlayerOverview(handle.db, (await getPlayer(handle.db, playerId))!, { mode: "all", riotConfigured: true, ...opts });
+
+  it("adds up each game's own kills over the filtered games, a game seen from two accounts once, last season left out", async () => {
+    const o = await overview();
+    // Gwen 8 + 2, Riven 6 (the shared game once, not 12), Rakan 1, Aatrox 20; not last season's 10.
+    expect(o.summary.performance.totalKills).toBe(37);
+    // The Gwen game stored before details existed has no count: left out, never counted as 0.
+    expect(o.summary.performance.detailedGames).toBe(5);
+    expect(o.summary.record.games).toBe(6);
+    // Per champion, from the same games: they add up to the total.
+    const byChampion = Object.fromEntries(o.topChampions.map((c) => [c.championId, c.performance.totalKills]));
+    expect(byChampion).toEqual({ Gwen: 10, Riven: 6, Rakan: 1, Aatrox: 20 });
+    expect(o.topChampions.find((c) => c.championId === "Gwen")!.performance.detailedGames).toBe(2);
+  });
+
+  it("follows the game mode, role and account filters", async () => {
+    expect((await overview({ mode: "solo" })).summary.performance.totalKills).toBe(36);
+    expect((await overview({ mode: "flex" })).summary.performance.totalKills).toBe(1);
+    expect((await overview({ role: "SUPPORT" })).summary.performance.totalKills).toBe(1);
+    expect((await overview({ scope: "champion", championId: "Gwen" })).summary.performance.totalKills).toBe(10);
+    const alt = (await overview()).accountOptions.find((a) => a.riotId.startsWith("StatsAlt"))!.id;
+    // The alt's own Gwen game and the shared Riven game.
+    expect((await overview({ accountId: alt })).summary.performance.totalKills).toBe(8);
+  });
+});
+
 describe("profile performance averages", () => {
   it("summarises the selected season over pool champions only, deduplicated across accounts", async () => {
     const o = await getPlayerOverview(handle.db, (await getPlayer(handle.db, playerId))!, { mode: "all", riotConfigured: true });

@@ -1,0 +1,1 @@
+CREATE INDEX "match_details_puuids_idx" ON "match_details" USING gin ((jsonb_path_query_array("participants", '$[*].puuid'))) WITH (fastupdate=false);

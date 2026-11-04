@@ -27,7 +27,7 @@ In Ranked Solo/Duo a party is two players at most, so a Solo/Duo game with three
 ## Access and privacy
 
 - **Access:** the page needs team match access, and the Played together tab also needs teammate-statistics access. Personal-use accounts have neither.
-- **Content:** Riot match figures only; Solo Queue Blocks notes and journals are never read.
+- **Content:** Riot match figures only; the records kept from the retired Ranked Development are never read.
 
 ## Caching
 

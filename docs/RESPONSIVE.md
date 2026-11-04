@@ -26,7 +26,6 @@ it (`globals.css`), and every pinned element follows these rules:
 | Tab bar | fixed at the bottom | hidden; `main` keeps only the home indicator's inset (`pb-tabbar`) |
 | Detail windows (`DetailModal`) | whole screen below `sm`, centred window above; one whose header would fill over 40% of a phone's screen (the Team player window on a small phone) scrolls as one, as in a short window | whole screen, scrolling as one: a large header scrolls away, its close and step buttons float at the top, a footer stays pinned |
 | Dialogs (`Dialog`) | bottom sheet, at most the screen minus a strip | centred card, at most the screen minus 1rem; title and actions stay, only the body scrolls |
-| Pickers (`ChampionPicker`) | whole screen | whole screen |
 | Things pinned to the bottom (toasts, a save bar) | `bottom-tabbar`: above the tab bar | near the bottom edge |
 
 Turning the phone keeps state: windows, filters and tabs live in the address or in component
@@ -38,7 +37,7 @@ translucent status bar, so:
   the top bar, `main`, the public page, toasts and whole-screen windows;
 - whole-screen windows pad the status bar (`max-sm:pt-safe`) and the home indicator (`pb-safe`); a window that scrolls as one on a phone keeps a bar over the status bar, so text never scrolls under the clock;
 - preview pages (Admin → Previews) leave room for their fixed "Preview" badge (`PREVIEW_PAD_TOP`);
-- the drawer pads the right-hand inset; the tab bar pads all three.
+- the drawer, which opens from the left, pads the left-hand inset; the tab bar pads all three.
 
 ## Touch targets
 
@@ -50,6 +49,14 @@ translucent status bar, so:
 - Controls on a card (a flip button, social icons) stop their event: using one never opens,
   turns or selects the card.
 
+## Long lists inside a page
+
+A list opened inside a page (a table under a `<details>`, an event list) runs with the page on a
+touch screen: a box that scrolls inside a scrolling page catches the finger, and the page stops
+moving. With a mouse or trackpad (`pointer-fine:`) it may keep a height limit and scroll in its box
+(Match History's timeline tables do: `pointer-fine:max-h-64 pointer-fine:overflow-y-auto`, and
+their header sticks only there). Windows and dialogs keep their one scrolling body (above).
+
 ## Rows that scroll sideways
 
 Tabs and chip rows that do not fit scroll sideways inside themselves (never the page) with
@@ -60,10 +67,13 @@ fit (iPhone 15 and wider) and scroll on narrower phones.
 ## Shell
 
 - `src/components/app-shell.tsx`: sidebar from `lg`; `MobileNav` below.
-- `src/components/mobile-nav.tsx`: sticky top bar (brand, profile, menu), a drawer with all links,
-  status rows and sign-out, and a bottom tab bar on phones (Profile, Team, Matches; Players
-  and Leaderboards are Team tabs, Settings and Riot Accounts are in the account menu behind the
-  avatar). Both bars pad for safe areas (`pt-safe`, `pb-safe`, `px-safe`); in short windows the
+- `src/components/mobile-nav.tsx`:
+  - a sticky top bar: the menu at its left end, then the brand and the profile;
+  - a drawer from the left (the sidebar's side) with all links, status rows and sign-out;
+  - a bottom tab bar on phones: Profile, Team and Resources, the sidebar's three entries, in equal columns.
+    - Players, Leaderboards and Matches are Team's own tabs, so Team stays marked on them.
+    - Settings and Riot Accounts are in the account menu behind the avatar.
+    - The current tab's icon sits in an accent pill and its label is bright, so it does not rely on colour alone. Both bars pad for safe areas (`pt-safe`, `pb-safe`, `px-safe`); in short windows the
   tab bar is hidden and the top bar slides away while reading (see above).
 - `main` pads for the tab bar (`pb-tabbar`) so content never hides behind it.
 
@@ -77,12 +87,14 @@ fit (iPhone 15 and wider) and scroll on narrower phones.
   with no hydration flash (the first render leaves the decision to CSS).
 - `PanelHeader` wraps its actions; `Panel` is `min-w-0` so grids never force page overflow.
 - `ChampionPortrait` images carry width/height, `loading="lazy"` and `decoding="async"`.
-- `ChampionPicker`: full-screen sheet on phones and in short windows, dialog from `sm`; body scroll is locked while open.
 
 ## Tables
 
 Tables with more than four columns render as cards on phones and as the table from `md`:
 Data jobs and the player's champion proficiency table. Match history rows wrap into cards.
+A game's breakdown (under its Match History card, or in the match window) sizes its scoreboard by
+its own width (container `bd`, not the screen): name, KDA and items on phones, damage from 36rem,
+gold, CS and vision columns from 60rem; its four section tabs share a phone's width.
 
 ## Tests
 
@@ -116,3 +128,57 @@ one on an iPhone SE while the match window keeps its own scrolling body, and tha
 badge never covers the team name. These are emulated devices: they check layout, size
 and behaviour in Chromium, not Safari's own toolbars, keyboard or rotation animation, which need a
 real device.
+
+## Safari and iPhones
+
+Three levels, each saying what it proves:
+
+- **Chromium with iPhone sizes and user agents** (every pull request): the phone and landscape
+  rules above, 16px fields, safe areas, and Install App's iPhone and iPad instructions
+  (`e2e/install-app.spec.ts`: Share → Add to Home Screen, in-app browsers). Layout and behaviour,
+  in Chromium.
+- **Safari's engine** (by hand): `e2e/webkit.spec.ts`, in the `webkit` project that exists only
+  with `E2E_WEBKIT=1`. Run it with the WebKit workflow (Actions → WebKit → Run workflow, about 8
+  billed minutes), or locally after `pnpm exec playwright install webkit` with
+  `pnpm build && E2E_WEBKIT=1 pnpm exec playwright test --project=webkit`. On an iPhone-sized,
+  touch WebKit it checks:
+  - the priority pages load with no page error (hydration included) and no sideways scrolling;
+  - Team's card track and role tabs, by tap;
+  - a teammate's profile sections and a champion's window;
+  - the Card Studio's section list, a palette and Cancel;
+  - the Admin Mode switch;
+  - fields at 16px or more (Safari zooms into smaller ones) and sign-in's password autofill attributes;
+  - the pages held sideways;
+  - the Home Screen metadata: `apple-mobile-web-app-*`, the touch icon, the manifest and `viewport-fit=cover`.
+
+  None of these tests signs a member in. One that does must keep the session itself: WebKit keeps
+  no `Secure` cookie on `http://localhost`, and the e2e server is a production build whose session
+  cookies are `Secure`. Ranked Development's iPhone test stored the sign-in's cookies again without
+  `Secure` and blocked the service worker so every request was routed (commits `e87dd15` to
+  `985c65a`; removed with that feature).
+
+  This is WebKit as Playwright builds it for Linux: Safari's engine, not Safari on an iPhone.
+  **Status, 21 Oct 2026:** the spec passes in Chromium with the same iPhone settings; its first
+  WebKit run is still to be done (WebKit is not installed in the development container).
+- **A real iPhone** (by a person; nothing above covers it):
+  1. Add to Home Screen from Safari's Share menu: the icon and name come from Branding, and the app
+     opens full screen with its content clear of the notch and the home indicator.
+  2. Sign in inside the installed app (iOS keeps its cookies apart from Safari's), close it and
+     open it again: still signed in.
+  3. Turn the phone on Team, a profile and Resources: the layout follows, the tab bar steps aside
+     sideways, and nothing sits under the notch.
+  4. Type in a field (display name, a Riot ID when linking an account): no zoom, and the keyboard covers
+     neither the field nor its Save button.
+  5. Swipe Team's cards: one card at a time, and an upward swipe still scrolls the page.
+  6. Open and close a detail window and the Card Studio: the page behind does not move.
+  7. Open the app with no connection: the offline notice shows.
+
+**Browser features against Safari 16.4** (reviewed 21 Oct 2026). Tailwind v4 and Next.js 16 need
+Safari 16.4 or later, so that is the floor. Nothing the app uses needs more:
+- Script: no `requestIdleCallback`, `Object.groupBy`, `Promise.withResolvers`, Set methods, the
+  Popover API, View Transitions or anchor positioning.
+- CSS: container queries, `:has()`, `dvh`, `lh`, `color-mix()`, `inert` and `<dialog>` all work from
+  16.4.
+- Fallbacks: hidden scrollbars carry the WebKit rule (`[&::-webkit-scrollbar]:hidden`), and the
+  build adds the `-webkit-` prefixes for `backdrop-filter` and `mask-image`.
+

@@ -1,16 +1,16 @@
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Page } from "./test";
 
 /*
   Social icons on player cards (domain/social-links, the demo roster's synthetic links): Team
   Overview cards, a substitute's side, the Players directory, the public page and the card
-  previews show each member's links only to the audience they chose, and a link kept to "Only me"
-  shows nowhere. Each icon is its own control: using one never opens, turns or selects the card
+  previews show a member's link only when its Show publicly switch is on, and the same ones
+  everywhere; a link switched off shows nowhere. Each icon is its own control: using one never opens, turns or selects the card
   under it, nor opens the profile. Channel links open in a new tab; a stub answers them here, so
   no request leaves the test.
 */
 
-const HIDDEN = ["demo.support.private"];
-const TEAM_ONLY = ["demo_mid_live", "demo.mid"];
+// Switched off: Demo Support's Discord and Demo Mid's Twitch.
+const HIDDEN = ["demo.support.private", "demo_mid_live"];
 
 test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
@@ -23,7 +23,7 @@ async function guestPage(browser: Browser, baseURL: string): Promise<Page> {
   return context.newPage();
 }
 
-test("Team Overview: teammates see the links chosen for the team, and using one leaves the card alone", async ({ page, context }, info) => {
+test("Team Overview: teammates see the links switched on, and using one leaves the card alone", async ({ page, context }, info) => {
   test.skip(info.project.name !== "desktop", "five cards across on the desktop; the directory test covers touch");
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/team");
@@ -33,7 +33,8 @@ test("Team Overview: teammates see the links chosen for the team, and using one 
   await expect(icons.getByTestId("card-social-youtube")).toHaveAttribute("href", "https://www.youtube.com/@DemoMidChannel");
   await expect(icons.getByTestId("card-social-youtube")).toHaveAttribute("target", "_blank");
   await expect(icons.getByTestId("card-social-youtube")).toHaveAttribute("rel", /noopener/);
-  await expect(icons.getByTestId("card-social-twitch")).toHaveAttribute("href", "https://www.twitch.tv/demo_mid_live");
+  await expect(icons.getByTestId("card-social-discord")).toBeVisible();
+  await expect(icons.getByTestId("card-social-twitch")).toHaveCount(0);
   // The icons share the avatar's row: a card with them is as tall as its neighbours, names in line.
   const top = (role: string) => page.getByTestId(`lineup-row-${role}`).locator("[data-testid='card-fit']").evaluate((el) => Math.round(el.getBoundingClientRect().top));
   expect(await top("MID")).toBe(await top("JUNGLE"));
@@ -50,7 +51,7 @@ test("Team Overview: teammates see the links chosen for the team, and using one 
   await expect(mid).not.toHaveAttribute("data-selected", /.*/);
   await expect(page.getByTestId("player-detail")).toBeHidden();
 
-  // A link kept to "Only me" shows nowhere: no icon on the card, and not its value in the page.
+  // A link switched off shows nowhere: no icon on the card, and not its value in the page.
   await expect(page.getByTestId("lineup-row-SUPPORT").getByTestId("card-social")).toHaveCount(0);
   const html = await page.content();
   for (const v of HIDDEN) expect(html).not.toContain(v);
@@ -81,7 +82,7 @@ test("Players: the icons sit on the card, and using one never opens the profile"
   const icons = page.getByRole("list", { name: "Demo Mid's social links" });
   await expect(icons).toBeVisible();
   await expect(icons.getByTestId("card-social-youtube")).toHaveAttribute("href", "https://www.youtube.com/@DemoMidChannel");
-  await expect(icons.getByTestId("card-social-twitch")).toHaveAttribute("href", "https://www.twitch.tv/demo_mid_live");
+  await expect(icons.getByTestId("card-social-twitch")).toHaveCount(0);
   // Over the card's own artwork, inside its edges.
   const card = (await page.locator("main a[data-testid='player-card'][data-player-name='Demo Mid']").boundingBox())!;
   const box = (await icons.boundingBox())!;
@@ -99,25 +100,25 @@ test("Players: the icons sit on the card, and using one never opens the profile"
   await icons.getByTestId("card-social-discord").click();
   await expect(page.getByText(/Discord username copied|Not copied/)).toBeVisible();
   await expect(page).toHaveURL(/\/players$/);
-  // Only the chosen audiences: the hidden Discord of Demo Support shows nowhere.
+  // Only links switched on: Demo Support's Discord, switched off, shows nowhere.
   await expect(page.getByRole("list", { name: "Demo Support's social links" })).toHaveCount(0);
   const html = await page.content();
   for (const v of HIDDEN) expect(html).not.toContain(v);
 });
 
-test("the public page shows only the links chosen for the public", async ({ browser, baseURL }, info) => {
+test("the public page shows the same links as the team, and none switched off", async ({ browser, baseURL }, info) => {
   test.skip(info.project.name !== "desktop", "one pass is enough for what the page holds");
   const guest = await guestPage(browser, baseURL!);
   await guest.goto("/public");
   const mid = guest.getByTestId("lineup-row-MID");
   await expect(mid.getByTestId("card-social-youtube")).toHaveAttribute("href", "https://www.youtube.com/@DemoMidChannel");
+  await expect(mid.getByTestId("card-social-discord")).toBeVisible();
   await expect(mid.getByTestId("card-social-twitch")).toHaveCount(0);
-  await expect(mid.getByTestId("card-social-discord")).toHaveCount(0);
-  // The Support substitute chose the public for their Twitch: on the back of the card.
+  // The Support substitute's Twitch is switched on: on the back of the card.
   await guest.getByTestId("lineup-row-SUPPORT").getByTestId("flip-to-substitute").click();
   await expect(guest.getByTestId("lineup-sub-SUPPORT").getByTestId("card-social-twitch")).toHaveAttribute("href", "https://www.twitch.tv/demo_sub_support");
   const html = await guest.content();
-  for (const v of [...TEAM_ONLY, ...HIDDEN]) expect(html).not.toContain(v);
+  for (const v of HIDDEN) expect(html).not.toContain(v);
   await guest.context().close();
 });
 
@@ -133,6 +134,6 @@ test("the card preview in the Studio shows the same icons, without actions", asy
   }).toPass({ timeout: 15_000 });
   const preview = page.getByTestId("card-preview").getByTestId("card-social-preview");
   await expect(preview).toBeVisible();
-  await expect(preview.locator(":scope > span")).toHaveCount(3);
+  await expect(preview.locator(":scope > span")).toHaveCount(2);
   await expect(page.getByTestId("card-preview").locator("a[href*='youtube'], a[href*='twitch']")).toHaveCount(0);
 });

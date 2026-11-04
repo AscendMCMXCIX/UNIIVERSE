@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./test";
 import { AxeBuilder } from "@axe-core/playwright";
 
 /*
@@ -12,8 +12,8 @@ test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
 });
 
-const PLAYER_ROUTES = ["/team", "/players", "/leaderboards", "/matches", "/overview", "/overview/champions", "/overview/blocks", "/overview/matches", "/settings"];
-const ADMIN_ROUTES = ["/admin/people", "/admin/people/access", "/admin/data", "/admin/branding", "/admin/system"];
+const PLAYER_ROUTES = ["/team", "/players", "/leaderboards", "/matches", "/overview", "/overview/champions", "/overview/matches", "/resources", "/settings"];
+const ADMIN_ROUTES = ["/admin", "/admin/people", "/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/data", "/admin/system", "/admin/audit", "/admin/settings"];
 const SIZES: Array<[number, number]> = [
   [320, 640],
   [375, 667],
@@ -52,15 +52,15 @@ test.describe("layout across screen sizes", () => {
     }
   });
 
-  test("admin pages fit phone and desktop widths", async ({ page, context, baseURL }) => {
-    test.setTimeout(120_000);
-    await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
+  test("admin pages fit phone and desktop widths", async ({ page }) => {
+    test.setTimeout(180_000);
     for (const [width, height] of [[320, 640], [390, 844], [1024, 768], [1366, 768], [1920, 1080]] as const) {
       await page.setViewportSize({ width, height });
       for (const route of ADMIN_ROUTES) {
         await page.goto(route);
         await page.waitForLoadState("networkidle");
         expect(await overflow(page), `${route} at ${width}x${height}`).toBeLessThanOrEqual(1);
+        await expect(page.locator("main h1, main h2").first(), `${route} heading at ${width}x${height}`).toBeVisible();
       }
     }
   });
@@ -84,13 +84,96 @@ test.describe("accessibility", () => {
     }
   });
 
-  test("admin pages have no critical or serious violations", async ({ page, context, baseURL }) => {
+  test("every control the keyboard reaches shows the same focus ring", async ({ page }) => {
+    // The accent outline of the shared controls (globals.css), on links and hand-made buttons too:
+    // never the browser's own ring, which differs between browsers, and never none. A text field
+    // marks its focus with its accent border instead.
+    for (const route of ["/team", "/players", "/resources", "/admin/people"]) {
+      await page.goto(route);
+      await page.waitForLoadState("networkidle");
+      const accent = await page.evaluate(() => {
+        const probe = document.createElement("span");
+        probe.style.color = "var(--color-accent)";
+        document.body.append(probe);
+        const colour = getComputedStyle(probe).color;
+        probe.remove();
+        return colour;
+      });
+      const reached: string[] = [];
+      for (let i = 0; i < 24; i++) {
+        await page.keyboard.press("Tab");
+        const focus = await page.evaluate(() => {
+          const el = document.activeElement as HTMLElement | null;
+          if (!el || el === document.body) return null;
+          // A control that fades its colours (transition-colors) fades the ring in too: read its end.
+          for (const animation of el.getAnimations()) animation.finish();
+          const s = getComputedStyle(el);
+          const label = (el.getAttribute("aria-label") ?? el.textContent ?? "").trim().slice(0, 40);
+          return { what: `${el.tagName.toLowerCase()}${el.dataset.testid ? `[${el.dataset.testid}]` : ""} "${label}"`, field: el.matches("input:not([type=checkbox]):not([type=radio]), textarea, select"), ring: [s.outlineStyle, s.outlineWidth, s.outlineColor], border: s.borderTopColor };
+        });
+        if (!focus) continue;
+        reached.push(focus.what);
+        if (focus.field) expect(focus.border === accent || focus.ring.join(" ") === `solid 2px ${accent}`, `${route}: ${focus.what}`).toBe(true);
+        else expect(focus.ring, `${route}: ${focus.what}`).toEqual(["solid", "2px", accent]);
+      }
+      expect(reached.length, `${route}: the keyboard reaches its controls`).toBeGreaterThan(8);
+    }
+  });
+
+  test("admin pages have no critical or serious violations", async ({ page }) => {
     test.setTimeout(120_000);
-    await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
     for (const route of ADMIN_ROUTES) {
       await page.goto(route);
       await page.waitForLoadState("networkidle");
       await audit(page, route);
+    }
+  });
+
+  // Found by a wider sweep on 2 Nov 2026: a phone-width table on System Health that the keyboard
+  // could not scroll; lettered champion tiles (shown when a portrait cannot load, as here) whose two
+  // letters were missing from the name of the link around them; game cards in the champion window
+  // named without the figures they show.
+  test("pages at phone width, a teammate's profile and the Team player and champion windows have no critical or serious violations", async ({ page }) => {
+    test.setTimeout(240_000);
+    await page.goto("/players");
+    const teammate = await page.locator("main a[data-testid='player-card'][data-player-name='Demo Mid']").getAttribute("href");
+    expect(teammate).toBeTruthy();
+    const profile = [teammate!, `${teammate}/champions`, `${teammate}/matches`, `${teammate}/accounts`];
+    for (const route of profile) {
+      await page.goto(route);
+      await page.waitForLoadState("networkidle");
+      await audit(page, route);
+    }
+    await page.goto("/team");
+    await page.waitForLoadState("networkidle");
+    await page.getByTestId("lineup-card-MID").click({ position: { x: 40, y: 60 } });
+    await expect(page.locator("dialog[open]")).toBeVisible();
+    await audit(page, "/team player window");
+    // The champion window, whose games are whole-card buttons (named by what they show).
+    await page.goto(`${teammate}/champions`);
+    const open = page.getByTestId("top-champion").first().getByTestId("open-champion");
+    const win = page.getByTestId("champion-detail");
+    await expect(async () => {
+      if (!(await win.isVisible())) await open.click({ timeout: 2_000 });
+      await expect(win).toBeVisible({ timeout: 1_000 });
+    }).toPass({ timeout: 15_000 });
+    // Audit the window once it has settled: while it loads or updates, its body is dimmed on purpose
+    // (opacity-70 while pending), and a slow runner would otherwise measure that passing state.
+    const settled = async () => {
+      await expect(win.getByTestId("champion-detail-loading")).toHaveCount(0, { timeout: 15_000 });
+      await expect(page.getByTestId("champion-detail-body")).toHaveCSS("opacity", "1", { timeout: 15_000 });
+    };
+    await settled();
+    await audit(page, "champion window");
+    await page.getByTestId("champion-tab-matchups").click();
+    await expect(win.getByTestId("lane-game").first()).toBeVisible();
+    await settled();
+    await audit(page, "champion window, matchups");
+    await page.setViewportSize({ width: 375, height: 667 });
+    for (const route of [...PLAYER_ROUTES, ...profile, ...ADMIN_ROUTES]) {
+      await page.goto(route);
+      await page.waitForLoadState("networkidle");
+      await audit(page, `${route} at 375px`);
     }
   });
 });
@@ -160,6 +243,19 @@ test.describe("shell, motion and notifications", () => {
     await expect(page.locator("aside")).toHaveAttribute("data-collapsed", "false");
   });
 
+  test("a page that does not exist says so, with a way back", async ({ page }) => {
+    // A player who does not exist, and an address no page answers (which also answers 404).
+    for (const address of ["/players/00000000-0000-4000-8000-000000000000", "/no-such-page"]) {
+      const response = await page.goto(address);
+      if (address === "/no-such-page") expect(response!.status()).toBe(404);
+      const missing = page.getByTestId("not-found");
+      await expect(missing.getByRole("heading", { level: 1 }), address).toHaveText("This page does not exist");
+      await expect(missing.getByRole("link", { name: "Go to the start page" }), address).toHaveAttribute("href", "/");
+    }
+    await page.getByTestId("not-found").getByRole("link", { name: "Go to the start page" }).click();
+    await expect(page.locator("main")).toBeVisible();
+  });
+
   test("reduced motion switches animations and transitions off", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/team");
@@ -172,24 +268,22 @@ test.describe("shell, motion and notifications", () => {
     for (const d of durations) expect(parseFloat(d)).toBeLessThanOrEqual(0.01);
   });
 
-  test("saving shows a notification; an empty tagline shows nothing", async ({ page, context, baseURL }) => {
-    await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
+  test("saving shows a notification; an empty tagline shows nothing", async ({ page }) => {
     await page.goto("/admin/branding");
     await page.locator("#brand-tagline").fill("Climb together");
     await page.getByRole("button", { name: "Save branding" }).click();
     await expect(page.getByText("Branding saved.")).toBeVisible();
-    await page.goto("/team");
-    await expect(page.getByTestId("sidebar").getByText("Climb together")).toHaveCount(0); // Admin mode shows "Admin mode" instead
-    await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+    // Admin Mode names itself under the brand instead of the tagline; Player Mode shows the tagline.
+    await page.reload();
+    await expect(page.getByTestId("sidebar").getByText("Admin mode", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("sidebar").getByText("Climb together")).toHaveCount(0);
     await page.goto("/team");
     await expect(page.getByTestId("sidebar").getByText("Climb together")).toBeVisible();
     // Back to no tagline: nothing is shown in its place.
-    await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
     await page.goto("/admin/branding");
     await page.locator("#brand-tagline").fill("");
     await page.getByRole("button", { name: "Save branding" }).click();
     await expect(page.getByText("Branding saved.")).toBeVisible();
-    await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
     await page.goto("/team");
     await expect(page.getByTestId("sidebar").getByText("Climb together")).toHaveCount(0);
   });
@@ -252,61 +346,50 @@ test.describe("tooltips", () => {
   });
 });
 
-test.describe("solo queue blocks", () => {
+test.describe("retired Ranked Development", () => {
   test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "runs once"));
 
-  test("a block starts at 0 Games in one click, with no target, and the layout follows the workflow", async ({ page }) => {
-    await page.goto("/overview/blocks");
-    // Blocks belong to a player profile; the in-memory demo's local owner has none.
-    test.skip((await page.getByText("has no player profile").count()) > 0, "needs an account with a player profile (covered by tests/db/blocks-refinement.test.ts)");
-    await expect(page.getByTestId("ranked-focus")).toBeVisible();
-    if (await page.getByTestId("start-block").count()) {
-      await expect(page.getByTestId("add-game")).toContainText(/Starts BLOCK \d{3}/);
-      await page.getByTestId("start-block-submit").click();
+  test("its addresses, and those of Solo Queue Blocks and the Ranked Improvement journal before it, lead to My Profile's Overview", async ({ page }) => {
+    const retired = ["/overview/development", "/overview/development/sessions", "/overview/development/sessions/00000000-0000-4000-8000-000000000000", "/overview/development/library", "/overview/blocks", "/overview/blocks/history", "/overview/blocks/42", "/blocks", "/blocks?add=1", "/blocks/history", "/blocks/42", "/ranked", "/ranked/history", "/ranked/blocks/42"];
+    for (const from of retired) {
+      const response = await page.goto(from);
+      expect(new URL(page.url()).pathname, from).toBe("/overview");
+      expect(response?.status(), from).toBe(200);
     }
-    await expect(page.getByTestId("current-block")).toBeVisible();
-    await expect(page.getByTestId("block-progress")).toHaveText(/^(\d+ Games?|\d+ of \d+ games.*)$/);
-    // No default target: no empty slot hints at a limit.
-    await expect(page.getByTestId("block-slots").locator("[data-next]")).toHaveCount(0);
-    await expect(page.getByTestId("add-game")).toContainText(/Goes into BLOCK \d{3}/);
-    // Workflow order on the page: the focus, the current block (Quick Add beside it), then its games
-    // and the previous blocks (also e2e/blocks-focus.spec.ts, on a member account).
-    const tops = await Promise.all(["current-block", "block-games", "latest-blocks"].map(async (id) => (await page.getByTestId(id).boundingBox())!.y));
-    expect([...tops].sort((a, b) => a - b)).toEqual(tops);
-    expect((await page.getByTestId("add-game").boundingBox())!.y).toBeLessThanOrEqual(tops[1]!);
+    // No page of the app links to them any more.
+    await page.goto("/overview");
+    for (const href of await page.locator("a[href]").evaluateAll((as) => as.map((a) => a.getAttribute("href") ?? ""))) expect(href).not.toMatch(/^\/(overview\/development|overview\/blocks|blocks|ranked)(\/|\?|$)/);
   });
 });
 
-test.describe("sidebar groups", () => {
+test.describe("sidebar entries", () => {
   test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "runs once"));
 
-  test("Player View is three single entries, My Profile, Team and Clash Scout, with no groups to fold", async ({ page }) => {
+  test("Player Mode is three single entries, My Profile, Team and Resources, with no groups to fold", async ({ page }) => {
     await page.goto("/team");
     const aside = page.locator("aside");
-    const order = await aside.locator("nav[aria-label='Main'] a, [data-testid^=nav-group-][data-open]").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid") ?? e.getAttribute("href")));
-    expect(order).toEqual(["nav-overview", "nav-team", "nav-clash"]);
+    const order = await aside.locator("nav[aria-label='Main'] a").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")));
+    expect(order).toEqual(["nav-overview", "nav-team", "nav-resources"]);
     await expect(aside.getByTestId("nav-team")).toHaveAttribute("aria-current", "page");
-    await expect(aside.locator("nav[aria-label='Main'] a")).toHaveCount(3);
   });
 
-  test("the group of the current page can be closed, keeps a marker, and stays closed across pages and reloads", async ({ page, context, baseURL }) => {
-    // Collapsible groups are Admin Mode's (People, Site).
-    await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
-    await page.goto("/admin/branding");
+  test("Admin Mode is six single entries; a section with several pages shows them as tabs and stays marked on each", async ({ page }) => {
+    await page.goto("/admin/previews");
     const aside = page.locator("aside");
-    const group = aside.getByTestId("nav-group-admin-site");
-    await expect(group).toHaveAttribute("data-open", "true");
-    await aside.getByTestId("nav-group-admin-site-toggle").click();
-    await expect(group).toHaveAttribute("data-open", "false");
-    await expect(group).toHaveAttribute("data-current", "true");
-    await expect(page).toHaveURL(/\/admin\/branding/);
-    await page.reload();
-    await expect(page.locator("aside").getByTestId("nav-group-admin-site")).toHaveAttribute("data-open", "false");
-    await page.goto("/admin/system");
-    await expect(page.locator("aside").getByTestId("nav-group-admin-site")).toHaveAttribute("data-open", "false");
-    // Reopened only on purpose.
-    await page.locator("aside").getByTestId("nav-group-admin-site-toggle").click();
-    await expect(page.locator("aside").getByTestId("nav-group-admin-site")).toHaveAttribute("data-open", "true");
+    const order = await aside.locator("nav[aria-label='Main'] a").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")));
+    expect(order).toEqual(["nav-admin", "nav-admin-users", "nav-admin-settings", "nav-admin-data", "nav-admin-system", "nav-admin-audit"]);
+    const settings = aside.getByTestId("nav-admin-settings");
+    await expect(settings).toHaveAttribute("aria-current", "page");
+    await expect(settings).toHaveAttribute("href", "/admin/branding");
+    const tabs = page.getByTestId("admin-settings-tabs");
+    await expect(tabs.getByRole("link")).toHaveText(["Branding", "Previews", "Resources"]);
+    await tabs.getByRole("link", { name: "Branding" }).click();
+    await expect(page).toHaveURL(/\/admin\/branding$/);
+    await expect(settings).toHaveAttribute("aria-current", "page");
+    // Users & Permissions: Accounts and Access levels, under one entry.
+    await page.goto("/admin/people/access");
+    await expect(aside.getByTestId("nav-admin-users")).toHaveAttribute("aria-current", "page");
+    await expect(aside.getByTestId("nav-admin")).not.toHaveAttribute("aria-current", "page");
   });
 
   test("My Profile is one sidebar link; a profile's sections are the bar on the page, and every section address still works", async ({ page }) => {
@@ -325,8 +408,7 @@ test.describe("sidebar groups", () => {
     const href = (await card.getAttribute("href"))!;
     await page.goto(`${href}/matches`);
     const tabs = page.getByTestId("profile-tabs");
-    // The sections, in their deliberate order (Solo Queue Blocks, private, sits between Match
-    // History and Riot Accounts on your own profile only; Matchups live in a champion's window).
+    // The sections, in their deliberate order (Matchups live in a champion's window).
     await expect(tabs.getByRole("link")).toHaveText(["Overview", "All Champions", "Match History", "Riot Accounts"]);
     await expect(tabs.getByRole("link", { name: "Match History" })).toHaveAttribute("aria-current", "page");
     await expect(aside.getByRole("link", { name: "Match History" })).toHaveCount(0);

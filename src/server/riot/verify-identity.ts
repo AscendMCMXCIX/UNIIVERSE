@@ -4,8 +4,10 @@ import { players, riotAccounts, users } from "@/server/db/schema";
 import { parseRiotId } from "@/server/accounts/repository";
 import { isRiotPlatform } from "@/domain/riot-platforms";
 import { createRiotClient, RiotApiError } from "@/server/riot/api/client";
+import { ERASED_IDENTITY_MESSAGE, erasureFilter } from "@/server/privacy/ledger";
+import { browserTestRiot } from "@/server/riot/browser-test";
 
-/** The two Riot calls account verification needs; the real client satisfies it, tests pass a fake. */
+/** The Riot calls account verification needs; the real client satisfies it, tests pass a fake. */
 export interface RiotIdentityClient {
   accountByRiotId(platform: string, gameName: string, tagLine: string): Promise<{ puuid: string; gameName?: string; tagLine?: string }>;
   activePlatformByPuuid(platformHint: string, puuid: string): Promise<string | null>;
@@ -16,6 +18,8 @@ export type IdentityCheck =
   | { status: "invalid"; message: string }
   | { status: "not-found"; message: string }
   | { status: "duplicate"; message: string }
+  /** The Riot account of someone whose personal data was erased: not linked again unless an administrator releases it. */
+  | { status: "erased"; message: string }
   | { status: "unavailable"; message: string }
   | { status: "failed"; message: string };
 
@@ -26,14 +30,9 @@ export function createVerificationClient(): RiotIdentityClient | null {
 }
 
 /**
- * Browser tests only: with UNIIVERSE_FAKE_RIOT_IDS=1 on the in-memory demo database (never a real
- * database, never a deployment), every well-formed Riot ID "exists", so account creation can be
- * tested end to end without a Riot key. Real data never meets this client.
+ * Browser tests only (server/riot/browser-test.ts): every well-formed Riot ID "exists", so account
+ * creation can be tested end to end without a Riot key. Real data never meets this client.
  */
-function browserTestRiot(): boolean {
-  return process.env.UNIIVERSE_FAKE_RIOT_IDS === "1" && process.env.UNIIVERSE_DB_MODE === "memory" && !process.env.VERCEL;
-}
-
 const BROWSER_TEST_RIOT: RiotIdentityClient = {
   async accountByRiotId(_platform, gameName, tagLine) {
     return { puuid: `browser-test-${gameName.toLowerCase()}-${tagLine.toLowerCase()}`, gameName, tagLine };
@@ -69,6 +68,8 @@ export async function verifyRiotIdentity(db: Db, riotIdInput: string, client: Ri
   const gameName = account.gameName?.trim() || parsed.gameName;
   const tagLine = account.tagLine?.trim() || parsed.tagLine;
   const riotId = `${gameName}#${tagLine}`;
+  const erased = await erasureFilter(db);
+  if (erased.puuid(account.puuid) || erased.riotId(riotId)) return { status: "erased", message: ERASED_IDENTITY_MESSAGE };
 
   // Duplicates: the same Riot identity (by PUUID, or by name for accounts never resolved) on another profile.
   const owners = await db

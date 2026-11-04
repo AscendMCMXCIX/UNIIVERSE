@@ -5,14 +5,16 @@ import { listUsers, validateUsername } from "@/server/repositories/users";
 
 /**
  * Read-only account audit: can every account sign in the way the product expects? Reports
- * owner usernames (owners only; members are counted, never named), accounts without a password
+ * owner usernames (owners only; members are counted, never named), how many other accounts hold
+ * administrator access, accounts without a password
  * or a player profile, usernames that no longer satisfy the rules, whether the legacy email
- * column is really gone, which migrations are applied, and any table without Row Level Security
- * (which Supabase's Data API could otherwise read with the public key). Changes nothing.
+ * column is really gone, which migrations are applied, any table without Row Level Security
+ * (which Supabase's Data API could otherwise read with the public key), and how the social links
+ * are stored (counted, never read out). Changes nothing.
  */
 defineJob({
   key: "auth-audit",
-  description: "Read-only account check: owners, usernames, passwords, profiles, applied migrations, Row Level Security. Changes nothing.",
+  description: "Read-only account check: owners, administrators (counted), usernames, passwords, profiles, applied migrations, Row Level Security, social links (counted). Changes nothing.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,
   run: async (ctx) => {
@@ -38,6 +40,16 @@ defineJob({
     const applied = ((migrations as unknown as { rows?: Array<{ tag: string }> }).rows ?? (migrations as unknown as Array<{ tag: string }>)).map((m) => m.tag);
     const open = await ctx.db.execute(sql`SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND NOT c.relrowsecurity ORDER BY c.relname`);
     const withoutRls = ((open as unknown as { rows?: Array<{ relname: string }> }).rows ?? (open as unknown as Array<{ relname: string }>)).map((t) => t.relname);
+    // Social links (migration 0061): how many, how many switched on (Show publicly), and how many
+    // are still in the shape before it, which only an instance of the previous version could have
+    // written during a deployment (read safely: shown only if it was public). Values never leave.
+    const social = await ctx.db.execute(sql`
+      SELECT count(DISTINCT p.id)::int AS profiles, count(*)::int AS links,
+        count(*) FILTER (WHERE e.value -> 'public' = 'true'::jsonb OR e.value ->> 'show' = 'public')::int AS switched_on,
+        count(*) FILTER (WHERE e.value -> 'show' IS NOT NULL)::int AS old_shape
+      FROM players p CROSS JOIN LATERAL jsonb_each(CASE WHEN jsonb_typeof(p.social_links) = 'object' THEN p.social_links ELSE '{}'::jsonb END) AS e(key, value)
+      WHERE jsonb_typeof(e.value) = 'object'`);
+    const [links] = (social as unknown as { rows?: Array<{ profiles: number; links: number; switched_on: number; old_shape: number }> }).rows ?? (social as unknown as Array<{ profiles: number; links: number; switched_on: number; old_shape: number }>);
     const problems: string[] = [];
     if (owners.length === 0) problems.push("no owner account");
     if (owners.some((o) => !o.hasPassword)) problems.push("an owner has no password");
@@ -52,6 +64,8 @@ defineJob({
       summary: {
         accounts: users.length,
         owners,
+        // Administrator access beyond the Owner (migration 0053): counted, never named.
+        administrators: { active: users.filter((u) => u.role !== "owner" && u.isAdmin && u.isActive).length, deactivated: users.filter((u) => u.role !== "owner" && u.isAdmin && !u.isActive).length },
         retiredCoachRole: users.filter((u) => u.role === "coach").length,
         playerSignIn: signIn,
         players: users.filter((u) => u.role === "player").length,
@@ -63,6 +77,7 @@ defineJob({
         usernameColumnPresent: names.includes("username"),
         migrationsApplied: applied,
         tablesWithoutRowLevelSecurity: withoutRls,
+        socialLinks: { profiles: Number(links?.profiles ?? 0), links: Number(links?.links ?? 0), switchedOn: Number(links?.switched_on ?? 0), oldShape: Number(links?.old_shape ?? 0) },
       },
     };
   },

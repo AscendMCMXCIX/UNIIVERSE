@@ -1,7 +1,8 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./test";
+import { closeGame, openGame } from "./match-history";
 
 /*
-  Possible groups in the match window (demo data: two rivals who queue together meet each demo
+  Possible groups in a game's scoreboard (demo data: two rivals who queue together meet each demo
   player in every third game; everyone else is new in every game). Groups load after the
   scoreboard, are worded as history (never "premade", never a percentage), list their evidence
   games, and the sides without one say there is not enough history.
@@ -19,22 +20,18 @@ async function openMatchWithGroup(page: Page) {
   const cards = page.getByTestId("match-card");
   for (let i = 0; i < 6; i++) {
     const card = cards.nth(i);
-    await expect(async () => {
-      await card.click({ position: { x: 24, y: 16 } });
-      await expect(page.getByTestId("match-detail")).toBeVisible({ timeout: 2_000 });
-    }).toPass({ timeout: 15_000 });
-    const note = page.getByTestId("possible-groups-note");
+    const breakdown = await openGame(card);
+    const note = breakdown.getByTestId("possible-groups-note");
     await expect(note).not.toHaveAttribute("data-state", "loading", { timeout: 15_000 });
-    if ((await page.getByTestId("possible-group").count()) > 0) return { note, card };
-    await page.keyboard.press("Escape");
-    await expect(page.getByTestId("match-detail")).toHaveCount(0);
+    if ((await breakdown.getByTestId("possible-group").count()) > 0) return { note, card, breakdown };
+    await closeGame(card);
   }
   throw new Error("no demo match with a possible group in the first six games");
 }
 
 test("a recurring pair is shown as a possible duo with its evidence, never as a confirmed premade", async ({ page }) => {
-  const { note } = await openMatchWithGroup(page);
-  const red = page.getByTestId("team-red");
+  const { note, card, breakdown } = await openMatchWithGroup(page);
+  const red = breakdown.getByTestId("team-red");
   const group = red.getByTestId("possible-group");
   await expect(group).toHaveCount(1);
   await expect(group).toHaveAttribute("data-size", "2");
@@ -46,7 +43,7 @@ test("a recurring pair is shown as a possible duo with its evidence, never as a 
   expect(games).toBeGreaterThanOrEqual(3);
   // The two rows are marked; nobody on the other side is.
   await expect(red.locator('[data-testid="participant"][data-group="0"]')).toHaveCount(2);
-  await expect(page.getByTestId("team-blue").locator("[data-group]")).toHaveCount(0);
+  await expect(breakdown.getByTestId("team-blue").locator("[data-group]")).toHaveCount(0);
   // The evidence opens from the line, by keyboard too: one row per game (ten at most), newest first.
   const evidence = group.getByTestId("possible-group-evidence");
   await expect(evidence).toBeHidden();
@@ -62,13 +59,12 @@ test("a recurring pair is shown as a possible duo with its evidence, never as a 
   await expect(note).toContainText("not confirmed parties");
   await expect(note).toContainText("members are never labelled");
   // The demo member whose history this is is never part of a group.
-  await expect(page.locator('[data-testid="participant"][data-player][data-group]')).toHaveCount(0);
-  const text = (await page.getByTestId("match-detail-body").innerText()).toLowerCase();
+  await expect(breakdown.locator('[data-testid="participant"][data-player][data-group]')).toHaveCount(0);
+  const text = (await breakdown.innerText()).toLowerCase();
   expect(text).not.toContain("premade");
   expect(await red.getByTestId("possible-groups").innerText()).not.toMatch(/%/);
-  // Escape closes the window as before (the evidence toggle does not trap it).
-  await page.keyboard.press("Escape");
-  await expect(page.getByTestId("match-detail")).toHaveCount(0);
+  // The card still closes the game (the evidence toggle does not hold it open).
+  await closeGame(card);
 });
 
 test("no history means a neutral note, not 'no premades'", async ({ page }) => {
@@ -79,19 +75,37 @@ test("no history means a neutral note, not 'no premades'", async ({ page }) => {
   // Only every third demo game has the pair: one of the first two has none.
   for (let i = 0; i < 2; i++) {
     const card = page.getByTestId("match-card").nth(i);
-    await expect(async () => {
-      await card.click({ position: { x: 24, y: 16 } });
-      await expect(page.getByTestId("match-detail")).toBeVisible({ timeout: 2_000 });
-    }).toPass({ timeout: 15_000 });
-    const note = page.getByTestId("possible-groups-note");
+    const breakdown = await openGame(card);
+    const note = breakdown.getByTestId("possible-groups-note");
     await expect(note).toHaveAttribute("data-state", "ok", { timeout: 15_000 });
-    if ((await page.getByTestId("possible-group").count()) === 0) {
+    if ((await breakdown.getByTestId("possible-group").count()) === 0) {
       await expect(note).toContainText("Possible groups: not enough recorded history to assess.");
-      await expect(page.getByTestId("possible-groups")).toHaveCount(0);
+      await expect(note).not.toContainText("an inference from");
+      await expect(breakdown.getByTestId("possible-groups")).toHaveCount(0);
       return;
     }
-    await page.keyboard.press("Escape");
-    await expect(page.getByTestId("match-detail")).toHaveCount(0);
+    await closeGame(card);
   }
   throw new Error("expected a demo match without a possible group");
+});
+
+test("a game with the team on one side is never 'an inference from 0 earlier recorded games'", async ({ page }) => {
+  await page.goto("/team");
+  const id = (await page.getByTestId("lineup-row-JUNGLE").getAttribute("data-player-id"))!;
+  await page.goto(`/players/${id}/matches`);
+  await page.waitForLoadState("networkidle");
+  // The demo's Flex game with four members and one other player on blue (the newest card): nobody to assess there.
+  const card = page.getByTestId("match-card").filter({ has: page.locator('[data-testid="match-members"][data-with="3"]') }).first();
+  const breakdown = await openGame(card);
+  const note = breakdown.getByTestId("possible-groups-note");
+  await expect(note).toHaveAttribute("data-state", "ok", { timeout: 15_000 });
+  await expect(note).toContainText("Blue side: no other players to assess.");
+  // The other side's players were placed at random among the demo's recurring players: without a
+  // group there, the note says there is not enough history, and never describes an inference.
+  if ((await breakdown.getByTestId("possible-group").count()) === 0) {
+    await expect(note).toHaveAttribute("data-kind", "insufficient");
+    await expect(note).toContainText("Possible groups: not enough recorded history to assess.");
+    await expect(note).not.toContainText("an inference from");
+  }
+  await closeGame(card);
 });

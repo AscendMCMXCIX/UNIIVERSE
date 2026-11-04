@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ACCESS_GROUPS, sanitiseAccessGroups, withAccessGroups, CAPABILITY_KEYS, canEditPlayer, canManageRiotAccounts, canUseAdminArea, capabilitiesOf, describeAccess, hasPermission, isAdmin, sanitiseCapabilities, STANDARD_PLAYER, type Capability, type Session } from "./permissions";
+import { canWatchFreshness, ACCESS_GROUPS, sanitiseAccessGroups, withAccessGroups, CAPABILITY_KEYS, canEditPlayer, canManageRiotAccounts, canUseAdminArea, capabilitiesOf, describeAccess, hasPermission, isAdmin, sanitiseCapabilities, STANDARD_PLAYER, type Capability, type Session } from "./permissions";
 import { NAV_LINKS, canOpen } from "@/lib/nav";
 
 const base = { userId: "u-self", label: "U", playerId: "p-self", username: "u", hasPassword: true, mustChangePassword: false, setupComplete: true };
@@ -8,7 +8,7 @@ const player: Session = { ...base, role: "player", capabilities: STANDARD_PLAYER
 const retiredCoach: Session = { ...base, role: "coach" };
 const restricted: Session = { ...base, role: "player", capabilities: ["view-team", "view-players", "view-matches", "edit-own-profile"] };
 const delegate: Session = { ...base, role: "player", capabilities: [...STANDARD_PLAYER, "manage-lineup", "manage-players", "manage-matches"] };
-/** The rights only the Owner holds: accounts and the site settings of Admin Mode. */
+/** The rights only administrators (the Owner included) hold: accounts and the settings of Admin Mode. */
 const OWNER_ONLY = ["manage-users", "manage-branding", "manage-data"] as const;
 
 describe("capabilities: Owner / Admin, Standard Player and custom sets", () => {
@@ -77,6 +77,34 @@ describe("capabilities: Owner / Admin, Standard Player and custom sets", () => {
   });
 });
 
+describe("administrators (users.is_admin): a permission on top of a player account", () => {
+  const administrator: Session = { ...player, admin: true };
+
+  it("hold every permission and open Admin Mode, while the account stays a player with its own profile", () => {
+    expect(isAdmin(administrator)).toBe(true);
+    expect(canUseAdminArea(administrator)).toBe(true);
+    for (const c of [...CAPABILITY_KEYS, ...OWNER_ONLY]) expect(hasPermission(administrator, c), c).toBe(true);
+    expect(administrator.role).toBe("player");
+    expect(canEditPlayer(administrator, "p-self")).toBe(true);
+  });
+
+  it("come only from the stored flag: without it, every administrator right is gone and their own level applies again", () => {
+    const revoked: Session = { ...administrator, admin: false };
+    expect(isAdmin(revoked)).toBe(false);
+    expect(canUseAdminArea(revoked)).toBe(false);
+    for (const c of OWNER_ONLY) expect(hasPermission(revoked, c), c).toBe(false);
+    expect([...capabilitiesOf(revoked)].sort()).toEqual([...STANDARD_PLAYER].sort());
+    // Nothing a player can hold stands in for it.
+    expect(canUseAdminArea({ ...delegate, admin: undefined })).toBe(false);
+  });
+
+  it("are labelled as such; the Owner stays the Owner", () => {
+    expect(describeAccess({ role: "player", isAdmin: true })).toBe("Administrator");
+    expect(describeAccess({ role: "owner", isAdmin: false })).toBe("Owner");
+    expect(describeAccess({ role: "player", isAdmin: false })).toBe("Player");
+  });
+});
+
 describe("additional access groups", () => {
   it("add a group's capabilities to the base level, never take any away", () => {
     expect(withAccessGroups(["view-team"], ["lineup-manager"])).toEqual(["view-team", "manage-lineup"]);
@@ -127,5 +155,32 @@ describe("What they can do (Admin access dialog) matches the server's own decisi
     const leaderboards = NAV_LINKS.find((l) => l.href === "/leaderboards")!;
     expect(canOpen(player, leaderboards)).toBe(true);
     expect(canOpen(personal, leaderboards)).toBe(false);
+  });
+});
+
+describe("asking for a page's data version (/api/freshness): the page's own access", () => {
+  const own = { kind: "player", playerId: "p-self" } as const;
+  const other = { kind: "player", playerId: "p-other" } as const;
+  const team = { kind: "team" } as const;
+  const jobs = { kind: "jobs" } as const;
+  const personal: Session = { ...player, teamMember: false };
+
+  it("an administrator may watch every page", () => {
+    for (const scope of [own, other, team, jobs]) expect(canWatchFreshness(admin, scope)).toBe(true);
+  });
+
+  it("a Standard Player watches profiles and the team's pages, never the jobs", () => {
+    expect([own, other, team].map((s) => canWatchFreshness(player, s))).toEqual([true, true, true]);
+    expect(canWatchFreshness(player, jobs)).toBe(false);
+  });
+
+  it("without the Players directory, only their own profile; a personal account, nothing of the team's", () => {
+    const noDirectory: Session = { ...base, role: "player", capabilities: ["view-team", "edit-own-profile"] };
+    expect([own, other, team].map((s) => canWatchFreshness(noDirectory, s))).toEqual([true, false, true]);
+    expect([own, other, team, jobs].map((s) => canWatchFreshness(personal, s))).toEqual([true, false, false, false]);
+  });
+
+  it("signed out: nothing", () => {
+    for (const scope of [own, other, team, jobs]) expect(canWatchFreshness(null, scope)).toBe(false);
   });
 });

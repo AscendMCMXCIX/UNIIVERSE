@@ -1,22 +1,22 @@
 import { redirect } from "next/navigation";
 import { getAuthState } from "@/server/auth/session";
 import { getAppDb } from "@/server/bootstrap";
-import { getViewMode } from "@/server/auth/view-mode";
-import { hasPermission } from "@/server/auth/permissions";
-import { PublicPage, publicMetadata } from "@/components/public/public-page";
+import { ADMIN_HOME, getPreferredMode, hasStaleAdminPreference, playerHome } from "@/server/auth/view-mode";
 
 export const dynamic = "force-dynamic";
-export const generateMetadata = publicMetadata;
 
 /**
- * The site's address. Visitors get the public page itself (it is also the way to sign in); every
- * signed-in account goes straight to its own start page, never through the public page: Admin for
- * the Owner, Team for team members, their profile for everyone else.
+ * Each account's start page (also the installed app's): the mode an administrator used last
+ * (Admin Mode's dashboard, or Player Mode), Player Mode for everyone else (Team for team members,
+ * their profile otherwise). Visitors see the public team page.
  */
 export default async function Home() {
   const db = await getAppDb();
   const session = (await getAuthState(db)).session;
-  if (!session) return <PublicPage member={false} />;
-  if ((await getViewMode(session)) === "admin") redirect("/admin/people");
-  redirect(hasPermission(session, "view-team") ? "/team" : "/overview");
+  // Visitors without an account: the public team page (its Sign in opens a window there).
+  if (!session) redirect("/public");
+  // A preference for Admin Mode left by an account that is no longer an administrator: the switch
+  // route forgets it and opens Player Mode.
+  if (await hasStaleAdminPreference(session)) redirect("/api/mode?to=player");
+  redirect((await getPreferredMode(session)) === "admin" ? ADMIN_HOME : playerHome(session));
 }

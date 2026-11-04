@@ -40,7 +40,7 @@ function VerificationLine({ v, onRetry }: { v: Verification; onRetry: () => void
         {r.reuseArchivedPlayerId ? " · their archived profile will be restored" : ""}
       </p>
     );
-  const label = r.status === "not-found" ? "Account not found" : r.status === "unavailable" ? "Riot service unavailable" : r.status === "duplicate" ? "Already a player here" : "Invalid Riot ID";
+  const label = r.status === "not-found" ? "Account not found" : r.status === "unavailable" ? "Riot service unavailable" : r.status === "duplicate" ? "Already a player here" : r.status === "erased" ? "Personal data erased" : "Invalid Riot ID";
   return (
     <p className="flex flex-wrap items-center gap-1.5 text-xs text-bad" role="status">
       <XCircle className="h-3.5 w-3.5" /> {r.message.toLowerCase().startsWith(label.toLowerCase()) ? r.message : `${label}: ${r.message}`}
@@ -54,7 +54,7 @@ function VerificationLine({ v, onRetry }: { v: Verification; onRetry: () => void
 }
 
 /**
- * Admin → People & Access → Add account: a username, a Riot ID and whether the person joins the
+ * Admin Mode → Users & Permissions → Add account: a username, a Riot ID and whether the person joins the
  * team or uses UNIIVERSE for themselves (a deliberate choice: nobody gets the team workspace by
  * default). Riot must confirm the Riot ID first (Create stays disabled until then); creating
  * returns a random temporary password to give the person, who replaces it at first sign-in. No
@@ -133,7 +133,7 @@ export function AddPlayerAccount() {
               {(
                 [
                   ["team", `Member of the ${teamName} team`, "Team Overview, Players, Leaderboards and Matches, plus their own profile."],
-                  ["personal", "Personal use only", "Their own profile, statistics and Solo Queue Blocks. No Team pages; you can add them to the team later."],
+                  ["personal", "Personal use only", "Their own profile and statistics. No Team pages; you can add them to the team later."],
                 ] as const
               ).map(([value, label, hint]) => (
                 <label key={value} className={cn("flex cursor-pointer gap-2.5 rounded-panel border p-3 text-sm transition-colors", access === value ? "border-accent bg-accent/10" : "border-border hover:border-border-strong")}>

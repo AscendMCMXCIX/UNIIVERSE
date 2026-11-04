@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test";
 
 /*
   R6 team bookmarks on the demo roster: bookmark a game played together, find it under

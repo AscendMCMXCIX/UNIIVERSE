@@ -3,12 +3,12 @@ import type { Db } from "@/server/db/types";
 import { permissionPresets, users } from "@/server/db/schema";
 import { CAPABILITY_KEYS, sanitiseAccessGroups, sanitiseCapabilities, STANDARD_PLAYER, type AccessGroupKey, type Capability } from "@/server/auth/permissions";
 import { getUser, UserError } from "./users";
-import { guardLastAdmin, guardSelf } from "@/server/auth/account-admin";
+import { guardLastAdmin, guardOwnerAccount, guardSelf } from "@/server/auth/account-admin";
 
 /*
-  Permission presets and per-user capability choices (Admin → People & Access). Only an owner
-  calls these (the actions check "manage-users", which is never delegated). Owners themselves are
-  never limited: presets and custom sets apply to players only.
+  Permission presets and per-user capability choices (Admin Mode → Users & Permissions). Only an
+  administrator calls these (the actions check "manage-users", which no level or group holds).
+  Owners themselves are never limited: presets and custom sets apply to players only.
 */
 
 /** Built-in access levels backed by presets (migration 0014). */
@@ -81,11 +81,13 @@ export async function deletePermissionPreset(db: Db, id: string): Promise<void> 
 /**
  * Assigns a player's permissions: a preset (null = default) or a custom capability list. Owners
  * are refused: their access is their role, not a preset, so no permission edit can lock an
- * owner out.
+ * owner out. Nobody changes their own (an administrator could otherwise keep a level they gave
+ * themselves after their administrator access is removed).
  */
-export async function setUserPermissions(db: Db, userId: string, choice: { presetId: string | null } | { custom: string[] }): Promise<void> {
+export async function setUserPermissions(db: Db, actorId: string | null, userId: string, choice: { presetId: string | null } | { custom: string[] }): Promise<void> {
   const [user] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId));
   if (!user) throw new UserError("Account not found.");
+  guardSelf(actorId, userId, "change the permissions of");
   if (user.role === "owner") throw new UserError("Admins always have full access; their permissions cannot be limited.");
   if ("custom" in choice) {
     await db.update(users).set({ customCapabilities: sanitiseCapabilities(choice.custom), updatedAt: new Date() }).where(eq(users.id, userId));
@@ -101,7 +103,7 @@ export async function setUserPermissions(db: Db, userId: string, choice: { prese
 export type AccessLevelChoice = { level: "owner" } | { level: "preset"; presetId: string } | { level: "custom"; capabilities: string[] };
 
 /**
- * The one place an account's access level changes (Admin → People & Access, Owner only):
+ * The one place an account's access level changes (Admin Mode → Users & Permissions):
  * Owner, a preset level (Administrator, Standard Player, Restricted Player or one the owner made),
  * or Custom. Nobody can change their own level (no self-elevation, no locking yourself out), and
  * the last active Owner can never lose Owner access. Administrator is a preset of delegable
@@ -119,7 +121,10 @@ export async function setAccessLevel(db: Db, actorId: string | null, userId: str
     if (target.role === "owner") return;
     throw new UserError(ONE_OWNER);
   }
-  if (target.role === "owner") await guardLastAdmin(db, target, "remove Owner access from");
+  if (target.role === "owner") {
+    await guardLastAdmin(db, target, "remove Owner access from");
+    await guardOwnerAccount(db, actorId, target, "change the access level of");
+  }
   let presetId: string | null = null;
   let custom: Capability[] | null = null;
   if (choice.level === "custom") custom = sanitiseCapabilities(choice.capabilities);
@@ -132,7 +137,7 @@ export async function setAccessLevel(db: Db, actorId: string | null, userId: str
 }
 
 /**
- * Additional access groups for a player (Admin → People & Access, Owner only). They add a few
+ * Additional access groups for a player (Admin Mode → Users & Permissions). They add a few
  * capabilities on top of the base level and never include the Owner-only ones. Nobody changes
  * their own groups (no self-elevation); owners need none (they already hold everything).
  */

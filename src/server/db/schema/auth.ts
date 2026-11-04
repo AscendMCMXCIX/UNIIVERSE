@@ -44,6 +44,13 @@ export const users = pgTable(
      * their normal access and also gets the group's few capabilities. Never Owner-only ones.
      */
     accessGroups: jsonb("access_groups").$type<string[]>().notNull().default([]),
+    /**
+     * Administrator: may open Admin Mode (accounts, permissions, platform settings, data, system
+     * health, audit logs) on top of their normal player access, without a second account. Granted
+     * and revoked only by another administrator (Admin → Users & Permissions); the Owner is always
+     * one, whatever this says. Migration 0053 adds it false for everyone.
+     */
+    isAdmin: boolean("is_admin").notNull().default(false),
     /** Bumped whenever the profile picture changes, so its URL changes and browsers can cache it forever. Null = no picture. */
     avatarVersion: integer("avatar_version"),
     ...timestamps,
@@ -139,7 +146,7 @@ export const invites = pgTable(
 );
 
 /**
- * Reusable capability sets for players (Admin → People & Access). Exactly one preset is the
+ * Reusable capability sets for players (Admin Mode → Users & Permissions). Exactly one preset is the
  * default (Standard Player), used for every player without a preset or a custom set. Owners are
  * never limited by presets.
  */

@@ -4,6 +4,7 @@ import * as React from "react";
 import { Check, ChevronDown, Search, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { normalise } from "./types";
+import { RemoteImage } from "@/components/ui/remote-image";
 
 export interface FilterChampion {
   id: string;
@@ -147,10 +148,7 @@ export function ChampionFilter({
         className="flex h-11 w-full min-w-0 items-center gap-2 rounded-md border border-border bg-bg-elevated px-2.5 text-left text-sm text-fg hover:border-border-strong md:pointer-fine:h-9"
         data-testid={`${testId}-button`}
       >
-        {selected?.portraitUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={selected.portraitUrl} alt="" width={20} height={20} className="h-5 w-5 shrink-0 rounded object-cover" />
-        ) : null}
+        {selected?.portraitUrl ? <RemoteImage src={selected.portraitUrl} alt="" width={20} height={20} className="h-5 w-5 shrink-0 rounded object-cover" /> : null}
         <span className="min-w-0 flex-1 truncate">{buttonText}</span>
         <ChevronDown className={cn("h-4 w-4 shrink-0 text-fg-subtle", current.scope !== "all" && !name && "invisible")} aria-hidden />
       </button>
@@ -186,7 +184,7 @@ export function ChampionFilter({
             {options.length === 0 ? <li className="px-3 py-4 text-center text-sm text-fg-subtle">No champion matches “{query}”.</li> : null}
             {options.map((o, i) => (
               <React.Fragment key={o.key}>
-                {o.section ? <li role="presentation" className="px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-fg-subtle">{o.section}</li> : null}
+                {o.section ? <li role="presentation" className="px-2 pb-1 pt-2 text-2xs font-semibold uppercase tracking-label text-fg-subtle">{o.section}</li> : null}
                 <li
                   id={`${listId}-${i}`}
                   role="option"
@@ -197,12 +195,7 @@ export function ChampionFilter({
                   data-option={o.key}
                 >
                   {o.champ ? (
-                    o.champ.portraitUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={o.champ.portraitUrl} alt="" width={24} height={24} loading="lazy" className="h-6 w-6 shrink-0 rounded object-cover" />
-                    ) : (
-                      <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-surface-3 text-[9px] font-semibold text-fg-muted">{o.text.slice(0, 2).toUpperCase()}</span>
-                    )
+                    <PortraitOrLetters url={o.champ.portraitUrl} letters={o.text} />
                   ) : null}
                   <span className="min-w-0 flex-1 truncate">{o.text}</span>
                   {o.champ?.games ? <span className="text-xs tabular-nums text-fg-subtle">{o.champ.games} game{o.champ.games === 1 ? "" : "s"}</span> : null}
@@ -210,10 +203,16 @@ export function ChampionFilter({
                 </li>
               </React.Fragment>
             ))}
-            {!query && champions.length > 0 ? <li role="presentation" className="px-2 pb-1 pt-2 text-[11px] text-fg-subtle">Type to find any of {champions.length} champions.</li> : null}
+            {!query && champions.length > 0 ? <li role="presentation" className="px-2 pb-1 pt-2 text-2xs text-fg-subtle">Type to find any of {champions.length} champions.</li> : null}
           </ul>
         </div>
       ) : null}
     </div>
   );
+}
+
+/** A champion's portrait in the list, or its first two letters when there is none (or it cannot load). */
+function PortraitOrLetters({ url, letters }: { url: string | undefined; letters: string }) {
+  const tile = <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-surface-3 text-4xs font-semibold text-fg-muted">{letters.slice(0, 2).toUpperCase()}</span>;
+  return url ? <RemoteImage src={url} fallback={tile} alt="" width={24} height={24} loading="lazy" className="h-6 w-6 shrink-0 rounded object-cover" /> : tile;
 }

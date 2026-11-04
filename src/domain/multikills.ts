@@ -2,7 +2,8 @@
   Multikills (double, triple, quadra and pentakills), from the counts Riot records for each player
   in each game (doubleKills, tripleKills, quadraKills, pentaKills on the match record). UNIIVERSE
   keeps them from the match records stored since Team Leaderboards (Phase 14); for older games of
-  the offered seasons the records are fetched again, a few an hour (server/accounts/figures-backfill).
+  the offered seasons the records are fetched again, a batch an hour for the team and up to 40 of a
+  player's own on a profile's Refresh (server/accounts/figures-backfill, server/accounts/refresh).
   A game without counts is left out, never counted as zero, so a total always says how many games
   it comes from, and it is never a career total.
 
@@ -68,23 +69,20 @@ export function multikillsOfGames(games: ReadonlyArray<{ multikills?: string | n
 }
 
 /**
- * The champions with the most multikills in the games given (already filtered and de-duplicated),
- * at most `limit`: ordered by pentakills, then quadra, triple and double kills, then name. Only
- * games with counts take part; champions without a single multikill are left out.
+ * Two sets of multikills compared, the rarest kind first: more pentakills come first, then quadra,
+ * triple and double kills decide. Positive when `a` has the better multikills.
  */
-export function multikillsByChampion(games: ReadonlyArray<{ championId: string; multikills?: string | null }>, limit = 12): Array<{ championId: string; multikills: MultikillSummary }> {
-  const by = new Map<string, Array<{ multikills?: string | null }>>();
-  for (const g of games) {
-    if (g.multikills === null || g.multikills === undefined || g.multikills === UNAVAILABLE) continue;
-    const list = by.get(g.championId);
-    if (list) list.push(g);
-    else by.set(g.championId, [g]);
+export function compareMultikills(a: MultikillCounts, b: MultikillCounts): number {
+  return a.penta - b.penta || a.quadra - b.quadra || a.triple - b.triple || a.double - b.double;
+}
+
+/** The rarest kind with a count ("1 penta" before "12 double"), or null when every count is zero. */
+export function rarestMultikill(m: MultikillCounts): { key: keyof MultikillCounts; count: number } | null {
+  for (let i = MULTIKILL_KINDS.length - 1; i >= 0; i--) {
+    const key = MULTIKILL_KINDS[i]!.key;
+    if (m[key] > 0) return { key, count: m[key] };
   }
-  return [...by.entries()]
-    .map(([championId, list]) => ({ championId, multikills: multikillsOfGames(list) }))
-    .filter((c) => c.multikills.double + c.multikills.triple + c.multikills.quadra + c.multikills.penta > 0)
-    .sort((a, b) => b.multikills.penta - a.multikills.penta || b.multikills.quadra - a.multikills.quadra || b.multikills.triple - a.multikills.triple || b.multikills.double - a.multikills.double || a.championId.localeCompare(b.championId))
-    .slice(0, limit);
+  return null;
 }
 
 export const MULTIKILL_NAMES: Readonly<Record<2 | 3 | 4 | 5, string>> = { 2: "Double kill", 3: "Triple kill", 4: "Quadra kill", 5: "Pentakill" };
@@ -116,10 +114,10 @@ export function multikillCoverage(m: MultikillSummary): { label: string; note: s
   if (pending > 0)
     notes.push(
       state === "partial"
-        ? `The other ${n(pending)} game${pending === 1 ? "'s" : "s'"} counts are still being fetched from Riot (a few each hour), so these totals are not complete yet.`
+        ? `The other ${n(pending)} game${pending === 1 ? "'s" : "s'"} counts are still being fetched from Riot (a batch every hour), so these totals are not complete yet.`
         : pending === m.games
-          ? "Their counts are still being fetched from Riot, a few each hour."
-          : `${n(pending)} of them are still being fetched from Riot, a few each hour.`,
+          ? "Their counts are still being fetched from Riot, a batch every hour."
+          : `${n(pending)} of them are still being fetched from Riot, a batch every hour.`,
     );
   if (m.unavailable > 0) notes.push(`Riot no longer provides the record${m.unavailable === 1 ? "" : "s"} of ${games(m.unavailable)}, so ${m.unavailable === 1 ? "it is" : "they are"} left out.`);
   return { label, note: notes.length ? notes.join(" ") : null, state };

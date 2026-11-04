@@ -8,7 +8,8 @@ import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Panel, PanelBody, PanelHeader, SectionLabel } from "@/components/ui/panel";
 import { Info, Metric, MetricLabel, SourceLine } from "@/components/ui/metric";
 import { metricTooltip } from "@/domain/metrics";
-import { percent, timeAgo } from "@/lib/format";
+import { formatCount, percent, timeAgo } from "@/lib/format";
+import { ScrollRegion } from "@/components/ui/scroll-region";
 
 const TIER_TONE: Record<ProficiencyTier, BadgeTone> = { core: "good", strong: "good", comfortable: "info", moderate: "neutral", rusty: "warn", unknown: "neutral" };
 
@@ -59,16 +60,16 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
         ) : null}
 
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          <Metric id="games-on-record" value={report.gamesAnalysed.toLocaleString()} />
-          <Metric id="patch-games" value={report.currentPatchGames.toLocaleString()} />
+          <Metric id="games-on-record" value={formatCount(report.gamesAnalysed)} />
+          <Metric id="patch-games" value={formatCount(report.currentPatchGames)} />
           <div className="rounded-md border border-border bg-bg-elevated px-2.5 py-1.5">
-            <div className="flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">
+            <div className="flex items-center gap-1 text-xs font-semibold uppercase tracking-label text-fg-subtle">
               Champions with data <Info text="Champions on which at least one game or mastery record exists across the linked accounts." />
             </div>
             <div className="text-sm font-semibold text-fg">{report.championsWithData}</div>
           </div>
           <div className="rounded-md border border-border bg-bg-elevated px-2.5 py-1.5">
-            <div className="flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">
+            <div className="flex items-center gap-1 text-xs font-semibold uppercase tracking-label text-fg-subtle">
               Last sync <Info text="Most recent successful or attempted refresh of any linked account. Accounts refresh automatically every few hours." />
             </div>
             <div className="text-sm font-semibold text-fg">{report.lastSyncAt ? timeAgo(report.lastSyncAt) : "never"}</div>
@@ -108,14 +109,14 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
                     <span title={metricTooltip("patch-games")}>{c.patchGames} this patch</span>
                     <span title={metricTooltip("games-on-record")}>{c.games} on record</span>
                     <span title={metricTooltip("last-played")}>last {c.lastPlayedAt ? timeAgo(c.lastPlayedAt) : "—"}</span>
-                    {c.mastery ? <span title={metricTooltip("mastery-points")}>{c.mastery.points.toLocaleString()} pts · M{c.mastery.level}</span> : null}
+                    {c.mastery ? <span title={metricTooltip("mastery-points")}>{formatCount(c.mastery.points)} pts · M{c.mastery.level}</span> : null}
                     {c.games > 0 ? <span title={metricTooltip("role-usage")}>{percent(c.roleShare, 0)} in {ROLE_LABELS[c.role]}</span> : null}
                     <span title={metricTooltip("proficiency-confidence")}>{c.confidenceWord} confidence</span>
                   </div>
                 </div>
               ))}
             </div>
-            <div className="hidden overflow-x-auto md:block">
+            <ScrollRegion label="Champion data" className="hidden md:block">
               <table className="w-full text-xs">
                 <thead className="text-left text-fg-subtle">
                   <tr>
@@ -156,14 +157,14 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
                       <td className="py-1.5 pr-3">{c.patchGames}</td>
                       <td className="py-1.5 pr-3">{c.games}</td>
                       <td className="py-1.5 pr-3 text-fg-muted">{c.lastPlayedAt ? timeAgo(c.lastPlayedAt) : "—"}</td>
-                      <td className="py-1.5 pr-3 text-fg-muted">{c.mastery ? `${c.mastery.points.toLocaleString()} pts · M${c.mastery.level}` : "—"}</td>
+                      <td className="py-1.5 pr-3 text-fg-muted">{c.mastery ? `${formatCount(c.mastery.points)} pts · M${c.mastery.level}` : "—"}</td>
                       <td className="py-1.5 pr-3 text-fg-muted">{c.games > 0 ? `${percent(c.roleShare, 0)} in ${ROLE_LABELS[c.role]}` : "—"}</td>
                       <td className="py-1.5 pr-3 text-fg-muted">{c.confidenceWord}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
+            </ScrollRegion>
             </>
           )}
         </div>

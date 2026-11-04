@@ -1,17 +1,35 @@
 import { index, jsonb, pgTable, primaryKey, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { teams } from "./team";
 import { users } from "./auth";
-import type { ScoutContent } from "@/domain/clash-scout/types";
 
-/**
- * Clash Scout: scouting sessions the team chose to save. One row per scout, belonging to a team;
- * `content` is the snapshot of what the two Clash screenshots showed (names, ranks, champion
- * figures, mastery, and Riot-verified accounts), validated and bounded on the way in
- * (domain/clash-scout/schema.ts). Screenshots are never stored. Drafts are never stored either:
- * they stay in the browser until a member saves. Row Level Security is on with no policies, so
- * only the app's own database role (the table owner) reaches the rows; every query is scoped to
- * the team on the server.
- */
+// Retired with Clash Scout: no page, action or job reads or writes these tables any more, apart
+// from permanent erasure and its reconciliation (server/privacy), which still clear an erased
+// person from the scouts saved before the retirement. They stay defined so drizzle-kit never
+// generates a DROP; dropping them is a separate migration, held until a recent backup has been
+// verified (docs/DATA_PIPELINES.md, "Retired tables").
+
+/** One player of a saved scout, as far as erasure reads it (the stored JSON holds more). */
+export interface RetiredScoutPlayer {
+  /** 0–4, the column of Clash's scouting screens. */
+  slot: number;
+  /** The name as read or typed. */
+  name: string;
+  /** "verified" when a member had Riot confirm the Riot ID; only then are `riotId` and `puuid` set. */
+  verification: string;
+  riotId: string | null;
+  puuid: string | null;
+  [field: string]: unknown;
+}
+
+/** A saved scout's snapshot, as far as erasure reads it. */
+export interface RetiredScoutContent {
+  opponentName: string;
+  tournament: { name: string | null; [field: string]: unknown };
+  players: RetiredScoutPlayer[];
+  [field: string]: unknown;
+}
+
+/** Scouting sessions the team saved: one row per scout, never a screenshot. */
 export const clashScouts = pgTable(
   "clash_scouts",
   {
@@ -20,7 +38,7 @@ export const clashScouts = pgTable(
     opponentName: text("opponent_name").notNull(),
     platform: text("platform").notNull(),
     tournamentName: text("tournament_name"),
-    content: jsonb("content").$type<ScoutContent>().notNull(),
+    content: jsonb("content").$type<RetiredScoutContent>().notNull(),
     /** Players with a name, and accounts Riot verified (for the history list without reading content). */
     playersCaptured: smallint("players_captured").notNull().default(0),
     playersVerified: smallint("players_verified").notNull().default(0),
@@ -36,11 +54,7 @@ export const clashScouts = pgTable(
   (t) => [index("clash_scouts_team_idx").on(t.teamId, t.scoutedAt)],
 );
 
-/**
- * The Riot-verified accounts of each saved scout (PUUID only), so a new scout can recognise an
- * account the team scouted before without reading every snapshot. Never names: an account is
- * recognised by Riot's stable id, not by a name that looks alike.
- */
+/** The Riot-verified accounts of each saved scout (PUUID only, never names). */
 export const clashScoutAccounts = pgTable(
   "clash_scout_accounts",
   {

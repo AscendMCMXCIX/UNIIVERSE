@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test";
 
 /*
   UNIIVERSE installs like an app (manifest.ts, public/sw.js). The manifest and icons are public;

@@ -42,10 +42,14 @@ import { createPlayer, getOrCreateTeam, setLineupSlot, setLineupSubstitute } fro
 import { addAccount } from "@/server/accounts/repository";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 import { publicRiotDataAllowed } from "@/server/public/access";
-import { invalidatePublicTeam, loadPublicTeam, publicMemberUser } from "@/server/public/team";
+import { invalidatePublicTeam, loadPublicTeam, publicMemberUser, toPublicSlot } from "@/server/public/team";
+import { getTeamRoster } from "@/server/team/roster";
+import { loadPublicLeaderboardData } from "@/server/public/leaderboards";
+import { buildLeaderboardView, leaderboardHref, parseFilters } from "@/server/leaderboards/view";
 import { publicImageOwner } from "@/server/public/image-response";
 import { GET as publicAvatar } from "@/app/api/public/avatars/[playerId]/route";
 import { STANDARD_PLAYER } from "@/server/auth/permissions";
+import type { SocialLinks } from "@/domain/social-links";
 
 let handle: DbHandle;
 let teamId: string;
@@ -172,53 +176,136 @@ describe("the public team page", () => {
   });
 });
 
+describe("where the deployment allows Riot data on the public pages", () => {
+  const withFigures = () => {
+    invalidatePublicTeam();
+    return loadPublicTeam(handle.db, teamId, true);
+  };
+
+  it("the cards carry the figures members see, through the same allowlist, without the ladder change", async () => {
+    const view = await withFigures();
+    const plain = await fresh();
+    for (const [name, role] of ROLES) {
+      const slot = view.slots.find((s) => s.role === role)!;
+      expect(slot.player).toMatchObject({ id: ids[name], rank: { tier: "GOLD", division: "II", leaguePoints: 64, queue: "solo" }, statsVisible: true, rankChange: null, poolIds: [], version: "" });
+      // This season in the lineup role: the four stored games, two of them won.
+      expect(slot.player!.season).toMatchObject({ games: 4, wins: 2, losses: 2 });
+      expect(slot.champions[0]).toMatchObject({ games: 4, wins: 2, losses: 2 });
+      // The same fields as without figures: the allowlist does not widen.
+      expect(Object.keys(slot.player!).sort()).toEqual(Object.keys(plain.slots.find((s) => s.role === role)!.player!).sort());
+    }
+    expect(view.slots.find((s) => s.role === "TOP")!.substitute?.player).toMatchObject({ id: ids.benchsub, statsVisible: true, rankChange: null });
+  });
+
+  it("without that setting the allowlist drops every figure, even from a roster that carries them", async () => {
+    const roster = await getTeamRoster(handle.db, teamId);
+    const top = roster.slots.find((s) => s.role === "TOP")!;
+    expect(top.player!.rank).not.toBeNull();
+    const members = new Map([[ids.top!, { name: "Top Shown", avatarVersion: 3, userId: userIds.top! }]]);
+    const plain = toPublicSlot(top, members);
+    expect(plain.player).toMatchObject({ rank: null, season: null, rankChange: null, statsVisible: false, seasonLabel: "" });
+    expect(plain.champions[0]).toMatchObject({ games: 0, wins: 0, winRate: null, masteryPoints: null });
+    expect(toPublicSlot(top, members, true).player).toMatchObject({ rank: { tier: "GOLD" }, statsVisible: true });
+  });
+
+  it("still never sends a username, Riot ID, account id or anyone outside the lineup and its substitutes", async () => {
+    invalidatePublicTeam();
+    const json = JSON.stringify(await loadPublicTeam(handle.db, teamId, true));
+    expect(json).toContain("GOLD");
+    expect(json).not.toMatch(/_login|Riot#OCE|OC1_|\/api\/avatars\//);
+    expect(json).not.toContain(ids.benchother);
+    for (const id of Object.values(userIds)) expect(json).not.toContain(id);
+  });
+
+  it("the public Leaderboards rank only the lineup and its substitutes, by display name, linking to no profile", async () => {
+    invalidatePublicTeam();
+    const data = await loadPublicLeaderboardData(handle.db, teamId);
+    expect(data.players.map((p) => p.id).sort()).toEqual([...ROLES.map(([name]) => ids[name]!), ids.benchsub!].sort());
+    expect(data.players.find((p) => p.id === ids.top)).toMatchObject({ name: "Top Shown", avatarUrl: `/api/public/avatars/${ids.top}?v=3`, rank: { tier: "GOLD", division: "II" } });
+    expect(new Set(data.games.map((g) => g.playerId))).not.toContain(ids.benchother);
+    const view = buildLeaderboardView(data, parseFilters({}, data), null, { basePath: "/public/leaderboards", profiles: false });
+    expect(Object.values(view.players).every((p) => p.profileHref === null)).toBe(true);
+    expect(leaderboardHref(view.filters, { metricId: "kda" }, view.basePath)).toMatch(/^\/public\/leaderboards\?/);
+    expect(view.you).toBeNull();
+    // What the page sends: the view, with no sign-in name, Riot ID, profile route or private picture route.
+    const json = JSON.stringify(view);
+    expect(json).not.toMatch(/_login|Riot#OCE|\/players\/|\/api\/avatars\//);
+    expect(json).not.toContain(ids.benchother);
+    for (const id of Object.values(userIds)) expect(json).not.toContain(id);
+  });
+});
+
 describe("social links", () => {
   const youtube = "https://www.youtube.com/@TopShown";
-  const twitch = "https://www.twitch.tv/top_team_only";
-  const discord = "top.hidden.name";
+  const twitch = "https://www.twitch.tv/top_kept_private";
+  const discord = "top.private.name";
 
   it("are saved checked and normalised, for the session's own profile only", async () => {
     state.session = memberSession("top");
     const { saveSocialLinksAction } = await import("@/server/actions/account");
-    expect(await saveSocialLinksAction({ youtube: { value: "https://evil.example/@TopShown", show: "public" } })).toMatchObject({ ok: false, error: expect.stringMatching(/^YouTube: /) });
-    expect(await saveSocialLinksAction({ youtube: { value: "youtube.com/@TopShown", show: "public" }, twitch: { value: "Top_Team_Only", show: "team" }, discord: { value: "@Top.Hidden.Name", show: "hidden" } })).toEqual({
+    expect(await saveSocialLinksAction({ youtube: { value: "https://evil.example/@TopShown", public: true } })).toMatchObject({ ok: false, error: expect.stringMatching(/^YouTube: /) });
+    // Only a real true switches a link on; anything else (a missing flag, "yes", 1) keeps it private.
+    expect(await saveSocialLinksAction({ youtube: { value: "youtube.com/@TopShown", public: true }, twitch: { value: "Top_Kept_Private", public: "yes" }, discord: { value: "@Top.Private.Name" } })).toEqual({
       ok: true,
-      data: { links: { youtube: { value: youtube, show: "public" }, twitch: { value: twitch, show: "team" }, discord: { value: discord, show: "hidden" } } },
+      data: { links: { youtube: { value: youtube, public: true }, twitch: { value: twitch, public: false }, discord: { value: discord, public: false } } },
     });
     const [row] = await handle.db.select({ links: players.socialLinks }).from(players).where(eq(players.id, ids.top!));
-    expect(row!.links?.youtube?.value).toBe(youtube);
+    expect(row!.links).toEqual({ youtube: { value: youtube, public: true }, twitch: { value: twitch, public: false }, discord: { value: discord, public: false } });
     // Nobody else's profile was touched.
     const others = await handle.db.select({ links: players.socialLinks }).from(players);
     expect(others.filter((r) => r.links)).toHaveLength(1);
     state.session = memberSession("benchsub");
-    expect((await saveSocialLinksAction({ twitch: { value: "bench_live", show: "public" } })).ok).toBe(true);
+    expect((await saveSocialLinksAction({ twitch: { value: "bench_live", public: true } })).ok).toBe(true);
     state.session = null;
   });
 
-  it("reach the public page only where their owner chose it, and never otherwise", async () => {
+  it("reach the public page only when switched on, and never otherwise", async () => {
     const view = await fresh();
     const top = view.slots.find((s) => s.role === "TOP")!;
-    expect(top.player!.social).toEqual([{ kind: "youtube", label: "YouTube", text: "@TopShown", href: youtube, public: true }]);
+    expect(top.player!.social).toEqual([{ kind: "youtube", label: "YouTube", text: "@TopShown", href: youtube }]);
     expect(top.substitute!.player.social.map((l) => l.href)).toEqual(["https://www.twitch.tv/bench_live"]);
     const json = await sent();
     expect(json).not.toContain(twitch);
     expect(json).not.toContain(discord);
   });
 
-  it("show team members the team and public ones; the hidden one and the stored value never leave the server", async () => {
-    const { getTeamRoster } = await import("@/server/team/roster");
-    const { loadProfileHeader } = await import("@/server/players/profile-header");
-    const { listPlayers } = await import("@/server/repositories/team");
+  it("show team members the same links as the public page; one switched off and the stored value never leave the server", async () => {
     const roster = await getTeamRoster(handle.db, teamId);
     const top = roster.slots.find((s) => s.role === "TOP")!;
-    expect(top.player!.social.map((l) => l.kind)).toEqual(["youtube", "twitch"]);
-    expect(JSON.stringify(roster)).not.toContain(discord);
+    expect(top.player!.social).toEqual([{ kind: "youtube", label: "YouTube", text: "@TopShown", href: youtube }]);
+    for (const v of [twitch, "Top_Kept_Private", discord]) expect(JSON.stringify(roster)).not.toContain(v);
+    const { loadProfileHeader } = await import("@/server/players/profile-header");
     const header = (await loadProfileHeader(handle.db, ids.top!))!;
-    expect(header.social.map((l) => l.kind)).toEqual(["youtube", "twitch"]);
+    expect(header.social.map((l) => l.kind)).toEqual(["youtube"]);
+    expect(JSON.stringify(header)).not.toContain(twitch);
     // Player records (sent to the browser by the Players directory) carry none of it.
+    const { listPlayers } = await import("@/server/repositories/team");
     const listed = JSON.stringify(await listPlayers(handle.db, teamId));
     for (const v of [youtube, twitch, discord]) expect(listed).not.toContain(v);
     expect(JSON.stringify(header.player)).not.toContain(discord);
+  });
+
+  it("a link stored in the old shape is shown only if it was chosen for the public page", async () => {
+    // A row an older version wrote (migration 0061 converts them; during a deployment an old
+    // instance can still write one): "team" and "hidden" stay private, "public" is shown.
+    const legacy = { youtube: { value: youtube, show: "public" }, twitch: { value: twitch, show: "team" }, discord: { value: discord, show: "hidden" } } as unknown as SocialLinks;
+    const [before] = await handle.db.select({ links: players.socialLinks }).from(players).where(eq(players.id, ids.top!));
+    await handle.db.update(players).set({ socialLinks: legacy }).where(eq(players.id, ids.top!));
+    try {
+      const roster = await getTeamRoster(handle.db, teamId);
+      expect(roster.slots.find((s) => s.role === "TOP")!.player!.social.map((l) => l.kind)).toEqual(["youtube"]);
+      const { loadProfileHeader } = await import("@/server/players/profile-header");
+      expect((await loadProfileHeader(handle.db, ids.top!))!.social.map((l) => l.kind)).toEqual(["youtube"]);
+      const json = await sent();
+      expect(json).toContain(youtube);
+      for (const v of [twitch, discord]) expect(json).not.toContain(v);
+      // The owner's own settings read it in the new shape, with the old team choice switched off.
+      const { loadSocialLinks } = await import("@/server/repositories/profile");
+      expect((await loadSocialLinks(handle.db, [ids.top!])).get(ids.top!)).toEqual({ youtube: { value: youtube, public: true }, twitch: { value: twitch, public: false }, discord: { value: discord, public: false } });
+    } finally {
+      await handle.db.update(players).set({ socialLinks: before!.links }).where(eq(players.id, ids.top!));
+      invalidatePublicTeam();
+    }
   });
 
   it("go when the account is deleted, even though the profile is kept (archived)", async () => {
@@ -227,7 +314,7 @@ describe("social links", () => {
     const [extra] = await db.insert(users).values({ username: "leaver_login", displayName: "Leaver", role: "player", setupCompletedAt: new Date() }).returning();
     const id = (await createPlayer(db, teamId, { displayName: "Leaver", primaryRole: "MID", primaryPool: ["Ahri"] })).id;
     await db.update(users).set({ playerId: id }).where(eq(users.id, extra!.id));
-    await db.update(players).set({ socialLinks: { twitch: { value: "https://www.twitch.tv/leaver", show: "team" } } }).where(eq(players.id, id));
+    await db.update(players).set({ socialLinks: { twitch: { value: "https://www.twitch.tv/leaver", public: true } } }).where(eq(players.id, id));
     await deleteAccount(db, userIds.owner!, extra!.id);
     const [row] = await db.select({ archivedAt: players.archivedAt, links: players.socialLinks }).from(players).where(eq(players.id, id));
     expect(row!.archivedAt).not.toBeNull();

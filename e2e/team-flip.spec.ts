@@ -1,4 +1,4 @@
-import { expect, test, type CDPSession, type Locator, type Page } from "@playwright/test";
+import { expect, test, type CDPSession, type Locator, type Page } from "./test";
 import { memberContext } from "./member-account";
 
 /*
@@ -55,6 +55,8 @@ test("a card turns over to a substitute on the same card, and back to the starte
   const back = page.getByTestId(`lineup-sub-${role}`);
   await expect(back).toBeVisible();
   await expect(front).toBeHidden();
+  // Settled (the starter's side is hidden from half way through the turn, before the card is flat again).
+  await expect(card(page, role)).not.toHaveAttribute("data-turn", /.+/);
   // A substitute (never the starter), on the starter's card parts, at the same size and place.
   expect(await back.getAttribute("data-player-id")).not.toBe(starter);
   await expect(back.getByTestId("substitute-label")).toBeVisible();
@@ -141,6 +143,111 @@ test("the keyboard turns a card, focus follows to the other side, and Escape tur
   await expect(card(page, role)).toHaveAttribute("data-flipped", "true");
   await expect(card(page, role)).not.toHaveAttribute("data-turn", /.+/);
   await expect(page.getByTestId(`lineup-sub-${role}`)).toBeVisible();
+});
+
+test("the face turned away is never drawn: the faces swap when the card is edge-on, turns reversed midway included, and nothing lingers after", async ({ page }) => {
+  await openTeam(page);
+  const role = await withSubstitute(page);
+  // Every frame of three turns: one reversed past the edge, one reversed before it, one whole.
+  const frames = await card(page, role).evaluate(async (el) => {
+    const inner = el.querySelector(".flip-card-inner")!;
+    const face = (s: string) => el.querySelector(s);
+    const frame = () => new Promise((r) => requestAnimationFrame(r));
+    const out: Array<{ angle: number; front: number; back: number }> = [];
+    const sample = () => {
+      const r = getComputedStyle(inner).rotate;
+      const back = face(".flip-face-back");
+      out.push({ angle: r === "none" ? 0 : Number(/(-?[\d.]+)deg/.exec(r)?.[1] ?? NaN), front: Number(getComputedStyle(face(".flip-face-front")!).opacity), back: back ? Number(getComputedStyle(back).opacity) : 0 });
+      return out.at(-1)!.angle;
+    };
+    // A press, then the frame that draws it (React may commit the turn after the click returns).
+    const press = async (testId: string) => {
+      (el.querySelector(`.flip-face:not([inert]) [data-testid=${testId}]`) as HTMLElement).click();
+      await frame();
+    };
+    const settle = async () => {
+      while ((await frame(), el.dataset.turn)) sample();
+    };
+    await press("flip-to-substitute");
+    for (let i = 0; i < 60 && el.dataset.turn; i++) if ((await frame(), sample()) > 120) break;
+    await press("flip-back");
+    await settle();
+    await press("flip-to-substitute");
+    for (let i = 0; i < 4; i++) {
+      await frame();
+      sample();
+    }
+    await press("flip-back");
+    await settle();
+    await press("flip-to-substitute");
+    await settle();
+    return out;
+  });
+  expect(frames.length).toBeGreaterThan(20);
+  expect(frames.every((f) => Number.isFinite(f.angle))).toBe(true);
+  expect(Math.max(...frames.map((f) => f.angle))).toBeGreaterThan(120);
+  for (const f of frames) {
+    if (f.angle < 88) expect(f, "the front faces the viewer").toMatchObject({ front: 1, back: 0 });
+    if (f.angle > 92) expect(f, "the back faces the viewer").toMatchObject({ front: 0, back: 1 });
+  }
+  // Settled on the back: the turn's animations are gone, and the starter's side is hidden outright.
+  await expect(card(page, role)).toHaveAttribute("data-flipped", "true");
+  const rest = await card(page, role).evaluate((el) => ({
+    // The turn's own animations (not the shadow's CSS transition back to rest).
+    turning: el.getAnimations({ subtree: true }).filter((a) => !(a instanceof CSSTransition) && !(a instanceof CSSAnimation)).length,
+    front: getComputedStyle(el.querySelector(".flip-face-front")!).visibility,
+    back: getComputedStyle(el.querySelector(".flip-face-back")!).visibility,
+    rotate: getComputedStyle(el.querySelector(".flip-card-inner")!).rotate,
+  }));
+  expect(rest).toEqual({ turning: 0, front: "hidden", back: "visible", rotate: "y 180deg" });
+});
+
+test("what is drawn over the art (links, controls) leaves with its side: gone early in the turn, back only once the other side has settled", async ({ page }) => {
+  await openTeam(page);
+  const role = await withSubstitute(page);
+  if (isPhone(page)) await page.getByTestId("lineup-pager").getByRole("tab", { name: new RegExp(`^${role === "TOP" ? "Top" : "Support"}`) }).click();
+  // One whole turn to the substitute, its clock stepped by hand (so every moment is seen, however
+  // fast the browser draws): how far through the turn, and what each side shows.
+  const frames = await card(page, role).evaluate(async (el) => {
+    const front = el.querySelector<HTMLElement>(".flip-face-front")!;
+    const back = el.querySelector<HTMLElement>(".flip-face-back")!;
+    const overlays = (face: HTMLElement) => [...face.querySelectorAll<HTMLElement>("[data-card-overlay]")];
+    const shown = (face: HTMLElement) => Math.max(...overlays(face).map((o) => Number(getComputedStyle(o).opacity)));
+    const frame = () => new Promise((r) => requestAnimationFrame(r));
+    // The turn's own animations (not the hover's CSS transitions), as soon as React has started them.
+    const started = async () => {
+      for (let i = 0; i < 50; i++) {
+        const own = el.getAnimations({ subtree: true }).filter((a) => !(a instanceof CSSTransition) && !(a instanceof CSSAnimation));
+        if (own.length) return own;
+        await new Promise((r) => setTimeout(r, 0));
+      }
+      return [];
+    };
+    (front.querySelector("[data-testid=flip-to-substitute]") as HTMLElement).click();
+    const turn = await started();
+    const total = Number(turn[0]?.effect?.getComputedTiming().duration ?? 0);
+    turn.forEach((a) => a.pause());
+    const out: Array<{ t: number; frontOverlay: number; backOverlay: number; front: string; back: number }> = [];
+    for (let step = 0; step <= 20; step++) {
+      turn.forEach((a) => (a.currentTime = (total * step) / 20));
+      out.push({ t: step / 20, frontOverlay: shown(front), backOverlay: shown(back), front: getComputedStyle(front).visibility, back: Number(getComputedStyle(back).opacity) });
+    }
+    turn.forEach((a) => a.finish());
+    while ((await frame(), el.dataset.turn));
+    return { out, animations: turn.length, overlays: [overlays(front).length, overlays(back).length], rest: { front: overlays(front).map((o) => getComputedStyle(o).visibility), back: overlays(back).map((o) => getComputedStyle(o).opacity) } };
+  });
+  expect(frames.animations, "the turn runs on its own animations").toBeGreaterThan(3);
+  expect(frames.overlays[0], "the front has something over its art").toBeGreaterThan(0);
+  expect(frames.overlays[1], "so has the back").toBeGreaterThan(0);
+  for (const f of frames.out) {
+    if (f.t > 0.2) expect(f.frontOverlay, `at ${f.t.toFixed(2)}: the front's links and controls are gone`).toBe(0);
+    if (f.t > 0.5) expect(f.front, `at ${f.t.toFixed(2)}: the front is hidden`).toBe("hidden");
+    if (f.t < 0.5) expect(f.back, `at ${f.t.toFixed(2)}: the back is not drawn yet`).toBe(0);
+    if (f.t < 0.6) expect(f.backOverlay, `at ${f.t.toFixed(2)}: the back's links and controls wait`).toBe(0);
+  }
+  // At rest the starter's links and controls are hidden outright, and the substitute's fully drawn.
+  expect(frames.rest.front.every((v) => v === "hidden")).toBe(true);
+  expect(frames.rest.back.every((v) => v === "1")).toBe(true);
 });
 
 test("in Edit lineup a manager saves the substitute as the starter; the former starter becomes the substitute, and turning back cancels", async ({ page }) => {

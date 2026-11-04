@@ -32,7 +32,7 @@ UNIIVERSE is a **private, team-focused League of Legends platform** for one amat
 - **the team together**: the lineup, Leaderboards, and the games members played together.
 
 **Who uses it.**
-- **Players:** keep their roles and champion pools, see their statistics, and keep a private Solo Queue improvement journal.
+- **Players:** keep their roles and champion pools and see their statistics.
 - **The Owner/admin:** manages accounts, access, data jobs and branding.
 
 **Main goals.**
@@ -51,7 +51,7 @@ UNIIVERSE is a **private, team-focused League of Legends platform** for one amat
 | Area | What exists today | Status |
 |---|---|---|
 | **Accounts** | Created only by an admin (username + Riot ID, which Riot must confirm). A random temporary password is shown once and is valid 7 days. No email, no self sign-up, no invitation links. | IMPLEMENTED · TESTED · PRODUCTION VERIFIED (11 accounts exist; auth-audit job) |
-| **Authentication** | Username + password (scrypt hashes). Sessions last 24 h and are not extended by activity; there is no "remember this device". Failed sign-ins are throttled. Owner recovery uses a setup key. | IMPLEMENTED · TESTED · PRODUCTION VERIFIED (Owner `adminascend` active, signed in 14 Oct 10:51 UTC) |
+| **Authentication** | Username + password (scrypt hashes). Sessions last 24 h and are not extended by activity; there is no "remember this device". Failed sign-ins are throttled. Owner recovery uses a setup key. | IMPLEMENTED · TESTED · PRODUCTION VERIFIED (Owner `ascend` since migration 0055, 21 Oct 2026; earlier the admin-only `adminascend`) |
 | **Onboarding** | At first sign-in, the player must choose a permanent password and then complete a Welcome setup (primary role and champions; optional secondary role). | IMPLEMENTED · TESTED. In production 4 accounts still have setup pending (auth-audit, 14 Oct). |
 | **Permissions** | Owner, plus one base access level per account (Administrator / Standard Player / Restricted Player / Custom / Owner-made levels). Optional additional access groups on top, e.g. Team Lineup Manager. Every rule is enforced on the server. | IMPLEMENTED · TESTED. Groups added on 14 Oct (migration 0020, applied in production). |
 | **Team** | Five lineup cards: featured champion art, 2–3 strength tags for the assigned lineup role, season games / win rate / KDA in that role, and the entire role pool (no "+N more"). Lineup swap (permission-gated). Your own card has a Customise button. Suggestions for empty roles. | IMPLEMENTED · TESTED (local). The Support slot is empty in production (no Support player assigned). |
@@ -60,8 +60,9 @@ UNIIVERSE is a **private, team-focused League of Legends platform** for one amat
 | **My Profile** (formerly "My Overview") | Your own profile. Statistics default to all champions, all accounts, all supported game modes, current season. Filters: season, mode, role, configured pool, champion, account. A label states exactly what is counted. | IMPLEMENTED · TESTED |
 | **Champion pools** | Primary role, secondary role and up to three additional roles, each with its own pool. No size cap. Drag to reorder, with autosave. The same champion may be in several role pools. | IMPLEMENTED · TESTED |
 | **Riot account linking** | Several accounts per player, exactly one **Main** and the rest **Alts**. Each account is resolved to a PUUID and synced automatically by priority: rank, mastery and the whole current season of supported queues. | IMPLEMENTED · TESTED · PRODUCTION VERIFIED (13 linked accounts, all resolved and synced within the last hour on 14 Oct) |
-| **Team Matches** | Played together: Riot games two or more members played on the same side, with filters, bookmarks and match details. Encounters: players met repeatedly. | IMPLEMENTED · TESTED |
-| **Solo Queue Blocks** | Private Solo/Duo journal: blocks with a flexible target (1–100 games or none, extendable, finish any time), one main mistake per game, one-tap import of recent Riot games. Only the owner can see it. | IMPLEMENTED · TESTED |
+| **Team Matches** | Played together: Riot games two or more members played on the same side, with filters, bookmarks and match details. | IMPLEMENTED · TESTED |
+| **Encounters** | In each profile's Match History: the opponents and allies that player keeps meeting, with their record against and alongside them, under the same season, game mode and account filters. | IMPLEMENTED · TESTED |
+| **Ranked Development** (formerly Solo Queue Blocks) | Retired on 29 Oct 2026: removed from the app, with Match History's add-to-session button and the automatic session matching after each sync. Its old addresses redirect to My Profile → Overview. Its records are kept, unused, until a separate clean-up (docs/RANKED_DEVELOPMENT.md). | RETIRED |
 | **Admin** | People & Access, Riot Data (jobs, coverage, champion rework handling), Branding, System Health. | IMPLEMENTED · TESTED (local) |
 | **Branding** | Team name, tagline, logo, separate sign-in and app backgrounds (GIF up to 20 MB, uploaded in 3.5 MB pieces), five colours with contrast checks. | IMPLEMENTED · TESTED |
 | **System Health** | Plain-language status for website, database, Riot API, player syncing and jobs, plus technical diagnostics. `/api/health` is public and cheap. | IMPLEMENTED · PRODUCTION VERIFIED (`/api/health` answered ok with no failing jobs on 14 Oct). Note: "ok" does not mean data is flowing (see section 5). |
@@ -80,12 +81,12 @@ UNIIVERSE is a **private, team-focused League of Legends platform** for one amat
 ### Existing player
 Sign in → **Team** (lineup cards) → **My Profile** (statistics with filters, champion pools, Riot accounts) → **Team → Matches** for the games played together. Sessions last 24 hours, then they sign in again.
 
-### Administrator (Owner)
-1. Switch to **Admin Mode** with "Switch to Admin" in the sidebar (the menu button on phones).
-2. **People & Access:** add accounts, reset passwords, deactivate, delete, move a player between Main and Other, and set each person's access (base level plus additional groups).
-3. **Riot Data:** job status, regional coverage, champion rework handling.
-4. **Branding** and **System Health.** (The public team page, `/public`, is always on and has no Admin page.)
-5. The lineup itself is managed on **Team**, not in Admin.
+### Administrator (the Owner, or any account given administrator access)
+1. Switch to **Admin Mode** with **Switch to Admin Mode** in the sidebar (the menu button on phones, or Settings). **Return to Player Mode** goes back; the app reopens in the mode used last.
+2. **Dashboard:** accounts, data and recent admin activity at a glance.
+3. **Users & Permissions:** add accounts, reset passwords, deactivate, delete, set each person's access (base level plus additional groups), and give or remove **administrator access**. Only the Owner changes the Owner account.
+4. **Platform Settings** (Branding, Previews), **Data & Integrations** (Riot data and jobs), **System Health** and **Audit Logs**. (The public team page, `/public`, is always on and has no Admin page.)
+5. The lineup itself is managed on **Team**, in Player Mode, not in Admin Mode.
 
 ---
 
@@ -139,7 +140,6 @@ All phases were developed between 1 and 14 October 2026. Phase 1 started on 13 O
   - Accounts, passwords and permissions stay with Owners.
   - The last Owner can never be locked out.
   - No secrets are ever pasted into chat.
-- **Privacy.** Solo Queue Blocks are private to their owner and never feed team statistics.
 - **Retired ideas:**
   - activation-code sign-in;
   - the Team Leader / Draft Lead role;

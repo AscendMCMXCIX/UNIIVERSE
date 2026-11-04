@@ -749,7 +749,139 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
   },
   {
     "idx": 52,
-    "tag": "0052_retire_meta_trends_tables",
+    "tag": "0052_data_api_grants",
+    "hash": "f02e49a46e211950050fd7d18858b6dbefe9287ea815c2b929a625a4d82935b9",
+    "statements": [
+      "-- Supabase's Data API (PostgREST and GraphQL) answers requests as the \"anon\" and \"authenticated\"\n-- roles. UNIIVERSE does not use it: the app reaches its tables only through its own server, as the\n-- database user that owns them (docs/DATABASE_PERMISSIONS.md). Until 30 October 2026 Supabase gave\n-- both roles every privilege on each new table in public, and Row Level Security (on for every\n-- table, with no policies) kept them out of every row. From that date new tables get no grants.\n--\n-- This takes those grants back from the app's own tables and sequences, so every table is closed\n-- to the Data API however old it is, and gives the read-only backup role, where it exists\n-- (docs/BACKUPS.md), SELECT on them explicitly instead of through default privileges. Objects\n-- owned by other roles (Supabase's own) and service_role's grants are left as they are. Nothing\n-- is read, written or deleted.\n--\n-- Reversible: GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated; and the same for\n-- ALL SEQUENCES.\nDO $$\nDECLARE\n  obj record;\n  api text;\nBEGIN\n  FOR obj IN\n    SELECT c.relname, CASE WHEN c.relkind = 'S' THEN 'SEQUENCE' ELSE 'TABLE' END AS kind\n    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace\n    WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v', 'm', 'S') AND c.relowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)\n  LOOP\n    FOREACH api IN ARRAY ARRAY['anon', 'authenticated'] LOOP\n      IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = api) THEN\n        EXECUTE format('REVOKE ALL ON %s public.%I FROM %I', obj.kind, obj.relname, api);\n      END IF;\n    END LOOP;\n    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'uniiverse_backup') THEN\n      EXECUTE format('GRANT SELECT ON %s public.%I TO uniiverse_backup', obj.kind, obj.relname);\n    END IF;\n  END LOOP;\nEND $$;"
+    ]
+  },
+  {
+    "idx": 53,
+    "tag": "0053_administrator_access",
+    "hash": "4452b7161ab653fcbe539d232e30111dfafbd10cb4de0730b9975594e4a423bc",
+    "statements": [
+      "-- Administrator access as a permission an account holds, not an account of its own: an\n-- administrator keeps their player profile, Riot accounts, statistics and customisation, and may\n-- also open Admin Mode. Added false for every account: nobody becomes an administrator here. An\n-- existing administrator (the Owner, to begin with) grants it in Admin Mode → Users & Permissions, and\n-- the Owner is always one whatever this column says. No grant is needed: a column takes its\n-- table's privileges (docs/DATABASE_PERMISSIONS.md). Rollback: ALTER TABLE \"users\" DROP COLUMN \"is_admin\"\n-- (the description below is wording only).\nALTER TABLE \"users\" ADD COLUMN \"is_admin\" boolean DEFAULT false NOT NULL;",
+      "-- The built-in Team Manager level still never opens Admin Mode, but Admin Mode is no longer the\n-- Owner's alone: its description says \"administrators only\" now, unless someone has edited it.\nUPDATE \"permission_presets\" SET \"description\" = 'Everything a player can do, plus running the team from the ordinary pages: the lineup, other players'' profiles and any match. Never Admin Mode, accounts or site settings (administrators only).', \"updated_at\" = now() WHERE \"level_key\" = 'administrator' AND \"description\" = 'Everything a player can do, plus running the team from the ordinary pages: the lineup, other players'' profiles and any match. Never Admin Mode, accounts or site settings (Owner only).';"
+    ]
+  },
+  {
+    "idx": 54,
+    "tag": "0054_web_vitals",
+    "hash": "dffd4c4d08dc99ae7a640e431d86d346f0b9b478ba8366571ab356cf72c42f9f",
+    "statements": [
+      "-- Field performance (src/domain/web-vitals.ts): page loads counted per UTC day, metric, bucket, page\n-- group (\"players\", never an address or id) and device class. Counts only: nothing identifies a\n-- person or an account. Written by /api/vitals and kept 35 days. Rollback: DROP TABLE \"web_vitals_daily\".\nCREATE TABLE \"web_vitals_daily\" (\n\t\"day\" date NOT NULL,\n\t\"metric\" text NOT NULL,\n\t\"page\" text NOT NULL,\n\t\"device\" text NOT NULL,\n\t\"bucket\" smallint NOT NULL,\n\t\"count\" integer DEFAULT 0 NOT NULL,\n\tCONSTRAINT \"web_vitals_daily_day_metric_page_device_bucket_pk\" PRIMARY KEY(\"day\",\"metric\",\"page\",\"device\",\"bucket\")\n);",
+      "ALTER TABLE \"web_vitals_daily\" ENABLE ROW LEVEL SECURITY;",
+      "-- Closed to Supabase's Data API whatever the project's default privileges, and readable by the\n-- backup role where it exists (docs/DATABASE_PERMISSIONS.md).\nDO $$ BEGIN\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN\n    REVOKE ALL ON TABLE public.web_vitals_daily FROM anon;\n  END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN\n    REVOKE ALL ON TABLE public.web_vitals_daily FROM authenticated;\n  END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'uniiverse_backup') THEN\n    GRANT SELECT ON TABLE public.web_vitals_daily TO uniiverse_backup;\n  END IF;\nEND $$;"
+    ]
+  },
+  {
+    "idx": 55,
+    "tag": "0055_restore_ascend_owner",
+    "hash": "23acb851d8aaef73d1f6458f2433bb3e10c70f9aac8cac0cd9e088775754b64f",
+    "statements": [
+      "-- One-time ownership transfer for the team's deployment, the reverse of 0009. 0009 split the\n-- owner's account \"ascend\" in two: \"ascend\" kept the player profile and became a player, and a new\n-- admin-only account \"adminascend\" became the Owner. The owner wants one account again. Afterwards:\n--   * \"ascend\" is the Owner, with everything it had (profile, Riot accounts, statistics,\n--     customisation, history, password and sessions). It opens Player Mode as before; Admin Mode\n--     is the switch in its sidebar.\n--   * \"ascend\" is the only administrator: administrator access held by any other account is\n--     removed (the Owner can grant it again in Users & Permissions).\n--   * What \"adminascend\" created (Clash Scout scouts, Team Matches bookmarks, series, drafts,\n--     activation codes, invitations) is credited to \"ascend\". The audit log keeps every entry as\n--     it was.\n--   * \"adminascend\" can no longer sign in: it is a deactivated player account with no password,\n--     no sessions and no activation codes. Deleting it is a later, separate step, once this has\n--     been verified in production.\n-- Guarded: changes nothing unless \"ascend\" is an active account with a password and a player\n-- profile and \"adminascend\" is the Owner, so it does nothing on any other deployment and nothing\n-- if it ever ran again. \"ascend\" becomes the Owner before \"adminascend\" stops being one, and the\n-- whole migration is one transaction, so an Owner always exists. Each change is in the audit log.\n-- Rollback: make \"adminascend\" the Owner again with a new password (/recover with the setup key\n-- recovers any Owner account) and set \"ascend\" back to 'player'.\nDO $$\nDECLARE\n  owner_id uuid;\n  owner_name text;\n  old_id uuid;\n  old_name text;\nBEGIN\n  SELECT id, username INTO owner_id, owner_name FROM \"users\"\n  WHERE lower(\"username\") = 'ascend' AND \"is_active\" AND \"password_hash\" IS NOT NULL AND \"player_id\" IS NOT NULL;\n  SELECT id, username INTO old_id, old_name FROM \"users\"\n  WHERE lower(\"username\") = 'adminascend' AND \"role\" = 'owner';\n  IF owner_id IS NULL OR old_id IS NULL THEN\n    RETURN;\n  END IF;\n\n  -- 1. \"ascend\" is the Owner (always an administrator, so its own administrator flag is not needed).\n  UPDATE \"users\" SET \"role\" = 'owner', \"is_admin\" = false, \"updated_at\" = now() WHERE \"id\" = owner_id;\n\n  -- 2. What the admin-only account created is credited to \"ascend\".\n  UPDATE \"clash_scouts\" SET \"created_by\" = owner_id WHERE \"created_by\" = old_id;\n  UPDATE \"clash_scouts\" SET \"updated_by\" = owner_id WHERE \"updated_by\" = old_id;\n  UPDATE \"team_bookmarks\" SET \"created_by_user_id\" = owner_id WHERE \"created_by_user_id\" = old_id;\n  UPDATE \"series\" SET \"created_by_user_id\" = owner_id WHERE \"created_by_user_id\" = old_id;\n  UPDATE \"drafts\" SET \"created_by_user_id\" = owner_id WHERE \"created_by_user_id\" = old_id;\n  UPDATE \"drafts\" SET \"controller_user_id\" = owner_id WHERE \"controller_user_id\" = old_id;\n  UPDATE \"activation_codes\" SET \"created_by_user_id\" = owner_id WHERE \"created_by_user_id\" = old_id;\n  UPDATE \"invites\" SET \"created_by_user_id\" = owner_id WHERE \"created_by_user_id\" = old_id;\n\n  -- 3. \"ascend\" is the only administrator.\n  INSERT INTO \"audit_events\" (\"actor_name\", \"action\", \"target_type\", \"target_id\", \"target_name\", \"details\")\n  SELECT 'migration 0055', 'account.admin-revoke', 'user', \"id\"::text, \"username\", jsonb_build_object('reason', 'ascend is the only administrator')\n  FROM \"users\" WHERE \"is_admin\" AND \"id\" NOT IN (owner_id, old_id);\n  UPDATE \"users\" SET \"is_admin\" = false, \"updated_at\" = now() WHERE \"is_admin\" AND \"id\" <> owner_id;\n\n  -- 4. \"adminascend\" can no longer sign in, and nothing it held still works.\n  UPDATE \"users\" SET \"role\" = 'player', \"is_admin\" = false, \"is_active\" = false, \"password_hash\" = NULL, \"must_change_password\" = false, \"temporary_password_expires_at\" = NULL, \"updated_at\" = now() WHERE \"id\" = old_id;\n  DELETE FROM \"sessions\" WHERE \"user_id\" = old_id;\n  DELETE FROM \"activation_codes\" WHERE \"user_id\" = old_id;\n\n  -- 5. The audit log records the transfer.\n  INSERT INTO \"audit_events\" (\"actor_name\", \"action\", \"target_type\", \"target_id\", \"target_name\", \"details\") VALUES\n    ('migration 0055', 'account.role', 'user', owner_id::text, owner_name, jsonb_build_object('role', 'owner', 'reason', 'ownership returned to the owner''s own account')),\n    ('migration 0055', 'account.role', 'user', old_id::text, old_name, jsonb_build_object('role', 'player', 'reason', 'replaced by ' || owner_name)),\n    ('migration 0055', 'account.deactivate', 'user', old_id::text, old_name, jsonb_build_object('reason', 'password and sessions removed; deleted after verification'));\nEND $$;"
+    ]
+  },
+  {
+    "idx": 56,
+    "tag": "0056_privacy_erasures",
+    "hash": "0982f541bdd23d96b3a5f3567dc7f093f61a846e876fda0690f9f619f2b14394",
+    "statements": [
+      "-- Records of permanent personal-data erasures (src/server/privacy/erasure.ts): a reference, when,\n-- and keyed one-way tokens of the identifiers that were removed (HMAC-SHA256 under a key derived\n-- from UNIIVERSE_AUTH_SECRET, which is never stored here). No name, Riot ID, PUUID or account id.\n-- They keep an erasure in force: games synced later leave the person out, their Riot accounts are\n-- not linked again by accident, and a backup restored from before the erasure is reconciled\n-- (docs/BACKUPS.md). Additive only: nothing existing changes. Rollback: DROP TABLE \"privacy_erasures\".\nCREATE TABLE \"privacy_erasures\" (\n\t\"id\" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,\n\t\"reference\" text NOT NULL,\n\t\"erased_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\t\"tokens\" jsonb NOT NULL,\n\t\"key_check\" text NOT NULL,\n\t\"released_at\" timestamp with time zone\n);",
+      "CREATE UNIQUE INDEX \"privacy_erasures_reference_idx\" ON \"privacy_erasures\" USING btree (\"reference\");",
+      "ALTER TABLE \"privacy_erasures\" ENABLE ROW LEVEL SECURITY;",
+      "DO $$ BEGIN\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN REVOKE ALL ON TABLE public.privacy_erasures FROM anon; END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN REVOKE ALL ON TABLE public.privacy_erasures FROM authenticated; END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'uniiverse_backup') THEN GRANT SELECT ON TABLE public.privacy_erasures TO uniiverse_backup; END IF;\nEND $$;"
+    ]
+  },
+  {
+    "idx": 57,
+    "tag": "0057_participant_ranks",
+    "hash": "235ba991960475f4c61bfc7403714218205cbd76718b73db1a658c9ffef73c5d",
+    "statements": [
+      "-- Match History's rank checks (src/server/players/participant-ranks.ts): when a member opens a\n-- match, the players whose stored rank is missing or over three days old are looked up with\n-- LEAGUE-V4 and kept here, one row per player, with both ranked queues (\"UNRANKED\" when Riot lists\n-- no entry) and the LP. The four columns are new and empty; the rows migration 0048 copied keep\n-- their Solo/Duo tier as they are. The partial index serves the daily limit on lookups. Additive\n-- only: no row or column is changed or removed, and the table keeps its Row Level Security and\n-- grants (it is not a new table). Rollback: DROP INDEX \"last_known_ranks_lookups_idx\", then drop\n-- the four columns.\nALTER TABLE \"last_known_ranks\" ADD COLUMN \"league_points\" integer;",
+      "ALTER TABLE \"last_known_ranks\" ADD COLUMN \"flex_tier\" text;",
+      "ALTER TABLE \"last_known_ranks\" ADD COLUMN \"flex_division\" text;",
+      "ALTER TABLE \"last_known_ranks\" ADD COLUMN \"flex_league_points\" integer;",
+      "CREATE INDEX \"last_known_ranks_lookups_idx\" ON \"last_known_ranks\" USING btree (\"observed_at\") WHERE \"last_known_ranks\".\"source\" = 'match lookup';"
+    ]
+  },
+  {
+    "idx": 58,
+    "tag": "0058_match_details_puuids",
+    "hash": "b7ff9defd2fc85d0500368b3a290c6030e6ffb465eb264a1a876f705b3625af6",
+    "statements": [
+      "CREATE INDEX \"match_details_puuids_idx\" ON \"match_details\" USING gin ((jsonb_path_query_array(\"participants\", '$[*].puuid'))) WITH (fastupdate=false);"
+    ]
+  },
+  {
+    "idx": 59,
+    "tag": "0059_ranked_development",
+    "hash": "477dc9d9322b0ee5902e8eb51a97b2c436fe3504d46dcb56875dbbe89069100e",
+    "statements": [
+      "-- Ranked Development (docs/RANKED_DEVELOPMENT.md): Solo Queue Blocks become sessions, with a\n-- weakness library (development_objectives), versioned If–Then plans (development_plans), and a\n-- short review on each session game. Additive and data-preserving: two new tables, new nullable or\n-- defaulted columns on ranked_blocks and ranked_games, and a backfill that keeps every block, game,\n-- note and mistake as it was:\n--   - games keep their main mistake and notes; a game with either counts as reviewed, and its\n--     mistake is also read into the shared areas (went_wrong) through the same mapping as\n--     domain/development/categories LEGACY_MISTAKE_CATEGORY;\n--   - a player's ranked focus sentence becomes their primary objective (status Practising), with\n--     the champions they chose for it; ranked_profiles itself is left untouched;\n--   - a block still in progress follows that objective and counts as active now, so it has the\n--     full idle period (twelve hours) before it ends by itself; synced games join it only from now\n--     on (collects_from), so games its player chose not to import are never added to it. Finished\n--     blocks collect nothing.\n-- The new tables get Row Level Security, no Data API grants and the backup role's SELECT\n-- (docs/DATABASE_PERMISSIONS.md). Rollback: drop the two tables and the added columns; no\n-- earlier value is changed except the new columns' backfill.\nCREATE TABLE \"development_objectives\" (\n\t\"id\" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,\n\t\"player_id\" uuid NOT NULL,\n\t\"title\" text NOT NULL,\n\t\"detail\" text DEFAULT '' NOT NULL,\n\t\"category\" text NOT NULL,\n\t\"custom_category\" text,\n\t\"role\" \"role\",\n\t\"champion_ids\" jsonb DEFAULT '[]'::jsonb NOT NULL,\n\t\"status\" text DEFAULT 'identified' NOT NULL,\n\t\"is_primary\" boolean DEFAULT false NOT NULL,\n\t\"measure\" text,\n\t\"plan_id\" uuid,\n\t\"identified_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\t\"status_changed_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\t\"source\" text DEFAULT 'player' NOT NULL,\n\t\"created_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\t\"updated_at\" timestamp with time zone DEFAULT now() NOT NULL\n);",
+      "CREATE TABLE \"development_plans\" (\n\t\"id\" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,\n\t\"player_id\" uuid NOT NULL,\n\t\"objective_id\" uuid,\n\t\"if_text\" text NOT NULL,\n\t\"then_text\" text NOT NULL,\n\t\"template_key\" text,\n\t\"retired_at\" timestamp with time zone,\n\t\"created_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\t\"updated_at\" timestamp with time zone DEFAULT now() NOT NULL\n);",
+      "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"objective_id\" uuid;",
+      "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"plan_id\" uuid;",
+      "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"account_id\" uuid;",
+      "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"last_activity_at\" timestamp with time zone;",
+      "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"collects_from\" timestamp with time zone;",
+      "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"start_rank\" jsonb;",
+      "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"closing_note\" text DEFAULT '' NOT NULL;",
+      "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"dismissed_match_ids\" jsonb DEFAULT '[]'::jsonb NOT NULL;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"source\" text DEFAULT 'manual' NOT NULL;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"objective_id\" uuid;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"review_status\" text DEFAULT 'none' NOT NULL;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"execution\" smallint;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"went_well\" text;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"went_wrong\" text;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"learning\" text DEFAULT '' NOT NULL;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"adjustment\" text DEFAULT '' NOT NULL;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"reviewed_at\" timestamp with time zone;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"needs_confirmation\" boolean DEFAULT false NOT NULL;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"alternative_block_id\" uuid;",
+      "ALTER TABLE \"development_objectives\" ADD CONSTRAINT \"development_objectives_player_id_players_id_fk\" FOREIGN KEY (\"player_id\") REFERENCES \"public\".\"players\"(\"id\") ON DELETE cascade ON UPDATE no action;",
+      "ALTER TABLE \"development_objectives\" ADD CONSTRAINT \"development_objectives_plan_id_development_plans_id_fk\" FOREIGN KEY (\"plan_id\") REFERENCES \"public\".\"development_plans\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "ALTER TABLE \"development_plans\" ADD CONSTRAINT \"development_plans_player_id_players_id_fk\" FOREIGN KEY (\"player_id\") REFERENCES \"public\".\"players\"(\"id\") ON DELETE cascade ON UPDATE no action;",
+      "ALTER TABLE \"development_plans\" ADD CONSTRAINT \"development_plans_objective_id_development_objectives_id_fk\" FOREIGN KEY (\"objective_id\") REFERENCES \"public\".\"development_objectives\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "CREATE INDEX \"development_objectives_player_idx\" ON \"development_objectives\" USING btree (\"player_id\",\"status\");",
+      "CREATE UNIQUE INDEX \"development_objectives_one_primary_idx\" ON \"development_objectives\" USING btree (\"player_id\") WHERE \"development_objectives\".\"is_primary\";",
+      "CREATE INDEX \"development_plans_player_idx\" ON \"development_plans\" USING btree (\"player_id\",\"objective_id\");",
+      "ALTER TABLE \"ranked_blocks\" ADD CONSTRAINT \"ranked_blocks_objective_id_development_objectives_id_fk\" FOREIGN KEY (\"objective_id\") REFERENCES \"public\".\"development_objectives\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "ALTER TABLE \"ranked_blocks\" ADD CONSTRAINT \"ranked_blocks_plan_id_development_plans_id_fk\" FOREIGN KEY (\"plan_id\") REFERENCES \"public\".\"development_plans\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "ALTER TABLE \"ranked_blocks\" ADD CONSTRAINT \"ranked_blocks_account_id_riot_accounts_id_fk\" FOREIGN KEY (\"account_id\") REFERENCES \"public\".\"riot_accounts\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "ALTER TABLE \"ranked_games\" ADD CONSTRAINT \"ranked_games_objective_id_development_objectives_id_fk\" FOREIGN KEY (\"objective_id\") REFERENCES \"public\".\"development_objectives\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "ALTER TABLE \"ranked_games\" ADD CONSTRAINT \"ranked_games_alternative_block_id_ranked_blocks_id_fk\" FOREIGN KEY (\"alternative_block_id\") REFERENCES \"public\".\"ranked_blocks\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "CREATE INDEX \"ranked_games_objective_idx\" ON \"ranked_games\" USING btree (\"player_id\",\"objective_id\");",
+      "UPDATE \"ranked_games\" SET \"source\" = 'import' WHERE \"riot_match_id\" IS NOT NULL;",
+      "UPDATE \"ranked_games\" SET \"review_status\" = 'done', \"reviewed_at\" = \"updated_at\" WHERE \"main_mistake\" IS NOT NULL OR \"notes\" <> '';",
+      "UPDATE \"ranked_games\" SET \"went_wrong\" = CASE \"main_mistake\"\n  WHEN 'mechanics' THEN 'mechanics'\n  WHEN 'trading-laning' THEN 'trading'\n  WHEN 'wave-tempo' THEN 'wave-management'\n  WHEN 'vision-awareness' THEN 'vision'\n  WHEN 'macro-objectives' THEN 'objective-setup'\n  WHEN 'positioning-teamfight' THEN 'teamfighting'\n  WHEN 'decision-making' THEN 'decision-making'\n  WHEN 'mental' THEN 'mental'\n  WHEN 'other' THEN 'other'\nEND WHERE \"main_mistake\" IS NOT NULL;",
+      "INSERT INTO \"development_objectives\" (\"player_id\", \"title\", \"category\", \"status\", \"is_primary\", \"champion_ids\", \"source\", \"identified_at\", \"status_changed_at\")\nSELECT p.\"player_id\", left(btrim(regexp_replace(p.\"focus\", '\\s+', ' ', 'g')), 120), 'other', 'practising', true,\n  coalesce((SELECT jsonb_agg(v.c ORDER BY v.o) FROM (VALUES (1, p.\"champion_1\"), (2, p.\"champion_2\"), (3, p.\"champion_3\")) AS v(o, c) WHERE v.c IS NOT NULL AND v.c <> ''), '[]'::jsonb),\n  'blocks-focus', p.\"created_at\", now()\nFROM \"ranked_profiles\" p WHERE btrim(p.\"focus\") <> '';",
+      "UPDATE \"ranked_blocks\" b SET \"objective_id\" = o.\"id\" FROM \"development_objectives\" o WHERE o.\"player_id\" = b.\"player_id\" AND o.\"source\" = 'blocks-focus' AND b.\"status\" = 'active';",
+      "UPDATE \"ranked_blocks\" SET \"last_activity_at\" = now(), \"collects_from\" = now() WHERE \"status\" = 'active';",
+      "ALTER TABLE \"development_objectives\" ENABLE ROW LEVEL SECURITY;",
+      "ALTER TABLE \"development_plans\" ENABLE ROW LEVEL SECURITY;",
+      "-- Closed to Supabase's Data API whatever the project's default privileges, and readable by the\n-- backup role where it exists (docs/DATABASE_PERMISSIONS.md).\nDO $$ BEGIN\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN\n    REVOKE ALL ON TABLE public.development_objectives FROM anon;\n    REVOKE ALL ON TABLE public.development_plans FROM anon;\n  END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN\n    REVOKE ALL ON TABLE public.development_objectives FROM authenticated;\n    REVOKE ALL ON TABLE public.development_plans FROM authenticated;\n  END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'uniiverse_backup') THEN\n    GRANT SELECT ON TABLE public.development_objectives TO uniiverse_backup;\n    GRANT SELECT ON TABLE public.development_plans TO uniiverse_backup;\n  END IF;\nEND $$;"
+    ]
+  },
+  {
+    "idx": 60,
+    "tag": "0060_match_timeline_events",
+    "hash": "1248c9bd5410b7f9f5a46d41a556d78099255afd9199c05606630c81af157415",
+    "statements": [
+      "ALTER TABLE \"match_timelines\" ADD COLUMN \"events\" jsonb;"
+    ]
+  },
+  {
+    "idx": 61,
+    "tag": "0061_social_links_public",
+    "hash": "1000f4c7bfe30984a79310ed8fd82538bd989709a0bff5a05121be7e87cbb4d1",
+    "statements": [
+      "-- Social links: one switch per link (\"Show publicly\") instead of three audiences.\n-- Each stored link { value, show } becomes { value, public }. Only the \"public\" audience is\n-- switched on (true). The team-only (\"team\") and owner-only (\"hidden\") audiences, and anything\n-- unrecognised, are switched off (false), so no link is shown to anyone who could not see it\n-- before. A link already in the new shape keeps its switch (only a JSON true counts). Each value,\n-- and anything else stored with it, is kept as it was: the pages check a value again before they\n-- show it. Entries that are not objects, empty objects and rows without links are left alone.\nUPDATE \"players\" AS p\nSET \"social_links\" = (\n  SELECT jsonb_object_agg(\n    e.key,\n    CASE\n      WHEN jsonb_typeof(e.value) = 'object' THEN\n        (e.value - 'show' - 'public')\n        || jsonb_build_object('public', COALESCE(e.value ->> 'show' = 'public', false) OR COALESCE(e.value -> 'public' = 'true'::jsonb, false))\n      ELSE e.value\n    END\n  )\n  FROM jsonb_each(p.\"social_links\") AS e(key, value)\n)\nWHERE jsonb_typeof(p.\"social_links\") = 'object' AND p.\"social_links\" <> '{}'::jsonb;"
+    ]
+  },
+  {
+    "idx": 62,
+    "tag": "0062_retire_meta_trends_tables",
     "hash": "5c5a21e731d9ef79552775b93233772bfb0ce3dafb462eddf9f55305b6fd17b2",
     "statements": [
       "-- Drops the 12 tables Meta & Trends left behind (audit decision 2, about 206 MB of the database).\n-- Nothing has read or written them since the feature was removed, and no live table references\n-- them. The owner approved this on 19 Oct 2026 on two conditions, checked before it merges:\n--   1. a verified backup that holds these tables (docs/BACKUPS.md: restored and counted);\n--   2. no reads of them over at least a day (Data jobs db-usage, \"retired\").\n-- Kept: tracked_summoners (its ranks were copied to last_known_ranks by 0048), region_status,\n-- champion_change_points and the stat_*_periods tables (not part of this decision). No CASCADE:\n-- children go before the tables they reference, so a dependency nobody expected makes this\n-- migration fail instead of being dropped with them. Recovery: pg_restore --table from that\n-- backup, then revert this change.\nDROP TABLE \"ranked_participants\";",
@@ -767,8 +899,8 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
     ]
   },
   {
-    "idx": 53,
-    "tag": "0053_retire_draft_tables",
+    "idx": 63,
+    "tag": "0063_retire_draft_tables",
     "hash": "9c991d7172d0097ddf41353e9bbf612b3badb0d65cae1937f9151a7ac3081490",
     "statements": [
       "-- Drops what the removed Draft feature left in the database (audit decision 3): its nine tables,\n-- riot_accounts.opponent_player_id, teams.engine_config and the six enum types only they used.\n-- Nothing has read or written them since migration 0048 copied the scouted ranks Match History\n-- shows into last_known_ranks. The owner approved this on 19 Oct 2026, together with decision 2;\n-- it merges only after a verified backup that holds them (docs/BACKUPS.md: restored and counted).\n-- Kept: team_bookmarks (Team Matches), every riot_accounts row (only the opponent link goes) and\n-- every other table. No CASCADE: the two columns go first (a column takes its own index and foreign\n-- key with it), then each table after the tables that reference it, then the types, so a\n-- dependency nobody expected makes this migration fail instead of being dropped with them.\n-- Recovery: pg_restore --table from that backup, then revert this change.\nALTER TABLE \"riot_accounts\" DROP COLUMN \"opponent_player_id\";",

@@ -2,34 +2,84 @@
 
 /*
   UNIIVERSE design tokens.
-  Deep-space navy with the brand's cyan as the single accent, flat panels, no decoration inside
-  the work surfaces. The brand glow lives only at the page edges and on the sign-in pages.
+  A deep ink with a faint indigo undertone, in clear steps: the page, the panels and cards on it,
+  raised rows and controls, the selected or hovered. Text in three greys (off-white, a readable grey,
+  a quieter grey that still meets 4.5:1 on every surface). The identity is a pair: the brand blue
+  (accent) marks what can be pressed and what is chosen; violet (accent-2) carries the light, in the
+  page's ambient glow and the brand gradient (accent to accent-2) on selected indicators and
+  headline cards. Blue and red stay the two sides of a match and its result, good/warn/bad states.
+  Light stays at the edges: dense data sits on panels with their own depth, never on a glow.
 */
 @theme {
-  --color-bg: #080c24;
-  --color-bg-elevated: #0c1130;
-  --color-surface: #10163a;
-  --color-surface-2: #161e4a;
-  --color-surface-3: #1e295f;
-  --color-border: #222c5f;
-  --color-border-strong: #34428c;
-  --color-fg: #e8edfb;
-  --color-fg-muted: #9aa8d4;
-  --color-fg-subtle: #7b89b9; /* 4.5:1 on panels and cards (WCAG AA for small text) */
-  --color-accent: #1fc3ff; /* brand cyan */
+  --color-bg: #0a0b12;
+  --color-bg-elevated: #181a25; /* menus, popovers and fields: a step above the panel they sit on */
+  --color-chrome: #131418; /* the app's frame (sidebar, top bar, drawer, tab bar): a near-neutral charcoal, so navigation recedes and the content leads */
+  --color-surface: #12131c;
+  --color-surface-2: #1b1d29;
+  --color-surface-3: #252837;
+  --color-border: #262939;
+  --color-border-strong: #3a3e53;
+  --color-border-control: #646a8c; /* the edge of a field or toolbar control: 3:1 against the page, panels and popovers (WCAG 1.4.11) */
+  --color-fg: #eef0f6;
+  --color-fg-muted: #b4b8c9;
+  --color-fg-subtle: #8f95aa; /* 4.5:1 on every surface, surface-3 included (WCAG AA for small text) */
+  --color-accent: #1fc3ff; /* brand blue */
   --color-accent-strong: #7fdcff;
-  /* Branding can change these (Admin → Branding); defaults keep the original look. */
-  --color-accent-2: #58a8f2;
+  /* Branding can change these (Admin → Branding); the defaults are the blue and violet pair. */
+  --color-accent-2: #9a7dff; /* violet: the light and the second stop of the brand gradient */
   --color-highlight: #7fdcff;
-  --color-blue: #5f8ff5;
-  --color-red: #e0566b;
-  --color-good: #3fc98a;
-  --color-warn: #e8b64a;
-  --color-bad: #e0566b;
-  --color-info: #58a8f2;
+  /* A match's two sides and its result (Victory blue, Defeat red), lifted for text on the dark ground. */
+  --color-blue: #6e9dff;
+  --color-red: #f26b7e;
+  --color-good: #45cf8f;
+  --color-warn: #ebba4f;
+  --color-bad: #f26b7e;
+  --color-info: #5eaef5;
 
-  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* --font-inter: Inter and its size-matched fallback (app/layout.tsx). */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Rarities and places (third place in bronze), never to set one statistic apart from its
+     neighbours (multikill counts are plain text). Not brand colours: Branding never changes them. */
+  --color-gold: #f5c451;
+  --color-violet: #c4a1ff;
+  --color-bronze: #c08457;
+  --color-bronze-fg: #d39a6c; /* bronze as text: lighter, for contrast on the dark surfaces */
+
+  /* Ranked tiers as small text (an opponent's rank in a match card, "E2"): each tier's hue, light
+     enough for small text on the panels (5:1 or more). Not brand colours: Branding never changes them. */
+  --color-tier-iron: #a4968f;
+  --color-tier-bronze: #cf9468;
+  --color-tier-silver: #a9b4c0;
+  --color-tier-gold: #d9b25a;
+  --color-tier-platinum: #57bfb4;
+  --color-tier-emerald: #3fbf7c;
+  --color-tier-diamond: #8099f4;
+  --color-tier-master: #c47be3;
+  --color-tier-grandmaster: #ec6f69;
+  --color-tier-challenger: #ecca6c;
+
+  /*
+    Type sizes below and between Tailwind's own (text-xs 12px, text-sm 14px, text-base 16px, ...).
+    In rem, so text follows the reader's own browser text size; a size in px would not. Each sets
+    only the size: the line height stays the surrounding one. src/app/design-tokens.test.ts refuses
+    font sizes in px and arbitrary values that repeat one of these. See docs/STANDARDS.md.
+  */
+  --text-4xs: 0.625rem; /* 10px: letters inside small tiles (initials, a count); never running text */
+  --text-2xs: 0.6875rem; /* 11px: the smallest text: chips, badges, captions, column headings, labels, metadata */
+  --text-md: 0.9375rem; /* 15px: a list row's primary value or name */
+  --text-figure: 1.75rem; /* 28px: headline figures (from sm up) */
+
+  /* Letter spacing for uppercase labels and the team's name. */
+  --tracking-label: 0.12em; /* eyebrows, uppercase labels, the team's name in headers */
+  --tracking-wordmark: 0.2em; /* the team's name as a wordmark (sign-in pages) and the tagline under it */
+  --tracking-tagline: 0.3em; /* the sign-in pages' tagline and the Team page's backdrop lettering */
+
+  /* Motion: entrances start quickly and land softly; exits are quicker and plain (ease-in). */
+  --ease-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1); /* modals, sheets, toasts, steps, reordering */
+  --ease-glide: cubic-bezier(0.22, 1, 0.36, 1); /* the sidebar sliding open and closed */
+  --ease-turn: cubic-bezier(0.6, 0, 0.4, 1); /* the Team card's turn: symmetric, half the turn at half the time */
 
   --radius-sm: 4px;
   --radius-md: 6px;
@@ -74,9 +124,18 @@ html, body {
     >= 1024  desktop : sidebar; >= 1280 the draft room uses its three-column layout
 */
 
+:root {
+  /*
+    The ambient light: violet from the top (left of centre), the brand blue from the top right and a low violet
+    horizon, faint and fixed to the window's edges, so the middle of the page (where the data is)
+    stays a calm ground. The body wears it; the team's background artwork, when there is one, wears
+    it over its veil (site-backdrop.tsx), so the light is the same with or without artwork.
+  */
+  --ambient-light: radial-gradient(56rem 30rem at 32% -9rem, color-mix(in srgb, var(--color-accent-2) 14%, transparent), transparent 70%), radial-gradient(48rem 26rem at 90% -11rem, color-mix(in srgb, var(--color-accent) 10%, transparent), transparent 70%), radial-gradient(ellipse 80% 42% at 50% 118%, color-mix(in srgb, var(--color-accent-2) 7%, transparent), transparent 70%);
+}
+
 body {
-  /* The wallpaper's cyan horizon, kept faint so panels stay flat and legible. */
-  background-image: radial-gradient(ellipse 70% 45% at 50% 115%, color-mix(in srgb, var(--color-accent) 16%, transparent), transparent 70%), radial-gradient(ellipse 45% 35% at 100% 0%, color-mix(in srgb, var(--color-accent-2) 7%, transparent), transparent 70%);
+  background-image: var(--ambient-light);
   background-attachment: fixed;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -94,6 +153,17 @@ p a.text-accent {
 
 ::selection {
   background: color-mix(in srgb, var(--color-highlight) 35%, transparent);
+}
+
+/*
+  One focus ring for everything the keyboard reaches, hand-made buttons and links included: the
+  accent outline of Button and the shared controls, the same in every browser. In the base layer, so
+  a control that marks focus its own way (a text field's accent border) still removes it in its class.
+*/
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+  }
 }
 
 /*
@@ -120,7 +190,7 @@ p a.text-accent {
   padding-left: max(calc(var(--spacing) * --value(integer)), env(safe-area-inset-left));
   padding-right: max(calc(var(--spacing) * --value(integer)), env(safe-area-inset-right));
 }
-/* Small inline text links ("All blocks →", "Every Highlights statistic", a name in a list) keep
+/* Small inline text links ("Every Highlights statistic", a name in a list) keep
    their look but get a finger-sized hit area on touch screens: an invisible box around the text, at
    least 44px tall, that does not move anything around it. */
 @utility touch-target {
@@ -173,6 +243,44 @@ p a.text-accent {
 }
 
 /* Motion: short, purposeful transitions; everything collapses to instant for reduced motion. */
+/*
+  Depth for panels and cards (Panel, the profile's dashboard cards, the champion table): a faint
+  sheen along the top, a hairline of light on the top edge and a soft shadow underneath, so a
+  surface reads as raised from the page without a glow. Pair it with the surface's own background
+  colour and border (it sets the image and shadow only).
+*/
+@utility panel-depth {
+  background-image: linear-gradient(to bottom, color-mix(in srgb, var(--color-fg) 3%, transparent), transparent 5rem);
+  box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--color-fg) 6%, transparent), 0 1px 2px 0 rgb(0 0 0 / 0.35), 0 18px 36px -22px rgb(0 0 0 / 0.8);
+}
+
+/* The card a page leads with (the profile's season card): panel-depth plus a faint wash of the violet light in its top corner. */
+@utility panel-featured {
+  background-image: radial-gradient(28rem 16rem at 0% 0%, color-mix(in srgb, var(--color-accent-2) 11%, transparent), transparent 70%), linear-gradient(to bottom, color-mix(in srgb, var(--color-fg) 3%, transparent), transparent 5rem);
+  box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--color-fg) 6%, transparent), 0 1px 2px 0 rgb(0 0 0 / 0.35), 0 18px 36px -22px rgb(0 0 0 / 0.8);
+}
+
+/*
+  A card that opens something: it rises a pixel and its edge brightens while pointed at, and it
+  settles back when pressed. Instant with reduced motion (the rule below).
+*/
+@utility panel-lift {
+  transition: transform 160ms var(--ease-emphasized), box-shadow 160ms var(--ease-emphasized), border-color 160ms ease-out;
+  &:hover {
+    transform: translateY(-1px);
+    border-color: var(--color-border-strong);
+    box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--color-fg) 8%, transparent), 0 2px 4px 0 rgb(0 0 0 / 0.35), 0 22px 40px -22px rgb(0 0 0 / 0.85);
+  }
+  &:active {
+    transform: translateY(0);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    &:hover {
+      transform: none;
+    }
+  }
+}
+
 @keyframes toast-in {
   from {
     opacity: 0;
@@ -213,16 +321,16 @@ p a.text-accent {
   }
 }
 @utility toast-in {
-  animation: toast-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: toast-in 180ms var(--ease-emphasized);
 }
 @utility fade-in {
   animation: fade-in 160ms ease-out;
 }
 @utility rise-in {
-  animation: rise-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: rise-in 200ms var(--ease-emphasized);
 }
 @utility pop-in {
-  animation: pop 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: pop 220ms var(--ease-emphasized);
 }
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -234,10 +342,10 @@ p a.text-accent {
     scroll-behavior: auto !important;
   }
 }
-/* The phone navigation menu slides in from its edge (a menu, not a detail window). */
+/* The phone navigation menu slides in from its edge, the left (a menu, not a detail window). */
 @keyframes drawer-in {
   from {
-    transform: translateX(24px);
+    transform: translateX(-24px);
     opacity: 0.6;
   }
   to {
@@ -246,7 +354,7 @@ p a.text-accent {
   }
 }
 @utility drawer-in {
-  animation: drawer-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: drawer-in 200ms var(--ease-emphasized);
 }
 /* Detail windows and editors: a short rise into the centre, a quicker fade on the way out. */
 @keyframes modal-in {
@@ -266,7 +374,7 @@ p a.text-accent {
   }
 }
 @utility modal-in {
-  animation: modal-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: modal-in 180ms var(--ease-emphasized);
 }
 @utility modal-out {
   animation: modal-out 140ms ease-in forwards;
@@ -286,10 +394,108 @@ p a.text-accent {
   }
 }
 @utility sheet-in {
-  animation: sheet-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: sheet-in 220ms var(--ease-emphasized);
 }
 @utility sheet-out {
   animation: sheet-out 140ms ease-in forwards;
+}
+/* Player Card Studio: a section slides in a little from the side it was reached from. */
+@keyframes step-in-next {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes step-in-prev {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@utility step-in-next {
+  animation: step-in-next 180ms var(--ease-emphasized);
+}
+@utility step-in-prev {
+  animation: step-in-prev 180ms var(--ease-emphasized);
+}
+/*
+  The Studio's sliders: a slim track filled in the accent colour up to the thumb (--fill, set by the
+  slider from its value) and a round thumb a finger can find, larger on touch screens. Only the
+  track and thumb are drawn here; the input's own size comes from its classes.
+*/
+.studio-range {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  touch-action: pan-y;
+}
+.studio-range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--color-accent) var(--fill, 0%), var(--color-surface-3) var(--fill, 0%));
+}
+.studio-range::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-surface-3);
+}
+.studio-range::-moz-range-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-accent);
+}
+.studio-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  margin-top: -8px;
+  border-radius: 999px;
+  background: var(--color-fg);
+  border: 3px solid var(--color-accent);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.45);
+  transition: box-shadow 120ms ease-out;
+}
+.studio-range::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--color-fg);
+  border: 3px solid var(--color-accent);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.45);
+}
+.studio-range:focus-visible {
+  outline: none;
+}
+.studio-range:focus-visible::-webkit-slider-thumb,
+.studio-range:active::-webkit-slider-thumb {
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-accent) 30%, transparent);
+}
+.studio-range:focus-visible::-moz-range-thumb,
+.studio-range:active::-moz-range-thumb {
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-accent) 30%, transparent);
+}
+.studio-range:disabled {
+  opacity: 0.45;
+}
+@media (pointer: coarse) {
+  .studio-range::-webkit-slider-thumb {
+    width: 28px;
+    height: 28px;
+    margin-top: -11px;
+  }
+  .studio-range::-moz-range-thumb {
+    width: 28px;
+    height: 28px;
+  }
 }
 
 /*
@@ -316,21 +522,21 @@ p a.text-accent {
   .card-fx-drift { animation: none; }
 }
 /*
-  Team cards turn over to a substitute (team-roster.tsx, LineupCard): a 3D turn on the vertical axis
-  with a symmetric ease, so the half turn falls at half time. During a turn (data-turn, set for the
-  turn only) both faces are drawn and the one facing away is culled by backface-visibility, so
-  neither ever shows mirrored and a reversed turn never leaves a gap; at rest the hidden face is
-  also visibility: hidden (and inert in the markup). While turning the card dips a little and casts
-  a deeper shadow, then settles; will-change exists only during the turn. Reduced motion: no
-  rotation, the faces simply swap.
+  Team cards turn over to a substitute (team-roster.tsx, LineupCard, which runs the turn with Web
+  Animations): a 3D turn on the vertical axis with a symmetric ease, so the card is edge-on at half
+  time, the moment the two faces trade places (their opacity and visibility, on the same timeline
+  as the rotation). The face turned away is transparent and hidden, so nothing on it shows through
+  or lingers, even where a phone browser draws parts of a face on layers of their own without its
+  backface culling; the links and controls over the art also fade out as the turn begins and in as
+  it settles. backface-visibility stays as a further guard. At rest the hidden face is visibility:
+  hidden (and inert in the markup). The faces share one grid cell, so the card is as tall as the
+  taller face. While turning (data-turn) the card dips a little and casts a deeper shadow;
+  will-change exists only then. No CSS transition on rotate or scale: it would override the turn.
+  Reduced motion: no turn, the faces simply swap.
 */
 .flip-card { perspective: 1800px; }
-.flip-card-inner {
-  transform-style: preserve-3d;
-  transition: rotate 460ms cubic-bezier(0.6, 0, 0.4, 1), scale 230ms cubic-bezier(0.4, 0, 0.2, 1);
-}
+.flip-card-inner { transform-style: preserve-3d; }
 .flip-card[data-flipped] .flip-card-inner { rotate: y 180deg; }
-.flip-card[data-turn="dip"] .flip-card-inner { scale: 0.96; }
 .flip-card[data-turn] .flip-card-inner { will-change: rotate, scale; }
 .flip-face {
   backface-visibility: hidden;
@@ -342,68 +548,6 @@ p a.text-accent {
 .flip-card[data-flipped]:not([data-turn]) .flip-face-front, .flip-card:not([data-flipped]):not([data-turn]) .flip-face-back { visibility: hidden; }
 .flip-card[data-turn] .flip-face { box-shadow: 0 22px 44px -20px rgb(0 0 0 / 0.75); }
 @media (prefers-reduced-motion: reduce) {
-  .flip-card-inner, .flip-card[data-flipped] .flip-card-inner, .flip-face-back { rotate: none; scale: none; transition: none; }
+  .flip-card-inner, .flip-card[data-flipped] .flip-card-inner, .flip-face-back { rotate: none; scale: none; }
   .flip-face { transition: none !important; }
-}
-
-/*
-  The public page (components/public). Motion is CSS only and moves transform and opacity only, so
-  the compositor runs it without layout or paint:
-  - the hero's light drifts very slowly (two soft gradients, paused while the hero is off screen);
-  - the hero's words arrive once, in a short cascade;
-  - sections rise into place as they are scrolled to, tied to scrolling where the browser supports
-    scroll-driven animation (no script; elsewhere they are simply there), never hijacking the scroll;
-  - the header takes on its surface once the page scrolls.
-  Reduced motion: no drift, no cascade, no rise; everything is in place from the start.
-*/
-:root:has(.public-page) {
-  scroll-behavior: smooth;
-}
-.public-aurora {
-  position: absolute;
-  border-radius: 9999px;
-  pointer-events: none;
-}
-@keyframes public-drift-a {
-  from { transform: translate3d(-6%, -4%, 0) scale(1); }
-  to { transform: translate3d(8%, 6%, 0) scale(1.14); }
-}
-@keyframes public-drift-b {
-  from { transform: translate3d(6%, 3%, 0) scale(1.06); }
-  to { transform: translate3d(-9%, -5%, 0) scale(0.94); }
-}
-@keyframes public-enter {
-  from { opacity: 0; transform: translate3d(0, 14px, 0); }
-  to { opacity: 1; transform: none; }
-}
-@keyframes public-rise {
-  from { opacity: 0; transform: translate3d(0, 28px, 0); }
-  to { opacity: 1; transform: none; }
-}
-@keyframes public-solid {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@media (prefers-reduced-motion: no-preference) {
-  .public-aurora { will-change: transform; }
-  .public-aurora-a { animation: public-drift-a 28s ease-in-out infinite alternate; }
-  .public-aurora-b { animation: public-drift-b 36s ease-in-out infinite alternate; }
-  [data-offscreen] .public-aurora { animation-play-state: paused; }
-  .public-enter { animation: public-enter 0.85s cubic-bezier(0.2, 0.7, 0.2, 1) both; animation-delay: calc(var(--i, 0) * 80ms + 40ms); }
-  @supports (animation-timeline: view()) {
-    .public-rise {
-      animation: public-rise linear both;
-      animation-timeline: view();
-      animation-range: entry 0% entry 180px;
-    }
-  }
-}
-/* The header's surface: there from the start where scroll-driven animation is missing. */
-.public-header-surface { opacity: 1; }
-@supports (animation-timeline: scroll()) {
-  .public-header-surface {
-    animation: public-solid linear both;
-    animation-timeline: scroll(root);
-    animation-range: 0 96px;
-  }
 }

@@ -1,6 +1,6 @@
 import { timeAgo } from "@/lib/format";
 
-/** Freshness of each dataset Admin → Riot Data reports on. */
+/** Freshness of each dataset Admin Mode → Data & Integrations reports on. */
 export function DatasetsList({ datasets }: { datasets: Array<{ key: string; title: string; source: string; updatedAt: Date | null; detail: string }> }) {
   return (
     <div className="grid gap-2 md:grid-cols-2">

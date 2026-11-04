@@ -7,6 +7,7 @@ import { SCHEDULED_SYNC_LEASE_MS, claimAccountSync } from "@/server/accounts/ref
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 import { backfillTimelines, timelineCoverage } from "@/server/accounts/timeline-backfill";
 import { backfillFigures, figuresCoverage } from "@/server/accounts/figures-backfill";
+import { checkRecentGameRanks, rankLookupClient } from "@/server/players/participant-ranks";
 
 defineJob({
   key: "account-sync",
@@ -57,10 +58,25 @@ defineJob({
   run: async (ctx) => {
     const client = createRiotClient({ maxRetries: 0, timeoutMs: 7_000 });
     if (!client) return { ok: true, degraded: true, error: "RIOT_API_KEY is not configured; match records cannot be fetched.", summary: { skipped: true } };
-    const limit = Number(process.env.FIGURES_BACKFILL_PER_RUN ?? 30);
+    // 60 a run (was 30): the run stops at its 25-second share of the tick and at Riot's limit
+    // anyway, and a profile's Refresh now fetches its own player's records on demand.
+    const limit = Number(process.env.FIGURES_BACKFILL_PER_RUN ?? 60);
     const run = await backfillFigures(ctx.db, client, { limit, deadline: ctx.startedAt + ctx.budgetMs, log: ctx.log });
     const coverage = await figuresCoverage(ctx.db);
     ctx.log(`figures: fetched ${run.fetched}, unavailable ${run.unavailable}${run.stoppedBy ? `, stopped by ${run.stoppedBy}` : ""}; ${coverage.withFigures} of ${coverage.games} games have them, ${coverage.pending} to go`);
     return { ok: true, degraded: run.stoppedBy !== null && run.stoppedBy !== "time budget" && run.fetched === 0, error: run.stoppedBy && run.fetched === 0 && run.stoppedBy !== "time budget" ? `Stopped: ${run.stoppedBy}` : undefined, summary: { ...run, coverage, requests: client.requestCount } };
+  },
+});
+
+defineJob({
+  key: "rank-checks",
+  description: "Check the current rank of the other players in the members' games of the last 7 days once each game is collected (LEAGUE-V4, one request a player, at most 30 a run), so every recent game shows the ranks around it whether or not anyone opened it. Within 600 of the 1,000 daily rank checks and half of Riot's rate limits; waits only for Riot's one-second window to turn over, within its 15 seconds.",
+  defaultIntervalMinutes: 15,
+  run: async (ctx) => {
+    const client = rankLookupClient();
+    if (!client) return { ok: true, degraded: true, error: "RIOT_API_KEY is not configured; ranks cannot be checked.", summary: { skipped: true } };
+    const run = await checkRecentGameRanks(ctx.db, client, { deadline: ctx.startedAt + ctx.budgetMs });
+    ctx.log(`ranks: ${run.found} checked, ${run.failed} failed, ${run.skipped} skipped${run.reason ? ` (${run.reason})` : ""}${run.waits ? `, ${run.waits} waits for Riot's one-second window` : ""}; ${run.waiting} players in ${run.games} recent games were waiting`);
+    return { ok: true, degraded: run.asked > 0 && run.found === 0 && run.failed > 0, summary: { ...run, requests: client.requestCount } };
   },
 });

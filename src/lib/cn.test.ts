@@ -18,6 +18,16 @@ describe("withDefaults", () => {
     expect(withDefaults(base)).toBe(base);
   });
 
+  it("knows the project's own type sizes and arbitrary rem sizes as sizes, not colours", () => {
+    const primary = "bg-accent text-bg h-7 px-2.5 text-xs";
+    for (const size of ["text-2xs", "text-4xs", "text-md", "text-figure", "text-[0.8rem]", "text-[length:13px]"]) {
+      const out = withDefaults(primary, size).split(" ");
+      expect(out).toContain("text-bg");
+      expect(out).not.toContain("text-xs");
+      expect(out).toContain(size);
+    }
+  });
+
   it("lets a caller recolour a button without touching alignment or border widths", () => {
     const ghost = "bg-transparent text-fg-muted hover:text-fg hover:bg-surface-2 border border-border text-left";
     const out = withDefaults(ghost, "text-bad").split(" ");

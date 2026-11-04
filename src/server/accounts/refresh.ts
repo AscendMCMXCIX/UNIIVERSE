@@ -1,10 +1,15 @@
 import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountMatches, appSettings, riotAccounts } from "@/server/db/schema";
-import type { RiotApiClient } from "@/server/riot/api/client";
+import { normaliseRiotKey, type RiotApiClient } from "@/server/riot/api/client";
+import { browserTestRiot } from "@/server/riot/browser-test";
 import { claimLease } from "@/server/jobs/background";
 import { listAccountsForPlayer } from "./repository";
 import { currentSeason, syncAccount } from "./sync";
+import { backfillFigures, pendingFiguresForPlayer } from "./figures-backfill";
+import { CATCH_UP_LIMIT, REFRESH_COOLDOWN_SECONDS } from "@/domain/refresh";
+
+export { CATCH_UP_LIMIT };
 
 /*
   "Refresh matches" on a player's Match History. New games normally arrive through the scheduled
@@ -22,7 +27,7 @@ import { currentSeason, syncAccount } from "./sync";
 */
 
 /** One refresh per account per this long (covers the run itself, so it doubles as the in-flight guard). */
-export const REFRESH_COOLDOWN_MS = 2 * 60_000;
+export const REFRESH_COOLDOWN_MS = REFRESH_COOLDOWN_SECONDS * 1000;
 /** The scheduler skips an account a refresh (or another run) claimed this recently. */
 export const SCHEDULED_SYNC_LEASE_MS = 60_000;
 /** A refresh stops starting new work after this long, so the button answers within a minute. */
@@ -32,16 +37,35 @@ const REFRESH_MATCHES_PER_ACCOUNT = 15;
 
 export const accountSyncLeaseKey = (accountId: string) => `account_sync:${accountId}`;
 
+/** A demo account's games are seeded, never read from Riot: neither the scheduler nor a refresh asks for it. */
+export const isSyncableAccount = (a: { label: string; syncStatus: string }) => a.label !== "demo" && a.syncStatus !== "demo";
+
 /** Claims the account's sync lease; false when another sync claimed it within `minIntervalMs`. */
 export function claimAccountSync(db: Db, accountId: string, minIntervalMs: number, now: Date = new Date()): Promise<boolean> {
   return claimLease(db, accountSyncLeaseKey(accountId), minIntervalMs, now);
 }
 
+/** Seconds until these accounts may be read again on request (their latest claim plus the cooldown), between 5 s and the cooldown. */
+export async function accountSyncRetryIn(db: Db, accountIds: string[], now: Date = new Date()): Promise<number> {
+  const leases = accountIds.length ? await db.select({ at: appSettings.updatedAt }).from(appSettings).where(inArray(appSettings.key, accountIds.map(accountSyncLeaseKey))) : [];
+  const lastClaim = Math.max(0, ...leases.map((l) => l.at.getTime()));
+  return Math.max(5, Math.min(REFRESH_COOLDOWN_SECONDS, Math.ceil((lastClaim + REFRESH_COOLDOWN_MS - now.getTime()) / 1000)));
+}
+
+/** Whether a profile's Refresh can reach Riot on this server: a Riot key, or the browser tests' stand-in. */
+export function refreshAvailable(): boolean {
+  return !!normaliseRiotKey(process.env.RIOT_API_KEY) || browserTestRiot();
+}
+
 export interface MatchSyncStatus {
   /** Linked accounts that can be synced (resolved or still to be resolved). */
   accounts: number;
+  /** Of them, the ones Riot can be asked about (demo accounts are not). */
+  syncable: number;
   /** When every linked account was last read successfully (the oldest of them), ISO; null if one never was. */
   checkedAt: string | null;
+  /** The latest attempt to read any of them, successful or not, ISO. */
+  attemptedAt: string | null;
   /** The newest stored game of any linked account, ISO. */
   newestGameAt: string | null;
   /** The plain-language problem of an account whose last sync failed, if any. */
@@ -51,20 +75,30 @@ export interface MatchSyncStatus {
 /** What the Match History header says about freshness. Two small queries. */
 export async function getMatchSyncStatus(db: Db, playerId: string): Promise<MatchSyncStatus> {
   const accounts = await db
-    .select({ id: riotAccounts.id, cursor: riotAccounts.syncCursor, status: riotAccounts.syncStatus, error: riotAccounts.syncError })
+    .select({ id: riotAccounts.id, cursor: riotAccounts.syncCursor, status: riotAccounts.syncStatus, error: riotAccounts.syncError, label: riotAccounts.label, attempted: riotAccounts.lastSyncAt })
     .from(riotAccounts)
     .where(and(eq(riotAccounts.ownerType, "player"), eq(riotAccounts.playerId, playerId)));
-  if (accounts.length === 0) return { accounts: 0, checkedAt: null, newestGameAt: null, problem: null };
+  if (accounts.length === 0) return { accounts: 0, syncable: 0, checkedAt: null, attemptedAt: null, newestGameAt: null, problem: null };
   const [newest] = await db
     .select({ at: accountMatches.gameCreation })
     .from(accountMatches)
     .where(and(inArray(accountMatches.accountId, accounts.map((a) => a.id)), isNotNull(accountMatches.championId)))
     .orderBy(desc(accountMatches.gameCreation))
     .limit(1);
-  const cursors = accounts.map((a) => a.cursor);
-  const checked = cursors.every((c): c is number => typeof c === "number" && c > 0) ? Math.min(...cursors) * 1000 : null;
+  // The times are Riot's: a demo account's (seeded, never read) say nothing about them.
+  const read = accounts.filter((a) => isSyncableAccount({ label: a.label, syncStatus: a.status }));
+  const cursors = read.map((a) => a.cursor);
+  const checked = cursors.length > 0 && cursors.every((c): c is number => typeof c === "number" && c > 0) ? Math.min(...cursors) * 1000 : null;
   const failing = accounts.find((a) => a.status !== "ok" && a.status !== "never" && a.error);
-  return { accounts: accounts.length, checkedAt: checked ? new Date(checked).toISOString() : null, newestGameAt: newest?.at ? new Date(Number(newest.at)).toISOString() : null, problem: failing?.error ?? null };
+  const attempted = Math.max(0, ...read.map((a) => a.attempted?.getTime() ?? 0));
+  return {
+    accounts: accounts.length,
+    syncable: read.length,
+    checkedAt: checked ? new Date(checked).toISOString() : null,
+    attemptedAt: attempted ? new Date(attempted).toISOString() : null,
+    newestGameAt: newest?.at ? new Date(Number(newest.at)).toISOString() : null,
+    problem: failing?.error ?? null,
+  };
 }
 
 export type RefreshOutcome =
@@ -81,21 +115,18 @@ export type RefreshOutcome =
  */
 export async function refreshPlayerMatches(db: Db, client: RiotApiClient, playerId: string, options: { now?: () => Date; log?: (m: string) => void } = {}): Promise<RefreshOutcome> {
   const now = options.now ?? (() => new Date());
-  const accounts = await listAccountsForPlayer(db, playerId);
-  if (accounts.length === 0) return { status: "unavailable", message: "No Riot account is linked to this profile yet." };
+  const linked = await listAccountsForPlayer(db, playerId);
+  if (linked.length === 0) return { status: "unavailable", message: "No Riot account is linked to this profile yet." };
+  const accounts = linked.filter(isSyncableAccount);
+  if (accounts.length === 0) return { status: "unavailable", message: "Demo accounts are not read from Riot; their games are sample data." };
   const started = now().getTime();
   const claimed = [];
   for (const account of accounts) if (await claimAccountSync(db, account.id, REFRESH_COOLDOWN_MS, now())) claimed.push(account);
   if (claimed.length === 0) {
     const ids = accounts.map((a) => a.id);
-    const [reads, leases] = await Promise.all([
-      db.select({ cursor: riotAccounts.syncCursor }).from(riotAccounts).where(inArray(riotAccounts.id, ids)),
-      db.select({ at: appSettings.updatedAt }).from(appSettings).where(inArray(appSettings.key, ids.map(accountSyncLeaseKey))),
-    ]);
+    const [reads, retryInSeconds] = await Promise.all([db.select({ cursor: riotAccounts.syncCursor }).from(riotAccounts).where(inArray(riotAccounts.id, ids)), accountSyncRetryIn(db, ids, now())]);
     const lastRead = Math.max(0, ...reads.map((r) => r.cursor ?? 0));
-    const lastClaim = Math.max(0, ...leases.map((l) => l.at.getTime()));
-    const retry = Math.ceil((lastClaim + REFRESH_COOLDOWN_MS - started) / 1000);
-    return { status: "recent", checkedAt: lastRead ? new Date(lastRead * 1000).toISOString() : null, retryInSeconds: Math.max(5, Math.min(REFRESH_COOLDOWN_MS / 1000, retry)) };
+    return { status: "recent", checkedAt: lastRead ? new Date(lastRead * 1000).toISOString() : null, retryInSeconds };
   }
   const season = await currentSeason(db, now());
   const outOfTime = () => now().getTime() - started > REFRESH_BUDGET_MS;
@@ -115,6 +146,8 @@ export async function refreshPlayerMatches(db: Db, client: RiotApiClient, player
       performanceBackfill: false,
       detailsBackfill: false,
       refreshRiotId: false,
+      // Every queue is asked, the ones without a game yet included (a few list requests, once per cooldown).
+      recheckEmptyQueues: true,
     });
     folded += r.matchesFolded;
     if (r.error) firstError ??= r.error;
@@ -123,4 +156,40 @@ export async function refreshPlayerMatches(db: Db, client: RiotApiClient, player
   if (succeeded === 0) return { status: "failed", message: firstError ?? "Riot did not answer in time. Please try again in a few minutes." };
   const checkedAt = now().toISOString();
   return folded > 0 ? { status: "updated", newGames: folded, checkedAt } : { status: "no-new", checkedAt };
+}
+
+/*
+  The second half of a profile's Refresh: the multikill counts (and the other extra figures) of the
+  player's own older games, which the figures backfill otherwise fetches a batch an hour for the
+  whole team. A Refresh asks Riot again for up to CATCH_UP_LIMIT of this player's records, newest first,
+  through the same rate limiter and with the same rules (a record Riot no longer has is marked and
+  never asked for again). One catch-up per player per cooldown, whoever asks, so repeated clicks
+  cannot use up the team's Riot quota.
+*/
+
+/** A catch-up stops starting new requests after this long, so the button answers in under half a minute. */
+const CATCH_UP_BUDGET_MS = 25_000;
+export const figuresCatchUpLeaseKey = (playerId: string) => `figures_catchup:${playerId}`;
+
+export type CatchUpOutcome =
+  | { status: "fetched"; fetched: number; unavailable: number; remaining: number }
+  | { status: "complete"; fetched: number }
+  | { status: "recent"; remaining: number; retryInSeconds: number }
+  | { status: "failed"; message: string; fetched: number; remaining: number };
+
+/** Fetches the figures of up to CATCH_UP_LIMIT of the player's games that lack them. */
+export async function catchUpPlayerFigures(db: Db, client: RiotApiClient, playerId: string, options: { now?: () => Date; log?: (m: string) => void } = {}): Promise<CatchUpOutcome> {
+  const now = options.now ?? (() => new Date());
+  const pending = await pendingFiguresForPlayer(db, playerId);
+  if (pending === 0) return { status: "complete", fetched: 0 };
+  if (!(await claimLease(db, figuresCatchUpLeaseKey(playerId), REFRESH_COOLDOWN_MS, now()))) {
+    const [lease] = await db.select({ at: appSettings.updatedAt }).from(appSettings).where(eq(appSettings.key, figuresCatchUpLeaseKey(playerId)));
+    const retry = lease ? Math.ceil((lease.at.getTime() + REFRESH_COOLDOWN_MS - now().getTime()) / 1000) : REFRESH_COOLDOWN_MS / 1000;
+    return { status: "recent", remaining: pending, retryInSeconds: Math.max(5, Math.min(REFRESH_COOLDOWN_MS / 1000, retry)) };
+  }
+  // The budget is real elapsed time (the backfill checks Date.now()), whatever clock leases use.
+  const run = await backfillFigures(db, client, { limit: CATCH_UP_LIMIT, deadline: Date.now() + CATCH_UP_BUDGET_MS, playerId, log: options.log });
+  const remaining = await pendingFiguresForPlayer(db, playerId);
+  if (run.fetched + run.unavailable === 0 && run.stoppedBy && run.stoppedBy !== "time budget") return { status: "failed", message: "Riot did not answer; please try again in a few minutes.", fetched: 0, remaining };
+  return remaining === 0 ? { status: "complete", fetched: run.fetched } : { status: "fetched", fetched: run.fetched, unavailable: run.unavailable, remaining };
 }

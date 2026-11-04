@@ -1,43 +1,17 @@
 import { cache } from "react";
-import { redirect } from "next/navigation";
 import type { Db } from "@/server/db/types";
 import type { Session } from "@/server/auth/permissions";
-import { canEditPlayer, canManageRiotAccounts, hasPermission } from "@/server/auth/permissions";
-import { defaultPlatform } from "@/server/auth/signup";
-import { isGameRole, isSeasonMode, seasonModeInfo } from "@/domain/season-stats";
-import { legalRolesFor, poolFor } from "@/domain/roster";
+import { canEditPlayer, canManageRiotAccounts } from "@/server/auth/permissions";
 import { listChampions } from "@/server/repositories/champions";
-import { profileVersion } from "@/server/repositories/team";
-import { getPlayerOverview } from "@/server/players/overview";
-import { getMatchHistory } from "@/server/players/match-history";
-import { MatchHistoryView } from "@/components/match-history/match-history-view";
-import { getPlayerMatchups } from "@/server/players/matchups";
 import { loadProfileHeader, type ProfileHeaderData } from "@/server/players/profile-header";
-import { loadPickerChampions } from "@/server/champions/picker";
-import { listAccountsForPlayer } from "@/server/accounts/repository";
-import { getMatchSyncStatus } from "@/server/accounts/refresh";
-import { getPlayerDataReport } from "@/server/proficiency/provenance";
-import { PROFICIENCY_HELP, SeasonSummary } from "@/components/players/player-overview";
-import { AllChampions } from "@/components/players/all-champions";
-import { InfoTip } from "@/components/ui/info-tip";
-import type { PoolStats } from "@/components/profile/pool-stats";
-import type { OverviewCard } from "@/server/players/overview";
-import { seasonLabel } from "@/domain/season";
+import { refreshAvailable, type MatchSyncStatus } from "@/server/accounts/refresh";
+import type { DataRefreshTarget } from "@/components/ui/data-status";
 import { ProfileHeader } from "@/components/players/profile-header";
+import { bannerLightStyle } from "@/components/players/banner-light";
 import { ProfileIdentityProvider, ProfileIdentitySync, type HeaderIdentity } from "@/components/players/profile-identity";
 import { cardArt, featurableChampions, isCardAccent } from "@/domain/player-card";
 import { cardLookFor } from "@/domain/card-style";
 import { ProfileTabs } from "@/components/players/profile-tabs";
-import { ProfilePools } from "./profile-pools";
-import { FirstRole } from "@/components/profile/first-role";
-import { RiotAccountsPanel } from "@/components/team/riot-accounts-panel";
-import { PlayerDataPanel } from "@/components/team/player-data-panel";
-import { ErrorBoundary } from "@/components/error-boundary";
-import { loadRankHistory } from "@/server/accounts/rank-history";
-import { RankedProgress } from "@/components/players/ranked-progress";
-import { cn } from "@/lib/cn";
-import { RecentFormStrip } from "@/components/players/recent-form";
-import { FORM_MIN_GAMES } from "@/domain/recent-form";
 import type { PortraitChampion } from "@/components/champion-portrait";
 
 /*
@@ -51,8 +25,12 @@ import type { PortraitChampion } from "@/components/champion-portrait";
                         champion opens its window (Overview, and Matchups: one lane opponent at a
                         time, the lane from timelines, the games)
     Match History       the Riot games stored for the linked accounts, a page at a time
-    Solo Queue Blocks   your private Solo/Duo journal (your own profile only; never a teammate's)
     Riot Accounts       linked accounts, Main and Alt, sync state
+
+  This module is the frame every tab shares (the header, its section bar, the data each tab
+  needs to start). Each tab is its own module (profile-overview-tab, profile-champions-tab,
+  profile-matches-tab, profile-accounts-tab), so a tab's page loads only its own browser code:
+  the Overview never downloads Match History's.
 
   Everyone sees the same layout; editing appears only for whoever may edit. Teammates' season
   statistics need the "view teammate statistics" permission.
@@ -76,7 +54,7 @@ export interface ProfileSearch {
   vs?: string;
 }
 
-const championMap = async (db: Db): Promise<Record<string, PortraitChampion>> => Object.fromEntries((await listChampions(db)).map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
+export const championMap = async (db: Db): Promise<Record<string, PortraitChampion>> => Object.fromEntries((await listChampions(db)).map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]));
 
 /** One header load per request, shared by the layout and the tab page. */
 export const profileHeader = cache((db: Db, playerId: string) => loadProfileHeader(db, playerId));
@@ -103,7 +81,7 @@ export function headerIdentity(h: ProfileHeaderData): HeaderIdentity {
 }
 
 /** Every tab renders this: the header then shows this tab's (fresh) identity even when the layout was reused. */
-function IdentitySync({ header }: { header: ProfileHeaderData }) {
+export function IdentitySync({ header }: { header: ProfileHeaderData }) {
   return <ProfileIdentitySync identity={headerIdentity(header)} />;
 }
 
@@ -114,11 +92,11 @@ export async function ProfileFrame({ db, header, session, basePath, children }: 
   const champions = editable ? Object.values(await championMap(db)) : [];
   return (
     <ProfileIdentityProvider initial={headerIdentity(header)}>
-    <div className="mx-auto max-w-[var(--content-max)] space-y-4" data-testid="player-profile">
+    <div className="mx-auto max-w-[var(--content-max)] space-y-4" style={bannerLightStyle(headerIdentity(header).look.style.colours)} data-testid="player-profile">
       {/* The section bar belongs to the profile card: tucked right under it. */}
       <div className="space-y-1.5">
-        <ProfileHeader identity={headerIdentity(header)} self={self} editable={editable} champions={champions} />
-        <ProfileTabs basePath={basePath} showBlocks={self && basePath === "/overview"} />
+        <ProfileHeader identity={headerIdentity(header)} self={self} editable={editable} champions={champions} basePath={basePath} />
+        <ProfileTabs basePath={basePath} />
       </div>
       {children}
     </div>
@@ -126,231 +104,13 @@ export async function ProfileFrame({ db, header, session, basePath, children }: 
   );
 }
 
-/** The pool cards' statistics, per role and champion, from the overview's per-role cards. */
-function poolStats(cards: OverviewCard[]): PoolStats {
-  const out: PoolStats = {};
-  for (const c of cards) {
-    (out[c.role] ??= {})[c.championId] = {
-      tier: c.tier,
-      tierLabel: c.tierLabel,
-      tierWhy: c.tierWhy,
-      evidence: c.evidence,
-      games: c.selected.games,
-      winRate: c.selected.winRate,
-      kdaRatio: c.performance.kdaRatio,
-      perfectKda: c.performance.perfectKda,
-      csPerMinute: c.performance.csPerMinute,
-      visionPerGame: c.performance.visionPerGame,
-      mastery: c.mastery?.points ?? null,
-    };
-  }
-  return out;
-}
-
 /**
- * Overview: season performance (with its filters), then the player's roles and champion pools,
- * each champion once, with its statistics in that role; the owner and admins edit them in place.
+ * The profile's Refresh, the same on every tab: the player's own, or for those who manage Riot
+ * accounts (both checked again on the server), and only where it can work: Riot on this server and
+ * an account Riot can be asked about. Anyone else sees the page's data status alone.
  */
-export async function ProfileOverviewTab(props: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: ProfileSearch }) {
-  return (
-    <>
-      <IdentitySync header={props.header} />
-      <ProfileOverviewTabBody {...props} />
-    </>
-  );
-}
-
-async function ProfileOverviewTabBody({ db, header, session, basePath, search }: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: ProfileSearch }) {
-  const player = header.player;
-  const self = session?.playerId === player.id;
-  const editable = canEditPlayer(session, player.id);
-  const showStats = self || hasPermission(session, "view-teammate-stats");
-  const [overview, championsById, picker, rankHistory] = await Promise.all([
-    getPlayerOverview(db, player, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, scope: search.scope ?? null, championId: search.champion ?? null, accountId: search.account ?? null, riotConfigured: !!process.env.RIOT_API_KEY }),
-    championMap(db),
-    editable ? loadPickerChampions(db) : Promise.resolve([]),
-    // Rank history is part of the player's statistics: the same access rule.
-    showStats ? loadRankHistory(db, player.id) : Promise.resolve({ accounts: [], readAt: 0 }),
-  ]);
-  // A pool champion's window (the same one as All Champions): its lane data in this page's scope.
-  const detail =
-    showStats && search.champ
-      ? await getPlayerMatchups(db, player.id, { account: overview.filter.accountId ?? "all", season: overview.season, mode: overview.mode, champion: search.champ, vs: search.vs ?? null, role: isGameRole(search.crole) ? search.crole : null, exact: true })
-      : null;
-  // Ranked progress opens on the queue the header's rank comes from (Solo/Duo unless only Flex is ranked).
-  const defaultQueue = header.rank?.queue === "flex" ? "flex" : "solo";
-  const rankQueue = search.rq === "flex" || search.rq === "solo" ? search.rq : defaultQueue;
-  const rankHref = (change: { rq?: "solo" | "flex"; ra?: string | null }) => {
-    const q = new URLSearchParams(Object.entries(search).filter((e): e is [string, string] => typeof e[1] === "string" && !!e[1]));
-    if (change.rq === defaultQueue) q.delete("rq");
-    else if (change.rq) q.set("rq", change.rq);
-    if (change.ra) q.set("ra", change.ra);
-    else if (change.ra === null) q.delete("ra");
-    const query = q.toString();
-    return `${basePath}${query ? `?${query}` : ""}#ranked-progress`;
-  };
-  const scope = `${seasonLabel(overview.season)} · ${seasonModeInfo(overview.mode).label}${overview.accounts.length > 1 ? ` · all ${overview.accounts.length} accounts` : ""}`;
-  return (
-    <div className="space-y-5">
-      {showStats ? (
-        <>
-          <SeasonSummary data={overview} basePath={basePath} championsById={championsById} />
-          {/* Rank and recent form share one row on wide screens, as equals in height. The ranked card
-              keeps the wider column in every state: its chart's space is kept even without a line
-              to draw, so switching queue or account never resizes it. */}
-          <div className={cn("grid grid-cols-[minmax(0,1fr)] items-stretch gap-4", rankHistory.accounts.length && overview.form.season.games >= FORM_MIN_GAMES ? "xl:grid-cols-[minmax(0,1.65fr)_minmax(19rem,1fr)]" : "")} data-testid="profile-progress">
-            {rankHistory.accounts.length ? <RankedProgress accounts={rankHistory.accounts} queue={rankQueue} accountId={search.ra ?? null} href={rankHref} now={rankHistory.readAt} /> : null}
-            <RecentFormStrip form={overview.form} championsById={championsById} historyHref={`${basePath}/matches`} />
-          </div>
-        </>
-      ) : <p className="rounded-panel border border-border bg-surface p-4 text-sm text-fg-muted">Season statistics of teammates are not part of your access; their roles and champions are below.</p>}
-      <section aria-labelledby="champion-pools" className="space-y-3 rounded-card border border-border bg-surface/60 p-4" data-testid="champion-pools">
-        {/* One heading line and one line of context: the pools themselves start right below. */}
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-          <h2 id="champion-pools" className="flex items-center gap-1.5 text-lg font-semibold text-fg">
-            Roles &amp; champion pools {showStats ? <InfoTip text={PROFICIENCY_HELP} label="How proficiency is rated" /> : null}
-          </h2>
-          <p className="text-sm text-fg-muted">
-            {self ? "The roles and champions you play, in your order of preference." : `The roles and champions ${player.displayName} plays, in their order of preference.`}
-            {showStats ? (
-              <span className="text-xs text-fg-subtle" data-testid="pool-scope">
-                {" "}
-                Games played in that role · {scope}
-              </span>
-            ) : null}
-          </p>
-        </div>
-        {player.primaryRole ? (
-        <div data-testid={editable ? "pool-editor" : "pool-cards"}>
-          <ProfilePools
-            editor={{
-              playerId: player.id,
-              initial: { primaryRole: player.primaryRole, secondaryRole: player.secondaryRole, primaryPool: player.primaryPool, secondaryPool: player.secondaryPool, additionalRoles: player.additionalRoles },
-              version: profileVersion(player),
-              champions: picker.length ? picker : Object.values(championsById),
-              editable,
-              stats: showStats ? poolStats(overview.cards) : undefined,
-            }}
-            scope={{ topChampions: overview.topChampions, season: overview.season, seasons: overview.seasons, currentSeason: overview.currentSeason, mode: overview.mode, filter: overview.filter, accountOptions: overview.accountOptions }}
-            detail={detail}
-            championsById={championsById}
-            playerId={player.id}
-            inspect={showStats}
-          />
-        </div>
-        ) : (
-          <FirstRole playerId={player.id} name={player.displayName} self={self} editable={editable} />
-        )}
-        {showStats && !overview.hasHistory ? <p className="text-xs text-fg-muted">{overview.accounts.length === 0 ? "No Riot account linked: games and win rates appear once an account is linked and synced." : "No stored games yet: figures appear after the first account sync, a few minutes after linking; this page updates by itself."}</p> : null}
-      </section>
-    </div>
-  );
-}
-
-/** All Champions: every champion played in the filtered games, pools or not, to search and sort. */
-export async function ProfileChampionsTab(props: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: ProfileSearch }) {
-  return (
-    <>
-      <IdentitySync header={props.header} />
-      <ProfileChampionsTabBody {...props} />
-    </>
-  );
-}
-
-async function ProfileChampionsTabBody({ db, header, session, basePath, search }: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: ProfileSearch }) {
-  const player = header.player;
-  const self = session?.playerId === player.id;
-  if (!self && !hasPermission(session, "view-teammate-stats")) return <p className="rounded-panel border border-border bg-surface p-4 text-sm text-fg-muted">Teammates&apos; champion statistics are not part of your access.</p>;
-  const [overview, championsById] = await Promise.all([
-    getPlayerOverview(db, player, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, accountId: search.account ?? null, riotConfigured: !!process.env.RIOT_API_KEY }),
-    championMap(db),
-  ]);
-  // An old Matchups link without a champion opens the most played one.
-  if (!search.champion && search.tab === "matchups" && overview.topChampions[0]) {
-    const q = new URLSearchParams(Object.entries(search).filter((e): e is [string, string] => typeof e[1] === "string"));
-    q.set("champion", overview.topChampions[0].championId);
-    redirect(`${basePath}/champions?${q.toString()}`);
-  }
-  // The champion window's lane data, in the list's scope (all linked accounts unless one is chosen).
-  const detail = search.champion
-    ? await getPlayerMatchups(db, player.id, { account: overview.filter.accountId ?? "all", season: overview.season, mode: overview.mode, champion: search.champion, vs: search.vs ?? null, role: isGameRole(search.crole) ? search.crole : null, exact: true })
-    : null;
-  return <AllChampions data={overview} basePath={`${basePath}/champions`} championsById={championsById} playerId={player.id} detail={detail} />;
-}
-
-export interface MatchSearch {
-  season?: string;
-  mode?: string;
-  role?: string;
-  scope?: string;
-  champion?: string;
-  account?: string;
-  page?: string;
-  per?: string;
-}
-
-/** Match History: the player's stored Riot games, a page at a time; details open on top. */
-export async function ProfileMatchesTab(props: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: MatchSearch }) {
-  return (
-    <>
-      <IdentitySync header={props.header} />
-      <ProfileMatchesTabBody {...props} />
-    </>
-  );
-}
-
-async function ProfileMatchesTabBody({ db, header, session, basePath, search }: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: MatchSearch }) {
-  const player = header.player;
-  const self = session?.playerId === player.id;
-  if (!self && !hasPermission(session, "view-teammate-stats")) return <p className="rounded-panel border border-border bg-surface p-4 text-sm text-fg-muted">Teammates&apos; match histories are not part of your access.</p>;
-  const [data, championsById, syncStatus] = await Promise.all([
-    getMatchHistory(db, player.id, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, scope: search.scope ?? null, championId: search.champion ?? null, accountId: search.account ?? null, page: Number(search.page) || 1, per: Number(search.per) || undefined }, self, (r) => (legalRolesFor(player).includes(r) ? poolFor(player, r) : [])),
-    championMap(db),
-    getMatchSyncStatus(db, player.id),
-  ]);
-  return <MatchHistoryView data={data} championsById={championsById} basePath={`${basePath}/matches`} playerId={player.id} sync={{ status: syncStatus, canRefresh: self || canManageRiotAccounts(session, player.id) }} />;
-}
-
-/** Riot Accounts: linked accounts and their sync state; data diagnostics for data admins only. */
-export async function ProfileAccountsTab(props: { db: Db; header: ProfileHeaderData; session: Session | null }) {
-  return (
-    <>
-      <IdentitySync header={props.header} />
-      <ProfileAccountsTabBody {...props} />
-    </>
-  );
-}
-
-async function ProfileAccountsTabBody({ db, header, session }: { db: Db; header: ProfileHeaderData; session: Session | null }) {
-  const player = header.player;
-  const riotConfigured = !!process.env.RIOT_API_KEY;
-  const dataAdmin = hasPermission(session, "manage-data");
-  const [accounts, report, championsById] = await Promise.all([
-    listAccountsForPlayer(db, player.id),
-    dataAdmin
-      ? getPlayerDataReport(db, player, { riotConfigured }).catch((err: Error) => {
-          console.error(JSON.stringify({ level: "error", event: "player.report.failed", error: err.message }));
-          return null;
-        })
-      : Promise.resolve(null),
-    dataAdmin ? championMap(db) : Promise.resolve({} as Record<string, PortraitChampion>),
-  ]);
-  return (
-    <div className="space-y-5">
-      <RiotAccountsPanel playerId={player.id} accounts={accounts} riotConfigured={riotConfigured} defaultPlatform={defaultPlatform()} editable={canManageRiotAccounts(session, player.id)} title="Riot accounts" />
-      {report ? (
-        <details className="group rounded-card border border-border bg-surface" data-testid="data-diagnostics">
-          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-2 px-4 text-sm font-medium text-fg-muted hover:text-fg">
-            Data diagnostics
-            <span className="text-xs font-normal text-fg-subtle">Admins: every champion&apos;s collected history and rating inputs</span>
-          </summary>
-          <div className="border-t border-border p-3">
-            <ErrorBoundary label="Riot data">
-              <PlayerDataPanel report={report} championsById={championsById} admin playerName={player.displayName} selfView={session?.playerId === player.id} showAccounts={false} />
-            </ErrorBoundary>
-          </div>
-        </details>
-      ) : null}
-    </div>
-  );
+export function refreshFor(session: Session | null, playerId: string, sync: MatchSyncStatus | null, multikillsPending = false): DataRefreshTarget | null {
+  if (!sync || sync.syncable === 0 || !refreshAvailable()) return null;
+  if (session?.playerId !== playerId && !canManageRiotAccounts(session, playerId)) return null;
+  return { playerId, multikillsPending };
 }

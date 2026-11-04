@@ -2,7 +2,7 @@
   "name": "uniiverse",
   "version": "0.1.0",
   "private": true,
-  "description": "UNIIVERSE — player-centred League of Legends tournament drafting platform",
+  "description": "UNIIVERSE — a private, player-centred League of Legends team platform",
   "packageManager": "pnpm@10.28.0",
   "engines": {
     "node": ">=20.9"
@@ -25,42 +25,42 @@
     "job": "tsx scripts/run-job.ts",
     "user:reset-password": "tsx scripts/reset-password.ts",
     "jobs:tick": "tsx scripts/run-job.ts tick",
+    "privacy:records": "tsx scripts/privacy-records.ts",
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@electric-sql/pglite": "^0.5.10",
+    "@electric-sql/pglite": "^0.5.13",
     "@fontsource-variable/inter": "^5.3.0",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.4",
-    "jose": "^6.2.12",
-    "lucide-react": "^1.58.0",
-    "next": "^16.4.2",
+    "lucide-react": "^1.65.0",
+    "next": "^16.4.3",
     "postgres": "^3.4.9",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "sharp": "^0.35.5",
-    "tesseract.js": "7.0.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
     "@playwright/test": "1.64.1",
     "@tailwindcss/postcss": "^4.3.3",
-    "@tesseract.js-data/chi_sim": "1.0.0",
-    "@tesseract.js-data/eng": "1.0.0",
-    "@tesseract.js-data/jpn": "1.0.0",
-    "@tesseract.js-data/kor": "1.0.0",
-    "@tesseract.js-data/rus": "1.0.0",
     "@types/node": "^22.20.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "dotenv": "^17.2.0",
     "drizzle-kit": "^0.31.11",
     "eslint": "^9.39.0",
-    "eslint-config-next": "^16.4.2",
+    "eslint-config-next": "^16.4.3",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",
     "typescript": "^5.9.0",
+    "vite": "^8.3.5",
     "vitest": "^4.1.12"
+  },
+  "pnpm": {
+    "overrides": {
+      "@esbuild-kit/core-utils>esbuild": "^0.25.0"
+    }
   }
 }

@@ -1,13 +1,13 @@
 "use client";
 
-import * as React from "react";
 import { cn } from "@/lib/cn";
+import { useImageFailure } from "@/components/ui/remote-image";
 
 /*
   A ranked tier's official crest (Riot's own artwork, served from the game client's files via
   Community Dragon). Small and decorative: the tier and division are always written next to it.
-  If the image cannot load, a plain tier-coloured dot takes its place; a broken image never
-  shows and nothing waits for it.
+  If the image cannot load (even before the page is interactive), a plain tier-coloured dot takes
+  its place; a broken image never shows and nothing waits for it.
 */
 
 const TIERS = ["IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND", "MASTER", "GRANDMASTER", "CHALLENGER"] as const;
@@ -33,13 +33,13 @@ export function rankEmblemUrl(tier: string): string {
 }
 
 export function RankEmblem({ tier, className }: { tier: string | null | undefined; className?: string }) {
-  const [failed, setFailed] = React.useState(false);
   const key = tier?.toUpperCase() ?? "";
+  const { failed, ref, onError } = useImageFailure(isRankedTier(key) ? rankEmblemUrl(key) : null);
   if (!isRankedTier(key)) return <span aria-hidden className={cn("inline-block rounded-full border border-border-strong bg-surface-2", className)} data-testid="rank-emblem" data-tier="UNRANKED" />;
   if (failed) return <span aria-hidden className={cn("inline-block rounded-full", className)} style={{ background: TIER_COLOUR[key] }} data-testid="rank-emblem" data-tier={key} />;
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={rankEmblemUrl(key)} alt="" aria-hidden loading="lazy" decoding="async" onError={() => setFailed(true)} className={cn("inline-block object-contain", className)} data-testid="rank-emblem" data-tier={key} />
+    <img src={rankEmblemUrl(key)} alt="" aria-hidden loading="lazy" decoding="async" ref={ref} onError={onError} className={cn("inline-block object-contain", className)} data-testid="rank-emblem" data-tier={key} />
   );
 }
 

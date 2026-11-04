@@ -2,6 +2,7 @@ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { players, riotAccounts } from "@/server/db/schema";
 import { opggLinkFor, type KnownRiotId } from "@/domain/opgg";
+import type { ParticipantRank } from "@/domain/known-rank";
 
 /*
   Both teams of a Riot game, as the match lists show them (a player's Match History and Team →
@@ -13,6 +14,8 @@ import { opggLinkFor, type KnownRiotId } from "@/domain/opgg";
 
 /** One player of a game, as the composition preview shows them. */
 export interface CompSlot {
+  /** Their place in the stored record (0–9): how a rank checked in the match window finds them. */
+  slot: number;
   championId: string | null;
   /** The Riot name without its tag; null when Riot did not provide one. */
   name: string | null;
@@ -20,8 +23,19 @@ export interface CompSlot {
   member: { id: string; name: string } | null;
   /** The player whose list this is. */
   you: boolean;
-  /** A non-member's public OP.GG profile, from the recorded Riot ID and the match's server; null when either is unreliable. */
+  /**
+   * Their public OP.GG profile from their best known Riot ID and server (for a team member, a second
+   * link beside their profile); null when neither is reliable.
+   */
   opgg: string | null;
+  /**
+   * The player's current or last-known rank from stored readings (domain/known-rank.ts), on a
+   * player's Match History only (everyone but the player the list is about): never the rank at
+   * the time of the game.
+   */
+  rank?: ParticipantRank;
+  /** A player whose personal data was erased: nothing about them is kept (shown as "Removed player"). */
+  removed?: boolean;
 }
 
 export interface Composition {
@@ -38,6 +52,7 @@ export interface CompParticipant {
   name: string | null;
   teamId: number;
   position: string | null;
+  removed?: boolean;
 }
 
 /** Riot's positions (and the demo's role names) in lane order; anything else after them. */
@@ -47,20 +62,28 @@ const lane = (p: CompParticipant) => LANE[p.position ?? ""] ?? 5;
 export const BLUE_TEAM = 100;
 export const RED_TEAM = 200;
 
-/**
- * `platform`: the server the match was played on (see platformOfMatchId), for OP.GG links; null
- * gives none unless `known` has a newer Riot ID for the player (server/players/riot-names).
- */
-export function compositionOf(participants: readonly CompParticipant[], members: ReadonlyMap<string, { id: string; name: string }>, you: (puuid: string) => boolean, focusTeamId: number | null, platform: string | null = null, known: ReadonlyMap<string, KnownRiotId> = new Map()): Composition | null {
+export interface CompositionOptions {
+  /** The server the match was played on (see platformOfMatchId), for OP.GG links; null gives none unless `known` has a newer Riot ID. */
+  platform?: string | null;
+  /** Newer Riot IDs by PUUID (server/players/riot-names). */
+  known?: ReadonlyMap<string, KnownRiotId>;
+  /** The stored rank of every player but the focus player (a player's Match History), by PUUID. */
+  rankOf?: (puuid: string) => ParticipantRank;
+}
+
+export function compositionOf(participants: readonly CompParticipant[], members: ReadonlyMap<string, { id: string; name: string }>, you: (puuid: string) => boolean, focusTeamId: number | null, { platform = null, known = new Map(), rankOf }: CompositionOptions = {}): Composition | null {
   // Only a full record: ten players, five a side.
   if (participants.length !== 10) return null;
   const side = (teamId: number) =>
     participants
-      .filter((p) => p.teamId === teamId)
-      .sort((a, b) => lane(a) - lane(b))
-      .map((p): CompSlot => {
+      .map((p, slot) => ({ p, slot }))
+      .filter(({ p }) => p.teamId === teamId)
+      .sort((a, b) => lane(a.p) - lane(b.p))
+      .map(({ p, slot }): CompSlot => {
+        if (p.removed) return { slot, championId: null, name: null, member: null, you: false, opgg: null, removed: true };
         const member = members.get(p.puuid) ?? null;
-        return { championId: p.championId, name: p.name ? p.name.split("#")[0]!.trim() || null : null, member, you: you(p.puuid), opgg: member ? null : opggLinkFor(p.name, platform, known.get(p.puuid)) };
+        const isYou = you(p.puuid);
+        return { slot, championId: p.championId, name: p.name ? p.name.split("#")[0]!.trim() || null : null, member, you: isYou, opgg: opggLinkFor(p.name, platform, known.get(p.puuid)), ...(rankOf && !isYou ? { rank: rankOf(p.puuid) } : {}) };
       });
   const blue = side(BLUE_TEAM);
   const red = side(RED_TEAM);
@@ -97,17 +120,17 @@ export async function loadCompositionParticipants(db: Db, matchIds: readonly str
   if (ids.length === 0) return new Map();
   const result = await db.execute(sql`
     SELECT md.match_id,
-           json_agg(json_build_array(p->>'puuid', p->>'championId', p->>'name', (p->>'teamId')::int, p->>'position') ORDER BY t.ord) AS parts
+           json_agg(json_build_array(p->>'puuid', p->>'championId', p->>'name', (p->>'teamId')::int, p->>'position', p->>'removed') ORDER BY t.ord) AS parts
     FROM match_details md
     CROSS JOIN LATERAL jsonb_array_elements(md.participants) WITH ORDINALITY AS t(p, ord)
     WHERE md.match_id IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})
     GROUP BY md.match_id`);
   const out = new Map<string, CompParticipant[]>();
   for (const row of rowsOf<{ match_id: string; parts: unknown }>(result)) {
-    const parts = (typeof row.parts === "string" ? JSON.parse(row.parts) : row.parts) as Array<[string, string | null, string | null, number, string | null]>;
+    const parts = (typeof row.parts === "string" ? JSON.parse(row.parts) : row.parts) as Array<[string, string | null, string | null, number, string | null, string | null]>;
     out.set(
       row.match_id,
-      parts.map(([puuid, championId, name, teamId, position]) => ({ puuid, championId, name, teamId: Number(teamId), position })),
+      parts.map(([puuid, championId, name, teamId, position, removed]) => ({ puuid, championId, name, teamId: Number(teamId), position, ...(removed === "true" ? { removed: true } : {}) })),
     );
   }
   return out;

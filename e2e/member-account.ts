@@ -2,26 +2,39 @@ import { expect, type Browser, type BrowserContext, type Page } from "@playwrigh
 
 /*
   A real team member account for e2e checks that need a player profile (the in-memory demo's local
-  owner has none): created by an admin in Admin → People, signed in on its own browser context, its
+  owner has none): created by an administrator in Admin Mode → Users & Permissions, signed in on its own browser context, its
   first-time setup done (Mid, the first champion offered as its pool).
 */
 
 export const view = (context: BrowserContext, baseURL: string, as: "admin" | "player") => context.addCookies([{ name: "uniiverse_view", value: as, url: baseURL }]);
 export const unique = (base: string) => `${base}${Date.now().toString(36).slice(-5)}`;
 
-/** Creates a team member account in Admin → People (as the admin page); returns its username and temporary password. */
+/** Creates a team member account in Users & Permissions (as the admin page); returns its username and temporary password. */
 export async function createMember(admin: Page, base = "Viewer"): Promise<{ username: string; temporary: string }> {
   const username = unique(base);
   if (!admin.url().startsWith("http")) await admin.goto("/");
   await view(admin.context(), admin.url().split("/").slice(0, 3).join("/"), "admin");
   await admin.goto("/admin/people");
   const form = admin.getByTestId("add-player-form");
-  await form.getByLabel("Username").fill(username);
-  await form.getByLabel("Riot ID").fill(`${username}#OCE`);
-  await form.getByRole("button", { name: "Verify" }).click();
+  const name = form.getByLabel("Username");
+  const verify = form.getByRole("button", { name: "Verify" });
+  const create = admin.getByTestId("create-account");
+  // The form is drawn on the server: what is typed before the page has hydrated never reaches its
+  // state (WebKit hydrates later than Chromium). Type until the form holds the Riot ID (Verify is
+  // enabled), and the username again until Create is enabled.
+  await expect(async () => {
+    await name.fill(username);
+    await form.getByLabel("Riot ID").fill(`${username}#OCE`);
+    await expect(verify).toBeEnabled({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+  await verify.click();
   await expect(admin.getByTestId("riot-verified")).toBeVisible();
   await admin.getByTestId("new-access-team").check();
-  await admin.getByTestId("create-account").click();
+  await expect(async () => {
+    if (await create.isDisabled()) await name.fill(username);
+    await expect(create).toBeEnabled({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+  await create.click();
   await expect(admin.getByTestId("created-account")).toContainText(username);
   const temporary = (await admin.getByTestId("temporary-password-value").innerText()).trim();
   return { username, temporary };
@@ -32,9 +45,15 @@ export async function choosePassword(page: Page, username: string, temporary: st
   await signIn(page, username, temporary);
   const pw = page.getByTestId("set-password-form");
   await expect(pw).toBeVisible();
-  await pw.getByLabel("New password").fill(password);
-  await pw.getByLabel("Confirm password").fill(password);
-  await pw.getByRole("button", { name: "Save my password" }).click();
+  const save = pw.getByRole("button", { name: "Save my password" });
+  // The form is drawn on the server: what is typed before the page has hydrated never reaches its
+  // state, and Save stays disabled. Type again until the form has taken both fields.
+  await expect(async () => {
+    await pw.getByLabel("New password").fill(password);
+    await pw.getByLabel("Confirm password").fill(password);
+    await expect(save).toBeEnabled({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+  await save.click();
 }
 
 /** A team member account, signed in on its own browser context (first-time setup included, with `role` as their Primary Role). */
@@ -44,6 +63,10 @@ export async function memberContext(browser: Browser, admin: Page, viewport = { 
   const page = await context.newPage();
   await choosePassword(page, username, temporary);
   const setup = page.getByTestId("setup-form");
+  // A refused password (or a session lost on the way) says so instead of timing out.
+  const refused = page.getByTestId("set-password-form").getByRole("alert");
+  await expect(setup.or(refused)).toBeVisible();
+  if (await refused.isVisible()) throw new Error(`Save my password was refused: ${await refused.innerText()}`);
   await setup.getByTestId("setup-continue").click();
   await setup.getByRole("radiogroup", { name: "Primary role" }).getByRole("button", { name: role }).click();
   await setup.getByTestId("primary-pool-toggle").click();
@@ -56,10 +79,16 @@ export async function memberContext(browser: Browser, admin: Page, viewport = { 
   return { context, page, username };
 }
 
+/**
+ * Signs in on /login. Locally a browser without a session is the automatic local owner, who is
+ * sent past /login: the guest cookie makes it a visitor first (one account per browser).
+ */
 export async function signIn(page: Page, username: string, password: string) {
-  await page.goto("/login?add=1");
+  if (!page.url().startsWith("http")) await page.goto("/public");
+  await page.context().addCookies([{ name: "uniiverse_guest", value: "1", url: page.url().split("/").slice(0, 3).join("/") }]);
+  await page.goto("/login");
   const form = page.getByTestId("login-form");
   await form.getByLabel("Username").fill(username);
   await form.getByLabel("Password").fill(password);
-  await form.getByRole("button", { name: "Add account" }).click();
+  await form.getByRole("button", { name: "Sign in" }).click();
 }

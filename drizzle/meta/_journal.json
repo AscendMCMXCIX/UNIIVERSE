@@ -369,15 +369,85 @@
     {
       "idx": 52,
       "version": "7",
-      "when": 1792499873624,
-      "tag": "0052_retire_meta_trends_tables",
+      "when": 1792544527386,
+      "tag": "0052_data_api_grants",
       "breakpoints": true
     },
     {
       "idx": 53,
       "version": "7",
-      "when": 1792499873625,
-      "tag": "0053_retire_draft_tables",
+      "when": 1792546689682,
+      "tag": "0053_administrator_access",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1792576905241,
+      "tag": "0054_web_vitals",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1792589968313,
+      "tag": "0055_restore_ascend_owner",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1792637168197,
+      "tag": "0056_privacy_erasures",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1792808733187,
+      "tag": "0057_participant_ranks",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1793005690871,
+      "tag": "0058_match_details_puuids",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1793076148430,
+      "tag": "0059_ranked_development",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1793242825986,
+      "tag": "0060_match_timeline_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1793592012519,
+      "tag": "0061_social_links_public",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1793759486883,
+      "tag": "0062_retire_meta_trends_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1793759487883,
+      "tag": "0063_retire_draft_tables",
       "breakpoints": true
     }
   ]

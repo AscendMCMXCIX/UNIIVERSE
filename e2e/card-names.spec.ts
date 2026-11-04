@@ -1,4 +1,4 @@
-import { devices, expect, test, type Locator, type Page } from "@playwright/test";
+import { devices, expect, test, type Locator, type Page } from "./test";
 import { memberContext } from "./member-account";
 
 /*
@@ -16,7 +16,7 @@ test.describe.configure({ timeout: 180_000 });
 
 const ON_CARD = "[data-testid=card-social], [data-testid=flip-to-substitute], [data-testid=customise-card], [data-testid=assigned-role], [data-testid=card-fit] > *, [data-avatar-frame], [data-testid=card-you], [data-testid=card-tagline]";
 
-/** The card's name: its text, whether it overflows its two lines, and what on the card overlaps it. */
+/** The card's name: its text, whether any of it is cut, and what on the card overlaps it. */
 async function nameOn(card: Locator) {
   await expect(card.getByTestId("card-name")).toBeVisible();
   return card.evaluate((el, selector) => {
@@ -60,10 +60,16 @@ test("a member's own card shows their whole name, whatever else the card carries
   // Everything a card can carry: three links teammates see, a tagline, an emblem.
   await page.goto("/settings");
   const links = page.getByTestId("social-links-form");
-  await links.getByLabel("YouTube", { exact: true }).fill("youtube.com/@AscendPlays");
+  // Settings is drawn on the server: what is typed before the page has hydrated never reaches the
+  // form's state, and Save stays disabled. Type the first link until the form has taken it; the
+  // rest then goes straight in.
+  await expect(async () => {
+    await links.getByLabel("YouTube", { exact: true }).fill("youtube.com/@AscendPlays");
+    await expect(page.getByTestId("social-links-save")).toBeEnabled({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
   await links.getByLabel("Twitch", { exact: true }).fill("ascend_live");
   await links.getByLabel("Discord", { exact: true }).fill("ascend.oce");
-  for (let i = 0; i < 3; i++) await links.getByLabel("Who can see it").nth(i).selectOption("team");
+  for (const kind of ["youtube", "twitch", "discord"]) await links.getByTestId(`social-public-${kind}`).click();
   await page.getByTestId("social-links-save").click();
   await expect(page.getByText("Social links saved.")).toBeVisible();
   await page.goto("/overview");
@@ -134,20 +140,27 @@ test("a member's own card shows their whole name, whatever else the card carries
     // The icons there are links of their own: using one never opens the profile.
     await expect(dir.getByTestId("card-social-youtube")).toHaveAttribute("href", "https://www.youtube.com/@AscendPlays");
 
-    // A long name in several scripts takes two lines at most, whole or ending in an ellipsis with
-    // the full name as its title, and never under anything.
+    // A long name in several scripts is whole too (as many lines as it needs, three at most on the
+    // narrowest card), with the full name as its title, and never under anything.
     const long = "Ŝtëllàr Ŵïndwàlkér 星の守護者 ✦";
     await page.goto("/settings");
     const form = page.getByTestId("display-name-form");
-    await form.getByLabel("Display name").fill(long);
-    await form.getByRole("button", { name: "Save display name" }).click();
+    const saveName = form.getByRole("button", { name: "Save display name" });
+    // As above: type again until the form, hydrated, has taken the name.
+    await expect(async () => {
+      await form.getByLabel("Display name").fill(long);
+      await expect(saveName).toBeEnabled({ timeout: 2_000 });
+    }).toPass({ timeout: 30_000 });
+    await saveName.click();
     await expect(page.getByTestId("toast").filter({ hasText: "Display name changed." })).toBeVisible();
     for (const [label, options] of [["five across", { viewport: { width: 1440, height: 900 } }], ["small phone", { ...devices["iPhone SE"] }]] as const) {
       const ctx = await browser.newContext({ ...options, storageState: await context.storageState() });
       const p = await ctx.newPage();
       const name = await nameOn(await teamCard(p, "TOP"));
       expect(name.title, label).toBe(long);
-      expect(name.lines, `${label}: two lines at most`).toBeLessThanOrEqual(2);
+      expect(name.text, label).toBe(long);
+      expect(name.cut, `${label}: the name is not cut`).toBe(false);
+      expect(name.lines, `${label}: three lines at most`).toBeLessThanOrEqual(3);
       expect(name.inside, `${label}: inside its card`).toBe(true);
       expect(name.covered, `${label}: nothing covers it`).toEqual([]);
       await ctx.close();

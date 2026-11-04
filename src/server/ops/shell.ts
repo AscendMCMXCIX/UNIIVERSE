@@ -1,23 +1,17 @@
 import { eq } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { dataRefreshStatus, patches } from "@/server/db/schema";
-import { RETIRED_JOB_KEYS } from "@/server/ops/refresh-status";
+import { RETIRED_JOB_KEYS, STATUS_COLUMNS } from "@/server/ops/refresh-status";
 import type { ShellStatus } from "@/components/app-shell";
 import { type AuthState } from "@/server/auth/session";
 import { canUseAdminArea, describeAccess } from "@/server/auth/permissions";
-import { ADMIN_LINKS, NAV_LINKS, canOpen, type NavLink } from "@/lib/nav";
-import { clashScoutEnabled } from "@/server/clash/access";
+import { ADMIN_LINKS, NAV_LINKS, canOpen } from "@/lib/nav";
 import { avatarUrl } from "@/server/repositories/users";
 import { getBranding } from "@/server/repositories/branding";
 import { getDbHandle } from "@/server/db/client";
 import { FIXTURE_VERSION } from "@/server/riot/static/fixture";
 import { cachedFor } from "@/server/observability/cache";
-import { getViewMode } from "@/server/auth/view-mode";
-import { listOtherAccounts } from "@/server/auth/browser-accounts";
-import { identityMarker, MAX_REMEMBERED } from "@/server/auth/account-jar";
-
-/** Clash Scout's tab is offered only while Clash Scout is switched on. */
-const shown = (l: NavLink) => l.href !== "/clash" || clashScoutEnabled();
+import { identityMarker } from "@/server/auth/account-jar";
 
 interface ShellFacts {
   patch: { id: string; isFixture: boolean } | null;
@@ -33,7 +27,7 @@ interface ShellFacts {
 async function loadShellFacts(db: Db): Promise<ShellFacts> {
   const [patchRows, statuses] = await Promise.all([
     db.select({ id: patches.id, ddragonVersion: patches.ddragonVersion }).from(patches).where(eq(patches.isCurrent, true)).limit(1),
-    db.select({ key: dataRefreshStatus.key, status: dataRefreshStatus.status, lastSuccessAt: dataRefreshStatus.lastSuccessAt, lastError: dataRefreshStatus.lastError, consecutiveFailures: dataRefreshStatus.consecutiveFailures, details: dataRefreshStatus.details }).from(dataRefreshStatus),
+    db.select({ key: dataRefreshStatus.key, status: dataRefreshStatus.status, lastSuccessAt: dataRefreshStatus.lastSuccessAt, lastError: dataRefreshStatus.lastError, consecutiveFailures: dataRefreshStatus.consecutiveFailures, skipped: STATUS_COLUMNS.skipped }).from(dataRefreshStatus),
   ]);
   const patch = patchRows[0] ? { id: patchRows[0].id, isFixture: patchRows[0].ddragonVersion === FIXTURE_VERSION } : null;
   const job = (key: string) => statuses.find((s) => s.key === key);
@@ -42,7 +36,7 @@ async function loadShellFacts(db: Db): Promise<ShellFacts> {
   for (const s of statuses) {
     if (RETIRED_JOB_KEYS.has(s.key)) continue;
     if (s.status === "failed" && s.consecutiveFailures >= 3) warnings.push(`${s.key} has failed ${s.consecutiveFailures} times in a row`);
-    if (s.status === "degraded" && s.lastError && !(s.details as Record<string, unknown> | null)?.skipped && s.key !== "auth-audit" && s.key !== "access-audit" && s.key !== "perf-probe" && s.key !== "data-audit" && s.key !== "db-usage" && s.key !== "skin-audit" && s.key !== "proficiency-audit") warnings.push(`${s.key}: ${s.lastError}`);
+    if (s.status === "degraded" && s.lastError && !s.skipped && s.key !== "auth-audit" && s.key !== "access-audit" && s.key !== "perf-probe" && s.key !== "data-audit" && s.key !== "db-usage" && s.key !== "skin-audit" && s.key !== "proficiency-audit") warnings.push(`${s.key}: ${s.lastError}`);
     const stale = s.key === "version-check" ? 26 : 0;
     if (stale && s.lastSuccessAt && now - s.lastSuccessAt.getTime() > stale * 3600_000) {
       warnings.push(`${s.key} last succeeded ${Math.round((now - s.lastSuccessAt.getTime()) / 3600_000)}h ago`);
@@ -55,19 +49,17 @@ async function loadShellFacts(db: Db): Promise<ShellFacts> {
   };
 }
 
-export async function getShellStatus(db: Db, auth: AuthState): Promise<ShellStatus> {
+/** The shell of a page in Player Mode or Admin Mode (the layout of each mode says which). */
+export async function getShellStatus(db: Db, auth: AuthState, mode: "player" | "admin"): Promise<ShellStatus> {
   const [facts, handle, branding] = await Promise.all([cachedFor("shell-facts", 30_000, () => loadShellFacts(db), db), getDbHandle(), getBranding(db)]);
   const session = auth.session;
-  const [viewMode, otherAccounts] = await Promise.all([getViewMode(session), session ? listOtherAccounts(db, session.userId) : Promise.resolve([])]);
   return {
     isAdmin: canUseAdminArea(session),
-    allowedPlayerLinks: NAV_LINKS.filter((l) => shown(l) && canOpen(session, l)).map((l) => l.href),
-    allowedAdminLinks: ADMIN_LINKS.filter((l) => shown(l) && canOpen(session, l)).map((l) => l.href),
-    otherAccounts,
-    canAddAccount: !!session?.userId && (auth.mode === "accounts" || auth.mode === "open") && otherAccounts.length < MAX_REMEMBERED,
+    allowedPlayerLinks: NAV_LINKS.filter((l) => canOpen(session, l)).map((l) => l.href),
+    allowedAdminLinks: ADMIN_LINKS.filter((l) => canOpen(session, l)).map((l) => l.href),
     identity: session?.userId ? identityMarker(session.userId) : null,
-    user: session ? { name: (session.localDev ? session.username : session.label) || session.username || session.label, username: session.username ?? null, avatarUrl: session.userId ? avatarUrl(session.userId, session.avatarVersion ?? null) : null, roleLabel: describeAccess({ role: session.role }) } : null,
-    adminMode: viewMode === "admin",
+    user: session ? { name: (session.localDev ? session.username : session.label) || session.username || session.label, username: session.username ?? null, avatarUrl: session.userId ? avatarUrl(session.userId, session.avatarVersion ?? null) : null, roleLabel: describeAccess({ role: session.role, isAdmin: session.admin }) } : null,
+    adminMode: mode === "admin" && canUseAdminArea(session),
     patch: facts.patch?.id ?? null,
     isFixture: facts.patch?.isFixture ?? false,
     staticUpdatedAt: facts.staticUpdatedAt,

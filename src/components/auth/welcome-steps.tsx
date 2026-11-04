@@ -1,4 +1,4 @@
-import type { PickerChampion } from "@/components/champion-picker";
+import type { PickerChampion } from "@/components/champions/types";
 import type { Branding } from "@/domain/branding";
 import { SetPasswordForm } from "./set-password-form";
 import { SetupForm, type SetupCard, type SetupValues } from "./setup-form";
@@ -15,7 +15,7 @@ export const welcomeEyebrow = (b: Pick<Branding, "productName">) => `WELCOME TO 
 export function WelcomePasswordStep({ username, preview = false, onPreviewSaved }: { username: string; preview?: boolean; onPreviewSaved?: (password: string) => string | null }) {
   return (
     <>
-      <h1 className="mt-1 text-xl font-bold tracking-[0.2em]">Choose your password</h1>
+      <h1 className="mt-1 text-xl font-bold tracking-wordmark">Choose your password</h1>
       <p className="mt-2 text-sm text-fg-muted">
         You signed in as <span className="font-medium text-fg">{username}</span> with a temporary password. Choose your own now; the temporary one stops working as soon as you save.
       </p>
@@ -28,7 +28,7 @@ export function WelcomePasswordStep({ username, preview = false, onPreviewSaved 
 export function WelcomeSetupStep({ username, riotId, champions, initial, startAt, card, autosave, preview = false, onPreviewFinish, onPreviewChange, onStepChange }: { username: string; riotId: string | null; champions: PickerChampion[]; initial: SetupValues; startAt?: "name" | "profile"; card?: SetupCard; autosave?: boolean; preview?: boolean; onPreviewFinish?: (values: SetupValues) => void; onPreviewChange?: (values: SetupValues) => void; onStepChange?: (step: "name" | "profile") => void }) {
   return (
     <>
-      <h1 className="mt-1 text-xl font-bold tracking-[0.2em]">Set up your player profile</h1>
+      <h1 className="mt-1 text-xl font-bold tracking-wordmark">Set up your player profile</h1>
       <p className="mt-2 text-sm text-fg-muted">Two quick required steps, saved as you go. Personalising your card comes after and is optional.</p>
       <SetupForm username={username} riotId={riotId} champions={champions} initial={initial} startAt={startAt} card={card} autosave={autosave} preview={preview} onPreviewFinish={onPreviewFinish} onPreviewChange={onPreviewChange} onStepChange={onStepChange} />
     </>

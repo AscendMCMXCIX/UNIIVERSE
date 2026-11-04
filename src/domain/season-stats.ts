@@ -51,9 +51,16 @@ export interface PerformanceSummary {
   games: number;
   /** Games with kills/deaths/assists. */
   detailedGames: number;
+  /** Kills, deaths and assists per game, over those games. */
   kills: number | null;
   deaths: number | null;
   assists: number | null;
+  /**
+   * Every kill in those games, added up from each game's own kill count (never from its
+   * multikills); null without one. Games without the count are left out, never counted as 0:
+   * detailedGames < games says the total is not the whole population's.
+   */
+  totalKills: number | null;
   kdaRatio: number | null;
   perfectKda: boolean;
   csPerGame: number | null;
@@ -137,6 +144,7 @@ export function performanceOfGames(
     kills: n ? k / n : null,
     deaths: n ? d / n : null,
     assists: n ? a / n : null,
+    totalKills: n ? k : null,
     kdaRatio: n ? (d > 0 ? (k + a) / d : (k + a) / n) : null,
     perfectKda: n > 0 && d === 0,
     csPerGame: csN ? csSum / csN : null,
@@ -272,20 +280,31 @@ export function seasonChampionStats(
   championIds: readonly string[],
   options: { season: number; mode: SeasonMode },
 ): SeasonChampionStats[] {
+  // One pass groups the season's games by champion (in their original order), so each champion's
+  // four filters below read only its own games instead of every game four times.
+  const wanted = new Set(championIds);
+  const byChampion = new Map<string, SeasonGame[]>();
+  for (const g of games) {
+    if (!wanted.has(g.championId) || seasonOfPatch(g.patch) !== options.season) continue;
+    const list = byChampion.get(g.championId);
+    if (list) list.push(g);
+    else byChampion.set(g.championId, [g]);
+  }
   return championIds.map((championId) => {
-    const selected = gamesFor(games, { ...options, championId });
+    const own = byChampion.get(championId) ?? [];
+    const selected = gamesFor(own, { ...options, championId });
     return {
       championId,
       selected: recordOf(selected),
       performance: performanceOfGames(selected),
       solo: recordOf(
-        gamesFor(games, { season: options.season, mode: "solo", championId }),
+        gamesFor(own, { season: options.season, mode: "solo", championId }),
       ),
       flex: recordOf(
-        gamesFor(games, { season: options.season, mode: "flex", championId }),
+        gamesFor(own, { season: options.season, mode: "flex", championId }),
       ),
       normal: recordOf(
-        gamesFor(games, { season: options.season, mode: "normal", championId }),
+        gamesFor(own, { season: options.season, mode: "normal", championId }),
       ),
     };
   });

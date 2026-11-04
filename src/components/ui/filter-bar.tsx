@@ -114,7 +114,7 @@ export function FilterBar({
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
             aria-controls={id}
-            className={cn("flex min-h-11 w-full items-center gap-2 rounded-md border bg-bg-elevated px-3 text-left text-sm transition-colors", open || activeCount ? "border-accent/50" : "border-border", at.toggle)}
+            className={cn("flex min-h-11 w-full items-center gap-2 rounded-md border bg-bg-elevated px-3 text-left text-sm transition-colors", open || activeCount ? "border-accent/60" : "border-border-control hover:border-fg-subtle", at.toggle)}
             data-testid={toggleTestId}
             data-filter-toggle=""
           >
@@ -126,7 +126,7 @@ export function FilterBar({
             {activeCount ? <span className="rounded-full bg-accent px-1.5 text-xs font-semibold tabular-nums text-bg">{activeCount}</span> : null}
             <ChevronDown className={cn("h-4 w-4 shrink-0 text-fg-muted transition-transform motion-reduce:transition-none", open && "rotate-180")} aria-hidden />
           </button>
-          <div id={id} className={cn("min-w-0 flex-col gap-3", open ? "flex rounded-panel border border-border bg-surface/70 p-3" : "hidden", at.controls, foldBelow === "md" ? "md:gap-2 md:border-0 md:bg-transparent md:p-0" : "lg:gap-2 lg:border-0 lg:bg-transparent lg:p-0", align === "end" && (foldBelow === "md" ? "md:ml-auto md:justify-end" : "lg:ml-auto lg:justify-end"))} data-testid={testId ? `${testId}-controls` : undefined} data-filter-controls="">
+          <div id={id} className={cn("min-w-0 flex-col gap-3", open ? "flex rounded-panel border border-border bg-surface p-3" : "hidden", at.controls, foldBelow === "md" ? "md:gap-2 md:border-0 md:bg-transparent md:p-0" : "lg:gap-2 lg:border-0 lg:bg-transparent lg:p-0", align === "end" && (foldBelow === "md" ? "md:ml-auto md:justify-end" : "lg:ml-auto lg:justify-end"))} data-testid={testId ? `${testId}-controls` : undefined} data-filter-controls="">
             {children}
             {reset}
           </div>
@@ -134,6 +134,19 @@ export function FilterBar({
         {after}
       </div>
     </FoldContext.Provider>
+  );
+}
+
+/**
+ * The look of a button in a page's toolbar beside the filters (Refine, Refresh): the height of the
+ * bar's fields (36px with a mouse, 44px on touch screens and phones), a visible edge, the label in
+ * the secondary text colour until pointed at; lit in the accent while it is on (open, narrowed).
+ */
+export function toolbarButtonClass(on = false, className?: string): string {
+  return cn(
+    "inline-flex h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-3 text-sm font-medium transition-colors max-md:min-h-11 pointer-coarse:min-h-11 focus-visible:outline-2 focus-visible:outline-accent",
+    on ? "border-accent/60 bg-accent/10 text-fg" : "border-border-control bg-bg-elevated text-fg-muted hover:border-fg-subtle hover:text-fg",
+    className,
   );
 }
 
@@ -152,11 +165,7 @@ export function RefineButton({ open, count = 0, controls, onClick, haspopup, but
       aria-expanded={open}
       aria-controls={controls}
       aria-haspopup={haspopup}
-      className={cn(
-        "inline-flex h-9 items-center justify-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors pointer-coarse:min-h-11",
-        open || count ? "border-accent/50 bg-accent/10 text-fg" : "border-border text-fg-muted hover:border-border-strong hover:text-fg",
-        className,
-      )}
+      className={toolbarButtonClass(open || count > 0, className)}
       data-testid={testId}
     >
       <SlidersHorizontal className="h-4 w-4" aria-hidden /> Refine

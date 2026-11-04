@@ -65,7 +65,7 @@ export function OpponentPicker({ me, options, current, champ, onChoose, testId =
         data-testid={`${testId}-button`}
       >
         <ChampionPortrait champion={me} size="sm" className="ring-1 ring-accent/50" />
-        <span className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">vs</span>
+        <span className="text-xs font-semibold uppercase tracking-label text-fg-subtle">vs</span>
         {cur ? <ChampionPortrait champion={champ(cur.championId)} size="sm" /> : null}
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-semibold text-fg" data-testid={`${testId}-current`}>
@@ -80,7 +80,7 @@ export function OpponentPicker({ me, options, current, champ, onChoose, testId =
         <ChevronDown className={cn("h-4 w-4 shrink-0 text-fg-subtle transition-transform motion-reduce:transition-none", open && "rotate-180")} aria-hidden />
       </button>
       {open ? (
-        <div className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-panel border border-border-strong bg-bg-elevated shadow-xl shadow-black/40 sm:right-auto sm:w-[22rem] motion-safe:fade-in" data-testid={`${testId}-popover`}>
+        <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-panel border border-border-strong bg-bg-elevated shadow-2xl shadow-black/40 sm:right-auto sm:w-[22rem] motion-safe:fade-in" data-testid={`${testId}-popover`}>
           <div className="flex items-center gap-2 border-b border-border px-3">
             <Search className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />
             <input

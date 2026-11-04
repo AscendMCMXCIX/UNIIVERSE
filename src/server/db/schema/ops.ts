@@ -1,4 +1,4 @@
-import { bigint, boolean, date, index, integer, jsonb, pgTable, primaryKey, serial, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, date, index, integer, jsonb, pgTable, primaryKey, serial, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { bytea, refreshStatusEnum } from "./common";
 
 /** One row per data pipeline / job. Feeds the Settings → Data health view and freshness labels. */
@@ -71,9 +71,10 @@ export const appSettings = pgTable("app_settings", {
 
 /**
  * Who changed accounts, access, passwords, branding or data settings, and when (Admin → System
- * Health → Admin activity). Append-only: the app never updates or deletes a row. No foreign keys,
- * so the record outlives a deleted account; names are kept as they were at the time. Never holds a
- * password, token or other secret (server/audit/log.ts keeps details to short labels).
+ * Health → Admin activity). Append-only: the app never deletes a row and updates one only for a
+ * personal-data erasure, which renames the erased person "Erased member" (server/privacy). No
+ * foreign keys, so the record outlives a deleted account; names are kept as they were at the time.
+ * Never holds a password, token or other secret (server/audit/log.ts keeps details to short labels).
  */
 export const auditEvents = pgTable(
   "audit_events",
@@ -108,4 +109,22 @@ export const dbEgressDaily = pgTable(
     bytes: bigint("bytes", { mode: "number" }).notNull().default(0),
   },
   (t) => [primaryKey({ columns: [t.day, t.label] })],
+);
+
+/**
+ * Field performance (domain/web-vitals): how many page loads fell in each bucket of each metric,
+ * per UTC day, page group and device class. Counts only: nothing here identifies a person, an
+ * account or an address. Written by /api/vitals (server/observability/web-vitals), kept 35 days.
+ */
+export const webVitalsDaily = pgTable(
+  "web_vitals_daily",
+  {
+    day: date("day", { mode: "string" }).notNull(),
+    metric: text("metric").notNull(),
+    page: text("page").notNull(),
+    device: text("device").notNull(),
+    bucket: smallint("bucket").notNull(),
+    count: integer("count").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.day, t.metric, t.page, t.device, t.bucket] })],
 );

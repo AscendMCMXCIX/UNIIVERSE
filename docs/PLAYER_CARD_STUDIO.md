@@ -8,18 +8,37 @@ The Studio is the editor behind **Customise** on a player's card. It opens from 
 
 ## Using it
 
+- **Seven sections**, in the order most players go. Links appears on your own card only.
+  1. **Style**: a preset, the background (champion art, your banner or colours only) and the frame.
+  2. **Artwork**: the champion and skin.
+  3. **Position**: focus, zoom, darkness, blur and vignette.
+  4. **Colours**: a palette, custom colours, the colour wash, highlight, border and avatar frame.
+  5. **Identity**: tagline, emblem, name style and theme.
+  6. **Links**: your YouTube, Twitch and Discord, each with its Show publicly switch (off until you switch it on; on, teammates and the public team page see it).
+  7. **Effects**: glow, shimmer, moving colour wash, motif and intensity.
 - **Presets.** One tap sets a whole look: UNIIVERSE, Minimal, Competitive, Arcane, Crimson, Monochrome or Neon.
   - A preset sets colours, frame, effects, name style, theme and the background veil.
   - It never changes your champion, skin, banner, focal point, tagline or emblem.
   - Anything can be changed afterwards.
-- **Two modes, one draft.** Switching mode never loses a change.
-  - **Quick** (where the Studio opens): a preset, the artwork (champion art, your banner or colours only; champion and skin), a colour palette, and a frame.
-  - **Advanced:** **Artwork** (focal point, zoom, darkness, blur, vignette), **Colours** (custom primary and secondary, colour wash, highlight, border, avatar frame), **Identity** (tagline, emblem, name style, theme) and **Effects**.
-- **Live preview.** It switches between Team card, Phone and Players views. On phones it stays pinned while the controls scroll.
+- **One draft.** Every change stays until Save or Cancel, whichever section you move to, and when a phone turns.
+- **Moving between sections.**
+  - Desktops: the numbered step bar in the header, and Back and Next in the action bar.
+  - Phones and tablets: one section bar above the controls. It shows the section you are in (its number, name and what it holds), with previous and next beside it. Tapping it lists every section; the ones you changed are marked **Changed**. Escape or a tap outside closes the list.
+- **Live preview.** Team card, Phone and Players views. It follows every change at once.
+  - Desktops and phones held sideways: beside the controls.
+  - Phones and tablets held upright: compact above the controls, at one scale for every view.
+    - **Hide** puts it away to a small live strip, so the controls get the screen. Each device remembers the choice.
+    - **Full card** shows the whole card at its real size in any view, over the controls. The action bar stays; **Done** returns to the section.
+  - While the on-screen keyboard is up, the preview moves to the strip and the window fits above the keyboard, so the field and Save stay in view.
+- **Sections on phones.**
+  - Artwork shows the chosen champion with **Change**. The champion grid opens in place and closes when you pick one. Skins are large thumbnails; the chosen one has a check and its name beside the heading.
+  - Sliders have a large track with the value beside each one.
+  - An effect that needs something else says so. The moving colour wash needs a colour wash and links to Colours; the intensity waits until an effect is on.
 - **Saving.** Nothing is saved until **Save**.
-  - **Cancel** keeps the saved card.
-  - Escape or the close button asks before discarding changes.
-  - Each changed setting has its own **Reset**. **Reset look** returns to the standard card but keeps your champion, tagline and emblem.
+  - **Cancel**, Escape, the close button, Android's back gesture and the browser's Back all ask before discarding changes ("Discard your changes?", in the action bar). Without changes they simply close.
+  - Going back a second time while that question shows leaves without asking again. Android lets a page hold back only one back gesture at a time, and Back behaves the same everywhere.
+  - Reloading or closing the tab with changes asks the browser's own question.
+  - Each changed setting has its own **Reset**. **Reset look** asks first, then returns to the standard card but keeps your champion, tagline and emblem.
 
 ## Options
 
@@ -28,7 +47,7 @@ The Studio is the editor behind **Customise** on a player's card. It opens from 
 | Artwork | Background: champion art (any champion, any distinct skin), your own banner, or colours only. Horizontal and vertical focus (or automatic), zoom 100–200%, background darkness 25–90%, blur 0–12 px, vignette 0–80%. |
 | Colours | 10 palettes, or any primary and secondary colour (#rrggbb). Colour wash: none, diagonal, across, halo. Highlight strength. Border: subtle, primary, secondary, gradient. Avatar frame: primary, secondary, gradient, neutral, none. |
 | Frame | No frame, Minimal, Clean outline, Double line, Angular, Soft glow, Premium. |
-| Identity | Tagline (plain text, one line, 40 characters). Emblem from 24 curated icons. Name style: standard, bold, wide caps, italic. Card theme: midnight, deep, tinted. |
+| Identity | Tagline (plain text without line breaks, 40 characters; on the card it closes the identity, under the rank, wrapping and whole). Emblem from 24 curated icons. Name style: standard, bold, wide caps, italic. Card theme: midnight, deep, tinted. |
 | Effects | Ambient glow, accent shimmer, moving colour wash, motif (corners, lines, dots, rings), intensity. |
 
 ## Compatibility
@@ -83,11 +102,21 @@ The Studio is the editor behind **Customise** on a player's card. It opens from 
 | Storage and banners | `tests/db/card-studio.test.ts` |
 | Permissions and what a save accepts | `tests/db/card-studio-actions.test.ts` |
 | Browser behaviour | `e2e/card-studio.spec.ts` |
+| Phones: the section bar, preview, confirmations, keyboard, held sideways | `e2e/studio-mobile.spec.ts` |
+| Every control by touch on five devices, and Save keeping it all | `e2e/studio-touch.spec.ts` |
+| Players directory: every card on the same regions, level with its neighbours, its pool whole, at eight sizes | `e2e/players-directory.spec.ts` |
+| The directory's pool row: whole portraits, the rest counted, never "+1", at every width | `src/components/players/pool-fit.test.ts` |
 
 The browser tests cover:
 - presets and live preview;
-- Cancel and Escape;
+- Cancel, Escape and the browser's Back;
 - the saved look on the profile, Team and Players;
 - equal card heights and aligned figures;
 - reduced motion;
-- the phone layout.
+- on phones:
+  - the section bar and its list;
+  - hiding and remembering the preview, and the full card in every view;
+  - edits kept across sections and when the phone turns;
+  - Reset look and Discard asking first;
+  - the keyboard: emulated by shortening the browser's visual viewport, as headless Chromium has no on-screen keyboard;
+  - every control by touch on Chromium's emulation of an iPhone SE, an iPhone 15 held either way, a Pixel 7 and an iPad Mini (not real devices).

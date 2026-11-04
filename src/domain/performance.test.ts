@@ -69,6 +69,7 @@ describe("performance averages", () => {
     expect(p.damagePerGame).toBeNull();
     expect(p.damagePerMinute).toBeNull();
     expect(p.visionPerGame).toBeNull();
+    expect(p.totalKills).toBeNull();
   });
 
   it("counts a game shared by two linked accounts once", () => {
@@ -78,5 +79,23 @@ describe("performance averages", () => {
     expect(p.games).toBe(2);
     expect(p.kdaRatio).toBe((4 + 6 + 0) / 4);
     expect(p.csPerGame).toBe(150);
+    expect(p.totalKills).toBe(4);
+  });
+
+  it("adds up every game's own kill count for the total kills, leaving games without one out", () => {
+    const p = performanceOfGames([
+      // A pentakill game: 11 kills, whatever its multikills add up to.
+      game({ kills: 11, deaths: 3, assists: 4, multikills: "2,1,1,1" }),
+      game({ kills: 0, deaths: 5, assists: 9 }),
+      game({ kills: 6, deaths: 2, assists: 3 }),
+      game({}), // stored before details were recorded
+      game({ kills: -1 }), // Riot no longer serves the details
+    ]);
+    expect(p.totalKills).toBe(17);
+    expect(p.detailedGames).toBe(3);
+    expect(p.games).toBe(5);
+    // A game with no kill is a 0 that counts; no game with a count is no total at all.
+    expect(performanceOfGames([game({ kills: 0, deaths: 1, assists: 0 })]).totalKills).toBe(0);
+    expect(performanceOfGames([game({}), game({ kills: -1 })]).totalKills).toBeNull();
   });
 });

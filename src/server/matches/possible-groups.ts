@@ -1,8 +1,10 @@
 import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
+import { registerLocalCache } from "@/server/observability/cache";
 import { accountMatches, matchDetails, riotAccounts } from "@/server/db/schema";
 import { listAccountsForPlayer } from "@/server/accounts/repository";
 import { queueLabel } from "@/server/players/match-history";
+import { playedIn } from "@/server/accounts/match-details";
 import { analysePossibleGroups, GROUP_WINDOW_DAYS, type Appearance, type MatchPlayer } from "@/domain/possible-groups";
 
 /*
@@ -10,8 +12,9 @@ import { analysePossibleGroups, GROUP_WINDOW_DAYS, type Appearance, type MatchPl
   (never while the Match History list loads). Only matches UNIIVERSE already stores are searched: no
   Riot request, nothing new stored. Players linked to a UNIIVERSE profile are never assessed: only
   the other players of the match can be labelled. One query reads, from the stored records of the games played in
-  the GROUP_WINDOW_DAYS before this match, the appearances of this match's ten players; the rules
-  are in domain/possible-groups. Accounts (PUUIDs) stay on the server: the page gets the players'
+  the GROUP_WINDOW_DAYS before this match, the appearances of this match's ten players (found
+  through the players index, so only their games' records are opened); the rules are in
+  domain/possible-groups. Accounts (PUUIDs) stay on the server: the page gets the players'
   positions in the scoreboard ("slots"), the counts and the dates of the evidence games, never a
   name from another game (so no earlier Riot ID is exposed).
 
@@ -39,6 +42,7 @@ export type MatchGroupsResult = { status: "ok"; teams: MatchGroupsTeam[]; gamesS
 const TTL_MS = 30 * 60_000;
 const MAX_CACHED = 300;
 const cache = new Map<string, { at: number; value: MatchGroupsResult & { status: "ok" } }>();
+registerLocalCache(() => cache.clear());
 /** postgres-js returns the rows; PGlite wraps them in { rows }. */
 const rowsOf = <T,>(result: unknown): T[] => ((result as { rows?: T[] }).rows ?? (result as T[])) as T[];
 
@@ -78,7 +82,8 @@ export async function getMatchGroups(db: Db, playerId: string, matchId: string, 
         await db.execute(sql`
           SELECT d.match_id, d.game_creation, d.queue_id, p->>'puuid' AS puuid, (p->>'teamId')::int AS team_id, (p->>'win')::boolean AS win
           FROM match_details d CROSS JOIN LATERAL jsonb_array_elements(d.participants) p
-          WHERE d.game_creation >= ${from} AND d.game_creation < ${d.gameCreation} AND d.match_id <> ${matchId}
+          WHERE ${playedIn(keys)}
+            AND d.game_creation >= ${from} AND d.game_creation < ${d.gameCreation} AND d.match_id <> ${matchId}
             AND p->>'puuid' IN (${sql.join(keys.map((k) => sql`${k}`), sql`, `)})`),
       )
     : [];

@@ -21,6 +21,7 @@ import {
 } from "@/domain/leaderboards";
 import type { GameRole } from "@/domain/season-stats";
 import type { LeaderboardData, LeaderboardPlayer } from "./service";
+import { formatDate } from "@/lib/format";
 
 /*
   What the Leaderboards page shows for one set of filters, computed from the cached data in a
@@ -65,6 +66,8 @@ export function parseFilters(params: Record<string, string | string[] | undefine
 export interface ViewPlayer {
   id: string;
   name: string;
+  /** Their profile, for members; null on the public boards, which link to no profile. */
+  profileHref: string | null;
   avatarUrl: string | null;
   look: LeaderboardPlayer["look"];
   art: LeaderboardPlayer["art"];
@@ -134,13 +137,15 @@ export interface LeaderboardView {
   recordHolders: Array<{ metricId: string; category: LeaderboardCategory; label: string; playerId: string; valueText: string; championId: string | null }>;
   personalBests: Array<{ metricId: string; label: string; yoursText: string | null; teamText: string | null; holderId: string | null; championId: string | null; when: string | null }>;
   players: Record<string, ViewPlayer>;
+  /** Where the boards live: the members' page, or the public one; every board link keeps to it. */
+  basePath: string;
   playerCount: number;
   gamesInScope: number;
   lastUpdated: string | null;
   extraSince: string | null;
 }
 
-const dateText = (ms: number | undefined) => (ms ? new Date(ms).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) : null);
+const dateText = (ms: number | undefined) => (ms ? formatDate(ms) : null);
 
 function entryOf(board: Board, i: number): ViewEntry {
   const e = board.ranked[i]!;
@@ -167,7 +172,8 @@ const HIGHLIGHTS = ["penta-kills", "max-vision", "cs-per-minute", "win-streak", 
 export const HIGHLIGHT_TILES = ["win-rate", "kda", "kill-participation", "damage-per-minute", "cs-per-minute", "vision-per-minute", "objective-damage", "best-champion-win-rate", "max-kills", "win-streak"];
 const PERSONAL_BESTS = ["max-kills", "max-assists", "max-kda", "max-vision", "max-cs-per-minute", "max-damage", "max-gold", "win-streak"];
 
-export function buildLeaderboardView(data: LeaderboardData, filters: LeaderboardFilters, viewerPlayerId: string | null): LeaderboardView {
+export function buildLeaderboardView(data: LeaderboardData, filters: LeaderboardFilters, viewerPlayerId: string | null, options: { basePath?: string; profiles?: boolean } = {}): LeaderboardView {
+  const { basePath = "/leaderboards", profiles = true } = options;
   const lineup = new Set(data.lineupIds);
   const players = data.players.filter((p) => !filters.lineupOnly || lineup.has(p.id));
   const scope = { season: filters.season, queue: filters.queue, role: filters.role };
@@ -287,7 +293,8 @@ export function buildLeaderboardView(data: LeaderboardData, filters: Leaderboard
     strengths,
     recordHolders,
     personalBests,
-    players: Object.fromEntries(players.map((p) => [p.id, { id: p.id, name: p.name, avatarUrl: p.avatarUrl, look: p.look, art: p.art, role: p.primaryRole, rank: p.rank }])),
+    players: Object.fromEntries(players.map((p) => [p.id, { id: p.id, name: p.name, profileHref: profiles ? `/players/${p.id}` : null, avatarUrl: p.avatarUrl, look: p.look, art: p.art, role: p.primaryRole, rank: p.rank }])),
+    basePath,
     playerCount: players.length,
     gamesInScope: inScope.length,
     lastUpdated: data.lastUpdated,
@@ -301,8 +308,8 @@ function neighbours(list: MetricDef[], id: string): LeaderboardView["neighbours"
   return { previous: ref(list[i - 1]), next: ref(list[i + 1]), position: i + 1, count: list.length };
 }
 
-/** A query string for these filters, with changes (category switches keep the other filters). */
-export function leaderboardHref(f: LeaderboardFilters, change: Partial<LeaderboardFilters> = {}): string {
+/** A query string for these filters, with changes (category switches keep the other filters), on the boards at `basePath`. */
+export function leaderboardHref(f: LeaderboardFilters, change: Partial<LeaderboardFilters> = {}, basePath = "/leaderboards"): string {
   const n = { ...f, ...change };
   const q = new URLSearchParams();
   q.set("category", n.category === "overview" ? "highlights" : n.category);
@@ -315,5 +322,5 @@ export function leaderboardHref(f: LeaderboardFilters, change: Partial<Leaderboa
   if (n.queue !== DEFAULT_LEADERBOARD_QUEUE) q.set("queue", n.queue);
   if (n.role) q.set("role", n.role);
   if (n.lineupOnly) q.set("lineup", "1");
-  return `/leaderboards?${q.toString()}`;
+  return `${basePath}?${q.toString()}`;
 }

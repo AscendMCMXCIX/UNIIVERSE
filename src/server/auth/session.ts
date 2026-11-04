@@ -6,8 +6,8 @@ import { randomToken } from "./password";
 import { missingProductionSetup as missingProductionSetupFromEnv, requiresAccounts } from "./mode";
 import { sessionCookieOptions } from "./config";
 import { createSession, findSession, looksLikeSessionToken } from "./sessions";
-import { sessionUser, signOutOfActive } from "./account-jar";
-import { readJarState, writeIdentity, writeJarState } from "./browser-accounts";
+import { signOutOfAll } from "./account-jar";
+import { clearRemembered, readJarState, writeIdentity } from "./browser-accounts";
 import { hasPermission, isOwner as isOwnerPerm, type Permission, type Session } from "./permissions";
 
 export type { AccessRole, Session } from "./permissions";
@@ -48,8 +48,8 @@ export function missingProductionSetup(): string[] {
   return missingProductionSetupFromEnv();
 }
 
-export function sessionFromUser(user: Pick<UserRecord, "id" | "role" | "displayName" | "playerId" | "username" | "hasPassword" | "mustChangePassword" | "setupCompletedAt"> & Partial<Pick<UserRecord, "capabilities" | "avatarVersion" | "teamMember">>): Session {
-  return { userId: user.id, role: user.role, label: user.displayName, playerId: user.playerId, username: user.username, hasPassword: user.hasPassword, mustChangePassword: user.mustChangePassword, setupComplete: user.setupCompletedAt !== null, capabilities: user.capabilities, avatarVersion: user.avatarVersion ?? null, teamMember: user.teamMember ?? true };
+export function sessionFromUser(user: Pick<UserRecord, "id" | "role" | "displayName" | "playerId" | "username" | "hasPassword" | "mustChangePassword" | "setupCompletedAt"> & Partial<Pick<UserRecord, "capabilities" | "avatarVersion" | "teamMember" | "isAdmin">>): Session {
+  return { userId: user.id, role: user.role, label: user.displayName, playerId: user.playerId, username: user.username, hasPassword: user.hasPassword, mustChangePassword: user.mustChangePassword, setupComplete: user.setupCompletedAt !== null, capabilities: user.capabilities, avatarVersion: user.avatarVersion ?? null, teamMember: user.teamMember ?? true, admin: user.role === "owner" || user.isAdmin === true };
 }
 
 /**
@@ -60,25 +60,29 @@ export function needsSetup(session: Session | null): boolean {
   return !!session && (session.mustChangePassword || (!session.setupComplete && !!session.playerId));
 }
 
-/** Starts a 24-hour session for an authenticated user and sets the cookie; returns its token. */
+/**
+ * Starts a 24-hour session for an authenticated user and sets the cookie; returns its token. One
+ * account per browser: any session this browser held before (and any the old cookie of remembered
+ * accounts still names, see account-jar.ts) ends first.
+ */
 export async function signIn(db: Db, user: Pick<UserRecord, "id">): Promise<string> {
+  await signOutOfAll(db, await readJarState());
   const h = await headers();
   const { token } = await createSession(db, user.id, { userAgent: h.get("user-agent") });
   const store = await cookies();
   store.set(SESSION_COOKIE, token, sessionCookieOptions());
+  clearRemembered(store);
   writeIdentity(store, user.id);
   return token;
 }
 
-/**
- * Ends the current session (server side and cookie). Another account this browser is signed in
- * to (see account-jar.ts) becomes active; returns whether one did.
- */
-export async function signOut(db: Db): Promise<boolean> {
-  const next = await signOutOfActive(db, await readJarState());
-  const userId = await sessionUser(db, next.active);
-  await writeJarState(next, userId);
-  return !!userId;
+/** Ends every session this browser holds, on the server and in its cookies. */
+export async function signOut(db: Db): Promise<void> {
+  await signOutOfAll(db, await readJarState());
+  const store = await cookies();
+  store.set(SESSION_COOKIE, "", { path: "/", maxAge: 0 });
+  clearRemembered(store);
+  writeIdentity(store, null);
 }
 
 export async function clearSessionCookie(): Promise<void> {
@@ -128,14 +132,14 @@ async function ensureLocalOwner(db: Db): Promise<Session | null> {
   // Local development only (never in production): a browser without a session cookie acts as
   // the automatic local owner, even once teammates have created real accounts locally.
   const existing = await findUserByUsername(db, LOCAL_OWNER_USERNAME);
-  if (existing) return { userId: existing.id, role: existing.role, label: "Local owner (no login configured)", playerId: existing.playerId, username: existing.username, hasPassword: true, mustChangePassword: false, setupComplete: true, avatarVersion: existing.avatarVersion ?? null, localDev: true };
+  if (existing) return { userId: existing.id, role: existing.role, label: "Local owner (no login configured)", playerId: existing.playerId, username: existing.username, hasPassword: true, mustChangePassword: false, setupComplete: true, avatarVersion: existing.avatarVersion ?? null, localDev: true, admin: existing.role === "owner" || existing.isAdmin };
   const total = await countUsers(db);
   if (total > 0) return null;
   // Concurrent first requests may race here; the unique username index makes the insert idempotent.
   await createLocalOwnerIdempotent(db);
   const created = await findUserByUsername(db, LOCAL_OWNER_USERNAME);
   if (!created) return null;
-  return { userId: created.id, role: "owner", label: "Local owner (no login configured)", playerId: null, username: created.username, hasPassword: true, mustChangePassword: false, setupComplete: true, localDev: true };
+  return { userId: created.id, role: "owner", label: "Local owner (no login configured)", playerId: null, username: created.username, hasPassword: true, mustChangePassword: false, setupComplete: true, localDev: true, admin: true };
 }
 
 /**
@@ -206,7 +210,7 @@ export async function requirePermission(permission: Permission): Promise<Session
 
 export async function requireOwner(): Promise<Session> {
   const session = await requireSession();
-  if (!isOwner(session)) throw new NotAuthorizedError("Only an admin can do that.");
+  if (!isOwner(session)) throw new NotAuthorizedError("Only the Owner can do that.");
   return session;
 }
 

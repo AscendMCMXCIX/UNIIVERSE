@@ -1,4 +1,5 @@
 import type { Db } from "@/server/db/types";
+import { registerLocalCache } from "@/server/observability/cache";
 import { comparePatches } from "@/domain/patch";
 import { estimateProficiency, type ChampionHistoryEvidence, type MasteryEvidence, type ProficiencyEstimate, type ProficiencyLookup } from "@/domain/proficiency";
 import type { Role } from "@/domain/roles";
@@ -21,6 +22,7 @@ const TTL_MS = 5 * 60_000;
 export function invalidateProficiencyCache() {
   globalThis.__uniiverseProficiencyCache = undefined;
 }
+registerLocalCache(invalidateProficiencyCache);
 
 async function buildBundle(db: Db, ownerIds: string[]): Promise<Bundle> {
   const accounts = await listAccountsForPlayers(db, ownerIds);

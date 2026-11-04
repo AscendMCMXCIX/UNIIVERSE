@@ -8,39 +8,26 @@ import { BrandFrame } from "@/components/auth/brand-frame";
 export const dynamic = "force-dynamic";
 
 /**
- * Sign in, as a page of its own: for direct links, members' pages asked for without a session (the
- * proxy sends them here with `next`), and adding another account. Everyday signing in happens in
- * the public page's sign-in window, with the same form. Signed in already, the page only opens to
- * add another account (`?add=1`, from the account menu): signing in then keeps the current
- * account signed in on this browser too.
+ * Sign in, as a page of its own: for direct links and members' pages asked for without a session
+ * (the proxy sends them here with `next`). Everyday signing in happens in the public team page's
+ * sign-in window, with the same form. One account per browser: signed in already, the page sends
+ * you to your start page.
  */
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; add?: string }> }) {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
   const db = await getAppDb();
   const auth = await getAuthState(db);
   if (auth.mode === "locked" || auth.mode === "setup") redirect("/setup");
-  const { next, add } = await searchParams;
-  const adding = add === "1" && !!auth.session;
-  if (auth.session && !adding) redirect("/");
+  if (auth.session) redirect("/");
+  const { next } = await searchParams;
   return (
     <BrandFrame eyebrow="PRIVATE">
-      {adding ? (
-        <>
-          <LoginCard next={next ?? ""} add current={auth.session!.username ?? auth.session!.label} />
-          <Link href="/" className="mt-4 block text-center text-sm text-fg-muted hover:text-fg" data-testid="add-account-cancel">
-            Cancel
-          </Link>
-        </>
-      ) : (
-        <>
-          <LoginCard next={next ?? ""} />
-          <Link href="/" className="mx-auto mt-3 flex min-h-8 w-fit items-center px-2 text-sm text-fg-muted hover:text-fg pointer-coarse:min-h-11" data-testid="login-public-link">
-            ← Back to the home page
-          </Link>
-          <Link href="/privacy" className="mx-auto flex min-h-8 w-fit items-center px-2 text-xs text-fg-subtle hover:text-fg pointer-coarse:min-h-11" data-testid="login-privacy-link">
-            Privacy
-          </Link>
-        </>
-      )}
+      <LoginCard next={next ?? ""} />
+      <Link href="/public" className="mx-auto mt-3 flex min-h-8 w-fit items-center px-2 text-sm text-fg-muted hover:text-fg pointer-coarse:min-h-11" data-testid="login-public-link">
+        View the team page →
+      </Link>
+      <Link href="/privacy" className="mx-auto flex min-h-8 w-fit items-center px-2 text-xs text-fg-subtle hover:text-fg pointer-coarse:min-h-11" data-testid="login-privacy-link">
+        Privacy
+      </Link>
     </BrandFrame>
   );
 }

@@ -1,16 +1,16 @@
 "use client";
 
-import * as React from "react";
 import type { Icon } from "@/server/players/match-history";
 import { cn } from "@/lib/cn";
+import { useImageFailure } from "@/components/ui/remote-image";
 
 /** A Riot icon (item, spell, rune) at a fixed size; an empty slot when it is missing or fails to load. */
 export function IconImg({ icon, size = 22, rounded = "rounded", className }: { icon: Icon | null; size?: number; rounded?: string; className?: string }) {
-  const [failed, setFailed] = React.useState(false);
+  const { failed, ref, onError } = useImageFailure(icon?.url);
   if (!icon || failed) return <span className={cn("inline-block shrink-0 bg-surface-3/70", rounded, className)} style={{ width: `${size / 16}rem`, height: `${size / 16}rem` }} aria-hidden />;
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={icon.url} alt={icon.name} title={icon.name} width={size} height={size} loading="lazy" decoding="async" className={cn("shrink-0 bg-surface-3", rounded, className)} style={{ width: `${size / 16}rem`, height: `${size / 16}rem` }} onError={() => setFailed(true)} />
+    <img src={icon.url} alt={icon.name} title={icon.name} width={size} height={size} loading="lazy" decoding="async" className={cn("shrink-0 bg-surface-3", rounded, className)} style={{ width: `${size / 16}rem`, height: `${size / 16}rem` }} ref={ref} onError={onError} />
   );
 }
 

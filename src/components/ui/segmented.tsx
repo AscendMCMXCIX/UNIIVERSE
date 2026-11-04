@@ -14,17 +14,20 @@ import { cn } from "@/lib/cn";
 
 /** The group around the segments. Give it role="radiogroup" (or a nav) and a label. */
 export function segmentedGroupClass(className?: string): string {
-  return cn("inline-flex max-w-full items-center gap-0.5 overflow-x-auto rounded-lg border border-border bg-bg-elevated p-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", className);
+  return cn("inline-flex max-w-full items-center gap-0.5 overflow-x-auto rounded-lg border border-border-control bg-bg-elevated p-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", className);
 }
 
 /**
  * One segment: 30px tall with a mouse, 38px on touch screens, so the group around it is 36px or 44px:
- * the height of a field or a chip beside it.
+ * the height of a field or a chip beside it. `md`: the main filter of a list's toolbar (Encounters'
+ * All, Against and Alongside), in the body text size, at the same height.
  */
-export function segmentClass(active: boolean, opts: { disabled?: boolean; className?: string } = {}): string {
+export function segmentClass(active: boolean, opts: { disabled?: boolean; className?: string; size?: "sm" | "md" } = {}): string {
   return cn(
-    "inline-flex min-h-[1.875rem] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-xs font-medium transition-colors pointer-coarse:min-h-[2.375rem] focus-visible:outline-2 focus-visible:outline-accent",
-    active ? "bg-accent/15 text-accent" : opts.disabled ? "cursor-not-allowed text-fg-subtle/50" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
+    "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md transition-colors focus-visible:outline-2 focus-visible:outline-accent",
+    "min-h-[1.875rem] font-medium pointer-coarse:min-h-[2.375rem]",
+    opts.size === "md" ? "px-3 text-sm" : "px-2.5 text-xs",
+    active ? "bg-accent/15 font-semibold text-fg ring-1 ring-inset ring-accent/60" : opts.disabled ? "cursor-not-allowed text-fg-subtle/50" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
     opts.className,
   );
 }
@@ -49,7 +52,7 @@ export function RoleSegmentContent({ role, active, compactLabel = true, count, c
       {role ? <RoleIcon role={role} className="h-4 w-4 shrink-0" /> : null}
       <span className={cn(role && compactLabel && !active && "max-md:sr-only")}>{role ? ROLE_LABELS[role] : "All roles"}</span>
       {count !== undefined && count !== null ? (
-        <span className={cn("rounded px-1 text-[0.625rem] tabular-nums", count ? "bg-surface-3 text-fg-muted" : "text-fg-subtle/60")} title={countTitle}>
+        <span className={cn("rounded px-1 text-2xs tabular-nums", count ? "bg-surface-3 text-fg-muted" : "text-fg-subtle/60")} title={countTitle}>
           {count}
         </span>
       ) : null}

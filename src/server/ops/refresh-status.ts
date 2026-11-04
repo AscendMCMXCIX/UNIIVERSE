@@ -9,6 +9,7 @@ export type JobKey =
   | "account-sync"
   | "timeline-backfill"
   | "figures-backfill"
+  | "rank-checks"
   | "auth-audit"
   | "access-audit"
   | "perf-probe"
@@ -18,6 +19,7 @@ export type JobKey =
   | "proficiency-audit"
   | "db-usage"
   | "egress"
+  | "erasure-reconcile"
   | "tick";
 
 export interface JobOutcome {
@@ -88,11 +90,30 @@ export async function startJobRun(db: Db, key: JobKey, trigger: string, options:
 }
 
 /**
- * Jobs of removed features (Draft; Meta & Trends). Their old status rows stay in the database
- * until a cleanup deletes them, and are left out of every status view and warning.
+ * Jobs of removed features (Draft; Meta & Trends; Clash Scout's accuracy check). Their old status
+ * rows stay in the database until a cleanup deletes them, and are left out of every status view
+ * and warning.
  */
-export const RETIRED_JOB_KEYS: ReadonlySet<string> = new Set(["engine-probe", "data-sufficiency", "ranked-discover", "ranked-ingest", "aggregate", "pro-sync", "trends"]);
+export const RETIRED_JOB_KEYS: ReadonlySet<string> = new Set(["engine-probe", "data-sufficiency", "ranked-discover", "ranked-ingest", "aggregate", "pro-sync", "trends", "lab-benchmark"]);
+
+/**
+ * What every status view reads of a job's status. Not `details` (the last run's whole summary,
+ * which is most of the table's size): the shell of every page and every scheduler tick only ask
+ * whether the run was skipped, which the database answers (with JavaScript's truthiness, as the
+ * warnings always tested `details.skipped`).
+ */
+export const STATUS_COLUMNS = {
+  key: dataRefreshStatus.key,
+  status: dataRefreshStatus.status,
+  lastStartedAt: dataRefreshStatus.lastStartedAt,
+  lastSuccessAt: dataRefreshStatus.lastSuccessAt,
+  lastFailureAt: dataRefreshStatus.lastFailureAt,
+  lastError: dataRefreshStatus.lastError,
+  lastDurationMs: dataRefreshStatus.lastDurationMs,
+  consecutiveFailures: dataRefreshStatus.consecutiveFailures,
+  skipped: sql<boolean>`coalesce(${dataRefreshStatus.details} -> 'skipped' not in ('false'::jsonb, '0'::jsonb, '""'::jsonb, 'null'::jsonb), false)`,
+};
 
 export async function getRefreshStatuses(db: Db) {
-  return (await db.select().from(dataRefreshStatus)).filter((s) => !RETIRED_JOB_KEYS.has(s.key));
+  return (await db.select(STATUS_COLUMNS).from(dataRefreshStatus)).filter((s) => !RETIRED_JOB_KEYS.has(s.key));
 }

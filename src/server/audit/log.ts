@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { auditEvents, permissionPresets, players, users } from "@/server/db/schema";
 import type { AuditAction } from "@/domain/audit";
@@ -6,8 +6,9 @@ import { log } from "@/server/observability/log";
 
 /*
   The admin activity record: who did what to which account or setting, and when. Written by the
-  server actions after a change succeeds; read by Admin → System Health. Rows are only ever
-  inserted. Details are short labels (a level name, a job key), never a password, a token or a
+  server actions after a change succeeds; read by Admin Mode → Audit Logs (and the dashboard's
+  latest few). Rows are only ever inserted, with one exception: a personal-data erasure renames the
+  erased person "Erased member" in the rows that named them (server/privacy/erasure.ts). Details are short labels (a level name, a job key), never a password, a token or a
   free-text value someone typed: keys that look like secrets are dropped and values are cut short.
 */
 
@@ -18,7 +19,7 @@ export interface AuditActor {
 
 export interface AuditInput {
   action: AuditAction;
-  target?: { type: "user" | "player" | "preset" | "branding" | "job"; id?: string | null; name?: string | null };
+  target?: { type: "user" | "player" | "preset" | "branding" | "resource" | "job" | "erasure"; id?: string | null; name?: string | null };
   details?: Record<string, string | number | boolean | null | undefined>;
 }
 
@@ -90,11 +91,12 @@ export interface AuditEntry {
   details: Record<string, string | number | boolean | null>;
 }
 
-/** The newest recorded actions first. */
-export async function listAudit(db: Db, limit = 100): Promise<AuditEntry[]> {
+/** The newest recorded actions first, optionally only these actions (a category of Audit Logs). */
+export async function listAudit(db: Db, limit = 100, actions?: readonly string[]): Promise<AuditEntry[]> {
   return db
     .select({ at: auditEvents.at, actorName: auditEvents.actorName, action: auditEvents.action, targetType: auditEvents.targetType, targetName: auditEvents.targetName, details: auditEvents.details })
     .from(auditEvents)
+    .where(actions ? inArray(auditEvents.action, [...actions]) : undefined)
     .orderBy(desc(auditEvents.at), desc(auditEvents.id))
     .limit(limit);
 }

@@ -2,7 +2,7 @@ import * as React from "react";
 import Link from "next/link";
 import { Bookmark, ChevronRight } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
-import { SOLO_DUO_QUEUE, type TogetherGame, type TogetherSummary } from "@/domain/played-together";
+import { SOLO_DUO_QUEUE, togetherEntry, type TogetherGame, type TogetherSummary } from "@/domain/played-together";
 import { seasonLabel } from "@/domain/season";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -14,10 +14,9 @@ import type { PlayedTogether } from "@/server/matches/played-together";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { CardAvatar } from "@/components/players/card-look";
 import { RoleIcon } from "@/components/role-icon";
-import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { TogetherCardFrame } from "./together-details";
+import { TogetherCardFrame, TogetherList } from "./together-details";
 import { BookmarkButton } from "./bookmark-button";
 import { LinkSelect, MemberPicker } from "./match-filters";
 import { MatchRail, MatchResult, matchCardClass } from "@/components/match-history/match-card";
@@ -146,11 +145,11 @@ export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams 
           )}
         </EmptyState>
       ) : (
-        <ol className="space-y-2.5" data-testid="together-list">
+        <TogetherList entries={shown.map((g) => ({ entry: togetherEntry(g.matchId, g.teamId), matchId: g.matchId }))} className="space-y-2.5">
           {shown.map((g) => (
-            <TogetherCard key={`${g.matchId}|${g.teamId}`} g={g} p={p} champions={champions} teams={teams[g.matchId] ?? null} />
+            <TogetherCard key={togetherEntry(g.matchId, g.teamId)} g={g} p={p} champions={champions} teams={teams[g.matchId] ?? null} />
           ))}
-        </ol>
+        </TogetherList>
       )}
       {shown.length < total ? (
         <Link href={href({ limit: filters.limit + 20 })} scroll={false} className="block rounded-panel border border-border py-2.5 text-center text-sm text-fg-muted hover:border-border-strong hover:text-fg" data-testid="together-more">
@@ -172,7 +171,7 @@ function TogetherSummaryPanel({ summary: s, players, champ }: { summary: Togethe
     <div className="rounded-lg bg-bg-elevated px-3 py-2">
       <dt className="text-xs text-fg-subtle">{label}</dt>
       <dd className={cn("text-lg font-semibold tabular-nums", cls ?? "text-fg")}>{value}</dd>
-      {sub ? <dd className="text-[0.6875rem] text-fg-subtle">{sub}</dd> : null}
+      {sub ? <dd className="text-2xs text-fg-subtle">{sub}</dd> : null}
     </div>
   );
   return (
@@ -236,108 +235,95 @@ function TogetherSummaryPanel({ summary: s, players, champ }: { summary: Togethe
   );
 }
 
+/*
+  One game per card, read in the order a team cares about: the result and the game (its length,
+  game mode and date), the members who played it with what they played and how it went, then both
+  teams in full. The members are one aligned row each (two to a row once four or more played), so
+  a game of two reads as naturally as a game of five; both teams sit beside them on wide cards, as
+  in a player's Match History, and under them otherwise. The bookmark is a small control in the
+  card's corner. The whole card opens the game under it, as in Match History (TogetherCardFrame);
+  names and the bookmark keep their own action.
+*/
 function TogetherCard({ g, p, champions, teams }: { g: TogetherListGame; p: (id: string) => PlayedTogether["players"][string] | undefined; champions: Record<string, PortraitChampion>; teams: Composition | null }) {
   const champ = (id: string) => champions[id] ?? { id, name: id, portraitUrl: "" };
   const champOrUnknown = (id: string | null) => (id ? champ(id) : { id: "unknown", name: "Unknown champion", portraitUrl: "" });
+  const bookmark = g.bookmark ? <BookmarkButton matchId={g.matchId} bookmarked={g.bookmark.on} canRemove={g.bookmark.canRemove} share={!!g.sharedBy} iconOnly /> : null;
   return (
-    // One band per game: the result and its context on the left, then the members sharing the rest
-    // of the width equally, whether two or five of them played (no fixed-width cells, no empty block).
-    // The whole card opens the match window (see TogetherCardFrame); names and the bookmark keep their own action.
-    <TogetherCardFrame playerId={g.members[0]!.playerId} matchId={g.matchId} championsById={champions} label={`${g.win === null ? "Game" : g.win ? "Victory" : "Defeat"}, ${queueLabel(g.queueId)}, ${formatDate(new Date(g.gameCreation))}, ${g.members.map((m) => p(m.playerId)?.name ?? "Player").join(", ")}`} className={matchCardClass(g.win, { interactive: true })} data-testid="together-game" data-match-id={g.matchId} data-members={g.members.length}>
+    <TogetherCardFrame entry={togetherEntry(g.matchId, g.teamId)} playerId={g.members[0]!.playerId} matchId={g.matchId} championsById={champions} label={`${g.win === null ? "Game" : g.win ? "Victory" : "Defeat"}, ${queueLabel(g.queueId)}, ${formatDate(new Date(g.gameCreation))}, ${g.members.map((m) => p(m.playerId)?.name ?? "Player").join(", ")}`} className={matchCardClass(g.win, { interactive: true })} data-testid="together-game" data-match-id={g.matchId} data-members={g.members.length}>
       <MatchRail win={g.win} />
-      <div className="relative lg:grid lg:grid-cols-[13.5rem_minmax(0,1fr)]">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-border/60 px-3 py-2 lg:flex-col lg:items-start lg:justify-center lg:border-b-0 lg:border-r lg:py-3">
-          {/* The same result column as a player's own match cards */}
+      <div className="relative grid gap-x-4 gap-y-2.5 px-3 py-2.5 lg:grid-cols-[9rem_minmax(0,1fr)_minmax(0,20rem)_auto] lg:items-center lg:py-3">
+        {/* The result and the game, then who played it: one line on narrower cards, clear of the
+            bookmark in the corner. */}
+        <div className={cn("min-w-0 lg:pr-0", bookmark && "pr-9 pointer-coarse:pr-12")}>
           <MatchResult win={g.win} queue={queueLabel(g.queueId)} when={formatDate(new Date(g.gameCreation))} duration={fmtDuration(g.durationS)} lineBelow="lg" />
-          <span className="flex flex-wrap items-center gap-1.5">
+          <span className="mt-0.5 block text-xs text-fg-subtle lg:mt-1">
             {g.sharedBy ? (
-              <Badge tone="neutral" title="A member's own game, shared with the team by them">
-                <span data-testid="together-shared-by">Shared by {p(g.sharedBy)?.name ?? "a member"}</span>
-              </Badge>
+              <span title="A member's own game, shared with the team by them" data-testid="together-shared-by">
+                Shared by {p(g.sharedBy)?.name ?? "a member"}
+              </span>
             ) : (
-              <Badge tone="accent" title="Team members on the same team in this game (who queued together is not recorded)">
-                <span data-testid="together-size">{g.members.length} team members</span>
-              </Badge>
+              <span title="Team members on the same team in this game (who queued together is not recorded)" data-testid="together-size">
+                {g.members.length} team members
+              </span>
             )}
           </span>
-          <span className="ml-auto flex items-center gap-1 lg:ml-0 lg:-ml-2">
-            {g.bookmark ? <BookmarkButton matchId={g.matchId} bookmarked={g.bookmark.on} canRemove={g.bookmark.canRemove} share={!!g.sharedBy} compact /> : null}
-            <ChevronRight className="hidden h-4 w-4 text-fg-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-fg motion-reduce:transition-none lg:block" aria-hidden />
-          </span>
         </div>
-        <div className="@container/members min-w-0 lg:flex">
-          <ul className={cn("grid w-full grid-cols-2 gap-px bg-border/40 @max-2xl/members:[&>li:last-child:nth-child(odd)]:col-span-2", MEMBER_COLUMNS[g.members.length] ?? MEMBER_COLUMNS[5])}>
+        <div className="@container/members min-w-0">
+          <ul className={cn("grid gap-x-5 gap-y-1.5", g.members.length >= 4 && "@min-[46rem]/members:grid-cols-2")}>
             {g.members.map((m) => {
               const pl = p(m.playerId);
               const c = champ(m.championId);
               const kda = m.kills === null ? "—" : `${m.kills}/${m.deaths}/${m.assists}`;
               const extra = `${m.cs ?? "—"} CS${m.damage ? ` · ${(m.damage / 1000).toFixed(1)}k dmg` : ""}`;
+              const role = m.role && m.role in ROLE_LABELS ? (m.role as Role) : null;
               return (
-                <li key={m.playerId} className="@container flex min-w-0 flex-col justify-center bg-surface/95 px-3 py-2.5 max-sm:px-2 max-sm:py-1.5" data-testid="together-member" data-player-id={m.playerId}>
-                  <div className="flex min-w-0 items-center gap-2.5 max-sm:gap-2">
-                    <span className="relative shrink-0">
-                      <ChampionPortrait champion={c} size="md" title={c.name} className="max-sm:h-10 max-sm:w-10" />
-                      {pl ? (
-                        <span className="absolute -bottom-1 -right-1">
-                          <CardAvatar look={pl.look} name={pl.name} src={pl.avatarUrl} size="xs" />
-                        </span>
-                      ) : null}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <Link href={`/players/${m.playerId}`} className="block truncate py-0.5 text-sm font-semibold text-fg hover:underline pointer-coarse:-my-2 pointer-coarse:py-2.5">
+                <li key={m.playerId} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5" data-testid="together-member" data-player-id={m.playerId}>
+                  <ChampionPortrait champion={c} size="sm" title={c.name} className="h-9 w-9 rounded-md" />
+                  <span className="min-w-0">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      {pl ? <CardAvatar look={pl.look} name={pl.name} src={pl.avatarUrl} size="xs" /> : null}
+                      <Link href={`/players/${m.playerId}`} className="relative truncate py-0.5 text-sm font-semibold text-fg hover:underline pointer-coarse:-my-2 pointer-coarse:py-2.5">
                         {pl?.name ?? "Player"}
                       </Link>
-                      <span className="flex min-w-0 items-center gap-1 text-xs text-fg-muted">
-                        {m.role && m.role in ROLE_LABELS ? <RoleIcon role={m.role as Role} className="h-3 w-3 shrink-0" /> : null}
-                        <span className="truncate">
-                          {m.role && m.role in ROLE_LABELS ? ROLE_LABELS[m.role as Role] : "Role unknown"} · {c.name}
-                        </span>
-                      </span>
-                      {/* Narrow cells: the figures under the name (phones keep the K/D/A only). */}
-                      <span className="block truncate text-xs tabular-nums text-fg-subtle @[18rem]:hidden">
-                        <span className="font-semibold text-fg">{kda}</span>
-                        {m.multikill ? <MultikillTag size={m.multikill} className="ml-1.5" testId="together-multikill" /> : null}
-                        <span className="max-sm:hidden"> · {extra}</span>
+                    </span>
+                    <span className="flex min-w-0 items-center gap-1 text-xs text-fg-muted">
+                      {role ? <RoleIcon role={role} className="h-3 w-3 shrink-0" /> : null}
+                      <span className="truncate">
+                        {role ? ROLE_LABELS[role] : "Role unknown"} · {c.name}
                       </span>
                     </span>
-                    {/* Wide cells (two or three members): the figures as their own column on the right. */}
-                    <span className="hidden shrink-0 text-right leading-snug @[18rem]:block">
-                      <span className="flex items-baseline justify-end gap-1.5">
-                        {/* The game's largest multikill, beside the K/D/A as in Match History. */}
-                        {m.multikill ? <MultikillTag size={m.multikill} testId="together-multikill" /> : null}
-                        <span className="text-sm font-semibold tabular-nums text-fg">{kda}</span>
-                      </span>
-                      <span className="block text-xs tabular-nums text-fg-subtle">{extra}</span>
+                  </span>
+                  <span className="text-right leading-snug">
+                    <span className="flex items-baseline justify-end gap-1.5">
+                      {/* The game's largest multikill, beside the K/D/A as in Match History. */}
+                      {m.multikill ? <MultikillTag size={m.multikill} testId="together-multikill" /> : null}
+                      <span className="text-sm font-semibold tabular-nums text-fg">{kda}</span>
                     </span>
-                  </div>
+                    <span className="block whitespace-nowrap text-xs tabular-nums text-fg-subtle max-sm:hidden">{extra}</span>
+                  </span>
                 </li>
               );
             })}
           </ul>
         </div>
+        {/* Both teams, the same preview as a player's Match History: everyone else in the game, and
+            any member on the other side, without opening the match. */}
+        {teams ? (
+          <div className="relative min-w-0 border-t border-border/60 pt-2.5 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
+            <TeamComposition teams={teams} champion={champOrUnknown} keepNames />
+          </div>
+        ) : (
+          <span className="hidden lg:block" />
+        )}
+        {/* One bookmark: in the card's top corner on narrower cards, above the chevron in the last
+            column on wide ones. */}
+        <span className="absolute right-1.5 top-1.5 lg:relative lg:inset-auto lg:flex lg:flex-col lg:items-center lg:gap-1">
+          {bookmark}
+          <ChevronRight className="hidden h-4 w-4 text-fg-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-fg group-data-[expanded=true]/together:translate-x-0 group-data-[expanded=true]/together:rotate-90 group-data-[expanded=true]/together:text-fg motion-reduce:transition-none lg:block" aria-hidden />
+        </span>
       </div>
-      {/* Both teams, the same preview as a player's Match History: everyone else in the game, and
-          any member on the other side, without opening the match. */}
-      {teams ? (
-        <div className="relative border-t border-border/60 px-3 py-2">
-          <TeamComposition teams={teams} champion={champOrUnknown} variant="strip" />
-        </div>
-      ) : null}
       {g.queueId === SOLO_DUO_QUEUE && g.members.length > 2 ? <p className="relative border-t border-border/60 px-3 py-1.5 text-xs text-fg-subtle">Ranked Solo/Duo allows parties of two at most, so not all of them queued together.</p> : null}
       {g.opponents.length && !teams ? <p className="relative border-t border-border/60 px-3 py-1.5 text-xs text-fg-subtle">Also in this game, on the other team: {g.opponents.join(", ")}.</p> : null}
     </TogetherCardFrame>
   );
 }
-
-/** Wide screens: one column per member who played, so the band is always filled. */
-/**
- * Member columns follow the room the band has (a container query), not the window: one row when
- * every member fits at a readable width, otherwise full rows (five as 3 + 2, four as 2 + 2, an odd
- * last member across both columns), so no cell is left empty and names are not cut to a few letters.
- */
-const MEMBER_COLUMNS: Record<number, string> = {
-  2: "",
-  3: "@2xl/members:grid-cols-3",
-  4: "@4xl/members:grid-cols-4",
-  5: "@2xl/members:grid-cols-6 @2xl/members:[&>li]:col-span-2 @2xl/members:[&>li:nth-child(n+4)]:col-span-3 @6xl/members:grid-cols-5 @6xl/members:[&>li]:col-span-1 @6xl/members:[&>li:nth-child(n+4)]:col-span-1",
-};

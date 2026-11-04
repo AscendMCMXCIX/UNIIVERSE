@@ -39,8 +39,12 @@ describe("db-usage", () => {
     };
     const read = async () => ((await runJob(handle.db, "db-usage", "cli")).summary as { retired: Retired }).retired;
     const retired = await read();
-    expect(retired.tables).toHaveLength(21);
-    expect(retired.tables.filter((t) => !t.gone)).toEqual([]);
+    expect(retired.tables).toHaveLength(28);
+    // The Meta & Trends and Draft tables are gone. Clash Scout's saved scouts and what the retired
+    // Ranked Development kept stay until their own drops (their keys point only at each other,
+    // players and Riot accounts).
+    const kept = ["clash_scouts", "clash_scout_accounts", "ranked_profiles", "ranked_blocks", "ranked_games", "development_objectives", "development_plans"];
+    expect(retired.tables.filter((t) => !t.gone).map((t) => t.name).sort()).toEqual([...kept].sort());
     expect(retired.columns).toEqual([
       { name: "riot_accounts.opponent_player_id", gone: true },
       { name: "teams.engine_config", gone: true },
@@ -57,7 +61,7 @@ describe("db-usage", () => {
     await handle.db.execute(sql`CREATE TABLE retired_check_table (mode competition_mode)`);
     try {
       const again = await read();
-      expect(again.tables.filter((t) => !t.gone).map((t) => t.name)).toEqual(["drafts"]);
+      expect(again.tables.filter((t) => !t.gone && !kept.includes(t.name)).map((t) => t.name)).toEqual(["drafts"]);
       expect(again.dependents.views).toEqual(["retired_check_view"]);
       expect(again.dependents.enumColumns).toEqual(["retired_check_table.mode"]);
     } finally {

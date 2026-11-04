@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { toast } from "@/components/ui/toast";
-import { timeAgo } from "@/lib/format";
+import { RelativeTime } from "@/components/ui/relative-time";
+import { ScrollRegion } from "@/components/ui/scroll-region";
 
 export interface JobView {
   key: string;
@@ -22,7 +23,6 @@ export interface JobView {
   lastError: string | null;
   lastDurationMs: number | null;
   consecutiveFailures: number;
-  details: Record<string, unknown>;
 }
 
 /** Runs an admin action with a busy state; the outcome arrives as a notification. */
@@ -60,7 +60,7 @@ export function JobsPanel({ jobs, isOwner }: { jobs: JobView[]; isOwner: boolean
               {j.lastError ? <div className="mt-1 break-words text-bad">{j.lastError}</div> : null}
               {j.consecutiveFailures >= 3 ? <div className="mt-1 text-bad">{j.consecutiveFailures} failures in a row</div> : null}
               <div className="mt-1 flex flex-wrap gap-x-3 text-fg-muted">
-                <span>last success {j.lastSuccessAt ? timeAgo(j.lastSuccessAt) : "never"}</span>
+                <span>last success {j.lastSuccessAt ? <RelativeTime date={j.lastSuccessAt} /> : "never"}</span>
                 <span>{j.lastDurationMs !== null ? `${(j.lastDurationMs / 1000).toFixed(1)}s` : "—"}</span>
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -83,7 +83,7 @@ export function JobsPanel({ jobs, isOwner }: { jobs: JobView[]; isOwner: boolean
             </div>
           ))}
         </div>
-        <div className="hidden overflow-x-auto md:block">
+        <ScrollRegion label="Data jobs" className="hidden md:block">
         <table className="w-full text-xs">
           <thead className="text-left text-fg-subtle">
             <tr>
@@ -107,7 +107,7 @@ export function JobsPanel({ jobs, isOwner }: { jobs: JobView[]; isOwner: boolean
                   <Badge tone={j.status === "ok" ? "good" : j.status === "degraded" ? "warn" : j.status === "failed" ? "bad" : j.status === "running" ? "info" : "neutral"}>{j.status}</Badge>
                   {j.consecutiveFailures >= 3 ? <div className="mt-1 text-bad">{j.consecutiveFailures} failures in a row</div> : null}
                 </td>
-                <td className="py-2 pr-3 text-fg-muted">{j.lastSuccessAt ? timeAgo(j.lastSuccessAt) : "never"}</td>
+                <td className="py-2 pr-3 text-fg-muted">{j.lastSuccessAt ? <RelativeTime date={j.lastSuccessAt} /> : "never"}</td>
                 <td className="py-2 pr-3 text-fg-muted">{j.lastDurationMs !== null ? `${(j.lastDurationMs / 1000).toFixed(1)}s` : "—"}</td>
                 <td className="py-2 pr-3">
                   {j.defaultIntervalMinutes === null ? (
@@ -127,7 +127,7 @@ export function JobsPanel({ jobs, isOwner }: { jobs: JobView[]; isOwner: boolean
             ))}
           </tbody>
         </table>
-        </div>
+        </ScrollRegion>
       </PanelBody>
     </Panel>
   );

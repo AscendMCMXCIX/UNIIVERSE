@@ -1,4 +1,5 @@
-import { devices, expect, test, type Browser, type BrowserContextOptions, type Page } from "@playwright/test";
+import { devices, expect, test, type Browser, type BrowserContextOptions, type Page } from "./test";
+import { openMatchWindow } from "./match-history";
 
 /*
   PHONES HELD EITHER WAY (in-memory demo; Chromium emulating each device, not the devices
@@ -185,7 +186,7 @@ test("tab rows too wide for the screen fade only where more is hidden, and keep 
 });
 
 test("on a wider phone Team's four tabs fit side by side, with nothing hidden at either edge", async ({ browser, baseURL }) => {
-  // Clash Scout is its own entry (the tab bar's Clash), so Team keeps four tabs: an iPhone 15 fits them.
+  // Team has four tabs: an iPhone 15 fits them.
   const page = await phone(browser, baseURL!, IPHONE);
   await page.goto("/matches");
   const list = page.getByTestId("team-tabs").locator("ul");
@@ -295,15 +296,9 @@ test("turning a small phone with the player window open keeps it open and whole-
 
 test("a window whose header leaves room keeps its own scrolling body on a phone held upright", async ({ browser, baseURL }) => {
   const page = await phone(browser, baseURL!, IPHONE);
-  await page.goto("/players");
-  const profile = new URL((await page.locator("main a[data-testid='player-card'][data-player-name='Demo Mid']").getAttribute("href"))!, "http://x").pathname;
-  await page.goto(`${profile}/matches`);
-  const win = page.getByTestId("match-detail");
-  const card = page.getByTestId("match-card").first();
-  await expect(async () => {
-    if (!(await win.isVisible())) await card.click({ position: { x: 24, y: 16 }, timeout: 2_000 });
-    await expect(win).toBeVisible({ timeout: 1_000 });
-  }).toPass({ timeout: 15_000 });
+  // A link to a game that is not on the page shown opens it in the match window (lists open their
+  // games under their cards).
+  const win = await openMatchWindow(page);
   await expect(page.getByTestId("match-detail-figures")).toBeVisible();
   await expect(win).not.toHaveAttribute("data-flow", /.*/);
   // The header stays; the body below it scrolls.

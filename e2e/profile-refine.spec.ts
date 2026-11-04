@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./test";
 
 /*
   Profile Overview → Season performance → Refine. From tablets up, Refine opens a panel anchored
@@ -49,7 +49,8 @@ test("Refine opens over the page: the heading, figures and sections below stay w
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(vw);
   expect(box.y).toBeGreaterThan((await refine.boundingBox())!.y);
-  // Labelled controls.
+  // Labelled controls, and what they narrow (ranked progress and the pools keep their own scope).
+  await expect(panel.getByTestId("refine-scope")).toHaveText("Applies to Season performance, its multikills and Recent form.");
   await expect(panel.getByText("Role played", { exact: true })).toBeVisible();
   await expect(panel.getByText("Champions", { exact: true })).toBeVisible();
 
@@ -72,9 +73,13 @@ test("a choice made in Refine applies, is kept when the panel closes and reopens
   await openProfile(page);
   const refine = page.getByTestId("refine-filters");
   await refine.click();
+  await expect(page.getByTestId("recent-form-scope")).toHaveCount(0);
   await page.getByTestId("refine-panel").getByTestId("role-filter-TOP").click();
   await expect(page).toHaveURL(/role=TOP/);
   await expect(page.getByTestId("stats-population")).toContainText(/Top/);
+  // The same filter narrows the multikills and Recent form, which says so; ranked progress keeps its own queue and account.
+  await expect(page.getByTestId("recent-form-scope")).toHaveText("Filtered: Top");
+  await expect(page.getByTestId("multikills")).toBeVisible();
   // Still open after the choice applied; closing and reopening keeps it.
   await page.keyboard.press("Escape");
   await expect(refine).toContainText("1");

@@ -9,13 +9,19 @@ const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
 
 /*
   What the held cleanup migrations remove: the retired Meta & Trends tables (audit decision 2,
-  docs/DATA_PIPELINES.md "Retired tables") and the Draft feature's tables, columns and enum types
-  (decision 3, docs/ARCHITECTURE.md "Draft removed"). The report checks them against production
-  before they go, and confirms afterwards that they went (a dropped one is reported as gone).
+  docs/DATA_PIPELINES.md "Retired tables"), the Draft feature's tables, columns and enum types
+  (decision 3, docs/ARCHITECTURE.md "Draft removed"), the scouts Clash Scout saved (retired;
+  docs/CLASH_SCOUT.md) and what the retired Ranked Development kept (docs/RANKED_DEVELOPMENT.md; no
+  drop migration is prepared for these yet). The report checks them against production before they
+  go, and confirms afterwards that they went (a dropped one is reported as gone). Until the drop,
+  permanent erasure and its reconciliation still read and write the Clash scouts and the Ranked
+  Development records (server/privacy).
 */
 const RETIRED_TABLES = [
   ...["ranked_matches", "ranked_participants", "ranked_bans", "match_fetch_queue", "champion_role_stats", "champion_ban_stats", "champion_matchups", "champion_synergies", "pro_pick_slot_stats", "pro_games", "pro_game_picks", "pro_game_bans"],
   ...["drafts", "draft_actions", "draft_role_swaps", "draft_presence", "draft_enemy_scouting", "matches", "series", "opponent_teams", "opponent_players"],
+  ...["clash_scouts", "clash_scout_accounts"],
+  ...["ranked_profiles", "ranked_blocks", "ranked_games", "development_objectives", "development_plans"],
 ];
 const RETIRED_COLUMNS: Array<[table: string, column: string]> = [
   ["riot_accounts", "opponent_player_id"],

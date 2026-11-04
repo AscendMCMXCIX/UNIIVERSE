@@ -2,7 +2,7 @@ import type { Db } from "@/server/db/types";
 import { ROLES, type Role } from "@/domain/roles";
 import { listChampions } from "@/server/repositories/champions";
 import { getChampionMap } from "@/server/champions/map";
-import type { PickerChampion } from "@/components/champion-picker";
+import type { PickerChampion } from "@/components/champions/types";
 
 /** A role counts for the filter when the champion's curated role profile gives it this much weight. */
 const PRIOR_MIN = 0.15;

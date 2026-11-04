@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test";
 
 /*
   Admin → Previews → New player setup: the whole first sign-in with the practice account, on

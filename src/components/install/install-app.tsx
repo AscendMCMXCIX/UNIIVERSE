@@ -8,9 +8,11 @@ import { useBrandNames } from "@/components/brand-names";
 import { installGuideFor, type InstallGuide } from "@/domain/install-guide";
 import { promptInstall, useInstallState } from "./install-state";
 import { cn } from "@/lib/cn";
+import { RAIL_HIGHLIGHT } from "@/components/nav-links";
 
 /*
-  Install App: one entry beside Settings (sidebar and phone menu) opening one small window.
+  Install App: one entry beside Settings (sidebar and phone menu), and one in the public team
+  page's header, each opening one small window.
   - Where the browser has offered to install (Chromium on Windows, Android, macOS, Linux and
     ChromeOS), the window's main button shows the browser's own install dialog. The offer is used
     once: dismissed, the window shows the browser's own way to install instead.
@@ -51,23 +53,25 @@ export function InstallAppEntry({ variant, beforeOpen, className }: { variant: "
   };
   const hiddenWhenInstalled = "[@media(display-mode:standalone)]:hidden [@media(display-mode:fullscreen)]:hidden [@media(display-mode:minimal-ui)]:hidden [@media(display-mode:window-controls-overlay)]:hidden";
   if (variant === "public") {
-    // The public page's header: understated, beside Sign In; on a phone the icon alone, its name kept for screen readers.
+    // The public team page's header: discreet, in the same style as Sign in beside it; on a phone
+    // the icon alone (a 44 px target), its name kept for screen readers.
     return (
-      <button type="button" onClick={onClick} aria-haspopup="dialog" className={cn("group inline-flex min-h-10 min-w-10 items-center justify-center gap-2 rounded-lg px-2.5 text-sm font-medium text-fg-muted transition-colors duration-200 hover:bg-white/[0.06] hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11 pointer-coarse:min-w-11", hiddenWhenInstalled, className)} data-testid="install-app">
-        <Download className="h-4 w-4 transition-transform duration-200 group-hover:translate-y-px" aria-hidden />
+      <button type="button" onClick={onClick} aria-haspopup="dialog" className={cn(buttonClass("ghost", "sm", "text-fg-muted max-sm:min-w-11"), hiddenWhenInstalled, className)} data-testid="install-app">
+        <Download className="h-4 w-4" aria-hidden />
         <span className="max-sm:sr-only">Install App</span>
       </button>
     );
   }
   return variant === "sidebar" ? (
-    <button type="button" onClick={onClick} aria-haspopup="dialog" title="Install App" className={cn("group relative flex min-h-10 w-full items-center gap-3 rounded-lg py-2 pl-[15px] pr-3 text-left text-sm font-semibold text-fg-muted transition-colors duration-150 hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent", hiddenWhenInstalled, className)} data-testid="install-app">
-      <Download className="h-[18px] w-[18px] shrink-0 text-fg-subtle transition-colors group-hover:text-fg-muted" aria-hidden />
+    <button type="button" onClick={onClick} aria-haspopup="dialog" title="Install App" className={cn("group isolate relative flex min-h-10 w-full items-center gap-3 rounded-lg py-2 pl-[0.9375rem] pr-3 text-left text-sm font-semibold text-fg-muted transition-colors duration-150 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent", hiddenWhenInstalled, className)} data-testid="install-app">
+      <span className={cn(RAIL_HIGHLIGHT, "group-hover:bg-surface-2")} aria-hidden />
+      <Download className="h-[1.125rem] w-[1.125rem] shrink-0 text-fg-subtle transition-colors group-hover:text-fg-muted" aria-hidden />
       {/* Collapsed sidebar: the icon only; the label stays for screen readers and as the tooltip. */}
       <span className="truncate transition-opacity duration-150 group-data-[collapsed=true]/sidebar:opacity-0 group-data-[collapsed=true]/sidebar:duration-75">Install App</span>
     </button>
   ) : (
-    <button type="button" onClick={onClick} aria-haspopup="dialog" className={cn("flex min-h-12 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-fg-muted hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent", hiddenWhenInstalled, className)} data-testid="install-app">
-      <Download className="h-[18px] w-[18px] text-fg-subtle" aria-hidden /> Install App
+    <button type="button" onClick={onClick} aria-haspopup="dialog" className={cn("flex min-h-12 w-full items-center gap-3 rounded-lg pl-[0.9375rem] pr-3 text-left text-sm text-fg-muted hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent", hiddenWhenInstalled, className)} data-testid="install-app">
+      <Download className="h-[1.125rem] w-[1.125rem] text-fg-subtle" aria-hidden /> Install App
     </button>
   );
 }
@@ -159,7 +163,7 @@ function AppIdentity({ name }: { name: string }) {
     // A phone held sideways keeps its few lines for the steps: the title already names the app.
     <div className="flex items-center gap-3 short:hidden">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/icons/icon-192.png" alt="" width={48} height={48} className="h-12 w-12 shrink-0 rounded-xl border border-border" />
+      <img src="/icons/icon-192.png" alt="" width={48} height={48} className="h-12 w-12 shrink-0 rounded-panel border border-border" />
       <div className="min-w-0">
         <p className="truncate text-sm font-semibold text-fg">{name}</p>
         {host ? <p className="truncate text-xs text-fg-subtle">{host}</p> : null}
