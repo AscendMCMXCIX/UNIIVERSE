@@ -478,6 +478,15 @@ describe("personal match history", () => {
     expect(missing.status).toBe("missing");
   });
 
+  it("says games are being collected only for accounts Riot will read, never for one a person has to correct", async () => {
+    const db = handle.db;
+    const typo = (await createPlayer(db, teamId, { displayName: "Typo", primaryRole: "TOP", primaryPool: ["Gwen"] })).id;
+    const account = (await addAccount(db, { ownerType: "player", playerId: typo, riotId: "Typo#OCE", platform: "oc1" })).id;
+    expect((await getMatchHistory(db, typo, {})).syncing).toBe(true);
+    await db.update(riotAccounts).set({ syncStatus: "unresolved", syncError: "Riot could not find this Riot ID." }).where(eq(riotAccounts.id, account));
+    expect((await getMatchHistory(db, typo, {})).syncing).toBe(false);
+  });
+
   it("tells a record Riot no longer serves apart from one still to be collected, from the ledger alone", async () => {
     const db = handle.db;
     // What the sync's catch-up of older games leaves when Riot answers 404 for a game: the marker

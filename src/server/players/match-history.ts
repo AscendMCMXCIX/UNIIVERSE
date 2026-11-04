@@ -372,7 +372,9 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     missingOnPage: rows.filter((r) => r.record === "missing").length,
     summary: games.length ? historySummary(games.map((g) => ({ ...g, teamKills: teamKillsOf.get(g.matchId) ?? null }))) : null,
     ladder: ladder ? { ...ladder, riotId: accounts.length > 1 ? (ladderAccount?.riotId ?? null) : null } : null,
-    syncing: accounts.some((a) => a.syncStatus === "syncing" || a.syncStatus === "pending" || a.syncStatus === "never" || !a.historyBackfill?.completedAt),
+    // Only accounts that will be read: one Riot cannot read until a person acts (unresolved, or
+    // the same Riot account as another) is not collecting anything, however long it waits.
+    syncing: accounts.some((a) => a.syncStatus !== "unresolved" && a.syncStatus !== "failed" && (a.syncStatus === "syncing" || a.syncStatus === "pending" || a.syncStatus === "never" || !a.historyBackfill?.completedAt)),
     refine: chosen,
     unrefinedTotal: unrefined.length,
     patchOptions: patchOptions(unrefined),
