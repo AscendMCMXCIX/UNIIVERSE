@@ -176,7 +176,7 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
   // The client's deadline came before the account was read (RiotDeadlineError): a run out of
   // time, not a failed attempt. Nothing about the account is written (no Pending, no retry
   // back-off, no problem recorded against the key); the next run starts it again.
-  const outOfTime = (): AccountSyncResult => {
+  const stoppedForTime = (): AccountSyncResult => {
     log(`${accountRef(account)}: out of time before the account was read; the next run carries on`);
     const status = account.syncStatus === "ok" || account.syncStatus === "unresolved" || account.syncStatus === "failed" ? account.syncStatus : "pending";
     return { ...result, status, outOfTime: true };
@@ -198,7 +198,7 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
       try {
         acc = await client.accountByRiotId(platform, account.gameName, account.tagLine);
       } catch (err) {
-        if (err instanceof RiotDeadlineError) return outOfTime();
+        if (err instanceof RiotDeadlineError) return stoppedForTime();
         return fail(err, "resolve");
       }
       puuid = acc.puuid;
@@ -291,7 +291,7 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
     await recordRiotOutcome(db, client, { ok: true });
     return result;
   } catch (err) {
-    if (err instanceof RiotDeadlineError) return outOfTime();
+    if (err instanceof RiotDeadlineError) return stoppedForTime();
     if (err instanceof RiotApiError && err.status === 400 && account.puuid) {
       // Riot could not decode the stored player id. Ids are encrypted per API key, so this is what
       // a key change looks like; forget the id and resolve it again from the Riot ID next time.
