@@ -6,6 +6,7 @@ import { listAccountsForPlayers } from "@/server/accounts/repository";
 import { attributeLp, isCountedGame, mergeReadings, storedCountAt, type LpRecord, type QueueGame, type RankReadingRow } from "@/domain/lp-attribution";
 import { RANKED_SEASONS_2026, RANKED_YEAR_START, rankedSeasonOfPatch } from "@/domain/ranked-year";
 import { rankLabel, type RankQueue } from "@/domain/rank-progress";
+import { canonicalPatch } from "@/domain/patch";
 
 /*
   Read-only audit of ranked history for the 2026 ranked year (from 8 January): for every linked
@@ -148,12 +149,14 @@ defineJob({
     });
 
     // When each 2026 season's first patch first appears among the stored games (all queues).
+    // Games store the client's version as written ("26.9" or "16.9" for the same patch): both are asked.
+    const patchNames = RANKED_SEASONS_2026.flatMap((s) => [s.firstPatch, s.firstPatch.replace(/^16\./, "26.")]);
     const firstOnPatch = rowsOf<{ patch: string; first: number | string }>(
-      await db.execute(sql`SELECT patch, min(game_creation) AS first FROM account_matches WHERE patch IN (${sql.join(RANKED_SEASONS_2026.map((s) => sql`${s.firstPatch}`), sql`, `)}) GROUP BY patch`),
+      await db.execute(sql`SELECT patch, min(game_creation) AS first FROM account_matches WHERE patch IN (${sql.join(patchNames.map((p) => sql`${p}`), sql`, `)}) GROUP BY patch`),
     );
     const seasons = RANKED_SEASONS_2026.map((s) => {
-      const row = firstOnPatch.find((r) => r.patch === s.firstPatch);
-      return { season: s.label, from: isoDay(s.from), firstPatch: s.firstPatch, firstStoredGameOnPatch: row ? iso(Number(row.first)) : null };
+      const firsts = firstOnPatch.filter((r) => canonicalPatch(r.patch) === s.firstPatch).map((r) => Number(r.first));
+      return { season: s.label, from: isoDay(s.from), firstPatch: s.firstPatch, firstStoredGameOnPatch: firsts.length ? iso(Math.min(...firsts)) : null };
     });
 
     // The team's 2026 ranked games and readings by week, from the week of 8 January.
