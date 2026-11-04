@@ -66,8 +66,9 @@ Settings → home). A destination's own pages have no Back: they are where you s
   inside one screen do on a phone, so Back leaves the profile rather than stepping through its
   sections; a section opened far down the page starts at its top, just under the bar.
 - **Team's sections** are the bottom bar itself, so the page tabs are not repeated on phones.
-- **Match History's views** (Games, Encounters) are a pair in one quiet track under the profile
-  card (`SubTabs`).
+- **A page's views** (Match History's Games and Encounters, Leaderboards' Recent form and Records &
+  achievements) share one quiet track (`SubTabs`). A label too long to share the line on a phone
+  shows its start ("Records"); the rest is still read out, so its name does not change.
 
 ### Phones held sideways
 
@@ -144,7 +145,7 @@ inert), Escape and the backdrop close it, focus returns to what opened it, a she
   in `src/lib/nav.test.ts`).
 - `pnpm build && pnpm test:e2e`: `e2e/mobile-nav.spec.ts` checks the frame on a phone (the five
   tabs, Back and its label, the title, the profile's sections, the account sheet, the filter sheet
-  and chips, a game opening full screen and Back closing it); `e2e/responsive.spec.ts`,
+  and chips, a game opening full screen and Back closing it, the Players and Recent form rows); `e2e/responsive.spec.ts`,
   `e2e/mobile-landscape.spec.ts` and `e2e/quality.spec.ts` keep overflow, targets, short windows
   and axe in check at every width.
 - Real devices: see RESPONSIVE.md → Safari and iPhones. Emulated phones prove layout and behaviour

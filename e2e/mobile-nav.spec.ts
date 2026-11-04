@@ -177,6 +177,23 @@ test("Team → Matches opens a game as a whole screen too, and its cards keep to
   await expect(page).toHaveURL(/\/matches$/);
 });
 
+test("a page's views share one track on the narrowest phones, a long label by its start and still named in full", async ({ page }) => {
+  await page.goto("/leaderboards");
+  await expect(page.getByTestId("leaderboards")).toHaveAttribute("data-ready", "true");
+  const form = page.getByTestId("leaderboards-tab-form");
+  const records = page.getByTestId("leaderboards-tab-records");
+  for (const width of [375, 320]) {
+    await page.setViewportSize({ width, height: 667 });
+    const [a, b] = [(await form.boundingBox())!, (await records.boundingBox())!];
+    expect(Math.abs(a.y - b.y), `one line at ${width}px`).toBeLessThan(1);
+    expect(b.x + b.width).toBeLessThanOrEqual(width);
+  }
+  await expect(records).toHaveAccessibleName("Records & achievements");
+  await expect(records).toHaveText("Records & achievements");
+  // What shows is "Records": the rest of the name is read out but takes no room.
+  expect((await records.getByText("& achievements").boundingBox())!.width).toBeLessThanOrEqual(1);
+});
+
 test("Players and Leaderboards read as lists on a phone: a row per player, a row per member, each row one tap", async ({ page }) => {
   await page.goto("/players");
   const rows = page.getByTestId("players-list").getByTestId("player-row");
