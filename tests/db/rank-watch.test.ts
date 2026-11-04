@@ -85,11 +85,12 @@ describe("rank watch", () => {
 
   it("stops at a full rate limit or a refused key, and the next run reads again", async () => {
     const db = handle.db;
+    // Ten minutes on, every account read so far is due again; the longest unread (active-fresh) comes first.
     const later = NOW + 10 * 60_000;
-    const limited = riot({ "active-due": 429, "active-fresh": [entry(40, 10)] });
+    const limited = riot({ "active-fresh": 429, "active-due": [entry(40, 10)] });
     expect(await watchRanks(db, limited.client, { deadline: Date.now() + 60_000, now: later })).toMatchObject({ read: 0, stoppedBy: "no room in the rate limits" });
-    expect(limited.asked).toEqual(["active-due"]);
-    const refused = riot({ "active-due": 403 });
+    expect(limited.asked).toEqual(["active-fresh"]);
+    const refused = riot({ "active-fresh": 403 });
     expect((await watchRanks(db, refused.client, { deadline: Date.now() + 60_000, now: later })).stoppedBy).toBe("Riot refused the key (403)");
   });
 });

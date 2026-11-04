@@ -78,7 +78,8 @@ export interface RankWatchRun {
 
 /** Reads the accounts due now, one request each, until the deadline, a full rate limit or a refused key. */
 export async function watchRanks(db: Db, client: RiotApiClient, options: { deadline: number; log?: (message: string) => void; now?: number }): Promise<RankWatchRun> {
-  const due = await accountsDueRankWatch(db, options.now ?? Date.now());
+  const now = options.now ?? Date.now();
+  const due = await accountsDueRankWatch(db, now);
   const erased = await erasureFilter(db);
   const run: RankWatchRun = { due: due.length, active: due.filter((a) => a.active).length, read: 0, changed: 0, failed: 0, stoppedBy: null };
   for (const account of due) {
@@ -89,7 +90,8 @@ export async function watchRanks(db: Db, client: RiotApiClient, options: { deadl
     if (erased.puuid(account.puuid)) continue;
     try {
       const entries = await client.leagueEntriesByPuuid(account.platform, account.puuid);
-      const written = await recordRankSnapshots(db, account.id, entries);
+      // The reading's time: when its answer came (the run's clock, which a test sets).
+      const written = await recordRankSnapshots(db, account.id, entries, options.now === undefined ? new Date() : new Date(now));
       run.read += 1;
       if (written > 0) {
         run.changed += 1;
