@@ -1,6 +1,6 @@
 import type { Db } from "@/server/db/types";
 import type { Session } from "@/server/auth/permissions";
-import { hasPermission } from "@/server/auth/permissions";
+import { canViewPlayerStats, hasPermission, isAdmin } from "@/server/auth/permissions";
 import { isSeasonMode } from "@/domain/season-stats";
 import { legalRolesFor, poolFor } from "@/domain/roster";
 import { getMatchHistory } from "@/server/players/match-history";
@@ -53,7 +53,7 @@ export interface MatchSearch {
 export async function ProfileMatchesTab(props: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: MatchSearch }) {
   return (
     <>
-      <IdentitySync header={props.header} />
+      <IdentitySync header={props.header} session={props.session} />
       <ProfileMatchesTabBody {...props} />
     </>
   );
@@ -68,7 +68,7 @@ async function ProfileMatchesTabBody({ db, header, session, basePath, search }: 
     return focus ? <ProfileEncounterGamesBody db={db} header={header} session={session} basePath={basePath} search={search} focus={focus} /> : <ProfileEncountersBody db={db} header={header} session={session} basePath={basePath} search={search} />;
   }
   const [data, championsById, syncStatus, accounts] = await Promise.all([
-    getMatchHistory(db, player.id, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, scope: search.scope ?? null, championId: search.champion ?? null, accountId: search.account ?? null, page: Number(search.page) || 1, per: Number(search.per) || undefined, refine: { result: search.result, patch: search.patch, from: search.from, to: search.to, with: search.with, against: search.against, hl: search.hl, group: search.group } }, (r) => (legalRolesFor(player).includes(r) ? poolFor(player, r) : [])),
+    getMatchHistory(db, player.id, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, scope: search.scope ?? null, championId: search.champion ?? null, accountId: search.account ?? null, page: Number(search.page) || 1, per: Number(search.per) || undefined, refine: { result: search.result, patch: search.patch, from: search.from, to: search.to, with: search.with, against: search.against, hl: search.hl, group: search.group } }, (r) => (legalRolesFor(player).includes(r) ? poolFor(player, r) : []), (id) => canViewPlayerStats(session, id), { admin: isAdmin(session) }),
     championMap(db),
     getMatchSyncStatus(db, player.id),
     listAccountsForPlayer(db, player.id),
@@ -104,7 +104,7 @@ async function ProfileEncounterGamesBody({ db, header, session, basePath, search
   const season = chooseSeason(search.season, offeredSeasons(seasonNow, bySeason.map((r) => r.season)), seasonNow);
   const mode = isSeasonMode(search.mode) ? search.mode : "all";
   const met = await loadEncounterFocus(db, { accountIds: accountId ? [accountId] : ids, season, mode }, focus);
-  const data = await getMatchHistory(db, player.id, { season, mode, accountId, page: Number(search.page) || 1, per: Number(search.per) || undefined, onlyMatchIds: met.matchIds }, (r) => (legalRolesFor(player).includes(r) ? poolFor(player, r) : []));
+  const data = await getMatchHistory(db, player.id, { season, mode, accountId, page: Number(search.page) || 1, per: Number(search.per) || undefined, onlyMatchIds: met.matchIds }, (r) => (legalRolesFor(player).includes(r) ? poolFor(player, r) : []), (id) => canViewPlayerStats(session, id), { admin: isAdmin(session) });
   const encounter = { focus, list: encounterListChoice(search), summary: met.summary, renamed: met.renamed, opgg: met.opgg };
   return <MatchHistoryView data={data} championsById={championsById} basePath={`${basePath}/matches`} playerId={player.id} playerName={player.displayName} status={gamesStatus(accounts, syncStatus, data.missingOnPage)} refresh={refreshFor(session, player.id, syncStatus)} encounter={encounter} />;
 }

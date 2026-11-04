@@ -1,7 +1,7 @@
 import { cache } from "react";
 import type { Db } from "@/server/db/types";
 import type { Session } from "@/server/auth/permissions";
-import { canEditPlayer, canManageRiotAccounts } from "@/server/auth/permissions";
+import { canEditPlayer, canManageRiotAccounts, canOpenProfile, canViewPlayerStats } from "@/server/auth/permissions";
 import { listChampions } from "@/server/repositories/champions";
 import { loadProfileHeader, type ProfileHeaderData } from "@/server/players/profile-header";
 import { refreshAvailable, type MatchSyncStatus } from "@/server/accounts/refresh";
@@ -33,7 +33,8 @@ import type { PortraitChampion } from "@/components/champion-portrait";
   the Overview never downloads Match History's.
 
   Everyone sees the same layout; editing appears only for whoever may edit. Teammates' season
-  statistics need the "view teammate statistics" permission.
+  statistics, their rank included, need the "view teammate statistics" permission. A personal-use
+  profile (not on the team) opens only for its player and administrators (viewableProfileHeader).
 */
 
 export interface ProfileSearch {
@@ -61,9 +62,15 @@ export const championMap = async (db: Db): Promise<Record<string, PortraitChampi
 /** One header load per request, shared by the layout and the tab page. */
 export const profileHeader = cache((db: Db, playerId: string) => loadProfileHeader(db, playerId));
 
-/** The display-only identity the header shows (sent to the browser with every tab; see profile-identity.tsx). */
-export function headerIdentity(h: ProfileHeaderData): HeaderIdentity {
+/**
+ * The display-only identity the header shows (sent to the browser with every tab; see
+ * profile-identity.tsx). The rank is a statistic: a teammate's reaches only viewers with "view
+ * teammates' statistics", as on the Team page; one's own always (canViewPlayerStats). Left out for
+ * anyone else, here, so it never reaches their browser.
+ */
+export function headerIdentity(h: ProfileHeaderData, viewer: Session | null): HeaderIdentity {
   const p = h.player;
+  const showRank = canViewPlayerStats(viewer, p.id);
   return {
     playerId: p.id,
     displayName: p.displayName,
@@ -76,15 +83,16 @@ export function headerIdentity(h: ProfileHeaderData): HeaderIdentity {
     archived: !!p.archivedAt,
     setupPending: p.setupPending,
     lineupRole: h.lineupRole,
-    rank: h.rank ? { tier: h.rank.tier, division: h.rank.division, leaguePoints: h.rank.leaguePoints, wins: h.rank.wins, losses: h.rank.losses, queue: h.rank.queue, asOf: h.rank.asOf } : null,
+    showRank,
+    rank: showRank && h.rank ? { tier: h.rank.tier, division: h.rank.division, leaguePoints: h.rank.leaguePoints, queue: h.rank.queue, asOf: h.rank.asOf } : null,
     featurable: featurableChampions(p),
     social: h.social,
   };
 }
 
 /** Every tab renders this: the header then shows this tab's (fresh) identity even when the layout was reused. */
-export function IdentitySync({ header }: { header: ProfileHeaderData }) {
-  return <ProfileIdentitySync identity={headerIdentity(header)} />;
+export function IdentitySync({ header, session }: { header: ProfileHeaderData; session: Session | null }) {
+  return <ProfileIdentitySync identity={headerIdentity(header, session)} />;
 }
 
 export async function ProfileFrame({ db, header, session, basePath, children }: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; children: React.ReactNode }) {
@@ -92,12 +100,13 @@ export async function ProfileFrame({ db, header, session, basePath, children }: 
   const editable = canEditPlayer(session, header.player.id);
   // The Customise dialog searches every champion (portraits only; cached list).
   const champions = editable ? Object.values(await championMap(db)) : [];
+  const identity = headerIdentity(header, session);
   return (
-    <ProfileIdentityProvider initial={headerIdentity(header)}>
-    <div className="mx-auto max-w-[var(--content-max)] space-y-4" style={bannerLightStyle(headerIdentity(header).look.style.colours)} data-testid="player-profile">
+    <ProfileIdentityProvider initial={identity}>
+    <div className="mx-auto max-w-[var(--content-max)] space-y-4" style={bannerLightStyle(identity.look.style.colours)} data-testid="player-profile">
       {/* The section bar belongs to the profile card: tucked right under it. */}
       <div className="space-y-1.5">
-        <ProfileHeader identity={headerIdentity(header)} self={self} editable={editable} champions={champions} basePath={basePath} />
+        <ProfileHeader identity={identity} self={self} editable={editable} champions={champions} basePath={basePath} />
         <ProfileTabs basePath={basePath} />
       </div>
       {children}
@@ -115,4 +124,15 @@ export function refreshFor(session: Session | null, playerId: string, sync: Matc
   if (!sync || sync.syncable === 0 || !refreshAvailable()) return null;
   if (session?.playerId !== playerId && !canManageRiotAccounts(session, playerId)) return null;
   return { playerId, multikillsPending };
+}
+
+/**
+ * A teammate's profile as this viewer may open it (every /players/[id] page and its layout call
+ * this themselves): null when it does not exist, or when it is a personal-use profile (not on the
+ * team) and the viewer is neither its player nor an administrator. The page then answers "not
+ * found", whatever the viewer's capabilities (canOpenProfile).
+ */
+export async function viewableProfileHeader(db: Db, playerId: string, session: Session | null): Promise<ProfileHeaderData | null> {
+  const header = await profileHeader(db, playerId);
+  return header && canOpenProfile(session, { id: header.player.id, teamMember: header.player.teamMember }) ? header : null;
 }

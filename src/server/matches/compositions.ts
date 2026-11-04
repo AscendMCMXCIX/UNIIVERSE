@@ -31,7 +31,8 @@ export interface CompSlot {
   /**
    * The player's current or last-known rank from stored readings (domain/known-rank.ts), on a
    * player's Match History only (everyone but the player the list is about): never the rank at
-   * the time of the game.
+   * the time of the game. Absent for a team member whose statistics the viewer may not see
+   * (players/game-audience).
    */
   rank?: ParticipantRank;
   /** A player whose personal data was erased: nothing about them is kept (shown as "Removed player"). */
@@ -67,8 +68,8 @@ export interface CompositionOptions {
   platform?: string | null;
   /** Newer Riot IDs by PUUID (server/players/riot-names). */
   known?: ReadonlyMap<string, KnownRiotId>;
-  /** The stored rank of every player but the focus player (a player's Match History), by PUUID. */
-  rankOf?: (puuid: string) => ParticipantRank;
+  /** The stored rank of every player but the focus player (a player's Match History), by PUUID; null leaves it out. */
+  rankOf?: (puuid: string) => ParticipantRank | null;
 }
 
 export function compositionOf(participants: readonly CompParticipant[], members: ReadonlyMap<string, { id: string; name: string }>, you: (puuid: string) => boolean, focusTeamId: number | null, { platform = null, known = new Map(), rankOf }: CompositionOptions = {}): Composition | null {
@@ -83,7 +84,8 @@ export function compositionOf(participants: readonly CompParticipant[], members:
         if (p.removed) return { slot, championId: null, name: null, member: null, you: false, opgg: null, removed: true };
         const member = members.get(p.puuid) ?? null;
         const isYou = you(p.puuid);
-        return { slot, championId: p.championId, name: p.name ? p.name.split("#")[0]!.trim() || null : null, member, you: isYou, opgg: opggLinkFor(p.name, platform, known.get(p.puuid)), ...(rankOf && !isYou ? { rank: rankOf(p.puuid) } : {}) };
+        const rank = rankOf && !isYou ? rankOf(p.puuid) : null;
+        return { slot, championId: p.championId, name: p.name ? p.name.split("#")[0]!.trim() || null : null, member, you: isYou, opgg: opggLinkFor(p.name, platform, known.get(p.puuid)), ...(rank ? { rank } : {}) };
       });
   const blue = side(BLUE_TEAM);
   const red = side(RED_TEAM);

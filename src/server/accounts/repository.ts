@@ -54,6 +54,15 @@ export function accountForBrowser(account: RiotAccountRecord): RiotAccountRecord
   return { ...account, puuid: account.puuid ? PUUID_KEPT_ON_SERVER : null };
 }
 
+/**
+ * A linked account without its rank (tier, division, LP, ranked wins and losses, queue and when it
+ * was read), for a viewer who may not see this player's statistics (canViewPlayerStats): the panel
+ * then shows no rank, rather than one that reads as unranked.
+ */
+export function withoutRank(account: RiotAccountRecord): RiotAccountRecord {
+  return { ...account, tier: null, division: null, leaguePoints: null, rankedWins: null, rankedLosses: null, rankUpdatedAt: null, rankQueue: null };
+}
+
 export class AccountError extends Error {}
 
 function toRecord(row: typeof riotAccounts.$inferSelect): RiotAccountRecord {
