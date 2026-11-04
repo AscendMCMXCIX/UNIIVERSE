@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cachedFor, INFLIGHT_JOIN_MS, invalidateAllCaches } from "./cache";
+import { cachedFor, INFLIGHT_JOIN_MS, invalidateAllCaches, invalidateCache } from "./cache";
 
 describe("cachedFor", () => {
   beforeEach(() => {
@@ -57,5 +57,35 @@ describe("cachedFor", () => {
     ok = true;
     expect(await cachedFor("never", 1_000, load)).toBe("v1");
   });
-});
 
+  it("a writer's invalidation while a load is in flight wins: the load's value reaches its caller but is not kept", async () => {
+    // The order in production: a reader starts loading, a sync writes new rows and invalidates the
+    // key, the reader's load (which may have read the rows before the write) settles. Without this
+    // the stale value would be cached for a whole TTL after the invalidation.
+    let settle!: (value: string) => void;
+    const reading = cachedFor("inv", 60_000, () => new Promise<string>((resolve) => (settle = resolve)));
+    invalidateCache("inv");
+    settle("before the write");
+    expect(await reading).toBe("before the write");
+    expect(await cachedFor("inv", 60_000, () => Promise.resolve("after the write"))).toBe("after the write");
+    // The same for a failed refresh that would otherwise re-extend the old value.
+    expect(await cachedFor("lkg2", 1_000, () => Promise.resolve("old"))).toBe("old");
+    vi.setSystemTime(new Date(Date.now() + 2_000));
+    let fail!: (err: Error) => void;
+    const refreshing = cachedFor("lkg2", 1_000, () => new Promise<string>((_, reject) => (fail = reject)));
+    invalidateCache("lkg2");
+    fail(new Error("down"));
+    expect(await refreshing).toBe("old");
+    expect(await cachedFor("lkg2", 1_000, () => Promise.resolve("new"))).toBe("new");
+  });
+
+  it("a load replaced after the join window does not overwrite the replacement's value when it finally settles", async () => {
+    let settleSlow!: (value: string) => void;
+    const slow = cachedFor("late", 60_000, () => new Promise<string>((resolve) => (settleSlow = resolve)));
+    vi.setSystemTime(new Date(Date.now() + INFLIGHT_JOIN_MS + 1));
+    expect(await cachedFor("late", 60_000, () => Promise.resolve("fresh"))).toBe("fresh");
+    settleSlow("older");
+    expect(await slow).toBe("older");
+    expect(await cachedFor("late", 60_000, () => Promise.resolve("unused"))).toBe("fresh");
+  });
+});
