@@ -1,5 +1,6 @@
 import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
+import type { VitalSummary } from "@/domain/web-vitals";
 import { accountMatches, players, riotAccounts, users } from "@/server/db/schema";
 import { elapsed } from "./log";
 import { processEgress } from "@/server/db/egress";
@@ -465,6 +466,29 @@ export async function runPerfProbe(
     memoryMb: Math.round(process.memoryUsage().rss / 1048576),
     poolMax: Number(process.env.DATABASE_POOL_MAX ?? 5),
     aborted: steps.some((s) => s.error?.includes("did not answer")),
+    fieldVitals: await fieldVitals(db),
   };
   return { steps, context };
+}
+
+/**
+ * What members' browsers measured over the last 28 days (domain/web-vitals; Admin Mode → System
+ * Health shows the same): each page group's loads and its 75th percentile LCP, INP and CLS, with
+ * the share of good LCPs. Counts and bucket bounds only: nothing about who loaded what. A read of a
+ * few hundred grouped rows; never fails the probe.
+ */
+export async function fieldVitals(db: Db) {
+  try {
+    const { vitalsReport } = await import("@/server/observability/web-vitals");
+    const r = await vitalsReport(db, 28);
+    const p75 = (s: VitalSummary | null) => (s ? s.p75AtMost : null);
+    const all = Object.fromEntries(r.metrics.map((m) => [m.metric, m.all ? { count: m.all.count, p75AtMost: m.all.p75AtMost, good: Math.round(m.all.good * 100) / 100 } : null]));
+    return {
+      since: r.since,
+      all,
+      pages: r.pages.map((p) => ({ page: p.page, loads: p.loads, lcpP75: p75(p.LCP), lcpGood: p.LCP ? Math.round(p.LCP.good * 100) / 100 : null, inpP75: p75(p.INP), clsP75: p75(p.CLS) })),
+    };
+  } catch (err) {
+    return { error: (err as Error).message };
+  }
 }
