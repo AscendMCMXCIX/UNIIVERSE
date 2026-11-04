@@ -37,7 +37,20 @@ export function LeaderboardFilterBar({ filters: saved, seasons, currentSeason, b
   const summary = [season, LEADERBOARD_QUEUES[filters.queue].label, filters.role ? ROLE_LABELS[filters.role] : "All roles", filters.lineupOnly ? "Main lineup" : null].filter(Boolean).join(" · ");
   const active = (filters.season !== currentSeason ? 1 : 0) + (filters.queue !== DEFAULT_LEADERBOARD_QUEUE ? 1 : 0) + (filters.role ? 1 : 0) + (filters.lineupOnly ? 1 : 0);
   return (
-    <FilterBar testId="leaderboard-filters" foldBelow="lg" summary={summary} activeCount={active} onReset={() => go({ season: currentSeason, queue: DEFAULT_LEADERBOARD_QUEUE, role: null, lineupOnly: false })} pending={pending}>
+    <FilterBar
+      testId="leaderboard-filters"
+      foldBelow="lg"
+      summary={summary}
+      activeCount={active}
+      onReset={() => go({ season: currentSeason, queue: DEFAULT_LEADERBOARD_QUEUE, role: null, lineupOnly: false })}
+      pending={pending}
+      chips={[
+        ...(filters.season !== currentSeason ? [{ key: "season", text: season, clear: () => go({ season: currentSeason }) }] : []),
+        ...(filters.queue !== DEFAULT_LEADERBOARD_QUEUE ? [{ key: "queue", text: LEADERBOARD_QUEUES[filters.queue].label, clear: () => go({ queue: DEFAULT_LEADERBOARD_QUEUE }) }] : []),
+        ...(filters.role ? [{ key: "role", text: ROLE_LABELS[filters.role], clear: () => go({ role: null }) }] : []),
+        ...(filters.lineupOnly ? [{ key: "lineup", text: "Main lineup", clear: () => go({ lineupOnly: false }) }] : []),
+      ]}
+    >
       <FilterField label="Season" htmlFor="lb-season">
         <select id="lb-season" className={select} value={filters.season} onChange={(e) => go({ season: Number(e.target.value) })} data-testid="filter-season">
           {seasons.map((s) => (

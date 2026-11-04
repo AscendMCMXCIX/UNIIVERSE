@@ -1,4 +1,5 @@
 import { expect, test } from "./test";
+import { playerEntry } from "./players";
 
 /* My Profile pieces: All Champions sorting (both ways, filters kept) and the profile header controls. */
 
@@ -59,7 +60,7 @@ test("All Champions on a phone: a Sort by control with a direction toggle, no si
 
 test("the profile header: Main lineup is a status, Customise is one small control, rank has a crest", async ({ page }) => {
   await page.goto("/players");
-  await page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']").click();
+  await playerEntry(page, "Demo Top").click();
   const header = page.getByTestId("profile-header");
   await expect(header).toBeVisible();
   await expect(header.getByTestId("profile-rank").getByTestId("rank-emblem")).toHaveCount(1);
@@ -80,7 +81,7 @@ test("whole roles reorder: drag an Off Role above the Primary Role, and move it 
   // Each device edits its own player, chosen by name (the three share one demo database).
   const name = project === "phone" ? "Demo Support" : project === "tablet" ? "Demo Halfway" : "Demo Top";
   await page.goto("/players");
-  await page.locator(`main a[data-testid='player-card'][data-player-name='${name}']`).click();
+  await playerEntry(page, name).click();
   await expect(page.getByTestId("pool-editor")).toBeVisible();
   await page.getByTestId("pools-edit").click();
   const sections = page.getByTestId("role-section");

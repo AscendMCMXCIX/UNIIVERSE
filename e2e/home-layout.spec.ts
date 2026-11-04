@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "./test";
+import { playerEntry } from "./players";
 
 /*
   Team Overview and a profile's Overview as home screens (in-memory demo roster, synthetic data).
@@ -113,7 +114,8 @@ test("Team Overview on a very wide screen: the lineup keeps its maximum width, c
 
 async function openTeammate(page: Page) {
   await page.goto("/players");
-  const card = page.locator("main a[data-testid='player-card']", { hasText: "Demo Top" }).first();
+  // Phones list the players as rows (docs/MOBILE.md); wider screens as cards.
+  const card = playerEntry(page, "Demo Top");
   await expect(card).toBeVisible();
   await card.click();
   await expect(page.getByTestId("pool-editor")).toBeVisible();

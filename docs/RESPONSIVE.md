@@ -5,7 +5,7 @@ large monitors. One set of breakpoints (Tailwind's defaults) is used everywhere:
 
 | Range | Name | Shell | Layout rules |
 | --- | --- | --- | --- |
-| < 640px | small phone | top bar + drawer, bottom tab bar | one column, 44px targets, 16px inputs, full-screen pickers |
+| < 640px | small phone | top bar (Back or the team's mark, the page's title, the account sheet), bottom tab bar | one column, 44px targets, 16px inputs, full-screen pickers, lists as rows ([MOBILE.md](MOBILE.md)) |
 | 640–767px | large phone | same | one column; some header rows become two columns |
 | 768–1023px | tablet | top bar + drawer (no tab bar) | two columns where useful |
 | 1024–1279px | laptop | sidebar | desktop layout |
@@ -23,7 +23,7 @@ it (`globals.css`), and every pinned element follows these rules:
 | Element | Upright phone | Short window (phone sideways) |
 | --- | --- | --- |
 | Top bar | sticky | slides away while the page scrolls down; back on any scroll up, at the top, and while it holds focus |
-| Tab bar | fixed at the bottom | hidden; `main` keeps only the home indicator's inset (`pb-tabbar`) |
+| Tab bar | fixed at the bottom | a compact row that slides away with the top bar and comes back with it; `main` keeps room for it (`pb-tabbar`) |
 | Detail windows (`DetailModal`) | whole screen below `sm`, centred window above; one whose header would fill over 40% of a phone's screen (the Team player window on a small phone) scrolls as one, as in a short window | whole screen, scrolling as one: a large header scrolls away, its close and step buttons float at the top, a footer stays pinned |
 | Dialogs (`Dialog`) | bottom sheet, at most the screen minus a strip | centred card, at most the screen minus 1rem; title and actions stay, only the body scrolls |
 | Things pinned to the bottom (toasts, a save bar) | `bottom-tabbar`: above the tab bar | near the bottom edge |
@@ -67,14 +67,19 @@ fit (iPhone 15 and wider) and scroll on narrower phones.
 ## Shell
 
 - `src/components/app-shell.tsx`: sidebar from `lg`; `MobileNav` below.
-- `src/components/mobile-nav.tsx`:
-  - a sticky top bar: the menu at its left end, then the brand and the profile;
-  - a drawer from the left (the sidebar's side) with all links, status rows and sign-out;
-  - a bottom tab bar on phones: Profile, Team and Resources, the sidebar's three entries, in equal columns.
-    - Players, Leaderboards and Matches are Team's own tabs, so Team stays marked on them.
-    - Settings and Riot Accounts are in the account menu behind the avatar.
-    - The current tab's icon sits in an accent pill and its label is bright, so it does not rely on colour alone. Both bars pad for safe areas (`pt-safe`, `pb-safe`, `px-safe`); in short windows the
-  tab bar is hidden and the top bar slides away while reading (see above).
+- `src/components/mobile-nav.tsx` (the phone frame is described in full in [MOBILE.md](MOBILE.md)):
+  - phones: a sticky top bar with Back (named after where it leads) or the team's mark, the page's
+    title once its heading has scrolled up under the bar, and your avatar, which opens the account
+    sheet (Resources when it has no tab, Settings, Install App, the mode switch, Sign out); on a
+    profile, its sections ride under the bar;
+  - phones: a bottom tab bar with Team, Players, Leaderboards, Matches and Profile (`PHONE_TABS`,
+    at most five, those the account may open). A teammate's profile is under Players. The current
+    tab's icon sits in an accent pill and its label is bright, so it does not rely on colour alone;
+  - tablets: the top bar with the menu at its left end, the drawer from the left (the sidebar's
+    side) with all links, status rows and sign-out, and the account menu behind the avatar.
+  - Both bars pad for safe areas (`pt-safe`, `pb-safe`, `px-safe`); in short windows they slide
+    away while reading (see above). `--mobile-chrome` holds the top bar's height, and
+    `scroll-padding` keeps whatever scrolls into view clear of both bars.
 - `main` pads for the tab bar (`pb-tabbar`) so content never hides behind it.
 
 ## Primitives
@@ -91,7 +96,9 @@ fit (iPhone 15 and wider) and scroll on narrower phones.
 ## Tables
 
 Tables with more than four columns render as cards on phones and as the table from `md`:
-Data jobs and the player's champion proficiency table. Match history rows wrap into cards.
+Data jobs and the player's champion proficiency table. Match history rows wrap into cards; on
+phones a game opens as the match window over the whole screen (Back closes it), and a card leaves
+both teams to that window.
 A game's breakdown (under its Match History card, or in the match window) sizes its scoreboard by
 its own width (container `bd`, not the screen): name, KDA and items on phones, damage from 36rem,
 gold, CS and vision columns from 60rem; its four section tabs share a phone's width.

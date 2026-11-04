@@ -43,7 +43,9 @@ function Pending() {
 export function SubTabs({ label, items, current, keepScroll = true, className, testId }: { label: string; items: readonly SubTab[]; current: string; keepScroll?: boolean; className?: string; testId?: string }) {
   return (
     <nav aria-label={label} className={cn("min-w-0 max-sm:w-full", className)} data-testid={testId}>
-      <ul className="flex min-w-0 flex-wrap items-center gap-1">
+      {/* Phones: the views share one quiet track, so the pair reads as one choice of view rather than
+          two buttons. */}
+      <ul className="flex min-w-0 flex-wrap items-center gap-1 max-sm:rounded-[0.875rem] max-sm:bg-surface/70 max-sm:p-1 max-sm:ring-1 max-sm:ring-inset max-sm:ring-border">
         {items.map((t) => {
           const on = t.key === current;
           return (

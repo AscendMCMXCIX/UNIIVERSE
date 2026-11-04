@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "./test";
 import { createMember } from "./member-account";
-import { cardOf, closeGame, expandedOf, openGame } from "./match-history";
+import { cardOf, closeGame, expandedOf, openGame, opensFullScreen } from "./match-history";
 
 /*
   Match History's games open under their card (one at a time, the page free to scroll); a link to
@@ -28,6 +28,7 @@ test.beforeEach(async ({ context, baseURL }) => {
 });
 
 test("a game opens under its card and closes from it, one at a time; a link to a game not on the page opens the shared window", async ({ page }) => {
+  test.skip(opensFullScreen(page), "phones open every game as a whole screen: e2e/mobile-nav.spec.ts");
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}/matches`);
@@ -169,12 +170,18 @@ test("a game opened again shows what this page already loaded", async ({ page })
   // Everything it asks for has answered (the record, the possible groups, any rank check).
   await expect(breakdown.getByTestId("possible-groups-note")).not.toHaveAttribute("data-state", "loading", { timeout: 15_000 });
   await expect(breakdown.getByTestId("ranks-note")).not.toHaveAttribute("data-state", "checking", { timeout: 15_000 });
+  // The last thing a breakdown over its list asks for: the players met in other games (data-met).
+  // A window draws its content once its opening motion is over, so its requests start a moment
+  // later than under a card: count once that answer is in.
+  await expect(breakdown).toHaveAttribute("data-met", /^\d+$/, { timeout: 15_000 });
   const first = loads;
   expect(first).toBeGreaterThan(0);
   await closeGame(card);
   const again = await openGame(card);
   await expect(again.getByTestId("possible-groups-note")).not.toHaveAttribute("data-state", "loading");
   expect(loads).toBe(first);
+  // Under its card the card keeps the focus; a phone's whole-screen game gives it back on closing.
+  if (opensFullScreen(page)) await closeGame(card);
   await expect(card.getByTestId("match-row")).toBeFocused();
 });
 

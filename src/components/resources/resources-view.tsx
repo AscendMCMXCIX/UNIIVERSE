@@ -39,6 +39,7 @@ export function ResourcesView({ entries }: { entries: Resource[] }) {
         summary={section === "all" ? "All sections" : sectionLabel(section)}
         activeCount={section !== "all" ? 1 : 0}
         onReset={() => setSection("all")}
+        chips={section !== "all" ? [{ key: "section", text: sectionLabel(section), clear: () => setSection("all") }] : []}
         align="end"
         search={<SearchInput value={query} onChange={setQuery} placeholder="Search resources" label="Search resources by name, site or description" testId="resources-search" />}
       >

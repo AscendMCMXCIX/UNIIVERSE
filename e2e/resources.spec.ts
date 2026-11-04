@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "./test";
 import { DEFAULT_RESOURCES } from "../src/domain/resources";
-import { openFilterBar } from "./filters";
+import { closeFilterSheet, openFilterBar } from "./filters";
 import { memberContext, view } from "./member-account";
 
 /*
@@ -86,9 +86,13 @@ test("every member finds the library in the sidebar: a panel per section, rows t
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
 
-  // The sidebar (or the phone menu) has it as its own entry.
+  // The sidebar (or the tablet menu, or the phone's account sheet) has it as its own entry.
+  await closeFilterSheet(page);
   if ((page.viewportSize()?.width ?? 0) >= 1024) {
     await expect(page.locator("aside").getByTestId("nav-resources")).toHaveAttribute("aria-current", "page");
+  } else if ((page.viewportSize()?.width ?? 0) < 768) {
+    await page.getByTestId("account-sheet-button").click();
+    await expect(page.getByTestId("account-sheet").getByRole("link", { name: "Resources" })).toHaveAttribute("aria-current", "page");
   } else {
     await page.getByRole("button", { name: "Open menu" }).click();
     await expect(page.getByRole("dialog", { name: "Menu" }).getByTestId("nav-resources")).toHaveAttribute("aria-current", "page");

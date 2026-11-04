@@ -3,8 +3,8 @@ import { openMatchWindow } from "./match-history";
 
 /*
   PHONES HELD EITHER WAY (in-memory demo; Chromium emulating each device, not the devices
-  themselves). A phone held sideways is a short window (under 480px tall): the tab bar is hidden,
-  the top bar slides away while reading and comes back on any scroll up, detail windows take the
+  themselves). A phone held sideways is a short window (under 480px tall): the tab bar is a compact
+  row, and both bars slide away while reading and come back on any scroll up, detail windows take the
   whole screen and scroll as one with their controls in reach, and dialogs keep their title and
   actions on screen. Turning the phone keeps what was open and chosen.
 */
@@ -43,20 +43,26 @@ test.beforeEach(async ({}, info) => {
   test.skip(info.project.name !== "phone", "the device matrix runs once, with its own devices");
 });
 
-test("held sideways: no tab bar, and the top bar gets out of the way while reading", async ({ browser, baseURL }) => {
+test("held sideways: a compact tab bar, and both bars get out of the way while reading", async ({ browser, baseURL }) => {
   const page = await phone(browser, baseURL!, SE_LANDSCAPE);
   await page.goto("/players");
   await expect(page.locator("main a[data-testid='player-card']").first()).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Primary" })).toBeHidden();
-  // No room is kept for a tab bar that is not there.
-  expect(await page.locator("main").evaluate((m) => parseFloat(getComputedStyle(m).paddingBottom))).toBeLessThan(32);
+  const tabs = page.getByRole("navigation", { name: "Primary" });
+  // The places to go stay one tap away sideways too (there is no menu drawer on a phone).
+  await expect(tabs).toBeVisible();
+  const tabBox = await rect(page, "[data-testid=phone-tabbar]");
+  expect(tabBox.height).toBeLessThanOrEqual(56);
+  // Room is kept under the page for the compact bar, so nothing sits under it.
+  expect(await page.locator("main").evaluate((m) => parseFloat(getComputedStyle(m).paddingBottom))).toBeGreaterThanOrEqual(tabBox.height - 1);
 
   const bar = page.getByTestId("mobile-topbar");
   await expect(bar).toHaveAttribute("data-hidden", "false");
   await page.mouse.wheel(0, 700);
   await expect(bar).toHaveAttribute("data-hidden", "true");
+  await expect(tabs).toHaveAttribute("data-hidden", "true");
   await expect.poll(async () => (await rect(page, "[data-testid=mobile-topbar]")).bottom).toBeLessThanOrEqual(1);
-  // A slow drag up (two pixels a frame) brings it back...
+  await expect.poll(async () => (await rect(page, "[data-testid=phone-tabbar]")).top).toBeGreaterThanOrEqual(tabBox.vh - 1);
+  // A slow drag up (two pixels a frame) brings them back...
   await page.evaluate(async () => {
     for (let i = 0; i < 8; i++) {
       window.scrollBy(0, -2);
@@ -64,7 +70,8 @@ test("held sideways: no tab bar, and the top bar gets out of the way while readi
     }
   });
   await expect(bar).toHaveAttribute("data-hidden", "false");
-  // ...and so does any quicker scroll up, after it has gone again.
+  await expect(tabs).toHaveAttribute("data-hidden", "false");
+  // ...and so does any quicker scroll up, after they have gone again.
   await page.mouse.wheel(0, 300);
   await expect(bar).toHaveAttribute("data-hidden", "true");
   await page.mouse.wheel(0, -120);
@@ -76,7 +83,7 @@ test("held sideways: no tab bar, and the top bar gets out of the way while readi
 test("held upright: the tab bar stays and the top bar stays put", async ({ browser, baseURL }) => {
   const page = await phone(browser, baseURL!, IPHONE);
   await page.goto("/players");
-  await expect(page.locator("main a[data-testid='player-card']").first()).toBeVisible();
+  await expect(page.locator("main [data-testid='player-row']").first()).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
   await page.mouse.wheel(0, 700);
   await page.waitForTimeout(300);
@@ -171,35 +178,39 @@ test("turning the phone keeps the open window, the chosen filters and the place 
 });
 
 test("tab rows too wide for the screen fade only where more is hidden, and keep the current tab in view", async ({ browser, baseURL }) => {
+  // Leaderboards' eight categories do not fit a small phone: the row scrolls on its own.
   const page = await phone(browser, baseURL!, devices["iPhone SE"]);
-  await page.goto("/team");
-  const list = page.getByTestId("team-tabs").locator("ul");
+  await page.goto("/leaderboards");
+  const list = page.getByTestId("leaderboard-categories");
   await expect(list).toHaveAttribute("data-fade-start", "false");
   await expect(list).toHaveAttribute("data-fade-end", "true");
-  await page.goto("/matches");
+  await page.goto("/leaderboards?category=records");
   await expect(list).toHaveAttribute("data-fade-start", "true");
-  const current = await page.getByTestId("team-tabs").locator("[aria-current=page]").boundingBox();
+  const current = await list.locator("[aria-current=page]").boundingBox();
   const row = await list.boundingBox();
   expect(current!.x).toBeGreaterThanOrEqual(row!.x);
   expect(current!.x + current!.width).toBeLessThanOrEqual(row!.x + row!.width + 1);
   await done(page);
 });
 
-test("on a wider phone Team's four tabs fit side by side, with nothing hidden at either edge", async ({ browser, baseURL }) => {
-  // Team has four tabs: an iPhone 15 fits them.
-  const page = await phone(browser, baseURL!, IPHONE);
-  await page.goto("/matches");
-  const list = page.getByTestId("team-tabs").locator("ul");
-  await expect(list.getByRole("link")).toHaveText(["Overview", "Players", "Leaderboards", "Matches"]);
-  await expect(list).toHaveAttribute("data-fade-start", "false");
-  await expect(list).toHaveAttribute("data-fade-end", "false");
-  const row = (await list.boundingBox())!;
-  for (const tab of await list.getByRole("link").all()) {
-    const box = (await tab.boundingBox())!;
-    expect(box.x).toBeGreaterThanOrEqual(row.x - 0.5);
-    expect(box.x + box.width).toBeLessThanOrEqual(row.x + row.width + 1);
+test("the tab bar's five destinations fit side by side on the narrowest phones, each label whole", async ({ browser, baseURL }) => {
+  for (const device of [devices["iPhone SE"], IPHONE]) {
+    const page = await phone(browser, baseURL!, device);
+    await page.setViewportSize({ width: device === IPHONE ? device.viewport.width : 320, height: device.viewport.height });
+    await page.goto("/matches");
+    const bar = page.getByTestId("phone-tabbar");
+    await expect(bar.getByRole("link")).toHaveText(["Team", "Players", "Leaderboards", "Matches", "Profile"]);
+    const width = page.viewportSize()!.width;
+    for (const tab of await bar.getByRole("link").all()) {
+      const box = (await tab.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(-0.5);
+      expect(box.x + box.width).toBeLessThanOrEqual(width + 0.5);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      // The label is never cut.
+      expect(await tab.locator("span").last().evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+    }
+    await done(page);
   }
-  await done(page);
 });
 
 test("the (i) marks are 24px targets, 40px to a finger, without changing the line they sit in", async ({ browser, baseURL }) => {
@@ -227,9 +238,15 @@ test("Branding's save bar is pinned only while there is something to save, and n
   expect(await bar.evaluate((el) => getComputedStyle(el).position)).not.toBe("sticky");
   await page.getByLabel("App name").fill("Team Hub Landscape");
   await expect.poll(() => bar.evaluate((el) => getComputedStyle(el).position)).toBe("sticky");
+  // Just above the compact tab bar while it shows, never 72px up as over the upright bar...
   const box = await rect(page, "[data-testid=branding-actions]");
-  // Near the bottom edge (no tab bar to clear), not 72px above it.
-  expect(box.vh - box.bottom).toBeLessThan(40);
+  const tabs = await rect(page, "[data-testid=phone-tabbar]");
+  expect(box.bottom).toBeLessThanOrEqual(tabs.top + 1);
+  expect(box.vh - box.bottom).toBeLessThan(tabs.height + 20);
+  // ...and down to the bottom edge once the bars have slid away while reading.
+  await page.mouse.wheel(0, 400);
+  await expect(page.getByTestId("phone-tabbar")).toHaveAttribute("data-hidden", "true");
+  await expect.poll(async () => (await rect(page, "[data-testid=branding-actions]")).vh - (await rect(page, "[data-testid=branding-actions]")).bottom).toBeLessThan(40);
   await page.getByTestId("branding-cancel").click();
   await done(page);
 });

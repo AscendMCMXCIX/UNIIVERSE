@@ -1,4 +1,4 @@
-import { expect, type Locator } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 /**
  * Opens a filter bar that is folded behind its "Filters" button (phones, and tablets for
@@ -15,4 +15,15 @@ export async function openFilterBar(scope: Locator, toggleTestId = "filter-toggl
     await expect(toggle).toHaveAttribute("aria-expanded", "true", { timeout: 1000 });
   }).toPass({ timeout: 15_000 });
   return true;
+}
+
+/**
+ * Closes the phone's filter sheet with Done, if one is open (docs/MOBILE.md: choices apply at once,
+ * and the sheet stays until Done), so the page behind it can be used again.
+ */
+export async function closeFilterSheet(page: Page) {
+  const done = page.getByTestId("filter-sheet-done");
+  if (!(await done.isVisible())) return;
+  await done.click();
+  await expect(done).toHaveCount(0);
 }

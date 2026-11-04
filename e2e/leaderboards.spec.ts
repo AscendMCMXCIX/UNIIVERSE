@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "./test";
+import { closeFilterSheet } from "./filters";
 
 /*
   Team Leaderboards on the demo roster. The games behind it are synthetic demo games (seeded in
@@ -58,13 +59,16 @@ test("Highlights is the default: ten tiles, each opening its full board", async 
   await expect(page.getByTestId("category-overview")).toHaveAttribute("aria-current", "page");
   await expect(page.getByTestId("category-overview")).toHaveText(/Highlights/);
   await expect(page.getByTestId("scope-label")).toContainText(/All supported games/);
-  const tiles = page.getByTestId("highlight-tile");
+  // Phones list the ten as rows (docs/MOBILE.md); wider screens as tiles. The same leaders and values.
+  const phone = (page.viewportSize()?.width ?? 1440) < 640;
+  const tiles = page.getByTestId(phone ? "highlight-row" : "highlight-tile");
+  const valueId = phone ? "highlight-row-value" : "highlight-value";
   await expect(tiles).toHaveCount(10);
   await expect(page.getByTestId("board")).toHaveCount(0);
   // A tile's leader and value are the board's first place.
-  const tile = tiles.filter({ has: page.locator('[data-testid="highlight-value"]') }).first();
+  const tile = tiles.filter({ has: page.locator(`[data-testid="${valueId}"]`) }).first();
   const metric = await tile.getAttribute("data-metric");
-  const value = num(await tile.getByTestId("highlight-value").textContent());
+  const value = num(await tile.getByTestId(valueId).textContent());
   await tile.click();
   await expect(page.getByTestId("board")).toHaveAttribute("data-metric", metric!);
   const rows = await ranking(page);
@@ -79,7 +83,8 @@ test("Highlights is the default: ten tiles, each opening its full board", async 
   await noOverflow(page);
 });
 
-test("Highlights tiles read in order and never overlap: statistic, leader, value, place and runner-up", async ({ page }) => {
+test("Highlights tiles read in order and never overlap: statistic, leader, value, place and runner-up", async ({ page }, info) => {
+  test.skip(info.project.name === "phone", "phones list the highlights as rows: e2e/mobile-nav.spec.ts");
   await page.goto("/leaderboards");
   const tiles = page.getByTestId("highlight-tile");
   await expect(tiles).toHaveCount(10);
@@ -177,6 +182,7 @@ test("switching category keeps the season, games, role and lineup filters", asyn
   await expect(page).toHaveURL(/role=MID/);
   await page.getByTestId("filter-lineup").click();
   await expect(page).toHaveURL(/lineup=1/);
+  await closeFilterSheet(page);
   await page.getByTestId("category-farming").click();
   await expect(page).toHaveURL(/category=farming/);
   await expect(page).toHaveURL(/queue=solo/);
@@ -198,7 +204,7 @@ test("switching category keeps the season, games, role and lineup filters", asyn
 });
 
 test("statistics can be stepped through without leaving the board", async ({ page }, info) => {
-  test.skip(info.project.name === "tablet", "runs on phone and desktop");
+  test.skip(info.project.name !== "desktop", "phones choose from the row of statistics (no stepper there); one wide screen is enough");
   await open(page, "/leaderboards?category=combat");
   const first = await page.getByTestId("board").getAttribute("data-metric");
   await page.getByTestId("metric-next").click();

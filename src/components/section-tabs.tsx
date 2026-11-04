@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { SECTION_HUBS } from "@/lib/nav";
 import { BrandMark } from "@/components/brand-mark";
 import { TabBar } from "@/components/ui/tab-bar";
+import { cn } from "@/lib/cn";
 
 /**
  * The sections of a sidebar entry that stands for several pages (SECTION_HUBS), as tabs at the top
@@ -32,7 +33,8 @@ export function SectionTabs({ allowed, team }: { allowed: string[]; team: { name
       items={sections.map((s) => ({ key: s.href, href: s.href, label: s.label, icon: s.icon, testId: `${hub.key}-tab-${s.href.split("/").pop()}` }))}
       current={current.href}
       dense
-      className="mb-4 sm:mb-5 lg:mb-4 lg:first:-mt-2"
+      // Phones reach Team's sections from the bottom tab bar (MobileNav), so the bar is not repeated in the page there.
+      className={cn("mb-4 sm:mb-5 lg:mb-4 lg:first:-mt-2", hub.key === "team" && "max-md:hidden")}
       testId={`${hub.key}-tabs`}
       end={
         hub.key === "team" && current.href !== "/team" ? (

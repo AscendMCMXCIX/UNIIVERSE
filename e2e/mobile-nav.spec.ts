@@ -1,0 +1,191 @@
+import { expect, test, type Page } from "./test";
+
+/*
+  The phone frame (docs/MOBILE.md): five destinations in the bottom tab bar, a top bar that says where
+  you are (the team's mark, or Back named after where it leads, and the page's title once its heading
+  has scrolled away), a profile's sections under it, the account sheet behind the avatar, filters in a
+  sheet with chips for what is narrowed, and a game opened as a whole screen that Back closes.
+  Phones only; in-memory demo roster.
+*/
+
+test.beforeEach(async ({ context, baseURL }, info) => {
+  test.skip(info.project.name !== "phone", "the phone frame");
+  await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+});
+
+const tabBar = (page: Page) => page.getByTestId("phone-tabbar");
+
+async function idOf(page: Page, role: "TOP" | "MID") {
+  if (!page.url().endsWith("/team")) await page.goto("/team");
+  return (await page.getByTestId(`lineup-row-${role}`).getAttribute("data-player-id"))!;
+}
+
+test("the tab bar holds Team, Players, Leaderboards, Matches and Profile, one tap each, and marks where you are", async ({ page }) => {
+  await page.goto("/team");
+  await expect(tabBar(page).getByRole("link")).toHaveText(["Team", "Players", "Leaderboards", "Matches", "Profile"]);
+  // Team's sections are the tab bar itself: no tab strip repeats them in the page.
+  await expect(page.getByTestId("team-tabs")).toBeHidden();
+  for (const [key, path] of [
+    ["players", "/players"],
+    ["leaderboards", "/leaderboards"],
+    ["matches", "/matches"],
+    ["overview", "/overview"],
+    ["team", "/team"],
+  ] as const) {
+    await tabBar(page).getByTestId(`tab-${key}`).click();
+    await expect(page).toHaveURL(new RegExp(`${path}$`));
+    await expect(tabBar(page).getByTestId(`tab-${key}`)).toHaveAttribute("aria-current", "page");
+    await expect(tabBar(page).locator("[aria-current=page]")).toHaveCount(1);
+    // A destination's own page has no Back: the team's mark instead.
+    await expect(page.getByTestId("mobile-back")).toHaveCount(0);
+    await expect(page.getByTestId("mobile-brand")).toBeVisible();
+  }
+  // Every tab is a 44px target or larger, and the longest label stays whole.
+  for (const box of await tabBar(page).getByRole("link").evaluateAll((links) => links.map((l) => l.getBoundingClientRect().height))) expect(box).toBeGreaterThanOrEqual(44);
+  const label = tabBar(page).getByTestId("tab-leaderboards").locator("span").last();
+  expect(await label.evaluate((e) => e.scrollWidth <= e.clientWidth + 1)).toBe(true);
+});
+
+test("Back from a teammate's profile returns to where you came from, named after it; opened directly, it leads to Players", async ({ page }) => {
+  await page.goto("/players");
+  await page.getByTestId("players-list").getByTestId("player-row").filter({ hasText: "Demo Mid" }).click();
+  await expect(page).toHaveURL(/\/players\/[^/]+$/);
+  // A teammate's profile belongs to Players.
+  await expect(tabBar(page).getByTestId("tab-players")).toHaveAttribute("aria-current", "page");
+  const back = page.getByTestId("mobile-back");
+  await expect(back).toContainText("Players");
+  await back.click();
+  await expect(page).toHaveURL(/\/players$/);
+
+  // From Leaderboards, Back is named after it.
+  await page.goto("/leaderboards");
+  await page.getByTestId("highlight-row").first().click();
+  await expect(page).toHaveURL(/metric=/);
+  const leader = page.getByTestId("leader-spotlight").getByRole("link").first();
+  await leader.click();
+  await expect(page).toHaveURL(/\/players\/[^/]+$/);
+  await expect(back).toContainText("Team Leaderboards");
+  await back.click();
+  await expect(page).toHaveURL(/\/leaderboards\?/);
+
+  // Opened directly (no page of the app before it): Back leads to Players.
+  await page.goto(`/players/${await idOf(page, "TOP")}`);
+  await expect(back).toHaveAttribute("href", "/players");
+});
+
+test("a profile's sections stay under the top bar, and the bar shows the player's name once the card has scrolled away", async ({ page }) => {
+  const top = await idOf(page, "TOP");
+  await page.goto("/players");
+  await page.goto(`/players/${top}`);
+  const sections = page.getByTestId("profile-chrome-tabs");
+  await expect(sections.getByRole("link")).toHaveText(["Overview", "Champions", "History", "Accounts"]);
+  // The page's own bar is the tablet's and desktop's.
+  await expect(page.getByTestId("profile-tabs")).toBeHidden();
+  const title = page.getByTestId("mobile-title");
+  await expect(title).toHaveText("");
+  await page.evaluate(() => window.scrollTo(0, 900));
+  await expect(title).toHaveText("Demo Top");
+  await expect(sections).toBeInViewport();
+  // Moving between sections replaces the history entry: Back leaves the profile.
+  await sections.getByRole("link", { name: "History" }).click();
+  await expect(page).toHaveURL(new RegExp(`/players/${top}/matches$`));
+  await expect(sections.getByRole("link", { name: "History" })).toHaveAttribute("aria-current", "page");
+  await sections.getByRole("link", { name: "Champions" }).click();
+  await expect(page).toHaveURL(new RegExp(`/players/${top}/champions$`));
+  await page.goBack();
+  await expect(page).toHaveURL(/\/players$/);
+});
+
+test("the avatar opens the account sheet: Resources, Settings, Install App and Sign out live there", async ({ page }) => {
+  await page.goto("/team");
+  // No menu drawer on a phone: the tablet's menu button is not shown.
+  await expect(page.getByTestId("menu-button")).toBeHidden();
+  await page.getByTestId("account-sheet-button").click();
+  const sheet = page.getByTestId("account-sheet");
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByRole("link", { name: "Resources" })).toBeVisible();
+  await expect(sheet.getByRole("link", { name: "Settings" })).toBeVisible();
+  await expect(sheet.getByText("Not endorsed by Riot Games.")).toBeVisible();
+  // The sheet's rows are finger-sized.
+  expect((await sheet.getByRole("link", { name: "Settings" }).boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await sheet.getByRole("link", { name: "Resources" }).click();
+  await expect(page).toHaveURL(/\/resources$/);
+  await expect(sheet).toHaveCount(0);
+  // Resources has no tab here, so it is a page reached from another: Back.
+  await expect(page.getByTestId("mobile-back")).toBeVisible();
+});
+
+test("filters open in a sheet; what is narrowed shows as chips beside Filters, and a chip removes itself", async ({ page }) => {
+  await page.goto(`/players/${await idOf(page, "TOP")}/matches`);
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  const toggle = page.getByTestId("filter-toggle");
+  await toggle.click();
+  const sheet = page.getByTestId("filter-sheet");
+  await expect(sheet).toBeVisible();
+  await sheet.getByLabel("Game mode").selectOption("solo");
+  await expect(page).toHaveURL(/mode=solo/);
+  await sheet.getByTestId("filter-sheet-done").click();
+  await expect(sheet).toHaveCount(0);
+  const chip = page.getByRole("button", { name: "Ranked Solo/Duo: remove this filter" });
+  await expect(chip).toBeVisible();
+  await expect(toggle).toContainText("1");
+  await chip.click();
+  await expect(page).not.toHaveURL(/mode=solo/);
+  await expect(chip).toHaveCount(0);
+});
+
+test("a game opens as a whole screen of its own; Back closes it and the list is as it was", async ({ page }) => {
+  await page.goto(`/players/${await idOf(page, "TOP")}/matches`);
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  // Phone cards leave both teams to the game's own screen.
+  await expect(page.getByTestId("match-card").first().getByTestId("match-teams")).toBeHidden();
+  const card = page.getByTestId("match-card").nth(2);
+  await card.scrollIntoViewIfNeeded();
+  const before = await page.evaluate(() => window.scrollY);
+  const id = (await card.getByTestId("match-row").getAttribute("data-match"))!;
+  await card.click({ position: { x: 24, y: 16 } });
+  const window_ = page.getByTestId("match-detail");
+  await expect(window_).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`match=${id}`));
+  await expect(window_.getByTestId("match-breakdown")).toBeVisible();
+  const box = (await window_.boundingBox())!;
+  expect(box.width).toBeGreaterThanOrEqual(page.viewportSize()!.width - 1);
+  // No breakdown opens under the card on a phone.
+  await expect(page.getByTestId("match-expanded")).toHaveCount(0);
+  await page.goBack();
+  await expect(window_).toHaveCount(0);
+  await expect(page).not.toHaveURL(/match=/);
+  expect(Math.abs((await page.evaluate(() => window.scrollY)) - before)).toBeLessThanOrEqual(2);
+  // The close button closes it the same way.
+  await card.click({ position: { x: 24, y: 16 } });
+  await expect(window_).toBeVisible();
+  await window_.getByTestId("match-detail-close").click();
+  await expect(window_).toHaveCount(0);
+  await expect(page).not.toHaveURL(/match=/);
+});
+
+test("Team → Matches opens a game as a whole screen too, and its cards keep to the members who played", async ({ page }) => {
+  await page.goto("/matches");
+  const game = page.getByTestId("together-game").first();
+  await expect(game).toBeVisible();
+  await expect(game.getByTestId("together-member").first()).toBeVisible();
+  await expect(game.getByTestId("match-teams")).toBeHidden();
+  await game.getByTestId("together-card").click({ position: { x: 24, y: 12 } });
+  const window_ = page.getByTestId("match-detail");
+  await expect(window_).toBeVisible();
+  await expect(page).toHaveURL(/match=/);
+  await page.goBack();
+  await expect(window_).toHaveCount(0);
+  await expect(page).toHaveURL(/\/matches$/);
+});
+
+test("Players and Leaderboards read as lists on a phone: a row per player, a row per statistic", async ({ page }) => {
+  await page.goto("/players");
+  const rows = page.getByTestId("players-list").getByTestId("player-row");
+  await expect(rows.first()).toBeVisible();
+  await expect(page.getByTestId("players-directory")).toBeHidden();
+  for (const h of await rows.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) expect(h).toBeGreaterThanOrEqual(44);
+  await page.goto("/leaderboards");
+  await expect(page.getByTestId("highlight-rows").getByTestId("highlight-row")).toHaveCount(10);
+  await expect(page.getByTestId("highlight-tiles")).toBeHidden();
+});

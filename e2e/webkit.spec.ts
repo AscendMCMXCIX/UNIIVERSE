@@ -125,8 +125,9 @@ test("a teammate's profile: its sections switch, and a champion's window opens a
   await page.goto("/players");
   const href = (await page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']").getAttribute("href"))!;
   await page.goto(`${href}/champions`);
-  const tabs = page.getByTestId("profile-tabs");
-  await expect(tabs.getByRole("link", { name: "All Champions" })).toHaveAttribute("aria-current", "page");
+  // On a phone the profile's sections ride in the top bar, with short names (docs/MOBILE.md).
+  const tabs = page.getByTestId("profile-chrome-tabs");
+  await expect(tabs.getByRole("link", { name: "Champions" })).toHaveAttribute("aria-current", "page");
   await fitsWidth(page, "All Champions");
   const open = page.getByTestId("open-champion").first();
   await expect(async () => {
@@ -140,59 +141,40 @@ test("a teammate's profile: its sections switch, and a champion's window opens a
   await expectClearCorner(page);
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("champion-detail")).toBeHidden();
-  await tabs.getByRole("link", { name: "Match History" }).tap();
+  await tabs.getByRole("link", { name: "History" }).tap();
   await expect(page).toHaveURL(new RegExp(`${href}/matches$`));
-  await expect(tabs.getByRole("link", { name: "Match History" })).toHaveAttribute("aria-current", "page");
+  await expect(tabs.getByRole("link", { name: "History" })).toHaveAttribute("aria-current", "page");
 });
 
-test("Match History: a game opens under its card, and once it has checked the players' ranks the card shows them under their icons, inside the card", async ({ page }) => {
+test("Match History: a game opens as a whole screen of its own, its ranks are checked there, and Back returns to the list", async ({ page }) => {
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-ADC").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}/matches`);
-  // A game nobody has opened yet (its players show no rank).
-  const unchecked = page.getByTestId("match-card").filter({ has: page.getByTestId("match-teams") }).filter({ hasNot: page.getByTestId("slot-rank") });
-  const matchId = (await unchecked.first().getByTestId("match-row").getAttribute("data-match"))!;
-  const card = page.getByTestId("match-card").filter({ has: page.locator(`[data-match="${matchId}"]`) });
-  const row = card.getByTestId("match-row");
+  await expect(page.locator("[data-testid='match-history'][data-ready]")).toBeVisible();
+  // On a phone the card leaves both teams to the game's own screen (docs/MOBILE.md).
+  const card = page.getByTestId("match-card").first();
+  await expect(card.getByTestId("match-teams")).toBeHidden();
+  const win = page.getByTestId("match-detail");
   await expect(async () => {
-    if ((await row.getAttribute("aria-expanded")) !== "true") await card.tap({ position: { x: 24, y: 16 }, timeout: 2_000 });
-    await expect(row).toHaveAttribute("aria-expanded", "true", { timeout: 1_000 });
+    if (!(await win.isVisible())) await card.tap({ position: { x: 24, y: 16 }, timeout: 2_000 });
+    await expect(win).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
-  const breakdown = card.locator("xpath=..").getByTestId("match-breakdown");
+  await expect(page).toHaveURL(/match=/);
+  const breakdown = win.getByTestId("match-breakdown");
   await expect(breakdown).toBeVisible({ timeout: 15_000 });
-  // The breakdown and its scoreboard fit the phone's width.
+  // The whole screen, and nothing in it scrolls sideways.
+  const box = (await win.boundingBox())!;
+  expect(box.width).toBeGreaterThanOrEqual(page.viewportSize()!.width - 1);
   await fitsWidth(page, "an open game");
-  // The browser tests' Riot stand-in answers the check (server/riot/browser-test.ts).
+  // The browser tests' Riot stand-in answers the rank check (server/riot/browser-test.ts).
   const note = breakdown.getByTestId("ranks-note");
   await expect(note).toBeVisible({ timeout: 15_000 });
   await expect(note).not.toHaveAttribute("data-state", "checking", { timeout: 15_000 });
-  // The card closes it again.
-  await card.tap({ position: { x: 24, y: 16 } });
-  await expect(row).toHaveAttribute("aria-expanded", "false");
-  await expect(breakdown).toHaveCount(0);
-  await expect(card.getByTestId("slot-rank").first()).toBeVisible();
-  // On a phone each rank sits under its opponent's icon: the ten icons stay on one line, no two
-  // ranks overlap, and every rank is inside the card.
-  const g = await card.evaluate((el) => {
-    const box = (e: Element) => e.getBoundingClientRect().toJSON() as DOMRect;
-    const slots = [...el.querySelectorAll('[data-testid="team-slot"]')];
-    return {
-      card: box(el),
-      iconTops: slots.map((s) => box(s.firstElementChild!).top),
-      ranks: slots.flatMap((s) => {
-        const r = s.querySelector('[data-testid="slot-rank"]');
-        return r ? [{ rank: box(r), icon: box(s.firstElementChild!) }] : [];
-      }),
-    };
-  });
-  expect(g.ranks.length).toBeGreaterThan(0);
-  expect(Math.max(...g.iconTops) - Math.min(...g.iconTops), "the icons on one line").toBeLessThanOrEqual(1);
-  for (const [i, { rank, icon }] of g.ranks.entries()) {
-    expect(rank.top, "under its icon").toBeGreaterThanOrEqual(icon.bottom - 0.5);
-    expect(rank.left >= g.card.left - 0.5 && rank.right <= g.card.right + 0.5 && rank.bottom <= g.card.bottom + 0.5, "inside the card").toBe(true);
-    for (const { rank: other } of g.ranks.slice(i + 1)) expect(rank.right <= other.left + 0.5 || other.right <= rank.left + 0.5, "two ranks overlap").toBe(true);
-  }
-  await fitsWidth(page, "Match History");
+  // Back (Safari's edge swipe and the browser's button alike) closes it; the list is as it was.
+  await page.goBack();
+  await expect(win).toHaveCount(0);
+  await expect(page).not.toHaveURL(/match=/);
+  await expect(card).toBeVisible();
 });
 
 test("Match History's Timeline: a tap on or just beside a mark under the curve reads its minute, the reading stays after the finger lifts, and the tables run with the page", async ({ page }) => {
@@ -295,16 +277,19 @@ test("Player Customisation: the Studio opens, its sections switch from the secti
   await expect(page.getByTestId("profile-header")).toHaveAttribute("data-frame", frame ?? "none");
 });
 
-test("Admin Mode: the menu's switch moves between Admin Mode and Player Mode, each with its own tab bar", async ({ page }) => {
+test("Admin Mode: the account sheet's switch moves between Admin Mode and Player Mode, each with its own tab bar", async ({ page }) => {
   const tabs = page.getByRole("navigation", { name: "Primary" }).getByRole("link");
-  const drawer = page.getByRole("dialog", { name: "Menu" });
+  const sheet = page.getByTestId("account-sheet");
   await page.goto("/admin");
   await expect(page.getByTestId("mobile-topbar")).toContainText("Admin mode");
   await expect(tabs).toHaveText(["Dashboard", "Users", "Settings", "Health"]);
-  await page.getByRole("button", { name: "Open menu" }).tap();
-  await drawer.getByTestId("mode-switch").tap();
+  await expect(async () => {
+    if (!(await sheet.isVisible())) await page.getByTestId("account-sheet-button").tap({ timeout: 2_000 });
+    await expect(sheet).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 15_000 });
+  await sheet.getByTestId("mode-switch").tap();
   await expect(page).toHaveURL(/\/team$/);
-  await expect(tabs).toHaveText(["Profile", "Team", "Resources"]);
+  await expect(tabs).toHaveText(["Team", "Players", "Leaderboards", "Matches", "Profile"]);
 });
 
 test("forms: text fields are at least 16px (Safari zooms into smaller ones) and sign-in offers saved passwords", async ({ browser, page, baseURL }) => {

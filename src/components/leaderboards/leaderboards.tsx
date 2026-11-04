@@ -93,9 +93,11 @@ export function Leaderboards({ view, champions, status }: { view: LeaderboardVie
           <MetricRail view={view} player={player} />
 
           <div className="flex min-w-0 flex-col gap-4">
-            <section aria-labelledby="board-title" className="min-w-0 overflow-hidden rounded-card border border-border bg-surface" data-testid="board" data-metric={b.id}>
+            {/* Phones: the board needs no frame of its own (one box around a box): its title and ranking
+                sit on the page, the ranking in its list. From sm up, the framed board. */}
+            <section aria-labelledby="board-title" className="min-w-0 sm:overflow-hidden sm:rounded-card sm:border sm:border-border sm:bg-surface" data-testid="board" data-metric={b.id}>
               {/* The statistic: name, what it measures, and quick stepping to its neighbours. */}
-              <div className="border-b border-border/70 bg-gradient-to-b from-surface-2/60 to-transparent px-4 py-3 sm:px-5">
+              <div className="pb-1 sm:border-b sm:border-border/70 sm:bg-gradient-to-b sm:from-surface-2/60 sm:to-transparent sm:px-5 sm:py-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -109,7 +111,7 @@ export function Leaderboards({ view, champions, status }: { view: LeaderboardVie
                     </div>
                     <p className="mt-1 text-sm text-fg-muted">{b.definition}</p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1" data-testid="metric-stepper">
+                  <div className="flex shrink-0 items-center gap-1 max-sm:hidden" data-testid="metric-stepper">
                     <StepLink href={view.neighbours.previous ? leaderboardHref(f, { metricId: view.neighbours.previous.id }, view.basePath) : null} label={view.neighbours.previous ? `Previous: ${view.neighbours.previous.label}` : "First statistic"} direction="previous" />
                     <span className="w-10 text-center text-xs tabular-nums text-fg-subtle">
                       {view.neighbours.position}/{view.neighbours.count}
@@ -124,7 +126,7 @@ export function Leaderboards({ view, champions, status }: { view: LeaderboardVie
                 ) : null}
               </div>
 
-              <div className="px-4 pb-4 pt-3 sm:px-5">
+              <div className="pt-2 sm:px-5 sm:pb-4 sm:pt-3">
                 {b.ranked.length === 0 ? (
                   <p className="my-4 rounded-panel border border-dashed border-border p-6 text-center text-sm text-fg-muted" data-testid="board-empty">
                     Nobody qualifies yet in this scope.{b.kind === "average" || b.kind === "rate" ? ` Players need ${b.minGames} games with this figure to be ranked.` : ""}
@@ -251,7 +253,53 @@ function HighlightsGrid({ view, player }: { view: LeaderboardView; player: (id: 
           Every Highlights statistic
         </Link>
       </div>
-      <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,16.5rem),1fr))] gap-3" data-testid="highlight-tiles">
+      {/* Phones: one list, a row per statistic (what is ranked, its leader and value, the runner-up
+          and your place), so the ten read on a screen or two; a row opens the statistic's full
+          ranking. From sm up, the tiles. */}
+      <ul className="divide-y divide-border/70 overflow-hidden rounded-card border border-border bg-surface sm:hidden" data-testid="highlight-rows">
+        {view.highlights.map((t) => {
+          const lead = t.leader ? player(t.leader.playerId) : null;
+          const second = t.runnerUp ? player(t.runnerUp.playerId) : null;
+          return (
+            <li key={t.metricId}>
+              <Link href={leaderboardHref(f, { category: t.category, metricId: t.metricId, highlights: false }, view.basePath)} className="flex min-h-[4.25rem] items-center gap-3 px-3.5 py-2.5 transition-colors active:bg-surface-2 hover:bg-surface-2/60" data-testid="highlight-row" data-metric={t.metricId}>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs font-medium text-fg-muted">{t.label}</span>
+                  {lead && t.leader ? (
+                    <span className="mt-1 flex min-w-0 items-center gap-2">
+                      <span className="relative shrink-0">
+                        <CardAvatar look={lead.look} name={lead.name} src={lead.avatarUrl} size="xs" />
+                        <Crown className="absolute -right-1 -top-1.5 h-3 w-3 rounded-full bg-surface text-warn" aria-hidden />
+                      </span>
+                      <span className="min-w-0 truncate text-sm font-semibold text-fg">{lead.name}</span>
+                    </span>
+                  ) : (
+                    <span className="mt-1 block text-sm text-fg-subtle">Nobody qualifies yet</span>
+                  )}
+                  <span className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-fg-subtle">
+                    {second && t.runnerUp ? (
+                      <span className="min-w-0 truncate">
+                        2nd {second.name} · <span className="tabular-nums">{t.runnerUp.valueText}</span>
+                      </span>
+                    ) : t.leader ? (
+                      <span>No runner-up yet</span>
+                    ) : null}
+                    {viewerIsPlayer && t.yours ? <YourPlace rank={t.yours.rank} of={t.yours.of} compact /> : null}
+                  </span>
+                </span>
+                <span className="shrink-0 text-right">
+                  <span className="block text-xl font-bold leading-tight tabular-nums text-fg" data-testid={lead && t.leader ? "highlight-row-value" : undefined}>
+                    {lead && t.leader ? t.leader.valueText : "—"}
+                  </span>
+                  {t.leader?.sampleText ? <span className="block text-xs tabular-nums text-fg-subtle">{t.leader.sampleText}</span> : null}
+                </span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+      <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,16.5rem),1fr))] gap-3 max-sm:hidden" data-testid="highlight-tiles">
         {view.highlights.map((t) => {
           const lead = t.leader ? player(t.leader.playerId) : null;
           const second = t.runnerUp ? player(t.runnerUp.playerId) : null;
@@ -364,16 +412,23 @@ function MetricRail({ view, player }: { view: LeaderboardView; player: (id: stri
           const lead = m.leader ? player(m.leader.playerId) : null;
           return (
             <li key={m.id} className="shrink-0 snap-start lg:shrink">
-              <Link href={leaderboardHref(f, { metricId: m.id }, view.basePath)} aria-current={on ? "true" : undefined} className={cn("flex min-h-12 w-56 items-center gap-2.5 rounded-panel border px-2.5 py-1.5 transition-colors lg:w-auto", on ? "border-accent bg-accent/10" : "border-border/70 bg-surface hover:border-border-strong")} data-testid={`metric-${m.id}`}>
-                {lead ? <CardAvatar look={lead.look} name={lead.name} src={lead.avatarUrl} size="xs" /> : <span className="h-6 w-6 shrink-0 rounded-full border border-dashed border-border" aria-hidden />}
+              {/* Below lg a row of short pills (the statistic, and your place when you have one): the board
+                  under it names the leader. From lg the full list beside the board, with each leader. */}
+              <Link href={leaderboardHref(f, { metricId: m.id }, view.basePath)} aria-current={on ? "true" : undefined} className={cn("flex items-center gap-2.5 border transition-colors max-lg:min-h-11 max-lg:rounded-full max-lg:px-3.5 lg:min-h-12 lg:rounded-panel lg:px-2.5 lg:py-1.5", on ? "border-accent bg-accent/10" : "border-border/70 bg-surface hover:border-border-strong")} data-testid={`metric-${m.id}`}>
+                {lead ? <CardAvatar look={lead.look} name={lead.name} src={lead.avatarUrl} size="xs" className="max-lg:hidden" /> : <span className="h-6 w-6 shrink-0 rounded-full border border-dashed border-border max-lg:hidden" aria-hidden />}
                 {/* The statistic gets the full width; the leader and your place share the line below it. */}
                 <span className="min-w-0 flex-1">
-                  <span className={cn("line-clamp-2 block text-sm leading-snug", on ? "font-semibold text-fg" : "font-medium text-fg")}>{m.label}</span>
-                  <span className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-fg-subtle">
+                  <span className={cn("block text-sm leading-snug max-lg:whitespace-nowrap lg:line-clamp-2", on ? "font-semibold text-fg" : "font-medium text-fg")}>{m.label}</span>
+                  <span className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-fg-subtle max-lg:hidden">
                     <span className="min-w-0 flex-1 truncate">{lead && m.leader ? `${lead.name} · ${m.leader.valueText}` : "No leader yet"}</span>
                     {m.yours ? <YourPlace rank={m.yours.rank} of={m.yours.of} compact /> : null}
                   </span>
                 </span>
+                {m.yours ? (
+                  <span className="lg:hidden">
+                    <YourPlace rank={m.yours.rank} of={m.yours.of} compact />
+                  </span>
+                ) : null}
               </Link>
             </li>
           );

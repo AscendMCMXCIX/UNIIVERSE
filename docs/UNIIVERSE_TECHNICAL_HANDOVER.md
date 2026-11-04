@@ -831,7 +831,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 | Matches | `/matches` | Played together (with bookmarks); `?view=encounters` opens your profile's Encounters | `view-matches` (+ `view-teammate-stats` for Played together); bookmark removal by its creator or `manage-matches` | |
 | Resources | `/resources` | The team's library of League of Legends sites in five sections (League of Legends, Summoner's Rift, ARAM, Arena, Esports): a panel per section of rows opening in a new tab, search, a section filter, favourites kept in the browser; no management controls on the page | every signed-in account; managed in Admin Mode → Platform Settings → Resources (`manage-branding`) | `docs/ARCHITECTURE.md` (Resources) |
 | Settings | `/settings` | Username, password, profile picture, sign out | self | Riot accounts moved to the profile |
-| Admin Mode | `/admin`, `/admin/people` (+ `/access`), `/admin/branding`, `/admin/previews`, `/admin/data`, `/admin/system`, `/admin/audit`, `/admin/settings` | Dashboard, Users & Permissions, Platform Settings, Data & Integrations, System Health, Audit Logs | administrators | "Switch to Admin Mode" in the sidebar, the phone menu or Settings (C2a) |
+| Admin Mode | `/admin`, `/admin/people` (+ `/access`), `/admin/branding`, `/admin/previews`, `/admin/data`, `/admin/system`, `/admin/audit`, `/admin/settings` | Dashboard, Users & Permissions, Platform Settings, Data & Integrations, System Health, Audit Logs | administrators | "Switch to Admin Mode" in the sidebar, the tablet menu, the phone's account sheet or Settings (C2a) |
 | Auth | `/login`, `/setup`, `/recover`, `/welcome` | Sign-in, first-run Owner setup, Owner recovery, onboarding | — | |
 
 **Redirects kept for old links:**
@@ -850,7 +850,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 
 - **Breakpoints** (Tailwind defaults):
   - < 640 phone: top bar (the menu button at its left end) + a drawer from the left + a 3-tab bottom bar.
-    - The tabs are Profile, Team and Resources, the sidebar's three entries, in equal columns.
+    - The tabs are Team, Players, Leaderboards, Matches and Profile (`PHONE_TABS`); Resources, Settings, Install App, the mode switch and Sign out are in the account sheet behind the avatar (docs/MOBILE.md, November 2026).
     - Team stays marked on its own tabs: Players, Leaderboards and Matches.
   - 640–767 large phone.
   - 768–1023 tablet: top bar + drawer, no tab bar.
@@ -1214,7 +1214,7 @@ These are stable and working; extend them instead:
 8. **UI architecture.**
    - **Server components** with client islands (editors, menus, dialogs).
    - **Shell:** deep ink theme with a blue and violet identity; Inter; tokens in `src/app/globals.css`.
-   - **Navigation:** collapsible sidebar (My Profile, one Team entry, Resources); the sections of Team as tabs at the top of its pages (`SectionTabs`, `SECTION_HUBS`, `TEAM_SECTIONS`); account menu; phone tab bar (Profile, Team, Resources).
+   - **Navigation:** collapsible sidebar (My Profile, one Team entry, Resources); the sections of Team as tabs at the top of its pages (`SectionTabs`, `SECTION_HUBS`, `TEAM_SECTIONS`); account menu; phone tab bar (Team, Players, Leaderboards, Matches, Profile) and account sheet (docs/MOBILE.md).
    - **Shared primitives** in `src/components/ui` (Menu never clips, Dialog, Toast, InfoTip).
    - **One card identity** (featured champion art + skin + accent) across Team, Players and profiles.
 
