@@ -232,17 +232,12 @@ p a.text-accent {
   Below lg the top bar stays at the top of the screen (on phones with a profile's sections under
   it) and on phones the tab bar at the bottom: whatever is scrolled into view (a link to a section,
   a game brought up, the element the keyboard moves to) stops clear of both instead of under them
-  (WCAG 2.4.11). MobileNav keeps --mobile-chrome at the top bar's height.
+  (WCAG 2.4.11). This is the bar's usual height, until MobileNav sets the measured one on the root
+  (useTopBarHeight).
 */
-/* Read on the root only, so it does not inherit: setting it re-styles the root, not the whole page. */
-@property --mobile-chrome {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 3.5rem;
-}
 @media (max-width: 63.99rem) {
   html {
-    scroll-padding-top: calc(var(--mobile-chrome, 3.5rem) + 0.5rem);
+    scroll-padding-top: calc(3.5rem + env(safe-area-inset-top) + 0.5rem);
   }
 }
 @media (max-width: 47.99rem) {

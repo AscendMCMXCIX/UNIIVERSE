@@ -41,7 +41,7 @@ export function ProfileTabs({ basePath, variant = "page" }: { basePath: string; 
 function sectionTop(): number | null {
   const card = document.querySelector<HTMLElement>("[data-testid=profile-header]");
   if (!card) return null;
-  const bar = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--mobile-chrome")) || 0;
+  const bar = document.querySelector<HTMLElement>("[data-testid=mobile-topbar]")?.offsetHeight ?? 0;
   return Math.max(0, card.getBoundingClientRect().bottom + window.scrollY - bar);
 }
 

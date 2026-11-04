@@ -74,12 +74,12 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   const menuRef = React.useRef<HTMLButtonElement>(null);
   const headerRef = React.useRef<HTMLElement>(null);
   const hidden = useHideOnScroll();
-  const heading = usePageHeading(pathname);
+  const bar = useTopBarHeight(headerRef);
+  const heading = usePageHeading(pathname, bar);
   const back = useBack(pathname, heading.text, tabs, home);
   // A profile's sections, when this page is one (your own only when you have a profile).
   const profile = adminMode ? null : profileBase(pathname);
   const sections = profile === "/overview" && !hasPlayer ? null : profile;
-  useChromeHeight(headerRef);
   // Things pinned above the tab bar (a save bar, notifications) follow it down when it slides away (globals.css: bottom-tabbar).
   const tabsHidden = hidden && !sheetOpen && tabs.length > 0;
   React.useEffect(() => {
@@ -292,22 +292,33 @@ function SheetLink({ href, icon: Icon, active, onNavigate, children }: { href: s
 }
 
 /**
- * The phone top bar's height (status bar included) as --mobile-chrome on the page, so whatever
- * scrolls into view (a link to a section, a game brought up, the keyboard's focus) stops below it
- * rather than under it (globals.css: scroll-padding-top on phones).
+ * The top bar's height (status bar included, a profile's sections too), measured, and the page's
+ * scroll-padding-top to match, so whatever scrolls into view (a link to a section, a game brought
+ * up, the keyboard's focus) stops below the bar rather than under it (WCAG 2.4.11; globals.css has
+ * the value before this runs). Zero where there is no bar (the sidebar's widths), and the padding
+ * is left to the stylesheet. Written as scroll-padding-top itself: a custom property set on the root
+ * re-styles every element of the page (about 870 on a profile, 50 ms on a slow phone), even one
+ * registered as not inherited, where this re-styles the root alone.
  */
-function useChromeHeight(ref: React.RefObject<HTMLElement | null>) {
+function useTopBarHeight(ref: React.RefObject<HTMLElement | null>): number {
+  const [height, setHeight] = React.useState(0);
   React.useEffect(() => {
     const el = ref.current;
     if (!el) return;
     const root = document.documentElement;
-    const observer = new ResizeObserver(() => root.style.setProperty("--mobile-chrome", `${el.offsetHeight}px`));
+    const observer = new ResizeObserver(() => {
+      const h = el.offsetHeight;
+      setHeight(h);
+      if (h) root.style.scrollPaddingTop = `${h + 8}px`;
+      else root.style.removeProperty("scroll-padding-top");
+    });
     observer.observe(el);
     return () => {
       observer.disconnect();
-      root.style.removeProperty("--mobile-chrome");
+      root.style.removeProperty("scroll-padding-top");
     };
   }, [ref]);
+  return height;
 }
 
 /**
@@ -315,7 +326,7 @@ function useChromeHeight(ref: React.RefObject<HTMLElement | null>) {
  * shows its words, so the title is in view however far the page scrolls (an iOS-style large
  * title). Follows the heading as pages change and as their content arrives.
  */
-function usePageHeading(pathname: string): { text: string | null; past: boolean } {
+function usePageHeading(pathname: string, barHeight: number): { text: string | null; past: boolean } {
   const [state, setState] = React.useState<{ text: string | null; past: boolean }>({ text: null, past: false });
   React.useEffect(() => {
     const main = document.querySelector("main");
@@ -332,7 +343,7 @@ function usePageHeading(pathname: string): { text: string | null; past: boolean 
         return;
       }
       const text = (h1.textContent ?? "").replace(/\s+/g, " ").trim() || null;
-      const bar = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--mobile-chrome")) || 56;
+      const bar = barHeight || 56;
       io = new IntersectionObserver(
         ([e]) => {
           if (!e) return;
@@ -354,14 +365,14 @@ function usePageHeading(pathname: string): { text: string | null; past: boolean 
       io?.disconnect();
       mo.disconnect();
     };
-  }, [pathname]);
+  }, [pathname, barHeight]);
   return state;
 }
 
 /*
   Back on a phone. The pages visited in this tab of the browser since the app opened, newest last,
   each with its heading: when the page before this one is known, Back goes to it (the browser's own
-  history, so the place on that page is kept) and is named after it ("Leaderboards", "Demo Mid");
+  history, so the place on that page is kept) and is named after it ("Team Leaderboards", "Demo Mid");
   otherwise (a link from elsewhere, a reload, the installed app's start) Back leads to the page
   above this one (phoneParent). Moving between a profile's sections replaces the entry, as the
   sections do on phones (ProfileTabs), so Back leaves the profile rather than stepping through them.

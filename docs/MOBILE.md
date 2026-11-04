@@ -33,9 +33,9 @@ anywhere else:
 
 1. **The top bar** (sticky): the team's mark on a destination's own page, or **Back** on a page
    reached from one (a teammate's profile, Settings), labelled with where it leads ("‹ Players",
-   "‹ Leaderboards"). Once the page's own heading has scrolled up under the bar, the bar shows its
-   words (the player's name, "Team Leaderboards"), so the title is in view however far down you are
-   (the iOS large-title pattern). At its right end, your avatar opens the account sheet.
+   "‹ Team Leaderboards"). Once the page's own heading has scrolled up under the bar, the bar shows
+   its words (the player's name, "Team Leaderboards"), so the title is in view however far down you
+   are (the iOS large-title pattern). At its right end, your avatar opens the account sheet.
 2. **The bottom tab bar** (fixed, within reach of the thumb): **Team, Players, Leaderboards,
    Matches, Profile**, each one tap from anywhere (`PHONE_TABS` in `src/lib/nav.ts`, at most five,
    those the account may open). The current tab's icon sits in an accent pill and its label is
@@ -88,9 +88,9 @@ opens.
 | Matches | Each game: result, length, queue and date, then the members who played (champion, role, multikill, K/D/A). Both full teams are in the game's screen, where the scoreboard lists all ten. Bookmarked sits beside Filters. | 2,330 → 1,528px |
 | Match History | Each game: the result line, the champion and role on one line, K/D/A with its ratio and largest multikill, kill participation, CS and damage, then the build. Both teams move to the game's screen. Ten games a page. | 2,257 → 2,000px |
 
-Lists are **rows in one panel with hairline dividers** (people, statistics): a single surface, not
-a card per item. **Games stay cards**: each is an object with its own result colour and opens a
-screen of its own.
+Lists are **rows in one panel with hairline dividers** (people, a board's members): a single
+surface, not a card per item. **Games stay cards**: each is an object with its own result colour
+and opens a screen of its own.
 
 Typography follows STANDARDS.md (Type): a row's primary value is `text-md` (15px) semibold, its
 context `text-xs` (12px) in the secondary grey, figures right-aligned in `tabular-nums`. No running
@@ -122,7 +122,7 @@ inert), Escape and the backdrop close it, focus returns to what opened it, a she
 | Card title | `text-base` semibold | "Recent form" |
 | A row's name | `text-md` (15px) semibold | a player, a champion |
 | Headline figure | `text-2xl` semibold, `tabular-nums` | a win rate, a season record |
-| Row figure | `text-base` to `text-xl` semibold, `tabular-nums` | K/D/A, a statistic's leader value |
+| Row figure | `text-base` to `text-xl` semibold, `tabular-nums` | K/D/A, a member's win rate on Recent form |
 | Scope line, body | `text-sm` in `fg-muted` | "36 games · Season 2026 · All supported games" |
 | Context, times | `text-xs` in `fg-subtle` | "42h ago", "46 games" |
 | Badges, chips, the tab bar's labels | `text-2xs` (11px) medium | "Lineup", "Ranked Solo/Duo ✕" |
