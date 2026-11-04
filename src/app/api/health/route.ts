@@ -5,7 +5,7 @@ import { deploymentInfo } from "@/server/ops/deployment";
 import { requiresAccounts, missingProductionSetup } from "@/server/auth/mode";
 import { patches, dataRefreshStatus } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
-import { RETIRED_JOB_KEYS } from "@/server/ops/refresh-status";
+import { RETIRED_JOB_KEYS, failuresInARow } from "@/server/ops/refresh-status";
 
 export const dynamic = "force-dynamic";
 
@@ -26,8 +26,11 @@ export async function GET() {
     await handle.db.execute(sql`select 1`);
     const dbMs = Math.round((performance.now() - t) * 10) / 10;
     const [patch] = await handle.db.select({ id: patches.id, ddragonVersion: patches.ddragonVersion }).from(patches).where(eq(patches.isCurrent, true)).limit(1);
-    const jobs = (await handle.db.select({ key: dataRefreshStatus.key, status: dataRefreshStatus.status, lastSuccessAt: dataRefreshStatus.lastSuccessAt, lastError: dataRefreshStatus.lastError }).from(dataRefreshStatus)).filter((j) => !RETIRED_JOB_KEYS.has(j.key));
-    const failing = jobs.filter((j) => j.status === "failed").map((j) => j.key);
+    const jobs = (await handle.db.select({ key: dataRefreshStatus.key, status: dataRefreshStatus.status, lastStartedAt: dataRefreshStatus.lastStartedAt, lastSuccessAt: dataRefreshStatus.lastSuccessAt, consecutiveFailures: dataRefreshStatus.consecutiveFailures }).from(dataRefreshStatus)).filter((j) => !RETIRED_JOB_KEYS.has(j.key));
+    // Failing: the job's last run failed or died before it finished, and no run has succeeded
+    // since (also while it is being run again, which is when a scheduled check reads this).
+    const now = Date.now();
+    const failing = jobs.filter((j) => failuresInARow(j, now) > 0).map((j) => j.key);
     return NextResponse.json({
       ...base,
       db: { ok: true, mode: handle.mode, ms: dbMs },

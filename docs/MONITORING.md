@@ -10,7 +10,7 @@ What tells the owner that UNIIVERSE is unwell, what does not yet, and how to clo
 |---|---|---|
 | The app or its database is down | `GET /api/health`: `503` with `db.ok: false` when the database does not answer. Scheduled Data jobs runs read it and fail | GitHub's failed-workflow email (below) |
 | A scheduled Data jobs run cannot reach the app | `.github/workflows/data-jobs.yml`, hourly (GitHub delivers about 4 a day). The run fails when the tick endpoint answers with an error | GitHub emails the account that last changed the workflow's schedule, if that account has Actions notifications turned on |
-| A data job fails three times in a row (Riot sync, champion sync, audits) | `/api/health` → `failingJobs`; Admin → System Health. Scheduled Data jobs runs fail while it is listed | GitHub's failed-workflow email (below) |
+| A data job fails, or is killed before it finishes (Riot sync, champion sync, audits) | `/api/health` → `failingJobs`: a job whose last run failed or never finished, from the first such run until a run succeeds (also while it is being run again). A run still "running" after 15 minutes counts as killed; the next run or the daily `integrity` job records it as a failed run. Admin → System Health once it happened three times in a row. Scheduled Data jobs runs fail while it is listed | GitHub's failed-workflow email (below) |
 | Linked accounts stop syncing | `/api/health` → the `account-sync` job's `lastSuccessAt`. Scheduled runs fail when it is older than 12 hours (repository variable `SYNC_STALE_HOURS`) | GitHub's failed-workflow email (below) |
 | A pull request breaks something | CI on every ready pull request (`ci.yml`) | The pull request shows the failure |
 | A production deployment fails | Vercel | Vercel can email about failed deployments (Account Settings → Notifications)* |
@@ -48,7 +48,7 @@ Lighthouse and the browser tests measure one emulated device in a lab (`docs/PER
 
 A scheduled Data jobs run (hourly; GitHub delivers about 4 a day) starts the tick, then reads `/api/health`. It fails, naming the problem in the run's log, when:
 - the app or its database does not answer, or the answer cannot be read;
-- `failingJobs` is not empty (a job that failed three times in a row);
+- `failingJobs` is not empty: a job whose last run failed or was killed before it finished, until a run succeeds;
 - the account sync has not succeeded for 12 hours;
 - yesterday's database egress, as counted by the app, was over the daily budget (120 MB unless `EGRESS_DAILY_BUDGET_MB` says otherwise). The log names the five largest query shapes. A deployment that does not have the check yet is a warning, not a failure.
 

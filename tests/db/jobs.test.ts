@@ -1,11 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { dataRefreshStatus } from "@/server/db/schema";
-import { JOB_STALE_RUNNING_MS, getRefreshStatuses, startJobRun } from "@/server/ops/refresh-status";
+import type { Db } from "@/server/db/types";
+import { dataRefreshStatus, jobRuns } from "@/server/db/schema";
+import { JOB_STALE_RUNNING_MS, getRefreshStatuses, startJobRun, type JobKey } from "@/server/ops/refresh-status";
 import { getDataHealth } from "@/server/ops/status";
 import { runMigrations } from "@/server/db/migrator";
+import { runJob } from "@/server/jobs";
 
 let handle: DbHandle;
 beforeAll(async () => {
@@ -76,5 +78,84 @@ describe("job status reads", () => {
     for (const [key, , skipped] of runs) expect(warnings.includes(`${key}: ${key} failed`), key).toBe(!skipped);
     expect(jobs.find((j) => j.key === "skip-true")).not.toHaveProperty("details");
     await db.delete(dataRefreshStatus).where(sql`${dataRefreshStatus.key} like 'skip-%' or ${dataRefreshStatus.key} = 'no-flag'`);
+  });
+});
+
+/** Makes a job's open run look as if its process was killed `minutes` ago: the status row and the run row. */
+async function killOpenRun(db: Db, key: JobKey, minutes: number) {
+  const at = new Date(Date.now() - minutes * 60_000);
+  await db.update(dataRefreshStatus).set({ lastStartedAt: at }).where(eq(dataRefreshStatus.key, key));
+  await db.update(jobRuns).set({ startedAt: at }).where(and(eq(jobRuns.job, key), isNull(jobRuns.finishedAt)));
+}
+const statusOf = async (db: Db, key: string) => (await db.select().from(dataRefreshStatus).where(eq(dataRefreshStatus.key, key)))[0]!;
+
+describe("interrupted runs", () => {
+  it("count as failed runs once the next run finds them, so a job killed on every run is reported as failing", async () => {
+    const db = handle.db;
+    const key: JobKey = "skin-audit";
+    // Every run is killed before it finishes (a function timeout, a crash): none records an outcome.
+    expect(await startJobRun(db, key, "test")).not.toBeNull();
+    for (let killed = 1; killed <= 3; killed++) {
+      await killOpenRun(db, key, 20);
+      expect(await startJobRun(db, key, "test")).not.toBeNull();
+      const s = await statusOf(db, key);
+      expect(s.status).toBe("running");
+      expect(s.consecutiveFailures).toBe(killed);
+      expect(s.lastFailureAt).not.toBeNull();
+    }
+    // Each run that died is closed as a failed run; only the live one is still open.
+    const runs = await db.select().from(jobRuns).where(eq(jobRuns.job, key)).orderBy(asc(jobRuns.id));
+    expect(runs.map((r) => r.ok)).toEqual(["false", "false", "false", null]);
+    for (const r of runs.slice(0, 3)) {
+      expect(r.finishedAt).not.toBeNull();
+      expect(r.error).toMatch(/interrupted/);
+    }
+    // Admin Mode says so while the fourth attempt runs, and once that one has died too.
+    expect((await getDataHealth(db)).warnings).toContain(`${key} has failed 3 times in a row`);
+    await killOpenRun(db, key, 20);
+    expect((await getDataHealth(db)).warnings).toContain(`${key} has failed 4 times in a row`);
+    // A run that finishes resets the count.
+    const finish = await startJobRun(db, key, "test");
+    expect((await statusOf(db, key)).consecutiveFailures).toBe(4);
+    await finish!({ ok: true, summary: {} });
+    expect((await statusOf(db, key)).consecutiveFailures).toBe(0);
+    expect((await getDataHealth(db)).warnings.filter((w) => w.startsWith(key))).toEqual([]);
+  });
+
+  it("never count a run of a concurrent job that is still going", async () => {
+    const db = handle.db;
+    const a = await startJobRun(db, "perf-probe", "test", { allowConcurrent: true });
+    const b = await startJobRun(db, "perf-probe", "test", { allowConcurrent: true });
+    expect((await statusOf(db, "perf-probe")).consecutiveFailures).toBe(0);
+    await a!({ ok: true });
+    await b!({ ok: true });
+    expect(await db.select().from(jobRuns).where(and(eq(jobRuns.job, "perf-probe"), isNull(jobRuns.finishedAt)))).toEqual([]);
+  });
+
+  it("are counted by the daily housekeeping too, which closes every run left open", async () => {
+    const db = handle.db;
+    const key: JobKey = "db-usage";
+    expect(await startJobRun(db, key, "test")).not.toBeNull();
+    await killOpenRun(db, key, 40);
+    // A run of another job left open long ago, whose status row has moved on since.
+    const [orphan] = await db.insert(jobRuns).values({ job: "egress", trigger: "tick", startedAt: new Date(Date.now() - 2 * 86_400_000) }).returning({ id: jobRuns.id });
+    const result = await runJob(db, "integrity", "test");
+    expect(result.ok).toBe(true);
+    expect((result.summary as { unstuck: string[] }).unstuck).toEqual([key]);
+    const s = await statusOf(db, key);
+    expect(s.status).toBe("failed");
+    expect(s.consecutiveFailures).toBe(1);
+    expect(s.lastError).toMatch(/interrupted/);
+    const closed = await db.select().from(jobRuns).where(inArray(jobRuns.job, [key, "egress"]));
+    expect(closed.map((r) => r.id)).toContain(orphan!.id);
+    for (const r of closed) {
+      expect(r.ok, r.job).toBe("false");
+      expect(r.finishedAt, r.job).not.toBeNull();
+      expect(r.error, r.job).toMatch(/interrupted/);
+    }
+    // The next run starts normally and does not count the same run twice.
+    const next = await startJobRun(db, key, "test");
+    expect((await statusOf(db, key)).consecutiveFailures).toBe(1);
+    await next!({ ok: true });
   });
 });
