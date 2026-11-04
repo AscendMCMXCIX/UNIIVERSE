@@ -7,9 +7,10 @@ import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { addAccount, listAccountsForPlayer, type RiotAccountRecord } from "@/server/accounts/repository";
-import { syncAccount } from "@/server/accounts/sync";
+import { DETAILS_UNAVAILABLE, syncAccount } from "@/server/accounts/sync";
 import { backfillFigures } from "@/server/accounts/figures-backfill";
 import { backfillTimelines } from "@/server/accounts/timeline-backfill";
+import { getMatchHistory } from "@/server/players/match-history";
 import { MAX_SKIPPED_RECORDS, RiotApiClient, recordFailure, RiotApiError } from "@/server/riot/api/client";
 import { RateLimiter } from "@/server/riot/api/rate-limiter";
 import fixture from "@/server/riot/fixtures/champions.fixture.json";
@@ -160,6 +161,28 @@ describe("a game Riot cannot serve at the head of the sync's catch-up of older g
     expect(records.map((d) => d.matchId).sort()).toEqual(["OC1_OK_1", "OC1_OK_2"]);
     expect(lines.some((l) => /could not read OC1_POISON_0, OC1_POISON/.test(l) || /could not read OC1_POISON, OC1_POISON_0/.test(l))).toBe(true);
     await handle.db.delete(accountMatches).where(eq(accountMatches.matchId, "OC1_POISON_0"));
+  });
+});
+
+describe("a game Riot no longer serves (404) in the sync's catch-up", () => {
+  it("is marked on the ledger row and stored as an unavailable record, so the match history says the record is gone", async () => {
+    const a = await fresh();
+    await handle.db.insert(accountMatches).values({ accountId: a.id, matchId: "OC1_GONE", gameCreation: IN_SEASON + 5 * DAY, queueId: 420, championId: "Gwen", role: "TOP", win: true, patch: "16.11", gameDuration: 1800 });
+    const calls: string[] = [];
+    const r = await syncAccount(handle.db, riot(PUUID, games, { calls }), a, { season: 16 });
+    expect(r.status).toBe("ok");
+    expect(asked(calls)).toContain("OC1_GONE");
+    expect((await storedKills()).OC1_GONE).toBe(DETAILS_UNAVAILABLE.kills);
+    const [record] = await handle.db.select({ participants: matchDetails.participants }).from(matchDetails).where(eq(matchDetails.matchId, "OC1_GONE"));
+    expect(record?.participants).toEqual([]);
+    const page = await getMatchHistory(handle.db, playerId, { per: 25, season: 16 });
+    expect(page.rows.find((row) => row.matchId === "OC1_GONE")).toMatchObject({ record: "unavailable", kills: null });
+    // Another run asks for it no more.
+    const again: string[] = [];
+    await syncAccount(handle.db, riot(PUUID, games, { calls: again }), await fresh(), { season: 16 });
+    expect(asked(again)).not.toContain("OC1_GONE");
+    await handle.db.delete(accountMatches).where(eq(accountMatches.matchId, "OC1_GONE"));
+    await handle.db.delete(matchDetails).where(eq(matchDetails.matchId, "OC1_GONE"));
   });
 });
 

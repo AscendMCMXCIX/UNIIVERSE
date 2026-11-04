@@ -194,7 +194,12 @@ export async function getPlayerMatchups(db: Db, playerId: string, filter: Matchu
   const queues = new Set<number>(seasonModeInfo(filter.mode).queues);
   const inMode = (await accountRows(db, "games", chosen.map((a) => a.id)))
     .filter((r) => r.win !== null && r.queueId !== null && queues.has(r.queueId) && r.gameDuration !== null && r.gameDuration >= MIN_LANE_GAME_SECONDS)
-    .map((r) => ({ matchId: r.matchId, accountId: r.accountId, gameCreation: r.gameCreation, patch: r.patch, queueId: r.queueId, championId: r.championId, role: r.role, win: r.win, enemy: r.enemyChampionId, kills: r.kills, deaths: r.deaths, assists: r.assists, cs: r.cs, duration: r.gameDuration }))
+    // A game whose record Riot no longer serves carries the marker kills = -1 (accounts/sync.ts
+    // DETAILS_UNAVAILABLE): its result counts, its figures are not known (never shown as -1).
+    .map((r) => {
+      const detailed = typeof r.kills === "number" && r.kills >= 0;
+      return { matchId: r.matchId, accountId: r.accountId, gameCreation: r.gameCreation, patch: r.patch, queueId: r.queueId, championId: r.championId, role: r.role, win: r.win, enemy: r.enemyChampionId, kills: detailed ? r.kills : null, deaths: detailed ? r.deaths : null, assists: detailed ? r.assists : null, cs: detailed ? r.cs : null, duration: r.gameDuration };
+    })
     .sort((a, b) => b.gameCreation - a.gameCreation);
   // The current season by default; another offered season, or every offered one, on request
   // (domain/season: Season 2026 on). Older stored games never count, not even under "all".

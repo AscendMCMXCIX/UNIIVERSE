@@ -8,7 +8,7 @@ import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { addAccount, listAccountsForPlayer } from "@/server/accounts/repository";
-import { syncAccount } from "@/server/accounts/sync";
+import { DETAILS_UNAVAILABLE, syncAccount } from "@/server/accounts/sync";
 import { storeMatchDetail } from "@/server/accounts/match-details";
 import { compareInMatch, getMatchDetail, getMatchHistory } from "@/server/players/match-history";
 import { compositionOf, loadCompositionParticipants, teamMembersByPuuid } from "@/server/matches/compositions";
@@ -476,6 +476,35 @@ describe("personal match history", () => {
     // Not collected yet, and no Riot access here: says so instead of guessing.
     const missing = await getMatchDetail(db, playerId, "OC1_700000016", { viewerIsOwner: true, fetchMissing: true });
     expect(missing.status).toBe("missing");
+  });
+
+  it("tells a record Riot no longer serves apart from one still to be collected, from the ledger alone", async () => {
+    const db = handle.db;
+    // What the sync's catch-up of older games leaves when Riot answers 404 for a game: the marker
+    // on the ledger row (accounts/sync.ts DETAILS_UNAVAILABLE). Rows marked before the catch-up also
+    // stored the unavailable record have no record at all; they are not "still being collected".
+    await db.insert(accountMatches).values({ accountId: main, matchId: "OC1_GONE2", gameCreation: base - 20 * 3_600_000, queueId: 420, championId: "Gwen", role: "TOP", win: false, patch: "16.20", gameDuration: 1700, ...DETAILS_UNAVAILABLE });
+    const page = await getMatchHistory(db, playerId, { per: 25 });
+    expect(page.rows.find((r) => r.matchId === "OC1_GONE2")).toMatchObject({ record: "unavailable", win: false, kills: null, deaths: null, assists: null, kda: null });
+    // The window says so too, and asks Riot nothing even where it could.
+    const prev = process.env.RIOT_API_KEY;
+    process.env.RIOT_API_KEY = "RGAPI-00000000-0000-0000-0000-000000000000";
+    const realFetch = globalThis.fetch;
+    let requests = 0;
+    globalThis.fetch = (async () => {
+      requests += 1;
+      throw new Error("no request expected");
+    }) as typeof fetch;
+    try {
+      const detail = await getMatchDetail(db, playerId, "OC1_GONE2", { viewerIsOwner: true, fetchMissing: true });
+      expect(detail.status).toBe("unavailable");
+      expect((detail as { message: string }).message).toMatch(/no longer provides/);
+      expect(requests).toBe(0);
+    } finally {
+      globalThis.fetch = realFetch;
+      if (prev === undefined) delete process.env.RIOT_API_KEY;
+      else process.env.RIOT_API_KEY = prev;
+    }
   });
 
   it("marks a game's largest multikill from its stored record, and nothing without one", async () => {

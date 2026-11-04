@@ -347,7 +347,9 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
       vision: g.visionScore ?? null,
       killParticipation: me && tk > 0 ? (me.kills + me.assists) / tk : null,
       ...ic,
-      record: d ? (d.participants.length ? "stored" : "unavailable") : "missing",
+      // No stored record, but the ledger row says Riot no longer serves the game (kills = -1,
+      // accounts/sync.ts DETAILS_UNAVAILABLE): unavailable, not still being collected.
+      record: d ? (d.participants.length ? "stored" : "unavailable") : g.kills === -1 ? "unavailable" : "missing",
       multikill: largestMultikill(me?.stats),
       teams,
       standout: standout ? { key: standout.key, label: standout.label, value: standout.value, top: standout.top, games: standout.games } : null,
@@ -622,6 +624,9 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
   if (!owned) return { status: "not-found", message: "This match is not in this player's history." };
   const { accounts, mine } = owned;
   let [d] = await db.select().from(matchDetails).where(eq(matchDetails.matchId, matchId));
+  // The ledger row already knows Riot no longer serves the game (kills = -1, accounts/sync.ts
+  // DETAILS_UNAVAILABLE): say so, and ask Riot nothing.
+  if (!d && mine.kills === -1) return { status: "unavailable", message: "Riot no longer provides the full record of this game. Its result and your figures are still counted." };
   if (!d && options.fetchMissing) {
     const account = accounts.find((a) => a.id === mine.accountId)!;
     const client = createRiotClient({ maxRetries: 0, timeoutMs: 7_000 });

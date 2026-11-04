@@ -438,8 +438,11 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
       } catch (err) {
         if (err instanceof RiotApiError && (err.status === 403 || err.status === 401)) throw err;
         if (err instanceof RiotApiError && err.status === 404) {
-          // Riot no longer serves this game: remember that so it is not asked for again.
+          // Riot no longer serves this game: remember that so it is not asked for again, on the
+          // ledger row (its figures) and as an unavailable record (so the match history says the
+          // record is gone, not still being collected).
           await db.update(accountMatches).set(DETAILS_UNAVAILABLE).where(and(eq(accountMatches.accountId, account.id), eq(accountMatches.matchId, matchId)));
+          await storeMatchUnavailable(db, account.id, matchId);
           continue;
         }
         if (unreadable(matchId, err, "details") === "break") break;

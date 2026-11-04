@@ -9,6 +9,7 @@ import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { addAccount } from "@/server/accounts/repository";
 import { getPlayerMatchups, parseMatchupFilter } from "@/server/players/matchups";
 import { backfillTimelines, timelineCoverage } from "@/server/accounts/timeline-backfill";
+import { DETAILS_UNAVAILABLE } from "@/server/accounts/sync";
 import { RiotApiClient } from "@/server/riot/api/client";
 import { RateLimiter } from "@/server/riot/api/rate-limiter";
 import { runJob } from "@/server/jobs";
@@ -245,5 +246,20 @@ describe("data audit: queue classification", () => {
     expect(q.accountVsDetailsQueueMismatch).toEqual({ games: 0, soloFlexSwapped: 0 });
     // The drafted-match archive belonged to the removed Draft feature; the audit no longer reads it.
     expect(q).not.toHaveProperty("draftedByMode");
+  });
+});
+
+describe("a game whose record Riot no longer serves", () => {
+  it("counts for the record, with no figures: the ledger's -1 marker never reaches the champion window or Matchups", async () => {
+    const db = handle.db;
+    // What the sync's catch-up leaves on a ledger row when Riot answers 404 for the game (accounts/sync.ts).
+    await db.insert(accountMatches).values({ accountId: mainId, matchId: "OC1_9", gameCreation: Date.now() - 9 * DAY, queueId: 420, championId: "Gwen", role: "TOP", win: true, enemyChampionId: "Nasus", patch: "16.20", gameDuration: 1700, ...DETAILS_UNAVAILABLE });
+    const w = await getPlayerMatchups(db, playerId, { account: null, mode: "all", champion: "Gwen", vs: "Nasus", role: "TOP", exact: true });
+    // One more game against Nasus, won: the record moves from 4–2 to 5–3.
+    expect(w.detail).toMatchObject({ games: 5, wins: 3 });
+    const gone = w.detail!.matches.find((g) => g.matchId === "OC1_9")!;
+    expect(gone).toMatchObject({ win: true, kills: null, deaths: null, assists: null, cs: null });
+    expect(w.lane!.recent.every((g) => g.kills === null || g.kills >= 0)).toBe(true);
+    await db.delete(accountMatches).where(eq(accountMatches.matchId, "OC1_9"));
   });
 });
