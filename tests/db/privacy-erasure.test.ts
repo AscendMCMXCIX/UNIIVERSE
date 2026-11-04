@@ -182,6 +182,7 @@ async function seed(db: Db): Promise<void> {
   await db.insert(appSettings).values([
     { key: `account_sync:${id.aliceMain}`, value: {} },
     { key: `account_refresh:${id.alicePlayer}`, value: {} },
+    { key: `figures_catchup:${id.alicePlayer}`, value: {} },
   ]);
 }
 
@@ -315,7 +316,8 @@ describe("personal-data erasure", () => {
     expect((await db.select().from(lastKnownRanks)).map((r) => r.puuid)).toEqual(["stranger-200-10"]);
     const [run] = await db.select().from(jobRuns);
     expect(run!.summary).toEqual({ logs: ["[removed]: season 16 history complete (420:12); fetched 3", "rank lookup failed for [removed]: timeout", "Bob#OCE: season 16 history complete"] });
-    expect(await db.select().from(appSettings).where(sql`${appSettings.key} LIKE 'account_%'`)).toEqual([]);
+    // Every lease keyed by her accounts or profile goes too (the figures catch-up's since round 2 of the leases review).
+    expect(await db.select().from(appSettings).where(sql`${appSettings.key} LIKE 'account_%' OR ${appSettings.key} LIKE 'figures_catchup:%'`)).toEqual([]);
   });
 
   it("keeps the admin log's record of what happened, naming her Erased member", async () => {

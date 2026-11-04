@@ -27,6 +27,8 @@ async function handle(request: NextRequest, params: Promise<{ job: string }>) {
   const budgetMs = Number(process.env.UNIIVERSE_JOB_BUDGET_MS ?? 240_000);
   const deployment = deploymentInfo();
   if (job === "tick" && request.nextUrl.searchParams.get("background") === "1") {
+    // The answer comes before the jobs run, so it can only say the tick was accepted. Their
+    // outcome reaches /api/health (failingJobs), which the scheduled Data jobs run reads next.
     after(async () => {
       await runTick(db, "http", { budgetMs });
     });
@@ -34,7 +36,11 @@ async function handle(request: NextRequest, params: Promise<{ job: string }>) {
   }
   if (job === "tick") {
     const result = await runTick(db, "http", { budgetMs });
-    return NextResponse.json({ ok: true, ...result, deployment });
+    // ok says whether every job that ran succeeded, wholly or partly (degraded); a job already
+    // running elsewhere did not run here. A failure answers 500 with the same list, so a manual
+    // Data jobs run (`curl --fail`) and Vercel Cron's log record the tick as failed.
+    const ok = result.ran.every((r) => r.skipped || r.ok);
+    return NextResponse.json({ ...result, ok, deployment }, { status: ok ? 200 : 500 });
   }
   if (!getJob(job)) return NextResponse.json({ ok: false, error: `Unknown job "${job}"` }, { status: 404 });
   const result = await runJob(db, job as JobKey, "http", { budgetMs });

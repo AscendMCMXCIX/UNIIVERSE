@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from "./test";
-import { openFilterBar } from "./filters";
+import { closeFilterSheet, openFilterBar } from "./filters";
 import { memberContext } from "./member-account";
-import { closeGame, openGame } from "./match-history";
+import { closeGame, openGame, opensFullScreen } from "./match-history";
 
 /*
   A profile's Match History → Encounters on the demo roster: a teammate's profile (the in-memory
@@ -219,10 +219,11 @@ test("one player's games: Match History's own list, both records, each side, a g
     await expect(page.getByTestId(`encounter-games-${choice}`)).toHaveAttribute("aria-current", "page");
     await expect(page.locator("[data-testid='match-history'][data-ready]")).toHaveAttribute("data-total", String(count));
   }
-  // A game opens under its card, as anywhere in Match History: the same breakdown, no window.
+  // A game opens under its card, as anywhere in Match History: the same breakdown, no window (on a
+  // phone, as everywhere there, the game takes the whole screen).
   const card = page.getByTestId("match-card").first();
   await openGame(card);
-  await expect(page.getByTestId("match-detail")).toHaveCount(0);
+  if (!opensFullScreen(page)) await expect(page.getByTestId("match-detail")).toHaveCount(0);
   await closeGame(card);
   // OP.GG opens in a new tab, never in place.
   const opgg = page.getByTestId("encounter-opgg");
@@ -343,6 +344,7 @@ test("the season, game mode and account choice is the games list's, and every co
   else await expect(page.getByTestId("encounters-empty")).toBeVisible();
 
   // Back to the games: the same game mode, and the same count beside it.
+  await closeFilterSheet(page);
   await page.getByTestId("match-view-games").click();
   await expect(page).toHaveURL(/mode=solo/);
   await expect(page).not.toHaveURL(/view=encounters/);

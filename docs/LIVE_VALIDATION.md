@@ -2,7 +2,7 @@
 
 > **Meta & Trends was removed on 19 Oct 2026** (Solo Queue Meta, Duo Synergies, Pro Play and the global ranked, professional and aggregation jobs behind them). The first-run record below keeps those jobs as they ran then; the checks for them were removed from the list, and §21 checks that the feature is gone.
 >
-> **Clash Scout was removed on 23 Oct 2026** (the workspace, saved scouts, the Testing Lab and the `lab-benchmark` job). Its checks were removed from the list in the same way, and the phone tab bar checks name its three tabs (Profile, Team, Resources); "Clash Scout removed" at the end checks that it is gone. Migration 0057 later dropped the scouts saved before then, with their tables.
+> **Clash Scout was removed on 23 Oct 2026** (the workspace, saved scouts, the Testing Lab and the `lab-benchmark` job). Its checks were removed from the list in the same way, and the phone tab bar checks named its three tabs (Profile, Team, Resources; five since the phone redesign of November 2026, docs/MOBILE.md); "Clash Scout removed" at the end checks that it is gone. Migration 0064 later dropped the scouts saved before then, with their tables.
 
 **Status (13 Oct 2026, first production run at team-uniiverse.vercel.app):** the database path, accounts, the job endpoint, the GitHub Actions trigger and Data Dragon are verified live. The Riot API and Leaguepedia are not yet: the first tick showed the Riot key being rejected on every request and Leaguepedia refusing the pro query. Both now report their exact cause in Admin → Data & Riot; the Leaguepedia query was corrected (see the table below). `statistics: none · 0 games` is the expected consequence of those two failures, not a third problem: `aggregate` ran fine and had nothing to fold in.
 
@@ -328,7 +328,7 @@ Supersedes the Admin Mode items above. Migration `0053_administrator_access` add
 - [ ] Users & Permissions → find your own player account → **Manage access** → **Administrator** → on → **Save access**. The row shows an **Administrator** badge, and Audit Logs → Access & permissions shows "Granted administrator access".
 - [ ] Sign out, then sign in to your player account. Your profile, Riot accounts, card and statistics are unchanged, and the sidebar now has **Switch to Admin Mode**. It opens the Dashboard; **Return to Player Mode** opens Team.
 - [ ] In each mode: reload, open a bookmark of a page of that mode, go Back and Forward, and open the installed app. The mode stays. The installed app (and `/`) reopens the mode used last.
-- [ ] On a phone: the menu (☰) holds the switch; Admin Mode's tab bar is Dashboard, Users, Settings, Health; Player Mode's is Profile, Team, Resources.
+- [ ] On a phone: the account sheet (your avatar, top right) holds the switch; Admin Mode's tab bar is Dashboard, Users, Settings, Health; Player Mode's is Team, Players, Leaderboards, Matches, Profile (docs/MOBILE.md).
 - [ ] A player account that is not an administrator: no switch anywhere, Admin Mode never named, and typing `/admin` or `/admin/people` opens Team.
 - [ ] Turn administrator access off for an account while it is signed in: its next page is Player Mode, `/admin` opens Team, and the switch is gone. Its saved mode is forgotten (`/` opens Team).
 - [ ] An administrator who is not the Owner cannot change the Owner account (Manage access shows "Managed by the Owner"), nor their own administrator access.
@@ -376,7 +376,7 @@ Never erase a real member to test this: the erasure itself is tested on syntheti
 
 - [ ] Data jobs → `smoke perf-probe`: every step passes, and `deployment.commit` is the merge commit.
 - [ ] On a phone:
-  - the tab bar is Profile, Team and Resources, and the current tab's icon sits in a pill;
+  - the tab bar is Team, Players, Leaderboards, Matches and Profile, and the current tab's icon sits in a pill;
   - Team stays marked on Players, Leaderboards and Matches;
   - ☰ is at the top bar's left end, and the menu slides in from the left.
 - [ ] On a computer, collapse the sidebar: the logo is centred above the icons.
@@ -431,7 +431,7 @@ Never erase a real member to test this: the erasure itself is tested on syntheti
 
 - [ ] Data jobs → `smoke perf-probe`: every step passes, and `deployment.commit` is the merge commit.
 - [ ] Sidebar (expanded and collapsed), the phone and tablet menu, and Admin Mode show no Clash Scout entry and no gap where it was: My Profile, Team, Resources.
-- [ ] On a phone the tab bar is Profile, Team and Resources, three equal tabs filling the bar; Team stays marked on Players, Leaderboards and Matches.
+- [ ] On a phone the tab bar is Team, Players, Leaderboards, Matches and Profile, filling the bar; a teammate's profile keeps Players marked, and Back in the top bar returns to where it was opened from.
 - [ ] Signed in, `/clash`, `/clash/lab` and an old saved scout's address answer "This page does not exist" (no redirect to another page). Signed out, they ask to sign in first, as every members' page does.
 - [ ] Admin Mode → Data & Integrations lists no `lab-benchmark` job; `/api/health` lists no retired job.
 - [ ] The privacy notice lists "Clash scouts saved before Clash Scout was retired" (seen by nobody in the app, kept until the clean-up), its Clash Scout section says it is retired, and it no longer mentions jsDelivr.

@@ -42,7 +42,7 @@ Postgres counts calls and rows, not bytes, so the byte figures above are estimat
 - Pages no longer re-render on a timer (26 Oct): an open page asks for a short version of its data (`/api/freshness`, a few hundred bytes from the database) and is read again only when it changed. Before, a profile with an updating account re-rendered every 30 seconds (2 minutes while catching up on older games), changed or not.
 - **The champion window** (Matchups) read every game's whole match record and the whole timeline (all ten players) on every open, warm or cold: 1.6 MB on production (`perf-probe`, 20 Oct).
   - Now one query does the matching in Postgres: the player, the one enemy in the same assigned position, and only those two players' gold, experience and CS frames.
-  - A lane whose record and timeline are stored is final, so each instance keeps it; a lane still waiting for its timeline is read again.
+  - A lane whose record and timeline are stored is final, so each instance keeps it; a lane still waiting for its timeline is read again. An erasure drops every kept lane on the instance that ran it (it rewrites records and deletes frames).
   - Its game list comes from the per-account store above.
   - On Postgres with 12 games (`tests/db/matchups-lane-read.test.ts`): whole records 113 KB; the window 18 KB on a fresh instance and 1.5 KB when opened again. Every timeline status (frames, pending, unavailable, no details) is unchanged.
 
@@ -323,7 +323,7 @@ The counts equal those of the player's games in Encounters for the same players 
 
 ## What still needs attention
 
-- **Meta & Trends removed** (after this change). Its collection and aggregation jobs were most of the database's writes, and its tables hold about 200 MB of the database. The tables stay until their drop is approved (`docs/DATA_PIPELINES.md`, Retired tables).
+- **Meta & Trends removed** (after this change). Its collection and aggregation jobs were most of the database's writes, and its tables hold about 200 MB of the database. 12 of them (about 206 MB) were dropped on 4 Nov 2026 (#86, after a verified backup); the rest stay until the owner decides (`docs/DATA_PIPELINES.md`, Retired tables).
 - **Branding images.** The four stored images total about 18 MB (`brand_assets`), each served from the database on a cache miss.
   - Their URLs are versioned and cached for a year, by browsers and by Vercel's CDN.
   - Assumption, not verified here: Vercel's CDN cache is cleared by each production deployment. The 86 reads in 6 days fit that pattern: a few images times the number of deployments and regions. If so, every deployment reads them from Supabase again, several MB each, both as egress and as function response.
@@ -351,4 +351,5 @@ Read-only `data-audit` and `db-usage` runs on 2 Nov 2026 (after the deploy of 8b
   `last_known_ranks` (8.4 MB) also holds 32,729 ladder ranks from the retired collection.
 - **Live data:** `match_details` 44.9 MB, `match_timelines` 39.5 MB, `brand_assets` 18.4 MB, `account_matches` 5.8 MB.
 - **What to do:** the held drops (PRs #86 and #138, `docs/DATA_PIPELINES.md`, "Retired tables") free most of it, once the owner has verified a backup and kept an offline copy. Until then nothing is deleted.
+- **Done (4 Nov 2026):** #86 and #138 dropped them, after the owner had verified a backup and kept an offline copy. Production check run 15 then read the database at 161 MB, 32% of the plan, down from 378 MB. Still stored: `tracked_summoners` (11 MB), the small `region_status`, `champion_change_points` and `stat_*_periods` tables, and the ladder ranks in `last_known_ranks`. Removing them deletes data for good, so it is a separate decision for the owner (`docs/DATA_PIPELINES.md`, "Retired tables").
 - **Egress:** 27.2 MB on 2 Nov (budget 120 MB a day), on a day with several manual runs.

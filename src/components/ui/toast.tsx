@@ -65,7 +65,9 @@ function subscribe(l: Listener) {
   return () => listeners.delete(l);
 }
 const snapshot = () => items;
-const serverSnapshot = (): ToastItem[] => [];
+/** The same empty list on every call: a new one each time makes React re-render without end. */
+const NO_TOASTS: ToastItem[] = [];
+const serverSnapshot = (): ToastItem[] => NO_TOASTS;
 
 const ICONS = { success: CheckCircle2, info: Info, warning: AlertTriangle, error: XCircle } as const;
 const TONES: Record<ToastTone, string> = { success: "text-good", info: "text-accent", warning: "text-warn", error: "text-bad" };

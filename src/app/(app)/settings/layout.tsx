@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/ui/page-header";
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <PageHeader title="Settings" description="Your picture, display name, username and password." />
+      <PageHeader title="Settings" description="Your picture, display name, username and password." guide />
       {children}
     </div>
   );

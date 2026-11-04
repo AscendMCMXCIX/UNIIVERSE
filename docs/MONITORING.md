@@ -2,7 +2,7 @@
 
 What tells the owner that UNIIVERSE is unwell, what does not yet, and how to close the gaps for free. Nothing here costs money on the current free plans.
 
-**Status (3 Nov 2026):** no paid monitoring and no third-party monitor are set up. The signals below come from GitHub, Vercel, Supabase and the app itself. Scheduled Data jobs runs fail when production is unwell (audit decision 10) or when a day's database egress goes over its budget. The **Production check** checks the live site in a browser after each production deployment and every day, and the **Database backup** watches its own size; both report through one GitHub issue each, opened while failing and closed on recovery.
+**Status (4 Nov 2026):** no paid monitoring and no third-party monitor are set up. The signals below come from GitHub, Vercel, Supabase and the app itself. Scheduled Data jobs runs fail when production is unwell (audit decision 10) or when a day's database egress goes over its budget. The **Production check** checks the live site in a browser after each production deployment and every day, and the **Database backup** watches its own size; both report through one GitHub issue each, opened while failing and closed on recovery.
 
 ## What is watched today
 
@@ -10,8 +10,10 @@ What tells the owner that UNIIVERSE is unwell, what does not yet, and how to clo
 |---|---|---|
 | The app or its database is down | `GET /api/health`: `503` with `db.ok: false` when the database does not answer. Scheduled Data jobs runs read it and fail | GitHub's failed-workflow email (below) |
 | A scheduled Data jobs run cannot reach the app | `.github/workflows/data-jobs.yml`, hourly (GitHub delivers about 4 a day). The run fails when the tick endpoint answers with an error | GitHub emails the account that last changed the workflow's schedule, if that account has Actions notifications turned on |
-| A data job fails three times in a row (Riot sync, champion sync, audits) | `/api/health` → `failingJobs`; Admin → System Health. Scheduled Data jobs runs fail while it is listed | GitHub's failed-workflow email (below) |
+| A data job fails, or is killed before it finishes (Riot sync, champion sync, audits) | `/api/health` → `failingJobs`: a job whose last run failed or never finished, from the first such run until a run succeeds (also while it is being run again). A run still "running" after 15 minutes counts as killed; the next run or the daily `integrity` job records it as a failed run. Admin → System Health once it happened three times in a row. Scheduled Data jobs runs fail while it is listed | GitHub's failed-workflow email (below) |
 | Linked accounts stop syncing | `/api/health` → the `account-sync` job's `lastSuccessAt`. Scheduled runs fail when it is older than 12 hours (repository variable `SYNC_STALE_HOURS`) | GitHub's failed-workflow email (below) |
+| Riot rejects the API key (a development key expired, a key revoked) | `/api/health` → `riot.credential` is `rejected` and `failingJobs` lists `riot-key`. The account sync alone would not show it: every linked account then waits, backing off for up to about five hours, and its runs find nothing due and succeed. Admin → Data & Integrations names the key in use and what to do. Scheduled Data jobs runs fail while it is listed. After a short Riot-side 401/403 incident it can stay listed for up to about five hours, until an account's back-off ends and its sync succeeds: run Data jobs `riot-check` to record the key as accepted at once | GitHub's failed-workflow email (below) |
+| Some linked accounts cannot be synced | The `account-sync` run is *degraded* whenever an account it tried could not be synced. Its error counts them (it never names an account; "none of the N" when every one failed, which is how a rejected key or a Riot outage looks); Admin → Data & Integrations repeats it as a warning, and each player's Riot Accounts tab says why | Only someone who looks |
 | A pull request breaks something | CI on every ready pull request (`ci.yml`) | The pull request shows the failure |
 | A production deployment fails | Vercel | Vercel can email about failed deployments (Account Settings → Notifications)* |
 | The database nears a free-plan limit | Supabase usage | Supabase sends usage emails about the free plan's limits* |
@@ -20,7 +22,7 @@ What tells the owner that UNIIVERSE is unwell, what does not yet, and how to clo
 | Pages are slow in members' browsers (field data) | Each signed-in page load reports its LCP, CLS, INP, FCP and TTFB as counts (`/api/vitals`, table `web_vitals_daily`, below) | Admin → System Health, "Page speed in members' browsers"; the `perf-probe` summary's `fieldVitals` (each page group's loads and 75th-percentile LCP, INP and CLS over 28 days, counts only), so a probe run in the Production check shows them without signing in; no alert |
 | A deployment breaks the live site: the wrong commit answering, an error on a page, a member page reachable signed out or with a forged session (the shared pages, and a real member's profile, champions and matches, the pages of the #170 fix), a missing security header, sideways scrolling or a serious axe violation at 1440, 768 or 390 px, or a Riot rule for a Personal key broken (Riot API data on the public pages, Riot's required notice missing, `/riot.txt` not served) | **Production check** (`.github/workflows/production-check.yml`, `scripts/live-check.mjs`): after each successful production deployment (Vercel's deployment status) and daily at 05:37 UTC. The member pages are checked once the `UNIIVERSE_VERIFY_USER` / `UNIIVERSE_VERIFY_PASSWORD` secrets exist; until then they are pending | An issue labelled `production-check` (one at a time; the next passing run closes it), with what failed and the run's link; screenshots in the run's artifact |
 | Backups stop passing, or near their size limit | **Database backup** (weekly): a failed run, or an encrypted copy over 80% of `MAX_MB`; the daily Production check fails when no backup passed for 8 days | An issue labelled `database-backup`; the Production check's issue for a stale backup |
-| The database nears its plan | Daily Production check: `db-usage`'s size, in decimal megabytes, against `DB_PLAN_MB` (default 500, the free plan's 0.5 GB read the safer way). It grows by about 2 MB a day | An issue labelled `database-size` from 80%, opened once and naming the remedy (the held drops of the retired tables); comments on it and the `production-check` issue from 95%; it closes itself under 80% |
+| The database nears its plan | Daily Production check: `db-usage`'s size, in decimal megabytes, against `DB_PLAN_MB` (default 500, the free plan's 0.5 GB read the safer way). It grows by about 2 MB a day | An issue labelled `database-size` from 80%, opened once and saying what to do (an engineering session reads `db-usage` and proposes what to reduce; deleting stored data or a larger plan is the owner's decision); comments on it and the `production-check` issue from 95%; it closes itself under 80% |
 | Database egress goes over budget (Supabase Free includes 5 GB a month) | The app counts the bytes every query brings back (`server/db/egress.ts`, table `db_egress_daily`). Scheduled Data jobs runs call the `egress` job, which fails when yesterday (UTC) went over 120 MB (`EGRESS_DAILY_BUDGET_MB`) | GitHub's failed-workflow email (below); `db-usage` and `perf-probe` show where the bytes went |
 
 \* Their usual behaviour, not checked in this project's Vercel or Supabase settings.
@@ -48,7 +50,7 @@ Lighthouse and the browser tests measure one emulated device in a lab (`docs/PER
 
 A scheduled Data jobs run (hourly; GitHub delivers about 4 a day) starts the tick, then reads `/api/health`. It fails, naming the problem in the run's log, when:
 - the app or its database does not answer, or the answer cannot be read;
-- `failingJobs` is not empty (a job that failed three times in a row);
+- `failingJobs` is not empty: a job whose last run failed or was killed before it finished, until a run succeeds, or `riot-key` while Riot rejects the configured key;
 - the account sync has not succeeded for 12 hours;
 - yesterday's database egress, as counted by the app, was over the daily budget (120 MB unless `EGRESS_DAILY_BUDGET_MB` says otherwise). The log names the five largest query shapes. A deployment that does not have the check yet is a warning, not a failure.
 
@@ -68,6 +70,6 @@ Until an outside monitor exists: open Admin → System Health now and then, or r
 
 ## What `/api/health` returns
 
-- **Fields:** `ok`, `deployment.commit` and `region`, `auth.mode`, `db` (`ok`, `ms`), the current `patch`, when champions and accounts last synced, each job's `status` and `lastSuccessAt`, and `failingJobs`.
+- **Fields:** `ok`, `deployment.commit` and `region`, `auth.mode`, `db` (`ok`, `ms`), the current `patch`, when champions and accounts last synced, each job's `status` and `lastSuccessAt`, `failingJobs`, and `riot.credential`: the state of the configured Riot key as the jobs last recorded it (`accepted`, `rejected`, `unavailable`, `unknown` or `not-configured`), the word only, never the key or its fingerprint.
 - **HTTP status:** `503` when the database does not answer, otherwise `200`.
 - **Privacy:** no secrets and no personal data; database errors have connection strings redacted. Anyone can read it, like the sign-in page.

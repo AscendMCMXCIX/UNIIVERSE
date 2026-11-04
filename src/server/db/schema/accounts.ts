@@ -71,7 +71,12 @@ export const riotAccounts = pgTable(
 export interface HistoryBackfill {
   /** Game-version major of the season being collected (16 = the 2026 season). */
   season: number;
-  queues: Record<string, { offset: number; done: boolean; checkedAt?: string }>;
+  /**
+   * Per queue. `rescan`: a run stopped partway down the newest page, so games below the ones it
+   * stored may have been pushed past the offset by new games; once a later run completes the
+   * newest page, the older pages are read again from there (the queue stays finished until then).
+   */
+  queues: Record<string, { offset: number; done: boolean; checkedAt?: string; rescan?: boolean }>;
   startedAt: string;
   completedAt: string | null;
   /**

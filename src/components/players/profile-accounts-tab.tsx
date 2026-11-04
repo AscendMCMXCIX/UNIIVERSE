@@ -3,7 +3,7 @@ import type { Session } from "@/server/auth/permissions";
 import { canManageRiotAccounts, hasPermission } from "@/server/auth/permissions";
 import { defaultPlatform } from "@/server/auth/signup";
 import { type ProfileHeaderData } from "@/server/players/profile-header";
-import { listAccountsForPlayer } from "@/server/accounts/repository";
+import { accountForBrowser, listAccountsForPlayer } from "@/server/accounts/repository";
 import { getMatchSyncStatus } from "@/server/accounts/refresh";
 import { dataStatus } from "@/domain/data-status";
 import { describeAccountSync } from "@/domain/account-status";
@@ -45,7 +45,7 @@ async function ProfileAccountsTabBody({ db, header, session }: { db: Db; header:
     <div className="space-y-5">
       <RiotAccountsPanel
         playerId={player.id}
-        accounts={accounts}
+        accounts={accounts.map(accountForBrowser)}
         riotConfigured={riotConfigured}
         defaultPlatform={defaultPlatform()}
         editable={canManageRiotAccounts(session, player.id)}

@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "./test";
 import { openFilterBar } from "./filters";
-import { openGame } from "./match-history";
+import { closeGame, openGame, opensFullScreen } from "./match-history";
 
 /*
   Match History's own Refine choices (demo data, in memory): the result, the patch, the days
@@ -154,10 +154,13 @@ test("Refine groups the list into playing sessions, newest first, each with its 
   await expect(evening.getByTestId("match-card")).toHaveCount(3);
   await expect(evening.getByTestId("session-header")).toContainText(/3 games · \d+W \d+L/);
   await expect(evening.getByTestId("session-header")).toContainText(/\d{1,2}:\d{2} [ap]m – \d{1,2}:\d{2} [ap]m/);
-  // A game still opens under its card inside a session, and grouping kept the address's game.
-  await openGame(evening.getByTestId("match-card").first());
+  // A game still opens under its card inside a session (on a phone, over the whole screen), and
+  // grouping kept the address's game.
+  const game = evening.getByTestId("match-card").first();
+  await openGame(game);
   await expect(page).toHaveURL(/group=sessions/);
   await fitsWidth(page);
+  if (opensFullScreen(page)) await closeGame(game);
   // Back to every game: one list.
   group = (await openRefine(page)).getByTestId("refine-group");
   await group.getByRole("radio", { name: "Every game" }).click();

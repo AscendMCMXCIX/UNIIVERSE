@@ -171,7 +171,7 @@ jobs:
               if [ "$DB_PCT" -ge 95 ] || [ -z "$size_open" ]; then
                 printf '%s\n\n%s\n\n%s\n' \
                   "The database is $DB_MB MB, $DB_PCT% of its $DB_PLAN_MB MB plan ($RUN_URL). It grows by about 2 MB a day (docs/HOSTING_USAGE.md); at the plan's limit Supabase can make it read only." \
-                  "The remedy needs you: the retired tables hold about 217 MB (#86 and #138 drop them). Before they merge, check that your own copy of the backup passphrase opens the latest Database backup's artifact (docs/BACKUPS.md), then approve the drops." \
+                  "What to do: Data jobs db-usage lists the largest tables. The next engineering session reads it and proposes what to reduce (docs/HOSTING_USAGE.md); deleting stored data, or a larger plan, needs your approval." \
                   "This issue closes by itself once the database is under 80% again." > size-issue.md
                 scripts/report-issue.sh database-size "$size_title" fail size-issue.md
               fi

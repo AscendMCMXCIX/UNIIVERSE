@@ -79,9 +79,9 @@ export function RecentLeaderboards({ view, champions, status }: { view: RecentLe
 }
 
 /** A member's picture and name: their profile for members; on the public boards, the same without a link. */
-function Who({ p, you = false, size = "md", sub, className }: { p: BoardPlayer; you?: boolean; size?: "sm" | "md"; /** Lines under the name (the gap to the place above). */ sub?: ReactNode; className?: string }) {
+function Who({ p, you = false, size = "md", sub, className, stretch = false }: { p: BoardPlayer; you?: boolean; size?: "sm" | "md"; /** Lines under the name (the gap to the place above). */ sub?: ReactNode; className?: string; /** On phones the link covers its row (the nearest positioned box), so the whole row is one tap, as on Players (docs/MOBILE.md, touch targets). */ stretch?: boolean }) {
   const name = p.profileHref ? (
-    <Link href={p.profileHref} className="min-w-0 truncate rounded-sm font-semibold text-fg hover:underline">
+    <Link href={p.profileHref} className={cn("min-w-0 truncate rounded-sm font-semibold text-fg hover:underline", stretch && "max-md:after:absolute max-md:after:inset-0")}>
       {p.name}
     </Link>
   ) : (
@@ -190,7 +190,7 @@ function FormRowItem({ r, p }: { r: FormRow; p: BoardPlayer }) {
     </>
   );
   return (
-    <li className={cn("relative grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-x-3 px-3 py-2.5 @min-[40rem]/lb:gap-x-4 @min-[40rem]/lb:px-4", FORM_GRID, r.you && "bg-accent/5")} data-testid="form-row" data-place={r.place ?? undefined} data-status={r.status} data-player-id={r.playerId} data-win-rate={r.winRate} data-games={r.games} data-wins={r.wins} data-you={r.you || undefined} data-tied={r.tied || undefined}>
+    <li className={cn("relative grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-x-3 px-3 py-2.5 @min-[40rem]/lb:gap-x-4 @min-[40rem]/lb:px-4", FORM_GRID, r.you && "bg-accent/5", p.profileHref && "max-md:active:bg-surface-2")} data-testid="form-row" data-place={r.place ?? undefined} data-status={r.status} data-player-id={r.playerId} data-win-rate={r.winRate} data-games={r.games} data-wins={r.wins} data-you={r.you || undefined} data-tied={r.tied || undefined}>
       {r.you ? <span className="absolute inset-y-0 left-0 w-0.5 bg-accent" aria-hidden /> : null}
       <span className="flex items-center gap-0.5 text-sm font-bold tabular-nums text-fg" data-testid="form-place">
         {r.place === null ? (
@@ -214,6 +214,7 @@ function FormRowItem({ r, p }: { r: FormRow; p: BoardPlayer }) {
       <Who
         p={p}
         you={r.you}
+        stretch
         sub={
           <>
             {r.note ? (

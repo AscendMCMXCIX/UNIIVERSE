@@ -10,6 +10,7 @@ import { readLeaderboardGames } from "@/server/leaderboards/service";
 import { RECENT_WINDOW_DAYS, recentSamples } from "@/domain/leaderboard-recent";
 import { loadPlayedTogether } from "@/server/matches/played-together";
 import { filterTogether } from "@/domain/played-together";
+import { teamInsightsAudit } from "@/server/matches/team-insights";
 import { rankCoverage } from "@/server/players/participant-ranks";
 import { opggCoverage } from "@/server/players/riot-names";
 import { matchViewConsistency } from "@/server/players/match-consistency";
@@ -28,7 +29,7 @@ function rows(result: unknown): Row[] {
  */
 defineJob({
   key: "data-audit",
-  description: "Read-only check of the data actually stored: linked-account sync, matches per queue, Solo/Duo vs Flex classification, mastery, Matchups timeline coverage, multikill counts, the ranks shown in match windows (coverage and lookups per day), OP.GG link coverage and why links are missing, whether each stored game's record and timeline agree (gold, CS, kills, objectives), how many members the proposed Recent performance boards would rank, patches. Changes nothing.",
+  description: "Read-only check of the data actually stored: linked-account sync, matches per queue, Solo/Duo vs Flex classification, mastery, Matchups timeline coverage, multikill counts, the ranks shown in match windows (coverage and lookups per day), OP.GG link coverage and why links are missing, whether each stored game's record and timeline agree (gold, CS, kills, objectives), how many members the proposed Recent performance boards would rank, what Team insights would show (anonymous), patches. Changes nothing.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,
   run: async (ctx) => {
@@ -195,6 +196,16 @@ defineJob({
       };
       return recentSamples(games, members.map((m) => ({ id: m.id, label: labelOf(m.id) })), now);
     })();
+    // Team insights (docs/TEAM_INSIGHTS.md): what the page would show with the team's own games,
+    // before members see it, and members' places in stored records missing from their own
+    // histories. Anonymous labels (p1, p2…) and counts only. Read only.
+    const teamInsights = await (async () => {
+      const team = await getOrCreateTeam(db);
+      return teamInsightsAudit(db, team.id, (id) => {
+        if (!playerIndex.has(id)) playerIndex.set(id, `p${playerIndex.size + 1}`);
+        return playerIndex.get(id)!;
+      });
+    })();
     const queueClassification = { flexVisibility, ledgerByQueue, accountVsDetailsQueueMismatch: { games: num(queueMismatch?.games), soloFlexSwapped: num(queueMismatch?.solo_flex_swapped) }, championHistoryByGroup: historyByGroup, rankSnapshotsByQueue, sharedGamesByQueue: sharedByQueue };
     return {
       ok: true,
@@ -209,6 +220,7 @@ defineJob({
         multikills,
         queueClassification,
         leaderboardSamples,
+        teamInsights,
         participantRanks: await rankCoverage(db),
         opggLinks: await opggCoverage(db),
         // Each stored game's record against its timeline (gold, CS, kills, objectives), counts only.

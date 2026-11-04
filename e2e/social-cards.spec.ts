@@ -77,6 +77,7 @@ test("a substitute's side shows their own links, and using one keeps the card tu
 });
 
 test("Players: the icons sit on the card, and using one never opens the profile", async ({ page, context }, info) => {
+  test.skip(info.project.name === "phone", "phones list the players as rows and leave the links to the profile (docs/MOBILE.md), whose touch sizes social-links.spec checks");
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/players");
   const icons = page.getByRole("list", { name: "Demo Mid's social links" });
@@ -89,14 +90,6 @@ test("Players: the icons sit on the card, and using one never opens the profile"
   expect(box.x).toBeGreaterThan(card.x);
   expect(box.x + box.width).toBeLessThan(card.x + card.width);
   expect(box.y).toBeGreaterThan(card.y);
-  // Big enough to tap on a touch screen: a 32px mark with an invisible margin, so a tap 20px from
-  // its centre still lands on it (a 40px target).
-  if (info.project.name === "phone") {
-    const d = (await icons.getByTestId("card-social-discord").boundingBox())!;
-    expect(d.width).toBeGreaterThanOrEqual(32);
-    const hit = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest("[data-testid='card-social-discord']") !== null, { x: d.x + d.width / 2, y: d.y + d.height / 2 + 19 });
-    expect(hit).toBe(true);
-  }
   await icons.getByTestId("card-social-discord").click();
   await expect(page.getByText(/Discord username copied|Not copied/)).toBeVisible();
   await expect(page).toHaveURL(/\/players$/);

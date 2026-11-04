@@ -27,7 +27,7 @@ export function placeTip(anchor: { left: number; top: number; bottom: number; wi
  * text is also the trigger's accessible description, so screen readers read it without opening it.
  * Interactive menus are not tooltips: they stay click-to-open popovers.
  */
-export function InfoTip({ text, className, label, children, testId = "info-tip" }: { text: React.ReactNode; className?: string; label?: string; children?: React.ReactNode; testId?: string }) {
+export function InfoTip({ text, className, label, children, testId = "info-tip", tabIndex }: { text: React.ReactNode; className?: string; label?: string; children?: React.ReactNode; testId?: string; /** -1 leaves it out of the tab order where what it sits on is already the one stop (a match card); pointers, taps and screen readers still reach it. */ tabIndex?: number }) {
   const [open, setOpen] = React.useState(false);
   const [pos, setPos] = React.useState<{ left: number; top: number } | null>(null);
   const trigger = React.useRef<HTMLButtonElement>(null);
@@ -85,6 +85,7 @@ export function InfoTip({ text, className, label, children, testId = "info-tip" 
         type="button"
         aria-label={children ? undefined : (label ?? "More information")}
         aria-describedby={id}
+        tabIndex={tabIndex}
         data-testid={testId}
         data-open={open || undefined}
         onPointerDown={(e) => {

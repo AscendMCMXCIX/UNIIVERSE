@@ -37,9 +37,6 @@
 | Area | Who | State |
 |---|---|---|
 | Mobile redesign: phone navigation, filters, match cards, Players, Team Matches | Session "UNIIVERSE mobile redesign", since 4 Nov 06:44 | Not pushed. Its Leaderboards changes were made before #188 replaced those files |
-| Team insights: whether a member wins more or less often with teammates, or with a given teammate | Session of #193–#195 and #201: **#193** | Behind `TEAM_INSIGHTS_AUDIENCE = "admins"`: only administrators can open `/matches/insights`; nothing else changes. Statistically guarded: Mantel–Haenszel within game mode and role, Benjamini–Hochberg at 5%, intervals adjusted for the selection, teammates separated by logistic regression with an exact check of what the games can tell apart. The production audit (Data jobs `data-audit`, `teamInsights`) shows what it would say before anyone opens it. Opening it to members is the owner's decision |
-| Privacy: linked accounts' PUUIDs stay on the server; caches drop an erased person | The same session: **#194** | The Riot accounts panel received each linked account's PUUID in the page's data; it now gets a placeholder. Match-history actions keep the first-time-setup gate. Five cache fixes (an invalidation is never undone by a slower load; erasure clears every instance-local cache, the daily integrity pass included) |
-| Reliability: Riot request deadlines, one sync per account, honest job health, no lost season games, fewer Riot requests | The same session: **#201** | No request waits past its caller's budget (a sync used 121 s of a 75 s budget on 14 Oct); an outage is still reported as one. A rejected Riot key is listed in `/api/health`. A game another linked account stored is folded from its record: about one match request in four (the 3 Nov audit). No migration |
 
 ## Outstanding, by impact
 
