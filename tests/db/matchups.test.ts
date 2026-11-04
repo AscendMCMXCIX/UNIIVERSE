@@ -8,6 +8,7 @@ import { syncStaticData } from "@/server/riot/static/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { addAccount } from "@/server/accounts/repository";
 import { getPlayerMatchups, parseMatchupFilter } from "@/server/players/matchups";
+import { DETAILS_UNAVAILABLE } from "@/server/accounts/sync";
 import { backfillTimelines, timelineCoverage } from "@/server/accounts/timeline-backfill";
 import { RiotApiClient } from "@/server/riot/api/client";
 import { RateLimiter } from "@/server/riot/api/rate-limiter";
@@ -176,6 +177,22 @@ describe("Matchups for a profile", () => {
     expect(JSON.stringify(w)).not.toMatch(/opp-|me-main|me-alt|enemy-mid|ally/);
     expect(parseMatchupFilter({ role: "TOP" }).role).toBe("TOP");
     expect(parseMatchupFilter({ role: "nonsense" }).role).toBeNull();
+  });
+
+  it("shows no kill count for a game whose details Riot no longer serves (kills = -1 is a marker, not a score)", async () => {
+    const db = handle.db;
+    await db.update(accountMatches).set(DETAILS_UNAVAILABLE).where(eq(accountMatches.matchId, "OC1_1"));
+    try {
+      const d = (await getPlayerMatchups(db, playerId, { account: null, mode: "all", champion: "Gwen", vs: "Nasus" })).detail!;
+      // Still in the record (a known result), with no figures shown for it.
+      expect(d).toMatchObject({ games: 4, wins: 2 });
+      expect(d.matches.find((x) => x.matchId === "OC1_1")).toMatchObject({ kills: null, deaths: null, assists: null, cs: null });
+      expect(d.matches.find((x) => x.matchId === "OC1_2")).toMatchObject({ kills: 4, deaths: 2, assists: 5 });
+      const w = await getPlayerMatchups(db, playerId, { account: "all", mode: "all", champion: "Gwen", vs: null, exact: true });
+      expect(w.lane!.recent.find((x) => x.matchId === "OC1_1")!.kills).toBeNull();
+    } finally {
+      await db.update(accountMatches).set({ kills: 4, deaths: 2, assists: 5, cs: 200 }).where(eq(accountMatches.matchId, "OC1_1"));
+    }
   });
 });
 
