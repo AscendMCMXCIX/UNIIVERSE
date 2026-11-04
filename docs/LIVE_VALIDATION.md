@@ -37,7 +37,24 @@ node scripts/live-check.mjs [base url] [output folder]
 
 - **Base url:** defaults to https://team-uniiverse.vercel.app.
 - **Output folder:** defaults to `live-check-<time>`. It holds the screenshots, `report.json` and `summary.md`. The run exits with 1 when any check fails.
-- **Sign-in:** `UNIIVERSE_VERIFY_USER` and `UNIIVERSE_VERIFY_PASSWORD`, for a non-admin account kept off the roster. They are read from the environment and never printed. In a cloud session they go in the environment's settings, and the site must be under its allowed domains.
+- **Sign-in:** `UNIIVERSE_VERIFY_USER` and `UNIIVERSE_VERIFY_PASSWORD`, for a non-admin team member who is not in the lineup. They are read from the environment and never printed. In a cloud session they go in the environment's settings, and the site must be under its allowed domains.
+- **Setting up the verification account** (the owner, about 10 minutes):
+  1. Admin Mode → Users & Permissions → Add account:
+     - a username such as `verify`;
+     - a Riot ID of yours that no member uses here (Riot confirms it exists);
+     - **Member of the team**. "Personal use only" has no Team pages, so the check would fail on every one of them.
+  2. Give it no access group and leave it a standard member, not an administrator: the check only reads.
+  3. Sign in once as that account:
+     - replace the temporary password with a long random one;
+     - finish first-time setup;
+     - leave it out of the lineup.
+  4. GitHub → the repository's Settings → Secrets and variables → Actions: add `UNIIVERSE_VERIFY_USER` (the username) and `UNIIVERSE_VERIFY_PASSWORD` (the password).
+  5. Actions → Production check → Run workflow, once. Its summary then lists the member pages instead of "pending".
+
+  **What it costs:**
+  - The account appears under Players like any member.
+  - Its Riot account's games are collected like any member's.
+  - The app has no hidden, read-only account type. Adding one would be a product and security change, for your approval.
 - **Read only:** it signs in, opens pages and opens and closes games and windows. It also switches a view and presses Back, Forward, Enter and Escape. It never submits a form after sign-in, and never presses a bookmark, edit, save, sync, refresh, invite or admin control. As with any member's visit, an open game can start the app's own background reads (rank checks).
 - **What it checks:**
   - Signed-out and forged-cookie requests to member pages are turned away to sign-in and carry no player data (#170). Security headers on the sign-in page.
