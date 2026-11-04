@@ -111,9 +111,10 @@ export function lpSpoken(lp: LpRecord): string {
  * figure), or a quiet dash where none is recorded. The hover text says what it rests on, or why
  * there is none; nothing is ever estimated.
  */
-export function LpChange({ lp, className }: { lp: LpRecord | null; className?: string }) {
+export function LpChange({ lp, className, dense = false }: { lp: LpRecord | null; className?: string; /** Inside a line of text: no taller than the line. */ dense?: boolean }) {
   if (!lp) return null;
-  const pill = "inline-flex items-center gap-0.5 whitespace-nowrap rounded px-1.5 text-xs font-semibold leading-5";
+  const leading = dense ? "leading-4" : "leading-5";
+  const pill = cn("inline-flex items-center gap-0.5 whitespace-nowrap rounded px-1.5 text-xs font-semibold", leading);
   if (lp.kind === "lp") {
     const tone = lp.delta > 0 ? "bg-good/10 text-good" : lp.delta < 0 ? "bg-bad/10 text-bad" : "bg-surface-2 text-fg-muted";
     return (
@@ -133,7 +134,7 @@ export function LpChange({ lp, className }: { lp: LpRecord | null; className?: s
     );
   }
   return (
-    <span className={cn("text-xs leading-5 text-fg-subtle", className)} title={lpNote(lp)} data-testid="match-lp" data-lp="none" data-reason={lp.reason}>
+    <span className={cn("text-xs text-fg-subtle", leading, className)} title={lpNote(lp)} data-testid="match-lp" data-lp="none" data-reason={lp.reason}>
       <span aria-hidden>—</span>
       <span className="sr-only">LP not recorded</span>
     </span>

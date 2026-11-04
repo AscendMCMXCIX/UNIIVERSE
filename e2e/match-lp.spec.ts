@@ -63,10 +63,18 @@ test("the LP sits in the result column on a wide card and under the KDA on a nar
   expect(l.x).toBeGreaterThanOrEqual(c.x);
   expect(l.x + l.width).toBeLessThanOrEqual(c.x + c.width + 0.5);
   if (info.project.name === "desktop") expect(l.x - c.x, "in the result column, at the card's start").toBeLessThan(140);
-  else expect(c.x + c.width - (l.x + l.width), "under the KDA, at the card's end").toBeLessThan(40);
-  // Cards with and without a figure are the same height on a phone (the KDA column has room).
-  if (info.project.name === "phone") {
-    const heights = await page.getByTestId("match-card").evaluateAll((els) => els.slice(0, 6).map((e) => Math.round(e.getBoundingClientRect().height)));
-    expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(40);
+  else if (info.project.name === "tablet") {
+    // On the result line ("Defeat · Ranked Flex · 42h ago · −22 LP"), which has room at this width.
+    const meta = (await card.getByTestId("match-card-meta").boundingBox())!;
+    expect(l.y + l.height / 2, "on the result line").toBeGreaterThan(meta.y);
+    expect(l.y + l.height / 2, "on the result line").toBeLessThan(meta.y + meta.height);
+  } else expect(c.x + c.width - (l.x + l.width), "under the KDA, at the card's end").toBeLessThan(40);
+  // Cards with and without a figure stay compact: the same height on a phone (the KDA column has
+  // room), one band on a tablet's stacked card (the figure adds no line).
+  const heights = await page.getByTestId("match-card").evaluateAll((els) => els.slice(0, 6).map((e) => Math.round(e.getBoundingClientRect().height)));
+  if (info.project.name === "phone") expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(40);
+  if (info.project.name === "tablet") {
+    const rows = await page.getByTestId("match-row").evaluateAll((els) => els.slice(0, 6).map((e) => e.getBoundingClientRect().height));
+    for (const h of rows) expect(h, "a tablet card stays compact").toBeLessThan(170);
   }
 });

@@ -141,6 +141,13 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
                 · <span className="@max-[36rem]/mh:hidden">{row.queue}</span>
                 <span className="hidden @max-[36rem]/mh:inline">{row.queue.replace(/^Ranked /, "")}</span> · {when}
               </span>
+              {/* From 36rem this line has room for a ranked game's LP; a narrower card keeps it under the KDA. */}
+              {row.lp ? (
+                <span className="hidden font-medium text-fg-subtle @min-[36rem]/mh:inline">
+                  {" · "}
+                  <LpChange lp={row.lp} dense className="align-middle" />
+                </span>
+              ) : null}
             </span>
             <span className="block truncate text-md font-semibold text-fg">{champion.name}</span>
             <span className="flex min-w-0 items-center gap-1 text-xs text-fg-muted">
@@ -171,9 +178,9 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
           <span className="text-right leading-snug @min-[50rem]/mh:text-left">
             <span className="block whitespace-nowrap text-base font-semibold tabular-nums leading-snug text-fg @min-[50rem]/mh:text-lg">{kda}</span>
             <span className={cn("block text-xs tabular-nums", row.perfect ? "text-good" : (row.kda ?? 0) >= 3 ? "text-fg-muted" : "text-fg-subtle")}>{ratio}</span>
-            {/* A narrow card has no result column: a ranked game's LP sits under the KDA, on the right. */}
+            {/* A phone-width card has no room beside the result: a ranked game's LP sits under the KDA, on the right. */}
             {row.lp ? (
-              <span className="mt-0.5 flex justify-end @min-[50rem]/mh:hidden">
+              <span className="mt-0.5 flex justify-end @min-[36rem]/mh:hidden">
                 <LpChange lp={row.lp} />
               </span>
             ) : null}
