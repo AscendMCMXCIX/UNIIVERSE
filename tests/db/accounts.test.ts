@@ -23,7 +23,10 @@ afterAll(async () => {
   await handle.close();
 });
 
-function fakeFetch(puuid: string, matches: Record<string, { champion: string; role: string; win: boolean; queue: number; created: number; version?: string }>, options: { activeRegion?: string | null; down?: boolean; calls?: string[] } = {}) {
+/** One game the fake Riot serves. */
+type GameSpec = { champion: string; role: string; win: boolean; queue: number; created: number; version?: string };
+
+function fakeFetch(puuid: string, matches: Record<string, GameSpec>, options: { activeRegion?: string | null; down?: boolean; calls?: string[] } = {}) {
   return async (input: string | URL | Request): Promise<Response> => {
     const url = String(input);
     options.calls?.push(url);
@@ -295,5 +298,44 @@ describe("riot accounts", () => {
     calls.length = 0;
     await syncAccount(db, client, (await listAccountsForPlayer(db, player.id))[0]!);
     expect(calls.filter((u) => /\/matches\/OC1_/.test(u))).toHaveLength(0);
+  });
+});
+
+describe("season history: gaps and games that cannot be stored", () => {
+  const NOW = Date.UTC(2026, 9, 20);
+  const HOUR = 3_600_000;
+
+  async function linkedAccount(name: string) {
+    const db = handle.db;
+    const team = await getOrCreateTeam(db);
+    const player = await createPlayer(db, team.id, { displayName: name, primaryRole: "MID", primaryPool: ["Ahri"] });
+    const account = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: `${name}#OCE`, platform: "oc1" });
+    return {
+      account,
+      reload: async () => (await listAccountsForPlayer(db, player.id)).find((a) => a.id === account.id)!,
+      stored: async () => new Map((await db.select().from(accountMatches).where(eq(accountMatches.accountId, account.id))).map((r) => [r.matchId, r])),
+    };
+  }
+  const clientFor = (puuid: string, matches: Record<string, GameSpec>, calls?: string[]) => new RiotApiClient({ apiKey: "k", fetchImpl: fakeFetch(puuid, matches, { calls }), limiter: new RateLimiter([{ requests: 10_000, seconds: 1 }]), sleep: async () => {} });
+  const solo = (hoursAgo: number, extra: Partial<GameSpec> = {}): GameSpec => ({ champion: "Ahri", role: "MIDDLE", win: true, queue: 420, created: NOW - hoursAgo * HOUR, ...extra });
+
+  it("collects every game of a long gap between syncs, more than one run fetches and more than the newest page holds", async () => {
+    const { account, reload, stored } = await linkedAccount("Gap Player");
+    const matches: Record<string, GameSpec> = {};
+    // 150 Solo/Duo games, all collected: the queue's list was read to its end.
+    for (let i = 0; i < 150; i++) matches[`OC1_GAPOLD${i}`] = solo(200 + i);
+    const client = clientFor("puuid-gap", matches);
+    const opts = { season: 16, queueIds: [420], now: () => new Date(NOW) };
+    const first = await syncAccount(handle.db, client, account, { ...opts, maxMatchesPerRun: 200 });
+    expect(first.matchesFolded).toBe(150);
+    expect(first.history).toMatchObject({ complete: true });
+    // No sync for a while, and 130 more games: more than a run fetches (80), more than a page (100).
+    for (let i = 0; i < 130; i++) matches[`OC1_GAPNEW${i}`] = solo(1 + i);
+    const folded: number[] = [];
+    for (let run = 0; run < 4; run++) folded.push((await syncAccount(handle.db, client, await reload(), { ...opts, maxMatchesPerRun: 80 })).matchesFolded);
+    // The newest 80, then the other 50 (20 on the newest page and the 30 beyond it), then nothing left.
+    expect(folded).toEqual([80, 50, 0, 0]);
+    expect((await stored()).size).toBe(280);
+    expect((await reload()).historyBackfill).toMatchObject({ completedAt: expect.any(String), queues: { "420": { done: true } } });
   });
 });

@@ -323,7 +323,9 @@ export function summariseBackfill(state: HistoryBackfill): { season: number; com
  *   2. one page further back per unfinished queue, resuming where the previous run stopped.
  * Match details are fetched only for ids not in the ledger and only up to the per-run limit, so a
  * long season fills in over several runs while new games always come first. Ids already stored
- * cost nothing; queues without a game this season are re-checked twice a day.
+ * cost nothing; queues without a game this season are re-checked twice a day. No listed game is
+ * passed over for good: a queue whose newest page a run left unfinished is read again from the
+ * top (phase 1 below).
  */
 async function collectSeasonHistory(db: Db, client: RiotApiClient, account: RiotAccountRecord & { puuid: string }, options: AccountSyncOptions, result: AccountSyncResult, log: (m: string) => void): Promise<HistoryBackfill> {
   const now = options.now?.() ?? new Date();
@@ -340,15 +342,19 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
   const budgetLeft = () => fetched < limit && !options.outOfTime?.();
 
   // Reads one page of a queue's season list and stores every game on it that is not stored yet.
-  // Returns whether the whole page is now stored (false when the run's limit stopped it).
-  const readPage = async (queueId: number, start: number, window: { startTime: number; endTime?: number } = { startTime }): Promise<{ ids: number; fresh: number; complete: boolean }> => {
+  // `complete` says whether the whole page is now stored: false when the run's limit, the time
+  // budget or a failed request stopped it, at `stoppedAt` (the place on the page of the first game
+  // not got to).
+  const readPage = async (queueId: number, start: number, window: { startTime: number; endTime?: number } = { startTime }): Promise<{ ids: number; fresh: number; complete: boolean; stoppedAt: number }> => {
     const ids = await client.matchIdsByPuuid(account.platform, account.puuid, { queue: queueId, startTime: window.startTime, endTime: window.endTime, count: PAGE, start });
-    if (ids.length === 0) return { ids: 0, fresh: 0, complete: true };
+    if (ids.length === 0) return { ids: 0, fresh: 0, complete: true, stoppedAt: 0 };
     const known = new Set((await db.select({ matchId: accountMatches.matchId }).from(accountMatches).where(and(eq(accountMatches.accountId, account.id), inArray(accountMatches.matchId, ids)))).map((r) => r.matchId));
     const fresh = ids.filter((id) => !known.has(id)).length;
-    for (const matchId of ids) {
+    const stop = (i: number) => ({ ids: ids.length, fresh, complete: false, stoppedAt: i });
+    for (let i = 0; i < ids.length; i++) {
+      const matchId = ids[i]!;
       if (known.has(matchId)) continue;
-      if (!budgetLeft()) return { ids: ids.length, fresh, complete: false };
+      if (!budgetLeft()) return stop(i);
       fetched += 1;
       let match: RiotMatch;
       try {
@@ -356,12 +362,12 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
       } catch (err) {
         if (err instanceof RiotApiError && (err.status === 403 || err.status === 401)) throw err;
         log(`match ${matchId} failed: ${(err as Error).message}`);
-        return { ids: ids.length, fresh, complete: false };
+        return stop(i);
       }
       result.matchesFetched += 1;
       if (await foldMatch(db, account, match, keyToId, queueIds, erased)) result.matchesFolded += 1;
     }
-    return { ids: ids.length, fresh, complete: true };
+    return { ids: ids.length, fresh, complete: true, stoppedAt: ids.length };
   };
 
   // 1. New games first, every queue.
@@ -383,6 +389,17 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
         if (page.ids < PAGE) q.done = true;
         else if (emptySoFar) q.done = false;
       }
+    } else if (page.stoppedAt > 0) {
+      // The run stopped partway down the newest page (its limit, the time budget or a failed
+      // request): games below the ones it stored are still to fetch. New games keep arriving at
+      // the top, so before a later run finishes this page they can push those games off it, into
+      // the part of the list the offset says was read, where phase 2 never looks (a long gap: more
+      // new games than a run fetches). So the queue is read again from the top: once its newest
+      // page is complete, phase 2 goes through the older pages again (one list request per hundred
+      // games; ids already stored cost nothing). Stopped at the first game, nothing has to move:
+      // the games still to fetch are the newest, and a later run finds them at the top.
+      q.offset = 0;
+      q.done = false;
     }
     state.queues[String(queueId)] = q;
   }

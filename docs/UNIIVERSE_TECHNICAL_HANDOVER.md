@@ -417,7 +417,8 @@ Riot ID typed (account creation, or an Alt added on the profile)
  → rank (League-V4) + champion mastery (Mastery-V4)
  → current-season match history for queues 420, 440, 400, 430, 480, 490, 700
    (newest page first, then older pages resumed from history_backfill until the season start;
-    the previous season afterwards, when the current one is complete)
+    the previous season afterwards, when the current one is complete; a queue whose newest page
+    was left unfinished is read again from the top)
  → account_matches ledger (each match folded once; per-match K/D/A, CS, damage, vision, role, result)
  → account_champion_history aggregates (per champion / role / queue group / patch)
  → proficiency (computed on read by src/server/proficiency/service.ts from history + mastery)
