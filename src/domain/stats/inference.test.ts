@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { benjaminiHochberg, chiSquare1Survival, compareStratified, erfc, wilsonInterval, type Stratum } from "./inference";
+import { benjaminiHochberg, chiSquare1Survival, compareStratified, erfc, twoSidedZ, wilsonInterval, type Stratum } from "./inference";
 
 /*
   Reference values come from SciPy 1.x and statsmodels 0.14 (scipy.special.erfc,
@@ -184,5 +184,22 @@ describe("benjaminiHochberg", () => {
   it("never makes a comparison look stronger than its own p-value", () => {
     const p = [0.3, 0.001, 0.02, 0.9];
     benjaminiHochberg(p).forEach((q, i) => expect(q!).toBeGreaterThanOrEqual(p[i]!));
+  });
+});
+
+describe("twoSidedZ", () => {
+  it.each([
+    [0.05, 1.959963984540054],
+    [0.01, 2.5758293035489004],
+    [0.001, 3.2905267314918945],
+    [0.05 / 48, 3.279024297718005],
+    [1e-6, 4.891638475698856],
+  ])("z for p = %s matches SciPy's norm.isf(p/2)", (p, z) => {
+    expect(twoSidedZ(p)).toBeCloseTo(z, 5);
+  });
+
+  it("is 0 at p = 1 and stays finite at tiny p", () => {
+    expect(twoSidedZ(1)).toBe(0);
+    expect(Number.isFinite(twoSidedZ(0))).toBe(true);
   });
 });

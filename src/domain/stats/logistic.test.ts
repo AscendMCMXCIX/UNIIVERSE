@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fitLogistic, pointsFor, type GroupedRow } from "./logistic";
+import { designStructure, fitLogistic, isEstimable, pointsFor, type GroupedRow } from "./logistic";
 
 /*
   Reference: statsmodels 0.14, GLM(Binomial) on the same grouped rows (endog = [wins, losses]),
@@ -76,5 +76,45 @@ describe("pointsFor", () => {
     const etas = [-0.4, 0.1, 0.9];
     expect(pointsFor(etas, -0.5)).toBeLessThan(pointsFor(etas, 0));
     expect(pointsFor(etas, 0)).toBeLessThan(pointsFor(etas, 0.5));
+  });
+});
+
+describe("designStructure and isEstimable", () => {
+  it("finds every column informative in a full-rank design", () => {
+    const s = designStructure([[1, 0, 0], [1, 1, 0], [1, 0, 1], [1, 1, 1]], 3);
+    expect(s.pivots).toEqual([0, 1, 2]);
+    expect(s.nullSpace).toEqual([]);
+    expect(isEstimable([0, 1, 0], s.nullSpace)).toBe(true);
+  });
+
+  it("two teammates who always play together: neither alone, their sum yes", () => {
+    // columns: intercept, b, c (b and c always together), d
+    const s = designStructure([[1, 0, 0, 0], [1, 1, 1, 0], [1, 0, 0, 1], [1, 1, 1, 1]], 4);
+    expect(s.pivots).toEqual([0, 1, 3]);
+    expect(isEstimable([0, 1, 0, 0], s.nullSpace)).toBe(false);
+    expect(isEstimable([0, 0, 1, 0], s.nullSpace)).toBe(false);
+    expect(isEstimable([0, 1, 1, 0], s.nullSpace)).toBe(true);
+    expect(isEstimable([0, 0, 0, 1], s.nullSpace)).toBe(true);
+  });
+
+  it("duo partners with no game alone: no partner on its own, their difference yes", () => {
+    // columns: intercept, b, e; every game has exactly one of them.
+    const s = designStructure([[1, 1, 0], [1, 0, 1]], 3);
+    expect(isEstimable([0, 1, 0], s.nullSpace)).toBe(false);
+    expect(isEstimable([0, 1, -1], s.nullSpace)).toBe(true);
+  });
+
+  it("a teammate fixed by two others (d = b + c): none of the three alone", () => {
+    // columns: intercept, b, c, d, e
+    const rows = [[1, 0, 0, 0, 0], [1, 1, 0, 1, 0], [1, 0, 1, 1, 0], [1, 0, 0, 0, 1], [1, 1, 0, 1, 1]];
+    const s = designStructure(rows, 5);
+    for (const j of [1, 2, 3]) expect(isEstimable([0, 1, 2, 3, 4].map((i) => (i === j ? 1 : 0)), s.nullSpace)).toBe(false);
+    expect(isEstimable([0, 0, 0, 0, 1], s.nullSpace)).toBe(true);
+  });
+
+  it("every null-space vector really is invisible to the data", () => {
+    const rows = [[1, 1, 1, 0], [1, 0, 0, 1], [1, 1, 1, 1], [1, 0, 0, 0]];
+    const s = designStructure(rows, 4);
+    for (const v of s.nullSpace) for (const r of rows) expect(Math.abs(r.reduce((sum, x, i) => sum + x * v[i]!, 0))).toBeLessThan(1e-12);
   });
 });
