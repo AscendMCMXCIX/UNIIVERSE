@@ -7,6 +7,7 @@ import { queueLabel } from "@/server/players/match-history";
 import { isGameRole, seasonModeInfo, type SeasonMode } from "@/domain/season-stats";
 import { chooseSeason, isOfferedSeason, offeredSeasons, seasonOfGame } from "@/domain/season";
 import { currentSeason } from "@/server/accounts/sync";
+import { registerLocalCache } from "@/server/observability/cache";
 import { CURVE_MINUTES, LANE_CHECKPOINTS, describeLane, laneDiffs, summariseMinutes, type LaneDiff, type MinuteSummary, type PlayerSeries } from "@/domain/matchups";
 import type { Role } from "@/domain/roles";
 
@@ -111,12 +112,19 @@ interface LaneExtract {
 }
 
 /*
-  Lanes already worked out, per database handle and server instance. A stored match record never
-  changes and a timeline with frames is final, so only those are kept; a lane still waiting for
-  its record or timeline is read again next time.
+  Lanes already worked out, per database handle and server instance. Riot never changes a stored
+  match record or a timeline with frames, so only those are kept; a lane still waiting for its
+  record or timeline is read again next time. The one change UNIIVERSE makes to them is an
+  erasure, which replaces the erased player in the record and deletes their frames: a kept lane
+  holds a lane opponent's frames, so erasure drops every kept lane (registerLocalCache below). It
+  replaces the store rather than emptying it: a read still running keeps writing into the old
+  one, so nothing read before the erasure is kept after it.
 */
 const LANES_KEPT = 2_000;
-const laneStore = new WeakMap<object, Map<string, LaneExtract>>();
+let laneStore = new WeakMap<object, Map<string, LaneExtract>>();
+registerLocalCache(() => {
+  laneStore = new WeakMap();
+});
 
 /** Tests: forget the lanes this instance kept. */
 export function forgetMatchupLanes(db: object): void {
@@ -190,11 +198,13 @@ export async function getPlayerMatchups(db: Db, playerId: string, filter: Matchu
   const riotIdOf = new Map(all.map((a) => [a.id, a.riotId]));
 
   // The accounts' stored games (kept per instance until they change; account-rows.ts): decided
-  // games in the mode's queues, long enough to have had a lane, newest first.
+  // games in the mode's queues, long enough to have had a lane, newest first. kills = -1 marks a
+  // game whose details Riot no longer serves (accounts/sync, DETAILS_UNAVAILABLE): no kill count
+  // is known, so none is shown.
   const queues = new Set<number>(seasonModeInfo(filter.mode).queues);
   const inMode = (await accountRows(db, "games", chosen.map((a) => a.id)))
     .filter((r) => r.win !== null && r.queueId !== null && queues.has(r.queueId) && r.gameDuration !== null && r.gameDuration >= MIN_LANE_GAME_SECONDS)
-    .map((r) => ({ matchId: r.matchId, accountId: r.accountId, gameCreation: r.gameCreation, patch: r.patch, queueId: r.queueId, championId: r.championId, role: r.role, win: r.win, enemy: r.enemyChampionId, kills: r.kills, deaths: r.deaths, assists: r.assists, cs: r.cs, duration: r.gameDuration }))
+    .map((r) => ({ matchId: r.matchId, accountId: r.accountId, gameCreation: r.gameCreation, patch: r.patch, queueId: r.queueId, championId: r.championId, role: r.role, win: r.win, enemy: r.enemyChampionId, kills: r.kills !== null && r.kills < 0 ? null : r.kills, deaths: r.deaths, assists: r.assists, cs: r.cs, duration: r.gameDuration }))
     .sort((a, b) => b.gameCreation - a.gameCreation);
   // The current season by default; another offered season, or every offered one, on request
   // (domain/season: Season 2026 on). Older stored games never count, not even under "all".

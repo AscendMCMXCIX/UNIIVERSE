@@ -1,5 +1,5 @@
 import type { Db } from "@/server/db/types";
-import { getRefreshStatuses } from "./refresh-status";
+import { failuresInARow, getRefreshStatuses } from "./refresh-status";
 import { getCurrentPatch } from "@/server/repositories/champions";
 import { riotAccounts } from "@/server/db/schema";
 import { sql } from "drizzle-orm";
@@ -12,6 +12,7 @@ export interface DataHealth {
   jobs: Array<{
     key: string;
     status: string;
+    lastStartedAt: Date | null;
     lastSuccessAt: Date | null;
     lastFailureAt: Date | null;
     lastError: string | null;
@@ -39,9 +40,12 @@ export async function getDataHealth(db: Db): Promise<DataHealth> {
   const now = Date.now();
   const riotConfigured = !!process.env.RIOT_API_KEY;
   for (const s of statuses) {
-    if (s.status === "failed" && s.consecutiveFailures >= 3) warnings.push(`${s.key} has failed ${s.consecutiveFailures} times in a row`);
-    // A degraded run finished but got nothing useful from its provider (key rejected, query
-    // refused…). It is the only place such a problem surfaces, so it must be visible here.
+    // Runs killed before they finished count too, and a job run again after failing keeps them.
+    const failures = failuresInARow(s, now);
+    if (failures >= 3) warnings.push(`${s.key} has failed ${failures} times in a row`);
+    // A degraded run finished, but partly or wholly without its provider (accounts Riot or the
+    // network refused, a rejected key, a refused query…). It is the only place such a problem
+    // surfaces, so it must be visible here.
     // Runs that merely skipped because a provider is not configured stay quiet.
     if (s.status === "degraded" && s.lastError && !s.skipped) warnings.push(`${s.key}: ${s.lastError}`);
     const staleAfter = STALE_HOURS[s.key];
@@ -66,7 +70,7 @@ export async function getDataHealth(db: Db): Promise<DataHealth> {
     now: new Date(now),
     riot: { configured: riotConfigured, state: credential.state, lastOkAt: credential.lastOkAt, lastError: credential.lastError },
     accounts: { total: states.length, synced: count("synced"), syncing: count("syncing"), pending: count("pending") + count("verified"), delayed: count("stale"), failed: count("error") },
-    failingJobs: statuses.filter((s) => s.status === "failed" && s.consecutiveFailures >= 3).map((s) => s.key),
+    failingJobs: statuses.filter((s) => failuresInARow(s, now) >= 3).map((s) => s.key),
   });
   if (credential.state === "rejected") warnings.push("Riot: the configured Riot API key is rejected; linked accounts are paused until it is replaced (Settings → Data health).");
   const datasets: DataHealth["datasets"] = [
@@ -78,6 +82,7 @@ export async function getDataHealth(db: Db): Promise<DataHealth> {
     jobs: statuses.map((s) => ({
       key: s.key,
       status: s.status,
+      lastStartedAt: s.lastStartedAt,
       lastSuccessAt: s.lastSuccessAt,
       lastFailureAt: s.lastFailureAt,
       lastError: s.lastError,
