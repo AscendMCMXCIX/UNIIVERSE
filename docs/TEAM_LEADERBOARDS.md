@@ -2,6 +2,17 @@
 
 Friendly competition on the team's own Riot games: **Team → Leaderboards** (`/leaderboards`), between Players and Matches.
 
+## The proposed boards (awaiting the owner's approval)
+
+The replacement described in `docs/LEADERBOARDS_MODEL.md` (Recent form and Records & achievements) is built and tested. Its ranking rules are the owner's decision, so members still get the boards described below.
+
+- **Administrators can open it on live data:** `/leaderboards?preview=recent-form`. A banner says it is a preview.
+- **Everyone else gets today's boards from that address.** The check runs on the server (`opensRecentFormPreview` in `src/server/leaderboards/recent-view.ts`), so members see no change.
+- **What it shows:**
+  - **Recent form:** one board. Each member's latest 20 Summoner's Rift games from the last 60 days, ranked by win rate. Each row has the record, the dates, the main role and the gap to the place above in wins. Members with 10 to 19 recent games are provisional, listed after every full window. Members with fewer are listed below the board with the games they still need.
+  - **Records & achievements:** one season's single-game records (each opens its game), multikills (rarest first) and champion milestones (games on one champion this season, and all-time mastery). The page says that these reward playing more.
+- **Activation:** after approval, `/leaderboards` (and `/public/leaderboards`) render these boards by default and today's categories, seasons and filters are retired. That is a separate pull request with no data change, so a revert restores today's boards.
+
 ## Who can see it, who is on it
 
 - **Open to:** team members with the *view teammate stats* ability. The page checks this on the server (`requirePageAccess("view-teammate-stats")`); the navigation link uses the same check. Personal-use accounts have neither.
