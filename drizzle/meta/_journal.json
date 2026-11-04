@@ -435,6 +435,27 @@
       "when": 1793592012519,
       "tag": "0061_social_links_public",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1793759486883,
+      "tag": "0062_retire_meta_trends_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1793759487883,
+      "tag": "0063_retire_draft_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1793759488883,
+      "tag": "0064_retire_clash_scouts",
+      "breakpoints": true
     }
   ]
 }
