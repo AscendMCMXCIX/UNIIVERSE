@@ -1,6 +1,6 @@
 # UNIIVERSE status
 
-**The one status record.** Each session updates it in place: what is live, what is verified and what is still open, with the evidence for each. Detail stays in the linked PRs and docs. Last updated 4 Nov 2026, 09:12 UTC.
+**The one status record.** Each session updates it in place: what is live, what is verified and what is still open, with the evidence for each. Detail stays in the linked PRs and docs. Last updated 4 Nov 2026, 09:40 UTC.
 
 **Statuses:**
 - **Verified:** deployed and checked on the live site after the deploy.
@@ -36,8 +36,8 @@
 | Area | Who | State |
 |---|---|---|
 | Mobile redesign: phone navigation, filters, match cards, Players, Team Matches | Session "UNIIVERSE mobile redesign", since 4 Nov 06:44 | Not pushed. Its Leaderboards changes were made before #188 replaced those files |
-| Ranked history: why progress starts on 16 Oct, the whole 2026 season | Session "UNIIVERSE drafting platform": #190 merged on 4 Nov, a read-only `rank-audit` job; its Data jobs run reports the year's coverage | Why 16 Oct: rank readings are stored only since migration 0035 (generated 15 Oct, 15:39 UTC), and Riot's league API gives only the current rank, so no earlier rank or LP history exists to recover. Win/loss results do cover the whole season (stored games) |
-| LP gained or lost per ranked game | The same session | The rule is in #190 (`domain/lp-attribution`, 16 tests): a game gets a figure only where two rank readings enclose exactly that game. LP on match cards and a full-season Ranked progress are on a draft branch that waits for the owner's approval of migration 0065 |
+| Ranked history: why progress starts on 16 Oct, the whole 2026 season | Session "UNIIVERSE drafting platform": #190 merged on 4 Nov (a read-only `rank-audit` job); the redesign is in #198 | **Why 16 Oct:** rank readings are stored only since migration 0035 (15 Oct), and Riot's league API gives only the current rank. The first reading was at 11:33 UTC on 15 Oct; most accounts' first was at 20:51 UTC, which is 16 Oct in Sydney (Data jobs run 41805048588). **What exists:** 1,514 ranked games of 2026 for 10 accounts. The first games on patches 16.1, 16.9 and 16.15 fall on 8 Jan, 29 Apr and 29 Jul. Riot's whole-year count matches the stored games for 12 of 16 account/queue pairs; the other four are 1, 1, 1 and 6 games short. **#198** (draft) draws the year from 8 Jan with each week's games, and the rank from the first reading. |
+| LP gained or lost per ranked game | The same session: #198, a draft held for the owner's approval of migration 0065 | A game gets a figure only where two rank readings enclose exactly that game (`domain/lp-attribution`, 17 tests). On production data, today's readings prove 12 figures and 2 promotions; 1,442 games have no figure, each with its reason. #198 adds the rank watch and reading confirmations, so future games get their figure; the optional five-minute schedule decides how many |
 
 ## Outstanding, by impact
 
