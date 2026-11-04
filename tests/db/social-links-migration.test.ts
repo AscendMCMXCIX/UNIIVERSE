@@ -62,7 +62,8 @@ describe("migration 0061: one Show publicly switch per social link", () => {
       }
       const [none] = rowsOf<{ id: string }>(await db.execute(sql`INSERT INTO players (team_id, display_name, primary_role, "group") VALUES (${team!.id}, 'none', 'MID', 'main') RETURNING id`));
 
-      expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual([TAG]);
+      // The held drops of the retired tables (0062 on) run after it; they have their own tests.
+      expect((await runMigrations(db, { useAdvisoryLock: false })).applied.filter((tag) => !tag.includes("_retire_"))).toEqual([TAG]);
 
       const stored = new Map(rowsOf<{ id: string; links: unknown }>(await db.execute(sql`SELECT id, social_links AS links FROM players`)).map((r) => [r.id, r.links]));
       expect(stored.get(ids.everyAudience!)).toEqual({ youtube: { value: YOUTUBE, public: true }, twitch: { value: TEAM_TWITCH, public: false }, discord: { value: "only.me", public: false } });

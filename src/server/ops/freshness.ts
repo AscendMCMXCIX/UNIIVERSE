@@ -100,7 +100,6 @@ export async function teamFreshness(db: Db): Promise<Freshness> {
           FROM riot_accounts a WHERE a.id IN (SELECT id FROM acc))) AS accounts,
         (SELECT json_build_array(count(*), max(game_creation), count(*) FILTER (WHERE summarised_at IS NOT NULL), count(*) FILTER (WHERE extra_stats IS NOT NULL))
           FROM account_matches WHERE account_id IN (SELECT id FROM acc)) AS games,
-        (SELECT json_build_array(count(*), max(updated_at)) FROM matches) AS team_matches,
         md5((SELECT string_agg(concat_ws('|', id, note), ',' ORDER BY id) FROM team_bookmarks)) AS bookmarks`),
   );
   return { v: digest(row ?? null), pace: "idle" };
