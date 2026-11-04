@@ -653,7 +653,7 @@ The server's part was small: TTFB 0.13 s here. The redirect from `/` added about
 
 **What it does not change.**
 - The same art in the same quality, the same bytes and the same layout.
-- The server's first byte. The field's TTFB p75 was ≤ 3 s on every page (see above), and only a cold-start fix moves it (Fluid compute, the owner's setting).
+- The server's first byte. The field's TTFB p75 was ≤ 3 s on every page (see above). Team's came mostly from the start page's two functions (the next section).
 
 **Reading the field result.** The probe's `fieldVitals` now also reports:
 - each page's TTFB;
@@ -665,6 +665,32 @@ So:
 - **After:** a run at least 7 days after the deploy reads `last7` alone. Monday's scheduled probe does this with no manual run.
 - **The target:** Team's LCP p75 ≤ 2.5 s on phones, as on every other page.
 - **If it stays above that,** check TTFB first. The art then arrives about 2.3 s after the server answers on slow 4G, and TTFB adds to it.
+
+## The start page's two functions (4 Nov 2026)
+
+**The field showed Team's first byte as the outlier.** Production check run 15's probe covered the 28 days to 4 Nov, all from before this change and #191:
+- **Team:** TTFB p75 > 3 s on desktop (43 loads) and ≤ 3 s on phones (35 loads); 23% good.
+- **The pages people open directly:** ≤ 0.6–1 s (Players, Leaderboards, Matches, Resources, Admin).
+- **Team's own data:** 0.17 s warm and 0.52 s cold (`team.roster`, the same run).
+
+So the delay came before the page's own work.
+
+**Found in the build output.** Vercel's builder was run locally (`vercel build`, CLI 65.11.0, with the project's settings and a dummy `DATABASE_URL`). It groups pages into functions by their settings:
+- `/`, the installed app's start page, was in the public pages' function, with `/login`, `/public` and `/invite`;
+- `/team` and every other member page were in another function;
+- the two groups differed only in `maxDuration`: 300 s in the member and admin layouts, for the background refresh a visit may start, and the default elsewhere.
+
+Opening the app asks for `/`, which looks up the session and redirects to the member's start page. That started both functions one after the other, and on a site opened a few times a day both were often cold.
+
+**Changed:** `maxDuration = 300` in the root layout.
+- **Every page is now one function.** Checked with the same build: 6 functions instead of 7. The shared one traces 778 files, 7.2 MB, against Vercel's 250 MB limit.
+- **The API routes keep their own functions.**
+- **It is a limit, not a cost:** a page is billed for the time it runs.
+- **Any page anyone opens now warms the app for everyone,** visitors included.
+
+**Not measurable here:** Vercel's cold starts. Read the field result from the probe's `last7` a week after the deploy:
+- **The target:** Team's TTFB p75 ≤ 1 s, like the pages people open directly.
+- **If it stays above that,** what remains is the first function's own cold start. Vercel's Fluid compute is the lever: a project setting for the owner, with its cost on the plan checked first.
 
 ## Mobile redesign (4 Nov 2026)
 
