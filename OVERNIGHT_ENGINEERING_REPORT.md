@@ -72,7 +72,7 @@ From the owner's brief and `CLAUDE.md`:
 | `docs/riot-key-evidence` | #181 | `docs/RIOT_COMPLIANCE.md`: the key is Personal, no re-keying, and every check that needs no portal access | **Merged** (`4391e51`, docs only). The Personal key is confirmed by a second `riot-check` 24 h 39 min after the first |
 | `ops/production-automation` | #182 | The Production check after every deployment and daily (security, Riot rules, public pages at three widths with axe, backup age, database size, Monday perf probe), one issue per failing check, the Riot endpoints pinned by a test | **Deployed** (`7bdaf42`). Its first run on production: 100 checks passed, none failed (run 41736960841) |
 | `ux/encounters-navigation` | #183 | Match History and Encounters: one navigation, All first, a player's games in Match History itself | **Deployed** (`508f0b3`). CI and WebKit green; the Production check passed on the deployed commit (run 41739546456). Not production-verified: the member pages need the verification account (section 7) |
-| `ops/db-size-alert` | #184 | The database's size reaches you from 80% (one issue, with the remedy); a real member's pages tried signed out and with a forged session on every check | See the end of this table's update in section 7 |
+| `ops/db-size-alert` | #184 | The database's size reaches you from 80% (one issue, with the remedy); a real member's pages tried signed out and with a forged session on every check | **Deployed** (`196f866`). The Production check on it (run 41744264790): 106 passed, none failed, including a real member's profile, champions and matches, signed out and with a forged session, all turned away with no player data: the #170 fix confirmed on production |
 | `ux/layout-consistency` | #178 | Neutral frame, compact All Champions, Team Matches opens games under their cards, the layout rules | **Deployed** (5e11ba5), smoke passed. Not yet production-verified: its screens were not checked on the live site (this environment cannot reach it, section 7) |
 
 Before the release, all six original branches merged cleanly with `main` and with one another (all 15
@@ -588,7 +588,7 @@ Nothing else needs you: the PWA draft (#171) and a desktop app stay optional ide
 commit; one production check after each deploy):
 - **Security, high (#170). Deployed.** A teammate's profile data reached signed-out requests. It
   was reproduced and fixed, and a test now stops it coming back. Production runs the fixed code
-  (smoke run 41532558447). One request from you confirms it from outside (section 7).
+  (smoke run 41532558447). Since 4 Nov the Production check confirms it from outside on every run (run 41744264790).
 - **Security, medium and low (#172). Deployed.** Nine fixes, each with tests: an open redirect, a throttle
   race, an egress risk, raw database errors, Riot host validation, open mode on Vercel, two timing
   leaks, and statistics without access.
