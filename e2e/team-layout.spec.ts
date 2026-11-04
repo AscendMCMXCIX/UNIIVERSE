@@ -103,3 +103,49 @@ test("phones swipe sideways through the five cards, one at a time", async ({ pag
   // Every card is labelled with its role, player and position.
   await expect(cells.first()).toHaveAttribute("aria-label", /^Top: .+ \(1 of 5\)$/);
 });
+
+// docs/PERFORMANCE.md, "Team Overview's first card": on a phone the first card's art is the page's
+// largest element, so it is fetched at once and ahead of the rest, and the other cards' art waits
+// for it (a lazy image that is not displayed is not fetched). Wider screens show all five cards
+// and never wait. Data Dragon is held here until the test lets it answer.
+const PIXEL = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
+
+test("the first card's art loads first, and on phones the other cards' art waits for it", async ({ page }) => {
+  let answer!: () => void;
+  const held = new Promise<void>((resolve) => (answer = resolve));
+  const requested: string[] = [];
+  await page.route(/ddragon\.leagueoflegends\.com\/cdn\/img\/champion\/splash\//, async (route) => {
+    requested.push(new URL(route.request().url()).pathname.split("/").pop()!);
+    await held;
+    await route.fulfill({ contentType: "image/png", body: PIXEL });
+  });
+  // The page's load event waits for the first art, which is held: wait for the page itself.
+  await page.goto("/team", { waitUntil: "domcontentloaded" });
+  const track = page.getByTestId("lineup-overview");
+  await expect(track).toHaveAttribute("data-ready", "true");
+  const cells = page.getByTestId("lineup-cell");
+  const first = cells.nth(0).locator(".card-art-img");
+  const second = cells.nth(1).locator(".card-art-img");
+  await expect(first).toHaveAttribute("loading", "eager");
+  await expect(first).toHaveAttribute("fetchpriority", "high");
+  await expect(second).toHaveAttribute("loading", "lazy");
+  expect(await second.getAttribute("fetchpriority")).toBeNull();
+  await expect.poll(() => requested.length).toBeGreaterThan(0);
+  const firstArt = (await first.getAttribute("src"))!.split("/").pop()!;
+  expect(requested[0]).toBe(firstArt);
+  if (isPhone(page)) {
+    // While the first art is on its way, the other cards' art is not shown, so it is not fetched.
+    await expect(track).toHaveAttribute("data-art-wait", "true");
+    await expect(second).toBeHidden();
+    await page.waitForTimeout(500);
+    expect(requested).toEqual([firstArt]);
+  } else {
+    // Several cards side by side: every card's art is shown and fetched together.
+    await expect(second).toBeVisible();
+    await expect.poll(() => requested.length).toBeGreaterThan(1);
+  }
+  answer();
+  // Once the first art has arrived, nothing waits.
+  await expect(track).not.toHaveAttribute("data-art-wait", "true");
+  await expect(second).toBeVisible();
+});
