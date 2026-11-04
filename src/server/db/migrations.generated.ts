@@ -878,5 +878,57 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
     "statements": [
       "-- Social links: one switch per link (\"Show publicly\") instead of three audiences.\n-- Each stored link { value, show } becomes { value, public }. Only the \"public\" audience is\n-- switched on (true). The team-only (\"team\") and owner-only (\"hidden\") audiences, and anything\n-- unrecognised, are switched off (false), so no link is shown to anyone who could not see it\n-- before. A link already in the new shape keeps its switch (only a JSON true counts). Each value,\n-- and anything else stored with it, is kept as it was: the pages check a value again before they\n-- show it. Entries that are not objects, empty objects and rows without links are left alone.\nUPDATE \"players\" AS p\nSET \"social_links\" = (\n  SELECT jsonb_object_agg(\n    e.key,\n    CASE\n      WHEN jsonb_typeof(e.value) = 'object' THEN\n        (e.value - 'show' - 'public')\n        || jsonb_build_object('public', COALESCE(e.value ->> 'show' = 'public', false) OR COALESCE(e.value -> 'public' = 'true'::jsonb, false))\n      ELSE e.value\n    END\n  )\n  FROM jsonb_each(p.\"social_links\") AS e(key, value)\n)\nWHERE jsonb_typeof(p.\"social_links\") = 'object' AND p.\"social_links\" <> '{}'::jsonb;"
     ]
+  },
+  {
+    "idx": 62,
+    "tag": "0062_retire_meta_trends_tables",
+    "hash": "5c5a21e731d9ef79552775b93233772bfb0ce3dafb462eddf9f55305b6fd17b2",
+    "statements": [
+      "-- Drops the 12 tables Meta & Trends left behind (audit decision 2, about 206 MB of the database).\n-- Nothing has read or written them since the feature was removed, and no live table references\n-- them. The owner approved this on 19 Oct 2026 on two conditions, checked before it merges:\n--   1. a verified backup that holds these tables (docs/BACKUPS.md: restored and counted);\n--   2. no reads of them over at least a day (Data jobs db-usage, \"retired\").\n-- Kept: tracked_summoners (its ranks were copied to last_known_ranks by 0048), region_status,\n-- champion_change_points and the stat_*_periods tables (not part of this decision). No CASCADE:\n-- children go before the tables they reference, so a dependency nobody expected makes this\n-- migration fail instead of being dropped with them. Recovery: pg_restore --table from that\n-- backup, then revert this change.\nDROP TABLE \"ranked_participants\";",
+      "DROP TABLE \"ranked_bans\";",
+      "DROP TABLE \"ranked_matches\";",
+      "DROP TABLE \"match_fetch_queue\";",
+      "DROP TABLE \"pro_game_picks\";",
+      "DROP TABLE \"pro_game_bans\";",
+      "DROP TABLE \"pro_games\";",
+      "DROP TABLE \"champion_matchups\";",
+      "DROP TABLE \"champion_synergies\";",
+      "DROP TABLE \"champion_role_stats\";",
+      "DROP TABLE \"champion_ban_stats\";",
+      "DROP TABLE \"pro_pick_slot_stats\";"
+    ]
+  },
+  {
+    "idx": 63,
+    "tag": "0063_retire_draft_tables",
+    "hash": "9c991d7172d0097ddf41353e9bbf612b3badb0d65cae1937f9151a7ac3081490",
+    "statements": [
+      "-- Drops what the removed Draft feature left in the database (audit decision 3): its nine tables,\n-- riot_accounts.opponent_player_id, teams.engine_config and the six enum types only they used.\n-- Nothing has read or written them since migration 0048 copied the scouted ranks Match History\n-- shows into last_known_ranks. The owner approved this on 19 Oct 2026, together with decision 2;\n-- it merges only after a verified backup that holds them (docs/BACKUPS.md: restored and counted).\n-- Kept: team_bookmarks (Team Matches), every riot_accounts row (only the opponent link goes) and\n-- every other table. No CASCADE: the two columns go first (a column takes its own index and foreign\n-- key with it), then each table after the tables that reference it, then the types, so a\n-- dependency nobody expected makes this migration fail instead of being dropped with them.\n-- Recovery: pg_restore --table from that backup, then revert this change.\nALTER TABLE \"riot_accounts\" DROP COLUMN \"opponent_player_id\";",
+      "ALTER TABLE \"teams\" DROP COLUMN \"engine_config\";",
+      "DROP TABLE \"draft_actions\";",
+      "DROP TABLE \"draft_role_swaps\";",
+      "DROP TABLE \"draft_presence\";",
+      "DROP TABLE \"draft_enemy_scouting\";",
+      "DROP TABLE \"matches\";",
+      "DROP TABLE \"drafts\";",
+      "DROP TABLE \"series\";",
+      "DROP TABLE \"opponent_players\";",
+      "DROP TABLE \"opponent_teams\";",
+      "DROP TYPE \"public\".\"action_type\";",
+      "DROP TYPE \"public\".\"competition_mode\";",
+      "DROP TYPE \"public\".\"draft_status\";",
+      "DROP TYPE \"public\".\"match_result\";",
+      "DROP TYPE \"public\".\"scouting_confidence\";",
+      "DROP TYPE \"public\".\"series_status\";"
+    ]
+  },
+  {
+    "idx": 64,
+    "tag": "0064_retire_clash_scouts",
+    "hash": "12e82efaa9ae3d591ce4c1a4fb5b846e659e788f7fb13a80a116f9e7c53aebe2",
+    "statements": [
+      "-- Drops the two tables Clash Scout left behind: the scouts the team saved (clash_scouts) and their\n-- verified accounts (clash_scout_accounts). Clash Scout was removed on 23 Oct 2026; since then no\n-- page, action or job has written them, and only permanent erasure and its reconciliation read them.\n-- This change also removes that erasure code, so nothing reads them afterwards.\n-- Held until, and only after, all of these:\n--   1. the owner has independently verified an encrypted backup that holds these tables\n--      (docs/BACKUPS.md: restored and counted) and secured an offline copy;\n--   2. Data jobs db-usage, \"retired\", twice a day apart: no new writes to either table, and no\n--      dependent outside the two;\n--   3. the owner's explicit go-ahead to drop them.\n-- No CASCADE: the accounts table (which references the scouts) goes first, so a dependency nobody\n-- expected makes this migration fail instead of being dropped with them. Indexes and foreign keys go\n-- with their tables. Recovery: pg_restore --table from that backup, then revert this change.\nDROP TABLE \"clash_scout_accounts\";",
+      "DROP TABLE \"clash_scouts\";"
+    ]
   }
 ];

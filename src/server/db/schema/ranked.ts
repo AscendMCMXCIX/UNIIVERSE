@@ -1,9 +1,10 @@
-import { bigint, boolean, index, integer, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
+import { bigint, index, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
-// The global ranked collection behind Meta & Trends (retired). Nothing writes or reads these
-// tables any more: migration 0048 copied the ranks Match History shows for other players from
-// tracked_summoners into last_known_ranks. They stay defined so drizzle-kit never generates a
-// DROP; dropping them is a separate, approval-gated migration (docs/DATA_PIPELINES.md, "Retired tables").
+// What is left of the global ranked collection behind Meta & Trends (retired; migration 0051
+// dropped the collected games and their queue). Nothing writes or reads these tables any more:
+// migration 0048 copied the ranks Match History shows for other players from tracked_summoners
+// into last_known_ranks. They stay defined so drizzle-kit never generates a DROP
+// (docs/DATA_PIPELINES.md, "Retired tables").
 
 /** High-Elo players discovered from the league endpoints; the seed list for match discovery. */
 export const trackedSummoners = pgTable(
@@ -19,43 +20,6 @@ export const trackedSummoners = pgTable(
     matchListCursor: bigint("match_list_cursor", { mode: "number" }),
   },
   (t) => [index("tracked_platform_idx").on(t.platform, t.lastMatchListAt)],
-);
-
-/** Work queue of match ids discovered but not yet fetched. Idempotent via primary key. */
-export const matchFetchQueue = pgTable(
-  "match_fetch_queue",
-  {
-    matchId: text("match_id").primaryKey(),
-    platform: text("platform").notNull(),
-    /** Ladder band of the tracked player whose match list surfaced the id (EMERALD … CHALLENGER). */
-    tierBand: text("tier_band"),
-    status: text("status").notNull().default("pending"), // pending | done | failed | skipped
-    attempts: integer("attempts").notNull().default(0),
-    lastError: text("last_error"),
-    discoveredAt: timestamp("discovered_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [index("queue_status_idx").on(t.status, t.discoveredAt)],
-);
-
-export const rankedMatches = pgTable(
-  "ranked_matches",
-  {
-    matchId: text("match_id").primaryKey(),
-    platform: text("platform").notNull(),
-    gameVersion: text("game_version").notNull(),
-    patch: text("patch").notNull(),
-    queueId: integer("queue_id").notNull(),
-    /** Ladder band the match was sampled from (null for matches stored before bands existed = Master+). */
-    tierBand: text("tier_band"),
-    gameCreation: bigint("game_creation", { mode: "number" }).notNull(),
-    gameDuration: integer("game_duration").notNull(),
-    winningTeamId: integer("winning_team_id").notNull(),
-    ingestedAt: timestamp("ingested_at", { withTimezone: true }).notNull().defaultNow(),
-    /** Set once the aggregation job has folded this match into the statistics tables. */
-    aggregatedAt: timestamp("aggregated_at", { withTimezone: true }),
-  },
-  (t) => [index("ranked_matches_patch_idx").on(t.patch), index("ranked_matches_aggregated_idx").on(t.aggregatedAt), index("ranked_matches_platform_patch_idx").on(t.platform, t.patch)],
 );
 
 /**
@@ -77,30 +41,3 @@ export const regionStatus = pgTable("region_status", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const rankedParticipants = pgTable(
-  "ranked_participants",
-  {
-    matchId: text("match_id").notNull().references(() => rankedMatches.matchId, { onDelete: "cascade" }),
-    puuid: text("puuid").notNull(),
-    teamId: integer("team_id").notNull(),
-    championKey: integer("champion_key").notNull(),
-    championId: text("champion_id"), // resolved from champions.key at ingestion when known
-    position: text("position").notNull(), // TOP | JUNGLE | MIDDLE | BOTTOM | UTILITY | UNKNOWN
-    win: boolean("win").notNull(),
-    kills: integer("kills").notNull().default(0),
-    deaths: integer("deaths").notNull().default(0),
-    assists: integer("assists").notNull().default(0),
-  },
-  (t) => [primaryKey({ columns: [t.matchId, t.puuid] }), index("participants_champion_idx").on(t.championKey)],
-);
-
-export const rankedBans = pgTable(
-  "ranked_bans",
-  {
-    matchId: text("match_id").notNull().references(() => rankedMatches.matchId, { onDelete: "cascade" }),
-    teamId: integer("team_id").notNull(),
-    pickTurn: integer("pick_turn").notNull(),
-    championKey: integer("champion_key").notNull(),
-  },
-  (t) => [primaryKey({ columns: [t.matchId, t.teamId, t.pickTurn] })],
-);

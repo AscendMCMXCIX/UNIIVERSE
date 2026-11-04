@@ -2,7 +2,7 @@ import { LEADERBOARD_QUEUES, LEADERBOARD_ROLES, type LeaderboardGame } from "./l
 import type { GameRole } from "./season-stats";
 
 /*
-  Recent performance: the proposed default of Team Leaderboards (docs/LEADERBOARDS_MODEL.md).
+  Recent performance: the default view of Team Leaderboards (docs/LEADERBOARDS_MODEL.md).
 
   Everyone is compared on the same number of recent games: a player's latest 20 eligible games
   from the last 60 days (on a role board, games played in that role). A full window is

@@ -2,14 +2,13 @@ import { AxeBuilder } from "@axe-core/playwright";
 import { expect, test, type Page } from "./test";
 
 /*
-  The proposed Leaderboards (Recent form, Records & achievements), as administrators preview them
-  while the owner decides on the rules (/leaderboards?preview=recent-form). The demo viewer is the
-  Owner, an administrator without a player profile; that members never get the preview is covered
-  by src/server/leaderboards/recent-view.test.ts. The games are synthetic demo games, never real
+  Team Leaderboards (docs/LEADERBOARDS_MODEL.md): Recent form, each member's latest 20 Summoner's
+  Rift games ranked by win rate, and Records & achievements for the season. The demo viewer is the
+  Owner, an administrator without a player profile. The games are synthetic demo games, never real
   Riot data: every demo member has a full 20-game window.
 */
 
-const PREVIEW = "/leaderboards?preview=recent-form";
+const BOARDS = "/leaderboards";
 
 test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
@@ -30,18 +29,31 @@ async function axe(page: Page, selector: string) {
   expect(scan.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
 }
 
-test("today's Leaderboards stay the default; the preview says it is one", async ({ page }) => {
-  await open(page, "/leaderboards");
-  await expect(page.getByTestId("leaderboard-categories")).toBeVisible();
-  await expect(page.getByTestId("leaderboards-preview")).toHaveCount(0);
-  await open(page, PREVIEW);
-  await expect(page.getByTestId("leaderboards-preview")).toContainText("Members still see today's Leaderboards");
-  await expect(page.getByTestId("leaderboard-categories")).toHaveCount(0);
+test("Recent form is the default view, with the team's data status beside it", async ({ page }) => {
+  await open(page, BOARDS);
   await expect(page.getByTestId("leaderboards-tab-form")).toHaveAttribute("aria-current", "page");
+  // Today's categories, filters and the admins' preview banner are gone.
+  await expect(page.getByTestId("leaderboard-categories")).toHaveCount(0);
+  await expect(page.getByTestId("leaderboards-preview")).toHaveCount(0);
+  // How fresh the boards are: the team's status behind one ⓘ under the title, as on a profile.
+  await expect(page.getByTestId("leaderboards-status-info")).toBeVisible();
+  // An old address (today's category or filters) opens the boards, ignoring what it asked for.
+  await open(page, "/leaderboards?category=combat&metric=kda&queue=solo&lineup=1");
+  await expect(page.getByTestId("leaderboards-tab-form")).toHaveAttribute("aria-current", "page");
+  await noOverflow(page);
+});
+
+test("Leaderboards is a Team tab between Players and Matches", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "the navigation layout is covered per device in responsive.spec");
+  await page.goto("/team");
+  await expect(page.getByTestId("team-tabs").getByRole("link")).toHaveText(["Overview", "Players", "Leaderboards", "Matches"]);
+  await page.getByTestId("team-tab-leaderboards").click();
+  await expect(page).toHaveURL(/\/leaderboards/);
+  await expect(page.getByTestId("leaderboards")).toBeVisible();
 });
 
 test("Recent form ranks every full 20-game window by win rate, shared places and gaps in wins", async ({ page }) => {
-  await open(page, PREVIEW);
+  await open(page, BOARDS);
   await expect(page.getByTestId("scope-label")).toHaveText(/Latest 20 games from the last 60 days/);
   const rows = await page.getByTestId("form-row").evaluateAll((els) =>
     els.map((e) => ({ place: Number(e.getAttribute("data-place") ?? NaN), status: e.getAttribute("data-status"), rate: Number(e.getAttribute("data-win-rate")), games: Number(e.getAttribute("data-games")), tied: e.hasAttribute("data-tied"), note: e.querySelector('[data-testid="form-note"]')?.textContent ?? null })),
@@ -65,7 +77,7 @@ test("Recent form ranks every full 20-game window by win rate, shared places and
 });
 
 test("each row says what counts: the record, the dates and the main role", async ({ page }, info) => {
-  await open(page, PREVIEW);
+  await open(page, BOARDS);
   const row = page.getByTestId("form-row").first();
   const wins = Number(await row.getAttribute("data-wins"));
   const phone = (page.viewportSize()?.width ?? 1000) < 640;
@@ -79,9 +91,9 @@ test("each row says what counts: the record, the dates and the main role", async
 });
 
 test("Records & achievements: season records open their game, multikills rarest first, milestones", async ({ page }) => {
-  await open(page, PREVIEW);
+  await open(page, BOARDS);
   await page.getByTestId("leaderboards-tab-records").click();
-  await expect(page).toHaveURL(/preview=recent-form&view=records/);
+  await expect(page).toHaveURL(/\/leaderboards\?view=records/);
   await expect(page.getByTestId("records-volume-note")).toContainText("reward playing more");
   await expect(page.getByTestId("season-record")).toHaveCount(7);
   const multis = await page.getByTestId("multikill-row").evaluateAll((els) => els.map((e) => ["data-penta", "data-quadra", "data-triple"].map((k) => Number(e.getAttribute(k)))));

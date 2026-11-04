@@ -1,7 +1,6 @@
-import { randomUUID } from "node:crypto";
-import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { eq, inArray, sql, type SQL } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { activationCodes, appSettings, auditEvents, clashScoutAccounts, clashScouts, dataRefreshStatus, draftEnemyScouting, draftPresence, draftRoleSwaps, drafts, invites, jobRuns, lastKnownRanks, matchDetails, matches, opponentPlayers, players, privacyErasures, riotAccounts, users, type MatchParticipantDetail, type RetiredScoutContent, type RetiredScoutPlayer } from "@/server/db/schema";
+import { activationCodes, appSettings, auditEvents, dataRefreshStatus, invites, jobRuns, lastKnownRanks, matchDetails, players, privacyErasures, riotAccounts, users, type MatchParticipantDetail } from "@/server/db/schema";
 import { pruneAuthFailures } from "@/server/auth/throttle";
 import { summariseMatches } from "@/server/accounts/match-summary";
 import type { AccessRole } from "@/server/auth/permissions";
@@ -32,21 +31,18 @@ import { keyCheckOf, normaliseRiotId, tagged } from "./tokens";
     deleted with their timelines; games shared with others keep the others and replace the person
     with a "Removed player" (server/privacy/redact.ts), their timeline entries removed, and other
     members' lane opponent champion forgotten where the opponent was them;
-  - team drafts and match records keep the team's history with the person as "Former member":
-    a replacement id, no name, no champion pools (picks stay: they are the team's games);
-  - players that were them in the Clash scouts saved before Clash Scout was retired become empty
-    slots; last known ranks, draft scouting rows and the retired Meta & Trends tables lose their
-    rows;
+  - last known ranks and the one kept Meta & Trends table (tracked_summoners) lose their rows
+    (migrations 0062, 0063 and 0064 dropped the rest of Meta & Trends, the Draft feature's records
+    and the Clash scouts);
   - the admin activity log keeps what happened but names them "Erased member" (the one exception
     to it being append-only), and job logs lose their Riot IDs;
   - an erasure record keeps keyed tokens of their identifiers (server/privacy/tokens.ts), so games
     synced later leave them out and their Riot accounts are not linked again by accident.
-  - notes other people wrote (drafts, journals, bookmarks…) keep their text with the person's names
+  - notes other people wrote (journals, bookmarks…) keep their text with the person's names
     (UNIIVERSE and Riot names, whole words) replaced by "[removed]".
 */
 
 export const ERASED_MEMBER = "Erased member";
-export const FORMER_MEMBER = "Former member";
 const REMOVED_TEXT = "[removed]";
 
 export interface ErasureSubject {
@@ -77,8 +73,6 @@ export interface ErasureCounts {
   gamesDeidentified: number;
   timelines: number;
   lanePartners: number;
-  scoutPlayers: number;
-  teamRecords: number;
   /** Notes other people wrote that named them (the names are replaced, the rest of the note kept). */
   notes: number;
   auditEntries: number;
@@ -225,30 +219,13 @@ type Matcher = ReturnType<typeof matcherFor>;
    The plan: everything that will change, read before anything is written
    --------------------------------------------------------------------------------------------- */
 
-interface TeamRecordChange {
-  table: "drafts" | "matches";
-  id: string;
-  set: Record<string, unknown>;
-}
-
 interface Plan {
   subject: ErasureSubject;
-  /** Ids team records use for them (player id, and for a former member the ids found by name). */
-  recordIds: Set<string>;
-  replacementId: string;
   exclusive: string[];
   shared: string[];
   timelinesDeleted: number;
   timelinesTouched: number;
-  /** Retired Clash scouts that named them: the content with their slots emptied, and those slots. */
-  scouts: Array<{ id: string; content: RetiredScoutContent; slots: number[] }>;
-  enemyScouting: Array<{ draftId: string; role: string }>;
-  enemyNames: Array<{ table: "drafts" | "matches"; id: string; enemyPlayers: Record<string, string> }>;
-  teamRecords: TeamRecordChange[];
-  roleSwaps: Array<{ id: number; assignments: Record<string, string> }>;
-  draftActions: Array<{ id: number; recommendationSnapshot: Record<string, unknown> | null }>;
   opponentAccounts: string[];
-  opponentPlayers: string[];
   audit: Array<{ id: number; set: Partial<typeof auditEvents.$inferInsert> }>;
   jobRuns: Array<{ id: number; summary: Record<string, unknown>; error: string | null }>;
   refreshStatus: Array<{ key: string; details: Record<string, unknown>; lastError: string | null }>;
@@ -279,8 +256,8 @@ async function affectedMatches(db: Db, s: ErasureSubject): Promise<Array<{ match
   const owned = s.accountIds.length ? sql`SELECT am.match_id FROM account_matches am WHERE am.account_id IN (${uuidList(s.accountIds)})` : null;
   const sources = [named, owned].filter((q): q is SQL => !!q);
   if (!sources.length) return [];
-  // Shared: another linked account played it, or a bookmark, team match record or retired Ranked
-  // Development game of someone else points at it. Otherwise it is only theirs.
+  // Shared: another linked account played it, or a bookmark or retired Ranked Development game of
+  // someone else points at it. Otherwise it is only theirs.
   const otherAccount = s.accountIds.length ? sql`AND o.account_id NOT IN (${uuidList(s.accountIds)})` : sql``;
   const otherPlayer = (column: SQL) => (s.playerId ? sql`AND ${column} IS DISTINCT FROM ${s.playerId}::uuid` : sql``);
   return rowsOf(
@@ -289,42 +266,10 @@ async function affectedMatches(db: Db, s: ErasureSubject): Promise<Array<{ match
       SELECT a.match_id,
         (EXISTS (SELECT 1 FROM account_matches o WHERE o.match_id = a.match_id ${otherAccount})
           OR EXISTS (SELECT 1 FROM team_bookmarks b WHERE b.riot_match_id = a.match_id ${otherPlayer(sql`b.player_id`)})
-          OR EXISTS (SELECT 1 FROM matches m WHERE m.riot_match_id = a.match_id)
           OR EXISTS (SELECT 1 FROM ranked_games g WHERE g.riot_match_id = a.match_id ${otherPlayer(sql`g.player_id`)})) AS shared,
         EXISTS (SELECT 1 FROM match_timelines t WHERE t.match_id = a.match_id) AS has_timeline
       FROM affected a`),
   );
-}
-
-/** A JSON value of a team record with the person replaced: their ids, PUUIDs, names and champion pools. */
-function scrubRecordJson(value: unknown, ids: ReadonlySet<string>, replacement: string, m: Matcher, key = ""): unknown {
-  if (typeof value === "string") {
-    if (ids.has(value)) return replacement;
-    if (m.puuids.has(value)) return "";
-    if (/name$/i.test(key) && (m.name(value) || m.typed(value))) return FORMER_MEMBER;
-    return value;
-  }
-  if (Array.isArray(value)) return value.map((v) => scrubRecordJson(v, ids, replacement, m, key));
-  if (value && typeof value === "object") {
-    const obj = value as Record<string, unknown>;
-    const theirs = typeof obj.id === "string" && ids.has(obj.id);
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(obj)) {
-      const outKey = ids.has(k) ? replacement : k;
-      if (theirs && /pool$/i.test(k) && Array.isArray(v)) out[outKey] = [];
-      else if (theirs && k === "additionalRoles" && Array.isArray(v)) out[outKey] = v.map((r) => (r && typeof r === "object" ? { ...(r as Record<string, unknown>), pool: [] } : r));
-      else out[outKey] = scrubRecordJson(v, ids, replacement, m, k);
-    }
-    if (theirs && "displayName" in obj) out.displayName = FORMER_MEMBER;
-    return out;
-  }
-  return value;
-}
-
-/** For a former member: the ids their entries had in a record's lineup snapshot, found by name (never a current player's). */
-function idsByName(snapshot: unknown, m: Matcher, current: ReadonlySet<string>): string[] {
-  if (!Array.isArray(snapshot)) return [];
-  return snapshot.filter((e): e is { id: string; displayName: string } => !!e && typeof e === "object" && typeof (e as { id?: unknown }).id === "string" && m.name((e as { displayName?: string }).displayName)).map((e) => e.id).filter((id) => !current.has(id));
 }
 
 /** Replaces their Riot IDs, and their Riot names in the old sync log lines, in every string of a JSON value. */
@@ -368,16 +313,13 @@ export function redactNames(text: string, terms: readonly string[]): string {
 }
 
 /**
- * Notes other people wrote (drafts, match records, series, journals, profiles, bookmarks, old
- * opponent notes) that name them: their names become "[removed]", the rest of each note is kept.
+ * Notes other people wrote (journals, profiles, bookmarks) that name them: their names become
+ * "[removed]", the rest of each note is kept.
  */
 async function notesToEdit(db: Db, s: ErasureSubject): Promise<{ edits: NoteEdit[]; mentions: Mention[] }> {
   const terms = nameTerms(s);
   if (!terms.length) return { edits: [], mentions: [] };
   const places: Array<{ where: string; table: string; keyColumn: string; column: string; owner?: string }> = [
-    { where: "Draft notes", table: "drafts", keyColumn: "id", column: "notes" },
-    { where: "Match notes", table: "matches", keyColumn: "id", column: "notes" },
-    { where: "Series notes", table: "series", keyColumn: "id", column: "notes" },
     { where: "Ranked Development notes of other players", table: "ranked_games", keyColumn: "id", column: "notes", owner: "player_id" },
     { where: "Ranked Development notes of other players", table: "ranked_games", keyColumn: "id", column: "learning", owner: "player_id" },
     { where: "Ranked Development notes of other players", table: "ranked_games", keyColumn: "id", column: "adjustment", owner: "player_id" },
@@ -391,8 +333,6 @@ async function notesToEdit(db: Db, s: ErasureSubject): Promise<{ edits: NoteEdit
     { where: "Ranked focus of other players", table: "ranked_profiles", keyColumn: "player_id", column: "notes", owner: "player_id" },
     { where: "Player profile notes", table: "players", keyColumn: "id", column: "notes", owner: "id" },
     { where: "Bookmark notes", table: "team_bookmarks", keyColumn: "id", column: "note", owner: "player_id" },
-    { where: "Old opponent notes", table: "opponent_teams", keyColumn: "id", column: "notes" },
-    { where: "Old opponent notes", table: "opponent_players", keyColumn: "id", column: "notes" },
   ];
   const edits: NoteEdit[] = [];
   const counted = new Map<string, number>();
@@ -411,22 +351,8 @@ async function notesToEdit(db: Db, s: ErasureSubject): Promise<{ edits: NoteEdit
   return { edits, mentions: [...counted].map(([where, rows]) => ({ where, rows })) };
 }
 
-/** A Clash scout's player slot as the retired feature stored an empty one. */
-const emptyScoutSlot = (slot: number): RetiredScoutPlayer => ({ slot, name: "", nameCertainty: "manual", rank: null, ranked: [], mastery: [], verification: "unverified", riotId: null, puuid: null });
-
-/** The columns a saved Clash scout kept for its history list, from what is left of it. */
-function scoutColumns(content: RetiredScoutContent) {
-  const verified = content.players.filter((p) => p.verification === "verified" && p.puuid);
-  return {
-    playersCaptured: content.players.filter((p) => p.name.trim()).length,
-    playersVerified: verified.length,
-    searchText: [content.opponentName, content.tournament.name ?? "", ...content.players.map((p) => p.name), ...verified.map((p) => p.riotId ?? "")].join(" \u0001 ").normalize("NFKC").toLocaleLowerCase("en"),
-  };
-}
-
 async function planErasure(db: Db, s: ErasureSubject): Promise<Plan> {
   const m = matcherFor(s);
-  const replacementId = randomUUID();
   const [currentPlayers, currentUsers] = await Promise.all([db.select({ id: players.id }).from(players), db.select({ id: users.id }).from(users)]);
   const currentPlayerIds = new Set(currentPlayers.map((p) => p.id).filter((id) => id !== s.playerId));
   const currentUserIds = new Set(currentUsers.map((u) => u.id).filter((id) => id !== s.userId));
@@ -438,89 +364,10 @@ async function planErasure(db: Db, s: ErasureSubject): Promise<Plan> {
   const timelinesDeleted = affected.filter((a) => !a.shared && a.has_timeline).length;
   const timelinesTouched = affected.filter((a) => a.shared && a.has_timeline).length;
 
-  // The Clash scouts saved before Clash Scout was retired: a player slot that was them becomes empty.
-  const scouts: Plan["scouts"] = [];
-  for (const row of await db.select({ id: clashScouts.id, content: clashScouts.content }).from(clashScouts)) {
-    const slots: number[] = [];
-    const players_ = row.content.players.map((p) => {
-      if (!(m.riot({ puuid: p.puuid, name: p.riotId }) || m.typed(p.name) || m.typed(p.riotId))) return p;
-      slots.push(p.slot);
-      return emptyScoutSlot(p.slot);
-    });
-    if (slots.length) scouts.push({ id: row.id, content: { ...row.content, players: players_ }, slots });
-  }
-
-  // Scouting rows of the retired draft feature, and the enemy names typed on drafts and matches.
-  const enemyScouting = (await db.select({ draftId: draftEnemyScouting.draftId, role: draftEnemyScouting.role, riotId: draftEnemyScouting.riotId, puuid: draftEnemyScouting.puuid }).from(draftEnemyScouting))
-    .filter((r) => m.riot({ puuid: r.puuid, name: r.riotId }) || m.typed(r.riotId))
-    .map((r) => ({ draftId: r.draftId, role: r.role }));
-  const enemyNames: Plan["enemyNames"] = [];
-  const withEnemies = async (table: "drafts" | "matches") => {
-    const t = table === "drafts" ? drafts : matches;
-    for (const r of await db.select({ id: t.id, enemyPlayers: t.enemyPlayers }).from(t).where(sql`${t.enemyPlayers} <> '{}'::jsonb`)) {
-      const kept = Object.fromEntries(Object.entries(r.enemyPlayers as Record<string, string>).filter(([, name]) => !m.typed(name)));
-      if (Object.keys(kept).length !== Object.keys(r.enemyPlayers).length) enemyNames.push({ table, id: r.id, enemyPlayers: kept });
-    }
-  };
-  await withEnemies("drafts");
-  await withEnemies("matches");
-
-  // Team drafts and match records: the person becomes "Former member" (picks stay).
-  const recordIds = new Set([s.playerId, s.userId].filter((v): v is string => !!v));
-  const terms = unique([s.playerId, s.userId, ...s.puuids]);
-  const nameTerms = unique([...s.names, ...s.riotIds]).map((t) => t.toLowerCase());
-  const candidates = (columns: SQL): SQL => {
-    const parts = [...terms.map((t) => sql`strpos(${columns}, ${t}) > 0`), ...nameTerms.map((t) => sql`strpos(lower(${columns}), ${t}) > 0`)];
-    return parts.length ? sql.join(parts, sql` OR `) : sql`false`;
-  };
-  const teamRecords: TeamRecordChange[] = [];
-  const draftCols = sql`concat_ws(' ', lineup_snapshot::text, initial_assignments::text, current_assignments::text, final_analysis::text, overrides::text)`;
-  for (const r of await db.select({ id: drafts.id, lineupSnapshot: drafts.lineupSnapshot, initialAssignments: drafts.initialAssignments, currentAssignments: drafts.currentAssignments, finalAnalysis: drafts.finalAnalysis, overrides: drafts.overrides }).from(drafts).where(candidates(draftCols))) {
-    const ids = new Set([...recordIds, ...(s.kind === "former" ? idsByName(r.lineupSnapshot, m, currentPlayerIds) : [])]);
-    const set: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(r)) {
-      if (k === "id") continue;
-      const next = scrubRecordJson(v, ids, replacementId, m);
-      if (JSON.stringify(next) !== JSON.stringify(v)) set[k] = next;
-    }
-    if (Object.keys(set).length) {
-      teamRecords.push({ table: "drafts", id: r.id, set });
-      for (const id of ids) recordIds.add(id);
-    }
-  }
-  const matchCols = sql`concat_ws(' ', lineup_snapshot::text, final_assignments::text, our_picks::text, playbook::text, riot_info::text)`;
-  for (const r of await db.select({ id: matches.id, lineupSnapshot: matches.lineupSnapshot, finalAssignments: matches.finalAssignments, ourPicks: matches.ourPicks, playbook: matches.playbook, riotInfo: matches.riotInfo }).from(matches).where(candidates(matchCols))) {
-    const ids = new Set([...recordIds, ...(s.kind === "former" ? idsByName(r.lineupSnapshot, m, currentPlayerIds) : [])]);
-    const set: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(r)) {
-      if (k === "id") continue;
-      const next = scrubRecordJson(v, ids, replacementId, m);
-      if (JSON.stringify(next) !== JSON.stringify(v)) set[k] = next;
-    }
-    if (Object.keys(set).length) {
-      teamRecords.push({ table: "matches", id: r.id, set });
-      for (const id of ids) recordIds.add(id);
-    }
-  }
-  const idTerms = [...recordIds];
-  const roleSwaps = idTerms.length
-    ? (await db.select({ id: draftRoleSwaps.id, assignments: draftRoleSwaps.assignments }).from(draftRoleSwaps).where(sql.join(idTerms.map((t) => sql`strpos(${draftRoleSwaps.assignments}::text, ${t}) > 0`), sql` OR `)))
-        .map((r) => ({ id: r.id, assignments: scrubRecordJson(r.assignments, recordIds, replacementId, m) as Record<string, string> }))
-    : [];
-  const draftActions = idTerms.length
-    ? rowsOf<{ id: number; player_id: string | null; recommendation_snapshot: Record<string, unknown> | null }>(
-        await db.execute(sql`SELECT id, player_id::text AS player_id, recommendation_snapshot FROM draft_actions WHERE player_id::text IN (${textList(idTerms)}) OR ${sql.join(idTerms.map((t) => sql`strpos(coalesce(recommendation_snapshot::text, ''), ${t}) > 0`), sql` OR `)}`),
-      )
-        .map((r) => ({ id: r.id, before: r.recommendation_snapshot, recommendationSnapshot: scrubRecordJson(r.recommendation_snapshot, recordIds, replacementId, m) as Record<string, unknown> | null }))
-        .filter((r) => JSON.stringify(r.before) !== JSON.stringify(r.recommendationSnapshot))
-        .map(({ id, recommendationSnapshot }) => ({ id, recommendationSnapshot }))
-    : [];
-
   // Legacy opponent scouting.
   const opponentAccounts = (await db.select({ id: riotAccounts.id, puuid: riotAccounts.puuid, gameName: riotAccounts.gameName, tagLine: riotAccounts.tagLine }).from(riotAccounts).where(sql`${riotAccounts.ownerType} = 'opponent'`))
     .filter((a) => m.riot({ puuid: a.puuid, name: `${a.gameName}#${a.tagLine}` }))
     .map((a) => a.id);
-  const opponentPlayers_ = (await db.select({ id: opponentPlayers.id, label: opponentPlayers.label, aliases: opponentPlayers.aliases }).from(opponentPlayers)).filter((o) => m.typed(o.label) || o.aliases.some((a) => m.typed(a))).map((o) => o.id);
 
   // The admin activity log.
   const ids = [s.userId, s.playerId, ...s.accountIds].filter((v): v is string => !!v);
@@ -567,26 +414,17 @@ async function planErasure(db: Db, s: ErasureSubject): Promise<Plan> {
     s.accountIds.length ? count(db, sql`SELECT count(*) AS n FROM account_matches WHERE account_id IN (${uuidList(s.accountIds)}) AND champion_id IS NOT NULL`) : 0,
     s.playerId ? count(db, sql`SELECT count(*) AS n FROM ranked_games WHERE player_id = ${s.playerId}::uuid`) : 0,
     s.puuids.length ? count(db, sql`SELECT count(*) AS n FROM last_known_ranks WHERE puuid IN (${textList(s.puuids)})`) : 0,
-    s.puuids.length ? count(db, sql`SELECT (SELECT count(*) FROM tracked_summoners WHERE puuid IN (${textList(s.puuids)})) + (SELECT count(*) FROM ranked_participants WHERE puuid IN (${textList(s.puuids)})) AS n`) : 0,
+    s.puuids.length ? count(db, sql`SELECT count(*) AS n FROM tracked_summoners WHERE puuid IN (${textList(s.puuids)})`) : 0,
     shared.length ? countLanePartners(db, s, shared) : 0,
   ]);
 
   return {
     subject: s,
-    recordIds,
-    replacementId,
     exclusive,
     shared,
     timelinesDeleted,
     timelinesTouched,
-    scouts,
-    enemyScouting,
-    enemyNames,
-    teamRecords,
-    roleSwaps,
-    draftActions,
     opponentAccounts,
-    opponentPlayers: opponentPlayers_,
     audit,
     jobRuns: jobRows,
     refreshStatus: refreshRows,
@@ -601,12 +439,10 @@ async function planErasure(db: Db, s: ErasureSubject): Promise<Plan> {
       gamesDeidentified: shared.length,
       timelines: timelinesDeleted + timelinesTouched,
       lanePartners,
-      scoutPlayers: scouts.reduce((n, x) => n + x.slots.length, 0),
-      teamRecords: teamRecords.length + roleSwaps.length,
       notes: notes.edits.length,
       auditEntries: audit.length,
       jobLogs: jobRows.length + refreshRows.length,
-      otherRecords: ranks + retired + enemyScouting.length + enemyNames.length + opponentAccounts.length + opponentPlayers_.length,
+      otherRecords: ranks + retired + opponentAccounts.length,
     },
     mentions: notes.mentions,
   };
@@ -755,37 +591,14 @@ async function applyPlan(tx: Db, plan: Plan): Promise<void> {
     }
   }
 
-  // 2. The retired Clash scouts and the other Riot-identity rows.
-  for (const scout of plan.scouts) {
-    await tx
-      .update(clashScouts)
-      .set({ content: scout.content, ...scoutColumns(scout.content), updatedBy: null, updatedAt: new Date() })
-      .where(eq(clashScouts.id, scout.id));
-    await tx.delete(clashScoutAccounts).where(and(eq(clashScoutAccounts.scoutId, scout.id), inArray(clashScoutAccounts.slot, scout.slots)));
-  }
+  // 2. The other Riot-identity rows.
   if (s.puuids.length) {
-    await tx.delete(clashScoutAccounts).where(inArray(clashScoutAccounts.puuid, s.puuids));
     await tx.delete(lastKnownRanks).where(inArray(lastKnownRanks.puuid, s.puuids));
     await tx.execute(sql`DELETE FROM tracked_summoners WHERE puuid IN (${textList(s.puuids)})`);
-    await tx.execute(sql`DELETE FROM ranked_participants WHERE puuid IN (${textList(s.puuids)})`);
-  }
-  for (const r of plan.enemyScouting) await tx.execute(sql`DELETE FROM draft_enemy_scouting WHERE draft_id = ${r.draftId}::uuid AND role = ${r.role}`);
-  for (const r of plan.enemyNames) {
-    if (r.table === "drafts") await tx.update(drafts).set({ enemyPlayers: r.enemyPlayers }).where(eq(drafts.id, r.id));
-    else await tx.update(matches).set({ enemyPlayers: r.enemyPlayers }).where(eq(matches.id, r.id));
   }
   if (plan.opponentAccounts.length) await tx.delete(riotAccounts).where(inArray(riotAccounts.id, plan.opponentAccounts));
-  if (plan.opponentPlayers.length) await tx.update(opponentPlayers).set({ label: "Removed player", aliases: [], notes: "", updatedAt: new Date() }).where(inArray(opponentPlayers.id, plan.opponentPlayers));
 
-  // 3. Team history: "Former member".
-  for (const r of plan.teamRecords) {
-    if (r.table === "drafts") await tx.update(drafts).set(r.set as Partial<typeof drafts.$inferInsert>).where(eq(drafts.id, r.id));
-    else await tx.update(matches).set(r.set as Partial<typeof matches.$inferInsert>).where(eq(matches.id, r.id));
-  }
-  for (const r of plan.roleSwaps) await tx.update(draftRoleSwaps).set({ assignments: r.assignments as typeof draftRoleSwaps.$inferInsert.assignments }).where(eq(draftRoleSwaps.id, r.id));
-  for (const r of plan.draftActions) await tx.execute(sql`UPDATE draft_actions SET recommendation_snapshot = ${r.recommendationSnapshot === null ? null : JSON.stringify(r.recommendationSnapshot)}::jsonb WHERE id = ${r.id}`);
-  const recordIds = [...plan.recordIds];
-  if (recordIds.length) await tx.execute(sql`UPDATE draft_actions SET player_id = ${plan.replacementId}::uuid WHERE player_id::text IN (${textList(recordIds)})`);
+  // 3. Other players' records: the retired Ranked Development's "not played with" lists, and notes.
   if (s.playerId) await tx.execute(sql`UPDATE ranked_games SET not_played_with = not_played_with - ${s.playerId} WHERE not_played_with @> jsonb_build_array(${s.playerId}::text)`);
 
   for (const e of plan.notes) await tx.execute(sql`UPDATE ${sql.identifier(e.table)} SET ${sql.identifier(e.column)} = ${e.text} WHERE ${sql.identifier(e.keyColumn)}::text = ${e.key}`);
@@ -795,8 +608,6 @@ async function applyPlan(tx: Db, plan: Plan): Promise<void> {
   for (const r of plan.jobRuns) await tx.update(jobRuns).set({ summary: r.summary, error: r.error }).where(eq(jobRuns.id, r.id));
   for (const r of plan.refreshStatus) await tx.update(dataRefreshStatus).set({ details: r.details, lastError: r.lastError }).where(eq(dataRefreshStatus.key, r.key));
   if (s.userId) {
-    await tx.update(drafts).set({ controllerUserId: null }).where(eq(drafts.controllerUserId, s.userId));
-    await tx.delete(draftPresence).where(eq(draftPresence.userId, s.userId));
     await tx.update(activationCodes).set({ createdByUserId: null }).where(eq(activationCodes.createdByUserId, s.userId));
     await tx.update(invites).set({ createdByUserId: null }).where(eq(invites.createdByUserId, s.userId));
     await tx.update(invites).set({ usedByUserId: null }).where(eq(invites.usedByUserId, s.userId));

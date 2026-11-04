@@ -6,8 +6,8 @@ import { accountMastery, accountMatches, riotAccounts } from "@/server/db/schema
 import { currentSeason } from "@/server/accounts/sync";
 import { createPlayer, getOrCreateTeam, setLineupSlot } from "@/server/repositories/team";
 import { invalidateLeaderboardCache, loadLeaderboardData, type LeaderboardData } from "@/server/leaderboards/service";
-import { buildLeaderboardView, parseFilters } from "@/server/leaderboards/view";
-import { LEADERBOARD_QUEUES, LEADERBOARD_ROLES, METRICS, isLeaderboardRole, type LeaderboardExtra, type LeaderboardGame } from "@/domain/leaderboards";
+import { buildRecentLeaderboardView } from "@/server/leaderboards/recent-view";
+import { LEADERBOARD_ROLES, isLeaderboardRole, type LeaderboardExtra, type LeaderboardGame } from "@/domain/leaderboards";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 
@@ -166,22 +166,22 @@ describe("Team Leaderboards, one compact answer", () => {
     expect(data.games.some((g) => g.extra && Object.keys(g.extra).length === 0)).toBe(true);
     expect(data.games.some((g) => g.kills === null)).toBe(true);
 
-    // Every statistic, in every scope, for the whole team and the lineup: the same board.
+    // Both views (Recent form; Records & achievements for this season and the last), for a member
+    // and for a viewer off the board: the same boards from either answer.
     const before: LeaderboardData = { ...data, games: previous.games };
+    const now = new Date(Math.max(...data.games.map((g) => g.gameCreation)) + 3_600_000);
+    const requests = [{ tab: "form" as const }, { tab: "records" as const, season }, { tab: "records" as const, season: season - 1 }];
     let boards = 0;
-    for (const queue of Object.keys(LEADERBOARD_QUEUES)) {
-      for (const role of [null, ...LEADERBOARD_ROLES]) {
-        for (const seasonParam of [String(season), String(season - 1)]) {
-          for (const m of METRICS) {
-            for (const lineup of ["", "1"]) {
-              const params = { category: m.category, metric: m.id, queue, season: seasonParam, ...(role ? { role } : {}), ...(lineup ? { lineup } : {}) };
-              expect(buildLeaderboardView(data, parseFilters(params, data), players[0]!), JSON.stringify(params)).toEqual(buildLeaderboardView(before, parseFilters(params, before), players[0]!));
-              boards++;
-            }
-          }
-        }
+    for (const request of requests) {
+      for (const viewer of [players[0]!, null]) {
+        expect(buildRecentLeaderboardView(data, request, viewer, { now }), JSON.stringify(request)).toEqual(buildRecentLeaderboardView(before, request, viewer, { now }));
+        boards++;
       }
     }
-    expect(boards).toBeGreaterThan(1000);
+    expect(boards).toBe(6);
+    // The views had something to compare: a ranked or provisional row, and a held record.
+    const form = buildRecentLeaderboardView(data, { tab: "form" }, null, { now }).form!;
+    expect(form.rows.length + form.notEnough.length).toBeGreaterThan(0);
+    expect(buildRecentLeaderboardView(data, { tab: "records", season }, null, { now }).records!.records.some((r) => r.holder)).toBe(true);
   }, 120_000);
 });
