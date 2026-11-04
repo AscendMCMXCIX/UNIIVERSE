@@ -32,6 +32,8 @@ let strangerPlayerId: string;
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 const NOW = new Date("2026-10-20T10:00:00Z");
+/** The viewer of these games has "view teammates' statistics": every member's rank (players/game-audience). */
+const withTeammatesStats = () => true;
 
 const entry = (queueType: "RANKED_SOLO_5x5" | "RANKED_FLEX_SR", tier: string, rank: string, leaguePoints: number) => ({ queueType, tier, rank, leaguePoints, wins: 50, losses: 45 });
 /** What the stand-in Riot answers per PUUID: entries, or an HTTP status. */
@@ -156,7 +158,7 @@ const bySlot = (ranks: Array<{ slot: number; rank: ParticipantRank }>) => new Ma
 describe("rank checks for an opened match", () => {
   it("use stored ranks first and ask Riot once for each player whose rank is missing or stale", async () => {
     const { client, asked } = riot();
-    const result = await getMatchRanks(handle.db, memberId, "OC1_100", { lookup: true, client, now: NOW });
+    const result = await getMatchRanks(handle.db, memberId, "OC1_100", { statsFor: withTeammatesStats, lookup: true, client, now: NOW });
     if (result.status !== "ok") throw new Error(result.message);
     // Not m-1 (synced yesterday), not x-1 (checked 20 hours ago), not the removed player.
     expect(asked.sort()).toEqual(["m-2", "x-2", "x-3", "x-4", "x-5", "x-6", "x-7"]);
@@ -184,13 +186,13 @@ describe("rank checks for an opened match", () => {
 
   it("ask nothing again for three days, and leave a failed player alone for 30 minutes", async () => {
     const first = riot();
-    await getMatchRanks(handle.db, memberId, "OC1_100", { lookup: true, client: first.client, now: NOW });
+    await getMatchRanks(handle.db, memberId, "OC1_100", { statsFor: withTeammatesStats, lookup: true, client: first.client, now: NOW });
     const again = riot();
-    const result = await getMatchRanks(handle.db, memberId, "OC1_100", { lookup: true, client: again.client, now: new Date(NOW.getTime() + HOUR / 4) });
+    const result = await getMatchRanks(handle.db, memberId, "OC1_100", { statsFor: withTeammatesStats, lookup: true, client: again.client, now: new Date(NOW.getTime() + HOUR / 4) });
     expect(again.asked).toEqual([]);
     expect(result.status === "ok" && result.check).toEqual({ asked: 0, found: 0, failed: 0, skipped: 0, reason: null });
     // The Flex game shows the same readings in its own queue: x-4's Flex rank plainly, m-1 marked Solo/Duo.
-    const flex = await getMatchRanks(handle.db, memberId, "OC1_200", { lookup: false, now: NOW });
+    const flex = await getMatchRanks(handle.db, memberId, "OC1_200", { statsFor: withTeammatesStats, lookup: false, now: NOW });
     if (flex.status !== "ok") throw new Error(flex.message);
     expect(bySlot(flex.ranks).get(5)).toMatchObject({ queue: "flex", tier: "GOLD" });
     expect(bySlot(flex.ranks).get(0)).toMatchObject({ queue: "solo", tier: "GOLD" });
@@ -220,7 +222,7 @@ describe("rank checks for an opened match", () => {
   it("keep within the daily limit across the site", async () => {
     const { client, asked } = riot();
     // x-1's check 20 hours ago counts: with a limit of 3, two are left.
-    const result = await getMatchRanks(handle.db, memberId, "OC1_100", { lookup: true, client, now: NOW, perDay: 3 });
+    const result = await getMatchRanks(handle.db, memberId, "OC1_100", { statsFor: withTeammatesStats, lookup: true, client, now: NOW, perDay: 3 });
     expect(asked).toHaveLength(2);
     expect(result.status === "ok" && result.check).toMatchObject({ asked: 2, skipped: 5, reason: "budget" });
   });
@@ -229,14 +231,14 @@ describe("rank checks for an opened match", () => {
     // Two a second: half is one.
     const { client, asked } = riot({ limiter: new RateLimiter([{ requests: 2, seconds: 1 }]) });
     const started = Date.now();
-    const result = await getMatchRanks(handle.db, memberId, "OC1_100", { lookup: true, client, now: NOW });
+    const result = await getMatchRanks(handle.db, memberId, "OC1_100", { statsFor: withTeammatesStats, lookup: true, client, now: NOW });
     expect(Date.now() - started).toBeLessThan(2_000);
     expect(asked).toHaveLength(1);
     expect(result.status === "ok" && result.check).toMatchObject({ asked: 1, skipped: 6, reason: "busy" });
   });
 
   it("without Riot access, show stored ranks and ask nothing", async () => {
-    const result = await getMatchRanks(handle.db, memberId, "OC1_100", { lookup: true, client: null, now: NOW });
+    const result = await getMatchRanks(handle.db, memberId, "OC1_100", { statsFor: withTeammatesStats, lookup: true, client: null, now: NOW });
     expect(result.status === "ok" && result.check).toMatchObject({ asked: 0, skipped: 7, reason: "unavailable" });
     expect(result.status === "ok" && bySlot(result.ranks).get(4)).toMatchObject({ state: "ranked", tier: "DIAMOND", kind: "sighting", stale: true });
     // This deployment has no key in the tests: the match window does not offer a check.
@@ -247,14 +249,14 @@ describe("rank checks for an opened match", () => {
 
   it("find nothing, and ask nothing, for a match outside the player's history", async () => {
     const { client, asked } = riot();
-    expect(await getMatchRanks(handle.db, strangerPlayerId, "OC1_100", { lookup: true, client, now: NOW })).toMatchObject({ status: "not-found" });
-    expect(await getMatchRanks(handle.db, memberId, "OC1_999", { lookup: true, client, now: NOW })).toMatchObject({ status: "not-found" });
+    expect(await getMatchRanks(handle.db, strangerPlayerId, "OC1_100", { statsFor: withTeammatesStats, lookup: true, client, now: NOW })).toMatchObject({ status: "not-found" });
+    expect(await getMatchRanks(handle.db, memberId, "OC1_999", { statsFor: withTeammatesStats, lookup: true, client, now: NOW })).toMatchObject({ status: "not-found" });
     expect(asked).toEqual([]);
   });
 
   it("are reported to the data audit as counts only", async () => {
     const { client } = riot();
-    await getMatchRanks(handle.db, memberId, "OC1_100", { lookup: true, client, now: NOW });
+    await getMatchRanks(handle.db, memberId, "OC1_100", { statsFor: withTeammatesStats, lookup: true, client, now: NOW });
     const report = await rankCoverage(handle.db, NOW);
     expect(report.kept).toEqual([{ source: "match lookup", players: 7, unranked: 1, current: 7 }]);
     expect(report.lookupsByDay).toEqual([
@@ -286,7 +288,7 @@ describe("rank checks for an opened match", () => {
     await handle.db.insert(privacyErasures).values({ reference: "ER-TEST01", tokens: [tagged("puuid", "x-7")], keyCheck: keyCheckOf() });
     forgetErasureCache();
     const { client, asked } = riot();
-    await getMatchRanks(handle.db, memberId, "OC1_100", { lookup: true, client, now: NOW });
+    await getMatchRanks(handle.db, memberId, "OC1_100", { statsFor: withTeammatesStats, lookup: true, client, now: NOW });
     expect(asked).not.toContain("x-7");
     expect((await handle.db.select().from(lastKnownRanks).where(eq(lastKnownRanks.puuid, "x-7"))).length).toBe(0);
     // Asked directly for a player the match does not hold (an erasure replaced them meanwhile): Riot answers, nothing is written.
@@ -301,7 +303,7 @@ describe("rank checks for an opened match", () => {
 describe("ranks on the collapsed match cards", () => {
   // A slot is the place in the stored record: x-4 … x-7 are 5 … 8, the removed player 9.
   const opponents = async (matchId: string) => {
-    const page = await getMatchHistory(handle.db, memberId, { per: 25 });
+    const page = await getMatchHistory(handle.db, memberId, { per: 25 }, undefined, withTeammatesStats);
     const teams = page.rows.find((r) => r.matchId === matchId)!.teams!;
     return { teams, red: new Map(teams.red.map((s) => [s.slot, s])) };
   };
@@ -322,7 +324,7 @@ describe("ranks on the collapsed match cards", () => {
     expect(before.red.get(9)).not.toHaveProperty("rank");
     expect(asked).toEqual([]);
     // Opening the match checks them with Riot (within the limits); the next list load shows what was found.
-    await getMatchRanks(handle.db, memberId, "OC1_100", { lookup: true, client, now: NOW });
+    await getMatchRanks(handle.db, memberId, "OC1_100", { statsFor: withTeammatesStats, lookup: true, client, now: NOW });
     const asksAfterWindow = asked.length;
     expect(asksAfterWindow).toBeGreaterThan(0);
     const after = await opponents("OC1_100");
@@ -373,7 +375,7 @@ describe("ranks around each game", () => {
     expect(asked.sort()).toEqual(["x-1", "x-2", "x-3", "x-4", "x-5", "x-6", "y-1"]);
     expect(run).toMatchObject({ waiting: 7, games: 1, asked: 7, found: 6, failed: 1, skipped: 0, reason: null });
     // The game's scoreboard now shows each of them as read around the game, a few hours after it.
-    const ranks = await getMatchRanks(handle.db, memberId, RECENT, { lookup: false, now: NOW });
+    const ranks = await getMatchRanks(handle.db, memberId, RECENT, { statsFor: withTeammatesStats, lookup: false, now: NOW });
     if (ranks.status !== "ok") throw new Error(ranks.message);
     const r = bySlot(ranks.ranks);
     expect(r.get(3)).toMatchObject({ tier: "EMERALD", timing: "after", stale: false });
@@ -435,18 +437,18 @@ describe("ranks around each game", () => {
       { accountId: memberAccountId, queue: "solo", tier: "GOLD", division: "II", leaguePoints: 62, wins: 10, losses: 9, capturedAt: new Date(NOW.getTime() - HOUR) },
     ]);
     try {
-      const ranks = await getMatchRanks(handle.db, memberId, RECENT, { lookup: false, now: NOW });
+      const ranks = await getMatchRanks(handle.db, memberId, RECENT, { statsFor: withTeammatesStats, lookup: false, now: NOW });
       if (ranks.status !== "ok") throw new Error(ranks.message);
       expect(bySlot(ranks.ranks).get(0)).toMatchObject({ tier: "SILVER", division: "I", leaguePoints: 61, timing: "before", stale: false });
       // A teammate's on the card the same way: m-2's last reading (ten days ago) was before this game,
       // but after the older one, which shows it as read later.
-      const page = await getMatchHistory(handle.db, memberId, { per: 25 });
+      const page = await getMatchHistory(handle.db, memberId, { per: 25 }, undefined, withTeammatesStats);
       const recent = page.rows.find((r) => r.matchId === RECENT)!.teams!;
       expect(recent.blue.find((s) => s.slot === 1)?.rank).toMatchObject({ tier: "SILVER", division: "I", timing: "before" });
       const old = page.rows.find((r) => r.matchId === "OC1_100")!.teams!;
       expect(old.blue.find((s) => s.slot === 1)?.rank).toMatchObject({ tier: "SILVER", division: "I", timing: "later" });
       // The older game, from before m-1's history began: their current rank, read later.
-      const detail = await getMatchRanks(handle.db, memberId, "OC1_100", { lookup: false, now: NOW });
+      const detail = await getMatchRanks(handle.db, memberId, "OC1_100", { statsFor: withTeammatesStats, lookup: false, now: NOW });
       if (detail.status !== "ok") throw new Error(detail.message);
       expect(bySlot(detail.ranks).get(0)).toMatchObject({ tier: "GOLD", division: "II", leaguePoints: 62, timing: "later" });
     } finally {
@@ -456,7 +458,7 @@ describe("ranks around each game", () => {
 
   it("ask, when a recent game is opened, for players last read before it", async () => {
     const { client, asked } = riot();
-    const result = await getMatchRanks(handle.db, memberId, RECENT, { lookup: true, client, now: NOW });
+    const result = await getMatchRanks(handle.db, memberId, RECENT, { statsFor: withTeammatesStats, lookup: true, client, now: NOW });
     if (result.status !== "ok") throw new Error(result.message);
     // x-1 was checked 20 hours ago, which is current, but before this game: asked again; m-2's sync is ten days old.
     expect(asked.sort()).toEqual(["m-2", "x-1", "x-2", "x-3", "x-4", "x-5", "x-6", "y-1"]);

@@ -182,7 +182,8 @@ export function canUseAdminArea(session: Session | null): boolean {
 /**
  * May ask for the version of a page's data (/api/freshness) with the access that page needs: their
  * own profile, someone else's with the Players directory, the team's pages with any of their view
- * rights, the jobs with the data settings of Admin Mode.
+ * rights, the jobs with the data settings of Admin Mode. The route also applies canOpenProfile to
+ * a player (auth/profile-access mayOpenProfile), which needs the stored membership.
  */
 export function canWatchFreshness(session: Session | null, scope: FreshnessScope): boolean {
   if (!session) return false;
@@ -194,7 +195,8 @@ export function canWatchFreshness(session: Session | null, scope: FreshnessScope
 /**
  * May see this player's statistics, their rank included (tier, division, LP, queue, ranked wins
  * and losses): their own always, anyone else's with "view teammates' statistics". The Team page
- * (team/roster.ts), the profile header and a teammate's Riot Accounts tab all decide by this.
+ * (team/roster.ts), the profile header, a teammate's Riot Accounts tab and the players of one's
+ * games (players/game-audience) all decide by this (docs/PROFILE_VISIBILITY.md).
  */
 export function canViewPlayerStats(session: Session | null, playerId: string): boolean {
   if (!session) return false;

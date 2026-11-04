@@ -371,13 +371,14 @@ export async function setLineupSlot(db: Db, teamId: string, role: Role, playerId
   if (bench) {
     const stale = "The lineup changed since this page was loaded. It has been refreshed: check it and try again.";
     if (!playerId || lineup.slots[role] !== bench.replacing || Object.values(lineup.slots).includes(playerId)) throw new PlayerValidationError(stale);
+    // Who may join, before anything about the substitute is said (a personal-use player is not named).
+    await assertLineupEligible(db, [playerId]);
     const sub = await getPlayer(db, playerId);
     if (sub && !legalRolesFor(sub).includes(role)) throw new PlayerValidationError(`${sub.displayName} does not list ${ROLE_LABELS[role]} as a role, so they cannot substitute there.`);
     // The swap: the former starter takes the substitute's place for this role when they list it.
     const former = await getPlayer(db, bench.replacing);
     formerStarterSubstitutes = !!former && legalRolesFor(former).includes(role);
-  }
-  if (playerId && lineup.slots[role] !== playerId) await assertLineupEligible(db, [playerId]);
+  } else if (playerId && lineup.slots[role] !== playerId) await assertLineupEligible(db, [playerId]);
   await db.transaction(async (tx) => {
     await tx.delete(lineupSlots).where(and(eq(lineupSlots.lineupId, lineup.id), eq(lineupSlots.role, role)));
     if (playerId) {
@@ -430,18 +431,22 @@ export async function setLineup(db: Db, teamId: string, slots: Partial<Record<Ro
   });
 }
 
+/** What a lineup manager is told about a player who is not on the team, or no longer exists: neither their name nor which. */
+export const NOT_ON_TEAM = "That player is not on the team, so they cannot join the lineup.";
+
 /**
  * Who can join a lineup: team members with a chosen role (the slot's role is checked against their
- * roles by the caller, as before). Unfinished setup alone no longer keeps anyone out.
+ * roles by the caller, as before). Unfinished setup alone no longer keeps anyone out. A
+ * personal-use profile is its player's and the administrators' only (auth/permissions
+ * canOpenProfile), so it is refused first, as one that does not exist, without its name.
  */
 async function assertLineupEligible(db: Db, ids: string[]) {
   if (ids.length === 0) return;
   for (const id of ids) {
     const row = await getPlayerRow(db, id);
-    if (!row) throw new PlayerValidationError("That player no longer exists.");
+    if (!row || !row.teamMember) throw new PlayerValidationError(NOT_ON_TEAM);
     if (row.archivedAt) throw new PlayerValidationError(`${row.displayName} is archived, so they cannot join the lineup.`);
     if (!row.primaryRole) throw new PlayerValidationError(`${row.displayName} has not chosen their roles yet, so there is no role to put them in.`);
-    if (!row.teamMember) throw new PlayerValidationError(`${row.displayName} is not a member of the team, so they cannot join the lineup.`);
   }
 }
 

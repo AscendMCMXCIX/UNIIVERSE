@@ -1,6 +1,6 @@
-import { and, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { riotAccounts } from "@/server/db/schema";
+import { players, riotAccounts } from "@/server/db/schema";
 import { playedIn } from "@/server/accounts/match-details";
 import { charactersIn, opggLinkFor, opggProfileUrl, platformOfMatchId, riotIdProblem, tagProblem, type KnownRiotId, type RiotIdProblem } from "@/domain/opgg";
 
@@ -9,7 +9,9 @@ import { charactersIn, opggLinkFor, opggProfileUrl, platformOfMatchId, riotIdPro
   A match records the Riot ID a player had in that game, which goes stale when they rename (the
   old name can then open nobody, or someone else). So, by PUUID:
     1. a linked account's Riot ID, which the account sync keeps current, on its server once Riot
-       has confirmed it (until then, the match's own server);
+       has confirmed it (until then, the match's own server): a current team member's (on the
+       team, not archived), or the accounts the caller names (`linked`, players/game-audience). A
+       personal-use or archived profile's account is private to it, so it is read as anyone else's;
     2. otherwise the full Riot ID (name and tag) from the newest stored Riot game after `since`
        that the player appears in, on that game's server.
   Players found in neither keep the Riot ID their own match recorded (domain/opgg opggLinkFor).
@@ -23,15 +25,19 @@ const rowsOf = <T,>(result: unknown): T[] => ((result as { rows?: T[] }).rows ??
  * Newest known Riot IDs for these players. `since` (ms) bounds the search to games newer than the
  * ones on screen, so only the stored games that could hold a newer name are read.
  */
-export async function knownRiotIds(db: Db, puuids: readonly string[], since: number): Promise<Map<string, KnownRiotId>> {
+export async function knownRiotIds(db: Db, puuids: readonly string[], since: number, options: { linked?: ReadonlySet<string> } = {}): Promise<Map<string, KnownRiotId>> {
   const ids = [...new Set(puuids.filter(Boolean))];
   const out = new Map<string, KnownRiotId>();
   if (!ids.length) return out;
-  const linked = await db
-    .select({ puuid: riotAccounts.puuid, gameName: riotAccounts.gameName, tagLine: riotAccounts.tagLine, platform: riotAccounts.platform, platformSource: riotAccounts.platformSource })
-    .from(riotAccounts)
-    // Demo accounts carry made-up Riot IDs that could belong to a real stranger: never linked.
-    .where(and(eq(riotAccounts.ownerType, "player"), ne(riotAccounts.label, "demo"), ne(riotAccounts.syncStatus, "demo"), isNotNull(riotAccounts.puuid), inArray(riotAccounts.puuid, ids)));
+  const fromAccounts = options.linked ? ids.filter((id) => options.linked!.has(id)) : ids;
+  const columns = { puuid: riotAccounts.puuid, gameName: riotAccounts.gameName, tagLine: riotAccounts.tagLine, platform: riotAccounts.platform, platformSource: riotAccounts.platformSource };
+  // Demo accounts carry made-up Riot IDs that could belong to a real stranger: never linked.
+  const usable = and(eq(riotAccounts.ownerType, "player"), ne(riotAccounts.label, "demo"), ne(riotAccounts.syncStatus, "demo"), isNotNull(riotAccounts.puuid), inArray(riotAccounts.puuid, fromAccounts));
+  const linked = !fromAccounts.length
+    ? []
+    : options.linked
+      ? await db.select(columns).from(riotAccounts).where(usable)
+      : await db.select(columns).from(riotAccounts).innerJoin(players, eq(players.id, riotAccounts.playerId)).where(and(usable, eq(players.teamMember, true), isNull(players.archivedAt)));
   // The server only once Riot confirmed it (a player's own choice can be wrong); else the match's.
   for (const a of linked) if (a.puuid && a.gameName && a.tagLine) out.set(a.puuid, { riotId: `${a.gameName}#${a.tagLine}`, platform: a.platformSource === "riot" ? a.platform : null });
   const rest = ids.filter((id) => !out.has(id));
