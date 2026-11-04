@@ -24,6 +24,17 @@ const inter = localFont({
   variable: "--font-inter",
 });
 
+/*
+  Every page shares one server function on Vercel, which groups pages by their settings. The member
+  and admin layouts need 300 s for the background refresh a visit may start; with the default here,
+  "/" and the public pages were a separate function. Opening the app ("/", which redirects to the
+  member's start page) then started two functions one after the other, and on a site opened a few
+  times a day both were often cold. With the same limit everywhere, the redirect lands on the
+  function "/" just started. A limit, not a cost: a page is billed for the time it actually runs
+  (docs/PERFORMANCE.md, "The start page's two functions").
+*/
+export const maxDuration = 300;
+
 /** Every tab title ends with the app's own name (Admin → Branding). */
 export async function generateMetadata(): Promise<Metadata> {
   let name = DEFAULT_BRANDING.productName;
