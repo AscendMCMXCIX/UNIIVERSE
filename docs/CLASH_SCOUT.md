@@ -1,8 +1,9 @@
 # Clash Scout (retired)
 
-**Status: permanently removed on 23 Oct 2026, at the owner's request.** There is no replacement,
-placeholder or archive page. This page records what was removed, what is left on purpose and what
-the held database clean-up still has to do. It is not a guide to the old implementation.
+**Status: permanently removed on 23 Oct 2026, at the owner's request,** and its saved scouts
+deleted with their tables by migration `0064`. There is no replacement, placeholder or archive page.
+This page records what was removed and what is left on purpose. It is not a guide to the old
+implementation.
 
 Clash Scout was a team-only workspace (`/clash`) that read the opposing team's Clash scouting
 screenshots in the browser and helped members say which Riot account each opponent was. It was
@@ -42,30 +43,22 @@ possible groups, and every other OP.GG link.
 
 ## What is left on purpose
 
-| What | Why | Until |
-|---|---|---|
-| `clash_scouts`, `clash_scout_accounts` (`src/server/db/schema/clash.ts`, marked retired) | The scouts saved before the retirement. Shown nowhere; nothing adds to them | The held drop below |
-| Erasure of the saved scouts (`src/server/privacy/erasure.ts`) | Permanent removal still empties an erased person's slots in them and removes those slots' verified accounts (`tests/db/privacy-erasure.test.ts`) | The held drop |
-| The full erasure reconciliation over them (`src/server/privacy/reconcile.ts`) | After a restore, an erased person must not come back in a saved scout. The daily check skips them, since nothing adds new ones | The held drop |
-| The privacy notice's entries for them (`/privacy`) | The notice must say what is stored | The held drop |
-| `src/components/legacy-storage.tsx` | Deletes what earlier versions left in members' browsers (an unsaved scout in `localStorage`, the text recogniser's IndexedDB cache) | Kept: it costs nothing once they are gone |
-| The audit label `clash.scout-delete` (`src/domain/audit.ts`) | Older Audit Logs entries keep their name | Kept with the history |
+| What | Why |
+|---|---|
+| `src/components/legacy-storage.tsx` | Deletes what earlier versions left in members' browsers (an unsaved scout in `localStorage`, the text recogniser's IndexedDB cache). It costs nothing once they are gone |
+| The audit label `clash.scout-delete` (`src/domain/audit.ts`) | Older Audit Logs entries keep their name |
+| `clash_scouts` and `clash_scout_accounts` in `db-usage`'s retired list | The report confirms that both tables are gone |
+| Migrations `0050` and `0055`, which created and updated the tables | Applied migrations are never edited; a fresh install creates the tables and `0057` drops them |
 
-## The held database clean-up (stage B)
+## The database clean-up (migration 0064)
 
-Not run. It waits until the owner has independently verified the encrypted database backup and
-secured an offline copy, and then needs the owner's explicit go-ahead. It is prepared as its own
-draft pull request: a migration that drops `clash_scout_accounts` and then `clash_scouts` (their
-indexes and foreign keys go with them), with the schema file, the erasure and reconciliation code
-for them and the privacy notice's entries removed in the same change. Historical migrations are not
-edited.
+`0064_retire_clash_scouts` dropped `clash_scout_accounts` and then `clash_scouts` (their indexes and
+foreign keys went with them; no `CASCADE`, so an unexpected dependency would have stopped it). It
+ran only after the owner had independently verified an encrypted backup holding both tables, kept an
+offline copy and gave the go-ahead. The same change removed their schema, the erasure and
+reconciliation code for them and the privacy notice's entries for the saved scouts.
 
-Before it merges:
-1. Data jobs → `db-usage`, twice a day apart: `retired` shows both tables with no new writes, and
-   no dependent outside them (the scout accounts' key to the scouts is internal to the two).
-2. The owner confirms the backup and the offline copy.
-3. The database tests pass with it: a fresh install, and an existing database (with saved scouts)
-   upgraded by it.
-4. Afterwards `db-usage` shows both tables as gone.
-
-The held Draft and Meta & Trends drops (PR #86) are separate and are not changed by this.
+Checks: `db-usage` reports both tables as gone; `tests/db/migrate.test.ts` covers the drop on a
+database with saved scouts, and every fresh install runs `0050` to `0057` in order. Recovery, if
+ever needed: `pg_restore --table` from that backup, then revert the change. The Draft and
+Meta & Trends drops (PR #86) are separate.
