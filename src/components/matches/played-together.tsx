@@ -147,7 +147,7 @@ export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams 
       ) : (
         <TogetherList entries={shown.map((g) => ({ entry: togetherEntry(g.matchId, g.teamId), matchId: g.matchId }))} className="space-y-2.5">
           {shown.map((g) => (
-            <TogetherCard key={togetherEntry(g.matchId, g.teamId)} g={g} p={p} champions={champions} teams={teams[g.matchId] ?? null} />
+            <TogetherCard key={togetherEntry(g.matchId, g.teamId)} g={g} p={p} champions={champions} teams={teams[togetherEntry(g.matchId, g.teamId)] ?? teams[g.matchId] ?? null} />
           ))}
         </TogetherList>
       )}
