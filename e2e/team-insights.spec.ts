@@ -48,6 +48,8 @@ test("the preview says what it read, what stands out (or that nothing does), and
     await expect(all).not.toContainText("— of 0");
   }
   await axe(page);
+  // A quiet way back to Team → Matches (the preview has no tab bar of its own).
+  await expect(root.getByTestId("insights-back")).toHaveAttribute("href", "/matches");
   // Nothing overflows the page sideways at any width.
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);

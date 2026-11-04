@@ -292,13 +292,13 @@ function teammateComparisons(playerId: string, mine: readonly MemberGame[], ids:
     const withIt = games.filter((g) => g.teammates.has(id));
     return { with: withIt.length, withWins: withIt.filter((g) => g.win).length, without: games.length - withIt.length, withoutWins: games.filter((g) => !g.teammates.has(id) && g.win).length };
   };
-  const candidates = mates.filter((id) => {
+  const eligible = mates.filter((id) => {
     const c = counts(informative, id);
     return c.with >= MIN_GAMES_EACH_SIDE && c.without >= MIN_GAMES_EACH_SIDE;
   });
 
   const strataKeys = [...new Set(informative.map(roleStratum))].sort();
-  const fit = candidates.length ? fitGrouped(informative, strataKeys, candidates) : null;
+  const { modelled: candidates, fit } = separableTeammates(informative, strataKeys, eligible);
   const span = (games: readonly MemberGame[]) => (games.length ? { from: Math.min(...games.map((g) => g.gameCreation)), to: Math.max(...games.map((g) => g.gameCreation)) } : { from: null, to: null });
   const { from, to } = span(teamGames);
 
@@ -316,8 +316,9 @@ function teammateComparisons(playerId: string, mine: readonly MemberGame[], ids:
       pValue: null,
     };
     const common = { id: `with-teammate:${playerId}:${teammateId}`, kind: "with-teammate" as const, method: "logistic" as const, playerId, teammateId, from, to };
+    if (!eligible.includes(teammateId)) return { ...common, result: base, tested: false, untestedReason: "too-few-games" as const };
     const j = candidates.indexOf(teammateId);
-    if (j === -1) return { ...common, result: base, tested: false, untestedReason: "too-few-games" as const };
+    if (j === -1) return { ...common, result: base, tested: false, untestedReason: "inseparable" as const };
     const coefficient = fit?.coefficients[strataKeys.length + j];
     const se = fit?.standardErrors[strataKeys.length + j];
     if (!fit || coefficient === undefined || se === undefined || !Number.isFinite(coefficient) || Math.abs(coefficient) > 10) {
@@ -335,6 +336,52 @@ function teammateComparisons(playerId: string, mine: readonly MemberGame[], ids:
     };
     return { ...common, result, tested: true, untestedReason: null };
   });
+}
+
+/** Whether a fit gives every teammate a finite, believable coefficient (a huge one means the games separate perfectly). */
+const stableFit = (fit: ReturnType<typeof fitLogistic>, strata: number): fit is NonNullable<ReturnType<typeof fitLogistic>> =>
+  !!fit && fit.coefficients.slice(strata).every((c) => Number.isFinite(c) && Math.abs(c) <= 10);
+
+/** Pearson correlation of two teammates' presence over the same games (0 when either never changes). */
+function presenceCorrelation(games: readonly MemberGame[], a: string, b: string): number {
+  const n = games.length;
+  if (n === 0) return 0;
+  let sa = 0;
+  let sb = 0;
+  let sab = 0;
+  for (const g of games) {
+    const x = g.teammates.has(a) ? 1 : 0;
+    const y = g.teammates.has(b) ? 1 : 0;
+    sa += x;
+    sb += y;
+    sab += x * y;
+  }
+  const cov = sab / n - (sa / n) * (sb / n);
+  const va = sa / n - (sa / n) ** 2;
+  const vb = sb / n - (sb / n) ** 2;
+  return va > 0 && vb > 0 ? cov / Math.sqrt(va * vb) : 0;
+}
+
+/**
+ * The teammates whose effects the games can tell apart, and the fit with them. Teammates are added
+ * one at a time (most games together first); one that makes the fit singular or unstable is left
+ * out, and so is any teammate already in whose presence moves with theirs (|r| ≥ 0.9: always
+ * together, or always one or the other), so the joint effect of two is never credited to one.
+ */
+function separableTeammates(games: readonly MemberGame[], strataKeys: readonly string[], eligible: readonly string[]): { modelled: string[]; fit: NonNullable<ReturnType<typeof fitLogistic>> | null } {
+  const together = (id: string) => games.filter((g) => g.teammates.has(id)).length;
+  const ordered = [...eligible].sort((a, b) => together(b) - together(a) || a.localeCompare(b));
+  const kept: string[] = [];
+  const rejected: string[] = [];
+  for (const id of ordered) {
+    if (stableFit(fitGrouped(games, strataKeys, [...kept, id]), strataKeys.length)) kept.push(id);
+    else rejected.push(id);
+  }
+  const entangled = new Set(kept.filter((k) => rejected.some((r) => Math.abs(presenceCorrelation(games, k, r)) >= 0.9)));
+  const modelled = kept.filter((k) => !entangled.has(k));
+  if (modelled.length === 0) return { modelled, fit: null };
+  const fit = fitGrouped(games, strataKeys, modelled);
+  return stableFit(fit, strataKeys.length) ? { modelled, fit } : { modelled: [], fit: null };
 }
 
 function linear(beta: readonly number[], strataKeys: readonly string[], candidates: readonly string[], g: MemberGame): number {

@@ -288,6 +288,27 @@ describe("teamInsights: telling findings from chance", () => {
     expect(ab.finding || ac.finding).toBe(false);
   });
 
+  it("still tests the teammates it can tell apart when two others always play together", () => {
+    // b and c always together; d independent of them and genuinely raises a's chance.
+    const random = rng(10);
+    const matches: MatchSpec[] = Array.from({ length: 1600 }, (_, i): MatchSpec => {
+      const pair = random() < 0.5;
+      const d = random() < 0.5;
+      const blue: Record<string, string> = { a: "MID", ...(pair ? { b: "TOP", c: "ADC" } : { e: "JUNGLE" }), ...(d ? { d: "SUPPORT" } : {}) };
+      return { id: `D${i}`, daysAgo: i % 100, blue, blueWins: random() < 0.45 + (d ? 0.2 : 0) };
+    });
+    const r = run(matches, ["a", "b", "c", "d", "e"]);
+    const byId = (id: string) => r.comparisons.find((c) => c.id === id)!;
+    expect(byId("with-teammate:a:b").untestedReason).toBe("inseparable");
+    expect(byId("with-teammate:a:c").untestedReason).toBe("inseparable");
+    // e is always the alternative to the pair (exactly one of them is there): entangled as well.
+    expect(byId("with-teammate:a:e").tested).toBe(false);
+    const ad = byId("with-teammate:a:d");
+    expect(ad.tested).toBe(true);
+    expect(ad.finding).toBe(true);
+    expect(ad.result.difference!).toBeGreaterThan(0.1);
+  });
+
   it("notices the team's recent record when it really changed", () => {
     const random = rng(6);
     const matches: MatchSpec[] = Array.from({ length: 600 }, (_, i): MatchSpec => {

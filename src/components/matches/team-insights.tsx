@@ -1,4 +1,5 @@
-import { ArrowDownRight, ArrowUpRight, Scale } from "lucide-react";
+import Link from "next/link";
+import { ArrowDownRight, ArrowLeft, ArrowUpRight, Scale } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { Disclosure } from "@/components/ui/disclosure";
@@ -70,7 +71,17 @@ function Comparisons({ rows }: { rows: readonly Row[] }) {
 export function TeamInsights({ view, preview }: { view: TeamInsightsPageView; preview: boolean }) {
   return (
     <div className="mx-auto max-w-[var(--content-max)] space-y-4" data-testid="team-insights">
-      <PageHeader title={view.title} description={view.scope} eyebrow={preview ? "Preview for administrators" : undefined} />
+      <PageHeader
+        title={view.title}
+        description={view.scope}
+        eyebrow={preview ? "Preview for administrators" : undefined}
+        actions={
+          <Link href="/matches" className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 text-sm text-fg-muted hover:text-fg" data-testid="insights-back">
+            <ArrowLeft className="h-4 w-4" aria-hidden />
+            Team matches
+          </Link>
+        }
+      />
 
       <Panel aria-labelledby="insights-findings">
         <PanelHeader title={<span id="insights-findings">What stands out</span>} subtitle="Differences in the team's own games that are larger than chance would explain." />

@@ -66,7 +66,7 @@ describe("buildTeamInsightsPage", () => {
     expect(page.findings.length).toBeGreaterThan(0);
     const ace = page.findings.find((f) => f.key === "with-team:a")!;
     expect(ace.headline).toBe("Ace has won more often with teammates than alone.");
-    expect(ace.detail).toMatch(/^\d+% of [\d,]+ games with teammates, \d+% of [\d,]+ games alone\. Within the same game mode and role: \+\d+ points, likely between [+−]\d+ and \+\d+\.$/);
+    expect(ace.detail).toMatch(/^\d+% of [\d,]+ games with teammates, \d+% of [\d,]+ games alone\. Within the same game mode and role: \+\d+ points, likely between [+-]\d+ and \+\d+\.$/);
     expect(ace.span).toMatch(/^\d+ \w{3} 2026 – \d+ \w{3} 2026$/);
     expect(ace.direction).toBe("more");
     // Never causal words.

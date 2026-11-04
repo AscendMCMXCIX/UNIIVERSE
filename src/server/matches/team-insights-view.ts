@@ -1,5 +1,5 @@
 import { isAdmin, type Session } from "@/server/auth/permissions";
-import { formatCount, formatDate, percent } from "@/lib/format";
+import { formatCount, formatDate, percent, signedPoints } from "@/lib/format";
 import { seasonLabel } from "@/domain/season";
 import { FALSE_DISCOVERY_RATE, MIN_FINDING_DIFFERENCE, MIN_GAMES_EACH_SIDE, RECENT_DAYS, pairedFindings, type InsightComparison, type TeamInsights } from "@/domain/team-insights";
 import type { TeamInsightsView } from "./team-insights";
@@ -60,7 +60,7 @@ export interface TeamInsightsPageView {
   excluded: string | null;
 }
 
-const pts = (v: number) => `${v >= 0 ? "+" : "−"}${formatCount(Math.abs(v) * 100)}`;
+const pts = (v: number) => signedPoints(v, 0);
 const points = (v: number) => `${pts(v)} point${Math.round(Math.abs(v) * 100) === 1 ? "" : "s"}`;
 const rate = (wins: number, games: number) => (games ? percent(wins / games, 0) : "—");
 const games = (n: number) => `${formatCount(n)} game${n === 1 ? "" : "s"}`;
