@@ -17,9 +17,10 @@ import type { DbHandle } from "@/server/db/create";
      The match scoreboard names and links current team members only (taken from draft PR #202).
 
   And what a viewer receives about the other players of a game (players/game-audience.ts): a
-  teammate's rank only with the right to their statistics, a personal-use player as any other
-  player (nothing from their linked account), and nobody on the team named in a personal-use
-  player's own games; the id-keyed routes (freshness, card banner, picture) and the lineup follow.
+  teammate's rank only with the right to their statistics, nothing from a personal-use player's
+  linked account (nor the newer Riot ID of the games stored only for it), and nobody on the team
+  named in a personal-use player's own games but for an administrator; the id-keyed routes
+  (freshness, card banner, picture) and the lineup follow.
 */
 
 const state = vi.hoisted(() => ({ db: null as unknown, cookies: new Map<string, string>(), redirects: [] as string[], pathname: "/", riot: null as unknown, sync: null as null | ((...args: unknown[]) => Promise<unknown>) }));
@@ -61,7 +62,7 @@ import { SESSION_COOKIE } from "@/server/auth/session";
 import { createSession } from "@/server/auth/sessions";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
-import { accountMatches, lastKnownRanks, matchDetails, patches, playerCardBanners, rankSnapshots, riotAccounts, userAvatars, users, type MatchParticipantDetail } from "@/server/db/schema";
+import { accountMatches, lastKnownRanks, matchDetails, patches, playerCardBanners, players, rankSnapshots, riotAccounts, userAvatars, users, type MatchParticipantDetail } from "@/server/db/schema";
 import { patchSortKey } from "@/domain/patch";
 import { createPlayer, getOrCreateTeam, setTeamMember } from "@/server/repositories/team";
 import type { Capability } from "@/server/auth/permissions";
@@ -71,6 +72,8 @@ import { ProfileAccountsTab } from "@/components/players/profile-accounts-tab";
 import { ProfileMatchesTab } from "@/components/players/profile-matches-tab";
 import { getMatchDetail, type DetailParticipant, type MatchDetailView, type MatchHistoryPage } from "@/server/players/match-history";
 import { LOOKUP_SOURCE } from "@/server/players/participant-ranks";
+import { knownRiotIds } from "@/server/players/riot-names";
+import { opggLinkFor } from "@/domain/opgg";
 import { GET as freshnessRoute } from "@/app/api/freshness/route";
 import { GET as bannerRoute } from "@/app/api/card-banners/[playerId]/route";
 import { GET as avatarRoute } from "@/app/api/avatars/[userId]/route";
@@ -161,6 +164,18 @@ async function pagesFor(id: string): Promise<string[]> {
 }
 
 const part = (puuid: string, name: string, teamId: number, championId: string, championKey: number, position: string): MatchParticipantDetail => ({ puuid, name, teamId, championId, championKey, champLevel: 16, position, win: teamId === 100, kills: 4, deaths: 3, assists: 7, cs: 180, gold: 11_000, damage: 18_000, damageTaken: 15_000, vision: 20, wardsPlaced: 8, items: null, spells: null, runes: null });
+
+/** A later stored game with these players, strangers (new to UNIIVERSE) in the other places. */
+const laterGame = (matchId: string, at: number, named: MatchParticipantDetail[]) => ({
+  matchId,
+  platform: "oc1",
+  queueId: 420,
+  gameCreation: at,
+  gameDuration: 1800,
+  gameVersion: "16.20.1",
+  teams: [],
+  participants: [...named, ...Array.from({ length: 10 - named.length }, (_, i) => part(`puuid-later-${matchId}-${i}`, `Later ${i}#OCE`, (named.length + i) % 2 ? 200 : 100, "Ahri", 103, "MIDDLE"))],
+});
 
 beforeAll(async () => {
   for (const k of ["UNIIVERSE_REQUIRE_AUTH", "DATABASE_URL", "UNIIVERSE_AUTH_SECRET", "RIOT_API_KEY"]) env[k] = process.env[k];
@@ -486,9 +501,14 @@ describe("what a viewer receives about the other players of a game (players/game
     expect((await cardOf(player.ace!)).row.teams!.blue.find((s) => s.member?.id === player.mate)!.rank).toMatchObject({ tier: "SILVER" });
   });
 
-  it("a personal-use player in a teammate's game is read as any other player: no rank or Riot ID from their linked account", async () => {
-    // Solo renamed after the game; Riot confirmed the account's server.
+  it("a personal-use player in a teammate's game: no rank or Riot ID from their linked account, nor from games stored only for them", async () => {
+    // Solo renamed after the game; Riot confirmed the account's server. Solo's own sync then
+    // stored a later game of theirs under the new name, with nobody from the team in it: a game
+    // UNIIVERSE holds only because Solo's personal-use account syncs.
+    const LATER = "OC1_900000002";
     await handle.db.update(riotAccounts).set({ gameName: "SoloRenamed", tagLine: "NEW", platformSource: "riot" }).where(eq(riotAccounts.id, accountId.solo!));
+    await handle.db.insert(accountMatches).values({ accountId: accountId.solo!, matchId: LATER, gameCreation: gameStart + 3_600_000, queueId: 420, championId: "Jinx", role: "ADC", win: true, teamId: 100, patch: "16.20", gameDuration: 1800, kills: 4, deaths: 3, assists: 7 });
+    await handle.db.insert(matchDetails).values(laterGame(LATER, gameStart + 3_600_000, [part("puuid-solo", "SoloRenamed#NEW", 100, "Jinx", 222, "BOTTOM")]));
     try {
       await signInAs("mate");
       const solo = named(everyoneIn(await matchActions.getMatchDetailAction(player.ace!, MATCH)), "solo#OCE");
@@ -510,7 +530,36 @@ describe("what a viewer receives about the other players of a game (players/game
       }
     } finally {
       await handle.db.delete(lastKnownRanks).where(eq(lastKnownRanks.puuid, "puuid-solo"));
+      await handle.db.delete(accountMatches).where(eq(accountMatches.matchId, LATER));
+      await handle.db.delete(matchDetails).where(eq(matchDetails.matchId, LATER));
       await handle.db.update(riotAccounts).set({ gameName: "solo", tagLine: "OCE", platformSource: "user" }).where(eq(riotAccounts.id, accountId.solo!));
+    }
+  });
+
+  it("Team → Matches (knownRiotIds without `linked`) reads current team members' accounts only: a personal-use or archived player keeps the Riot ID the match recorded", async () => {
+    const db = handle.db;
+    const LATER = "OC1_900000003";
+    // After the game Ace (a member), Mate (archived here) and Solo (personal use) renamed, Riot
+    // confirming each account's server; Mate's and Solo's own syncs stored a later game under the
+    // new names, and a stranger in it renamed too.
+    try {
+      for (const name of ["ace", "mate", "solo"]) await db.update(riotAccounts).set({ gameName: `${name}Renamed`, tagLine: "NEW", platformSource: "riot" }).where(eq(riotAccounts.id, accountId[name]!));
+      await db.update(players).set({ archivedAt: new Date() }).where(eq(players.id, player.mate!));
+      await db.insert(matchDetails).values(laterGame(LATER, gameStart + 2 * 3_600_000, [part("puuid-mate", "mateRenamed#NEW", 100, "Riven", 92, "TOP"), part("puuid-solo", "soloRenamed#NEW", 200, "Jinx", 222, "BOTTOM"), part("puuid-stranger", "Stranger Renamed#OCE", 100, "Thresh", 412, "UTILITY")]));
+      const known = await knownRiotIds(db, ["puuid-ace", "puuid-mate", "puuid-solo", "puuid-stranger"], gameStart);
+      // A current member: their account's newer Riot ID, on the server Riot confirmed.
+      expect(known.get("puuid-ace")).toEqual({ riotId: "aceRenamed#NEW", platform: "oc1" });
+      // The archived and the personal-use player: nothing, so the game's own Riot ID.
+      expect(known.has("puuid-mate")).toBe(false);
+      expect(known.has("puuid-solo")).toBe(false);
+      expect(opggLinkFor("solo#OCE", "oc1", known.get("puuid-solo"))).toBe("https://op.gg/lol/summoners/oce/solo-OCE");
+      expect(opggLinkFor("mate#OCE", "oc1", known.get("puuid-mate"))).toBe("https://op.gg/lol/summoners/oce/mate-OCE");
+      // A stranger: the newer stored game's, as before.
+      expect(known.get("puuid-stranger")).toEqual({ riotId: "Stranger Renamed#OCE", platform: "oc1" });
+    } finally {
+      await db.delete(matchDetails).where(eq(matchDetails.matchId, LATER));
+      await db.update(players).set({ archivedAt: null }).where(eq(players.id, player.mate!));
+      for (const name of ["ace", "mate", "solo"]) await db.update(riotAccounts).set({ gameName: name, tagLine: "OCE", platformSource: "user" }).where(eq(riotAccounts.id, accountId[name]!));
     }
   });
 
@@ -529,6 +578,23 @@ describe("what a viewer receives about the other players of a game (players/game
     expect([...row.teams!.blue, ...row.teams!.red].filter((s) => s.member)).toEqual([]);
     expect(data.memberOptions).toEqual([]);
     expect(JSON.stringify(data)).not.toMatch(/GOLD|SILVER|"Ace"|"Mate"/);
+  });
+
+  it("an administrator still sees the team members in a personal-use player's games named, linked and ranked", async () => {
+    await signInAs("owner");
+    const everyone = everyoneIn(await matchActions.getMatchDetailAction(player.solo!, MATCH));
+    expect(named(everyone, "ace#OCE")).toMatchObject({ teamMember: "Ace", memberId: player.ace, rank: { state: "ranked", tier: "GOLD" } });
+    expect(named(everyone, "mate#OCE")).toMatchObject({ teamMember: "Mate", memberId: player.mate, rank: { state: "ranked", tier: "SILVER", timing: "before" } });
+    expect(named(everyone, "Stranger#OCE")).toMatchObject({ teamMember: null, memberId: null });
+    const ranks = await ranksOf(player.solo!);
+    expect(ranks.get(SLOT.ace)).toMatchObject({ state: "ranked", tier: "GOLD" });
+    expect(ranks.get(SLOT.mate)).toMatchObject({ state: "ranked", tier: "SILVER" });
+    // The cards: both members in their places with their ranks; Refine offers Ace, whose account
+    // stored the game (Refine counts members' stored games).
+    const { data, row } = await cardOf(player.solo!);
+    expect(row.teams!.blue.find((s) => s.slot === SLOT.ace)).toMatchObject({ member: { id: player.ace }, rank: { tier: "GOLD" } });
+    expect(row.teams!.blue.find((s) => s.slot === SLOT.mate)).toMatchObject({ member: { id: player.mate }, rank: { tier: "SILVER" } });
+    expect(data.memberOptions).toEqual([expect.objectContaining({ id: player.ace, with: 0, against: 1 })]);
   });
 
   it("/api/freshness answers about a personal-use player only to that player and administrators", async () => {

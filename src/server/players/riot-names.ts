@@ -10,10 +10,12 @@ import { charactersIn, opggLinkFor, opggProfileUrl, platformOfMatchId, riotIdPro
   old name can then open nobody, or someone else). So, by PUUID:
     1. a linked account's Riot ID, which the account sync keeps current, on its server once Riot
        has confirmed it (until then, the match's own server): a current team member's (on the
-       team, not archived), or the accounts the caller names (`linked`, players/game-audience). A
-       personal-use or archived profile's account is private to it, so it is read as anyone else's;
+       team, not archived), or the accounts the caller names (`linked`, players/game-audience);
     2. otherwise the full Riot ID (name and tag) from the newest stored Riot game after `since`
-       that the player appears in, on that game's server.
+       that the player appears in, on that game's server. Not for a player with a linked account
+       the caller may not read (a personal-use or archived profile's, or with `linked` any account
+       outside it): their newer games are stored only because their own account syncs, so a
+       newer name there is their account's, private to them.
   Players found in neither keep the Riot ID their own match recorded (domain/opgg opggLinkFor).
 */
 
@@ -42,6 +44,13 @@ export async function knownRiotIds(db: Db, puuids: readonly string[], since: num
   for (const a of linked) if (a.puuid && a.gameName && a.tagLine) out.set(a.puuid, { riotId: `${a.gameName}#${a.tagLine}`, platform: a.platformSource === "riot" ? a.platform : null });
   const rest = ids.filter((id) => !out.has(id));
   if (!rest.length) return out;
+  const list = (puuids: readonly string[]) => sql.join(puuids.map((id) => sql`${id}`), sql`, `);
+  // Step 2 is not for a linked account the caller may not read (see above): with `linked`, any
+  // player's account outside it; without, one whose profile is not a current team member's.
+  const readable = options.linked ? rest.filter((id) => options.linked!.has(id)) : [];
+  const unreadable = options.linked
+    ? sql`EXISTS (SELECT 1 FROM riot_accounts l WHERE l.owner_type = 'player' AND l.puuid = p->>'puuid')`
+    : sql`EXISTS (SELECT 1 FROM riot_accounts l JOIN players pl ON pl.id = l.player_id WHERE l.owner_type = 'player' AND l.puuid = p->>'puuid' AND (NOT pl.team_member OR pl.archived_at IS NOT NULL))`;
   // Only the games these players appear in are opened (the players' index), and only newer ones.
   // Only real Riot games (their match id's form, as platformOfMatchId) and records with a tag count,
   // so a demo game's made-up name, or a record where Riot left the tag out, hides no older full one.
@@ -49,7 +58,8 @@ export async function knownRiotIds(db: Db, puuids: readonly string[], since: num
     SELECT DISTINCT ON (p->>'puuid') p->>'puuid' AS puuid, p->>'name' AS name, d.match_id
     FROM match_details d CROSS JOIN LATERAL jsonb_array_elements(d.participants) p
     WHERE ${playedIn(rest)} AND d.game_creation > ${since} AND d.match_id ~ '^[A-Z]+[0-9]*_[0-9]+$'
-      AND p->>'puuid' IN (${sql.join(rest.map((id) => sql`${id}`), sql`, `)}) AND strpos(coalesce(p->>'name', ''), '#') > 0
+      AND p->>'puuid' IN (${list(rest)}) AND strpos(coalesce(p->>'name', ''), '#') > 0
+      AND ${readable.length ? sql`(p->>'puuid' IN (${list(readable)}) OR NOT ${unreadable})` : sql`NOT ${unreadable}`}
     ORDER BY p->>'puuid', d.game_creation DESC`);
   for (const r of rowsOf<Row>(result)) {
     // Only on a server OP.GG lists.

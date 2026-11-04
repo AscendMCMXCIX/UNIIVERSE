@@ -604,7 +604,8 @@ tables on 4 Nov 2026, after a verified backup (see `docs/ARCHITECTURE.md`, "Draf
   - **Policy review:** `docs/RIOT_COMPLIANCE.md` → Social links.
 - **Riot accounts:** Main + Alts, all counted (Section B2).
 - **Visibility:**
-  - Every member sees profiles, pools, Riot IDs and statistics. Teammates' statistics need `view-teammate-stats`.
+  - Every member sees team members' profiles, pools, Riot IDs and statistics. Teammates' statistics need `view-teammate-stats`.
+  - Who sees a profile, a teammate's rank and the players of a game (owner decisions of 4 Nov 2026: a teammate's rank is one of their statistics; a personal-use profile opens only for its player and administrators): `docs/PROFILE_VISIBILITY.md`.
   - Team Overview follows the same rule on the server (`getTeamRosterForViewer`): without `view-teammate-stats` a teammate's card carries name, roles, lineup place and pool champions only (no rank, season figures, champion figures, proficiency or rank change, and vacant-role suggestions do not cite games). Your own card always shows your figures.
   - Never shown: passwords, sessions, infrastructure.
 

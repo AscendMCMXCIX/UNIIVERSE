@@ -2,7 +2,7 @@
 
 import { getAppDb } from "@/server/bootstrap";
 import { getSession, needsSetup } from "@/server/auth/session";
-import { canManageRiotAccounts, canViewPlayerStats, hasPermission, isTeamMember } from "@/server/auth/permissions";
+import { canManageRiotAccounts, canViewPlayerStats, hasPermission, isAdmin, isTeamMember } from "@/server/auth/permissions";
 import { mayOpenProfile } from "@/server/auth/profile-access";
 import { getMatchDetail, getMatchRanks, type MatchDetailResult, type MatchRanksResult } from "@/server/players/match-history";
 import { getMatchTimeline, type MatchTimelineResult } from "@/server/accounts/match-timeline";
@@ -55,7 +55,7 @@ export async function getMatchDetailAction(playerId: string, matchId: string): P
   if (!/^[0-9a-f-]{36}$/i.test(playerId) || !MATCH_ID.test(matchId)) return { status: "not-found", message: "This match is not in this player's history." };
   const db = await getAppDb();
   if (!(await mayOpenProfile(db, session, playerId))) return { status: "not-found", message: NOT_IN_HISTORY };
-  return getMatchDetail(db, playerId, matchId, { viewerIsOwner: self, fetchMissing: true, canShare: self && isTeamMember(session), statsFor: (id) => canViewPlayerStats(session, id) });
+  return getMatchDetail(db, playerId, matchId, { viewerIsOwner: self, fetchMissing: true, canShare: self && isTeamMember(session), statsFor: (id) => canViewPlayerStats(session, id), admin: isAdmin(session) });
 }
 
 /**
@@ -128,7 +128,7 @@ export async function getMatchRanksAction(playerId: string, matchId: string): Pr
   if (!/^[0-9a-f-]{36}$/i.test(playerId) || !MATCH_ID.test(matchId)) return { status: "not-found", message: "This match is not in this player's history." };
   const db = await getAppDb();
   if (!(await mayOpenProfile(db, session, playerId))) return { status: "not-found", message: NOT_IN_HISTORY };
-  return getMatchRanks(db, playerId, matchId, { lookup: true, statsFor: (id) => canViewPlayerStats(session, id) });
+  return getMatchRanks(db, playerId, matchId, { lookup: true, statsFor: (id) => canViewPlayerStats(session, id), admin: isAdmin(session) });
 }
 
 /**
