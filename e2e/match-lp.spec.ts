@@ -3,8 +3,9 @@ import { expect, test, type Page } from "./test";
 /*
   A ranked game's LP on its card (demo roster; the rank readings are synthetic demo data, seeded in
   demo mode only, from the demo games): the figure the readings prove, in the gain or loss colour,
-  or a quiet dash with the reason in its hover text and words for screen readers. On a wide card it
-  closes the result column; on a narrow one it sits under the KDA. Nothing crowds the card.
+  or a quiet dash, each with its tooltip (what it rests on, or why there is none: on hover, or a
+  tap on a touch screen) and words for screen readers. On a wide card it closes the result column;
+  on a tablet's it ends the result line; on a phone's it sits under the KDA. Nothing crowds the card.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -21,7 +22,16 @@ test("ranked cards show the LP their readings prove, or a dash that says why", a
   await matchesOf(page, "TOP");
   const lps = page.locator('[data-testid="match-lp"]:visible');
   await expect(lps.first()).toBeVisible();
-  const found = await lps.evaluateAll((els) => els.map((e) => ({ lp: e.getAttribute("data-lp"), text: (e.textContent ?? "").trim(), title: e.getAttribute("title") ?? "", reason: e.getAttribute("data-reason") })));
+  // Each mark's tooltip text is its trigger's description, which the bubble shows.
+  const found = await lps.evaluateAll((els) =>
+    els.map((e) => {
+      const tip = e.closest("[data-testid=match-lp-tip]");
+      const note = (tip && document.getElementById(tip.getAttribute("aria-describedby") ?? "")?.textContent) ?? "";
+      return { lp: e.getAttribute("data-lp"), text: (e.textContent ?? "").trim(), note, tabIndex: tip?.getAttribute("tabindex") ?? null, reason: e.getAttribute("data-reason") };
+    }),
+  );
+  // Never a tab stop of its own: the card is the one stop, and its label says the LP.
+  for (const f of found) expect(f.tabIndex).toBe("-1");
   const figures = found.filter((f) => f.lp !== null && /^-?\d+$/.test(f.lp));
   const dashes = found.filter((f) => f.lp === "none");
   expect(figures.length, "some games have a recorded figure").toBeGreaterThan(0);
@@ -29,12 +39,12 @@ test("ranked cards show the LP their readings prove, or a dash that says why", a
   for (const f of figures) {
     // "+19 LP" or "−22 LP" (a true minus), resting on two named readings.
     expect(f.text).toMatch(/^(\+\d+|−\d+|0) LP$/);
-    expect(f.title).toMatch(/^Recorded: .+ before this game \(read .+\) and .+ after it \(read .+\)\.$/);
+    expect(f.note).toMatch(/^Recorded: .+ before this game \(read .+\) and .+ after it \(read .+\)\.$/);
   }
   for (const d of dashes) {
     expect(d.text).toContain("—");
     expect(d.text).toContain("LP not recorded");
-    expect(d.title.length).toBeGreaterThan(20);
+    expect(d.note.length).toBeGreaterThan(20);
   }
   // The gain colour on a win, the loss colour on a loss: the figure agrees with the result.
   const cards = page.getByTestId("match-card");
@@ -77,4 +87,42 @@ test("the LP sits in the result column on a wide card and under the KDA on a nar
     const rows = await page.getByTestId("match-row").evaluateAll((els) => els.slice(0, 6).map((e) => e.getBoundingClientRect().height));
     for (const h of rows) expect(h, "a tablet card stays compact").toBeLessThan(170);
   }
+});
+
+test("a dash's reason opens on a tap (touch) or on hover, without opening the game; the rest of the card still opens it", async ({ page }, info) => {
+  await matchesOf(page, "TOP");
+  const card = page.getByTestId("match-card").filter({ has: page.locator('[data-testid="match-lp"][data-lp="none"]:visible') }).first();
+  const tip = card.locator('[data-testid="match-lp-tip"]:visible');
+  await tip.scrollIntoViewIfNeeded();
+  const note = await tip.evaluate((el) => document.getElementById(el.getAttribute("aria-describedby") ?? "")?.textContent ?? "");
+  expect(note.length).toBeGreaterThan(20);
+  const bubble = page.getByTestId("match-lp-tip-bubble");
+  const row = card.getByTestId("match-row");
+  const touch = !!info.project.use.hasTouch;
+  // The dash is narrow; its trigger is as wide as a target (24px) and as tall.
+  const t = (await tip.boundingBox())!;
+  expect(t.width).toBeGreaterThanOrEqual(23.5);
+  expect(t.height).toBeGreaterThanOrEqual(23.5);
+  if (touch) await tip.tap();
+  else await tip.hover();
+  await expect(bubble).toHaveText(note);
+  const b = (await bubble.boundingBox())!;
+  expect(b.x).toBeGreaterThanOrEqual(0);
+  expect(b.x + b.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+  // A tap toggles it closed; a click with a mouse keeps it open. Neither opens the game.
+  if (touch) {
+    await tip.tap();
+    await expect(bubble).toHaveCount(0);
+  } else {
+    await tip.click();
+    await expect(bubble).toBeVisible();
+    await page.mouse.move(2, 2);
+    await expect(bubble).toHaveCount(0);
+  }
+  await expect(row).toHaveAttribute("aria-expanded", "false");
+  // Anywhere else on the card still opens the game (its portrait, at the card's start).
+  const c = (await card.boundingBox())!;
+  if (touch) await card.tap({ position: { x: 24, y: c.height / 2 } });
+  else await card.click({ position: { x: 24, y: c.height / 2 } });
+  await expect(row).toHaveAttribute("aria-expanded", "true");
 });
