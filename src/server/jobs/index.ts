@@ -11,6 +11,7 @@ import "./db-usage";
 import "./egress";
 import "./skin-audit";
 import "./proficiency-audit";
+import "./rank-audit";
 import "./perf-probe";
 import "./riot-check";
 import "./privacy";
