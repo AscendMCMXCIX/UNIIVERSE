@@ -579,3 +579,40 @@ and forth three times; median of the three):
 `player.overview` 29 → 12 ms. Steps that do not read season figures stayed within the run-to-run
 noise (±15–20%). The database work is unchanged, so production's cold figure keeps its reads; the
 production effect is to be confirmed by `perf-probe` after a deploy.
+
+## Field data: Team Overview is the slow first load (4 Nov 2026)
+
+**Source.** The perf probe's new `fieldVitals` (#186), run by hand on production (Production check run 8, commit b04c167): the 28 days from 8 Oct, 125 page loads. A load counts for the page the app was opened on.
+
+| Page group | Loads | LCP p75 | Good LCP | INP p75 | CLS p75 |
+|---|---|---|---|---|---|
+| Team | 81 | ≤ 5 s (poor) | 38% | ≤ 100 ms | ≤ 0.01 |
+| Overview (a profile) | 22 | ≤ 2 s | 85% | ≤ 50 ms | ≤ 0.01 |
+| Players | 8 | ≤ 2.5 s | 100% | ≤ 50 ms | ≤ 0.01 |
+| Leaderboards | 5 | ≤ 2 s | 100% | ≤ 50 ms | ≤ 0.01 |
+| Admin, Matches, Resources | 2–5 each | ≤ 1.5 s | 100% | ≤ 50 ms | ≤ 0.01 |
+
+- **All pages:**
+  - TTFB p75 ≤ 3 s (37% good);
+  - FCP p75 ≤ 4 s (57% good);
+  - INP and CLS are good everywhere.
+- **The slow part is the first screen of the page the app opens on.** Team is that page two times in three. Interactions after it are fast.
+
+**What it is not: the page's own server work.**
+- **The probe on production:** Team's data (`team.roster`) takes 409 ms cold and 144 ms warm, 849 KB cold and 77 KB warm.
+- **Locally, on a fresh demo server:** the page answers in 0.09–0.29 s; 27 KB gzipped.
+
+**What it most likely is.**
+1. **Server response on a cold function.** The site serves about 4–5 opened pages a day, so most visits start a new function instance. TTFB p75 is ≤ 3 s on every page. The app's own cold-start work was cut in October (one migration `SELECT`, cached layout reads; see "What changed" above), so what remains is the platform starting the function and the first database connection.
+2. **The cards' artwork.** Each Team card draws a full Data Dragon splash (about 1215×717, around 200 KB) with `loading="lazy"`. In production the first card's art may be the largest element on a phone, and a lazy image starts loading only after layout.
+   - It could not be measured here: the sandbox cannot reach Data Dragon, and the demo's first cards draw no art.
+   - **In the lab** (synthetic art of the real size; slow 4G with 150 ms and 1.6 Mbps; 4× CPU on the phone), the largest element was the page's text:
+     - **phone:** 1.17 s median of 5 loads (the subtitle);
+     - **desktop:** 0.92 s (the heading).
+
+**Next steps, in order.**
+1. **Record the LCP element** with the field figures (the `web-vitals` attribution build gives a CSS selector, which holds no personal data). That tells (1) from (2).
+2. **If it is the artwork:** load the first card's art eagerly, with `fetchpriority="high"`. Leave the others lazy, since on phones they start off screen.
+3. **If it is server time:** Vercel's Fluid compute is meant to cut cold starts. It is a project setting for the owner. Check that it adds no cost on the plan before turning it on.
+
+A keep-warm ping is not proposed: a frequent GitHub Actions schedule would exceed the minutes budget, and Vercel's free cron runs once a day.
