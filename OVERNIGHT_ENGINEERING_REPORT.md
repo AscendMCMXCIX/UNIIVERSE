@@ -547,7 +547,7 @@ until a native capability is approved.
 
 ### 7. Decisions and approvals that are yours
 
-**Done with your approval:** the release of #170, #172, #169, #173 and #178; on 3 Nov, #179, #180, #181, #182 and #183, each once every check on its head had passed.
+**Done with your approval:** the release of #170, #172, #169, #173 and #178; on 3 Nov, #179, #180, #181, #182, #183 and #184, each once every check on its head had passed.
 
 **Now automatic, with nothing for you to do:**
 - **The Production check** (#182) runs after every production deployment and every day, from GitHub's runner, which reaches the site. It checks:
@@ -557,7 +557,7 @@ until a native capability is approved.
   - the public pages at three widths, with axe.
 
   Daily it also checks that a backup passed within 8 days, and the database's size. A failure opens one GitHub issue with what failed; the next passing run closes it.
-- **#184** adds a real member's own pages to the forged-session checks (the case of the high finding, which replaces the `curl` this section asked you to run) and an issue from 80% of the database's plan.
+- **Since #184** the forged-session checks include a real member's own pages (the case of the high finding, replacing the `curl` this section asked you to run), and the database's size opens an issue from 80% of its plan.
 - **The weekly backup** proves that every table restores, including the retired ones, and opens an issue if it fails or nears its size limit.
 
 **Still yours (only these):**
