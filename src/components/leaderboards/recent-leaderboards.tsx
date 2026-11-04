@@ -17,7 +17,7 @@ import { LeaderboardsViews } from "./leaderboards-views";
 import { SeasonChoice } from "./season-choice";
 
 /*
-  TEAM LEADERBOARDS (the proposed page, docs/LEADERBOARDS_MODEL.md): two views of equal weight as
+  TEAM LEADERBOARDS (docs/LEADERBOARDS_MODEL.md): two views of equal weight as
   secondary tabs under the Team tabs, as Match History's Games and Encounters are under a profile's.
     Recent form              one board, everyone on the same 20 recent games, ranked by win rate.
                              Every row says what counts: the record, the dates and the main role,

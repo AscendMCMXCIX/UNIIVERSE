@@ -7,9 +7,9 @@ import { formatCompactCount, formatCount, formatDate, formatDayMonth, formatNumb
 import type { LeaderboardData, LeaderboardPlayer } from "./service";
 
 /*
-  What the proposed Leaderboards show (docs/LEADERBOARDS_MODEL.md, the owner's decision in
-  docs/TEAM_LEADERBOARDS.md → "Recent form"): two views of the cached team data, computed in a few
-  milliseconds, with only display fields sent to the browser.
+  What Team Leaderboards show (docs/LEADERBOARDS_MODEL.md, docs/TEAM_LEADERBOARDS.md): two views
+  of the cached team data, computed in a few milliseconds, with only display fields sent to the
+  browser.
     Recent form              one board: each member's latest 20 Summoner's Rift games from the
                              last 60 days, ranked by win rate (domain/leaderboard-recent);
     Records & achievements   one season's single-game records, multikills and milestones, which
