@@ -49,6 +49,9 @@ export function RankTimelineChart({ t, label }: { t: RankTimeline; label: string
     return () => ro.disconnect();
   }, []);
 
+  // Narrow below 30rem of the section (its container query, /rank): the same threshold sizes the
+  // chart's box in CSS (h-58, then h-68), so the box is the right height from the first paint and
+  // nothing below it moves when the chart measures its width (232 and 272 px: H below).
   const narrow = width < 480;
   const pad = { l: narrow ? 52 : 70, r: 10, t: 12 };
   const plotH = narrow ? 150 : 190;
@@ -191,7 +194,7 @@ export function RankTimelineChart({ t, label }: { t: RankTimeline; label: string
         <svg
           viewBox={`0 0 ${width} ${H}`}
           width="100%"
-          className="block h-auto touch-pan-y select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="block h-58 touch-pan-y select-none @min-[30rem]/rank:h-68 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           role="img"
           aria-label={`${label}. ${summary}`}
           tabIndex={0}

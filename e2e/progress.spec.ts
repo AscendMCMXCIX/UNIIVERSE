@@ -98,3 +98,30 @@ test("a profile shows recent form and ranked progress per queue", async ({ page 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(1);
 });
+
+test("the chart's box has its final height before the page is interactive, so nothing below it moves", async ({ browser, baseURL }, info) => {
+  // The server's HTML before React takes over (the page's script chunks held back: streaming still
+  // completes) and the interactive page: the chart's box is the same height in both, and the drawing
+  // fills it exactly once measured. A box that changed height on hydrating moved everything below it
+  // (the pools' Edit button jumped from under a tap).
+  const { viewport, isMobile, hasTouch, deviceScaleFactor } = info.project.use;
+  const heights: number[] = [];
+  for (const interactive of [false, true]) {
+    const context = await browser.newContext({ baseURL, viewport, isMobile, hasTouch, deviceScaleFactor });
+    await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+    const page = await context.newPage();
+    await page.goto("/team");
+    const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
+    if (!interactive) await page.route("**/_next/static/chunks/**/*.js", (route) => route.abort());
+    await page.goto(`/players/${id}`);
+    const chart = page.getByTestId("ranked-chart");
+    await expect(chart).toBeVisible();
+    if (interactive) {
+      // Measured: the drawing's own height (its viewBox) is the box's.
+      await expect.poll(async () => Math.abs(Number((await chart.getAttribute("viewBox"))!.split(" ")[3]) - (await chart.boundingBox())!.height)).toBeLessThanOrEqual(1);
+    }
+    heights.push((await chart.boundingBox())!.height);
+    await context.close();
+  }
+  expect(Math.abs(heights[0]! - heights[1]!), `before hydration ${heights[0]} px, interactive ${heights[1]} px`).toBeLessThanOrEqual(1);
+});
