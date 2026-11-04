@@ -1,4 +1,4 @@
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountChampionHistory, accountMastery, accountMatches, brandAssets, matchDetails, matchTimelines, type MatchEvents, type MatchFrames, type MatchObjectiveEvent, type MatchParticipantDetail, champions, playerChampionPools, players, rankSnapshots, riotAccounts, users } from "@/server/db/schema";
 import { listPlayers } from "@/server/repositories/team";
@@ -119,8 +119,8 @@ export async function seedDemoAccounts(db: Db): Promise<{ created: number }> {
         await db.insert(accountMastery).values({ accountId: account!.id, championId, points: games * 4500, level: Math.min(10, 3 + Math.floor(games / 10)), lastPlayedAt: new Date(now - daysAgo * 86_400_000) }).onConflictDoNothing();
       });
     }
-    await seedDemoRankHistory(db, account!.id, created);
     gone.push(...(await seedDemoGames(db, account!.id, `demo-${p.id}`, p.displayName, pools.filter((x): x is { role: Role; pool: string[] } => !!x.role && x.pool.length > 0))));
+    await seedDemoRankHistory(db, account!.id, created);
     created += 1;
   }
   if (created) {
@@ -137,34 +137,78 @@ export async function seedDemoAccounts(db: Db): Promise<{ created: number }> {
 }
 
 /**
- * Demo mode only: a few weeks of synthetic Solo/Duo rank snapshots (with a promotion and a
- * demotion) and one Flex reading, so Ranked progress has something to show. Never real data.
+ * Demo mode only: synthetic rank readings that agree with the demo games, as the rank watch would
+ * have taken them, so Ranked progress and the LP on match cards have something real-shaped to
+ * show. Never real data. Each queue's readings start part-way through its games (the earlier ones
+ * are "before tracking"); then a reading is confirmed during each game and the new rank is read a
+ * few minutes after it ends, with LP moving by plausible amounts, a promotion when it passes 100
+ * and a demotion (to 75 LP) below 0. Some games are left without a reading after them, so the next
+ * reading spans two games (a gap the chart and the cards show), and one is read too late.
  */
 async function seedDemoRankHistory(db: Db, accountId: string, index: number) {
-  const day = 86_400_000;
-  const start = Date.now() - 35 * day;
-  const tiers = ["SILVER", "GOLD", "PLATINUM", "EMERALD", "GOLD"];
-  const tier = tiers[index % tiers.length]!;
-  const path: Array<[number, string, string, number, number, number]> = [
-    [0, tier, "III", 42, 20, 18],
-    [4, tier, "III", 71, 22, 19],
-    [9, tier, "II", 8, 25, 20],
-    [15, tier, "II", 55, 29, 23],
-    [19, tier, "III", 80, 30, 27],
-    [26, tier, "II", 31, 35, 29],
-    [33, tier, "II", 64, 38, 31],
-  ];
-  await db.insert(rankSnapshots).values([
-    ...path.map(([d, t, division, leaguePoints, wins, losses]) => ({ accountId, queue: "solo", tier: t, division, leaguePoints, wins, losses, capturedAt: new Date(start + d * day) })),
-    { accountId, queue: "flex", tier: "SILVER", division: "I", leaguePoints: 12, wins: 6, losses: 5, capturedAt: new Date(start + 20 * day) },
-  ]);
-  // The account's stored rank is the latest Solo/Duo reading, as account sync leaves it, so the
-  // profile header and Ranked progress agree.
-  const [d, t, division, leaguePoints, wins, losses] = path[path.length - 1]!;
-  await db
-    .update(riotAccounts)
-    .set({ tier: t, division, leaguePoints, rankedWins: wins, rankedLosses: losses, rankQueue: "solo", rankUpdatedAt: new Date(start + d * day) })
-    .where(eq(riotAccounts.id, accountId));
+  const games = await db
+    .select({ gameCreation: accountMatches.gameCreation, gameDuration: accountMatches.gameDuration, queueId: accountMatches.queueId, win: accountMatches.win })
+    .from(accountMatches)
+    .where(and(eq(accountMatches.accountId, accountId), inArray(accountMatches.queueId, [420, 440])))
+    .orderBy(asc(accountMatches.gameCreation));
+  const tiers = ["SILVER", "GOLD", "PLATINUM", "EMERALD", "GOLD"] as const;
+  const order = ["IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND"] as const;
+  const divisions = ["IV", "III", "II", "I"] as const;
+  const rows: Array<typeof rankSnapshots.$inferInsert> = [];
+  let latest: { queue: "solo" | "flex"; tier: string; division: string; lp: number; wins: number; losses: number; at: number } | null = null;
+  for (const [queue, queueId] of [["solo", 420], ["flex", 440]] as const) {
+    const list = games.filter((g) => g.queueId === queueId && (g.gameDuration ?? 0) >= 300);
+    if (list.length < 3) continue;
+    const first = Math.floor(list.length * 0.4);
+    let t = order.indexOf(queue === "solo" ? tiers[index % tiers.length]! : "SILVER");
+    let d = 1;
+    let lp = 42;
+    // Riot's count covers the whole ranked year: games before the stored ones are in it too.
+    let wins = 31 + list.slice(0, first).filter((g) => g.win).length;
+    let losses = 29 + list.slice(0, first).filter((g) => !g.win).length;
+    const minute = 60_000;
+    const endOf = (g: (typeof list)[number]) => g.gameCreation + (g.gameDuration ?? 0) * 1000;
+    let row: typeof rankSnapshots.$inferInsert = { accountId, queue, tier: order[t]!, division: divisions[d]!, leaguePoints: lp, wins, losses, capturedAt: new Date(list[first]!.gameCreation - 30 * minute), confirmedAt: new Date(list[first]!.gameCreation + 10 * minute) };
+    rows.push(row);
+    for (let k = first; k < list.length; k++) {
+      const g = list[k]!;
+      const delta = g.win ? 17 + ((k * 7) % 10) : -(14 + ((k * 5) % 9));
+      lp += delta;
+      if (g.win) wins += 1;
+      else losses += 1;
+      if (lp >= 100) {
+        lp -= 100;
+        if (d === 3) {
+          t = Math.min(order.length - 1, t + 1);
+          d = 0;
+        } else d += 1;
+      } else if (lp < 0) {
+        lp = 75;
+        if (d === 0) {
+          t = Math.max(0, t - 1);
+          d = 3;
+        } else d -= 1;
+      }
+      const next = list[k + 1];
+      // Every seventh game: no reading after it, so the next one spans two games.
+      if (k % 7 === 3 && next) continue;
+      // One game read late (after the game's quiet hour), which proves nothing.
+      const late = k % 11 === 5 && (!next || next.gameCreation - endOf(g) > 90 * minute);
+      const at = endOf(g) + (late ? 45 : 3) * minute;
+      row = { accountId, queue, tier: order[t]!, division: divisions[d]!, leaguePoints: lp, wins, losses, capturedAt: new Date(at), confirmedAt: next ? new Date(next.gameCreation + 10 * minute) : new Date(at + 5 * minute) };
+      rows.push(row);
+    }
+    const last = rows.at(-1)!;
+    if (queue === "solo" || !latest) latest = { queue, tier: last.tier!, division: last.division!, lp: last.leaguePoints!, wins: last.wins!, losses: last.losses!, at: (last.confirmedAt ?? last.capturedAt!).getTime() };
+  }
+  if (rows.length) await db.insert(rankSnapshots).values(rows);
+  // The account's stored rank is the latest Solo/Duo reading (else Flex), as account sync leaves it,
+  // so the profile header and Ranked progress agree.
+  if (latest)
+    await db
+      .update(riotAccounts)
+      .set({ tier: latest.tier, division: latest.division, leaguePoints: latest.lp, rankedWins: latest.wins, rankedLosses: latest.losses, rankQueue: latest.queue, rankUpdatedAt: new Date(latest.at) })
+      .where(eq(riotAccounts.id, accountId));
 }
 
 /**

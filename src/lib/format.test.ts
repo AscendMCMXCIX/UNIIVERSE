@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import path from "node:path";
 import { ESLint } from "eslint";
-import { DISPLAY_TIME_ZONE, calendarDay, formatCompactCount, formatCount, formatDate, formatDateTime, formatDayMonth, formatIsoDay, formatKilo, formatNumber, formatTimeOfDay, isoDay, timeAgo } from "./format";
+import { DISPLAY_TIME_ZONE, calendarDay, formatCompactCount, formatCount, formatDate, formatDateTime, formatDayMonth, formatIsoDay, formatKilo, formatNumber, formatTimeOfDay, isoDay, timeAgo, formatLpChange } from "./format";
 
 /*
   Every date on the site is written in the installation's time zone (Sydney unless
@@ -109,5 +109,11 @@ describe("numbers", () => {
     expect(formatKilo(7_504)).toBe("7.5k");
     expect(formatKilo(29_120)).toBe("29.1k");
     expect(formatKilo(950)).toBe("950");
+  });
+
+  it("write a game's LP change with its sign, a true minus for a loss", () => {
+    expect(formatLpChange(24)).toBe("+24 LP");
+    expect(formatLpChange(-21)).toBe("\u221221 LP");
+    expect(formatLpChange(0)).toBe("0 LP");
   });
 });

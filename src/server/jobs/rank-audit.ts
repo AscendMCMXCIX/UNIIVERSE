@@ -126,7 +126,8 @@ defineJob({
             queue,
             {
               games: countedGames.length,
-              remakes: list.length - countedGames.length,
+              remakes: list.filter((g) => g.durationS !== null && !isCountedGame(g)).length,
+              withoutLength: list.filter((g) => g.durationS === null).length,
               firstGame: iso(countedGames[0]?.createdAt),
               lastGame: iso(countedGames.at(-1)?.createdAt),
               bySeason,
