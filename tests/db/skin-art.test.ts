@@ -117,6 +117,20 @@ describe("skin classification", () => {
   });
 });
 
+describe("skins asked for by id", () => {
+  it("keeps an entry for a champion in the game and none for a made-up id, and answers both as before", async () => {
+    // Card Studio asks for any id that passes the action's pattern (listChampionSkinsAction).
+    invalidateCache("champions:skins");
+    const entries = () => [...(globalThis.__uniiverseCache?.keys() ?? [])].filter((k) => k.includes("champions:skins:"));
+    for (let i = 0; i < 50; i++) expect(await listSkins(handle.db, `MadeUp${i}`)).toEqual([{ num: 0, name: "Default" }]);
+    expect(entries()).toEqual([]);
+    const akali = await listSkins(handle.db, "Akali");
+    expect(akali.map((s) => s.num)).toEqual([0, 4, 13]);
+    expect(await listSkins(handle.db, "Akali")).toBe(akali); // the same array: read once, then kept
+    expect(entries()).toHaveLength(1);
+  });
+});
+
 describe("saved card choices", () => {
   it("move to the same illustration where one exists, and nothing else about the player changes", async () => {
     const mk = async (name: string, num: number) => {
