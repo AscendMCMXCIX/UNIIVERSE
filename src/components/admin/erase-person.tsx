@@ -32,9 +32,7 @@ export function erasureLines(c: ErasureCounts): string[] {
   if (c.gamesDeleted) lines.push(`${n(c.gamesDeleted, "game only they played is", "games only they played are")} deleted.`);
   if (c.gamesDeidentified) lines.push(`${n(c.gamesDeidentified, "game shared with others is", "games shared with others are")} kept for the others, with them shown as "Removed player" (no name, champion or figures).`);
   if (c.lanePartners) lines.push(`${n(c.lanePartners, "teammate's game no longer records", "teammates' games no longer record")} them as the lane opponent.`);
-  if (c.teamRecords) lines.push(`${n(c.teamRecords, "team draft or match record keeps", "team draft and match records keep")} the team's history with them as "Former member".`);
   if (c.notes) lines.push(`${n(c.notes, "note written by someone else names", "notes written by others name")} them: their names become "[removed]", the rest of each note stays.`);
-  if (c.scoutPlayers) lines.push(`${n(c.scoutPlayers, "Clash Scout player is", "Clash Scout players are")} cleared.`);
   if (c.auditEntries) lines.push(`${n(c.auditEntries, "admin log entry names", "admin log entries name")} them "Erased member" from now on.`);
   if (c.jobLogs) lines.push(`${n(c.jobLogs, "job log loses", "job logs lose")} their Riot ID.`);
   if (c.otherRecords) lines.push(`${n(c.otherRecords, "other record about them is", "other records about them are")} removed (ranks, scouting).`);

@@ -7,7 +7,6 @@ import { elapsed } from "./log";
 import { processEgress } from "@/server/db/egress";
 import { getTeamRoster } from "@/server/team/roster";
 import { invalidateLeaderboardCache, loadLeaderboardData, type LeaderboardData } from "@/server/leaderboards/service";
-import { buildLeaderboardView, parseFilters, type LeaderboardView } from "@/server/leaderboards/view";
 import { buildRecentLeaderboardView, type RecentLeaderboardView } from "@/server/leaderboards/recent-view";
 import { invalidatePlayedTogetherCache, loadPlayedTogether, type PlayedTogether } from "@/server/matches/played-together";
 import { getMatchGroups, type MatchGroupsResult } from "@/server/matches/possible-groups";
@@ -299,17 +298,8 @@ export async function runPerfProbe(
     push(board);
     if (!board.error) {
       const data = await loadLeaderboardData(db, team.id);
-      push(
-        await step("leaderboards.view", async () => buildLeaderboardView(data, parseFilters({}, data), null), {
-          warm: true,
-          note: (r) => {
-            const v = r as LeaderboardView;
-            return `${v.gamesInScope} games in default scope · ${v.board.ranked.length} ranked, ${v.board.unranked.length} below minimum on ${v.board.id}`;
-          },
-        }),
-      );
-      // The proposed boards (the admins' preview, docs/LEADERBOARDS_MODEL.md): how full the Recent
-      // form board would be on production data, and the Records view's size. Counts only.
+      // The two views (docs/LEADERBOARDS_MODEL.md): how full the Recent form board is on production
+      // data, and the Records view's size. Counts only.
       push(
         await step("leaderboards.recent-form", async () => buildRecentLeaderboardView(data, { tab: "form" }, null), {
           warm: true,

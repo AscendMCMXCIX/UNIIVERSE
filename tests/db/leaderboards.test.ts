@@ -7,8 +7,7 @@ import { currentSeason } from "@/server/accounts/sync";
 import { archivePlayer, createPlayer, getOrCreateTeam, setLineupSlot, setTeamMember } from "@/server/repositories/team";
 import { createUser } from "@/server/repositories/users";
 import { invalidateLeaderboardCache, loadLeaderboardData } from "@/server/leaderboards/service";
-import { buildLeaderboardView, parseFilters } from "@/server/leaderboards/view";
-import { LEADERBOARD_CATEGORIES, LEADERBOARD_QUEUES, LEADERBOARD_ROLES, METRICS } from "@/domain/leaderboards";
+import { buildRecentLeaderboardView } from "@/server/leaderboards/recent-view";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 
@@ -119,8 +118,8 @@ describe("team leaderboards data", () => {
     const ids = new Set(data.games.map((g) => g.playerId));
     for (const out of [personal, archived, pending]) expect(ids.has(out)).toBe(false);
     // Listed, but with no games nothing is ranked or shown as zero for them.
-    const view = buildLeaderboardView(data, parseFilters({}, data), pending);
-    expect(view.board.ranked.some((r) => r.playerId === pending)).toBe(false);
+    const form = buildRecentLeaderboardView(data, { tab: "form" }, pending).form!;
+    expect(form.rows.some((r) => r.playerId === pending)).toBe(false);
     expect(data.lineupIds).toEqual([ace]);
     expect(data.currentSeason).toBe(season);
   });
@@ -148,28 +147,6 @@ describe("team leaderboards data", () => {
     expect(data.extraSince).toBe(T0);
   });
 
-  it("builds the board: ranks, the viewer's place, the lineup filter and a role filter", async () => {
-    const data = await loadLeaderboardData(handle.db, teamId);
-    const view = buildLeaderboardView(data, parseFilters({ category: "combat", metric: "kills-per-game" }, data), ace);
-    // Bea 7 kills a game (11 games with K/D/A), Ace 5.
-    expect(view.board.ranked.map((e) => [e.playerId, e.rank, e.valueText])).toEqual([
-      [bea, 1, "7.0"],
-      [ace, 2, "5.0"],
-    ]);
-    expect(view.board.ranked.find((e) => e.playerId === bea)!.sampleText).toMatch(/11 games/);
-    expect(view.you).toMatchObject({ playerId: ace, rank: 2, of: 2 });
-    expect(view.you!.chase).toBe("2.0 kills/game behind the leader's current average");
-    const lineup = buildLeaderboardView(data, parseFilters({ category: "combat", metric: "kills-per-game", lineup: "1" }, data), ace);
-    expect(lineup.board.ranked.map((e) => e.playerId)).toEqual([ace]);
-    expect(lineup.playerCount).toBe(1);
-    // Role filter: only Jungle games count, so Ace has none.
-    const jungle = buildLeaderboardView(data, parseFilters({ category: "combat", metric: "kills-per-game", role: "JUNGLE" }, data), ace);
-    expect(jungle.board.ranked.map((e) => e.playerId)).toEqual([bea]);
-    expect(jungle.you).toMatchObject({ rank: null });
-    // A viewer who is not on the board (the Owner's admin identity) gets no personal panel.
-    expect(buildLeaderboardView(data, parseFilters({}, data), null).you).toBeNull();
-  });
-
   it("notices new games and membership changes without waiting for the cache to expire", async () => {
     const before = await loadLeaderboardData(handle.db, teamId);
     expect((await loadLeaderboardData(handle.db, teamId)).games).toBe(before.games); // reused while nothing changed
@@ -191,8 +168,7 @@ describe("team leaderboards data", () => {
     expect(data.error).toBeUndefined();
     expect(data.note).toMatch(/^3 players · 25 games \(26 stored rows\) · 2 with match details · 1 with extra figures$/);
     expect(data.note).not.toMatch(/Ace|Bea/);
-    expect(steps.find((s) => s.name === "leaderboards.view")?.error).toBeUndefined();
-    // The proposed boards (the admins' preview): how full they would be, counts only.
+    // The two views: how full they are, counts only.
     const form = steps.find((s) => s.name === "leaderboards.recent-form")!;
     expect(form.error).toBeUndefined();
     expect(form.note).toMatch(/^\d+ full windows on \d+ places · \d+ provisional · \d+ with too few recent games$/);
@@ -210,46 +186,4 @@ describe("team leaderboards data", () => {
     expect(met.error).toBeUndefined();
     expect(met.note).toMatch(/^(\d+ players of the newest game met in other games this season · \d+ games with them|the newest game is not in the current season)$/);
   }, 60_000);
-
-  it("keeps all 48 statistics, and every one builds a board in every scope", async () => {
-    expect(METRICS).toHaveLength(48);
-    expect(new Set(METRICS.map((m) => m.id)).size).toBe(48);
-    const data = await loadLeaderboardData(handle.db, teamId);
-    for (const queue of Object.keys(LEADERBOARD_QUEUES)) {
-      for (const role of [null, ...LEADERBOARD_ROLES]) {
-        for (const c of LEADERBOARD_CATEGORIES) {
-          const listed = buildLeaderboardView(data, parseFilters({ category: c.key, queue, ...(role ? { role } : {}) }, data), ace).metrics.map((m) => m.id).sort();
-          // A role only reorders a category's statistics; none disappear.
-          expect(listed).toEqual(METRICS.filter((m) => m.category === c.key).map((m) => m.id).sort());
-        }
-      }
-    }
-    for (const m of METRICS) {
-      const v = buildLeaderboardView(data, parseFilters({ category: m.category, metric: m.id, lineup: "1" }, data), ace);
-      expect(v.board.id).toBe(m.id);
-      for (const e of v.board.ranked) expect(e.bar).toBeGreaterThanOrEqual(0);
-    }
-  });
-
-  it("defaults to all supported games, with gap bars and stepping between statistics", async () => {
-    const data = await loadLeaderboardData(handle.db, teamId);
-    const view = buildLeaderboardView(data, parseFilters({ category: "combat", metric: "kills-per-game" }, data), ace);
-    expect(view.filters.queue).toBe("all");
-    expect(view.scopeLabel).toMatch(/All supported games/);
-    // Bea: 11 games of 7 kills and the 5-kill game added above (6.83 a game); Ace: 5 a game.
-    const beaAvg = (11 * 7 + 5) / 12;
-    expect(view.board.ranked[0]!.bar).toBe(1);
-    expect(view.board.ranked[1]!.bar).toBeCloseTo(5 / beaAvg, 6);
-    expect(view.you).toMatchObject({ rank: 2, valueText: "5.0", leader: { playerId: bea, valueText: "6.8" } });
-    const n = view.neighbours;
-    expect(n.position).toBeGreaterThan(1);
-    expect(n.previous?.id).toBeTruthy();
-    expect(n.count).toBe(view.metrics.length);
-    // A normal game counts under "all" and "normal" but not "ranked".
-    await handle.db.insert(accountMatches).values({ accountId: beaAcc, matchId: "BEA_NORMAL", gameCreation: T0 + 500 * 3_600_000, queueId: 400, championId: "Viego", role: "JUNGLE", win: true, patch: `${season}.10`, gameDuration: 1800, kills: 7, deaths: 3, assists: 8, cs: 210, damage: 24000, visionScore: 18 });
-    const more = await loadLeaderboardData(handle.db, teamId);
-    const games = (queue: string) => buildLeaderboardView(more, parseFilters({ category: "overview", metric: "games", queue }, more), null).board.ranked.find((e) => e.playerId === bea)!.valueText;
-    expect(Number(games("normal"))).toBe(1);
-    expect(Number(games("all"))).toBe(Number(games("ranked")) + 1);
-  });
 });

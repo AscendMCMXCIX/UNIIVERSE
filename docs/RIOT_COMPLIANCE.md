@@ -182,8 +182,8 @@ above are all the app uses, for members' own linked accounts and the key check.
 
 If the product's registration on Riot's Developer Portal still describes Clash Scout, the owner can
 drop that paragraph and its API uses the next time the registration is updated; nothing in the app
-depends on them. The scouts saved before the retirement stay in the database, shown nowhere, until
-a held clean-up deletes them (`docs/DATA_PIPELINES.md`, "Retired tables").
+depends on them. The scouts saved before the retirement were deleted with their tables (migration
+`0057`).
 
 ## Things the app deliberately does NOT do
 
