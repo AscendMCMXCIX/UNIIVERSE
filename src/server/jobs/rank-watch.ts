@@ -2,7 +2,7 @@ import { eq, sql } from "drizzle-orm";
 import { defineJob } from "./registry";
 import type { Db } from "@/server/db/types";
 import { riotAccounts } from "@/server/db/schema";
-import { createRiotClient, RiotApiError } from "@/server/riot/api/client";
+import { createRiotClient, RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
 import { browserTestRiotClient } from "@/server/riot/browser-test";
 import { recordRankSnapshots, storedRankFrom } from "@/server/accounts/rank-history";
 import { erasureFilter } from "@/server/privacy/ledger";
@@ -67,6 +67,51 @@ export async function accountsDueRankWatch(db: Db, now: number): Promise<WatchAc
     .slice(0, RANK_WATCH_MAX);
 }
 
+export interface RankWatchRun {
+  due: number;
+  active: number;
+  read: number;
+  changed: number;
+  failed: number;
+  stoppedBy: string | null;
+}
+
+/** Reads the accounts due now, one request each, until the deadline, a full rate limit or a refused key. */
+export async function watchRanks(db: Db, client: RiotApiClient, options: { deadline: number; log?: (message: string) => void; now?: number }): Promise<RankWatchRun> {
+  const due = await accountsDueRankWatch(db, options.now ?? Date.now());
+  const erased = await erasureFilter(db);
+  const run: RankWatchRun = { due: due.length, active: due.filter((a) => a.active).length, read: 0, changed: 0, failed: 0, stoppedBy: null };
+  for (const account of due) {
+    if (Date.now() > options.deadline) {
+      run.stoppedBy = "time budget";
+      break;
+    }
+    if (erased.puuid(account.puuid)) continue;
+    try {
+      const entries = await client.leagueEntriesByPuuid(account.platform, account.puuid);
+      const written = await recordRankSnapshots(db, account.id, entries);
+      run.read += 1;
+      if (written > 0) {
+        run.changed += 1;
+        // The stored rank (the profile header, the cards) follows the change at once.
+        await db.update(riotAccounts).set(storedRankFrom(entries)).where(eq(riotAccounts.id, account.id));
+      }
+    } catch (err) {
+      if (err instanceof RiotApiError && (err.status === 401 || err.status === 403)) {
+        run.stoppedBy = `Riot refused the key (${err.status})`;
+        break;
+      }
+      if (err instanceof RiotApiError && err.status === 429) {
+        run.stoppedBy = "no room in the rate limits";
+        break;
+      }
+      run.failed += 1;
+      options.log?.(`rank-watch: an account's reading failed: ${(err as Error).message}`);
+    }
+  }
+  return run;
+}
+
 defineJob({
   key: "rank-watch",
   description: "Read the rank of the linked accounts (LEAGUE-V4, one request each, both queues): every run for those that played ranked in the last 30 days, about hourly for the others. An unchanged reading confirms the last one, a change is stored; together they prove each ranked game's LP. At most 40 accounts a run, half of each rate-limit window, no retries.",
@@ -74,43 +119,9 @@ defineJob({
   run: async (ctx) => {
     const client = createRiotClient({ maxRetries: 0, timeoutMs: 5_000, limitShare: RANK_WATCH_SHARE, noWait: true }) ?? browserTestRiotClient();
     if (!client) return { ok: true, degraded: true, error: "RIOT_API_KEY is not configured; ranks cannot be read.", summary: { skipped: true } };
-    const due = await accountsDueRankWatch(ctx.db, Date.now());
-    const erased = await erasureFilter(ctx.db);
-    let read = 0;
-    let changed = 0;
-    let failed = 0;
-    let stoppedBy: string | null = null;
-    for (const account of due) {
-      if (Date.now() - ctx.startedAt > ctx.budgetMs) {
-        stoppedBy = "time budget";
-        break;
-      }
-      if (erased.puuid(account.puuid)) continue;
-      try {
-        const entries = await client.leagueEntriesByPuuid(account.platform, account.puuid);
-        const written = await recordRankSnapshots(ctx.db, account.id, entries);
-        read += 1;
-        if (written > 0) {
-          changed += 1;
-          // The stored rank (the profile header, the cards) follows the change at once.
-          await ctx.db.update(riotAccounts).set(storedRankFrom(entries)).where(eq(riotAccounts.id, account.id));
-        }
-      } catch (err) {
-        if (err instanceof RiotApiError && (err.status === 401 || err.status === 403)) {
-          stoppedBy = `Riot refused the key (${err.status})`;
-          break;
-        }
-        if (err instanceof RiotApiError && err.status === 429) {
-          stoppedBy = "no room in the rate limits";
-          break;
-        }
-        failed += 1;
-        ctx.log(`rank-watch: an account's reading failed: ${(err as Error).message}`);
-      }
-    }
-    const active = due.filter((a) => a.active).length;
-    ctx.log(`rank-watch: ${read} of ${due.length} due read (${active} active), ${changed} changed${failed ? `, ${failed} failed` : ""}${stoppedBy ? `, stopped: ${stoppedBy}` : ""}`);
-    const refused = stoppedBy?.startsWith("Riot refused") ?? false;
-    return { ok: true, degraded: refused || (read === 0 && failed > 0), error: refused ? (stoppedBy ?? undefined) : undefined, summary: { due: due.length, active, read, changed, failed, stoppedBy, requests: client.requestCount } };
+    const run = await watchRanks(ctx.db, client, { deadline: ctx.startedAt + ctx.budgetMs, log: ctx.log });
+    ctx.log(`rank-watch: ${run.read} of ${run.due} due read (${run.active} active), ${run.changed} changed${run.failed ? `, ${run.failed} failed` : ""}${run.stoppedBy ? `, stopped: ${run.stoppedBy}` : ""}`);
+    const refused = run.stoppedBy?.startsWith("Riot refused") ?? false;
+    return { ok: true, degraded: refused || (run.read === 0 && run.failed > 0), error: refused ? (run.stoppedBy ?? undefined) : undefined, summary: { ...run, requests: client.requestCount } };
   },
 });
