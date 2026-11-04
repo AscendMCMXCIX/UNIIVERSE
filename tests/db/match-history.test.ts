@@ -446,6 +446,25 @@ describe("personal match history", () => {
     expect(totals.dragon).toMatchObject({ own: 3, enemy: 1 });
   });
 
+  it("keeps the player in their stored games while the account's PUUID is being verified again (a Riot key change)", async () => {
+    const db = handle.db;
+    const [account] = await db.select({ puuid: riotAccounts.puuid }).from(riotAccounts).where(eq(riotAccounts.id, main));
+    await db.update(riotAccounts).set({ puuid: null, syncStatus: "pending" }).where(eq(riotAccounts.id, main));
+    try {
+      const row = (await getMatchHistory(db, playerId, { per: 25 })).rows.find((r) => r.matchId === "OC1_700000018")!;
+      expect(row.teams?.side).toBe("blue");
+      expect(row.teams?.blue.some((p) => p.you)).toBe(true);
+      expect(row.items).not.toBeNull();
+      expect(row.killParticipation).not.toBeNull();
+      const detail = await getMatchDetail(db, playerId, "OC1_700000018", { viewerIsOwner: true });
+      expect(detail.status).toBe("ok");
+      expect((detail as { view: MatchDetailView }).view.player.isPlayer).toBe(true);
+      expect((detail as { view: MatchDetailView }).view.championId).toBe("Gwen");
+    } finally {
+      await db.update(riotAccounts).set({ puuid: account!.puuid, syncStatus: "ok" }).where(eq(riotAccounts.id, main));
+    }
+  });
+
   it("names and links current team members only: a personal-use profile in the game stays a stranger, as on the cards", async () => {
     const db = handle.db;
     const [record] = await db.select({ participants: matchDetails.participants }).from(matchDetails).where(eq(matchDetails.matchId, "OC1_700000019"));

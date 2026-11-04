@@ -3,8 +3,8 @@ import { sql } from "drizzle-orm";
 import { getDbHandle } from "@/server/db/client";
 import { deploymentInfo } from "@/server/ops/deployment";
 import { requiresAccounts, missingProductionSetup } from "@/server/auth/mode";
-import { patches, dataRefreshStatus } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { patches, dataRefreshStatus, riotAccounts } from "@/server/db/schema";
+import { and, eq, ne } from "drizzle-orm";
 import { RETIRED_JOB_KEYS } from "@/server/ops/refresh-status";
 
 export const dynamic = "force-dynamic";
@@ -28,11 +28,19 @@ export async function GET() {
     const [patch] = await handle.db.select({ id: patches.id, ddragonVersion: patches.ddragonVersion }).from(patches).where(eq(patches.isCurrent, true)).limit(1);
     const jobs = (await handle.db.select({ key: dataRefreshStatus.key, status: dataRefreshStatus.status, lastSuccessAt: dataRefreshStatus.lastSuccessAt, lastError: dataRefreshStatus.lastError }).from(dataRefreshStatus)).filter((j) => !RETIRED_JOB_KEYS.has(j.key));
     const failing = jobs.filter((j) => j.status === "failed").map((j) => j.key);
+    // When a linked account was last read from Riot in full (sync_cursor is written on success
+    // only), from the accounts themselves: the account-sync job records a run as a success when
+    // it had nothing to do, no key, or every account failed, so its time says nothing about data.
+    const [read] = await handle.db
+      .select({ cursor: sql<number | null>`max(${riotAccounts.syncCursor})` })
+      .from(riotAccounts)
+      .where(and(eq(riotAccounts.ownerType, "player"), ne(riotAccounts.label, "demo"), ne(riotAccounts.syncStatus, "demo")));
+    const accountsReadAt = read?.cursor ? new Date(Number(read.cursor) * 1000) : null;
     return NextResponse.json({
       ...base,
       db: { ok: true, mode: handle.mode, ms: dbMs },
       patch: patch?.id ?? null,
-      data: { champions: jobs.find((j) => j.key === "version-check")?.lastSuccessAt ?? jobs.find((j) => j.key === "static-sync")?.lastSuccessAt ?? null, accounts: jobs.find((j) => j.key === "account-sync")?.lastSuccessAt ?? null },
+      data: { champions: jobs.find((j) => j.key === "version-check")?.lastSuccessAt ?? jobs.find((j) => j.key === "static-sync")?.lastSuccessAt ?? null, accounts: accountsReadAt },
       jobs: jobs.map((j) => ({ key: j.key, status: j.status, lastSuccessAt: j.lastSuccessAt })),
       failingJobs: failing,
       ms: Math.round((performance.now() - started) * 10) / 10,

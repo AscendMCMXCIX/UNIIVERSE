@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { accountMatches, jobRuns, lastKnownRanks, playerChampionPools, riotAccounts, players, users } from "@/server/db/schema";
+import { accountMatches, jobRuns, lastKnownRanks, playerChampionPools, riotAccounts, players, users, matchTimelines } from "@/server/db/schema";
 import { createPlayer, getOrCreateTeam, setCardStyle } from "@/server/repositories/team";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
@@ -135,5 +135,29 @@ describe("the jobs' version", () => {
     const done = await jobsFreshness(db);
     expect(done.v).not.toBe(running.v);
     expect(done.pace).toBe("idle");
+  });
+
+  it("follows the timelines of the player's games, so Matchups updates when the backfill stores one", async () => {
+    const db = handle.db;
+    const [game] = await db.select({ matchId: accountMatches.matchId }).from(accountMatches).where(eq(accountMatches.accountId, accountId)).limit(1);
+    const before = await playerFreshness(db, playerId, { now });
+    await db.insert(matchTimelines).values({ matchId: game!.matchId, platform: "oc1", participants: [], frames: null });
+    const stored = await playerFreshness(db, playerId, { now });
+    expect(stored.v).not.toBe(before.v);
+    await db.update(matchTimelines).set({ frames: { t: [0, 60_000], p: {} } }).where(eq(matchTimelines.matchId, game!.matchId));
+    expect((await playerFreshness(db, playerId, { now })).v).not.toBe(stored.v);
+    // Another player's timeline is not this player's.
+    await db.insert(matchTimelines).values({ matchId: "OC1_NOT_MINE", platform: "oc1", participants: [], frames: null });
+    expect((await playerFreshness(db, playerId, { now })).v).toBe((await playerFreshness(db, playerId, { now })).v);
+  });
+
+  it("asks soon while a run is in progress even when an older run was left open by a dead process", async () => {
+    const db = handle.db;
+    const dead = new Date(Date.now() - 5 * 3_600_000);
+    await db.insert(jobRuns).values({ job: "figures-backfill", trigger: "tick", startedAt: dead });
+    expect((await jobsFreshness(db)).pace).toBe("idle");
+    const [live] = await db.insert(jobRuns).values({ job: "account-sync", trigger: "tick" }).returning();
+    expect((await jobsFreshness(db)).pace).toBe("now");
+    await db.update(jobRuns).set({ finishedAt: new Date(), ok: "true" }).where(eq(jobRuns.id, live!.id));
   });
 });

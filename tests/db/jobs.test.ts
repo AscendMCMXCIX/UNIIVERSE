@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { dataRefreshStatus, jobRuns } from "@/server/db/schema";
-import { JOB_STALE_RUNNING_MS, getRefreshStatuses, startJobRun, type JobKey } from "@/server/ops/refresh-status";
+import { INTERRUPTED_RUN_MESSAGE, JOB_STALE_RUNNING_MS, getRefreshStatuses, startJobRun, type JobKey } from "@/server/ops/refresh-status";
 import { TICK_JOB_ORDER, defineJob, getJob, runJob, runTick, setScheduleOverrides } from "@/server/jobs";
 import { getDataHealth } from "@/server/ops/status";
 import { runMigrations } from "@/server/db/migrator";
@@ -189,6 +189,50 @@ describe("failed and interrupted runs", () => {
       await next!({ ok: true, summary: {} });
     } finally {
       await db.delete(dataRefreshStatus).where(eq(dataRefreshStatus.key, "timeline-backfill"));
+    }
+  });
+
+  it("records a run whose process died when its key is taken over: a failure counted, its open run closed", async () => {
+    const db = handle.db;
+    const key: JobKey = "figures-backfill";
+    const died = new Date(Date.now() - JOB_STALE_RUNNING_MS - 60_000);
+    try {
+      await db.insert(dataRefreshStatus).values({ key, status: "running", lastStartedAt: died, consecutiveFailures: 0, updatedAt: died }).onConflictDoUpdate({ target: dataRefreshStatus.key, set: { status: "running", lastStartedAt: died, consecutiveFailures: 0, lastError: null, lastFailureAt: null } });
+      const [open] = await db.insert(jobRuns).values({ job: key, trigger: "tick", startedAt: died }).returning({ id: jobRuns.id });
+      const finish = await startJobRun(db, key, "test");
+      expect(finish).not.toBeNull();
+      const [taken] = await db.select().from(dataRefreshStatus).where(eq(dataRefreshStatus.key, key));
+      expect(taken).toMatchObject({ status: "running", consecutiveFailures: 1, lastError: INTERRUPTED_RUN_MESSAGE });
+      expect(taken!.lastFailureAt?.getTime()).toBe(died.getTime());
+      const [closed] = await db.select().from(jobRuns).where(eq(jobRuns.id, open!.id));
+      expect(closed).toMatchObject({ ok: "false", error: INTERRUPTED_RUN_MESSAGE });
+      expect(closed!.finishedAt).toBeInstanceOf(Date);
+      // The new run is its own open row, and finishes as usual.
+      expect((await db.select().from(jobRuns).where(and(eq(jobRuns.job, key), isNull(jobRuns.finishedAt)))).length).toBe(1);
+      await finish!({ ok: true, summary: {} });
+      expect((await db.select().from(dataRefreshStatus).where(eq(dataRefreshStatus.key, key)))[0]).toMatchObject({ status: "ok", consecutiveFailures: 0 });
+      expect((await db.select().from(jobRuns).where(and(eq(jobRuns.job, key), isNull(jobRuns.finishedAt)))).length).toBe(0);
+    } finally {
+      await db.delete(jobRuns).where(eq(jobRuns.job, key));
+      await db.delete(dataRefreshStatus).where(eq(dataRefreshStatus.key, key));
+    }
+  });
+
+  it("the housekeeping frees a run after the same time a new run would take its key over, and records it the same way", async () => {
+    const db = handle.db;
+    const key: JobKey = "timeline-backfill";
+    // Between the takeover time and the old 30-minute rule: before, such a run was neither taken over nor freed by the housekeeping.
+    const died = new Date(Date.now() - JOB_STALE_RUNNING_MS - 60_000);
+    try {
+      await db.insert(dataRefreshStatus).values({ key, status: "running", lastStartedAt: died, updatedAt: died }).onConflictDoUpdate({ target: dataRefreshStatus.key, set: { status: "running", lastStartedAt: died, consecutiveFailures: 0, lastError: null, lastFailureAt: null } });
+      const [open] = await db.insert(jobRuns).values({ job: key, trigger: "tick", startedAt: died }).returning({ id: jobRuns.id });
+      const result = await runJob(db, "integrity", "test");
+      expect((result.summary as { unstuck: string[] }).unstuck).toContain(key);
+      expect((await db.select().from(dataRefreshStatus).where(eq(dataRefreshStatus.key, key)))[0]).toMatchObject({ status: "failed", consecutiveFailures: 1, lastError: INTERRUPTED_RUN_MESSAGE });
+      expect((await db.select().from(jobRuns).where(eq(jobRuns.id, open!.id)))[0]).toMatchObject({ ok: "false", error: INTERRUPTED_RUN_MESSAGE });
+    } finally {
+      await db.delete(jobRuns).where(eq(jobRuns.job, key));
+      await db.delete(dataRefreshStatus).where(eq(dataRefreshStatus.key, key));
     }
   });
 });

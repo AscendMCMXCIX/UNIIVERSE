@@ -106,6 +106,8 @@ const MINUTES = Array.from({ length: CURVE_MINUTES }, (_, i) => i + 1);
 interface LaneExtract {
   /** The player and exactly one enemy in the same assigned position were found in the match record. */
   paired: boolean;
+  /** The match record: not stored yet, stored without players (Riot no longer serves it), stored; unknown when the accounts have no PUUID to look for. */
+  record: "missing" | "empty" | "stored" | "unknown";
   /** The stored timeline, once it has frames: its timestamps and the two players' series (absent when Riot had none for them). */
   frames: { t: number[]; me: PlayerSeries | null; them: PlayerSeries | null } | null;
 }
@@ -141,13 +143,13 @@ async function laneExtracts(db: Db, matchIds: string[], puuids: string[]): Promi
     else missing.push(id);
   }
   if (!missing.length || !puuids.length) {
-    for (const id of missing) out.set(id, { paired: false, frames: null });
+    for (const id of missing) out.set(id, { paired: false, record: "unknown", frames: null });
     return out;
   }
   const idArray = sql`ARRAY[${sql.join(missing.map((id) => sql`${id}`), sql`, `)}]::text[]`;
   const puuidArray = sql`ARRAY[${sql.join(puuids.map((p) => sql`${p}`), sql`, `)}]::text[]`;
   const result = await db.execute(sql`
-    SELECT ids.match_id, d.match_id IS NOT NULL AS has_record, coalesce(lane.paired, false) AS paired, t.frames IS NOT NULL AS has_frames,
+    SELECT ids.match_id, d.match_id IS NOT NULL AS has_record, coalesce(jsonb_array_length(d.participants) = 0, false) AS empty_record, coalesce(lane.paired, false) AS paired, t.frames IS NOT NULL AS has_frames,
       CASE WHEN lane.paired THEN t.frames->'t' END AS t,
       CASE WHEN lane.paired THEN t.frames->'p'->lane.me END AS me,
       CASE WHEN lane.paired THEN t.frames->'p'->lane.them END AS them
@@ -163,9 +165,9 @@ async function laneExtracts(db: Db, matchIds: string[], puuids: string[]): Promi
       ) opp
     ) lane ON true
     LEFT JOIN match_timelines t ON t.match_id = ids.match_id`);
-  const rows = ((result as { rows?: unknown[] }).rows ?? result) as Array<{ match_id: string; has_record: boolean; paired: boolean; has_frames: boolean; t: number[] | null; me: PlayerSeries | null; them: PlayerSeries | null }>;
+  const rows = ((result as { rows?: unknown[] }).rows ?? result) as Array<{ match_id: string; has_record: boolean; empty_record: boolean; paired: boolean; has_frames: boolean; t: number[] | null; me: PlayerSeries | null; them: PlayerSeries | null }>;
   for (const r of rows) {
-    const lane: LaneExtract = { paired: !!r.paired, frames: r.paired && r.has_frames ? { t: r.t ?? [], me: r.me ?? null, them: r.them ?? null } : null };
+    const lane: LaneExtract = { paired: !!r.paired, record: !r.has_record ? "missing" : r.empty_record ? "empty" : "stored", frames: r.paired && r.has_frames ? { t: r.t ?? [], me: r.me ?? null, them: r.them ?? null } : null };
     out.set(r.match_id, lane);
     // Final once the record is stored and, for a paired lane, the timeline has its frames.
     if (r.has_record && (!r.paired || r.has_frames)) {
@@ -241,7 +243,9 @@ export async function getPlayerMatchups(db: Db, playerId: string, filter: Matchu
     const frames = lane?.frames;
     let timeline: TimelineStatus;
     let d: LaneDiff[] | null = null;
-    if (!lane?.paired) timeline = "no-details";
+    // A record still to be collected is pending, as a timeline is; one Riot no longer serves is
+    // unavailable; "no-details" is kept for a stored record without a single same-position enemy.
+    if (!lane?.paired) timeline = lane?.record === "missing" ? "pending" : lane?.record === "empty" ? "unavailable" : "no-details";
     else if (!frames) timeline = "pending";
     else if (!frames.t.length || !frames.me || !frames.them) timeline = "unavailable";
     else {

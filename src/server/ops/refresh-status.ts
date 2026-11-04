@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, lt, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { dataRefreshStatus, jobRuns } from "@/server/db/schema";
 
@@ -33,6 +33,44 @@ export interface JobOutcome {
 
 /** A run older than this that still says "running" is treated as dead (process killed). */
 export const JOB_STALE_RUNNING_MS = 15 * 60_000;
+export const INTERRUPTED_RUN_MESSAGE = "Run never finished (process was interrupted).";
+
+/**
+ * A run whose process died (the host's limit, an instance recycled) never reaches its finish:
+ * records it as the failure it was, so Data health counts it and nothing stays open for ever: the
+ * failure count and time on the job's status, and its open job_runs row closed with the reason.
+ * The status itself is left to the caller: the run taking the key over sets "running", the
+ * housekeeping sets "failed".
+ */
+export async function recordInterruptedRun(db: Db, key: JobKey, startedAt: Date | null, now = new Date()): Promise<void> {
+  await db.update(jobRuns).set({ finishedAt: now, ok: "false", error: INTERRUPTED_RUN_MESSAGE }).where(and(eq(jobRuns.job, key), isNull(jobRuns.finishedAt), ...(startedAt ? [lt(jobRuns.startedAt, now)] : [])));
+  await db
+    .update(dataRefreshStatus)
+    .set({ lastFailureAt: startedAt ?? now, lastError: INTERRUPTED_RUN_MESSAGE, consecutiveFailures: sql`${dataRefreshStatus.consecutiveFailures} + 1`, updatedAt: now })
+    .where(eq(dataRefreshStatus.key, key));
+}
+
+/**
+ * Housekeeping (the integrity job): every run still "running" after JOB_STALE_RUNNING_MS, the
+ * same rule a new run uses to take the key over, is marked failed and recorded as interrupted.
+ * Returns the keys.
+ */
+export async function unstickDeadRuns(db: Db, now = new Date()): Promise<string[]> {
+  const stale = new Date(now.getTime() - JOB_STALE_RUNNING_MS);
+  const dead = await db
+    .select({ key: dataRefreshStatus.key, lastStartedAt: dataRefreshStatus.lastStartedAt })
+    .from(dataRefreshStatus)
+    .where(and(eq(dataRefreshStatus.status, "running"), lt(dataRefreshStatus.lastStartedAt, stale)));
+  for (const run of dead) {
+    const freed = await db
+      .update(dataRefreshStatus)
+      .set({ status: "failed", updatedAt: now })
+      .where(and(eq(dataRefreshStatus.key, run.key), eq(dataRefreshStatus.status, "running"), lt(dataRefreshStatus.lastStartedAt, stale)))
+      .returning({ key: dataRefreshStatus.key });
+    if (freed.length) await recordInterruptedRun(db, run.key as JobKey, run.lastStartedAt, now);
+  }
+  return dead.map((d) => d.key);
+}
 
 /**
  * Records the start of a job and returns a finish function that records the outcome, or null
@@ -44,12 +82,16 @@ export async function startJobRun(db: Db, key: JobKey, trigger: string, options:
   const startedAt = new Date();
   const staleBefore = new Date(startedAt.getTime() - JOB_STALE_RUNNING_MS);
   await db.insert(dataRefreshStatus).values({ key, status: "never", updatedAt: startedAt }).onConflictDoNothing();
+  // What the row said before the claim: a stale "running" row is a run whose process died.
+  const [before] = await db.select({ status: dataRefreshStatus.status, lastStartedAt: dataRefreshStatus.lastStartedAt }).from(dataRefreshStatus).where(eq(dataRefreshStatus.key, key));
   const claimed = await db
     .update(dataRefreshStatus)
     .set({ status: "running", lastStartedAt: startedAt, updatedAt: startedAt })
     .where(options.allowConcurrent ? eq(dataRefreshStatus.key, key) : sql`${dataRefreshStatus.key} = ${key} AND (${dataRefreshStatus.status} <> 'running' OR ${dataRefreshStatus.lastStartedAt} IS NULL OR ${dataRefreshStatus.lastStartedAt} < ${staleBefore.toISOString()}::timestamptz)`)
     .returning({ key: dataRefreshStatus.key });
   if (claimed.length === 0) return null;
+  // The key was taken over from a run that never finished: counted and closed before this one starts.
+  if (!options.allowConcurrent && before?.status === "running" && before.lastStartedAt && before.lastStartedAt < staleBefore) await recordInterruptedRun(db, key, before.lastStartedAt, startedAt);
   const [run] = await db.insert(jobRuns).values({ job: key, trigger, startedAt }).returning({ id: jobRuns.id });
 
   return async function finish(outcome: JobOutcome) {

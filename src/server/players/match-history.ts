@@ -5,7 +5,7 @@ import { compositionOf, loadCompositionParticipants, teamMembersByPuuid, type Co
 import { opggLinkFor, platformOfMatchId } from "@/domain/opgg";
 import { largestMultikill } from "@/domain/multikills";
 import { knownRiotIds } from "@/server/players/riot-names";
-import { accountMatches, matchDetails, players, riotAccounts, teamBookmarks, type MatchParticipantDetail, type ParticipantExtraStats } from "@/server/db/schema";
+import { accountMatches, matchDetails, players, teamBookmarks, type MatchParticipantDetail, type ParticipantExtraStats } from "@/server/db/schema";
 import { dedupeGames, filterGames, gameRole, modeBreakdown, isGameRole, isSeasonMode, seasonsInGames, MIN_VALID_DURATION_S, type GameRole, type SeasonGame, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
 import { LANE_ORDER, laneOf, laneOpponentOf, personalComparison, standoutOf, type FigureKey, type PersonalComparison } from "@/domain/match-analysis";
 import { historySummary, type HistorySummary } from "@/domain/history-summary";
@@ -276,10 +276,21 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
   // Players who renamed since a game on this page are linked by their newer Riot ID.
   const pagePuuids = details.flatMap((d) => d.participants.map((p) => p.puuid));
   const ownPuuids = new Set(accounts.map((a) => a.puuid).filter(Boolean));
+  const puuidOf = new Map(accounts.map((a) => [a.id, a.puuid]));
+  // The profile's player in a stored record: by the account's PUUID; while that is unknown (the
+  // account is being verified again after a Riot key change) by the ledger's own side and champion,
+  // one player in a draft game. Never guessed beyond that.
+  const meIn = (d: { participants: MatchParticipantDetail[] } | undefined, g: SeasonGame) =>
+    d?.participants.find((p) => p.puuid === puuidOf.get(g.accountId)) ??
+    d?.participants.find((p) => ownPuuids.has(p.puuid)) ??
+    (typeof g.teamId === "number" ? d?.participants.find((p) => !isRemoved(p) && p.teamId === g.teamId && p.championId === g.championId) : undefined);
   // Everyone else in this page's games: their stored ranks, read together for the page (five
   // queries in all, no Riot request), with the members' ranks going into each game from their rank
   // history. The rank checks after collection and an opened match fill in the rest.
-  const othersOf = (d: (typeof details)[number]) => d.participants.filter((p) => p.puuid && !ownPuuids.has(p.puuid) && !isRemoved(p)).map((p) => p.puuid);
+  const othersOf = (d: (typeof details)[number]) => {
+    const own = slice.filter((g) => g.matchId === d.matchId).map((g) => meIn(d, g)?.puuid);
+    return d.participants.filter((p) => p.puuid && !ownPuuids.has(p.puuid) && !own.includes(p.puuid) && !isRemoved(p)).map((p) => p.puuid);
+  };
   const others = details.flatMap(othersOf);
   // The newest games of the filter, for the summary: their team kills, from the stored summaries
   // (one narrow query; the cached game rows do not carry them).
@@ -304,14 +315,13 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     const row = teamKillRows.find((r) => r.matchId === g.matchId && r.accountId === g.accountId) ?? teamKillRows.find((r) => r.matchId === g.matchId);
     if (row?.teamKills !== null && row?.teamKills !== undefined) teamKillsOf.set(g.matchId, row.teamKills);
   }
-  const puuidOf = new Map(accounts.map((a) => [a.id, a.puuid]));
   const nowMs = now.getTime();
   const riotIdOf = new Map(accounts.map((a) => [a.id, a.riotId]));
   const fallbackVersion = patch?.ddragonVersion ?? null;
 
   const rows: MatchRow[] = slice.map((g) => {
     const d = byMatch.get(g.matchId);
-    const me = d?.participants.find((p) => p.puuid === puuidOf.get(g.accountId)) ?? d?.participants.find((p) => ownPuuids.has(p.puuid));
+    const me = meIn(d, g);
     const detailed = typeof g.kills === "number" && g.kills >= 0;
     const kills = detailed ? g.kills! : null;
     const deaths = detailed ? (g.deaths ?? null) : null;
@@ -575,10 +585,14 @@ export function compareInMatch(participants: MatchParticipantDetail[], teams: Ar
 async function matchOfPlayer(db: Db, playerId: string, matchId: string) {
   const accounts = await listAccountsForPlayer(db, playerId);
   if (!accounts.length) return null;
+  // Two of the player's accounts in one game: the row of the lowest account id, the one the list
+  // shows (domain/season-stats dedupeGames), so the window opens the game the card described.
   const [mine] = await db
     .select()
     .from(accountMatches)
-    .where(and(eq(accountMatches.matchId, matchId), inArray(accountMatches.accountId, accounts.map((a) => a.id)), isNotNull(accountMatches.championId)));
+    .where(and(eq(accountMatches.matchId, matchId), inArray(accountMatches.accountId, accounts.map((a) => a.id)), isNotNull(accountMatches.championId)))
+    .orderBy(accountMatches.accountId)
+    .limit(1);
   return mine ? { accounts, mine } : null;
 }
 
@@ -648,7 +662,14 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
   if (!d.participants.length) return { status: "unavailable", message: "Riot no longer provides the full record of this game. Its result and your figures are still counted." };
 
   const puuids = new Set(accounts.map((a) => a.puuid).filter(Boolean));
-  const meRaw = d.participants.find((p) => puuids.has(p.puuid)) ?? null;
+  // The card's account first, then any linked account; while the account's PUUID is unknown (being
+  // verified again after a Riot key change), the ledger's own side and champion name the player.
+  const cardPuuid = accounts.find((a) => a.id === mine.accountId)?.puuid ?? null;
+  const meRaw =
+    (cardPuuid ? d.participants.find((p) => p.puuid === cardPuuid) : undefined) ??
+    d.participants.find((p) => puuids.has(p.puuid)) ??
+    (mine.teamId !== null ? d.participants.find((p) => !isRemoved(p) && p.teamId === mine.teamId && p.championId === mine.championId) : undefined) ??
+    null;
   // Current team members in this game (any linked account), by display name: the rule of the match
   // cards and Team → Matches (matches/compositions teamMembersByPuuid), so a personal-use or an
   // archived profile is named and linked nowhere; everyone else to OP.GG when the record allows.
@@ -679,7 +700,7 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
     slot: d!.participants.indexOf(p),
     removed: isRemoved(p),
     name: p.name,
-    isPlayer: puuids.has(p.puuid),
+    isPlayer: p === meRaw || puuids.has(p.puuid),
     teamMember: memberOf.get(p.puuid) ?? null,
     memberId: profileOf.get(p.puuid) ?? null,
     opgg: opggLinkFor(p.name, platform, known.get(p.puuid)),

@@ -33,6 +33,8 @@ export interface SeasonGame {
   gameDuration?: number | null;
   /** The game's multikill counts in their short stored form; null when its record has none (domain/multikills). */
   multikills?: string | null;
+  /** The player's side, 100 or 200, copied from the stored record; null or absent until then. */
+  teamId?: number | null;
 }
 
 /**

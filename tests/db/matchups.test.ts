@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { accountMatches, matchDetails, matchTimelines, riotAccounts, type MatchFrames, type MatchParticipantDetail } from "@/server/db/schema";
@@ -261,5 +261,19 @@ describe("a game whose record Riot no longer serves", () => {
     expect(gone).toMatchObject({ win: true, kills: null, deaths: null, assists: null, cs: null });
     expect(w.lane!.recent.every((g) => g.kills === null || g.kills >= 0)).toBe(true);
     await db.delete(accountMatches).where(eq(accountMatches.matchId, "OC1_9"));
+  });
+
+  it("tells a record still to be collected (pending) from one Riot no longer serves (unavailable), never 'lane opponent unclear'", async () => {
+    const db = handle.db;
+    const row = (matchId: string, age: number) => ({ accountId: mainId, matchId, gameCreation: Date.now() - age * DAY, queueId: 420, championId: "Gwen", role: "TOP", win: true, enemyChampionId: "Nasus", patch: "16.20", gameDuration: 1700, kills: 4, deaths: 2, assists: 5, cs: 200 });
+    await db.insert(accountMatches).values([row("OC1_10", 10), row("OC1_11", 11)]);
+    await db.insert(matchDetails).values({ matchId: "OC1_11", platform: null, queueId: 420, gameCreation: Date.now() - 11 * DAY, gameDuration: 1700, gameVersion: null, teams: [], participants: [] });
+    const w = await getPlayerMatchups(db, playerId, { account: null, mode: "all", champion: "Gwen", vs: "Nasus", role: "TOP", exact: true });
+    const status = (id: string) => w.detail!.matches.find((g) => g.matchId === id)!.timeline;
+    expect(status("OC1_10")).toBe("pending");
+    expect(status("OC1_11")).toBe("unavailable");
+    expect(status("OC1_6")).toBe("no-details");
+    await db.delete(accountMatches).where(inArray(accountMatches.matchId, ["OC1_10", "OC1_11"]));
+    await db.delete(matchDetails).where(eq(matchDetails.matchId, "OC1_11"));
   });
 });

@@ -19,8 +19,13 @@ declare global {
 
 const TTL_MS = 5 * 60_000;
 
+/** Builds under way, by key: concurrent readers share one; a build from before an invalidation is not kept. */
+const building = new Map<string, Promise<Bundle>>();
+let generation = 0;
+
 export function invalidateProficiencyCache() {
   globalThis.__uniiverseProficiencyCache = undefined;
+  generation += 1;
 }
 registerLocalCache(invalidateProficiencyCache);
 
@@ -69,9 +74,17 @@ export async function getProficiencyLookup(db: Db, playerIds: string[]): Promise
   }
   let bundle = cache.bundles.get(key);
   if (!bundle) {
-    bundle = await buildBundle(db, playerIds);
-    cache.bundles.set(key, bundle);
-    globalThis.__uniiverseProficiencyCache = cache;
+    const since = generation;
+    let build = building.get(key);
+    if (!build) {
+      build = buildBundle(db, playerIds).finally(() => building.delete(key));
+      building.set(key, build);
+    }
+    bundle = await build;
+    if (generation === since) {
+      cache.bundles.set(key, bundle);
+      globalThis.__uniiverseProficiencyCache = cache;
+    }
   }
   const b = bundle;
   const memo = new Map<string, ProficiencyEstimate | null>();

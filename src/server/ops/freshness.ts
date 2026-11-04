@@ -40,12 +40,12 @@ interface PlayerAccountRow {
 }
 
 /**
- * A player's profile: their accounts (state, Riot ID, rank, last update), games, figures, mastery
- * and profile edits. `visit`: asked while rendering the profile, whose visit refresh starts right
+ * A player's profile: their accounts (state, Riot ID, rank, last update), games, figures, mastery,
+ * the timelines of their games (Matchups) and profile edits. `visit`: asked while rendering the profile, whose visit refresh starts right
  * after the page is sent when an account is due, so the page should ask again soon.
  */
 export async function playerFreshness(db: Db, playerId: string, { now = new Date(), visit = false }: { now?: Date; visit?: boolean } = {}): Promise<Freshness> {
-  const [row] = rowsOf<{ profile: string | null; pools: string | null; accounts: PlayerAccountRow[] | null; games: unknown; ranks: unknown; mastery: string | number | null; lookups: string | null; lease: string | null }>(
+  const [row] = rowsOf<{ profile: string | null; pools: string | null; accounts: PlayerAccountRow[] | null; games: unknown; ranks: unknown; mastery: string | number | null; timelines: unknown; lookups: string | null; lease: string | null }>(
     await db.execute(sql`
       WITH acc AS (SELECT id FROM riot_accounts WHERE player_id = ${playerId} AND owner_type = 'player')
       SELECT
@@ -62,6 +62,9 @@ export async function playerFreshness(db: Db, playerId: string, { now = new Date
           FROM account_matches WHERE account_id IN (SELECT id FROM acc)) AS games,
         (SELECT json_build_array(count(*), max(captured_at)) FROM rank_snapshots WHERE account_id IN (SELECT id FROM acc)) AS ranks,
         (SELECT sum(points) FROM account_mastery WHERE account_id IN (SELECT id FROM acc)) AS mastery,
+        -- The timelines of their games (Matchups): how many are stored, and how many with frames and with events (no record's JSON is read).
+        (SELECT json_build_array(count(*), count(*) FILTER (WHERE frames IS NOT NULL), count(*) FILTER (WHERE events IS NOT NULL))
+          FROM match_timelines WHERE match_id IN (SELECT match_id FROM account_matches WHERE account_id IN (SELECT id FROM acc))) AS timelines,
         -- Opponents' ranks shown in Match History, stored when someone opens a game (any player's: rare, and one value).
         (SELECT max(observed_at) FROM last_known_ranks WHERE source = 'match lookup') AS lookups,
         (SELECT updated_at FROM app_settings WHERE key = ${`account_refresh:${playerId}`}) AS lease`),
@@ -75,7 +78,7 @@ export async function playerFreshness(db: Db, playerId: string, { now = new Date
   // Accounts waiting for Riot only move while Riot is configured; without it nothing will change soon.
   const pace: FreshnessPace = leaseHeld || refreshStarting || (riotConfigured && states.some((s) => s === "pending" || s === "verified")) ? "now" : states.includes("syncing") ? "catching-up" : "idle";
   return {
-    v: digest([row?.profile ?? null, row?.pools ?? null, accounts.map((a) => [a.id, a.sync_status, a.sync_error, time(a.last_sync_at), a.riot_id, a.history?.completedAt ?? null, a.rank]), row?.games, row?.ranks, Number(row?.mastery ?? 0), time(row?.lookups)]),
+    v: digest([row?.profile ?? null, row?.pools ?? null, accounts.map((a) => [a.id, a.sync_status, a.sync_error, time(a.last_sync_at), a.riot_id, a.history?.completedAt ?? null, a.rank]), row?.games, row?.ranks, Number(row?.mastery ?? 0), row?.timelines ?? null, time(row?.lookups)]),
     pace,
   };
 }
@@ -113,7 +116,7 @@ export async function jobsFreshness(db: Db, now: Date = new Date()): Promise<Fre
       SELECT
         (SELECT max(id) FROM job_runs WHERE started_at >= ${since}::timestamptz) AS last_run,
         (SELECT max(finished_at) FROM job_runs WHERE started_at >= ${since}::timestamptz) AS finished,
-        (SELECT min(started_at) FROM job_runs WHERE started_at >= ${since}::timestamptz AND finished_at IS NULL) AS running_since,
+        (SELECT max(started_at) FROM job_runs WHERE started_at >= ${since}::timestamptz AND finished_at IS NULL) AS running_since,
         (SELECT max(updated_at) FROM data_refresh_status) AS status`),
   );
   const running = (time(row?.running_since) ?? 0) > now.getTime() - JOB_RUNNING_MS;
