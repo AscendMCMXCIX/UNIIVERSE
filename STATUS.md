@@ -14,7 +14,7 @@
 |---|---|---|---|
 | Security: every member page checks access | #170 | Verified | Every Production check run turns away signed-out and forged-session requests to member pages, including a real member's profile, champions and matches |
 | Security hardening | #172 | Deployed | Server-side fixes, each with its own tests |
-| Production monitoring | #180, #182, #184 | Verified | 11 Production check runs since 3 Nov: 10 passed, 1 cancelled by a newer deploy, none failed |
+| Production monitoring | #180, #182, #184 | Verified | 12 Production check runs since 3 Nov: 11 passed, 1 cancelled by a newer deploy, none failed |
 | Backups | #179 | Verified | The Database backup run of 3 Nov restored all 72 tables with matching counts |
 | Riot key and compliance | #175, #181 | Verified | The key is Personal: the same key was accepted 24 h 39 min apart. Public pages carry no Riot API data (checked on every run) |
 | Season figures speed | #169 | Verified | Production perf probe: Team roster 535 → 329–353 ms cold |
@@ -27,7 +27,7 @@
 | Social links: "Show publicly" | #166 | Deployed | |
 | Leaderboards: Recent form, Records & achievements | #177, #185, #188 | Deployed 4 Nov, 07:40 | Production check run 11 passed (public pages and security). The member page has not been checked live |
 | Installed app on a computer: shortcuts, one window | #171 | Deployed | Needs a real install on Windows or Chrome to verify |
-| Retired tables dropped (Meta & Trends, Draft, Clash Scout) | #86, #138 | Deployed 4 Nov, 08:21 | Production check run 12 passed on the deployed commit (the migrations applied). The session that merged it confirms the freed space with Data jobs `db-usage` |
+| Retired tables dropped (Meta & Trends, Draft, Clash Scout) | #86, #138 | Deployed 4 Nov, 08:21 | Production check run 12 passed: production answers from the merge commit with its health ok, and migrations apply as an instance starts. The session that merged it confirms the freed space with Data jobs `db-usage` |
 | Field page speed in members' browsers | #186 | Deployed | The probe read it on production (run 8): Team LCP p75 ≤ 5 s on 81 loads, every other page ≤ 2.5 s |
 
 ## In progress
@@ -50,4 +50,4 @@
 ## Retired (do not reintroduce)
 
 - Draft, Clash Scout, Ranked Development (with Solo Queue Blocks and the Ranked Improvement journal), Meta & Trends, Patterns & Notes.
-- Their stored records stay until the drops in #86 (Ranked Development's tables have no drop prepared).
+- #86 dropped the Meta & Trends, Draft and Clash Scout tables on 4 Nov. Ranked Development's records are kept; no drop is prepared for them.
