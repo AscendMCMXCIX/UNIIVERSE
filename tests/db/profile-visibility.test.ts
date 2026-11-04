@@ -14,6 +14,7 @@ import type { DbHandle } from "@/server/db/create";
   2. A personal-use profile (players.team_member false) opens only for its own player and
      administrators. A member, a Restricted Player and a Player Manager are answered "not found"
      by the layout and every tab page, and refused by the actions that read or change the player.
+     The match scoreboard names and links current team members only (taken from draft PR #202).
 */
 
 const state = vi.hoisted(() => ({ db: null as unknown, cookies: new Map<string, string>(), redirects: [] as string[], pathname: "/" }));
@@ -53,6 +54,7 @@ import type { Capability } from "@/server/auth/permissions";
 import { loadProfileHeader } from "@/server/players/profile-header";
 import { headerIdentity, IdentitySync } from "@/components/players/profile-sections";
 import { ProfileAccountsTab } from "@/components/players/profile-accounts-tab";
+import { getMatchDetail, type MatchDetailView } from "@/server/players/match-history";
 import * as playerActions from "@/server/actions/players";
 import * as accountActions from "@/server/actions/accounts";
 import * as matchActions from "@/server/actions/match-history";
@@ -359,5 +361,14 @@ describe("decision 2: a personal-use profile is its player's and the administrat
     }
     await signInAs("owner");
     expect(await playerActions.archivePlayerAction(player.solo!, false)).toEqual({ ok: true });
+  });
+
+  it("the scoreboard names and links current team members only: a personal-use player in the game stays a stranger (draft PR #202's rule)", async () => {
+    const r = await getMatchDetail(handle.db, player.ace!, MATCH, { viewerIsOwner: true });
+    expect(r.status).toBe("ok");
+    const everyone = (r as { view: MatchDetailView }).view.teams.flatMap((t) => t.participants);
+    expect(everyone.find((p) => p.name === "solo#OCE")).toMatchObject({ teamMember: null, memberId: null });
+    expect(everyone.find((p) => p.name === "mate#OCE")).toMatchObject({ teamMember: "Mate", memberId: player.mate });
+    expect(everyone.find((p) => p.name === "Stranger#OCE")).toMatchObject({ teamMember: null, memberId: null });
   });
 });

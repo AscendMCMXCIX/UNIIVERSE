@@ -5,7 +5,7 @@ import { compositionOf, loadCompositionParticipants, teamMembersByPuuid, type Co
 import { opggLinkFor, platformOfMatchId } from "@/domain/opgg";
 import { largestMultikill } from "@/domain/multikills";
 import { knownRiotIds } from "@/server/players/riot-names";
-import { accountMatches, matchDetails, players, riotAccounts, teamBookmarks, type MatchParticipantDetail, type ParticipantExtraStats } from "@/server/db/schema";
+import { accountMatches, matchDetails, players, teamBookmarks, type MatchParticipantDetail, type ParticipantExtraStats } from "@/server/db/schema";
 import { dedupeGames, filterGames, gameRole, modeBreakdown, isGameRole, isSeasonMode, seasonsInGames, MIN_VALID_DURATION_S, type GameRole, type SeasonGame, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
 import { LANE_ORDER, laneOf, laneOpponentOf, personalComparison, standoutOf, type FigureKey, type PersonalComparison } from "@/domain/match-analysis";
 import { historySummary, type HistorySummary } from "@/domain/history-summary";
@@ -652,15 +652,13 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
 
   const puuids = new Set(accounts.map((a) => a.puuid).filter(Boolean));
   const meRaw = d.participants.find((p) => puuids.has(p.puuid)) ?? null;
-  // Registered UNIIVERSE players in this game (any linked account), by display name.
-  const members = await db
-    .select({ puuid: riotAccounts.puuid, id: players.id, name: players.displayName, archivedAt: players.archivedAt })
-    .from(riotAccounts)
-    .innerJoin(players, eq(players.id, riotAccounts.playerId))
-    .where(inArray(riotAccounts.puuid, d.participants.map((p) => p.puuid)));
-  const memberOf = new Map(members.map((m) => [m.puuid, m.name]));
-  // Active profiles link inside UNIIVERSE; everyone else (archived profiles included) to OP.GG when the record allows.
-  const profileOf = new Map(members.filter((m) => !m.archivedAt).map((m) => [m.puuid, m.id]));
+  // Current team members in this game (any linked account), by display name: the rule of the match
+  // cards and Team → Matches (matches/compositions teamMembersByPuuid), so a personal-use or an
+  // archived profile is named and linked nowhere; everyone else to OP.GG when the record allows.
+  const [owner] = await db.select({ teamId: players.teamId }).from(players).where(eq(players.id, playerId));
+  const members = owner ? await teamMembersByPuuid(db, owner.teamId, d.participants.map((p) => p.puuid)) : new Map<string, { id: string; name: string }>();
+  const memberOf = new Map([...members].map(([puuid, m]) => [puuid, m.name]));
+  const profileOf = new Map([...members].map(([puuid, m]) => [puuid, m.id]));
   const platform = platformOfMatchId(matchId);
   const inGame = d.participants.map((p) => p.puuid);
   const [readings, before, known] = await Promise.all([storedRankReadings(db, inGame), recordedRanksBefore(db, [{ matchId, start: d.gameCreation, puuids: inGame }]), knownRiotIds(db, inGame, d.gameCreation)]);
