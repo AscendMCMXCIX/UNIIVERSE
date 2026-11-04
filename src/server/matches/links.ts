@@ -60,10 +60,17 @@ export async function sharedGameRows(db: Db, shares: ReadonlyArray<{ riotMatchId
     .where(and(inArray(riotAccounts.playerId, players), eq(riotAccounts.ownerType, "player"), inArray(accountMatches.matchId, shares.map((s) => s.riotMatchId))));
   const wanted = new Set(shares.map((s) => `${s.playerId}|${s.riotMatchId}`));
   const seen = new Set<string>();
-  return rows.filter((r) => {
-    const key = `${r.playerId}|${r.matchId}`;
-    if (!wanted.has(key) || seen.has(key) || !r.championId) return false;
-    seen.add(key);
-    return true;
-  });
+  return rows
+    .filter((r) => {
+      const key = `${r.playerId}|${r.matchId}`;
+      if (!wanted.has(key) || seen.has(key) || !r.championId) return false;
+      seen.add(key);
+      return true;
+    })
+    .map((r) => ({
+      ...r,
+      // kills = -1 marks a game whose details Riot no longer serves (accounts/sync, DETAILS_UNAVAILABLE):
+      // no kill count is known, so none is shown. Played Together reads it the same way.
+      kills: r.kills !== null && r.kills < 0 ? null : r.kills,
+    }));
 }
