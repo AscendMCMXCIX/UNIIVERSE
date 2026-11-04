@@ -1,8 +1,16 @@
 # Leaderboards: the proposed model
 
-Status: **proposal, implemented and tested as domain code only** (`src/domain/leaderboard-recent.ts`).
-The page keeps today's boards (`docs/TEAM_LEADERBOARDS.md`) until the owner approves the
-replacement. Thresholds are confirmed with the team's own figures first (section 6).
+Status: **proposal, built and tested; awaiting the owner's approval of the rules.**
+- **Built as recommended on 3 Nov 2026:** one Recent form board (overall, All games, ranked by win
+  rate) and the Records & achievements tab. Left out of the launch: the role boards, the Ranked
+  switch and the lane figure (sections 3 and 5 describe the full model).
+- **Where the code is:**
+  - `src/domain/leaderboard-recent.ts` and `src/domain/leaderboard-records.ts`;
+  - the view in `src/server/leaderboards/recent-view.ts`;
+  - the page in `src/components/leaderboards/recent-leaderboards.tsx`.
+- **Who sees it:** administrators can open it on live data at `/leaderboards?preview=recent-form`.
+  Members keep today's boards (`docs/TEAM_LEADERBOARDS.md`) until the owner approves.
+- **Thresholds** were confirmed with the team's own figures (section 6; the 3 Nov data audit).
 
 ## 1. What is wrong with the current boards
 
