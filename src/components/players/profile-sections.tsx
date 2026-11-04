@@ -1,6 +1,6 @@
 import { cache } from "react";
 import type { Db } from "@/server/db/types";
-import type { Session } from "@/server/auth/permissions";
+import { hasPermission, type Session } from "@/server/auth/permissions";
 import { canEditPlayer, canManageRiotAccounts } from "@/server/auth/permissions";
 import { listChampions } from "@/server/repositories/champions";
 import { loadProfileHeader, type ProfileHeaderData } from "@/server/players/profile-header";
@@ -61,9 +61,14 @@ export const championMap = async (db: Db): Promise<Record<string, PortraitChampi
 /** One header load per request, shared by the layout and the tab page. */
 export const profileHeader = cache((db: Db, playerId: string) => loadProfileHeader(db, playerId));
 
-/** The display-only identity the header shows (sent to the browser with every tab; see profile-identity.tsx). */
-export function headerIdentity(h: ProfileHeaderData): HeaderIdentity {
+/**
+ * The display-only identity the header shows (sent to the browser with every tab; see
+ * profile-identity.tsx). The rank is a statistic: a teammate's is shown to viewers with "view
+ * teammates' statistics", as on the Team page and the Players directory; one's own always.
+ */
+export function headerIdentity(h: ProfileHeaderData, viewer: Session | null): HeaderIdentity {
   const p = h.player;
+  const rankVisible = viewer?.playerId === p.id || hasPermission(viewer, "view-teammate-stats");
   return {
     playerId: p.id,
     displayName: p.displayName,
@@ -76,15 +81,15 @@ export function headerIdentity(h: ProfileHeaderData): HeaderIdentity {
     archived: !!p.archivedAt,
     setupPending: p.setupPending,
     lineupRole: h.lineupRole,
-    rank: h.rank ? { tier: h.rank.tier, division: h.rank.division, leaguePoints: h.rank.leaguePoints, wins: h.rank.wins, losses: h.rank.losses, queue: h.rank.queue, asOf: h.rank.asOf } : null,
+    rank: h.rank && rankVisible ? { tier: h.rank.tier, division: h.rank.division, leaguePoints: h.rank.leaguePoints, wins: h.rank.wins, losses: h.rank.losses, queue: h.rank.queue, asOf: h.rank.asOf } : null,
     featurable: featurableChampions(p),
     social: h.social,
   };
 }
 
 /** Every tab renders this: the header then shows this tab's (fresh) identity even when the layout was reused. */
-export function IdentitySync({ header }: { header: ProfileHeaderData }) {
-  return <ProfileIdentitySync identity={headerIdentity(header)} />;
+export function IdentitySync({ header, session }: { header: ProfileHeaderData; session: Session | null }) {
+  return <ProfileIdentitySync identity={headerIdentity(header, session)} />;
 }
 
 export async function ProfileFrame({ db, header, session, basePath, children }: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; children: React.ReactNode }) {
@@ -93,11 +98,11 @@ export async function ProfileFrame({ db, header, session, basePath, children }: 
   // The Customise dialog searches every champion (portraits only; cached list).
   const champions = editable ? Object.values(await championMap(db)) : [];
   return (
-    <ProfileIdentityProvider initial={headerIdentity(header)}>
-    <div className="mx-auto max-w-[var(--content-max)] space-y-4" style={bannerLightStyle(headerIdentity(header).look.style.colours)} data-testid="player-profile">
+    <ProfileIdentityProvider initial={headerIdentity(header, session)}>
+    <div className="mx-auto max-w-[var(--content-max)] space-y-4" style={bannerLightStyle(headerIdentity(header, session).look.style.colours)} data-testid="player-profile">
       {/* The section bar belongs to the profile card: tucked right under it. */}
       <div className="space-y-1.5">
-        <ProfileHeader identity={headerIdentity(header)} self={self} editable={editable} champions={champions} basePath={basePath} />
+        <ProfileHeader identity={headerIdentity(header, session)} self={self} editable={editable} champions={champions} basePath={basePath} />
         <ProfileTabs basePath={basePath} />
       </div>
       {children}
