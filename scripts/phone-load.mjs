@@ -7,7 +7,9 @@
 //   node scripts/phone-load.mjs http://127.0.0.1:3000 [runs] [page filter, a regular expression]
 //
 // The demo database answers in-process, so server time is not production's: compare builds with
-// each other, not with the live site. Riot's image CDN is not fetched (artwork comes later anyway).
+// each other, not with the live site. Riot's image CDN is not fetched, so pages whose largest element
+// is artwork read too fast here: on Team Overview a phone's LCP is the first card's splash art
+// (docs/PERFORMANCE.md, "Team Overview's first card", for a measurement with the art).
 import { chromium, devices } from "@playwright/test";
 
 const base = process.argv[2] ?? "http://127.0.0.1:3000";
