@@ -42,14 +42,13 @@ export async function cachedFor<T>(rawKey: string, ttlMs: number, load: () => Pr
   if (hit && hit.expiresAt > now) return hit.value as T;
   if (hit?.inflight && now - (hit.inflightSince ?? now) < INFLIGHT_JOIN_MS) return hit.inflight as Promise<T>;
   /*
-    The entry this load belongs to. Its value is kept only while the entry is still the key's: a
-    writer that invalidates the key while the load is in flight removes the entry, and a value read
-    before the write must not come back as the cache's for a whole TTL. The load's caller still
-    gets what it loaded; the next reader loads afresh. The same holds for a load that another one
-    replaced after the join window.
+    A load writes its outcome only while it is still the key's current load. Either an
+    invalidation while it ran deleted the entry (the writer changed the rows, perhaps after this
+    load read them), or a newer load replaced it after INFLIGHT_JOIN_MS; both times this one's
+    result is older than what the cache should hold. The callers waiting on it still get it: they
+    asked before the change, so it is what a cache hit would have given them a moment earlier.
   */
-  const entry: { value: unknown; expiresAt: number; inflight?: Promise<unknown>; inflightSince?: number } = { value: hit?.value, expiresAt: hit?.expiresAt ?? 0, inflightSince: now };
-  const current = () => s.get(key) === entry;
+  const current = () => s.get(key)?.inflight === inflight;
   const inflight = load()
     .then((value) => {
       if (current()) s.set(key, { value, expiresAt: Date.now() + ttlMs });
@@ -64,8 +63,7 @@ export async function cachedFor<T>(rawKey: string, ttlMs: number, load: () => Pr
       if (current()) s.delete(key);
       throw err;
     });
-  entry.inflight = inflight;
-  s.set(key, entry);
+  s.set(key, { value: hit?.value, expiresAt: hit?.expiresAt ?? 0, inflight, inflightSince: now });
   return inflight;
 }
 

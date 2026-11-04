@@ -7,6 +7,7 @@ import { queueLabel } from "@/server/players/match-history";
 import { isGameRole, seasonModeInfo, type SeasonMode } from "@/domain/season-stats";
 import { chooseSeason, isOfferedSeason, offeredSeasons, seasonOfGame } from "@/domain/season";
 import { currentSeason } from "@/server/accounts/sync";
+import { registerLocalCache } from "@/server/observability/cache";
 import { CURVE_MINUTES, LANE_CHECKPOINTS, describeLane, laneDiffs, summariseMinutes, type LaneDiff, type MinuteSummary, type PlayerSeries } from "@/domain/matchups";
 import type { Role } from "@/domain/roles";
 
@@ -113,12 +114,19 @@ interface LaneExtract {
 }
 
 /*
-  Lanes already worked out, per database handle and server instance. A stored match record never
-  changes and a timeline with frames is final, so only those are kept; a lane still waiting for
-  its record or timeline is read again next time.
+  Lanes already worked out, per database handle and server instance. Riot never changes a stored
+  match record or a timeline with frames, so only those are kept; a lane still waiting for its
+  record or timeline is read again next time. The one change UNIIVERSE makes to them is an
+  erasure, which replaces the erased player in the record and deletes their frames: a kept lane
+  holds a lane opponent's frames, so erasure drops every kept lane (registerLocalCache below). It
+  replaces the store rather than emptying it: a read still running keeps writing into the old
+  one, so nothing read before the erasure is kept after it.
 */
 const LANES_KEPT = 2_000;
-const laneStore = new WeakMap<object, Map<string, LaneExtract>>();
+let laneStore = new WeakMap<object, Map<string, LaneExtract>>();
+registerLocalCache(() => {
+  laneStore = new WeakMap();
+});
 
 /** Tests: forget the lanes this instance kept. */
 export function forgetMatchupLanes(db: object): void {

@@ -1,6 +1,5 @@
 import { defineJob } from "./registry";
-import { clearLocalCaches, invalidateCache } from "@/server/observability/cache";
-import { invalidatePublicTeam } from "@/server/public/team";
+import { clearCachesAfterErasure } from "@/server/privacy/after-erasure";
 import { reconcileErasures } from "@/server/privacy/reconcile";
 
 defineJob({
@@ -10,12 +9,7 @@ defineJob({
   run: async (ctx) => {
     const result = await reconcileErasures(ctx.db, { mode: "full" });
     ctx.log(`${result.records} erasure record(s) applied: ${result.people} account(s) or profile(s) and ${result.traces} set(s) of traces found again and removed`);
-    if (result.people || result.traces) {
-      invalidateCache("team");
-      invalidateCache("shell-facts");
-      invalidatePublicTeam();
-      clearLocalCaches();
-    }
+    if (result.people || result.traces) clearCachesAfterErasure();
     const unusable = result.unusable ? `${result.unusable} erasure record(s) were made under another UNIIVERSE_AUTH_SECRET and cannot be applied.` : undefined;
     return { ok: true, degraded: !!unusable, error: unusable, summary: { ...result } };
   },

@@ -46,8 +46,8 @@ Deactivating, deleting and archiving are different actions, and none of them is 
 | Legacy opponent accounts | None are left; one that holds their Riot identity is deleted. |
 | Notes others wrote | Whole-word mentions of their names, Riot names and Riot IDs (3 characters or more) become "[removed]"; the rest of each note stays. This includes the private text other players kept in the retired Ranked Development: review learning points and adjustments, session focus and closing notes, objective titles and explanations, and If–Then plans. |
 | Admin activity | Entries keep what happened. Their name becomes **"Erased member"** as actor or target, and matching details become "[removed]". |
-| Job logs | Their Riot IDs are taken out of `job_runs` and `data_refresh_status`. Newer sync lines name an account only as `account 1a2b3c4d`. Run records are deleted after 60 days (the daily `integrity` job, in bounded batches). |
-| Caches | Team, public page, leaderboards, proficiency and lookup caches are cleared on this server instance; other instances follow within their cache times. |
+| Job logs | Their Riot IDs are taken out of `job_runs` and `data_refresh_status`. Newer sync lines name an account only as `account 1a2b3c4d`. |
+| Caches | Team, public page, leaderboards, public pictures and banners, proficiency and lookup caches, and the lanes Matchups keeps, are cleared on this server instance (`src/server/privacy/after-erasure.ts`); other instances follow within their cache times. |
 
 It then records:
 - **An erasure record** (`privacy_erasures`): a random reference and keyed tokens of the account, profile, Riot account ids, PUUIDs and Riot IDs. Never the identifiers themselves.
@@ -84,7 +84,7 @@ The notice says each of these:
 - **Riot's records.** Riot publishes every game it hosts. Anyone who looks up a shared game on Riot's services or sites such as OP.GG still sees everyone who played it. UNIIVERSE keeps the match id of a shared game, so a member could look it up there.
 - **Figures that can be worked out.** In a shared game, the removed player's kills are the team's total minus everyone else's.
 - **Other services' copies:** Vercel's and Supabase's request logs, GitHub's backup artifacts (28 days), any offline backup (until it is replaced), Discord messages, and members' browser caches of a picture they once loaded. Their deletion is not immediate and is not promised.
-- **Other server instances** keep cached pages and lists until their cache times run out (at most 30 minutes).
+- **Other server instances** keep cached pages and lists until their cache times run out (at most 30 minutes). The lanes Matchups keeps have no cache time: there an erased player's frames (their own, or as someone's lane opponent) stay in memory until the instance stops, but are never shown: their accounts are gone, the erasure records stop them being linked again, and their games no longer name them as a lane opponent.
 - **A replaced `UNIIVERSE_AUTH_SECRET`** makes the records unusable. Erase the person again by Riot ID.
 - **A former member** erased by Riot ID is found by that Riot account and the names given. Very old games where they had both another name and another API key's PUUID can only be found through games of their own that are still stored.
 
@@ -120,5 +120,3 @@ The notice says each of these:
   - the Owner and the administrator's own account are protected;
   - members are kept out.
 - `e2e/privacy.spec.ts`: the notice's wording, with nothing left about Clash scouts, and the old Clash Scout browser storage cleaned up on the next visit.
-
-**Riot's error messages name nobody (4 Nov 2026).** A failed Riot request's message, which reaches job log lines, run summaries, the Data health page and the host's logs, is built from the request's route with the identifiers it names elided (`routeLabel` in `src/server/riot/api/client.ts`): `/lol/league/v4/entries/by-puuid/…`, never the PUUID or the Riot ID the request was about. The Personal-data actions log a failed statement's kind, code and text without its parameters, never the raw error.

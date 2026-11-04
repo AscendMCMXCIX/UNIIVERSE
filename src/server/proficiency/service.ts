@@ -19,13 +19,8 @@ declare global {
 
 const TTL_MS = 5 * 60_000;
 
-/** Builds under way, by key: concurrent readers share one; a build from before an invalidation is not kept. */
-const building = new Map<string, Promise<Bundle>>();
-let generation = 0;
-
 export function invalidateProficiencyCache() {
   globalThis.__uniiverseProficiencyCache = undefined;
-  generation += 1;
 }
 registerLocalCache(invalidateProficiencyCache);
 
@@ -67,24 +62,19 @@ async function buildBundle(db: Db, ownerIds: string[]): Promise<Bundle> {
 /** Proficiency lookup for a set of our players (cached briefly per process). */
 export async function getProficiencyLookup(db: Db, playerIds: string[]): Promise<ProficiencyLookup & { hasData: (ownerId: string) => boolean }> {
   const key = [...playerIds].sort().join(",");
-  const cache = globalThis.__uniiverseProficiencyCache ?? { loadedAt: Date.now(), bundles: new Map() };
+  // Installed before the build, so an invalidation during it (which drops the global) shows.
+  const cache = (globalThis.__uniiverseProficiencyCache ??= { loadedAt: Date.now(), bundles: new Map() });
   if (Date.now() - cache.loadedAt > TTL_MS) {
     cache.bundles.clear();
     cache.loadedAt = Date.now();
   }
   let bundle = cache.bundles.get(key);
   if (!bundle) {
-    const since = generation;
-    let build = building.get(key);
-    if (!build) {
-      build = buildBundle(db, playerIds).finally(() => building.delete(key));
-      building.set(key, build);
-    }
-    bundle = await build;
-    if (generation === since) {
-      cache.bundles.set(key, bundle);
-      globalThis.__uniiverseProficiencyCache = cache;
-    }
+    bundle = await buildBundle(db, playerIds);
+    // Kept only if the cache was not dropped while it was built (a sync, a new account, an
+    // erasure): putting the old cache back would undo that, and this bundle may have been read
+    // before the change. It still answers this lookup.
+    if (globalThis.__uniiverseProficiencyCache === cache) cache.bundles.set(key, bundle);
   }
   const b = bundle;
   const memo = new Map<string, ProficiencyEstimate | null>();

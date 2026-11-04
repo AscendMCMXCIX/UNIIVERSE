@@ -58,34 +58,59 @@ describe("cachedFor", () => {
     expect(await cachedFor("never", 1_000, load)).toBe("v1");
   });
 
-  it("a writer's invalidation while a load is in flight wins: the load's value reaches its caller but is not kept", async () => {
-    // The order in production: a reader starts loading, a sync writes new rows and invalidates the
-    // key, the reader's load (which may have read the rows before the write) settles. Without this
-    // the stale value would be cached for a whole TTL after the invalidation.
-    let settle!: (value: string) => void;
-    const reading = cachedFor("inv", 60_000, () => new Promise<string>((resolve) => (settle = resolve)));
-    invalidateCache("inv");
-    settle("before the write");
-    expect(await reading).toBe("before the write");
-    expect(await cachedFor("inv", 60_000, () => Promise.resolve("after the write"))).toBe("after the write");
-    // The same for a failed refresh that would otherwise re-extend the old value.
-    expect(await cachedFor("lkg2", 1_000, () => Promise.resolve("old"))).toBe("old");
-    vi.setSystemTime(new Date(Date.now() + 2_000));
-    let fail!: (err: Error) => void;
-    const refreshing = cachedFor("lkg2", 1_000, () => new Promise<string>((_, reject) => (fail = reject)));
-    invalidateCache("lkg2");
-    fail(new Error("down"));
-    expect(await refreshing).toBe("old");
-    expect(await cachedFor("lkg2", 1_000, () => Promise.resolve("new"))).toBe("new");
+  it("does not keep a value read before an invalidation that came while it loaded", async () => {
+    // A load reads the old lineup; a lineup change commits and invalidates while it runs.
+    let lineup = "old";
+    const load = () => {
+      const read = lineup;
+      return new Promise<string>((resolve) => setTimeout(() => resolve(read), 100));
+    };
+    const before = cachedFor("public-team", 60_000, load);
+    await vi.advanceTimersByTimeAsync(50);
+    lineup = "new";
+    invalidateCache("public-team");
+    await vi.advanceTimersByTimeAsync(50);
+    // The request that asked first gets what it read; the cache does not keep it.
+    expect(await before).toBe("old");
+    const after = cachedFor("public-team", 60_000, load);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(await after).toBe("new");
   });
 
-  it("a load replaced after the join window does not overwrite the replacement's value when it finally settles", async () => {
-    let settleSlow!: (value: string) => void;
-    const slow = cachedFor("late", 60_000, () => new Promise<string>((resolve) => (settleSlow = resolve)));
-    vi.setSystemTime(new Date(Date.now() + INFLIGHT_JOIN_MS + 1));
-    expect(await cachedFor("late", 60_000, () => Promise.resolve("fresh"))).toBe("fresh");
-    settleSlow("older");
-    expect(await slow).toBe("older");
-    expect(await cachedFor("late", 60_000, () => Promise.resolve("unused"))).toBe("fresh");
+  it("does not put the last known value back when the key was invalidated during a failed refresh", async () => {
+    let value = "v1";
+    let ok = true;
+    const load = () => {
+      const read = value;
+      return ok ? Promise.resolve(read) : new Promise<string>((_, reject) => setTimeout(() => reject(new Error("down")), 100));
+    };
+    expect(await cachedFor("lkg-invalidated", 1_000, load)).toBe("v1");
+    vi.setSystemTime(new Date(Date.now() + 2_000));
+    ok = false;
+    const refresh = cachedFor("lkg-invalidated", 1_000, load);
+    value = "v2";
+    invalidateCache("lkg-invalidated");
+    await vi.advanceTimersByTimeAsync(100);
+    expect(await refresh).toBe("v1");
+    ok = true;
+    expect(await cachedFor("lkg-invalidated", 1_000, load)).toBe("v2");
+  });
+
+  it("never lets a load that outlived the join window replace the newer value, whether it ends with a value or an error", async () => {
+    const late = (outcome: "value" | "error") => () => new Promise<string>((resolve, reject) => setTimeout(() => (outcome === "value" ? resolve("old") : reject(new Error("dropped"))), INFLIGHT_JOIN_MS + 5_000));
+    const notAgain = () => Promise.resolve("read again");
+    for (const outcome of ["value", "error"] as const) {
+      const key = `late-${outcome}`;
+      // A value to fall back on, expired, so the slow load is a refresh.
+      expect(await cachedFor(key, 1_000, () => Promise.resolve("older"))).toBe("older");
+      vi.setSystemTime(new Date(Date.now() + 2_000));
+      const slow = cachedFor(key, 60_000, late(outcome));
+      await vi.advanceTimersByTimeAsync(INFLIGHT_JOIN_MS + 1);
+      expect(await cachedFor(key, 60_000, () => Promise.resolve("new"))).toBe("new");
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(await slow).toBe(outcome === "value" ? "old" : "older");
+      expect(await cachedFor(key, 60_000, notAgain)).toBe("new");
+    }
   });
 });
+
