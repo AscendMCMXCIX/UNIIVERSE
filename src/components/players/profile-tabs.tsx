@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { PROFILE_SECTIONS, activeHref } from "@/lib/nav";
 import { TabBar, tabIndicatorClass } from "@/components/ui/tab-bar";
+import { ScrollRow } from "@/components/ui/scroll-row";
 import { cn } from "@/lib/cn";
 
 /** Sections that share the chosen season and game mode when you move between them. */
@@ -54,7 +55,8 @@ function ChromeTabs({ items, current }: { items: Array<{ key: string; href: stri
   }, [current]);
   return (
     <nav aria-label="Profile sections" data-testid="profile-chrome-tabs">
-      <ul className="flex">
+      {/* The four share the width; with a larger text size they scroll sideways instead of overflowing. */}
+      <ScrollRow as="ul" className="flex" keepCurrentInView current={current}>
         {items.map((t) => {
           const on = t.key === current;
           return (
@@ -68,7 +70,8 @@ function ChromeTabs({ items, current }: { items: Array<{ key: string; href: stri
                   const top = sectionTop();
                   pendingTop.current = top !== null && window.scrollY > top ? top : null;
                 }}
-                className={cn("flex min-h-11 items-center justify-center whitespace-nowrap px-2 text-sm font-medium transition-colors duration-150", tabIndicatorClass(on))}
+                // 6px a side: the four names fit a 320px screen with the bar's gutters.
+                className={cn("flex min-h-11 items-center justify-center whitespace-nowrap px-1.5 text-sm font-medium transition-colors duration-150", tabIndicatorClass(on))}
                 data-testid={t.testId}
               >
                 {t.label}
@@ -76,7 +79,7 @@ function ChromeTabs({ items, current }: { items: Array<{ key: string; href: stri
             </li>
           );
         })}
-      </ul>
+      </ScrollRow>
     </nav>
   );
 }

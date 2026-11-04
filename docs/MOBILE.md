@@ -111,6 +111,21 @@ inert), Escape and the backdrop close it, focus returns to what opened it, a she
 
 ## 5. The phone design system
 
+**Type on a phone** (rem sizes from the tokens in globals.css, so the reader's text size is followed):
+
+| Role | Size and weight | Example |
+|---|---|---|
+| Page title (`h1`) | `text-2xl` semibold | "Players", the player's name in the profile card |
+| The bar's title | `text-base` semibold, fades in | "Demo Top" once the card has scrolled away |
+| Section title (`h2`) | `text-xl` semibold | "Season performance" |
+| Card title | `text-base` semibold | "Recent form" |
+| A row's name | `text-md` (15px) semibold | a player, a champion |
+| Headline figure | `text-2xl` semibold, `tabular-nums` | a win rate, a leaderboard value |
+| Row figure | `text-base` to `text-xl` semibold, `tabular-nums` | K/D/A, a statistic's leader value |
+| Scope line, body | `text-sm` in `fg-muted` | "36 games · Season 2026 · All supported games" |
+| Context, times | `text-xs` in `fg-subtle` | "42h ago", "46 games" |
+| Badges, chips, the tab bar's labels | `text-2xs` (11px) medium | "Lineup", "Ranked Solo/Duo ✕" |
+
 | Topic | Rule |
 |---|---|
 | Breakpoints | Phone below `md` (768px). Layout differences live in CSS (`max-md:`, `max-sm:`, container queries) so the first paint is right; behaviour that differs (how a game opens) reads `usePhone()` after hydration. |
@@ -119,7 +134,8 @@ inert), Escape and the backdrop close it, focus returns to what opened it, a she
 | Surfaces | One panel per list, hairline dividers inside; cards for objects that open (games); no frame around a single group that already has one (the Leaderboards board). Colour and gradient are kept for meaning (a game's result, a selected tab). |
 | Touch targets | 44px for everything a finger presses (tabs, rows, chips through `touch-target`, sheet rows 48px). |
 | Titles | One `h1` per page; on phones the page tabs and the bar's title say where you are, so instructions under a title are left out (`PageHeader guide`), while a scope line ("Season 2026 · 6 games") always shows. |
-| Loading, empty, errors | Unchanged components: `Skeleton`, `EmptyState`, `PageError`; the match window shows its skeleton until the game has loaded. |
+| Interactive states | Pressed rows darken to `surface-2` (`active:`); the current tab, section or view is marked twice (colour and a pill, bar or weight); narrowed filters are accent chips; focus keeps the accent ring everywhere. |
+| Loading, empty, errors | Unchanged components: `Skeleton`, `EmptyState`, `PageError`; the match window shows its skeleton until the game has loaded. Results of actions are toasts, which sit above the tab bar (`bottom-tabbar`) and follow it down when it slides away. |
 | Motion | Bars slide 200ms ease-out in short windows; sheets as above; the title fades in 150ms. Everything respects reduced motion. |
 
 ## 6. Verifying

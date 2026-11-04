@@ -76,7 +76,9 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   const hidden = useHideOnScroll();
   const heading = usePageHeading(pathname);
   const back = useBack(pathname, heading.text, tabs, home);
+  // A profile's sections, when this page is one (your own only when you have a profile).
   const profile = adminMode ? null : profileBase(pathname);
+  const sections = profile === "/overview" && !hasPlayer ? null : profile;
   useChromeHeight(headerRef);
   // Things pinned above the tab bar (a save bar, notifications) follow it down when it slides away (globals.css: bottom-tabbar).
   const tabsHidden = hidden && !sheetOpen && tabs.length > 0;
@@ -156,9 +158,9 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
           ) : null}
         </div>
         {/* Phones: a profile's sections stay under the bar while the page scrolls. */}
-        {profile ? (
+        {sections ? (
           <div className="px-safe-2 md:hidden" data-testid="profile-sections-bar">
-            <ProfileTabs basePath={profile} variant="chrome" />
+            <ProfileTabs basePath={sections} variant="chrome" />
           </div>
         ) : null}
       </header>

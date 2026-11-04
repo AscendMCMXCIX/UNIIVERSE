@@ -137,33 +137,37 @@ export function FilterBar({
           {/* Folded (phones): the search and Filters share the first row; what is narrowed follows as
               chips, then the page's own action. From the breakpoint up the wrapper steps aside
               (display: contents) and the search sits in the bar's row as before. */}
-          <div className={cn("flex min-w-0 items-center gap-2", foldBelow === "md" ? "md:contents" : "lg:contents", !search && "hidden")}>
-            {search ? <div className={cn("w-full min-w-0 flex-1", at.search)}>{search}</div> : null}
-            {search ? filtersButton : null}
-          </div>
-          <div className={cn("flex min-w-0 items-center gap-2", at.toggle, search && !chips.length && !end && "hidden")}>
-            {search ? null : filtersButton}
-            {chips.length ? (
-              <ScrollRow as="ul" className="-my-1 flex min-w-0 flex-1 gap-1.5 py-1" aria-label="Active filters" data-testid={testId ? `${testId}-chips` : undefined}>
-                {chips.map((c) => (
-                  <li key={c.key} className="shrink-0">
-                    {c.href ? (
-                      <Link href={c.href} scroll={false} className={CHIP} aria-label={`${c.text}: remove this filter`}>
-                        {c.text} <X className="h-3 w-3 text-fg-subtle" aria-hidden />
-                      </Link>
-                    ) : (
-                      <button type="button" onClick={c.clear} className={CHIP} aria-label={`${c.text}: remove this filter`}>
-                        {c.text} <X className="h-3 w-3 text-fg-subtle" aria-hidden />
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ScrollRow>
-            ) : (
-              <span className="flex-1" />
-            )}
-            {end}
-          </div>
+          {search ? (
+            <div className={cn("flex min-w-0 items-center gap-2", foldBelow === "md" ? "md:contents" : "lg:contents")}>
+              <div className={cn("w-full min-w-0 flex-1", at.search)}>{search}</div>
+              {filtersButton}
+            </div>
+          ) : null}
+          {!search || chips.length > 0 || end ? (
+            <div className={cn("flex min-w-0 items-center gap-2", at.toggle)}>
+              {search ? null : filtersButton}
+              {chips.length ? (
+                <ScrollRow as="ul" className="-my-1 flex min-w-0 flex-1 gap-1.5 py-1" aria-label="Active filters" data-testid={testId ? `${testId}-chips` : undefined}>
+                  {chips.map((c) => (
+                    <li key={c.key} className="shrink-0">
+                      {c.href ? (
+                        <Link href={c.href} scroll={false} className={CHIP} aria-label={`${c.text}: remove this filter`}>
+                          {c.text} <X className="h-3 w-3 text-fg-subtle" aria-hidden />
+                        </Link>
+                      ) : (
+                        <button type="button" onClick={c.clear} className={CHIP} aria-label={`${c.text}: remove this filter`}>
+                          {c.text} <X className="h-3 w-3 text-fg-subtle" aria-hidden />
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ScrollRow>
+              ) : (
+                <span className="flex-1" />
+              )}
+              {end}
+            </div>
+          ) : null}
           {/* Inline from the breakpoint up; while the sheet is open its fields live there instead (one copy of each field and its id). */}
           {open ? null : (
             <div className={cn("hidden min-w-0 flex-col gap-3", at.controls, foldBelow === "md" ? "md:gap-2" : "lg:gap-2", align === "end" && (foldBelow === "md" ? "md:ml-auto md:justify-end" : "lg:ml-auto lg:justify-end"))} data-testid={testId ? `${testId}-controls` : undefined} data-filter-controls="">
