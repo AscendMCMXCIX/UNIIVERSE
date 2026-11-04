@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { MatchDetailCacheContext, createMatchDetailCache, type MatchDetailCache } from "@/components/match-history/match-detail-cache";
 import { MatchExpansion, revealIfAbove, revealOpened } from "@/components/match-history/inline-match";
-import { usePhone } from "@/components/ui/use-phone";
+import { isPhone, usePhone } from "@/components/ui/use-phone";
 import { cn } from "@/lib/cn";
 
 /**
@@ -69,15 +69,19 @@ export function TogetherList({ entries, championsById, className, children }: { 
     const id = new URLSearchParams(window.location.search).get("match");
     return id ? (entriesRef.current.find((e) => e.matchId === id)?.entry ?? null) : null;
   }, []);
-  // Phones open a game as a whole screen of its own (the match window); Back closes it.
-  const phone = usePhone();
-  const phoneRef = React.useRef(phone);
-  React.useLayoutEffect(() => {
-    phoneRef.current = phone;
-  });
+  // A phone fetches the match window's code ahead, once the page is idle (it opens the games), so
+  // the first game opens at once without adding to the page's start.
   React.useEffect(() => {
-    if (phone) void loadMatchWindow().catch(() => {});
-  }, [phone]);
+    if (!isPhone()) return;
+    const load = () => void loadMatchWindow().catch(() => {});
+    // Safari has no requestIdleCallback.
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(load, { timeout: 4000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = window.setTimeout(load, 2000);
+    return () => window.clearTimeout(id);
+  }, []);
   /** The entry this list added to the browser's history when a phone opened it. */
   const pushed = React.useRef<string | null>(null);
   // Back and Forward follow the address: the game it names opens under its card when listed.
@@ -99,7 +103,7 @@ export function TogetherList({ entries, championsById, className, children }: { 
     const next = openRef.current === entry ? null : entry;
     setOpen(next);
     reveal.current = next;
-    const push = !!next && phoneRef.current;
+    const push = !!next && isPhone();
     pushed.current = push ? next : null;
     writeMatch(next ? matchId : null, push);
   }, []);
@@ -107,6 +111,9 @@ export function TogetherList({ entries, championsById, className, children }: { 
   // A game the new filters no longer list is not open; one they still list stays open, and stays in
   // the address (the filters' links do not carry it).
   const shown = open && entries.some((e) => e.entry === open) ? open : null;
+  // Phones open a game as a whole screen of its own (the match window); Back closes it. Asked only
+  // while a game is open, so the list does not render twice on a phone once it has hydrated.
+  const phone = usePhone(shown !== null);
   React.useEffect(() => {
     const matchId = shown ? entries.find((e) => e.entry === shown)!.matchId : null;
     if (new URLSearchParams(window.location.search).get("match") !== matchId) writeMatch(matchId);

@@ -33,7 +33,7 @@ import type { DataStatus } from "@/domain/data-status";
 import { DataStatusNote, RefreshButton, type DataRefreshTarget } from "@/components/ui/data-status";
 import { useNow } from "@/components/ui/relative-time";
 import { fmtDuration, fmtInt, fmtNum } from "./match-format";
-import { usePhone } from "@/components/ui/use-phone";
+import { isPhone, usePhone } from "@/components/ui/use-phone";
 
 /** A card's rendered height in rem (about 6.4rem with both teams' five rows) plus the gap between cards; pixels follow the root size,
     so the page size is chosen for whole cards to fill the screen. */
@@ -317,12 +317,9 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
   const champOrUnknown = React.useCallback((id: string | null): PortraitChampion => (id ? (championsById[id] ?? fallbackChampion(id)) : UNKNOWN_CHAMPION), [championsById]);
   const onPage = React.useMemo(() => new Set(data.rows.map((r) => r.matchId)), [data.rows]);
   // Phones open a game as a whole screen of its own (the match window, which Back closes) instead of
-  // under its card: a breakdown inside a list is a long detour on a narrow screen.
-  const phone = usePhone();
-  const phoneRef = React.useRef(phone);
-  React.useLayoutEffect(() => {
-    phoneRef.current = phone;
-  });
+  // under its card: a breakdown inside a list is a long detour on a narrow screen. Asked only while a
+  // game is open, so the list does not render twice on a phone once it has hydrated.
+  const phone = usePhone(open !== null);
   const inline = open && onPage.has(open.id) && !phone ? open.id : null;
   const windowed = open && (phone || (open.via === "link" && !onPage.has(open.id))) ? open.id : null;
   // The game this page added to the browser's history when a phone opened it, so closing it is Back.
@@ -425,7 +422,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
       const next = openRef.current?.id === matchId ? null : matchId;
       setOpen(next ? { id: next, via: "card" } : null);
       reveal.current = next;
-      const push = !!next && phoneRef.current;
+      const push = !!next && isPhone();
       pushed.current = push ? next : null;
       writeMatch(next, { push });
     },

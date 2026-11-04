@@ -78,8 +78,9 @@ fit (iPhone 15 and wider) and scroll on narrower phones.
   - tablets: the top bar with the menu at its left end, the drawer from the left (the sidebar's
     side) with all links, status rows and sign-out, and the account menu behind the avatar.
   - Both bars pad for safe areas (`pt-safe`, `pb-safe`, `px-safe`); in short windows they slide
-    away while reading (see above). `--mobile-chrome` holds the top bar's height, and
-    `scroll-padding` keeps whatever scrolls into view clear of both bars.
+    away while reading (see above). The top bar sets the page's `scroll-padding-top` to its
+    measured height (and the stylesheet clears the tab bar), so whatever scrolls into view stays
+    clear of both bars.
 - `main` pads for the tab bar (`pb-tabbar`) so content never hides behind it.
 
 ## Primitives
