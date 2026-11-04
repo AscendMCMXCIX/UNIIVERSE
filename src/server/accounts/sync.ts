@@ -318,10 +318,11 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
       lookupOutcome(err);
       log(`${accountRef(account)}: rank lookup failed: ${(err as Error).message}`);
     }
+    // Riot's numeric champion keys to ids, read once for the mastery and the season's games.
+    const keyToId = new Map((await db.select({ key: champions.key, id: champions.id }).from(champions)).map((c) => [c.key, c.id]));
     try {
       const masteries = await client.championMasteries(platform, puuid);
       lookupOutcome(null);
-      const keyToId = new Map((await db.select({ key: champions.key, id: champions.id }).from(champions)).map((c) => [c.key, c.id]));
       const rows = masteries
         .map((m) => ({ accountId: account.id, championId: keyToId.get(m.championId), points: m.championPoints, level: m.championLevel, lastPlayedAt: m.lastPlayTime ? new Date(m.lastPlayTime) : null }))
         .filter((r): r is typeof r & { championId: string } => !!r.championId);
@@ -339,7 +340,7 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
     }
 
     // Match history: every supported queue, the whole current season, collected incrementally.
-    const history = await collectSeasonHistory(db, client, { ...account, puuid, platform }, options, result, log);
+    const history = await collectSeasonHistory(db, client, { ...account, puuid, platform }, options, result, log, keyToId);
     // Time ran out before any of the history that was due could be read: this run did not sync the
     // account, so it is not recorded as synced (no "ok", no new cursor, nothing said for the key).
     // It stopped for time, unless Riot failed on the way, which is then the outcome. A run with no
@@ -425,7 +426,7 @@ export function summariseBackfill(state: HistoryBackfill): { season: number; com
  * top, a game Riot refuses for good is recorded without a champion, and a game on a champion not
  * in the champion list yet is asked for again (readPage and foldMatch below).
  */
-async function collectSeasonHistory(db: Db, client: RiotApiClient, account: RiotAccountRecord & { puuid: string }, options: AccountSyncOptions, result: AccountSyncResult, log: (m: string) => void): Promise<HistoryBackfill> {
+async function collectSeasonHistory(db: Db, client: RiotApiClient, account: RiotAccountRecord & { puuid: string }, options: AccountSyncOptions, result: AccountSyncResult, log: (m: string) => void, keyToId: Map<number, string>): Promise<HistoryBackfill> {
   const now = options.now?.() ?? new Date();
   const season = options.season ?? (await currentSeason(db, now));
   const queueIds = options.queueIds ?? SYNC_QUEUE_IDS;
@@ -434,7 +435,6 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
   const previous = row?.state ?? null;
   const state: HistoryBackfill = previous && previous.season === season ? { ...previous, queues: { ...previous.queues } } : { season, queues: {}, startedAt: now.toISOString(), completedAt: null };
   const startTime = await seasonListStart(db, season);
-  const keyToId = new Map((await db.select({ key: champions.key, id: champions.id }).from(champions)).map((c) => [c.key, c.id]));
   const erased = await erasureFilter(db);
   let fetched = 0;
   // Set when the client's deadline refused a request (RiotDeadlineError): the run is out of time,
