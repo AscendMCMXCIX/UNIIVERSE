@@ -52,12 +52,6 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
     kept: "Until the next reading replaces it; not deleted automatically. Permanent removal deletes the person's own, and no rank is read for them again",
   },
   {
-    what: "Clash scouts saved before Clash Scout was retired: the opposing team's name and its players' names, ranks, champions and mastery as read from Clash's scouting screenshots, and the Riot ID and PUUID of each opponent a member had checked with Riot. Never the screenshots, which were read on the member's device and never uploaded (see Clash Scout)",
-    why: "None any more: Clash Scout was retired, and nothing reads them or adds to them",
-    who: "Nobody in the app: no page shows them",
-    kept: "Until a planned database clean-up deletes all of them, once a recent backup has been checked. Permanent removal already empties a removed person's entries in them",
-  },
-  {
     what: "What you add: roles, champion pools, card designs and your profile picture",
     why: "Your profile and the team pages",
     who: "Team members; the public team page shows some of it (below)",
@@ -106,7 +100,6 @@ const SECTIONS = [
   { id: "contact", label: "Contact" },
   { id: "stored", label: "What is stored" },
   { id: "public-page", label: "Public team page" },
-  { id: "clash-scout", label: "Clash Scout" },
   { id: "removal", label: "Permanent removal" },
   { id: "backups", label: "Backups" },
   { id: "services", label: "Where it is kept" },
@@ -156,7 +149,7 @@ export default async function PrivacyPage() {
         {name} is a private app for one League of Legends team. Administrators create every account; there is no public sign-up. This notice explains what it stores about members, why, who can see it, how long it stays, and how to reach us about it.
       </p>
       <p className="mt-1 text-xs text-fg-subtle">
-        Updated <time dateTime="2026-11-02">{PRIVACY_UPDATED}</time>
+        Updated <time dateTime="2026-11-04">{PRIVACY_UPDATED}</time>
       </p>
 
       <nav aria-label="On this page" className="mt-4" data-testid="privacy-index">
@@ -220,16 +213,6 @@ export default async function PrivacyPage() {
         </p>
       </Section>
 
-      <Section id="clash-scout">
-        <p className="mt-1 text-sm text-fg-muted">Clash Scout, a team-only page that read the opposing team&apos;s Clash scouting screenshots, has been retired. It no longer reads screenshots, asks Riot about anyone or stores anything.</p>
-        <ul className={LIST} data-testid="privacy-clash-scout">
-          <li>The scouts the team saved before then are still in the database, where no page shows them. They will be deleted in a database clean-up once a recent backup has been checked.</li>
-          <li>Until then, permanent removal still empties a removed person&apos;s entries in them.</li>
-          <li>Screenshots were always read on the member&apos;s own device; none was ever uploaded or stored.</li>
-          <li>Browser storage that earlier versions left behind (an unsaved scout, and the text-recognition files&apos; cache) is deleted the next time {name} opens in that browser.</li>
-        </ul>
-      </Section>
-
       <Section id="removal" title="Permanent removal of personal information">
         <div data-testid="privacy-removal">
           <p className="mt-1 text-sm text-fg-muted">
@@ -239,8 +222,8 @@ export default async function PrivacyPage() {
           <h3 className="mt-4 text-sm font-semibold text-fg">What a removal covers</h3>
           <ul className={LIST}>
             <li>The account and its sign-in sessions; the profile with its roles, champion pools, card design, picture and social links; the records kept from the retired Ranked Development (objectives, plans, sessions and reviews); and every linked Riot account with its Riot IDs, PUUIDs, ranks, champion mastery and statistics.</li>
-            <li>Games: a stored game that no other member&apos;s history or team record uses is deleted. In any other, the person&apos;s place becomes &ldquo;Removed player&rdquo;: only the side they played on and the result stay, never their name, Riot ID, champion, items or figures, and their part of the game&apos;s timeline is deleted.</li>
-            <li>Team records, Clash scouts and notes: their name is replaced (&ldquo;Former member&rdquo; in drafts and match records, &ldquo;[removed]&rdquo; in notes), and their entries in Clash scouts are emptied.</li>
+            <li>Games: a stored game that no other member&apos;s history or bookmark uses is deleted. In any other, the person&apos;s place becomes &ldquo;Removed player&rdquo;: only the side they played on and the result stay, never their name, Riot ID, champion, items or figures, and their part of the game&apos;s timeline is deleted.</li>
+            <li>Notes: their name is replaced by &ldquo;[removed]&rdquo; in other people&apos;s notes.</li>
             <li>Logs: their name becomes &ldquo;Erased member&rdquo; in the admin activity log, and their Riot IDs are taken out of the background job records.</li>
             <li>A removal record (see What is stored) keeps games stored later from including them and stops their Riot accounts being linked again by mistake. It holds no name or Riot ID.</li>
           </ul>
@@ -278,7 +261,7 @@ export default async function PrivacyPage() {
       <Section id="browser">
         <ul className={LIST}>
           <li>Cookies: one keeps you signed in; one holds a short fingerprint of the signed-in account, so an open tab notices when you sign in as someone else; and two remember layout choices (Player or Admin Mode, and the sidebar). There are no advertising, analytics or tracking cookies.</li>
-          <li>Your browser&apos;s own storage keeps the champions you picked recently, the resources you marked as favourites and whether Card Studio shows its preview.</li>
+          <li>Your browser&apos;s own storage keeps the champions you picked recently, the resources you marked as favourites and whether Card Studio shows its preview. What earlier versions left there (an unsaved Clash scout, a text-recognition cache) is deleted the next time {name} opens.</li>
           <li>The app keeps one offline page in your browser, shown when a page cannot load for lack of a connection.</li>
           <li>No email address or phone number is asked for or stored, and the app sends no email. There is no analytics, advertising or tracking: the only measurement is the anonymous page speed counts above.</li>
         </ul>
