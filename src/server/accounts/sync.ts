@@ -554,8 +554,10 @@ async function foldMatch(db: Db, account: RiotAccountRecord & { puuid: string },
   const opponent = me.teamPosition ? match.info.participants.find((p) => p.teamId !== me.teamId && p.teamPosition === me.teamPosition) : undefined;
   const opponentErased = !!opponent && (erased.puuid(opponent.puuid) || erased.riotId(opponent.riotIdGameName && opponent.riotIdTagline ? `${opponent.riotIdGameName}#${opponent.riotIdTagline}` : null));
   const enemyChampionId = opponent && !opponentErased ? (championOf(opponent) ?? null) : null;
-  // The full match (both teams, items, runes) for the personal match history: same fetch, no extra request.
-  await storeMatchDetail(db, account.platform, match, keyToId);
+  // The full match (both teams, items, runes) for the personal match history: same fetch, no extra
+  // request. Summarised once below, after this account's row exists (every linked account's row
+  // for the game, as the record's own summary would).
+  await storeMatchDetail(db, account.platform, match, keyToId, { summarise: false });
   let folded = false;
   await db.transaction(async (tx) => {
     const inserted = await tx
@@ -580,8 +582,9 @@ async function foldMatch(db: Db, account: RiotAccountRecord & { puuid: string },
       });
     folded = true;
   });
-  // The details were stored before this game's row existed: copy its figures now.
-  if (folded) await summariseMatches(db, { accountIds: [account.id], matchIds: [matchId], maxBatches: 1 });
+  // The record was stored before this game's row existed: copy its figures now, once, for every
+  // linked account's row of the game (another account's row may have waited for the record too).
+  await summariseMatches(db, { matchIds: [matchId], maxBatches: 1 });
   return folded;
 }
 

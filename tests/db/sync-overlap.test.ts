@@ -1,8 +1,8 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq, like, or } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { appSettings, riotAccounts } from "@/server/db/schema";
+import { accountMatches, appSettings, riotAccounts } from "@/server/db/schema";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
@@ -190,5 +190,34 @@ describe("an account a person has to correct", () => {
     const again: string[] = [];
     await syncAccount(db, client(riot(again, { names: { "p-old": { gameName: "New", tagLine: "OCE" } } })), after);
     expect(again.some((u) => u.includes("/accounts/by-puuid/"))).toBe(false);
+  });
+
+});
+
+describe("a folded match", () => {
+  it("is summarised once, not once by the record and once by the ledger row", async () => {
+    const db = handle.db;
+    const player = await createPlayer(db, teamId, { displayName: "Once", primaryRole: "MID", primaryPool: ["Ahri"] });
+    const account = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Once#OCE", platform: "oc1", puuid: "p-once" });
+    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+      if (url.includes("/riot/account/v1/region/")) return json({ puuid: "p-once", game: "lol", region: "oc1" });
+      if (url.includes("/lol/league/v4/") || url.includes("/lol/champion-mastery/v4/")) return json([]);
+      if (url.includes("/ids?")) return json(new URL(url).searchParams.get("queue") === "420" && !new URL(url).searchParams.get("start") ? ["OC1_ONCE"] : []);
+      if (url.endsWith("/matches/OC1_ONCE")) {
+        const participants = Array.from({ length: 10 }, (_, i) => ({ puuid: i === 0 ? "p-once" : `once-${i}`, teamId: i < 5 ? 100 : 200, championId: 103, teamPosition: "MIDDLE", win: i < 5, kills: 1, deaths: 1, assists: 1 }));
+        return json({ metadata: { matchId: "OC1_ONCE" }, info: { gameCreation: Date.now() - 3_600_000, gameDuration: 1800, gameVersion: "16.22.1.1", queueId: 420, teams: [], participants } });
+      }
+      return json({}, 404);
+    };
+    const execute = vi.spyOn(db, "execute");
+    await syncAccount(db, client(fetchImpl), account, { season: 16 });
+    const summaries = execute.mock.calls.filter((c) => JSON.stringify(c[0]).includes("summarised_at = now()")).length;
+    execute.mockRestore();
+    expect(summaries).toBe(1);
+    const [row] = await db.select({ teamId: accountMatches.teamId, summarisedAt: accountMatches.summarisedAt }).from(accountMatches).where(eq(accountMatches.matchId, "OC1_ONCE"));
+    expect(row).toMatchObject({ teamId: 100 });
+    expect(row?.summarisedAt).not.toBeNull();
   });
 });
