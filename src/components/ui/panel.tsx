@@ -13,9 +13,10 @@ export function PanelHeader({ title, subtitle, actions, className }: { title: Re
   return (
     // The actions (a badge, a link, a section's Refresh) stay on the title's row at the right at every
     // width: on phones the subtitle takes the full width under them, from sm up it wraps beside them.
+    // Without a subtitle they are centred on the title's line, so a small count lines up with it.
     <header className={cn("grid items-start gap-x-4 border-b border-border px-3 py-3 sm:px-4", actions ? "grid-cols-[minmax(0,1fr)_auto]" : "grid-cols-[minmax(0,1fr)]", className)}>
       <h2 className="min-w-0 self-center text-base font-semibold text-fg">{title}</h2>
-      {actions ? <div className="col-start-2 row-start-1 flex flex-wrap items-center justify-end gap-2 sm:row-span-2">{actions}</div> : null}
+      {actions ? <div className={cn("col-start-2 row-start-1 flex flex-wrap items-center justify-end gap-2", subtitle ? "sm:row-span-2" : "self-center")}>{actions}</div> : null}
       {subtitle ? <p className={cn("mt-0.5 text-sm text-fg-muted", actions && "col-span-2 sm:col-span-1")}>{subtitle}</p> : null}
     </header>
   );

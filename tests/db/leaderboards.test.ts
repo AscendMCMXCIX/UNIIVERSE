@@ -192,6 +192,14 @@ describe("team leaderboards data", () => {
     expect(data.note).toMatch(/^3 players · 25 games \(26 stored rows\) · 2 with match details · 1 with extra figures$/);
     expect(data.note).not.toMatch(/Ace|Bea/);
     expect(steps.find((s) => s.name === "leaderboards.view")?.error).toBeUndefined();
+    // The proposed boards (the admins' preview): how full they would be, counts only.
+    const form = steps.find((s) => s.name === "leaderboards.recent-form")!;
+    expect(form.error).toBeUndefined();
+    expect(form.note).toMatch(/^\d+ full windows on \d+ places · \d+ provisional · \d+ with too few recent games$/);
+    const records = steps.find((s) => s.name === "leaderboards.records")!;
+    expect(records.error).toBeUndefined();
+    expect(records.note).toMatch(/^\d+ games this season · \d+ of 7 records held · \d+ members with multikills · \d+ milestone groups$/);
+    expect(`${form.note} ${records.note}`).not.toMatch(/Ace|Bea/);
     // Match History's member counts for the busiest player: counts only, never a name.
     const members = steps.find((s) => s.name === "profile.historyMembers")!;
     expect(members.error).toBeUndefined();

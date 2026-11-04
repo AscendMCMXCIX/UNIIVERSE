@@ -1,11 +1,13 @@
 import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
+import type { VitalSummary } from "@/domain/web-vitals";
 import { accountMatches, players, riotAccounts, users } from "@/server/db/schema";
 import { elapsed } from "./log";
 import { processEgress } from "@/server/db/egress";
 import { getTeamRoster } from "@/server/team/roster";
 import { invalidateLeaderboardCache, loadLeaderboardData, type LeaderboardData } from "@/server/leaderboards/service";
 import { buildLeaderboardView, parseFilters, type LeaderboardView } from "@/server/leaderboards/view";
+import { buildRecentLeaderboardView, type RecentLeaderboardView } from "@/server/leaderboards/recent-view";
 import { invalidatePlayedTogetherCache, loadPlayedTogether, type PlayedTogether } from "@/server/matches/played-together";
 import { getMatchGroups, type MatchGroupsResult } from "@/server/matches/possible-groups";
 import { loadEncounterPage, loadGamesBySeason, loadMatchMeetings, type EncounterPage, type MatchMeeting } from "@/server/players/encounters";
@@ -305,6 +307,27 @@ export async function runPerfProbe(
           },
         }),
       );
+      // The proposed boards (the admins' preview, docs/LEADERBOARDS_MODEL.md): how full the Recent
+      // form board would be on production data, and the Records view's size. Counts only.
+      push(
+        await step("leaderboards.recent-form", async () => buildRecentLeaderboardView(data, { tab: "form" }, null), {
+          warm: true,
+          note: (r) => {
+            const f = (r as RecentLeaderboardView).form!;
+            const placed = f.rows.filter((x) => x.place !== null);
+            return `${placed.length} full windows on ${new Set(placed.map((x) => x.place)).size} places · ${f.rows.length - placed.length} provisional · ${f.notEnough.length} with too few recent games`;
+          },
+        }),
+      );
+      push(
+        await step("leaderboards.records", async () => buildRecentLeaderboardView(data, { tab: "records" }, null), {
+          warm: true,
+          note: (r) => {
+            const v = (r as RecentLeaderboardView).records!;
+            return `${v.games} games this season · ${v.records.filter((x) => x.holder).length} of ${v.records.length} records held · ${v.multikills.length} members with multikills · ${v.championGames.length + v.mastery.length} milestone groups`;
+          },
+        }),
+      );
     }
     // The champion window (All Champions → a champion): the lineup's busiest champion over every
     // account and season, its lane over every opponent and its most played pairing. Stored games
@@ -465,6 +488,29 @@ export async function runPerfProbe(
     memoryMb: Math.round(process.memoryUsage().rss / 1048576),
     poolMax: Number(process.env.DATABASE_POOL_MAX ?? 5),
     aborted: steps.some((s) => s.error?.includes("did not answer")),
+    fieldVitals: await fieldVitals(db),
   };
   return { steps, context };
+}
+
+/**
+ * What members' browsers measured over the last 28 days (domain/web-vitals; Admin Mode → System
+ * Health shows the same): each page group's loads and its 75th percentile LCP, INP and CLS, with
+ * the share of good LCPs. Counts and bucket bounds only: nothing about who loaded what. A read of a
+ * few hundred grouped rows; never fails the probe.
+ */
+export async function fieldVitals(db: Db) {
+  try {
+    const { vitalsReport } = await import("@/server/observability/web-vitals");
+    const r = await vitalsReport(db, 28);
+    const p75 = (s: VitalSummary | null) => (s ? s.p75AtMost : null);
+    const all = Object.fromEntries(r.metrics.map((m) => [m.metric, m.all ? { count: m.all.count, p75AtMost: m.all.p75AtMost, good: Math.round(m.all.good * 100) / 100 } : null]));
+    return {
+      since: r.since,
+      all,
+      pages: r.pages.map((p) => ({ page: p.page, loads: p.loads, lcpP75: p75(p.LCP), lcpGood: p.LCP ? Math.round(p.LCP.good * 100) / 100 : null, inpP75: p75(p.INP), clsP75: p75(p.CLS) })),
+    };
+  } catch (err) {
+    return { error: (err as Error).message };
+  }
 }

@@ -185,10 +185,15 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
         filter={f}
         description={
           page.games > 0 ? (
-            // What the list counts: the games it reads (the filters), in one line.
-            <p className="flex flex-wrap items-center gap-x-1.5 text-sm text-fg-muted" data-testid="encounters-scope">
-              <span>{page.withPlayers === page.games ? `Players met in ${gamesText(page.games)}` : `Players met in ${formatCount(page.withPlayers)} of ${gamesText(page.games)} (the others have no recorded players yet)`}</span>
-              <span aria-hidden>·</span>
+            // What the list counts: the games it reads (the filters), in one line. Phones, where it
+            // does not fit, give the games their own line and keep the scope on the next one with
+            // the data status beside it (the line's parts join the header's row), rather than
+            // breaking it after a "·" and leaving the status alone on a third line.
+            <p className="flex flex-wrap items-center gap-x-1.5 text-sm text-fg-muted max-sm:contents" data-testid="encounters-scope">
+              <span className="max-sm:basis-full">{page.withPlayers === page.games ? `Players met in ${gamesText(page.games)}` : `Players met in ${formatCount(page.withPlayers)} of ${gamesText(page.games)} (the others have no recorded players yet)`}</span>
+              <span aria-hidden className="max-sm:hidden">
+                ·
+              </span>
               <span>{scope}</span>
             </p>
           ) : null
