@@ -10,7 +10,7 @@ test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
 });
 
-test("a profile shows recent form and ranked progress per queue", async ({ page }) => {
+test("a profile shows recent form and ranked progress per queue", async ({ page }, info) => {
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}`);
@@ -56,9 +56,11 @@ test("a profile shows recent form and ranked progress per queue", async ({ page 
   await expect(page.getByTestId("profile-rank")).toContainText(current);
 
   // The pointer (or a finger) on a reading shows it; so do the arrow keys, for a screen reader too.
+  await chart.scrollIntoViewIfNeeded();
   const dot = ranked.getByTestId("ranked-reading").last();
   const at = (await dot.boundingBox())!;
-  await page.mouse.move(at.x + at.width / 2, at.y + at.height / 2);
+  if (info.project.name === "phone") await page.touchscreen.tap(at.x + at.width / 2, at.y + at.height / 2);
+  else await page.mouse.move(at.x + at.width / 2, at.y + at.height / 2);
   await expect(page.getByTestId("ranked-tip")).toContainText(/LP/);
   await page.mouse.move(0, 0);
   await chart.focus();

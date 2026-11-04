@@ -322,7 +322,10 @@ export function RankTimelineChart({ t, label }: { t: RankTimeline; label: string
           {active ? <line x1={active.x} x2={active.x} y1={pad.t} y2={stripTop + stripH} className="stroke-fg-muted" strokeWidth={1} strokeDasharray="2 2" /> : null}
           {active?.kind === "reading" && reads[active.index]?.score != null ? <circle cx={active.x} cy={y(reads[active.index]!.score!)} r={5} className="fill-accent stroke-surface" strokeWidth={2} /> : null}
 
-          <rect x={pad.l} y={pad.t} width={plotW} height={stripTop + stripH - pad.t} fill="transparent" onPointerMove={onMove} onPointerDown={onMove} onPointerLeave={() => setHover(null)} data-testid="ranked-chart-hit" />
+          <rect x={pad.l} y={pad.t} width={plotW} height={stripTop + stripH - pad.t} fill="transparent" onPointerMove={onMove} onPointerDown={onMove} onPointerLeave={(e) => {
+              // A finger leaves as soon as it lifts: a tapped reading stays shown until the next tap.
+              if (e.pointerType !== "touch") setHover(null);
+            }} data-testid="ranked-chart-hit" />
         </svg>
         {active ? <ChartTip t={t} hover={active} width={width} /> : null}
         <p className="sr-only" aria-live="polite">
