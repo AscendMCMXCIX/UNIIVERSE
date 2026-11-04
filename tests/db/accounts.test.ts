@@ -2,12 +2,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { accountChampionHistory, accountMatches, patches } from "@/server/db/schema";
+import { accountChampionHistory, accountMatches, patches, type HistoryBackfill } from "@/server/db/schema";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
-import { AccountError, addAccount, listAccountsForPlayer, parseRiotId } from "@/server/accounts/repository";
-import { seasonListStart, syncAccount } from "@/server/accounts/sync";
+import { AccountError, addAccount, listAccountsForPlayer, parseRiotId, type RiotAccountRecord } from "@/server/accounts/repository";
+import { seasonListStart, syncAccount, type AccountSyncOptions, type AccountSyncResult } from "@/server/accounts/sync";
 import { RiotApiClient } from "@/server/riot/api/client";
 import { RateLimiter } from "@/server/riot/api/rate-limiter";
 import { getProficiencyLookup, invalidateProficiencyCache } from "@/server/proficiency/service";
@@ -295,5 +295,204 @@ describe("riot accounts", () => {
     calls.length = 0;
     await syncAccount(db, client, (await listAccountsForPlayer(db, player.id))[0]!);
     expect(calls.filter((u) => /\/matches\/OC1_/.test(u))).toHaveLength(0);
+  });
+});
+
+type MatchSpec = { champion: string; role: string; win: boolean; queue: number; created: number; version?: string };
+
+/** A season like the paging test's: 130 Ranked Solo/Duo games, 30 Normal Draft and 12 Swiftplay. The prefix keeps each account's match ids its own. */
+function seasonGames(prefix: string, now: number): Record<string, MatchSpec> {
+  const day = 86_400_000;
+  const matches: Record<string, MatchSpec> = {};
+  for (let i = 0; i < 130; i++) matches[`${prefix}_S${i}`] = { champion: i % 3 ? "Ahri" : "Syndra", role: "MIDDLE", win: i % 2 === 0, queue: 420, created: now - (i + 1) * day * 2, version: "16.10.1.1" };
+  for (let i = 0; i < 30; i++) matches[`${prefix}_N${i}`] = { champion: "Ahri", role: "MIDDLE", win: true, queue: 400, created: now - (i + 1) * day * 3, version: "16.8.1.1" };
+  for (let i = 0; i < 12; i++) matches[`${prefix}_W${i}`] = { champion: "Orianna", role: "MIDDLE", win: false, queue: 480, created: now - (i + 1) * day, version: "16.19.1.1" };
+  return matches;
+}
+
+/*
+  How a season's match lists are paged (accounts/sync.ts, collectSeasonHistory). Riot lists a
+  queue's ids newest first, 100 a page. Each run reads page 0 of every queue (new games first),
+  then resumes each unfinished queue from its stored offset. The offset only moves once a page is
+  stored in full, so a run that stops in the middle of a page lists it again next time (stored ids
+  cost nothing); a page shorter than 100 ends the queue's list. These tests pin that state after
+  every run, because a wrong offset silently loses games for the rest of the season.
+*/
+describe("season paging", () => {
+  const now = Date.UTC(2026, 9, 14);
+  const at = new Date(now).toISOString();
+  const riot = (puuid: string, matches: Record<string, MatchSpec>) => new RiotApiClient({ apiKey: "k", fetchImpl: fakeFetch(puuid, matches), limiter: new RateLimiter([{ requests: 10_000, seconds: 1 }]), sleep: async () => {} });
+
+  /** A player with one freshly linked account. */
+  async function freshAccount(name: string): Promise<RiotAccountRecord> {
+    const db = handle.db;
+    const team = await getOrCreateTeam(db);
+    const player = await createPlayer(db, team.id, { displayName: name, primaryRole: "MID", primaryPool: ["Ahri"] });
+    return addAccount(db, { ownerType: "player", playerId: player.id, riotId: `${name}#OCE`, platform: "oc1" });
+  }
+  const latest = async (account: RiotAccountRecord): Promise<RiotAccountRecord> => (await listAccountsForPlayer(handle.db, account.playerId!)).find((a) => a.id === account.id)!;
+  /** Syncs until the season is complete (at most six runs): each run's result and the state it left the account in. */
+  async function collect(account: RiotAccountRecord, client: RiotApiClient, opts: AccountSyncOptions): Promise<{ runs: AccountSyncResult[]; states: HistoryBackfill[]; account: RiotAccountRecord }> {
+    const runs: AccountSyncResult[] = [];
+    const states: HistoryBackfill[] = [];
+    let current = await latest(account);
+    for (let i = 0; i < 6; i++) {
+      runs.push(await syncAccount(handle.db, client, current, opts));
+      current = await latest(current);
+      states.push(current.historyBackfill!);
+      if (runs.at(-1)!.history?.complete) break;
+    }
+    return { runs, states, account: current };
+  }
+  const storedIds = async (accountId: string) => (await handle.db.select({ matchId: accountMatches.matchId }).from(accountMatches).where(eq(accountMatches.accountId, accountId))).map((r) => r.matchId).sort();
+
+  it("moves a queue's offset only once a page is stored in full, and marks the season complete when every queue's list ran out", async () => {
+    const account = await freshAccount("Paging Offsets");
+    const { runs, states } = await collect(account, riot("puuid-paging-offsets", seasonGames("OC1_PO", now)), { season: 16, maxMatchesPerRun: 60, now: () => new Date(now) });
+    expect(runs.map((r) => r.matchesFolded)).toEqual([60, 60, 52]);
+    // Run 1: page 0 of Solo/Duo lists 100 ids, but the run's 60 fetches end before the page is
+    // stored in full, so its offset stays 0 (the page is listed again next run) and no other queue
+    // is reached: Riot was asked once about one queue.
+    expect(states[0]!.queues).toEqual({ "420": { offset: 0, done: false, checkedAt: at } });
+    expect(states[0]!.completedAt).toBeNull();
+    // Run 2: the 40 games left on that page finish it (offset 100; not done, a full page may have
+    // more behind it). Ranked Flex lists nothing: done at 0. Normal Draft lists 30 and the last 20
+    // fetches take 20 of them, so its offset also stays 0. The queues after it are not reached,
+    // and the budget is gone before Solo/Duo could resume from 100.
+    expect(states[1]!.queues).toEqual({ "420": { offset: 100, done: false, checkedAt: at }, "440": { offset: 0, done: true, checkedAt: at }, "400": { offset: 0, done: false, checkedAt: at } });
+    expect(states[1]!.completedAt).toBeNull();
+    // Run 3: Normal Draft's other 10 end its list (a short page: done at 30), Swiftplay's 12 end
+    // theirs, the queues without a game are done at 0 (Flex, answered within the last twelve hours,
+    // is not asked again), then Solo/Duo resumes from 100: 30 more ids, a short page, done at 130.
+    // Every queue done: the season is complete, with each queue's offset equal to its games.
+    expect(states[2]).toEqual({
+      season: 16,
+      startedAt: at,
+      completedAt: at,
+      queues: { "420": { offset: 130, done: true, checkedAt: at }, "440": { offset: 0, done: true, checkedAt: at }, "400": { offset: 30, done: true, checkedAt: at }, "430": { offset: 0, done: true, checkedAt: at }, "480": { offset: 12, done: true, checkedAt: at }, "490": { offset: 0, done: true, checkedAt: at }, "700": { offset: 0, done: true, checkedAt: at } },
+    });
+    expect(runs.at(-1)!.history).toEqual({ season: 16, complete: true, queuesDone: 7, queues: 7 });
+  });
+
+  it("misses nothing when new games push the list down between runs: every game stored once, none fetched twice", async () => {
+    const account = await freshAccount("Paging Shift");
+    const matches = seasonGames("OC1_PS", now);
+    const client = riot("puuid-paging-shift", matches);
+    const opts = { season: 16, maxMatchesPerRun: 60, now: () => new Date(now) };
+    const first = await syncAccount(handle.db, client, account, opts);
+    expect(first.matchesFolded).toBe(60);
+    // Three Solo/Duo games played since, newer than everything: the three oldest ids of page 0
+    // (list positions 97–99) move to page 1, behind the offset the next run records.
+    for (let i = 0; i < 3; i++) matches[`OC1_PS_NEW${i}`] = { champion: "Ahri", role: "MIDDLE", win: true, queue: 420, created: now - (3 - i) * 3_600_000, version: "16.20.1.1" };
+    const { runs, account: after } = await collect(account, client, opts);
+    expect(runs.map((r) => r.matchesFolded)).toEqual([60, 55]);
+    expect(await storedIds(account.id)).toEqual(Object.keys(matches).sort());
+    const all = [first, ...runs];
+    expect(all.reduce((n, r) => n + r.matchesFolded, 0)).toBe(175);
+    expect(all.reduce((n, r) => n + r.matchesFetched, 0)).toBe(175);
+    expect(after.historyBackfill?.queues["420"]).toEqual({ offset: 133, done: true, checkedAt: at });
+  });
+
+  it("scans back again after a full page of new games, so a long gap between runs skips nothing", async () => {
+    const account = await freshAccount("Paging Rescan");
+    const matches = seasonGames("OC1_PR", now);
+    const client = riot("puuid-paging-rescan", matches);
+    const done = await collect(account, client, { season: 16, maxMatchesPerRun: 200, now: () => new Date(now) });
+    expect(done.runs).toHaveLength(1);
+    expect(done.account.historyBackfill?.queues["420"]).toEqual({ offset: 130, done: true, checkedAt: at });
+    // Two days later, 150 Solo/Duo games have been played since: more than a page of new games.
+    const later = now + 2 * 86_400_000;
+    for (let i = 0; i < 150; i++) matches[`OC1_PR_R${i}`] = { champion: "Ahri", role: "MIDDLE", win: i % 2 === 0, queue: 420, created: later - (i + 1) * 600_000, version: "16.20.1.1" };
+    const run = await syncAccount(handle.db, client, done.account, { season: 16, maxMatchesPerRun: 200, now: () => new Date(later) });
+    expect(run.matchesFolded).toBe(150);
+    expect(run.history).toEqual({ season: 16, complete: true, queuesDone: 7, queues: 7 });
+    const state = (await latest(account)).historyBackfill!;
+    // Page 0 was new from end to end (100 of 100), so the queue was scanned back from there: the
+    // page at 100 held the other 50 new games (and 50 stored ones, free), the page at 200 the
+    // remaining 80 stored games, a short page. Done at 280: the whole list, nothing to resume.
+    expect(state.queues["420"]).toEqual({ offset: 280, done: true, checkedAt: new Date(later).toISOString() });
+    expect(state.completedAt).toBe(at);
+    expect(await storedIds(account.id)).toEqual(Object.keys(matches).sort());
+    // Without the rescan, a full page of new games would leave the queue done at its old offset
+    // (130, now deep inside the new games): no run reads a done queue's later pages and page 0
+    // only ever shows the newest 100, so the 50 new games at list positions 100–149 would be
+    // missing for the rest of the season.
+  });
+});
+
+describe("account changes", () => {
+  const limiter = new RateLimiter([{ requests: 10_000, seconds: 1 }]);
+  const ledgerRows = async (accountId: string) => (await handle.db.select({ matchId: accountMatches.matchId }).from(accountMatches).where(eq(accountMatches.accountId, accountId))).length;
+
+  it("refuses a Riot ID that resolves to a PUUID another player already linked, leaving both players' rows and games as they were", async () => {
+    const db = handle.db;
+    const team = await getOrCreateTeam(db);
+    const x = await createPlayer(db, team.id, { displayName: "Owner X", primaryRole: "TOP", primaryPool: ["Gwen"] });
+    const y = await createPlayer(db, team.id, { displayName: "Player Y", primaryRole: "MID", primaryPool: ["Ahri"] });
+    const now = Date.now();
+    const games = { OC1_X1: { champion: "Gwen", role: "TOP", win: true, queue: 420, created: now - 86_400_000 }, OC1_X2: { champion: "Gwen", role: "TOP", win: false, queue: 440, created: now - 2 * 86_400_000 } };
+    // The fake resolves every Riot ID to X's PUUID: what Riot answers when Y types X's account under its new name.
+    const riot = () => new RiotApiClient({ apiKey: "k", fetchImpl: fakeFetch("puuid-main-x", games), limiter, sleep: async () => {} });
+    const mine = await addAccount(db, { ownerType: "player", playerId: x.id, riotId: "Owner X#OCE", platform: "oc1" });
+    expect((await syncAccount(db, riot(), mine)).status).toBe("ok");
+    expect(await ledgerRows(mine.id)).toBe(2);
+
+    const other = await addAccount(db, { ownerType: "player", playerId: y.id, riotId: "Other#OCE", platform: "oc1" });
+    const r = await syncAccount(db, riot(), other);
+    expect(r.status).toBe("failed");
+    expect(r.error).toMatch(/already linked to another player/);
+    expect(r.error).toMatch(/Owner X#OCE/);
+    expect(r.resolved).toBe(false);
+    // Y's row keeps no PUUID (the identity stays X's), with the reason; X's account and its games are untouched.
+    const stored = (await listAccountsForPlayer(db, y.id))[0]!;
+    expect(stored).toMatchObject({ puuid: null, puuidResolvedAt: null, syncStatus: "failed", syncError: r.error });
+    expect((await listAccountsForPlayer(db, x.id))[0]).toMatchObject({ puuid: "puuid-main-x", syncStatus: "ok" });
+    expect(await ledgerRows(mine.id)).toBe(2);
+  });
+
+  it("treats a 400 for the stored PUUID as a Riot key change: the id is forgotten and resolved again from the Riot ID, the games kept", async () => {
+    const db = handle.db;
+    const team = await getOrCreateTeam(db);
+    const player = await createPlayer(db, team.id, { displayName: "Key Change", primaryRole: "MID", primaryPool: ["Ahri"] });
+    const account = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Key Change#OCE", platform: "oc1" });
+    const now = Date.now();
+    const games = {
+      OC1_KC1: { champion: "Ahri", role: "MIDDLE", win: true, queue: 420, created: now - 86_400_000 },
+      OC1_KC2: { champion: "Ahri", role: "MIDDLE", win: false, queue: 420, created: now - 2 * 86_400_000 },
+      OC1_KC3: { champion: "Orianna", role: "MIDDLE", win: true, queue: 440, created: now - 3 * 86_400_000 },
+    };
+    const healthy = fakeFetch("puuid-key-change", games);
+    const client = (fetchImpl: typeof healthy) => new RiotApiClient({ apiKey: "k", fetchImpl, limiter, sleep: async () => {} });
+    expect(await syncAccount(db, client(healthy), account)).toMatchObject({ status: "ok", resolved: true, matchesFolded: 3 });
+    let stored = (await listAccountsForPlayer(db, player.id))[0]!;
+    expect(stored).toMatchObject({ puuid: "puuid-key-change", platformSource: "riot", syncStatus: "ok" });
+    expect(await ledgerRows(account.id)).toBe(3);
+
+    // Riot after a key change: PUUIDs are encrypted per key, so every request carrying the stored
+    // one is a 400. The Riot ID check, the rank and the mastery each swallow theirs; the match-ids
+    // request's 400 is the one that ends the run.
+    const calls: string[] = [];
+    const keyChanged = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      calls.push(url);
+      if (!url.includes("puuid-key-change")) return healthy(input);
+      return new Response(JSON.stringify({ status: { message: "Bad Request - Exception Decrypting puuid-key-change", status_code: 400 } }), { status: 400, headers: { "content-type": "application/json" } });
+    };
+    const r = await syncAccount(db, client(keyChanged), stored);
+    expect(r).toMatchObject({ resolved: false, status: "pending", matchesFolded: 0 });
+    expect(r.error).toMatch(/key changed/i);
+    expect(calls.some((u) => u.includes("/ids?"))).toBe(true);
+    expect(calls.some((u) => /\/matches\/OC1_/.test(u))).toBe(false);
+    stored = (await listAccountsForPlayer(db, player.id))[0]!;
+    expect(stored).toMatchObject({ puuid: null, puuidResolvedAt: null, platformSource: "user", syncStatus: "pending", syncError: r.error });
+    expect(await ledgerRows(account.id)).toBe(3);
+
+    // The next run resolves the Riot ID again (here to the same id): the same row, its games intact, nothing fetched again.
+    expect(await syncAccount(db, client(healthy), stored)).toMatchObject({ status: "ok", resolved: true, matchesFolded: 0, matchesFetched: 0 });
+    const accounts = await listAccountsForPlayer(db, player.id);
+    expect(accounts).toHaveLength(1);
+    expect(accounts[0]).toMatchObject({ id: account.id, puuid: "puuid-key-change", platformSource: "riot", syncStatus: "ok" });
+    expect(accounts[0]!.puuidResolvedAt).not.toBeNull();
+    expect(await ledgerRows(account.id)).toBe(3);
   });
 });
