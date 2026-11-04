@@ -1,7 +1,7 @@
 import { inArray, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountMatches, champions, matchDetails } from "@/server/db/schema";
-import { RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
+import { RiotApiError, RiotDeadlineError, type RiotApiClient } from "@/server/riot/api/client";
 import { FIRST_SEASON } from "@/domain/season";
 import { erasureFilter } from "@/server/privacy/ledger";
 import { matchDetailRow } from "./match-details";
@@ -124,6 +124,12 @@ export async function backfillFigures(db: Db, client: RiotApiClient, options: { 
       refreshed.push(matchId);
       result.fetched += 1;
     } catch (err) {
+      if (err instanceof RiotDeadlineError) {
+        // The client's deadline: Riot's rate limits would have kept the request waiting past the
+        // run's budget. The same stop as the time check above, nothing marked.
+        result.stoppedBy = "time budget";
+        break;
+      }
       if (err instanceof RiotApiError && err.status === 404) {
         checked.push(matchId);
         result.unavailable += 1;

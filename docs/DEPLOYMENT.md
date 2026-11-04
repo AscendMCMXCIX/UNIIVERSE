@@ -55,7 +55,7 @@ The app works with any host that runs Next.js (Railway, Render, Fly.io, a VPS wi
 
 ## 4. Automation (data refreshes)
 
-UNIIVERSE needs something to call `https://YOUR-APP/api/jobs/tick` regularly with the header `Authorization: Bearer <CRON_SECRET>`. Every call runs whatever is due, within a four-minute budget, and the response lists each job's summary, error and last log lines. The three schedulers below are complementary; the repository ships with a) and b) configured and c) is the one that gives ranked ingestion its full throughput.
+UNIIVERSE needs something to call `https://YOUR-APP/api/jobs/tick` regularly with the header `Authorization: Bearer <CRON_SECRET>`. Every call runs whatever is due, within a four-minute budget, and the response lists each job's summary, error and last log lines. It answers `200` with `ok: true` when every job that ran succeeded (a *degraded* run is a partial success), and `500` with `ok: false` and the same list when one of them failed, so a scheduler records the failure; `GET /api/jobs/<name>` does the same for one job. `?background=1` answers `202` at once and runs the tick afterwards, so its answer cannot say how the jobs went: their outcome shows in `/api/health` (`failingJobs`, docs/MONITORING.md). The three schedulers below are complementary; the repository ships with a) and b) configured and c) is the one that gives ranked ingestion its full throughput.
 
 **d) Visits** (built in, no setup): while the team uses the site, a page view starts a background tick when none has started for 30 minutes (`UNIIVERSE_VISIT_TICK_MINUTES`; a lease row in `app_settings` makes it one tick however many people are on), and opening a player's pages refreshes that player's Riot accounts. The page is sent first; the work runs afterwards in the same invocation (Next.js `after`, `maxDuration = 300`; the tick may use up to 230 s, `UNIIVERSE_VISIT_TICK_BUDGET_MS`). On by default on Vercel; `UNIIVERSE_BACKGROUND_REFRESH=false` turns it off.
 
@@ -79,6 +79,8 @@ select cron.schedule(
 `select * from cron.job;` lists the schedule and `select cron.unschedule('uniiverse-tick');` removes it. With this in place a development Riot key yields roughly a hundred ranked games per tick; a Personal key, with its higher rate limits, several times that.
 
 **d) Any other cron service** (cron-job.org, UptimeRobot heartbeat…): call the same URL every ten minutes with the bearer header. Check that the service waits long enough for the response (up to five minutes).
+
+**e) The rank watch, every five minutes** (recommended: it is what gives each ranked game its LP on Match History). A second pg_cron schedule that calls only `/api/jobs/rank-watch`, with the secret kept in Supabase Vault: the SQL, what it costs and how to remove it are in [RANKED_PROGRESS.md](RANKED_PROGRESS.md#the-five-minute-schedule-supabase-pg_cron-free-one-time-setup-by-the-owner).
 
 Check **Admin → Data & Riot** after an hour: every job should show *ok* with a recent success time, and a *degraded* job's message is repeated there as a warning.
 

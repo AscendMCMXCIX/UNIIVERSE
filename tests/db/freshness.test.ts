@@ -136,4 +136,16 @@ describe("the jobs' version", () => {
     expect(done.v).not.toBe(running.v);
     expect(done.pace).toBe("idle");
   });
+
+  it("still asks soon while a job runs when an older run never finished", async () => {
+    const db = handle.db;
+    // A run whose process died yesterday: it was never closed.
+    const [dead] = await db.insert(jobRuns).values({ job: "integrity", trigger: "tick", startedAt: new Date(Date.now() - 86_400_000) }).returning();
+    expect((await jobsFreshness(db)).pace).toBe("idle");
+    const [run] = await db.insert(jobRuns).values({ job: "account-sync", trigger: "tick" }).returning();
+    expect((await jobsFreshness(db)).pace).toBe("now");
+    await db.update(jobRuns).set({ finishedAt: new Date(), ok: "true", durationMs: 1000 }).where(eq(jobRuns.id, run!.id));
+    expect((await jobsFreshness(db)).pace).toBe("idle");
+    await db.delete(jobRuns).where(eq(jobRuns.id, dead!.id));
+  });
 });

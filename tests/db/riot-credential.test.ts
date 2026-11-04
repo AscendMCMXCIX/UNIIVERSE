@@ -145,6 +145,17 @@ describe("riot credential health", () => {
     expect(after.some((a) => a.id === account.id)).toBe(false);
   });
 
+  it("reads a key pasted with quotes as the same key the client uses, so a rejection is not lost", async () => {
+    const db = handle.db;
+    const key = "RGAPI-00000000-0000-0000-0000-00000000dddd";
+    // The client strips the quotes (normaliseRiotKey), so outcomes are recorded under "…dddd".
+    await recordRiotOutcome(db, { keyFingerprint: "…dddd" }, { ok: false, error: new RiotApiError("Riot API 403", 403, false) });
+    invalidateCache("riot-credential");
+    const quoted = await getRiotCredentialStatus(db, { RIOT_API_KEY: `"${key}"` });
+    expect(quoted.keyFingerprint).toBe("…dddd");
+    expect(quoted.state).toBe("rejected");
+  });
+
   it("a key change invalidates the recorded status for the previous key", async () => {
     const db = handle.db;
     await recordRiotOutcome(db, { keyFingerprint: "…bbbb" }, { ok: true });

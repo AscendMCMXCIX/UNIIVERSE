@@ -94,6 +94,30 @@ describe("Riot rate limiting", () => {
     expect(l.waitedMs).toBe(0);
   });
 
+  it("with a deadline, never sleeps past it: a wait that would end later is refused at once and records nothing", async () => {
+    const c = clock();
+    const l = new RateLimiter([{ requests: 2, seconds: 120 }], c.now, c.sleep);
+    await l.acquire(1, 10_000);
+    await l.acquire(1, 10_000);
+    // The two-minute window is full: the third request would wait about 120 s, past the deadline.
+    const refused = await l.acquire(1, 10_000);
+    expect(c.now()).toBe(0);
+    expect(refused).toBe(false);
+    expect(l.admitted).toBe(2);
+    expect(l.waitedMs).toBe(0);
+    // A wait that ends in time is still waited for.
+    expect(await l.acquire(1, 125_000)).toBe(true);
+    expect(c.now()).toBeGreaterThanOrEqual(120_000);
+    // A 429's pause is a wait like any other.
+    l.pause(90);
+    const start = c.now();
+    expect(await l.acquire(1, start + 30_000)).toBe(false);
+    expect(c.now()).toBe(start);
+    // Without a deadline it waits, as before.
+    expect(await l.acquire()).toBe(true);
+    expect(c.now()).toBeGreaterThanOrEqual(start + 90_000);
+  });
+
   it("one pool per process: every client counts against the same windows", async () => {
     const { processRiotLimiters } = await import("./rate-limiter");
     expect(processRiotLimiters()).toBe(processRiotLimiters());
