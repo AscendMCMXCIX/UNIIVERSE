@@ -48,7 +48,7 @@ possible groups, and every other OP.GG link.
 | `src/components/legacy-storage.tsx` | Deletes what earlier versions left in members' browsers (an unsaved scout in `localStorage`, the text recogniser's IndexedDB cache). It costs nothing once they are gone |
 | The audit label `clash.scout-delete` (`src/domain/audit.ts`) | Older Audit Logs entries keep their name |
 | `clash_scouts` and `clash_scout_accounts` in `db-usage`'s retired list | The report confirms that both tables are gone |
-| Migrations `0050` and `0055`, which created and updated the tables | Applied migrations are never edited; a fresh install creates the tables and `0057` drops them |
+| Migrations `0050` and `0055`, which created and updated the tables | Applied migrations are never edited; a fresh install creates the tables and `0064` drops them |
 
 ## The database clean-up (migration 0064)
 
@@ -59,6 +59,6 @@ offline copy and gave the go-ahead. The same change removed their schema, the er
 reconciliation code for them and the privacy notice's entries for the saved scouts.
 
 Checks: `db-usage` reports both tables as gone; `tests/db/migrate.test.ts` covers the drop on a
-database with saved scouts, and every fresh install runs `0050` to `0057` in order. Recovery, if
+database with saved scouts, and every fresh install runs `0050` to `0064` in order. Recovery, if
 ever needed: `pg_restore --table` from that backup, then revert the change. The Draft and
-Meta & Trends drops (PR #86) are separate.
+Meta & Trends drops (PR #86, also 4 Nov 2026) were separate.
