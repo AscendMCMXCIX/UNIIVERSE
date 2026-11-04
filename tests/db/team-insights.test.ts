@@ -4,7 +4,7 @@ import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { accountMatches, matchDetails, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
 import { createPlayer, getOrCreateTeam, setTeamMember } from "@/server/repositories/team";
-import { invalidateTeamInsightsCache, loadTeamInsights, readInsightInputs } from "@/server/matches/team-insights";
+import { invalidateTeamInsightsCache, loadTeamInsights, readInsightInputs, teamInsightsAudit } from "@/server/matches/team-insights";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 
@@ -91,8 +91,13 @@ describe("team insights from stored games", () => {
       .filter(([k]) => k !== "solo")
       .map(([k, id]) => ({ id, playerId: k.startsWith("ace") ? ids.Ace! : k === "bea" ? ids.Bea! : ids.Cy! }));
     const { games, presences } = await readInsightInputs(handle.db, accounts, 16);
-    // The remake is never read; last season's game is read (the domain leaves it out by patch).
-    expect(games.some((g) => g.matchId === "OC1_6")).toBe(false);
+    // One row per member per game (Ace's two accounts in G8 are one), the remake never read, last
+    // season's game read (the domain leaves it out by its patch): Ace 6, Bea 2, Cy 2.
+    expect(games).toHaveLength(10);
+    expect(games.some((g) => g.durationS === 200)).toBe(false);
+    expect(games.filter((g) => g.playerId === ids.Ace).length).toBe(6);
+    // Matches travel as small numbers, never as Riot match ids.
+    expect(games.every((g) => /^\d+$/.test(g.matchId))).toBe(true);
     // Places: G1 ×3, G2, G3, G4 ×2, G7, G8 ×2, G9 — never a stranger's, the erased player's or the personal-use account's.
     expect(presences).toHaveLength(11);
     expect(presences.every((p) => [ids.Ace, ids.Bea, ids.Cy].includes(p.playerId) && (p.teamId === 100 || p.teamId === 200))).toBe(true);
@@ -119,6 +124,19 @@ describe("team insights from stored games", () => {
     // Far too few games to test anything.
     expect(r.tested).toBe(0);
     expect(r.findings).toEqual([]);
+  });
+
+  it("reports to data-audit with anonymous labels and counts only, including places missing from members' own histories", async () => {
+    const labels = new Map<string, string>();
+    const labelOf = (id: string) => labels.get(id) ?? (labels.set(id, `p${labels.size + 1}`), labels.get(id)!);
+    const audit = await teamInsightsAudit(handle.db, teamId, labelOf, NOW);
+    expect(audit.memberGames).toBe(7);
+    expect(audit.tested).toBe(0);
+    // Bea's place in G4 is in the record but not in her history.
+    expect(audit.placesMissingFromOwnHistory).toEqual({ places: 1, matches: 1, members: 1 });
+    const text = JSON.stringify(audit);
+    for (const secret of ["Ace", "Bea", "Cy", "p-ace", "p-bea", "OC1_", ...Object.values(ids)]) expect(text).not.toContain(secret);
+    expect(audit.comparisons.every((c) => c.member === null || /^p\d+$/.test(c.member))).toBe(true);
   });
 
   it("is cached until the history changes", async () => {
