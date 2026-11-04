@@ -19,11 +19,14 @@ export function segmentedGroupClass(className?: string): string {
 
 /**
  * One segment: 30px tall with a mouse, 38px on touch screens, so the group around it is 36px or 44px:
- * the height of a field or a chip beside it.
+ * the height of a field or a chip beside it. `md`: the main filter of a list's toolbar (Encounters'
+ * All, Against and Alongside), in the body text size, at the same height.
  */
-export function segmentClass(active: boolean, opts: { disabled?: boolean; className?: string } = {}): string {
+export function segmentClass(active: boolean, opts: { disabled?: boolean; className?: string; size?: "sm" | "md" } = {}): string {
   return cn(
-    "inline-flex min-h-[1.875rem] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-xs font-medium transition-colors pointer-coarse:min-h-[2.375rem] focus-visible:outline-2 focus-visible:outline-accent",
+    "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md transition-colors focus-visible:outline-2 focus-visible:outline-accent",
+    "min-h-[1.875rem] font-medium pointer-coarse:min-h-[2.375rem]",
+    opts.size === "md" ? "px-3 text-sm" : "px-2.5 text-xs",
     active ? "bg-accent/15 font-semibold text-fg ring-1 ring-inset ring-accent/60" : opts.disabled ? "cursor-not-allowed text-fg-subtle/50" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
     opts.className,
   );

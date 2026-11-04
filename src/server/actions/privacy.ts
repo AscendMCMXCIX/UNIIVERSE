@@ -1,5 +1,6 @@
 "use server";
 
+import { publicErrorMessage } from "@/server/errors";
 import { revalidatePath } from "next/cache";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePermission } from "@/server/auth/session";
@@ -201,7 +202,7 @@ export async function importErasuresAction(text: string): Promise<Result<{ added
     try {
       parseErasureFile(file);
     } catch (err) {
-      return { ok: false, error: (err as Error).message };
+      return { ok: false, error: publicErrorMessage(err) };
     }
     const db = await getAppDb();
     const imported = await importErasures(db, file);

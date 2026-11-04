@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { toast } from "@/components/ui/toast";
 import { RelativeTime } from "@/components/ui/relative-time";
+import { ScrollRegion } from "@/components/ui/scroll-region";
 
 export interface JobView {
   key: string;
@@ -82,7 +83,7 @@ export function JobsPanel({ jobs, isOwner }: { jobs: JobView[]; isOwner: boolean
             </div>
           ))}
         </div>
-        <div className="hidden overflow-x-auto md:block">
+        <ScrollRegion label="Data jobs" className="hidden md:block">
         <table className="w-full text-xs">
           <thead className="text-left text-fg-subtle">
             <tr>
@@ -126,7 +127,7 @@ export function JobsPanel({ jobs, isOwner }: { jobs: JobView[]; isOwner: boolean
             ))}
           </tbody>
         </table>
-        </div>
+        </ScrollRegion>
       </PanelBody>
     </Panel>
   );

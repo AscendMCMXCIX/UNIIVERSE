@@ -161,7 +161,7 @@ const EXTRA_KEYS = ["doubleKills", "tripleKills", "quadraKills", "pentaKills", "
  * (about 835 KB a read in production, 21 Oct 2026). A game's extra figures are null when it has
  * none, as before; a figure that is absent or null is left out.
  */
-async function storedGames(db: Db, accountIds: string[]): Promise<{ rows: GameRow[]; raw: number }> {
+async function storedGames(db: Db, accountIds: string[], since?: number): Promise<{ rows: GameRow[]; raw: number }> {
   const ids = sql.join(accountIds.map((id) => sql`${id}::uuid`), sql`, `);
   const extra = sql.raw(EXTRA_KEYS.map((k) => `extra_stats->'${k}'`).join(", "));
   const result = await db.execute(sql`
@@ -171,7 +171,7 @@ async function storedGames(db: Db, accountIds: string[]): Promise<{ rows: GameRo
              kills, deaths, assists, cs, damage, vision_score, gold, wards_placed, team_kills, team_damage,
              CASE WHEN jsonb_typeof(extra_stats) = 'object' AND extra_stats <> '{}'::jsonb THEN json_build_array(${extra}) END)), '[]') AS games
     FROM account_matches
-    WHERE account_id IN (${ids}) AND champion_id IS NOT NULL`);
+    WHERE account_id IN (${ids}) AND champion_id IS NOT NULL${since === undefined ? sql`` : sql` AND game_creation >= ${since}`}`);
   const [answer] = rowsOf<{ raw: number; games: unknown }>(result);
   type Game = [string, number, number | null, string, string | null, 0 | 1 | null, string | null, number, number | null, number | null, number | null, number | null, number | null, number | null, number | null, number | null, number | null, number | null, number | null, unknown[] | null];
   const games = (typeof answer?.games === "string" ? JSON.parse(answer.games) : (answer?.games ?? [])) as Game[];
@@ -200,22 +200,23 @@ async function storedGames(db: Db, accountIds: string[]): Promise<{ rows: GameRo
   return { rows, raw: Number(answer?.raw ?? 0) };
 }
 
-async function gamesFor(db: Db, teamId: string, accountIds: string[], playerOf: Map<string, string>): Promise<Pick<Cached, "games" | "mastery" | "rawGames">> {
-  if (accountIds.length === 0) return { games: [], mastery: [], rawGames: 0 };
-  // Games whose details arrived without their figures being copied yet (normally none; once,
-  // after this feature first deploys): copy them now, so nothing reads as missing.
-  await summariseMatches(db, { accountIds });
-  const key = await historyFingerprint(db, accountIds);
-  const hit = cache.get(teamId);
-  if (hit && hit.key === key && Date.now() - hit.at < TTL_MS) return hit;
+/**
+ * The members' stored games exactly as the boards count them (one per match per player), read only:
+ * unlike the page's loader it copies no figures and caches nothing, so the data audit changes
+ * nothing. `since` limits the read to games from that time (the audit needs only the last 60 days).
+ */
+export async function readLeaderboardGames(db: Db, accountIds: string[], playerOf: ReadonlyMap<string, string>, since?: number): Promise<LeaderboardGame[]> {
+  if (accountIds.length === 0) return [];
+  const { rows } = await storedGames(db, accountIds, since);
+  return onePerMatch(rows, playerOf);
+}
 
-  // Every stored game, with this player's figures from the match details already copied onto it
-  // (see match-summary).
-  const { rows, raw } = await storedGames(db, accountIds);
-
-  // One game per match per player: a match seen from two of a player's accounts counts once
-  // (the newest row first; within a match the copy that found this player in the stored match
-  // details, so gold, wards and the extra figures are not lost; then by account).
+/**
+ * One game per match per player: a match seen from two of a player's accounts counts once (the
+ * newest row first; within a match the copy that found this player in the stored match details,
+ * so gold, wards and the extra figures are not lost; then by account).
+ */
+function onePerMatch(rows: readonly GameRow[], playerOf: ReadonlyMap<string, string>): LeaderboardGame[] {
   const hasDetails = (r: GameRow) => (r.team_kills !== null || r.gold !== null ? 1 : 0);
   const sorted = [...rows].sort((a, b) => Number(b.game_creation) - Number(a.game_creation) || hasDetails(b) - hasDetails(a) || a.account_id.localeCompare(b.account_id));
   const seen = new Set<string>();
@@ -251,6 +252,22 @@ async function gamesFor(db: Db, teamId: string, accountIds: string[], playerOf: 
       extra: stats,
     });
   }
+  return games;
+}
+
+async function gamesFor(db: Db, teamId: string, accountIds: string[], playerOf: Map<string, string>): Promise<Pick<Cached, "games" | "mastery" | "rawGames">> {
+  if (accountIds.length === 0) return { games: [], mastery: [], rawGames: 0 };
+  // Games whose details arrived without their figures being copied yet (normally none; once,
+  // after this feature first deploys): copy them now, so nothing reads as missing.
+  await summariseMatches(db, { accountIds });
+  const key = await historyFingerprint(db, accountIds);
+  const hit = cache.get(teamId);
+  if (hit && hit.key === key && Date.now() - hit.at < TTL_MS) return hit;
+
+  // Every stored game, with this player's figures from the match details already copied onto it
+  // (see match-summary).
+  const { rows, raw } = await storedGames(db, accountIds);
+  const games = onePerMatch(rows, playerOf);
 
   const masteryRows = await db.select({ accountId: accountMastery.accountId, championId: accountMastery.championId, points: accountMastery.points }).from(accountMastery).where(and(inArray(accountMastery.accountId, accountIds), isNotNull(accountMastery.championId)));
   const mastery = masteryRows.filter((m) => m.points > 0 && playerOf.has(m.accountId)).map((m) => ({ playerId: playerOf.get(m.accountId)!, championId: m.championId, points: m.points }));

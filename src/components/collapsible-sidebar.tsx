@@ -163,7 +163,7 @@ export function CollapsibleSidebar({ initialCollapsed, brand, children, footer }
             which would shift the content sideways under the edge. */}
         {/* The edge line is drawn just outside the window (a 1px shadow, not a border), so the
             collapsed rail's inside is the full 4.5rem and its centre line is the icons' and the logo's. */}
-        <div className={cn(SLIDE, "pointer-events-auto absolute inset-0 overflow-clip bg-bg-elevated shadow-[1px_0_0_var(--color-border)]", open ? "translate-x-0" : "-translate-x-[11.5rem]")} data-testid="sidebar-window">
+        <div className={cn(SLIDE, "pointer-events-auto absolute inset-0 overflow-clip bg-chrome shadow-[1px_0_0_var(--color-border)]", open ? "translate-x-0" : "-translate-x-[11.5rem]")} data-testid="sidebar-window">
           {/* The content moves the other way by the same amount on the same curve: it stays still on screen. */}
           <div className={cn(SLIDE, "flex h-full w-64 flex-col overflow-y-auto overflow-x-hidden", open ? "translate-x-0" : "translate-x-[11.5rem]")}>
             {/* One vertical rhythm down the icon column: logo, the collapse control and the entries
@@ -185,7 +185,7 @@ export function CollapsibleSidebar({ initialCollapsed, brand, children, footer }
                 className="group isolate relative flex min-h-9 w-full items-center gap-3 rounded-lg pl-[0.9375rem] pr-2 text-left text-sm text-fg-subtle transition-colors hover:text-fg"
                 data-testid="sidebar-toggle"
               >
-                <span className={cn(RAIL_HIGHLIGHT, "group-hover:bg-surface-2")} aria-hidden />
+                <span className={cn(RAIL_HIGHLIGHT, "group-hover:bg-fg/5")} aria-hidden />
                 <ToggleIcon className="h-[1.125rem] w-[1.125rem] shrink-0" aria-hidden />
                 <span className={cn("min-w-0 flex-1 truncate", FADE)}>{label}</span>
                 <kbd className={cn("shrink-0 rounded border border-border px-1.5 py-px font-sans text-2xs leading-4 text-fg-subtle", FADE)} aria-hidden>

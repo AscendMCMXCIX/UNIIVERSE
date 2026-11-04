@@ -176,3 +176,6 @@ export function summariseTogether(games: readonly TogetherGame[], chosen: readon
     combos: [...combos.values()].filter((c) => c.games >= 2).sort((a, b) => b.games - a.games || b.wins - a.wins).slice(0, 5),
   };
 }
+
+/** A listed game's key: the match and the side the members played on (a match can be listed once per side). */
+export const togetherEntry = (matchId: string, teamId: number | null) => `${matchId}|${teamId ?? ""}`;

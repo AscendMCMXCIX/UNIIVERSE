@@ -6,8 +6,12 @@
 #                        it no backup can be opened
 # Each run dumps the public schema, restores it into a throw-away Postgres on the runner and compares
 # row counts with production, encrypts it (AES-256) and keeps it 28 days as a private artifact of
-# the run. It costs about 3 Actions minutes a week. A failed run is reported by GitHub's usual
-# failed-workflow email.
+# the run. It costs about 3 Actions minutes a week. Its manifest alone (sizes, row counts and
+# checksums: no data, no secret) is kept 90 days as a second artifact, so the backup's growth can be
+# followed. A failed run, or a backup over 80% of MAX_MB, opens one issue labelled database-backup
+# (or comments on the open one); the next healthy run closes it (scripts/report-issue.sh). GitHub's
+# failed-workflow email still arrives too. The daily Production check fails when no backup has
+# passed for 8 days.
 name: Database backup
 
 on:
@@ -22,6 +26,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: database-backup
@@ -78,3 +83,46 @@ jobs:
           retention-days: 28
           compression-level: 0
           if-no-files-found: error
+      # The backup's size against its limit, and the counts it proved: in the run's summary, and the
+      # manifest kept longer on its own (no data in it).
+      - name: Size and growth
+        id: size
+        env:
+          MAX_MB: ${{ inputs.max_mb || 100 }}
+        run: |
+          manifest="$(ls backup/*.json | head -n 1)"
+          mb=$(( $(jq -r '.encryptedBytes' "$manifest") / 1048576 ))
+          pct=$(( mb * 100 / MAX_MB ))
+          {
+            echo "## Database backup"
+            echo "- Encrypted size: $mb MB, $pct% of the $MAX_MB MB limit."
+            echo "- Rows proved in the restored copy: $(jq -c '.rows' "$manifest")"
+            echo "- Retired tables' rows proved: $(jq -c '.retiredTableRows // {}' "$manifest")"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "mb=$mb" >> "$GITHUB_OUTPUT"
+          echo "pct=$pct" >> "$GITHUB_OUTPUT"
+          if [ "$pct" -ge 80 ]; then echo "::warning::The encrypted backup is $mb MB, $pct% of its $MAX_MB MB limit (docs/BACKUPS.md: drop the retired tables, or raise max_mb)."; fi
+      - uses: actions/upload-artifact@v7
+        with:
+          name: database-backup-manifest-${{ github.run_id }}
+          path: backup/*.json
+          retention-days: 90
+          if-no-files-found: error
+      - name: Report
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FAILED: ${{ job.status == 'failure' }}
+          MB: ${{ steps.size.outputs.mb }}
+          PCT: ${{ steps.size.outputs.pct }}
+        run: |
+          if [ "$FAILED" = "true" ]; then
+            printf '%s\n\n%s\n' "The weekly database backup failed: $RUN_URL" "The run's log says which check stopped it (the role, the dump, the restore counts, the encryption or the size). No backup was kept from this run; the previous ones are still in their runs for 28 days." > issue.md
+            scripts/report-issue.sh database-backup "Database backup needs attention" fail issue.md
+          elif [ -n "$PCT" ] && [ "$PCT" -ge 80 ]; then
+            printf '%s\n\n%s\n' "The database backup passed, but it is $MB MB: $PCT% of its size limit ($RUN_URL)." "Dropping the retired tables (held PRs #86 and #138, after your backup check) shrinks it; otherwise a run by hand can allow more (max_mb). Nothing has failed yet." > issue.md
+            scripts/report-issue.sh database-backup "Database backup needs attention" fail issue.md
+          else
+            scripts/report-issue.sh database-backup "Database backup needs attention" ok
+          fi

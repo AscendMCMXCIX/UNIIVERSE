@@ -2,12 +2,12 @@
 
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { MULTIKILL_NAMES } from "@/domain/multikills";
 import { QUEUE_GROUP_WORDS, figureText, queueGroup, type FigureKey } from "@/domain/match-analysis";
 import { narrowsGames, refineParams, type SessionSummary } from "@/domain/history-refine";
-import type { MatchDetailResult, MatchHistoryPage, MatchRow } from "@/server/players/match-history";
+import type { MatchHistoryPage, MatchRow } from "@/server/players/match-history";
 import type { Composition } from "@/server/matches/compositions";
 import type { ParticipantRank } from "@/domain/known-rank";
 import type { PortraitChampion } from "@/components/champion-portrait";
@@ -16,7 +16,8 @@ import { timeAgo, formatCount, formatDayMonth, formatNumber, formatTimeOfDay } f
 import { cn } from "@/lib/cn";
 import { MatchDetailModal } from "./match-detail";
 import { MatchDetailCacheContext, createMatchDetailCache, type MatchDetailCache } from "./match-detail-cache";
-import { EncounterLinkContext, MatchBreakdown, type EncounterLink } from "./match-breakdown";
+import { EncounterLinkContext, type EncounterLink } from "./match-breakdown";
+import { MatchExpansion, revealIfAbove, revealOpened } from "./inline-match";
 import { HistorySummaryStrip } from "./history-summary";
 import { ItemRow } from "./icon-img";
 import { MultikillTag } from "./multikill-tag";
@@ -24,10 +25,12 @@ import { ChampionLoadout, MatchRail, MatchResult, matchCardClass, matchTone } fr
 import { TeamComposition } from "./team-composition";
 import { ModeElsewhere, OverviewFilters } from "@/components/players/overview-filters";
 import { HistoryRefineFields, historyRefinements } from "./history-refine-fields";
-import { EncounterWindow, MatchViewSwitch } from "./encounters-view";
+import { EncounterGamesPanel, type EncounterGamesFocus } from "./encounter-games";
+import { MatchHistoryHeader, scopeText } from "./match-history-header";
+import { encounterFocusParams, encounterListParams } from "@/domain/encounters";
+import { statsQuery } from "@/domain/season-stats";
 import type { DataStatus } from "@/domain/data-status";
 import { DataStatusNote, RefreshButton, type DataRefreshTarget } from "@/components/ui/data-status";
-import { SectionHeader } from "@/components/ui/section-header";
 import { useNow } from "@/components/ui/relative-time";
 
 /** A card's rendered height in rem (about 6.4rem with both teams' five rows) plus the gap between cards; pixels follow the root size,
@@ -197,29 +200,22 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
         </span>
       </div>
       {expanded ? (
-        <div id={regionId} role="region" aria-label={`${tone.word} on ${champion.name}: match details`} className="rounded-b-panel border border-t-0 border-border bg-bg-elevated p-3 motion-safe:rise-in sm:p-4" data-testid="match-expanded">
-          <InlineMatch playerId={playerId} matchId={row.matchId} champ={champ} />
-          {/* The way back from the end of a long breakdown: closes the game and brings its card
-              into view (the list goes on from where it was), with the focus on it. */}
-          <div className="mt-3 flex justify-end border-t border-border/60 pt-2">
-            <button
-              type="button"
-              onClick={() => {
-                onToggle(row.matchId);
-                requestAnimationFrame(() => {
-                  const card = document.getElementById(`match-${row.matchId}`);
-                  if (card && card.getBoundingClientRect().top < 0) card.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
-                  open.current?.focus({ preventScroll: true });
-                });
-              }}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11"
-              data-testid="match-close"
-            >
-              <ChevronUp className="h-3.5 w-3.5" aria-hidden />
-              Close this game
-            </button>
-          </div>
-        </div>
+        <MatchExpansion
+          id={regionId}
+          label={`${tone.word} on ${champion.name}: match details`}
+          playerId={playerId}
+          matchId={row.matchId}
+          champ={champ}
+          onClose={() => {
+            // The way back from the end of a long breakdown: closes the game and brings its card
+            // into view (the list goes on from where it was), with the focus on it.
+            onToggle(row.matchId);
+            requestAnimationFrame(() => {
+              revealIfAbove(document.getElementById(`match-${row.matchId}`));
+              open.current?.focus({ preventScroll: true });
+            });
+          }}
+        />
       ) : null}
     </li>
   );
@@ -236,37 +232,6 @@ function MemberNames({ names }: { names: string[] }) {
       </span>
     </>
   );
-}
-
-/** The breakdown under a card: loaded once opened (or from the press that opened it), kept by the list's cache. */
-function InlineMatch({ playerId, matchId, champ }: { playerId: string; matchId: string; champ: (id: string | null) => PortraitChampion }) {
-  const cache = React.useContext(MatchDetailCacheContext);
-  const [result, setResult] = React.useState<MatchDetailResult | null>(null);
-  React.useEffect(() => {
-    let live = true;
-    void (cache ? cache.load(playerId, matchId) : Promise.reject(new Error("no cache")))
-      .catch((): MatchDetailResult => ({ status: "unavailable", message: "The match could not be loaded just now. Close it and open it again in a moment." }))
-      .then((r) => {
-        if (live) React.startTransition(() => setResult(r));
-      });
-    return () => {
-      live = false;
-    };
-  }, [cache, playerId, matchId]);
-  if (!result)
-    return (
-      <div className="space-y-2" aria-busy="true" aria-label="Loading the match" data-testid="match-expanded-loading">
-        <div className="h-9 w-72 max-w-full animate-pulse rounded-lg bg-surface-2 motion-reduce:animate-none" />
-        <div className="h-48 animate-pulse rounded-panel bg-surface-2 motion-reduce:animate-none" />
-      </div>
-    );
-  if (result.status !== "ok")
-    return (
-      <p className="rounded-panel border border-dashed border-border p-4 text-sm text-fg-muted" data-testid="match-detail-message">
-        {result.message}
-      </p>
-    );
-  return <MatchBreakdown key={matchId} playerId={playerId} view={result.view} champ={champ} variant="inline" />;
 }
 
 function Stat({ label, value, extra = null, title, testId }: { label: string; value: string; /** A quieter figure after it: the total or the share. */ extra?: string | null; title?: string; testId?: string }) {
@@ -315,9 +280,11 @@ export function pageList(page: number, pages: number): Array<number | "gap"> {
  * card (one at a time: the scoreboard, analysis, timeline and build), so the list stays where it
  * is and the next game is one click away. The open game is kept in the address (?match=, replaced,
  * not added to the history); a link to a game that is not on the page shown opens it in the
- * shared match window instead.
+ * shared match window instead. With `encounter`, the same list holds one player's games met in
+ * Encounters (encounter-games: the way back, their records, and the side to list) instead of the
+ * line about the newest games; the season, game mode and account still apply.
  */
-export function MatchHistoryView({ data, championsById, basePath, playerId, playerName, status, refresh }: { data: MatchHistoryPage; championsById: Record<string, PortraitChampion>; basePath: string; playerId: string; /** The profile's name, in a player's Encounters window. */ playerName: string; /** The page's data status (domain/data-status). */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts, where Riot can be asked. */ refresh?: DataRefreshTarget | null }) {
+export function MatchHistoryView({ data, championsById, basePath, playerId, playerName, status, refresh, encounter }: { data: MatchHistoryPage; championsById: Record<string, PortraitChampion>; basePath: string; playerId: string; /** The profile's name, in a player met's records. */ playerName: string; /** The page's data status (domain/data-status). */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts, where Riot can be asked. */ refresh?: DataRefreshTarget | null; /** One player's games, opened from Encounters (Match History → Encounters). */ encounter?: EncounterGamesFocus }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -403,11 +370,10 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
     [data],
   );
   const prefetch = React.useCallback((matchId: string) => void cache.load(playerId, matchId).catch(() => {}), [cache, playerId]);
-  // A player met in other games, from an open game's scoreboard: their Encounters window, in the
-  // list's season, game mode and account (the counts the scoreboard showed).
-  const [met, setMet] = React.useState<{ key: string; name: string } | null>(null);
+  // A player met in other games, from an open game's scoreboard: their games here, in the list's
+  // season, game mode and account (the counts the scoreboard showed).
   const { season, mode, accountId } = data.filter;
-  const encounterLink = React.useMemo<EncounterLink>(() => ({ scope: { season, mode, accountId }, open: setMet }), [season, mode, accountId]);
+  const encounterLink = React.useMemo<EncounterLink>(() => ({ scope: { season, mode, accountId }, href: (key: string) => `${basePath}?${statsQuery({ season, mode, accountId }, { view: "encounters", ...encounterFocusParams({ key, side: "all" }) })}` }), [basePath, season, mode, accountId]);
   const openRef = React.useRef(open);
   React.useLayoutEffect(() => {
     openRef.current = open;
@@ -429,10 +395,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
   React.useLayoutEffect(() => {
     if (!inline || reveal.current !== inline) return;
     reveal.current = null;
-    const el = document.getElementById(`match-${inline}`);
-    if (!el) return;
-    const top = el.getBoundingClientRect().top;
-    if (top < 0 || top > window.innerHeight * 0.55) el.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    revealOpened(document.getElementById(`match-${inline}`));
   }, [inline]);
   const returnFocus = React.useRef<HTMLElement | null>(null);
   React.useEffect(() => {
@@ -455,8 +418,9 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
 
   const f = data.filter;
   const narrowed = f.role || f.scope !== "all" || f.accountId || f.mode !== "all" || f.season !== data.currentSeason || narrowsGames(data.refine);
-  // Refine's own choices ride along every change of the shared filters; a change of them starts again at the newest games.
-  const keep = { per: String(data.per), ...refineParams(data.refine) };
+  // Refine's own choices ride along every change of the shared filters (a player's games keep the
+  // player, their side and the way back); a change of them starts again at the newest games.
+  const keep = encounter ? { per: String(data.per), view: "encounters", ...encounterListParams(encounter.list), ...encounterFocusParams(encounter.focus) } : { per: String(data.per), ...refineParams(data.refine) };
   const refineTo = (patch: Record<string, string | null>) => go({ ...patch, page: null });
   // Grouping keeps the page and an open game: the games and their order stay the same.
   const groupTo = (sessions: boolean) => go({ group: sessions ? "sessions" : null }, { keepMatch: true });
@@ -466,45 +430,55 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
 
   return (
     <section className="space-y-3" aria-labelledby="match-history" data-testid="match-history" data-accounts-linked={data.accountsLinked} data-total={data.total} data-ready={interactive ? "true" : undefined}>
-      {/* Browsing individual games: the profile's one heading layout (as Overview and All
-          Champions): the title and the switch to the players met (Encounters), the data status
-          under them, and the toolbar: the filters (the scope they set is readable in them), then
-          Refresh; then a line about the newest games, then the games. Season totals and averages
-          belong to the profile's Overview. */}
-      <SectionHeader
-        id="match-history"
-        title="Match History"
-        aside={<MatchViewSwitch view="games" basePath={basePath} filter={f} />}
+      {/* Match History's one header (shared with Encounters): Games | Encounters, the data status,
+          and the toolbar: the filters (the scope they set is readable in them), then Refresh; then
+          a line about the newest games (or the player met whose games these are), then the games.
+          Season totals and averages belong to the profile's Overview. */}
+      <MatchHistoryHeader
+        view={encounter ? "encounters" : "games"}
+        basePath={basePath}
+        filter={f}
+        description={
+          // What the list holds, in one line, as on Encounters and All Champions.
+          <p className="text-sm text-fg-muted" data-testid="match-scope">
+            {formatCount(data.total)} game{data.total === 1 ? "" : "s"} · {scopeText(f, data.accountOptions, data.accountsLinked)}
+          </p>
+        }
         status={status ? <DataStatusNote status={status} refresh={refresh} /> : null}
         refresh={status ? <RefreshButton status={status} refresh={refresh ? { ...refresh, onNewGames: data.page > 1 ? { label: "Show the newest", run: () => go({ page: "1" }) } : undefined } : null} /> : null}
         controls={
           <div aria-busy={pending} className="min-w-0">
-            <OverviewFilters
-              basePath={basePath}
-              filter={f}
-              seasons={data.seasons}
-              currentSeason={data.currentSeason}
-              champions={data.championOptions.map((c) => ({ id: c.id, name: champ(c.id).name, games: c.games, portraitUrl: champ(c.id).portraitUrl }))}
-              accounts={data.accountOptions}
-              keep={keep}
-              modeCounts={data.modes.counts}
-              testId="match-filters"
-              refineLabel="Refine the games"
-              extraFields={<HistoryRefineFields refine={data.refine} options={data} set={refineTo} group={groupTo} pending={pending} />}
-              extraRefinements={historyRefinements(data.refine, data, refineTo, groupTo)}
-            />
+            {encounter ? (
+              // A player's games: the season, game mode and account Encounters counts them in.
+              <OverviewFilters basePath={basePath} filter={f} seasons={data.seasons} currentSeason={data.currentSeason} champions={[]} accounts={data.accountOptions} keep={keep} resetQuery={new URLSearchParams(keep).toString()} modeCounts={data.modes.counts} showChampions={false} showRole={false} testId="match-filters" />
+            ) : (
+              <OverviewFilters
+                basePath={basePath}
+                filter={f}
+                seasons={data.seasons}
+                currentSeason={data.currentSeason}
+                champions={data.championOptions.map((c) => ({ id: c.id, name: champ(c.id).name, games: c.games, portraitUrl: champ(c.id).portraitUrl }))}
+                accounts={data.accountOptions}
+                keep={keep}
+                modeCounts={data.modes.counts}
+                testId="match-filters"
+                refineLabel="Refine the games"
+                extraFields={<HistoryRefineFields refine={data.refine} options={data} set={refineTo} group={groupTo} pending={pending} />}
+                extraRefinements={historyRefinements(data.refine, data, refineTo, groupTo)}
+              />
+            )}
           </div>
         }
       />
 
-      {data.summary ? <HistorySummaryStrip summary={data.summary} ladder={data.ladder} championsById={championsById} /> : null}
+      {encounter ? <EncounterGamesPanel basePath={basePath} filter={f} encounter={encounter} playerName={playerName} /> : data.summary ? <HistorySummaryStrip summary={data.summary} ladder={data.ladder} championsById={championsById} /> : null}
 
       <MatchDetailCacheContext.Provider value={cache}>
         <EncounterLinkContext.Provider value={encounterLink}>
           <div ref={listRef} className={cn("transition-opacity", pending && "opacity-60")}>
             {data.total === 0 ? (
               <p className="rounded-panel border border-dashed border-border px-4 py-6 text-center text-sm text-fg-muted" data-testid="match-empty">
-                {data.accountsLinked === 0 ? "No Riot account is linked yet: games appear here once one is linked and synced." : narrowed ? "No stored game matches these filters." : data.syncing ? "No games stored for this season yet; the first sync is collecting them and this page fills in by itself." : "No games stored for this season."}
+                {encounter ? "No recorded game with this player matches these filters." : data.accountsLinked === 0 ? "No Riot account is linked yet: games appear here once one is linked and synced." : narrowed ? "No stored game matches these filters." : data.syncing ? "No games stored for this season yet; the first sync is collecting them and this page fills in by itself." : "No games stored for this season."}
                 <ModeElsewhere basePath={basePath} filter={f} elsewhere={data.modes.elsewhere} keep={keep} />
               </p>
             ) : sessionGroups ? (
@@ -529,7 +503,6 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
           {data.pages > 1 ? <Pages page={data.page} pages={data.pages} total={data.total} per={data.per} pending={pending} go={(p) => go({ page: String(p) })} /> : null}
 
           {windowed ? <MatchDetailModal playerId={playerId} matchId={windowed} championsById={championsById} onClose={closeWindow} /> : null}
-          {met ? <EncounterWindow target={met} playerId={playerId} playerName={playerName} filters={{ season, mode, accountId }} championsById={championsById} onClose={() => setMet(null)} /> : null}
         </EncounterLinkContext.Provider>
       </MatchDetailCacheContext.Provider>
     </section>

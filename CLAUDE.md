@@ -44,8 +44,9 @@ Most of the testing happens here, not on GitHub. Run what the change touches:
 
 ## 5. After a production deploy
 
-- **App behaviour changed:** run one `Data jobs` workflow run on `main` with `job: "smoke"` (add `auth-audit` after a migration). Check `deployment.commit` in the output. The run fails if health is not ok or a page errors.
-- **Add `perf-probe`** when the change touches data loading, queries or caching. One probe reads about 6 MB from the production database, against an egress budget of 120 MB a day (`docs/HOSTING_USAGE.md`).
+- **The Production check runs by itself** after every successful production deployment (`.github/workflows/production-check.yml`, Vercel's deployment status): it waits for production to answer from the deployed commit, then checks health, the signed-out and forged-session security, the headers, and the pages at three widths with axe. Read its result (Actions → Production check); a failure also opens a `production-check` issue. If it did not run, start it by hand (Run workflow) rather than Data jobs `smoke`.
+- **After a migration** also run one `Data jobs` run with `job: "auth-audit"`. **Add `perf-probe`** (Production check → Run workflow → perf) when the change touches data loading, queries or caching; it also runs every Monday. One probe reads about 6 MB from the production database, against an egress budget of 120 MB a day (`docs/HOSTING_USAGE.md`).
+- **Visible changes:** production-verified means the Production check passed on the deployed commit *with* the member pages, which needs the `UNIIVERSE_VERIFY_USER` / `UNIIVERSE_VERIFY_PASSWORD` repository secrets. Without them it checks the public pages and security only, and changes to member pages stay "deployed", not "production-verified".
 - **Docs- or tooling-only merges:** skip the check.
 - **Don't loop manual runs.** Each run bills at least 1 minute.
 
@@ -53,7 +54,7 @@ Most of the testing happens here, not on GitHub. Run what the change touches:
 
 - **Re-runs:** don't re-run CI, push empty commits or close and reopen PRs to kick it. Re-run only when a failure is clearly unrelated to the code (runner loss, an install outage), and at most once.
 - **Workflow changes:** don't add workflows, schedules or matrix jobs without the user's approval. Keep the existing optimisations: PR-only triggers, docs skip, cancel-in-progress, fail-fast job order, one build, reuse after merge, timeouts.
-- **Before pushing a workflow change:** run `actionlint`.
+- **Before pushing a workflow change:** run `actionlint`. Where it is not installed, the Workflow lint check runs it on the pull request; merge only once it passes.
 
 ## 7. Standards
 
@@ -62,5 +63,6 @@ Most of the testing happens here, not on GitHub. Run what the change touches:
   - `src/app/design-tokens.test.ts`: no font sizes in px, no arbitrary values that copy a token, no Tailwind names for the panel and card radii, no hex colours in classes, easing curves from the tokens only, uppercase labels spaced with `tracking-label`;
   - ESLint (`eslint.config.mjs`): pages and components write dates and numbers only through `src/lib/format.ts`; `src/lib/format.test.ts` proves the rule fires;
   - `src/server/actions/guards.test.ts`: every server action, in any `"use server"` module, establishes who is asking before its first other asynchronous step.
+  - `src/app/page-guards.test.ts`: every member and admin page calls `requirePageAccess` itself; a layout's check does not protect its pages, which render at the same time.
   - `src/app/client-imports.test.ts`: browser code never reaches server-only code, and large libraries (`zod`) load through `import()` except in the modules it lists with their reasons.
 - **When a check fails, fix the code, not the check.** A genuine exception goes into the check's own list, with its reason.

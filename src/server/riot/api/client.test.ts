@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RiotApiClient } from "./client";
+import { RiotApiClient, riotKeyTier } from "./client";
 import { RateLimiter } from "./rate-limiter";
 
 function clientWith(calls: string[]) {
@@ -36,6 +36,17 @@ describe("Riot API client hosts", () => {
   });
 });
 
+describe("the key's tier, from the limits Riot states for it", () => {
+  it("tells a Production key from a Development or Personal one, and nothing more", () => {
+    expect(riotKeyTier("20:1,100:120")).toBe("development or personal");
+    expect(riotKeyTier("100:120,20:1")).toBe("development or personal");
+    expect(riotKeyTier("500:10,30000:600")).toBe("production");
+    expect(riotKeyTier(undefined)).toBe("unknown");
+    expect(riotKeyTier("not limits")).toBe("unknown");
+    expect(riotKeyTier("10:1,50:120")).toBe("unknown");
+  });
+});
+
 describe("Riot API client rate limits", () => {
   it("follows the application limits Riot reports unless RIOT_RATE_LIMITS pins them", async () => {
     const fetchImpl = async () => new Response(JSON.stringify({ id: "OC1", name: "Oceania", locales: [], maintenances: [], incidents: [] }), { status: 200, headers: { "content-type": "application/json", "x-app-rate-limit": "500:10,30000:600" } });
@@ -50,6 +61,9 @@ describe("Riot API client rate limits", () => {
       const pinned = new RiotApiClient({ apiKey: "RGAPI-test", fetchImpl, sleep: async () => {}, maxRetries: 0 });
       await pinned.platformStatus("oc1");
       expect(pinned.limiters.configured).toEqual([{ requests: 20, seconds: 1 }, { requests: 100, seconds: 120 }]);
+      // The stated limits are still recorded (they tell the key's tier), pinned or not.
+      expect(client.reportedAppLimits).toBe("500:10,30000:600");
+      expect(pinned.reportedAppLimits).toBe("500:10,30000:600");
     } finally {
       if (saved === undefined) delete process.env.RIOT_RATE_LIMITS;
       else process.env.RIOT_RATE_LIMITS = saved;
@@ -70,5 +84,18 @@ describe("Riot API client rate limits", () => {
     expect(calls).toHaveLength(2);
     expect(calls[0]).toMatch(/^https:\/\/oc1\.api\.riotgames\.com\/lol\/league\/v4\/entries\/by-puuid\/a$/);
     expect(slept).toBe(0);
+  });
+});
+
+describe("Riot API client addresses", () => {
+  it("refuses a host that is not a Riot routing value, before any request carries the key", async () => {
+    const calls: string[] = [];
+    const client = clientWith(calls);
+    for (const platform of ["x.example#", "oc1.evil.example", "oc1/../x", "oc1@evil", "oc1:8080", ""]) {
+      await expect(client.platformStatus(platform)).rejects.toThrow();
+    }
+    expect(calls).toEqual([]);
+    await client.platformStatus("oc1");
+    expect(calls).toHaveLength(1);
   });
 });
