@@ -447,7 +447,10 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
         // the list's games and UNIIVERSE understands their format, so the problem is this game's
         // alone. When nothing newer reads (a format change, or a fault in UNIIVERSE's own reading
         // of matches), nothing is recorded and a later run asks again.
-        if (newerRead || (await newerGameReads(queueId, ids.slice(0, i).filter((id) => folded.has(id)), !liveEdge))) {
+        // A stored game above this one (even one stored without a champion: a remake, a game
+        // already refused) shows it is not the season's newest; the queue's newest folded game is
+        // then read for the check, as on an older page.
+        if (newerRead || (await newerGameReads(queueId, ids.slice(0, i).filter((id) => folded.has(id)), !liveEdge || ids.slice(0, i).some((id) => known.has(id))))) {
           newerRead = true;
           await recordUnavailable(queueId, matchId);
           log(`match ${matchId} unavailable (${(err as Error).message}); recorded, not asked for again`);
@@ -484,27 +487,30 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
     const page = await readPage(queueId, 0);
     q.checkedAt = now.toISOString();
     if (page.complete) {
-      if (page.ids === PAGE && page.fresh === PAGE && q.offset > 0) {
-        // A full page of new games (a long gap between runs): older new games may sit beyond
-        // it, so scan back from here again; stored ids along the way cost nothing.
-        q.offset = PAGE;
-        q.done = false;
+      if (q.offset > 0 && (q.rescan || (page.ids === PAGE && page.fresh === PAGE))) {
+        // The newest page is complete after a run stopped partway down it (rescan), or it was a
+        // full page of new games (a long gap between runs): games the earlier stop left below the
+        // ones it stored may since have been pushed past the offset by new games. Read the older
+        // pages again from here; stored ids along the way cost nothing (one list request per
+        // hundred games).
+        q.offset = page.ids;
+        q.done = page.ids < PAGE;
       } else {
         q.offset = Math.max(q.offset, page.ids);
         if (page.ids < PAGE) q.done = true;
         else if (emptySoFar) q.done = false;
       }
+      delete q.rescan;
     } else if (page.stoppedAt > 0) {
       // The run stopped partway down the newest page (its limit, the time budget or a failed
       // request): games below the ones it stored are still to fetch. New games keep arriving at
       // the top, so before a later run finishes this page they can push those games off it, into
       // the part of the list the offset says was read, where phase 2 never looks (a long gap: more
-      // new games than a run fetches). So the queue is read again from the top: once its newest
-      // page is complete, phase 2 goes through the older pages again (one list request per hundred
-      // games; ids already stored cost nothing). Stopped at the first game, nothing has to move:
-      // the games still to fetch are the newest, and a later run finds them at the top.
-      q.offset = 0;
-      q.done = false;
+      // new games than a run fetches). The queue is marked for a rescan, which happens once a later
+      // run completes the newest page (above). Until then it keeps its state: a finished queue stays
+      // finished, so a game that fails every time holds nothing back beyond what it did before.
+      // Stopped at the first game, nothing has to move: the games still to fetch are the newest.
+      q.rescan = true;
     }
     state.queues[String(queueId)] = q;
   }

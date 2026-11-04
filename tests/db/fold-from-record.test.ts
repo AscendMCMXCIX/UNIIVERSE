@@ -80,7 +80,12 @@ function game(created: number, members: Record<string, [string, number]>, blueWi
   const players: Game["players"] = {};
   const taken = { 100: 0, 200: 0 } as Record<number, number>;
   for (const [puuid, [champion, team]] of Object.entries(members)) players[puuid] = [champion, POS[taken[team]!++]!, team];
-  for (const team of [100, 200]) while (taken[team]! < 5) players[`puuid-stranger-${created}-${team}-${taken[team]}`] = ["Ahri", POS[taken[team]!]!, team], taken[team]! += 1;
+  for (const team of [100, 200]) {
+    while (taken[team]! < 5) {
+      players[`puuid-stranger-${created}-${team}-${taken[team]}`] = ["Ahri", POS[taken[team]!]!, team];
+      taken[team]! += 1;
+    }
+  }
   return { created, players, blueWins };
 }
 
@@ -154,7 +159,8 @@ describe("folding a shared game from its stored record", () => {
     // The figures and sides really are there (not two equally empty copies).
     expect(viaRecords.games.find((g) => g.matchId === "OC1_1")).toMatchObject({ championId: "Viego", role: "JUNGLE", win: true, teamId: 100 });
     expect(viaRecords.games.every((g) => g.kills !== null && g.cs !== null && g.enemy !== null)).toBe(true);
-  });
+    // Two whole databases (the second is the control run).
+  }, 60_000);
 
   it("asks Riot when the record does not list the account (stored under an earlier Riot key)", async () => {
     const a = await setup({ OC1_7: game(NOW - DAY, { "puuid-Ace": ["Riven", 100], "puuid-Bea": ["Viego", 100] }, true) });

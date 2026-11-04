@@ -416,12 +416,14 @@ describe("season history: gaps and games that cannot be stored", () => {
     matches.OC1_OUT2 = solo(3);
     expect((await syncAccount(handle.db, client, await reload(), opts)).history).toMatchObject({ complete: true });
     expect((await stored()).has("OC1_OUT2")).toBe(false);
-    // Riot serves the newest again but fails at the one below it: read again from the top later.
+    // Riot serves the newest again but fails at the one below it: the queue stays finished, marked
+    // for a rescan of its older pages once a later run completes the newest page.
     delete matches.OC1_OUT1!.answer;
     matches.OC1_OUT2!.answer = 503;
     const partial = await syncAccount(handle.db, client, await reload(), opts);
     expect(partial.matchesFolded).toBe(1);
-    expect(partial.history).toMatchObject({ complete: false });
+    expect(partial.history).toMatchObject({ complete: true });
+    expect((await reload()).historyBackfill?.queues["420"]).toMatchObject({ done: true, rescan: true });
     // Then Riot says it does not have that game. Nothing newer was read in this run, so the stored
     // game above it is read again first; it reads, so the refusal is that game's own: recorded.
     matches.OC1_OUT2!.answer = 404;
@@ -430,6 +432,51 @@ describe("season history: gaps and games that cannot be stored", () => {
     expect(calls.filter((u) => u.includes("/matches/OC1_OUT1"))).toHaveLength(1);
     expect((await stored()).get("OC1_OUT2")).toMatchObject({ championId: null, gameCreation: 0 });
     expect(last.history).toMatchObject({ complete: true });
+    // The newest page completed, so the rescan ran and is cleared.
+    expect((await reload()).historyBackfill?.queues["420"]?.rescan).toBeUndefined();
+  });
+
+  it("records a game Riot refuses for good when only a game stored without a champion (a remake) sits above it", async () => {
+    const { account, reload, stored } = await linkedAccount("Remake Player");
+    const matches: Record<string, GameSpec> = { OC1_RM3: solo(30) };
+    const calls: string[] = [];
+    const client = clientFor("puuid-remake", matches, calls);
+    const opts = { season: 16, queueIds: [420], now: () => new Date(NOW) };
+    expect((await syncAccount(handle.db, client, account, opts)).history).toMatchObject({ complete: true });
+    // The newest game was a remake (stored without a champion); the one below it Riot refuses for good.
+    matches.OC1_RM1 = solo(1);
+    await handle.db.insert(accountMatches).values({ accountId: account.id, matchId: "OC1_RM1", gameCreation: matches.OC1_RM1.created, queueId: 420 });
+    matches.OC1_RM2 = solo(2, { answer: 404 });
+    calls.length = 0;
+    const r = await syncAccount(handle.db, client, await reload(), opts);
+    // The remake above shows it is not the season's newest game: the queue's newest folded game is
+    // read for the check, and the refusal is recorded, so the queue finishes.
+    expect(calls.filter((u) => u.includes("/matches/OC1_RM3"))).toHaveLength(1);
+    expect((await stored()).get("OC1_RM2")).toMatchObject({ championId: null, gameCreation: 0 });
+    expect(r.history).toMatchObject({ complete: true });
+    expect((await reload()).historyBackfill?.queues["420"]?.rescan).toBeUndefined();
+  });
+
+  it("a game Riot fails every time just below the newest leaves a finished queue finished, run after run", async () => {
+    const { account, reload } = await linkedAccount("Stuck Player");
+    const matches: Record<string, GameSpec> = { OC1_ST3: solo(30), OC1_ST4: solo(40) };
+    const client = clientFor("puuid-stuck", matches);
+    const opts = { season: 16, queueIds: [420], now: () => new Date(NOW) };
+    expect((await syncAccount(handle.db, client, account, opts)).history).toMatchObject({ complete: true });
+    matches.OC1_ST1 = solo(2);
+    matches.OC1_ST2 = solo(3, { answer: 503 });
+    for (let run = 0; run < 3; run++) {
+      const r = await syncAccount(handle.db, client, await reload(), opts);
+      // Finished, as before the gap fix: the account is not put back at the front of the sync
+      // queue, and the season statistics are not shown as partial because of one game.
+      expect(r.history).toMatchObject({ complete: true });
+    }
+    expect((await reload()).historyBackfill?.completedAt).not.toBeNull();
+    // Once Riot serves it, the newest page completes, the rescan runs, and the game is stored.
+    delete matches.OC1_ST2!.answer;
+    const fixed = await syncAccount(handle.db, client, await reload(), opts);
+    expect(fixed.matchesFolded).toBe(1);
+    expect(fixed.history).toMatchObject({ complete: true });
   });
 
   it("records nothing when no game can be read at all (a format change, or a fault in reading them), and collects everything once reading works again", async () => {
