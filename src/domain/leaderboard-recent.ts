@@ -125,6 +125,8 @@ export interface RecentEntry {
   figures: Partial<Record<RecentFigure, WindowFigure>>;
   /** Whether the oldest game in the window was a win (the next game replaces it). */
   oldestWon: boolean | null;
+  /** The window's games by the role Riot recorded for each (games without a role are left out). */
+  roles: Partial<Record<GameRole, number>>;
 }
 
 /** One player's window and figures for a board. */
@@ -137,6 +139,8 @@ export function recentEntry(playerId: string, games: readonly LeaderboardGame[],
   }
   const decided = eligible.filter(FIGURES.winRate.carries).slice(0, RECENT_WINDOW_GAMES);
   const wins = decided.filter((g) => g.win).length;
+  const roles: Partial<Record<GameRole, number>> = {};
+  for (const g of decided) if (g.role) roles[g.role] = (roles[g.role] ?? 0) + 1;
   return {
     playerId,
     status: statusOf(decided.length),
@@ -147,7 +151,23 @@ export function recentEntry(playerId: string, games: readonly LeaderboardGame[],
     to: decided[0]?.gameCreation ?? null,
     figures,
     oldestWon: decided.length >= RECENT_WINDOW_GAMES ? !!decided.at(-1)!.win : null,
+    roles,
   };
+}
+
+/**
+ * The role a window was mostly played in: the most games; a tie goes to the role the member chose
+ * for themselves when it is one of the tied, then to the first in Top-to-Support order. Null when
+ * no game in the window has a role.
+ */
+export function mainRoleOf(entry: Pick<RecentEntry, "roles">, preferred: GameRole | null = null): { role: GameRole; games: number } | null {
+  let best: { role: GameRole; games: number } | null = null;
+  for (const role of LEADERBOARD_ROLES) {
+    const games = entry.roles[role] ?? 0;
+    if (games === 0) continue;
+    if (!best || games > best.games || (games === best.games && role === preferred)) best = { role, games };
+  }
+  return best;
 }
 
 export interface RankedRecent {
