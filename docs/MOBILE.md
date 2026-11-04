@@ -85,7 +85,7 @@ opens.
 | Leaderboards → Highlights | One list, a row per statistic: what is ranked, its leader and value, the runner-up and your place. A row opens the full ranking. Tiles from `sm` up. | 2,830 → 1,324px |
 | Leaderboards → a category | The statistics as one row of short pills (your place on each); the board without a frame of its own: title, definition, the leader, then the ranking. The 1/8 stepper is left to wider screens, where the pills are not a scrolling row. | |
 | Matches | Each game: result, length, queue and date, then the members who played (champion, role, multikill, K/D/A). Both full teams are in the game's screen, where the scoreboard lists all ten. Bookmarked sits beside Filters. | 2,330 → 1,528px |
-| Match History | Each game: the result line, the champion and role on one line, K/D/A with its ratio and largest multikill, kill participation, CS and damage, then the build. Both teams move to the game's screen. Ten games a page. | 2,246 → 1,996px |
+| Match History | Each game: the result line, the champion and role on one line, K/D/A with its ratio and largest multikill, kill participation, CS and damage, then the build. Both teams move to the game's screen. Ten games a page. | 2,257 → 2,000px |
 
 Lists are **rows in one panel with hairline dividers** (people, statistics): a single surface, not
 a card per item. **Games stay cards**: each is an object with its own result colour and opens a

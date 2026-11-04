@@ -5,9 +5,16 @@ import { useSearchParams } from "next/navigation";
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { MatchDetailCacheContext, createMatchDetailCache, type MatchDetailCache } from "@/components/match-history/match-detail-cache";
 import { MatchExpansion, revealIfAbove, revealOpened } from "@/components/match-history/inline-match";
-import { MatchDetailModal } from "@/components/match-history/match-detail";
 import { usePhone } from "@/components/ui/use-phone";
 import { cn } from "@/lib/cn";
+
+/**
+ * The match window, which only a phone opens from this list (wider screens open the game under its
+ * card): loaded on demand, so tablets and desktops never download it, and fetched ahead on a phone
+ * once the list is on screen, so the first game opens without waiting for it.
+ */
+const loadMatchWindow = () => import("@/components/match-history/match-detail");
+const MatchDetailModal = React.lazy(() => loadMatchWindow().then((m) => ({ default: m.MatchDetailModal })));
 
 /** Clicks on these inside a card do their own thing (a name, a bookmark). */
 const OWN_ACTION = "a, button, input, select, textarea, summary, label";
@@ -68,6 +75,9 @@ export function TogetherList({ entries, championsById, className, children }: { 
   React.useLayoutEffect(() => {
     phoneRef.current = phone;
   });
+  React.useEffect(() => {
+    if (phone) void loadMatchWindow().catch(() => {});
+  }, [phone]);
   /** The entry this list added to the browser's history when a phone opened it. */
   const pushed = React.useRef<string | null>(null);
   // Back and Forward follow the address: the game it names opens under its card when listed.
@@ -124,7 +134,11 @@ export function TogetherList({ entries, championsById, className, children }: { 
         <ol className={className} data-testid="together-list">
           {children}
         </ol>
-        {windowed ? <MatchDetailModal playerId={windowed.playerId} matchId={windowed.matchId} championsById={championsById} onClose={closeWindow} /> : null}
+        {windowed ? (
+          <React.Suspense fallback={null}>
+            <MatchDetailModal playerId={windowed.playerId} matchId={windowed.matchId} championsById={championsById} onClose={closeWindow} />
+          </React.Suspense>
+        ) : null}
       </TogetherOpenContext.Provider>
     </MatchDetailCacheContext.Provider>
   );

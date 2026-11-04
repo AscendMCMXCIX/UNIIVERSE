@@ -161,25 +161,26 @@ test("a game opened again shows what this page already loaded", async ({ page })
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}/matches`);
-  let loads = 0;
+  // Every server action the page calls, in order: the game's record is the first one it asks for.
+  const actions: string[] = [];
   page.on("request", (r) => {
-    if (r.method() === "POST" && r.headers()["next-action"]) loads++;
+    const action = r.headers()["next-action"];
+    if (r.method() === "POST" && action) actions.push(action);
   });
   const card = page.getByTestId("match-card").first();
   const breakdown = await openGame(card);
   // Everything it asks for has answered (the record, the possible groups, any rank check).
   await expect(breakdown.getByTestId("possible-groups-note")).not.toHaveAttribute("data-state", "loading", { timeout: 15_000 });
   await expect(breakdown.getByTestId("ranks-note")).not.toHaveAttribute("data-state", "checking", { timeout: 15_000 });
-  // The last thing a breakdown over its list asks for: the players met in other games (data-met).
-  // A window draws its content once its opening motion is over, so its requests start a moment
-  // later than under a card: count once that answer is in.
-  await expect(breakdown).toHaveAttribute("data-met", /^\d+$/, { timeout: 15_000 });
-  const first = loads;
-  expect(first).toBeGreaterThan(0);
+  const [record, groups] = actions;
+  expect(record).toBeTruthy();
+  const before = actions.length;
   await closeGame(card);
   const again = await openGame(card);
   await expect(again.getByTestId("possible-groups-note")).not.toHaveAttribute("data-state", "loading");
-  expect(loads).toBe(first);
+  // The record and the possible groups come from what the page kept. (A rank check that came back
+  // incomplete, skipped or failed, is asked again by design: match-detail-cache.tsx.)
+  expect(actions.slice(before).filter((a) => a === record || a === groups)).toEqual([]);
   // Under its card the card keeps the focus; a phone's whole-screen game gives it back on closing.
   if (opensFullScreen(page)) await closeGame(card);
   await expect(card.getByTestId("match-row")).toBeFocused();

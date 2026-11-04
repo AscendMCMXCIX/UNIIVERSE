@@ -1,5 +1,6 @@
 import { devices, expect, test, type Browser, type BrowserContextOptions, type Page } from "./test";
 import { openMatchWindow } from "./match-history";
+import { playerEntry } from "./players";
 
 /*
   PHONES HELD EITHER WAY (in-memory demo; Chromium emulating each device, not the devices
@@ -46,7 +47,7 @@ test.beforeEach(async ({}, info) => {
 test("held sideways: a compact tab bar, and both bars get out of the way while reading", async ({ browser, baseURL }) => {
   const page = await phone(browser, baseURL!, SE_LANDSCAPE);
   await page.goto("/players");
-  await expect(page.locator("main a[data-testid='player-card']").first()).toBeVisible();
+  await expect(playerEntry(page).first()).toBeVisible();
   const tabs = page.getByRole("navigation", { name: "Primary" });
   // The places to go stay one tap away sideways too (there is no menu drawer on a phone).
   await expect(tabs).toBeVisible();
