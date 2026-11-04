@@ -78,11 +78,12 @@ export function RankedProgress({ accounts, queue, view = "year", accountId, href
         </div>
       </div>
 
-      {/* Where the account stands, its highest recorded rank, the last 30 days and the period's games. */}
-      <dl className="grid grid-cols-2 gap-3 @min-[44rem]/rank:grid-cols-4">
+      {/* Where the account stands, its highest recorded rank, the last 30 days and the period's games:
+          one term and its value per list, so the emblem can sit beside the first. */}
+      <div className="grid grid-cols-2 gap-3 @min-[44rem]/rank:grid-cols-4">
         <div className="col-span-2 flex min-w-0 items-center gap-3 @min-[44rem]/rank:col-span-1">
           <RankEmblem tier={cur?.tier ?? null} className="h-10 w-10 shrink-0" />
-          <div className="min-w-0">
+          <dl className="min-w-0">
             <dt className="text-2xs text-fg-subtle">Current</dt>
             {cur ? (
               <dd>
@@ -101,9 +102,9 @@ export function RankedProgress({ accounts, queue, view = "year", accountId, href
                 No {QUEUE_LABEL[queue]} rank recorded for this account yet.
               </dd>
             )}
-          </div>
+          </dl>
         </div>
-        <div className="min-w-0" data-testid="ranked-peak-stat">
+        <dl className="min-w-0" data-testid="ranked-peak-stat">
           <dt className="text-2xs text-fg-subtle">Highest recorded · {VIEW_LABEL[view]}</dt>
           <dd>
             {timeline.peak ? (
@@ -117,8 +118,8 @@ export function RankedProgress({ accounts, queue, view = "year", accountId, href
               <span className="block text-sm text-fg-muted">Not recorded</span>
             )}
           </dd>
-        </div>
-        <div className="min-w-0">
+        </dl>
+        <dl className="min-w-0">
           <dt className="text-2xs text-fg-subtle">Last 30 days</dt>
           <dd>
             {progress.change ? (
@@ -130,8 +131,8 @@ export function RankedProgress({ accounts, queue, view = "year", accountId, href
               <span className="block text-sm text-fg-muted">Not enough readings</span>
             )}
           </dd>
-        </div>
-        <div className="col-span-2 min-w-0 @min-[44rem]/rank:col-span-1">
+        </dl>
+        <dl className="col-span-2 min-w-0 @min-[44rem]/rank:col-span-1">
           <dt className="text-2xs text-fg-subtle">Ranked games stored · {VIEW_LABEL[view]}</dt>
           <dd className="text-sm font-semibold tabular-nums text-fg" data-testid="ranked-games">
             {formatCount(played)}
@@ -141,8 +142,8 @@ export function RankedProgress({ accounts, queue, view = "year", accountId, href
               </span>
             ) : null}
           </dd>
-        </div>
-      </dl>
+        </dl>
+      </div>
 
       <RankTimelineChart t={timeline} label={`${QUEUE_LABEL[queue]} rank over ${VIEW_TITLE[view]}`} />
 
