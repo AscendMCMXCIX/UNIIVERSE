@@ -32,7 +32,7 @@ defineJob({
     }
     if (results.some((r) => r.matchesFolded > 0 || r.masteryRows > 0)) invalidateProficiencyCache();
     const failed = results.filter((r) => r.error).length;
-    return { ok: true, degraded: failed > 0 && failed === results.length && results.length > 0, summary: { season, synced: results.length, skippedRecentlySynced: skipped, failed, folded: results.reduce((s, r) => s + r.matchesFolded, 0), seasonHistoryComplete: results.filter((r) => r.history?.complete).length, seasonHistoryInProgress: results.filter((r) => r.history && !r.history.complete).length, requests: client.requestCount, rateLimits: describeRateLimits(client.limiters.configured) } };
+    return { ok: true, degraded: failed > 0 && failed === results.length && results.length > 0, summary: { season, synced: results.length, skippedRecentlySynced: skipped, failed, folded: results.reduce((s, r) => s + r.matchesFolded, 0), fromRecords: results.reduce((s, r) => s + (r.matchesFromRecords ?? 0), 0), seasonHistoryComplete: results.filter((r) => r.history?.complete).length, seasonHistoryInProgress: results.filter((r) => r.history && !r.history.complete).length, requests: client.requestCount, rateLimits: describeRateLimits(client.limiters.configured) } };
   },
 });
 

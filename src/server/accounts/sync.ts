@@ -12,6 +12,7 @@ import { FIRST_SEASON, seasonForDate, seasonOfPatch, seasonStartUnix } from "@/d
 import type { HistoryBackfill } from "@/server/db/schema";
 import { recordRiotOutcome } from "@/server/riot/credential";
 import type { RiotAccountRecord } from "./repository";
+import { foldInputFromMatch, foldInputFromRecord, type FoldInput, type FoldRecord } from "./fold-input";
 import { recordRankSnapshots, storedRankFrom } from "./rank-history";
 import { erasureFilter, type ErasureFilter } from "@/server/privacy/ledger";
 
@@ -39,6 +40,8 @@ export interface AccountSyncResult {
   platformSource: "user" | "riot";
   matchesFetched: number;
   matchesFolded: number;
+  /** Games folded from the record another linked account already stored, without asking Riot again. */
+  matchesFromRecords?: number;
   masteryRows: number;
   rankUpdated: boolean;
   /** Plain-language problem, when the run did not complete. */
@@ -312,6 +315,25 @@ export async function seasonListStart(db: Db, season: number): Promise<number> {
 const EMPTY_QUEUE_RECHECK_MS = 12 * 3_600_000;
 const PAGE = 100;
 
+/**
+ * How long a game on a champion missing from the champion list is waited for. version-check looks
+ * for a new Data Dragon version every hour and stores its champions at once, and Data Dragon has a
+ * new patch within a day or so; a champion still unknown three days after the game is not coming
+ * (or the champion list is broken), so the game is then stored without a champion, like a remake.
+ * Until then every run asks for the game again (one request), so a champion that never appears
+ * costs three days of those at most.
+ */
+const UNKNOWN_CHAMPION_WAIT_MS = 3 * 86_400_000;
+
+/**
+ * Riot's answer about one listed game that will be the same every time: it does not have the game
+ * (404), or it answered with something that is not a readable match (an unexpected format). Riot's
+ * servers failing, the network and the rate limit are not: those are tried again.
+ */
+function refusedForGood(err: unknown): boolean {
+  return err instanceof RiotApiError && !err.retryable && (err.status === 404 || (err.status >= 200 && err.status < 300));
+}
+
 export function summariseBackfill(state: HistoryBackfill): { season: number; complete: boolean; queuesDone: number; queues: number } {
   const queues = Object.values(state.queues);
   return { season: state.season, complete: !!state.completedAt, queuesDone: queues.filter((q) => q.done).length, queues: queues.length };
@@ -323,7 +345,10 @@ export function summariseBackfill(state: HistoryBackfill): { season: number; com
  *   2. one page further back per unfinished queue, resuming where the previous run stopped.
  * Match details are fetched only for ids not in the ledger and only up to the per-run limit, so a
  * long season fills in over several runs while new games always come first. Ids already stored
- * cost nothing; queues without a game this season are re-checked twice a day.
+ * cost nothing; queues without a game this season are re-checked twice a day. No listed game is
+ * passed over for good: a queue whose newest page a run left unfinished is read again from the
+ * top, a game Riot refuses for good is recorded without a champion, and a game on a champion not
+ * in the champion list yet is asked for again (readPage and foldMatch below).
  */
 async function collectSeasonHistory(db: Db, client: RiotApiClient, account: RiotAccountRecord & { puuid: string }, options: AccountSyncOptions, result: AccountSyncResult, log: (m: string) => void): Promise<HistoryBackfill> {
   const now = options.now?.() ?? new Date();
@@ -339,29 +364,118 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
   let fetched = 0;
   const budgetLeft = () => fetched < limit && !options.outOfTime?.();
 
+  // A listed game Riot will not give: a ledger row without a champion, like a remake's, so no later
+  // run asks for it again and its queue moves on. Riot gave no start time, so game_creation is 0 (a
+  // row without a champion is on no page, and 0 is never anyone's newest game).
+  const recordUnavailable = async (queueId: number, matchId: string) => {
+    await db.insert(accountMatches).values({ accountId: account.id, matchId, gameCreation: 0, queueId }).onConflictDoNothing();
+  };
+  // Re-reads one stored game newer than a refused one: the nearest before it on its page, else (on
+  // an older page, where the queue's newest games are all newer) the newest stored game of the
+  // queue. Says whether Riot's games of that time read now.
+  const newerGameReads = async (queueId: number, newerOnPage: string[], olderPage: boolean): Promise<boolean> => {
+    let probe = newerOnPage.at(-1);
+    if (!probe && olderPage) {
+      const [row] = await db.select({ matchId: accountMatches.matchId }).from(accountMatches).where(and(eq(accountMatches.accountId, account.id), eq(accountMatches.queueId, queueId), isNotNull(accountMatches.championId))).orderBy(desc(accountMatches.gameCreation)).limit(1);
+      probe = row?.matchId;
+    }
+    if (!probe || !budgetLeft()) return false;
+    fetched += 1;
+    try {
+      await client.match(account.platform, probe);
+      return true;
+    } catch (err) {
+      if (err instanceof RiotApiError && (err.status === 403 || err.status === 401)) throw err;
+      return false;
+    }
+  };
+
   // Reads one page of a queue's season list and stores every game on it that is not stored yet.
-  // Returns whether the whole page is now stored (false when the run's limit stopped it).
-  const readPage = async (queueId: number, start: number, window: { startTime: number; endTime?: number } = { startTime }): Promise<{ ids: number; fresh: number; complete: boolean }> => {
+  // `complete` says whether the page is done with: false when the run's limit, the time budget or a
+  // failed request stopped it, at `stoppedAt` (the place on the page of the first game not got to).
+  // `later` counts games on it left for a later run, which do not stop the page: a champion the
+  // champion list does not have yet, or the season's newest game when Riot does not have it yet.
+  const readPage = async (queueId: number, start: number, window: { startTime: number; endTime?: number } = { startTime }): Promise<{ ids: number; fresh: number; complete: boolean; stoppedAt: number; later: number }> => {
     const ids = await client.matchIdsByPuuid(account.platform, account.puuid, { queue: queueId, startTime: window.startTime, endTime: window.endTime, count: PAGE, start });
-    if (ids.length === 0) return { ids: 0, fresh: 0, complete: true };
-    const known = new Set((await db.select({ matchId: accountMatches.matchId }).from(accountMatches).where(and(eq(accountMatches.accountId, account.id), inArray(accountMatches.matchId, ids)))).map((r) => r.matchId));
+    if (ids.length === 0) return { ids: 0, fresh: 0, complete: true, stoppedAt: 0, later: 0 };
+    const stored = await db.select({ matchId: accountMatches.matchId, championId: accountMatches.championId }).from(accountMatches).where(and(eq(accountMatches.accountId, account.id), inArray(accountMatches.matchId, ids)));
+    const known = new Set(stored.map((r) => r.matchId));
+    const folded = new Set(stored.filter((r) => r.championId).map((r) => r.matchId));
     const fresh = ids.filter((id) => !known.has(id)).length;
-    for (const matchId of ids) {
+    // Games another linked account already stored: folded from their record, with no request to Riot.
+    const records = await storedFoldRecords(db, ids.filter((id) => !known.has(id)));
+    // The top of this season's list, where Riot may still be preparing its newest game.
+    const liveEdge = start === 0 && window.endTime === undefined;
+    // Whether a game listed before the current one (a newer game) has been read in this run.
+    let newerRead = false;
+    let later = 0;
+    const stop = (i: number) => ({ ids: ids.length, fresh, complete: false, stoppedAt: i, later });
+    for (let i = 0; i < ids.length; i++) {
+      const matchId = ids[i]!;
       if (known.has(matchId)) continue;
-      if (!budgetLeft()) return { ids: ids.length, fresh, complete: false };
+      const record = records.get(matchId);
+      if (record) {
+        if (options.outOfTime?.()) return stop(i);
+        // From the record: no Riot request, so it does not count against the run's Riot limit. It
+        // does not count as Riot serving the list's games either (newerRead stays as it was).
+        const outcome = await foldGame(db, account, record, keyToId, queueIds, erased, now, null);
+        if (outcome !== "not-listed") {
+          result.matchesFromRecords = (result.matchesFromRecords ?? 0) + 1;
+          if (outcome === "folded") result.matchesFolded += 1;
+          if (outcome === "later") {
+            later += 1;
+            log(`match ${matchId}: champion not in the champion list yet; left for a later run`);
+          }
+          continue;
+        }
+      }
+      if (!budgetLeft()) return stop(i);
       fetched += 1;
       let match: RiotMatch;
       try {
         match = await client.match(account.platform, matchId);
       } catch (err) {
         if (err instanceof RiotApiError && (err.status === 403 || err.status === 401)) throw err;
-        log(`match ${matchId} failed: ${(err as Error).message}`);
-        return { ids: ids.length, fresh, complete: false };
+        if (!refusedForGood(err)) {
+          // Anything else (Riot's servers, the network, the rate limit, a request Riot did not
+          // accept): a later run tries again; nothing is recorded.
+          log(`match ${matchId} failed: ${(err as Error).message}`);
+          return stop(i);
+        }
+        // The same answer every time (refusedForGood). The game is recorded as unavailable, so the
+        // queue moves on, but only when a newer game of this list reads now: that shows Riot serves
+        // the list's games and UNIIVERSE understands their format, so the problem is this game's
+        // alone. When nothing newer reads (a format change, or a fault in UNIIVERSE's own reading
+        // of matches), nothing is recorded and a later run asks again.
+        // A stored game above this one (even one stored without a champion: a remake, a game
+        // already refused) shows it is not the season's newest; the queue's newest folded game is
+        // then read for the check, as on an older page.
+        if (newerRead || (await newerGameReads(queueId, ids.slice(0, i).filter((id) => folded.has(id)), !liveEdge || ids.slice(0, i).some((id) => known.has(id))))) {
+          newerRead = true;
+          await recordUnavailable(queueId, matchId);
+          log(`match ${matchId} unavailable (${(err as Error).message}); recorded, not asked for again`);
+          continue;
+        }
+        if (liveEdge && i === 0) {
+          // The season's newest game: Riot may still be preparing it. Asked for again by the next
+          // run without holding the queue, and recorded as above once a newer game has been read.
+          later += 1;
+          log(`match ${matchId} not served yet (${(err as Error).message}); tried again later`);
+          continue;
+        }
+        log(`match ${matchId} failed: ${(err as Error).message}; nothing newer reads, so it is tried again later`);
+        return stop(i);
       }
+      newerRead = true;
       result.matchesFetched += 1;
-      if (await foldMatch(db, account, match, keyToId, queueIds, erased)) result.matchesFolded += 1;
+      const outcome = await foldMatch(db, account, match, keyToId, queueIds, erased, now);
+      if (outcome === "folded") result.matchesFolded += 1;
+      if (outcome === "later") {
+        later += 1;
+        log(`match ${matchId}: champion not in the champion list yet; left for a later run`);
+      }
     }
-    return { ids: ids.length, fresh, complete: true };
+    return { ids: ids.length, fresh, complete: true, stoppedAt: ids.length, later };
   };
 
   // 1. New games first, every queue.
@@ -373,16 +487,30 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
     const page = await readPage(queueId, 0);
     q.checkedAt = now.toISOString();
     if (page.complete) {
-      if (page.ids === PAGE && page.fresh === PAGE && q.offset > 0) {
-        // A full page of new games (a long gap between runs): older new games may sit beyond
-        // it, so scan back from here again; stored ids along the way cost nothing.
-        q.offset = PAGE;
-        q.done = false;
+      if (q.offset > 0 && (q.rescan || (page.ids === PAGE && page.fresh === PAGE))) {
+        // The newest page is complete after a run stopped partway down it (rescan), or it was a
+        // full page of new games (a long gap between runs): games the earlier stop left below the
+        // ones it stored may since have been pushed past the offset by new games. Read the older
+        // pages again from here; stored ids along the way cost nothing (one list request per
+        // hundred games).
+        q.offset = page.ids;
+        q.done = page.ids < PAGE;
       } else {
         q.offset = Math.max(q.offset, page.ids);
         if (page.ids < PAGE) q.done = true;
         else if (emptySoFar) q.done = false;
       }
+      delete q.rescan;
+    } else if (page.stoppedAt > 0) {
+      // The run stopped partway down the newest page (its limit, the time budget or a failed
+      // request): games below the ones it stored are still to fetch. New games keep arriving at
+      // the top, so before a later run finishes this page they can push those games off it, into
+      // the part of the list the offset says was read, where phase 2 never looks (a long gap: more
+      // new games than a run fetches). The queue is marked for a rescan, which happens once a later
+      // run completes the newest page (above). Until then it keeps its state: a finished queue stays
+      // finished, so a game that fails every time holds nothing back beyond what it did before.
+      // Stopped at the first game, nothing has to move: the games still to fetch are the newest.
+      q.rescan = true;
     }
     state.queues[String(queueId)] = q;
   }
@@ -392,7 +520,9 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
     if (!q || q.done || q.offset === 0) continue;
     while (budgetLeft()) {
       const page = await readPage(queueId, q.offset);
-      if (!page.complete) break;
+      // A game left for later holds the queue at this page, which the next run reads again (a
+      // champion not in the list yet: three days at most, see UNKNOWN_CHAMPION_WAIT_MS).
+      if (!page.complete || page.later) break;
       q.offset += page.ids;
       if (page.ids < PAGE) {
         q.done = true;
@@ -469,7 +599,7 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
       const q = prev.queues[String(queueId)] ?? { offset: 0, done: false };
       while (!q.done && budgetLeft()) {
         const page = await readPage(queueId, q.offset, window);
-        if (!page.complete) break;
+        if (!page.complete || page.later) break;
         q.offset += page.ids;
         if (page.ids < PAGE) q.done = true;
       }
@@ -486,39 +616,65 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
 
 /**
  * Stores one match for one account: the ledger row (dedupe key and per-game facts for season
- * statistics) and the champion history bucket it adds to, in one transaction. Returns false when
- * the match was already stored or does not include this account.
+ * statistics) and the champion history bucket it adds to, in one transaction. "folded" when it
+ * was added; "skipped" when it was already stored or is remembered without a champion (a remake,
+ * another queue, a game without this account); "later" when nothing was stored because the
+ * account's champion is not in the champion list yet.
  */
-async function foldMatch(db: Db, account: RiotAccountRecord & { puuid: string }, match: RiotMatch, keyToId: Map<number, string>, queueIds: readonly number[], erased: ErasureFilter): Promise<boolean> {
-  const matchId = match.metadata.matchId;
-  const me = match.info.participants.find((p) => p.puuid === account.puuid);
-  const championId = me ? keyToId.get(me.championId) : undefined;
-  if (!me || !championId || match.info.gameDuration < 300 || !queueIds.includes(match.info.queueId)) {
-    // Remakes and games without this account are remembered so they are never fetched again.
-    await db.insert(accountMatches).values({ accountId: account.id, matchId, gameCreation: match.info.gameCreation, queueId: match.info.queueId }).onConflictDoNothing();
-    return false;
+async function foldMatch(db: Db, account: RiotAccountRecord & { puuid: string }, match: RiotMatch, keyToId: Map<number, string>, queueIds: readonly number[], erased: ErasureFilter, now: Date): Promise<"folded" | "skipped" | "later"> {
+  const outcome = await foldGame(db, account, foldInputFromMatch(match), keyToId, queueIds, erased, now, match);
+  return outcome === "not-listed" ? "skipped" : outcome;
+}
+
+/**
+ * Folds one game from either source (accounts/fold-input): Riot's answer (`riotMatch`, which is
+ * also stored as the match's record) or a record already stored by another linked account. The two
+ * give the same stored game. From a record, a game whose players do not include this account (a
+ * record stored under an earlier Riot key, whose ids differ) is "not-listed" and nothing is
+ * written: the caller asks Riot instead.
+ */
+async function foldGame(db: Db, account: RiotAccountRecord & { puuid: string }, game: FoldInput, keyToId: Map<number, string>, queueIds: readonly number[], erased: ErasureFilter, now: Date, riotMatch: RiotMatch | null): Promise<"folded" | "skipped" | "later" | "not-listed"> {
+  const matchId = game.matchId;
+  const me = game.participants.find((p) => !p.removed && p.puuid === account.puuid);
+  if (!me && !riotMatch) return "not-listed";
+  const championId = me ? keyToId.get(me.championKey) : undefined;
+  const queueId = game.queueId;
+  const counted = !!me && game.gameDuration >= 300 && queueId !== null && queueIds.includes(queueId);
+  if (counted && !championId && now.getTime() - game.gameCreation < UNKNOWN_CHAMPION_WAIT_MS) {
+    // A champion the list does not have yet (a new champion, before version-check has the Data
+    // Dragon version with it). Nothing is stored, so a run after the list has it folds the game;
+    // a row without a champion now would keep it out of every record for good.
+    return "later";
   }
-  const patch = patchFromVersion(match.info.gameVersion) ?? "unknown";
-  const role = RIOT_POSITION_TO_ROLE[me.teamPosition] ?? "UNKNOWN";
-  const playedAt = new Date(match.info.gameCreation);
+  if (!counted || !championId || !me) {
+    // Remakes, other queues, games without this account, and games on a champion still unknown
+    // three days later are remembered so they are never fetched again.
+    await db.insert(accountMatches).values({ accountId: account.id, matchId, gameCreation: game.gameCreation, queueId }).onConflictDoNothing();
+    return "skipped";
+  }
+  const patch = (game.gameVersion ? patchFromVersion(game.gameVersion) : null) ?? "unknown";
+  const role = RIOT_POSITION_TO_ROLE[me.position] ?? "UNKNOWN";
+  const playedAt = new Date(game.gameCreation);
   // The lane opponent: the enemy in the same position, when positions are known. An opponent whose
   // personal data was erased is left unknown (their champion is about them).
-  const opponent = me.teamPosition ? match.info.participants.find((p) => p.teamId !== me.teamId && p.teamPosition === me.teamPosition) : undefined;
-  const opponentErased = !!opponent && (erased.puuid(opponent.puuid) || erased.riotId(opponent.riotIdGameName && opponent.riotIdTagline ? `${opponent.riotIdGameName}#${opponent.riotIdTagline}` : null));
-  const enemyChampionId = opponent && !opponentErased ? (keyToId.get(opponent.championId) ?? null) : null;
-  // The full match (both teams, items, runes) for the personal match history: same fetch, no extra request.
-  await storeMatchDetail(db, account.platform, match, keyToId);
+  const opponent = me.position ? game.participants.find((p) => p.teamId !== me.teamId && p.position === me.position) : undefined;
+  const opponentErased = !!opponent && (opponent.removed || erased.puuid(opponent.puuid) || erased.riotId(opponent.riotId && opponent.riotId.includes("#") ? opponent.riotId : null));
+  const enemyChampionId = opponent && !opponentErased ? (keyToId.get(opponent.championKey) ?? null) : null;
+  // The full match (both teams, items, runes) for the personal match history: same fetch, no extra
+  // request. A game folded from its record already has one.
+  if (riotMatch) await storeMatchDetail(db, account.platform, riotMatch, keyToId);
+  const performance = { kills: me.kills, deaths: me.deaths, assists: me.assists, cs: me.cs, damage: me.damage, visionScore: me.visionScore };
   let folded = false;
   await db.transaction(async (tx) => {
     const inserted = await tx
       .insert(accountMatches)
-      .values({ accountId: account.id, matchId, gameCreation: match.info.gameCreation, queueId: match.info.queueId, championId, role, win: me.win, enemyChampionId, patch, gameDuration: match.info.gameDuration, ...performanceOf(me) })
+      .values({ accountId: account.id, matchId, gameCreation: game.gameCreation, queueId, championId, role, win: me.win, enemyChampionId, patch, gameDuration: game.gameDuration, ...performance })
       .onConflictDoNothing()
       .returning({ id: accountMatches.matchId });
     if (inserted.length === 0) return;
     await tx
       .insert(accountChampionHistory)
-      .values({ accountId: account.id, championId, role, queueGroup: queueGroupFor(match.info.queueId), patch, games: 1, wins: me.win ? 1 : 0, kills: me.kills, deaths: me.deaths, assists: me.assists, lastPlayedAt: playedAt })
+      .values({ accountId: account.id, championId, role, queueGroup: queueGroupFor(queueId!), patch, games: 1, wins: me.win ? 1 : 0, kills: me.kills, deaths: me.deaths, assists: me.assists, lastPlayedAt: playedAt })
       .onConflictDoUpdate({
         target: [accountChampionHistory.accountId, accountChampionHistory.championId, accountChampionHistory.role, accountChampionHistory.queueGroup, accountChampionHistory.patch],
         set: {
@@ -534,7 +690,33 @@ async function foldMatch(db: Db, account: RiotAccountRecord & { puuid: string },
   });
   // The details were stored before this game's row existed: copy its figures now.
   if (folded) await summariseMatches(db, { accountIds: [account.id], matchIds: [matchId], maxBatches: 1 });
-  return folded;
+  return folded ? "folded" : "skipped";
+}
+
+/**
+ * The stored records of these games, reduced inside the database to what folding reads (about a
+ * kilobyte a game instead of the whole record). Records without players (games Riot no longer
+ * serves) are left out.
+ */
+async function storedFoldRecords(db: Db, matchIds: readonly string[]): Promise<Map<string, FoldInput>> {
+  if (matchIds.length === 0) return new Map();
+  const ids = sql.join(matchIds.map((id) => sql`${id}`), sql`, `);
+  const result = await db.execute(sql`
+    SELECT d.match_id, d.game_creation, d.game_duration, d.queue_id, d.game_version,
+      (SELECT jsonb_agg(jsonb_build_object('puuid', p->'puuid', 'name', p->'name', 'teamId', p->'teamId', 'championKey', p->'championKey', 'position', p->'position', 'win', p->'win',
+              'kills', p->'kills', 'deaths', p->'deaths', 'assists', p->'assists', 'cs', p->'cs', 'damage', p->'damage', 'vision', p->'vision', 'removed', p->'removed'))
+         FROM jsonb_array_elements(d.participants) p) AS participants
+    FROM match_details d
+    WHERE d.match_id IN (${ids}) AND jsonb_typeof(d.participants) = 'array' AND jsonb_array_length(d.participants) > 0`);
+  type Row = { match_id: string; game_creation: string | number; game_duration: number; queue_id: number | null; game_version: string | null; participants: unknown };
+  const rows = ((result as { rows?: Row[] }).rows ?? (result as unknown as Row[])) as Row[];
+  const out = new Map<string, FoldInput>();
+  for (const r of rows) {
+    const participants = (typeof r.participants === "string" ? JSON.parse(r.participants) : r.participants) as FoldRecord["participants"] | null;
+    const input = foldInputFromRecord({ matchId: r.match_id, gameCreation: Number(r.game_creation), gameDuration: Number(r.game_duration), queueId: r.queue_id === null ? null : Number(r.queue_id), gameVersion: r.game_version, participants: participants ?? [] });
+    if (input) out.set(r.match_id, input);
+  }
+  return out;
 }
 
 /**
