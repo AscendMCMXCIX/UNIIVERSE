@@ -13,15 +13,18 @@ import { invalidateProficiencyCache } from "@/server/proficiency/service";
  * account rows themselves).
  */
 export async function kickoffAccountSync(db: Db, playerId: string, options: { maxMatchesPerRun?: number; deadlineMs?: number } = {}): Promise<void> {
-  const client = createRiotClient();
-  if (!client) return;
   const startedAt = Date.now();
-  const deadline = options.deadlineMs ?? 20_000;
+  const budgetMs = options.deadlineMs ?? 20_000;
+  const outOfTime = () => Date.now() - startedAt > budgetMs;
+  // The client carries the same deadline, so no request waits for Riot's rate limits past it.
+  const client = createRiotClient({ deadline: startedAt + budgetMs });
+  if (!client) return;
   try {
     const accounts = (await listAccountsForPlayer(db, playerId)).filter((a) => a.syncStatus === "never" || a.syncStatus === "pending");
     for (const account of accounts) {
-      if (Date.now() - startedAt > deadline) break;
-      await syncAccount(db, client, account, { maxMatchesPerRun: options.maxMatchesPerRun ?? 20, outOfTime: () => Date.now() - startedAt > deadline });
+      if (outOfTime()) break;
+      const r = await syncAccount(db, client, account, { maxMatchesPerRun: options.maxMatchesPerRun ?? 20, outOfTime });
+      if (r.outOfTime) break;
     }
     invalidateProficiencyCache();
   } catch (err) {
@@ -39,19 +42,22 @@ export async function kickoffAccountSync(db: Db, playerId: string, options: { ma
  */
 export async function refreshPlayerAccountsIfDue(db: Db, playerId: string, options: { deadlineMs?: number; maxMatchesPerRun?: number } = {}): Promise<number> {
   if (!backgroundRefreshEnabled()) return 0;
-  const client = createRiotClient();
+  const startedAt = Date.now();
+  const budgetMs = options.deadlineMs ?? 40_000;
+  const outOfTime = () => Date.now() - startedAt > budgetMs;
+  // The client carries the same deadline, so no request waits for Riot's rate limits past it.
+  const client = createRiotClient({ deadline: startedAt + budgetMs });
   if (!client) return 0;
   try {
     const now = new Date();
     const due = (await listAccountsForPlayer(db, playerId)).filter((a) => dueForViewRefresh({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, history: a.historyBackfill }, now));
     if (due.length === 0 || !(await claimLease(db, `account_refresh:${playerId}`, 2 * 60_000, now))) return 0;
-    const startedAt = Date.now();
-    const deadline = options.deadlineMs ?? 40_000;
     let synced = 0;
     for (const account of due) {
-      if (Date.now() - startedAt > deadline) break;
-      await syncAccount(db, client, account, { maxMatchesPerRun: options.maxMatchesPerRun ?? 60, outOfTime: () => Date.now() - startedAt > deadline });
+      if (outOfTime()) break;
+      const r = await syncAccount(db, client, account, { maxMatchesPerRun: options.maxMatchesPerRun ?? 60, outOfTime });
       synced += 1;
+      if (r.outOfTime) break;
     }
     if (synced) invalidateProficiencyCache();
     return synced;

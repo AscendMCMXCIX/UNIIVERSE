@@ -230,6 +230,28 @@ describe("timeline backfill", () => {
     const [still] = await db.select().from(matchTimelines).where(eq(matchTimelines.matchId, "OC1_3"));
     expect(still!.frames).toBeNull();
   });
+
+  it("stops for time, not as a refusal, when Riot's rate limits would keep the next request waiting past the deadline", async () => {
+    const db = handle.db;
+    let t = Date.now();
+    const now = () => t;
+    const sleep = async (ms: number) => void (t += ms);
+    const limiter = new RateLimiter([{ requests: 100, seconds: 120 }], now, sleep);
+    // A 429 has just paused the key for 90 s; the run has 25 s.
+    limiter.pause(90);
+    const calls: string[] = [];
+    const fetchImpl = async (input: string | URL | Request) => {
+      calls.push(String(input));
+      return new Response(JSON.stringify({ status: { message: "not found" } }), { status: 404, headers: { "content-type": "application/json" } });
+    };
+    const client = new RiotApiClient({ apiKey: "k", fetchImpl, limiter, now, sleep, maxRetries: 0, deadline: t + 25_000 });
+    const run = await backfillTimelines(db, client, { limit: 5, deadline: t + 25_000 });
+    expect(run).toEqual({ fetched: 0, unavailable: 0, stoppedBy: "time budget" });
+    expect(calls).toHaveLength(0);
+    // Nothing is recorded as unavailable: the timeline is asked for again next run.
+    const [still] = await db.select().from(matchTimelines).where(eq(matchTimelines.matchId, "OC1_3"));
+    expect(still!.frames).toBeNull();
+  });
 });
 
 describe("data audit: queue classification", () => {
