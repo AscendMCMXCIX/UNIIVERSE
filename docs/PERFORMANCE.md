@@ -579,3 +579,64 @@ and forth three times; median of the three):
 `player.overview` 29 → 12 ms. Steps that do not read season figures stayed within the run-to-run
 noise (±15–20%). The database work is unchanged, so production's cold figure keeps its reads; the
 production effect is to be confirmed by `perf-probe` after a deploy.
+
+## Mobile redesign (4 Nov 2026)
+
+The phone redesign (docs/MOBILE.md) measured against `main` at b04c167, both production builds on the
+in-memory demo roster on the same machine.
+
+**App code each page loads up front** (gzip, every chunk the page's client-reference manifest lists;
+React and Next.js are the same on every page and not counted):
+
+| Page | Before | After |
+|---|---|---|
+| Profile Overview | 141.6 KB | 125.0 KB |
+| All Champions | 133.7 KB | 117.7 KB |
+| Match History | 117.1 KB | 120.9 KB |
+| Team | 74.0 KB | 76.4 KB |
+| Players | 65.7 KB | 69.0 KB |
+| Leaderboards | 57.9 KB | 60.7 KB |
+| Matches | 80.0 KB | 83.5 KB |
+| Settings | 52.4 KB | 54.9 KB |
+
+- **Found and fixed:** the match window took one formatter from `match-history-view.tsx`, so every
+  page that can open the window (a champion's matchups on the Overview and All Champions) carried the
+  whole Match History page. The formatters now live in `match-history/match-format.ts`: 16–17 KB less
+  on those two pages.
+- The phone frame (the account sheet, the profile's sections in the top bar) adds about 2.5 KB to
+  every page. Team Matches loads the match window only when a phone opens a game (fetched ahead once a
+  phone shows the list), so tablets and desktops do not download it.
+
+**Page loads** (`scripts/phone-load.mjs`: Pixel 7, CPU 4×, 150 ms round trip at 1.6 Mbps, empty
+cache, median of 3; Team and the profile re-measured interleaved, two rounds):
+
+| Page | Largest paint | Blocking time | Scripts transferred |
+|---|---|---|---|
+| Team | 956 → 948 ms | 179–186 → 197–245 ms | 304 → 286 KB |
+| Players | 960 → 896 ms | 165 → 169 ms | 309 → 278 KB |
+| Profile | 916–992 → 940–992 ms | 144–193 → 157–233 ms | 282 → 265 KB |
+| All Champions | 960 → 908 ms | 217 → 208 ms | 288 → 271 KB |
+| Match History | 1,004–1,172 → 944–984 ms | 141–185 → 158–250 ms | 282 → 286 KB |
+| Leaderboards | 940 → 888 ms | 196 → 201 ms | 301 → 284 KB |
+| Matches | 964 → 972 ms | 181 → 181 ms | 301 → 288 KB |
+
+Layout shift stayed 0 everywhere. Less script arrives in the first seconds on six of the seven pages
+(the links a page prefetches changed, and the profile's code shrank). Blocking time moved within this
+set-up's noise, but Team and the profile read 10–50 ms higher in every round: the phone frame
+hydrates more (the sheet, the observers that follow the page's heading). `--mobile-chrome` is
+registered as a non-inheriting property (`@property` in globals.css), so setting it re-styles the root
+only, not every element below it.
+
+**Opening a game on a phone** (Pixel 7, CPU 4×, median of 5 taps on the second card of Match History):
+
+| | Under its card (before) | Its own screen (after) |
+|---|---|---|
+| Tap to scoreboard on screen | 516 ms | 524 ms |
+| Longest frame while opening | 117 ms | 150 ms |
+| Long tasks while opening | 201 ms | 227 ms |
+
+The scoreboard arrives as quickly as before. The window costs one longer frame: `showModal()` makes
+the page behind inert and the browser re-styles it (see "Not improved: opening a window on a long
+page" above). The native modal is kept for focus containment and the inert page. Closing the window
+with Back reads nothing again: the record, its possible groups and the encounter marks come from the
+list's cache.
