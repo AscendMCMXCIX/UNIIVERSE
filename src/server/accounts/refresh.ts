@@ -19,19 +19,26 @@ export { CATCH_UP_LIMIT };
   the player's accounts right away, limited to what a refresh needs (the newest page of each
   queue and the games on it that are not stored yet).
 
-  Riot's quota is shared by the whole site, so every account sync, whether the scheduler's or a
-  refresh, first claims a per-account lease (one atomic upsert in app_settings): two refreshes,
-  or a refresh and the scheduler, never sync the same account at once, and an account checked
-  within the cooldown is not asked again. Riot itself may take a few minutes after a game ends
-  before the game is listed, so a refresh can honestly find nothing new.
+  Riot's quota is shared by the whole site, so every account sync, whether the scheduler's, a
+  refresh, Retry sync, a profile view's background refresh or the first sync after sign-up
+  (server/accounts/kickoff.ts), first claims a per-account lease (one atomic upsert in
+  app_settings): two of them never sync the same account at once, and an account checked within
+  the cooldown is not asked again by a refresh. Riot itself may take a few minutes after a game
+  ends before the game is listed, so a refresh can honestly find nothing new.
 */
 
 /** One refresh per account per this long (covers the run itself, so it doubles as the in-flight guard). */
 export const REFRESH_COOLDOWN_MS = REFRESH_COOLDOWN_SECONDS * 1000;
-/** The scheduler skips an account a refresh (or another run) claimed this recently. */
+/**
+ * Background syncs (the scheduler, a profile view's refresh, the first sync after sign-up) skip an
+ * account another sync claimed this recently: longer than a refresh's run, so they never join one.
+ */
 export const SCHEDULED_SYNC_LEASE_MS = 60_000;
-/** A refresh stops starting new work after this long, so the button answers within a minute. */
-const REFRESH_BUDGET_MS = 40_000;
+/**
+ * A refresh stops starting new work after this long, so the button answers within a minute. Its
+ * Riot client carries the same deadline (actions/match-history.ts), so no request waits past it.
+ */
+export const REFRESH_BUDGET_MS = 40_000;
 /** New games fetched per account per refresh (each one is one Riot request). */
 const REFRESH_MATCHES_PER_ACCOUNT = 15;
 
@@ -151,7 +158,10 @@ export async function refreshPlayerMatches(db: Db, client: RiotApiClient, player
     });
     folded += r.matchesFolded;
     if (r.error) firstError ??= r.error;
-    else succeeded += 1;
+    // Out of time (the client's deadline) before it found anything: the account was not fully
+    // checked, so it cannot stand for "no new games". The other accounts would wait the same way.
+    else if (!r.outOfTime || r.matchesFolded > 0) succeeded += 1;
+    if (r.outOfTime) break;
   }
   if (succeeded === 0) return { status: "failed", message: firstError ?? "Riot did not answer in time. Please try again in a few minutes." };
   const checkedAt = now().toISOString();
@@ -167,8 +177,11 @@ export async function refreshPlayerMatches(db: Db, client: RiotApiClient, player
   cannot use up the team's Riot quota.
 */
 
-/** A catch-up stops starting new requests after this long, so the button answers in under half a minute. */
-const CATCH_UP_BUDGET_MS = 25_000;
+/**
+ * A catch-up stops starting new requests after this long, so the button answers in under half a
+ * minute. Its Riot client carries the same deadline (actions/match-history.ts).
+ */
+export const CATCH_UP_BUDGET_MS = 25_000;
 export const figuresCatchUpLeaseKey = (playerId: string) => `figures_catchup:${playerId}`;
 
 export type CatchUpOutcome =

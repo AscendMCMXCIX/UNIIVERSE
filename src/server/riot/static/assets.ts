@@ -36,12 +36,16 @@ export function compactAssets(version: string, items: Json, summoner: Json, rune
   return { version, items: itemMap, spells: spellMap, runes: runeMap };
 }
 
-/** Refreshes the stored maps when the game version changed (or they were never stored). */
-export async function syncRiotAssets(db: Db, version: string, fetchImpl: typeof fetch = fetch, locale = "en_US"): Promise<boolean> {
+/**
+ * Refreshes the stored maps when the game version changed (or they were never stored). Each
+ * download is given up after `timeoutMs` (the Data Dragon provider's 15 s), so a Data Dragon that
+ * stops answering cannot hold the version-check job; the stored maps then stay until the next run.
+ */
+export async function syncRiotAssets(db: Db, version: string, fetchImpl: typeof fetch = fetch, locale = "en_US", timeoutMs = 15_000): Promise<boolean> {
   const current = await loadRiotAssets(db);
   if (current?.version === version) return false;
   const get = async (path: string) => {
-    const res = await fetchImpl(`${BASE}/cdn/${version}/data/${locale}/${path}`);
+    const res = await fetchImpl(`${BASE}/cdn/${version}/data/${locale}/${path}`, { signal: AbortSignal.timeout(timeoutMs) });
     if (!res.ok) throw new Error(`Data Dragon ${path}: HTTP ${res.status}`);
     return res.json();
   };
