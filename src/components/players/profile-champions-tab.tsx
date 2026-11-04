@@ -17,7 +17,7 @@ import { championMap, IdentitySync, refreshFor, type ProfileSearch } from "./pro
 export async function ProfileChampionsTab(props: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: ProfileSearch }) {
   return (
     <>
-      <IdentitySync header={props.header} session={props.session} />
+      <IdentitySync header={props.header} />
       <ProfileChampionsTabBody {...props} />
     </>
   );

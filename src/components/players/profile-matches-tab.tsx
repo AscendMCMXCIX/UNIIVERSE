@@ -53,7 +53,7 @@ export interface MatchSearch {
 export async function ProfileMatchesTab(props: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: MatchSearch }) {
   return (
     <>
-      <IdentitySync header={props.header} session={props.session} />
+      <IdentitySync header={props.header} />
       <ProfileMatchesTabBody {...props} />
     </>
   );

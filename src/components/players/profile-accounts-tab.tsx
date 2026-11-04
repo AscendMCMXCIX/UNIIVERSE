@@ -20,7 +20,7 @@ import { championMap, IdentitySync, refreshFor } from "./profile-sections";
 export async function ProfileAccountsTab(props: { db: Db; header: ProfileHeaderData; session: Session | null }) {
   return (
     <>
-      <IdentitySync header={props.header} session={props.session} />
+      <IdentitySync header={props.header} />
       <ProfileAccountsTabBody {...props} />
     </>
   );
