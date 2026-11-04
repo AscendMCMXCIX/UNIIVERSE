@@ -15,6 +15,13 @@ import { log } from "@/server/observability/log";
 
 const LEASE_KEY = "tick_lease";
 
+/**
+ * A profile view's background refresh (server/accounts/kickoff.ts) runs one slice per player per
+ * this long; the open page asks faster while the lease stands (server/ops/freshness.ts).
+ */
+export const VIEW_REFRESH_LEASE_MS = 2 * 60_000;
+export const viewRefreshLeaseKey = (playerId: string) => `account_refresh:${playerId}`;
+
 /** Minutes between visit-started ticks (UNIIVERSE_VISIT_TICK_MINUTES, default 30). */
 export function visitTickIntervalMinutes(): number {
   const n = Number(process.env.UNIIVERSE_VISIT_TICK_MINUTES ?? 30);

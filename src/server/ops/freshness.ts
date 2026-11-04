@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { describeAccountSync, dueForViewRefresh, type AccountSyncFacts } from "@/domain/account-status";
-import { backgroundRefreshEnabled } from "@/server/jobs/background";
+import { VIEW_REFRESH_LEASE_MS, backgroundRefreshEnabled, viewRefreshLeaseKey } from "@/server/jobs/background";
 import type { Freshness, FreshnessPace, FreshnessScope } from "@/domain/freshness";
 
 /*
@@ -20,8 +20,6 @@ import type { Freshness, FreshnessPace, FreshnessScope } from "@/domain/freshnes
 
 const rowsOf = <T,>(result: unknown): T[] => ((result as { rows?: T[] }).rows ?? (result as T[])) as T[];
 
-/** The visit refresh's lease (server/accounts/kickoff.ts): claimed for two minutes while it runs. */
-const REFRESH_LEASE_MS = 2 * 60_000;
 /** A job that started this recently and has not finished is still running. */
 const JOB_RUNNING_MS = 10 * 60_000;
 
@@ -64,13 +62,15 @@ export async function playerFreshness(db: Db, playerId: string, { now = new Date
         (SELECT sum(points) FROM account_mastery WHERE account_id IN (SELECT id FROM acc)) AS mastery,
         -- Opponents' ranks shown in Match History, stored when someone opens a game (any player's: rare, and one value).
         (SELECT max(observed_at) FROM last_known_ranks WHERE source = 'match lookup') AS lookups,
-        (SELECT updated_at FROM app_settings WHERE key = ${`account_refresh:${playerId}`}) AS lease`),
+        (SELECT updated_at FROM app_settings WHERE key = ${viewRefreshLeaseKey(playerId)}) AS lease`),
   );
   const accounts = row?.accounts ?? [];
   const riotConfigured = !!process.env.RIOT_API_KEY;
   const facts = accounts.map((a): AccountSyncFacts => ({ syncStatus: a.sync_status, syncError: a.sync_error, lastSyncAt: a.last_sync_at ? new Date(a.last_sync_at) : null, puuid: a.has_puuid ? "known" : null, history: a.history, riotConfigured }));
   const states = facts.map((f) => describeAccountSync(f, now).state);
-  const leaseHeld = (time(row?.lease) ?? 0) > now.getTime() - REFRESH_LEASE_MS;
+  // A view's slice holds its lease for two minutes, or gives it back at once when it started
+  // nothing (every due account held by another sync).
+  const leaseHeld = (time(row?.lease) ?? 0) > now.getTime() - VIEW_REFRESH_LEASE_MS;
   const refreshStarting = visit && riotConfigured && backgroundRefreshEnabled() && facts.some((f) => dueForViewRefresh(f, now));
   // Accounts waiting for Riot only move while Riot is configured; without it nothing will change soon.
   const pace: FreshnessPace = leaseHeld || refreshStarting || (riotConfigured && states.some((s) => s === "pending" || s === "verified")) ? "now" : states.includes("syncing") ? "catching-up" : "idle";

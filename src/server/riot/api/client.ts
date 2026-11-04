@@ -30,12 +30,14 @@ export class RiotApiError extends Error {
 }
 
 /**
- * A Riot request given up because the caller's deadline (the client's `deadline`) would pass
- * first: Riot's rate limits (a full window, or a 429's Retry-After) or the back-off before a retry
- * would have kept it waiting beyond it. It is a run out of time, not a failure: nothing is wrong
- * with the key or the account, so callers stop as they do when their time budget runs out and the
- * next run carries on; it is never recorded as a failed sync or as a problem with the key. Code
- * that does not know it sees a retryable 429, which is what leaves no time.
+ * A Riot request given up because of the caller's deadline (the client's `deadline`): it has
+ * passed, or Riot's rate limits (a full window, or a 429's Retry-After) would have kept the request
+ * waiting beyond it. It is a run out of time, not a failure: nothing is wrong with the key or the
+ * account, so callers stop as they do when their time budget runs out and the next run carries
+ * on; it is never recorded as a failed sync or as a problem with the key. Code that does not know
+ * it sees a retryable 429, which is what leaves no time. (A retry after a network error or a 5xx
+ * whose back-off would end past the deadline is not this error: the client throws the failure
+ * itself, because Riot did fail.)
  */
 export class RiotDeadlineError extends RiotApiError {
   constructor(host: string, waitingFor: string) {
@@ -79,9 +81,11 @@ export interface RiotClientOptions {
   maxRetries?: number;
   timeoutMs?: number;
   /**
-   * When the caller's work must end (ms since the epoch, as Date.now()): no request waits past it,
-   * for the rate limits, a 429's Retry-After or a retry's back-off. Such a request fails at once
-   * with RiotDeadlineError. A request already sent can still take up to `timeoutMs` beyond it.
+   * When the caller's work must end (ms since the epoch, as Date.now()). No request starts after
+   * it, and none waits past it for the rate limits or a 429's Retry-After: such a request fails at
+   * once with RiotDeadlineError. A retry whose back-off would end past it is not waited for either:
+   * the network error or 5xx itself is thrown. A request already sent can still take up to
+   * `timeoutMs` beyond it, so work bound by it ends by the deadline plus one request's timeout.
    * Every caller with a time budget (a job, a refresh) sets it; without one, requests wait.
    */
   deadline?: number;
@@ -156,13 +160,19 @@ export class RiotApiClient {
 
   async get<T>(host: string, path: string, schema: z.ZodType<T>): Promise<T> {
     let attempt = 0;
+    // The network error or 5xx this request last met, if any. When the deadline then leaves no
+    // time to try again, that failure is the answer, not a stop for time: Riot did fail.
+    let failure: RiotApiError | null = null;
     const limiter = this.limiterFor(host);
     for (;;) {
+      // Once the deadline has passed, no request starts (the limiter would still give a free slot):
+      // whatever holds an account for this run lets go of it by the deadline plus one timeout.
+      if (this.deadline !== undefined && this.now() >= this.deadline) throw failure ?? new RiotDeadlineError(host, "starting another request");
       // With a deadline, the wait for a slot (a 429's Retry-After included: it pauses the limiter)
       // is not started when it would end after the deadline.
       if (this.options.noWait && limiter.tryAcquire) {
         if (!limiter.tryAcquire(this.limitShare)) throw new RiotApiError(`No room in the rate limits for ${path} now`, 429, true);
-      } else if (!(await limiter.acquire(this.limitShare, this.deadline))) throw new RiotDeadlineError(host, "waiting for Riot's rate limits");
+      } else if (!(await limiter.acquire(this.limitShare, this.deadline))) throw failure ?? new RiotDeadlineError(host, "waiting for Riot's rate limits");
       this.requestCount += 1;
       this.requestsByHost.set(host, (this.requestsByHost.get(host) ?? 0) + 1);
       const controller = new AbortController();
@@ -172,7 +182,7 @@ export class RiotApiClient {
         res = await this.fetchImpl(this.url(host, path), { headers: { "X-Riot-Token": this.options.apiKey }, signal: controller.signal });
       } catch (err) {
         clearTimeout(timer);
-        const failure = new RiotApiError(`Network error calling ${path}: ${(err as Error).message}`, 0, true);
+        failure = new RiotApiError(`Network error calling ${path}: ${(err as Error).message}`, 0, true);
         // Out of retries, or no time left to back off before one: the failure itself is the answer.
         // It is Riot (or the network) failing, not the run running out of time, so callers record
         // it as such (an account waits as pending, the key's status says Riot is unavailable).
@@ -196,7 +206,8 @@ export class RiotApiClient {
       }
       if (res.status >= 500) {
         // As above: a failing Riot is reported as failing, even when there is no time left to retry.
-        if (attempt++ >= this.maxRetries || !this.canWait(500 * 2 ** attempt)) throw new RiotApiError(`Riot API ${res.status} on ${path}`, res.status, true);
+        failure = new RiotApiError(`Riot API ${res.status} on ${path}`, res.status, true);
+        if (attempt++ >= this.maxRetries || !this.canWait(500 * 2 ** attempt)) throw failure;
         await this.sleep(500 * 2 ** attempt);
         continue;
       }

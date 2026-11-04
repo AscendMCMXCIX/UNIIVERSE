@@ -1,9 +1,9 @@
 import type { Db } from "@/server/db/types";
 import { dueForViewRefresh } from "@/domain/account-status";
-import { backgroundRefreshEnabled, claimLease, releaseLease } from "@/server/jobs/background";
+import { VIEW_REFRESH_LEASE_MS, backgroundRefreshEnabled, claimLease, releaseLease, viewRefreshLeaseKey } from "@/server/jobs/background";
 import { listAccountsForPlayer } from "./repository";
 import { syncAccount } from "./sync";
-import { SCHEDULED_SYNC_LEASE_MS, claimAccountSync } from "./refresh";
+import { SCHEDULED_SYNC_LEASE_MS, accountSyncLeaseKey, claimAccountSync } from "./refresh";
 import { createRiotClient } from "@/server/riot/api/client";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 
@@ -17,8 +17,6 @@ import { invalidateProficiencyCache } from "@/server/proficiency/service";
   by the next sync once the lease has passed.
 */
 
-/** One slice of a profile view's refresh per player per this long (see refreshPlayerAccountsIfDue). */
-export const VIEW_REFRESH_LEASE_MS = 2 * 60_000;
 
 /**
  * Best-effort first verification of a player's freshly linked accounts, run after the sign-up
@@ -38,8 +36,17 @@ export async function kickoffAccountSync(db: Db, playerId: string, options: { ma
     for (const account of accounts) {
       if (outOfTime()) break;
       // A profile view's refresh (or the scheduler) is already verifying this account.
-      if (!(await claimAccountSync(db, account.id, SCHEDULED_SYNC_LEASE_MS))) continue;
-      const r = await syncAccount(db, client, account, { maxMatchesPerRun: options.maxMatchesPerRun ?? 20, outOfTime });
+      const claimedAt = new Date();
+      if (!(await claimAccountSync(db, account.id, SCHEDULED_SYNC_LEASE_MS, claimedAt))) continue;
+      let r: Awaited<ReturnType<typeof syncAccount>>;
+      try {
+        r = await syncAccount(db, client, account, { maxMatchesPerRun: options.maxMatchesPerRun ?? 20, outOfTime });
+      } finally {
+        // Done with the account: give its lease back, so the profile the new member is likely
+        // looking at can carry its history on at its next render instead of 100 s later. Its
+        // last write is what makes the open page render again, and that comes after this.
+        await releaseLease(db, accountSyncLeaseKey(account.id), claimedAt);
+      }
       if (r.outOfTime) break;
     }
     invalidateProficiencyCache();
@@ -47,6 +54,9 @@ export async function kickoffAccountSync(db: Db, playerId: string, options: { ma
     console.warn("[accounts] first sync skipped:", (err as Error).message);
   }
 }
+
+/** How long one slice of a profile view's refresh may run (its Riot client's deadline). */
+export const VIEW_REFRESH_BUDGET_MS = 40_000;
 
 /**
  * Refresh while someone looks at a player (their overview, profile or Riot settings), after the
@@ -60,7 +70,7 @@ export async function kickoffAccountSync(db: Db, playerId: string, options: { ma
 export async function refreshPlayerAccountsIfDue(db: Db, playerId: string, options: { deadlineMs?: number; maxMatchesPerRun?: number } = {}): Promise<number> {
   if (!backgroundRefreshEnabled()) return 0;
   const startedAt = Date.now();
-  const budgetMs = options.deadlineMs ?? 40_000;
+  const budgetMs = options.deadlineMs ?? VIEW_REFRESH_BUDGET_MS;
   const outOfTime = () => Date.now() - startedAt > budgetMs;
   // The client carries the same deadline, so no request waits for Riot's rate limits past it.
   const client = createRiotClient({ deadline: startedAt + budgetMs });
@@ -68,14 +78,17 @@ export async function refreshPlayerAccountsIfDue(db: Db, playerId: string, optio
   try {
     const now = new Date();
     const due = (await listAccountsForPlayer(db, playerId)).filter((a) => dueForViewRefresh({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, history: a.historyBackfill }, now));
-    const sliceKey = `account_refresh:${playerId}`;
+    const sliceKey = viewRefreshLeaseKey(playerId);
     if (due.length === 0 || !(await claimLease(db, sliceKey, VIEW_REFRESH_LEASE_MS, now))) return 0;
     let synced = 0;
     let started = 0;
     for (const account of due) {
       if (outOfTime()) break;
       // Another sync (the scheduler, a Refresh, the first sync) is on this account or just was.
-      if (!(await claimAccountSync(db, account.id, SCHEDULED_SYNC_LEASE_MS))) continue;
+      // The claim is dated from the slice's start, whenever in the slice it is made: it still
+      // outlasts this slice's own sync of the account (40 s plus a request's timeout) and has
+      // always ended by the next slice (two minutes on), so a slice never refuses its own last one.
+      if (!(await claimAccountSync(db, account.id, SCHEDULED_SYNC_LEASE_MS, now))) continue;
       started += 1;
       const r = await syncAccount(db, client, account, { maxMatchesPerRun: options.maxMatchesPerRun ?? 60, outOfTime });
       // An account whose sync stopped for time before it read anything was not synced.

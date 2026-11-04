@@ -151,6 +151,95 @@ describe("account sync with a deadline", () => {
     expect(row.syncError).toMatch(/Riot's servers/);
   });
 
+  /*
+    Review of that fix: with the run's outOfTime() tied to the same clock (as every job and
+    background sync passes it), a failure the best-effort lookups (rank, mastery, the Riot ID
+    check, the active server) passed over was followed by a history step with no time left, and
+    the account was written as synced, Riot's key as healthy. Riot failing is the run's outcome.
+  */
+  const outageAccount = async (name: string) => {
+    const db = handle.db;
+    const player = await createPlayer(db, teamId, { displayName: name, primaryRole: "TOP", primaryPool: ["Gwen"] });
+    const account = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: `${name}#OCE`, platform: "oc1", puuid: `puuid-${name.replace(/ /g, "-").toLowerCase()}` });
+    // Waiting after an earlier failure: Pending with Riot's reason, an old cursor.
+    await db.update(riotAccounts).set({ platformSource: "riot", riotIdCheckedAt: new Date(), syncStatus: "pending", syncError: "Riot's servers are having trouble. Your account is saved and retried automatically.", syncCursor: 1 }).where(eq(riotAccounts.id, account.id));
+    return { player, account: (await listAccountsForPlayer(db, player.id))[0]! };
+  };
+
+  it("Riot failing fast at the end of the budget: the account stays Pending and the key's failure is recorded", async () => {
+    const db = handle.db;
+    const { account } = await outageAccount("Outage Fast");
+    const c = clock();
+    const calls: string[] = [];
+    const down = async (input: string | URL | Request) => {
+      calls.push(String(input));
+      await c.sleep(800);
+      return json({ status: { message: "Service unavailable", status_code: 503 } }, 503);
+    };
+    const deadline = c.now() + 1_500;
+    const client = new RiotApiClient({ apiKey: "k", fetchImpl: down, limiter: new RateLimiter([{ requests: 100, seconds: 120 }], c.now, c.sleep), now: c.now, sleep: c.sleep, maxRetries: 4, deadline });
+    const r = await syncAccount(db, client, account, { maxMatchesPerRun: 20, outOfTime: () => c.now() > deadline });
+    expect(r.outOfTime).toBeFalsy();
+    expect(r).toMatchObject({ status: "pending" });
+    expect(r.error).toMatch(/Riot's servers/);
+    const row = await stored(account.id);
+    expect(row).toMatchObject({ syncStatus: "pending", syncCursor: 1 });
+    expect(row.syncError).toMatch(/Riot's servers/);
+    expect((await credential())?.lastOutcome).toBe("error");
+  });
+
+  it("Riot hanging: the account stays Pending, and nothing is asked after the deadline", async () => {
+    const db = handle.db;
+    const { account } = await outageAccount("Outage Hang");
+    const c = clock();
+    const sent: number[] = [];
+    // Every request takes the client's whole timeout and is abandoned.
+    const hang = async () => {
+      sent.push(c.now());
+      await c.sleep(15_000);
+      throw new Error("This operation was aborted");
+    };
+    const start = c.now();
+    const deadline = start + 75_000;
+    const client = new RiotApiClient({ apiKey: "k", fetchImpl: hang, limiter: new RateLimiter([{ requests: 100, seconds: 120 }], c.now, c.sleep), now: c.now, sleep: c.sleep, maxRetries: 4, deadline });
+    const r = await syncAccount(db, client, account, { maxMatchesPerRun: 20, outOfTime: () => c.now() > deadline });
+    expect(r.outOfTime).toBeFalsy();
+    expect(r.error).toMatch(/did not answer/);
+    expect((await stored(account.id)).syncStatus).toBe("pending");
+    expect((await credential())?.lastOutcome).toBe("error");
+    // The lease's bound: no request starts after the deadline, so the sync ends by the deadline
+    // plus one request's timeout (it held the account at most that long).
+    expect(Math.max(...sent)).toBeLessThan(deadline);
+    expect(c.now()).toBeLessThanOrEqual(deadline + 15_000);
+  });
+
+  it("Riot slow but answering: time running out before the history is a stop for time, and the account is not marked synced", async () => {
+    const db = handle.db;
+    const player = await createPlayer(db, teamId, { displayName: "Deadline Slow", primaryRole: "TOP", primaryPool: ["Gwen"] });
+    const added = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Deadline Slow#OCE", platform: "oc1", puuid: "puuid-slow" });
+    const lastSyncAt = new Date(Date.now() - 6 * 3600_000);
+    await db.update(riotAccounts).set({ platformSource: "riot", riotIdCheckedAt: new Date(), syncStatus: "ok", syncCursor: 7, lastSyncAt }).where(eq(riotAccounts.id, added.id));
+    const account = (await listAccountsForPlayer(db, player.id))[0]!;
+    const c = clock();
+    const calls: string[] = [];
+    const riot = fakeRiot(calls, { puuid: "puuid-slow" });
+    const slow = async (input: string | URL | Request) => {
+      await c.sleep(2_000);
+      return riot(input);
+    };
+    const deadline = c.now() + 1_500;
+    const client = new RiotApiClient({ apiKey: "k", fetchImpl: slow, limiter: new RateLimiter([{ requests: 100, seconds: 120 }], c.now, c.sleep), now: c.now, sleep: c.sleep, maxRetries: 4, deadline });
+    const r = await syncAccount(db, client, account, { maxMatchesPerRun: 20, outOfTime: () => c.now() > deadline });
+    expect(r.outOfTime).toBe(true);
+    expect(r.error).toBeUndefined();
+    // The rank request was answered and kept; nothing after the deadline was sent.
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain("/league/v4/");
+    const row = await stored(account.id);
+    expect(row).toMatchObject({ syncStatus: "ok", syncError: null, syncCursor: 7 });
+    expect(row.lastSyncAt?.getTime()).toBe(lastSyncAt.getTime());
+  });
+
   it("a Refresh that runs out of time says Riot did not answer in time, not that there is nothing new, and marks nothing", async () => {
     const db = handle.db;
     const player = await createPlayer(db, teamId, { displayName: "Deadline Refresh", primaryRole: "TOP", primaryPool: ["Gwen"] });

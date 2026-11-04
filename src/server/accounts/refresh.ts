@@ -32,13 +32,16 @@ export const REFRESH_COOLDOWN_MS = REFRESH_COOLDOWN_SECONDS * 1000;
 /**
  * Background syncs (the scheduler, a profile view's refresh, the first sync after sign-up) skip an
  * account another sync claimed this recently. It outlasts the longest a sync started by the
- * scheduler can hold an account (the tick's account-sync cap, ACCOUNT_SYNC_TICK_MS, plus one Riot
- * request's timeout), and so every shorter one (a Refresh, a view's slice, the first sync): two
- * never sync one account at once, which would double the Riot requests and let the last writer
- * roll back the other's season-history position. It stays under a view's two-minute slice lease
- * (VIEW_REFRESH_LEASE_MS), so a watched account's next slice is not refused by its own last one.
- * Not covered: a manual run of the account-sync job given a longer budget (/api/jobs with
- * budgetMs), which a background sync may join after this long.
+ * scheduler can hold an account: no Riot request starts after the run's deadline (the tick's
+ * account-sync cap, ACCOUNT_SYNC_TICK_MS), and the last one sent ends within one request's timeout.
+ * So it outlasts every shorter one too (a Refresh, a view's slice, the first sync): two never sync
+ * one account at once, which would double the Riot requests and let the last writer roll back the
+ * other's season-history position. It stays under a view's two-minute slice lease
+ * (VIEW_REFRESH_LEASE_MS, jobs/background.ts), and a slice dates its claims from its own start, so
+ * a watched account's next slice is never refused by its own last one.
+ * Not covered: a direct run of the account-sync job (Data jobs → account-sync, `pnpm job
+ * account-sync`), whose budget is UNIIVERSE_JOB_BUDGET_MS, 240 s by default. A background sync may
+ * join it on an account it has held for longer than this.
  */
 export const SCHEDULED_SYNC_LEASE_MS = 100_000;
 /**
