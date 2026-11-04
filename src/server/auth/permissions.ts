@@ -57,7 +57,7 @@ export interface Session {
 export const CAPABILITIES = [
   { key: "view-team", group: "View", label: "View the Team page", description: "The current main lineup and its champions." },
   { key: "view-players", group: "View", label: "View the Players directory", description: "Everyone's roles, champion pools and linked Riot accounts." },
-  { key: "view-teammate-stats", group: "View", label: "View teammates' statistics", description: "Season records, champion statistics and proficiency on other players' profiles." },
+  { key: "view-teammate-stats", group: "View", label: "View teammates' statistics", description: "Rank, season records, match histories, champion statistics and proficiency on other players' profiles." },
   { key: "view-matches", group: "View", label: "View team matches", description: "Riot games the team played together, and the players met repeatedly (Team → Matches)." },
   { key: "edit-own-profile", group: "Own profile", label: "Edit own roles and champion pools", description: "Their own primary role, off roles and pools." },
   { key: "manage-own-riot-accounts", group: "Own profile", label: "Manage own Riot accounts", description: "Add, remove and refresh their own linked Riot accounts." },
@@ -189,6 +189,29 @@ export function canWatchFreshness(session: Session | null, scope: FreshnessScope
   if (scope.kind === "jobs") return hasPermission(session, "manage-data");
   if (scope.kind === "player") return session.playerId === scope.playerId || hasPermission(session, "view-players");
   return (["view-team", "view-players", "view-teammate-stats", "view-matches"] as const).some((p) => hasPermission(session, p));
+}
+
+/**
+ * May see this player's statistics, their rank included (tier, division, LP, queue, ranked wins
+ * and losses): their own always, anyone else's with "view teammates' statistics". The Team page
+ * (team/roster.ts), the profile header and a teammate's Riot Accounts tab all decide by this.
+ */
+export function canViewPlayerStats(session: Session | null, playerId: string): boolean {
+  if (!session) return false;
+  return (!!session.playerId && session.playerId === playerId) || hasPermission(session, "view-teammate-stats");
+}
+
+/**
+ * May open this player's profile at all: a team member's for any signed-in account (each page,
+ * tab and action then checks its own capability), a personal-use profile (players.team_member
+ * false) only for its own player and administrators (the Owner, users.is_admin). Anyone else is
+ * told it does not exist, whatever their capabilities: a personal-use player is not part of the
+ * team workspace, so no teammate, Player Manager or Team Manager reads or changes their data.
+ */
+export function canOpenProfile(session: Session | null, target: { id: string; teamMember: boolean }): boolean {
+  if (!session) return false;
+  if (target.teamMember) return true;
+  return (!!session.playerId && session.playerId === target.id) || isAdmin(session);
 }
 
 /** A user may edit a player profile (roles, pools, notes) when it is their own (with the capability) or they manage players. */

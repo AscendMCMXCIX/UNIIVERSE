@@ -8,9 +8,10 @@ import { ROLES } from "@/domain/roles";
 import { MAX_POOL_SIZE, type RolePool } from "@/domain/roster";
 import { CARD_ACCENTS } from "@/domain/player-card";
 import { getAppDb } from "@/server/bootstrap";
-import { getSession, hasPermission, requirePermission, requirePlayerEditor } from "@/server/auth/session";
+import { getSession, requireOpenableProfile, requirePermission, requirePlayerEditor } from "@/server/auth/session";
 import { archivePlayer, getOrCreateTeam, PlayerValidationError, setLineupSlot, setLineupSubstitute, updatePlayer } from "@/server/repositories/team";
 import { traced } from "@/server/observability/log";
+import { canViewPlayerStats } from "@/server/auth/permissions";
 
 const playerSchema = z.object({
   displayName: z.string().min(1).max(40),
@@ -68,9 +69,11 @@ async function updatePlayerCore(playerId: string, input: PlayerFormInput): Promi
   }
 }
 
+/** Player managers archive team members' profiles; a personal-use profile only an administrator (requireOpenableProfile). */
 export async function archivePlayerAction(playerId: string, archived: boolean): Promise<ActionResult> {
   try {
-    await requirePermission("manage-players");
+    const session = await requirePermission("manage-players");
+    await requireOpenableProfile(session, playerId);
     const db = await getAppDb();
     await archivePlayer(db, playerId, archived);
     touch();
@@ -272,13 +275,14 @@ export async function listChampionSkinsAction(championId: string): Promise<Actio
 /**
  * Player Card Studio's preview, opened from the profile: the season figures the Team card shows for
  * this player in the given role, so the preview matches the real card instead of showing dashes.
- * Only for someone who may edit the card, and only figures this viewer may see (their own, or
- * teammates' with "view teammates' statistics"); null when there are none or they are not shared.
+ * Only for someone who may edit the card (a personal-use profile: its player and administrators
+ * only, requirePlayerEditor), and only figures this viewer may see (their own, or teammates' with
+ * "view teammates' statistics"); null when there are none or they are not shared.
  */
 export async function cardPreviewFiguresAction(playerId: string, role: string | null): Promise<ActionResult<{ season: PreviewFigures | null }>> {
   try {
     const session = await requirePlayerEditor(playerId);
-    if (session.playerId !== playerId && !hasPermission(session, "view-teammate-stats")) return { ok: true, data: { season: null } };
+    if (!canViewPlayerStats(session, playerId)) return { ok: true, data: { season: null } };
     const parsedRole = z.enum(ROLES).nullable().parse(role);
     const db = await getAppDb();
     const { getPlayer } = await import("@/server/repositories/team");

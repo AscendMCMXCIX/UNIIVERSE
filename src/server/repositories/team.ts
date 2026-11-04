@@ -27,6 +27,8 @@ export interface PlayerRecord extends RosterPlayer {
   riotId: string | null;
   notes: string;
   archivedAt: Date | null;
+  /** On the team (players.team_member); false = personal use: their profile opens only for them and administrators (canOpenProfile). */
+  teamMember: boolean;
   sortOrder: number;
   createdAt: Date;
   updatedAt: Date;
@@ -110,6 +112,7 @@ function toRecord(row: typeof players.$inferSelect, pools: LoadedPools, setupPen
     riotId: row.riotId,
     notes: row.notes,
     archivedAt: row.archivedAt,
+    teamMember: row.teamMember,
     sortOrder: row.sortOrder,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

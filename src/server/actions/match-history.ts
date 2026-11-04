@@ -3,6 +3,7 @@
 import { getAppDb } from "@/server/bootstrap";
 import { getSession, needsSetup } from "@/server/auth/session";
 import { canManageRiotAccounts, hasPermission, isTeamMember } from "@/server/auth/permissions";
+import { mayOpenProfile } from "@/server/auth/profile-access";
 import { getMatchDetail, getMatchRanks, type MatchDetailResult, type MatchRanksResult } from "@/server/players/match-history";
 import { getMatchTimeline, type MatchTimelineResult } from "@/server/accounts/match-timeline";
 import { getMatchGroups, type MatchGroupsResult } from "@/server/matches/possible-groups";
@@ -30,6 +31,14 @@ const refreshClient = (budgetMs: number) => createRiotClient({ maxRetries: 0, ti
 */
 const SETUP_FIRST = "Finish your first-time setup first.";
 
+/*
+  A personal-use profile (not on the team) is its player's and the administrators' only: after the
+  checks of each action below, anyone else is answered as for a profile that does not exist
+  (mayOpenProfile), whatever their capabilities.
+*/
+const NOT_IN_HISTORY = "This match is not in this player's history.";
+const CANNOT_REFRESH = "This profile cannot be refreshed.";
+
 /** A Riot match id ("OC1_123…"), or a synthetic demo id ("DEMO_1a2b3c4d_7", demo data only). The match must still belong to the player. */
 const MATCH_ID = /^(?:[A-Z0-9]+_\d+|DEMO_[0-9a-f]{8}_\d+)$/;
 
@@ -45,6 +54,7 @@ export async function getMatchDetailAction(playerId: string, matchId: string): P
   if (!self && !hasPermission(session, "view-teammate-stats")) return { status: "not-found", message: "Teammates' match details are not part of your access." };
   if (!/^[0-9a-f-]{36}$/i.test(playerId) || !MATCH_ID.test(matchId)) return { status: "not-found", message: "This match is not in this player's history." };
   const db = await getAppDb();
+  if (!(await mayOpenProfile(db, session, playerId))) return { status: "not-found", message: NOT_IN_HISTORY };
   return getMatchDetail(db, playerId, matchId, { viewerIsOwner: self, fetchMissing: true, canShare: self && isTeamMember(session) });
 }
 
@@ -61,6 +71,7 @@ export async function getMatchTimelineAction(playerId: string, matchId: string):
   if (!self && !hasPermission(session, "view-teammate-stats")) return { status: "not-found", message: "Teammates' match details are not part of your access." };
   if (!/^[0-9a-f-]{36}$/i.test(playerId) || !MATCH_ID.test(matchId)) return { status: "not-found", message: "This match is not in this player's history." };
   const db = await getAppDb();
+  if (!(await mayOpenProfile(db, session, playerId))) return { status: "not-found", message: NOT_IN_HISTORY };
   return getMatchTimeline(db, playerId, matchId, { fetch: true });
 }
 
@@ -75,6 +86,7 @@ export async function getMatchGroupsAction(playerId: string, matchId: string): P
   if (!self && !hasPermission(session, "view-teammate-stats")) return { status: "not-found", message: "Teammates' match details are not part of your access." };
   if (!/^[0-9a-f-]{36}$/i.test(playerId) || !MATCH_ID.test(matchId)) return { status: "not-found", message: "This match is not in this player's history." };
   const db = await getAppDb();
+  if (!(await mayOpenProfile(db, session, playerId))) return { status: "not-found", message: NOT_IN_HISTORY };
   return getMatchGroups(db, playerId, matchId);
 }
 
@@ -94,6 +106,7 @@ export async function getMatchMeetingsAction(playerId: string, matchId: string, 
   const mode = filters?.mode;
   if (!/^[0-9a-f-]{36}$/i.test(playerId) || !MATCH_ID.test(matchId) || !isSeasonMode(mode)) return { status: "not-found", message: "This match is not in this player's history." };
   const db = await getAppDb();
+  if (!(await mayOpenProfile(db, session, playerId))) return { status: "not-found", message: NOT_IN_HISTORY };
   const [accounts, seasonNow] = await Promise.all([listAccountsForPlayer(db, playerId), currentSeason(db)]);
   // Only offered seasons (Season 2026 to the current one) and the player's own accounts, as Encounters.
   if (!isOfferedSeason(filters.season, seasonNow) || (filters.accountId && !accounts.some((a) => a.id === filters.accountId))) return { status: "not-found", message: "This match is not in this player's history." };
@@ -114,6 +127,7 @@ export async function getMatchRanksAction(playerId: string, matchId: string): Pr
   if (!self && !hasPermission(session, "view-teammate-stats")) return { status: "not-found", message: "Teammates' match details are not part of your access." };
   if (!/^[0-9a-f-]{36}$/i.test(playerId) || !MATCH_ID.test(matchId)) return { status: "not-found", message: "This match is not in this player's history." };
   const db = await getAppDb();
+  if (!(await mayOpenProfile(db, session, playerId))) return { status: "not-found", message: NOT_IN_HISTORY };
   return getMatchRanks(db, playerId, matchId, { lookup: true });
 }
 
@@ -129,9 +143,10 @@ export async function refreshMatchesAction(playerId: string): Promise<RefreshOut
   if (!session || needsSetup(session)) return { status: "unavailable", message: session ? SETUP_FIRST : "Sign in to refresh." };
   if (!/^[0-9a-f-]{36}$/i.test(playerId)) return { status: "unavailable", message: "This profile cannot be refreshed." };
   if (session.playerId !== playerId && !canManageRiotAccounts(session, playerId)) return { status: "unavailable", message: "Only the player (or an admin) can refresh this profile." };
+  const db = await getAppDb();
+  if (!(await mayOpenProfile(db, session, playerId))) return { status: "unavailable", message: CANNOT_REFRESH };
   const client = refreshClient(REFRESH_BUDGET_MS);
   if (!client) return { status: "unavailable", message: "Refresh is not available right now; games keep arriving through the regular sync." };
-  const db = await getAppDb();
   try {
     const outcome = await refreshPlayerMatches(db, client, playerId);
     if (outcome.status === "updated") invalidateProficiencyCache();
@@ -152,9 +167,10 @@ export async function catchUpFiguresAction(playerId: string): Promise<CatchUpOut
   if (!session || needsSetup(session)) return { status: "unavailable", message: session ? SETUP_FIRST : "Sign in to refresh." };
   if (!/^[0-9a-f-]{36}$/i.test(playerId)) return { status: "unavailable", message: "This profile cannot be refreshed." };
   if (session.playerId !== playerId && !canManageRiotAccounts(session, playerId)) return { status: "unavailable", message: "Only the player (or an admin) can refresh this profile." };
+  const db = await getAppDb();
+  if (!(await mayOpenProfile(db, session, playerId))) return { status: "unavailable", message: CANNOT_REFRESH };
   const client = refreshClient(CATCH_UP_BUDGET_MS);
   if (!client) return { status: "unavailable", message: "Refresh is not available right now; the counts keep arriving through the regular sync." };
-  const db = await getAppDb();
   try {
     const outcome = await catchUpPlayerFigures(db, client, playerId);
     if ((outcome.status === "fetched" || outcome.status === "complete") && outcome.fetched > 0) invalidateProficiencyCache();
