@@ -97,7 +97,6 @@ test("a dash's reason opens on a tap (touch) or on hover, without opening the ga
   const note = await tip.evaluate((el) => document.getElementById(el.getAttribute("aria-describedby") ?? "")?.textContent ?? "");
   expect(note.length).toBeGreaterThan(20);
   const bubble = page.getByTestId("match-lp-tip-bubble");
-  const row = card.getByTestId("match-row");
   const touch = !!info.project.use.hasTouch;
   // The dash is narrow; its trigger is as wide as a target (24px) and as tall.
   const t = (await tip.boundingBox())!;
@@ -119,10 +118,14 @@ test("a dash's reason opens on a tap (touch) or on hover, without opening the ga
     await page.mouse.move(2, 2);
     await expect(bubble).toHaveCount(0);
   }
-  await expect(row).toHaveAttribute("aria-expanded", "false");
+  // The game did not open: an open game is kept in the address (?match=), under its card or on a
+  // screen of its own, and draws its breakdown. A moment for either to show, had it opened.
+  await page.waitForTimeout(400);
+  await expect(page).not.toHaveURL(/[?&]match=/);
+  await expect(page.getByTestId("match-breakdown")).toHaveCount(0);
   // Anywhere else on the card still opens the game (its portrait, at the card's start).
   const c = (await card.boundingBox())!;
   if (touch) await card.tap({ position: { x: 24, y: c.height / 2 } });
   else await card.click({ position: { x: 24, y: c.height / 2 } });
-  await expect(row).toHaveAttribute("aria-expanded", "true");
+  await expect(page).toHaveURL(/[?&]match=/);
 });
