@@ -58,4 +58,16 @@ describe("field performance storage", () => {
     const result = (await db.execute(sql`SELECT count(*)::int AS n FROM web_vitals_daily WHERE day = '2026-08-01'`)) as unknown as { rows?: Array<{ n: number }> };
     expect((result.rows ?? (result as unknown as Array<{ n: number }>))[0]!.n).toBe(0);
   });
+  // Last: a beacon recorded now starts the hourly prune timer the test above relies on.
+  it("the production probe reports each page's figures, as counts and bucket bounds only", async () => {
+    const { fieldVitals } = await import("@/server/observability/perf-probe");
+    const db = handle.db;
+    await recordVitals(db, { page: "leaderboards", device: "desktop", metrics: { LCP: 2, INP: 1, CLS: 0, TTFB: 1 } });
+    const field = await fieldVitals(db);
+    expect("error" in field).toBe(false);
+    const page = (field as { pages: Array<Record<string, unknown>> }).pages.find((p) => p.page === "leaderboards");
+    expect(page).toMatchObject({ page: "leaderboards", loads: 1, lcpGood: expect.any(Number) });
+    expect(typeof page!.lcpP75).toBe("number");
+    expect(Object.keys(page!).sort()).toEqual(["clsP75", "inpP75", "lcpGood", "lcpP75", "loads", "page"]);
+  });
 });

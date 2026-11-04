@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LeaderboardGame } from "./leaderboards";
-import { BOARD_FIGURES, eligibleGames, rankRecentBoard, recentEntry, recentSamples, statusOf, winRateAfterNextGame, type RecentScope } from "./leaderboard-recent";
+import { BOARD_FIGURES, eligibleGames, mainRoleOf, rankRecentBoard, recentEntry, recentSamples, statusOf, winRateAfterNextGame, type RecentScope } from "./leaderboard-recent";
 
 const NOW = new Date(Date.UTC(2026, 10, 2, 12));
 const DAY = 86_400_000;
@@ -64,6 +64,18 @@ describe("the window: a player's latest 20 eligible games from the last 60 days"
     const e = recentEntry("a", run("a", 25, 15, 61), scope());
     expect(e.games).toBe(0);
     expect(e.status).toBe("insufficient");
+  });
+});
+
+describe("the main role", () => {
+  it("is the role of most games in the window; a tie goes to the member's own role, then Top to Support", () => {
+    const games = [...run("a", 8, 4, 0, { role: "JUNGLE" }), ...run("a", 8, 4, 8, { role: "MID" }), ...run("a", 4, 2, 16, { role: "TOP" })];
+    const e = recentEntry("a", games, scope());
+    expect(e.roles).toEqual({ JUNGLE: 8, MID: 8, TOP: 4 });
+    expect(mainRoleOf(e)).toEqual({ role: "JUNGLE", games: 8 });
+    expect(mainRoleOf(e, "MID")).toEqual({ role: "MID", games: 8 });
+    expect(mainRoleOf(e, "TOP")).toEqual({ role: "JUNGLE", games: 8 });
+    expect(mainRoleOf(recentEntry("b", run("b", 12, 6, 0, { role: null }), scope()))).toBeNull();
   });
 });
 
