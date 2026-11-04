@@ -1,5 +1,5 @@
 import { orderAccounts } from "@/domain/account-order";
-import { and, asc, desc, eq, gt, inArray, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, lte, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { rankSnapshots, riotAccounts } from "@/server/db/schema";
 import { rankProgress, snapshotChanged, type RankQueue, type RankSnapshot } from "@/domain/rank-progress";
@@ -21,24 +21,35 @@ export interface LeagueEntryLike {
 }
 
 /**
- * Stores a snapshot per ranked queue when the reading differs from the last stored one (the first
- * reading is always stored). A queue that has a stored rank but is missing from Riot's answer is
- * recorded once as unranked (a season reset or decay off the ladder). Returns the rows written.
+ * Records one reading of an account's league entries, per ranked queue: a row when the reading
+ * differs from the last one stored (the first reading is always stored), otherwise the last row's
+ * confirmed_at moves on to this reading. A queue that has a stored rank but is missing from Riot's
+ * answer is recorded once as unranked (a season reset or decay off the ladder). Each queue's
+ * reading is one transaction holding a lock on that account and queue, so two overlapping runs
+ * (account sync and the rank watch) never store the same values twice, and a reading older than
+ * the newest one recorded (a slow answer overtaken) changes nothing. Returns the rows written.
  */
 export async function recordRankSnapshots(db: Db, accountId: string, entries: readonly LeagueEntryLike[], now = new Date()): Promise<number> {
   let written = 0;
   for (const queue of ["solo", "flex"] as const) {
     const entry = entries.find((e) => QUEUE_OF[e.queueType] === queue);
-    const [last] = await db.select().from(rankSnapshots).where(and(eq(rankSnapshots.accountId, accountId), eq(rankSnapshots.queue, queue))).orderBy(desc(rankSnapshots.capturedAt)).limit(1);
-    const next = entry
-      ? { tier: entry.tier ?? null, division: entry.rank ?? null, leaguePoints: entry.leaguePoints, wins: entry.wins, losses: entry.losses }
-      : last && last.tier
-        ? { tier: null, division: null, leaguePoints: null, wins: null, losses: null }
-        : null;
-    if (!next) continue; // never ranked in this queue: nothing to record
-    if (!snapshotChanged(last ?? null, next)) continue;
-    await db.insert(rankSnapshots).values({ accountId, queue, ...next, capturedAt: now });
-    written += 1;
+    written += await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`rank_snapshots:${accountId}:${queue}`}))`);
+      const [last] = await tx.select().from(rankSnapshots).where(and(eq(rankSnapshots.accountId, accountId), eq(rankSnapshots.queue, queue))).orderBy(desc(rankSnapshots.capturedAt)).limit(1);
+      const next = entry
+        ? { tier: entry.tier ?? null, division: entry.rank ?? null, leaguePoints: entry.leaguePoints, wins: entry.wins, losses: entry.losses }
+        : last && last.tier
+          ? { tier: null, division: null, leaguePoints: null, wins: null, losses: null }
+          : null;
+      if (!next) return 0; // never ranked in this queue, or still unranked: nothing to record
+      if (last && now.getTime() <= Math.max(last.capturedAt.getTime(), last.confirmedAt?.getTime() ?? 0)) return 0;
+      if (last && !snapshotChanged(last, next)) {
+        await tx.update(rankSnapshots).set({ confirmedAt: now }).where(eq(rankSnapshots.id, last.id));
+        return 0;
+      }
+      await tx.insert(rankSnapshots).values({ accountId, queue, ...next, capturedAt: now });
+      return 1;
+    });
   }
   return written;
 }

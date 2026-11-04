@@ -3,7 +3,7 @@ import { TICK_JOB_ORDER, tickJobBudget } from "./scheduler";
 
 describe("scheduler tick budget", () => {
   it("runs static data first, then the team's account sync and the ranks of the games it collected, with the two backfills last", () => {
-    expect([...TICK_JOB_ORDER]).toEqual(["version-check", "account-sync", "rank-checks", "integrity", "timeline-backfill", "figures-backfill"]);
+    expect([...TICK_JOB_ORDER]).toEqual(["version-check", "rank-watch", "account-sync", "rank-checks", "integrity", "timeline-backfill", "figures-backfill"]);
   });
 
   it("caps each job so one job cannot take the whole tick", () => {
@@ -12,6 +12,7 @@ describe("scheduler tick budget", () => {
     expect(tickJobBudget("integrity", 60_000)).toBe(20_000);
     // The rank checks wait at most for Riot's one-second window: a short slice.
     expect(tickJobBudget("rank-checks", 160_000)).toBe(15_000);
+    expect(tickJobBudget("rank-watch", 238_000)).toBe(20_000);
     // Matchups' timeline backfill shares Riot's limits: a small slice.
     expect(tickJobBudget("timeline-backfill", 120_000)).toBe(25_000);
     expect(tickJobBudget("figures-backfill", 120_000)).toBe(25_000);

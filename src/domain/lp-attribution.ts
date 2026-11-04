@@ -89,7 +89,8 @@ export type LpGapReason =
 
 export type LpRecord =
   | { kind: "lp"; delta: number; before: LpReading; after: LpReading }
-  | { kind: "promoted" | "demoted"; before: LpReading; after: LpReading }
+  | { kind: "promoted"; before: LpReading; after: LpReading }
+  | { kind: "demoted"; before: LpReading; after: LpReading }
   | { kind: "none"; reason: LpGapReason; games?: number; before?: LpReading; after?: LpReading; trackingSince?: number };
 
 /** A game under this many seconds is a remake, which Riot does not count (domain/season-stats MIN_VALID_DURATION_S). */
@@ -150,7 +151,7 @@ export function lpOutcome(before: RankReadingRow, after: RankReadingRow, win: bo
   }
   const up = divisionOrder(after) > divisionOrder(before);
   if (up !== win) return { kind: "none", reason: "inconsistent", before: b, after: a };
-  return { kind: up ? "promoted" : "demoted", before: b, after: a };
+  return up ? { kind: "promoted", before: b, after: a } : { kind: "demoted", before: b, after: a };
 }
 
 /**

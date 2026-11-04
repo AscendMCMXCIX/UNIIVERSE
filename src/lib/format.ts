@@ -108,6 +108,12 @@ export function signedPoints(value: number, digits = 1): string {
   return `${pts >= 0 ? "+" : ""}${pts.toFixed(digits)}`;
 }
 
+/** A game's LP change as a match card writes it: "+24 LP", "−21 LP" (a true minus sign), "0 LP". */
+export function formatLpChange(delta: number): string {
+  const n = Math.round(delta);
+  return `${n > 0 ? "+" : n < 0 ? "\u2212" : ""}${Math.abs(n)} LP`;
+}
+
 /** A whole number with thousands separators, written the same in every browser ("12,345"). */
 export function formatCount(value: number): string {
   return Math.round(value).toLocaleString("en");
