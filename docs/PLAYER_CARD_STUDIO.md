@@ -14,7 +14,7 @@ The Studio is the editor behind **Customise** on a player's card. It opens from 
   3. **Position**: focus, zoom, darkness, blur and vignette.
   4. **Colours**: a palette, custom colours, the colour wash, highlight, border and avatar frame.
   5. **Identity**: tagline, emblem, name style and theme.
-  6. **Links**: your YouTube, Twitch and Discord, each with who may see it.
+  6. **Links**: your YouTube, Twitch and Discord, each with its Show publicly switch (off until you switch it on; on, teammates and the public team page see it).
   7. **Effects**: glow, shimmer, moving colour wash, motif and intensity.
 - **Presets.** One tap sets a whole look: UNIIVERSE, Minimal, Competitive, Arcane, Crimson, Monochrome or Neon.
   - A preset sets colours, frame, effects, name style, theme and the background veil.
@@ -104,6 +104,8 @@ The Studio is the editor behind **Customise** on a player's card. It opens from 
 | Browser behaviour | `e2e/card-studio.spec.ts` |
 | Phones: the section bar, preview, confirmations, keyboard, held sideways | `e2e/studio-mobile.spec.ts` |
 | Every control by touch on five devices, and Save keeping it all | `e2e/studio-touch.spec.ts` |
+| Players directory: every card on the same regions, level with its neighbours, its pool whole, at eight sizes | `e2e/players-directory.spec.ts` |
+| The directory's pool row: whole portraits, the rest counted, never "+1", at every width | `src/components/players/pool-fit.test.ts` |
 
 The browser tests cover:
 - presets and live preview;

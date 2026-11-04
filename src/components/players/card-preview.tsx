@@ -11,6 +11,7 @@ import { CardFrame, cardShellStyle } from "./card-look";
 import { CardIdentity, CardPerformance, CardPool, CardRoleChip, PoolPreview, type CardSeason } from "./player-card";
 import type { CompactRank } from "./rank-emblem";
 import { CardSocialIcons } from "./social-links";
+import { DirectoryCardLayout, DirectoryPoolLabel } from "./player-summary-card";
 import type { SocialLinkView } from "@/domain/social-links";
 
 /** What the player's card really shows, so a preview shows their card rather than a template. */
@@ -40,21 +41,21 @@ export const CardPreview = React.memo(function CardPreview({ view, look, art, na
   const pool = (data?.poolIds ?? []).map((id) => byId.get(id) ?? { id, name: id, portraitUrl: "" });
   const roleLabel = data?.role ? ROLE_LABELS[data.role] : "Role";
   if (view === "directory") {
+    // The directory's own card. The role here may be the lineup's and the pool every champion the
+    // player can feature, so the pool's heading names neither as the Primary Role.
     return (
-      <div className="mx-auto w-full max-w-[20rem]" data-testid="card-preview" data-view="directory">
-        <div className="@container/card relative flex flex-col overflow-hidden rounded-card border" style={cardShellStyle(look, { glow: false })}>
-          <CardFrame look={look} />
-          <div className="relative flex min-h-28 flex-col justify-end px-3 pb-2.5 pt-12">
-            <CardArtLayer art={art} accent={accent} kind="loading" position="center 16%" look={look} decorate={false} testId="preview-art" smooth={false} foot />
-            <CardRoleChip role={data?.role ?? null} label={roleLabel} className="absolute left-3 top-3 px-2.5 py-0.5 text-xs" />
-            <span className="relative">
-              <CardIdentity look={look} name={name} avatarUrl={avatarUrl} rank={data?.rank ?? null} social={data?.social?.length ? <CardSocialIcons links={data.social} owner={name} mode="static" /> : null} />
-            </span>
-          </div>
-          <div className="flex flex-col gap-2 px-3.5 pb-3.5 pt-3">
-            <PoolPreview champions={pool} total={pool.length} label="Champion pool" max={6} testId="preview-pool" />
-          </div>
-        </div>
+      <div className="@container/card mx-auto w-full max-w-[20rem]" data-testid="card-preview" data-view="directory">
+        <DirectoryCardLayout
+          look={look}
+          art={art}
+          artTestId="preview-art"
+          smooth={false}
+          className="mb-0"
+          header={<CardRoleChip role={data?.role ?? null} label={roleLabel} className="px-2.5 py-0.5 text-xs" />}
+          identity={<CardIdentity layout="rows" look={look} name={name} avatarUrl={avatarUrl} rank={data?.rank ?? null} social={data?.social?.length ? <CardSocialIcons links={data.social} owner={name} mode="static" /> : null} />}
+          poolLabel={data?.role ? <DirectoryPoolLabel heading={`${roleLabel} · Champion pool`} count={null} /> : null}
+          pool={<PoolPreview champions={pool} total={pool.length} label="Champion pool" fit="count" testId="preview-pool" />}
+        />
       </div>
     );
   }

@@ -152,7 +152,8 @@ test("a player never sees Admin Mode; granted administrator access, the same acc
 
   // The same account, still signed in: its next page offers the switch; its player data is untouched.
   await page.goto("/overview");
-  await expect(page.getByTestId("profile-tabs")).toBeVisible();
+  // Their own profile has the same four sections as everyone's (Ranked Development is retired).
+  await expect(page.getByTestId("profile-tabs").getByRole("link")).toHaveText(["Overview", "All Champions", "Match History", "Riot Accounts"]);
   const modeSwitch = aside.getByTestId("mode-switch");
   await expect(modeSwitch).toHaveText("Switch to Admin Mode");
   await modeSwitch.click();

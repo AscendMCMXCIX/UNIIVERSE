@@ -7,6 +7,7 @@ import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { formatDate } from "@/lib/format";
 import { accountShortNames } from "@/domain/account-names";
 import { cn } from "@/lib/cn";
+import { RankEmblem } from "./rank-emblem";
 
 const QUEUE_LABEL: Record<RankQueue, string> = { solo: "Ranked Solo/Duo", flex: "Ranked Flex" };
 
@@ -20,14 +21,14 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
   const progress = rankProgress(queue, account.snapshots, now);
   const names = accountShortNames(accounts);
   return (
-    <section aria-labelledby="ranked-progress" className="h-full space-y-2.5 rounded-card border border-border bg-surface/60 p-4" data-testid="ranked-progress">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+    <section aria-labelledby="ranked-progress" className="@container/rank h-full space-y-3 rounded-card border border-border bg-surface p-4 panel-depth" data-testid="ranked-progress">
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
         <div className="min-w-0">
-          <h2 id="ranked-progress" className="flex items-center gap-1.5 text-lg font-semibold text-fg">
+          <h2 id="ranked-progress" className="flex items-center gap-1.5 text-base font-semibold text-fg">
             Ranked progress
             <InfoTip label="About ranked progress" text="Riot only reports the current rank, so the history starts when it was first read and grows with every sync that sees a change. Divisions are drawn as one ladder, so a promotion is a step up rather than an LP drop; a season reset starts a new line." />
           </h2>
-          <p className="text-sm text-fg-muted" data-testid="ranked-tracking">
+          <p className="text-xs text-fg-subtle" data-testid="ranked-tracking">
             {account.riotId}
             {progress.trackingSince ? ` · tracked since ${formatDate(new Date(progress.trackingSince))}` : ""}
           </p>
@@ -61,32 +62,36 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
 
 function ProgressBody({ progress, queue }: { progress: RankProgress; queue: RankQueue }) {
   const cur = progress.current;
-  // Where you stand and how you got there on the left, the line on the right: one short row
-  // instead of the chart and the list stacked under a separate headline. The same two columns in
-  // every state (no rank yet, one reading, a history), and the chart's space is always kept, so
-  // switching queue or account never moves the page.
+  const chart = progress.points.length >= 2;
+  // Where you stand and how you got there, then the line: side by side where the card is wide
+  // enough (34rem), stacked in a narrow column. Only what there is: without two readings to join
+  // there is no chart, one quiet line says so (in the chart's column when side by side) and nothing
+  // is drawn to fill the space, so a card with little history never grows.
   return (
-    <div className="grid items-start gap-x-5 gap-y-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
+    <div className={cn("grid items-start gap-x-5 gap-y-3", cur !== null && "@min-[34rem]/rank:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]")}>
       {cur === null ? (
         <p className="min-w-0 text-sm text-fg-muted" data-testid="ranked-empty">
           No {QUEUE_LABEL[queue]} rank recorded for this account yet. It appears after the next account sync that finds one.
         </p>
       ) : (
-        <div className="min-w-0 space-y-2">
-          <div>
-            <span className="block text-xl font-bold text-fg" data-testid="ranked-current">
-              {cur.label}
-              {cur.leaguePoints !== null ? ` · ${cur.leaguePoints} LP` : ""}
-            </span>
-            <span className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-              {cur.wins !== null && cur.losses !== null ? <span className="text-sm tabular-nums text-fg-muted">{cur.wins}W {cur.losses}L this season</span> : null}
-              {progress.change ? (
-                <span className={cn("text-sm font-medium tabular-nums", progress.change.points > 0 ? "text-good" : progress.change.points < 0 ? "text-bad" : "text-fg-muted")} data-testid="ranked-change" title={`${progress.change.from} → ${progress.change.to}`}>
-                  {progress.change.points > 0 ? "+" : ""}
-                  {progress.change.points} ladder points in {progress.change.days} days
-                </span>
-              ) : null}
-            </span>
+        <div className="min-w-0 space-y-2.5">
+          <div className="flex items-center gap-3">
+            <RankEmblem tier={cur.tier} className="h-10 w-10 shrink-0" />
+            <div className="min-w-0">
+              <span className="block text-lg font-bold leading-tight text-fg" data-testid="ranked-current">
+                {cur.label}
+                {cur.leaguePoints !== null ? ` · ${cur.leaguePoints} LP` : ""}
+              </span>
+              <span className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+                {cur.wins !== null && cur.losses !== null ? <span className="text-xs tabular-nums text-fg-muted">{cur.wins}W {cur.losses}L this season</span> : null}
+                {progress.change ? (
+                  <span className={cn("text-xs font-medium tabular-nums", progress.change.points > 0 ? "text-good" : progress.change.points < 0 ? "text-bad" : "text-fg-muted")} data-testid="ranked-change" title={`${progress.change.from} → ${progress.change.to}`}>
+                    {progress.change.points > 0 ? "+" : ""}
+                    {progress.change.points} ladder points in {progress.change.days} days
+                  </span>
+                ) : null}
+              </span>
+            </div>
           </div>
           <div className="min-w-0">
             <h3 className="mb-1 text-xs font-medium text-fg-subtle">Rank changes</h3>
@@ -102,17 +107,15 @@ function ProgressBody({ progress, queue }: { progress: RankProgress; queue: Rank
           </div>
         </div>
       )}
-      <div className="min-w-0 self-center">
-        {progress.points.length >= 2 ? (
+      {chart ? (
+        <div className="min-w-0 self-center">
           <RankChart progress={progress} label={`${QUEUE_LABEL[queue]} rank over time`} />
-        ) : (
-          // The chart's own proportions (600×150, at most 10rem tall): nothing is drawn from a single
-          // reading or none, and nothing is invented to fill it.
-          <div className="grid aspect-[4/1] max-h-40 w-full place-items-center rounded-md border border-dashed border-border px-3 text-center text-xs text-fg-muted" data-testid="ranked-chart-empty">
-            Not enough rank history to display progression.
-          </div>
-        )}
-      </div>
+        </div>
+      ) : cur !== null ? (
+        <p className="text-xs text-fg-subtle @min-[34rem]/rank:self-center @min-[34rem]/rank:text-center" data-testid="ranked-chart-empty">
+          Not enough rank history to display progression.
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -135,10 +138,11 @@ function EventRow({ e }: { e: RankEvent }) {
 /** A step line on the ladder scale, with tier bands labelled; segments are not joined across a reset. */
 function RankChart({ progress, label }: { progress: RankProgress; label: string }) {
   // Wide and short: the chart takes the column's width at its own proportions (no empty bands
-  // above and below), and its labels are drawn large enough to stay legible when scaled down.
-  const W = 600;
-  const H = 150;
-  const pad = { l: 92, r: 8, t: 10, b: 24 };
+  // above and below). Drawn at 400×100 so its 15-unit labels are 11px or more where the column is
+  // narrowest (about 300px wide, on a laptop beside Recent form) and about 17px where it is widest.
+  const W = 400;
+  const H = 100;
+  const pad = { l: 96, r: 6, t: 8, b: 20 };
   const pts = progress.points;
   const t0 = pts[0]!.at;
   const t1 = Math.max(pts.at(-1)!.at, t0 + 1);
@@ -163,6 +167,14 @@ function RankChart({ progress, label }: { progress: RankProgress; label: string 
   return (
     <figure className="m-0">
       <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto max-h-40 w-full" role="img" aria-label={`${label}: from ${pts[0]!.label} ${pts[0]!.leaguePoints} LP to ${pts.at(-1)!.label} ${pts.at(-1)!.leaguePoints} LP`} data-testid="ranked-chart">
+        {/* The line in the brand gradient, older readings in the blue and the latest in the violet (one chart per page). */}
+        <defs>
+          {/* In the chart's own units: a flat line (no change) has no height, which a gradient sized to the line would not draw. */}
+          <linearGradient id="ranked-line" gradientUnits="userSpaceOnUse" x1={pad.l} x2={W - pad.r} y1={0} y2={0}>
+            <stop offset="0%" style={{ stopColor: "var(--color-accent)" }} />
+            <stop offset="100%" style={{ stopColor: "var(--color-accent-2)" }} />
+          </linearGradient>
+        </defs>
         {grid.map((g) => (
           <g key={g.s}>
             <line x1={pad.l} x2={W - pad.r} y1={y(g.s)} y2={y(g.s)} className="stroke-border" strokeWidth={1} strokeDasharray="3 4" />
@@ -174,17 +186,17 @@ function RankChart({ progress, label }: { progress: RankProgress; label: string 
           </g>
         ))}
         {lines.map((d, i) => (
-          <path key={i} d={d} fill="none" className="stroke-accent" strokeWidth={2.5} strokeLinejoin="round" />
+          <path key={i} d={d} fill="none" stroke="url(#ranked-line)" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
         ))}
         {pts.map((p, i) => (
           <circle key={i} cx={x(p.at)} cy={y(p.score)} r={4} className="fill-accent">
             <title>{`${p.label} ${p.leaguePoints} LP · ${formatDate(new Date(p.at))}`}</title>
           </circle>
         ))}
-        <text x={pad.l} y={H - 4} className="fill-fg-subtle text-[15px]">
+        <text x={pad.l} y={H - 3} className="fill-fg-subtle text-[15px]">
           {formatDate(new Date(t0))}
         </text>
-        <text x={W - pad.r} y={H - 4} textAnchor="end" className="fill-fg-subtle text-[15px]">
+        <text x={W - pad.r} y={H - 3} textAnchor="end" className="fill-fg-subtle text-[15px]">
           {formatDate(new Date(t1))}
         </text>
       </svg>

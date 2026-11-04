@@ -63,7 +63,7 @@ describe("database migrations", () => {
     await db.execute(sql`INSERT INTO users (email, display_name, password_hash, role) VALUES ('blank@example.com', '', 'scrypt$1$a$b', 'player')`);
 
     const result = await runMigrations(db, { useAdvisoryLock: false });
-    expect(result.applied).toEqual(["0002_accounts_series", "0003_regions_no_email", "0004_indexes", "0005_ranked_journal_scouting_bands", "0006_permissions_onboarding", "0007_auth_activation_ownership", "0008_password_signin", "0009_separate_admin_account", "0010_season_history_pro_patches", "0011_ranked_5s_mode", "0012_permissions_avatars", "0013_brand_assets", "0014_access_levels", "0015_brand_upload_chunks", "0016_phase5_profiles", "0017_phase6_identity", "0018_phase6_accounts", "0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines", "0029_p10_team_access", "0030_p11_rank_queue", "0031_p11_retire_other_coach", "0032_p13_card_studio", "0033_p15_match_summary", "0034_r6_match_links", "0035_r8_rank_snapshots", "0036_matchups_frames", "0037_account_order", "0038_blocks_completion_rules", "0039_patterns_notes", "0040_public_profiles", "0041_lineup_substitutes", "0042_retire_trends_capability", "0043_audit_events", "0044_row_level_security", "0045_keep_product_name", "0046_auth_failures", "0047_db_egress_daily", "0048_last_known_ranks", "0049_social_links", "0050_clash_scouts", "0051_public_site_copy", "0052_data_api_grants", "0053_administrator_access", "0054_web_vitals", "0055_restore_ascend_owner", "0056_privacy_erasures", "0057_retire_clash_scouts"]);
+    expect(result.applied).toEqual(["0002_accounts_series", "0003_regions_no_email", "0004_indexes", "0005_ranked_journal_scouting_bands", "0006_permissions_onboarding", "0007_auth_activation_ownership", "0008_password_signin", "0009_separate_admin_account", "0010_season_history_pro_patches", "0011_ranked_5s_mode", "0012_permissions_avatars", "0013_brand_assets", "0014_access_levels", "0015_brand_upload_chunks", "0016_phase5_profiles", "0017_phase6_identity", "0018_phase6_accounts", "0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines", "0029_p10_team_access", "0030_p11_rank_queue", "0031_p11_retire_other_coach", "0032_p13_card_studio", "0033_p15_match_summary", "0034_r6_match_links", "0035_r8_rank_snapshots", "0036_matchups_frames", "0037_account_order", "0038_blocks_completion_rules", "0039_patterns_notes", "0040_public_profiles", "0041_lineup_substitutes", "0042_retire_trends_capability", "0043_audit_events", "0044_row_level_security", "0045_keep_product_name", "0046_auth_failures", "0047_db_egress_daily", "0048_last_known_ranks", "0049_social_links", "0050_clash_scouts", "0051_public_site_copy", "0052_data_api_grants", "0053_administrator_access", "0054_web_vitals", "0055_restore_ascend_owner", "0056_privacy_erasures", "0057_participant_ranks", "0058_match_details_puuids", "0059_ranked_development", "0060_match_timeline_events", "0061_social_links_public", "0062_retire_meta_trends_tables", "0063_retire_draft_tables", "0064_retire_clash_scouts"]);
     const rows = await db.select({ username: users.username, role: users.role, playerId: users.playerId, passwordHash: users.passwordHash }).from(users).orderBy(users.username);
     // Usernames come from the display name (unique case-insensitively), then the email's local part.
     expect(rows.map((r) => r.username).sort()).toEqual(["Ascend", "ascend-2", "blank"]);
@@ -95,10 +95,97 @@ describe("database migrations", () => {
     expect(team?.secondaryPoolLimit).toBe(3);
     // The new tables and columns exist and the legacy account can still be looked up.
     await db.execute(sql`SELECT id, token_hash FROM sessions`);
-    await db.execute(sql`SELECT id, best_of FROM series`);
-    await db.execute(sql`SELECT series_id, game_number, enemy_players FROM matches`);
     await expect(db.execute(sql`INSERT INTO users (username, display_name, role) VALUES ('ASCENDMCMXCIX', 'dup', 'player')`)).rejects.toThrow();
     await fresh.close();
+  });
+
+  it("retire_meta_trends_tables drops the 12 retired Meta & Trends tables and nothing else", async () => {
+    const fresh = await createDb({ mode: "pglite-memory", migrate: false });
+    const db = fresh.db;
+    const rows = (r: unknown) => ((r as { rows?: Array<Record<string, unknown>> }).rows ?? (r as Array<Record<string, unknown>>));
+    const tables = async () => rows(await db.execute(sql`SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY 1`)).map((r) => String(r.tablename));
+    const drop = EMBEDDED_MIGRATIONS.find((m) => m.tag.endsWith("_retire_meta_trends_tables"))!;
+    const retired = ["champion_ban_stats", "champion_matchups", "champion_role_stats", "champion_synergies", "match_fetch_queue", "pro_game_bans", "pro_game_picks", "pro_games", "pro_pick_slot_stats", "ranked_bans", "ranked_matches", "ranked_participants"];
+    try {
+      await db.execute(sql`CREATE TABLE IF NOT EXISTS uniiverse_migrations (tag text PRIMARY KEY, hash text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())`);
+      // One transaction per migration, as the migrator does (0022 locks a table, which needs one).
+      for (const m of EMBEDDED_MIGRATIONS.filter((m) => m.tag < drop.tag)) {
+        await db.transaction(async (tx) => {
+          for (const statement of m.statements) await tx.execute(sql.raw(statement));
+          await tx.execute(sql`INSERT INTO uniiverse_migrations (tag, hash) VALUES (${m.tag}, ${m.hash})`);
+        });
+      }
+      // Later migrations (the Draft drop) have their own test: marked applied here.
+      for (const m of EMBEDDED_MIGRATIONS.filter((m) => m.tag > drop.tag)) await db.execute(sql`INSERT INTO uniiverse_migrations (tag, hash) VALUES (${m.tag}, ${m.hash})`);
+      await db.execute(sql`INSERT INTO pro_games (id, provider, patch) VALUES ('lp:1', 'leaguepedia', '16.20')`);
+      await db.execute(sql`INSERT INTO tracked_summoners (puuid, platform, tier) VALUES ('p1', 'oc1', 'MASTER')`);
+      const before = await tables();
+      expect(before).toEqual(expect.arrayContaining(retired));
+      expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual([drop.tag]);
+      const after = await tables();
+      expect(before.filter((t) => !after.includes(t))).toEqual(retired);
+      expect(after).toEqual(expect.arrayContaining(["tracked_summoners", "region_status", "champion_change_points", "stat_periods", "users", "match_details", "last_known_ranks"]));
+      // tracked_summoners keeps its rows.
+      expect(rows(await db.execute(sql`SELECT puuid FROM tracked_summoners`))).toEqual([{ puuid: "p1" }]);
+    } finally {
+      await fresh.close();
+    }
+  });
+
+  it("retire_draft_tables drops the Draft tables, their two columns and their enum types, and nothing else", async () => {
+    const fresh = await createDb({ mode: "pglite-memory", migrate: false });
+    const db = fresh.db;
+    const rows = (r: unknown) => ((r as { rows?: Array<Record<string, unknown>> }).rows ?? (r as Array<Record<string, unknown>>));
+    const names = async (q: ReturnType<typeof sql>) => rows(await db.execute(q)).map((r) => String(r.name));
+    const tables = () => names(sql`SELECT tablename AS name FROM pg_tables WHERE schemaname = 'public' ORDER BY 1`);
+    const columns = (table: string) => names(sql`SELECT column_name AS name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ${table}`);
+    const enums = () => names(sql`SELECT t.typname AS name FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname = 'public' AND t.typtype = 'e' ORDER BY 1`);
+    const count = async (table: string) => Number(rows(await db.execute(sql.raw(`SELECT count(*)::int AS n FROM ${table}`)))[0]!.n);
+    const drop = EMBEDDED_MIGRATIONS.find((m) => m.tag.endsWith("_retire_draft_tables"))!;
+    const retired = ["draft_actions", "draft_enemy_scouting", "draft_presence", "draft_role_swaps", "drafts", "matches", "opponent_players", "opponent_teams", "series"];
+    const retiredEnums = ["action_type", "competition_mode", "draft_status", "match_result", "scouting_confidence", "series_status"];
+    try {
+      await db.execute(sql`CREATE TABLE IF NOT EXISTS uniiverse_migrations (tag text PRIMARY KEY, hash text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())`);
+      for (const m of EMBEDDED_MIGRATIONS.filter((m) => m.tag < drop.tag)) {
+        await db.transaction(async (tx) => {
+          for (const statement of m.statements) await tx.execute(sql.raw(statement));
+          await tx.execute(sql`INSERT INTO uniiverse_migrations (tag, hash) VALUES (${m.tag}, ${m.hash})`);
+        });
+      }
+      // A row in everything the migration drops, and rows next to it that must stay.
+      const id = async (q: ReturnType<typeof sql>) => String(rows(await db.execute(q))[0]!.id);
+      const team = await id(sql`INSERT INTO teams (name, engine_config) VALUES ('Team', '{"weights":{"meta":1}}'::jsonb) RETURNING id`);
+      const player = await id(sql`INSERT INTO players (team_id, display_name) VALUES (${team}, 'Kept') RETURNING id`);
+      const series = await id(sql`INSERT INTO series (team_id, best_of) VALUES (${team}, 3) RETURNING id`);
+      const draft = await id(sql`INSERT INTO drafts (team_id, side, patch, series_id, lineup_snapshot, initial_assignments, current_assignments) VALUES (${team}, 'blue', '16.19', ${series}, '[]'::jsonb, '{}'::jsonb, '{}'::jsonb) RETURNING id`);
+      await db.execute(sql`INSERT INTO draft_actions (draft_id, sequence_index, type, side) VALUES (${draft}, 0, 'ban', 'blue')`);
+      await db.execute(sql`INSERT INTO draft_role_swaps (draft_id, after_sequence_index, assignments) VALUES (${draft}, 0, '{}'::jsonb)`);
+      await db.execute(sql`INSERT INTO draft_presence (draft_id, client_id) VALUES (${draft}, 'c1')`);
+      await db.execute(sql`INSERT INTO draft_enemy_scouting (draft_id, role, riot_id) VALUES (${draft}, 'TOP', 'Someone#OCE')`);
+      const opponents = await id(sql`INSERT INTO opponent_teams (team_id, name) VALUES (${team}, 'Them') RETURNING id`);
+      const opponent = await id(sql`INSERT INTO opponent_players (opponent_team_id, label) VALUES (${opponents}, 'Top') RETURNING id`);
+      await db.execute(sql`INSERT INTO matches (team_id, draft_id, patch, side, lineup_snapshot, final_assignments, opponent_team_id, series_id) VALUES (${team}, ${draft}, '16.19', 'blue', '[]'::jsonb, '{}'::jsonb, ${opponents}, ${series})`);
+      await db.execute(sql`INSERT INTO riot_accounts (owner_type, player_id, game_name, tag_line, platform, puuid) VALUES ('player', ${player}, 'Kept', 'OCE', 'oc1', 'kept-puuid')`);
+      await db.execute(sql`INSERT INTO riot_accounts (owner_type, opponent_player_id, game_name, tag_line, platform) VALUES ('opponent', ${opponent}, 'Scouted', 'OCE', 'oc1')`);
+      await db.execute(sql`INSERT INTO team_bookmarks (team_id, riot_match_id) VALUES (${team}, 'OC1_1')`);
+      await db.execute(sql`INSERT INTO last_known_ranks (puuid, tier, division, observed_at, source) VALUES ('seen', 'GOLD', 'I', now(), 'draft scouting')`);
+      const before = await tables();
+      expect(before).toEqual(expect.arrayContaining(retired));
+      expect(await enums()).toEqual(expect.arrayContaining(retiredEnums));
+
+      expect((await runMigrations(db, { useAdvisoryLock: false })).applied[0]).toBe(drop.tag);
+      const after = await tables();
+      expect(before.filter((t) => !after.includes(t))).toEqual(retired);
+      expect(await columns("riot_accounts")).not.toContain("opponent_player_id");
+      expect(await columns("teams")).not.toContain("engine_config");
+      const left = await enums();
+      expect(left.filter((t) => retiredEnums.includes(t))).toEqual([]);
+      expect(left).toEqual(expect.arrayContaining(["account_owner", "role", "side"]));
+      // Everything else keeps its rows, the legacy opponent account included (only its link goes).
+      for (const [table, n] of [["teams", 1], ["players", 1], ["riot_accounts", 2], ["team_bookmarks", 1], ["last_known_ranks", 1]] as const) expect(await count(table)).toBe(n);
+    } finally {
+      await fresh.close();
+    }
   });
 
   it("0010 renames year-named pro patches to the client version and rebuilds only the pro statistics", async () => {
@@ -113,6 +200,9 @@ describe("database migrations", () => {
       await db.execute(sql`INSERT INTO pro_games (id, provider, patch, aggregated_at) VALUES ('lp:1', 'leaguepedia', '26.20', now()), ('lp:2', 'leaguepedia', '26.9', now()), ('lp:old', 'leaguepedia', '14.24', now())`);
       await db.execute(sql`INSERT INTO champion_role_stats (patch, source, tier_band, champion_id, role, games, wins) VALUES ('26.20', 'pro', 'PRO', 'Gwen', 'TOP', 10, 5), ('16.20', 'ranked', 'DIAMOND', 'Gwen', 'TOP', 40, 22)`);
       await db.execute(sql`INSERT INTO stat_periods (patch, source, games) VALUES ('26.20', 'pro', 10), ('16.20', 'ranked', 40)`);
+      // A later migration drops these tables; marking it (and what follows) applied keeps them here to inspect 0010's work.
+      const drop = EMBEDDED_MIGRATIONS.find((m) => m.tag.endsWith("_retire_meta_trends_tables"))!;
+      for (const m of EMBEDDED_MIGRATIONS.filter((m) => m.tag >= drop.tag)) await db.execute(sql`INSERT INTO uniiverse_migrations (tag, hash) VALUES (${m.tag}, ${m.hash})`);
       expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toContain("0010_season_history_pro_patches");
       const rows = (r: unknown) => ((r as { rows?: Array<Record<string, unknown>> }).rows ?? (r as Array<Record<string, unknown>>));
       const games = rows(await db.execute(sql`SELECT id, patch, aggregated_at FROM pro_games ORDER BY id`));
@@ -142,7 +232,7 @@ describe("database migrations", () => {
     await db.execute(sql`INSERT INTO users (username, display_name, role, permission_preset_id) VALUES ('onrestricted', 'R', 'player', ${restrictedId})`);
     await db.execute(sql`INSERT INTO users (username, display_name, role, custom_capabilities) VALUES ('custom', 'C', 'player', '["view-team"]'::jsonb)`);
     const result = await runMigrations(db, { useAdvisoryLock: false });
-    expect(result.applied).toEqual(["0014_access_levels", "0015_brand_upload_chunks", "0016_phase5_profiles", "0017_phase6_identity", "0018_phase6_accounts", "0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines", "0029_p10_team_access", "0030_p11_rank_queue", "0031_p11_retire_other_coach", "0032_p13_card_studio", "0033_p15_match_summary", "0034_r6_match_links", "0035_r8_rank_snapshots", "0036_matchups_frames", "0037_account_order", "0038_blocks_completion_rules", "0039_patterns_notes", "0040_public_profiles", "0041_lineup_substitutes", "0042_retire_trends_capability", "0043_audit_events", "0044_row_level_security", "0045_keep_product_name", "0046_auth_failures", "0047_db_egress_daily", "0048_last_known_ranks", "0049_social_links", "0050_clash_scouts", "0051_public_site_copy", "0052_data_api_grants", "0053_administrator_access", "0054_web_vitals", "0055_restore_ascend_owner", "0056_privacy_erasures", "0057_retire_clash_scouts"]);
+    expect(result.applied).toEqual(["0014_access_levels", "0015_brand_upload_chunks", "0016_phase5_profiles", "0017_phase6_identity", "0018_phase6_accounts", "0019_phase6_backgrounds", "0020_phase6_access_groups", "0021_p7_draft_side", "0022_p7_ranked_ban_recount", "0023_p7_blocks", "0024_p7_unset_primary_role", "0025_p7_skin_kinds", "0026_p7_match_details", "0027_p9_block_featured_champion", "0028_p9_match_timelines", "0029_p10_team_access", "0030_p11_rank_queue", "0031_p11_retire_other_coach", "0032_p13_card_studio", "0033_p15_match_summary", "0034_r6_match_links", "0035_r8_rank_snapshots", "0036_matchups_frames", "0037_account_order", "0038_blocks_completion_rules", "0039_patterns_notes", "0040_public_profiles", "0041_lineup_substitutes", "0042_retire_trends_capability", "0043_audit_events", "0044_row_level_security", "0045_keep_product_name", "0046_auth_failures", "0047_db_egress_daily", "0048_last_known_ranks", "0049_social_links", "0050_clash_scouts", "0051_public_site_copy", "0052_data_api_grants", "0053_administrator_access", "0054_web_vitals", "0055_restore_ascend_owner", "0056_privacy_erasures", "0057_participant_ranks", "0058_match_details_puuids", "0059_ranked_development", "0060_match_timeline_events", "0061_social_links_public", "0062_retire_meta_trends_tables", "0063_retire_draft_tables", "0064_retire_clash_scouts"]);
     const presets = ((await db.execute(sql`SELECT name, level_key, capabilities FROM permission_presets ORDER BY name`)) as unknown as { rows: Array<{ name: string; level_key: string | null; capabilities: string[] }> }).rows;
     // 0029 later renames the built-in Administrator level to Team Manager without site settings.
     expect(presets.map((p) => [p.name, p.level_key])).toEqual([
@@ -206,7 +296,7 @@ describe("database migrations", () => {
     await db.execute(sql`INSERT INTO riot_accounts (owner_type, player_id, game_name, tag_line, platform, puuid, label, tier, division, league_points, ranked_wins, ranked_losses, rank_queue, rank_updated_at)
       VALUES ('player', ${playerId}, 'Ranked', 'T', 'oc1', 'p1', 'main', 'GOLD', 'II', 40, 20, 18, 'solo', '2026-10-01T10:00:00Z'),
              ('player', ${playerId}, 'Unranked', 'T', 'oc1', 'p2', 'alt', NULL, NULL, NULL, NULL, NULL, NULL, NULL)`);
-    expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual(["0035_r8_rank_snapshots", "0036_matchups_frames", "0037_account_order", "0038_blocks_completion_rules", "0039_patterns_notes", "0040_public_profiles", "0041_lineup_substitutes", "0042_retire_trends_capability", "0043_audit_events", "0044_row_level_security", "0045_keep_product_name", "0046_auth_failures", "0047_db_egress_daily", "0048_last_known_ranks", "0049_social_links", "0050_clash_scouts", "0051_public_site_copy", "0052_data_api_grants", "0053_administrator_access", "0054_web_vitals", "0055_restore_ascend_owner", "0056_privacy_erasures", "0057_retire_clash_scouts"]);
+    expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual(["0035_r8_rank_snapshots", "0036_matchups_frames", "0037_account_order", "0038_blocks_completion_rules", "0039_patterns_notes", "0040_public_profiles", "0041_lineup_substitutes", "0042_retire_trends_capability", "0043_audit_events", "0044_row_level_security", "0045_keep_product_name", "0046_auth_failures", "0047_db_egress_daily", "0048_last_known_ranks", "0049_social_links", "0050_clash_scouts", "0051_public_site_copy", "0052_data_api_grants", "0053_administrator_access", "0054_web_vitals", "0055_restore_ascend_owner", "0056_privacy_erasures", "0057_participant_ranks", "0058_match_details_puuids", "0059_ranked_development", "0060_match_timeline_events", "0061_social_links_public", "0062_retire_meta_trends_tables", "0063_retire_draft_tables", "0064_retire_clash_scouts"]);
     const rows = await q<{ queue: string; tier: string; division: string; league_points: number; wins: number; losses: number; captured_at: string | Date }>(sql`SELECT queue, tier, division, league_points, wins, losses, captured_at FROM rank_snapshots`);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ queue: "solo", tier: "GOLD", division: "II", league_points: 40, wins: 20, losses: 18 });
@@ -230,7 +320,7 @@ describe("database migrations", () => {
     await db.execute(sql`UPDATE players SET team_member = false WHERE display_name = 'Sub'`);
     await db.execute(sql`INSERT INTO users (username, display_name, role, password_hash) VALUES ('boss', 'B', 'owner', 'x'), ('kim', 'K', 'coach', 'y'), ('pat', 'P', 'player', 'z')`);
     const result = await runMigrations(db, { useAdvisoryLock: false });
-    expect(result.applied).toEqual(["0031_p11_retire_other_coach", "0032_p13_card_studio", "0033_p15_match_summary", "0034_r6_match_links", "0035_r8_rank_snapshots", "0036_matchups_frames", "0037_account_order", "0038_blocks_completion_rules", "0039_patterns_notes", "0040_public_profiles", "0041_lineup_substitutes", "0042_retire_trends_capability", "0043_audit_events", "0044_row_level_security", "0045_keep_product_name", "0046_auth_failures", "0047_db_egress_daily", "0048_last_known_ranks", "0049_social_links", "0050_clash_scouts", "0051_public_site_copy", "0052_data_api_grants", "0053_administrator_access", "0054_web_vitals", "0055_restore_ascend_owner", "0056_privacy_erasures", "0057_retire_clash_scouts"]);
+    expect(result.applied).toEqual(["0031_p11_retire_other_coach", "0032_p13_card_studio", "0033_p15_match_summary", "0034_r6_match_links", "0035_r8_rank_snapshots", "0036_matchups_frames", "0037_account_order", "0038_blocks_completion_rules", "0039_patterns_notes", "0040_public_profiles", "0041_lineup_substitutes", "0042_retire_trends_capability", "0043_audit_events", "0044_row_level_security", "0045_keep_product_name", "0046_auth_failures", "0047_db_egress_daily", "0048_last_known_ranks", "0049_social_links", "0050_clash_scouts", "0051_public_site_copy", "0052_data_api_grants", "0053_administrator_access", "0054_web_vitals", "0055_restore_ascend_owner", "0056_privacy_erasures", "0057_participant_ranks", "0058_match_details_puuids", "0059_ranked_development", "0060_match_timeline_events", "0061_social_links_public", "0062_retire_meta_trends_tables", "0063_retire_draft_tables", "0064_retire_clash_scouts"]);
     // Everyone is still there with their data: the former substitute keeps its notes and its own team membership.
     expect(await q(sql`SELECT display_name, "group", team_member, notes FROM players ORDER BY display_name`)).toEqual([
       { display_name: "Main", group: "main", team_member: true, notes: "" },
@@ -248,7 +338,7 @@ describe("database migrations", () => {
     await fresh.close();
   });
 
-  it("0057 drops the two retired Clash Scout tables, saved scouts and all, and nothing else", async () => {
+  it("retire_clash_scouts drops the two retired Clash Scout tables, saved scouts and all, and nothing else", async () => {
     const fresh = await createDb({ mode: "pglite-memory", migrate: false });
     const db = fresh.db;
     const rows = (r: unknown) => (r as { rows?: Array<Record<string, unknown>> }).rows ?? (r as Array<Record<string, unknown>>);

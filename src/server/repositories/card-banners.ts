@@ -4,6 +4,7 @@ import { playerCardBanners, players } from "@/server/db/schema";
 import { sniffImage } from "@/server/images";
 import { cardBannerUrl as bannerUrl } from "@/domain/card-style";
 import { UserError } from "./users";
+import { invalidateCache } from "@/server/observability/cache";
 
 /*
   Optional card banners (Player Card Studio). The browser crops and resizes the picture to a
@@ -29,12 +30,14 @@ export async function setCardBanner(db: Db, playerId: string, data: Buffer): Pro
   await db.insert(playerCardBanners).values({ playerId, contentType: info.type, data, updatedAt: now }).onConflictDoUpdate({ target: playerCardBanners.playerId, set: { contentType: info.type, data, updatedAt: now } });
   const version = Math.floor(now.getTime() / 1000);
   await db.update(players).set({ cardBannerVersion: version }).where(eq(players.id, playerId));
+  invalidateCache(`public-image:banner:${playerId}`);
   return version;
 }
 
 export async function removeCardBanner(db: Db, playerId: string): Promise<void> {
   await db.delete(playerCardBanners).where(eq(playerCardBanners.playerId, playerId));
   await db.update(players).set({ cardBannerVersion: null }).where(eq(players.id, playerId));
+  invalidateCache(`public-image:banner:${playerId}`);
 }
 
 export async function getCardBanner(db: Db, playerId: string): Promise<{ contentType: string; data: Buffer } | null> {

@@ -4,12 +4,11 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, Check, ChevronDown, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
 import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
-import type { PickerChampion } from "@/components/champion-picker";
-import { TierBadge } from "@/components/players/tier-badge";
+import type { PickerChampion } from "@/components/champions/types";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { AddChampion } from "./add-champion";
 import type { PoolChampionStats, PoolStats } from "./pool-stats";
-import { SortablePool } from "@/components/champions/sortable-pool";
+import { POOL_ROW_CONTROLS, SortablePool } from "@/components/champions/sortable-pool";
 import { RoleIcon } from "@/components/role-icon";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
@@ -149,15 +148,14 @@ export function PoolSection({
   return (
     <section className={cn("space-y-3", closed && "space-y-0")} data-testid={testId} data-open={collapsible ? collapsible.open : undefined}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <h3 className="flex min-w-0 flex-col gap-1.5">
-          {eyebrow ? <span className="text-2xs font-semibold uppercase tracking-label text-fg-subtle">{eyebrow}</span> : null}
-          <span className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 text-sm font-semibold">
-            {roleControl ?? <RoleIcon role={role} className="h-4 w-4 text-accent" />}
-            {title ? <span>{title}</span> : null}
-            <span className="whitespace-nowrap font-normal text-fg-subtle" data-testid={`${testId}-count`}>
-              {ids.length} champion{ids.length === 1 ? "" : "s"}
-            </span>
+        {/* One line: the role (its menu while editing), how many champions, and what the role is to the player. */}
+        <h3 className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 text-sm font-semibold">
+          {roleControl ?? <RoleIcon role={role} className="h-4 w-4 text-accent" />}
+          {title ? <span>{title}</span> : null}
+          <span className="whitespace-nowrap font-normal text-fg-subtle" data-testid={`${testId}-count`}>
+            {ids.length} champion{ids.length === 1 ? "" : "s"}
           </span>
+          {eyebrow ? <span className="whitespace-nowrap rounded-full border border-accent-2/40 bg-accent-2/10 px-2 py-px text-2xs font-semibold uppercase tracking-label text-accent-2">{eyebrow}</span> : null}
         </h3>
         {closed && ids.length ? <PoolPreview ids={ids} championsById={championsById} onInspect={onInspect} inspectHref={inspectHref} testId={`${testId}-preview`} /> : null}
         {actions || (editable && stats && !closed) || collapsible ? (
@@ -177,6 +175,8 @@ export function PoolSection({
       {ids.length === 0 && (!editable || stats) ? (
         <p className="rounded-panel border border-dashed border-border px-3 py-4 text-sm text-fg-subtle">{editable ? "No champions in this role yet. Add the ones you play here." : "No champions yet."}</p>
       ) : (
+        <>
+        {stats ? <PoolColumns role={role} editable={editable} testId={testId} /> : null}
         <SortablePool
           ids={ids}
           championsById={championsById}
@@ -185,32 +185,20 @@ export function PoolSection({
           onRemove={(id) => onChange(ids.filter((x) => x !== id))}
           controls={controls}
           testId={`${testId}-list`}
-          gridClassName={stats ? cn("gap-2.5", poolColumns(ids.length)) : undefined}
-          renderMeta={stats ? (id) => <PoolCardMeta s={stats[id]} /> : undefined}
-          renderStats={stats ? (id) => <PoolCardStats s={stats[id]} role={role} /> : undefined}
+          variant={stats ? "rows" : "cards"}
+          renderStats={stats ? (id) => <PoolRowStats s={stats[id]} role={role} /> : undefined}
           onInspect={onInspect}
           inspectHref={inspectHref}
           // With statistics (the profile), adding is a small button by the heading, so the collection
           // never ends in a card-sized blank; the setup form keeps the cell at the end of the list.
           addSlot={editable && !stats ? addChampion(false) : undefined}
         />
+        </>
       )}
       {children}
       </div>
     </section>
   );
-}
-
-/**
- * Columns for a pool of `n` champion cards, by the width available: rows come out even instead of
- * leaving one card on a line of its own (six: three and three, or all six on a wide screen).
- */
-function poolColumns(n: number): string {
-  if (n <= 3) return "grid-cols-[repeat(auto-fill,minmax(min(100%,15rem),1fr))]";
-  if (n === 4) return "grid-cols-1 @xl:grid-cols-2 @5xl:grid-cols-4";
-  if (n <= 6) return "grid-cols-1 @xl:grid-cols-2 @4xl:grid-cols-3 @6xl:grid-cols-6";
-  if (n <= 8) return "grid-cols-1 @xl:grid-cols-2 @4xl:grid-cols-4";
-  return "grid-cols-[repeat(auto-fill,minmax(min(100%,15rem),1fr))]";
 }
 
 /**
@@ -235,12 +223,14 @@ function PoolPreview({ ids, championsById, onInspect, inspectHref, testId }: { i
                   onInspect(id);
                 }}
                 className="block rounded-md transition-transform hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent motion-reduce:hover:translate-y-0"
-                aria-label={`${c.name}: open its statistics`}
                 aria-haspopup="dialog"
                 title={c.name}
                 data-testid="pool-preview-inspect"
               >
+                {/* Named by the portrait itself ("Rumble"), so its lettered stand-in never contradicts
+                    a label set over it (WCAG 2.5.3, label in name). */}
                 {portrait}
+                <span className="sr-only">: open its statistics</span>
               </a>
             ) : (
               <span title={c.name}>{portrait}</span>
@@ -253,43 +243,64 @@ function PoolPreview({ ids, championsById, onInspect, inspectHref, testId }: { i
   );
 }
 
-/** Under a champion's name: how experienced the player is with it in this role (quiet; reasons on hover). */
-function PoolCardMeta({ s }: { s: PoolChampionStats | undefined }) {
-  if (!s) return <span className="text-xs text-fg-subtle">No games this season</span>;
-  return <TierBadge tier={s.tier} label={s.tierLabel} why={s.tierWhy} evidence={s.evidence} quiet />;
+/** The figures' columns of a pool's rows (three in a narrow list, four from 32rem), shared with the column names. */
+const STATS_COLUMNS = "grid w-[10.5rem] shrink-0 grid-cols-3 @lg:w-[17rem] @lg:grid-cols-4";
+
+/**
+ * The column names over a pool's rows, once (the rows carry each name for screen readers): the
+ * champion, then games, win rate, KDA and CS/min (vision for Support, judged on vision rather than
+ * farm). While editing it leaves the room the rows' grip and × take.
+ */
+function PoolColumns({ role, editable, testId }: { role: Role; editable: boolean; testId: string }) {
+  return (
+    <div aria-hidden className="flex items-center gap-2.5 pb-0.5 pl-2 pr-1.5 text-2xs font-semibold uppercase tracking-label text-fg-subtle @lg:gap-3 @lg:pl-2.5" data-testid={`${testId}-columns`}>
+      <span className="w-4 shrink-0" />
+      <span className="min-w-0 flex-1">Champion</span>
+      <span className={cn(STATS_COLUMNS, "text-center")}>
+        <span>Games</span>
+        <span>
+          <span className="@lg:hidden">Win %</span>
+          <span className="hidden @lg:inline">Win rate</span>
+        </span>
+        <span>KDA</span>
+        <span className="hidden @lg:block">{role === "SUPPORT" ? "Vision" : "CS/min"}</span>
+      </span>
+      {editable ? <span className={cn("shrink-0", POOL_ROW_CONTROLS)} /> : null}
+    </div>
+  );
 }
 
 /**
- * The champion's season in this role, as four figures along the bottom of its card (Support shows
- * vision instead of farm). Every card has the band, so the collection keeps one card height.
+ * A champion's season in this role, at its row's end under the column names: games, win rate
+ * (coloured only on enough games), KDA, and CS/min or vision. A champion without games this season
+ * says so in words across the columns, with its mastery when there is some.
  */
-function PoolCardStats({ s, role }: { s: PoolChampionStats | undefined; role: Role }) {
-  const cell = (label: string, value: React.ReactNode, extra?: { tone?: string; title?: string; testId?: string }) => (
-    <div className="min-w-0 px-1.5 py-2 text-center @max-md:py-1.5" title={extra?.title}>
-      <div className={cn("truncate text-sm font-semibold tabular-nums leading-tight", extra?.tone ?? "text-fg")} data-testid={extra?.testId}>
-        {value}
-      </div>
-      <div className="mt-0.5 truncate text-2xs text-fg-subtle">{label}</div>
-    </div>
-  );
+function PoolRowStats({ s, role }: { s: PoolChampionStats | undefined; role: Role }) {
   if (!s?.games)
     return (
-      <div className="flex min-h-[3.25rem] items-center justify-center px-3 text-xs text-fg-subtle" data-testid="pool-card-stats">
-        No games this season{s?.mastery ? ` · ${formatCompactCount(s.mastery)} mastery` : ""}
-      </div>
+      <span className={cn(STATS_COLUMNS, "items-center")} data-testid="pool-card-stats">
+        <span className="col-span-3 truncate text-center text-xs text-fg-subtle @lg:col-span-4">
+          No games this season{s?.mastery ? ` · ${formatCompactCount(s.mastery)} mastery` : ""}
+        </span>
+      </span>
     );
+  const cell = (label: string, value: React.ReactNode, extra?: { tone?: string; title?: string; testId?: string; className?: string }) => (
+    <span className={cn("min-w-0 truncate text-center text-sm font-semibold tabular-nums", extra?.tone ?? "text-fg", extra?.className)} title={extra?.title} data-testid={extra?.testId}>
+      <span className="sr-only">{label}: </span>
+      {value}
+    </span>
+  );
   return (
-    <div className="grid grid-cols-4 divide-x divide-border/50" data-testid="pool-card-stats">
+    <span className={STATS_COLUMNS} data-testid="pool-card-stats">
       {cell(s.games === 1 ? "Game" : "Games", s.games)}
       {cell("Win rate", s.winRate === null ? "—" : `${Math.round(s.winRate * 100)}%`, { tone: WIN_RATE_TONE_CLASS[winRateTone(s.winRate, s.games, WIN_RATE_MIN_GAMES.champion)] })}
       {cell("KDA", s.perfectKda ? "Perfect" : s.kdaRatio === null ? "—" : s.kdaRatio.toFixed(2))}
       {role === "SUPPORT"
-        ? cell("Vision", s.visionPerGame === null ? "—" : s.visionPerGame.toFixed(1), { title: s.visionPerGame === null ? "Vision score is not available: these games' details were not collected" : "Average vision score per game (Support is judged on vision rather than farm)", testId: "pool-card-vision" })
-        : cell("CS/min", s.csPerMinute === null ? "—" : s.csPerMinute.toFixed(1), { title: s.csPerMinute === null ? "CS/min is not available: these games' details were not collected" : "Creep score per minute (minions and monsters)" })}
-    </div>
+        ? cell("Vision", s.visionPerGame === null ? "—" : s.visionPerGame.toFixed(1), { title: s.visionPerGame === null ? "Vision score is not available: these games' details were not collected" : "Average vision score per game (Support is judged on vision rather than farm)", testId: "pool-card-vision", className: "hidden @lg:block" })
+        : cell("CS/min", s.csPerMinute === null ? "—" : s.csPerMinute.toFixed(1), { title: s.csPerMinute === null ? "CS/min is not available: these games' details were not collected" : "Creep score per minute (minions and monsters)", className: "hidden @lg:block" })}
+    </span>
   );
 }
-
 
 /** The role of a pool, as a compact menu: switch it to a role not yet used, move or remove it. */
 function RoleMenu({
@@ -556,7 +567,7 @@ export function ProfileEditor({
   );
 
   return (
-    <div className="space-y-4" data-testid="profile-editor" data-editing={live || undefined}>
+    <div className="space-y-3" data-testid="profile-editor" data-editing={live || undefined}>
       {heading || intro || editable ? (
         <div className="space-y-1">
           {/* The heading and Edit share a line on every width; the rest of the context goes under it. */}
@@ -588,19 +599,19 @@ export function ProfileEditor({
       <p className="sr-only" aria-live="assertive" data-testid="role-announce">
         {drag.announce}
       </p>
-      <ol className="space-y-3" data-testid="role-sections" aria-label="Roles in order of preference">
+      <ol className="space-y-2.5" data-testid="role-sections" aria-label="Roles in order of preference">
         {sections.map((o, i) => (
           <React.Fragment key={o.role}>
             {drag.lineBefore(i) ? <li aria-hidden className="h-1 rounded-full bg-accent" data-testid="role-drop-line" /> : null}
             {i === 1 ? (
-              <li aria-hidden className="border-t border-border pt-4" data-testid="off-roles-heading">
+              <li aria-hidden className="border-t border-border/70 pt-3" data-testid="off-roles-heading">
                 <p className="text-2xs font-semibold uppercase tracking-label text-fg-subtle">
                   Off roles <span className="font-normal normal-case tracking-normal">· in order of preference</span>
                 </p>
               </li>
             ) : null}
             {/* The primary pool is the section's body; each off role is a row of its own. */}
-            <li ref={drag.ref(i)} className={cn("relative", i > 0 && "rounded-panel border border-border/70 bg-surface/40 px-3 py-2.5", drag.dragging === i && "z-20 rounded-card bg-bg-elevated/95 shadow-2xl ring-1 ring-accent/50")} style={drag.style(i)} data-testid="role-section" data-role={o.role} data-dragging={drag.dragging === i || undefined}>
+            <li ref={drag.ref(i)} className={cn("relative", i > 0 && "rounded-panel border border-border/70 bg-surface-2/40 px-3 py-2", drag.dragging === i && "z-20 rounded-card bg-bg-elevated/95 shadow-2xl ring-1 ring-accent/50")} style={drag.style(i)} data-testid="role-section" data-role={o.role} data-dragging={drag.dragging === i || undefined}>
               {renderSection(o, i)}
             </li>
           </React.Fragment>
@@ -608,7 +619,7 @@ export function ProfileEditor({
         {drag.lineBefore(sections.length) ? <li aria-hidden className="h-1 rounded-full bg-accent" data-testid="role-drop-line" /> : null}
       </ol>
       {offCount === 0 || live ? (
-        <div className={cn("space-y-2", offCount === 0 && "border-t border-border pt-4")} data-testid="off-roles">
+        <div className={cn("space-y-2", offCount === 0 && "border-t border-border/70 pt-3")} data-testid="off-roles">
           {offCount === 0 ? (
             <>
               <p className="text-2xs font-semibold uppercase tracking-label text-fg-subtle">Off roles</p>

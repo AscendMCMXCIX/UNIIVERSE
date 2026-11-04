@@ -40,16 +40,16 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
     kept: "While the profile exists. When an account is deleted, an administrator archives the profile with its history or deletes it too; permanent removal takes all of it (below)",
   },
   {
-    what: "Match records: for each stored game, the record Riot publishes (all ten players' in-game names, PUUIDs, champions, items, runes and results) and its timeline, kept once per game",
+    what: "Match records: for each stored game, the record Riot publishes (all ten players' in-game names, PUUIDs, champions, items, runes and results) and its timeline (what each player bought, their skill order, their gold, experience and CS minute by minute and when they took part in a kill, and the objectives each team took), kept once per game",
     why: "Match details, Matchups, Played Together and Encounters",
     who: "Team members, for games in a profile's history",
     kept: "Not deleted automatically: a game stays stored after the profiles that played it are deleted, but is no longer shown. Permanent removal takes the person out of every stored game (below)",
   },
   {
-    what: "Other players' last-known rank: the rank the app last saw for a player met in a game, with its date",
-    why: "Shown beside a match's players in Match History",
+    what: "Other players' ranks: the Ranked Solo/Duo and Flex rank (tier, division and points) of a player in a stored game, and when it was read. It is read from Riot once a member's game with that player is collected (games of the last 7 days), and when a member opens one of that player's games and the stored one is missing or over 3 days old",
+    why: "Shown beside a match's players in Match History (in the scoreboard, and on each game's card) as their rank around the time of that game, or marked as read later (Riot's game records have no rank from the time of the game)",
     who: "Team members",
-    kept: "Not deleted automatically; nothing adds new ones (they come from features since removed). Permanent removal deletes the person's own",
+    kept: "Until the next reading replaces it; not deleted automatically. Permanent removal deletes the person's own, and no rank is read for them again",
   },
   {
     what: "What you add: roles, champion pools, card designs and your profile picture",
@@ -59,15 +59,15 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
   },
   {
     what: "Social links, only if you add them: a YouTube or Twitch channel address and a Discord username",
-    why: "So teammates, or visitors if you choose, can find you there",
-    who: "Whoever you choose for each one: only you, team members, or also the public team page",
+    why: "So teammates and visitors to the public team page can find you there, if you choose",
+    who: "Only you, until you switch on Show publicly for a link: then team members and the public team page",
     kept: "Until you clear them; removed when your account is deleted",
   },
   {
-    what: "Solo Queue Blocks: your goals, notes and logged games",
-    why: "Your own practice journal",
-    who: "Only you",
-    kept: "Until you delete them, or the profile is deleted or your personal information removed",
+    what: "Ranked Development records saved before Ranked Development was retired: your objectives, If–Then plans, sessions, game reviews and notes (and the Solo Queue Blocks journal they grew from)",
+    why: "None any more: Ranked Development was retired, and nothing reads them or adds to them",
+    who: "Nobody in the app: no page shows them",
+    kept: "Until a planned database clean-up deletes all of them, once a recent backup has been checked. Deleting your profile or permanently removing your personal information already deletes yours; your Riot match history is never part of them",
   },
   {
     what: "Admin activity: which account or setting an administrator changed, and when, with names as they were then",
@@ -149,7 +149,7 @@ export default async function PrivacyPage() {
         {name} is a private app for one League of Legends team. Administrators create every account; there is no public sign-up. This notice explains what it stores about members, why, who can see it, how long it stays, and how to reach us about it.
       </p>
       <p className="mt-1 text-xs text-fg-subtle">
-        Updated <time dateTime="2026-10-23">{PRIVACY_UPDATED}</time>
+        Updated <time dateTime="2026-11-02">{PRIVACY_UPDATED}</time>
       </p>
 
       <nav aria-label="On this page" className="mt-4" data-testid="privacy-index">
@@ -208,7 +208,7 @@ export default async function PrivacyPage() {
 
       <Section id="public-page" title="The public team page">
         <p className="mt-1 text-sm text-fg-muted" data-testid="privacy-public-page">
-          Anyone can open the team page without an account. It shows the lineup and substitutes: display names, profile pictures, card designs, roles and champion pools, and a social link only where its owner chose to show it there.{" "}
+          Anyone can open the team page without an account. It shows the lineup and substitutes: display names, profile pictures, card designs, roles and champion pools, and a social link only when its owner has switched on Show publicly for it.{" "}
           {publicFigures ? "On this site it also shows their ranks and this season's statistics, and the team's Leaderboards among them. It never shows usernames or Riot IDs." : "It never shows usernames, Riot IDs, ranks or statistics."}
         </p>
       </Section>
@@ -221,9 +221,9 @@ export default async function PrivacyPage() {
           <p className="mt-2 text-sm text-fg-muted">Previously created encrypted backups may temporarily retain information after deletion. Backup retention, offline copies and restoration procedures are managed to prevent previously erased information from being inadvertently restored.</p>
           <h3 className="mt-4 text-sm font-semibold text-fg">What a removal covers</h3>
           <ul className={LIST}>
-            <li>The account and its sign-in sessions; the profile with its roles, champion pools, card design, picture and social links; Solo Queue Blocks; and every linked Riot account with its Riot IDs, PUUIDs, ranks, champion mastery and statistics.</li>
-            <li>Games: a stored game that no other member&apos;s history or team record uses is deleted. In any other, the person&apos;s place becomes &ldquo;Removed player&rdquo;: only the side they played on and the result stay, never their name, Riot ID, champion, items or figures, and their part of the game&apos;s timeline is deleted.</li>
-            <li>Team records and notes: their name is replaced (&ldquo;Former member&rdquo; in drafts and match records, &ldquo;[removed]&rdquo; in notes).</li>
+            <li>The account and its sign-in sessions; the profile with its roles, champion pools, card design, picture and social links; the records kept from the retired Ranked Development (objectives, plans, sessions and reviews); and every linked Riot account with its Riot IDs, PUUIDs, ranks, champion mastery and statistics.</li>
+            <li>Games: a stored game that no other member&apos;s history or bookmark uses is deleted. In any other, the person&apos;s place becomes &ldquo;Removed player&rdquo;: only the side they played on and the result stay, never their name, Riot ID, champion, items or figures, and their part of the game&apos;s timeline is deleted.</li>
+            <li>Notes: their name is replaced by &ldquo;[removed]&rdquo; in other people&apos;s notes.</li>
             <li>Logs: their name becomes &ldquo;Erased member&rdquo; in the admin activity log, and their Riot IDs are taken out of the background job records.</li>
             <li>A removal record (see What is stored) keeps games stored later from including them and stops their Riot accounts being linked again by mistake. It holds no name or Riot ID.</li>
           </ul>

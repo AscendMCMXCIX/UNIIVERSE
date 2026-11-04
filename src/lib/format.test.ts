@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import path from "node:path";
 import { ESLint } from "eslint";
-import { DISPLAY_TIME_ZONE, calendarDay, formatCompactCount, formatCount, formatDate, formatDateTime, formatDayMonth, formatNumber, timeAgo } from "./format";
+import { DISPLAY_TIME_ZONE, calendarDay, formatCompactCount, formatCount, formatDate, formatDateTime, formatDayMonth, formatIsoDay, formatKilo, formatNumber, formatTimeOfDay, isoDay, timeAgo } from "./format";
 
 /*
   Every date on the site is written in the installation's time zone (Sydney unless
@@ -41,6 +41,17 @@ describe("dates", () => {
     expect(formatDate("not a date")).toBe("—");
     expect(formatDateTime(Number.NaN)).toBe("—");
     expect(calendarDay("")).toBeNull();
+  });
+
+  it("name a calendar day as a date input does, in the installation's time zone", () => {
+    expect(isoDay("2026-10-20T22:30:00Z")).toBe("2026-10-21");
+    expect(isoDay(Date.UTC(2026, 0, 2, 3))).toBe("2026-01-02");
+    expect(isoDay("not a date")).toBe("");
+    expect(formatIsoDay("2026-10-21")).toBe("21 Oct 2026");
+    expect(formatIsoDay("2026-13-01")).toBe("—");
+    expect(formatTimeOfDay("2026-10-20T22:30:00Z")).toBe("9:30 am");
+    expect(formatTimeOfDay("2026-10-21T01:00:00Z")).toBe("12:00 pm");
+    expect(formatTimeOfDay(Number.NaN)).toBe("—");
   });
 });
 
@@ -94,5 +105,9 @@ describe("numbers", () => {
     expect(formatCompactCount(9_999)).toBe("9,999");
     expect(formatCompactCount(45_400)).toBe("45K");
     expect(formatCompactCount(1_250_000)).toBe("1.3M");
+    // A scoreboard's gold and damage: one decimal of thousands, whatever the size, so a column reads alike.
+    expect(formatKilo(7_504)).toBe("7.5k");
+    expect(formatKilo(29_120)).toBe("29.1k");
+    expect(formatKilo(950)).toBe("950");
   });
 });

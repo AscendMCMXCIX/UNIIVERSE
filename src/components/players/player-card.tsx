@@ -68,10 +68,16 @@ const SIZERS = "invisible hidden max-h-[2lh] overflow-hidden @xl/lineup:grid [&>
  * comes last, so room kept for one sits at the block's foot, not between the name and its rank.
  *
  * `layout="side"` (the Team player window's header, not a card): the picture beside the same rows.
+ * `layout="rows"` (the Players directory): the same four parts, each placed on its own row of a
+ * parent grid with four rows (DirectoryCardLayout), so cards side by side line up part by part. The
+ * labels stay on one line there: the rank whole, a tag after it shortened with an ellipsis.
+ * `reserveTagline` (with `rows`): a player without a tagline keeps one line's room for it, so their
+ * card is as tall as a card with one wherever cards with taglines are listed.
  * `showRank={false}` leaves the rank out entirely (not "Unranked"): for viewers who may not see the
  * player's statistics.
  */
-export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isYou = false, status, role, size = "lg", nameClassName, tag, social, layout = "stack", align }: { look: CardLook | null | undefined; name: string; avatarUrl: string | null; rank: CompactRank | null; showRank?: boolean; isYou?: boolean; status?: "main" | "off" | null; role?: Role | null; size?: "md" | "lg"; nameClassName?: string; /** One more label after the role status (the Team card's substitute side). */ tag?: React.ReactNode; /** The player's social icons (CardSocialIcons), on the picture's row. */ social?: React.ReactNode; layout?: "stack" | "side"; /** Everyone the lineup can show, to keep cards side by side level. */ align?: ReadonlyArray<{ name: string; look: CardLook }> }) {
+export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isYou = false, status, role, size = "lg", nameClassName, tag, social, layout = "stack", align, reserveTagline = false }: { look: CardLook | null | undefined; name: string; avatarUrl: string | null; rank: CompactRank | null; showRank?: boolean; isYou?: boolean; status?: "main" | "off" | null; role?: Role | null; size?: "md" | "lg"; nameClassName?: string; /** One more label after the role status (the Team card's substitute side). */ tag?: React.ReactNode; /** The player's social icons (CardSocialIcons), on the picture's row. */ social?: React.ReactNode; layout?: "stack" | "side" | "rows"; /** Everyone the lineup can show, to keep cards side by side level. */ align?: ReadonlyArray<{ name: string; look: CardLook }>; /** With `rows`: keep a tagline's line when the player has none. */ reserveTagline?: boolean }) {
+  const rows = layout === "rows";
   const avatar = (
     <span className="relative shrink-0">
       <CardAvatar look={look} name={name} src={avatarUrl} size={size} />
@@ -87,8 +93,8 @@ export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isY
   const taglineShade = "mt-1.5 [text-shadow:0_1px_2px_rgb(0_0_0/0.7)]";
   const labels =
     showRank || (status && role) || tag ? (
-      <span className="mt-2 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-fg-muted @min-[17rem]/card:gap-x-2 @min-[17rem]/card:text-sm" data-testid="card-fit">
-        {showRank ? <RankInline rank={rank} /> : null}
+      <span className={cn("mt-2 flex min-w-0 items-center gap-x-1.5 gap-y-1 text-xs text-fg-muted @min-[17rem]/card:gap-x-2 @min-[17rem]/card:text-sm", !rows && "flex-wrap")} data-testid="card-fit">
+        {showRank ? <RankInline rank={rank} className={rows ? "shrink-0" : undefined} /> : null}
         {status && role ? <RoleStatusBadge status={status} role={role} className="@min-[17rem]/card:text-xs" /> : null}
         {tag}
       </span>
@@ -124,6 +130,22 @@ export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isY
   ) : (
     <CardTagline look={look} className={taglineShade} />
   );
+  if (rows) {
+    const tagline = look?.style.identity.tagline ? <CardTagline look={look} className={taglineShade} /> : reserveTagline ? <span aria-hidden className="mt-1.5 block min-h-[1lh] text-xs leading-snug @min-[17rem]/card:text-sm" data-testid="card-tagline-room" /> : null;
+    // No box of its own: each part is an item of the parent's four rows.
+    return (
+      <span className="contents" data-testid="card-identity" data-layout="rows">
+        <span className="row-start-1 flex min-w-0 flex-wrap items-center gap-2">
+          {avatar}
+          {links}
+        </span>
+        {/* At least a line of the standard name size: a smaller name style keeps the same room. */}
+        <span className={cn("row-start-2 mt-2.5 min-h-[1lh] min-w-0", NAME_SIZE)}>{nameLine}</span>
+        <span className="row-start-3 min-w-0">{labels}</span>
+        <span className="row-start-4 min-w-0">{tagline}</span>
+      </span>
+    );
+  }
   if (layout === "side")
     return (
       <span className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 sm:gap-x-4" data-testid="card-identity" data-layout="side">
@@ -230,7 +252,7 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
   const decided = (wins ?? 0) + (losses ?? 0);
   const per = (n: number | null | undefined) => (n == null ? "–" : n.toFixed(1));
   const kdaLine = season && season.kills != null && season.deaths != null && season.assists != null ? `${per(season.kills)} / ${per(season.deaths)} / ${per(season.assists)}` : null;
-  const label = "block whitespace-nowrap text-2xs md:text-3xs font-medium uppercase tracking-label text-fg-subtle @max-[15rem]/card:tracking-[0.04em]";
+  const label = "block whitespace-nowrap text-2xs font-medium uppercase tracking-label text-fg-subtle @max-[15rem]/card:tracking-[0.04em]";
   const sub = "block truncate text-2xs tabular-nums text-fg-subtle";
   return (
     <div className="rounded-lg bg-bg/55 px-3 pb-2.5 pt-2 ring-1 ring-inset ring-white/[0.06]" data-testid="card-season">
@@ -346,6 +368,25 @@ const REST_HIDDEN = ["@max-[1.75rem]:hidden", "@max-[3.75rem]:hidden", "@max-[5.
 // With `fit`, portrait i (2.25rem each, 0.25rem apart) is dropped whole when the preview is narrower than i + 1 portraits.
 const FIT_HIDDEN = ["", "@max-[4.75rem]:hidden", "@max-[7.25rem]:hidden", "@max-[9.75rem]:hidden", "@max-[12.25rem]:hidden", "@max-[14.75rem]:hidden", "@max-[17.25rem]:hidden"];
 
+// With `fit="count"`, portraits (2.25rem, 0.25rem apart) and a count of the same size: k portraits and
+// the count need 2.5k + 2.25rem, a whole pool of n needs 2.5n - 0.25rem. Portrait j (from 0) shows from
+// 2.5j + 4.75rem wide, so it always leaves room for the count; the count after k portraits shows from
+// 2.5k + 2.25rem until the next portrait fits. A pool's last portrait shows with the one before it,
+// once the whole pool fits: a count would take its place, so "+1" never shows.
+const PORTRAIT_FROM = ["@max-[4.75rem]/pool:hidden", "@max-[7.25rem]/pool:hidden", "@max-[9.75rem]/pool:hidden", "@max-[12.25rem]/pool:hidden", "@max-[14.75rem]/pool:hidden", "@max-[17.25rem]/pool:hidden", "@max-[19.75rem]/pool:hidden", "@max-[22.25rem]/pool:hidden", "@max-[24.75rem]/pool:hidden", "@max-[27.25rem]/pool:hidden", "@max-[29.75rem]/pool:hidden", "@max-[32.25rem]/pool:hidden", "@max-[34.75rem]/pool:hidden", "@max-[37.25rem]/pool:hidden"];
+// The count after k portraits; after the last one drawn (a pool longer than PORTRAIT_FROM), at any width beyond.
+const COUNT_AFTER = ["@max-[4.75rem]/pool:grid", "@min-[4.75rem]/pool:@max-[7.25rem]/pool:grid", "@min-[7.25rem]/pool:@max-[9.75rem]/pool:grid", "@min-[9.75rem]/pool:@max-[12.25rem]/pool:grid", "@min-[12.25rem]/pool:@max-[14.75rem]/pool:grid", "@min-[14.75rem]/pool:@max-[17.25rem]/pool:grid", "@min-[17.25rem]/pool:@max-[19.75rem]/pool:grid", "@min-[19.75rem]/pool:@max-[22.25rem]/pool:grid", "@min-[22.25rem]/pool:@max-[24.75rem]/pool:grid", "@min-[24.75rem]/pool:@max-[27.25rem]/pool:grid", "@min-[27.25rem]/pool:@max-[29.75rem]/pool:grid", "@min-[29.75rem]/pool:@max-[32.25rem]/pool:grid", "@min-[32.25rem]/pool:@max-[34.75rem]/pool:grid", "@min-[34.75rem]/pool:@max-[37.25rem]/pool:grid", "@min-[37.25rem]/pool:grid"];
+
+/** Which portraits and which count a `fit="count"` row draws for a pool of `n` (see PORTRAIT_FROM). */
+export function countFit(n: number): { portraits: string[]; counts: Array<{ shown: number; className: string }> } {
+  // A pool one longer than the table still shows whole: its last portrait takes the table's last width.
+  const whole = n <= PORTRAIT_FROM.length + 1;
+  const drawn = whole ? n : PORTRAIT_FROM.length;
+  const portraits = Array.from({ length: drawn }, (_, j) => (whole && j === n - 1 ? (j === 0 ? "" : PORTRAIT_FROM[j - 1]!) : PORTRAIT_FROM[j]!));
+  const counts = Array.from({ length: whole ? Math.max(0, n - 1) : drawn + 1 }, (_, k) => ({ shown: k, className: COUNT_AFTER[k]! }));
+  return { portraits, counts };
+}
+
 /**
  * A few pool champions as portraits, in the player's order, with the rest counted ("+3"): enough to
  * recognise a pool at a glance. The full pool lives in the detail panel and on the profile.
@@ -353,8 +394,34 @@ const FIT_HIDDEN = ["", "@max-[4.75rem]:hidden", "@max-[7.25rem]:hidden", "@max-
  * `fit` (Team cards): the preview takes the room beside the pool label and shows only the
  * portraits that fit there, without a "+N" count, because the label already gives the pool's size.
  * Nothing overlaps the label at any card width.
+ *
+ * `fit="count"` (Players; pass the whole pool): a row of its own, with as many whole portraits as its
+ * width holds and the rest counted at its end, the count the size of a portrait. A pool that fits
+ * shows whole without a count; a portrait is never cut. Decided by the row's own width (a container
+ * query), so it is right from the first paint, at any card width.
  */
-export function PoolPreview({ champions, total, label, max = 4, fit = false, testId = "pool-preview" }: { champions: PortraitChampion[]; total: number; label: string; max?: number; fit?: boolean; testId?: string }) {
+export function PoolPreview({ champions, total, label, max = 4, fit = false, testId = "pool-preview" }: { champions: PortraitChampion[]; total: number; label: string; max?: number; fit?: boolean | "count"; testId?: string }) {
+  if (fit === "count") {
+    const { portraits, counts } = countFit(champions.length);
+    return (
+      <div className="@container/pool min-w-0">
+        <div className="flex min-h-9 min-w-0 items-center gap-1" aria-label={label} data-testid={testId}>
+          {champions.length === 0 ? <span className="text-xs text-warn">No champions yet</span> : null}
+          {portraits.map((hide, j) => (
+            <span key={champions[j]!.id} className={cn("shrink-0", hide)} data-testid="pool-portrait">
+              <ChampionPortrait champion={champions[j]} size="sm" />
+            </span>
+          ))}
+          {counts.map(({ shown, className }) => (
+            <span key={shown} className={cn("hidden h-9 w-9 shrink-0 place-items-center rounded-md border border-border text-xs tabular-nums text-fg-muted", className)} title={`${champions.length - shown} more on the profile`} data-testid={`${testId}-more`}>
+              {`+${champions.length - shown}`}
+              <span className="sr-only"> more champions</span>
+            </span>
+          ))}
+        </div>
+      </div>
+    );
+  }
   const shown = champions.slice(0, fit ? Math.min(max, FIT_HIDDEN.length) : max);
   const more = total - shown.length;
   const row = (
@@ -443,24 +510,50 @@ export function PoolChampionRow({ index, champion, row, support, withStats = tru
   );
 }
 
+/** The pool list's columns (Team player window): the champion, then its figures, right-aligned. */
+const POOL_TILE_GRID = "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 sm:grid-cols-[auto_minmax(0,1fr)_4.75rem_3.5rem_3.25rem_4rem]";
+
+/** The column names over the pool list, from small tablets up (phones put each champion's figures in a short block). */
+export function PoolColumnNames({ support }: { support: boolean }) {
+  const head = "whitespace-nowrap text-right text-2xs font-semibold uppercase tracking-label text-fg-subtle";
+  return (
+    <div className={cn(POOL_TILE_GRID, "hidden border-b border-border/70 bg-bg/30 px-3 py-1.5 sm:grid")} aria-hidden data-testid="pool-columns">
+      <span className="w-10" />
+      <span className="text-2xs font-semibold uppercase tracking-label text-fg-subtle">Champion</span>
+      <span className={head}>Win rate</span>
+      <span className={head}>Games</span>
+      <span className={head}>KDA</span>
+      <span className={head}>{support ? "Vision" : "CS/min"}</span>
+    </div>
+  );
+}
+
 /**
- * One champion of a pool as a tile (the Team player window): portrait, name, place in the order,
- * the experience label and the season's figures in this role. The first choice is a wider tile in
- * the card's own colour. Same data and test ids as PoolChampionRow.
+ * One champion of a pool as a row of the Team player window's list: its place, portrait, name and
+ * experience label, then the season's figures in this role in aligned columns (a short block on
+ * phones). The first choice is marked in its row in the card's own colour, never set apart, so the
+ * pool reads as one list. Same data and test ids as PoolChampionRow.
  */
 export function PoolChampionTile({ index, champion, row, support, withStats = true }: { index: number; champion: PortraitChampion; row: PoolRowChampion; support: boolean; withStats?: boolean }) {
   const first = index === 0;
+  const rate = row.winRate === null ? "—" : `${Math.round(row.winRate * 100)}%`;
+  const kda = row.perfectKda ? "Perfect" : row.kdaRatio === null ? "—" : row.kdaRatio.toFixed(1);
+  const third = support ? (row.visionPerGame === null ? "—" : String(Math.round(row.visionPerGame))) : row.csPerMinute === null ? "—" : row.csPerMinute.toFixed(1);
+  const tone = WIN_RATE_TONE_CLASS[winRateTone(row.winRate, row.games, WIN_RATE_MIN_GAMES.champion)];
   return (
-    <li className={cn("flex min-w-0 items-center gap-3 rounded-panel border p-2.5", first ? "border-[color-mix(in_srgb,var(--card-accent)_45%,transparent)] bg-[color-mix(in_srgb,var(--card-accent)_10%,transparent)] sm:col-span-2" : "border-border/70 bg-surface/60")} data-testid="pool-champion" data-champion={row.championId} data-first={first || undefined}>
+    <li className={cn(POOL_TILE_GRID, "relative px-3 py-2", first && "bg-[color-mix(in_srgb,var(--card-accent)_8%,transparent)]")} data-testid="pool-champion" data-champion={row.championId} data-first={first || undefined}>
+      {first ? <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-r-full bg-[var(--card-accent)]" aria-hidden /> : null}
       <span className="relative shrink-0">
-        <ChampionPortrait champion={champion} size={first ? "lg" : "md"} className="rounded-lg" />
+        <ChampionPortrait champion={champion} size="md" className="h-10 w-10 rounded-lg" />
         <span className="absolute -left-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full border border-border bg-bg-elevated px-1 text-2xs font-semibold tabular-nums text-fg-muted" aria-hidden>
           {index + 1}
         </span>
       </span>
-      <span className="min-w-0 flex-1">
-        <span className={cn("block truncate font-semibold text-fg", first ? "text-base" : "text-sm")}>{champion.name}</span>
-        {first ? <span className="block text-2xs font-medium uppercase tracking-label text-[var(--card-accent)]">First choice</span> : null}
+      <span className="min-w-0">
+        <span className="flex min-w-0 items-baseline gap-2">
+          <span className="truncate text-sm font-semibold text-fg">{champion.name}</span>
+          {first ? <span className="shrink-0 text-2xs font-semibold uppercase tracking-label text-[var(--card-accent)]">First choice</span> : null}
+        </span>
         {withStats ? (
           <span className="mt-0.5 block">
             <TierBadge tier={row.tier as ProficiencyTier} label={row.tierLabel} why={row.tierWhy} evidence={row.evidence} quiet />
@@ -468,29 +561,37 @@ export function PoolChampionTile({ index, champion, row, support, withStats = tr
         ) : null}
       </span>
       {withStats ? (
-        <span className="shrink-0 text-right leading-tight" data-testid="pool-champion-stats">
-          {row.games ? (
-            <>
-              <span className={cn("block font-semibold tabular-nums", first ? "text-lg" : "text-sm", WIN_RATE_TONE_CLASS[winRateTone(row.winRate, row.games, WIN_RATE_MIN_GAMES.champion)])}>{row.winRate === null ? "—" : `${Math.round(row.winRate * 100)}%`}</span>
+        row.games ? (
+          <>
+            {/* Phones: the win rate and games, then KDA and CS (vision for supports), in one short block. */}
+            <span className="text-right leading-tight sm:hidden" data-testid="pool-champion-stats">
+              <span className={cn("block text-sm font-semibold tabular-nums", tone)}>{rate}</span>
               <span className="block text-2xs tabular-nums text-fg-subtle">
                 {row.games} game{row.games === 1 ? "" : "s"}
               </span>
               <span className="block text-2xs tabular-nums text-fg-muted" data-testid={support ? "pool-champion-kda-vision" : "pool-champion-kda-cs"}>
-                {row.perfectKda ? "Perfect" : row.kdaRatio === null ? "—" : row.kdaRatio.toFixed(1)} KDA · {support ? `${row.visionPerGame === null ? "—" : Math.round(row.visionPerGame)} vis` : `${row.csPerMinute === null ? "—" : row.csPerMinute.toFixed(1)} CS`}
+                {kda} KDA · {third} {support ? "vis" : "CS"}
               </span>
-            </>
-          ) : row.masteryPoints ? (
-            <span className="inline-flex items-center gap-1">
-              <span className="block text-right">
-                <span className="block text-sm font-semibold tabular-nums text-fg-muted">{formatCompactCount(row.masteryPoints)}</span>
-                <span className="block text-2xs text-fg-subtle">mastery</span>
-              </span>
-              <InfoTip label="About mastery points" text={`${formatCount(row.masteryPoints)} mastery points: lifetime experience on the champion, not this season's results. No games in this role this season.`} />
             </span>
-          ) : (
-            <span className="block text-2xs text-fg-subtle">No games this season</span>
-          )}
-        </span>
+            <span className={cn("hidden text-right text-sm font-semibold tabular-nums sm:block", tone)}>{rate}</span>
+            <span className="hidden text-right text-sm tabular-nums text-fg-muted sm:block">{row.games}</span>
+            <span className="hidden text-right text-sm tabular-nums text-fg-muted sm:block">{kda}</span>
+            <span className="hidden text-right text-sm tabular-nums text-fg-muted sm:block">{third}</span>
+          </>
+        ) : (
+          <span className="text-right sm:col-span-4" data-testid="pool-champion-stats">
+            {row.masteryPoints ? (
+              <span className="inline-flex items-center gap-1">
+                <span className="text-xs tabular-nums text-fg-muted">
+                  <span className="font-semibold">{formatCompactCount(row.masteryPoints)}</span> mastery · no games this season
+                </span>
+                <InfoTip label="About mastery points" text={`${formatCount(row.masteryPoints)} mastery points: lifetime experience on the champion, not this season's results. No games in this role this season.`} />
+              </span>
+            ) : (
+              <span className="text-xs text-fg-subtle">No games this season</span>
+            )}
+          </span>
+        )
       ) : null}
     </li>
   );

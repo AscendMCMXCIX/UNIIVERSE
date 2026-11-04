@@ -1,4 +1,4 @@
-import type { PickerChampion } from "@/components/champion-picker";
+import type { PickerChampion } from "@/components/champions/types";
 import type { Branding } from "@/domain/branding";
 import { SetPasswordForm } from "./set-password-form";
 import { SetupForm, type SetupCard, type SetupValues } from "./setup-form";

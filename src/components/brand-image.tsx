@@ -11,7 +11,11 @@ export const STILL_MEDIA = "(prefers-reduced-motion: reduce)";
  * frame and never the animation. Plain <img> otherwise, so it works in server and client components.
  * The <picture> around it takes no part in the layout (display: contents), so the image's own
  * classes size it: a flex row that runs short of room can never shrink the picture and squash the
- * image inside it (a logo drawn taller than wide).
+ * image inside it (a logo drawn taller than wide). Its <source> takes no part either (display:
+ * none; the browser picks the source from its attributes, never its style). Without that, the
+ * picture's children join the parent's layout and the source becomes an empty box of its own: an
+ * item in a flex row, which takes the row's gap before the logo (the sidebar's logo sat 0.75rem off
+ * its rail's centre), or a cell in a grid, which adds an empty row.
  */
 export function BrandImage({ src, still, alt = "", className }: { src: string; still?: string | null; alt?: string; className?: string }) {
   if (!still || still === src) {
@@ -20,7 +24,7 @@ export function BrandImage({ src, still, alt = "", className }: { src: string; s
   }
   return (
     <picture className="contents">
-      <source srcSet={still} media={STILL_MEDIA} />
+      <source srcSet={still} media={STILL_MEDIA} className="hidden" />
       <img src={src} alt={alt} className={className} />
     </picture>
   );

@@ -1,5 +1,6 @@
 "use server";
 
+import { publicErrorMessage } from "@/server/errors";
 import { revalidatePath } from "next/cache";
 import { getAppDb } from "@/server/bootstrap";
 import { hasPermission, NotAuthorizedError, requireTeamMember } from "@/server/auth/session";
@@ -45,6 +46,6 @@ export async function setTeamBookmarkAction(riotMatchId: string, on: boolean, op
     revalidatePath("/matches");
     return { ok: true, data: { bookmarked: on } };
   } catch (err) {
-    return { ok: false, error: (err as Error).message };
+    return { ok: false, error: publicErrorMessage(err) };
   }
 }

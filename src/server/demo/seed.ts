@@ -1,6 +1,6 @@
 import { eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { accountChampionHistory, accountMastery, accountMatches, brandAssets, matchDetails, matchTimelines, type MatchFrames, type MatchParticipantDetail, champions, players, rankSnapshots, riotAccounts, users } from "@/server/db/schema";
+import { accountChampionHistory, accountMastery, accountMatches, brandAssets, matchDetails, matchTimelines, type MatchEvents, type MatchFrames, type MatchObjectiveEvent, type MatchParticipantDetail, champions, playerChampionPools, players, rankSnapshots, riotAccounts, users } from "@/server/db/schema";
 import { listPlayers } from "@/server/repositories/team";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 import { ROLES } from "@/domain/roles";
@@ -59,13 +59,13 @@ export async function seedDemoRoster(db: Db): Promise<{ created: number }> {
   // Two designated substitutes, so the demo shows cards that turn over (Jungle, Mid and Bottom have none).
   await setLineupSubstitute(db, team.id, "TOP", created["Demo Sub (Top)"]!);
   await setLineupSubstitute(db, team.id, "SUPPORT", created["Demo Sub (Support)"]!);
-  // Synthetic social links (domain/social-links) in every audience, so the cards, the public page
-  // and the substitute side show them: Mid has one public, two for the team; the Support
-  // substitute one public; Support one kept to themselves, which must show nowhere.
+  // Synthetic social links (domain/social-links), switched on and off, so the cards, the public
+  // page and the substitute side show them: Mid has YouTube and Discord shown publicly and Twitch
+  // off; the Support substitute their Twitch shown; Support a Discord kept off, which must show nowhere.
   const social = (playerId: string, socialLinks: typeof players.$inferInsert.socialLinks) => db.update(players).set({ socialLinks }).where(eq(players.id, playerId));
-  await social(created["Demo Mid"]!, { youtube: { value: "https://www.youtube.com/@DemoMidChannel", show: "public" }, twitch: { value: "https://www.twitch.tv/demo_mid_live", show: "team" }, discord: { value: "demo.mid", show: "team" } });
-  await social(created["Demo Sub (Support)"]!, { twitch: { value: "https://www.twitch.tv/demo_sub_support", show: "public" } });
-  await social(created["Demo Support"]!, { discord: { value: "demo.support.private", show: "hidden" } });
+  await social(created["Demo Mid"]!, { youtube: { value: "https://www.youtube.com/@DemoMidChannel", public: true }, twitch: { value: "https://www.twitch.tv/demo_mid_live", public: false }, discord: { value: "demo.mid", public: true } });
+  await social(created["Demo Sub (Support)"]!, { twitch: { value: "https://www.twitch.tv/demo_sub_support", public: true } });
+  await social(created["Demo Support"]!, { discord: { value: "demo.support.private", public: false } });
   await seedDemoNewcomers(db, team.id, known);
   return { created: DEMO_PLAYERS.length + 2 };
 }
@@ -235,6 +235,7 @@ async function seedDemoTogether(db: Db, teamId: string) {
       const teamId = parts.filter((x) => x.teamId === 100).length < 5 ? 100 : 200;
       parts.push({ puuid: `demo-together-${i}-${n}`, name: demoOtherName(teamId === 100, n), teamId, championId: demoOther(i, n, taken), championKey: 0, champLevel: 14, position: null, win: teamId === 100 ? g.win : !g.win, kills: 3, deaths: 4, assists: 5, cs: 140, gold: 8000, damage: 11000, damageTaken: 14000, vision: 15, wardsPlaced: 8, items: null, spells: null, runes: null });
     }
+    balanceTogetherGame(parts, duration / 60, i);
     details.push({ matchId, platform: "euw1", queueId: g.queueId, gameCreation, gameDuration: duration, gameVersion: `${season}.20.1`, teams: [{ teamId: 100, win: g.win, bans: [], objectives: {} }, { teamId: 200, win: !g.win, bans: [], objectives: {} }], participants: parts });
   });
   if (games.length) await db.insert(accountMatches).values(games).onConflictDoNothing();
@@ -259,15 +260,17 @@ const DEMO_LANE_OPPONENTS: Record<Role, string[]> = {
 /**
  * Synthetic gold, experience and CS frames for a demo game (demo mode only): frames a little more
  * than a minute apart and a last frame at the end of the game, like Riot's, with a lane that drifts
- * towards the result. Never real data.
+ * towards the result. The player and the lane opponent come from `rnd` (as they always have, so the
+ * Matchups demo reads the same); the other eight players, when given, from their own sequence, so
+ * the whole game's gold can be drawn. Never real data.
  */
-function demoFrames(rnd: () => number, durationSeconds: number, me: string, them: string, role: Role, win: boolean, bias: number): MatchFrames {
+function demoFrames(rnd: () => number, durationSeconds: number, me: string, them: string, role: Role, win: boolean, bias: number, others: { rnd: () => number; players: Array<{ puuid: string; ally: boolean; role: Role }> } | null = null): MatchFrames {
   const t: number[] = [0];
   for (let m = 1; m * 60_000 < durationSeconds * 1000; m++) t.push(m * 60_000 + Math.round(rnd() * 400));
   t.push(durationSeconds * 1000);
-  const support = role === "SUPPORT";
-  const csPerMin = support ? 1.2 : role === "JUNGLE" ? 5.6 : 7.4;
-  const series = (lead: number) => {
+  const series = (lead: number, playerRole: Role, r: () => number) => {
+    const support = playerRole === "SUPPORT";
+    const csPerMin = support ? 1.2 : playerRole === "JUNGLE" ? 5.6 : 7.4;
     let gold = 500;
     let xp = 0;
     let cs = 0;
@@ -277,9 +280,9 @@ function demoFrames(rnd: () => number, durationSeconds: number, me: string, them
       const minutes = (ms - prev) / 60_000;
       const minute = ms / 60_000;
       const drift = (lead * Math.min(minute, 25)) / 25;
-      gold += minutes * ((support ? 250 : 360) + drift + (rnd() - 0.5) * 60);
-      xp += minutes * (minute < 1.5 ? 0 : 420 + drift * 0.5 + (rnd() - 0.5) * 40);
-      cs += minute < 1.5 ? 0 : minutes * (csPerMin + drift / 120 + (rnd() - 0.5) * 0.6);
+      gold += minutes * ((support ? 250 : 360) + drift + (r() - 0.5) * 60);
+      xp += minutes * (minute < 1.5 ? 0 : 420 + drift * 0.5 + (r() - 0.5) * 40);
+      cs += minute < 1.5 ? 0 : minutes * (csPerMin + drift / 120 + (r() - 0.5) * 0.6);
       out.g.push(Math.round(gold));
       out.x.push(Math.round(xp));
       out.c.push(Math.max(0, Math.round(cs)));
@@ -288,8 +291,192 @@ function demoFrames(rnd: () => number, durationSeconds: number, me: string, them
     return out;
   };
   const edge = (win ? 30 : -30) + bias;
-  return { t, p: { [me]: series(edge / 2), [them]: series(-edge / 2) } };
+  const p: MatchFrames["p"] = { [me]: series(edge / 2, role, rnd), [them]: series(-edge / 2, role, rnd) };
+  // The rest of both teams drift with the result too, each a little differently.
+  for (const o of others?.players ?? []) p[o.puuid] = series(((o.ally === win ? 1 : -1) * (10 + others!.rnd() * 30)) / 2, o.role, others!.rnd);
+  return { t, p };
 }
+
+/** Riot's experience to reach each champion level (index 1 is level 1), for demo frames that end on the recorded level. */
+const XP_TO_LEVEL = [0, 0, 280, 660, 1140, 1720, 2400, 3180, 4060, 5040, 6120, 7300, 8580, 9960, 11440, 13020, 14700, 16480, 18360];
+
+/**
+ * Demo frames end where the game's record does (demo mode only): each player's last frame holds
+ * their recorded gold, CS and a level's worth of experience, the curve keeping its shape. Without
+ * this the timeline told a different game from the scoreboard (the gold difference at the end
+ * against the teams' recorded gold). Real timelines come from Riot and are never changed.
+ */
+function fitFramesToRecord(frames: MatchFrames, parts: readonly MatchParticipantDetail[]): MatchFrames {
+  const p: MatchFrames["p"] = { ...frames.p };
+  const fit = (series: number[], from: number, to: number | null) => {
+    const end = series[series.length - 1];
+    if (to === null || end === undefined || end <= from) return series;
+    return series.map((v) => Math.round(from + ((v - from) * (to - from)) / (end - from)));
+  };
+  for (const x of parts) {
+    const s = p[x.puuid];
+    if (!s) continue;
+    const level = x.champLevel === null ? null : Math.max(1, Math.min(18, x.champLevel));
+    p[x.puuid] = { g: fit(s.g, 500, x.gold), x: fit(s.x, 0, level === null ? null : XP_TO_LEVEL[level]! + (level < 18 ? 0.4 * (XP_TO_LEVEL[level + 1]! - XP_TO_LEVEL[level]!) : 400)), c: fit(s.c, 0, x.cs) };
+  }
+  return { t: frames.t, p };
+}
+
+/** `total` shared out over `players` unevenly but deterministically (the game's number turns the weights). */
+function shareOut(total: number, players: MatchParticipantDetail[], key: "kills" | "deaths", turn: number) {
+  const weights = players.map((_, k) => 1 + ((k + turn) % 3));
+  const whole = weights.reduce((n, w) => n + w, 0);
+  const shares = weights.map((w) => Math.floor((total * w) / whole));
+  for (let k = 0, rest = total - shares.reduce((n, v) => n + v, 0); rest > 0; k++, rest--) shares[(k + turn) % shares.length]! += 1;
+  players.forEach((x, k) => (x[key] = shares[k]!));
+}
+
+/**
+ * A demo game several members played (demo mode only): the members' own figures are their stored
+ * games, so the other players' make the sides add up. Each side kills at least as many as any of its
+ * members took part in, one side's deaths are the other side's kills, and the others' gold follows
+ * their kills, assists and the result.
+ */
+function balanceTogetherGame(parts: MatchParticipantDetail[], minutes: number, turn: number) {
+  const other = (x: MatchParticipantDetail) => x.puuid.startsWith("demo-together-");
+  const side = (team: number) => parts.filter((x) => x.teamId === team);
+  const sum = (xs: MatchParticipantDetail[], key: "kills" | "deaths") => xs.reduce((n, x) => n + x[key], 0);
+  for (const team of [100, 200]) {
+    const fillers = side(team).filter(other);
+    if (!fillers.length) continue;
+    const needed = Math.max(0, ...side(team).filter((x) => !other(x)).map((x) => x.kills + x.assists));
+    for (let k = 0; sum(side(team), "kills") < needed; k++) fillers[k % fillers.length]!.kills += 1;
+  }
+  for (const team of [100, 200]) {
+    const enemy = team === 100 ? 200 : 100;
+    const fixed = sum(side(team).filter((x) => !other(x)), "deaths");
+    const fillers = side(team).filter(other);
+    const enemyFillers = side(enemy).filter(other);
+    // The other side made at least the kills behind this side's members' own deaths, and exactly as many as this side's deaths when no one here can take the rest.
+    for (let k = 0; enemyFillers.length && sum(side(enemy), "kills") < fixed; k++) enemyFillers[k % enemyFillers.length]!.kills += 1;
+    if (!fillers.length && enemyFillers.length) shareOut(fixed - sum(side(enemy).filter((x) => !other(x)), "kills"), enemyFillers, "kills", turn);
+  }
+  for (const team of [100, 200]) {
+    const fillers = side(team).filter(other);
+    if (fillers.length) shareOut(sum(side(team === 100 ? 200 : 100), "kills") - sum(side(team).filter((x) => !other(x)), "deaths"), fillers, "deaths", turn);
+    const made = sum(side(team), "kills");
+    for (const x of fillers) {
+      x.assists = Math.min(x.assists, Math.max(0, made - x.kills));
+      x.gold = Math.round(minutes * 285 + x.kills * 300 + x.assists * 110 + (x.win ? 1100 : 0));
+    }
+  }
+}
+
+/**
+ * A demo game whose two sides add up as a real one does (demo mode only): one side's deaths are
+ * the other side's kills, nobody assists more kills than their team made, and the other players'
+ * gold follows their kills, assists and the result. The player's own figures (their stored game)
+ * are left as drawn.
+ */
+function balanceDemoGame(me: MatchParticipantDetail, allies: MatchParticipantDetail[], enemies: MatchParticipantDetail[], minutes: number, turn: number) {
+  const sum = (xs: MatchParticipantDetail[], key: "kills" | "deaths") => xs.reduce((n, x) => n + x[key], 0);
+  // The other side's kills cover the player's own deaths (the demo has no executions).
+  for (let k = 0; sum(enemies, "kills") < me.deaths; k++) enemies[k % enemies.length]!.kills += 1;
+  for (let k = 0; me.kills + sum(allies, "kills") < me.kills + me.assists; k++) allies[k % allies.length]!.kills += 1;
+  shareOut(me.kills + sum(allies, "kills"), enemies, "deaths", turn);
+  shareOut(sum(enemies, "kills") - me.deaths, allies, "deaths", turn + 1);
+  for (const side of [[me, ...allies], enemies]) {
+    const made = sum(side, "kills");
+    for (const x of side) if (x !== me) x.assists = Math.min(x.assists, Math.max(0, made - x.kills));
+  }
+  // Gold from the game's length, kills, assists and the result, the drawn figure keeping a little of its spread.
+  for (const x of [...allies, ...enemies]) x.gold = Math.round(minutes * 285 + x.kills * 300 + x.assists * 110 + (x.win ? 1100 : 0) + ((x.gold ?? 10_500) - 10_500) * 0.3);
+}
+
+const DEMO_STARTS: Record<Role, number[]> = { TOP: [1054, 2003], JUNGLE: [1102, 2003], MID: [1056, 2003, 2003], ADC: [1055, 2003], SUPPORT: [3865, 2003] };
+const DEMO_CORE: Record<Role, number[]> = {
+  TOP: [1028, 3047, 1037, 3078, 1029, 3068, 3075],
+  JUNGLE: [1036, 3158, 1037, 3071, 1028, 3053, 3742],
+  MID: [1052, 3020, 1026, 6655, 1058, 3089, 3157],
+  ADC: [1036, 3006, 1037, 6672, 1038, 3031, 3036],
+  SUPPORT: [2055, 1028, 3158, 3190, 2055, 3107, 3109],
+};
+
+/**
+ * Purchases and skill order for one demo player (demo mode only): the role's starting items, then
+ * the next item of a fixed path every few minutes, and the usual skill order (R at 6, 11 and 16).
+ */
+function demoBuild(rnd: () => number, durationSeconds: number, role: Role): { purchases: Array<[number, number]>; skills: number[] } {
+  const purchases: Array<[number, number]> = DEMO_STARTS[role].map((id, i) => [1_000 + i * 400, id]);
+  let at = 300_000 + Math.round(rnd() * 120_000);
+  for (const id of DEMO_CORE[role]) {
+    if (at >= durationSeconds * 1000) break;
+    purchases.push([at, id]);
+    at += 150_000 + Math.round(rnd() * 180_000);
+  }
+  const first = role === "SUPPORT" ? 3 : 1;
+  const second = first === 1 ? 3 : 2;
+  const third = 6 - first - second;
+  const order = [first, second, third, first, first, 4, first, second, first, second, 4, second, second, third, third, 4, third, third];
+  const level = Math.min(18, Math.max(6, Math.round(durationSeconds / 120)));
+  return { purchases, skills: order.slice(0, level) };
+}
+
+const DEMO_DRAGONS = ["FIRE", "EARTH", "WATER", "AIR", "HEXTECH", "CHEMTECH"];
+const DEMO_LANES = ["TOP", "MID", "BOT"];
+
+/**
+ * The champion kills each demo player took part in (as many as the game's record gives them) and
+ * the objectives and buildings each team took, at plausible times, the winner taking more (demo
+ * mode only; never real data). Also the team counts for the stored record, so the scoreboard's
+ * dragons and towers agree with the timeline's.
+ */
+function demoEvents(rnd: () => number, durationSeconds: number, winner: number, players: ReadonlyArray<Pick<MatchParticipantDetail, "puuid" | "kills" | "deaths" | "assists">>): { kda: Map<string, { kills: number[]; deaths: number[]; assists: number[] }>; events: MatchEvents; counts: Record<number, Record<string, number>> } {
+  const end = durationSeconds * 1000;
+  const at = (lo: number, hi: number) => Math.round(lo + rnd() * (hi - lo));
+  // Fights get more frequent as the game goes on: later times are likelier.
+  const times = (n: number) => Array.from({ length: n }, () => Math.round((0.1 + 0.88 * Math.sqrt(rnd())) * end)).sort((a, b) => a - b);
+  const kda = new Map(players.map((p) => [p.puuid, { kills: times(p.kills), deaths: times(p.deaths), assists: times(p.assists) }]));
+  const loser = winner === 100 ? 200 : 100;
+  const side = (lean: number) => (rnd() < lean ? winner : loser);
+  const objectives: MatchObjectiveEvent[] = [];
+  // Dragons from 5:00, about every five and a half minutes, until one side has four.
+  const dragons = { [winner]: 0, [loser]: 0 } as Record<number, number>;
+  for (let t = at(300_000, 380_000); t < end - 30_000; t += at(300_000, 360_000)) {
+    if (dragons[winner]! >= 4 || dragons[loser]! >= 4) {
+      if (t > 1_800_000) objectives.push({ t, team: side(0.75), kind: "elder" });
+      continue;
+    }
+    const team = side(0.65);
+    dragons[team]! += 1;
+    objectives.push({ t, team, kind: "dragon", detail: DEMO_DRAGONS[Math.floor(rnd() * DEMO_DRAGONS.length)] });
+  }
+  // Voidgrubs: a camp of three at 6:00 or so, sometimes shared.
+  const grubsAt = at(360_000, 420_000);
+  for (let k = 0; k < 3; k++) objectives.push({ t: grubsAt + k * at(8_000, 20_000), team: side(0.6), kind: "grubs" });
+  if (end > 900_000) objectives.push({ t: at(840_000, 960_000), team: side(0.6), kind: "herald" });
+  if (end > 1_260_000 && rnd() < 0.6) objectives.push({ t: at(1_200_000, 1_320_000), team: side(0.65), kind: "atakhan" });
+  for (let t = at(1_380_000, 1_560_000); t < end - 60_000; t += at(420_000, 540_000)) objectives.push({ t, team: side(0.75), kind: "baron" });
+  // Towers lane by lane, outer to base; the winner breaks more and ends on the nexus towers.
+  const broken = { [winner]: 0, [loser]: 0 } as Record<number, number>;
+  const towers = (team: number, n: number, from: number) => {
+    for (let k = 0; k < n; k++) {
+      const tier = ["OUTER", "INNER", "BASE"][Math.min(2, Math.floor(k / 3))]!;
+      objectives.push({ t: Math.min(end - 20_000, from + Math.round(((end - from) * (k + rnd())) / (n + 1))), team, kind: "tower", detail: `${DEMO_LANES[k % 3]} ${tier}` });
+      broken[team]! += 1;
+    }
+  };
+  towers(winner, Math.min(9, 6 + Math.floor(rnd() * 4)), 600_000);
+  towers(loser, 1 + Math.floor(rnd() * 4), 540_000);
+  const inhibitors = 1 + Math.floor(rnd() * 2);
+  for (let k = 0; k < inhibitors; k++) objectives.push({ t: end - at(60_000, 180_000), team: winner, kind: "inhibitor", detail: DEMO_LANES[(k + 1) % 3] });
+  objectives.push({ t: end - at(25_000, 45_000), team: winner, kind: "tower", detail: "MID NEXUS" }, { t: end - at(10_000, 22_000), team: winner, kind: "tower", detail: "MID NEXUS" });
+  broken[winner]! += 2;
+  objectives.sort((a, b) => a.t - b.t);
+  const count = (team: number, kinds: string[]) => objectives.filter((o) => o.team === team && kinds.includes(o.kind)).length;
+  const counts = Object.fromEntries(
+    [winner, loser].map((team) => [team, { tower: count(team, ["tower"]), dragon: count(team, ["dragon", "elder"]), baron: count(team, ["baron"]), horde: count(team, ["grubs"]), riftHerald: count(team, ["herald"]), inhibitor: count(team, ["inhibitor"]) }]),
+  ) as Record<number, Record<string, number>>;
+  return { kda, events: { objectives }, counts };
+}
+
+/** The four other roles of a team, in lane order, around the demo player's own. */
+const DEMO_ROLES_FOR = (role: Role): Role[] => (["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"] as Role[]).filter((r) => r !== role);
 
 /**
  * One demo player's older games read as most real accounts' early games do until the figures
@@ -337,6 +524,10 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
     const opponentIndex = Math.min(laneOptions.length - 1, Math.floor(laneRnd() * laneRnd() * laneOptions.length));
     const enemyChampionId = laneOptions[opponentIndex]!;
     games.push({ accountId, matchId, gameCreation, queueId, championId, role, win, enemyChampionId, patch: `${season}.${Math.max(1, 20 - Math.floor((count - i) / 3))}`, gameDuration: duration, kills, deaths, assists, cs, damage, visionScore: vision });
+    // Every third game on the red side (never one with the recurring duo below), so every view is
+    // seen from both sides: Riot lists the blue side (100) first, as here.
+    const ownTeam = i % 3 === 2 ? 200 : 100;
+    const otherTeam = ownTeam === 100 ? 200 : 100;
     const teamKills = kills + assists + int(2, 10);
     const taken = new Set([championId, enemyChampionId]);
     // Other players are new in every game, except a pair of rivals who queue together and meet
@@ -346,7 +537,7 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
     const me: MatchParticipantDetail = {
       puuid,
       name: `${name}#DEMO`,
-      teamId: 100,
+      teamId: ownTeam,
       championId,
       championKey: 0,
       champLevel: 16,
@@ -383,14 +574,41 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
       delete me.stats;
       if (i % 4 === 0) gone.push(matchId);
     }
-    const allies = [1, 2, 3, 4].map((n) => filler(n, 100, true));
-    const enemies = [5, 6, 7, 8, 9].map((n) => filler(n, 200, false));
+    const allies = [1, 2, 3, 4].map((n) => filler(n, ownTeam, true));
+    const enemies = [5, 6, 7, 8, 9].map((n) => filler(n, otherTeam, false));
     // The lane opponent: the enemy in the same position.
     const lane = `demo-lane-${puuid.slice(5, 13)}-${i}`;
     enemies[0] = { ...enemies[0]!, puuid: lane, championId: enemyChampionId, position: role };
-    // Most demo games have a timeline; every sixth is left "still to be collected".
-    if (i % 6 !== 5) timelines.push({ matchId, platform: "euw1", participants: [], frames: demoFrames(laneRnd, duration, puuid, lane, role, win, (opponentIndex - 1) * 25) });
-    details.push({ matchId, platform: "euw1", queueId, gameCreation, gameDuration: duration, gameVersion: `${season}.20.1`, teams: [{ teamId: 100, win, bans: [], objectives: {} }, { teamId: 200, win: !win, bans: [], objectives: {} }], participants: [me, ...allies, ...enemies] });
+    balanceDemoGame(me, allies, enemies, minutes, i);
+    const sides = ownTeam === 100 ? [me, ...allies, ...enemies] : [...enemies, me, ...allies];
+    // Most demo games have a timeline; every sixth is left "still to be collected". Everyone in
+    // it has frames, a build and kill times, from a sequence of the game's own (the player's and
+    // the lane opponent's frames are as they always were), and the record's team counts follow
+    // the timeline's objectives.
+    let objectiveCounts: Record<number, Record<string, number>> | null = null;
+    if (i % 6 !== 5) {
+      let gameSeed = [...matchId].reduce((n, c) => n + c.charCodeAt(0) * 7, 13);
+      const gameRnd = () => ((gameSeed = (gameSeed * 9301 + 49297) % 233280), gameSeed / 233280);
+      const roles = DEMO_ROLES_FOR(role);
+      const others = [...allies.map((a, k) => ({ puuid: a.puuid, ally: true, role: roles[k]! })), ...enemies.slice(1).map((e, k) => ({ puuid: e.puuid, ally: false, role: roles[k]! }))];
+      const frames = fitFramesToRecord(demoFrames(laneRnd, duration, puuid, lane, role, win, (opponentIndex - 1) * 25, { rnd: gameRnd, players: others }), sides);
+      const builds = [{ puuid, role }, { puuid: lane, role }, ...others].map((x) => ({ puuid: x.puuid, ...demoBuild(gameRnd, duration, x.role) }));
+      const { kda, events, counts } = demoEvents(gameRnd, duration, win ? ownTeam : otherTeam, sides);
+      timelines.push({ matchId, platform: "euw1", participants: builds.map((b) => ({ ...b, ...kda.get(b.puuid)! })), frames, events });
+      objectiveCounts = counts;
+    }
+    details.push({ matchId, platform: "euw1", queueId, gameCreation, gameDuration: duration, gameVersion: `${season}.20.1`, teams: [100, 200].map((teamId) => ({ teamId, win: teamId === ownTeam ? win : !win, bans: [], objectives: objectiveCounts?.[teamId] ?? {} })), participants: sides });
+  }
+  // One evening of back-to-back games: the 2nd and 3rd newest move up to the newest (same order,
+  // 15 and 12 minutes between them), so Match History's playing sessions have a sitting to show
+  // near the top of the list, on its first page whatever its size.
+  for (const [back, gapMinutes] of [[2, 15], [3, 12]] as const) {
+    const earlier = games[count - back];
+    const later = games[count - back + 1];
+    if (!earlier || !later) continue;
+    earlier.gameCreation = later.gameCreation - (earlier.gameDuration! * 1000 + gapMinutes * 60_000);
+    const record = details.find((d) => d.matchId === earlier.matchId);
+    if (record) record.gameCreation = earlier.gameCreation;
   }
   await db.insert(accountMatches).values(games).onConflictDoNothing();
   await db.insert(matchDetails).values(details).onConflictDoNothing();
@@ -403,8 +621,10 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
  * roster real-length names (from 3 letters to 21), so pages are judged against names longer than
  * "Demo Top", and lets the local owner play as the Mid player, so pages show "you" as a team
  * member does, and gives the team a background artwork (drawn in backdrop-art.ts) so Team
- * Overview's background visibility can be judged. Runs after the demo statistics (which find the
- * demo players by name); never on a Postgres database.
+ * Overview's background visibility can be judged. The Players directory gets what a real team's
+ * cards carry: a tagline and a personal look on some cards only, a pool longer than any card
+ * shows, and the longest rank label. Runs after the demo statistics (which find the demo players
+ * by name); never on a Postgres database.
  */
 const LONG_DEMO_NAMES: Record<string, string> = {
   "Demo Top": "Thunderstruck Kaiser",
@@ -416,6 +636,14 @@ const LONG_DEMO_NAMES: Record<string, string> = {
   "Demo Sub (Support)": "Lio",
 };
 
+const SCREENSHOT_LOOKS: Record<string, Record<string, unknown>> = {
+  "Demo Top": { frame: "premium", colours: { primary: "#e8b04a", secondary: "#e0566b", gradient: "diagonal", border: "gradient", avatarFrame: "gradient" }, identity: { tagline: "Top lane or no lane", emblem: "flame", nameStyle: "wide" } },
+  "Demo Mid": { identity: { tagline: "Calm in the chaos, loud in the comms" } },
+  "Demo Sub (Support)": { frame: "glow", colours: { primary: "#a78bfa", secondary: "#fb7185", border: "primary" }, identity: { tagline: "Wards win games", emblem: "moon", nameStyle: "italic" } },
+};
+// Added after Demo Top's six, so one Primary Role pool is longer than any card shows.
+const SCREENSHOT_LONG_POOL = ["Darius", "Garen", "Sett", "Fiora", "Camille", "Aatrox", "Riven", "Irelia"];
+
 export async function applyScreenshotFixture(db: Db): Promise<void> {
   const ids: Record<string, string> = {};
   for (const [from, to] of Object.entries(LONG_DEMO_NAMES)) {
@@ -423,6 +651,13 @@ export async function applyScreenshotFixture(db: Db): Promise<void> {
     if (row) ids[from] = row.id;
   }
   if (ids["Demo Mid"]) await db.update(users).set({ playerId: ids["Demo Mid"], setupCompletedAt: new Date() }).where(eq(users.username, "local-owner"));
+  for (const [who, cardStyle] of Object.entries(SCREENSHOT_LOOKS)) if (ids[who]) await db.update(players).set({ cardStyle }).where(eq(players.id, ids[who]!));
+  if (ids["Demo Top"]) {
+    const known = new Set((await db.select({ id: champions.id }).from(champions)).map((c) => c.id));
+    const extra = SCREENSHOT_LONG_POOL.filter((c) => known.has(c));
+    if (extra.length) await db.insert(playerChampionPools).values(extra.map((championId, i) => ({ playerId: ids["Demo Top"]!, slot: "primary" as const, championId, position: 6 + i }))).onConflictDoNothing();
+  }
+  if (ids["Demo ADC"]) await db.update(riotAccounts).set({ tier: "GRANDMASTER", division: null, leaguePoints: 412 }).where(eq(riotAccounts.playerId, ids["Demo ADC"]!));
   await db.insert(brandAssets).values({ kind: "appBackground", contentType: "image/png", data: demoBackdropPng(), width: 1280, height: 720, animated: false }).onConflictDoNothing();
   invalidateCache("branding");
 }

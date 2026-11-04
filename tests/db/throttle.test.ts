@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { sql } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { blockedFor, clearFailures, recordFailure, resetThrottle, throttleKey } from "@/server/auth/throttle";
+import { blockedFor, claimAttempt, clearFailures, recordFailure, resetThrottle, throttleKey } from "@/server/auth/throttle";
 
 let handle: DbHandle;
 beforeAll(async () => {
@@ -58,5 +58,39 @@ describe("login throttle (stored in the database)", () => {
     // A failure 16 minutes later prunes the first one.
     await recordFailure(handle.db, [throttleKey("someone-else", "198.51.100.1")], at(16 * 60 * 1000));
     expect(await rowList()).toHaveLength(1);
+  });
+});
+
+describe("attempts counted before they are checked", () => {
+  it("lets no more of a parallel burst through than of the same attempts one after another", async () => {
+    const keys = [throttleKey("owner", "9.9.9.9"), throttleKey("*", "9.9.9.9")];
+    // Twenty wrong guesses at once: each claims its rows first, so at most eight see room.
+    const results = await Promise.all(Array.from({ length: 20 }, () => claimAttempt(handle.db, keys, at(0))));
+    expect(results.filter((r) => r.wait === 0).length).toBeLessThanOrEqual(8);
+    // The refused ones left nothing behind (all twenty may be refused when they all claim before
+    // any counts: then no guess was checked at all); the ones let through stay as failures.
+    const through = results.filter((r) => r.wait === 0).length;
+    expect(await rowList()).toHaveLength(through * keys.length);
+  });
+
+  it("refuses the ninth of nine simultaneous attempts after eight failures, as one after another", async () => {
+    const key = throttleKey("owner", "7.7.7.7");
+    for (let i = 0; i < 8; i++) await recordFailure(handle.db, [key], at(i));
+    const burst = await Promise.all(Array.from({ length: 5 }, () => claimAttempt(handle.db, [key], at(100))));
+    expect(burst.every((r) => r.wait > 0)).toBe(true);
+    expect(await rowList()).toHaveLength(8);
+  });
+
+  it("withdraws a right attempt and a refused one, and keeps a wrong one", async () => {
+    const key = throttleKey("member", "8.8.8.8");
+    const right = await claimAttempt(handle.db, [key], at(0));
+    expect(right.wait).toBe(0);
+    await right.withdraw();
+    expect(await rowList()).toEqual([]);
+    for (let i = 0; i < 8; i++) expect((await claimAttempt(handle.db, [key], at(i + 1))).wait).toBe(0); // eight wrong ones stay
+    const refused = await claimAttempt(handle.db, [key], at(20));
+    // Until the first of the eight (at 1 ms) leaves the 15-minute window, from 20 ms: 899.981 s.
+    expect(refused.wait).toBe(15 * 60);
+    expect(await rowList()).toHaveLength(8);
   });
 });

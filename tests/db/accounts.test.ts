@@ -81,7 +81,7 @@ describe("riot accounts", () => {
     const b = await createPlayer(db, team.id, { displayName: "B", primaryRole: "MID", primaryPool: ["Ahri"] });
     await addAccount(db, { ownerType: "player", playerId: a.id, riotId: "Ünïcode Näme#EUW", platform: "euw1" });
     await expect(addAccount(db, { ownerType: "player", playerId: b.id, riotId: "Ünïcode Näme#EUW", platform: "euw1" })).rejects.toBeInstanceOf(AccountError);
-    await expect(addAccount(db, { ownerType: "opponent", opponentPlayerId: null, riotId: "Ünïcode Näme#EUW", platform: "euw1" })).rejects.toBeInstanceOf(AccountError);
+    await expect(addAccount(db, { ownerType: "opponent", riotId: "Ünïcode Näme#EUW", platform: "euw1" })).rejects.toBeInstanceOf(AccountError);
     const stored = (await listAccountsForPlayer(db, a.id))[0]!;
     expect(stored.gameName).toBe("Ünïcode Näme");
   });

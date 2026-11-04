@@ -1,5 +1,8 @@
 import { devices, expect, test, type Locator, type Page } from "./test";
 import { emulateKeyboard, keyboard } from "./keyboard";
+import { expectClearCorner } from "./modal-corner";
+import { besideAMark } from "./match-history";
+import path from "node:path";
 
 /*
   SAFARI'S ENGINE. Runs only in the opt-in "webkit" project (E2E_WEBKIT=1 locally, or the WebKit
@@ -133,11 +136,140 @@ test("a teammate's profile: its sections switch, and a champion's window opens a
   // The window fills the phone's width and nothing in it scrolls sideways.
   const box = (await page.locator("dialog[open]").boundingBox())!;
   expect(box.width).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
+  // Its close button keeps the corner to itself, a 44px target (e2e/modal-corner.ts).
+  await expectClearCorner(page);
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("champion-detail")).toBeHidden();
   await tabs.getByRole("link", { name: "Match History" }).tap();
   await expect(page).toHaveURL(new RegExp(`${href}/matches$`));
   await expect(tabs.getByRole("link", { name: "Match History" })).toHaveAttribute("aria-current", "page");
+});
+
+test("Match History: a game opens under its card, and once it has checked the players' ranks the card shows them under their icons, inside the card", async ({ page }) => {
+  await page.goto("/team");
+  const id = (await page.getByTestId("lineup-row-ADC").getAttribute("data-player-id"))!;
+  await page.goto(`/players/${id}/matches`);
+  // A game nobody has opened yet (its players show no rank).
+  const unchecked = page.getByTestId("match-card").filter({ has: page.getByTestId("match-teams") }).filter({ hasNot: page.getByTestId("slot-rank") });
+  const matchId = (await unchecked.first().getByTestId("match-row").getAttribute("data-match"))!;
+  const card = page.getByTestId("match-card").filter({ has: page.locator(`[data-match="${matchId}"]`) });
+  const row = card.getByTestId("match-row");
+  await expect(async () => {
+    if ((await row.getAttribute("aria-expanded")) !== "true") await card.tap({ position: { x: 24, y: 16 }, timeout: 2_000 });
+    await expect(row).toHaveAttribute("aria-expanded", "true", { timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  const breakdown = card.locator("xpath=..").getByTestId("match-breakdown");
+  await expect(breakdown).toBeVisible({ timeout: 15_000 });
+  // The breakdown and its scoreboard fit the phone's width.
+  await fitsWidth(page, "an open game");
+  // The browser tests' Riot stand-in answers the check (server/riot/browser-test.ts).
+  const note = breakdown.getByTestId("ranks-note");
+  await expect(note).toBeVisible({ timeout: 15_000 });
+  await expect(note).not.toHaveAttribute("data-state", "checking", { timeout: 15_000 });
+  // The card closes it again.
+  await card.tap({ position: { x: 24, y: 16 } });
+  await expect(row).toHaveAttribute("aria-expanded", "false");
+  await expect(breakdown).toHaveCount(0);
+  await expect(card.getByTestId("slot-rank").first()).toBeVisible();
+  // On a phone each rank sits under its opponent's icon: the ten icons stay on one line, no two
+  // ranks overlap, and every rank is inside the card.
+  const g = await card.evaluate((el) => {
+    const box = (e: Element) => e.getBoundingClientRect().toJSON() as DOMRect;
+    const slots = [...el.querySelectorAll('[data-testid="team-slot"]')];
+    return {
+      card: box(el),
+      iconTops: slots.map((s) => box(s.firstElementChild!).top),
+      ranks: slots.flatMap((s) => {
+        const r = s.querySelector('[data-testid="slot-rank"]');
+        return r ? [{ rank: box(r), icon: box(s.firstElementChild!) }] : [];
+      }),
+    };
+  });
+  expect(g.ranks.length).toBeGreaterThan(0);
+  expect(Math.max(...g.iconTops) - Math.min(...g.iconTops), "the icons on one line").toBeLessThanOrEqual(1);
+  for (const [i, { rank, icon }] of g.ranks.entries()) {
+    expect(rank.top, "under its icon").toBeGreaterThanOrEqual(icon.bottom - 0.5);
+    expect(rank.left >= g.card.left - 0.5 && rank.right <= g.card.right + 0.5 && rank.bottom <= g.card.bottom + 0.5, "inside the card").toBe(true);
+    for (const { rank: other } of g.ranks.slice(i + 1)) expect(rank.right <= other.left + 0.5 || other.right <= rank.left + 0.5, "two ranks overlap").toBe(true);
+  }
+  await fitsWidth(page, "Match History");
+});
+
+test("Match History's Timeline: a tap on or just beside a mark under the curve reads its minute, the reading stays after the finger lifts, and the tables run with the page", async ({ page }) => {
+  await page.goto("/team");
+  const id = (await page.getByTestId("lineup-row-MID").getAttribute("data-player-id"))!;
+  await page.goto(`/players/${id}/matches`);
+  // The first of the newest games whose stored timeline draws (every sixth demo game has none).
+  let timeline: Locator | null = null;
+  for (let i = 0; i < 6 && !timeline; i++) {
+    const card = page.getByTestId("match-card").nth(i);
+    const row = card.getByTestId("match-row");
+    await expect(async () => {
+      if ((await row.getAttribute("aria-expanded")) !== "true") await card.tap({ position: { x: 24, y: 16 }, timeout: 2_000 });
+      await expect(row).toHaveAttribute("aria-expanded", "true", { timeout: 1_000 });
+    }).toPass({ timeout: 15_000 });
+    const breakdown = card.locator("xpath=..").getByTestId("match-breakdown");
+    await breakdown.getByTestId("match-tab-timeline").tap();
+    const panel = breakdown.getByTestId("match-panel-timeline");
+    await expect(panel.getByTestId("timeline-loading")).toHaveCount(0, { timeout: 15_000 });
+    if (await panel.getByTestId("gold-chart").count()) timeline = panel;
+    else await card.tap({ position: { x: 24, y: 16 } });
+  }
+  expect(timeline, "a demo game with a timeline among the newest six").not.toBeNull();
+  const chart = timeline!.getByTestId("gold-chart");
+  const readout = chart.getByTestId("gold-chart-readout");
+  // Just beside an objective: its reading (the first frame at or after it), not the minute under the finger.
+  const spot = await besideAMark(chart);
+  expect(spot, "an objective with room beside it").not.toBeNull();
+  await page.touchscreen.tap(spot!.x, spot!.y);
+  await expect(readout).toContainText(/since the minute before: .*for (your team|the other team)/);
+  const [m, s] = (await readout.innerText()).split(" · ")[0]!.split(":").map(Number);
+  expect(m! + s! / 60).toBeGreaterThanOrEqual(spot!.minute - 1 / 60);
+  const mark = chart.getByTestId("timeline-objective").first();
+  await mark.scrollIntoViewIfNeeded();
+  await mark.tap();
+  await expect(readout).toContainText(/since the minute before: .*for (your team|the other team)/);
+  await page.waitForTimeout(300);
+  await expect(readout).toContainText("since the minute before: ");
+  // Opened, the minute table runs with the page instead of scrolling inside it.
+  await timeline!.getByText("Every minute as a table").tap();
+  expect(await timeline!.getByTestId("gold-chart-table").locator("xpath=..").evaluate((el) => getComputedStyle(el).overflowY)).toBe("visible");
+  await fitsWidth(page, "the Timeline");
+});
+
+test("Encounters: each player's records sit under the name with their side in words, and a player met both ways opens with the games filtered by side", async ({ page }) => {
+  await page.goto("/team");
+  const id = (await page.getByTestId("lineup-row-SUPPORT").getAttribute("data-player-id"))!;
+  // All, every player met at least once (the demo has each member meet one player on both sides).
+  await page.goto(`/players/${id}/matches?view=encounters&rel=all&min=1`);
+  await expect(page.locator("[data-testid='encounters'][data-ready]")).toBeVisible();
+  const rows = page.getByTestId("encounter-row");
+  await expect(rows.first()).toBeVisible();
+  for (const row of (await rows.all()).slice(0, 6)) {
+    expect(await row.locator("[title]").first().evaluate((name) => name.scrollWidth - name.clientWidth), "the name is whole").toBeLessThanOrEqual(1);
+    // On a phone each side's record is a line of its own, opened by its side's word.
+    for (const record of await row.getByTestId("encounter-record").all()) {
+      const games = Number(await record.getAttribute("data-games"));
+      if (games) await expect(record.getByTestId("relation-tag")).toHaveText(/^(Against|Alongside)$/);
+    }
+  }
+  await fitsWidth(page, "Encounters");
+  // A player met both ways: their games in Match History itself, both records, and the games filtered by side.
+  const panel = page.getByTestId("encounter-games");
+  const both = page.locator("[data-testid='encounter-row']:not([data-against='0']):not([data-alongside='0'])").first();
+  const against = Number(await both.getAttribute("data-against"));
+  await expect(async () => {
+    if (!(await panel.isVisible())) await both.getByTestId("open-encounter").tap({ timeout: 2_000 });
+    await expect(panel).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  await expect(panel.getByTestId("encounter-detail-record")).toHaveCount(2);
+  await panel.getByTestId("encounter-games-against").tap();
+  await expect(page).toHaveURL(/side=against/);
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-total", String(against));
+  await expect(page.locator("dialog[open]")).toHaveCount(0);
+  await fitsWidth(page, "a player's games");
+  await panel.getByTestId("encounter-back").tap();
+  await expect(page.locator("[data-testid='encounters'][data-ready]")).toBeVisible();
 });
 
 test("Player Customisation: the Studio opens, its sections switch from the section list, and Cancel keeps the saved card", async ({ page }) => {
@@ -195,6 +327,36 @@ test("forms: text fields are at least 16px (Safari zooms into smaller ones) and 
   await username.fill("someone");
   await expect(username).toHaveValue("someone");
   await guest.close();
+});
+
+test("a switch turns on and off with a tap on its words, not only the knob (the Studio's effects; Settings' Show publicly switches are the same control)", async ({ page }) => {
+  // The demo's local owner, on Top's card: a test here cannot stay signed in as a member (the
+  // session cookie is Secure, which WebKit does not keep on http://localhost), and Settings'
+  // social links need one. The control is the same Switch; its sizes on a phone and its place on
+  // the platform's line are checked in Chromium (e2e/social-links.spec.ts).
+  await page.goto("/team");
+  const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
+  await page.goto(`/players/${id}`);
+  await expect(page.getByTestId("profile-header")).toBeVisible();
+  await expect(async () => {
+    await page.getByTestId("profile-header").getByTestId("customise-card").tap();
+    await expect(page.getByTestId("card-studio")).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  await page.getByTestId("studio-section-toggle").tap();
+  await page.getByTestId("studio-section-effects").tap();
+  await expect(page.getByTestId("card-studio")).toHaveAttribute("data-step", "effects");
+  const glow = page.getByRole("switch", { name: /Ambient glow/ });
+  const words = page.locator("label[for=fx-glow]").getByText("Ambient glow", { exact: true });
+  const was = await glow.isChecked();
+  await words.tap();
+  await expect(glow).toBeChecked({ checked: !was });
+  await expect(page.locator("label[for=fx-glow]")).toHaveAttribute("data-state", was ? "off" : "on");
+  await words.tap();
+  await expect(glow).toBeChecked({ checked: was });
+  await page.getByTestId("studio-cancel").tap();
+  const discard = page.getByTestId("studio-confirm-yes");
+  if (await discard.isVisible()) await discard.tap();
+  await expect(page.getByTestId("card-studio")).toBeHidden();
 });
 
 test("the sign-in window on an iPhone: the whole screen, the fields and Sign in above the keyboard, an error in view, and Close back to Sign in", async ({ browser, baseURL }) => {
@@ -264,6 +426,37 @@ test("held sideways: the pages fit and the phone tab bar steps aside", async ({ 
   await context.close();
 });
 
+test("Players held sideways: cards side by side line up region by region, every portrait whole", async ({ browser, baseURL }) => {
+  // Each card spans rows of the directory's grid (a subgrid): Safari has to share them too.
+  const { defaultBrowserType: _, ...landscape } = devices["iPhone 15 landscape"];
+  const context = await browser.newContext(landscape);
+  await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+  const page = await context.newPage();
+  await page.goto("/players");
+  await expect(page.locator("main [data-testid=player-card-item]").first()).toBeVisible();
+  const rows = await page.getByTestId("players-directory").evaluate((grid) => {
+    const cards = [...grid.querySelectorAll<HTMLElement>("[data-testid=player-card-item]")].map((card) => {
+      const c = card.getBoundingClientRect();
+      const top = (selector: string) => {
+        const el = card.querySelector(selector);
+        return el ? el.getBoundingClientRect().top - c.top : null;
+      };
+      const drawn = [...card.querySelectorAll("[data-testid=pool-portrait], [data-testid=directory-pool-more]")].filter((el) => el.getBoundingClientRect().width > 0 && getComputedStyle(el).display !== "none");
+      return { top: Math.round(c.top), height: c.height, name: top("[data-testid=card-name]"), labels: top("[data-testid=card-fit]"), heading: top("[data-testid=directory-primary-role], [data-testid=directory-no-roles]"), cut: drawn.some((el) => el.getBoundingClientRect().right > c.right - 1) };
+    });
+    return [...new Set(cards.map((c) => c.top))].map((t) => cards.filter((c) => c.top === t));
+  });
+  const spread = (values: Array<number | null>) => Math.max(...values.map(Number)) - Math.min(...values.map(Number));
+  expect(rows[0]!.length, "two cards side by side").toBeGreaterThan(1);
+  for (const row of rows.filter((r) => r.length > 1)) {
+    expect(spread(row.map((c) => c.height)), "the same height").toBeLessThanOrEqual(1);
+    for (const key of ["name", "labels", "heading"] as const) expect(spread(row.map((c) => c[key])), `${key} level`).toBeLessThanOrEqual(1);
+  }
+  expect(rows.flat().filter((c) => c.cut), "no portrait cut").toEqual([]);
+  await fitsWidth(page, "Players, sideways");
+  await context.close();
+});
+
 test("Home Screen: the page declares itself an app for iOS, with its icon, the manifest and the notch's safe areas", async ({ page, request }) => {
   await page.goto("/team");
   await expect(page.locator('meta[name="apple-mobile-web-app-capable"], meta[name="mobile-web-app-capable"]').first()).toHaveAttribute("content", "yes");
@@ -275,4 +468,61 @@ test("Home Screen: the page declares itself an app for iOS, with its icon, the m
   expect(res.ok()).toBe(true);
   expect(res.headers()["content-type"]).toMatch(/^image\//);
   expect((await request.get((await page.locator('link[rel="manifest"]').getAttribute("href"))!)).ok()).toBe(true);
+});
+
+test("an uploaded logo: at the start of the top bar, animated unless motion is reduced, and centred on the collapsed sidebar with the icons", async ({ page, browser, baseURL }) => {
+  test.setTimeout(180_000);
+  await page.context().addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
+  await page.goto("/admin/branding");
+  const card = page.locator("[data-testid=brand-logo][data-ready=true]");
+  await expect(card).toBeVisible();
+  await card.locator("input[type=file]").setInputFiles(path.join(__dirname, "fixtures/animated-logo.gif"));
+  await expect(page.getByText(/Logo updated \(animated\)/)).toBeVisible({ timeout: 60_000 });
+  try {
+    // The logo is a picture whose still-frame source is not displayed: WebKit still picks the
+    // source by its media query, and the source takes no place in the top bar's row.
+    const { defaultBrowserType: _, ...iphone } = devices["iPhone 15"];
+    for (const reducedMotion of ["no-preference", "reduce"] as const) {
+      const context = await browser.newContext({ ...iphone, reducedMotion });
+      await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+      const phone = await context.newPage();
+      await phone.goto("/team");
+      const link = phone.getByTestId("mobile-topbar").locator("a[title]");
+      await expect.poll(() => link.locator("img").evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 0)).toBe(true);
+      const shown = await link.evaluate((a) => {
+        const img = a.querySelector("img")!;
+        return { inset: img.getBoundingClientRect().left - a.getBoundingClientRect().left, src: new URL(img.currentSrc).pathname };
+      });
+      expect(Math.abs(shown.inset), `${reducedMotion}: the logo starts ${shown.inset}px into the top bar's link`).toBeLessThanOrEqual(0.5);
+      expect(shown.src, reducedMotion).toBe(reducedMotion === "reduce" ? "/api/branding/logo-static" : "/api/branding/logo");
+      await context.close();
+    }
+    // Safari on a Mac: the collapsed desktop sidebar's logo on the rail's centre line, with the icons.
+    const { defaultBrowserType: __, ...mac } = devices["Desktop Safari"];
+    const context = await browser.newContext({ ...mac, viewport: { width: 1440, height: 900 } });
+    await context.addCookies([
+      { name: "uniiverse_view", value: "player", url: baseURL! },
+      { name: "uniiverse_sidebar", value: "collapsed", url: baseURL! },
+    ]);
+    const desk = await context.newPage();
+    await desk.goto("/team");
+    await desk.mouse.move(1430, 890);
+    await expect(desk.getByTestId("sidebar")).toHaveAttribute("data-collapsed", "true");
+    const c = await desk.evaluate(() => {
+      const mid = (e: Element) => {
+        const r = e.getBoundingClientRect();
+        return (r.left + r.right) / 2;
+      };
+      const aside = document.querySelector("[data-testid=sidebar]")!;
+      return { logo: mid(aside.querySelector("a[title] img")!), rail: mid(document.querySelector("[data-testid=sidebar-slot]")!), icons: [...aside.querySelectorAll("[data-testid=sidebar-toggle] svg, nav a svg")].map(mid) };
+    });
+    for (const x of [c.rail, ...c.icons]) expect(Math.abs(c.logo - x), `the logo's centre ${c.logo}, the rail's or an icon's ${x}`).toBeLessThanOrEqual(0.5);
+    await context.close();
+  } finally {
+    // Back to the usual team mark for every other test.
+    await page.goto("/admin/branding");
+    await page.locator("[data-testid=brand-logo][data-ready=true]").getByRole("button", { name: "Remove" }).click();
+    await page.getByTestId("confirm-dialog-confirm").click();
+    await expect(page.getByTestId("brand-logo-empty")).toBeVisible();
+  }
 });

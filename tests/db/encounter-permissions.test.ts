@@ -3,12 +3,13 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Session } from "@/server/auth/permissions";
 
 /*
-  A profile's Encounters window (the player's record and games with one player met) with real
-  permission checks: your own profile, or a teammate's with the teammate-statistics right, as the
-  profile's Match History; a personal-use account sees only its own. Only the list's opaque key
-  shape is accepted, never seasons before 2026 or an account of another player, and the answer
-  never carries an account id (PUUID). A rename seen in a later stored game is followed for the
-  OP.GG link.
+  One player met, as Match History lists their games (Match History → Encounters → a player; the
+  page itself is Match History's, behind its own access check): only the list's opaque key shape
+  is accepted, only the profile player's own games in the season, game mode and account count, and
+  nothing carries an account id (PUUID). A rename seen in a later stored game is followed for the
+  OP.GG link. A game's scoreboard in Match History marks the players met in other games with real
+  permission checks: your own profile, or a teammate's with the teammate-statistics right; a
+  personal-use account sees only its own.
 */
 
 const state = vi.hoisted(() => ({ db: null as unknown, session: null as unknown }));
@@ -19,7 +20,9 @@ import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { accountMatches, matchDetails, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
-import { getEncounterDetailAction } from "@/server/actions/encounters";
+import { loadEncounterFocus } from "@/server/players/encounters";
+import { readEncounterFocus } from "@/domain/encounters";
+import { getMatchMeetingsAction } from "@/server/actions/match-history";
 import { STANDARD_PLAYER } from "@/server/auth/permissions";
 
 let handle: DbHandle;
@@ -58,45 +61,82 @@ afterAll(async () => {
   await handle.close();
 });
 
-describe("a profile's Encounters window", () => {
+describe("one player met: their games in Match History (Match History → Encounters → a player)", () => {
+  const scope = { accountIds: [] as string[], season: 16, mode: "all" as const };
+  beforeAll(() => {
+    scope.accountIds = [account];
+  });
+
+  it("is named by the list's opaque key only: never an account id, and nothing else is looked up", async () => {
+    const met = await loadEncounterFocus(handle.db, scope, { key, side: "all" });
+    expect(met.summary).toMatchObject({ name: "Rival#OCE", games: 2, opponent: { games: 2, wins: 2, losses: 0 }, ally: { games: 0 } });
+    // Every game with them, newest first in the list; the Season 2025 game never counts.
+    expect([...met.matchIds].sort()).toEqual(["OC1_1", "OC1_2"]);
+    expect(JSON.stringify({ ...met, matchIds: [...met.matchIds] })).not.toContain("secret-puuid-x");
+    // A PUUID, or anything not shaped like the list's key, never reaches the database.
+    for (const bad of ["secret-puuid-x", "'; DROP TABLE x;--", "p-ace"]) expect(readEncounterFocus({ met: bad })).toBeNull();
+    // A key nobody has: no records and no games.
+    expect(await loadEncounterFocus(handle.db, scope, { key: "AAAAAAAAAAAAAAAA", side: "all" })).toEqual({ summary: null, renamed: null, opgg: null, matchIds: new Set() });
+  });
+
+  it("follows a rename seen in a later stored game for the OP.GG link, and keeps the counts the profile player's own", async () => {
+    const met = await loadEncounterFocus(handle.db, scope, { key, side: "all" });
+    // The later game (another member's) names the account's new Riot ID; the counts stay Ace's.
+    expect(met.renamed).toBe("Rival Renamed#OCE");
+    expect(met.opgg).toBe("https://op.gg/lol/summoners/oce/Rival%20Renamed-OCE");
+  });
+
+  it("lists exactly the games each side's record counts", async () => {
+    expect([...(await loadEncounterFocus(handle.db, scope, { key, side: "against" })).matchIds].sort()).toEqual(["OC1_1", "OC1_2"]);
+    expect((await loadEncounterFocus(handle.db, scope, { key, side: "alongside" })).matchIds.size).toBe(0);
+  });
+
+  it("stays within the scope's accounts, season and game mode", async () => {
+    // Only the accounts given count (the page gives the profile player's own, or the one chosen of them).
+    expect((await loadEncounterFocus(handle.db, { ...scope, accountIds: [beaAccount] }, { key, side: "all" })).matchIds).toEqual(new Set(["OC1_3"]));
+    // A game mode without these games: not met there.
+    expect((await loadEncounterFocus(handle.db, { ...scope, mode: "flex" }, { key, side: "all" })).summary).toBeNull();
+    // Season 2025 holds the older game only.
+    expect([...(await loadEncounterFocus(handle.db, { ...scope, season: 15 }, { key, side: "all" })).matchIds]).toEqual(["OC1_0"]);
+  });
+});
+
+describe("a game's scoreboard: the players met in other games", () => {
+  const rival = { slot: 1, key, games: 2, ally: 0, opponent: 2 };
+
   it("refuses without a session, and another player's to a personal-use account or without the teammate-statistics right", async () => {
-    for (const session of [null, player({ teamMember: false }), player({ capabilities: STANDARD_PLAYER.filter((c) => c !== "view-teammate-stats") })]) {
+    state.session = null;
+    expect(await getMatchMeetingsAction(ace, "OC1_2", season16)).toEqual({ status: "not-found", message: "Sign in to see match details." });
+    for (const session of [player({ teamMember: false }), player({ capabilities: STANDARD_PLAYER.filter((c) => c !== "view-teammate-stats") })]) {
       state.session = session;
-      expect(await getEncounterDetailAction(ace, key, season16)).toEqual({ status: "not-found", message: "This player's games are not part of your access." });
+      expect(await getMatchMeetingsAction(ace, "OC1_2", season16)).toEqual({ status: "not-found", message: "Teammates' match details are not part of your access." });
     }
   });
 
-  it("answers your own profile, a personal-use account included, and a teammate's", async () => {
+  it("marks them with their window's key and counts for you and a teammate, never with the account id", async () => {
     for (const session of [player({ playerId: ace }), player({ playerId: ace, teamMember: false, capabilities: STANDARD_PLAYER.filter((c) => c !== "view-teammate-stats") }), player({ playerId: bea })]) {
       state.session = session;
-      expect(await getEncounterDetailAction(ace, key, season16)).toMatchObject({ status: "ok", summary: { name: "Rival#OCE", games: 2, opponent: { games: 2, wins: 2, losses: 0 } } });
+      const res = await getMatchMeetingsAction(ace, "OC1_2", season16);
+      expect(res).toEqual({ status: "ok", players: [rival] });
+      expect(JSON.stringify(res)).not.toContain("secret-puuid-x");
     }
+    // The same counts as the player's games the mark opens.
+    expect((await loadEncounterFocus(handle.db, { accountIds: [account], season: 16, mode: "all" }, { key, side: "all" })).summary).toMatchObject({ games: 2, ally: { games: 0 }, opponent: { games: 2 } });
   });
 
-  it("answers by opaque key only, never with the account id, and follows a rename for the OP.GG link", async () => {
-    state.session = player({ playerId: bea });
-    const res = await getEncounterDetailAction(ace, key, season16);
-    expect(res.status).toBe("ok");
-    if (res.status !== "ok") return;
-    expect(res.games.map((g) => g.matchId)).toEqual(["OC1_2", "OC1_1"]);
-    expect(res.more).toBe(0);
-    expect(JSON.stringify(res)).not.toContain("secret-puuid-x");
-    // The later game (another member's) names the account's new Riot ID; the counts stay Ace's.
-    expect(res.renamed).toBe("Rival Renamed#OCE");
-    expect(res.opgg).toBe("https://op.gg/lol/summoners/oce/Rival%20Renamed-OCE");
-    // A PUUID, or anything not shaped like the list's key, is not looked up.
-    expect((await getEncounterDetailAction(ace, "secret-puuid-x", season16)).status).toBe("not-found");
-    expect((await getEncounterDetailAction(ace, "'; DROP TABLE x;--", season16)).status).toBe("not-found");
-    expect((await getEncounterDetailAction("not-a-player", key, season16)).status).toBe("not-found");
-  });
-
-  it("never reaches before Season 2026, another player's account or an unknown game mode", async () => {
+  it("answers only for the player's own games in the list's season, game mode and account", async () => {
     state.session = player({ playerId: ace });
-    expect(await getEncounterDetailAction(ace, key, { ...season16, season: 15 })).toMatchObject({ status: "not-found" });
-    expect(await getEncounterDetailAction(ace, key, { ...season16, accountId: account })).toMatchObject({ status: "ok", summary: { games: 2 } });
-    expect(await getEncounterDetailAction(ace, key, { ...season16, accountId: beaAccount })).toMatchObject({ status: "not-found" });
-    expect(await getEncounterDetailAction(ace, key, { ...season16, mode: "aram" })).toMatchObject({ status: "not-found" });
-    // Ranked Flex has none of these games.
-    expect(await getEncounterDetailAction(ace, key, { ...season16, mode: "flex" })).toMatchObject({ status: "not-found" });
+    const missing = { status: "not-found", message: "This match is not in this player's history." };
+    // A Season 2025 game, and Season 2025 itself.
+    expect(await getMatchMeetingsAction(ace, "OC1_0", season16)).toEqual(missing);
+    expect(await getMatchMeetingsAction(ace, "OC1_0", { ...season16, season: 15 })).toEqual(missing);
+    // Bea's game, another player's account, a game mode without the game, and unknown inputs.
+    expect(await getMatchMeetingsAction(ace, "OC1_3", season16)).toEqual(missing);
+    expect(await getMatchMeetingsAction(ace, "OC1_2", { ...season16, accountId: beaAccount })).toEqual(missing);
+    expect(await getMatchMeetingsAction(ace, "OC1_2", { ...season16, accountId: account })).toEqual({ status: "ok", players: [rival] });
+    expect(await getMatchMeetingsAction(ace, "OC1_2", { ...season16, mode: "flex" })).toEqual(missing);
+    expect(await getMatchMeetingsAction(ace, "OC1_2", { ...season16, mode: "aram" })).toEqual(missing);
+    expect(await getMatchMeetingsAction(ace, "'; DROP TABLE x;--", season16)).toEqual(missing);
+    expect(await getMatchMeetingsAction("not-a-player", "OC1_2", season16)).toEqual(missing);
   });
 });

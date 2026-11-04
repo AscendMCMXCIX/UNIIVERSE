@@ -127,8 +127,12 @@ test("the Players directory previews only the Primary Role's champions", async (
   const label = (await card.getByTestId("directory-primary-role").textContent()) ?? "";
   const primaryCount = Number(/(\d+) champions?/.exec(label)?.[1] ?? 0);
   expect(primaryCount).toBeGreaterThan(0);
-  const portraits = await card.getByTestId("directory-pool").locator("[title]").count();
-  expect(portraits).toBe(Math.min(primaryCount, 7));
+  // As many whole portraits as the card holds, and the rest counted: together, the whole pool.
+  const pool = card.getByTestId("directory-pool");
+  const portraits = await pool.locator("[data-testid=pool-portrait]:visible").count();
+  const counted = await pool.locator("[data-testid=directory-pool-more]:visible").allTextContents();
+  expect(portraits).toBeGreaterThan(0);
+  expect(portraits + Number(/\+(\d+)/.exec(counted[0] ?? "")?.[1] ?? 0)).toBe(primaryCount);
   // The full profile still has every role: the Primary Role's pool matches, Off Roles are there too.
   await card.click();
   await expect(page.getByTestId("primary-pool-list").getByTestId("pool-item")).toHaveCount(primaryCount);

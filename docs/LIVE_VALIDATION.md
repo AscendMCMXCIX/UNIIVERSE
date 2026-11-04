@@ -25,6 +25,37 @@ Verified before deployment, on a real PostgreSQL 16 server in production mode (a
 
 Each item says what to do, what to expect and where to look when it fails.
 
+## Automated live check
+
+**It runs by itself (3 Nov 2026):** GitHub's Production check (`.github/workflows/production-check.yml`) runs it after each production deployment and every day, from GitHub's runner, with no setup by anyone. Without the verification account's secrets it checks the public pages and the signed-out security, and reports the member pages as pending. The items below that need a signed-in member stay for a person, or for the check once those secrets exist (`docs/MONITORING.md`).
+
+`scripts/live-check.mjs` checks the deployed site from a browser. It runs the read-only checks that people otherwise do by hand, at desktop (1440 px), tablet (768 px) and phone (390 px) widths, and saves a screenshot of every page for review.
+
+```
+node scripts/live-check.mjs [base url] [output folder]
+```
+
+- **Base url:** defaults to https://team-uniiverse.vercel.app.
+- **Output folder:** defaults to `live-check-<time>`. It holds the screenshots, `report.json` and `summary.md`. The run exits with 1 when any check fails.
+- **Sign-in:** `UNIIVERSE_VERIFY_USER` and `UNIIVERSE_VERIFY_PASSWORD`, for a non-admin account kept off the roster. They are read from the environment and never printed. In a cloud session they go in the environment's settings, and the site must be under its allowed domains.
+- **Read only:** it signs in, opens pages and opens and closes games and windows. It also switches a view and presses Back, Forward, Enter and Escape. It never submits a form after sign-in, and never presses a bookmark, edit, save, sync, refresh, invite or admin control. As with any member's visit, an open game can start the app's own background reads (rank checks).
+- **What it checks:**
+  - Signed-out and forged-cookie requests to member pages are turned away to sign-in and carry no player data (#170). Security headers on the sign-in page.
+  - The charcoal frame (#178): the sidebar open and folded, the current page's gradient bar, and the top bar, drawer and tab bar on tablets and phones.
+  - All Champions (#178): compact rows, sorted by games, no heading cut short. The champion window still opens and closes.
+  - Games (#178):
+    - Team Matches opens a game under its card, with no window and `?match=` in the address;
+    - a copied link opens it, and Back returns to it;
+    - Enter toggles it, and "Close this game" closes it with the focus back on the card;
+    - Match History and its Encounters view still open.
+  - axe (#173) on the main pages at every width, with a game open, and in the champion window: WCAG 2.1 A and AA plus `label-content-name-mismatch`, with no serious or critical violation.
+  - Every page at every width loads signed in, with:
+    - no sideways scroll;
+    - no page error or app console error;
+    - no failed request to the app;
+    - no broken image from the app.
+- **Locally:** `LIVE_LOCAL=1 node scripts/live-check.mjs http://127.0.0.1:<port>` checks a demo build started like the browser tests' server. There is no sign-in, and the security checks are skipped. On 3 Nov 2026 the demo build of `main` at `d72619a` passed all 200 checks, with no axe violation.
+
 ## 1. Data Dragon (champions, patches, portraits)
 
 - [ ] Admin → Data & Riot → run `version-check`. Expect status *ok* and Data health showing the real current patch (e.g. `15.19`) instead of `0.0 / offline fixture`.
@@ -44,7 +75,7 @@ Failure signs: "Static provider unavailable" in the job log → the host cannot 
 Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot recognises (wrong value, placeholder, extra characters); 403 on every endpoint → the key expired (development keys last 24 h) or was revoked; 403 on `/riot/account/v1/…` only, while `riot-check` says *accepted* → the request went to a routing value that does not serve ACCOUNT-V1 (the `sea` host did until 575a4f6; account lookups now use `asia`); 404 on `by-puuid` endpoints → wrong regional routing (check `RIOT_PLATFORMS` values like `euw1`, `kr`, `na1`, `oc1`).
 
 - [x] `riot-check` (Admin → Data & Riot → Riot credential → **Check key now**, or the data-jobs workflow with `job=riot-check`) answers with the key's state and the HTTP status without exposing the key. *2026-10-13: `accepted`, status 200 on oc1, key fingerprint `…18eb`.*
-- [x] The **Production smoke** workflow (Actions → Production smoke → Run) prints the live build from `/api/health`, 200 for `/login`, 307 → `/login?next=…` for every private page (including `/overview/blocks`) and 401 for the job endpoint without the secret.
+- [x] The **Production smoke** workflow (Actions → Production smoke → Run) prints the live build from `/api/health`, 200 for `/login`, 307 → `/login?next=…` for every private page, 401 for the job endpoint without the secret, and a redirect to `/overview` for the retired Ranked Development addresses (`/overview/development`, `/overview/blocks`, `/blocks`, `/ranked`).
 
 ## 3. Linked Riot accounts and proficiency
 
@@ -351,7 +382,7 @@ Never erase a real member to test this: the erasure itself is tested on syntheti
 - [ ] Data jobs → `smoke perf-probe`: every step passes, and `deployment.commit` is the merge commit.
 - [ ] On your profile, on a computer and on a phone, open Overview, All Champions, Match History and its Encounters:
   - no status banner on any of them;
-  - **Refresh** (an icon and the word) sits under the section's title, at the same place on every tab, with an ⓘ beside it and nothing else;
+  - **Refresh** (an icon and the word) sits under the section's title, at the same place on every tab, with an ⓘ beside it and nothing else (since 2 Nov 2026 at the toolbar's end, after the filters: see "Readability, colour and the toolbar's Refresh");
   - the filters stay on the right (on a phone, under Refresh).
 - [ ] Press **Refresh**:
   - it reads "Refreshing…" until the figures are in, and ends with a notification of what happened (new games, no new games, multikill counts fetched, or when to try again), never "Up to date" for the press alone;
@@ -360,7 +391,7 @@ Never erase a real member to test this: the erasure itself is tested on syntheti
 - [ ] Press it again within 2 minutes: "Refreshed … · try again in …", and nothing new is asked of Riot.
 - [ ] Press it, then change tab straight away: the next tab shows "Refreshing…", and the result arrives there.
 - [ ] A teammate's profile (not as an administrator): the ⓘ alone, no Refresh.
-- [ ] Riot accounts: the same Refresh under the panel's title; the account menu has no "Sync now"; Retry sync (only on a Delayed or Needs attention account) right after a Refresh says the account was checked recently.
+- [ ] Riot accounts: the same Refresh under the panel's title (since 2 Nov 2026 at its right, on its row); the account menu has no "Sync now"; Retry sync (only on a Delayed or Needs attention account) right after a Refresh says the account was checked recently.
 - [ ] Team → Leaderboards: an ⓘ under the title with the team's status ("Every member's games, rank and mastery are up to date", or how many member accounts are being read or delayed, without names) and "The boards follow the account syncs"; no Refresh, and no "Updated from the last account sync" line.
 
 ## Total kills (22 Oct 2026)
@@ -390,9 +421,241 @@ Never erase a real member to test this: the erasure itself is tested on syntheti
 - [ ] Team Overview, profiles (Overview, All Champions, Match History, Riot Accounts), Leaderboards, Matches and Encounters, Resources, the Card Studio and Admin Mode work as before. OP.GG links in the match window, Encounters, Team → Matches and Riot Accounts still open.
 - [ ] (For the held clean-up, not this release.) Data jobs → `db-usage`: `retired` lists `clash_scouts` and `clash_scout_accounts` with their rows, and no reads or writes between two runs a day apart.
 
-## Clash Scout's tables dropped (migration 0057)
+## Clash Scout's tables dropped (migration 0064)
 
-- [ ] Data jobs → `smoke auth-audit`: every step passes, `deployment.commit` is the merge commit, and the migrations applied end with `0057_retire_clash_scouts`.
+- [ ] Data jobs → `smoke auth-audit`: every step passes, `deployment.commit` is the merge commit, and the migrations applied end with `0064_retire_clash_scouts`.
 - [ ] Data jobs → `db-usage`: `retired` reports `clash_scouts` and `clash_scout_accounts` as gone, and the other retired tables as before.
 - [ ] The privacy notice has no Clash scouts entry under "What is stored" and no Clash Scout section; its index has eight entries.
 - [ ] Admin Mode → Users & Permissions → Personal data → an erasure's preview (then **Cancel**): no Clash Scout line, and nothing changes.
+
+## Ranks in the match window (migration 0057, 24 Oct 2026)
+
+- [ ] Data jobs → `smoke auth-audit perf-probe`: every step passes, `deployment.commit` is the merge commit, and `auth-audit` lists migrations up to `0057_participant_ranks`.
+- [ ] Open one of your recent games: every player in the scoreboard has one small badge under the name: a rank ("Gold 2"), "Unranked", or "—". A player with no stored rank shows a dashed placeholder for a moment while Riot is asked, then fills in.
+- [ ] On a computer, hover a rank: it names the queue, the rank with LP and the day it was checked, and says it is their rank then, not at the time of the match. In a Ranked Flex game, a Solo/Duo rank is marked "Solo"; in other games a Flex rank is marked "Flex".
+- [ ] The note under the scoreboard says these are current ranks ("Last-known" if any shown is over 3 days old), checked on a day or days, and not the ranks players had in that game.
+- [ ] Close and open the same game again, or reload and open it: the same badges, with no "Checking ranks with Riot…" (unless the first check said Riot was busy or did not answer for someone; those are asked again).
+- [ ] On a phone (portrait and landscape): the badges fit under the names, the KDA and other columns stay in place, and nothing scrolls sideways.
+- [ ] The Match History list itself shows no ranks (unchanged).
+- [ ] Data jobs → `data-audit`: `participantRanks` shows the checks per day and the coverage, with no names or ids.
+
+## Sidebar logo centred (26 Oct 2026)
+
+This replaces "On a computer, collapse the sidebar: the logo is centred above the icons" under 22 Oct 2026. That was true of the letter mark only, not of an uploaded logo. PR #141 (Team Overview's header) was reverted in the same release, so Team Overview's layout is the one from before it.
+
+- [ ] Data jobs → `smoke`: every step passes, and `deployment.commit` is the merge commit.
+- [ ] On a computer, with the team's uploaded logo, collapse the sidebar: the logo is centred in the rail, on the same line as the icons under it. Before, it sat about 12px to the right.
+- [ ] Open the sidebar: the logo stays where it was, over the icons, with the team's name beside it. It does not move while the sidebar opens or collapses, nor when pointing at the collapsed sidebar opens it over the page.
+- [ ] The same in a wide window (1920px or more, where everything is drawn larger) and in a 1024px one.
+- [ ] Tab to the logo: its focus ring is whole, not cut off at the sidebar's edge.
+- [ ] The phone and tablet top bar, the public page's header, the sign-in window and the Team tabs: the logo starts its row, with no gap before it. On the sign-in page the logo and the name are centred together.
+- [ ] Team Overview: as before PR #141, except that the header has no empty space under it (4px less on a computer, 10px on a phone).
+- [ ] With "reduce motion" turned on, the logo shows its still frame everywhere; otherwise it animates.
+
+## Window close buttons (26 Oct 2026)
+
+- [ ] Data jobs → `smoke`: every step passes, and `deployment.commit` is the merge commit.
+- [ ] On a computer and on a phone, open a game from Match History, a player from Team, a champion from a profile, Player Card Studio and the public page's Sign in: the close button (×) is alone in the top-right corner, with clear space around it; no text, link or button sits beside it or just under it.
+- [ ] Profile → Match History → Encounters, a player with an OP.GG link: the link is under the player's name and summary, on the left; nothing is next to the ×.
+- [ ] In that window open a game: Back is left of the ×, with a thin divider between them. Back returns to the player; Escape then closes the window, and the keyboard focus is on the player's row again.
+- [ ] Team → a player: previous and next are left of the ×, past the same divider.
+- [ ] On a phone, the × is easy to hit with a thumb (44px), also with the phone held sideways, where it floats over the window as before.
+- [ ] Escape closes every window, and focus returns to what opened it. The windows look as before otherwise.
+
+## Match History: opponents' ranks on the cards and OP.GG links (26 Oct 2026)
+
+On the live site, signed in as a member, after the deployment (`smoke` shows its commit):
+- [ ] Your profile → Match History on a computer: open a game whose opponents show no rank, wait for the ranks under the scoreboard, close it. Its card now shows a short rank at the end of each opponent's name line ("E2", "GM", "Unr"), in the tier's colour, and the card is no taller.
+- [ ] Hover one: the same statement as the match window ("… checked <date>. Their rank then, not at the time of this match").
+- [ ] Reload: the ranks are still there. Scroll and change pages: nothing waits on Riot (the list is as fast as before).
+- [ ] A Flex game: a rank shown from Solo/Duo carries a small grey "s"; a Solo/Duo game's Flex-only rank an "f".
+- [ ] A phone: the ranks sit under the opponents' icons, both teams' icons on one line, nothing overlapping or scrolling sideways.
+- [ ] Team members on a card (a computer): a small arrow after their name opens their OP.GG profile in a new tab, and the card does not open the match. The name still opens their profile. On a phone the arrow is not shown.
+- [ ] A player with an accented, Thai, Arabic or Persian Riot ID, or a recent rename: their name links to their OP.GG profile under their current name.
+- [ ] Data jobs → `data-audit`: `opggLinks` counts the places with and without a link, by reason; `notLinked.no-tag` and `notLinked.server` are the remaining gaps.
+
+## Encounters: opponents, allies and Mixed told apart (26 Oct 2026)
+
+- [ ] Data jobs → `smoke`: every step passes, and `deployment.commit` is the merge commit.
+- [ ] A profile → Match History → Encounters, on a computer and on a phone: each row has the player's name, then **Opponent** (red), **Ally** (blue) or **Mixed** (red and blue), then "Against N" and/or "Alongside N", the record and the date last met. The colour bar at the row's left edge matches.
+- [ ] Opponents: the "Against" chip comes first with the record right after it; a player who was also an ally shows a quieter "Alongside" chip after it. Allies: the other way round. Everyone: both chips, then the record over all the games.
+- [ ] The Opponents, Allies and Everyone choices each have a small colour key (red, blue, split).
+- [ ] Open a Mixed player: the window shows the Mixed badge, the records (Against, then Alongside), and the games in two sections, "Against them" and "Alongside them", each with its count. A game opens the match window; Back returns to the player.
+- [ ] On a phone, the date last met ends the name's line and the badge, chips and record share the line under it, so no name is cut short. Only on a 375 px phone (iPhone SE or mini) may a Mixed player's "small sample" mark start a third line; from 390 px every row is two lines. Nothing scrolls sideways.
+
+## Pages that update themselves (October 2026)
+
+On the live site, after the deployment (`smoke` shows its commit):
+- [ ] Open your profile while an account of yours is due for a refresh (last updated over 15 minutes ago): within a minute or so, new games, rank and "Last updated" appear without pressing Refresh or reloading, the page stays where it was scrolled, and an open game window stays open.
+- [ ] Two browsers: in one, open Players; in the other, change something teammates see (a card, a pool, the lineup). Back in the first, switch to its tab: the change shows within a second or two, without a reload.
+- [ ] Leave a page open in a hidden tab: the browser's network panel shows no `/api/freshness` requests until the tab is shown again; on screen and idle, the checks become rarer (1, 2, 4, 8, then every 10 minutes).
+- [ ] Admin Mode → System Health while a job runs: its result appears when it finishes, without Refresh.
+- [ ] Data jobs → `data-audit`: `opggLinks.tagLengths` lists the tags outside 2–5 characters by server, length and kind (counts only); `notLinked.tag-length` equals its total.
+- [ ] Data jobs → `data-audit`: `opggLinks.shortTags` says what those tags are, without showing any: `linkedAccountsCheckedByRiot` (a short tag there comes from Riot's account record itself), `recorded` (the same tag in every game, cut off from a longer one, or renamed) and `linkedAccount` (whether Riot's record agrees with the short tag the games recorded).
+- [ ] After the 2-character rule (26 Oct 2026): `data-audit` → `opggLinks.notLinked.tag-length` falls from about 2,570 to a handful (tags of 1 or 6+ characters), and `linked` rises by the same number of places. On a Match History scoreboard, a player whose Riot ID has a 2-letter tag is a link, and OP.GG opens that player's profile.
+- [ ] Data jobs → `egress` the next day: the day stays under its budget.
+
+## Stored game records: the players' index (migration 0058, 26 Oct 2026)
+
+Nothing on screen changes; the checks confirm the same answers, sooner.
+- [ ] Data jobs → `smoke auth-audit perf-probe`: every step passes, `deployment.commit` is the merge commit, and `auth-audit` lists migrations up to `0058_match_details_puuids`.
+- [ ] `perf-probe` → `matches.possibleGroups`: the same kind of note as before ("N earlier stored games searched · M possible groups"), and the cold time well under the 1,917 ms of 26 Oct.
+- [ ] Open a game in Match History: possible groups, their evidence games and the players' OP.GG links are as before.
+- [ ] A day later, Data jobs → `db-usage`: the figures backfill's `UPDATE account_matches … pg_column_size …` and the possible-groups query are no longer among the costliest statements, and `match_details`'s `index_bytes` has grown by a few MB (the new index).
+
+## Ranked Development (migration 0059, October 2026)
+
+Superseded on 29 Oct 2026: Ranked Development was removed (next section). Kept as the record of what was checked while it existed.
+
+Solo Queue Blocks became Ranked Development (`docs/RANKED_DEVELOPMENT.md`). On the live site, after the deployment:
+- [ ] Data jobs → `smoke auth-audit perf-probe`: every step passes, `deployment.commit` is the merge commit, `/overview/development` answers 307 to sign-in when signed out, and `auth-audit` lists migrations up to `0059_ranked_development`.
+- [ ] My Profile → **Ranked Development** (between Match History and Riot Accounts; not on a teammate's profile): Overview, Sessions and Development as tabs. A player who had a Solo Queue Blocks focus sees it as their current objective (Practising), with its champions; their earlier blocks are listed under Sessions as "Session N" with their games, notes and main mistakes.
+- [ ] Old addresses: `/overview/blocks`, `/overview/blocks/history`, a block's own address, `/blocks` and `/ranked` lead to Ranked Development.
+- [ ] Before you queue: choose or write an objective (a rank goal such as "Reach Diamond" is pointed out), add an If–Then plan, start a session (no game limit by default; a game limit or "Stop after 2 losses" when chosen; an account when you have several).
+- [ ] Play a Solo/Duo game with the page open (or open it afterwards): within a few minutes of the game ending it joins the session by itself, with "Review" and "Skip". The review takes under a minute; Skip leaves no penalty. A game played on another account than the session's stays out.
+- [ ] On another device signed in to the same account, the session is there, in progress, with the same games.
+- [ ] End the session with a closing note: the summary shows results (LP only when it is known, otherwise why not), champions, plan follow-through from your reviews (labelled self-reported) and suggestions only where reviews support them; then keep, adjust or replace the objective.
+- [ ] Development: progress steps move only when you move them (several wins change nothing); the evidence panel says "not enough games" until there are five in each period; a removed synced game does not come back by itself.
+- [ ] A teammate cannot open your session's address (not found) and never sees your objectives, plans or reviews.
+- [ ] On a phone (portrait and landscape) and a tablet: nothing scrolls sideways; the review and objective windows open as sheets inside the screen; with reduced motion on, nothing pulses.
+
+## Ranked Development removed (29 Oct 2026)
+
+Ranked Development is retired, with Solo Queue Blocks and the Ranked Improvement journal before it (`docs/RANKED_DEVELOPMENT.md`). Items in earlier sections about Solo Queue Blocks, the ranked journal or Ranked Development no longer apply. On the live site, after the deployment:
+- [ ] Data jobs → `smoke perf-probe`: every step passes, `deployment.commit` is the merge commit, and `/overview/development`, `/overview/blocks`, `/blocks` and `/ranked` answer a redirect to `/overview`.
+- [ ] My Profile shows four sections, Overview, All Champions, Match History and Riot Accounts, evenly spaced under the profile card on a computer, a tablet, a phone (portrait and landscape) and the installed app; a teammate's profile shows the same four.
+- [ ] Signed in, the old addresses (`/overview/development/sessions`, `/overview/blocks/history`, a block's own address, `/ranked`) open My Profile → Overview.
+- [ ] Match History: a game's window has no "Add to a Ranked Development session" button; Bookmark (your own games) and the OP.GG link are still there; enemy ranks show as before.
+- [ ] Overview, All Champions, Ranked progress (rank and LP), Riot Accounts, Team Overview and Leaderboards show the same figures as before the change; a new game still arrives with the next account sync.
+- [ ] Privacy notice: the Ranked Development entry says the records are kept, unused, until a planned clean-up, and the date at the top is 29 October 2026.
+
+## Match History 2.0 (29 Oct 2026)
+
+A profile's Match History opens each game under its card (`docs/ARCHITECTURE.md` → Match History 2.0). Items above that open a Match History game "in the window" now open it under its card; Team → Matches, Matchups, Encounters and the champion window still use the window. On the live site, after the deployment:
+- [ ] Data jobs → `smoke perf-probe`: every step passes and `deployment.commit` is the merge commit.
+- [ ] Your profile → Match History on a computer: above the games, one line about the newest games the filters list (results as small squares, record, KDA, CS/min, KP, a streak from two games, the champions played most; "+N Solo/Duo points, 30 days" only when two rank readings 30 days apart exist). Choosing Ranked Flex in the game mode filter changes it to Flex.
+- [ ] Cards: the champion's level on its portrait; the other players' ranks (teammates too) where stored, nothing where not; "Best <figure> in N" on a few games at most, and only where its hover text names at least 20 earlier games.
+- [ ] Click a card: the game opens under it (the address gains `?match=`), with Scoreboard first; clicking it again closes it; opening another closes the first. Reload with `?match=` in the address: the same game is open. Opening a game adds no history entry, so Back goes to the page before Match History.
+- [ ] Scoreboard: ten rows, your row tinted, members marked, the lane opponent marked "Lane" only when one enemy played the same position; ranks fill in after a moment for players with none stored; on a phone each row shows the name, KDA and items without sideways scrolling.
+- [ ] Analysis: your shares of the team's kills, damage and gold, your place in the game; the lane at 10:00 and 15:00 (the first time, after the timeline loads) and at the end, or "no single lane opponent"; "Against your usual" with the number of games compared, or the reason there is no comparison (fewer than 10 earlier games of that role and queue group). Nothing is graded.
+- [ ] Timeline: the gold difference line around zero, the largest lead and deficit, the end and the changes of lead; hover or the arrow keys read a minute; "Every minute as a table" lists every frame. A game Riot no longer serves says so; nothing invented. Opening Timeline again, or Build, makes no new request (Network tab).
+- [ ] Build: the build steps by minute, the skill order and the rune page, as before.
+- [ ] Timeline with kills and objectives (migration 0060): Data jobs → `auth-audit` lists migrations up to `0060_match_timeline_events`. Open a recent game's Timeline: ticks for each team's kills (yours along the top), lettered objectives under the curve in your team's blue or the other team's red, your kills (dot) and deaths (cross); "Largest swings" lists up to three moves with the kills and objectives of the same minutes, and its (i) says no cause is given; "Every objective, and your kills, assists and deaths" lists them as a table, matching the scoreboard's dragon and tower counts.
+- [ ] An older game (opened before this release): its Timeline loads the kills and objectives the first time (one request in the Network tab), and not again when reopened. A game with a removed player shows objectives and your own kills, but no team kill ticks.
+- [ ] A game with a removed (erased) player: the scoreboard shows "Removed player", and the gold difference says it cannot be drawn.
+- [ ] Team → Matches, a champion's window (All Champions) and Encounters: a game opens in the window, with the same four sections; Back returns where it should.
+- [ ] On a phone (portrait and landscape), a tablet and the installed app: the four sections share the width, nothing scrolls sideways, and with reduced motion on nothing slides or rises.
+- [ ] Refine (Match History): Result (All, Wins, Losses), Highlights, Patch (with counts), Team members (with or against each member who shared a game, with counts), Played between and Show the games. Each choice shows as a chip, narrows the summary and the pages, stays in the address (reload keeps it) and rides along a change of season or game mode; the chip or Reset removes it.
+- [ ] Team members: "Against <name>" lists only games where that member was on the other side (their name on the card's other team), "With any team member" only games with a member on your side; the counts match the number of games listed.
+- [ ] Refine → Show the games → By playing session (a chip shows it): the games fall under headers (date, start and end times, games, W/L, KDA, CS/min, time played) in the same newest-first order; a session cut by the page break says how many of its games are on the page; a game still opens under its card; Every game (or the chip) restores the plain list.
+- [ ] On a phone: the Refine fields sit in the opened filter panel without a sideways scroll, and the date fields are usable with the system date picker.
+- [ ] Players met in other games: open a few games under their cards. A player met in another game this season (same game mode filter) carries "Met N×" after their name, and its hover text gives the games against and alongside. Teammates with a profile and players without a recorded Riot ID are never marked. Pressing it opens their games in Match History → Encounters with "N games with <player>" (the same N) and those games; Back returns to the game. A game opened in the window (Team → Matches, Encounters) has no marks. On a phone the mark fits beside the name without a sideways scroll.
+- [ ] Data jobs → `perf-probe`: the step `profile.matchMeetings` passes, with counts only.
+
+## Match History: one game, one set of figures (29 Oct 2026)
+
+The card, the scoreboard, Analysis and the Timeline describe the same game (`docs/ARCHITECTURE.md` → Match History 2.0 → One game, one set of figures). On the live site, after the deployment:
+- [ ] Data jobs → `smoke data-audit`: `matchViews` reports `contradicting` 0; `playersGoldOff`, `playersCsOff`, `playersKillsOff` and `objectivesOff` are 0 or close to it (each one is a stored game to look at, not a figure to hide).
+- [ ] Your profile → Match History, open three games, one of them played from the red side: the Analysis team gold, the scoreboard's gold column added up and the Timeline's "At the end" give the same lead or deficit (yours first); your team's kills run along the top of the Timeline, and the kill and objective counts match the scoreboard.
+- [ ] Only if `contradicting` is above 0: such a game's Timeline says its timeline and its record disagree and shows no gold line or lane figures; its scoreboard and Analysis are unchanged.
+
+## Match History: ranks around each game (29 Oct 2026)
+
+Ranks are read against the game they are shown for (`docs/ARCHITECTURE.md` → Match History 2.0 → Ranks around each game). On the live site, after the deployment:
+- [ ] Data jobs → `smoke data-audit`: `participantRanks.lookupsByDay` stays under 1,000 a day; over the next days `gamesLast30Days.othersNothingStored` falls as the `rank-checks` job reaches the last week's games.
+- [ ] Admin Mode → System (or Data jobs → `tick`): the `rank-checks` job runs after `account-sync`, with "N checked … M players in K recent games were waiting" in its summary, and is never "failed" because Riot was busy.
+- [ ] After the pacing change (29 Oct 2026): a Data jobs `tick` whose summary has players waiting checks up to 30 in the run, with "W waits for Riot's one-second window" in the line, instead of stopping at about ten.
+- [ ] Your profile → Match History: the cards of games from the last week show their players' ranks (tier colour) without anyone opening them; an older game's ranks, read later, are in the caption colour.
+- [ ] Open a recent game: the note under the scoreboard says "Ranks around the time of this game."; hover a badge: "checked … after this game", or for a member "the last rank recorded before this game". Open a game from a month ago: badges read later carry a clock, and the note says so. The (i) explains both, by keyboard and by touch.
+- [ ] The note under the scoreboard about possible groups is one line with its (i); the groups themselves are unchanged.
+
+## Match History: finishing pass (29 Oct 2026)
+
+On a real phone (and the installed app) and a desktop browser, after the deployment (`docs/ARCHITECTURE.md` → Match History 2.0 → Finishing pass):
+- [ ] A profile's Match History, champions and accounts sections open under a compact band (name, role, rank, Customise) and the Overview under the full card; switching tabs changes between them without a jump in the list.
+- [ ] The cards keep "… ago" in view on a phone, and a long run of team members folds to the first name and "+N".
+- [ ] Open a game on a phone: each scoreboard row is three lines with the items beside the damage; at the end, "Close this game" closes it and the card is back in view.
+- [ ] Refine on a phone: Result shows, the other fields open with "More filters" (it says how many are in use), and nothing scrolls sideways.
+- [ ] Analysis: "Higher than N of M" (or "Your best in M") beside each figure of "Compared with your usual"; a game without a timeline shows the lane at the end only, with one line saying why; turret takedowns read "N of M" when the team's towers are recorded; your team's bar is blue in the team totals whichever side you played.
+- [ ] Timeline on a phone: touch the chart or a lettered objective under it, lift the finger, and the reading stays (the objective named in it); a vertical swipe on the chart still scrolls the page. Open "Every objective…" and "Every minute as a table": each runs with the page (no box scrolling inside it), and each event row carries its mark. On a desktop, hovering reads, leaving clears, and the tables scroll in their boxes.
+
+## Match History: final checks (30 Oct 2026)
+
+On the live site, after the deployment:
+- [ ] Data jobs → `smoke data-audit`: `participantRanks.recentChecks` lists the last runs of the rank checks after collection, newest first. `waiting` (players without a rank since their game, before each run) should fall from run to run while runs check their 30, allowing for new games; `lookupsByDay` stays under 1,000.
+- [ ] Open a game with your whole team on one side: the note under the scoreboard reads "Possible groups: not enough recorded history to assess." with "<side>: no other players to assess." (or describes an inference only when the other side has a possible group), and never "an inference from 0 earlier recorded games".
+- [ ] Timeline on a phone, in a long game: the lettered objectives and your kill and death marks never overlap (a busy minute takes more rows); tap each one and the reading names it, also when the tap lands just beside the mark.
+- [ ] Encounters: the (i) "How encounters are counted" says how the highlights are chosen. "Toughest record against" is the first player of Opponents sorted by Worst record with a minimum of 5 (ties: more games against, then the most recent), and appears only when that record is a losing one; "Best record alongside" only with a winning one.
+- [ ] **Riot images (manual: the development sandbox cannot reach the live site or Riot's image servers, so they were never seen there).** On a phone and a computer, a profile's Match History shows champion portraits on the cards. Open a game: the scoreboard shows champion portraits, items, summoner spells, runes and rank crests; Build shows the item steps and the rune page. In the browser's Network tab nothing to `ddragon.leagueoflegends.com` (champions, items, spells, runes) or `raw.communitydragon.org` (rank crests, role icons) fails. If one does, its fallback shows instead of a broken image: letters for a champion, an empty grey slot for an item, spell or rune, a dot in the tier's colour for a rank crest.
+
+## Readability, colour and the toolbar's Refresh (2 Nov 2026)
+
+On the live site, after the deployment (the sandbox renders demo data without Riot's images, so these are the checks it could not make):
+- [ ] Data jobs → `smoke`: every step passes, `deployment.commit` is the merge commit, and the manifest's `theme_color` is `#0d0e12`. If it still reads `#080c24`, the install saved the old navy as its own colours: Admin → Branding → Reset (or choose the colours there) brings the new ones.
+- [ ] Every page on a computer, a tablet and a phone (portrait and landscape) and in the installed app: a neutral charcoal page with panels a visible step lighter, no blue cast behind tables, scoreboards or lists of games; the Team banner and the player cards keep their art and light.
+- [ ] Your profile → Overview, All Champions, Match History and its Encounters: Refresh is the last control of the toolbar, after the filters, never on a row of its own, at the same place on every tab; the status beside the line under the title reads "Synced … ago" (or the state in words), with one ⓘ. On a phone, the folded Filters button and Refresh share one row.
+- [ ] Press Refresh: the button reads "Refreshing…" and cannot be pressed again; beside the scope line, "Checking Riot…" and then "Updating the page…"; a notification says what happened. A second press within 2 minutes says when to try again, without a request.
+- [ ] Match History: each card reads Victory or Defeat in words (with its colour) and the duration, then the queue and when; the KDA stands out; the "With" line names teammates without the accent colour. Open a game: each team's band names the side, its result and its totals; your row has a tint, your name in bold and the one bright damage bar (the bars at the left edge stay for possible groups); the damage bars, gold, CS and vision are readable at arm's length on a phone. Scoreboard, Analysis, Timeline and Build: the selected tab is underlined.
+- [ ] Fields, dropdowns, Refine, Refresh and the segmented choices show a visible edge on every page, also in a window; the keyboard focus ring is visible on each.
+- [ ] Browser zoom at 200% and the phone's largest text size: nothing overlaps and no page scrolls sideways (wide tables scroll inside their box).
+
+## Premium identity, Overview dashboard and All Champions (2 Nov 2026)
+
+On the live site, after the deployment (the sandbox has no Riot images, so the artwork checks are manual):
+- [ ] Data jobs → `smoke web`: every step passes, `deployment.commit` is the merge commit, and the manifest's `theme_color` is `#0a0b12`.
+- [ ] Every page: a deep ink ground with a faint violet glow at the top (left of centre) and a blue one at the top right, never behind the middle of the page; panels slightly raised (a faint top sheen and a soft shadow); fields with a visible edge.
+- [ ] Your profile → Overview on a computer (1440 × 900 and 1280 × 800): the banner, then Season performance's heading, then one season card (win rate with a blue/red bar, KDA and games large; CS/min, damage/min and vision smaller; the kills and multikills in one row) beside Recent form, with Ranked progress starting under Recent form on the first screen; the pools under the season card. The banner's own colours light the top of the page faintly.
+- [ ] The same on a tablet and a phone: one column (season card, Recent form, Ranked progress, pools), nothing squeezed, no empty band in any card, no sideways scroll.
+- [ ] Ranked progress on an account with little history (or Flex with one reading): one quiet line instead of the chart, and the card no taller than with a chart.
+- [ ] Roles & champion pools: one row per champion under one row of column names (games, win rate, KDA, CS/min or vision), the champion's splash art fading along the row's left behind the name, no "Played a lot" or other Experience words. Edit: drag a row to reorder, the grip with the keyboard, ×, Add, the role menus; Done puts them away; a row opens the champion window.
+- [ ] All Champions: no Experience column, badge or sort; the search and the champion count inside the table's card; column names in small capitals, the sorted one with a short blue-to-violet bar; a row lights up when pointed at (a tint, the portrait's ring, a bar at its left) and opens the champion window, which has no Experience line either. On a phone: Sort by and its direction toggle beside the search.
+- [ ] Team Overview cards and the player details window still show the Experience label (unchanged).
+- [ ] Selected tabs (a profile's sections, Team's sections, a game's Scoreboard/Analysis/Timeline/Build, a champion window's views) show the short blue-to-violet bar.
+
+## Social links: one Show publicly switch (migration 0061, 2 Nov 2026)
+
+On the live site, after the deployment:
+- [ ] Data jobs → `smoke auth-audit`: every step passes, `deployment.commit` is the merge commit, `migrationsApplied` ends with `0061_social_links_public`, and `socialLinks.oldShape` is 0 (`switchedOn` is the number of links that were set to the public page before; nothing else is switched on).
+- [ ] Settings → Profile on a computer, a phone and the installed app: YouTube, Twitch and Discord each have their name and a Show publicly switch on one line, the field under it, and no dropdown. A link that was shown on the public page is switched on; one that was kept to the team or to yourself is switched off, and shows nowhere until you switch it on.
+- [ ] On a phone, tapping the words "Show publicly" turns the switch on and off, as well as tapping the switch; on is the blue track with the knob at the right.
+- [ ] Switch a link on and save: it shows on your Team card, your profile, the Players directory and, signed out, the public team page. Switch it off and save: it is gone from all of them.
+- [ ] The Player Card Studio → Links and the welcome step (Personalise) show the same switches; the privacy notice says "Only you, until you switch on Show publicly for a link".
+
+## Consistency pass: Encounters, All Champions, the player window, Team Matches and Leaderboards (2 Nov 2026)
+
+On the live site, after the deployment (the sandbox renders demo data without Riot's images; no physical devices were used):
+- [ ] Data jobs → `smoke perf-probe`: every step passes and `deployment.commit` is the merge commit. The probe's `profile.encounters` step stays a few kilobytes and about as fast as before (the answer gained three counts and two dates per player shown, nothing else).
+- [ ] Your profile → Match History → Encounters: the switch reads Against | Alongside | All, each with its count; Against is chosen when you arrive. Someone you have played both with and against is listed under Against and under Alongside, each with the record for that side, and All shows the two records side by side with their words (no "Mixed").
+- [ ] Sort by most games, most recent, best and worst win rate (Against and Alongside); the minimum games and the search (a name or a Riot ID) keep working when you switch between Against, Alongside and All. A win rate from fewer than 5 decided games is grey and says "small sample", and sorts after the established ones.
+- [ ] Open a player: their name with OP.GG beside it (only where the Riot ID is known), one summary line, then the Against and Alongside records ("Never met against" where there is none), then the games newest first: date, game mode, your champion, theirs, Against or Alongside, and Victory or Defeat from your side. A game opens the match window, and Back returns to the player. The window is no taller than its content.
+- [ ] Old links: `?view=encounters&rel=allies` opens Alongside, `rel=everyone` (or `rel=shared`) opens All, `rel=opponents` opens Against.
+- [ ] All Champions on a computer (sidebar open and folded), a tablet and a phone: no heading cut short or wrapped, figures right-aligned, the sorted column marked by its arrow and its figures in the main text weight (no coloured bar), no blue or violet wash over rows. The search finds a champion or a role. On a phone each champion is one compact row: win rate and games at the right, KDA, CS/min, kills, multikills and mastery as labelled pairs under the name.
+- [ ] Team → a player's window: as tall as its content on a computer (no empty band), the hero with the name, rank, Full profile, links and position, then this season, then the pool under one row of column names with the first choice marked. Previous and next move between players; on a phone the window fills the screen and scrolls as one.
+- [ ] Team → Matches with 2, 3, 4 and 5 members in a game: result, duration, game mode and date first; one line per member (champion, name, role, KDA with its best multikill; CS and damage from tablets up), two columns from four members where there is room, no name cut short; both line-ups with every name, also on a phone; the bookmark icon in the corner turns on and off and the Bookmarked filter shows the game. Pointing at or tabbing to a card shows its state; the card opens the game.
+- [ ] Leaderboards: every category and game mode; the scope line says the season, the game mode and the games counted. From a tablet up the podium has the top three and the list continues from fourth; on a phone the leader's card is followed by the list from second (the leader is not listed twice). Equal values share a place ("2="), players under the minimum games are listed as "Not ranked yet", players without the figure as "No games with this figure". Values are in the text colour; gold marks first place only.
+
+## UX consistency: neutral frame, compact All Champions, Team Matches games under their cards (Nov 2026)
+
+On the live site, after the deployment (checked locally on demo data at 1440, 1920, 768 and 375 px; no physical devices were used):
+- [ ] Data jobs → `smoke`: every step passes and `deployment.commit` is the merge commit.
+- [ ] The sidebar on a computer, open and folded: a near-neutral charcoal, not blue. The current page shows a soft grey lift, a thin blue-to-violet bar at its left edge and a blue icon; other entries lift in grey when pointed at. Ctrl+\ folds and unfolds it, pointing at the folded rail opens it over the page, and tabbing into it opens it too. The phone and tablet top bar, the drawer and the tab bar use the same charcoal.
+- [ ] A team with its own page or panel colour (Admin → Branding): the frame follows those colours, not the default charcoal.
+- [ ] All Champions on a computer: rows are compact (a small portrait, the name with its role and In pool under it), the figures sit together on the right, and no heading is cut short. Folding the sidebar keeps the same. On a tablet no row wraps onto a third line. A phone still shows one compact row per champion with every figure.
+- [ ] Team → Matches: pointing at a card and clicking anywhere but a name or the bookmark opens the game under it, with Scoreboard, Analysis, Timeline and Build, and the address gains `?match=`. A name opens the profile and the bookmark toggles, without opening the game. "Close this game" closes it and returns to the card. Opening another game closes the first.
+- [ ] The keyboard: Tab reaches each card once, Enter or Space opens and closes the game, and the focus stays on the card.
+- [ ] A copied Team Matches link with `?match=` opens that game under its card. Back and Forward follow the open game.
+- [ ] Matchups, Encounters and a Match History link to a game not on the page still open the match window, as before.
+
+## Match History and Encounters: one navigation, All first, a player's games in Match History (3 Nov 2026)
+
+On the live site, after the deployment (checked locally on demo data at 1440, 768 and 390 px; no physical devices were used):
+- [ ] Data jobs → `smoke` and `perf-probe`: every step passes and `deployment.commit` is the merge commit.
+- [ ] A profile → Match History, on a computer and on a phone: Games and Encounters are two tabs directly under the profile's tabs, where the "Match History" title was; the current one is a lit pill with a blue icon. On a phone they share the width. Switching keeps the season, game mode and account, the page does not jump, and Back and Forward switch back.
+- [ ] Games: the line under the tabs reads "N games · Season … · …" with the one ⓘ for how current the data is; no ⓘ stands alone.
+- [ ] Encounters opens on **All** (no `rel` in the address): one row per player, the Against games, record and win rate in their own columns, a rule, then the same for Alongside, then when you last met. "never" where a side has no games. Against and Alongside filter the list (each with its count); the ⓘ beside them says how encounters are counted.
+- [ ] The highlights sit in one line above the table, like the summary line on Games; each opens that player's games.
+- [ ] A player (a row or a highlight): their games open in Match History itself, Encounters still the current tab, with "All encounters", their name (and OP.GG for a real Riot ID, in a new tab), "N games with … · last met …", the Against and Alongside records, and All / Against / Alongside when they were met both ways. The games are ordinary Match History cards; a game opens under its card with Scoreboard, Analysis, Timeline and Build, as on Games. There is no Encounters window any more.
+- [ ] "All encounters" returns to the list as it was (the same filter, minimum and search); Back does too. A copied link to a player's games opens the same games and side.
+- [ ] A game's scoreboard: "Met N×" opens that player's games with the same N.
+- [ ] Admin Mode → Users & Permissions: Accounts, Access levels & groups and Personal data are the same pill tabs.
+- [ ] Leaderboards is unchanged (its rules wait for your decision).

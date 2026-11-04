@@ -212,7 +212,8 @@ describe("timeline backfill", () => {
     // Newest first: game 3 (3 days old), then game 5.
     expect(calls.map((u) => u.match(/OC1_\d/)![0])).toEqual(["OC1_3", "OC1_5"]);
     const [kept] = await db.select().from(matchTimelines).where(eq(matchTimelines.matchId, "OC1_5"));
-    expect(kept!.participants).toEqual([{ puuid: "me-main", purchases: [[2000, 3078]], skills: [3] }]);
+    // The stored purchases and skills stay; the answer only adds what the row lacked (kill times, frames).
+    expect(kept!.participants).toEqual([{ puuid: "me-main", purchases: [[2000, 3078]], skills: [3], kills: [], deaths: [], assists: [] }]);
     expect(kept!.frames!.t).toEqual([0, 60_100, 120_300]);
     const second = await backfillTimelines(db, client, { limit: 5, deadline: Date.now() + 60_000 });
     expect(second).toEqual({ fetched: 0, unavailable: 1, stoppedBy: null });

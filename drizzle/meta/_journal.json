@@ -404,8 +404,57 @@
     {
       "idx": 57,
       "version": "7",
-      "when": 1792732456066,
-      "tag": "0057_retire_clash_scouts",
+      "when": 1792808733187,
+      "tag": "0057_participant_ranks",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1793005690871,
+      "tag": "0058_match_details_puuids",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1793076148430,
+      "tag": "0059_ranked_development",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1793242825986,
+      "tag": "0060_match_timeline_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1793592012519,
+      "tag": "0061_social_links_public",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1793759486883,
+      "tag": "0062_retire_meta_trends_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1793759487883,
+      "tag": "0063_retire_draft_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1793759488883,
+      "tag": "0064_retire_clash_scouts",
       "breakpoints": true
     }
   ]

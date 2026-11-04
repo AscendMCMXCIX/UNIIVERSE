@@ -274,7 +274,7 @@ compared like for like, not as absolute figures for real devices.
   All Champions list.
 - Match History keeps the details it has loaded for the page it shows (`MatchDetailCache`, at most
   30). It lives in memory only, is replaced whenever the page's data is (a new page, a filter, a
-  refresh after a bookmark or a Solo Queue Blocks import), keeps only complete results, and the
+  refresh after a bookmark), keeps only complete results, and the
   server still checks access on every load.
 - A mouse press on a card starts loading the match before the click lands. Touch does not, because
   a finger going down is often the start of a scroll.
@@ -436,3 +436,146 @@ most a few hundred grouped rows when an administrator opens it. Counts are kept 
 inside the app is not a new load (INP keeps counting for that first page). Each browser sends the
 measures it supports, so every figure shows how many loads stand behind it, and a small count is a
 small sample. Field figures are never mixed with the lab tables above.
+
+## Profile code, lineup swipe and self-updating pages (26 Oct 2026)
+
+Measured on the demo build, main at cceeb23 and this change side by side on the same machine.
+
+**Client JavaScript loaded up front** (gzip, every chunk a page's client-reference manifest lists, so
+the same figure on every run). Each profile tab now loads only its own code
+(`src/components/players/profile-*-tab.tsx`; before, the profile layout imported every tab's body):
+
+| Page | Before | After |
+|---|---|---|
+| Overview (`/overview`, `/players/[id]`) | 129.2 KB | 120.6 KB |
+| Champions & Roles | 129.2 KB | 113.7 KB |
+| Match History | 129.2 KB | 96.1 KB |
+| Riot Accounts | 129.2 KB | 73.3 KB |
+| Matchups, Stats, Edit, Blocks history | 129.2 KB | 62.2 KB |
+| Solo Queue Blocks | 146.8 KB | 83.1 KB |
+| A Solo Queue Block | 137.8 KB | 71.8 KB |
+| Team, Players, Matches, Leaderboards | 72.8, 64.8, 86, 55.7 KB | +0.4 to +1.1 KB (the page's update watcher) |
+
+**Frames** (`frames.mjs`: Pixel 7 profile, CPU slowed 4×, median of 5 runs; a frame over 25 ms is a
+visible hitch at 60 Hz):
+
+| Interaction | Longest frame | Over 25 ms |
+|---|---|---|
+| Swiping the phone lineup | 33 → 17 ms | 5 → 0 |
+| Turning a card | 83 → 67 ms | 2 → 1 |
+| Changing profile tab | 100 → 100 ms | 6 → 6 |
+
+The lineup kept the card in view in Team Overview's state, so every card change re-rendered all five
+cards mid-swipe; it now lives in a small store that only the role bar follows. Changing tab measured
+the same as before the split.
+
+**Page loads** (Pixel 7, CPU 4×, 150 ms round trip at 1.6 Mbps, median of 3): within the noise of the
+setup, which moved an unchanged page's Total Blocking Time from 245 to 384 ms between two runs. The
+profile's Overview and Match History finished loading 155 and 257 ms sooner (2,625 → 2,470 and
+2,533 → 2,276 ms); CLS stayed 0 everywhere. All JavaScript transferred in a profile page's first two
+seconds, code fetched ahead for linked pages included, stayed between 260 and 275 KB (269 KB before):
+the split changes what a page needs before it works, not the total a visit downloads.
+
+**Self-updating pages** (`docs/ARCHITECTURE.md`, "Pages that update themselves"): a check is one
+statement returning a short row (the bulky parts hashed in Postgres), a few hundred bytes from the
+database, asked only while a page is on screen. It replaced timed re-renders of a whole profile every
+30 seconds while an account was updating.
+
+**Not improved: opening a window on a long page.** `showModal()` makes the rest of the page inert, and
+Chromium recomputes the style of every element for that: 142 ms for an empty window on a 1,513-element
+Match History page with the CPU slowed 4× (4 ms with `show()`, which would lose the native modal's
+inertness and focus containment). `content-visibility` on the list barely helped (116 ms). The native
+modal is kept for its accessibility; opening a match window on that page still shows one long frame
+(367 ms on the phone profile at 4×, 200 ms on a 1440×900 desktop with the CPU slowed 2×; medians of 3).
+
+## Stored game records: the players' index (26 Oct 2026)
+
+Production's query statistics (`db-usage`, 26 Oct) showed two statements unpacking every stored game
+record (7,296 records, about 8 KB of players each, which Postgres keeps compressed in TOAST storage):
+- the figures backfill's check for records that list nobody: 93 calls, 2,367 ms each on average, 220 s
+  in all, and no row changed;
+- possible groups (the earlier games of a match's players, 180 days back): 216 calls, about 900 ms
+  each. `perf-probe` → `matches.possibleGroups` took 1,917 ms cold.
+
+**What changed** (migration `0058_match_details_puuids`):
+- A GIN index on the records' PUUIDs alone (`jsonb_path_query_array(participants, '$[*].puuid')`),
+  with `fastupdate` off: records arrive a few an hour, so each goes straight into the index instead of
+  a pending list that every search would scan.
+- Possible groups and the newest Riot ID for an OP.GG link find the records through it (`playedIn`,
+  `src/server/accounts/match-details.ts`), so only the searched players' games are opened.
+- The figures backfill reads each record's stored size (`pg_column_size`) first: an empty list is a few
+  bytes, so only those few records are unpacked to confirm.
+
+**Measured locally** (PostgreSQL 16; 7,300 synthetic records with about 8 KB of players each, 7 linked
+players, 365 games waiting for figures; the index built over the stored records, as the migration does;
+median of 5 `EXPLAIN (ANALYZE, BUFFERS)`):
+
+| Query | Before | After | Shared buffers |
+|---|---|---|---|
+| Possible groups (9 players, 180 days) | 54 ms | 0.2 ms | 1,043 → 33 |
+| Newest Riot ID for OP.GG links (9 players, 30 days) | 14 ms | 0.2 ms | 1,087 → 34 |
+| Backfill: mark the records that list nobody | 18 ms | 2.0 ms | 1,043 (same) |
+| Backfill: pick the games to fetch | 4.5 ms | 3.2 ms | 1,997 (same) |
+
+- The synthetic records compress to under 1 KB, so Postgres keeps them inline. Production's are read
+  from TOAST storage, where unpacking each one costs more: the production figures above are the
+  "before", and `db-usage` and `perf-probe` give the "after" once deployed.
+- The index takes 6.4 MB here (4.3 MB when filled record by record).
+- **Found on the way:** with GIN's default `fastupdate`, an index created before the records arrived
+  kept them in its pending list, and Postgres preferred reading the whole table (possible groups only
+  went from 66 to 34 ms, through the cheaper condition). With `fastupdate` off it used the index
+  whether built over the records or filled one by one.
+- `tests/db/possible-groups.test.ts` checks that the condition can use the index, so `playedIn` and the
+  index's expression cannot drift apart unnoticed.
+
+**In production** (Data jobs run 40305995576, minutes after the deploy of 0b3edff on 26 Oct):
+- `perf-probe` → `matches.possibleGroups`: 184 ms cold and 33 ms warm, against 2,258 and 1,917 ms cold
+  (158 and 161 ms warm) in the two runs before. Same answer: 18 earlier stored games searched.
+- `db-usage`: the index takes 8.0 MB (`match_details` indexes 0.3 → 8.3 MB); the database grew from
+  338 to 346 MB.
+- `auth-audit` lists `0058_match_details_puuids` among the applied migrations.
+- A second run after the next deploy (40311728193) agreed: 176 ms cold, 35 ms warm.
+- **`profile.encounters` read slower: 828 and 736 ms cold** in the two runs after the deploy, against
+  242 and 265 ms before. Encounters' own query did not change and does not use the index:
+  - the probe times it right after possible groups;
+  - possible groups used to unpack every stored record, which left the 1,150 records Encounters reads
+    in Postgres's cache;
+  - now it opens about 18, so Encounters reads its records itself.
+  About 0.7–0.8 s is Encounters' own cold cost, which a visit already paid whenever nothing had read
+  those records shortly before. Cutting it would need a stored summary of who met whom (a new table),
+  not done here.
+- The two statements' new mean times come from `db-usage` once enough calls have accumulated (its
+  figures run from 13 Oct, so the old statements stay listed under their old text).
+
+## Season figures: reading each game's patch once (2 Nov 2026)
+
+**Found by** profiling `getTeamRoster` (Team Overview's cards) at production volume: production's
+`perf-probe` on 2 Nov read `team.roster` at 535 ms cold and 256 ms warm. A local database scaled to the
+same volume (3,878 stored games, 3,724 records; the demo seed copied 13 times with earlier dates)
+reproduced it: 255–268 ms warm. In a CPU profile of 13 roster loads, `seasonOfPatch` and
+`canonicalPatch` took about 920 of the 1,537 ms spent in `getPlayerOverview`:
+`seasonChampionStats` filtered every game four times per champion (the selected mode, then Solo/Duo,
+Flex and Normal), and each filter re-read each game's patch with two regular expressions. A season
+holds a few patch names and thousands of games.
+
+**What changed:**
+- `seasonOfPatch` and `canonicalPatch` keep their answer per patch text (`remember` in
+  `src/domain/patch.ts`, at most 1,024 entries, then the memo starts over, so arbitrary input cannot
+  grow it).
+- `seasonChampionStats` groups the season's games by champion in one pass, keeping their order, and
+  filters each champion's own games. A unit test compares it with the four-scan version on 600
+  generated games across seasons, modes and odd patch texts (`src/domain/season-stats.test.ts`).
+
+**Measured locally** (the scaled database; `tsx` in one process; interleaved, the code switched back
+and forth three times; median of the three):
+
+| Measure | Before | After |
+|---|---|---|
+| First roster load in a fresh process (in-memory caches empty) | 388 ms | 229 ms |
+| Roster, warm (mean of 20 loads) | 185 ms | 71 ms |
+| One player's season overview, warm (mean of 20) | 28.3 ms | 10.3 ms |
+
+`perf-probe-local` agreed (medians of 5): `team.roster` 316 → 231 ms cold, 212 → 86 ms warm;
+`player.overview` 29 → 12 ms. Steps that do not read season figures stayed within the run-to-run
+noise (±15–20%). The database work is unchanged, so production's cold figure keeps its reads; the
+production effect is to be confirmed by `perf-probe` after a deploy.

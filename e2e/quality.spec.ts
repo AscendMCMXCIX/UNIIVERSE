@@ -12,7 +12,7 @@ test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
 });
 
-const PLAYER_ROUTES = ["/team", "/players", "/leaderboards", "/matches", "/overview", "/overview/champions", "/overview/blocks", "/overview/matches", "/resources", "/settings"];
+const PLAYER_ROUTES = ["/team", "/players", "/leaderboards", "/matches", "/overview", "/overview/champions", "/overview/matches", "/resources", "/settings"];
 const ADMIN_ROUTES = ["/admin", "/admin/people", "/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/data", "/admin/system", "/admin/audit", "/admin/settings"];
 const SIZES: Array<[number, number]> = [
   [320, 640],
@@ -126,6 +126,54 @@ test.describe("accessibility", () => {
       await page.goto(route);
       await page.waitForLoadState("networkidle");
       await audit(page, route);
+    }
+  });
+
+  // Found by a wider sweep on 2 Nov 2026: a phone-width table on System Health that the keyboard
+  // could not scroll; lettered champion tiles (shown when a portrait cannot load, as here) whose two
+  // letters were missing from the name of the link around them; game cards in the champion window
+  // named without the figures they show.
+  test("pages at phone width, a teammate's profile and the Team player and champion windows have no critical or serious violations", async ({ page }) => {
+    test.setTimeout(240_000);
+    await page.goto("/players");
+    const teammate = await page.locator("main a[data-testid='player-card'][data-player-name='Demo Mid']").getAttribute("href");
+    expect(teammate).toBeTruthy();
+    const profile = [teammate!, `${teammate}/champions`, `${teammate}/matches`, `${teammate}/accounts`];
+    for (const route of profile) {
+      await page.goto(route);
+      await page.waitForLoadState("networkidle");
+      await audit(page, route);
+    }
+    await page.goto("/team");
+    await page.waitForLoadState("networkidle");
+    await page.getByTestId("lineup-card-MID").click({ position: { x: 40, y: 60 } });
+    await expect(page.locator("dialog[open]")).toBeVisible();
+    await audit(page, "/team player window");
+    // The champion window, whose games are whole-card buttons (named by what they show).
+    await page.goto(`${teammate}/champions`);
+    const open = page.getByTestId("top-champion").first().getByTestId("open-champion");
+    const win = page.getByTestId("champion-detail");
+    await expect(async () => {
+      if (!(await win.isVisible())) await open.click({ timeout: 2_000 });
+      await expect(win).toBeVisible({ timeout: 1_000 });
+    }).toPass({ timeout: 15_000 });
+    // Audit the window once it has settled: while it loads or updates, its body is dimmed on purpose
+    // (opacity-70 while pending), and a slow runner would otherwise measure that passing state.
+    const settled = async () => {
+      await expect(win.getByTestId("champion-detail-loading")).toHaveCount(0, { timeout: 15_000 });
+      await expect(page.getByTestId("champion-detail-body")).toHaveCSS("opacity", "1", { timeout: 15_000 });
+    };
+    await settled();
+    await audit(page, "champion window");
+    await page.getByTestId("champion-tab-matchups").click();
+    await expect(win.getByTestId("lane-game").first()).toBeVisible();
+    await settled();
+    await audit(page, "champion window, matchups");
+    await page.setViewportSize({ width: 375, height: 667 });
+    for (const route of [...PLAYER_ROUTES, ...profile, ...ADMIN_ROUTES]) {
+      await page.goto(route);
+      await page.waitForLoadState("networkidle");
+      await audit(page, `${route} at 375px`);
     }
   });
 });
@@ -298,28 +346,19 @@ test.describe("tooltips", () => {
   });
 });
 
-test.describe("solo queue blocks", () => {
+test.describe("retired Ranked Development", () => {
   test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "runs once"));
 
-  test("a block starts at 0 Games in one click, with no target, and the layout follows the workflow", async ({ page }) => {
-    await page.goto("/overview/blocks");
-    // Blocks belong to a player profile; the in-memory demo's local owner has none.
-    test.skip((await page.getByText("has no player profile").count()) > 0, "needs an account with a player profile (covered by tests/db/blocks-refinement.test.ts)");
-    await expect(page.getByTestId("ranked-focus")).toBeVisible();
-    if (await page.getByTestId("start-block").count()) {
-      await expect(page.getByTestId("add-game")).toContainText(/Starts BLOCK \d{3}/);
-      await page.getByTestId("start-block-submit").click();
+  test("its addresses, and those of Solo Queue Blocks and the Ranked Improvement journal before it, lead to My Profile's Overview", async ({ page }) => {
+    const retired = ["/overview/development", "/overview/development/sessions", "/overview/development/sessions/00000000-0000-4000-8000-000000000000", "/overview/development/library", "/overview/blocks", "/overview/blocks/history", "/overview/blocks/42", "/blocks", "/blocks?add=1", "/blocks/history", "/blocks/42", "/ranked", "/ranked/history", "/ranked/blocks/42"];
+    for (const from of retired) {
+      const response = await page.goto(from);
+      expect(new URL(page.url()).pathname, from).toBe("/overview");
+      expect(response?.status(), from).toBe(200);
     }
-    await expect(page.getByTestId("current-block")).toBeVisible();
-    await expect(page.getByTestId("block-progress")).toHaveText(/^(\d+ Games?|\d+ of \d+ games.*)$/);
-    // No default target: no empty slot hints at a limit.
-    await expect(page.getByTestId("block-slots").locator("[data-next]")).toHaveCount(0);
-    await expect(page.getByTestId("add-game")).toContainText(/Goes into BLOCK \d{3}/);
-    // Workflow order on the page: the focus, the current block (Quick Add beside it), then its games
-    // and the previous blocks (also e2e/blocks-focus.spec.ts, on a member account).
-    const tops = await Promise.all(["current-block", "block-games", "latest-blocks"].map(async (id) => (await page.getByTestId(id).boundingBox())!.y));
-    expect([...tops].sort((a, b) => a - b)).toEqual(tops);
-    expect((await page.getByTestId("add-game").boundingBox())!.y).toBeLessThanOrEqual(tops[1]!);
+    // No page of the app links to them any more.
+    await page.goto("/overview");
+    for (const href of await page.locator("a[href]").evaluateAll((as) => as.map((a) => a.getAttribute("href") ?? ""))) expect(href).not.toMatch(/^\/(overview\/development|overview\/blocks|blocks|ranked)(\/|\?|$)/);
   });
 });
 
@@ -369,8 +408,7 @@ test.describe("sidebar entries", () => {
     const href = (await card.getAttribute("href"))!;
     await page.goto(`${href}/matches`);
     const tabs = page.getByTestId("profile-tabs");
-    // The sections, in their deliberate order (Solo Queue Blocks, private, sits between Match
-    // History and Riot Accounts on your own profile only; Matchups live in a champion's window).
+    // The sections, in their deliberate order (Matchups live in a champion's window).
     await expect(tabs.getByRole("link")).toHaveText(["Overview", "All Champions", "Match History", "Riot Accounts"]);
     await expect(tabs.getByRole("link", { name: "Match History" })).toHaveAttribute("aria-current", "page");
     await expect(aside.getByRole("link", { name: "Match History" })).toHaveCount(0);

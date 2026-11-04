@@ -5,7 +5,7 @@ import { ArrowLeft, Check, RotateCcw } from "lucide-react";
 import type { Branding } from "@/domain/branding";
 import { ROLE_LABELS } from "@/domain/roles";
 import { explainLoginFailure } from "@/domain/login-messages";
-import type { PickerChampion } from "@/components/champion-picker";
+import type { PickerChampion } from "@/components/champions/types";
 import { BrandFrameView, PREVIEW_PAD_TOP } from "@/components/auth/brand-frame-view";
 import { welcomeEyebrow, WelcomePasswordStep, WelcomeSetupStep } from "@/components/auth/welcome-steps";
 import { PersonaliseStep } from "@/components/auth/personalise-step";
@@ -168,7 +168,7 @@ function SetupComplete({ values, displayName, champions, teamMember }: { values:
         <p className="mt-0.5 text-fg-muted">
           {teamMember
             ? `${productName} opens on the Team page: the lineup, players and matches, plus their own profile under My Profile.`
-            : `${productName} opens on My Profile (Overview): their stats, match history and Solo Queue Blocks, plus Settings. Team pages are not part of a personal-use account.`}
+            : `${productName} opens on My Profile (Overview): their stats and match history, plus Settings. Team pages are not part of a personal-use account.`}
         </p>
         <p className="mt-1 text-fg-subtle">More roles and champions can be added later under My Profile.</p>
       </div>

@@ -2,31 +2,39 @@
 
 /*
   UNIIVERSE design tokens.
-  Deep-space navy with the brand's cyan as the single accent, flat panels, no decoration inside
-  the work surfaces. The brand glow lives only at the page edges and on the sign-in pages.
+  A deep ink with a faint indigo undertone, in clear steps: the page, the panels and cards on it,
+  raised rows and controls, the selected or hovered. Text in three greys (off-white, a readable grey,
+  a quieter grey that still meets 4.5:1 on every surface). The identity is a pair: the brand blue
+  (accent) marks what can be pressed and what is chosen; violet (accent-2) carries the light, in the
+  page's ambient glow and the brand gradient (accent to accent-2) on selected indicators and
+  headline cards. Blue and red stay the two sides of a match and its result, good/warn/bad states.
+  Light stays at the edges: dense data sits on panels with their own depth, never on a glow.
 */
 @theme {
-  --color-bg: #080c24;
-  --color-bg-elevated: #0c1130;
-  --color-surface: #10163a;
-  --color-surface-2: #161e4a;
-  --color-surface-3: #1e295f;
-  --color-border: #222c5f;
-  --color-border-strong: #34428c;
-  --color-fg: #e8edfb;
-  --color-fg-muted: #9aa8d4;
-  --color-fg-subtle: #7b89b9; /* 4.5:1 on panels and cards (WCAG AA for small text) */
-  --color-accent: #1fc3ff; /* brand cyan */
+  --color-bg: #0a0b12;
+  --color-bg-elevated: #181a25; /* menus, popovers and fields: a step above the panel they sit on */
+  --color-chrome: #131418; /* the app's frame (sidebar, top bar, drawer, tab bar): a near-neutral charcoal, so navigation recedes and the content leads */
+  --color-surface: #12131c;
+  --color-surface-2: #1b1d29;
+  --color-surface-3: #252837;
+  --color-border: #262939;
+  --color-border-strong: #3a3e53;
+  --color-border-control: #646a8c; /* the edge of a field or toolbar control: 3:1 against the page, panels and popovers (WCAG 1.4.11) */
+  --color-fg: #eef0f6;
+  --color-fg-muted: #b4b8c9;
+  --color-fg-subtle: #8f95aa; /* 4.5:1 on every surface, surface-3 included (WCAG AA for small text) */
+  --color-accent: #1fc3ff; /* brand blue */
   --color-accent-strong: #7fdcff;
-  /* Branding can change these (Admin → Branding); defaults keep the original look. */
-  --color-accent-2: #58a8f2;
+  /* Branding can change these (Admin → Branding); the defaults are the blue and violet pair. */
+  --color-accent-2: #9a7dff; /* violet: the light and the second stop of the brand gradient */
   --color-highlight: #7fdcff;
-  --color-blue: #5f8ff5;
-  --color-red: #e0566b;
-  --color-good: #3fc98a;
-  --color-warn: #e8b64a;
-  --color-bad: #e0566b;
-  --color-info: #58a8f2;
+  /* A match's two sides and its result (Victory blue, Defeat red), lifted for text on the dark ground. */
+  --color-blue: #6e9dff;
+  --color-red: #f26b7e;
+  --color-good: #45cf8f;
+  --color-warn: #ebba4f;
+  --color-bad: #f26b7e;
+  --color-info: #5eaef5;
 
   /* --font-inter: Inter and its size-matched fallback (app/layout.tsx). */
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -39,15 +47,27 @@
   --color-bronze: #c08457;
   --color-bronze-fg: #d39a6c; /* bronze as text: lighter, for contrast on the dark surfaces */
 
+  /* Ranked tiers as small text (an opponent's rank in a match card, "E2"): each tier's hue, light
+     enough for small text on the panels (5:1 or more). Not brand colours: Branding never changes them. */
+  --color-tier-iron: #a4968f;
+  --color-tier-bronze: #cf9468;
+  --color-tier-silver: #a9b4c0;
+  --color-tier-gold: #d9b25a;
+  --color-tier-platinum: #57bfb4;
+  --color-tier-emerald: #3fbf7c;
+  --color-tier-diamond: #8099f4;
+  --color-tier-master: #c47be3;
+  --color-tier-grandmaster: #ec6f69;
+  --color-tier-challenger: #ecca6c;
+
   /*
     Type sizes below and between Tailwind's own (text-xs 12px, text-sm 14px, text-base 16px, ...).
     In rem, so text follows the reader's own browser text size; a size in px would not. Each sets
     only the size: the line height stays the surrounding one. src/app/design-tokens.test.ts refuses
     font sizes in px and arbitrary values that repeat one of these. See docs/STANDARDS.md.
   */
-  --text-4xs: 0.5625rem; /* 9px: letters inside small tiles and badges (initials, a count) */
-  --text-3xs: 0.625rem; /* 10px: dense chips, badges and small print */
-  --text-2xs: 0.6875rem; /* 11px: captions, column headings, labels and metadata */
+  --text-4xs: 0.625rem; /* 10px: letters inside small tiles (initials, a count); never running text */
+  --text-2xs: 0.6875rem; /* 11px: the smallest text: chips, badges, captions, column headings, labels, metadata */
   --text-md: 0.9375rem; /* 15px: a list row's primary value or name */
   --text-figure: 1.75rem; /* 28px: headline figures (from sm up) */
 
@@ -104,9 +124,18 @@ html, body {
     >= 1024  desktop : sidebar; >= 1280 the draft room uses its three-column layout
 */
 
+:root {
+  /*
+    The ambient light: violet from the top (left of centre), the brand blue from the top right and a low violet
+    horizon, faint and fixed to the window's edges, so the middle of the page (where the data is)
+    stays a calm ground. The body wears it; the team's background artwork, when there is one, wears
+    it over its veil (site-backdrop.tsx), so the light is the same with or without artwork.
+  */
+  --ambient-light: radial-gradient(56rem 30rem at 32% -9rem, color-mix(in srgb, var(--color-accent-2) 14%, transparent), transparent 70%), radial-gradient(48rem 26rem at 90% -11rem, color-mix(in srgb, var(--color-accent) 10%, transparent), transparent 70%), radial-gradient(ellipse 80% 42% at 50% 118%, color-mix(in srgb, var(--color-accent-2) 7%, transparent), transparent 70%);
+}
+
 body {
-  /* The wallpaper's cyan horizon, kept faint so panels stay flat and legible. */
-  background-image: radial-gradient(ellipse 70% 45% at 50% 115%, color-mix(in srgb, var(--color-accent) 16%, transparent), transparent 70%), radial-gradient(ellipse 45% 35% at 100% 0%, color-mix(in srgb, var(--color-accent-2) 7%, transparent), transparent 70%);
+  background-image: var(--ambient-light);
   background-attachment: fixed;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -161,7 +190,7 @@ p a.text-accent {
   padding-left: max(calc(var(--spacing) * --value(integer)), env(safe-area-inset-left));
   padding-right: max(calc(var(--spacing) * --value(integer)), env(safe-area-inset-right));
 }
-/* Small inline text links ("All blocks →", "Every Highlights statistic", a name in a list) keep
+/* Small inline text links ("Every Highlights statistic", a name in a list) keep
    their look but get a finger-sized hit area on touch screens: an invisible box around the text, at
    least 44px tall, that does not move anything around it. */
 @utility touch-target {
@@ -214,6 +243,44 @@ p a.text-accent {
 }
 
 /* Motion: short, purposeful transitions; everything collapses to instant for reduced motion. */
+/*
+  Depth for panels and cards (Panel, the profile's dashboard cards, the champion table): a faint
+  sheen along the top, a hairline of light on the top edge and a soft shadow underneath, so a
+  surface reads as raised from the page without a glow. Pair it with the surface's own background
+  colour and border (it sets the image and shadow only).
+*/
+@utility panel-depth {
+  background-image: linear-gradient(to bottom, color-mix(in srgb, var(--color-fg) 3%, transparent), transparent 5rem);
+  box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--color-fg) 6%, transparent), 0 1px 2px 0 rgb(0 0 0 / 0.35), 0 18px 36px -22px rgb(0 0 0 / 0.8);
+}
+
+/* The card a page leads with (the profile's season card): panel-depth plus a faint wash of the violet light in its top corner. */
+@utility panel-featured {
+  background-image: radial-gradient(28rem 16rem at 0% 0%, color-mix(in srgb, var(--color-accent-2) 11%, transparent), transparent 70%), linear-gradient(to bottom, color-mix(in srgb, var(--color-fg) 3%, transparent), transparent 5rem);
+  box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--color-fg) 6%, transparent), 0 1px 2px 0 rgb(0 0 0 / 0.35), 0 18px 36px -22px rgb(0 0 0 / 0.8);
+}
+
+/*
+  A card that opens something: it rises a pixel and its edge brightens while pointed at, and it
+  settles back when pressed. Instant with reduced motion (the rule below).
+*/
+@utility panel-lift {
+  transition: transform 160ms var(--ease-emphasized), box-shadow 160ms var(--ease-emphasized), border-color 160ms ease-out;
+  &:hover {
+    transform: translateY(-1px);
+    border-color: var(--color-border-strong);
+    box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--color-fg) 8%, transparent), 0 2px 4px 0 rgb(0 0 0 / 0.35), 0 22px 40px -22px rgb(0 0 0 / 0.85);
+  }
+  &:active {
+    transform: translateY(0);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    &:hover {
+      transform: none;
+    }
+  }
+}
+
 @keyframes toast-in {
   from {
     opacity: 0;

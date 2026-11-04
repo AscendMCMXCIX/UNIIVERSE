@@ -3,7 +3,7 @@
 import * as React from "react";
 import { PanelLeftClose, PanelLeftOpen, Pin } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { SIDEBAR_COOKIE } from "@/lib/sidebar";
+import { SIDEBAR_COOKIE, SIDEBAR_RAIL } from "@/lib/sidebar";
 import { RAIL_HIGHLIGHT } from "./nav-links";
 
 /** Delays that keep the hover preview calm: no flicker when the pointer only grazes the edge. */
@@ -138,7 +138,7 @@ export function CollapsibleSidebar({ initialCollapsed, brand, children, footer }
   const ToggleIcon = collapsed ? (peek ? Pin : PanelLeftOpen) : PanelLeftClose;
   return (
     // The slot keeps the pinned width; a peeking sidebar overlays the page instead of pushing it.
-    <div className={cn("sticky top-0 z-40 hidden h-dvh shrink-0 lg:block", collapsed ? "w-[4.5rem]" : "w-64")} data-testid="sidebar-slot">
+    <div className={cn("sticky top-0 z-40 hidden h-dvh shrink-0 lg:block", collapsed ? SIDEBAR_RAIL : "w-64")} data-testid="sidebar-slot">
       <aside
         aria-label="Sidebar"
         ref={asideRef}
@@ -163,12 +163,14 @@ export function CollapsibleSidebar({ initialCollapsed, brand, children, footer }
             which would shift the content sideways under the edge. */}
         {/* The edge line is drawn just outside the window (a 1px shadow, not a border), so the
             collapsed rail's inside is the full 4.5rem and its centre line is the icons' and the logo's. */}
-        <div className={cn(SLIDE, "pointer-events-auto absolute inset-0 overflow-clip bg-bg-elevated shadow-[1px_0_0_var(--color-border)]", open ? "translate-x-0" : "-translate-x-[11.5rem]")} data-testid="sidebar-window">
+        <div className={cn(SLIDE, "pointer-events-auto absolute inset-0 overflow-clip bg-chrome shadow-[1px_0_0_var(--color-border)]", open ? "translate-x-0" : "-translate-x-[11.5rem]")} data-testid="sidebar-window">
           {/* The content moves the other way by the same amount on the same curve: it stays still on screen. */}
           <div className={cn(SLIDE, "flex h-full w-64 flex-col overflow-y-auto overflow-x-hidden", open ? "translate-x-0" : "translate-x-[11.5rem]")}>
             {/* One vertical rhythm down the icon column: logo, the collapse control and the entries
-                sit 2.625rem apart, centre to centre (the footer keeps the same step). */}
-            <div className="px-4 pb-1 pt-5">{brand}</div>
+                sit 2.625rem apart, centre to centre (the footer keeps the same step). No padding on
+                the left: the brand centres the logo in a rail-wide column from this edge
+                (SIDEBAR_RAIL_COLUMN, app-shell.tsx). */}
+            <div className="pb-1 pr-4 pt-5">{brand}</div>
             {/* The collapse control: under the logo, in the icon column, so it is in the same place open or collapsed. */}
             <div className="px-3 pb-1">
               {/* Named by its visible text (no aria-label): the name is exactly what is shown, so a
@@ -183,7 +185,7 @@ export function CollapsibleSidebar({ initialCollapsed, brand, children, footer }
                 className="group isolate relative flex min-h-9 w-full items-center gap-3 rounded-lg pl-[0.9375rem] pr-2 text-left text-sm text-fg-subtle transition-colors hover:text-fg"
                 data-testid="sidebar-toggle"
               >
-                <span className={cn(RAIL_HIGHLIGHT, "group-hover:bg-surface-2")} aria-hidden />
+                <span className={cn(RAIL_HIGHLIGHT, "group-hover:bg-fg/5")} aria-hidden />
                 <ToggleIcon className="h-[1.125rem] w-[1.125rem] shrink-0" aria-hidden />
                 <span className={cn("min-w-0 flex-1 truncate", FADE)}>{label}</span>
                 <kbd className={cn("shrink-0 rounded border border-border px-1.5 py-px font-sans text-2xs leading-4 text-fg-subtle", FADE)} aria-hidden>

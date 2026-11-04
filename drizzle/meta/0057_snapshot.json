@@ -1,5 +1,5 @@
 {
-  "id": "1cc012bc-c6c4-40a5-b47e-083d7a598ff0",
+  "id": "98a4b927-7784-4770-b569-4fb2511b1200",
   "prevId": "2ee24ad4-8d10-435e-afe3-aca38f77dede",
   "version": "7",
   "dialect": "postgresql",
@@ -5309,6 +5309,30 @@
           "primaryKey": false,
           "notNull": false
         },
+        "league_points": {
+          "name": "league_points",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "flex_tier": {
+          "name": "flex_tier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "flex_division": {
+          "name": "flex_division",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "flex_league_points": {
+          "name": "flex_league_points",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "observed_at": {
           "name": "observed_at",
           "type": "timestamp with time zone",
@@ -5322,7 +5346,24 @@
           "notNull": true
         }
       },
-      "indexes": {},
+      "indexes": {
+        "last_known_ranks_lookups_idx": {
+          "name": "last_known_ranks_lookups_idx",
+          "columns": [
+            {
+              "expression": "observed_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"last_known_ranks\".\"source\" = 'match lookup'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -6953,6 +6994,272 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.clash_scout_accounts": {
+      "name": "clash_scout_accounts",
+      "schema": "",
+      "columns": {
+        "scout_id": {
+          "name": "scout_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "team_id": {
+          "name": "team_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slot": {
+          "name": "slot",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "puuid": {
+          "name": "puuid",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "clash_scout_accounts_puuid_idx": {
+          "name": "clash_scout_accounts_puuid_idx",
+          "columns": [
+            {
+              "expression": "team_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "puuid",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "clash_scout_accounts_scout_id_clash_scouts_id_fk": {
+          "name": "clash_scout_accounts_scout_id_clash_scouts_id_fk",
+          "tableFrom": "clash_scout_accounts",
+          "tableTo": "clash_scouts",
+          "columnsFrom": [
+            "scout_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "clash_scout_accounts_team_id_teams_id_fk": {
+          "name": "clash_scout_accounts_team_id_teams_id_fk",
+          "tableFrom": "clash_scout_accounts",
+          "tableTo": "teams",
+          "columnsFrom": [
+            "team_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "clash_scout_accounts_scout_id_slot_pk": {
+          "name": "clash_scout_accounts_scout_id_slot_pk",
+          "columns": [
+            "scout_id",
+            "slot"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.clash_scouts": {
+      "name": "clash_scouts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "team_id": {
+          "name": "team_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "opponent_name": {
+          "name": "opponent_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "platform": {
+          "name": "platform",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tournament_name": {
+          "name": "tournament_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "content": {
+          "name": "content",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "players_captured": {
+          "name": "players_captured",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "players_verified": {
+          "name": "players_verified",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "search_text": {
+          "name": "search_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scouted_at": {
+          "name": "scouted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "clash_scouts_team_idx": {
+          "name": "clash_scouts_team_idx",
+          "columns": [
+            {
+              "expression": "team_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "scouted_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "clash_scouts_team_id_teams_id_fk": {
+          "name": "clash_scouts_team_id_teams_id_fk",
+          "tableFrom": "clash_scouts",
+          "tableTo": "teams",
+          "columnsFrom": [
+            "team_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "clash_scouts_created_by_users_id_fk": {
+          "name": "clash_scouts_created_by_users_id_fk",
+          "tableFrom": "clash_scouts",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "clash_scouts_updated_by_users_id_fk": {
+          "name": "clash_scouts_updated_by_users_id_fk",
+          "tableFrom": "clash_scouts",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },

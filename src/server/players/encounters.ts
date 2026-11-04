@@ -2,7 +2,8 @@ import { sql, type SQL } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { FIRST_SEASON } from "@/domain/season";
 import { SEASON_MODES, seasonModeInfo, type SeasonMode } from "@/domain/season-stats";
-import { INSIGHT_MIN_GAMES, type EncounterGame, type EncounterInsight, type EncounterRelation, type EncounterSort, type EncounterSummary, type WinLoss } from "@/domain/encounters";
+import { ESTABLISHED_GAMES, INSIGHT_MIN_GAMES, type EncounterFocus, type EncounterGame, type EncounterInsight, type EncounterRelation, type EncounterSort, type EncounterSummary, type WinLoss } from "@/domain/encounters";
+import { opggLinkFor, platformOfMatchId } from "@/domain/opgg";
 
 /*
   A player's Encounters (their profile → Match History → Players met): the other players in that
@@ -84,29 +85,31 @@ function encounterCtes(scope: EncounterScope, onlyKey?: string): SQL {
         count(*) FILTER (WHERE ally)::int AS ag, count(*) FILTER (WHERE ally AND win)::int AS aw, count(*) FILTER (WHERE ally AND NOT win)::int AS al,
         count(*) FILTER (WHERE opponent)::int AS og, count(*) FILTER (WHERE opponent AND win)::int AS ow, count(*) FILTER (WHERE opponent AND NOT win)::int AS ol,
         max(at) AS last_at,
-        (array_agg(match_id ORDER BY at DESC, match_id COLLATE "C" DESC))[1] AS last_match
+        (array_agg(match_id ORDER BY at DESC, match_id COLLATE "C" DESC))[1] AS last_match,
+        max(at) FILTER (WHERE ally) AS alast, max(at) FILTER (WHERE opponent) AS olast
       FROM per_game GROUP BY puuid
     )`;
 }
 
-/** The record a relation is about, as SQL over the players CTE: its games, wins and losses. */
-const RECORD: Record<EncounterRelation, { games: SQL; wins: SQL; losses: SQL }> = {
-  opponents: { games: sql`og`, wins: sql`ow`, losses: sql`ol` },
-  allies: { games: sql`ag`, wins: sql`aw`, losses: sql`al` },
-  everyone: { games: sql`games`, wins: sql`(aw + ow)`, losses: sql`(al + ol)` },
+/** The record a relation is about, as SQL over the players CTE: its games, wins, losses and latest game. */
+const RECORD: Record<EncounterRelation, { games: SQL; wins: SQL; losses: SQL; last: SQL }> = {
+  against: { games: sql`og`, wins: sql`ow`, losses: sql`ol`, last: sql`olast` },
+  alongside: { games: sql`ag`, wins: sql`aw`, losses: sql`al`, last: sql`alast` },
+  all: { games: sql`games`, wins: sql`(aw + ow)`, losses: sql`(al + ol)`, last: sql`last_at` },
 };
 
-/** Row → JSON for one player summary (compact arrays: key, name, games, ally W-L, opponent W-L, last). */
-const SUMMARY_JSON = sql`json_build_array(key, name, games, ag, aw, al, og, ow, ol, last_at, last_match)`;
-type SummaryRow = [string, string, number, number, number, number, number, number, number, number | string, string];
+/** Row → JSON for one player summary (compact arrays: key, name, games, ally W-L, opponent W-L, last, last match, last ally, last opponent). */
+const SUMMARY_JSON = sql`json_build_array(key, name, games, ag, aw, al, og, ow, ol, last_at, last_match, alast, olast)`;
+type SummaryRow = [string, string, number, number, number, number, number, number, number, number | string, string, number | string | null, number | string | null];
 
+const at = (v: number | string | null) => (v === null ? null : Number(v));
 function summaryOf(r: SummaryRow): EncounterSummary {
   return {
     key: r[0],
     name: r[1],
     games: Number(r[2]),
-    ally: { games: Number(r[3]), wins: Number(r[4]), losses: Number(r[5]) },
-    opponent: { games: Number(r[6]), wins: Number(r[7]), losses: Number(r[8]) },
+    ally: { games: Number(r[3]), wins: Number(r[4]), losses: Number(r[5]), lastPlayedAt: at(r[11]) },
+    opponent: { games: Number(r[6]), wins: Number(r[7]), losses: Number(r[8]), lastPlayedAt: at(r[12]) },
     lastPlayedAt: Number(r[9]),
     lastMatchId: r[10],
   };
@@ -114,7 +117,7 @@ function summaryOf(r: SummaryRow): EncounterSummary {
 
 export interface EncounterListOptions {
   relation: EncounterRelation;
-  /** Games in the relation, at least (and decided games, for the record orders). */
+  /** Games in the relation, at least (and decided games, for the win-rate orders). */
   min: number;
   sort: EncounterSort;
   /** Part of a Riot ID (case-insensitive). */
@@ -130,6 +133,8 @@ export interface EncounterPage {
   list: EncounterSummary[];
   /** Players matching the list's choices (the list shows the first `limit`). */
   total: number;
+  /** Players each relation's list would hold with the same minimum, search and sort (the switches' counts). */
+  counts: Record<EncounterRelation, number>;
   insights: EncounterInsight[];
 }
 
@@ -141,14 +146,29 @@ const parsed = <T,>(value: unknown): T => (typeof value === "string" ? (JSON.par
  * list's own choices (relation, minimum, search): they describe the whole scope.
  */
 export async function loadEncounterPage(db: Db, scope: EncounterScope, o: EncounterListOptions): Promise<EncounterPage> {
-  if (!scope.accountIds.length) return { games: 0, withPlayers: 0, list: [], total: 0, insights: [] };
+  if (!scope.accountIds.length) return { games: 0, withPlayers: 0, list: [], total: 0, counts: { against: 0, alongside: 0, all: 0 }, insights: [] };
   const rec = RECORD[o.relation];
   const q = o.q.trim().toLowerCase();
+  const search = q ? sql`AND strpos(lower(name), ${q}) > 0` : sql``;
+  // Win rates are ranked within one relation only (as listEncounters): "all" orders by games.
+  const sort = o.relation === "all" && o.sort !== "recent" ? "games" : o.sort;
+  const rated = sort === "best" || sort === "worst";
   const rate = sql`(${rec.wins}::float8 / nullif(${rec.wins} + ${rec.losses}, 0))`;
-  const shown = sql`${rec.games} >= ${o.min} ${q ? sql`AND strpos(lower(name), ${q}) > 0` : sql``} ${o.sort === "games" ? sql`` : sql`AND ${rec.wins} + ${rec.losses} >= ${o.min}`}`;
-  const byGames = sql`${rec.games} DESC, last_at DESC, key COLLATE "C"`;
-  const order = o.sort === "best" ? sql`${rate} DESC, ${byGames}` : o.sort === "worst" ? sql`${rate} ASC, ${byGames}` : byGames;
-  const highlight = (where: SQL, orderBy: SQL) => sql`(SELECT ${SUMMARY_JSON} FROM players WHERE ${where} ORDER BY ${orderBy}, games DESC, last_at DESC, key COLLATE "C" LIMIT 1)`;
+  const shown = sql`${rec.games} >= ${o.min} ${search} ${rated ? sql`AND ${rec.wins} + ${rec.losses} >= ${o.min}` : sql``}`;
+  const byGames = sql`${rec.games} DESC, ${rec.last} DESC NULLS LAST, key COLLATE "C"`;
+  // Records with enough decided games come before smaller samples, whatever their rate.
+  const established = sql`(${rec.wins} + ${rec.losses} >= ${ESTABLISHED_GAMES}) DESC`;
+  const order = sort === "best" ? sql`${established}, ${rate} DESC, ${byGames}` : sort === "worst" ? sql`${established}, ${rate} ASC, ${byGames}` : sort === "recent" ? sql`${rec.last} DESC NULLS LAST, ${rec.games} DESC, key COLLATE "C"` : byGames;
+  // Each switch's count is the length of the list it opens: the same minimum, search and sort (a
+  // win-rate sort, kept on Against and Alongside, also asks for that many decided games).
+  const counted = (r: EncounterRelation) => {
+    const c = RECORD[r];
+    const ratedHere = (o.sort === "best" || o.sort === "worst") && r !== "all";
+    return sql`(SELECT count(*) FROM players WHERE ${c.games} >= ${o.min} ${search} ${ratedHere ? sql`AND ${c.wins} + ${c.losses} >= ${o.min}` : sql``})`;
+  };
+  // Each highlight is the first player of the list it sums up: ties go to more games in that
+  // relation (the larger sample), then the most recent (as encounterInsights).
+  const highlight = (where: SQL, orderBy: SQL, games: SQL) => sql`(SELECT ${SUMMARY_JSON} FROM players WHERE ${where} ORDER BY ${orderBy}, ${games} DESC, last_at DESC, key COLLATE "C" LIMIT 1)`;
   const pct = (w: SQL, l: SQL) => sql`(${w}::float8 / nullif(${w} + ${l}, 0))`;
   // Postgres plans many more participants a game than the ten there are, which can put this over
   // its JIT threshold; compiling would take longer than running it (as for the team query before).
@@ -159,16 +179,17 @@ export async function loadEncounterPage(db: Db, scope: EncounterScope, o: Encoun
         'games', (SELECT count(*) FROM mine),
         'withPlayers', (SELECT count(DISTINCT match_id) FROM met),
         'total', (SELECT count(*) FROM players WHERE ${shown}),
+        'counts', json_build_array(${counted("against")}, ${counted("alongside")}, ${counted("all")}),
         'list', (SELECT json_agg(s) FROM (SELECT ${SUMMARY_JSON} AS s FROM players WHERE ${shown} ORDER BY ${order} LIMIT ${o.limit}) page),
         'insights', json_build_array(
-          ${highlight(sql`og >= ${INSIGHT_MIN_GAMES.frequent}`, sql`og DESC`)},
-          ${highlight(sql`ag >= ${INSIGHT_MIN_GAMES.frequent}`, sql`ag DESC`)},
-          ${highlight(sql`aw + al >= ${INSIGHT_MIN_GAMES.record}`, sql`${pct(sql`aw`, sql`al`)} DESC`)},
-          ${highlight(sql`ow + ol >= ${INSIGHT_MIN_GAMES.record}`, sql`${pct(sql`ow`, sql`ol`)} ASC`)}
+          ${highlight(sql`og >= ${INSIGHT_MIN_GAMES.frequent}`, sql`og DESC`, sql`og`)},
+          ${highlight(sql`ag >= ${INSIGHT_MIN_GAMES.frequent}`, sql`ag DESC`, sql`ag`)},
+          ${highlight(sql`aw + al >= ${INSIGHT_MIN_GAMES.record} AND aw > al`, sql`${pct(sql`aw`, sql`al`)} DESC`, sql`ag`)},
+          ${highlight(sql`ow + ol >= ${INSIGHT_MIN_GAMES.record} AND ol > ow`, sql`${pct(sql`ow`, sql`ol`)} ASC`, sql`og`)}
         )
       ) AS payload`);
   });
-  const payload = parsed<{ games: number | string; withPlayers: number | string; total: number | string; list: SummaryRow[] | null; insights: Array<SummaryRow | null> }>(rowsOf<{ payload: unknown }>(result)[0]?.payload);
+  const payload = parsed<{ games: number | string; withPlayers: number | string; total: number | string; counts: [number | string, number | string, number | string]; list: SummaryRow[] | null; insights: Array<SummaryRow | null> }>(rowsOf<{ payload: unknown }>(result)[0]?.payload);
   const [frequentOpponent, frequentAlly, bestAlly, toughestOpponent] = payload.insights.map((r) => (r ? summaryOf(r) : null));
   const insights: EncounterInsight[] = [];
   const add = (kind: EncounterInsight["kind"], s: EncounterSummary | null, record: (s: EncounterSummary) => WinLoss) => s && insights.push({ kind, summary: s, record: record(s) });
@@ -176,10 +197,11 @@ export async function loadEncounterPage(db: Db, scope: EncounterScope, o: Encoun
   add("frequent-ally", frequentAlly ?? null, (s) => s.ally);
   add("best-ally", bestAlly ?? null, (s) => s.ally);
   add("toughest-opponent", toughestOpponent ?? null, (s) => s.opponent);
-  return { games: Number(payload.games), withPlayers: Number(payload.withPlayers), list: (payload.list ?? []).map(summaryOf), total: Number(payload.total), insights };
+  const [against, alongside, all] = payload.counts.map(Number) as [number, number, number];
+  return { games: Number(payload.games), withPlayers: Number(payload.withPlayers), list: (payload.list ?? []).map(summaryOf), total: Number(payload.total), counts: { against, alongside, all }, insights };
 }
 
-/** The games shown in a player's window (the newest; the summary counts them all). */
+/** The games loadEncounterDetail returns (the newest; the summary counts them all). */
 export const ENCOUNTER_GAMES_SHOWN = 100;
 
 export interface EncounterDetail {
@@ -205,10 +227,11 @@ export async function loadEncounterDetail(db: Db, scope: EncounterScope, key: st
         'summary', (SELECT ${SUMMARY_JSON} FROM players LIMIT 1),
         'games', (SELECT json_agg(json_build_array(match_id, at, queue_id, CASE WHEN win THEN 1 WHEN NOT win THEN 0 END, mine, theirs, CASE WHEN side THEN 1 ELSE 0 END) ORDER BY at DESC, match_id COLLATE "C" DESC)
           FROM (SELECT * FROM per_game ORDER BY at DESC, match_id COLLATE "C" DESC LIMIT ${ENCOUNTER_GAMES_SHOWN}) g),
-        -- Only games newer than the last one here are opened.
+        -- Only games newer than the last one here are opened; only real Riot games count (a demo game's name is made up).
         'newer', (SELECT json_build_array(p->>'name', d.match_id)
           FROM match_details d CROSS JOIN LATERAL jsonb_array_elements(d.participants) p
-          WHERE d.game_creation > (SELECT max(at) FROM per_game) AND p->>'puuid' = (SELECT min(puuid) FROM per_game) AND strpos(coalesce(p->>'name', ''), '#') > 0
+          WHERE d.game_creation > (SELECT max(at) FROM per_game) AND d.match_id ~ '^[A-Z]+[0-9]*_[0-9]+$'
+            AND p->>'puuid' = (SELECT min(puuid) FROM per_game) AND strpos(coalesce(p->>'name', ''), '#') > 0
           ORDER BY d.game_creation DESC, d.match_id COLLATE "C" DESC LIMIT 1)
       ) AS payload`);
   });
@@ -219,6 +242,115 @@ export async function loadEncounterDetail(db: Db, scope: EncounterScope, key: st
     newer: payload.newer ? { riotId: payload.newer[0], matchId: payload.newer[1] } : null,
     games: (payload.games ?? []).map(([matchId, at, queueId, win, mine, theirs, ally]) => ({ matchId, playedAt: Number(at), queueId: queueId === null ? null : Number(queueId), memberChampion: mine, otherChampion: theirs, relation: ally === 1 ? "ally" : "opponent", win: win === null ? null : win === 1 })),
   };
+}
+
+/**
+ * Every game in the scope with one encountered player, by match, and the sides they were on in it
+ * (both, with duplicated records), counted as the list counts them: Match History lists a player's
+ * games from it, so its All, Against and Alongside hold exactly the games their records count. One
+ * player's games: a few hundred rows at most.
+ */
+export async function loadEncounterSides(db: Db, scope: EncounterScope, key: string): Promise<Map<string, { ally: boolean; opponent: boolean }>> {
+  if (!scope.accountIds.length) return new Map();
+  const result = await db.transaction(async (tx) => {
+    await tx.execute(sql`SET LOCAL jit = off`);
+    return tx.execute(sql`${encounterCtes(scope, key)} SELECT match_id, ally, opponent FROM per_game`);
+  });
+  return new Map(rowsOf<{ match_id: string; ally: boolean; opponent: boolean }>(result).map((r) => [r.match_id, { ally: !!r.ally, opponent: !!r.opponent }]));
+}
+
+/** One player met, as Match History shows their games (Match History → Encounters → a player). */
+export interface EncounterFocusView {
+  /** Their records in the scope; null when they were not met there. */
+  summary: EncounterSummary | null;
+  /** The newer Riot ID the account took after the last game here, if any. */
+  renamed: string | null;
+  /** Their OP.GG profile, under that newer Riot ID when there is one (domain/opgg opggLinkFor). */
+  opgg: string | null;
+  /** The games to list: every game with them, or one side's (a game with duplicated records counts on both). */
+  matchIds: Set<string>;
+}
+
+/**
+ * One player met in the scope, by the list's opaque key (never an account): their records, the way
+ * to their OP.GG profile, and the games Match History lists for the side chosen. Every game comes
+ * from the profile player's own stored games, so it shows nothing the list did not already count.
+ */
+export async function loadEncounterFocus(db: Db, scope: EncounterScope, focus: EncounterFocus): Promise<EncounterFocusView> {
+  const [detail, sides] = await Promise.all([loadEncounterDetail(db, scope, focus.key), loadEncounterSides(db, scope, focus.key)]);
+  if (!detail) return { summary: null, renamed: null, opgg: null, matchIds: new Set() };
+  const { summary, newer } = detail;
+  const onSide = (s: { ally: boolean; opponent: boolean }) => focus.side === "all" || (focus.side === "against" ? s.opponent : s.ally);
+  // A newer game's Riot ID is linked on that game's server, and only on one OP.GG lists.
+  const newerPlatform = newer ? platformOfMatchId(newer.matchId) : null;
+  return {
+    summary,
+    renamed: newer && newer.riotId !== summary.name ? newer.riotId : null,
+    opgg: opggLinkFor(summary.name, platformOfMatchId(summary.lastMatchId), newer && newerPlatform ? { riotId: newer.riotId, platform: newerPlatform } : null),
+    matchIds: new Set([...sides].filter(([, s]) => onSide(s)).map(([matchId]) => matchId)),
+  };
+}
+
+/** A player of one game whom the player also met in other games of the scope (Match History's scoreboard). */
+export interface MatchMeeting {
+  /** Their place in the game's record (the scoreboard's slot). */
+  slot: number;
+  /** Their Encounters key: their window opens from it. */
+  key: string;
+  /** The player's games in the scope with them, this one included: the count their window shows. */
+  games: number;
+  /** Of those, the games on the player's side and on the other (both, with duplicated records). */
+  ally: number;
+  opponent: number;
+}
+
+/**
+ * The players of one of the player's games whom the player met in at least one other game of the
+ * scope, counted as Encounters counts them, so a game's scoreboard can mark them and open their
+ * window. Null when the game is not one of the player's in the scope. One statement: the game's
+ * record names the players (the ones Encounters lists), and only the records holding them are
+ * opened (match_details_puuids_idx), each counted when it is one of the player's games in the scope.
+ * Accounts stay in the database, as for the list.
+ */
+export async function loadMatchMeetings(db: Db, scope: EncounterScope, matchId: string): Promise<MatchMeeting[] | null> {
+  if (!scope.accountIds.length) return null;
+  const queues = sql.join(seasonModeInfo(scope.mode).queues.map((q) => sql`${q}`), sql`, `);
+  // The player's row of a game in the scope, as mine reads it in encounterCtes (the first account's).
+  const mineIn = (match: SQL) => sql`SELECT am.team_id FROM account_matches am ${SEASON_OF_PATCH}
+    WHERE am.match_id = ${match} AND am.account_id IN (${list(scope.accountIds)}) AND am.champion_id IS NOT NULL
+      AND am.queue_id IN (${queues}) AND pv.season = ${scope.season}
+    ORDER BY am.account_id LIMIT 1`;
+  const result = await db.execute(sql`
+    WITH here AS (${mineIn(sql`${matchId}`)}),
+    target AS MATERIALIZED (
+      SELECT (p.n - 1)::int AS slot, p.v->>'puuid' AS puuid
+      FROM match_details d CROSS JOIN LATERAL jsonb_array_elements(d.participants) WITH ORDINALITY p(v, n)
+      WHERE d.match_id = ${matchId} AND EXISTS (SELECT 1 FROM here)
+        AND coalesce(p.v->>'puuid', '') <> '' AND coalesce(p.v->>'name', '') <> ''
+        AND NOT EXISTS (SELECT 1 FROM riot_accounts l WHERE l.owner_type = 'player' AND l.puuid = p.v->>'puuid')
+    ),
+    seen AS (
+      SELECT t.slot, d.match_id,
+        bool_or(coalesce(NULLIF(p->>'teamId', '')::int = m.team_id, false)) AS ally,
+        bool_or(NOT coalesce(NULLIF(p->>'teamId', '')::int = m.team_id, false)) AS opponent
+      FROM match_details d
+      CROSS JOIN LATERAL (${mineIn(sql`d.match_id`)}) m
+      CROSS JOIN LATERAL jsonb_array_elements(d.participants) p
+      JOIN target t ON t.puuid = p->>'puuid'
+      WHERE jsonb_path_query_array(d.participants, '$[*].puuid') ?| (SELECT array_agg(puuid) FROM target)
+        AND m.team_id IS NOT NULL AND coalesce(p->>'name', '') <> ''
+      GROUP BY t.slot, d.match_id
+    )
+    SELECT json_build_object(
+      'here', EXISTS (SELECT 1 FROM here),
+      'met', (SELECT json_agg(json_build_array(s.slot, ${keyOf(sql`t.puuid`)}, s.games, s.ally, s.opponent) ORDER BY s.slot)
+        FROM (SELECT slot, count(*)::int AS games, count(*) FILTER (WHERE ally)::int AS ally, count(*) FILTER (WHERE opponent)::int AS opponent
+          FROM seen GROUP BY slot HAVING count(*) FILTER (WHERE match_id <> ${matchId}) > 0) s
+        JOIN target t ON t.slot = s.slot)
+    ) AS payload`);
+  const payload = parsed<{ here: boolean; met: Array<[number, string, number, number, number]> | null }>(rowsOf<{ payload: unknown }>(result)[0]?.payload);
+  if (!payload.here) return null;
+  return (payload.met ?? []).map(([slot, key, games, ally, opponent]) => ({ slot: Number(slot), key, games: Number(games), ally: Number(ally), opponent: Number(opponent) }));
 }
 
 /** A player's games in one season and queue (one per match); `chosen` counts the chosen account's alone. */

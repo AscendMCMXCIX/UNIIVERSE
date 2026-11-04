@@ -115,13 +115,9 @@ export async function reconcileErasures(db: Db, options: { mode: "recent" | "ful
     if (byPuuid || byName) note(byPuuid ?? byName, p.puuid, p.name && normaliseRiotId(p.name) ? p.name : null);
   }
   if (options.mode === "full") {
-    for (const r of rowsOf<{ puuid: string }>(await db.execute(sql`SELECT puuid FROM last_known_ranks UNION SELECT puuid FROM draft_enemy_scouting WHERE puuid IS NOT NULL`))) {
+    for (const r of rowsOf<{ puuid: string }>(await db.execute(sql`SELECT puuid FROM last_known_ranks`))) {
       const id = riot.get(tagged("puuid", r.puuid));
       if (id) note(id, r.puuid, null);
-    }
-    for (const r of rowsOf<{ riot_id: string }>(await db.execute(sql`SELECT riot_id FROM draft_enemy_scouting`))) {
-      const id = riot.get(riotIdToken(r.riot_id) ?? "");
-      if (id) note(id, null, r.riot_id);
     }
     // Old sync log lines named accounts; only lines that still contain a "#" are read.
     for (const r of rowsOf<{ text: string }>(await db.execute(sql`SELECT summary::text || ' ' || coalesce(error, '') AS text FROM job_runs WHERE strpos(summary::text || coalesce(error, ''), '#') > 0 UNION ALL SELECT details::text || ' ' || coalesce(last_error, '') FROM data_refresh_status WHERE strpos(details::text || coalesce(last_error, ''), '#') > 0`))) {

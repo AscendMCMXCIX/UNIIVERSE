@@ -10,7 +10,7 @@ import { REFRESH_TOAST, refreshNote, waitText, type RefreshTone } from "./refres
 
 /*
   A player's Refresh, one at a time, wherever it was pressed (components/ui/data-status.tsx,
-  DataRefresh). The run lives here, outside the page, so it carries on when the profile switches tab:
+  RefreshButton). The run lives here, outside the page, so it carries on when the profile switches tab:
   the next tab's Refresh shows it still running and announces its result. A second press joins the
   run already going, and a press during the server's cooldown is answered here, without asking it.
 
@@ -111,6 +111,16 @@ function start(playerId: string): Promise<RefreshResult> {
   })();
   running.set(playerId, run);
   return run;
+}
+
+/**
+ * The player's Refresh as something only shown (the data status beside a section's scope line): the
+ * state every control shares, without taking part in the run (the Refresh button re-reads the page
+ * and announces the result).
+ */
+export function usePlayerRefreshState(playerId: string | null) {
+  const state = React.useSyncExternalStore(subscribe, () => (playerId ? (states.get(playerId) ?? EMPTY) : EMPTY), () => EMPTY);
+  return { step: state.step, last: state.last, busy: state.step !== null };
 }
 
 /**

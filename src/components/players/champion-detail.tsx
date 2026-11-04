@@ -11,7 +11,7 @@ import { MIN_PATTERN_GAMES } from "@/domain/matchups";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone } from "@/domain/stats/win-rate";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
-import { AfterOpen, DetailModal } from "@/components/ui/detail-modal";
+import { AfterOpen, CLEAR_OF_CONTROLS, DetailModal } from "@/components/ui/detail-modal";
 import { MultikillSummaryRow } from "./multikill-summary";
 import { MatchDetailModal } from "@/components/match-history/match-detail";
 import { CardArtLayer } from "./card-art";
@@ -21,6 +21,7 @@ import { Select } from "@/components/ui/input";
 import { FilterField, RefineButton } from "@/components/ui/filter-bar";
 import { percent, formatCount } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { tabIndicatorClass } from "@/components/ui/tab-bar";
 import { accountShortNames } from "@/domain/account-names";
 
 /*
@@ -107,7 +108,7 @@ export function ChampionDetail({
   const header = (
     <div className="relative isolate overflow-hidden">
       <CardArtLayer art={{ championId: sel.championId, skinNum: 0 }} accent="var(--color-accent)" kind="splash" position="center 22%" strength="strong" testId="champion-detail-art" />
-      <div className="relative px-4 pt-4 pr-14 sm:px-6 sm:pr-16 sm:pt-5">
+      <div className={cn("relative pl-4 pt-4 sm:pl-6 sm:pt-5", CLEAR_OF_CONTROLS)}>
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <ChampionPortrait champion={me} size="lg" className="shrink-0 rounded-panel ring-2 ring-accent/50 shadow-lg shadow-black/40" />
           <div className="min-w-0 space-y-1">
@@ -123,11 +124,6 @@ export function ChampionDetail({
                 <span>Every role</span>
               )}
               {card?.inPool ? <span className="rounded-full border border-accent/40 bg-accent/10 px-2 text-xs font-medium leading-5 text-accent">{card.inPool === "primary" ? "Primary pool" : card.inPool === "secondary" ? "Secondary pool" : "In pool"}</span> : null}
-              {card && card.tier !== "unknown" ? (
-                <span className="text-xs" data-testid="champion-detail-tier">
-                  Experience <span className="font-semibold text-fg">{card.tierLabel}</span>
-                </span>
-              ) : null}
             </p>
           </div>
         </div>
@@ -156,7 +152,7 @@ export function ChampionDetail({
                 onTab(next);
                 document.getElementById(`champion-tab-${next}`)?.focus();
               }}
-              className={cn("-mb-px h-10 border-b-2 px-3 text-sm font-medium transition-colors", sel.tab === key ? "border-accent text-fg" : "border-transparent text-fg-muted hover:text-fg")}
+              className={cn("-mb-px h-10 px-3 text-sm font-medium transition-colors", tabIndicatorClass(sel.tab === key))}
               data-testid={`champion-tab-${key}`}
             >
               {label}
@@ -320,11 +316,6 @@ function OverviewPanel({ me, card, data, champ, multiAccount, onOpponent, onMatc
       )}
       {/* The champion's multikills in the same games, with how many of them have counts. */}
       {card?.multikills && r && r.games > 0 ? <MultikillSummaryRow m={card.multikills} className="rounded-panel border border-border/70 bg-bg-elevated/60 px-3 py-2" testId="champion-multikills-summary" /> : null}
-      {card && card.tier !== "unknown" ? (
-        <p className="text-xs text-fg-muted" data-testid="champion-proficiency">
-          <span className="font-medium text-fg">Experience: {card.tierLabel}.</span> {card.tierWhy}
-        </p>
-      ) : null}
       {!r || r.games === 0 ? null : !data ? (
         <Loading label={`Loading ${me.name}'s lanes`} />
       ) : !lane || lane.games === 0 ? (

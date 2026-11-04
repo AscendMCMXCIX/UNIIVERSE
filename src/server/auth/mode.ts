@@ -6,7 +6,7 @@
  *   - any Vercel deployment (production AND preview: previews share the environment variables
  *     you scope to them, so they must never run in the open local mode), or
  *   - any production server with a DATABASE_URL (a self-hosted box, Railway, Render…).
- * `UNIIVERSE_REQUIRE_AUTH=true` forces accounts anywhere; `false` is an explicit opt-out meant
+ * `UNIIVERSE_REQUIRE_AUTH=true` forces accounts anywhere; `false` (ignored on Vercel) is an explicit opt-out meant
  * only for a private LAN server that nobody outside the team can reach.
  */
 export interface ModeEnv {
@@ -20,6 +20,9 @@ export interface ModeEnv {
 }
 
 export function requiresAccounts(env: ModeEnv = process.env): boolean {
+  // A Vercel deployment is never the private LAN server the opt-out is for: one stray variable
+  // would make every visitor the automatic local owner, so Vercel always requires accounts.
+  if (env.VERCEL) return true;
   const flag = (env.UNIIVERSE_REQUIRE_AUTH ?? "").trim().toLowerCase();
   if (flag === "false") return false;
   if (flag === "true") return true;

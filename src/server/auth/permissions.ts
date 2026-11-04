@@ -1,3 +1,5 @@
+import type { FreshnessScope } from "@/domain/freshness";
+
 /** Stored account roles. "owner" is the Admin role; "coach" is retired (migration 0007) and treated as a player. */
 export type AccessRole = "owner" | "coach" | "player";
 
@@ -20,7 +22,7 @@ export interface Session {
   localDev?: boolean;
   /**
    * Member of the competitive team (players.team_member). False = personal use only: their own
-   * profile, statistics and Solo Queue Blocks, but nothing of the team workspace.
+   * profile and statistics, but nothing of the team workspace.
    * Undefined (no player profile, or a session from before Phase 10) counts as a member.
    */
   teamMember?: boolean;
@@ -122,7 +124,7 @@ export function effectiveCapabilities(input: { owner: boolean; base: readonly Ca
 }
 
 /** Always available to every signed-in account, whatever its level (enforced by ownership checks, not capabilities). */
-export const ALWAYS_AVAILABLE = ["Their own profile: Overview, All Champions, Match History", "Their private Solo Queue Blocks", "Their own Settings: username, picture, password"] as const;
+export const ALWAYS_AVAILABLE = ["Their own profile: Overview, All Champions, Match History, Riot Accounts", "Their own Settings: username, picture, password"] as const;
 
 /** Keeps only known capability keys (stored JSON may be stale or hand-edited). */
 export function sanitiseCapabilities(value: unknown): Capability[] {
@@ -175,6 +177,18 @@ export function hasPermission(session: Session | null, permission: Permission): 
  */
 export function canUseAdminArea(session: Session | null): boolean {
   return isAdmin(session);
+}
+
+/**
+ * May ask for the version of a page's data (/api/freshness) with the access that page needs: their
+ * own profile, someone else's with the Players directory, the team's pages with any of their view
+ * rights, the jobs with the data settings of Admin Mode.
+ */
+export function canWatchFreshness(session: Session | null, scope: FreshnessScope): boolean {
+  if (!session) return false;
+  if (scope.kind === "jobs") return hasPermission(session, "manage-data");
+  if (scope.kind === "player") return session.playerId === scope.playerId || hasPermission(session, "view-players");
+  return (["view-team", "view-players", "view-teammate-stats", "view-matches"] as const).some((p) => hasPermission(session, p));
 }
 
 /** A user may edit a player profile (roles, pools, notes) when it is their own (with the capability) or they manage players. */

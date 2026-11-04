@@ -27,12 +27,11 @@ const n = (value: number, one: string, many: string) => `${formatCount(value)} $
 export function erasureLines(c: ErasureCounts): string[] {
   const lines: string[] = [];
   if (c.account) lines.push("Their account and every signed-in session are removed.");
-  if (c.profile) lines.push(`Their player profile is removed: roles, champion pools, card customisation, banner, social links${c.journalEntries ? ` and ${n(c.journalEntries, "Solo Queue Blocks entry", "Solo Queue Blocks entries")}` : " and their Solo Queue Blocks journal"}.`);
+  if (c.profile) lines.push(`Their player profile is removed: roles, champion pools, card customisation, banner, social links, and what the retired Ranked Development kept of theirs${c.journalEntries ? ` (${n(c.journalEntries, "game", "games")} with their objectives, plans and reviews)` : ""}.`);
   if (c.riotAccounts) lines.push(`${n(c.riotAccounts, "linked Riot account is", "linked Riot accounts are")} removed with ${n(c.games, "stored game", "stored games")}, mastery and rank history.`);
   if (c.gamesDeleted) lines.push(`${n(c.gamesDeleted, "game only they played is", "games only they played are")} deleted.`);
   if (c.gamesDeidentified) lines.push(`${n(c.gamesDeidentified, "game shared with others is", "games shared with others are")} kept for the others, with them shown as "Removed player" (no name, champion or figures).`);
   if (c.lanePartners) lines.push(`${n(c.lanePartners, "teammate's game no longer records", "teammates' games no longer record")} them as the lane opponent.`);
-  if (c.teamRecords) lines.push(`${n(c.teamRecords, "team draft or match record keeps", "team draft and match records keep")} the team's history with them as "Former member".`);
   if (c.notes) lines.push(`${n(c.notes, "note written by someone else names", "notes written by others name")} them: their names become "[removed]", the rest of each note stays.`);
   if (c.auditEntries) lines.push(`${n(c.auditEntries, "admin log entry names", "admin log entries name")} them "Erased member" from now on.`);
   if (c.jobLogs) lines.push(`${n(c.jobLogs, "job log loses", "job logs lose")} their Riot ID.`);

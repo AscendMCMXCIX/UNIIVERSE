@@ -20,7 +20,7 @@ describe("withDefaults", () => {
 
   it("knows the project's own type sizes and arbitrary rem sizes as sizes, not colours", () => {
     const primary = "bg-accent text-bg h-7 px-2.5 text-xs";
-    for (const size of ["text-2xs", "text-3xs", "text-4xs", "text-md", "text-figure", "text-[0.8rem]", "text-[length:13px]"]) {
+    for (const size of ["text-2xs", "text-4xs", "text-md", "text-figure", "text-[0.8rem]", "text-[length:13px]"]) {
       const out = withDefaults(primary, size).split(" ");
       expect(out).toContain("text-bg");
       expect(out).not.toContain("text-xs");

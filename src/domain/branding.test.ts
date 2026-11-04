@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { brandThemeCss, checkContrast, contrastRatio, contrastText, DEFAULT_BRANDING, lightenHex, logoSrc, logoStillSrc, NEUTRAL_NAME, parseBranding, resetLook } from "./branding";
+import { brandThemeCss, brandThemeVars, checkContrast, contrastRatio, contrastText, controlEdge, DEFAULT_BRANDING, DEFAULT_COLOURS, lightenHex, logoSrc, logoStillSrc, NEUTRAL_NAME, parseBranding, resetLook } from "./branding";
 
 describe("branding", () => {
   it("falls back to defaults for anything invalid and keeps valid values", () => {
@@ -61,6 +61,22 @@ describe("branding", () => {
     expect(css).toContain("--color-accent:#ff8800");
     expect(css).toContain("--color-surface-2:color-mix(in srgb, #202020 94%, #ffffff)");
     expect(css).not.toContain("--color-bg:");
+  });
+
+  it("gives fields and toolbar controls an edge of 3:1 or more on a custom page and panel colour", () => {
+    for (const [surface, background] of [["#202020", "#000000"], ["#10163a", "#080c24"], ["#2a1a40", "#140c22"], ["#16181d", "#0d0e12"]] as const) {
+      const edge = controlEdge(surface, background);
+      for (const on of [surface, background, lightenHex(surface, 0.06)]) expect(contrastRatio(edge, on)).toBeGreaterThanOrEqual(3);
+    }
+    const vars = brandThemeVars({ ...DEFAULT_BRANDING, background: "#140c22" });
+    expect(vars["--color-border-control"]).toBe(controlEdge(DEFAULT_COLOURS.surface, "#140c22"));
+    expect(vars["--color-bg-elevated"]).toBeUndefined();
+  });
+
+  it("keeps the app's frame in the team's own colours when they choose a page or panel colour", () => {
+    expect(brandThemeVars(DEFAULT_BRANDING)["--color-chrome"]).toBeUndefined();
+    expect(brandThemeVars({ ...DEFAULT_BRANDING, surface: "#2a1a40", background: "#140c22" })["--color-chrome"]).toBe("color-mix(in srgb, #2a1a40 70%, #140c22)");
+    expect(brandThemeVars({ ...DEFAULT_BRANDING, background: "#140c22" })["--color-chrome"]).toBe(`color-mix(in srgb, ${DEFAULT_COLOURS.surface} 70%, #140c22)`);
   });
 
   it("derives a lighter accent and a readable text colour", () => {

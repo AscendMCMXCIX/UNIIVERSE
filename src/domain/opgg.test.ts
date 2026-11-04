@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { opggLinkFor, opggProfileUrl, parseRiotId, platformOfMatchId } from "./opgg";
+import { opggLinkFor, opggProfileUrl, parseRiotId, platformOfMatchId, riotIdProblem, tagProblem } from "./opgg";
 
 describe("OP.GG profile links from completed matches", () => {
   it("builds the profile address from the recorded Riot ID and the match's server", () => {
@@ -16,12 +16,14 @@ describe("OP.GG profile links from completed matches", () => {
       ["Thé Ünïcode#OCE", "oc1", "https://op.gg/lol/summoners/oce/Th%C3%A9%20%C3%9Cn%C3%AFcode-OCE"],
       ["a&b?c/d#OCE", "oc1", "https://op.gg/lol/summoners/oce/a%26b%3Fc%2Fd-OCE"],
       ["opgg#LAS", "la2", "https://op.gg/lol/summoners/las/opgg-LAS"],
+      // A 2-character tag, as Riot's own records hold them.
+      ["Two#AB", "oc1", "https://op.gg/lol/summoners/oce/Two-AB"],
     ];
     for (const [riotId, platform, url] of cases) expect(opggProfileUrl(riotId, platform), riotId).toBe(url);
   });
 
   it("gives no link when the Riot ID is not reliable", () => {
-    for (const bad of [null, undefined, "", "Faker", "Faker#", "#KR1", "a#b#c", "Name#AB", "Name#TOOLONG", "Name#K-R", "Name#K R1", "Seventeen chars xx#OCE", "Bad\u0000Name#OCE", "Zero​Width#OCE", "   #OCE"]) {
+    for (const bad of [null, undefined, "", "Faker", "Faker#", "#KR1", "a#b#c", "Name#A", "Name#TOOLONG", "Name#K-R", "Name#K R1", "Seventeen chars xx#OCE", "Bad\u0000Name#OCE", "Zero​Width#OCE", "   #OCE"]) {
       expect(parseRiotId(bad), String(bad)).toBeNull();
       expect(opggProfileUrl(bad, "oc1")).toBeNull();
     }
@@ -56,11 +58,49 @@ describe("OP.GG profile links from completed matches", () => {
 
   it("prefers a player's newer known Riot ID and server, and falls back to the match's own record", () => {
     expect(opggLinkFor("Old Name#OCE", "oc1", { riotId: "New Name#EUW", platform: "euw1" })).toBe("https://op.gg/lol/summoners/euw/New%20Name-EUW");
-    // A known Riot ID that cannot make a link (no server OP.GG lists) does not hide the match's own.
-    expect(opggLinkFor("Old Name#OCE", "oc1", { riotId: "New Name#EUW", platform: null })).toBe("https://op.gg/lol/summoners/oce/Old%20Name-OCE");
+    // A linked account whose server Riot has not confirmed yet: its current Riot ID, on the match's server.
+    expect(opggLinkFor("Old Name#OCE", "oc1", { riotId: "New Name#EUW", platform: null })).toBe("https://op.gg/lol/summoners/oce/New%20Name-EUW");
+    // A known Riot ID that cannot make a link (no server OP.GG lists, or no tag) does not hide the match's own.
+    expect(opggLinkFor("Old Name#OCE", "oc1", { riotId: "New Name#EUW", platform: "cn1" })).toBe("https://op.gg/lol/summoners/oce/Old%20Name-OCE");
+    expect(opggLinkFor("Old Name#OCE", "oc1", { riotId: "NoTag", platform: "oc1" })).toBe("https://op.gg/lol/summoners/oce/Old%20Name-OCE");
     expect(opggLinkFor("Old Name#OCE", "oc1", null)).toBe("https://op.gg/lol/summoners/oce/Old%20Name-OCE");
     // Nothing reliable at all: no link rather than a guessed one.
     expect(opggLinkFor("Old Name", "oc1", { riotId: "NoTag", platform: "oc1" })).toBeNull();
+  });
+
+  it("accepts the Riot IDs the old check turned away: letters with their marks, joiners, sixteen characters as a reader counts them", () => {
+    // Thai: 18 code points, 13 characters (vowel signs and tone marks belong to their letter).
+    expect(opggProfileUrl("สวัสดีครับผมชื่อสม#TH2", "th2")).toBe(`https://op.gg/lol/summoners/th/${encodeURIComponent("สวัสดีครับผมชื่อสม")}-TH2`);
+    // Persian and Arabic names keep the zero-width non-joiner they need.
+    expect(opggProfileUrl("علی\u200cرضا#ME1", "me1")).toBe(`https://op.gg/lol/summoners/me/${encodeURIComponent("علی\u200cرضا")}-ME1`);
+    // A tag in another script, with a mark on one of its letters.
+    expect(parseRiotId("Somchai#ไทย1")).toEqual({ gameName: "Somchai", tagLine: "ไทย1" });
+    expect(parseRiotId("Name#ก้า1")).toEqual({ gameName: "Name", tagLine: "ก้า1" });
+    // Exactly sixteen is fine, seventeen is not; decomposed accents count once.
+    expect(parseRiotId("abcdefghijklmnop#OCE")).not.toBeNull();
+    expect(parseRiotId("abcdefghijklmnopq#OCE")).toBeNull();
+    expect(parseRiotId("abcdefghijklmno\u0065\u0301#OCE")).not.toBeNull();
+  });
+
+  it("says why a recorded name makes no link, for the data audit", () => {
+    const cases: Array<[string | null, ReturnType<typeof riotIdProblem>]> = [
+      [null, "no-name"],
+      ["", "no-name"],
+      ["   #OCE", "no-name"],
+      ["Faker", "no-tag"],
+      ["Faker#", "no-tag"],
+      ["Name#A", "tag-length"],
+      ["Name#TOOLONG", "tag-length"],
+      ["Name#K-R", "tag-characters"],
+      ["Seventeen chars xx#OCE", "name-length"],
+      ["Zero\u200bWidth#OCE", "name-characters"],
+      ["Bidi\u202eName#OCE", "name-characters"],
+      ["a#b#c", "name-characters"],
+      ["Hide on bush#KR1", null],
+    ];
+    for (const [raw, problem] of cases) expect(riotIdProblem(raw), String(raw)).toBe(problem);
+    // The tag alone, as the audit checks the tags it finds.
+    expect([tagProblem("A"), tagProblem("AB"), tagProblem("OCE"), tagProblem("K-R"), tagProblem("ไทย")]).toEqual(["tag-length", null, null, "tag-characters", null]);
   });
 
   it("keeps the name as recorded apart from surrounding spaces", () => {

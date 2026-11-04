@@ -24,10 +24,10 @@ test("is public, linked from sign-in, and lists what is stored, who sees it and 
   const stored = guest.getByTestId("privacy-stored").locator(":scope > li");
   await expect(stored).toHaveCount(13);
   await expect(stored.filter({ hasText: "Page speed counts" })).toContainText("Nothing identifies you");
-  // Clash Scout's saved scouts were deleted with its tables (migration 0057): nothing about them is stored.
+  // Clash Scout's saved scouts were deleted with its tables (migration 0064): nothing about them is stored.
   await expect(stored.filter({ hasText: "Clash" })).toHaveCount(0);
   await expect(guest.getByText("jsDelivr")).toHaveCount(0);
-  await expect(stored.filter({ hasText: "Social links, only if you add them" })).toContainText("only you, team members, or also the public team page");
+  await expect(stored.filter({ hasText: "Social links, only if you add them" })).toContainText("Only you, until you switch on Show publicly for a link: then team members and the public team page");
   await expect(stored.first()).toContainText("scrypt hash");
   await expect(guest.getByText("Failed sign-ins")).toBeVisible();
   await expect(stored.nth(1)).toContainText("deleted automatically about a week later");

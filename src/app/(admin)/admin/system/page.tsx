@@ -18,6 +18,8 @@ import { StatusCards } from "@/components/admin/status-cards";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { FieldPerformancePanel } from "@/components/admin/field-performance";
 import { vitalsReport } from "@/server/observability/web-vitals";
+import { jobsFreshness } from "@/server/ops/freshness";
+import { FreshnessWatcher } from "@/components/ui/freshness-watcher";
 
 export const dynamic = "force-dynamic";
 
@@ -38,12 +40,14 @@ const ENV_FLAGS: Array<{ key: string; label: string; required: boolean }> = [
 export default async function AdminSystemPage() {
   await requirePageAccess("manage-data");
   const db = await getAppDb();
-  const [auth, { items: status, health }, handle, branding] = await Promise.all([getAuthState(db), loadSystemStatus(db), getDbHandle(), getBranding(db)]);
+  const [auth, { items: status, health }, handle, branding, version] = await Promise.all([getAuthState(db), loadSystemStatus(db), getDbHandle(), getBranding(db), jobsFreshness(db)]);
   const diagnostics = await getDiagnostics(db, handle.description).catch(() => null);
   const vitals = await vitalsReport(db).catch(() => null);
   const deployment = deploymentInfo();
   return (
     <div className="space-y-5">
+      {/* Job runs and statuses update without a reload. */}
+      <FreshnessWatcher scope={{ kind: "jobs" }} version={version} />
       <PageHeader eyebrow="Admin Mode" title="System Health" description="Database, background jobs and the evidence behind each status." />
       <section className="space-y-3">
         <div>
@@ -112,7 +116,7 @@ export default async function AdminSystemPage() {
         <PanelHeader title="Riot Games compliance" subtitle={`How ${branding.productName} uses Riot data, and the notice Riot requires.`} />
         <PanelBody className="space-y-2 text-xs text-fg-muted">
           <p>{riotLegal(branding.productName)}</p>
-          <p>Riot API keys stay on the server and are never sent to browsers. Only public game data (ranked matches, champion mastery, ranked tier) is read, only for accounts a player linked on purpose, and it is used solely for this team&apos;s own preparation and improvement. {branding.productName} never attempts to de-anonymise players or discover hidden real identities, and removes a linked account&apos;s data when the account is unlinked.</p>
+          <p>Riot API keys stay on the server and are never sent to browsers. Game data (matches and their timelines, champion mastery and ranks) is read only for accounts a player linked on purpose, plus the current rank of the other players in those accounts&apos; games, and it is used solely for this team&apos;s own preparation and improvement. {branding.productName} never attempts to de-anonymise players or discover hidden real identities, and removes a linked account&apos;s data when the account is unlinked.</p>
           <p>The full checklist is in docs/RIOT_COMPLIANCE.md in the repository.</p>
         </PanelBody>
       </Panel>

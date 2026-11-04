@@ -3,8 +3,6 @@ import { z } from "zod";
 /** Only the fields UNIIVERSE needs. Extra fields are ignored so minor upstream additions never break a sync. */
 export const platformStatusSchema = z.object({ id: z.string().min(1) });
 
-export const summonerSchema = z.object({ puuid: z.string().min(1) });
-
 export const matchIdsSchema = z.array(z.string().min(1));
 
 /** An optional extra figure: anything but a number reads as absent. */
@@ -92,8 +90,9 @@ export const matchSchema = z.object({
 
 /**
  * A match timeline (match-v5 /timeline): only the participant order and the events UNIIVERSE reads
- * (item purchases, their undos and skill level-ups). Riot's minute-by-minute frames carry far more;
- * the rest is ignored and never stored.
+ * (item purchases, their undos and skill level-ups; champion kills; epic monsters, towers and
+ * inhibitors taken). Riot's minute-by-minute frames carry far more; the rest is ignored and never
+ * stored.
  */
 export const matchTimelineSchema = z.object({
   metadata: z.object({ matchId: z.string().min(1), participants: z.array(z.string()).default([]) }),
@@ -127,6 +126,21 @@ export const matchTimelineSchema = z.object({
                 afterId: z.number().optional(),
                 skillSlot: z.number().optional(),
                 levelUpType: z.string().optional(),
+                /** CHAMPION_KILL, ELITE_MONSTER_KILL, BUILDING_KILL: 0 when no player made it (an execution). */
+                killerId: z.number().optional(),
+                /** CHAMPION_KILL */
+                victimId: z.number().optional(),
+                assistingParticipantIds: z.array(z.number()).optional(),
+                /** ELITE_MONSTER_KILL: DRAGON, BARON_NASHOR, RIFTHERALD, HORDE (voidgrubs), ATAKHAN. */
+                monsterType: z.string().optional(),
+                /** ELITE_MONSTER_KILL on a dragon: FIRE_DRAGON, …, ELDER_DRAGON. */
+                monsterSubType: z.string().optional(),
+                killerTeamId: z.number().optional(),
+                /** BUILDING_KILL: TOWER_BUILDING or INHIBITOR_BUILDING, its lane and tier; teamId is the side that lost it. */
+                buildingType: z.string().optional(),
+                laneType: z.string().optional(),
+                towerType: z.string().optional(),
+                teamId: z.number().optional(),
               }),
             )
             .default([]),

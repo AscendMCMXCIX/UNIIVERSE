@@ -1,5 +1,6 @@
 "use server";
 
+import { publicErrorMessage } from "@/server/errors";
 import { revalidatePath } from "next/cache";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePermission } from "@/server/auth/session";
@@ -68,7 +69,7 @@ export interface ErasureDone {
 }
 
 function auditDetails(kind: ErasureSubject["kind"], counts: ErasureCounts) {
-  return { kind, riotAccounts: counts.riotAccounts, gamesDeleted: counts.gamesDeleted, gamesDeidentified: counts.gamesDeidentified, teamRecords: counts.teamRecords, notes: counts.notes, auditEntries: counts.auditEntries };
+  return { kind, riotAccounts: counts.riotAccounts, gamesDeleted: counts.gamesDeleted, gamesDeidentified: counts.gamesDeidentified, notes: counts.notes, auditEntries: counts.auditEntries };
 }
 
 /** Permanently erases a member. `confirmation` must be what previewErasureAction asked for. */
@@ -201,7 +202,7 @@ export async function importErasuresAction(text: string): Promise<Result<{ added
     try {
       parseErasureFile(file);
     } catch (err) {
-      return { ok: false, error: (err as Error).message };
+      return { ok: false, error: publicErrorMessage(err) };
     }
     const db = await getAppDb();
     const imported = await importErasures(db, file);

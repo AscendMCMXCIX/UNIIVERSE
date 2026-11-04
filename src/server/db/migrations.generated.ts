@@ -795,7 +795,136 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
   },
   {
     "idx": 57,
-    "tag": "0057_retire_clash_scouts",
+    "tag": "0057_participant_ranks",
+    "hash": "235ba991960475f4c61bfc7403714218205cbd76718b73db1a658c9ffef73c5d",
+    "statements": [
+      "-- Match History's rank checks (src/server/players/participant-ranks.ts): when a member opens a\n-- match, the players whose stored rank is missing or over three days old are looked up with\n-- LEAGUE-V4 and kept here, one row per player, with both ranked queues (\"UNRANKED\" when Riot lists\n-- no entry) and the LP. The four columns are new and empty; the rows migration 0048 copied keep\n-- their Solo/Duo tier as they are. The partial index serves the daily limit on lookups. Additive\n-- only: no row or column is changed or removed, and the table keeps its Row Level Security and\n-- grants (it is not a new table). Rollback: DROP INDEX \"last_known_ranks_lookups_idx\", then drop\n-- the four columns.\nALTER TABLE \"last_known_ranks\" ADD COLUMN \"league_points\" integer;",
+      "ALTER TABLE \"last_known_ranks\" ADD COLUMN \"flex_tier\" text;",
+      "ALTER TABLE \"last_known_ranks\" ADD COLUMN \"flex_division\" text;",
+      "ALTER TABLE \"last_known_ranks\" ADD COLUMN \"flex_league_points\" integer;",
+      "CREATE INDEX \"last_known_ranks_lookups_idx\" ON \"last_known_ranks\" USING btree (\"observed_at\") WHERE \"last_known_ranks\".\"source\" = 'match lookup';"
+    ]
+  },
+  {
+    "idx": 58,
+    "tag": "0058_match_details_puuids",
+    "hash": "b7ff9defd2fc85d0500368b3a290c6030e6ffb465eb264a1a876f705b3625af6",
+    "statements": [
+      "CREATE INDEX \"match_details_puuids_idx\" ON \"match_details\" USING gin ((jsonb_path_query_array(\"participants\", '$[*].puuid'))) WITH (fastupdate=false);"
+    ]
+  },
+  {
+    "idx": 59,
+    "tag": "0059_ranked_development",
+    "hash": "477dc9d9322b0ee5902e8eb51a97b2c436fe3504d46dcb56875dbbe89069100e",
+    "statements": [
+      "-- Ranked Development (docs/RANKED_DEVELOPMENT.md): Solo Queue Blocks become sessions, with a\n-- weakness library (development_objectives), versioned If–Then plans (development_plans), and a\n-- short review on each session game. Additive and data-preserving: two new tables, new nullable or\n-- defaulted columns on ranked_blocks and ranked_games, and a backfill that keeps every block, game,\n-- note and mistake as it was:\n--   - games keep their main mistake and notes; a game with either counts as reviewed, and its\n--     mistake is also read into the shared areas (went_wrong) through the same mapping as\n--     domain/development/categories LEGACY_MISTAKE_CATEGORY;\n--   - a player's ranked focus sentence becomes their primary objective (status Practising), with\n--     the champions they chose for it; ranked_profiles itself is left untouched;\n--   - a block still in progress follows that objective and counts as active now, so it has the\n--     full idle period (twelve hours) before it ends by itself; synced games join it only from now\n--     on (collects_from), so games its player chose not to import are never added to it. Finished\n--     blocks collect nothing.\n-- The new tables get Row Level Security, no Data API grants and the backup role's SELECT\n-- (docs/DATABASE_PERMISSIONS.md). Rollback: drop the two tables and the added columns; no\n-- earlier value is changed except the new columns' backfill.\nCREATE TABLE \"development_objectives\" (\n\t\"id\" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,\n\t\"player_id\" uuid NOT NULL,\n\t\"title\" text NOT NULL,\n\t\"detail\" text DEFAULT '' NOT NULL,\n\t\"category\" text NOT NULL,\n\t\"custom_category\" text,\n\t\"role\" \"role\",\n\t\"champion_ids\" jsonb DEFAULT '[]'::jsonb NOT NULL,\n\t\"status\" text DEFAULT 'identified' NOT NULL,\n\t\"is_primary\" boolean DEFAULT false NOT NULL,\n\t\"measure\" text,\n\t\"plan_id\" uuid,\n\t\"identified_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\t\"status_changed_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\t\"source\" text DEFAULT 'player' NOT NULL,\n\t\"created_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\t\"updated_at\" timestamp with time zone DEFAULT now() NOT NULL\n);",
+      "CREATE TABLE \"development_plans\" (\n\t\"id\" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,\n\t\"player_id\" uuid NOT NULL,\n\t\"objective_id\" uuid,\n\t\"if_text\" text NOT NULL,\n\t\"then_text\" text NOT NULL,\n\t\"template_key\" text,\n\t\"retired_at\" timestamp with time zone,\n\t\"created_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\t\"updated_at\" timestamp with time zone DEFAULT now() NOT NULL\n);",
+      "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"objective_id\" uuid;",
+      "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"plan_id\" uuid;",
+      "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"account_id\" uuid;",
+      "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"last_activity_at\" timestamp with time zone;",
+      "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"collects_from\" timestamp with time zone;",
+      "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"start_rank\" jsonb;",
+      "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"closing_note\" text DEFAULT '' NOT NULL;",
+      "ALTER TABLE \"ranked_blocks\" ADD COLUMN \"dismissed_match_ids\" jsonb DEFAULT '[]'::jsonb NOT NULL;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"source\" text DEFAULT 'manual' NOT NULL;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"objective_id\" uuid;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"review_status\" text DEFAULT 'none' NOT NULL;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"execution\" smallint;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"went_well\" text;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"went_wrong\" text;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"learning\" text DEFAULT '' NOT NULL;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"adjustment\" text DEFAULT '' NOT NULL;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"reviewed_at\" timestamp with time zone;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"needs_confirmation\" boolean DEFAULT false NOT NULL;",
+      "ALTER TABLE \"ranked_games\" ADD COLUMN \"alternative_block_id\" uuid;",
+      "ALTER TABLE \"development_objectives\" ADD CONSTRAINT \"development_objectives_player_id_players_id_fk\" FOREIGN KEY (\"player_id\") REFERENCES \"public\".\"players\"(\"id\") ON DELETE cascade ON UPDATE no action;",
+      "ALTER TABLE \"development_objectives\" ADD CONSTRAINT \"development_objectives_plan_id_development_plans_id_fk\" FOREIGN KEY (\"plan_id\") REFERENCES \"public\".\"development_plans\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "ALTER TABLE \"development_plans\" ADD CONSTRAINT \"development_plans_player_id_players_id_fk\" FOREIGN KEY (\"player_id\") REFERENCES \"public\".\"players\"(\"id\") ON DELETE cascade ON UPDATE no action;",
+      "ALTER TABLE \"development_plans\" ADD CONSTRAINT \"development_plans_objective_id_development_objectives_id_fk\" FOREIGN KEY (\"objective_id\") REFERENCES \"public\".\"development_objectives\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "CREATE INDEX \"development_objectives_player_idx\" ON \"development_objectives\" USING btree (\"player_id\",\"status\");",
+      "CREATE UNIQUE INDEX \"development_objectives_one_primary_idx\" ON \"development_objectives\" USING btree (\"player_id\") WHERE \"development_objectives\".\"is_primary\";",
+      "CREATE INDEX \"development_plans_player_idx\" ON \"development_plans\" USING btree (\"player_id\",\"objective_id\");",
+      "ALTER TABLE \"ranked_blocks\" ADD CONSTRAINT \"ranked_blocks_objective_id_development_objectives_id_fk\" FOREIGN KEY (\"objective_id\") REFERENCES \"public\".\"development_objectives\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "ALTER TABLE \"ranked_blocks\" ADD CONSTRAINT \"ranked_blocks_plan_id_development_plans_id_fk\" FOREIGN KEY (\"plan_id\") REFERENCES \"public\".\"development_plans\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "ALTER TABLE \"ranked_blocks\" ADD CONSTRAINT \"ranked_blocks_account_id_riot_accounts_id_fk\" FOREIGN KEY (\"account_id\") REFERENCES \"public\".\"riot_accounts\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "ALTER TABLE \"ranked_games\" ADD CONSTRAINT \"ranked_games_objective_id_development_objectives_id_fk\" FOREIGN KEY (\"objective_id\") REFERENCES \"public\".\"development_objectives\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "ALTER TABLE \"ranked_games\" ADD CONSTRAINT \"ranked_games_alternative_block_id_ranked_blocks_id_fk\" FOREIGN KEY (\"alternative_block_id\") REFERENCES \"public\".\"ranked_blocks\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "CREATE INDEX \"ranked_games_objective_idx\" ON \"ranked_games\" USING btree (\"player_id\",\"objective_id\");",
+      "UPDATE \"ranked_games\" SET \"source\" = 'import' WHERE \"riot_match_id\" IS NOT NULL;",
+      "UPDATE \"ranked_games\" SET \"review_status\" = 'done', \"reviewed_at\" = \"updated_at\" WHERE \"main_mistake\" IS NOT NULL OR \"notes\" <> '';",
+      "UPDATE \"ranked_games\" SET \"went_wrong\" = CASE \"main_mistake\"\n  WHEN 'mechanics' THEN 'mechanics'\n  WHEN 'trading-laning' THEN 'trading'\n  WHEN 'wave-tempo' THEN 'wave-management'\n  WHEN 'vision-awareness' THEN 'vision'\n  WHEN 'macro-objectives' THEN 'objective-setup'\n  WHEN 'positioning-teamfight' THEN 'teamfighting'\n  WHEN 'decision-making' THEN 'decision-making'\n  WHEN 'mental' THEN 'mental'\n  WHEN 'other' THEN 'other'\nEND WHERE \"main_mistake\" IS NOT NULL;",
+      "INSERT INTO \"development_objectives\" (\"player_id\", \"title\", \"category\", \"status\", \"is_primary\", \"champion_ids\", \"source\", \"identified_at\", \"status_changed_at\")\nSELECT p.\"player_id\", left(btrim(regexp_replace(p.\"focus\", '\\s+', ' ', 'g')), 120), 'other', 'practising', true,\n  coalesce((SELECT jsonb_agg(v.c ORDER BY v.o) FROM (VALUES (1, p.\"champion_1\"), (2, p.\"champion_2\"), (3, p.\"champion_3\")) AS v(o, c) WHERE v.c IS NOT NULL AND v.c <> ''), '[]'::jsonb),\n  'blocks-focus', p.\"created_at\", now()\nFROM \"ranked_profiles\" p WHERE btrim(p.\"focus\") <> '';",
+      "UPDATE \"ranked_blocks\" b SET \"objective_id\" = o.\"id\" FROM \"development_objectives\" o WHERE o.\"player_id\" = b.\"player_id\" AND o.\"source\" = 'blocks-focus' AND b.\"status\" = 'active';",
+      "UPDATE \"ranked_blocks\" SET \"last_activity_at\" = now(), \"collects_from\" = now() WHERE \"status\" = 'active';",
+      "ALTER TABLE \"development_objectives\" ENABLE ROW LEVEL SECURITY;",
+      "ALTER TABLE \"development_plans\" ENABLE ROW LEVEL SECURITY;",
+      "-- Closed to Supabase's Data API whatever the project's default privileges, and readable by the\n-- backup role where it exists (docs/DATABASE_PERMISSIONS.md).\nDO $$ BEGIN\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN\n    REVOKE ALL ON TABLE public.development_objectives FROM anon;\n    REVOKE ALL ON TABLE public.development_plans FROM anon;\n  END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN\n    REVOKE ALL ON TABLE public.development_objectives FROM authenticated;\n    REVOKE ALL ON TABLE public.development_plans FROM authenticated;\n  END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'uniiverse_backup') THEN\n    GRANT SELECT ON TABLE public.development_objectives TO uniiverse_backup;\n    GRANT SELECT ON TABLE public.development_plans TO uniiverse_backup;\n  END IF;\nEND $$;"
+    ]
+  },
+  {
+    "idx": 60,
+    "tag": "0060_match_timeline_events",
+    "hash": "1248c9bd5410b7f9f5a46d41a556d78099255afd9199c05606630c81af157415",
+    "statements": [
+      "ALTER TABLE \"match_timelines\" ADD COLUMN \"events\" jsonb;"
+    ]
+  },
+  {
+    "idx": 61,
+    "tag": "0061_social_links_public",
+    "hash": "1000f4c7bfe30984a79310ed8fd82538bd989709a0bff5a05121be7e87cbb4d1",
+    "statements": [
+      "-- Social links: one switch per link (\"Show publicly\") instead of three audiences.\n-- Each stored link { value, show } becomes { value, public }. Only the \"public\" audience is\n-- switched on (true). The team-only (\"team\") and owner-only (\"hidden\") audiences, and anything\n-- unrecognised, are switched off (false), so no link is shown to anyone who could not see it\n-- before. A link already in the new shape keeps its switch (only a JSON true counts). Each value,\n-- and anything else stored with it, is kept as it was: the pages check a value again before they\n-- show it. Entries that are not objects, empty objects and rows without links are left alone.\nUPDATE \"players\" AS p\nSET \"social_links\" = (\n  SELECT jsonb_object_agg(\n    e.key,\n    CASE\n      WHEN jsonb_typeof(e.value) = 'object' THEN\n        (e.value - 'show' - 'public')\n        || jsonb_build_object('public', COALESCE(e.value ->> 'show' = 'public', false) OR COALESCE(e.value -> 'public' = 'true'::jsonb, false))\n      ELSE e.value\n    END\n  )\n  FROM jsonb_each(p.\"social_links\") AS e(key, value)\n)\nWHERE jsonb_typeof(p.\"social_links\") = 'object' AND p.\"social_links\" <> '{}'::jsonb;"
+    ]
+  },
+  {
+    "idx": 62,
+    "tag": "0062_retire_meta_trends_tables",
+    "hash": "5c5a21e731d9ef79552775b93233772bfb0ce3dafb462eddf9f55305b6fd17b2",
+    "statements": [
+      "-- Drops the 12 tables Meta & Trends left behind (audit decision 2, about 206 MB of the database).\n-- Nothing has read or written them since the feature was removed, and no live table references\n-- them. The owner approved this on 19 Oct 2026 on two conditions, checked before it merges:\n--   1. a verified backup that holds these tables (docs/BACKUPS.md: restored and counted);\n--   2. no reads of them over at least a day (Data jobs db-usage, \"retired\").\n-- Kept: tracked_summoners (its ranks were copied to last_known_ranks by 0048), region_status,\n-- champion_change_points and the stat_*_periods tables (not part of this decision). No CASCADE:\n-- children go before the tables they reference, so a dependency nobody expected makes this\n-- migration fail instead of being dropped with them. Recovery: pg_restore --table from that\n-- backup, then revert this change.\nDROP TABLE \"ranked_participants\";",
+      "DROP TABLE \"ranked_bans\";",
+      "DROP TABLE \"ranked_matches\";",
+      "DROP TABLE \"match_fetch_queue\";",
+      "DROP TABLE \"pro_game_picks\";",
+      "DROP TABLE \"pro_game_bans\";",
+      "DROP TABLE \"pro_games\";",
+      "DROP TABLE \"champion_matchups\";",
+      "DROP TABLE \"champion_synergies\";",
+      "DROP TABLE \"champion_role_stats\";",
+      "DROP TABLE \"champion_ban_stats\";",
+      "DROP TABLE \"pro_pick_slot_stats\";"
+    ]
+  },
+  {
+    "idx": 63,
+    "tag": "0063_retire_draft_tables",
+    "hash": "9c991d7172d0097ddf41353e9bbf612b3badb0d65cae1937f9151a7ac3081490",
+    "statements": [
+      "-- Drops what the removed Draft feature left in the database (audit decision 3): its nine tables,\n-- riot_accounts.opponent_player_id, teams.engine_config and the six enum types only they used.\n-- Nothing has read or written them since migration 0048 copied the scouted ranks Match History\n-- shows into last_known_ranks. The owner approved this on 19 Oct 2026, together with decision 2;\n-- it merges only after a verified backup that holds them (docs/BACKUPS.md: restored and counted).\n-- Kept: team_bookmarks (Team Matches), every riot_accounts row (only the opponent link goes) and\n-- every other table. No CASCADE: the two columns go first (a column takes its own index and foreign\n-- key with it), then each table after the tables that reference it, then the types, so a\n-- dependency nobody expected makes this migration fail instead of being dropped with them.\n-- Recovery: pg_restore --table from that backup, then revert this change.\nALTER TABLE \"riot_accounts\" DROP COLUMN \"opponent_player_id\";",
+      "ALTER TABLE \"teams\" DROP COLUMN \"engine_config\";",
+      "DROP TABLE \"draft_actions\";",
+      "DROP TABLE \"draft_role_swaps\";",
+      "DROP TABLE \"draft_presence\";",
+      "DROP TABLE \"draft_enemy_scouting\";",
+      "DROP TABLE \"matches\";",
+      "DROP TABLE \"drafts\";",
+      "DROP TABLE \"series\";",
+      "DROP TABLE \"opponent_players\";",
+      "DROP TABLE \"opponent_teams\";",
+      "DROP TYPE \"public\".\"action_type\";",
+      "DROP TYPE \"public\".\"competition_mode\";",
+      "DROP TYPE \"public\".\"draft_status\";",
+      "DROP TYPE \"public\".\"match_result\";",
+      "DROP TYPE \"public\".\"scouting_confidence\";",
+      "DROP TYPE \"public\".\"series_status\";"
+    ]
+  },
+  {
+    "idx": 64,
+    "tag": "0064_retire_clash_scouts",
     "hash": "12e82efaa9ae3d591ce4c1a4fb5b846e659e788f7fb13a80a116f9e7c53aebe2",
     "statements": [
       "-- Drops the two tables Clash Scout left behind: the scouts the team saved (clash_scouts) and their\n-- verified accounts (clash_scout_accounts). Clash Scout was removed on 23 Oct 2026; since then no\n-- page, action or job has written them, and only permanent erasure and its reconciliation read them.\n-- This change also removes that erasure code, so nothing reads them afterwards.\n-- Held until, and only after, all of these:\n--   1. the owner has independently verified an encrypted backup that holds these tables\n--      (docs/BACKUPS.md: restored and counted) and secured an offline copy;\n--   2. Data jobs db-usage, \"retired\", twice a day apart: no new writes to either table, and no\n--      dependent outside the two;\n--   3. the owner's explicit go-ahead to drop them.\n-- No CASCADE: the accounts table (which references the scouts) goes first, so a dependency nobody\n-- expected makes this migration fail instead of being dropped with them. Indexes and foreign keys go\n-- with their tables. Recovery: pg_restore --table from that backup, then revert this change.\nDROP TABLE \"clash_scout_accounts\";",

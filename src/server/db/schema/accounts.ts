@@ -2,10 +2,10 @@ import { sql } from "drizzle-orm";
 import { bigint, boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { accountOwnerEnum, roleEnum, timestamps } from "./common";
 import { players } from "./team";
-import { opponentPlayers } from "./opponents";
+import type { ObjectiveKind } from "@/domain/match-events";
 
 /**
- * Riot accounts linked to our players (opponent rows are legacy). The PUUID is the canonical
+ * Riot accounts linked to our players (the `opponent` owner type is legacy: none are left). The PUUID is the canonical
  * identity (Riot IDs can change); it is unique so the same account is never counted twice.
  * Riot IDs are stored exactly as entered (full Unicode, no normalisation) and replaced by Riot's
  * own spelling once resolved. The platform is the player's selection until Riot's active-region
@@ -19,7 +19,6 @@ export const riotAccounts = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     ownerType: accountOwnerEnum("owner_type").notNull(),
     playerId: uuid("player_id").references(() => players.id, { onDelete: "cascade" }),
-    opponentPlayerId: uuid("opponent_player_id").references(() => opponentPlayers.id, { onDelete: "cascade" }),
     gameName: text("game_name").notNull(),
     tagLine: text("tag_line").notNull(),
     platform: text("platform").notNull(),
@@ -58,7 +57,6 @@ export const riotAccounts = pgTable(
     uniqueIndex("riot_accounts_puuid_idx").on(t.puuid),
     uniqueIndex("riot_accounts_riot_id_idx").on(t.platform, t.gameName, t.tagLine),
     index("riot_accounts_player_idx").on(t.playerId),
-    index("riot_accounts_opponent_idx").on(t.opponentPlayerId),
     // One Main account per player (the others are Alts); every linked account still counts.
     uniqueIndex("riot_accounts_one_main_idx").on(t.playerId).where(sql`${t.label} = 'main' AND ${t.playerId} IS NOT NULL`),
   ],
@@ -106,9 +104,9 @@ export const accountChampionHistory = pgTable(
 
 /**
  * Match ids already folded into an account's history (so re-syncs never double count), plus
- * the few per-game facts the ranked journal can import without asking Riot again: the champion
- * played, the role, the queue, the result and the lane opponent. Rows synced before these
- * columns existed stay null and are simply not importable.
+ * the few per-game facts read without asking Riot again (Match History, Played Together, possible
+ * groups): the champion played, the role, the queue, the result and the lane opponent. Rows synced
+ * before these columns existed stay null.
  */
 export const accountMatches = pgTable(
   "account_matches",
@@ -174,20 +172,36 @@ export const accountMastery = pgTable(
 );
 
 /**
- * The last rank known for players outside the team, shown beside a match's players in Match
- * History with its date. Migration 0048 copied the newest rank each player had in the two retired
- * sources (the Draft's enemy scouting and the Meta & Trends ranked ladder) before those tables
- * go. Nothing collects new ones: the team's own accounts carry their current rank on riot_accounts.
+ * The last rank known for players outside the team, one row per player, shown beside a match's
+ * players in the match window with its date (server/players/participant-ranks.ts):
+ * - "match lookup": Riot's LEAGUE-V4 entries, read when a member opened a match the player was in
+ *   and the stored reading was missing or older than three days. Both ranked queues are written;
+ *   "UNRANKED" means Riot listed no entry in that queue then.
+ * - "draft scouting" | "ranked ladder": what migration 0048 copied from two retired sources (the
+ *   Draft's enemy scouting and the Meta & Trends ranked ladder); the Solo/Duo tier only, until
+ *   a lookup replaces the row.
+ * The team's own accounts carry their current rank on riot_accounts and rank_snapshots instead.
  */
-export const lastKnownRanks = pgTable("last_known_ranks", {
-  puuid: text("puuid").primaryKey(),
-  tier: text("tier").notNull(),
-  /** Null for the ladder's sightings (they had no division) and for apex tiers. */
-  division: text("division"),
-  observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
-  /** "draft scouting" | "ranked ladder" */
-  source: text("source").notNull(),
-});
+export const lastKnownRanks = pgTable(
+  "last_known_ranks",
+  {
+    puuid: text("puuid").primaryKey(),
+    /** Ranked Solo/Duo. */
+    tier: text("tier").notNull(),
+    /** Null for the ladder's sightings (they had no division), apex tiers and UNRANKED. */
+    division: text("division"),
+    leaguePoints: integer("league_points"),
+    /** Ranked Flex: written by lookups only (null on the older sightings, which never read it). */
+    flexTier: text("flex_tier"),
+    flexDivision: text("flex_division"),
+    flexLeaguePoints: integer("flex_league_points"),
+    /** When it was read (a lookup: when Riot was asked). */
+    observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
+    /** "match lookup" | "draft scouting" | "ranked ladder" */
+    source: text("source").notNull(),
+  },
+  (t) => [index("last_known_ranks_lookups_idx").on(t.observedAt).where(sql`${t.source} = 'match lookup'`)],
+);
 
 /**
  * One compact copy of a Riot match for the personal match history: both teams' players (champion,
@@ -206,13 +220,20 @@ export const matchDetails = pgTable("match_details", {
   teams: jsonb("teams").$type<MatchTeamDetail[]>().notNull(),
   participants: jsonb("participants").$type<MatchParticipantDetail[]>().notNull(),
   storedAt: timestamp("stored_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  // The players' PUUIDs alone, so the games one player appears in are found without reading every
+  // record (possible groups, the newest Riot ID for an OP.GG link). Queries use the same expression.
+  // fastupdate off: records arrive a few an hour, so each goes straight into the index instead of a
+  // pending list that every search would scan (and that can make Postgres skip the index).
+  index("match_details_puuids_idx").using("gin", sql`(jsonb_path_query_array(${t.participants}, '$[*].puuid'))`).with({ fastupdate: false }),
+]);
 
 /**
  * What a match's timeline says about each player, kept once per match when a player first opens the
  * match or the timeline backfill reaches it: item purchases in order (undone purchases removed),
- * skill level-ups and, from the Matchups release on, gold, experience and CS at each frame. An
- * empty participant list means Riot no longer provides the timeline.
+ * skill level-ups and, from the Matchups release on, gold, experience and CS at each frame; from
+ * Match History 2.0 on, when each player took part in a champion kill, and the objectives each team
+ * took. An empty participant list means Riot no longer provides the timeline.
  */
 export const matchTimelines = pgTable("match_timelines", {
   matchId: text("match_id").primaryKey(),
@@ -220,8 +241,30 @@ export const matchTimelines = pgTable("match_timelines", {
   participants: jsonb("participants").$type<MatchTimelineParticipant[]>().notNull(),
   /** Null on rows stored before frames were kept (build order only): the backfill refetches those. */
   frames: jsonb("frames").$type<MatchFrames>(),
+  /**
+   * The objectives and buildings each team took (team facts, no player), and the sign that the
+   * participants carry their kill times. Null on rows stored before (29 Oct 2026): such a timeline
+   * is fetched again, once, the next time someone opens its Timeline.
+   */
+  events: jsonb("events").$type<MatchEvents>(),
   storedAt: timestamp("stored_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** An objective or building a team took, at milliseconds into the game. */
+export interface MatchObjectiveEvent {
+  t: number;
+  /** The team that took it: 100 (blue side) or 200 (red side). */
+  team: number;
+  kind: ObjectiveKind;
+  /** A dragon's element (FIRE, EARTH, WATER, AIR, HEXTECH, CHEMTECH); a building's lane (TOP, MID, BOT) and a tower's tier (OUTER, INNER, BASE, NEXUS). */
+  detail?: string;
+}
+
+export interface MatchEvents {
+  objectives: MatchObjectiveEvent[];
+  /** Riot no longer provides the timeline: the events were asked for and are not available. */
+  missing?: true;
+}
 
 /**
  * Per-player figures at each timeline frame. Riot's frames are about a minute apart but not exactly:
@@ -240,6 +283,13 @@ export interface MatchTimelineParticipant {
   purchases: Array<[number, number]>;
   /** Skill slots levelled, in order (1 = Q, 2 = W, 3 = E, 4 = R). */
   skills: number[];
+  /**
+   * Champion kills the player made, died in and assisted, in milliseconds into the game (absent on
+   * timelines stored before 29 Oct 2026). They go with the entry: a removed player's go with theirs.
+   */
+  kills?: number[];
+  deaths?: number[];
+  assists?: number[];
 }
 
 export interface MatchTeamDetail {

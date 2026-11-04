@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronUp, ExternalLink, MoreHorizontal, Pencil, Plus, RefreshCw, Star, Trash2 } from "lucide-react";
 import { platformLabel } from "@/domain/platforms";
 import { opggProfileUrl } from "@/domain/opgg";
-import { canRetrySync, describeAccountSync, syncRefreshInterval } from "@/domain/account-status";
-import { AutoRefresh } from "@/components/ui/auto-refresh";
+import { canRetrySync, describeAccountSync } from "@/domain/account-status";
 import type { RiotAccountRecord } from "@/server/accounts/repository";
 import { addPlayerAccountAction, changeRiotIdAction, removePlayerAccountAction, reorderAccountsAction, setMainAccountAction, syncPlayerAccountAction } from "@/server/actions/accounts";
 import { moveAccount, orderAccounts } from "@/domain/account-order";
@@ -18,7 +17,7 @@ import { Input, Label } from "@/components/ui/input";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { toast } from "@/components/ui/toast";
 import { RelativeTime } from "@/components/ui/relative-time";
-import { DataRefresh, type DataRefreshTarget } from "@/components/ui/data-status";
+import { RefreshButton, type DataRefreshTarget } from "@/components/ui/data-status";
 import { waitText } from "@/components/ui/refresh-note";
 import { formatCount } from "@/lib/format";
 import type { DataStatus } from "@/domain/data-status";
@@ -88,18 +87,15 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
     router.refresh();
   };
 
-  // While an account is still being verified or catching up on history, the list updates itself.
-  const refreshEvery = riotConfigured ? syncRefreshInterval(accounts.map((a) => describeAccountSync({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, history: a.historyBackfill, riotConfigured }).state)) : null;
-
   return (
     <Panel>
-      <AutoRefresh active={refreshEvery !== null} intervalMs={refreshEvery ?? undefined} />
-      {/* The profile's Refresh, where it is on every tab (under the heading, on the left); the rows
-          below already say each account's state and when it was updated, so no ⓘ repeats them. */}
+      {/* The profile's Refresh, in the header's toolbar as on every tab (at its end, on the right);
+          the rows below already say each account's state and when it was updated, so no status
+          note repeats them. */}
       <PanelHeader
         title={title}
         subtitle="The Main account is shown on the profile and used for rank; your alternatives follow in the order you set, wherever accounts are listed. Every linked account adds its games and mastery to the statistics; a game played on two accounts counts once."
-        below={status && refresh ? <DataRefresh status={status} refresh={refresh} info={false} /> : null}
+        actions={status && refresh ? <RefreshButton status={status} refresh={refresh} /> : null}
       />
       <PanelBody className="space-y-3">
         <p className="sr-only" aria-live="polite" data-testid="riot-accounts-announce">

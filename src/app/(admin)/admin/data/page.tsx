@@ -10,6 +10,8 @@ import { JobsPanel, type JobView } from "@/components/settings/settings-panels";
 import { Disclosure } from "@/components/ui/disclosure";
 import { StatusCards } from "@/components/admin/status-cards";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
+import { jobsFreshness } from "@/server/ops/freshness";
+import { FreshnessWatcher } from "@/components/ui/freshness-watcher";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +19,7 @@ export const dynamic = "force-dynamic";
 export default async function AdminDataPage() {
   await requirePageAccess("manage-data");
   const db = await getAppDb();
-  const [health, handle, overrides] = await Promise.all([getDataHealth(db), getDbHandle(), getScheduleOverrides(db)]);
+  const [health, handle, overrides, version] = await Promise.all([getDataHealth(db), getDbHandle(), getScheduleOverrides(db), jobsFreshness(db)]);
   const statusByKey = new Map(health.jobs.map((j) => [j.key, j]));
   const jobs: JobView[] = listJobs().map((j) => {
     const s = statusByKey.get(j.key);
@@ -36,6 +38,8 @@ export default async function AdminDataPage() {
   });
   return (
     <div className="space-y-5">
+      {/* Job runs and statuses update without a reload. */}
+      <FreshnessWatcher scope={{ kind: "jobs" }} version={version} />
       <PageHeader eyebrow="Admin Mode" title="Data & Integrations" description="The Riot connection, data collection and its schedule." />
       <section className="space-y-3">
         <div>

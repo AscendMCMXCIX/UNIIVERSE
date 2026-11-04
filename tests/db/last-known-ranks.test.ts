@@ -4,7 +4,8 @@ import { createDb } from "@/server/db/create";
 import { EMBEDDED_MIGRATIONS } from "@/server/db/migrations.generated";
 import { runMigrations } from "@/server/db/migrator";
 import { lastKnownRanks } from "@/server/db/schema";
-import { knownRanks } from "@/server/players/match-history";
+import { storedRankReadings } from "@/server/players/participant-ranks";
+import { participantRank } from "@/domain/known-rank";
 
 /*
   Migration 0048 copies the last-known ranks Match History shows for players outside the team out
@@ -55,8 +56,12 @@ describe("migration 0048: last-known ranks", () => {
       await scout(d2, "JUNGLE", "F", "GOLD", "I", "2026-09-01T00:00:00Z");
       await ladder("F", "DIAMOND", "2026-09-15T00:00:00Z");
 
+      // The held drops remove the sources; marking them (and what follows) applied keeps them here to compare.
+      const drop = EMBEDDED_MIGRATIONS.find((m) => m.tag.endsWith("_retire_meta_trends_tables"))!;
+      for (const m of EMBEDDED_MIGRATIONS.filter((m) => m.tag >= drop.tag)) await db.execute(sql`INSERT INTO uniiverse_migrations (tag, hash) VALUES (${m.tag}, ${m.hash})`);
       const result = await runMigrations(db, { useAdvisoryLock: false });
       expect(result.applied[0]).toBe("0048_last_known_ranks");
+      expect(result.applied.filter((tag) => tag >= drop.tag)).toEqual([]);
 
       const copied = (await db.select().from(lastKnownRanks).orderBy(asc(lastKnownRanks.puuid))).map((r) => [r.puuid, r.tier, r.division, r.observedAt.toISOString(), r.source]);
       expect(copied).toEqual([
@@ -69,14 +74,18 @@ describe("migration 0048: last-known ranks", () => {
       expect(rowsOf<{ n: number }>(await db.execute(sql`SELECT count(*)::int AS n FROM draft_enemy_scouting`))[0]!.n).toBe(8);
       expect(rowsOf<{ n: number }>(await db.execute(sql`SELECT count(*)::int AS n FROM tracked_summoners`))[0]!.n).toBe(4);
 
-      // What Match History shows, from the new table alone.
-      const ranks = await knownRanks(db, ["A", "B", "C", "D", "E", "F", "G"]);
-      expect(Object.fromEntries(ranks)).toEqual({
-        A: { tier: "PLATINUM", division: "IV", asOf: "2026-09-20T00:00:00.000Z" },
-        C: { tier: "DIAMOND", division: "I", asOf: "2026-10-01T00:00:00.000Z" },
-        E: { tier: "EMERALD", division: null, asOf: "2026-10-05T00:00:00.000Z" },
-        F: { tier: "DIAMOND", division: null, asOf: "2026-09-15T00:00:00.000Z" },
-      });
+      // What Match History shows, from the new table alone: Solo/Duo sightings with their dates,
+      // stale (so an opened match checks them with Riot), and nothing for the others: unknown, not unranked.
+      const readings = await storedRankReadings(db, ["A", "B", "C", "D", "E", "F", "G"]);
+      expect([...readings.keys()].sort()).toEqual(["A", "C", "E", "F"]);
+      const shown = (puuid: string) => participantRank(readings.get(puuid) ?? [], 420);
+      expect(shown("A")).toMatchObject({ state: "ranked", queue: "solo", tier: "PLATINUM", division: "IV", asOf: "2026-09-20T00:00:00.000Z", kind: "sighting", stale: true });
+      expect(shown("C")).toMatchObject({ tier: "DIAMOND", division: "I", asOf: "2026-10-01T00:00:00.000Z" });
+      expect(shown("E")).toMatchObject({ tier: "EMERALD", division: null, asOf: "2026-10-05T00:00:00.000Z" });
+      expect(shown("F")).toMatchObject({ tier: "DIAMOND", division: null, asOf: "2026-09-15T00:00:00.000Z" });
+      for (const puuid of ["B", "D", "G"]) expect(shown(puuid).state).toBe("unknown");
+      // The copied rows read as sightings: nothing says their Flex rank.
+      expect(readings.get("A")).toEqual([{ at: Date.parse("2026-09-20T00:00:00Z"), kind: "sighting", solo: { tier: "PLATINUM", division: "IV", leaguePoints: null }, flex: null }]);
     } finally {
       await fresh.close();
     }

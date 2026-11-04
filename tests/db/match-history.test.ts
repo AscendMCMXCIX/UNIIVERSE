@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq, inArray, sql } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { accountMatches, appSettings, matchDetails, patches, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
+import { accountMatches, appSettings, matchDetails, patches, rankSnapshots, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
 import { patchSortKey } from "@/domain/patch";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
@@ -14,7 +14,6 @@ import { compareInMatch, getMatchDetail, getMatchHistory } from "@/server/player
 import { compositionOf, loadCompositionParticipants, teamMembersByPuuid } from "@/server/matches/compositions";
 import { compactAssets, ddragonVersionOf } from "@/server/riot/static/assets";
 import { invalidateCache } from "@/server/observability/cache";
-import { importMatch, startBlock } from "@/server/ranked/repository";
 import { RiotApiClient } from "@/server/riot/api/client";
 import { RateLimiter } from "@/server/riot/api/rate-limiter";
 import type { RiotMatch } from "@/server/riot/api/schemas";
@@ -215,28 +214,28 @@ describe("personal match history", () => {
   });
 
   it("lists this season's games newest first, a page at a time, a shared game once", async () => {
-    const page = await getMatchHistory(handle.db, playerId, { per: 10 }, true);
+    const page = await getMatchHistory(handle.db, playerId, { per: 10 });
     // 20 main + 3 alt + 1 bare (the shared game once, last season's game left out).
     expect(page.total).toBe(24);
     expect(page.pages).toBe(3);
     expect(page.rows).toHaveLength(10);
     expect(page.rows.map((r) => r.matchId).slice(0, 3)).toEqual(["OC1_700000019", "OC1_700000018", "OC1_700000017"]);
     const ids = new Set<string>();
-    for (let p = 1; p <= page.pages; p++) for (const r of (await getMatchHistory(handle.db, playerId, { per: 10, page: p }, true)).rows) ids.add(r.matchId);
+    for (let p = 1; p <= page.pages; p++) for (const r of (await getMatchHistory(handle.db, playerId, { per: 10, page: p })).rows) ids.add(r.matchId);
     expect(ids.size).toBe(24);
     // Out-of-range page numbers and sizes are clamped rather than empty.
-    expect((await getMatchHistory(handle.db, playerId, { per: 10, page: 99 }, true)).page).toBe(3);
-    expect((await getMatchHistory(handle.db, playerId, { per: 1 }, true)).per).toBe(5);
-    expect((await getMatchHistory(handle.db, playerId, { per: 500 }, true)).per).toBe(25);
+    expect((await getMatchHistory(handle.db, playerId, { per: 10, page: 99 })).page).toBe(3);
+    expect((await getMatchHistory(handle.db, playerId, { per: 1 })).per).toBe(5);
+    expect((await getMatchHistory(handle.db, playerId, { per: 500 })).per).toBe(25);
   });
 
   it("filters by mode, champion, account and season", async () => {
     const db = handle.db;
-    expect((await getMatchHistory(db, playerId, { mode: "flex", per: 25 }, true)).total).toBe(10);
-    expect((await getMatchHistory(db, playerId, { mode: "solo", per: 25 }, true)).total).toBe(14);
-    expect((await getMatchHistory(db, playerId, { championId: "Riven", per: 25 }, true)).total).toBe(5);
+    expect((await getMatchHistory(db, playerId, { mode: "flex", per: 25 })).total).toBe(10);
+    expect((await getMatchHistory(db, playerId, { mode: "solo", per: 25 })).total).toBe(14);
+    expect((await getMatchHistory(db, playerId, { championId: "Riven", per: 25 })).total).toBe(5);
     // The alt: its three games and the one shared game.
-    const altPage = await getMatchHistory(db, playerId, { accountId: alt, per: 25 }, true);
+    const altPage = await getMatchHistory(db, playerId, { accountId: alt, per: 25 });
     expect(altPage.total).toBe(4);
     expect(altPage.accountOptions.map((a) => a.riotId).sort()).toEqual(["Hist#OCE", "HistAlt#OCE"]);
     // Every row says which account played it when several are linked.
@@ -244,15 +243,15 @@ describe("personal match history", () => {
     expect(altPage.championOptions.map((c) => c.id)).toEqual(["Gwen"]);
     // Last season's game stays stored but is never offered: Season 2026 is the earliest choice,
     // and an old address asking for 2025 shows the current season instead.
-    const all = await getMatchHistory(db, playerId, { per: 25 }, true);
+    const all = await getMatchHistory(db, playerId, { per: 25 });
     expect(all.seasons).toEqual([16]);
-    const last = await getMatchHistory(db, playerId, { season: 15, per: 25 }, true);
+    const last = await getMatchHistory(db, playerId, { season: 15, per: 25 });
     expect(last.filter.season).toBe(16);
     expect(last.rows.map((r) => r.matchId)).not.toContain("OC1_OLDSEASON");
   });
 
   it("shows per-minute figures, kill participation and icons only where they are recorded", async () => {
-    const page = await getMatchHistory(handle.db, playerId, { per: 25 }, true);
+    const page = await getMatchHistory(handle.db, playerId, { per: 25 });
     const top = page.rows.find((r) => r.matchId === "OC1_700000019")!;
     expect(top.record).toBe("stored");
     expect(top.csPerMin).toBeCloseTo(192 / 30, 6);
@@ -277,12 +276,12 @@ describe("personal match history", () => {
 
   it("counts every matching game, filters by pool and previews both lineups", async () => {
     const db = handle.db;
-    const all = await getMatchHistory(db, playerId, { per: 10 }, true);
+    const all = await getMatchHistory(db, playerId, { per: 10 });
     // The whole filtered population for the pages, not just this page (the shared game once).
     expect(all.total).toBe(24);
     expect(all.rows).toHaveLength(10);
     // Pool scope: the champions of the configured pool of the role each game was played in.
-    const riven = await getMatchHistory(db, playerId, { scope: "pool", per: 25 }, true, (r) => (r === "TOP" ? ["Riven"] : []));
+    const riven = await getMatchHistory(db, playerId, { scope: "pool", per: 25 }, (r) => (r === "TOP" ? ["Riven"] : []));
     expect(riven.filter.scope).toBe("pool");
     expect(riven.total).toBe(5);
     expect(riven.rows.every((r) => r.championId === "Riven")).toBe(true);
@@ -298,10 +297,12 @@ describe("personal match history", () => {
     const mate = [...top.teams!.blue, ...top.teams!.red].find((x) => x.member && !x.you);
     expect(mate?.member?.name).toBe("Duo Mate");
     expect(top.teams?.red.every((x) => x.member === null && x.name?.startsWith("Player"))).toBe(true);
-    // Player links from the record: members open their profile (no OP.GG link), everyone else their
-    // OP.GG profile on the match's server (OC1_ → oce), from the recorded Riot ID.
+    // Player links: members open their profile and have their OP.GG profile beside it, everyone else
+    // their OP.GG profile, on the match's server (OC1_ → oce). A linked account's Riot ID wins over
+    // the one the game recorded ("Me#OCE" is now Hist#OCE); strangers keep the recorded one.
     expect(top.teams?.red[0]?.opgg).toMatch(/^https:\/\/op\.gg\/lol\/summoners\/oce\/Player\d-OCE$/);
-    expect([...top.teams!.blue, ...top.teams!.red].filter((x) => x.member).every((x) => x.opgg === null)).toBe(true);
+    expect(top.teams?.blue[0]?.opgg).toBe("https://op.gg/lol/summoners/oce/Hist-OCE");
+    expect(mate?.opgg).toBe("https://op.gg/lol/summoners/oce/Mate-OCE");
     expect(all.rows.find((r) => r.matchId === "OC1_700000017")?.teams).toBeNull();
     expect(all.rows.find((r) => r.matchId === "OC1_700000016")?.teams).toBeNull();
   });
@@ -345,11 +346,48 @@ describe("personal match history", () => {
       expect(by.get(7)?.opgg).toBe("https://op.gg/lol/summoners/oce/Player7-OCE");
       expect(by.get(8)?.opgg).toBe("https://op.gg/lol/summoners/oce/Player8-OCE");
       // The match cards use the same rule.
-      const page = await getMatchHistory(db, playerId, { per: 25 }, true);
+      const page = await getMatchHistory(db, playerId, { per: 25 });
       const red = page.rows.find((r) => r.matchId === "OC1_700000018")!.teams!.red;
       expect(red.map((x) => x.opgg)).toContain(`https://op.gg/lol/summoners/euw/${encodeURIComponent("Новое Имя")}-RU1`);
     } finally {
       await db.delete(matchDetails).where(inArray(matchDetails.matchId, ["EUW1_800000001", "OC1_600000001"]));
+    }
+  });
+
+  it("links by the newest full Riot ID from a real game, and by a linked account's server only once Riot confirmed it", async () => {
+    const db = handle.db;
+    const named = (m: RiotMatch, names: Record<number, [string, string]>) => {
+      for (const [slot, [game, tag]] of Object.entries(names)) Object.assign(m.info.participants[Number(slot)]!, { riotIdGameName: game, riotIdTagline: tag });
+      return m;
+    };
+    const nine = "OC1_700000018-other-9";
+    const later = (h: number) => base + h * 3_600_000;
+    // Newer games: player 9 renamed, then once without a tag (Riot left it out), then in a demo game under a made-up name.
+    await storeMatchDetail(db, "oc1", named(riotMatch("OC1_800000002", { puuid: "x-a", champion: "Ahri", role: "MID", win: true, queue: 420, created: later(25), extra: [{ puuid: nine, slot: 9 }] }), { 9: ["Nine Renamed", "OCE"] }), keyToId);
+    await storeMatchDetail(db, "oc1", named(riotMatch("OC1_800000003", { puuid: "x-b", champion: "Ahri", role: "MID", win: true, queue: 420, created: later(26), extra: [{ puuid: nine, slot: 9 }] }), { 9: ["Nine Renamed", ""] }), keyToId);
+    const [record] = await db.select({ participants: matchDetails.participants }).from(matchDetails).where(eq(matchDetails.matchId, "OC1_800000002"));
+    const demoPlace = { ...record!.participants.find((x) => x.puuid === nine)!, name: "Made Up#OCE" };
+    await db.insert(matchDetails).values({ matchId: "DEMO_1a2b3c4d_1", platform: "oc1", queueId: 420, gameCreation: later(27), gameDuration: 1800, gameVersion: "16.20.1", teams: [], participants: [demoPlace] });
+    const mate = async () => (await getMatchHistory(db, playerId, { per: 25 })).rows.find((r) => r.matchId === "OC1_700000019")!.teams!.blue.find((x) => x.member && !x.you)!;
+    try {
+      const page = await getMatchHistory(db, playerId, { per: 25 });
+      const card = page.rows.find((r) => r.matchId === "OC1_700000018")!.teams!.red.find((x) => x.slot === 9);
+      expect(card?.opgg).toBe("https://op.gg/lol/summoners/oce/Nine%20Renamed-OCE");
+      const res = await getMatchDetail(db, playerId, "OC1_700000018", { viewerIsOwner: true });
+      if (res.status !== "ok") throw new Error(res.status);
+      expect(res.view.teams.flatMap((t) => t.participants).find((x) => x.slot === 9)?.opgg).toBe("https://op.gg/lol/summoners/oce/Nine%20Renamed-OCE");
+      // The mate's linked account says EUW, by the player's own choice: the match's server is used.
+      await db.update(riotAccounts).set({ platform: "euw1" }).where(eq(riotAccounts.puuid, "h-mate"));
+      expect((await mate()).opgg).toBe("https://op.gg/lol/summoners/oce/Mate-OCE");
+      // Once Riot has confirmed it, EUW.
+      await db.update(riotAccounts).set({ platformSource: "riot" }).where(eq(riotAccounts.puuid, "h-mate"));
+      expect((await mate()).opgg).toBe("https://op.gg/lol/summoners/euw/Mate-OCE");
+      // A demo account's made-up Riot ID is never used, the profile link stays.
+      await db.update(riotAccounts).set({ syncStatus: "demo", gameName: "Demo Mate" }).where(eq(riotAccounts.puuid, "h-mate"));
+      expect(await mate()).toMatchObject({ member: { name: "Duo Mate" }, opgg: "https://op.gg/lol/summoners/oce/Player1-OCE" });
+    } finally {
+      await db.update(riotAccounts).set({ platform: "oc1", platformSource: "user", syncStatus: "never", gameName: "Mate" }).where(eq(riotAccounts.puuid, "h-mate"));
+      await db.delete(matchDetails).where(inArray(matchDetails.matchId, ["OC1_800000002", "OC1_800000003", "DEMO_1a2b3c4d_1"]));
     }
   });
 
@@ -358,7 +396,7 @@ describe("personal match history", () => {
     const solo = (await createPlayer(db, teamId, { displayName: "Single", primaryRole: "MID", primaryPool: ["Ahri"] })).id;
     const acc = (await addAccount(db, { ownerType: "player", playerId: solo, riotId: "Single#OCE", platform: "oc1" })).id;
     await db.insert(accountMatches).values({ accountId: acc, matchId: "OC1_S1", gameCreation: base, queueId: 420, championId: "Ahri", role: "MIDDLE", win: true, patch: "16.20" });
-    const page = await getMatchHistory(db, solo, {}, true);
+    const page = await getMatchHistory(db, solo, {});
     expect(page.accountOptions).toEqual([]);
     expect(page.rows[0]?.riotId).toBeNull();
     expect(page.total).toBe(1);
@@ -389,8 +427,6 @@ describe("personal match history", () => {
     expect(stranger).toMatchObject({ memberId: null, teamMember: null });
     expect(stranger.opgg).toBe(`https://op.gg/lol/summoners/oce/${encodeURIComponent(stranger.name!.split("#")[0]!)}-OCE`);
     expect(v.maxDamage).toBe(27_000);
-    // Flex: not a Solo Queue Block game.
-    expect(v.journal.eligible).toBe(false);
     // Comparisons from the record only: shares of the team, the enemy top laner, team totals.
     const c = v.comparison;
     expect(c.damageShare).toBeCloseTo(27_000 / 87_000, 6);
@@ -442,26 +478,9 @@ describe("personal match history", () => {
     expect(missing.status).toBe("missing");
   });
 
-  it("adds a Solo/Duo game to the owner's Solo Queue Block once", async () => {
-    const db = handle.db;
-    const before = await getMatchDetail(db, playerId, "OC1_700000018", { viewerIsOwner: true });
-    expect(before.status === "ok" && before.view.journal).toEqual({ eligible: true, inJournal: false });
-    // Teammates viewing the profile never get the journal action.
-    const viewer = await getMatchDetail(db, playerId, "OC1_700000018", { viewerIsOwner: false });
-    expect(viewer.status === "ok" && viewer.view.journal.eligible).toBe(false);
-    await startBlock(db, playerId, 5);
-    await importMatch(db, playerId, "OC1_700000018");
-    await expect(importMatch(db, playerId, "OC1_700000018")).rejects.toThrow(/already in your journal/);
-    const after = await getMatchDetail(db, playerId, "OC1_700000018", { viewerIsOwner: true });
-    expect(after.status === "ok" && after.view.journal.inJournal).toBe(true);
-    const page = await getMatchHistory(db, playerId, { per: 25 }, true);
-    expect(page.rows.find((r) => r.matchId === "OC1_700000018")?.inJournal).toBe(true);
-    expect((await getMatchHistory(db, playerId, { per: 25 }, false)).rows.find((r) => r.matchId === "OC1_700000018")?.inJournal).toBe(false);
-  });
-
   it("marks a game's largest multikill from its stored record, and nothing without one", async () => {
     const db = handle.db;
-    const row = async (id: string) => (await getMatchHistory(db, playerId, { per: 25 }, true)).rows.find((r) => r.matchId === id)!;
+    const row = async (id: string) => (await getMatchHistory(db, playerId, { per: 25 })).rows.find((r) => r.matchId === id)!;
     expect((await row("OC1_700000019")).multikill).toBeNull();
     // The player is the record's first participant (see riotMatch).
     await db.execute(sql`UPDATE match_details SET participants = jsonb_set(participants, '{0,stats}', '{"doubleKills":1,"tripleKills":1,"quadraKills":0,"pentaKills":0,"largestMultiKill":3}'::jsonb) WHERE match_id = 'OC1_700000019'`);
@@ -484,8 +503,9 @@ describe("riot assets", () => {
 });
 
 describe("last-known ranks of a match's players", () => {
-  it("come only from stored snapshots, the most recent one, and are never invented", async () => {
-    const { knownRanks } = await import("@/server/players/match-history");
+  it("come only from stored readings, the most recent one, and are never invented", async () => {
+    const { storedRankReadings } = await import("@/server/players/participant-ranks");
+    const { participantRank } = await import("@/domain/known-rank");
     const { lastKnownRanks, riotAccounts: accountsTable } = await import("@/server/db/schema");
     const db = handle.db;
     await db.insert(lastKnownRanks).values([
@@ -496,12 +516,237 @@ describe("last-known ranks of a match's players", () => {
     const owner = await createPlayer(db, teamId, { displayName: "Ranked", primaryRole: "MID", primaryPool: ["Ahri"] });
     const acc = await addAccount(db, { ownerType: "player", playerId: owner.id, riotId: "Ranked#OCE", platform: "oc1", puuid: "rank-both" });
     await db.update(accountsTable).set({ tier: "DIAMOND", division: "II", rankUpdatedAt: new Date("2026-10-10T00:00:00Z") }).where(eq(accountsTable.id, acc.id));
-    const ranks = await knownRanks(db, ["rank-ladder", "rank-both", "rank-apex", "rank-nobody"]);
-    expect(ranks.get("rank-ladder")).toEqual({ tier: "DIAMOND", division: null, asOf: "2026-10-01T00:00:00.000Z" });
-    // The account snapshot is newer than the ladder sighting: it wins, with its division.
-    expect(ranks.get("rank-both")).toEqual({ tier: "DIAMOND", division: "II", asOf: "2026-10-10T00:00:00.000Z" });
-    expect(ranks.get("rank-apex")?.division).toBeNull();
-    // Nothing stored: no rank (not "unranked").
-    expect(ranks.has("rank-nobody")).toBe(false);
+    const readings = await storedRankReadings(db, ["rank-ladder", "rank-both", "rank-apex", "rank-nobody"]);
+    const shown = (puuid: string) => participantRank(readings.get(puuid) ?? [], 420, Date.parse("2026-10-12T00:00:00Z"));
+    expect(shown("rank-ladder")).toMatchObject({ state: "ranked", tier: "DIAMOND", division: null, asOf: "2026-10-01T00:00:00.000Z" });
+    // The account's stored rank is newer than the scouting sighting: it wins, with its division.
+    expect(shown("rank-both")).toMatchObject({ state: "ranked", tier: "DIAMOND", division: "II", asOf: "2026-10-10T00:00:00.000Z" });
+    expect(shown("rank-apex").division).toBeNull();
+    // Nothing stored: unknown, not "unranked".
+    expect(shown("rank-nobody")).toMatchObject({ state: "unknown", stale: true });
+  });
+});
+
+describe("comparisons, the summary and the ladder (Match History 2.0)", () => {
+  let playerId: string;
+  let account: string;
+  const hour = 3_600_000;
+  const day = 24 * hour;
+  // 25 ranked Mid games a day apart, ending a day ago; then the newest, with more damage than any of them.
+  const start = Date.now() - 27 * day;
+  const lanes = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
+  const part = (puuid: string, teamId: number, position: string, over: Partial<MatchParticipantDetail> = {}): MatchParticipantDetail => ({ puuid, name: `${puuid}#OCE`, teamId, championId: "Ahri", championKey: 103, champLevel: 14, position, win: teamId === 100, kills: 2, deaths: 3, assists: 4, cs: 150, gold: 9_000, damage: 15_000, damageTaken: 18_000, vision: 18, wardsPlaced: 8, items: null, spells: null, runes: null, ...over });
+
+  beforeAll(async () => {
+    const db = handle.db;
+    playerId = (await createPlayer(db, teamId, { displayName: "Comparer", primaryRole: "MID", primaryPool: ["Ahri"] })).id;
+    account = (await addAccount(db, { ownerType: "player", playerId, riotId: "Comparer#OCE", platform: "oc1", puuid: "c-me" })).id;
+    const game = (i: number, over: Partial<typeof accountMatches.$inferInsert> = {}): typeof accountMatches.$inferInsert => ({ accountId: account, matchId: `OC1_9100000${String(i).padStart(2, "0")}`, gameCreation: start + i * day, queueId: 420, championId: "Ahri", role: "MID", win: i % 2 === 0, patch: "16.20", kills: 5, deaths: 5, assists: 5, cs: 210, damage: 21_000, visionScore: 30, gameDuration: 1800, teamKills: 25, ...over });
+    await db.insert(accountMatches).values([
+      ...Array.from({ length: 25 }, (_, i) => game(i)),
+      // The newest ranked game: 50% more damage than ever before, everything else the same.
+      game(25, { damage: 31_500, win: true }),
+      // A normal game the same day: never compared with ranked games (and too few normals to compare at all).
+      game(26, { queueId: 400, damage: 90_000, gameCreation: start + 25 * day + hour, win: true }),
+    ]);
+    // The newest ranked game's full record: the player in the middle on blue.
+    const me = part("c-me", 100, "MIDDLE", { kills: 5, deaths: 5, assists: 5, cs: 210, gold: 12_000, damage: 31_500, vision: 30, champLevel: 17, stats: { turretTakedowns: 3, wardsKilled: 4, controlWardsBought: 2 } });
+    const participants = [...lanes.map((l) => (l === "MIDDLE" ? me : part(`c-b-${l}`, 100, l))), ...lanes.map((l) => part(`c-r-${l}`, 200, l))];
+    await db.insert(matchDetails).values({ matchId: "OC1_910000025", platform: "oc1", queueId: 420, gameCreation: start + 25 * day, gameDuration: 1800, gameVersion: "16.20.1", teams: [], participants });
+    // Rank readings: Gold II 50 LP 40 days ago, Gold I 10 LP 20 days ago, Gold I 60 LP 2 days ago.
+    await db.insert(rankSnapshots).values([
+      { accountId: account, queue: "solo", tier: "GOLD", division: "II", leaguePoints: 50, wins: 10, losses: 10, capturedAt: new Date(Date.now() - 40 * day) },
+      { accountId: account, queue: "solo", tier: "GOLD", division: "I", leaguePoints: 10, wins: 20, losses: 15, capturedAt: new Date(Date.now() - 20 * day) },
+      { accountId: account, queue: "solo", tier: "GOLD", division: "I", leaguePoints: 60, wins: 28, losses: 19, capturedAt: new Date(Date.now() - 2 * day) },
+    ]);
+  });
+
+  it("marks a game's figure only when it is above every one of enough earlier games of the same role and queue group", async () => {
+    const page = await getMatchHistory(handle.db, playerId, { per: 25 });
+    const newest = page.rows.find((r) => r.matchId === "OC1_910000025")!;
+    expect(newest.standout).toMatchObject({ key: "damagePerMin", games: 25 });
+    expect(newest.standout!.value).toBeCloseTo(31_500 / 30, 6);
+    expect(newest.standout!.top).toBeCloseTo(21_000 / 30, 6);
+    // The normal game is not compared with ranked games, and the rest are like every other game.
+    expect(page.rows.find((r) => r.matchId === "OC1_910000026")!.standout).toBeNull();
+    expect(page.rows.filter((r) => r.standout)).toHaveLength(1);
+    // From the full record: the champion's level and the share of the team's damage.
+    expect(newest.champLevel).toBe(17);
+    expect(newest.damageShare).toBeCloseTo(31_500 / (31_500 + 4 * 15_000), 6);
+  });
+
+  it("summarises the newest games of the filter with the Overview's rules", async () => {
+    const db = handle.db;
+    const all = await getMatchHistory(db, playerId, { per: 25 });
+    const s = all.summary!;
+    expect(s.form.recent.games).toBe(20);
+    // The two newest games were won; the one before them (game 24, even) too, game 23 lost.
+    expect(s.streak).toEqual({ win: true, games: 3 });
+    expect(s.mostPlayed).toEqual([{ championId: "Ahri", games: 20, wins: expect.any(Number) }]);
+    // Kills and assists over the team's kills: (5 + 5) / 25 in every game.
+    expect(s.killParticipation.games).toBe(20);
+    expect(s.killParticipation.value).toBeCloseTo(10 / 25, 6);
+    // A filter that matches nothing has no summary.
+    expect((await getMatchHistory(db, playerId, { championId: "Garen", per: 25 })).summary).toBeNull();
+  });
+
+  it("reads the 30-day ladder change from stored readings, the same as the profile's ranked progress", async () => {
+    const db = handle.db;
+    const page = await getMatchHistory(db, playerId, { per: 25 });
+    expect(page.ladder).toMatchObject({ queue: "solo", days: 30, points: 110, from: "Gold II 50 LP", to: "Gold I 60 LP", riotId: null });
+    // Normal games have no ladder; Flex has no readings here.
+    expect((await getMatchHistory(db, playerId, { mode: "normal", per: 25 })).ladder).toBeNull();
+    expect((await getMatchHistory(db, playerId, { mode: "flex", per: 25 })).ladder).toBeNull();
+    // Reading only the window and the reading before it gives rankProgress's answer over every reading.
+    const { ladderChange } = await import("@/server/accounts/rank-history");
+    const { rankProgress } = await import("@/domain/rank-progress");
+    const rows = await db.select().from(rankSnapshots).where(eq(rankSnapshots.accountId, account));
+    const every = rankProgress("solo", rows.map((r) => ({ queue: "solo" as const, tier: r.tier, division: r.division, leaguePoints: r.leaguePoints, wins: r.wins, losses: r.losses, capturedAt: r.capturedAt.getTime() })), Date.now()).change;
+    expect(await ladderChange(db, account, "solo")).toEqual({ ...every, queue: "solo" });
+  });
+
+  it("opens the game beside the player's usual, with each player's shares and rates", async () => {
+    const res = await getMatchDetail(handle.db, playerId, "OC1_910000025", { viewerIsOwner: true });
+    if (res.status !== "ok") throw new Error(res.message);
+    const v = res.view;
+    expect(v.personal).toMatchObject({ role: "MID", group: "ranked" });
+    const dmg = v.personal!.figures.find((f) => f.key === "damagePerMin")!;
+    expect(dmg).toMatchObject({ games: 25, percentile: 1, best: true });
+    expect(v.personal!.figures.find((f) => f.key === "kda")).toMatchObject({ best: false, percentile: 0.5 });
+    // Per player: kill participation, shares and per-minute rates from the stored record.
+    expect(v.player.killParticipation).toBeCloseTo(10 / (5 + 4 * 2), 6);
+    expect(v.player.damageShare).toBeCloseTo(31_500 / 91_500, 6);
+    expect(v.player.goldPerMin).toBeCloseTo(400, 6);
+    expect(v.player.visionPerMin).toBeCloseTo(1, 6);
+    expect(v.player.stats).toMatchObject({ turretTakedowns: 3, wardsKilled: 4, controlWardsBought: 2 });
+    const enemyMid = v.teams[1]!.participants.find((p) => p.position === "MIDDLE")!;
+    expect(v.comparison.opponent?.slot).toBe(enemyMid.slot);
+    expect(enemyMid.damageShare).toBeCloseTo(0.2, 6);
+  });
+});
+
+describe("Refine and playing sessions (Match History 2.0)", () => {
+  let playerId: string;
+  let mateA: string;
+  let mateB: string;
+  const minute = 60_000;
+  const day = 24 * 60 * minute;
+  // Ten days ago at a fixed hour, so the days and the sittings do not depend on when the test runs.
+  const t0 = Math.floor((Date.now() - 10 * day) / day) * day + 9 * 60 * minute;
+  const lanes = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
+  const part = (puuid: string, teamId: number, position: string, over: Partial<MatchParticipantDetail> = {}): MatchParticipantDetail => ({ puuid, name: `${puuid}#OCE`, teamId, championId: "Ahri", championKey: 103, champLevel: 14, position, win: teamId === 100, kills: 2, deaths: 3, assists: 4, cs: 150, gold: 9_000, damage: 15_000, damageTaken: 18_000, vision: 18, wardsPlaced: 8, items: null, spells: null, runes: null, ...over });
+  /** A record with the player in the middle on blue and the members placed as given (blue = with, red = against). */
+  const record = (matchId: string, created: number, members: { blue?: string[]; red?: string[] }) => {
+    const blue = lanes.map((l, i) => (l === "MIDDLE" ? part("r-me", 100, l) : part(members.blue?.[i > 2 ? i - 1 : i] ?? `r-b-${matchId}-${l}`, 100, l)));
+    const red = lanes.map((l, i) => part(members.red?.[i] ?? `r-r-${matchId}-${l}`, 200, l));
+    return { matchId, platform: "oc1", queueId: 420, gameCreation: created, gameDuration: 1800, gameVersion: "16.20.1", teams: [], participants: [...blue, ...red] };
+  };
+  const ids = { g1: "OC1_920000001", g2: "OC1_920000002", g3: "OC1_920000003", g4: "OC1_920000004", normal: "OC1_920000005" };
+
+  beforeAll(async () => {
+    const db = handle.db;
+    playerId = (await createPlayer(db, teamId, { displayName: "Refiner", primaryRole: "MID", primaryPool: ["Ahri"] })).id;
+    const account = (await addAccount(db, { ownerType: "player", playerId, riotId: "Refiner#OCE", platform: "oc1", puuid: "r-me" })).id;
+    mateA = (await createPlayer(db, teamId, { displayName: "Mate A", primaryRole: "JUNGLE", primaryPool: ["LeeSin"] })).id;
+    const mateAccountA = (await addAccount(db, { ownerType: "player", playerId: mateA, riotId: "MateA#OCE", platform: "oc1", puuid: "r-mate-a" })).id;
+    mateB = (await createPlayer(db, teamId, { displayName: "Mate B", primaryRole: "TOP", primaryPool: ["Gwen"] })).id;
+    const mateAccountB = (await addAccount(db, { ownerType: "player", playerId: mateB, riotId: "MateB#OCE", platform: "oc1", puuid: "r-mate-b" })).id;
+    // An archived profile is not a team member: never counted, never offered.
+    const gone = (await createPlayer(db, teamId, { displayName: "Former", primaryRole: "ADC", primaryPool: ["Jinx"] })).id;
+    const goneAccount = (await addAccount(db, { ownerType: "player", playerId: gone, riotId: "Former#OCE", platform: "oc1", puuid: "r-former" })).id;
+    await db.execute(sql`UPDATE players SET archived_at = now() WHERE id = ${gone}::uuid`);
+    const counts = (doubleKills: number, tripleKills: number, quadraKills: number, pentaKills: number) => ({ doubleKills, tripleKills, quadraKills, pentaKills });
+    const game = (matchId: string, created: number, over: Partial<typeof accountMatches.$inferInsert> = {}): typeof accountMatches.$inferInsert => ({ accountId: account, matchId, gameCreation: created, queueId: 420, championId: "Ahri", role: "MID", win: true, patch: "16.20", kills: 5, deaths: 2, assists: 6, cs: 210, damage: 21_000, visionScore: 30, gameDuration: 1800, extraStats: counts(0, 0, 0, 0), ...over });
+    // One evening: g1, g2 15 minutes after it ended, a normal game 15 minutes after that. Two days later g3, then g4 (no record).
+    // Each side (team_id) as the summary of a stored record keeps it (accounts/match-summary); g4 has none.
+    await db.insert(accountMatches).values([
+      game(ids.g1, t0, { teamId: 100, extraStats: counts(1, 0, 0, 0) }),
+      game(ids.g2, t0 + 45 * minute, { teamId: 100, win: false, kills: 1, deaths: 6, assists: 2 }),
+      game(ids.normal, t0 + 90 * minute, { teamId: 100, queueId: 400, win: false }),
+      game(ids.g3, t0 + 2 * day, { teamId: 100, patch: "16.19", extraStats: counts(0, 0, 0, 1) }),
+      game(ids.g4, t0 + 4 * day, { patch: "16.19", win: false }),
+    ]);
+    await db.insert(matchDetails).values([
+      record(ids.g1, t0, { blue: ["r-mate-a", "r-former"] }),
+      record(ids.g2, t0 + 45 * minute, { red: ["r-mate-a"] }),
+      { ...record(ids.normal, t0 + 90 * minute, {}), queueId: 400 },
+      // Mate A is in g3's record too, but their account never stored g3: not counted (the rule of Played together).
+      record(ids.g3, t0 + 2 * day, { blue: ["r-mate-b"], red: ["r-mate-a"] }),
+    ]);
+    // The members' own stored games, as their accounts' sync keeps them, each with its side.
+    await db.insert(accountMatches).values([
+      game(ids.g1, t0, { accountId: mateAccountA, teamId: 100, championId: "LeeSin", role: "JUNGLE" }),
+      game(ids.g1, t0, { accountId: goneAccount, teamId: 100, championId: "Jinx", role: "ADC" }),
+      game(ids.g2, t0 + 45 * minute, { accountId: mateAccountA, teamId: 200, championId: "LeeSin", role: "JUNGLE", win: true }),
+      game(ids.g3, t0 + 2 * day, { accountId: mateAccountB, teamId: 100, championId: "Gwen", role: "TOP", patch: "16.19" }),
+    ]);
+  });
+
+  const page = (refine: Record<string, string>, more: Parameters<typeof getMatchHistory>[2] = {}) => getMatchHistory(handle.db, playerId, { per: 25, ...more, refine });
+  const listed = async (refine: Record<string, string>, more: Parameters<typeof getMatchHistory>[2] = {}) => (await page(refine, more)).rows.map((r) => r.matchId);
+
+  it("keeps wins or losses, one patch (by either name) and the days between two dates, in the installation's time zone", async () => {
+    const { isoDay } = await import("@/lib/format");
+    expect(await listed({ result: "win" })).toEqual([ids.g3, ids.g1]);
+    expect(await listed({ result: "loss" })).toEqual([ids.g4, ids.normal, ids.g2]);
+    expect(await listed({ patch: "26.19" })).toEqual([ids.g4, ids.g3]);
+    expect(await listed({ from: isoDay(t0 + 2 * day), to: isoDay(t0 + 3 * day) })).toEqual([ids.g3]);
+    const all = await page({});
+    expect(all.unrefinedTotal).toBe(5);
+    expect(all.patchOptions).toEqual([
+      { patch: "16.20", label: "26.20", games: 3 },
+      { patch: "16.19", label: "26.19", games: 2 },
+    ]);
+    // Narrowed by Refine: the summary is the refined games', and the total says how many are listed.
+    const wins = await page({ result: "win" });
+    expect(wins.total).toBe(2);
+    expect(wins.unrefinedTotal).toBe(5);
+    expect(wins.summary!.form.recent.games).toBe(2);
+  });
+
+  it("keeps the games a team member played with the player or against them, as their stored games place them", async () => {
+    const all = await page({});
+    // Counted per member over the games the other filters leave; the archived profile is not offered.
+    expect(all.memberOptions).toEqual([
+      { id: mateA, name: "Mate A", with: 1, against: 1 },
+      { id: mateB, name: "Mate B", with: 1, against: 0 },
+    ]);
+    expect(await listed({ with: mateA })).toEqual([ids.g1]);
+    expect(await listed({ against: mateA })).toEqual([ids.g2]);
+    expect(await listed({ with: "any" })).toEqual([ids.g3, ids.g1]);
+    expect(await listed({ against: mateB })).toEqual([]);
+    // The counts are over the games the shared filters leave, not narrowed by Refine's own choices,
+    // so choosing a patch keeps every member on offer; a shared filter does narrow them.
+    expect((await page({ patch: "16.19" })).memberOptions.map((m) => m.name)).toEqual(["Mate A", "Mate B"]);
+    expect((await page({}, { mode: "normal" })).memberOptions).toEqual([]);
+    // A profile that is not a current member is ignored, never guessed: every game is listed.
+    const unknown = await page({ with: "99999999-9999-4999-8999-999999999999" });
+    expect(unknown.refine.member).toBeNull();
+    expect(unknown.total).toBe(5);
+  });
+
+  it("keeps the games with a multikill of at least the size chosen", async () => {
+    expect(await listed({ hl: "double" })).toEqual([ids.g3, ids.g1]);
+    expect(await listed({ hl: "penta" })).toEqual([ids.g3]);
+    expect(await listed({ hl: "triple", result: "loss" })).toEqual([]);
+  });
+
+  it("groups the page into playing sessions found from every game, each with the figures of the games listed", async () => {
+    const grouped = await page({ group: "sessions" });
+    expect(grouped.sessionOf[ids.g1]).toBe(ids.g1);
+    expect(grouped.sessionOf[ids.g2]).toBe(ids.g1);
+    expect(grouped.sessionOf[ids.normal]).toBe(ids.g1);
+    expect(grouped.sessionOf[ids.g3]).toBe(ids.g3);
+    expect(grouped.sessions[ids.g1]).toMatchObject({ games: 3, wins: 1, losses: 2, start: t0, end: t0 + 90 * minute + 1800 * 1000, minutes: 90 });
+    // Solo/Duo only: the normal game is not listed but keeps the evening one session.
+    const solo = await page({ group: "sessions" }, { mode: "solo" });
+    expect(solo.rows.map((r) => r.matchId)).toEqual([ids.g4, ids.g3, ids.g2, ids.g1]);
+    expect(solo.sessions[ids.g1]).toMatchObject({ games: 2, wins: 1, losses: 1, end: t0 + 45 * minute + 1800 * 1000 });
+    expect(solo.sessions[ids.g1]!.kda).toBeCloseTo((5 + 6 + 1 + 2) / (2 + 6), 6);
+    // A session cut by the page break keeps its whole record.
+    const small = await page({ group: "sessions" }, { per: 5, page: 1 });
+    expect(Object.keys(small.sessions).length).toBeGreaterThan(0);
+    // Without grouping, nothing is computed.
+    expect((await page({})).sessionOf).toEqual({});
   });
 });

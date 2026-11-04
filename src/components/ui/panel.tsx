@@ -3,21 +3,20 @@ import { cn } from "@/lib/cn";
 
 export function Panel({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <section className={cn("min-w-0 rounded-lg border border-border bg-surface", className)} {...props}>
+    <section className={cn("panel-depth min-w-0 rounded-panel border border-border bg-surface", className)} {...props}>
       {children}
     </section>
   );
 }
 
-export function PanelHeader({ title, subtitle, actions, below, className }: { title: React.ReactNode; subtitle?: React.ReactNode; actions?: React.ReactNode; /** Under the title and subtitle, on the left (a section's Refresh). */ below?: React.ReactNode; className?: string }) {
+export function PanelHeader({ title, subtitle, actions, className }: { title: React.ReactNode; subtitle?: React.ReactNode; actions?: React.ReactNode; className?: string }) {
   return (
-    <header className={cn("flex flex-wrap items-start justify-between gap-x-4 gap-y-2 border-b border-border px-3 py-3 sm:px-4", className)}>
-      <div className="min-w-0">
-        <h2 className="text-sm font-semibold tracking-wide text-fg">{title}</h2>
-        {subtitle ? <p className="mt-0.5 text-xs text-fg-muted">{subtitle}</p> : null}
-        {below ? <div className="mt-2.5">{below}</div> : null}
-      </div>
-      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+    // The actions (a badge, a link, a section's Refresh) stay on the title's row at the right at every
+    // width: on phones the subtitle takes the full width under them, from sm up it wraps beside them.
+    <header className={cn("grid items-start gap-x-4 border-b border-border px-3 py-3 sm:px-4", actions ? "grid-cols-[minmax(0,1fr)_auto]" : "grid-cols-[minmax(0,1fr)]", className)}>
+      <h2 className="min-w-0 self-center text-base font-semibold text-fg">{title}</h2>
+      {actions ? <div className="col-start-2 row-start-1 flex flex-wrap items-center justify-end gap-2 sm:row-span-2">{actions}</div> : null}
+      {subtitle ? <p className={cn("mt-0.5 text-sm text-fg-muted", actions && "col-span-2 sm:col-span-1")}>{subtitle}</p> : null}
     </header>
   );
 }

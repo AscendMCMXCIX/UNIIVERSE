@@ -24,13 +24,11 @@ import {
   accountMatches,
   appSettings,
   auditEvents,
-  draftActions,
-  draftEnemyScouting,
-  drafts,
+  developmentObjectives,
+  developmentPlans,
   jobRuns,
   lastKnownRanks,
   matchDetails,
-  matches,
   matchTimelines,
   players,
   privacyErasures,
@@ -43,7 +41,7 @@ import {
   type MatchParticipantDetail,
 } from "@/server/db/schema";
 import { getOrCreateTeam } from "@/server/repositories/team";
-import { eraseSubject, memberSubject, previewErasure, formerMemberSubject, ERASED_MEMBER, FORMER_MEMBER } from "@/server/privacy/erasure";
+import { eraseSubject, memberSubject, previewErasure, formerMemberSubject, ERASED_MEMBER } from "@/server/privacy/erasure";
 import { erasureFilter, exportErasures, importErasures, releaseErasure } from "@/server/privacy/ledger";
 import { reconcileErasures } from "@/server/privacy/reconcile";
 import { matchDetailRow, storeMatchDetail } from "@/server/accounts/match-details";
@@ -55,7 +53,8 @@ import type { RiotMatch } from "@/server/riot/api/schemas";
   Permanent personal-data erasure on a realistic member (synthetic data, never a real player):
   Alice has an account, a profile, two Riot accounts, games of her own and games shared with Bob
   and Carol, an old game recorded under another API key's PUUID and her former Riot ID, a journal,
-  a place in team drafts and match records, job log lines and admin log entries. After the erasure nothing anywhere in the database names her, shared games keep the
+  job log lines and admin log entries (the Draft feature's team records and the Clash scouts went
+  with their tables, migrations 0063 and 0064). After the erasure nothing anywhere in the database names her, shared games keep the
   others, the erasure keeps her out of later syncs and links, and a restored backup is reconciled.
 */
 
@@ -73,8 +72,6 @@ const id = {
   aliceAlt: randomUUID(),
   bobAccount: randomUUID(),
   carolAccount: randomUUID(),
-  draft: randomUUID(),
-  match: randomUUID(),
 };
 // Identifiers that must not survive anywhere (checked across every table at the end).
 const ALICE_TRACES = ["alice", "AliceMain", "AliceAlt", "AliceOld", "puuid-alice-main", "puuid-alice-alt", "puuid-alice-oldkey", id.alice, id.alicePlayer, id.aliceMain, id.aliceAlt];
@@ -146,24 +143,36 @@ async function seed(db: Db): Promise<void> {
   const frames = (puuids: string[]) => ({ t: [0, 60000], p: Object.fromEntries(puuids.map((p) => [p, { g: [500, 900], x: [0, 280], c: [0, 8] }])) });
   await db.insert(matchTimelines).values([
     { matchId: "OC1_SOLO", platform: "oc1", participants: [{ puuid: "puuid-alice-main", purchases: [[1000, 1056]], skills: [1, 2] }], frames: frames(["puuid-alice-main", "stranger-100-0"]) },
-    { matchId: "OC1_SHARED", platform: "oc1", participants: [{ puuid: "puuid-alice-main", purchases: [[1000, 1056]], skills: [1] }, { puuid: "puuid-bob", purchases: [[1000, 1055]], skills: [3] }], frames: frames(["puuid-alice-main", "puuid-bob"]) },
+    {
+      matchId: "OC1_SHARED",
+      platform: "oc1",
+      participants: [
+        { puuid: "puuid-alice-main", purchases: [[1000, 1056]], skills: [1], kills: [300000], deaths: [], assists: [420000] },
+        { puuid: "puuid-bob", purchases: [[1000, 1055]], skills: [3], kills: [420000], deaths: [600000], assists: [300000] },
+      ],
+      frames: frames(["puuid-alice-main", "puuid-bob"]),
+      events: { objectives: [{ t: 360000, team: 100, kind: "dragon", detail: "FIRE" }] },
+    },
   ]);
   await db.insert(teamBookmarks).values([{ teamId, riotMatchId: "OC1_SHARED", playerId: null, createdByUserId: id.alice, note: "great game" }]);
   // Her journal, and Bob's entry that names her as a duo (and as someone he did not play with).
   const [block] = await db.insert(rankedBlocks).values({ playerId: id.alicePlayer, number: 1 }).returning({ id: rankedBlocks.id });
   await db.insert(rankedGames).values({ blockId: block!.id, playerId: id.alicePlayer, riotMatchId: "OC1_SOLO", championId: "Ahri", result: "win", notes: "felt good" });
   const [bobBlock] = await db.insert(rankedBlocks).values({ playerId: id.bobPlayer, number: 1 }).returning({ id: rankedBlocks.id });
-  await db.insert(rankedGames).values({ blockId: bobBlock!.id, playerId: id.bobPlayer, riotMatchId: "OC1_VS", championId: "Ahri", enemyChampionId: "Syndra", result: "win", teammatePlayerId: id.alicePlayer, notPlayedWith: [id.alicePlayer] });
-  // Team history: a draft and its match record with her in the lineup.
-  const snapshot = [
-    { id: id.alicePlayer, displayName: "Alice A.", group: "main", primaryRole: "MID", secondaryRole: null, primaryPool: ["Ahri", "Syndra"], secondaryPool: [], additionalRoles: [{ role: "SUPPORT", pool: ["Lux"] }] },
-    { id: id.bobPlayer, displayName: "Bob", group: "main", primaryRole: "TOP", secondaryRole: null, primaryPool: ["Garen"], secondaryPool: [] },
-  ];
-  await db.insert(drafts).values({ id: id.draft, teamId, side: "blue", patch: "16.1", lineupSnapshot: snapshot as never, initialAssignments: { MID: id.alicePlayer, TOP: id.bobPlayer } as never, currentAssignments: { MID: id.alicePlayer, TOP: id.bobPlayer } as never, enemyPlayers: { MID: "AliceMain#OCE", TOP: "SomeoneElse#EUW" }, createdByUserId: id.alice, notes: "Alice A. plays mid" });
-  await db.insert(draftActions).values({ draftId: id.draft, sequenceIndex: 0, type: "pick", side: "blue", championId: "Ahri", playerId: id.alicePlayer, role: "MID", recommendationSnapshot: { for: id.alicePlayer, playerName: "Alice A." } });
-  await db.insert(matches).values({ id: id.match, teamId, draftId: id.draft, patch: "16.1", side: "blue", lineupSnapshot: snapshot as never, finalAssignments: { MID: id.alicePlayer, TOP: id.bobPlayer } as never, ourPicks: [{ playerId: id.alicePlayer, role: "MID", championId: "Ahri", index: 0 }], riotMatchId: "OC1_SHARED" });
-  await db.insert(lastKnownRanks).values({ puuid: "puuid-alice-main", tier: "GOLD", division: "I", observedAt: new Date(), source: "draft scouting" });
-  await db.insert(draftEnemyScouting).values({ draftId: id.draft, role: "MID", riotId: "AliceMain#OCE", puuid: "puuid-alice-main", status: "ok" });
+  await db.insert(rankedGames).values({ blockId: bobBlock!.id, playerId: id.bobPlayer, riotMatchId: "OC1_VS", championId: "Ahri", enemyChampionId: "Syndra", result: "win", teammatePlayerId: id.alicePlayer, notPlayedWith: [id.alicePlayer], learning: "Alice roamed bot first", adjustment: "Tell AliceMain earlier" });
+  // Ranked Development: her own objective and plan, and Bob's private notes that name her.
+  const [aliceObjective] = await db.insert(developmentObjectives).values({ playerId: id.alicePlayer, title: "Ward the river before I shove", category: "vision", status: "practising", isPrimary: true }).returning({ id: developmentObjectives.id });
+  await db.insert(developmentPlans).values({ playerId: id.alicePlayer, objectiveId: aliceObjective!.id, ifText: "my wave is crashing", thenText: "I ward the river" });
+  await db.update(rankedBlocks).set({ focus: "Ward the river before I shove", closingNote: "felt good" }).where(eq(rankedBlocks.id, block!.id));
+  const [bobObjective] = await db.insert(developmentObjectives).values({ playerId: id.bobPlayer, title: "Ping Alice before I roam", detail: "AliceMain roams first", category: "map-awareness", status: "practising", isPrimary: true }).returning({ id: developmentObjectives.id });
+  await db.insert(developmentPlans).values({ playerId: id.bobPlayer, objectiveId: bobObjective!.id, ifText: "AliceMain shoves mid", thenText: "I follow Alice A. to the river" });
+  await db.update(rankedBlocks).set({ focus: "Ping Alice before I roam", closingNote: "Good games with Alice" }).where(eq(rankedBlocks.id, bobBlock!.id));
+  await db.insert(lastKnownRanks).values([
+    { puuid: "puuid-alice-main", tier: "GOLD", division: "I", observedAt: new Date(), source: "draft scouting" },
+    // A match window's rank checks (migration 0057): hers goes, a stranger's stays.
+    { puuid: "puuid-alice-alt", tier: "UNRANKED", flexTier: "SILVER", flexDivision: "II", flexLeaguePoints: 40, observedAt: new Date(), source: "match lookup" },
+    { puuid: "stranger-200-10", tier: "PLATINUM", division: "III", leaguePoints: 12, flexTier: "UNRANKED", observedAt: new Date(), source: "match lookup" },
+  ]);
   await db.insert(auditEvents).values([
     { actorUserId: id.owner, actorName: "owner", action: "account.create", targetType: "user", targetId: id.alice, targetName: "alice", details: { teamMember: true } },
     { actorUserId: id.alice, actorName: "alice", action: "password.change", targetType: "user", targetId: id.alice, targetName: "alice" },
@@ -207,11 +216,15 @@ describe("personal-data erasure", () => {
     expect(subject.puuids.sort()).toEqual(["puuid-alice-alt", "puuid-alice-main", "puuid-alice-oldkey"]);
     expect(subject.riotIds).toEqual(expect.arrayContaining(["AliceMain#OCE", "AliceAlt#OCE", "AliceOld#OCE"]));
     const preview = await previewErasure(handle.db, subject);
-    expect(preview.counts).toMatchObject({ account: true, profile: true, riotAccounts: 2, journalEntries: 1, gamesDeleted: 2, gamesDeidentified: 3, lanePartners: 1, notes: 1 });
-    expect(preview.counts.teamRecords).toBeGreaterThanOrEqual(2);
+    expect(preview.counts).toMatchObject({ account: true, profile: true, riotAccounts: 2, journalEntries: 1, gamesDeleted: 2, gamesDeidentified: 3, lanePartners: 1, notes: 8 });
     expect(preview.counts.auditEntries).toBe(2);
     expect(preview.counts.jobLogs).toBe(1);
-    expect(preview.mentions).toEqual(expect.arrayContaining([{ where: "Draft notes", rows: 1 }]));
+    expect(preview.mentions).toEqual(
+      expect.arrayContaining([
+        { where: "Ranked Development notes of other players", rows: 4 },
+        { where: "Ranked Development objectives of other players", rows: 4 },
+      ]),
+    );
     // Nothing changed.
     expect((await handle.db.select().from(users).where(eq(users.id, id.alice))).length).toBe(1);
     expect((await handle.db.select().from(privacyErasures)).length).toBe(0);
@@ -246,6 +259,9 @@ describe("personal-data erasure", () => {
     expect(await db.select().from(riotAccounts).where(eq(riotAccounts.playerId, id.alicePlayer))).toEqual([]);
     expect(await db.select().from(accountMatches).where(eq(accountMatches.accountId, id.aliceMain))).toEqual([]);
     expect(await db.select().from(rankedGames).where(eq(rankedGames.playerId, id.alicePlayer))).toEqual([]);
+    expect(await db.select().from(rankedBlocks).where(eq(rankedBlocks.playerId, id.alicePlayer))).toEqual([]);
+    expect(await db.select().from(developmentObjectives).where(eq(developmentObjectives.playerId, id.alicePlayer))).toEqual([]);
+    expect(await db.select().from(developmentPlans).where(eq(developmentPlans.playerId, id.alicePlayer))).toEqual([]);
     // Games only she played are gone with their timelines.
     expect(await db.select().from(matchDetails).where(eq(matchDetails.matchId, "OC1_SOLO"))).toEqual([]);
     expect(await db.select().from(matchDetails).where(eq(matchDetails.matchId, "OC1_OLDKEY"))).toEqual([]);
@@ -262,6 +278,9 @@ describe("personal-data erasure", () => {
     const [timeline] = await db.select().from(matchTimelines).where(eq(matchTimelines.matchId, "OC1_SHARED"));
     expect(timeline!.participants.map((p) => p.puuid)).toEqual(["puuid-bob"]);
     expect(Object.keys(timeline!.frames!.p)).toEqual(["puuid-bob"]);
+    // Her kill times went with her entry; Bob's stay, and the objectives are the teams', not hers.
+    expect(timeline!.participants[0]).toEqual({ puuid: "puuid-bob", purchases: [[1000, 1055]], skills: [3], kills: [420000], deaths: [600000], assists: [300000] });
+    expect(timeline!.events).toEqual({ objectives: [{ t: 360000, team: 100, kind: "dragon", detail: "FIRE" }] });
     // Bob's summary of the shared game: the team's kills from Riot's team total, no team damage (hers is gone).
     const [bobShared] = await db.select().from(accountMatches).where(sql`${accountMatches.accountId} = ${id.bobAccount} AND ${accountMatches.matchId} = 'OC1_SHARED'`);
     expect(bobShared).toMatchObject({ teamKills: 23, teamDamage: null });
@@ -279,29 +298,21 @@ describe("personal-data erasure", () => {
     expect(bookmark).toMatchObject({ createdByUserId: null, note: "great game" });
   });
 
-  it("keeps team history with her as Former member: no name, id or champion pools, picks kept", async () => {
+  it("keeps the others' private Ranked Development notes, with her name taken out of them", async () => {
     const db = handle.db;
-    const [draft] = await db.select().from(drafts).where(eq(drafts.id, id.draft));
-    const entry = (draft!.lineupSnapshot as unknown as Array<Record<string, unknown>>)[0]!;
-    expect(entry).toMatchObject({ displayName: FORMER_MEMBER, primaryRole: "MID", primaryPool: [], secondaryPool: [], additionalRoles: [{ role: "SUPPORT", pool: [] }] });
-    const replacement = entry.id as string;
-    expect(replacement).not.toBe(id.alicePlayer);
-    expect(draft!.currentAssignments).toEqual({ MID: replacement, TOP: id.bobPlayer });
-    expect(draft!.enemyPlayers).toEqual({ TOP: "SomeoneElse#EUW" });
-    expect(draft!.createdByUserId).toBeNull();
-    // Notes others wrote keep their text without her name.
-    expect(draft!.notes).toBe("[removed] plays mid");
-    const [action] = await db.select().from(draftActions).where(eq(draftActions.draftId, id.draft));
-    expect(action).toMatchObject({ playerId: replacement, championId: "Ahri", recommendationSnapshot: { for: replacement, playerName: FORMER_MEMBER } });
-    const [record] = await db.select().from(matches).where(eq(matches.id, id.match));
-    expect(record!.ourPicks).toEqual([{ playerId: replacement, role: "MID", championId: "Ahri", index: 0 }]);
-    expect(record!.finalAssignments).toEqual({ MID: replacement, TOP: id.bobPlayer });
+    const [objective] = await db.select().from(developmentObjectives).where(eq(developmentObjectives.playerId, id.bobPlayer));
+    expect(objective).toMatchObject({ title: "Ping [removed] before I roam", detail: "[removed] roams first", status: "practising", isPrimary: true });
+    const [plan] = await db.select().from(developmentPlans).where(eq(developmentPlans.playerId, id.bobPlayer));
+    expect(plan).toMatchObject({ ifText: "[removed] shoves mid", thenText: "I follow [removed] to the river", objectiveId: objective!.id });
+    const [session] = await db.select().from(rankedBlocks).where(eq(rankedBlocks.playerId, id.bobPlayer));
+    expect(session).toMatchObject({ focus: "Ping [removed] before I roam", closingNote: "Good games with [removed]" });
+    const [review] = await db.select().from(rankedGames).where(eq(rankedGames.playerId, id.bobPlayer));
+    expect(review).toMatchObject({ learning: "[removed] roamed bot first", adjustment: "Tell [removed] earlier" });
   });
 
-  it("removes her scouting, rank and log traces", async () => {
+  it("removes her rank and log traces", async () => {
     const db = handle.db;
-    expect(await db.select().from(lastKnownRanks)).toEqual([]);
-    expect(await db.select().from(draftEnemyScouting)).toEqual([]);
+    expect((await db.select().from(lastKnownRanks)).map((r) => r.puuid)).toEqual(["stranger-200-10"]);
     const [run] = await db.select().from(jobRuns);
     expect(run!.summary).toEqual({ logs: ["[removed]: season 16 history complete (420:12); fetched 3", "rank lookup failed for [removed]: timeout", "Bob#OCE: season 16 history complete"] });
     expect(await db.select().from(appSettings).where(sql`${appSettings.key} LIKE 'account_%'`)).toEqual([]);

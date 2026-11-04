@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountMatches, players, riotAccounts, users } from "@/server/db/schema";
 import { elapsed } from "./log";
@@ -8,7 +8,8 @@ import { invalidateLeaderboardCache, loadLeaderboardData, type LeaderboardData }
 import { buildLeaderboardView, parseFilters, type LeaderboardView } from "@/server/leaderboards/view";
 import { invalidatePlayedTogetherCache, loadPlayedTogether, type PlayedTogether } from "@/server/matches/played-together";
 import { getMatchGroups, type MatchGroupsResult } from "@/server/matches/possible-groups";
-import { loadEncounterPage, loadGamesBySeason, type EncounterPage } from "@/server/players/encounters";
+import { loadEncounterPage, loadGamesBySeason, loadMatchMeetings, type EncounterPage, type MatchMeeting } from "@/server/players/encounters";
+import { historyMembers, memberGameCounts } from "@/server/players/history-members";
 import { encounterListChoice } from "@/domain/encounters";
 import { offeredCurrentSeason } from "@/domain/season";
 import { currentSeason } from "@/server/accounts/sync";
@@ -381,6 +382,34 @@ export async function runPerfProbe(
           },
         }),
       );
+      // Match History's Refine: how many of the same player's games (every season: the largest
+      // list it can be given) each other team member played with them and against them. Counts only.
+      const matchIds = (await db.selectDistinct({ id: accountMatches.matchId }).from(accountMatches).where(and(inArray(accountMatches.accountId, accountIds), isNotNull(accountMatches.championId)))).map((r) => r.id);
+      const [owner] = await db.select({ teamId: players.teamId }).from(players).where(eq(players.id, busiest.playerId));
+      if (owner && matchIds.length) {
+        const members = await historyMembers(db, owner.teamId, busiest.playerId);
+        push(
+          await step("profile.historyMembers", () => memberGameCounts(db, { accountIds, matchIds, members }), {
+            note: (r) => {
+              const counts = [...(r as Map<string, { with: number; against: number }>).values()];
+              return `${matchIds.length} games · ${members.length} members with a linked account · ${counts.length} of them in these games · ${counts.reduce((n, c) => n + c.with + c.against, 0)} member placements`;
+            },
+          }),
+        );
+      }
+      // A game's scoreboard: the players of the same player's newest game met in their other games
+      // this season (through the participants' index, then only those players' games). Counts only.
+      const [last] = await db.select({ matchId: accountMatches.matchId }).from(accountMatches).where(and(inArray(accountMatches.accountId, accountIds), isNotNull(accountMatches.championId))).orderBy(desc(accountMatches.gameCreation)).limit(1);
+      if (last) {
+        push(
+          await step("profile.matchMeetings", () => loadMatchMeetings(db, { accountIds, season, mode: "all" }, last.matchId), {
+            note: (r) => {
+              const met = r as MatchMeeting[] | null;
+              return met ? `${met.length} players of the newest game met in other games this season · ${met.reduce((n, m) => n + m.games, 0)} games with them` : "the newest game is not in the current season";
+            },
+          }),
+        );
+      }
     }
     const [anyPlayer] = await guarded("players.any", () =>
       db

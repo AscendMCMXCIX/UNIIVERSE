@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { createDb } from "@/server/db/create";
-import { activationCodes, auditEvents, drafts, sessions, teamBookmarks, users } from "@/server/db/schema";
+import { activationCodes, auditEvents, sessions, teamBookmarks, users } from "@/server/db/schema";
 import { runMigrations } from "@/server/db/migrator";
 import { EMBEDDED_MIGRATIONS } from "@/server/db/migrations.generated";
 import { hashPassword } from "@/server/auth/password";
@@ -60,7 +60,7 @@ describe("migration 0055: ascend is the Owner again", () => {
       const adminSession = await createSession(db, admin!.id);
       await db.insert(activationCodes).values({ userId: admin!.id, codeHash: "code-for-admin", expiresAt: new Date(Date.now() + 86_400_000), createdByUserId: admin!.id });
       await db.insert(activationCodes).values({ userId: member!.id, codeHash: "code-for-member", expiresAt: new Date(Date.now() + 86_400_000), createdByUserId: admin!.id });
-      // Clash scouts (the table migration 0057 drops; written here as 0055 found them).
+      // Clash scouts (the table migration 0064 drops; written here as 0055 found them).
       const scout = first<{ id: string }>(await db.execute(sql`INSERT INTO clash_scouts (team_id, opponent_name, platform, content, created_by, updated_by) VALUES (${teamId}, 'Rivals', 'oc1', '{}'::jsonb, ${admin!.id}, ${admin!.id}) RETURNING id`));
       const memberScout = first<{ id: string }>(await db.execute(sql`INSERT INTO clash_scouts (team_id, opponent_name, platform, content, created_by, updated_by) VALUES (${teamId}, 'Others', 'oc1', '{}'::jsonb, ${member!.id}, ${member!.id}) RETURNING id`));
       const [bookmark] = await db.insert(teamBookmarks).values({ teamId, riotMatchId: "OC1_1", createdByUserId: admin!.id }).returning();
@@ -68,11 +68,12 @@ describe("migration 0055: ascend is the Owner again", () => {
       const assignment = JSON.stringify({});
       const draft = first<{ id: string }>(await db.execute(sql`INSERT INTO drafts (team_id, side, patch, created_by_user_id, controller_user_id, lineup_snapshot, initial_assignments, current_assignments) VALUES (${teamId}, 'blue', '0.0', ${admin!.id}, ${admin!.id}, ${snapshot}::jsonb, ${assignment}::jsonb, ${assignment}::jsonb) RETURNING id`));
       await db.insert(auditEvents).values({ actorUserId: admin!.id, actorName: "adminascend", action: "account.create", targetType: "user", targetId: member!.id, targetName: "member" });
-
-      // Later migrations have their own tests (0057 drops the Clash scouts read below): marked applied here.
-      for (const m of EMBEDDED_MIGRATIONS.filter((m) => m.tag > "0056_privacy_erasures")) await db.execute(sql`INSERT INTO uniiverse_migrations (tag, hash) VALUES (${m.tag}, ${m.hash})`);
+      // The held drops of the retired tables (0062–0064) come later and have their own tests; marking
+      // them applied keeps the draft and the Clash scouts here to inspect 0055's work.
+      const drop = EMBEDDED_MIGRATIONS.find((m) => m.tag.endsWith("_retire_meta_trends_tables"))!;
+      for (const m of EMBEDDED_MIGRATIONS.filter((m) => m.tag >= drop.tag)) await db.execute(sql`INSERT INTO uniiverse_migrations (tag, hash) VALUES (${m.tag}, ${m.hash})`);
       const result = await runMigrations(db, { useAdvisoryLock: false });
-      expect(result.applied).toEqual([TAG, "0056_privacy_erasures"]);
+      expect(result.applied).toEqual([TAG, "0056_privacy_erasures", "0057_participant_ranks", "0058_match_details_puuids", "0059_ranked_development", "0060_match_timeline_events", "0061_social_links_public"]);
 
       // ascend: the Owner, with everything it had (profile, password, sessions).
       const owner = (await getUser(db, ascend!.id))!;
@@ -105,7 +106,7 @@ describe("migration 0055: ascend is the Owner again", () => {
       const scoutBy = async (scoutId: string) => first<{ created_by: string; updated_by: string }>(await db.execute(sql`SELECT created_by, updated_by FROM clash_scouts WHERE id = ${scoutId}::uuid`));
       expect(await scoutBy(scout.id)).toEqual({ created_by: ascend!.id, updated_by: ascend!.id });
       expect(await scoutBy(memberScout.id)).toEqual({ created_by: member!.id, updated_by: member!.id });
-      expect((await db.select().from(drafts).where(eq(drafts.id, draft.id)))[0]).toMatchObject({ createdByUserId: ascend!.id, controllerUserId: ascend!.id });
+      expect(first(await db.execute(sql`SELECT created_by_user_id::text AS created, controller_user_id::text AS controller FROM drafts WHERE id = ${draft.id}::uuid`))).toEqual({ created: ascend!.id, controller: ascend!.id });
       expect((await db.select().from(teamBookmarks).where(eq(teamBookmarks.id, bookmark!.id)))[0]!.createdByUserId).toBe(ascend!.id);
       expect((await db.select().from(activationCodes).where(eq(activationCodes.userId, member!.id)))[0]!.createdByUserId).toBe(ascend!.id);
 
@@ -138,7 +139,7 @@ describe("migration 0055: ascend is the Owner again", () => {
       const [ascend] = await db.insert(users).values({ username: "ascend", displayName: "Ascend", passwordHash: await hashPassword("Ascend-pass-123"), role: "player", setupCompletedAt: new Date() }).returning();
       const [helper] = await db.insert(users).values({ username: "helper", displayName: "Helper", passwordHash: await hashPassword("Helper-pass-123"), role: "player", playerId: await player("Helper"), setupCompletedAt: new Date(), isAdmin: true }).returning();
       const beforeRows = await db.select().from(users).orderBy(users.username);
-      expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual([TAG, "0056_privacy_erasures", "0057_retire_clash_scouts"]);
+      expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual([TAG, "0056_privacy_erasures", "0057_participant_ranks", "0058_match_details_puuids", "0059_ranked_development", "0060_match_timeline_events", "0061_social_links_public", "0062_retire_meta_trends_tables", "0063_retire_draft_tables", "0064_retire_clash_scouts"]);
       expect(await db.select().from(users).orderBy(users.username)).toEqual(beforeRows);
       expect((await getUser(db, owner!.id))!.role).toBe("owner");
       expect((await getUser(db, ascend!.id))!.role).toBe("player");
@@ -166,7 +167,7 @@ describe("migration 0055: ascend is the Owner again", () => {
         });
         const [admin] = await db.insert(users).values({ username: "adminascend", displayName: "adminascend", passwordHash: await hashPassword("Admin-pass-123"), role: "owner", setupCompletedAt: new Date() }).returning();
         const adminSession = await createSession(db, admin!.id);
-        expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual([TAG, "0056_privacy_erasures", "0057_retire_clash_scouts"]);
+        expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual([TAG, "0056_privacy_erasures", "0057_participant_ranks", "0058_match_details_puuids", "0059_ranked_development", "0060_match_timeline_events", "0061_social_links_public", "0062_retire_meta_trends_tables", "0063_retire_draft_tables", "0064_retire_clash_scouts"]);
         expect((await getUser(db, admin!.id))!).toMatchObject({ role: "owner", isActive: true, hasPassword: true });
         expect(await findSession(db, adminSession.token)).not.toBeNull();
         expect((await db.select().from(users).where(eq(users.role, "owner"))).map((u) => u.username)).toEqual(["adminascend"]);

@@ -1,8 +1,42 @@
 # Riot Games compliance checklist
 
-UNIIVERSE uses Riot Games data in two ways: **Data Dragon** (public static files: champions, patches, portraits) and the **Riot Games API** (ranked matches for statistics, and the ranked history, mastery and tier of accounts a team member linked on purpose). This page lists what Riot's policies require and how the app meets each point. Re-read it whenever you change what data is collected or shown.
+UNIIVERSE uses Riot Games data in two ways: **Data Dragon** (public static files: champions, patches, portraits) and the **Riot Games API** (ranked matches for statistics, the ranked history, mastery and tier of accounts a team member linked on purpose, and the current rank of the other players in a completed match a member opens). This page lists what Riot's policies require and how the app meets each point. Re-read it whenever you change what data is collected or shown.
 
 The authoritative sources are Riot's Developer Portal policies (https://developer.riotgames.com/policies/general) and the Legal Jibber Jabber (https://www.riotgames.com/en/legal). If anything here disagrees with those pages, the pages win.
+
+## Compliance review (2 November 2026)
+
+UNIIVERSE needs a **Personal** key, not a Production key, as long as its public pages carry no Riot API data (the default). **Update, 3 Nov 2026:** production's key behaves as a Personal key, and every stored game already carries the player ids of the key in use (items 1 and 2). What is left is the owner's confirmation in the Developer Portal (Registering the product, below). Everything that can be checked without the portal was checked on 3 Nov 2026 (Checked without the portal, below), and the Production check repeats the public-page checks on the live site after every deployment and every day. Riot's own pages could not be opened from the review's environment; the rules below are as Riot's Developer Portal, General Policies, FAQ and API Terms were quoted in several independent sources, and should be re-read in the portal when registering.
+
+| # | Finding | Riot's rule (as quoted) | Status | What to do |
+| --- | --- | --- | --- | --- |
+| 1 | Production was said to run on a **Development key** (the owner's statement; `docs/DEPLOYMENT.md`). **Evidence on 3 Nov 2026** (Data jobs run 41602528625, `riot-check`): Riot accepted the key with its default limits (20 a second, 100 every 2 minutes), so it is not a Production key. It has kept working for more than seven days, so it is not a Development key, which stops after 24 hours. That makes it a Personal key. **Confirmed on 3 Nov 2026 at 22:47 UTC** (run 41733812716): the same key, by the fingerprint the app reports, was still accepted 24 h 39 min after the riot-check of 2 Nov at 22:08 UTC (run 41534575560), with the same default limits (fingerprint not recorded here) | Development keys are for prototyping and deactivate every 24 hours; "you may not maintain a public product with a development API key". Products for "just the developer or a small private community" use a Personal key, registered without verification. All products must be registered and audited through the Developer Portal. | Evidence says Personal; the owner confirms | The owner confirms in the Developer Portal that UNIIVERSE is registered as a personal product, with the description below |
+| 2 | **A new key changes every stored player id.** Riot encrypts PUUIDs per registered application. Data jobs → `data-audit` → `riotIdFamily` measures it: by game age, how many members' places in stored games carry the member's current id, and the weeks in which any game with another id was stored (counts only). Linked accounts already re-verify from their Riot ID after a key change (`src/server/accounts/sync.ts`), and erasures also match by Riot ID (`docs/PRIVACY.md`), but the stored games keep the old ids | IDs obtained with one application's key do not work with another's | No re-keying needed for the key in use. On 3 Nov 2026 (run 41602528625) all 4,951 member places in stored games carried the member's current id, at every age; none carried another id | Only if the key ever changes to another registered application: a one-off re-keying job that fetches each stored game again under the new key (about 4,900 requests; at 100 per 2 minutes, roughly 100 minutes of the key's budget, spread over a day), maps players by their place in the game, and rewrites the stored ids. Rehearse it on a copy of the database. Without it, games from before the switch treat members as strangers and split each opponent into two (Encounters, possible groups, rank badges) |
+| 3 | **Public pages carry no Riot API data** while `UNIIVERSE_PUBLIC_RIOT_DATA` is unset: only what the team entered (display names, pictures, card styles, roles, champion pools) and Data Dragon art; no rank, statistic, Riot ID or match (`src/server/public/team.ts`, `publicCard`) | "You may not run your application for public consumption using a personal key." Production keys need a verified website, one product per key | Compliant while unset | Keep it unset. The Production check confirms it on the live site after each deployment and daily (signed out: `/public/leaderboards` not found, no rank on the public team page). Set it only with a Production key and a registration that describes the public pages |
+| 4 | The registration must describe every use | New features or changes need their own audit | Open, with 1 | Register with the description below and update it whenever a feature changes what is read or shown |
+| 5 | **Data of non-members kept for removed features**: about 1.1 million rows in the retired tables (high-Elo games and bans, 20,423 tracked ladder players, aggregated statistics, professional games) and 32,729 ladder ranks in `last_known_ranks`. Nothing collects more of it | The API Terms require deleting game information when the terms end and acting on the deletion requests Riot forwards; keeping unused data of other players is a data-minimisation risk rather than a stated breach | Held until the backup is verified and an offline copy kept | Run the held drops (PRs #86 and #138) and prune `last_known_ranks` rows not tied to a stored game. That also frees about 217 MB (`docs/HOSTING_USAGE.md`) |
+| 6 | **Deletion requests Riot forwards** about players who are not members have no documented step | Riot passes players' deletion requests to developers as identifiers, through Riot's channels | Open, low | The owner watches the Developer Portal for such notices and applies them with the existing erasure tool, which matches by PUUID or Riot ID |
+| 7 | Game integrity | No advantage others could not have; no information unavailable in the client; no acting for the player; enemy ultimate timers banned from 13 March 2025 | Compliant: post-game features only; no live data, client access or automation | Keep it that way |
+| 8 | Monetisation | Requires an Approved or Acknowledged product | Compliant: none | — |
+
+**Description for the registration** (a Personal key):
+
+> Private team tool for one amateur League of Legends team (about eleven accounts, sign-in required). Reads the match history, match timelines, champion mastery and ranks of the Riot accounts that members link on purpose; stores their games and per-champion statistics. Shows members the current rank of the other players in those games, checked after each game is collected and when a member opens a game (at most 1,000 checks a day). A public team page shows only what the team enters (names, pictures, roles, champion pools) with Data Dragon art, and no Riot API data. No live-game or champion-select features, no client integration, no data shared outside the team.
+
+Sources quoted for the rules: Riot Developer Portal (key types, https://developer.riotgames.com/docs/portal; FAQ, https://developer.riotgames.com/docs/faqs), General Policies (https://developer.riotgames.com/policies/general and https://support-developer.riotgames.com/hc/en-us/articles/22698591841939-General-Policies), API Terms (https://support-developer.riotgames.com/hc/en-us/articles/22698917218323-API-Terms-and-Conditions), Riot Developer Relations on the ultimate-timer ban (https://x.com/RiotGamesDevRel/status/1899532362637250955); per-application id encryption as described in community documentation of Riot's ids (https://hextechdocs.dev/getting-started-with-the-riot-games-api/).
+
+### Checked without the portal (3 Nov 2026)
+
+| Check | How | Result |
+| --- | --- | --- |
+| The endpoints in use are the ones described | Every Riot API path in the code, and every file that addresses Riot's API | Exactly the five APIs under API key handling, all through one client with Riot's rate limits. An unused method for `summoner-v4`, never called, was removed. `src/server/riot/api/endpoints.test.ts` now fails if a request to any other endpoint is added before this page lists it |
+| The key never left the server | Every commit of the repository's history on every branch (326) searched for a Riot key; a production build's browser files searched for the key and its variable's name | No key in any commit (only test placeholders such as `RGAPI-00000000-…`), and nothing in the browser files |
+| No Riot API data on the public pages | Signed out: `/public/leaderboards`, and the public team page's text | Not found, and no rank on the page (a local production build). The Production check repeats it on the live site after each deployment and daily |
+| Riot's required notice | The app's text against Riot's wording, and where it shows | Word for word (`src/components/app-shell.tsx`), in the sidebar, in Settings and in the public team page's footer, where signed-out visitors see it. The Production check confirms it on the live public page |
+| The portal's site check | `/riot.txt`, signed out | Served as plain text without sign-in; the Production check confirms it on the live site |
+| Rate limits | Riot's answer to the key check (item 1) | 20 a second and 100 every 2 minutes, which the client enforces |
+| Static art | Where images load from | Data Dragon for champions, items, spells and runes; CommunityDragon (`raw.communitydragon.org`, a community copy of the game client's art) for rank crests and role icons. Both are linked, not copied, and neither is Riot API data |
+| What the app says about its Riot use | Admin → System Health's compliance panel, the privacy notice and this page | The privacy notice already described the rank checks of other players in members' games; the admin panel still said only linked accounts are read, and now says both |
 
 ## Required notice
 
@@ -19,25 +53,26 @@ Riot requires products using its IP to show the following text. It is shown in t
 | Respect rate limits and back off on 429 | The client enforces the configured app limits (`RIOT_RATE_LIMITS`), honours `Retry-After` on 429, and jobs stop when the time budget is spent. | `src/server/riot/api/client.ts`, `src/server/jobs/*` |
 | Do not hammer the API | Account sync is incremental (per-account cursors, "already stored" skips), most urgent accounts first, within a time budget per run. | `src/server/accounts/sync.ts` |
 
-Endpoints used: `account-v1` (Riot ID → PUUID), `match-v5` (match ids, matches and timelines), `league-v4` (ranked entries), `champion-mastery-v4` (masteries), `lol-status-v4` (the key check). Nothing else.
+Endpoints used: `account-v1` (Riot ID → account, for linking, identity checks and a former member's erasure; a linked account's current Riot ID and server), `match-v5` (a linked account's match ids, matches and timelines), `league-v4` (ranked entries: linked accounts, and the players of members' completed games; see Ranks in completed matches), `champion-mastery-v4` (linked accounts' masteries), `lol-status-v4` (the key check). Nothing else: `src/server/riot/api/endpoints.test.ts` holds the list, and fails when the code requests anything that is not on it.
 
 ## Data collection and use
 
 | Requirement | How UNIIVERSE meets it |
 | --- | --- |
-| Only collect what the product needs | Ranked matches are reduced to champions, roles, bans, duration and result; opponent accounts are reduced to per-champion/role counts, rank snapshot and mastery. Full match payloads are not stored. |
+| Only collect what the product needs | Ranked matches are reduced to champions, roles, bans, duration and result; opponent accounts are reduced to per-champion/role counts, rank snapshot and mastery. Full match payloads are not stored. Other players in members' completed matches: their current Ranked Solo/Duo and Flex entries (tier, division, LP) and when they were read, one row per player, replaced by the next check. |
 | No commercial use of Riot data without approval | UNIIVERSE is a private team tool with no payments, ads or resale of data. |
-| Do not de-anonymise players or reveal hidden identities | The app never tries to connect Riot IDs to real names, never searches or queries third-party sites, and collects nothing about opposing players beyond the completed matches of linked accounts. Outbound links to OP.GG (below) carry only a Riot ID Riot already recorded in a completed match. |
+| Do not de-anonymise players or reveal hidden identities | The app never tries to connect Riot IDs to real names, never searches or queries third-party sites, and collects nothing about opposing players beyond the completed matches of linked accounts and, for the players of a match a member opens, their current rank (Ranks in completed matches, below). Outbound links to OP.GG (below) carry only a Riot ID Riot already recorded in a completed match. |
 | Honour deletion | Unlinking an account deletes its history, mastery and ledger rows (`removeAccount`). Deleting an opponent player removes their accounts. |
 | Keep PUUIDs internal | PUUIDs are stored for de-duplication only and never displayed; Riot IDs (gameName#tagLine) are the shown identifier, exactly as entered (full Unicode). |
-| Attribute Data Dragon | Champion portraits are served from Data Dragon URLs; the app does not mirror or rehost the images. |
+| Attribute Data Dragon | Champion, item, spell and rune images load from Data Dragon, and rank crests and role icons from CommunityDragon (a community copy of the game client's art); the app does not mirror or rehost the images. |
 
 ## Player links in completed matches
 
 In a player's Match History, Team → Matches and the match window, each name in a completed game links somewhere:
-- **UNIIVERSE members** (an active profile with that linked Riot account) link to their UNIIVERSE profile.
+- **UNIIVERSE members** (an active profile with that linked Riot account) link to their UNIIVERSE profile. Since 26 October 2026 a small separate link beside the name opens their OP.GG profile too, for a mouse and the keyboard (on a touch screen it would be too small a target beside the name, so it is not drawn there; their profile's Riot Accounts tab has it).
 - **Everyone else** links to their public OP.GG profile, in a new tab, when the stored match allows it: the Riot ID Riot recorded in Match-V5 (`Name#TAG`) and the server in the match id (`OC1_…` → `oce`).
-- **Otherwise the name is plain text.** That covers a name that is not a well-formed Riot ID, a server OP.GG does not list, and demo games.
+- **The newest Riot ID UNIIVERSE already holds wins** (`src/server/players/riot-names.ts`), by PUUID: a linked account's (the account sync keeps it current), on its server once Riot has confirmed that server (until then, the match's own); otherwise the newest full Riot ID from a later stored game. A player who renamed is linked by their newer name, never by a guess. A record without a tag, and a demo game's made-up name, never count.
+- **Otherwise the name is plain text.** That covers a name that is not a well-formed Riot ID, a server OP.GG does not list, and demo games. The data audit counts these places by reason (`data-audit` → `opggLinks`, counts only).
 
 The rules (`src/domain/opgg.ts`, unit tested with real-world Riot IDs):
 
@@ -52,7 +87,7 @@ The rules (`src/domain/opgg.ts`, unit tested with real-world Riot IDs):
 
 **OP.GG region slugs.** `na`, `euw`, `kr`, `lan`, `las`, `ru`, `br` and `vn` were checked against live OP.GG profile addresses. `oce`, `eune`, `jp`, `tr`, `me`, `sg`, `ph`, `th` and `tw` follow OP.GG's region list. A wrong slug would only open OP.GG's own "not found" page.
 
-**A player's history on OP.GG (October 2026).** The match window (for the account that played the game) also offers **"View Match History on OP.GG"**, built the same way from the member's own linked Riot ID and server. Match History's header offered the same link until 23 October 2026; it was removed as redundant with the match window's. OP.GG has no documented address for a single game that can be built from Riot's match id, so UNIIVERSE never links "to the game": the label always says it is the player's history. Demo games have no real match id and get no link.
+**A player's history on OP.GG (October 2026).** A game's breakdown (under its Match History card, or in the match window; for the account that played the game) also offers **"View Match History on OP.GG"**, built the same way from the member's own linked Riot ID and server. Match History's header offered the same link until 23 October 2026; it was removed as redundant with the match window's. OP.GG has no documented address for a single game that can be built from Riot's match id, so UNIIVERSE never links "to the game": the label always says it is the player's history. Demo games have no real match id and get no link.
 
 ## Social links (YouTube, Twitch, Discord)
 
@@ -65,14 +100,14 @@ Members may add their own YouTube channel, Twitch channel and Discord username (
 | Twitch | A plain link to the member's own twitch.tv channel, with the word "Twitch" and a generic screen symbol. No Glitch logo, API, embed or live status. | Twitch publishes its brand rules at twitch.tv/p/brand; UNIIVERSE uses none of its assets and implies no endorsement. No Twitch API is used. |
 | Discord | The username as text with a copy button (Discord has no public address for a username), with the word "Discord" and a generic speech-bubble symbol. No Clyde logo, OAuth, invite, widget or bot. | Discord's brand page says its logos and trademarks need permission except as its guidelines allow; UNIIVERSE uses none of its artwork. No Discord API is used. |
 
-- **Opt-in per link.** Each link has its own audience: Only me (the default), team members, or also the public team page. A link appears only where its owner chose, and only while its value still passes the checks; a stored value alone never shows anything (`visibleSocialLinks`, pinned by `tests/db/public-access.test.ts` and `e2e/social-cards.spec.ts`).
+- **Opt-in per link.** Each link has one switch, "Show publicly", off by default. Off, only its owner sees it; on, team members and the public team page do. A link appears only when switched on, and only while its value still passes the checks; a stored value alone never shows anything (`visibleSocialLinks`, pinned by `tests/db/public-access.test.ts` and `e2e/social-cards.spec.ts`). When the earlier per-link audiences were replaced (Nov 2026), only links already chosen for the public page were switched on; team-only ones were switched off (`tests/db/social-links-migration.test.ts`).
 - **No verification badge.** UNIIVERSE does not check that a channel belongs to the member; nothing on the page claims it does.
 - **Outbound only.** Links open in a new tab with `noopener noreferrer nofollow`; UNIIVERSE requests nothing from these services.
 - **Removal.** The member clears a field to remove it; deleting an account clears all of them. The privacy notice lists them.
 
 ## Possible groups in completed matches
 
-The match window (Match History and Team → Matches) can mark players outside UNIIVERSE on one team who may have queued together, for example "Possible trio · These three players appeared on the same team in four previous recorded games." It is a post-game, historical inference from data UNIIVERSE already stores:
+A game's scoreboard (under its card in Match History or Team → Matches, or in the match window) can mark players outside UNIIVERSE on one team who may have queued together, for example "Possible trio · These three players appeared on the same team in four previous recorded games." It is a post-game, historical inference from data UNIIVERSE already stores:
 
 | Rule | Where |
 | --- | --- |
@@ -83,7 +118,7 @@ The match window (Match History and Team → Matches) can mark players outside U
 | Evidence: the games of the 180 days before the analysed match (never the match itself, never a later game) in which every player of the group was on the same team. At least 3 such games, and at least three times as many as games in which they were all present but on opposite teams. | same |
 | Queue party sizes: Solo/Duo duos only; Flex 2, 3 or 5; normal draft, blind, ARAM, Quickplay and Swiftplay up to 5; Clash is stated as a registered team of five (nothing inferred); any other queue is not assessed. A player is in one group at most; two overlapping groups with equal support are both left out. | same |
 | Wording: "Possible duo / trio / four-player / five-player group", "These N players appeared on the same team in N previous recorded games.", never "premade" and never a percentage. Without a group: "not enough recorded history to assess"; a side made up of members: "no other players to assess". The note under the scoreboard says how many stored games were searched and that it is an inference, not confirmed parties. | `src/components/match-history/match-detail.tsx` |
-| Loaded only when a match window is open, after the scoreboard (a second request; never during the Match History list), cached per match on the server for 30 minutes and per list in the browser. | same |
+| Loaded only when a game is opened, after the scoreboard (a second request; never during the Match History list), cached per match on the server for 30 minutes and per list in the browser. | same |
 
 **Why this is allowed without a portal change.** It is analysis of completed matches already collected for the registered purpose (consenting members' match history), shown only to signed-in team members. It uses no live information, so it cannot give an in-game edge, and Riot's anonymity changes (Streamer Mode) explicitly leave post-match data unaffected. It identifies nobody who is hidden: it only relates Riot IDs that Riot published for that completed game, and only through games the team itself played in.
 
@@ -106,6 +141,37 @@ A profile's Match History → Encounters lists the other players that player met
 | Wording describes games only ("played alongside", "faced"); never premade, friend, duo partner or "counter" | A shared game is not evidence of a party or a relationship. |
 | Behind the same permission as the profile's Match History (your own, or teammates' statistics), on the team's private pages, never on the public page | No sharing outside the team. |
 
+## Ranks in completed matches
+
+Every game's scoreboard (Match History, Encounters, Matchups and Team → Matches) shows a small badge beside each player: their Ranked Solo/Duo or Flex rank, with when it was read against the game, "Unranked" when Riot listed no ranked entry, or "—" when nothing is known. Riot's match records (Match-V5) hold no rank, so each rank is a reading: a member's last rank recorded before the game by their own sync (rank history), or another player's rank checked within a day after the game (the checks made when a game is collected). A rank read later, or before the game, carries a clock and says it is the player's rank then, not at the time of the game; the note under the scoreboard says which kind the ranks are, and its (i) the rules (29 Oct 2026; before, every badge was a current or last-checked rank).
+
+| Rule | Where |
+| --- | --- |
+| Stored ranks first: a linked account's last sync, and `last_known_ranks` for everyone else (earlier checks, and the Solo/Duo tiers the retired Draft scouting and ranked ladder saw). | `src/server/players/participant-ranks.ts` |
+| Riot is asked about the players of members' games only, at two moments: once a game of the last 7 days is collected, for its players with no check since it ended (the `rank-checks` job of the scheduler tick, 30 a run, newest game first); and when a member opens a match, for its players with no check in the last 3 days (or none since a game of the last 7 days). LEAGUE-V4 `/lol/league/v4/entries/by-puuid/{puuid}`, one request each, on the match's server. Members are never asked about this way (their sync reads them). No list, page or search looks anyone up; nobody outside the members' games is checked, and no player is followed: a player is checked again only for another game with a member, or when one of their games is opened and the reading is over three days old. | same |
+| Limits: 1,000 checks in any 24 hours across the site, of which the checks after collection may use 600 (opened matches keep the rest); at most half of each rate-limit window of that server; an opened match never waits (a request with no free slot is skipped, and the window says so), and the checks after collection wait only for the one-second window to turn over, within their 15 seconds; no retries and a 4-second timeout; a player whose check failed is not asked again on that server instance for 30 minutes, or for a day when Riot cannot read their PUUID with the current key (400, as for games stored under an earlier key); a rejected key stops every check for 10 minutes. Account sync keeps the other half of the limits. | same |
+| Stored: one row per player (PUUID, tier, division and LP per queue, when, source "match lookup"), replaced by the next check, and only while the player is still in the stored match. Erased people are never asked about (the erasure filter), and permanent erasure deletes their row. | same; `docs/PRIVACY.md` |
+| Shown to signed-in members with the right to that Match History (their own, or teammates' statistics), on the team's private pages only. PUUIDs stay on the server; the page gets the badge's queue, tier, division, LP and date by scoreboard position. Never on the public pages. | `src/server/actions/match-history.ts` |
+| Wording: "Gold 2", with "Flex" or "Solo" when the rank is from the other ranked queue than the game's, the month once a rank is over 30 days old, and on hover "Ranked Solo/Duo: Gold II, 45 LP, checked 40 min after this game", "… the last rank recorded before this game", or, with a clock, "… checked 20 Oct 2026, 9 days after this game: their rank then, not at the time of this game". "Unranked" only on a check's word; a rank never read is "—" ("Rank not available"), never "Unranked". | `src/domain/known-rank.ts`, `src/components/match-history/scoreboard.tsx` |
+
+**Why this is allowed.** LEAGUE-V4 is already one of the registered endpoints, and the rank it returns is the one the League client shows on any player's profile, and Riot API products such as OP.GG show for anyone. It is read only for players in completed games a member played, after the game, so it gives no in-game edge and identifies nobody who is hidden. Riot's League policy has no opt-in rule for showing ranks (its opt-in rules cover custom-game history and VALORANT; read through public excerpts in October 2026, not a legal assessment).
+
+**For the product registration.** The description registered with Riot (see "Before you register a production key") covers members' own match history. The owner should add this use the next time the registration is updated, for example: "shows the rank of the players in members' completed matches, checked once after each game is collected and again when a member opens a game whose reading is over three days old (up to 1,000 checks a day)". Nothing in the key or the app changes for it. The checks after collection (29 Oct 2026) use the same endpoint, for the same players and the same display as the checks on opening, made earlier so that every recent game shows its players' ranks.
+
+**Players' ranks on the Match History cards (26 October 2026; teammates' too since 29 October).** Each collapsed game card shows the other players' ranks in a few letters ("E2", "GM"; "Unr" on a check's word that they are unranked; nothing when no rank was read), from what is already stored only: the same readings as the scoreboard, read with the page in five indexed queries. The list never asks Riot. Since 29 October the checks after collection give every game of the last 7 days its players' ranks around the game, whether or not anyone opened it; a rank read away from its game is written in the plain caption colour. The full statement (queue, rank, and when it was read against the game) is on hover and for screen readers. The same permissions as the scoreboard; never on the public pages.
+
+**Match History 2.0 (29 October 2026).** A member's Match History opens a game under its card,
+with a scoreboard, comparisons, the gold difference over the game and the build. No new endpoint
+and no new kind of data: the comparisons are arithmetic on the stored records of that member's own
+games (shares of the team, the lane opponent by recorded position, the member's own earlier games),
+labelled with their sample and never turned into a score or a judgement of other players. The match
+timeline (`match-v5`, already used for the build and Matchups) is requested once per game, only
+when the member opens a section that needs it, and kept compactly (each player's gold, experience
+and CS per frame, purchases, skill order and the times they took part in a champion kill; the
+objectives each team took; erased players removed). Timelines kept before the kill times and
+objectives were are requested once more, the same way, the next time one is opened. A 429 is shown
+as Riot limiting requests; nothing retries in the background.
+
 ## Clash Scout (retired 23 Oct 2026)
 
 Clash Scout, which read opponents' names and figures from Clash scouting screenshots, was removed
@@ -126,10 +192,15 @@ depends on them. The scouts saved before the retirement were deleted with their 
 - No live-game (Spectator API) features, opponent scouting during a game, or pre-game or live premade detection. (Post-game possible groups from stored matches are allowed: see above.)
 - No sharing of collected data outside the team. The public team page (`/public`) shows only what the team entered itself: display names, pictures, card styles, roles and champion pools, with Riot's static champion art. No Riot ID or match reaches it. Rank and statistics reach the public pages only where the deployment sets `UNIIVERSE_PUBLIC_RIOT_DATA=true`, which is meant only for a Production key whose registration describes the public pages: then the cards carry the figures members see, and `/public/leaderboards` ranks the players on the public page (nobody else on the team). Without it, that address is not found.
 
-## Before you register a production key
+## Registering the product (Personal key)
 
-1. Confirm the required notice is visible (sidebar and Settings).
-2. Make sure `RIOT_API_KEY` is only set in the host's environment variables, never in the repository.
-3. Describe the product honestly: "private team tool for one amateur team; reads the match history of consenting team members; stores their games and champion statistics".
-4. Keep this file and the Settings compliance panel in sync with reality when features change.
-5. Riot checks that the product's address is yours by fetching a code from `/riot.txt`. It is `public/riot.txt` (the code alone, no newline), and `src/proxy.ts` lets it through without sign-in. If Riot issues a new code, replace the file.
+A Personal key is the right key while the public pages carry no Riot API data (Compliance review above). A Production key is needed only if `UNIIVERSE_PUBLIC_RIOT_DATA=true` is ever wanted.
+
+**The owner's one remaining step** (about 10 minutes at https://developer.riotgames.com, signed in with the account that owns the key):
+1. Open the application whose key production uses, and check that it is a **Personal** product for UNIIVERSE.
+2. Compare its description with the one in the Compliance review above. If it differs (an older one may still describe Clash Scout, or leave out match timelines and the rank checks), replace it with that description.
+3. Leave the key as it is. Don't create another application or move production to another application's key: that would change every stored player id (item 2).
+
+If the portal asks to verify the site, it fetches `/riot.txt`: that is `public/riot.txt` (the code alone, no newline), served without sign-in (`src/proxy.ts`), and the Production check confirms it is served. If Riot issues a new code, replace the file.
+
+Already checked, with nothing to do (Checked without the portal, above): the required notice is visible, `RIOT_API_KEY` is set only in the host's environment and never in the repository, and the endpoints match the description. Keep this file and the compliance panel (Admin → System Health) in sync with reality when features change.

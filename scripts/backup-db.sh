@@ -34,14 +34,22 @@ trap 'rm -rf "$WORK"' EXIT
 DUMP="$WORK/$NAME.dump"
 mkdir -p "$OUT_DIR"
 
-# Tables whose row counts must survive the round trip, and the newest migration.
+# Retired tables that the held pull requests drop (#86: Meta & Trends and Draft; #138: Clash Scout).
+# Each backup proves their rows survive the round trip, so the backup kept before a drop is known
+# to hold them. A table that no longer exists is skipped, so the list can outlive the drops.
+RETIRED="ranked_participants ranked_bans ranked_matches match_fetch_queue pro_game_picks pro_game_bans pro_games champion_matchups champion_synergies champion_role_stats champion_ban_stats pro_pick_slot_stats draft_actions draft_role_swaps draft_presence draft_enemy_scouting matches drafts series opponent_players opponent_teams clash_scout_accounts clash_scouts"
+
+# Tables whose row counts must survive the round trip, and the newest migration. The retired
+# tables' counts come from one query (query_to_xml runs each count; still read only).
 CHECKS="SELECT 'tables', count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p');
 SELECT 'teams', count(*) FROM public.teams;
 SELECT 'users', count(*) FROM public.users;
 SELECT 'players', count(*) FROM public.players;
 SELECT 'riot_accounts', count(*) FROM public.riot_accounts;
 SELECT 'match_details', count(*) FROM public.match_details;
-SELECT 'migration', max(tag) FROM public.uniiverse_migrations;"
+SELECT 'migration', max(tag) FROM public.uniiverse_migrations;
+SELECT 'retired:' || t, (xpath('/row/c/text()', query_to_xml(format('SELECT count(*) AS c FROM public.%I', t), false, true, '')))[1]::text
+  FROM unnest(string_to_array('$RETIRED', ' ')) AS t WHERE to_regclass(format('public.%I', t)) IS NOT NULL ORDER BY 1;"
 
 counts() { # $1 = connection string; prints "name|value" lines, in a read-only transaction
   psql "$1" --no-psqlrc --quiet --tuples-only --no-align -v ON_ERROR_STOP=1 \
@@ -115,6 +123,13 @@ if [ -n "${RESTORE_SERVER_URL:-}" ]; then
   done
   [ "$(value "$RESTORED" migration)" = "$(value "$AFTER" migration)" ] || { echo "Restore check failed: newest migration differs"; exit 1; }
   echo "   ok  migration      $(value "$RESTORED" migration)"
+  # The retired tables still in the database, by the same rule (nothing should write to them).
+  for key in $(printf '%s\n' "$BEFORE" | awk -F'|' '$1 ~ /^retired:/ { print $1 }'); do
+    b="$(value "$BEFORE" "$key")" a="$(value "$AFTER" "$key")" r="$(value "$RESTORED" "$key")"
+    lo=$(( b < a ? b : a )) hi=$(( b > a ? b : a ))
+    if [ -z "$r" ] || [ "$r" -lt "$lo" ] || [ "$r" -gt "$hi" ]; then echo "Restore check failed: $key restored ${r:-nothing}, source $b..$a"; exit 1; fi
+    printf '   ok  %-30s %s\n' "$key" "$r"
+  done
 else
   echo "RESTORE_SERVER_URL not set: the restore check was skipped."
 fi
@@ -139,6 +154,7 @@ cat > "$OUT_DIR/$NAME.json" <<JSON
   "tablesWithData": $DUMPED_TABLES,
   "newestMigration": "$(value "$AFTER" migration)",
   "rows": { "teams": $(value "$AFTER" teams), "users": $(value "$AFTER" users), "players": $(value "$AFTER" players), "riotAccounts": $(value "$AFTER" riot_accounts), "matchDetails": $(value "$AFTER" match_details) },
+  "retiredTableRows": $(printf '%s\n' "$AFTER" | awk -F'|' '$1 ~ /^retired:/ { sub(/^retired:/, "", $1); print $1 "\t" $2 }' | jq -Rn '[inputs | split("\t") | {(.[0]): (.[1] | tonumber)}] | add // {}'),
   "restoreChecked": $([ -n "$RESTORED" ] && echo true || echo false),
   "backupRole": $ROLE
 }

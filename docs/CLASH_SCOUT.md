@@ -1,7 +1,7 @@
 # Clash Scout (retired)
 
 **Status: permanently removed on 23 Oct 2026, at the owner's request,** and its saved scouts
-deleted with their tables by migration `0057`. There is no replacement, placeholder or archive page.
+deleted with their tables by migration `0064`. There is no replacement, placeholder or archive page.
 This page records what was removed and what is left on purpose. It is not a guide to the old
 implementation.
 
@@ -50,9 +50,9 @@ possible groups, and every other OP.GG link.
 | `clash_scouts` and `clash_scout_accounts` in `db-usage`'s retired list | The report confirms that both tables are gone |
 | Migrations `0050` and `0055`, which created and updated the tables | Applied migrations are never edited; a fresh install creates the tables and `0057` drops them |
 
-## The database clean-up (migration 0057)
+## The database clean-up (migration 0064)
 
-`0057_retire_clash_scouts` dropped `clash_scout_accounts` and then `clash_scouts` (their indexes and
+`0064_retire_clash_scouts` dropped `clash_scout_accounts` and then `clash_scouts` (their indexes and
 foreign keys went with them; no `CASCADE`, so an unexpected dependency would have stopped it). It
 ran only after the owner had independently verified an encrypted backup holding both tables, kept an
 offline copy and gave the go-ahead. The same change removed their schema, the erasure and

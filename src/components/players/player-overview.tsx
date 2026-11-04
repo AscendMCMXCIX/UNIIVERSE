@@ -15,11 +15,11 @@ import { ModeElsewhere, OverviewFilters } from "./overview-filters";
 import { WIN_RATE_MIN_GAMES, winRateTone, type WinRateTone } from "@/domain/stats/win-rate";
 import { MULTIKILL_KINDS, type MultikillCounts, type MultikillSummary } from "@/domain/multikills";
 import type { DataStatus } from "@/domain/data-status";
-import { DataRefresh, type DataRefreshTarget } from "@/components/ui/data-status";
+import { DataStatusNote, RefreshButton, type DataRefreshTarget } from "@/components/ui/data-status";
 import { SectionHeader } from "@/components/ui/section-header";
 
-/** A season win rate is highlighted only on enough games (see domain/stats/win-rate). */
-const HERO_TONE: Record<WinRateTone, "good" | "muted" | undefined> = { good: "good", plain: undefined, muted: "muted" };
+/** A season win rate is coloured only on enough games (see domain/stats/win-rate). */
+const TONE_CLASS: Record<WinRateTone, string> = { good: "text-good", plain: "text-fg", muted: "text-fg-subtle" };
 
 export const fmt = {
   kda: (p: PerformanceSummary) => (p.kdaRatio === null ? "—" : p.kdaRatio.toFixed(2)),
@@ -29,18 +29,58 @@ export const fmt = {
   csm: (p: PerformanceSummary) => (p.csPerMinute === null ? "—" : p.csPerMinute.toFixed(1)),
 };
 
-/** One figure as a card: its name, the number, and a short line of context. */
-function HeroFigure({ label, value, sub, info, tone, testId, className, valueClassName }: { label: string; value: React.ReactNode; sub?: React.ReactNode; info?: string; tone?: "good" | "muted"; testId?: string; className?: string; valueClassName?: string }) {
+/*
+  Season performance as one card in three bands, read in order of importance:
+    headline    win rate, KDA and games: the largest figures on the page;
+    supporting  CS/min, damage/min and vision: the same reading, a size smaller;
+    kills       total kills and the four multikill kinds in one row, all alike.
+  Each figure reads label, number, context (the quietest grey). Colour only where it says
+  something: a season win rate with enough games, and the record bar's wins and losses. The card's
+  own width decides the layout (a container query), so the open or folded sidebar is allowed for.
+*/
+
+/** A headline figure: its label, the number at the size of the page's main figures, its context. */
+function Headline({ label, value, sub, info, tone = "plain", testId, children }: { label: string; value: React.ReactNode; sub?: React.ReactNode; info?: string; tone?: WinRateTone; testId: string; children?: React.ReactNode }) {
   return (
-    <div className={cn("min-w-0 rounded-card border border-border bg-surface px-3 py-2.5 sm:px-4", className)} data-testid={testId}>
+    <div className="min-w-0 px-3 py-3 @min-[34rem]/perf:px-5 @min-[34rem]/perf:py-4" data-testid={testId}>
       <div className="flex items-center gap-1 text-xs font-medium text-fg-muted">
-        <span className="min-w-0 leading-tight">{label}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
+        <span className="min-w-0 truncate leading-tight">{label}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
       </div>
-      <div className={cn("mt-0.5 text-2xl font-semibold tabular-nums leading-tight tracking-tight sm:text-figure", tone === "good" ? "text-good" : tone === "muted" ? "text-fg-muted" : "text-fg", valueClassName)} data-testid={testId ? `${testId}-value` : undefined}>
+      <div className={cn("mt-1.5 text-2xl font-semibold leading-none tracking-tight tabular-nums @min-[34rem]/perf:text-figure", TONE_CLASS[tone])} data-testid={`${testId}-value`}>
         {value}
       </div>
-      {sub ? <div className="mt-0.5 truncate text-xs text-fg-muted">{sub}</div> : null}
+      {children}
+      {sub ? <div className="mt-1.5 truncate text-xs text-fg-subtle">{sub}</div> : null}
     </div>
+  );
+}
+
+/** A supporting figure: the same reading as a headline one, a size smaller, its context beside it where there is room. */
+function Supporting({ label, value, sub, info, muted, testId }: { label: string; value: React.ReactNode; sub?: string; info?: string; muted?: boolean; testId: string }) {
+  return (
+    <div className="min-w-0 px-3 py-2.5 @min-[34rem]/perf:px-5" data-testid={testId}>
+      <div className="flex items-center gap-1 text-xs text-fg-muted">
+        <span className="min-w-0 truncate leading-tight">{label}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
+      </div>
+      <div className="mt-1 flex min-w-0 items-baseline gap-2">
+        <span className={cn("text-lg font-semibold leading-tight tabular-nums", muted ? "text-fg-subtle" : "text-fg")} data-testid={`${testId}-value`}>
+          {value}
+        </span>
+        {sub ? <span className="hidden min-w-0 truncate text-xs text-fg-subtle @min-[44rem]/perf:inline">{sub}</span> : null}
+      </div>
+    </div>
+  );
+}
+
+/** Wins and losses as one bar (blue and red, the colours of a game's result); the numbers under it say the same in words. */
+function RecordBar({ wins, losses }: { wins: number; losses: number }) {
+  const games = wins + losses;
+  if (!games) return null;
+  return (
+    <span className="mt-2.5 flex h-1.5 w-full max-w-[10rem] gap-px overflow-hidden rounded-full bg-surface-3" aria-hidden data-testid="season-record-bar">
+      {wins ? <span className="h-full bg-blue" style={{ width: `${(wins / games) * 100}%` }} /> : null}
+      {losses ? <span className="h-full flex-1 bg-red/85" /> : null}
+    </span>
   );
 }
 
@@ -51,18 +91,31 @@ function multikillRate(count: number, counted: number): string {
   return every === 1 ? `${count >= counted ? "Every game" : "About every game"}` : `1 every ${formatCount(every)} games`;
 }
 
+/** One count in the kills row: its label, the number, how often (or its context). */
+function KillCount({ label, value, sub, muted, testId, className }: { label: string; value: React.ReactNode; sub: string; muted?: boolean; testId: string; className?: string }) {
+  return (
+    <div className={cn("min-w-0 px-3 py-2.5", className)} data-testid={testId}>
+      <div className="truncate text-xs text-fg-muted">{label}</div>
+      <div className={cn("mt-0.5 text-lg font-semibold leading-tight tabular-nums", muted ? "text-fg-subtle" : "text-fg")} data-testid={`${testId}-value`}>
+        {value}
+      </div>
+      <div className="truncate text-2xs text-fg-subtle" title={sub}>
+        {sub}
+      </div>
+    </div>
+  );
+}
+
 /**
- * The kills: Total kills, then the four multikill kinds, as cards like the season's other figures,
- * straight under them: every count in the same colour, size and weight (no kind is highlighted
- * for being rare), and no heading of their own, since each card names what it counts (the heading
- * is for screen readers). Total kills adds up each game's own kill count over the same games as
- * the figures above (never the multikills); the multikills add up Riot's counts. Whether every
- * game has its counts is the page's status, one ⓘ under the title (components/ui/data-status.tsx),
- * never a mark on a card. A count no game has yet is a dash, never 0. The champions behind them
- * are one quiet link away. Phones: Total kills across the top, then two by two; wider, Total
- * kills on a row of its own above the four; where five fit side by side, one row.
+ * The kills band: Total kills, then the four multikill kinds, every count in the same colour, size
+ * and weight (no kind is highlighted for being rare), with no visible heading of its own since each
+ * count names itself (screen readers get one). Total kills adds up each game's own kill count over
+ * the same games as the figures above; the multikills add up Riot's counts. Whether every game has
+ * its counts is the page's status, beside the scope line under the title, never a mark here. A
+ * count no game has yet is a dash, never 0. The champions behind them are one quiet link away, at
+ * the row's end. Phones: Total kills across the top, then two by two.
  */
-function KillCards({ perf, m, byChampionHref }: { perf: PerformanceSummary; m: MultikillSummary; byChampionHref: string }) {
+function KillsBand({ perf, m, byChampionHref }: { perf: PerformanceSummary; m: MultikillSummary; byChampionHref: string }) {
   const unknown = m.counted === 0;
   const partial = !unknown && m.counted < m.games;
   const killsPartial = perf.totalKills !== null && perf.detailedGames < perf.games;
@@ -76,32 +129,95 @@ function KillCards({ perf, m, byChampionHref }: { perf: PerformanceSummary; m: M
     </>
   );
   return (
-    <section aria-labelledby="multikills-heading" className="@container" data-testid="multikills" data-coverage={unknown ? "none" : partial ? "partial" : "complete"}>
+    <section aria-labelledby="multikills-heading" className="border-t border-border/70" data-testid="multikills" data-coverage={unknown ? "none" : partial ? "partial" : "complete"}>
       <h3 id="multikills-heading" className="sr-only">
         Kills and multikills{notes.length ? ` (${notes.join("; ")})` : ""}
       </h3>
-      {/* A card needs about 9rem for its longest line ("About every game"): four abreast from 39rem, five from 49rem. */}
-      <div className="grid grid-cols-2 gap-2 sm:gap-3 @min-[39rem]:grid-cols-4 @min-[49rem]:grid-cols-5" data-testid="multikill-tiles">
-        <HeroFigure
-          label="Total kills"
-          value={perf.totalKills === null ? notYet : formatCount(perf.totalKills)}
-          tone={perf.totalKills === null ? "muted" : undefined}
-          sub={perf.totalKills === null ? "Not counted yet" : `${fmt.one(perf.kills)} a game`}
-          className="col-span-2 @min-[39rem]:col-span-4 @min-[49rem]:col-span-1"
-          testId="stat-total-kills"
-        />
+      <div className="grid grid-cols-2 @min-[34rem]/perf:grid-cols-5 @min-[48rem]/perf:grid-cols-[repeat(5,minmax(0,1fr))_auto]" data-testid="multikill-tiles">
+        <KillCount label="Total kills" value={perf.totalKills === null ? notYet : formatCount(perf.totalKills)} muted={perf.totalKills === null} sub={perf.totalKills === null ? "Not counted yet" : `${fmt.one(perf.kills)} a game`} testId="stat-total-kills" className="col-span-2 @min-[34rem]/perf:col-span-1" />
         {MULTIKILL_KINDS.map((k) => (
-          <HeroFigure key={k.key} label={kinds[k.key]} value={unknown ? notYet : formatCount(m[k.key])} tone={unknown ? "muted" : undefined} sub={unknown ? "Not counted yet" : multikillRate(m[k.key], m.counted)} testId={`multikill-${k.key}`} />
+          <KillCount key={k.key} label={kinds[k.key]} value={unknown ? notYet : formatCount(m[k.key])} muted={unknown} sub={unknown ? "Not counted yet" : multikillRate(m[k.key], m.counted)} testId={`multikill-${k.key}`} className="@min-[34rem]/perf:border-l @min-[34rem]/perf:border-border/60" />
         ))}
-      </div>
-      <div className="mt-1 flex justify-end">
-        {/* A small link with a finger-sized area on touch screens that takes no room of its own (it
-            grows up, down and inwards, never past the cards' right edge). */}
-        <Link href={byChampionHref} className="relative inline-flex min-h-6 items-center gap-0.5 rounded-md text-xs font-medium text-fg-muted transition-colors hover:text-accent focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:after:absolute pointer-coarse:after:-inset-y-2.5 pointer-coarse:after:-left-3 pointer-coarse:after:right-0 pointer-coarse:after:content-['']" aria-label="Multikills by champion, in All Champions" data-testid="multikills-by-champion">
-          By champion <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-        </Link>
+        <p className="col-span-2 flex items-center justify-end px-3 pb-2 @min-[34rem]/perf:col-span-5 @min-[34rem]/perf:-mt-1 @min-[48rem]/perf:col-span-1 @min-[48rem]/perf:mt-0 @min-[48rem]/perf:pb-0 @min-[48rem]/perf:pl-1 @min-[48rem]/perf:pr-4">
+          {/* A small link with a finger-sized area on touch screens that takes no room of its own. */}
+          <Link href={byChampionHref} className="relative inline-flex min-h-6 items-center gap-0.5 whitespace-nowrap rounded-md text-xs font-medium text-fg-muted transition-colors hover:text-accent focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:after:absolute pointer-coarse:after:-inset-y-2.5 pointer-coarse:after:-left-3 pointer-coarse:after:right-0 pointer-coarse:after:content-['']" aria-label="Multikills by champion, in All Champions" data-testid="multikills-by-champion">
+            By champion <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+          </Link>
+        </p>
       </div>
     </section>
+  );
+}
+
+/** The season's figures as one card (see above), labelled by Season performance's heading. */
+function PerformanceCard({ data, basePath }: { data: PlayerOverviewData; basePath: string }) {
+  const rec = data.summary.record;
+  const perf = data.summary.performance;
+  const kda = perf.detailedGames ? (
+    <>
+      {fmt.one(perf.kills)} / {fmt.one(perf.deaths)} / {fmt.one(perf.assists)}
+      <span className="@max-[34rem]/perf:hidden"> per game</span>
+      {perf.perfectKda ? " · no deaths" : ""}
+    </>
+  ) : rec.games ? (
+    "details not collected yet"
+  ) : undefined;
+  return (
+    <section aria-labelledby="season-stats" className="@container/perf relative h-full overflow-hidden rounded-card border border-border bg-surface panel-featured" data-testid="season-figures">
+      {/* The brand's line along the top edge (panel-featured adds a faint wash of its light in the corner): the card the page leads with. */}
+      <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-accent/80 via-accent-2/60 to-transparent" />
+      <div className="grid grid-cols-3 divide-x divide-border/60" data-testid="season-headline">
+        <Headline label="Win rate" value={rec.winRate === null ? "—" : percent(rec.winRate, 0)} sub={rec.games ? `${rec.wins}W ${rec.losses}L` : "No games yet"} tone={winRateTone(rec.winRate, rec.games, WIN_RATE_MIN_GAMES.season)} testId="stat-winrate">
+          <RecordBar wins={rec.wins} losses={rec.losses} />
+        </Headline>
+        <Headline label="KDA" value={fmt.kda(perf)} sub={kda} info="(Kills + assists) ÷ deaths, added up over all the games, so one deathless game cannot make it infinite." tone={perf.kdaRatio === null ? "muted" : "plain"} testId="stat-kda" />
+        <Headline label="Games" value={<span data-testid="season-record">{rec.games ? fmt.int(rec.games) : "—"}</span>} sub={rec.games ? `${data.topChampions.length} champion${data.topChampions.length === 1 ? "" : "s"}` : "No games yet"} tone={rec.games ? "plain" : "muted"} testId="stat-games" />
+      </div>
+      <div className="grid grid-cols-3 divide-x divide-border/60 border-t border-border/70 bg-bg/25" data-testid="season-supporting">
+        <Supporting label="CS/min" value={fmt.csm(perf)} sub={rec.games ? "minions + monsters" : undefined} info="Lane minions plus jungle monsters: total CS ÷ total minutes played, over the games with both recorded (remakes under five minutes left out)." muted={perf.csPerMinute === null} testId="stat-cs" />
+        <Supporting label="Damage/min" value={fmt.int(perf.damagePerMinute)} sub={rec.games ? "to champions" : undefined} info="Damage dealt to enemy champions: total damage ÷ total minutes played, over the games with both recorded (remakes left out)." muted={perf.damagePerMinute === null} testId="stat-damage" />
+        <Supporting label="Vision score" value={fmt.int(perf.visionPerGame)} sub={rec.games ? "per game" : undefined} info="Average Riot vision score per game: wards placed and cleared, and time spent revealing enemies." muted={perf.visionPerGame === null} testId="stat-vision" />
+      </div>
+      {/* The kills over the same games; per champion in All Champions (same filters, sorted by multikills). */}
+      {rec.games > 0 ? <KillsBand perf={perf} m={data.summary.multikills} byChampionHref={`${basePath}/champions?${statsQuery({ season: data.filter.season, mode: data.filter.mode, role: data.filter.role, accountId: data.filter.accountId }, { sort: "multikills" })}`} /> : null}
+      {rec.games === 0 && data.filter.mode !== "all" && data.modes.elsewhere.length ? (
+        <div className="border-t border-border/70 px-3 pb-3 @min-[34rem]/perf:px-5">
+          <ModeElsewhere basePath={basePath} filter={data.filter} elsewhere={data.modes.elsewhere} />
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+/*
+  The Overview's dashboard, under Season performance's heading (whose filters and Refresh govern
+  all of it). Its own width decides the arrangement (a container query, so the sidebar is allowed for):
+    wide (58rem+)  two columns: the season's card and the champion pools on the left; recent form
+                   and ranked progress in a narrower column on the right, the first row level;
+    narrower       one column in that same order, each card in its own wider layout (never two
+                   side by side of different heights, which would leave one with an empty band).
+  A card without data is left out (fewer than five games: no recent form; no linked account: no
+  ranked progress), and the others close up: nothing is padded out to keep a shape.
+*/
+function OverviewDashboard({ perf, form, ranked, pools }: { perf: React.ReactNode; form?: React.ReactNode; ranked?: React.ReactNode; pools?: React.ReactNode }) {
+  const side = !!(form || ranked);
+  return (
+    <div className="@container/ov" data-testid="overview-dashboard">
+      <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start gap-3 sm:gap-4", side && "@min-[58rem]/ov:grid-cols-[minmax(0,1fr)_minmax(18rem,21rem)]")}>
+        <div className="order-1 min-w-0 self-stretch">{perf}</div>
+        {form ? (
+          <div className="order-2 min-w-0 self-stretch" data-testid="overview-form">
+            {form}
+          </div>
+        ) : null}
+        {ranked ? (
+          <div className={cn("min-w-0", form ? "order-3 @min-[58rem]/ov:order-4" : "order-2 self-stretch")} data-testid="overview-ranked">
+            {ranked}
+          </div>
+        ) : null}
+        {pools ? <div className={cn("order-4 min-w-0", side && form && ranked ? "@min-[58rem]/ov:order-3" : "@min-[58rem]/ov:col-span-2")}>{pools}</div> : null}
+      </div>
+    </div>
   );
 }
 
@@ -137,23 +253,18 @@ export function refinementLabel(data: PlayerOverviewData, nameOf: (id: string) =
 export const REFINE_SCOPE = "Applies to Season performance, its multikills and Recent form.";
 
 /**
- * Season performance, most important first: win rate, games, KDA, CS/min, damage/min and vision
- * side by side; then the champions behind the numbers. By default it counts every champion, every
- * linked account and every supported mode this season; the filters narrow it down and the line
- * under the title always says exactly which games are counted. Under that line, Refresh (the
- * player's and an admin's; a real read from Riot) with the page's data status one ⓘ beside it:
- * how complete the figures are is there, not in a banner above the section.
+ * Season performance: the heading (what the figures count, with the page's data status beside it,
+ * and the toolbar: the filters, then Refresh) over the Overview's dashboard (OverviewDashboard): the
+ * season's card, recent form, ranked progress and the champion pools, which the same filters narrow
+ * where they apply. By default it counts every champion, every linked account and every supported
+ * mode this season. How complete the figures are is in the status, not in a banner.
  */
-export function SeasonSummary({ data, basePath, championsById, status, refresh }: { data: PlayerOverviewData; basePath: string; championsById: Record<string, PortraitChampion>; /** The page's data status (domain/data-status). */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts, where Riot can be asked. */ refresh?: DataRefreshTarget | null }) {
+export function SeasonSummary({ data, basePath, championsById, status, refresh, form, ranked, pools }: { data: PlayerOverviewData; basePath: string; championsById: Record<string, PortraitChampion>; /** The page's data status (domain/data-status). */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts, where Riot can be asked. */ refresh?: DataRefreshTarget | null; /** Recent form's card, when there are enough games. */ form?: React.ReactNode; /** Ranked progress's card, when an account is linked. */ ranked?: React.ReactNode; /** The roles and champion pools. */ pools?: React.ReactNode }) {
   const nameOf = (id: string) => championsById[id]?.name ?? id;
-  const rec = data.summary.record;
-  const perf = data.summary.performance;
-  const kdaSub = perf.detailedGames ? `${fmt.one(perf.kills)} / ${fmt.one(perf.deaths)} / ${fmt.one(perf.assists)} per game${perf.perfectKda ? " · no deaths" : ""}` : rec.games ? "details not collected yet" : undefined;
   const champions = data.championOptions.map((c) => ({ id: c.id, name: nameOf(c.id), games: c.games, portraitUrl: championsById[c.id]?.portraitUrl }));
   return (
-    <section aria-labelledby="season-stats" className="space-y-3" data-testid="season-summary">
-      {/* The profile's one heading layout (as All Champions and Match History): what the figures
-          count under the title; how complete they are under the ⓘ beside Refresh. */}
+    <div className="space-y-3" data-testid="season-summary">
+      {/* The profile's one heading layout (as All Champions and Match History). */}
       <SectionHeader
         id="season-stats"
         title="Season performance"
@@ -162,28 +273,11 @@ export function SeasonSummary({ data, basePath, championsById, status, refresh }
             {scopeLabel(data, nameOf)}
           </p>
         }
-        status={status ? <DataRefresh status={status} refresh={refresh} /> : null}
+        status={status ? <DataStatusNote status={status} refresh={refresh} /> : null}
+        refresh={status ? <RefreshButton status={status} refresh={refresh} /> : null}
         controls={<OverviewFilters basePath={basePath} filter={data.filter} seasons={data.seasons} currentSeason={data.currentSeason} champions={champions} accounts={data.accountOptions} modeCounts={data.modes.counts} refineScope={REFINE_SCOPE} />}
       />
-      {/* The figures, then the multikills right under them, as far apart as the figures' own rows. */}
-      <div className="space-y-2 sm:space-y-3">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 xl:grid-cols-6" data-testid="season-figures">
-          <HeroFigure label="Win rate" value={rec.winRate === null ? "—" : percent(rec.winRate, 0)} sub={rec.games ? `${rec.wins}W ${rec.losses}L` : "No games yet"} tone={HERO_TONE[winRateTone(rec.winRate, rec.games, WIN_RATE_MIN_GAMES.season)]} testId="stat-winrate" />
-          <HeroFigure label="Games" value={<span data-testid="season-record">{rec.games ? fmt.int(rec.games) : "—"}</span>} sub={rec.games ? `${data.topChampions.length} champion${data.topChampions.length === 1 ? "" : "s"}` : "No games yet"} tone={rec.games ? undefined : "muted"} testId="stat-games" />
-          <HeroFigure label="KDA ratio" value={fmt.kda(perf)} sub={kdaSub} info="(Kills + assists) ÷ deaths, added up over all the games, so one deathless game cannot make it infinite." tone={perf.kdaRatio === null ? "muted" : undefined} testId="stat-kda" />
-          <HeroFigure label="CS / min" value={fmt.csm(perf)} sub={rec.games ? "minions + monsters" : undefined} info="Lane minions plus jungle monsters: total CS ÷ total minutes played, over the games with both recorded (remakes under five minutes left out)." tone={perf.csPerMinute === null ? "muted" : undefined} testId="stat-cs" />
-          <HeroFigure label="Damage / min" value={fmt.int(perf.damagePerMinute)} sub={rec.games ? "to champions" : undefined} info="Damage dealt to enemy champions: total damage ÷ total minutes played, over the games with both recorded (remakes left out)." tone={perf.damagePerMinute === null ? "muted" : undefined} testId="stat-damage" />
-          <HeroFigure label="Vision score" value={fmt.int(perf.visionPerGame)} sub={rec.games ? "per game" : undefined} info="Average Riot vision score per game: wards placed and cleared, and time spent revealing enemies." tone={perf.visionPerGame === null ? "muted" : undefined} testId="stat-vision" />
-        </div>
-        {/* The kills over the same games, as figures of their own; per champion in All Champions (same filters, sorted by multikills). */}
-        {rec.games > 0 ? <KillCards perf={perf} m={data.summary.multikills} byChampionHref={`${basePath}/champions?${statsQuery({ season: data.filter.season, mode: data.filter.mode, role: data.filter.role, accountId: data.filter.accountId }, { sort: "multikills" })}`} /> : null}
-      </div>
-      {rec.games === 0 ? <ModeElsewhere basePath={basePath} filter={data.filter} elsewhere={data.modes.elsewhere} /> : null}
-    </section>
+      <OverviewDashboard perf={<PerformanceCard data={data} basePath={basePath} />} form={form} ranked={ranked} pools={pools} />
+    </div>
   );
 }
-
-/** One short explanation of proficiency, shown from an (i) wherever a rating appears. */
-export const PROFICIENCY_HELP =
-  "How much this player has played a champion in that role, from their games on every linked account: how many (recent ones count more), whether they were in this role, and their results. It measures experience, not skill. Main needs 15+ games in the role and Comfortable 6+; mastery helps only a little, and only for roles they actually play the champion in.";
-

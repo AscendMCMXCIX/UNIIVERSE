@@ -9,6 +9,7 @@ import { Panel, PanelBody, PanelHeader, SectionLabel } from "@/components/ui/pan
 import { Info, Metric, MetricLabel, SourceLine } from "@/components/ui/metric";
 import { metricTooltip } from "@/domain/metrics";
 import { formatCount, percent, timeAgo } from "@/lib/format";
+import { ScrollRegion } from "@/components/ui/scroll-region";
 
 const TIER_TONE: Record<ProficiencyTier, BadgeTone> = { core: "good", strong: "good", comfortable: "info", moderate: "neutral", rusty: "warn", unknown: "neutral" };
 
@@ -115,7 +116,7 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
                 </div>
               ))}
             </div>
-            <div className="hidden overflow-x-auto md:block">
+            <ScrollRegion label="Champion data" className="hidden md:block">
               <table className="w-full text-xs">
                 <thead className="text-left text-fg-subtle">
                   <tr>
@@ -163,7 +164,7 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
                   ))}
                 </tbody>
               </table>
-            </div>
+            </ScrollRegion>
             </>
           )}
         </div>

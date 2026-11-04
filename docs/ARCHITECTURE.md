@@ -61,17 +61,7 @@ Sessions are rows in `sessions` (`src/server/auth/sessions.ts`): the browser hol
 
 - **Team** (`src/server/team/overview.ts`, `src/components/team/lineup-overview.tsx`): the five lineup slots with the assigned player, their pool for that role and per-champion context read from stored history (`src/server/players/history.ts` resolves each `account_champion_history` bucket to a patch distance) and the proficiency lookup: ranked games and win rate on the current and previous two patches, proficiency tier. The swap dropdown lists Main players for the role and reveals Other players only when substituting; `setLineupSlotAction` requires `manage-lineup`.
 - **Players** (`/players`, `/players/[id]`, `/players/[id]/edit`): the browse list (Main / Other), the read-only profile every member can open (roles, pools, Riot accounts, overview, collapsible proficiency detail; never passwords, sessions or infrastructure) and the editor for the profile's owner and admins. Roster administration (Add Player Account, password resets, account status, Main / Other) is the Admin → Players & Accounts page.
-- **My Profile** (`src/components/players/player-profile-page.tsx` renders every profile; `src/domain/season-stats.ts`, `src/server/players/season-games.ts`, `src/server/players/overview.ts`, `src/components/players/player-overview.tsx`): plain counts over the per-match ledger (`account_matches`) for one season. Seasons come from the game version (`src/domain/season.ts`: 16.x = 2026; year-named patches like 26.20 are mapped to 16.20 by `canonicalPatch`). Games seen from two linked accounts count once (`dedupeGames`); modes are All supported games (Solo/Duo, Flex, Normal Draft/Blind, Swiftplay/Quickplay, Clash), Ranked Solo/Duo, Ranked Flex and Normal games. Mastery is summed across accounts with a breakdown (`combineMastery`). `?season=` and `?mode=all|solo|flex|normal` are GET parameters; no Riot request happens while rendering. Completeness: *Partial season* until every account's `history_backfill` is complete. `/overview` is the member's own profile; teammates see the same page on `/players/[id]` (read-only unless an admin; opening your own id redirects to `/overview`; the journal lives under `/overview/blocks` and is private). Per-game KDA, CS, damage and vision come from `account_matches` columns filled at sync time (older rows are backfilled newest first; `kills = -1` marks a match whose details Riot no longer serves) and are averaged by `performanceOfGames` over the games that have them; CS/min and damage/min are total ÷ total minutes of the games with a valid duration (5 min to 4 h; remakes excluded). Strength tags (`src/domain/player-tags.ts`) are cached in `player_tags` by an input hash and only recomputed when a player's data changes; performance tags have a 5% hysteresis so they do not flicker.
-
-## Ranked Improvement journal (Solo Queue Blocks)
-
-A private Solo/Duo journal per player, deliberately separate from the team's statistics: nothing in it feeds proficiency or Match History, and no other member can read it.
-
-- **Tables** (migration `0005`): `ranked_profiles` (one row per player: Champion 1–3, counter pick, the one-sentence focus), `ranked_blocks` (`player_id`, `number` unique per player, `status` active|completed, started/completed timestamps) and `ranked_games` (block, player, optional Riot account and match id, played-at, role, champion, enemy champion, result, main mistake, notes, link, optional `teammate_player_id`). Deleting a player removes their journal (cascade); deleting a tagged teammate only clears the tag (set null); unlinking a Riot account keeps imported games (set null). Indexes: games by player and date, by block, and a unique `(player_id, riot_match_id)` so a synced match is imported once.
-- **Rules** (`src/domain/ranked-improvement.ts`): a block starts with a target the player chooses (1–100 games, `ranked_blocks.planned_games`, or no target: `planned_games` null; blocks from before targets existed read as 6). Reaching the target does not close it: the page offers Finish block or "+3 more" and further games simply count past the target. It may be finished at any point (state `completed-early` when below its target) and its target changed or cleared while it runs (below the games logged is allowed; nothing is removed). The database never limited block size; the old 1–20 range and the automatic close were application rules and were removed on the server as well as in the page. A block keeps the ranked focus it was played with (`ranked_blocks.focus`; the block in progress follows edits), and the next block takes the next number (`BLOCK 004`). "Played with" (`withPlayedWith` in `src/server/ranked/repository.ts`) is computed when reading: other registered players' linked accounts in the same `account_matches.match_id` with the same result (same side; enemies never), minus the owner's corrections (`ranked_games.not_played_with`), plus a hand tag (`teammate_player_id`); one main mistake from a fixed list per game; links must be http(s). Dashboard and statistics are plain counts over the games that exist.
-- **Authorization** (`src/server/ranked/owner.ts`, `src/server/actions/ranked.ts`): the owner is always the signed-in session's own `playerId`; no page or action accepts a player id. Every repository function (`src/server/ranked/repository.ts`) takes the owner first and filters on it, so a foreign block or game id is simply "not found". Tagging a teammate stores the id only; it grants nothing.
-- **Import**: `listImportableMatches` reads the owner's own `account_matches` rows (queue 420, champion and result known, match id not yet journaled) and `importMatch` copies the facts (date, account, champion, enemy laner, result, role); the main mistake and notes are added by the player. Manual entry never depends on Riot.
-- **Pages**: `/overview/blocks` (the focus, then the block in progress or starting the next, Quick Add beside it with recent Riot games to log, the logged games, the previous blocks), `/overview/blocks/history` (paginated blocks with planned / logged / completed early and the focus) and `/overview/blocks/[id]`. Old `/blocks/*` and `/ranked/*` addresses redirect here. The phone tab bar marks **Profile** (the journal is a subsection of the profile Overview).
+- **My Profile** (`src/components/players/player-profile-page.tsx` renders every profile; `src/domain/season-stats.ts`, `src/server/players/season-games.ts`, `src/server/players/overview.ts`, `src/components/players/player-overview.tsx`): plain counts over the per-match ledger (`account_matches`) for one season. Seasons come from the game version (`src/domain/season.ts`: 16.x = 2026; year-named patches like 26.20 are mapped to 16.20 by `canonicalPatch`). Games seen from two linked accounts count once (`dedupeGames`); modes are All supported games (Solo/Duo, Flex, Normal Draft/Blind, Swiftplay/Quickplay, Clash), Ranked Solo/Duo, Ranked Flex and Normal games. Mastery is summed across accounts with a breakdown (`combineMastery`). `?season=` and `?mode=all|solo|flex|normal` are GET parameters; no Riot request happens while rendering. Completeness: *Partial season* until every account's `history_backfill` is complete. `/overview` is the member's own profile; teammates see the same page on `/players/[id]` (read-only unless an admin; opening your own id redirects to `/overview`; Ranked Development lives under `/overview/development` and is private). Per-game KDA, CS, damage and vision come from `account_matches` columns filled at sync time (older rows are backfilled newest first; `kills = -1` marks a match whose details Riot no longer serves) and are averaged by `performanceOfGames` over the games that have them; CS/min and damage/min are total ÷ total minutes of the games with a valid duration (5 min to 4 h; remakes excluded). Strength tags (`src/domain/player-tags.ts`) are cached in `player_tags` by an input hash and only recomputed when a player's data changes; performance tags have a 5% hysteresis so they do not flicker.
 
 ## Future-proofing
 
@@ -90,7 +80,7 @@ A private Solo/Duo journal per player, deliberately separate from the team's sta
 
 - **Season history** (`src/server/accounts/sync.ts`): each account sync reads every supported queue (420, 440, 400, 430, 480, 490, 700) newest first, then resumes older pages from the per-queue offset stored in `riot_accounts.history_backfill` until the season start, at most `ACCOUNT_SYNC_MATCHES_PER_RUN` (default 80) new matches per account per run; empty queues are rechecked every 12 hours. Statuses: Pending sync · Verified · Synchronising (season history still being collected) · Synced · Delayed · Failed (`src/domain/account-status.ts`).
 - **Rate limits** (`src/server/riot/api/rate-limiter.ts`): the client adopts Riot's own `X-App-Rate-Limit` header (development, personal or production key alike) unless `RIOT_RATE_LIMITS` pins them.
-- **Scheduler** (`src/server/jobs/scheduler.ts`): the tick runs version-check → account-sync (≤75 s) → integrity (≤20 s) → timeline-backfill (≤25 s) → figures-backfill (≤25 s), each also bounded by what is left of the tick's budget. Ticks are started by GitHub (hourly), Vercel (daily) and visits (`src/server/jobs/background.ts`: a lease row lets at most one visit-started tick run per 30 minutes).
+- **Scheduler** (`src/server/jobs/scheduler.ts`): the tick runs version-check → account-sync (≤75 s) → rank-checks (≤15 s) → integrity (≤20 s) → timeline-backfill (≤25 s) → figures-backfill (≤25 s), each also bounded by what is left of the tick's budget. Ticks are started by GitHub (hourly), Vercel (daily) and visits (`src/server/jobs/background.ts`: a lease row lets at most one visit-started tick run per 30 minutes).
 - **Proficiency** (`src/domain/proficiency`): queue-aware weights (Solo/Duo 1, Flex 0.9, Clash/other 0.85, Normal 0.6); normals add familiarity and practice but never the ranked performance baseline.
 - **Read-only diagnostics job**: `data-audit` (anonymised Riot data coverage), run from GitHub Actions → Data jobs.
 
@@ -107,7 +97,7 @@ A private Solo/Duo journal per player, deliberately separate from the team's sta
 
 ## Phase 6: navigation, player identity, statistics scope, Riot accounts and access groups
 
-- **Navigation** (`src/lib/nav.ts`, `src/components/nav-links.tsx`, `src/components/collapsible-sidebar.tsx`, `src/components/account-menu.tsx`): `NAV_ENTRIES` holds My Profile and a Team section (Overview `/team`, Players, Leaderboards, Matches); My Profile's whose sections (Overview, Champions & Roles, Solo Queue Blocks, Match History, Riot Accounts) are one dropdown (`src/components/players/profile-tabs.tsx`: real links, so Back/Forward work; Overview and Match History carry the season and mode). The collapsed sidebar is always laid out at full width and revealed with `clip-path` and a transform (no width animation, no text reflow, labels fade; 90 ms open / 240 ms close delays; `prefers-reduced-motion` disables the transitions); hovering never changes the pinned state, which the toggle at its foot sets (Ctrl+\\; cookie, read on the server). The account menu (`ACCOUNT_LINKS`) holds Settings and Sign out only; the Admin switch is in the sidebar. Old addresses redirect: `/blocks/*` and `/ranked/*` → `/overview/blocks`, `/settings/riot` → `/overview/accounts`, `/admin/players` and `/admin/users` → `/admin/people`.
+- **Navigation** (`src/lib/nav.ts`, `src/components/nav-links.tsx`, `src/components/collapsible-sidebar.tsx`, `src/components/account-menu.tsx`): `NAV_ENTRIES` holds My Profile and a Team section (Overview `/team`, Players, Leaderboards, Matches); My Profile's sections (Overview, All Champions, Match History, Riot Accounts) are one dropdown (`src/components/players/profile-tabs.tsx`: real links, so Back/Forward work; Overview and Match History carry the season and mode). The collapsed sidebar is always laid out at full width and revealed with `clip-path` and a transform (no width animation, no text reflow, labels fade; 90 ms open / 240 ms close delays; `prefers-reduced-motion` disables the transitions); hovering never changes the pinned state, which the toggle at its foot sets (Ctrl+\\; cookie, read on the server). The account menu (`ACCOUNT_LINKS`) holds Settings and Sign out only; the Admin switch is in the sidebar. Old addresses redirect: `/overview/blocks/*`, `/blocks/*` and `/ranked/*` → `/overview/development`, `/settings/riot` → `/overview/accounts`, `/admin/players` and `/admin/users` → `/admin/people`.
 - **Menus** (`src/components/ui/menu.tsx`): rendered in a portal with fixed positioning that flips above or left when there is no room, so a three-dot menu is never clipped by a card or a scrolling list.
 - **Profiles** (`src/components/players/profile-sections.tsx`, `profile-tabs.tsx`, routes under `/overview` and `/players/[id]`): one frame (`ProfileFrame`, hero `profile-header.tsx`) and three tabs: Overview, Champions & Roles (`/champions`), Riot Accounts (`/accounts`). Opening your own `/players/[id]` tab redirects to the matching `/overview` tab.
 - **Statistics scope** (`src/domain/season-stats.ts` `filterGames`, `src/server/players/overview.ts`): the default is every champion, every account, every supported mode, current season. Order of filters: account → de-duplicate by match id → season and mode → role (games without a recorded position are excluded and counted in a note) → scope (all champions / configured pool for that role / one champion). URL parameters `season, mode, role, scope, champion, account`. Champion cards are per (role, champion).
@@ -123,7 +113,7 @@ A private Solo/Duo journal per player, deliberately separate from the team's sta
 - **Players still in setup** (`listPlayers` in `src/server/repositories/team.ts`): accounts whose `users.setup_completed_at` is empty are left out of player-facing lists, and lineup candidates (`includeSetupPending` for admins; `keep` for players already in the lineup, which is never changed). `setLineupSlot`/`setLineup` refuse them. New accounts get no primary role (`players.primary_role` is nullable since migration 0024, which cleared the old "Mid" placeholder only for setup-pending profiles with no champions, no other roles and no lineup slot); `getPlayer` returns only profiles with a role, `getPlayerRow` returns the raw row.
 - **Champion pool ordering** (`src/components/champions/sortable-pool.tsx`): the dragged card follows the pointer, a dashed slot marks the drop place and the other cards slide (FLIP via the Web Animations API, off with reduced motion); the target index comes from the cards' layout slots (`targetIndex`), not their animated positions. Nothing is saved until the drop; Escape cancels. Keyboard: Space picks up, arrows move, Space drops, with `aria-live` announcements. Touch drags from the grip only.
 - **Sidebar hover** (`src/components/collapsible-sidebar.tsx`): a collapsed sidebar opens over the page after 120 ms of hover and folds back 260 ms after the pointer leaves, unless a menu inside is open or keyboard focus is inside; the saved choice changes only with the button.
-- **Personal Match History** (`src/server/players/match-history.ts`, `src/components/match-history/`): reads the same `account_matches` ledger as the season statistics (one row per match across a player's accounts, filters shared with the profile through `filterGames`), sorted newest first and paginated on the server; only the page's matches load their record from `match_details` (migration 0026: one row per match with both teams, items, spells, runes, objectives and bans, built by `src/server/accounts/match-details.ts`). Records are written by the account sync from the match it already fetched (`foldMatch`, the performance backfill) and by a budgeted backfill pass (2c) for older games; a game Riot no longer serves gets an empty record, which marks it unavailable without touching its statistics. Opening the list never calls Riot; opening one game whose record is still missing fetches it once (`getMatchDetailAction`, owner or `view-teammate-stats`). Item, spell and rune names come from Data Dragon once per version (`src/server/riot/static/assets.ts`, stored in `app_settings.riot_assets` by the static sync). "Add to Solo Queue Block" calls the journal's own `importMatch` (refuses duplicates). The list also carries both lineups per stored record and a summary of every game the filters match (`recordOf` / `performanceOfGames`, as on the Overview); the pool scope uses the profile's configured pools. `compareInMatch` builds the detail's Comparison tab (shares of the team, the lane opponent by recorded position, team totals) from the stored record only.
+- **Personal Match History** (`src/server/players/match-history.ts`, `src/components/match-history/`): reads the same `account_matches` ledger as the season statistics (one row per match across a player's accounts, filters shared with the profile through `filterGames`), sorted newest first and paginated on the server; only the page's matches load their record from `match_details` (migration 0026: one row per match with both teams, items, spells, runes, objectives and bans, built by `src/server/accounts/match-details.ts`). Records are written by the account sync from the match it already fetched (`foldMatch`, the performance backfill) and by a budgeted backfill pass (2c) for older games; a game Riot no longer serves gets an empty record, which marks it unavailable without touching its statistics. Opening the list never calls Riot; opening one game whose record is still missing fetches it once (`getMatchDetailAction`, owner or `view-teammate-stats`). Item, spell and rune names come from Data Dragon once per version (`src/server/riot/static/assets.ts`, stored in `app_settings.riot_assets` by the static sync). "Add to Solo Queue Block" calls the journal's own `importMatch` (refuses duplicates). The list also carries both lineups per stored record and a summary of every game the filters match (`recordOf` / `performanceOfGames`, as on the Overview); the pool scope uses the profile's configured pools. `compareInMatch` builds the comparison in a game's Analysis section (shares of the team, the lane opponent by recorded position, team totals) from the stored record only. Since 29 Oct 2026 a game opens under its card (Match History 2.0, below).
 - **Profile picture from My Profile** (`src/components/profile/avatar-upload.tsx`): the hero avatar on your own profile opens the same picker, square crop, preview and `uploadAvatarAction` / `removeAvatarAction` as Settings (`useAvatarUpload` is shared by both); the picture is stored once per user (`users.avatar_version`) and every place that shows it reads that.
 - **Skin artwork** (`src/server/riot/static/skin-art.ts`, migration 0025): skins carry `kind` (skin / chroma, from Data Dragon's `parentSkin`; older rows classified by the "Base (Variant)" naming), `splash_status` and a `splash_signature` (ETag + size from a HEAD request, at most 300 per static sync, missing art rechecked after 7 days). The selector (`listSkins`) offers only skins whose art exists, one per distinct picture, default first. `remapSkinSelections` moves a card from a chroma to its parent, from a duplicate picture to the original and from missing art to the default; nothing else on the player changes.
 
@@ -133,9 +123,9 @@ A private Solo/Duo journal per player, deliberately separate from the team's sta
 - **My Profile Overview** (`profile-sections.tsx`): season performance, then the Primary Role pool and each Off Role pool as one card per champion with its statistics and proficiency, edited in place (`AddChampion` search cell, `SortablePool` drag or keyboard reorder, autosave). All Champions (`all-champions.tsx`) lists every champion played with search and sorting. Filters: Season and Game mode up front; Role, Champion, Pool and Account behind Refine (Account only with two or more linked accounts).
 - **Team cards** (`src/server/team/roster.ts`): no strength tags (the code was removed; the `player_tags` table is kept unused). Each card lists the whole pool for the lineup role with games, win rate, proficiency and mastery.
 - **Substitute side of the Team cards** (October 2026): each role has at most one designated substitute (`lineup_substitutes`, migration 0041: one row per lineup and role, removed with the lineup or the player). A card with a substitute shows a small icon-only turn control on its artwork; it turns over (a CSS 3D turn on the vertical axis, `.flip-card` in `globals.css`, `LineupCard` in `src/components/team/team-roster.tsx`) to that substitute on the same card parts, with "Sub" beside their role status. A card without one has no control and never turns. `getTeamRoster` returns `RosterSlot.substitute` (a full card under the same statistics rule as starters; one season load per designated substitute only) and `substituteCandidates` (bench members who list the role, best fit first, from `substitutesFor` in `src/domain/roster/substitutes.ts`) for the Edit lineup menu. Choosing or removing one in Edit lineup calls `setLineupSubstituteAction(role, playerId | null)`, which requires `manage-lineup` (Owner, Administrator, Team Lineup Manager); `setLineupSubstitute` refuses a starter, an archived or non-member player and one who does not list the role. **Start** on the back still calls `setLineupSlotAction(role, playerId, { replacing })`: the substitute becomes the starter and the former starter becomes the role's substitute when they list it; a player who becomes a starter anywhere stops being a substitute. Turning is the card's own client state: nothing is fetched or saved. The public team page shows the designated substitute too (`toPublicSlot`). Reduced motion swaps the sides without rotating. The two sides share one grid cell, so the card is as tall as the taller side (a substitute with a longer name or tagline is never cut off), and the back is built with the card so pointing at the turn control moves nothing; only its pictures (artwork, picture, champions) wait until the card is about to turn. During a turn the side turned away becomes transparent and `visibility: hidden` at the edge-on moment, and its links and controls (`data-card-overlay`) fade out in the first fifth of the turn and in on the other side after it has settled, so none can linger where a phone browser draws them on a layer of their own.
-- **Team → Matches** (October 2026; `src/app/(app)/matches/page.tsx`, `src/components/matches/`): Played Together, from Season 2026. Encounters moved into each profile's Match History on 21 Oct 2026 (below); the old `?view=encounters` address opens your own. `src/domain/matches-seasons.ts` sets the floor (`MATCHES_FIRST_SEASON = 16`): the season list is the current season plus any later season found in the stored games, so a new season appears by itself, and an older or unknown `?season=` (including the former `all`) falls back to the current one. The same floor applies on the server (bookmarked games, the counts), so no older game reaches a page, a summary or a "load more". Older rows stay in the database, untouched. The page has one compact toolbar (`FilterBar` with "Clear filters"): Season, Game mode, a searchable member picker (`MemberPicker` in `match-filters.tsx`) and the members-in-game count. The "Played together most" pair rankings were removed with their calculation (`pairsOf`). The header shows one short summary line, with the data caveats in its (i) tooltip; the pages never claim that players queued together.
-- **Encounters in profiles** (21 Oct 2026; `src/server/players/encounters.ts`, `src/components/match-history/encounters-view.tsx`): Match History → Encounters lists the players this profile's player met in their recorded games (opponents by default, allies, everyone), with the player's own record. It uses the games list's season, game mode and account choice and counts exactly the games Match History lists. The database does the counting for that player only and sends one page (about 3 KB): no team-wide load and no cache. `tests/db/profile-encounters.test.ts` checks the query against the counting rules in `src/domain/encounters.ts` on every season, mode, account and list choice.
-- **Solo Queue Blocks** (`src/server/ranked/repository.ts`): `startBlock` defaults to no target, so a block starts at 0 / 1; `addGame` / `importMatch` start one when none is running. `ranked_blocks.featured_champion_id` (migration 0027) snapshots the focus champion; `updateRankedProfile` updates only the active block.
+- **Team → Matches** (October 2026; `src/app/(app)/matches/page.tsx`, `src/components/matches/`): Played Together, from Season 2026. Encounters moved into each profile's Match History on 21 Oct 2026 (below); the old `?view=encounters` address opens your own. `src/domain/matches-seasons.ts` sets the floor (`MATCHES_FIRST_SEASON = 16`): the season list is the current season plus any later season found in the stored games, so a new season appears by itself, and an older or unknown `?season=` (including the former `all`) falls back to the current one. The same floor applies on the server (bookmarked games, the counts), so no older game reaches a page, a summary or a "load more". Older rows stay in the database, untouched. The page has one compact toolbar (`FilterBar` with "Clear filters"): Season, Game mode, a searchable member picker (`MemberPicker` in `match-filters.tsx`) and the members-in-game count. The "Played together most" pair rankings were removed with their calculation (`pairsOf`). The header shows one short summary line, with the data caveats in its (i) tooltip; the pages never claim that players queued together. Each game is one card (2 Nov 2026): the result, duration, game mode, date and number of members first; then one line per member (champion, name, role, KDA with its best multikill, CS and damage), in two columns from four members where there is room; both teams' line-ups with every name, on phones too (`TeamComposition keepNames`); and the bookmark as an icon button in the corner. A game opens under its card, as in a player's Match History (Nov 2026): the same `MatchExpansion` (`match-history/inline-match.tsx`: the breakdown with its loading and error states, then "Close this game"), one game at a time (`TogetherList` in `matches/together-details.tsx`), `?match=` in the address so a link opens it, and the details loaded once per list (`createMatchDetailCache`). The breakdown reads the first listed member's stored history, as the match window did before.
+- **Encounters in profiles** (21 Oct 2026; `src/server/players/encounters.ts`, `src/components/match-history/encounters-view.tsx`): Match History → Encounters lists the players this profile's player met in their recorded games, seen three ways (2 Nov 2026): Against (opposite teams, the default), Alongside (the same team) and All. Each relation keeps its own record and its own last game; someone met both ways is listed under both, and All shows the two records side by side. The list sorts by games, most recent, and (Against and Alongside) best or worst win rate, established records (5 decided games) first; the old `rel=opponents|allies|everyone` and `?view=encounters&rel=shared` addresses map to the new names. The window shows who it is (with OP.GG where the Riot ID is known), a one-line summary, the two records, then the games newest first, each from the player's side: date, mode, both champions, the relation and the result. It uses the games list's season, game mode and account choice and counts exactly the games Match History lists. The database does the counting for that player only and sends one page (about 3 KB): no team-wide load and no cache. The three relations' counts (for the Against, Alongside and All switches) come from the same statement, counted over rows it already holds: no extra query and about 20 more bytes. `tests/db/profile-encounters.test.ts` checks the query against the counting rules in `src/domain/encounters.ts` on every season, mode, account and list choice.
+- **Solo Queue Blocks** (`src/server/ranked/repository.ts`): `startBlock` defaults to no target, so a block starts at 0 / 1; `addGame` / `importMatch` start one when none is running. `ranked_blocks.featured_champion_id` (migration 0027) snapshots the focus champion; `updateRankedProfile` updates only the active block. (Removed with Ranked Development on 29 Oct 2026; see below.)
 - **Match timelines** (`src/server/accounts/match-timeline.ts`, migration 0028 `match_timelines`): build and skill order come from Riot's match-v5 timeline, fetched by `getMatchBuildAction` only when someone opens a game's Build tab, at most once per match (stored; 404 stored as unavailable). Only purchases (undone ones removed) and skill level-ups are kept. Nothing is inferred from final items. Full rune pages (`runes.primaryPerks` / `secondaryPerks` in `match_details.participants`) are kept for records stored from Phase 9 on.
 - **Tooltips** (`src/components/ui/info-tip.tsx`): one component. Hover opens and leaving closes (mouse); focus opens, blur or Escape closes (keyboard); tap toggles and an outside tap closes (touch). The bubble is portalled to `document.body` with fixed positioning (`placeTip`: above, or below when there is no room; clamped to the viewport), so cards and drawers never clip it. Interactive popovers (menus, pickers) stay click-to-open.
 - **Wording**: the ADC role is shown as "Bottom" (`ROLE_LABELS`); profile roles are "Primary Role" and "Off Roles".
@@ -153,17 +143,22 @@ A private Solo/Duo journal per player, deliberately separate from the team's sta
 - **Previews** (`/admin/previews`, `/preview/login`, `/preview/setup`; administrators only): the real `LoginCard`, `WelcomePasswordStep`, `WelcomeSetupStep` and `PersonaliseStep` in `BrandFrame` with `preview` set, which disconnects every server call (no login, password change, autosave or setup completion). Shown in an iframe at phone, tablet, laptop or desktop size, scaled to fit.
 - **Large screens** (`globals.css`): `html { font-size: clamp(100%, calc(100% + (100vw - 1536px) * 0.0045), 137.5%) }`: unchanged up to 1536px, about 17.7px at 1920, 20.6px at 2560, capped at 22px. Page widths are rem (`--content-max: 80rem`, wide pages 100–112.5rem), so layouts keep their proportions.
 - **CS/min** on Team cards (season figure and per champion) and My Profile pool cards: `performance.csPerMinute` of the same filtered games (total CS ÷ total minutes, remakes excluded).
-- **Ranks in match details** (`knownRanks` in `src/server/players/match-history.ts`): last-known Solo/Duo rank from stored data only, most recent wins, labelled with its date; no Riot request, nothing stored. Two sources: linked accounts' own snapshots (`riot_accounts`), and `last_known_ranks` for everyone else. Migration `0048` filled `last_known_ranks` with the newest rank each player had in the two retired sources (enemy ranks scouted by the removed Draft feature, and ladder tiers collected by the retired Meta & Trends pipeline). Nothing adds to it.
+- **Ranks in match windows** (`src/server/players/participant-ranks.ts`, `src/domain/known-rank.ts`; rebuilt 24 Oct 2026). Every player in a game's scoreboard (under its Match History card, or in the match window) has one badge: a current or last-checked rank with its queue and date, "Unranked" (a check found no ranked entry) or "—" (nothing read). Never a rank at the time of the match: Match-V5 records none, and the note under the scoreboard says so.
+  - **Readings:** a linked account's last sync (its latest `rank_snapshots` per queue; the sync reads both queues, so a queue without an entry is unranked) and `last_known_ranks` for everyone else: one row per PUUID with Solo/Duo (`tier`, `division`, `league_points`) and Flex (`flex_tier`, `flex_division`, `flex_league_points`, migration 0057), `source` "match lookup", or "draft scouting" / "ranked ladder" for the Solo/Duo-only sightings migration `0048` copied from the retired features. The newest reading wins (`participantRank`). The badge shows the game's own ranked queue when the player has a rank there (Flex for queue 440, Solo/Duo otherwise), else the other one, marked "Flex" or "Solo".
+  - **Checks:** `getMatchDetail` returns the stored ranks at once, with `rankCheck` set when a player has no check in the last 3 days (`RANK_FRESH_DAYS`). The breakdown then calls `getMatchRanksAction` (same access rule as the details), which asks LEAGUE-V4 about those players only (`lookUpRanks`) and stores each answer (`INSERT … SELECT … WHERE EXISTS` the player in that stored match, `ON CONFLICT (puuid) DO UPDATE`). Limits, in the module header: 1,000 checks a day site-wide (counted from the rows written in the last 24 hours), half of each rate-limit window (`RateLimiter.tryAcquire` with the client's `noWait`: a request never queues, it is skipped), no retries, a 4 s timeout, a 30-minute pause per failed player (a day after a 400 or 404: a PUUID the current key cannot read, as in games stored under an earlier key) and 10 minutes for every check after a 401/403, one request per player in flight. The pauses and the in-flight set are per server instance. The browser keeps a complete answer per match (`MatchDetailCache.ranks`); a failed or skipped one is asked again when the game is opened again.
+  - **On the list, from storage only** (26 Oct 2026): `getMatchHistory` reads the stored readings of the page's other players with `storedRankReadings` (three indexed queries for the page, no Riot request) and `compositionOf` puts each one's `ParticipantRank` on their slot (`CompSlot.rank`; opponents only until 29 Oct 2026, now everyone but the player the list is about; removed players get none). `TeamComposition` draws it with `RankShort` (`rankShortLabel`: "E2", "GM", "Unr"). A rank an opened game checks is merged into its card at once (`createMatchDetailCache({ onRanks })` in `MatchHistoryView`, by `CompSlot.slot`) and comes from storage on the next load. Team → Matches shows no ranks.
+  - **Audit:** `data-audit` → `participantRanks`, counts only: readings kept by source, lookups per day for 7 days, how many places in the last 30 days' stored games have a current, older or no rank, and `recentChecks`: the last 24 runs of the checks after collection (from `job_runs`), each with the players waiting before it and what it checked, so a shrinking backlog shows run by run.
+  - **Tests:** `src/domain/known-rank.test.ts`, `tests/db/participant-ranks.test.ts`, `tests/db/last-known-ranks.test.ts`, `src/server/riot/api/rate-limiter.test.ts`, `src/server/riot/api/client.test.ts`, `e2e/match-ranks.spec.ts`. The browser tests' Riot stand-in answers league requests per player, deterministically: Solo/Duo, Flex, both, unranked, or a failure (`src/server/riot/browser-test.ts`).
 - **Browser tests** run account creation with `UNIIVERSE_FAKE_RIOT_IDS=1`, honoured only on the in-memory demo database off Vercel.
-- **Screenshots and layout checks** can start the in-memory demo with `UNIIVERSE_DEMO_SCREENSHOT=1`: the demo roster gets real-length names (3 to 21 characters) and the local owner plays as the Mid player, so pages show "you" as a team member sees them. It is applied after the demo seed and only on the in-memory database (`applyScreenshotFixture` in `src/server/demo/seed.ts`).
+- **Screenshots and layout checks** can start the in-memory demo with `UNIIVERSE_DEMO_SCREENSHOT=1`: the demo roster gets real-length names (3 to 21 characters) and the local owner plays as the Mid player, so pages show "you" as a team member sees them. For the Players directory, three players get a tagline and two a personal look, one Primary Role pool is longer than a card shows (14 champions), and one player has the longest rank label (Grandmaster). It is applied after the demo seed and only on the in-memory database (`applyScreenshotFixture` in `src/server/demo/seed.ts`).
 
 ## Phase 11 notes (player experience and admin refinement)
 
 - **Profile customisation propagation** (`src/components/players/profile-identity.tsx`): Next.js reuses a visited layout segment on client navigation and refetches only the page, so the profile header (in the `[id]` layout) could show the previous artwork after a change. Every profile page now renders `<IdentitySync>` with the freshly loaded header identity, and the client header reads it from `ProfileIdentityProvider`: the header always matches the latest server data without disabling any cache. `data-art` on the card art wrapper exposes the chosen champion/skin for tests.
 - **Rank queue** (`riot_accounts.rank_queue`, migration 0030): the stored rank says whether it is Solo/Duo or Flex; `RankEmblem` shows the official ranked crest from Community Dragon with a tier-coloured fallback when the image cannot load. Ranks remain last-known stored values, labelled as such; no Riot request on render.
 - **Team cards** (`team-roster.tsx`): a container-query grid of half tracks (5 across from `@7xl`, 3+2 at `@4xl`, 2+2+1 at `@xl`, 1 column below), equal heights with `auto-rows-fr`. The assigned role is shown on every card; the Off Role badge only when it is not the player's primary role. Support cards show **Avg vision** (vision score per game, `visionPerGame`) where other roles show CS/min.
-- **Players directory** (`player-summary-card.tsx`): previews the Primary Role pool only.
-- **Solo Queue Blocks**: a block starts at "0 Games" with no target; a target is optional and never a maximum.
+- **Players directory** (`player-summary-card.tsx`): previews the Primary Role pool only. Every card has the same regions, one row each: header (role chip, status badges), picture and links, name, rank line, tagline, pool heading, pool (`DirectoryCardLayout`). A card spans seven rows of the directory's grid and lays its regions on them (`grid-template-rows: subgrid`), so cards side by side keep each region level and end together, whatever each player has; where any card shown has a tagline, the others keep its line (`reserveTagline`). The directory has as many columns as its own width holds at 17.5rem a card, up to four (container queries, not the screen). It is also the cards' `card` container, because a size container cannot be a subgrid. The pool shows as many whole portraits as its width holds and counts the rest (`PoolPreview` `fit="count"`, `countFit`; never "+1"). A Riot state other than up to date sits after the rank, in a few words. The Card Studio's "Players" preview is the same layout.
+- **Solo Queue Blocks**: a block starts at "0 Games" with no target; a target is optional and never a maximum. (Removed with Ranked Development on 29 Oct 2026.)
 - **All Champions**: `sortChampions` (every column, both directions, missing values last, proficiency in tier order, name as the stable tie-break), a combined **Mastery points** column across the player's accounts, and a Sort-by control on phones.
 - **Match detail**: a wider overlay (`xl:max-w-5xl`, `2xl:max-w-6xl`) with a Victory/Defeat header; full screen on phones.
 - **Whole-role ordering** (`profile-editor.tsx`, `moveRolePatch` in `use-profile-autosave.ts`): role sections are dragged by their own grip (separate from the champion grips) or moved with the role menu / keyboard. Moving an Off Role to the top makes it the primary role and the old primary becomes Off Role 1; champion order within each role is kept. One autosave on drop, guarded by the profile version (a save from a stale tab is refused).
@@ -184,12 +179,15 @@ separated: the champion map (`src/server/champions/map.ts`), the statistics desc
 and the champion model (Team Overview suggestions), team bookmarks, Played Together, Encounters and
 Pro Play.
 
-The Draft tables (`drafts`, `draft_actions`, `draft_role_swaps`, `draft_presence`,
-`draft_enemy_scouting`, `matches`, `series`, `opponent_teams`, `opponent_players`) and
-`teams.engine_config` are still in the database, untouched, no longer written and, since migration
-`0048` copied the scouted ranks Match History shows into `last_known_ranks`, no longer read either.
-Dropping them is a separate migration that runs only after a production backup has been restored
-and checked.
+Migration `0063_retire_draft_tables` drops what was left of it in the database (audit decision 3):
+the Draft tables (`drafts`, `draft_actions`, `draft_role_swaps`, `draft_presence`,
+`draft_enemy_scouting`, `matches` (the drafted-match archive), `series`, `opponent_teams`,
+`opponent_players`), `riot_accounts.opponent_player_id`, `teams.engine_config` and the enum types
+only they used. Nothing had read them since migration `0048` copied the scouted ranks Match History
+shows into `last_known_ranks`. It merges only after a production backup that holds them has been
+restored and checked (`docs/BACKUPS.md`), and without CASCADE, so an unexpected dependency fails it
+instead of being dropped too. Recovery: `pg_restore --table` from that backup, then revert the
+change. Team Matches' bookmarks (`team_bookmarks`) stay.
 
 ## Meta & Trends removed (October 2026)
 
@@ -253,6 +251,29 @@ tables"); the schema and the erasure code for them went in the same change. The 
 cleanup (`src/components/legacy-storage.tsx`) stays: it deletes what earlier versions left in
 members' browsers.
 
+## Ranked Development removed (October 2026)
+
+Ranked Development was removed completely (29 Oct 2026), and with it what it grew from: Solo Queue
+Blocks and the Ranked Improvement journal before them. Gone: the My Profile section and its
+Overview, Sessions and Development areas; objectives, If–Then plans, game reviews and session
+tracking; Match History's "Add to a Ranked Development session" button; the automatic association
+of synced games with sessions after each account sync; the private `development` freshness scope and
+its two-minute session polling, with the faster account refresh a running session asked for; the
+death times kept from match timelines for its laning statistic; its server actions, repositories,
+domain rules and journal metric definitions. Its addresses (`/overview/development`,
+`/overview/blocks`, `/blocks`, `/ranked` and everything below them) redirect to `/overview`
+(`next.config.ts`). My Profile has four sections: Overview, All Champions, Match History and Riot
+Accounts. Shared pieces are unchanged: ranked statistics (Solo/Duo and Flex), rank and LP
+progression (`rank_snapshots`), Match History with enemy ranks, champion statistics and mastery,
+Riot account sync, Played Together and possible groups (which read `account_matches`).
+
+Its tables (`ranked_profiles`, `ranked_blocks`, `ranked_games`, `development_objectives`,
+`development_plans`) and migrations stay: nothing reads or writes them any more except permanent
+erasure, which still deletes a removed person's rows and takes their name out of other players'
+retained notes. They stay defined in `src/server/db/schema` (marked retired) so `drizzle-kit
+generate` never emits a `DROP`, and `db-usage` lists them among `retired`. Deleting them needs a
+verified backup and its own data-retirement plan (`docs/RANKED_DEVELOPMENT.md`).
+
 ## Resources (October 2026)
 
 Resources (`/resources`, its own sidebar entry below Team, every signed-in account): the
@@ -288,3 +309,206 @@ move within a section, hide, remove, and restore removed defaults.
   (`resource-icon.tsx`): one that failed earlier would never reach `onError` and stay broken.
   Playwright aborts every `/favicon.ico` request in tests that route requests, so the browser test
   checks the fallback and each icon's markup, not a real site's icon.
+
+## Pages that update themselves (October 2026)
+
+An open page shows new games, ranks, figures, roster and lineup changes without Refresh, and
+without being reloaded: scroll position, filters and open windows stay as they are.
+- **Versions, not pushes** (`src/server/ops/freshness.ts`, `src/domain/freshness.ts`): one statement per kind of page returns a short version of the data that page shows, built from stored rows only (never Riot): a player's profile (their accounts' state, Riot ID, rank and last update, games, figures, mastery, card, pools, picture, profile edits, and the opponents' ranks stored for Match History); the team's pages, Team Overview, Players, Leaderboards and Matches (roster, cards, pools, pictures, the current lineup and substitutes, members' ranks and games, team matches, bookmarks; not each account's routine check, which would re-read them for nothing); and Admin Mode's health and data pages (job runs and pipeline status). Bulky parts are hashed in Postgres, so a check sends a few hundred bytes from the database.
+- **The endpoint** (`/api/freshness?scope=player:<id>|team|jobs`): signed-in members only, with the page's own access (another player's profile needs the Players directory, the jobs need Admin Mode), `Cache-Control: private, no-store`.
+- **The watcher** (`src/components/ui/freshness-watcher.tsx`, one per page, mounted by the profile layouts, Team Overview, Players, Leaderboards, Matches and the two Admin Mode pages): it starts from the version the server drew the page with, asks only while the tab is visible, and calls `router.refresh()` only when the version changed. Pace: every 10 seconds while a visit refresh runs (its lease) or an account awaits its first sync, every 30 while an account adds this season's older games, and otherwise after 1, 2, 4 and 8 minutes, then every 10; at once when the tab is shown or the window focused again, unless it asked in the last 5 seconds. A failed check is retried at the next turn; signed out or no longer allowed, it stops. Refresh stays as the manual fallback.
+- It replaced `AutoRefresh`, which re-rendered a whole profile every 30 seconds (2 minutes while catching up) while an account was updating, whether or not anything had changed, and never told a page that sat idle about anything new.
+- Tests: `src/domain/freshness.test.ts` (scopes and pacing), `tests/db/freshness.test.ts` (each version changes with what its pages show, and only then; pacing from the lease, backfills and running jobs), `e2e/auto-update.spec.ts` (a member added in another browser appears in an open Players directory when its tab is shown again, with no reload, the scroll kept and one check made; a hidden tab asks nothing; an open Team Overview player window stays open through an update).
+
+Two related changes in the same release:
+- **Profile tabs load their own code:** `src/components/players/profile-sections.tsx` holds only the frame every profile page shares (header, search, identity sync); each tab's body is its own module (`profile-overview-tab.tsx`, `profile-champions-tab.tsx`, `profile-matches-tab.tsx`, `profile-accounts-tab.tsx`), so a profile page no longer ships the client code of the other three tabs.
+- **The phone lineup track** (`src/components/ui/use-snap-track.ts`): which card is in view lives in a small store outside React state; only the role bar under the track (`LineupPager`) follows it, so swiping no longer redraws the five cards on every card change.
+
+## Match History 2.0 (October 2026)
+
+A profile's Match History opens each game under its card: one breakdown, the same as the match
+window's, with no window and no deeper navigation. It reads stored data first; the only new Riot
+request is a game's match timeline, once per game, when a section that needs it is opened.
+- **Opening a game** (`src/components/match-history/match-history-view.tsx`): the card is a
+  disclosure (the button behind its content has `aria-expanded` and `aria-controls`); one game is
+  open at a time, and `?match=<id>` is written with `history.replaceState` (no history entry), so a
+  reload or a shared link reopens it. A link to a game that is not on the page shown (another page
+  of the list, or a filtered-out game) opens the shared match window instead. A game whose card is
+  above the screen or low on it is scrolled to the top (smoothly only when motion is allowed), and
+  it rises in only when motion is allowed. Team Matches,
+  Matchups, Encounters and the champion window keep the match window, with the same breakdown.
+- **The breakdown** (`match-breakdown.tsx`, one client component for both): Scoreboard, Analysis,
+  Timeline and Build as four tabs (arrow keys, Home and End; they share a phone's width). Its own
+  container (`@container/bd`) sets the scoreboard's columns: name and KDA on phones; damage from
+  36rem; gold, CS and vision columns from 60rem (`scoreboard.tsx`). Ranks and possible groups load
+  after it as before (`getMatchRanksAction`, `getMatchGroupsAction`).
+- **Players met in other games** (`loadMatchMeetings` in `src/server/players/encounters.ts`,
+  `getMatchMeetingsAction`): under a card, a scoreboard row carries "Met N×" after the name when the
+  player met that player in another game of the list's season, game mode and account. N counts
+  their games together as Encounters counts them, this one included, and the mark opens their
+  games in Match History (Encounters → the player), which counts the same N. Only the players Encounters lists are marked (a
+  recorded Riot ID and no UNIIVERSE profile). One statement after the scoreboard: the game's record
+  names them, then only the records holding them are opened, through the participants' index
+  (`match_details_puuids_idx`), each counted when it is one of the player's games in the scope.
+  2–4 ms in the database locally at production volume (`docs/HOSTING_USAGE.md`). Accounts stay
+  in the database; the page gets Encounters' opaque key. The match window marks no one (a window
+  does not open another).
+- **Analysis** (`match-analysis-panel.tsx`, rules in `src/domain/match-analysis.ts`): plain
+  comparisons, never a score. The player's shares of the team's kills, damage and gold and their
+  place in the game for each figure; the lane opponent only when exactly one enemy has the same
+  recorded position (`laneOpponentOf`, otherwise "no single lane opponent"), at 10:00 and 15:00
+  from the timeline (`laneMoments`, read between frames as Matchups does) and at the end; the
+  player beside their own usual (`personalComparison`): the same role and queue group (ranked,
+  normal, Swiftplay/Quickplay and Clash are never mixed), earlier games only, the newest 50 at
+  most, nothing below 10, "best of the last N" only from 20, a tie counting half. Supports are not
+  compared on CS. Every comparison states its sample, and the methodology is in its (i).
+- **Timeline** (`match-timeline-panel.tsx`, `getMatchTimeline` in
+  `src/server/accounts/match-timeline.ts`, `getMatchTimelineAction`): the two teams' gold
+  difference per frame, only when the stored timeline holds all ten players
+  (`teamGoldDifference`; a removed player or a gap leaves it out, with a note), drawn as one line
+  around zero with a crosshair readout (pointer, touch, arrow keys) and every minute as a table.
+  The figures beside it are descriptive only (`goldStory`: the largest lead and deficit, the end,
+  when a lead of 1,000 or more changed sides); no cause is read into them. The timeline is fetched
+  once per game (stored in `match_timelines` as before; a game Riot no longer serves is recorded as
+  unavailable and not asked for again), the browser keeps the answer for the list
+  (`MatchDetailCache.timeline`), and Riot's 429 is shown as "Riot is limiting requests just now".
+- **Kills and objectives on the timeline** (migration `0060_match_timeline_events`;
+  `src/domain/match-events.ts`): read from the same timeline request. Each player's entry in
+  `match_timelines.participants` gains the times of the champion kills they made, died in and
+  assisted (`kills`, `deaths`, `assists`, ms into the game; an execution is only a death), so an
+  erased player's go with their entry, as the rest of it already did. The objectives and buildings
+  each team took (`match_timelines.events`: dragons with their element, the Elder Dragon, Baron,
+  the Rift Herald, voidgrubs, Atakhan, towers by lane and tier, inhibitors) are team facts with no
+  player in them. A timeline stored before (events null) is fetched again once, the next time its
+  Timeline, Build or lane is opened; if Riot cannot answer, the stored timeline shows without them
+  and says why, and a 404 is recorded so it is not asked again (`events.missing`). A timeline
+  fetched again (here or by the Matchups backfill) completes the stored one and never replaces it
+  (`completedTimeline`): stored purchases, skills and frames stay, the answer adds what was missing.
+  The chart marks
+  each team's kills (the player's team along the top, the other along the bottom; only when all ten
+  players' kills are kept), the objectives under the curve (one letter each, voidgrubs of one camp
+  together) and the player's own kills and deaths; the readout adds what happened since the minute
+  before. "Largest swings" (`goldSwings`: the three largest moves over about three minutes, 1,500
+  gold or more, not overlapping) lists the kills and objectives of the same minutes side by side,
+  and says it does not name a cause. Every objective and the player's kills, assists and deaths are
+  also a table. The demo seeds kill times and objectives for every demo game with a timeline, and
+  the record's team counts follow them.
+- **One game, one set of figures** (29 Oct 2026): the card, the scoreboard and Analysis read the
+  game's record (`match_details`: each player's side is their `teamId`, players are matched by
+  PUUID, team kills follow `teamKills`); the Timeline reads the same game's stored timeline from the
+  player's side (`teamGoldDifference(…, me.teamId)`). They agree because Riot's do: at the last
+  frame (the end of the game) each player's gold and CS are their recorded gold and CS.
+  `tests/db/match-views.test.ts` syncs two Riot-shaped games (`tests/fixtures/riot-game.ts`: frames,
+  kills with an execution, objectives, and the record built from them) for a member on each side and
+  checks that the four views agree on kills, kill participation, damage and gold shares, team gold,
+  objectives, the gold line's end (the recorded difference), the lane opponent and which team is
+  listed first. A stored timeline that points the other way from its record at the end, both by
+  2,000 gold or more (`goldContradictsRecord`), draws no gold difference and no lane figures and says
+  why (`goldNote: "contradicts"`); the scoreboard and Analysis are unchanged. The read-only
+  `data-audit` job reports how every stored record and timeline agree (`matchViews`,
+  `src/server/players/match-consistency.ts`: gold, CS and kills per player, towers, dragons and
+  barons per side; counts only, computed in the database, each timeline read once: 1.4 s locally
+  for 6,100 timelines, 43 MB). The demo's frames used to be a random
+  walk with no tie to its records (its 26 Oct Orianna game read 66.5k against 49.7k in Analysis and
+  a 3,390 deficit in Timeline): they are now fitted to each record (`fitFramesToRecord` in
+  `src/server/demo/seed.ts`), every demo game's deaths are the other side's kills, and a third of a
+  member's demo games are played from the red side.
+- **Build** (`build-panel.tsx`): the build and skill order from the same timeline request (which
+  replaced `getMatchBuild`), and the rune page.
+- **Cards** (`MatchRow`): the champion's level, each player's stored rank for everyone but the
+  player (teammates too, from storage only; `compositionOf`'s `rankOf`), the damage share, and one
+  standout at most (`standoutOf`): a figure higher than every one of at least 20 earlier comparable
+  games, named "Best <figure> in N". Most games have none, by design.
+- **Ranks around each game** (29 Oct 2026; `src/domain/known-rank.ts`,
+  `src/server/players/participant-ranks.ts`): every rank is read against its game
+  (`participantRank(…, game)`, `RankTiming`): a member's last rank recorded before the game
+  (`recordedRanksBefore`: their rank history, two indexed queries for a page of games) wins over
+  their current one; another player's reading is "after" when checked within 24 hours after the
+  game, and "later" or "earlier" otherwise. The scoreboard's badge and the card's short rank say so
+  on hover; a rank read away from its game carries a clock (scoreboard) or the caption colour
+  (card), and the note under the scoreboard is one line (around the game, read later, or both) with
+  the rules in its (i). The `rank-checks` job (scheduler tick, after account-sync, every 15 minutes,
+  15 s at most, `checkRecentGameRanks`) checks the other players of the members' games of the last 7
+  days with no check since the game ended, 30 a run, newest game first, within 600 of the 1,000
+  daily checks and half of Riot's rate limits, so a card or scoreboard has its ranks whether or not
+  anyone opened it. Half of Riot's one-second window is about ten requests, so the job waits for
+  that window to turn over (within its 15 s) and stops when a wait gets nobody through: a longer
+  window is full (the first production run stopped at 10 players before this). Opening a recent game also checks players last read before it. One statement
+  finds the players (at most 120 rows leave the database a run); members are read by their sync,
+  erased players never. Possible groups' note is one line with its rules in an (i) as well.
+- **Finishing pass** (29 Oct 2026): on a profile's other sections (Match History, champions,
+  accounts) the profile card is one compact band (`ProfileHeader`'s `basePath`: name, role, rank
+  and Customise, about 65px instead of about 250px on a 390px phone); the Overview keeps the full card. A
+  narrow card's meta line keeps the time of its game in view ("Ranked" dropped from the queue on
+  cards under 36rem), and its team members fold to the first name and "+N". On a phone a scoreboard
+  row is three lines (the items share the damage's line). An open game ends with "Close this
+  game", which closes it, brings its card back into view and puts the focus on it. On a phone,
+  Refine shows Result and keeps the other fields behind "More filters" (open when one is in use).
+  Analysis says where a figure sits in counts ("Higher than 11 of 28", `standingText`; never a
+  bare percentage), draws a lane row only for a minute the timeline holds both players at (the
+  note names the others), gives turret takedowns out of the team's towers when the two agree
+  ("3 of 7"), and colours the team totals your team blue and the other red whatever the side, as
+  the Timeline does. The Timeline's chart and the marks under it are one pointer area: a mark
+  reads the first frame at or after it, so its event is in the reading; a touch keeps its reading
+  after the finger lifts (a mouse's ends when it leaves, a keyboard's when the focus leaves); each
+  row of the event table carries the chart's mark; the method moved from a permanent footnote into
+  the chart's (i). On a touch screen both tables run with the page (`docs/RESPONSIVE.md` → Long
+  lists inside a page). The possible-groups note is one statement: "not enough recorded history"
+  when no side can be assessed, otherwise the inference and then the sides it could not cover.
+  Nothing here asks Riot for more.
+- **Summary** (`history-summary.tsx`, `src/domain/history-summary.ts`): one line above the list
+  about the newest games its filters list (20, the Overview's Recent form rules, so the two agree):
+  results, record, KDA, CS/min (vision for supports), kill participation (total takedowns over total
+  team kills, from `account_matches.team_kills`, one narrow query), the streak, the three champions
+  played most, a trend only by Recent form's rule, and the ladder change of the last 30 days
+  (`ladderChange` in `src/server/accounts/rank-history.ts`: the readings in the window plus the last
+  one before it, two indexed queries, the same arithmetic as the Overview's `rankProgress`; LP with
+  100 for a division; Flex when the list is Flex, otherwise Solo/Duo; the account filtered on, else
+  the Main account; current season only).
+- **Refine** (`src/domain/history-refine.ts`, `history-refine-fields.tsx`,
+  `src/server/players/history-members.ts`): Match History's own fields at the end of the profile's
+  shared Refine panel (`OverviewFilters`' `extraFields`; their chips join the shared ones): the
+  result (a game without a recorded result is neither a win nor a loss), the patch (the patches of
+  the games the other filters leave, newest first, with their counts; an address may name a patch
+  by its public name, 26.20 for 16.20), the days played (calendar days in the installation's time
+  zone, either end optional, followed 600 ms after the last change), a team member played with or
+  against, or any member, and the highlights (a multikill of at least a given size from the stored
+  counts, or a personal best by `standoutOf`). Each is an address parameter (`result`, `patch`,
+  `from`, `to`, `with` or `against`, `hl`), so a link keeps it; one that cannot be read narrows
+  nothing, and neither does a member who is not a current member of the team. They narrow the games
+  after the shared filters and before paging, so the summary, the pages and "Games 1–N of M"
+  follow them. Members are matched deterministically, never by name, by the rule of Team →
+  Matches → Played together: a current member (on the team, not archived, a team member) was in a
+  game when one of their verified linked accounts stored it, and on the player's side when that
+  stored game's side (`account_matches.team_id`, copied from the record by `summariseMatches`)
+  equals the player's own. No record's JSON is read: the counts beside each member (with and
+  against, over the games the other filters leave) are one aggregated query over `account_matches`'
+  keys (a row per member), and the games of a member are read only while one is chosen. Locally, at
+  production volume (1,100 games of the player, 7 members, 5,000 records), it runs in about 6 ms
+  in the database; reading the members from the records' participants instead scanned every
+  record (73 ms warm, every participant list opened), so it was not used. A game a member's
+  account has not stored (or not summarised) yet places nobody until it has. A game is counted once
+  however many of the player's accounts stored it, and a member's accounts count as that member.
+- **Playing sessions** (`sessionKeys`, `sessionSummaries`; Refine's "Show the games: By playing
+  session", `?group=sessions`, with its chip): games less than 45 minutes apart, from one game's end (its start plus its
+  length) to the next one's start, are one sitting. Sittings are found from every stored game of
+  the player whatever the filters, so a game of another mode in between keeps an evening whole;
+  each sitting's header (when it started and ended, the record, KDA, CS per minute, time in game)
+  counts the games the filters list, all of them and not only the page's, and says how many are on
+  the page when a page break cuts the sitting. The order stays newest first, choosing it keeps the
+  page and an open game, and a game opens under its card inside its sitting. It lives in Refine, so
+  the layout under the header (the summary line, then the games) does not change.
+- **Demo data** (`src/server/demo/seed.ts`): synthetic frames, builds and skills for all ten
+  players of every demo game, with each game's own seeded randomness; the Encounters fixture renames
+  the same players in the timelines as in the records. Each demo player's three newest games of
+  their own follow each other within minutes, so the demo has a three-game playing session.
+- **Tests:** `src/domain/match-analysis.test.ts`, `src/domain/history-summary.test.ts`,
+  `src/domain/history-refine.test.ts` (reading the address, each choice, sessions),
+  `src/lib/format.test.ts` (`formatKilo`), `tests/db/match-timeline.test.ts` (fetch once, 429, the
+  lane and the gold difference of a stored game, a removed player, a short game),
+  `tests/db/match-history.test.ts` (standout, summary, ladder, `ladderChange` against
+  `rankProgress`, the detail's personal comparison and shares; Refine's result, patch, days,
+  members with and against, highlights and sessions on Postgres), `tests/db/participant-ranks.test.ts`
+  (teammates' stored ranks), and the browser tests through `e2e/match-history.ts` (`openGame`,
+  `closeGame`): `detail-panel`, `match-teams`, `match-ranks`, `match-card-ranks`,
+  `possible-groups`, `multikills`, `webkit`, `match-breakdown` and `match-refine`.

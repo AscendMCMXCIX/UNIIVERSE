@@ -5,7 +5,7 @@ export function cn(...inputs: ClassValue[]): string {
 }
 
 /** Utilities a component's defaults may set and its caller may override, grouped by what they control. */
-const SIZE_TEXT = /^text-(4xs|3xs|2xs|xs|sm|md|base|lg|xl|\dxl|figure|\[(length:)?[\d.]+(px|rem|em)\])$/;
+const SIZE_TEXT = /^text-(4xs|2xs|xs|sm|md|base|lg|xl|\dxl|figure|\[(length:)?[\d.]+(px|rem|em)\])$/;
 const NOT_COLOUR = /^text-(left|center|right|justify|start|end|ellipsis|clip|wrap|nowrap|balance|pretty)$/;
 
 /** Where a class's variants end: the last ":" outside brackets (text-[length:0.8rem] has one inside). */

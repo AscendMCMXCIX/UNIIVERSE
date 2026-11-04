@@ -39,7 +39,7 @@ Postgres counts calls and rows, not bytes, so the byte figures above are estimat
   - So nothing is ever stale: a synced game or a new mastery figure shows on the next read. A warm Team page sends one short row per account instead of every stored game, mastery and history row of ten players.
   - Concurrent reads of the same account share one load; at most 150 accounts per kind are kept per instance.
 - Before, only a player's games were kept (per set of accounts), and mastery was read whole on every profile page and every five minutes for each proficiency lookup.
-- Pages that refresh themselves while an account syncs now refresh every 2 minutes, not every 30 seconds, once the account only catches up on older games (which takes hours). The first verification and sync still refresh every 30 seconds.
+- Pages no longer re-render on a timer (26 Oct): an open page asks for a short version of its data (`/api/freshness`, a few hundred bytes from the database) and is read again only when it changed. Before, a profile with an updating account re-rendered every 30 seconds (2 minutes while catching up on older games), changed or not.
 - **The champion window** (Matchups) read every game's whole match record and the whole timeline (all ten players) on every open, warm or cold: 1.6 MB on production (`perf-probe`, 20 Oct).
   - Now one query does the matching in Postgres: the player, the one enemy in the same assigned position, and only those two players' gold, experience and CS frames.
   - A lane whose record and timeline are stored is final, so each instance keeps it; a lane still waiting for its timeline is read again.
@@ -141,6 +141,8 @@ The database is 286 MB (`db-usage`). The largest tables:
 | `brand_assets` | 18 MB | 4 |
 
 All of them are the statistics the app shows, so nothing was deleted (deleting production data needs the owner's approval).
+
+The players' index on `match_details` (migration 0058, 26 Oct 2026; docs/PERFORMANCE.md → "Stored game records") adds a few MB: 6.4 MB for 7,300 synthetic records of production's shape, 8.0 MB in production (7,296 records, 26 Oct). `db-usage` counts it in `match_details`'s `index_bytes`.
 
 The tables grow with every patch of collected ranked games. The aggregation already keeps a bounded patch window. If the size nears 0.5 GB, the cheapest safe step is to drop the evidence of patches older than the window. That is a data deletion, so it is left to the owner to approve.
 
@@ -282,6 +284,43 @@ Encounters moved from Team → Matches into each player's profile (Match History
 - **Before (Team → Matches):** a cold load sent 434 KB locally and 2.6 MB in production before the compact answer (above), then about 4 KB warm.
 - **Production after the deploy:** pending (the post-deploy `perf-probe`, step `profile.encounters`).
 
+## 29 Oct 2026: Match History's Refine (team members)
+
+Match History's Refine counts, for every visit, how many of the listed games each other team member played with the player and against them (`src/server/players/history-members.ts`).
+
+**How it reads:** one statement over `account_matches` only: the player's listed games with their side, joined to the members' own stored games by match, compared by side, grouped per member. The database sends one row per member (a few hundred bytes). The games of one member are read only while that member is chosen. No record JSON (`match_details.participants`) is read.
+
+**Measured locally** (PostgreSQL 16, a production-sized synthetic history: 7 other members, 5,000 stored records with ten participants each, the player with 1,100 games on two accounts, 275 of them shared; `EXPLAIN (ANALYZE, BUFFERS)`, warm):
+
+| | Database time | Buffers | Statement round trip |
+|---|---|---|---|
+| Members found in the records' participants (first version, not shipped) | 72.8 ms | 17,592 (every record opened; Postgres chose a sequential scan over the participants index) | 98–162 ms |
+| Members found in their own stored games (shipped) | 5.6 ms | 125 | 21–36 ms |
+
+Both found the same 137 games with a member and 138 against. Cold, the first version would have read every stored record from disk on each visit (the cost that makes Encounters slow cold in production, `docs/PERFORMANCE.md`); the shipped one reads narrow rows only.
+
+- **Production after the deploy** (Data jobs run 40825361632, 29 Oct 2026, commit 19b73c3): the `perf-probe` step `profile.historyMembers` took 78.6 ms and sent 0.5 KB for the player with the most games: 1,150 games, 6 members with a linked account, 1,115 member placements. That is one first call, including the round trip from Vercel's Sydney region to the database.
+
+## 29 Oct 2026: players met in other games (Match History's scoreboard)
+
+When a game opens under its card, the scoreboard marks the players the player met in other games of the list's season and game mode (`loadMatchMeetings`, `src/server/players/encounters.ts`).
+
+**How it reads:** one statement, once per game opened (kept by the list's cache): the game's record names its players (those Encounters lists), then only the records holding one of them are found through the participants' index (`match_details_puuids_idx`), each kept when it is one of the player's games in the scope (a primary-key lookup in `account_matches`). The answer is a few rows: place in the scoreboard, Encounters key, and three counts (about 70 bytes a marked player). Not the player's whole history: the Encounters list reads every record of the season, this reads only the records of the nine other players.
+
+**Measured locally** (PostgreSQL 16, the synthetic history above: 5,000 stored records, the player with 1,100 games on two accounts, plus 40 recurring players placed in every 5th and 7th of the player's games and every 9th of the other members' games; `EXPLAIN (ANALYZE, BUFFERS)`, warm):
+
+| Game | Records found through the index | Of them the player's | Database time | Buffers | Statement round trip |
+|---|---|---|---|---|---|
+| Two recurring players (10 games each; answer 139 bytes) | 41 | 19 | 2.0–4.3 ms | 355–358 | 3.5–9.2 ms |
+| No recurring player (only the game itself) | 1 | 1 | 0.5 ms | 48 | 2.8–3.8 ms (one of 24 ms) |
+| Not the player's game (answered "not found"; the index is not used) | – | – | 0.2 ms | 3 | 3.0–4.3 ms |
+
+The higher figures in each range were taken while the browser tests ran on the same machine.
+
+The counts equal those of the player's games in Encounters for the same players (checked on this history, and on every game of a randomised one in `tests/db/profile-encounters.test.ts`).
+
+- **Production after the deploy** (Data jobs run 40829460360, 29 Oct 2026, commit 1a24d17): the `perf-probe` step `profile.matchMeetings` took 25.9 ms and sent 0.1 KB for the newest game of the player with the most games (1,150 games this season). No player in that game had been met in another game this season, so this is the light case, the table's second row. A game with players met before has not been timed in production yet; later probe runs time whichever game is newest then. That is one first call, including the round trip from Vercel's Sydney region to the database.
+
 ## What still needs attention
 
 - **Meta & Trends removed** (after this change). Its collection and aggregation jobs were most of the database's writes, and its tables hold about 200 MB of the database. The tables stay until their drop is approved (`docs/DATA_PIPELINES.md`, Retired tables).
@@ -293,3 +332,23 @@ Encounters moved from Team → Matches into each player's profile (Match History
 - **Leaderboards** was then the largest read (about 835 KB a cold load, 17 MB on 21 Oct by 10:10 UTC). It now sends about a third of that (21 Oct, above); its production figure follows the deploy.
 - **Check the Vercel usage page** after a few days. Confirm which item was at 100% (deployment storage or Fast Origin Transfer) and that it is falling.
 - **Supabase egress** resets with the billing cycle. Watch the next cycle: the removed draft engine and the changes here should keep it well under 5 GB. The `db-usage` job shows the remaining top queries at any time.
+
+## 2 Nov 2026: database size and the retired tables
+
+Read-only `data-audit` and `db-usage` runs on 2 Nov 2026 (after the deploy of 8b079e9):
+
+- **Size:** `db-usage` reports 361 MB (`data-audit`: 378,042,035 bytes) of the free plan's 0.5 GB. On 26 Oct it was 346 MB, so it grows by about 2 MB a day: roughly two months of headroom at this pace.
+- **About 217 MB of it is retired data** that nothing reads or writes:
+    - `ranked_participants` 71.2 MB;
+    - `champion_matchups` 70.7 MB;
+    - `champion_synergies` 29.2 MB;
+    - `ranked_bans` 23.1 MB;
+    - `tracked_summoners` 11 MB;
+    - `ranked_matches` 4.8 MB;
+    - `match_fetch_queue` 3.5 MB;
+    - the professional, statistics and Draft tables, about 5 MB together.
+
+  `last_known_ranks` (8.4 MB) also holds 32,729 ladder ranks from the retired collection.
+- **Live data:** `match_details` 44.9 MB, `match_timelines` 39.5 MB, `brand_assets` 18.4 MB, `account_matches` 5.8 MB.
+- **What to do:** the held drops (PRs #86 and #138, `docs/DATA_PIPELINES.md`, "Retired tables") free most of it, once the owner has verified a backup and kept an offline copy. Until then nothing is deleted.
+- **Egress:** 27.2 MB on 2 Nov (budget 120 MB a day), on a day with several manual runs.

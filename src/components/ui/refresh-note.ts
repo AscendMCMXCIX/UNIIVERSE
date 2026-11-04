@@ -8,7 +8,7 @@ const n = formatCount;
 export const waitText = (s: number) => (s < 60 ? `${s} s` : `${Math.ceil(s / 60)} min`);
 
 /**
- * The notification a refresh ends with (DataRefresh): done, with or without anything new (a
+ * The notification a refresh ends with (RefreshButton): done, with or without anything new (a
  * success); a wait (a notice); not possible here (a warning); a failure (an error).
  */
 export const REFRESH_TOAST: Record<RefreshTone, "success" | "info" | "warning" | "error"> = { good: "success", muted: "success", wait: "info", info: "warning", bad: "error" };

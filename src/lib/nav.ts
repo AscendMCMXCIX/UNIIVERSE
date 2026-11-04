@@ -1,4 +1,4 @@
-import { BookMarked, Fingerprint, Medal, Users, UserCog, Settings, History, UserPlus, Database, Paintbrush, Activity, LayoutGrid, LayoutDashboard, CircleUserRound, Gauge, Library, NotebookPen, ScrollText, Link2, KeyRound, MonitorSmartphone, SlidersHorizontal, ClipboardList, type LucideIcon } from "lucide-react";
+import { BookMarked, Fingerprint, Medal, Users, UserCog, Settings, History, UserPlus, Database, Paintbrush, Activity, LayoutGrid, LayoutDashboard, CircleUserRound, Gauge, Library, ScrollText, Link2, KeyRound, MonitorSmartphone, SlidersHorizontal, ClipboardList, type LucideIcon } from "lucide-react";
 import { hasPermission, type Permission, type Session } from "@/server/auth/permissions";
 
 export interface NavLink {
@@ -27,16 +27,15 @@ export interface NavHub {
 export type NavEntry = NavLink | NavHub;
 
 /**
- * A profile's sections, in this deliberate order: Overview, All Champions, Match History,
- * Solo Queue Blocks, Riot Accounts (Matchups live inside All Champions: a champion's window). The bar under the profile card (a picker on phones) reads this
- * list, on your own profile and on every teammate's. `path` is relative to the profile (/overview
- * for your own, /players/[id] for a teammate's); `own` sections exist only on your own profile.
+ * A profile's sections, in this deliberate order: Overview, All Champions, Match History, Riot
+ * Accounts (Matchups live inside All Champions: a champion's window). The bar under the profile
+ * card reads this list, on your own profile and on every teammate's. `path` is relative to the
+ * profile (/overview for your own, /players/[id] for a teammate's).
  */
-export const PROFILE_SECTIONS: Array<{ key: string; path: string; label: string; icon: LucideIcon; own?: boolean }> = [
+export const PROFILE_SECTIONS: Array<{ key: string; path: string; label: string; icon: LucideIcon }> = [
   { key: "overview", path: "", label: "Overview", icon: Gauge },
   { key: "champions", path: "/champions", label: "All Champions", icon: Library },
   { key: "matches", path: "/matches", label: "Match History", icon: ScrollText },
-  { key: "blocks", path: "/blocks", label: "Solo Queue Blocks", icon: NotebookPen, own: true },
   { key: "accounts", path: "/accounts", label: "Riot Accounts", icon: Link2 },
 ];
 
@@ -56,9 +55,9 @@ export function matchupsRedirect(profile: string, sp: Record<string, string | st
 
 /**
  * Where Team → Matches → Encounters leads now that encounters belong to each profile: your own
- * Match History → Encounters, with the season, the game mode, the list (Frequent allies, Frequent
- * opponents; Met by several members becomes Everyone), the minimum, the order and the search.
- * Clash has no game mode of its own there: it stays among All supported games.
+ * Match History → Encounters, with the season, the game mode, the list (Frequent allies becomes
+ * Alongside, Frequent opponents Against; Met by several members becomes All), the minimum, the
+ * order and the search. Clash has no game mode of its own there: it stays among All supported games.
  */
 export function encountersRedirect(sp: Record<string, string | string[] | undefined>): string {
   const str = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : "");
@@ -66,9 +65,11 @@ export function encountersRedirect(sp: Record<string, string | string[] | undefi
   if (/^\d{1,3}$/.test(str("season"))) q.set("season", str("season"));
   if (["solo", "flex", "normal"].includes(str("queue"))) q.set("mode", str("queue"));
   q.set("view", "encounters");
-  // The old list showed Frequent allies unless told otherwise.
+  // The old list showed Frequent allies unless told otherwise; "Met by several members" is All, the
+  // list's default now, so it needs no rel.
   const rel = str("rel");
-  if (rel !== "opponents") q.set("rel", rel === "shared" ? "everyone" : "allies");
+  const relation = rel === "opponents" ? "against" : rel === "shared" ? "all" : "alongside";
+  if (relation !== "all") q.set("rel", relation);
   for (const k of ["min", "sort", "q"] as const) if (str(k)) q.set(k, str(k));
   return `/overview/matches?${q.toString()}`;
 }
@@ -230,8 +231,8 @@ export function isActivePath(pathname: string, href: string): boolean {
 }
 
 /**
- * The one link of a list that the page belongs to: the longest matching href, so /overview/blocks
- * marks "Solo Queue Blocks" and not also "Overview" (/overview).
+ * The one link of a list that the page belongs to: the longest matching href, so
+ * /overview/matches marks "Match History" and not also "Overview" (/overview).
  */
 export function activeHref(pathname: string, hrefs: readonly string[]): string | null {
   return hrefs.filter((h) => isActivePath(pathname, h)).sort((a, b) => b.length - a.length)[0] ?? null;

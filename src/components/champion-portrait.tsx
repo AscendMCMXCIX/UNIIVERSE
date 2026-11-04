@@ -29,9 +29,13 @@ export function ChampionPortrait({ champion, size = "md", className, dimmed = fa
   if (!champion) {
     return <div className={cn(base, "border-dashed")} title={title} />;
   }
+  // The lettered tile stands in for the picture, so it is named like one: assistive technology
+  // gets the champion's name, never its two letters. A link or button around a portrait should take
+  // its name from the portrait (plus hidden words), not from aria-label: axe and speech control
+  // compare an aria-label with the letters shown (WCAG 2.5.3, label in name).
   const letters = (
-    <div className={cn(base, "grid place-content-center text-xs font-semibold text-fg-muted")} title={title ?? champion.name}>
-      {champion.name.slice(0, 2).toUpperCase()}
+    <div role="img" aria-label={champion.name} className={cn(base, "grid place-content-center text-xs font-semibold text-fg-muted")} title={title ?? champion.name}>
+      <span aria-hidden>{champion.name.slice(0, 2).toUpperCase()}</span>
     </div>
   );
   if (!champion.portraitUrl) return letters;

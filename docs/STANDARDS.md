@@ -31,15 +31,24 @@ from each section; this page does not repeat them.
   figure). A sample too small to mean much says so.
 - Never present an uncertain identity or relationship as certain: what is only possible is
   labelled as possible (a match's possible groups, for example, never "premade").
+- Two players' relationship is what the stored games record: against (opposite teams) or
+  alongside (the same team), each with its own record and its own last game. Someone met both ways
+  is listed under both, never folded into a third "mixed" kind; the All view shows the two records
+  side by side, each with its word, not told apart by colour alone (`src/domain/encounters.ts`).
 - Explanations sit next to the figure (`InfoTip`, `Metric` labels from `src/domain/metrics.ts`),
   in plain language.
-- How current a page's Riot data is goes in one place per page, in the fixed words of
-  `src/domain/data-status.ts`: under the page's or section's heading, a quiet Refresh with the
-  status one ⓘ away (`DataRefresh`, placed by `SectionHeader`), never a banner. Figures and cards
-  carry no status marks of their own. A Refresh does something real (it reads Riot and re-reads
-  the page) and says what happened, never "updated" for a click alone; where nothing can be
-  refreshed (no right to, no Riot account Riot can be asked about, no Riot on the server) the ⓘ
-  stands alone, with no button that does nothing.
+- How current a page's Riot data is goes in the same two places on every page, in the fixed words
+  of `src/domain/data-status.ts`, never a banner: the status in a few quiet words ("Synced 5 min
+  ago", or the state when it is short of up to date) with one ⓘ holding the details, beside the
+  line that says what is counted (`DataStatusNote`); and Refresh at the end of the section's
+  toolbar, after the filters, never on a row of its own (`RefreshButton`). `SectionHeader` places
+  both; a panel puts Refresh in its header's actions. Figures and cards carry no status marks of
+  their own. A Refresh does something real (it asks Riot now, then reads the page again from what
+  is stored), shows which of the two is running beside the scope line, and says what happened,
+  never "updated" for a click alone; a second press joins the run, and a press during the cooldown
+  is answered without a request. Where nothing can be refreshed (no right to, no Riot account Riot
+  can be asked about, no Riot on the server) the status stands alone, with no button that does
+  nothing.
 
 ## Design tokens
 
@@ -50,25 +59,41 @@ panel and card radii, colours written as hex in a class, easing curves that are 
 uppercase labels spaced other than `tracking-label`. SVG charts drawn 1:1 in px keep their text in
 px, so it fits the chart's fixed gutters; the test lists them.
 
-**Colour** (semantic, never raw values):
+**Colour** (semantic, never raw values). The ground is a deep ink with a faint indigo undertone,
+each surface one visible step lighter than the one below it. The identity is a pair: the brand
+blue (`accent`) for what is selected or can be acted on, and violet (`accent-2`) for the light: the
+page's ambient glow (`--ambient-light`, at the window's top edge and a low horizon, also over the
+team's background artwork), and the **brand gradient** (`from-accent to-accent-2`) on a few chosen
+marks only: the selected tab (`tabIndicatorClass`), the headline card's top edge, a chart's line. Violet also marks emphasis that is not a control (a "Primary role"
+label). Beyond that colour is kept for meaning: the sides and results of a match, states. The light
+stays at the edges: the ambient glow, the player's own card colours spilling from their banner
+over the top of their profile, player cards' art. Dense content (tables, scoreboards, lists of
+games) sits on opaque panels, never on a translucent panel over imagery; champion art inside a
+list fades out before the figures (a pool row's left half).
 
 | Token | Use |
 | --- | --- |
-| `bg`, `bg-elevated` | page background; menus and popovers above it |
-| `surface`, `surface-2`, `surface-3` | panels and cards; inputs and raised rows; selected or hovered |
-| `border`, `border-strong` | dividers and panel edges; inputs and emphasis |
-| `fg`, `fg-muted`, `fg-subtle` | text: main, secondary, captions (`fg-subtle` is 4.5:1 on panels) |
-| `accent`, `accent-strong`, `accent-2`, `highlight` | the brand (Branding can change `accent-2` and `highlight`) |
+| `bg`, `bg-elevated` | page background; fields, menus and popovers (a step above the panel they sit on) |
+| `chrome` | the app's frame: sidebar, top bar, drawer and tab bar. A near-neutral charcoal, so navigation recedes; colour in it marks only the current page (a neutral lift, the brand gradient as a thin bar, the icon in `accent`) |
+| `surface`, `surface-2`, `surface-3` | panels and cards; raised rows and tiles inside them; selected or hovered |
+| `border`, `border-strong`, `border-control` | structure (dividers, panel and card edges); emphasis (a menu's or dialog's edge, a hovered row); the edge of a field, toolbar button, segmented group or switch, 3:1 against the page, the panels and popovers (WCAG 1.4.11; Branding derives it from custom colours) |
+| `fg`, `fg-muted`, `fg-subtle` | text: main, secondary, captions and metadata; all three 4.5:1 or more on every surface, `surface-3` included |
+| `accent`, `accent-strong`, `accent-2`, `highlight` | the brand: blue (`accent`) for controls and selected states, violet (`accent-2`) for light, emphasis and the second stop of the brand gradient (Branding can change them); selected states pair colour with a ring, weight or bar, never colour alone |
 | `good`, `warn`, `bad`, `info` | states and outcomes; never the only signal (pair with text or an icon) |
-| `blue`, `red` | the two sides of a match |
+| `blue`, `red` | the two sides of a match, and its result (Victory blue, Defeat red), always with the word |
 | `gold`, `violet`, `bronze`, `bronze-fg` | rarities and places (third place in bronze); never to set one statistic apart from its neighbours: multikill counts are plain `fg` like every other figure |
+| `tier-iron` … `tier-challenger` | a ranked tier written as small text (an opponent's "E2" in a match card); each 5:1 or more on the panels |
 
-Rank tiers keep their own colours (`rank-emblem.tsx`), as do social brands (`brand-icons.tsx`).
+Rank crests keep their own artwork and fallback colours (`rank-emblem.tsx`, `tierTextClass` for the text tokens), as do social brands (`brand-icons.tsx`).
 
-**Type.** Tailwind's scale from `text-xs` (12px) up, plus `text-2xs` (11px: captions, column
-headings, labels), `text-3xs` (10px: dense chips), `text-4xs` (9px: letters inside small tiles),
-`text-md` (15px: a list row's primary value) and `text-figure` (28px: headline figures from `sm`
-up). Sizes are rem, so they follow the reader's browser text size; the root size grows gently above
+**Type.** Tailwind's scale from `text-xs` (12px) up, plus `text-2xs` (11px: the smallest text:
+chips, badges, captions, column headings, labels), `text-4xs` (10px: letters inside small tiles,
+such as initials or a count, never running text), `text-md` (15px: a list row's primary value) and
+`text-figure` (28px: headline figures from `sm` up). Hierarchy comes from size and weight first:
+a page's title, a section's title (`text-xl`), a panel's title (`text-base` semibold); a headline
+figure, then a supporting figure a step smaller; a label in `fg-muted`, its metadata and
+timestamps in `fg-subtle` at `text-xs`. Statistics a reader compares (a scoreboard's KDA, damage,
+gold, CS and vision) are `text-xs` or larger. Sizes are rem, so they follow the reader's browser text size; the root size grows gently above
 1536px wide (globals.css). Uppercase labels, eyebrows and section headings use `tracking-label`; a
 small pill badge (`rounded-full`, such as "You") may stay at `tracking-wide`. The team's name as a
 wordmark uses `tracking-wordmark`, and the Team page's backdrop name `tracking-tagline`. Numbers
@@ -84,8 +109,56 @@ which are the same sizes under other names. Page widths: `--content-max` (text a
 pickers and popovers: `z-50`. Menus and toasts: `z-[60]`. Tooltips: `z-[100]`. Detail windows and
 dialogs are native `<dialog>` elements in the browser's top layer, above everything.
 
-**Elevation.** Panels and cards lie flat on the page: a border, no shadow. What floats above it (a
-menu, picker or popover, a card being dragged) is `bg-bg-elevated` with a border and `shadow-2xl`.
+**Elevation.** Panels and cards sit slightly raised from the page: an opaque surface, a hairline
+border and `panel-depth` (globals.css: a faint sheen along the top, a hairline of light on the top
+edge, a soft shadow; `Panel` has it). The card a page leads with may use `panel-featured` instead
+(the same depth with a faint wash of the violet light in its corner). A card that opens something
+can add `panel-lift` (it rises a pixel and its edge brightens while pointed at; no movement with
+reduced motion). None of them makes a stacking context, so tooltips and menus inside keep their layer. What floats above
+the page (a menu, picker or popover, a card being dragged) is `bg-bg-elevated`, lighter than the
+panels, with a border and `shadow-2xl`. No blur filters on content.
+
+**Density by context.** One system, not one look: the profile Overview is a compact dashboard
+(several related cards on the first screen, the figures in a clear order of importance, no card
+kept at a size its content does not fill); All Champions is a dense analytical table; Match
+History is detailed and scannable; banners are expressive; Settings and forms are plain and
+roomy. Empty or thin data shrinks a card rather than leaving a frame to fill.
+
+**Page layout.** One frame for every page, so pages differ by their content, not their scaffolding:
+- **Width:** `--content-max` for profiles, lists of cards, documents and forms; `--content-wide` for
+  the grids that gain from more columns (Team Overview's lineup, Leaderboards). The page's padding
+  comes from the app shell; a page adds none of its own.
+- **Headings, in three tiers:**
+  - a team or admin page opens with `PageHeader` (one `h1`, `text-2xl`, then its scope line);
+  - a profile's `h1` is the player's name in its banner, and each section of it opens with
+    `SectionHeader` (an `h2`, `text-xl`);
+  - the two landing pages (Team Overview and a profile's Overview) have a larger hero title. They
+    are the only exceptions.
+- **Toolbars:** the filters first, then the page's own actions at the end (Refine, Refresh,
+  Bookmarked), never on a row of their own. A page's toolbar sits under its scope line; a profile
+  section's moves beside its title from `xl` (`SectionHeader`).
+- **Density, by what the page is for:**
+  - an analytical table has 2rem portraits and rows of about 48px wherever it is a table. Its
+    figure columns are as wide as their heading needs and a little more, and the name column takes
+    the rest, so figures stay together on a wide screen. On phones the rows become compact pairs;
+  - a list of games is one card per game, and a game opens under its card;
+  - a dashboard's cards are as large as their content.
+
+**Tables and rankings.** Columns of figures are right-aligned in `tabular-nums` under headings
+that never wrap (`whitespace-nowrap`; the sort arrow sits outside the heading's text, so a
+heading keeps its place when it is sorted). The sorted column is marked by its arrow and by its
+figures in the main text weight; no gradient, glow or bar behind a figure unless the bar is the
+comparison itself (a leaderboard's gap to the leader, one quiet line). Win rates take their colour
+only from `winRateTone` (`src/domain/stats/win-rate.ts`); below the minimum games they stay grey
+and say "small sample", and a sort by win rate ranks established records before small samples. A
+ranking gives equal values the same place, written "2=" (titled "Tied for 2nd"), and never repeats
+who is already shown large: the podium (tablets up) or the leader's spotlight (phones) is followed
+by the rest. On phones a table becomes compact rows: the one or two figures that matter most at the
+right, the others as labelled pairs underneath (`dl`), every figure still there.
+
+**Windows.** A detail window (`DetailModal`) is as tall as its content, up to the screen: no
+empty band under a short window. Its header holds who or what it is about and the actions that
+belong to them (Full profile, OP.GG beside the name), then a summary, then the detail.
 
 **Motion.** Short and purposeful: entrances 160 to 220ms with `--ease-emphasized`, exits about
 140ms with ease-in, the sidebar with `--ease-glide`, the Team card's turn (460ms) with
@@ -101,24 +174,35 @@ Use the shared component before writing a new one (`src/components/ui`):
 | Page title, eyebrow, actions | `PageHeader` |
 | A titled section | `Panel`, `PanelHeader`, `PanelBody`, `SectionLabel` |
 | A figure with its label and explanation | `Metric`, `MetricLabel`, `InfoTip` |
-| Details over the page (a match, a player, a champion) | `DetailModal` |
+| A game in a list of games (Match History, Team → Matches) | Opens under its card: `MatchExpansion` (`match-history/inline-match.tsx`), one game at a time, `?match=` in the address. The match window is only for where a list cannot open it in place (inside another window, or a link to a game not on the page) |
+| A record opened from a list (a player met in Encounters) | The page that already lists its data, filtered to it, with a way back (Encounters opens a player's games in Match History: `match-history/encounter-games.tsx`), never a second window that repeats that page |
+| Details over the page (a match, a player, a champion) | `DetailModal` (the standard size fits its content up to the screen's height); a custom `header` keeps clear of the close button's corner with `CLEAR_OF_CONTROLS` (content beside it) or `BELOW_CONTROLS` (content that starts under it), never a fixed padding |
 | A question or a short form | `Dialog`, `ConfirmDialog` |
 | Choices in a list | `Menu`, `MenuItem`, `MenuLink` |
 | Filters | `FilterBar`, `RefineButton`, `FilterField`, `SearchInput`, `ToggleChip` |
-| One choice out of a few (a role, a view, a sort) | `segmentedGroupClass` with `segmentClass`, `RoleSegmented` |
-| Sections of a page | `TabBar`, `TabLinks`, `SubNav` |
+| One choice out of a few that filters what a page shows (a role, a side, a sort) | `segmentedGroupClass` with `segmentClass` (`size: "md"` for a list's main filter, as Encounters' All, Against and Alongside), `RoleSegmented`. Never to move between views or pages |
+| A page's sections (primary) | `TabBar`: a profile's Overview, All Champions, Match History and Riot Accounts; Team's sections |
+| Equal views of one section, or related pages (secondary) | `SubTabs` (`ui/sub-tabs.tsx`): links with `aria-current`, directly under the primary tabs, in the section title's place (`SectionHeader`'s `nav`): Match History's Games and Encounters. `SubNav` when the path decides the current one (Admin's Users & Permissions) |
+| Views inside one panel (a game's Scoreboard, Analysis, Timeline and Build; a champion's views) | `role="tablist"` buttons with `tabIndicatorClass` |
+| Tabs that filter one list | `TabLinks`, only where it is today (Leaderboards' categories, Admin's audit categories), until those pages are redesigned |
 | Buttons and links that look like buttons | `Button`, `buttonClass` (links never wrap buttons) |
 | Fields | `Input`, `Textarea`, `Select`, `Label`, `Switch` |
 | A section that opens and closes | `Disclosure` |
+| A table that can be wider than the screen | `ScrollRegion` with a `label`: the keyboard can focus and scroll it, and screen readers name it |
 | A status or a tag | `Badge` |
 | Nothing to show | `EmptyState` |
 | Loading | `Skeleton`, `PageSkeleton` (route `loading.tsx`) |
 | Saving | `SaveStatusIndicator`, `toast` |
 | Images from Riot or another host | `RemoteImage`, `useImageFailure`, `ChampionPortrait`, `Avatar` |
 | A time ago that stays current | `RelativeTime`, `useNow` |
-| How current a page's Riot data is, and Refresh | `DataRefresh` (one per page; `usePlayerRefresh` in `refresh-store.ts` behind every Refresh of a player) |
-| A section of Riot data's heading: title, scope line, Refresh, filters | `SectionHeader` |
-| A player's identity on a card (picture and links, name, rank and labels, tagline) | `CardIdentity` (`players/player-card.tsx`) inside a `@container/card` |
+| How current a page's Riot data is, and Refresh | `DataStatusNote` beside the scope line, `RefreshButton` at the toolbar's end (`usePlayerRefresh` in `refresh-store.ts` behind every Refresh of a player, `usePlayerRefreshState` for what only shows it) |
+| A section of Riot data's heading: title, scope line and status, a toolbar of filters ending in Refresh | `SectionHeader` |
+| A button in a toolbar beside the filters (Refine, Refresh) | `toolbarButtonClass` (`filter-bar.tsx`) |
+| A player's identity on a card (picture and links, name, rank and labels, tagline) | `CardIdentity` (`players/player-card.tsx`) inside a `@container/card`; on Players, `layout="rows"` on the directory card's grid (`DirectoryCardLayout`) |
+| A champion pool's rows (first choice marked, win rate, games, KDA, CS) | `PoolChampionTile` under `PoolColumnNames` (`players/player-card.tsx`) |
+| Both teams of a game | `TeamComposition` (`match-history/team-composition.tsx`); `keepNames` where the line-ups are what the card is for (Team → Matches), so phones keep the names too |
+| Two players' relationship in recorded games (against, alongside) | `RelationTag` (`match-history/encounters-view.tsx`): the word with the side's colour |
+| Bookmarking a game from a dense card | `BookmarkButton` with `iconOnly` (a 44px target on touch screens, its label kept for screen readers) |
 
 ## Dates and numbers
 
@@ -149,6 +233,16 @@ ones lazily, and keep uploaded brand images small ([HOSTING_USAGE.md](HOSTING_US
 - WCAG 2.2 AA: visible focus, text contrast of 4.5:1 (3:1 for large text and controls), labels on
   every control (an icon button has `aria-label`), headings in order, no meaning by colour alone,
   motion that respects reduced motion. Links inside running text are underlined.
+- A link's or button's accessible name starts with its visible words (WCAG 2.5.3): an
+  `aria-label` that adds detail keeps them first ("Edit on profile: Demo Mid's champions").
+  - An `aria-label` replaces everything the control shows, and axe and speech control compare it
+    with the text on screen, even text hidden from screen readers.
+  - So a control that shows a lot (a game card, a portrait whose letters stand in for it) is named
+    by its content, plus hidden words where needed (`<span className="sr-only">`), not by
+    `aria-label`.
+  - A lettered stand-in for a picture is named like the picture (`ChampionPortrait`).
+- Axe runs on every player and admin page at desktop and phone width, on a teammate's profile, and
+  in the Team player and champion windows (`e2e/quality.spec.ts`).
 - Valid nesting: no block inside a paragraph, no link inside a link or button. The browser
   rearranges such markup and the page fails to hydrate.
 
@@ -175,16 +269,28 @@ ones lazily, and keep uploaded brand images small ([HOSTING_USAGE.md](HOSTING_US
   `requireSession`, ..., or `getSession` followed at once by a refusal when there is none).
   `src/server/actions/guards.test.ts` reads every `"use server"` module and fails for an action
   whose first asynchronous step is anything else; the few public ones (signing in, setup,
-  recovery) are listed there with what protects them. Pages use `requirePageAccess`; hiding a
-  control is never the protection.
+  recovery) are listed there with what protects them. Hiding a control is never the protection.
+- Every member and admin page calls `requirePageAccess` itself (signed in, setup finished, and
+  the permission). A layout's check does not protect its pages: Next.js renders a layout and its
+  page at the same time, so a page without its own check still runs and its data is sent in the
+  response even when the layout redirects. `src/app/page-guards.test.ts` fails for a page under
+  `(app)` or `(admin)` that does not call it; pages that only redirect, and the "no access" page,
+  are listed there with the reason.
 - No secrets in URLs, logs, error messages or reports. Job endpoints take the secret in the
-  `Authorization` header only.
+  `Authorization` header only. An action shows a caught error through `publicErrorMessage`
+  (`src/server/errors.ts`): database and driver errors, which carry SQL text and values, become a
+  plain sentence and are logged without their parameters.
+- An address a visitor supplies is never followed as it is: a return path after signing in goes
+  through `safeReturnPath` (`src/lib/return-path.ts`), and Riot requests only go to hosts built from
+  a known routing value (`RiotApiClient`).
+- Sign-in, setup and recovery count an attempt before checking it (`claimAttempt`,
+  `src/server/auth/throttle.ts`), so parallel requests get no more tries than sequential ones.
 - Database changes follow [DATABASE_PERMISSIONS.md](DATABASE_PERMISSIONS.md): grants in the
   migration that creates the table, Row Level Security on, no grants to the Data API roles
   (`src/server/db/migration-grants.test.ts`). Nothing destructive without a tested recovery path
   and the owner's approval.
 - Personal data stays with the team: what is stored and for how long is on the privacy page; a
-  public social icon appears only when its owner chose to show it.
+  social icon appears only when its owner switched on its Show publicly switch.
 - Browser storage (`localStorage`, `sessionStorage`, IndexedDB) holds per-viewer conveniences only
   (layout choices, recent picks, favourites), never personal data read or typed in the app.
 - Code that stores Riot identities (match records, sync, linking an account) honours

@@ -22,8 +22,10 @@ const WHOLE_SCREEN = "short:h-dvh short:w-full short:max-h-none short:rounded-no
 const SIZE: Record<ModalSize, string> = {
   // Phones: a centred card with a margin (short content).
   compact: "w-[calc(100vw-1.5rem)] max-h-[85dvh] rounded-card sm:w-[min(28rem,calc(100vw-2rem))] short:max-h-[calc(100dvh-1rem)]",
-  // Phones: the whole screen (a small window would be hard to use); wider screens: a centred window.
-  standard: `h-dvh w-full max-h-none rounded-none max-sm:pt-safe sm:h-auto sm:max-h-[min(88dvh,56rem)] sm:w-[min(42rem,calc(100vw-3rem))] sm:rounded-card ${WHOLE_SCREEN}`,
+  // Phones: the whole screen (a small window would be hard to use); wider screens: a centred window
+  // as tall as its content (fit-content: `auto` would stretch a dialog between its top and bottom
+  // insets, leaving a short window mostly empty), up to most of the screen, then the body scrolls.
+  standard: `h-dvh w-full max-h-none rounded-none max-sm:pt-safe sm:h-fit sm:max-h-[min(88dvh,56rem)] sm:w-[min(42rem,calc(100vw-3rem))] sm:rounded-card ${WHOLE_SCREEN}`,
   // A fixed height on wide screens, so switching tabs inside never makes the window jump.
   wide: `h-dvh w-full max-h-none rounded-none max-sm:pt-safe sm:h-[min(90dvh,58rem)] sm:w-[min(76rem,calc(100vw-3rem))] sm:rounded-card ${WHOLE_SCREEN}`,
   full: `h-dvh w-full max-h-none rounded-none max-sm:pt-safe sm:h-[calc(100dvh-3rem)] sm:w-[calc(100vw-3rem)] sm:rounded-card ${WHOLE_SCREEN}`,
@@ -57,6 +59,18 @@ const PHONE_QUERY = "(max-width: 39.99rem)";
 export const MODAL_BACKDROP = "backdrop:bg-[rgb(2_6_23/0.7)] motion-safe:backdrop:fade-in";
 export const MODAL_MOTION = "motion-safe:modal-in data-[closing=true]:modal-out data-[closing=true]:backdrop:opacity-0 backdrop:transition-opacity backdrop:duration-150";
 
+/**
+ * The close button keeps the top-right corner to itself: a custom header's content stays this far
+ * from the corner's controls (the close button, and any Back or previous/next beside it), measured
+ * by DetailModal because the close button is larger on touch screens. `CLEAR_OF_CONTROLS` is for
+ * content beside them, `BELOW_CONTROLS` for content that starts under them (a header drawn as a
+ * picture), `BELOW_CONTROLS_ON_PHONES` for a header that does so only on phones.
+ */
+const CLEARANCE_PX = 12;
+export const CLEAR_OF_CONTROLS = "pr-[var(--modal-clear-right,4.5rem)]";
+export const BELOW_CONTROLS = "pt-[var(--modal-clear-top,4.5rem)]";
+export const BELOW_CONTROLS_ON_PHONES = "max-sm:pr-4 max-sm:pt-[var(--modal-clear-top,4.5rem)] sm:pr-[var(--modal-clear-right,4.5rem)]";
+
 /** How long the closing motion runs before the window is removed (matches modal-out). */
 const EXIT_MS = 140;
 /**
@@ -67,6 +81,14 @@ const SETTLE_MS = 120;
 
 /** True once the window has finished opening (immediately for reduced motion). */
 const SettledContext = React.createContext(true);
+
+/**
+ * What opened a window that has just closed, for a window opened in the same render: one that
+ * replaces another (a game opened from a player's Encounters, and Back to them) finds focus on the
+ * page itself, the window before it gone, so it takes that window's opener and focus still goes
+ * back there when the last of them closes. Cleared on the next frame.
+ */
+let handedOver: HTMLElement | null = null;
 
 /**
  * Heavy window content waits until the opening motion is over, so the first frames hold only the
@@ -120,7 +142,7 @@ export function DetailModal({
   className?: string;
   testId?: string;
   size?: ModalSize;
-  /** Controls beside the close button (e.g. previous / next). */
+  /** The window's own navigation (Back, previous / next): left of the close button, set apart from it by a divider. */
   headerExtra?: React.ReactNode;
   /** A custom header (e.g. a match result); it must contain an element with id={titleId}. */
   header?: React.ReactNode;
@@ -178,6 +200,36 @@ export function DetailModal({
   const custom = header != null;
   /** The header stays put on every screen, short windows included, and only the body scrolls (see `form`). */
   const pinned = size === "form";
+  // How much room the corner controls take, for CLEAR_OF_CONTROLS and BELOW_CONTROLS: measured
+  // before the window is first drawn, because the close button is larger on touch screens and a
+  // Back label varies. Layout sizes, not on-screen boxes, so the opening motion's scale is no matter.
+  const controlsRef = React.useRef<HTMLSpanElement>(null);
+  React.useLayoutEffect(() => {
+    const d = ref.current;
+    const c = controlsRef.current;
+    if (!open || !custom || !d || !c) return;
+    const measure = () => {
+      const style = getComputedStyle(c);
+      // An absolute cluster is placed within the header. A fixed one (a short window, or a phone
+      // window that scrolls as one) is placed within the whole-screen window, whose padding keeps
+      // the header clear of the notch, so that padding is not the header's to clear.
+      const dialogStyle = style.position === "fixed" ? getComputedStyle(d) : null;
+      const right = (parseFloat(style.right) || 0) - (dialogStyle ? parseFloat(dialogStyle.paddingRight) || 0 : 0);
+      const top = (parseFloat(style.top) || 0) - (dialogStyle ? parseFloat(dialogStyle.paddingTop) || 0 : 0);
+      d.style.setProperty("--modal-clear-right", `${Math.max(0, right) + c.offsetWidth + CLEARANCE_PX}px`);
+      d.style.setProperty("--modal-clear-top", `${Math.max(0, top) + c.offsetHeight + CLEARANCE_PX}px`);
+    };
+    measure();
+    // The cluster's own size (a Back label arriving), and the screen's (turning a phone moves the
+    // cluster between placements). Not the window's size: the header's padding changes that.
+    const observer = new ResizeObserver(measure);
+    observer.observe(c);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [open, custom, flow]);
   React.useLayoutEffect(() => {
     const d = ref.current;
     const h = headerRef.current;
@@ -200,7 +252,8 @@ export function DetailModal({
     const d = ref.current;
     if (!d) return;
     if (open && !d.open) {
-      opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      const active = document.activeElement;
+      opener.current = active instanceof HTMLElement && active !== document.body ? active : handedOver;
       d.showModal();
     }
     if (!open && d.open) {
@@ -221,9 +274,14 @@ export function DetailModal({
       window.clearTimeout(settleTimer);
       root.style.overflow = prev.overflow;
       body.style.paddingRight = prev.padding;
-      // Back to what opened the window, whether it was closed or removed from the page.
+      // Back to what opened the window, whether it was closed or removed from the page (or to the
+      // window replacing it, see handedOver).
       const back = opener.current;
-      if (back?.isConnected) requestAnimationFrame(() => back.focus({ preventScroll: true }));
+      handedOver = back;
+      requestAnimationFrame(() => {
+        if (handedOver === back) handedOver = null;
+        if (back?.isConnected) back.focus({ preventScroll: true });
+      });
     };
   }, [open, settle]);
 
@@ -249,10 +307,16 @@ export function DetailModal({
     }, EXIT_MS);
   }, []);
 
-  const close = (
-    <button type="button" onClick={requestClose} autoFocus className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-fg-subtle transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:h-11 pointer-coarse:w-11" aria-label="Close" data-testid={closeTestId}>
-      <X className="h-4 w-4" />
-    </button>
+  // The close button alone in the top-right corner: the window's own navigation sits left of it,
+  // past a divider, and nothing in the header comes within CLEARANCE_PX of either.
+  const controls = (
+    <>
+      {headerExtra}
+      {headerExtra ? <span aria-hidden className="mx-1.5 h-5 w-px shrink-0 bg-border-strong" data-testid="modal-controls-divider" /> : null}
+      <button type="button" onClick={requestClose} autoFocus aria-keyshortcuts="Escape" className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-fg-subtle transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:h-11 pointer-coarse:w-11" aria-label="Close" data-testid={closeTestId}>
+        <X className="h-4 w-4" />
+      </button>
+    </>
   );
   return (
     <dialog
@@ -304,6 +368,8 @@ export function DetailModal({
             <div ref={headerRef} className={cn("relative shrink-0 border-b border-border", headerClassName)} data-testid={headerTestId}>
               {header}
               <span
+                ref={controlsRef}
+                data-testid="modal-controls"
                 className={cn(
                   "flex items-center gap-1",
                   flow
@@ -313,8 +379,7 @@ export function DetailModal({
                       : "absolute right-2 top-2 sm:right-3 sm:top-3 short:fixed short:right-[max(0.5rem,env(safe-area-inset-right))] short:top-2 short:z-20 short:rounded-lg short:bg-bg-elevated/85 short:shadow-lg short:backdrop-blur",
                 )}
               >
-                {headerExtra}
-                {close}
+                {controls}
               </span>
             </div>
           ) : (
@@ -329,9 +394,8 @@ export function DetailModal({
                   </p>
                 ) : null}
               </div>
-              <span className="flex shrink-0 items-center gap-1">
-                {headerExtra}
-                {close}
+              <span className="flex shrink-0 items-center gap-1" data-testid="modal-controls">
+                {controls}
               </span>
             </div>
           )}
