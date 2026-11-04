@@ -120,3 +120,5 @@ The notice says each of these:
   - the Owner and the administrator's own account are protected;
   - members are kept out.
 - `e2e/privacy.spec.ts`: the notice's wording, with nothing left about Clash scouts, and the old Clash Scout browser storage cleaned up on the next visit.
+
+**Riot's error messages name nobody (4 Nov 2026).** A failed Riot request's message, which reaches job log lines, run summaries, the Data health page and the host's logs, is built from the request's route with the identifiers it names elided (`routeLabel` in `src/server/riot/api/client.ts`): `/lol/league/v4/entries/by-puuid/…`, never the PUUID or the Riot ID the request was about. The Personal-data actions log a failed statement's kind, code and text without its parameters, never the raw error.
