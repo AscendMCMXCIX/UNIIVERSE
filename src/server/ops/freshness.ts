@@ -105,7 +105,12 @@ export async function teamFreshness(db: Db): Promise<Freshness> {
   return { v: digest(row ?? null), pace: "idle" };
 }
 
-/** Admin Mode's health and data pages: job runs and the pipelines' status. */
+/**
+ * Admin Mode's health and data pages: job runs and the pipelines' status. A job is running when
+ * the newest run not finished started within JOB_RUNNING_MS: a run whose process died earlier
+ * stays open until it is closed as interrupted (server/ops/refresh-status.ts), and must not hide
+ * one that is going now.
+ */
 export async function jobsFreshness(db: Db, now: Date = new Date()): Promise<Freshness> {
   const since = new Date(now.getTime() - 2 * 86_400_000).toISOString();
   const [row] = rowsOf<{ last_run: number | null; finished: string | null; running_since: string | null; status: string | null }>(
@@ -113,7 +118,7 @@ export async function jobsFreshness(db: Db, now: Date = new Date()): Promise<Fre
       SELECT
         (SELECT max(id) FROM job_runs WHERE started_at >= ${since}::timestamptz) AS last_run,
         (SELECT max(finished_at) FROM job_runs WHERE started_at >= ${since}::timestamptz) AS finished,
-        (SELECT min(started_at) FROM job_runs WHERE started_at >= ${since}::timestamptz AND finished_at IS NULL) AS running_since,
+        (SELECT max(started_at) FROM job_runs WHERE started_at >= ${since}::timestamptz AND finished_at IS NULL) AS running_since,
         (SELECT max(updated_at) FROM data_refresh_status) AS status`),
   );
   const running = (time(row?.running_since) ?? 0) > now.getTime() - JOB_RUNNING_MS;

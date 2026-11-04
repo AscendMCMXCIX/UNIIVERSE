@@ -9,6 +9,21 @@ import { backfillTimelines, timelineCoverage } from "@/server/accounts/timeline-
 import { backfillFigures, figuresCoverage } from "@/server/accounts/figures-backfill";
 import { checkRecentGameRanks, rankLookupClient } from "@/server/players/participant-ranks";
 
+/**
+ * The account sync's error when accounts it tried could not be synced: any of them makes the run
+ * a partial success (degraded), which Admin Mode → Data & Integrations repeats as a warning. A
+ * count, never a Riot ID: job errors are kept with the runs and printed by the Data jobs
+ * workflow. Every account failing is what a rejected key or a Riot outage looks like from here
+ * (/api/health lists a rejected key as failing on its own).
+ */
+function syncFailureSummary(failed: number, tried: number): string | undefined {
+  if (failed === 0) return undefined;
+  const why = "each player's Riot Accounts tab says why";
+  if (failed < tried) return `${failed} of the ${tried} linked accounts tried this run could not be synced; ${why}.`;
+  const none = tried === 1 ? "The one linked account tried this run could not be synced" : `None of the ${tried} linked accounts tried this run could be synced`;
+  return `${none}: a rejected Riot key or a Riot outage looks like this (Data & Integrations shows whether Riot accepts the key; ${why}).`;
+}
+
 defineJob({
   key: "account-sync",
   description: "Refresh linked Riot accounts, most urgent first (new links, unfinished season history, active players, then the rest): PUUID, rank, mastery and match history.",
@@ -31,8 +46,13 @@ defineJob({
       results.push(await syncAccount(ctx.db, client, account, { outOfTime, log: ctx.log, season, maxMatchesPerRun: Number(process.env.ACCOUNT_SYNC_MATCHES_PER_RUN ?? 80) }));
     }
     if (results.some((r) => r.matchesFolded > 0 || r.masteryRows > 0)) invalidateProficiencyCache();
-    const failed = results.filter((r) => r.error).length;
-    return { ok: true, degraded: failed > 0 && failed === results.length && results.length > 0, summary: { season, synced: results.length, skippedRecentlySynced: skipped, failed, folded: results.reduce((s, r) => s + r.matchesFolded, 0), fromRecords: results.reduce((s, r) => s + (r.matchesFromRecords ?? 0), 0), seasonHistoryComplete: results.filter((r) => r.history?.complete).length, seasonHistoryInProgress: results.filter((r) => r.history && !r.history.complete).length, requests: client.requestCount, rateLimits: describeRateLimits(client.limiters.configured) } };
+    // Failures Riot or the network caused (the account waits and is retried). An account that needs
+    // a person (a duplicate, an erased person, a Riot ID Riot does not know) is shown on its
+    // player's Riot Accounts tab, and is retried every run: counting it would leave every run
+    // degraded until someone acts, so it is counted apart.
+    const needsAttention = results.filter((r) => r.status === "failed" || r.status === "unresolved").length;
+    const failed = results.filter((r) => r.error && r.status !== "failed" && r.status !== "unresolved").length;
+    return { ok: true, degraded: failed > 0, error: syncFailureSummary(failed, results.length), summary: { season, synced: results.length, skippedRecentlySynced: skipped, failed, needsAttention, folded: results.reduce((s, r) => s + r.matchesFolded, 0), fromRecords: results.reduce((s, r) => s + (r.matchesFromRecords ?? 0), 0), seasonHistoryComplete: results.filter((r) => r.history?.complete).length, seasonHistoryInProgress: results.filter((r) => r.history && !r.history.complete).length, requests: client.requestCount, rateLimits: describeRateLimits(client.limiters.configured) } };
   },
 });
 
