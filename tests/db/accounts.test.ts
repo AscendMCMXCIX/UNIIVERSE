@@ -23,8 +23,11 @@ afterAll(async () => {
   await handle.close();
 });
 
-/** One game the fake Riot serves. */
-type GameSpec = { champion: string; role: string; win: boolean; queue: number; created: number; version?: string };
+/**
+ * One game the fake Riot serves. `answer` makes its match request fail: 404 (Riot does not have
+ * it), 503 (Riot's servers failing) or "unreadable" (an answer that is not a readable match).
+ */
+type GameSpec = { champion: string; role: string; win: boolean; queue: number; created: number; version?: string; answer?: 404 | 503 | "unreadable" };
 
 function fakeFetch(puuid: string, matches: Record<string, GameSpec>, options: { activeRegion?: string | null; down?: boolean; calls?: string[] } = {}) {
   return async (input: string | URL | Request): Promise<Response> => {
@@ -60,10 +63,12 @@ function fakeFetch(puuid: string, matches: Record<string, GameSpec>, options: { 
     const m = /\/lol\/match\/v5\/matches\/([^/?]+)$/.exec(url);
     if (m) {
       const spec = matches[decodeURIComponent(m[1]!)];
-      if (!spec) return json({}, 404);
+      if (!spec || spec.answer === 404) return json({ status: { message: "Data not found - match file not found", status_code: 404 } }, 404);
+      if (spec.answer === 503) return json({ status: { message: "Service unavailable", status_code: 503 } }, 503);
       const positions = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
       const participants = Array.from({ length: 10 }, (_, i) => ({ puuid: i === 0 ? puuid : `other-${i}`, teamId: i < 5 ? 100 : 200, championId: i === 0 ? keyOf(spec.champion) : keyOf("Ahri") + i, teamPosition: i === 0 ? spec.role : positions[i % 5], win: i < 5 ? spec.win : !spec.win, kills: 1, deaths: 1, assists: 1, totalMinionsKilled: 150, neutralMinionsKilled: 30, totalDamageDealtToChampions: 21000, visionScore: 25 }));
-      return json({ metadata: { matchId: m[1] }, info: { gameCreation: spec.created, gameDuration: 1800, gameVersion: spec.version ?? "16.19.1.1", queueId: spec.queue, teams: [], participants } });
+      // "unreadable": the game's version is empty, which the match schema refuses.
+      return json({ metadata: { matchId: m[1] }, info: { gameCreation: spec.created, gameDuration: 1800, gameVersion: spec.answer === "unreadable" ? "" : (spec.version ?? "16.19.1.1"), queueId: spec.queue, teams: [], participants } });
     }
     return json({}, 404);
   };
@@ -337,5 +342,114 @@ describe("season history: gaps and games that cannot be stored", () => {
     expect(folded).toEqual([80, 50, 0, 0]);
     expect((await stored()).size).toBe(280);
     expect((await reload()).historyBackfill).toMatchObject({ completedAt: expect.any(String), queues: { "420": { done: true } } });
+  });
+
+  it("records a listed game Riot does not have, or sends in a form that cannot be read, so its queue still finishes; a game Riot cannot serve right now is tried again", async () => {
+    const { account, reload, stored } = await linkedAccount("Refused Player");
+    const matches: Record<string, GameSpec> = {};
+    for (let i = 0; i < 120; i++) matches[`OC1_REF${i}`] = solo(1 + i);
+    matches.OC1_REF5!.answer = 404; // on the newest page
+    matches.OC1_REF100!.answer = "unreadable"; // first on the page after it: a newer stored game is read again first
+    matches.OC1_REF7!.answer = 503; // Riot's servers failing for now
+    const calls: string[] = [];
+    const client = clientFor("puuid-refused", matches, calls);
+    const opts = { season: 16, queueIds: [420], maxMatchesPerRun: 200, now: () => new Date(NOW) };
+    const first = await syncAccount(handle.db, client, account, opts);
+    // The first run records the 404 and stops at the 503, which is not recorded.
+    expect(first.history).toMatchObject({ complete: false });
+    let rows = await stored();
+    expect(rows.get("OC1_REF5")).toMatchObject({ championId: null, gameCreation: 0, queueId: 420 });
+    expect(rows.has("OC1_REF7")).toBe(false);
+    delete matches.OC1_REF7!.answer;
+    const runs = [first];
+    for (let run = 0; run < 3 && !runs.at(-1)!.history?.complete; run++) runs.push(await syncAccount(handle.db, client, await reload(), opts));
+    expect(runs.at(-1)!.history).toMatchObject({ complete: true });
+    rows = await stored();
+    expect(rows.size).toBe(120);
+    expect(rows.get("OC1_REF7")).toMatchObject({ championId: "Ahri" });
+    expect(rows.get("OC1_REF100")).toMatchObject({ championId: null, gameCreation: 0, queueId: 420 });
+    expect([...rows.values()].filter((r) => r.championId === "Ahri")).toHaveLength(118);
+    // Neither is asked for again.
+    calls.length = 0;
+    await syncAccount(handle.db, client, await reload(), opts);
+    expect(calls.filter((u) => u.includes("/matches/OC1_REF"))).toEqual([]);
+  });
+
+  it("leaves a queue's newest game for later when Riot does not have it (it may still be preparing it), without holding the queue, and records it once a newer game is read", async () => {
+    const { account, reload, stored } = await linkedAccount("Newest Player");
+    const matches: Record<string, GameSpec> = {};
+    for (let i = 0; i < 5; i++) matches[`OC1_TOP${i}`] = solo(1 + i, { queue: 440 });
+    matches.OC1_TOP0!.answer = 404;
+    const calls: string[] = [];
+    const client = clientFor("puuid-newest", matches, calls);
+    const opts = { season: 16, queueIds: [440], now: () => new Date(NOW) };
+    const first = await syncAccount(handle.db, client, account, opts);
+    expect(first.matchesFolded).toBe(4);
+    expect(first.history).toMatchObject({ complete: true });
+    expect((await stored()).has("OC1_TOP0")).toBe(false);
+    // Asked for again by the next run, still not recorded.
+    calls.length = 0;
+    await syncAccount(handle.db, client, await reload(), opts);
+    expect(calls.filter((u) => u.includes("/matches/OC1_TOP0"))).toHaveLength(1);
+    expect((await stored()).has("OC1_TOP0")).toBe(false);
+    // A newer game is read: the missing one is a problem of that game alone, recorded once.
+    matches.OC1_TOPNEXT = solo(-1, { queue: 440 });
+    const next = await syncAccount(handle.db, client, await reload(), { ...opts, now: () => new Date(NOW + 2 * HOUR) });
+    expect(next.matchesFolded).toBe(1);
+    expect((await stored()).get("OC1_TOP0")).toMatchObject({ championId: null, gameCreation: 0 });
+    calls.length = 0;
+    await syncAccount(handle.db, client, await reload(), { ...opts, now: () => new Date(NOW + 3 * HOUR) });
+    expect(calls.filter((u) => u.includes("/matches/OC1_TOP"))).toEqual([]);
+  });
+
+  it("keeps a finished queue finished when Riot fails at its newest game, and reads a newer stored game again before recording one Riot refuses", async () => {
+    const { account, reload, stored } = await linkedAccount("Outage Player");
+    const matches: Record<string, GameSpec> = { OC1_OUT3: solo(30), OC1_OUT4: solo(40) };
+    const calls: string[] = [];
+    const client = clientFor("puuid-outage", matches, calls);
+    const opts = { season: 16, queueIds: [420], now: () => new Date(NOW) };
+    expect((await syncAccount(handle.db, client, account, opts)).history).toMatchObject({ complete: true });
+    // Riot failing at the newest game: the games still to fetch are the newest, nothing can move
+    // past them, so the queue stays finished and the next run finds them at the top.
+    matches.OC1_OUT1 = solo(2, { answer: 503 });
+    matches.OC1_OUT2 = solo(3);
+    expect((await syncAccount(handle.db, client, await reload(), opts)).history).toMatchObject({ complete: true });
+    expect((await stored()).has("OC1_OUT2")).toBe(false);
+    // Riot serves the newest again but fails at the one below it: read again from the top later.
+    delete matches.OC1_OUT1!.answer;
+    matches.OC1_OUT2!.answer = 503;
+    const partial = await syncAccount(handle.db, client, await reload(), opts);
+    expect(partial.matchesFolded).toBe(1);
+    expect(partial.history).toMatchObject({ complete: false });
+    // Then Riot says it does not have that game. Nothing newer was read in this run, so the stored
+    // game above it is read again first; it reads, so the refusal is that game's own: recorded.
+    matches.OC1_OUT2!.answer = 404;
+    calls.length = 0;
+    const last = await syncAccount(handle.db, client, await reload(), opts);
+    expect(calls.filter((u) => u.includes("/matches/OC1_OUT1"))).toHaveLength(1);
+    expect((await stored()).get("OC1_OUT2")).toMatchObject({ championId: null, gameCreation: 0 });
+    expect(last.history).toMatchObject({ complete: true });
+  });
+
+  it("records nothing when no game can be read at all (a format change, or a fault in reading them), and collects everything once reading works again", async () => {
+    const { account, reload, stored } = await linkedAccount("Format Player");
+    const matches: Record<string, GameSpec> = {};
+    for (let i = 0; i < 6; i++) matches[`OC1_FMT${i}`] = solo(1 + i);
+    // The first run stores the newest three and stops at a 503.
+    matches.OC1_FMT3!.answer = 503;
+    const client = clientFor("puuid-format", matches);
+    const opts = { season: 16, queueIds: [420], now: () => new Date(NOW) };
+    await syncAccount(handle.db, client, account, opts);
+    expect([...(await stored()).keys()].sort()).toEqual(["OC1_FMT0", "OC1_FMT1", "OC1_FMT2"]);
+    // Now no game reads, the stored ones included: nothing is recorded as unavailable.
+    for (const m of Object.values(matches)) m.answer = "unreadable";
+    for (let run = 0; run < 2; run++) expect((await syncAccount(handle.db, client, await reload(), opts)).history).toMatchObject({ complete: false });
+    expect((await stored()).size).toBe(3);
+    // Reading works again: every game is collected.
+    for (const m of Object.values(matches)) delete m.answer;
+    const back = await syncAccount(handle.db, client, await reload(), opts);
+    expect(back.matchesFolded).toBe(3);
+    expect(back.history).toMatchObject({ complete: true });
+    expect([...(await stored()).values()].filter((r) => r.championId === "Ahri")).toHaveLength(6);
   });
 });

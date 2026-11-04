@@ -312,6 +312,15 @@ export async function seasonListStart(db: Db, season: number): Promise<number> {
 const EMPTY_QUEUE_RECHECK_MS = 12 * 3_600_000;
 const PAGE = 100;
 
+/**
+ * Riot's answer about one listed game that will be the same every time: it does not have the game
+ * (404), or it answered with something that is not a readable match (an unexpected format). Riot's
+ * servers failing, the network and the rate limit are not: those are tried again.
+ */
+function refusedForGood(err: unknown): boolean {
+  return err instanceof RiotApiError && !err.retryable && (err.status === 404 || (err.status >= 200 && err.status < 300));
+}
+
 export function summariseBackfill(state: HistoryBackfill): { season: number; complete: boolean; queuesDone: number; queues: number } {
   const queues = Object.values(state.queues);
   return { season: state.season, complete: !!state.completedAt, queuesDone: queues.filter((q) => q.done).length, queues: queues.length };
@@ -325,7 +334,7 @@ export function summariseBackfill(state: HistoryBackfill): { season: number; com
  * long season fills in over several runs while new games always come first. Ids already stored
  * cost nothing; queues without a game this season are re-checked twice a day. No listed game is
  * passed over for good: a queue whose newest page a run left unfinished is read again from the
- * top (phase 1 below).
+ * top, and a game Riot refuses for good is recorded without a champion (readPage below).
  */
 async function collectSeasonHistory(db: Db, client: RiotApiClient, account: RiotAccountRecord & { puuid: string }, options: AccountSyncOptions, result: AccountSyncResult, log: (m: string) => void): Promise<HistoryBackfill> {
   const now = options.now?.() ?? new Date();
@@ -341,16 +350,50 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
   let fetched = 0;
   const budgetLeft = () => fetched < limit && !options.outOfTime?.();
 
+  // A listed game Riot will not give: a ledger row without a champion, like a remake's, so no later
+  // run asks for it again and its queue moves on. Riot gave no start time, so game_creation is 0 (a
+  // row without a champion is on no page, and 0 is never anyone's newest game).
+  const recordUnavailable = async (queueId: number, matchId: string) => {
+    await db.insert(accountMatches).values({ accountId: account.id, matchId, gameCreation: 0, queueId }).onConflictDoNothing();
+  };
+  // Re-reads one stored game newer than a refused one: the nearest before it on its page, else (on
+  // an older page, where the queue's newest games are all newer) the newest stored game of the
+  // queue. Says whether Riot's games of that time read now.
+  const newerGameReads = async (queueId: number, newerOnPage: string[], olderPage: boolean): Promise<boolean> => {
+    let probe = newerOnPage.at(-1);
+    if (!probe && olderPage) {
+      const [row] = await db.select({ matchId: accountMatches.matchId }).from(accountMatches).where(and(eq(accountMatches.accountId, account.id), eq(accountMatches.queueId, queueId), isNotNull(accountMatches.championId))).orderBy(desc(accountMatches.gameCreation)).limit(1);
+      probe = row?.matchId;
+    }
+    if (!probe || !budgetLeft()) return false;
+    fetched += 1;
+    try {
+      await client.match(account.platform, probe);
+      return true;
+    } catch (err) {
+      if (err instanceof RiotApiError && (err.status === 403 || err.status === 401)) throw err;
+      return false;
+    }
+  };
+
   // Reads one page of a queue's season list and stores every game on it that is not stored yet.
-  // `complete` says whether the whole page is now stored: false when the run's limit, the time
-  // budget or a failed request stopped it, at `stoppedAt` (the place on the page of the first game
-  // not got to).
-  const readPage = async (queueId: number, start: number, window: { startTime: number; endTime?: number } = { startTime }): Promise<{ ids: number; fresh: number; complete: boolean; stoppedAt: number }> => {
+  // `complete` says whether the page is done with: false when the run's limit, the time budget or a
+  // failed request stopped it, at `stoppedAt` (the place on the page of the first game not got to).
+  // `later` counts games on it left for a later run, which do not stop the page: the season's
+  // newest game when Riot does not have it yet.
+  const readPage = async (queueId: number, start: number, window: { startTime: number; endTime?: number } = { startTime }): Promise<{ ids: number; fresh: number; complete: boolean; stoppedAt: number; later: number }> => {
     const ids = await client.matchIdsByPuuid(account.platform, account.puuid, { queue: queueId, startTime: window.startTime, endTime: window.endTime, count: PAGE, start });
-    if (ids.length === 0) return { ids: 0, fresh: 0, complete: true, stoppedAt: 0 };
-    const known = new Set((await db.select({ matchId: accountMatches.matchId }).from(accountMatches).where(and(eq(accountMatches.accountId, account.id), inArray(accountMatches.matchId, ids)))).map((r) => r.matchId));
+    if (ids.length === 0) return { ids: 0, fresh: 0, complete: true, stoppedAt: 0, later: 0 };
+    const stored = await db.select({ matchId: accountMatches.matchId, championId: accountMatches.championId }).from(accountMatches).where(and(eq(accountMatches.accountId, account.id), inArray(accountMatches.matchId, ids)));
+    const known = new Set(stored.map((r) => r.matchId));
+    const folded = new Set(stored.filter((r) => r.championId).map((r) => r.matchId));
     const fresh = ids.filter((id) => !known.has(id)).length;
-    const stop = (i: number) => ({ ids: ids.length, fresh, complete: false, stoppedAt: i });
+    // The top of this season's list, where Riot may still be preparing its newest game.
+    const liveEdge = start === 0 && window.endTime === undefined;
+    // Whether a game listed before the current one (a newer game) has been read in this run.
+    let newerRead = false;
+    let later = 0;
+    const stop = (i: number) => ({ ids: ids.length, fresh, complete: false, stoppedAt: i, later });
     for (let i = 0; i < ids.length; i++) {
       const matchId = ids[i]!;
       if (known.has(matchId)) continue;
@@ -361,13 +404,38 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
         match = await client.match(account.platform, matchId);
       } catch (err) {
         if (err instanceof RiotApiError && (err.status === 403 || err.status === 401)) throw err;
-        log(`match ${matchId} failed: ${(err as Error).message}`);
+        if (!refusedForGood(err)) {
+          // Anything else (Riot's servers, the network, the rate limit, a request Riot did not
+          // accept): a later run tries again; nothing is recorded.
+          log(`match ${matchId} failed: ${(err as Error).message}`);
+          return stop(i);
+        }
+        // The same answer every time (refusedForGood). The game is recorded as unavailable, so the
+        // queue moves on, but only when a newer game of this list reads now: that shows Riot serves
+        // the list's games and UNIIVERSE understands their format, so the problem is this game's
+        // alone. When nothing newer reads (a format change, or a fault in UNIIVERSE's own reading
+        // of matches), nothing is recorded and a later run asks again.
+        if (newerRead || (await newerGameReads(queueId, ids.slice(0, i).filter((id) => folded.has(id)), !liveEdge))) {
+          newerRead = true;
+          await recordUnavailable(queueId, matchId);
+          log(`match ${matchId} unavailable (${(err as Error).message}); recorded, not asked for again`);
+          continue;
+        }
+        if (liveEdge && i === 0) {
+          // The season's newest game: Riot may still be preparing it. Asked for again by the next
+          // run without holding the queue, and recorded as above once a newer game has been read.
+          later += 1;
+          log(`match ${matchId} not served yet (${(err as Error).message}); tried again later`);
+          continue;
+        }
+        log(`match ${matchId} failed: ${(err as Error).message}; nothing newer reads, so it is tried again later`);
         return stop(i);
       }
+      newerRead = true;
       result.matchesFetched += 1;
       if (await foldMatch(db, account, match, keyToId, queueIds, erased)) result.matchesFolded += 1;
     }
-    return { ids: ids.length, fresh, complete: true, stoppedAt: ids.length };
+    return { ids: ids.length, fresh, complete: true, stoppedAt: ids.length, later };
   };
 
   // 1. New games first, every queue.
