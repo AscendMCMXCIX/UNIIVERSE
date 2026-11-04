@@ -124,15 +124,17 @@ jobs:
           done
           # A scheduled run also fails when production is unwell, so GitHub's failed-workflow email
           # reaches the owner (docs/MONITORING.md): the app or its database not answering, a job
-          # failing three times in a row, or no successful account sync for SYNC_STALE_HOURS.
+          # failing three times in a row, or no linked account read from Riot in full for
+          # SYNC_STALE_HOURS (data.accounts: from the accounts themselves, as the account-sync job
+          # records a success when it had nothing to do, no key, or every account failed).
           if [ "$EVENT" = "schedule" ]; then
             health="$(curl --silent --max-time 60 "$APP_URL/api/health" || true)"
             problem="$(printf '%s' "$health" | jq -r --argjson hours "$SYNC_STALE_HOURS" '
               if .ok != true then "the app or its database is not answering"
               elif (.failingJobs | length) > 0 then "failing jobs: " + (.failingJobs | join(", "))
-              else ([.jobs[] | select(.key == "account-sync") | .lastSuccessAt][0]) as $at
+              else (.data.accounts) as $at
                 | if $at != null and (now - ($at | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601)) > $hours * 3600
-                  then "no successful account sync for over \($hours) hours" else empty end
+                  then "no linked account read from Riot in full for over \($hours) hours" else empty end
               end' 2>/dev/null || echo "the health check could not be read")"
             [ -n "$health" ] || problem="the health check could not be read"
             if [ -n "$problem" ]; then echo "::error::Production health: $problem"; status=1; else echo "Production health: ok"; fi
