@@ -82,6 +82,7 @@ import OverviewPage from "@/app/(app)/players/[id]/page";
 import AccountsPage from "@/app/(app)/players/[id]/accounts/page";
 import ChampionsPage from "@/app/(app)/players/[id]/champions/page";
 import MatchesPage from "@/app/(app)/players/[id]/matches/page";
+import PlayersPage from "@/app/(app)/players/page";
 
 const RESTRICTED: Capability[] = ["view-team", "view-players", "view-matches", "edit-own-profile", "manage-own-riot-accounts"];
 const MATCH = "OC1_900000001";
@@ -307,6 +308,31 @@ describe("decision 1: a teammate's rank is a statistic", () => {
     expect(Object.keys(identity.rank!).sort()).toEqual(["asOf", "division", "leaguePoints", "queue", "tier"]);
     const tab = await browserPayload(await AccountsPage(params(player.ace!)));
     expect(propsOf(tab, "RiotAccountsPanel")[0]!.accounts).toEqual([expect.objectContaining({ tier: "GOLD", division: "II", leaguePoints: 45, rankedWins: 31, rankedLosses: 27, rankQueue: "solo" })]);
+  });
+
+  it("the Players directory: a Restricted viewer gets no teammate's rank, on the card or the phone row, and never 'Unranked' in its place", async () => {
+    type Entry = { player: { id: string }; showRank: boolean; rank: unknown };
+    const directory = async () => {
+      const payload = await browserPayload(await PlayersPage({ searchParams: Promise.resolve({}) }));
+      const [props] = propsOf(payload, "PlayersDirectory");
+      return { payload, props: props!, entries: props!.entries as Entry[] };
+    };
+    await signInAs("rex");
+    const hidden = await directory();
+    const ace = hidden.entries.find((e) => e.player.id === player.ace)!;
+    expect(ace).toMatchObject({ showRank: false, rank: null });
+    expect(hidden.payload).not.toMatch(/GOLD/);
+    await signInAs("mate");
+    const shown = await directory();
+    expect(shown.entries.find((e) => e.player.id === player.ace)).toMatchObject({ showRank: true, rank: { tier: "GOLD", division: "II" } });
+    // Rendered, desktop card and phone row alike: the hidden rank leaves no "Unranked" behind;
+    // a player shown with no rank on record still says it.
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { createElement } = await import("react");
+    const { PlayersDirectory } = await import("@/components/players/players-directory");
+    const render = (entry: Entry) => renderToStaticMarkup(createElement(PlayersDirectory, { ...(hidden.props as object), entries: [entry] } as never));
+    expect(render(ace)).not.toMatch(/Unranked|Gold/);
+    expect(render({ ...ace, showRank: true, rank: null })).toMatch(/Unranked/);
   });
 
   it("one's own rank always, even on a level without teammates' statistics", async () => {

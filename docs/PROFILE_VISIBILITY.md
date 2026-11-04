@@ -34,11 +34,10 @@ because PR #203 changes them.
     rank history is not read for that viewer.
   - Teammates' match histories need the right anyway (the Match History tab and the match actions
     refuse without it), so in practice this matters for a viewer's own games.
-- **Follow-up, not done yet:** the Players directory (`src/app/(app)/players/page.tsx` →
-  `players-directory.tsx`) still shows every member's rank to anyone with `view-players`. It is
-  left until PR #203, which rewrites the directory, is merged. Then its `rankOf` returns null for
-  a teammate unless `canViewPlayerStats`, and the card leaves the rank out
-  (`CardIdentity showRank={false}`), as on Team Overview.
+- **The Players directory** (`src/app/(app)/players/page.tsx` → `players-directory.tsx`): each
+  entry carries `showRank = canViewPlayerStats(viewer, player)`, and a hidden rank is not sent at
+  all. The desktop card (`PlayerSummaryCard` → `CardIdentity showRank`) and the phone row (#203's
+  `PlayerRow`) both leave the rank out, with its separator, as on Team Overview.
 
 ## 2. A personal-use profile is its player's and the administrators' only
 
