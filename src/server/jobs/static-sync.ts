@@ -1,4 +1,4 @@
-import { defineJob } from "./registry";
+import { defineJob, type JobContext } from "./registry";
 import { DataDragonProvider } from "@/server/riot/static/ddragon";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
@@ -13,7 +13,7 @@ import { invalidateCache } from "@/server/observability/cache";
  * is detected it syncs champions and skins, records the new patch and clears the relevant
  * caches. Also registered as "version-check" for a clearer schedule entry.
  */
-async function run(ctx: { db: Parameters<typeof syncStaticData>[0]; log: (m: string) => void }, force: boolean) {
+async function run(ctx: Pick<JobContext, "db" | "log" | "startedAt" | "budgetMs">, force: boolean) {
   const provider = new DataDragonProvider();
   const result = await syncStaticData(ctx.db, provider, { force, fixture: new FixtureStaticProvider(), log: ctx.log });
   if (result.changed) {
@@ -21,12 +21,13 @@ async function run(ctx: { db: Parameters<typeof syncStaticData>[0]; log: (m: str
     invalidateChampionCaches();
     invalidateCache("shell-facts");
   }
-  // Card artwork: check splash images of real skins (bounded per run) and move saved choices off
-  // chromas, duplicate images and missing art. Skipped offline (fixture data has no skins).
+  // Card artwork: check splash images of real skins (bounded per run, and none started after the
+  // job's budget) and move saved choices off chromas, duplicate images and missing art. Skipped
+  // offline (fixture data has no skins).
   let skinArt: { checked: number; ok: number; missing: number; cardsMoved: number } | null = null;
   if (!result.usedFixture) {
     try {
-      const checked = await checkSkinSplashes(ctx.db, { budget: 300 });
+      const checked = await checkSkinSplashes(ctx.db, { budget: 300, deadline: ctx.startedAt + ctx.budgetMs });
       const cardsMoved = await remapSkinSelections(ctx.db);
       skinArt = { ...checked, cardsMoved };
       if (checked.checked || cardsMoved) invalidateCache("champions:skins");
