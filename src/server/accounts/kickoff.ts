@@ -3,8 +3,19 @@ import { dueForViewRefresh } from "@/domain/account-status";
 import { backgroundRefreshEnabled, claimLease } from "@/server/jobs/background";
 import { listAccountsForPlayer } from "./repository";
 import { syncAccount } from "./sync";
+import { SCHEDULED_SYNC_LEASE_MS, claimAccountSync } from "./refresh";
 import { createRiotClient } from "@/server/riot/api/client";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
+
+/*
+  Both background syncs here claim the per-account lease before syncing an account, as the
+  scheduler, a profile's Refresh and Retry sync do (server/accounts/refresh.ts), and leave an
+  account another sync claimed in the last minute to that sync. Before they did, a profile view
+  and the tick (or a Refresh) could sync one account at the same time: twice the Riot requests on
+  a key allowed 100 per two minutes, and a Refresh answering "No new games" because the other
+  sync had just stored them. A lease only defers: the account is synced by whoever holds it, and
+  by the next sync once a minute has passed.
+*/
 
 /**
  * Best-effort first verification of a player's freshly linked accounts, run after the sign-up
@@ -23,6 +34,8 @@ export async function kickoffAccountSync(db: Db, playerId: string, options: { ma
     const accounts = (await listAccountsForPlayer(db, playerId)).filter((a) => a.syncStatus === "never" || a.syncStatus === "pending");
     for (const account of accounts) {
       if (outOfTime()) break;
+      // A profile view's refresh (or the scheduler) is already verifying this account.
+      if (!(await claimAccountSync(db, account.id, SCHEDULED_SYNC_LEASE_MS))) continue;
       const r = await syncAccount(db, client, account, { maxMatchesPerRun: options.maxMatchesPerRun ?? 20, outOfTime });
       if (r.outOfTime) break;
     }
@@ -38,7 +51,8 @@ export async function kickoffAccountSync(db: Db, playerId: string, options: { ma
  * accounts not refreshed for 15 minutes get one bounded sync (about 40 seconds, 60 matches).
  * The page asks every ten seconds while this runs and reads itself again when the data changed
  * (components/ui/freshness-watcher.tsx), and each render may start the next slice, so a new account
- * fills in while it is being watched and nobody needs a Retry button. A two-minute lease per player keeps slices from overlapping.
+ * fills in while it is being watched and nobody needs a Retry button. A two-minute lease per player keeps slices from overlapping;
+ * the per-account lease keeps them from overlapping the scheduler, a Refresh or the first sync.
  */
 export async function refreshPlayerAccountsIfDue(db: Db, playerId: string, options: { deadlineMs?: number; maxMatchesPerRun?: number } = {}): Promise<number> {
   if (!backgroundRefreshEnabled()) return 0;
@@ -55,6 +69,8 @@ export async function refreshPlayerAccountsIfDue(db: Db, playerId: string, optio
     let synced = 0;
     for (const account of due) {
       if (outOfTime()) break;
+      // Another sync (the scheduler, a Refresh, the first sync) is on this account or just was.
+      if (!(await claimAccountSync(db, account.id, SCHEDULED_SYNC_LEASE_MS))) continue;
       const r = await syncAccount(db, client, account, { maxMatchesPerRun: options.maxMatchesPerRun ?? 60, outOfTime });
       synced += 1;
       if (r.outOfTime) break;
