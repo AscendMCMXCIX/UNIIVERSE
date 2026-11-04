@@ -47,14 +47,11 @@
    - **The pages people open directly:** ≤ 0.6–1 s (Players, Leaderboards, Matches, Resources, Admin).
    - **Team's own data:** 0.17 s warm and 0.52 s cold (`team.roster`, the same run).
 
-   So the delay comes before the page's own work. Team is where the app starts: a cold function on a site opened a few times a day, plus the start page's redirect. The installed app opens `/`, which looks up the session and redirects to `/team`, so two server answers come before Team's first byte.
+   So the delay comes before the page's own work.
 
-   `/` and the member pages declare different `maxDuration`s, so they may run in separate functions and both start cold. That is not checked: Vercel's function list for a deployment shows it.
+   **Found:** Vercel's builder, run locally, put `/` (the app's start page, which redirects to `/team`) and the member pages in two separate functions, because their `maxDuration` differed. Opening the app started both, one after the other.
 
-   **Levers:**
-   - Vercel's Fluid compute: the owner's project setting; check its cost on the plan first.
-   - Deciding the start page without a server render of `/`: a code change.
-   - Measure first: add the navigation's redirect time to the field data.
+   **In progress:** the start-page PR puts every page in one function (docs/PERFORMANCE.md, "The start page's two functions"). If Team's TTFB is still high a week after it deploys, the remaining lever is Vercel's Fluid compute: the owner's project setting, with its cost on the plan checked first.
 3. **GitHub Actions minutes.** About 29 full CI runs from 1 to 4 Nov, at about 40 billed minutes each: roughly 1,000–1,200 of the month's 3,000. GitHub's billing page has the exact figure. Concurrent sessions each spend a full run per ready PR.
 4. **Real devices.** Safari on an iPhone, the installed app, and screen readers need a person (docs/RESPONSIVE.md, the real-device checklist).
 
