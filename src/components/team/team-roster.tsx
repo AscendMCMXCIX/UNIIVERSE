@@ -67,7 +67,7 @@ const FIT_HINT: Record<string, string> = { primary: "primary role", secondary: "
  * With `bench` it is the back of the card: a substitute for the role, built from the same parts,
  * where the whole card turns back to the starter.
  */
-function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEdit, viewerPlayerId, champions, onOpen, selected = false, dimmed = false, guest = false, flip, bench, turnRef, startsElsewhere, deferImages = false, align }: { slot: RosterSlot; champions: PickerChampion[]; championsById: ChampionsById; canManageLineup: boolean; editingLineup: boolean; canEdit: boolean; viewerPlayerId: string | null; onOpen: () => void; /** Its detail panel is open: lifted and outlined. */ selected?: boolean; /** Another card's panel is open: stepped back. */ dimmed?: boolean; /** The public page: no lineup suggestions, and a player who may not appear is a role placeholder. */ guest?: boolean; flip?: FlipControl; bench?: BenchFace; /** The face's turn control (front) or way back (back), for keyboard focus after a turn. */ turnRef?: React.Ref<HTMLButtonElement>; /** Who starts in another role (player id → that role's name), for the Change sheet's warnings. */ startsElsewhere?: ReadonlyMap<string, string>; /** A back nobody is about to see: the same card without its pictures (artwork, picture, champions), which load once it may turn. */ deferImages?: boolean; /** Everyone the lineup can show, so cards side by side keep their parts level (CardIdentity). */ align?: React.ComponentProps<typeof CardIdentity>["align"] }) {
+function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEdit, viewerPlayerId, champions, onOpen, selected = false, dimmed = false, guest = false, flip, bench, turnRef, startsElsewhere, deferImages = false, align, priority = false }: { slot: RosterSlot; champions: PickerChampion[]; championsById: ChampionsById; canManageLineup: boolean; editingLineup: boolean; canEdit: boolean; viewerPlayerId: string | null; onOpen: () => void; /** Its detail panel is open: lifted and outlined. */ selected?: boolean; /** Another card's panel is open: stepped back. */ dimmed?: boolean; /** The public page: no lineup suggestions, and a player who may not appear is a role placeholder. */ guest?: boolean; flip?: FlipControl; bench?: BenchFace; /** The face's turn control (front) or way back (back), for keyboard focus after a turn. */ turnRef?: React.Ref<HTMLButtonElement>; /** Who starts in another role (player id → that role's name), for the Change sheet's warnings. */ startsElsewhere?: ReadonlyMap<string, string>; /** A back nobody is about to see: the same card without its pictures (artwork, picture, champions), which load once it may turn. */ deferImages?: boolean; /** Everyone the lineup can show, so cards side by side keep their parts level (CardIdentity). */ align?: React.ComponentProps<typeof CardIdentity>["align"]; /** The lineup's first card (the one a phone shows first): its art loads at once, ahead of the others (CardArtLayer's priority). */ priority?: boolean }) {
   // The open lineup sheet, if any, and the member it opens on (a suggestion's Assign).
   const [sheet, setSheet] = React.useState<{ kind: SheetKind; pick?: string } | null>(null);
   const p = slot.player;
@@ -98,7 +98,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
           keeps more. Five across on wide screens it is tall, a portrait card. */}
       <div className={cn("pointer-events-none relative flex min-h-[10.5rem] shrink-0 flex-col justify-end px-3 pb-2.5 pt-12 @5xl/lineup:min-h-[clamp(13rem,29vh,20rem)] [&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100", twoControls && "@5xl/lineup:pt-[5.25rem] @5xl/lineup:pointer-coarse:pt-[6.75rem]")} data-testid="card-art">
         {/* Splash of the player's chosen champion and skin, darkened towards the text, tinted with their accent. */}
-        <CardArtLayer art={deferImages ? null : (p?.art ?? null)} accent={accent} kind="splash" position="center 22%" look={p?.look} motion="hover" foot={!!p} />
+        <CardArtLayer art={deferImages ? null : (p?.art ?? null)} accent={accent} kind="splash" position="center 22%" look={p?.look} motion="hover" foot={!!p} priority={priority} />
         <CardRoleChip role={slot.role} label={slot.roleLabel} className="absolute left-3 top-3" />
         {p ? (
           <span className="relative">
@@ -517,6 +517,7 @@ function LineupCard({ openSide, onOpenSide, ...props }: Omit<React.ComponentProp
       slot={{ ...slot, player: sub.player, champions: sub.champions }}
       canEdit={false}
       deferImages={!backReady}
+      priority={false}
       onOpen={() => onOpenSide("substitute")}
       selected={openSide === "substitute"}
       bench={{
@@ -760,6 +761,30 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
   const championsById = React.useMemo(() => new Map(champions.map((c) => [c.id, c])), [champions]);
   const editable = new Set(editablePlayerIds);
   const { ref: trackRef, index: inView, onScroll: onTrackScroll, go } = useSnapTrack(slots.length);
+  // A phone shows the lineup as a track, one card at a time: the other cards' art waits (globals.css,
+  // data-art-wait) until the first card's art has arrived or failed, so the first has the connection
+  // to itself (docs/PERFORMANCE.md, "Team Overview's first card"). Touching the track, or moving to
+  // another card, lets them load at once. Wider screens show all five together and never wait.
+  const [artWait, setArtWait] = React.useState(true);
+  React.useEffect(() => {
+    if (!artWait) return;
+    const release = () => setArtWait(false);
+    const first = trackRef.current?.querySelector<HTMLImageElement>(":scope > :first-child .card-art-img");
+    const off = inView.subscribe(() => {
+      if (inView.get() !== 0) release();
+    });
+    if (!first || first.complete) {
+      queueMicrotask(release);
+      return off;
+    }
+    first.addEventListener("load", release, { once: true });
+    first.addEventListener("error", release, { once: true });
+    return () => {
+      off();
+      first.removeEventListener("load", release);
+      first.removeEventListener("error", release);
+    };
+  }, [artWait, trackRef, inView]);
   // Phones: moving through the panel (previous / next) brings that card into view in the track.
   React.useEffect(() => {
     if (detail) go(slots.findIndex((s) => s.role === detail.role));
@@ -833,6 +858,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
           <div
             ref={trackRef}
             onScroll={onTrackScroll}
+            onPointerDown={artWait ? () => setArtWait(false) : undefined}
             className={cn(
               "flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain scroll-smooth px-7 pt-3 pb-4 -my-3 [scrollbar-width:none] motion-reduce:scroll-auto [&::-webkit-scrollbar]:hidden",
               "-mx-4",
@@ -845,10 +871,11 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
             aria-label="Main lineup"
             data-testid="lineup-overview"
             data-ready={interactive ? "true" : undefined}
+            data-art-wait={artWait || undefined}
           >
             {slots.map((s, i) => (
-              <div key={s.role} className="flex w-full max-w-[26rem] shrink-0 snap-center snap-always @xl:w-auto @xl:max-w-none @xl:min-w-0" role="group" aria-roledescription="slide" aria-label={`${s.roleLabel}: ${s.player?.name ?? (s.privateMember ? "team member" : "no player")} (${i + 1} of ${slots.length})`} data-testid="lineup-cell">
-                <LineupCard slot={s} champions={champions} championsById={championsById} canManageLineup={canManageLineup} editingLineup={editingLineup} canEdit={!!s.player && editable.has(s.player.id)} viewerPlayerId={viewerPlayerId} onOpenSide={(side) => setDetail({ role: s.role, side })} openSide={detail?.role === s.role ? detail.side : null} dimmed={detail !== null && detail.role !== s.role} guest={!!guest} startsElsewhere={startsElsewhere} align={align} />
+              <div key={s.role} className="flex w-full max-w-[26rem] shrink-0 snap-center snap-always @xl:w-auto @xl:max-w-none @xl:min-w-0" role="group" aria-roledescription="slide" aria-label={`${s.roleLabel}: ${s.player?.name ?? (s.privateMember ? "team member" : "no player")} (${i + 1} of ${slots.length})`} data-testid="lineup-cell" data-art-later={i > 0 || undefined}>
+                <LineupCard slot={s} champions={champions} championsById={championsById} canManageLineup={canManageLineup} editingLineup={editingLineup} canEdit={!!s.player && editable.has(s.player.id)} viewerPlayerId={viewerPlayerId} onOpenSide={(side) => setDetail({ role: s.role, side })} openSide={detail?.role === s.role ? detail.side : null} dimmed={detail !== null && detail.role !== s.role} guest={!!guest} startsElsewhere={startsElsewhere} align={align} priority={i === 0} />
               </div>
             ))}
           </div>

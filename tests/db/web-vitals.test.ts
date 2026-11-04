@@ -46,6 +46,10 @@ describe("field performance storage", () => {
     ]);
     expect(report.pages[1]!.INP).toBeNull();
     expect(report.metrics.find((m) => m.metric === "FCP")!.all).toBeNull();
+    // Each page's server first byte, and its figures on each device class it was opened on.
+    expect(report.pages[0]!.TTFB).toMatchObject({ count: 9, p75AtMost: 400 });
+    expect(report.pages[0]!.byDevice.map((d) => [d.device, d.loads, d.LCP?.p75AtMost, d.TTFB?.p75AtMost])).toEqual([["phone", 9, 2500, 400]]);
+    expect(report.pages[1]!.byDevice.map((d) => [d.device, d.loads, d.LCP?.count])).toEqual([["desktop", 2, 2]]);
 
     // A shorter window leaves the older day out.
     expect((await vitalsReport(db, 7, now)).metrics.find((m) => m.metric === "LCP")!.all!.count).toBe(10);
@@ -66,8 +70,12 @@ describe("field performance storage", () => {
     const field = await fieldVitals(db);
     expect("error" in field).toBe(false);
     const page = (field as { pages: Array<Record<string, unknown>> }).pages.find((p) => p.page === "leaderboards");
-    expect(page).toMatchObject({ page: "leaderboards", loads: 1, lcpGood: expect.any(Number) });
+    expect(page).toMatchObject({ page: "leaderboards", loads: 1, lcpGood: expect.any(Number), ttfbP75: 200, ttfbGood: 1 });
     expect(typeof page!.lcpP75).toBe("number");
-    expect(Object.keys(page!).sort()).toEqual(["clsP75", "inpP75", "lcpGood", "lcpP75", "loads", "page"]);
+    expect(Object.keys(page!).sort()).toEqual(["clsP75", "devices", "inpP75", "lcpGood", "lcpP75", "loads", "page", "ttfbGood", "ttfbP75"]);
+    expect(page!.devices).toEqual([{ device: "desktop", loads: 1, lcpP75: 1500, lcpGood: 1, ttfbP75: 200 }]);
+    // The last 7 days, the same figures: a run a week after a change reads only the loads since.
+    const week = (field as { last7: { since: string; pages: Array<Record<string, unknown>> } }).last7;
+    expect(week.pages.find((p) => p.page === "leaderboards")).toMatchObject({ loads: 1, ttfbP75: 200 });
   });
 });

@@ -12,6 +12,8 @@ import { InstallAppEntry, InstallAppProvider } from "@/components/install/instal
 import { SignInLink, SignInProvider } from "@/components/public/sign-in";
 import { publicRiotDataAllowed } from "@/server/public/access";
 import { riotLegal } from "@/components/app-shell";
+import { preconnect } from "react-dom";
+import { DATA_DRAGON_ORIGIN } from "@/domain/player-card";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +40,8 @@ export default async function PublicLayout({ children }: { children: React.React
   const [auth, branding] = await Promise.all([getAuthState(db), getBranding(db)]);
   const member = !!auth.session;
   const leaderboards = publicRiotDataAllowed();
+  // The public Team Overview's cards show champion art from Data Dragon (the member layout does the same).
+  preconnect(DATA_DRAGON_ORIGIN);
   return (
     <BrandNamesProvider names={{ productName: branding.productName, teamName: branding.teamName }}>
       <InstallAppProvider>

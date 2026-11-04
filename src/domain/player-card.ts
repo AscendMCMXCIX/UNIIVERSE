@@ -45,7 +45,9 @@ export function cardArt(player: RosterPlayer & { featuredChampionId?: string | n
   return { championId, skinNum };
 }
 
-const DDRAGON = "https://ddragon.leagueoflegends.com/cdn/img/champion";
+/** Where champion art and portraits come from (Riot's Data Dragon): pages that show them connect to it early. */
+export const DATA_DRAGON_ORIGIN = "https://ddragon.leagueoflegends.com";
+const DDRAGON = `${DATA_DRAGON_ORIGIN}/cdn/img/champion`;
 
 /**
  * Official art for a champion skin. "splash" is the landscape splash (about 1215×717, for the
