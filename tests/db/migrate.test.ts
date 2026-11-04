@@ -173,7 +173,9 @@ describe("database migrations", () => {
       expect(before).toEqual(expect.arrayContaining(retired));
       expect(await enums()).toEqual(expect.arrayContaining(retiredEnums));
 
-      expect((await runMigrations(db, { useAdvisoryLock: false })).applied[0]).toBe(drop.tag);
+      // Later migrations (a later drop) have their own tests: marked applied here.
+      for (const m of EMBEDDED_MIGRATIONS.filter((m) => m.tag > drop.tag)) await db.execute(sql`INSERT INTO uniiverse_migrations (tag, hash) VALUES (${m.tag}, ${m.hash})`);
+      expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual([drop.tag]);
       const after = await tables();
       expect(before.filter((t) => !after.includes(t))).toEqual(retired);
       expect(await columns("riot_accounts")).not.toContain("opponent_player_id");
