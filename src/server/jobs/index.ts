@@ -4,6 +4,7 @@
 import "./static-sync";
 import "./integrity";
 import "./accounts";
+import "./rank-watch";
 import "./auth-audit";
 import "./access-audit";
 import "./data-audit";
