@@ -27,6 +27,8 @@ export interface DirectoryEntry {
   riot: RiotState | null;
   avatarUrl: string | null;
   rank: CompactRank | null;
+  /** Whether this viewer may see the rank (their own, or teammates' statistics); when not, it is left out, not "Unranked". */
+  showRank: boolean;
   /** Linked Riot IDs, searchable (shown on the profile, not on the card). */
   riotIds: string[];
   /** The social links the player shows to team members (filtered on the server). */
@@ -114,7 +116,7 @@ export function PlayersDirectory({ entries, championsById, archived = null }: { 
         <div className="grid grid-cols-1 gap-x-3 @min-[35.75rem]/directory:grid-cols-2 @min-[54rem]/directory:grid-cols-3 @min-[72.25rem]/directory:grid-cols-4" data-testid="players-directory">
           {shown.length === 0 ? <p className="text-sm text-fg-muted">{entries.length === 0 ? "No players yet." : "No player matches. Try another name or role."}</p> : null}
           {shown.map((e) => (
-            <PlayerSummaryCard key={e.player.id} player={e.player} championsById={championsById} lineupRole={e.lineupRole} isYou={e.isYou} riot={e.riot} avatarUrl={e.avatarUrl} rank={e.rank} social={e.social} reserveTagline={taglines} />
+            <PlayerSummaryCard key={e.player.id} player={e.player} championsById={championsById} lineupRole={e.lineupRole} isYou={e.isYou} riot={e.riot} avatarUrl={e.avatarUrl} rank={e.rank} showRank={e.showRank} social={e.social} reserveTagline={taglines} />
           ))}
         </div>
       </div>
@@ -148,10 +150,14 @@ function PlayerRow({ entry: e, championsById }: { entry: DirectoryEntry; champio
             ) : (
               <span className="shrink-0 text-fg-subtle">Roles not set</span>
             )}
-            <span className="text-fg-subtle" aria-hidden>
-              ·
-            </span>
-            <RankInline rank={e.rank} />
+            {e.showRank ? (
+              <>
+                <span className="text-fg-subtle" aria-hidden>
+                  ·
+                </span>
+                <RankInline rank={e.rank} />
+              </>
+            ) : null}
           </span>
           {/* The pool's champions, as many whole portraits as the room left holds and the rest
               counted (PoolPreview), then what to know at a glance at the line's end, never cut. */}

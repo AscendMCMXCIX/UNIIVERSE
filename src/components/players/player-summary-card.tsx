@@ -102,7 +102,7 @@ function RiotNote({ riot }: { riot: RiotState }) {
  * (the Team card does the same with its button), so the social icons drawn above it stay links of
  * their own, in the same place as on every other card.
  */
-export function PlayerSummaryCard({ player, championsById, lineupRole, isYou, riot, avatarUrl, rank, social = [], reserveTagline = false }: { player: PlayerRecord; championsById: Record<string, PortraitChampion>; lineupRole: Role | null; isYou: boolean; riot: RiotState | null; avatarUrl: string | null; rank: CompactRank | null; social?: readonly SocialLinkView[]; /** Some card in the directory has a tagline: keep its line on this one too. */ reserveTagline?: boolean }) {
+export function PlayerSummaryCard({ player, championsById, lineupRole, isYou, riot, avatarUrl, rank, showRank = true, social = [], reserveTagline = false }: { player: PlayerRecord; championsById: Record<string, PortraitChampion>; lineupRole: Role | null; isYou: boolean; riot: RiotState | null; avatarUrl: string | null; rank: CompactRank | null; /** False: the viewer may not see this player's rank; its line is left out, not "Unranked". */ showRank?: boolean; social?: readonly SocialLinkView[]; /** Some card in the directory has a tagline: keep its line on this one too. */ reserveTagline?: boolean }) {
   // The directory previews the Primary Role only; Off Roles and their pools are on the profile.
   const primary = player.primaryPool;
   // The same personal look as the Team card, without animated effects or glow (a small card in a long grid).
@@ -140,7 +140,7 @@ export function PlayerSummaryCard({ player, championsById, lineupRole, isYou, ri
           ) : null}
         </>
       }
-      identity={<CardIdentity layout="rows" look={look} name={player.displayName} avatarUrl={avatarUrl} rank={rank} isYou={isYou} nameClassName="group-hover:text-accent" tag={riot && riot.state !== "synced" ? <RiotNote riot={riot} /> : null} social={social.length ? <CardSocialIcons links={social} owner={player.displayName} className="relative z-[2]" /> : null} reserveTagline={reserveTagline} />}
+      identity={<CardIdentity layout="rows" look={look} name={player.displayName} avatarUrl={avatarUrl} rank={rank} showRank={showRank} isYou={isYou} nameClassName="group-hover:text-accent" tag={riot && riot.state !== "synced" ? <RiotNote riot={riot} /> : null} social={social.length ? <CardSocialIcons links={social} owner={player.displayName} className="relative z-[2]" /> : null} reserveTagline={reserveTagline} />}
       poolLabel={
         player.primaryRole ? (
           <DirectoryPoolLabel heading={`${ROLE_LABELS[player.primaryRole]} · Primary Role`} count={primary.length} />

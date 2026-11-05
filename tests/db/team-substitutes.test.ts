@@ -132,7 +132,7 @@ describe("choosing substitutes", () => {
     await expect(setLineupSubstitute(handle.db, teamId, "TOP", ids.mid!)).rejects.toThrow(/starting lineup/);
     await expect(setLineupSubstitute(handle.db, teamId, "JUNGLE", ids.subTop!)).rejects.toThrow(/does not list Jungle/);
     await expect(setLineupSubstitute(handle.db, teamId, "TOP", ids.gone!)).rejects.toThrow(/archived/);
-    await expect(setLineupSubstitute(handle.db, teamId, "TOP", ids.outsider!)).rejects.toThrow(/not a member/);
+    await expect(setLineupSubstitute(handle.db, teamId, "TOP", ids.outsider!)).rejects.toThrow("That player is not on the team, so they cannot join the lineup.");
     await expect(setLineupSubstitute(handle.db, teamId, "TOP", ids.noRole!)).rejects.toThrow(/not chosen their roles/);
     expect(await subs()).toEqual(before);
   });
@@ -245,7 +245,7 @@ describe("Start: the substitute becomes the starter", () => {
     const before = await lineup();
     await expect(setLineupSlot(handle.db, teamId, "JUNGLE", ids.subTop!, { replacing: ids.jungle! })).rejects.toThrow(/does not list Jungle/);
     await expect(setLineupSlot(handle.db, teamId, "TOP", ids.gone!, { replacing: ids.top! })).rejects.toThrow(/archived/);
-    await expect(setLineupSlot(handle.db, teamId, "TOP", ids.outsider!, { replacing: ids.top! })).rejects.toThrow(/not a member/);
+    await expect(setLineupSlot(handle.db, teamId, "TOP", ids.outsider!, { replacing: ids.top! })).rejects.toThrow("That player is not on the team, so they cannot join the lineup.");
     await expect(setLineupSlot(handle.db, teamId, "TOP", ids.noRole!, { replacing: ids.top! })).rejects.toThrow(/does not list Top|not chosen their roles/);
     expect(await lineup()).toEqual(before);
   });

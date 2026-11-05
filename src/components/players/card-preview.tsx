@@ -18,6 +18,8 @@ import type { SocialLinkView } from "@/domain/social-links";
 export interface StudioPreviewData {
   role: Role | null;
   rank: CompactRank | null;
+  /** False: the editor may not see this player's rank (a player manager without "view teammates' statistics"), so the preview leaves it out, never "Unranked". */
+  showRank?: boolean;
   status: "main" | "off" | null;
   season: CardSeason | null;
   /** The role's pool, in order (the first few appear on the card). */
@@ -52,7 +54,7 @@ export const CardPreview = React.memo(function CardPreview({ view, look, art, na
           smooth={false}
           className="mb-0"
           header={<CardRoleChip role={data?.role ?? null} label={roleLabel} className="px-2.5 py-0.5 text-xs" />}
-          identity={<CardIdentity layout="rows" look={look} name={name} avatarUrl={avatarUrl} rank={data?.rank ?? null} social={data?.social?.length ? <CardSocialIcons links={data.social} owner={name} mode="static" /> : null} />}
+          identity={<CardIdentity layout="rows" look={look} name={name} avatarUrl={avatarUrl} rank={data?.rank ?? null} showRank={data?.showRank ?? true} social={data?.social?.length ? <CardSocialIcons links={data.social} owner={name} mode="static" /> : null} />}
           poolLabel={data?.role ? <DirectoryPoolLabel heading={`${roleLabel} · Champion pool`} count={null} /> : null}
           pool={<PoolPreview champions={pool} total={pool.length} label="Champion pool" fit="count" testId="preview-pool" />}
         />
@@ -69,7 +71,7 @@ export const CardPreview = React.memo(function CardPreview({ view, look, art, na
           <CardArtLayer art={art} accent={accent} kind="splash" position="center 22%" look={look} testId="preview-art" smooth={false} foot />
           <CardRoleChip role={data?.role ?? null} label={roleLabel} className="absolute left-3 top-3" />
           <span className="relative">
-            <CardIdentity look={look} name={name} avatarUrl={avatarUrl} rank={data?.rank ?? null} status={data?.status ?? null} role={data?.role ?? null} social={data?.social?.length ? <CardSocialIcons links={data.social} owner={name} mode="static" /> : null} />
+            <CardIdentity look={look} name={name} avatarUrl={avatarUrl} rank={data?.rank ?? null} showRank={data?.showRank ?? true} status={data?.status ?? null} role={data?.role ?? null} social={data?.social?.length ? <CardSocialIcons links={data.social} owner={name} mode="static" /> : null} />
           </span>
         </div>
         <div className={cn("flex flex-col gap-2.5 px-3 pb-3 pt-2.5", !phone && !full && "max-lg:hidden")} style={{ backgroundImage: "linear-gradient(to bottom, color-mix(in srgb, var(--card-accent) 7%, transparent), transparent 70%)" }}>

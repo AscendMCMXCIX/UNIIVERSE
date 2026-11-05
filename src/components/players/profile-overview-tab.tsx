@@ -48,7 +48,7 @@ function poolStats(cards: OverviewCard[]): PoolStats {
 export async function ProfileOverviewTab(props: { db: Db; header: ProfileHeaderData; session: Session | null; basePath: string; search: ProfileSearch }) {
   return (
     <>
-      <IdentitySync header={props.header} />
+      <IdentitySync header={props.header} session={props.session} />
       <ProfileOverviewTabBody {...props} />
     </>
   );

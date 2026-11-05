@@ -80,11 +80,17 @@ export async function playerFreshness(db: Db, playerId: string, { now = new Date
   };
 }
 
-/** The team's pages (Team Overview, Players, Leaderboards, Matches): the roster and its cards, pools and pictures, the current lineup, members' ranks and games, team matches and bookmarks. */
+/**
+ * The team's pages (Team Overview, Players, Leaderboards, Matches): the roster and its cards, pools
+ * and pictures, the current lineup, members' ranks and games, team matches and bookmarks. Current
+ * team members only (on the team, not archived, not personal use, as listPlayers): a personal-use
+ * player is on none of these pages, and their activity must not move a version every teammate can
+ * ask for. A player joining or leaving the team still moves it (the roster).
+ */
 export async function teamFreshness(db: Db): Promise<Freshness> {
   const [row] = rowsOf<Record<string, unknown>>(
     await db.execute(sql`
-      WITH members AS (SELECT * FROM players WHERE archived_at IS NULL),
+      WITH members AS (SELECT * FROM players WHERE archived_at IS NULL AND team_member),
       acc AS (SELECT id FROM riot_accounts WHERE owner_type = 'player' AND player_id IN (SELECT id FROM members))
       SELECT
         (SELECT string_agg(concat_ws('|', id, updated_at), ',' ORDER BY id) FROM teams) AS team,

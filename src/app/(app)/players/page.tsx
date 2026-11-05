@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ROLES, type Role } from "@/domain/roles";
 import { getAppDb } from "@/server/bootstrap";
 import { hasPermission } from "@/server/auth/session";
+import { canViewPlayerStats } from "@/server/auth/permissions";
 import { requirePageAccess } from "@/server/auth/page-access";
 import { listChampions } from "@/server/repositories/champions";
 import { getCurrentLineup, getOrCreateTeam, listPlayers } from "@/server/repositories/team";
@@ -38,6 +39,9 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
     const r = ranked ? rankView(ranked) : null;
     return r ? { tier: r.tier, division: r.division, leaguePoints: r.leaguePoints, queue: r.queue } : null;
   };
+  // A teammate's rank is a statistic (docs/PROFILE_VISIBILITY.md): sent only to a viewer with
+  // teammates' statistics, or for their own entry. A hidden rank is left out, never "Unranked".
+  const rankFor = (playerId: string) => (canViewPlayerStats(session, playerId) ? { showRank: true, rank: rankOf(playerId) } : { showRank: false, rank: null });
   // Deactivated accounts are hidden like archived players (an admin sees them under "Show archived").
   const deactivated = new Set((await db.select({ playerId: users.playerId }).from(users).where(and(eq(users.isActive, false), isNotNull(users.playerId)))).map((u) => u.playerId));
   // A to Z by display name (case and accents ignored, the same order on every load); "Main
@@ -65,7 +69,7 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
       <PlayersDirectory
         archived={admin ? { on: showArchived } : null}
         championsById={championsById}
-        entries={visible.map((p) => ({ player: p, lineupRole: lineupRoleOf(p.id), isYou: session.playerId === p.id, riot: riot[p.id] ?? null, avatarUrl: avatars[p.id] ?? null, rank: rankOf(p.id), riotIds: accounts.filter((a) => a.playerId === p.id).map((a) => a.riotId), social: visibleSocialLinks(social.get(p.id)) }))}
+        entries={visible.map((p) => ({ player: p, lineupRole: lineupRoleOf(p.id), isYou: session.playerId === p.id, riot: riot[p.id] ?? null, avatarUrl: avatars[p.id] ?? null, ...rankFor(p.id), riotIds: accounts.filter((a) => a.playerId === p.id).map((a) => a.riotId), social: visibleSocialLinks(social.get(p.id)) }))}
       />
     </div>
   );

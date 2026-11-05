@@ -74,7 +74,7 @@ describe("personal-use accounts", () => {
   it("are not in Players or lineup selection, but Admin sees them", async () => {
     expect((await listPlayers(handle.db, teamId)).map((p) => p.displayName)).not.toContain("Solo");
     expect((await listPlayers(handle.db, teamId, { includePersonal: true })).map((p) => p.displayName)).toContain("Solo");
-    await expect(setLineupSlot(handle.db, teamId, "MID", solo.playerId)).rejects.toThrow(/not a member of the team/);
+    await expect(setLineupSlot(handle.db, teamId, "MID", solo.playerId)).rejects.toThrow("That player is not on the team, so they cannot join the lineup.");
     expect((await listProfilesForAdmin(handle.db, teamId)).find((p) => p.id === solo.playerId)).toMatchObject({ teamMember: false, primaryRole: "MID" });
     expect((await listAccountViews(handle.db)).find((a) => a.userId === solo.userId)).toMatchObject({ teamMember: false });
   });
