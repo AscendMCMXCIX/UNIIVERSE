@@ -59,8 +59,8 @@ Then:
 - **A change of division**: shown as **Promoted** or **Demoted**, with no LP figure: the LP after a
   demotion is a placement in the lower division, not the LP the game cost.
 - **100 LP below Master**: a promotion series; no figure.
-- **Everything else**: `—`, with the reason in the hover text and for screen readers: before
-  tracking, several games between the readings (their combined change is given for the run of
+- **Everything else**: `—`, with the reason in its tooltip (on hover, or a tap on a touch screen,
+  which leaves the card closed) and for screen readers: before tracking, several games between the readings (their combined change is given for the run of
   games, never to one of them), readings too far from the game, a reset, placements, a game whose
   length is not stored, or Riot's count and the stored games disagreeing.
 
@@ -68,7 +68,7 @@ Then:
 next reading would be counted with that game: Riot reports no dodges, so no tracker can separate
 them. The same holds for decay (Diamond and above, after weeks without a game) in the last minutes
 of a game, after its last reading during play; decay earlier in the game shows in that reading,
-apart from the game. The rank watch keeps both windows to a few minutes. Every figure's hover text
+apart from the game. The rank watch keeps both windows to a few minutes. Every figure's tooltip
 names the two readings it rests on, with their times, so it can be checked.
 
 ## Readings: when ranks are read

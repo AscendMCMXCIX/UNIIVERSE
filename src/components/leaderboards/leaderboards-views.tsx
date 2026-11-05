@@ -11,7 +11,7 @@ import { SubTabs } from "@/components/ui/sub-tabs";
 export function LeaderboardsViews({ current, hrefs }: { current: "form" | "records"; hrefs: Record<"form" | "records", string> }) {
   const items = [
     { key: "form", label: "Recent form", icon: TrendingUp, href: hrefs.form, testId: "leaderboards-tab-form" },
-    { key: "records", label: "Records & achievements", icon: Trophy, href: hrefs.records, testId: "leaderboards-tab-records" },
+    { key: "records", label: "Records & achievements", short: "Records", icon: Trophy, href: hrefs.records, testId: "leaderboards-tab-records" },
   ];
   return <SubTabs label="Leaderboards views" items={items} current={current} testId="leaderboards-views" />;
 }

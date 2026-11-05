@@ -9,10 +9,16 @@ import type { PortraitChampion } from "@/components/champion-portrait";
 import { RoleSegmented, chipClass } from "@/components/ui/segmented";
 import { FilterBar, FilterField } from "@/components/ui/filter-bar";
 import { SearchInput } from "@/components/ui/search-input";
+import { ChevronRight } from "lucide-react";
 import { PlayerSummaryCard, type RiotState } from "./player-summary-card";
 import { cardLookFor } from "@/domain/card-style";
-import type { CompactRank } from "./rank-emblem";
+import { RankInline, type CompactRank } from "./rank-emblem";
 import type { SocialLinkView } from "@/domain/social-links";
+import { CardAvatar } from "./card-look";
+import { PoolPreview } from "./player-card";
+import { SetupIncompleteBadge } from "./setup-incomplete";
+import { RoleIcon } from "@/components/role-icon";
+import { Badge } from "@/components/ui/badge";
 
 export interface DirectoryEntry {
   player: PlayerRecord;
@@ -21,6 +27,8 @@ export interface DirectoryEntry {
   riot: RiotState | null;
   avatarUrl: string | null;
   rank: CompactRank | null;
+  /** Whether this viewer may see the rank (their own, or teammates' statistics); when not, it is left out, not "Unranked". */
+  showRank: boolean;
   /** Linked Riot IDs, searchable (shown on the profile, not on the card). */
   riotIds: string[];
   /** The social links the player shows to team members (filtered on the server). */
@@ -56,6 +64,11 @@ export function PlayersDirectory({ entries, championsById, archived = null }: { 
         testId="players-filters"
         summary={[role === "ALL" ? "All roles" : ROLE_LABELS[role], scope === "lineup" ? "Main lineup" : null, archived?.on ? "With archived" : null].filter(Boolean).join(" · ")}
         activeCount={(role !== "ALL" ? 1 : 0) + (scope === "lineup" ? 1 : 0) + (archived?.on ? 1 : 0)}
+        chips={[
+          ...(role !== "ALL" ? [{ key: "role", text: ROLE_LABELS[role], clear: () => setRole("ALL") }] : []),
+          ...(scope === "lineup" ? [{ key: "lineup", text: "Main lineup", clear: () => setScope("all") }] : []),
+          ...(archived?.on ? [{ key: "archived", text: "With archived", href: "/players" }] : []),
+        ]}
         onReset={() => {
           setRole("ALL");
           setScope("all");
@@ -84,20 +97,92 @@ export function PlayersDirectory({ entries, championsById, archived = null }: { 
         {shown.length === entries.length ? `${entries.length} player${entries.length === 1 ? "" : "s"}` : `${shown.length} of ${entries.length} players`}
         {role !== "ALL" ? ` · ${ROLE_LABELS[role]} as primary or off role` : ""}
       </p>
+      {/* Phones: one list, a row per player (picture, name, primary role and rank, status, the first
+          champions of the pool), so the whole roster reads on a screen or two; the row opens the
+          profile, where the card, the links and every pool are. From sm up, the cards below. */}
+      <ul className="divide-y divide-border/70 overflow-hidden rounded-card border border-border bg-surface sm:hidden" aria-label="Players" data-testid="players-list">
+        {shown.length === 0 ? <li className="px-4 py-5 text-sm text-fg-muted">{entries.length === 0 ? "No players yet." : "No player matches. Try another name or role."}</li> : null}
+        {shown.map((e) => (
+          <PlayerRow key={e.player.id} entry={e} championsById={championsById} />
+        ))}
+      </ul>
       {/* As many columns as the directory's own width holds at 17.5rem a card, up to four, whatever
           the screen (the sidebar open or closed). Each card spans seven of the grid's rows
           (DirectoryCardLayout), so cards side by side keep their parts level; the space between
           rows is the cards' own margin. The directory is also the cards' `card` container: beside
           another card a card is never narrower than 17.5rem, and alone it is the directory's width,
           so the directory answers each card's 17rem steps exactly as the card itself would. */}
-      <div className="@container [container-name:directory_card]">
+      <div className="@container [container-name:directory_card] max-sm:hidden">
         <div className="grid grid-cols-1 gap-x-3 @min-[35.75rem]/directory:grid-cols-2 @min-[54rem]/directory:grid-cols-3 @min-[72.25rem]/directory:grid-cols-4" data-testid="players-directory">
           {shown.length === 0 ? <p className="text-sm text-fg-muted">{entries.length === 0 ? "No players yet." : "No player matches. Try another name or role."}</p> : null}
           {shown.map((e) => (
-            <PlayerSummaryCard key={e.player.id} player={e.player} championsById={championsById} lineupRole={e.lineupRole} isYou={e.isYou} riot={e.riot} avatarUrl={e.avatarUrl} rank={e.rank} social={e.social} reserveTagline={taglines} />
+            <PlayerSummaryCard key={e.player.id} player={e.player} championsById={championsById} lineupRole={e.lineupRole} isYou={e.isYou} riot={e.riot} avatarUrl={e.avatarUrl} rank={e.rank} showRank={e.showRank} social={e.social} reserveTagline={taglines} />
           ))}
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * One player on a phone: the same identity as their card (their picture in its frame, their name,
+ * the primary role and rank), the status that matters at a glance (in the lineup, setup or Riot
+ * state, archived) and the first champions of their primary pool. The whole row opens the profile.
+ */
+function PlayerRow({ entry: e, championsById }: { entry: DirectoryEntry; championsById: Record<string, PortraitChampion> }) {
+  const p = e.player;
+  const pool = p.primaryPool.map((id) => championsById[id] ?? { id, name: id, portraitUrl: "" });
+  return (
+    <li>
+      <Link href={`/players/${p.id}`} className="flex min-h-[4.5rem] items-center gap-3 px-3.5 py-2.5 transition-colors active:bg-surface-2 hover:bg-surface-2/60" data-testid="player-row" data-player-name={p.displayName}>
+        <CardAvatar look={cardLookFor(p)} name={p.displayName} src={e.avatarUrl} size="md" />
+        <span className="min-w-0 flex-1">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="truncate text-md font-semibold text-fg">{p.displayName}</span>
+            {e.isYou ? <Badge tone="accent" className="shrink-0">You</Badge> : null}
+          </span>
+          <span className="mt-0.5 flex min-w-0 items-center gap-x-2 text-xs text-fg-muted">
+            {p.primaryRole ? (
+              <span className="inline-flex shrink-0 items-center gap-1">
+                <RoleIcon role={p.primaryRole} className="h-3.5 w-3.5" />
+                {ROLE_LABELS[p.primaryRole]}
+              </span>
+            ) : (
+              <span className="shrink-0 text-fg-subtle">Roles not set</span>
+            )}
+            {e.showRank ? (
+              <>
+                <span className="text-fg-subtle" aria-hidden>
+                  ·
+                </span>
+                <RankInline rank={e.rank} />
+              </>
+            ) : null}
+          </span>
+          {/* The pool's champions, as many whole portraits as the room left holds and the rest
+              counted (PoolPreview), then what to know at a glance at the line's end, never cut. */}
+          <span className="mt-1.5 flex min-w-0 items-center gap-2">
+            <span className="min-w-0 flex-1">{pool.length ? <PoolPreview champions={pool} total={pool.length} label={`${p.primaryRole ? ROLE_LABELS[p.primaryRole] : "Primary"} champions`} fit="count" testId="row-pool" /> : null}</span>
+            {e.lineupRole || p.setupPending || p.archivedAt ? (
+              <span className="flex shrink-0 flex-col items-end gap-1">
+                {e.lineupRole ? (
+                  <Badge tone="good" className="whitespace-nowrap" title={`In the current lineup as ${ROLE_LABELS[e.lineupRole]}`}>
+                    {e.lineupRole === p.primaryRole ? "Lineup" : `Lineup · ${ROLE_LABELS[e.lineupRole]}`}
+                  </Badge>
+                ) : null}
+                {p.setupPending ? <SetupIncompleteBadge /> : null}
+                {p.archivedAt ? <Badge tone="warn">Archived</Badge> : null}
+              </span>
+            ) : null}
+          </span>
+          {e.riot && e.riot.state !== "synced" && e.riot.state !== "none" ? (
+            <span className="mt-1 block truncate text-xs text-fg-subtle" title={`Riot data: ${e.riot.label}`}>
+              Riot data: {e.riot.label}
+            </span>
+          ) : null}
+        </span>
+        <ChevronRight className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />
+      </Link>
+    </li>
   );
 }

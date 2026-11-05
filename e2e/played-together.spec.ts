@@ -47,7 +47,8 @@ test("Played together lists games with two or more members on one side, with hon
   // The rule is said once for the page, not repeated on every game.
   await expect(page.getByText("party not verified")).toHaveCount(0);
   // Every game shows both teams: five a side, the members' side tinted, and a member who played
-  // on the other team marked there (no need to open the match).
+  // on the other team marked there (no need to open the match). Phones keep them for the game's own
+  // screen, out of the card.
   const teams = games.first().getByTestId("match-teams");
   await expect(teams.locator("[data-side=blue] [data-testid=team-slot]")).toHaveCount(5);
   await expect(teams.locator("[data-side=red] [data-testid=team-slot]")).toHaveCount(5);
@@ -126,6 +127,7 @@ test("teammate combinations: choose members in the searchable picker, see only t
 
 
 test("a Team Matches card opens its game under it, as Match History does; names and the bookmark keep their own action", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1440) < 768, "phones open a game as a whole screen: e2e/mobile-nav.spec.ts");
   await page.goto("/matches");
   const game = page.getByTestId("together-game").first();
   await expect(game).toBeVisible();

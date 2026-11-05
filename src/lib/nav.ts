@@ -32,11 +32,11 @@ export type NavEntry = NavLink | NavHub;
  * card reads this list, on your own profile and on every teammate's. `path` is relative to the
  * profile (/overview for your own, /players/[id] for a teammate's).
  */
-export const PROFILE_SECTIONS: Array<{ key: string; path: string; label: string; icon: LucideIcon }> = [
-  { key: "overview", path: "", label: "Overview", icon: Gauge },
-  { key: "champions", path: "/champions", label: "All Champions", icon: Library },
-  { key: "matches", path: "/matches", label: "Match History", icon: ScrollText },
-  { key: "accounts", path: "/accounts", label: "Riot Accounts", icon: Link2 },
+export const PROFILE_SECTIONS: Array<{ key: string; path: string; label: string; /** The phone's name for it, in the top bar where four share a narrow screen. */ short: string; icon: LucideIcon }> = [
+  { key: "overview", path: "", label: "Overview", short: "Overview", icon: Gauge },
+  { key: "champions", path: "/champions", label: "All Champions", short: "Champions", icon: Library },
+  { key: "matches", path: "/matches", label: "Match History", short: "History", icon: ScrollText },
+  { key: "accounts", path: "/accounts", label: "Riot Accounts", short: "Accounts", icon: Link2 },
 ];
 
 /**
@@ -140,34 +140,87 @@ export const NAV_LINKS: NavLink[] = NAV_ENTRIES.flatMap(entryLinks);
 /** The account menu (your avatar): account settings only; profile pages live under My Profile. */
 export const ACCOUNT_LINKS: NavLink[] = [{ href: "/settings", label: "Settings", icon: Settings }];
 
-/**
- * Phone bottom tabs: those of these this account may open (team members: Profile, Team and
- * Resources; everyone else: Profile and Resources), the sidebar's three entries in its order. Team
- * stands for its sections (Players, Leaderboards and Matches are the tabs at the top of every Team
- * page), like its sidebar entry (see currentTab).
- */
-export const TAB_HREFS = ["/overview", "/team", "/resources"] as const;
+/** A destination of the phone tab bar. */
+export interface PhoneTab {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+}
 
 /**
- * The bottom tab the page belongs to: its own tab, else the first tab of its section set (Team for
- * Players and Leaderboards).
+ * PHONES (below md) have no sidebar and no page tabs for Team: the bottom tab bar holds the places a
+ * member goes to most, each one tap from anywhere, in this order:
+ *   Team           the lineup (Team Overview), the team's home page;
+ *   Players        everyone, and the way into a teammate's profile;
+ *   Leaderboards   the team's comparisons;
+ *   Matches        the games members played together;
+ *   Profile        your own profile and its sections;
+ *   Resources      when there is room (an account without the Team pages); otherwise in the account
+ *                  sheet behind your avatar, with Settings and Sign out.
+ * At most five, those this account may open (the pages check again). Tablets and desktops keep the
+ * sidebar's three entries and the page tabs (TEAM_SECTIONS), so the two never disagree on names.
+ */
+export const PHONE_TABS: PhoneTab[] = [
+  { href: "/team", label: "Team", icon: Users },
+  { href: "/players", label: "Players", icon: UserCog },
+  { href: "/leaderboards", label: "Leaderboards", icon: Medal },
+  { href: "/matches", label: "Matches", icon: History },
+  { href: "/overview", label: "Profile", icon: CircleUserRound },
+  { href: "/resources", label: "Resources", icon: BookMarked },
+];
+
+/** The most destinations a phone tab bar holds: more would leave each too narrow for a thumb and its label. */
+export const PHONE_TAB_LIMIT = 5;
+
+/** The phone tab bar for an account: the destinations it may open, in PHONE_TABS order, at most PHONE_TAB_LIMIT. */
+export function phoneTabs(allowed: readonly string[]): PhoneTab[] {
+  return PHONE_TABS.filter((t) => allowed.includes(t.href)).slice(0, PHONE_TAB_LIMIT);
+}
+
+/**
+ * The bottom tab a page belongs to: its own (the longest match, so a teammate's profile under
+ * /players/… is Players and your own profile's sections are Profile), else the first tab of its
+ * section set (Admin Mode's Platform Settings pages are its Settings tab), else none (Settings).
  */
 export function currentTab(pathname: string, tabs: readonly string[]): string | null {
   const own = activeHref(pathname, tabs);
   if (own) return own;
+  if (pathname === "/me" && tabs.includes("/overview")) return "/overview";
   const hub = SECTION_HUBS.find((h) => h.sections.some((l) => isActivePath(pathname, l.href)));
   return hub?.sections.map((l) => l.href).find((href) => tabs.includes(href)) ?? null;
 }
 
 /**
- * How the phone tab bar names and draws those pages: short words, and the sidebar's own icons, so a
- * page looks the same in every navigation.
+ * A profile's own address (its Overview) when the page is one of its sections: /overview for your
+ * own, /players/[id] for a teammate's; null elsewhere. Phones show the profile's sections in the top
+ * bar on these pages.
  */
-export const TAB_LOOK: Record<(typeof TAB_HREFS)[number], { label: string; icon: LucideIcon }> = {
-  "/overview": { label: "Profile", icon: CircleUserRound },
-  "/team": { label: "Team", icon: Users },
-  "/resources": { label: "Resources", icon: BookMarked },
-};
+export function profileBase(pathname: string): string | null {
+  if (pathname === "/overview" || pathname.startsWith("/overview/")) return "/overview";
+  const m = /^\/players\/([^/]+)(?:\/([^/]+))?$/.exec(pathname);
+  if (!m) return null;
+  const section = m[2] ?? "";
+  return PROFILE_SECTIONS.some((s) => s.path === (section ? `/${section}` : "")) ? `/players/${m[1]}` : null;
+}
+
+/**
+ * On a phone, where Back leads from a page opened with no page of this app before it (a link from
+ * elsewhere, a reload, the installed app's start): the page above it, named for the button. A tab's
+ * own pages and their sections have none: they are where you start.
+ */
+export function phoneParent(pathname: string, tabs: readonly PhoneTab[], home: string): { href: string; label: string } | null {
+  const tabHrefs = tabs.map((t) => t.href);
+  const homeLabel = tabs.find((t) => t.href === home)?.label ?? (home === ADMIN_HOME ? "Dashboard" : "Home");
+  if (/^\/players\/[^/]+/.test(pathname)) return { href: "/players", label: "Players" };
+  if (pathname === "/me") return { href: "/overview", label: "Profile" };
+  if (pathname.startsWith("/admin")) {
+    if (pathname === ADMIN_HOME || currentTab(pathname, tabHrefs)) return null;
+    return { href: ADMIN_HOME, label: "Dashboard" };
+  }
+  if (currentTab(pathname, tabHrefs) || pathname === home) return null;
+  if (pathname === "/no-access") return null;
+  return { href: home, label: homeLabel };
+}
 
 /** Admin Mode's start page (its dashboard). It is current only on itself, not on the pages beneath it. */
 export const ADMIN_HOME = "/admin";

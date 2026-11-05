@@ -4,7 +4,7 @@ import { publicErrorMessage } from "@/server/errors";
 import { revalidatePath } from "next/cache";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePermission, requireRiotAccountEditor } from "@/server/auth/session";
-import { AccountError, accountForBrowser, addAccount, listAccountsForPlayer, listPendingAccounts, removeAccount, reorderAccounts, setMainAccount, type RiotAccountRecord } from "@/server/accounts/repository";
+import { AccountError, accountForBrowser, addAccount, listAccountsForPlayer, listPendingAccounts, removeAccount, reorderAccounts, setMainAccount, withoutRank, type RiotAccountRecord } from "@/server/accounts/repository";
 import { syncAccount } from "@/server/accounts/sync";
 import { REFRESH_COOLDOWN_MS, accountSyncRetryIn, claimAccountSync, isSyncableAccount } from "@/server/accounts/refresh";
 import { changeAccountRiotId, type RiotIdChange } from "@/server/accounts/change-riot-id";
@@ -13,6 +13,7 @@ import { browserTestRiotClient } from "@/server/riot/browser-test";
 import { checkRiotCredential, riotKeyCheckLimits, type CredentialState } from "@/server/riot/credential";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 import { defaultPlatform } from "@/server/auth/signup";
+import { canViewPlayerStats } from "@/server/auth/permissions";
 
 type Result<T = null> = { ok: true; data: T } | { ok: false; error: string };
 const fail = (err: unknown): Result<never> => ({ ok: false, error: err instanceof AccountError ? err.message : publicErrorMessage(err) });
@@ -30,7 +31,7 @@ function touch() {
  */
 export async function addPlayerAccountAction(playerId: string, input: { riotId: string; platform?: string }): Promise<Result<RiotAccountRecord>> {
   try {
-    await requireRiotAccountEditor(playerId);
+    const session = await requireRiotAccountEditor(playerId);
     const db = await getAppDb();
     const account = await addAccount(db, { ownerType: "player", playerId, riotId: input.riotId, platform: input.platform?.trim() || defaultPlatform() });
     // Resolve immediately when a key is available so the user sees whether the Riot ID exists.
@@ -39,8 +40,8 @@ export async function addPlayerAccountAction(playerId: string, input: { riotId: 
     invalidateProficiencyCache();
     touch();
     const fresh = (await listAccountsForPlayer(db, playerId)).find((a) => a.id === account.id) ?? account;
-    // The answer reaches the browser: never the PUUID.
-    return { ok: true, data: accountForBrowser(fresh) };
+    // The answer reaches the browser: never the PUUID, and a teammate's rank only for those who may see it.
+    return { ok: true, data: canViewPlayerStats(session, playerId) ? accountForBrowser(fresh) : withoutRank(accountForBrowser(fresh)) };
   } catch (err) {
     return fail(err);
   }

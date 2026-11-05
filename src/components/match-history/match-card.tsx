@@ -1,6 +1,7 @@
 import type * as React from "react";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
+import { InfoTip } from "@/components/ui/info-tip";
 import type { LpRecord } from "@/domain/lp-attribution";
 import { formatDate, formatDateTime, formatLpChange } from "@/lib/format";
 import type { Icon } from "@/server/players/match-history";
@@ -108,35 +109,47 @@ export function lpSpoken(lp: LpRecord): string {
 /**
  * A ranked game's LP change on its card: the figure the rank readings prove ("+24 LP" in the gain
  * colour, "−21 LP" in the loss colour), a promotion or demotion (a change of division has no single
- * figure), or a quiet dash where none is recorded. The hover text says what it rests on, or why
- * there is none; nothing is ever estimated.
+ * figure), or a quiet dash where none is recorded. Its tooltip says what it rests on, or why there
+ * is none: on hover, or a tap on a touch screen (which leaves the card closed). Nothing is ever
+ * estimated.
  */
 export function LpChange({ lp, className, dense = false }: { lp: LpRecord | null; className?: string; /** Inside a line of text: no taller than the line. */ dense?: boolean }) {
   if (!lp) return null;
   const leading = dense ? "leading-4" : "leading-5";
   const pill = cn("inline-flex items-center gap-0.5 whitespace-nowrap rounded px-1.5 text-xs font-semibold", leading);
+  let mark: React.ReactNode;
   if (lp.kind === "lp") {
     const tone = lp.delta > 0 ? "bg-good/10 text-good" : lp.delta < 0 ? "bg-bad/10 text-bad" : "bg-surface-2 text-fg-muted";
-    return (
-      <span className={cn(pill, "tabular-nums", tone, className)} title={lpNote(lp)} data-testid="match-lp" data-lp={lp.delta}>
+    mark = (
+      <span className={cn(pill, "tabular-nums", tone)} data-testid="match-lp" data-lp={lp.delta}>
         {formatLpChange(lp.delta)}
       </span>
     );
-  }
-  if (lp.kind === "promoted" || lp.kind === "demoted") {
+  } else if (lp.kind === "promoted" || lp.kind === "demoted") {
     const up = lp.kind === "promoted";
     const Icon = up ? ArrowUp : ArrowDown;
-    return (
-      <span className={cn(pill, up ? "bg-good/10 text-good" : "bg-bad/10 text-bad", className)} title={lpNote(lp)} data-testid="match-lp" data-lp={lp.kind}>
+    mark = (
+      <span className={cn(pill, up ? "bg-good/10 text-good" : "bg-bad/10 text-bad")} data-testid="match-lp" data-lp={lp.kind}>
         <Icon className="h-3 w-3 shrink-0" aria-hidden />
         {up ? "Promoted" : "Demoted"}
       </span>
     );
-  }
+  } else
+    mark = (
+      <span className={cn("text-xs text-fg-subtle", leading)} data-testid="match-lp" data-lp="none" data-reason={lp.reason}>
+        <span aria-hidden>—</span>
+        <span className="sr-only">LP not recorded</span>
+      </span>
+    );
+  // The tooltip's trigger is 24px tall (its target size), with margins that keep it to a 16px line;
+  // a 20px pill gets 2px of padding around that, so the card keeps its layout. The dash's trigger
+  // is widened the same way (padding, cancelled by margins). It is no tab stop: the card is the one
+  // stop, and the card's label already says the LP.
   return (
-    <span className={cn("text-xs text-fg-subtle", leading, className)} title={lpNote(lp)} data-testid="match-lp" data-lp="none" data-reason={lp.reason}>
-      <span aria-hidden>—</span>
-      <span className="sr-only">LP not recorded</span>
+    <span className={cn("inline-flex", !dense && "py-0.5", className)}>
+      <InfoTip text={lpNote(lp)} testId="match-lp-tip" tabIndex={-1} className={lp.kind === "none" ? "-mx-1.5 px-1.5" : undefined}>
+        {mark}
+      </InfoTip>
     </span>
   );
 }

@@ -17,7 +17,7 @@ export default async function ResourcesPage() {
   const library = await getResourceLibrary(await getAppDb());
   return (
     <div className="mx-auto max-w-[var(--content-max)] space-y-5">
-      <PageHeader title="Resources" description="Useful League of Legends sites: news and patch notes, statistics and builds, ARAM, Arena and esports. Each opens in a new tab." />
+      <PageHeader title="Resources" description="Useful League of Legends sites: news and patch notes, statistics and builds, ARAM, Arena and esports. Each opens in a new tab." guide />
       <ResourcesView entries={visibleResources(library)} />
     </div>
   );

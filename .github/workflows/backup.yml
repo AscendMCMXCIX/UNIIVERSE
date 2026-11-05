@@ -121,7 +121,7 @@ jobs:
             printf '%s\n\n%s\n' "The weekly database backup failed: $RUN_URL" "The run's log says which check stopped it (the role, the dump, the restore counts, the encryption or the size). No backup was kept from this run; the previous ones are still in their runs for 28 days." > issue.md
             scripts/report-issue.sh database-backup "Database backup needs attention" fail issue.md
           elif [ -n "$PCT" ] && [ "$PCT" -ge 80 ]; then
-            printf '%s\n\n%s\n' "The database backup passed, but it is $MB MB: $PCT% of its size limit ($RUN_URL)." "Dropping the retired tables (held PRs #86 and #138, after your backup check) shrinks it; otherwise a run by hand can allow more (max_mb). Nothing has failed yet." > issue.md
+            printf '%s\n\n%s\n' "The database backup passed, but it is $MB MB: $PCT% of its size limit ($RUN_URL)." "A run by hand can allow more (max_mb). The next engineering session reads Data jobs db-usage and proposes what to reduce (docs/HOSTING_USAGE.md); deleting stored data needs your approval. Nothing has failed yet." > issue.md
             scripts/report-issue.sh database-backup "Database backup needs attention" fail issue.md
           else
             scripts/report-issue.sh database-backup "Database backup needs attention" ok

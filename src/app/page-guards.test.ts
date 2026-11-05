@@ -72,3 +72,24 @@ describe("every member and admin page checks access itself", () => {
     expect(pageGuardProblem("(app)/players/[id]/stats/page.tsx", "const db = await getAppDb(); redirect('/x');")).toMatch(/opens the database/);
   });
 });
+
+/*
+  A personal-use profile (not on the team) opens only for its player and administrators
+  (canOpenProfile in src/server/auth/permissions.ts). Every page under /players/[id] that loads a
+  profile, and their layout, does so through viewableProfileHeader, which answers null (the page's
+  notFound()) for anyone else: the raw loader would open the profile to every member.
+*/
+describe("a teammate's profile pages load it through the personal-use rule", () => {
+  const dir = join(APP, "(app)", "players", "[id]");
+  const files = [...pages(dir), join(dir, "layout.tsx")].map((path) => ({ file: relative(APP, path), source: readFileSync(path, "utf8") }));
+
+  it("never call the raw profileHeader loader", () => {
+    expect(files.filter(({ source }) => /\bprofileHeader\(/.test(source)).map((f) => f.file)).toEqual([]);
+  });
+
+  it("every page that opens the database loads the profile with viewableProfileHeader", () => {
+    const loading = files.filter(({ source }) => /getAppDb\(/.test(source));
+    expect(loading.length).toBeGreaterThanOrEqual(5);
+    expect(loading.filter(({ source }) => !source.includes("viewableProfileHeader(")).map((f) => f.file)).toEqual([]);
+  });
+});
