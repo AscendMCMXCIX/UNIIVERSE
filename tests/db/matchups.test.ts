@@ -297,6 +297,8 @@ describe("a game whose record Riot no longer serves", () => {
     expect(w.detail).toMatchObject({ games: 5, wins: 3 });
     const gone = w.detail!.matches.find((g) => g.matchId === "OC1_9")!;
     expect(gone).toMatchObject({ win: true, kills: null, deaths: null, assists: null, cs: null });
+    // The marker alone (no record row) says the record is gone, not still being collected.
+    expect(gone.timeline).toBe("unavailable");
     expect(w.lane!.recent.every((g) => g.kills === null || g.kills >= 0)).toBe(true);
     await db.delete(accountMatches).where(eq(accountMatches.matchId, "OC1_9"));
   });
@@ -311,6 +313,14 @@ describe("a game whose record Riot no longer serves", () => {
     expect(status("OC1_10")).toBe("pending");
     expect(status("OC1_11")).toBe("unavailable");
     expect(status("OC1_6")).toBe("no-details");
+    // No PUUID known on any account (being verified again after a Riot key change): a stored
+    // record is not examined, so it is pending, not "unclear"; the others say what they are.
+    const before = await db.select({ id: riotAccounts.id, puuid: riotAccounts.puuid }).from(riotAccounts).where(eq(riotAccounts.playerId, playerId));
+    await db.update(riotAccounts).set({ puuid: null }).where(eq(riotAccounts.playerId, playerId));
+    const unverified = await getPlayerMatchups(db, playerId, { account: null, mode: "all", champion: "Gwen", vs: "Nasus", role: "TOP", exact: true });
+    const statusThen = (id: string) => unverified.detail!.matches.find((g) => g.matchId === id)!.timeline;
+    expect([statusThen("OC1_10"), statusThen("OC1_11"), statusThen("OC1_6")]).toEqual(["pending", "unavailable", "pending"]);
+    for (const a of before) await db.update(riotAccounts).set({ puuid: a.puuid }).where(eq(riotAccounts.id, a.id));
     await db.delete(accountMatches).where(inArray(accountMatches.matchId, ["OC1_10", "OC1_11"]));
     await db.delete(matchDetails).where(eq(matchDetails.matchId, "OC1_11"));
   });
