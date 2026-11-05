@@ -1,9 +1,10 @@
 import { and, eq, sql } from "drizzle-orm";
+import { releaseLease } from "@/server/jobs/background";
 import type { Db } from "@/server/db/types";
 import { players, riotAccounts } from "@/server/db/schema";
 import { RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
 import { AccountError, addAccount, listAccountsForPlayer, parseRiotId, reorderAccounts, setMainAccount, type RiotAccountRecord } from "./repository";
-import { SCHEDULED_SYNC_LEASE_MS, claimAccountSync } from "./refresh";
+import { accountSyncLeaseKey, claimAccountSync, SCHEDULED_SYNC_LEASE_MS } from "./refresh";
 import { syncAccount } from "./sync";
 
 export type RiotIdChange =
@@ -59,7 +60,15 @@ export async function changeAccountRiotId(db: Db, client: RiotApiClient, account
   await db.delete(riotAccounts).where(eq(riotAccounts.id, account.id));
   if (account.playerId) await reorderAccounts(db, account.playerId, order);
   if (account.label === "main" && account.playerId) await setMainAccount(db, account.playerId, fresh.id);
-  // First data straight away; the scheduled sync continues the season history.
-  if (await claimAccountSync(db, fresh.id, SCHEDULED_SYNC_LEASE_MS)) await syncAccount(db, client, fresh, { maxMatchesPerRun: 20 }).catch(() => undefined);
+  // First data straight away; the scheduled sync continues the season history. The claim is
+  // given back once the sync is done, so a view's slice may follow it at once.
+  const claimedAt = new Date();
+  if (await claimAccountSync(db, fresh.id, SCHEDULED_SYNC_LEASE_MS, claimedAt)) {
+    try {
+      await syncAccount(db, client, fresh, { maxMatchesPerRun: 20 }).catch(() => undefined);
+    } finally {
+      await releaseLease(db, accountSyncLeaseKey(fresh.id), claimedAt);
+    }
+  }
   return { kind: "replaced", riotId, accountId: fresh.id };
 }
