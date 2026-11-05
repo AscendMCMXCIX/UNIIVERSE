@@ -11,7 +11,7 @@ import { accountSyncLeaseKey, accountSyncRetryIn, claimAccountSync, isSyncableAc
 import { changeAccountRiotId, type RiotIdChange } from "@/server/accounts/change-riot-id";
 import { createRiotClient, parsePlatforms } from "@/server/riot/api/client";
 import { browserTestRiotClient } from "@/server/riot/browser-test";
-import { checkRiotCredential, type CredentialState } from "@/server/riot/credential";
+import { checkRiotCredential, riotKeyCheckLimits, type CredentialState } from "@/server/riot/credential";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 import { defaultPlatform } from "@/server/auth/signup";
 import { canViewPlayerStats } from "@/server/auth/permissions";
@@ -187,12 +187,17 @@ export async function retryPendingAccountsAction(): Promise<Result<{ attempted: 
   }
 }
 
-/** Owner: one cheap Riot request to learn whether the configured key is accepted right now. */
+/**
+ * Owner: whether the configured key is accepted right now (checkRiotCredential). One platform-status
+ * request; while a refusal is recorded, also the requests an account sync makes for at most one
+ * linked account per server. Bounded by the key check's deadline (riotKeyCheckLimits: 30 s).
+ */
 export async function checkRiotKeyAction(): Promise<Result<{ state: CredentialState; message: string; statusCode: number | null }>> {
   try {
     await requirePermission("manage-data");
+    const started = Date.now();
     const db = await getAppDb();
-    const client = createRiotClient();
+    const client = createRiotClient(riotKeyCheckLimits(started));
     if (!client) return { ok: true, data: { state: "not-configured", message: "RIOT_API_KEY is not configured on the server.", statusCode: null } };
     const r = await checkRiotCredential(db, client, parsePlatforms(process.env.RIOT_PLATFORMS)[0] ?? "oc1");
     revalidatePath("/settings");
