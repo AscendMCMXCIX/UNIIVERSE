@@ -6,6 +6,7 @@ import { accountChampionHistory } from "@/server/db/schema";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { addAccount } from "@/server/accounts/repository";
 import { getProficiencyLookup, invalidateProficiencyCache } from "@/server/proficiency/service";
+import { INFLIGHT_JOIN_MS } from "@/server/observability/cache";
 
 /*
   The proficiency bundles each instance keeps for five minutes (server/proficiency/service.ts).
@@ -90,5 +91,28 @@ describe("the proficiency cache", () => {
     await Promise.all([building, getProficiencyLookup(handle.db, [ids.pat])]);
     expect(select.mock.calls.length).toBeGreaterThan(0);
     select.mockRestore();
+  });
+
+  it("joins a build under way for a bounded time only, so one that never settles holds nobody after it", async () => {
+    const select = vi.spyOn(handle.db, "select");
+    const clock = vi.spyOn(Date, "now");
+    const start = new Date(2026, 10, 5, 12, 0, 0).getTime();
+    clock.mockReturnValue(start);
+    invalidateProficiencyCache();
+    const first = getProficiencyLookup(handle.db, [ids.pat, ids.sam]);
+    const alone = select.mock.calls.length;
+    expect(alone).toBeGreaterThan(0);
+    // A moment later a reader joins the same build: nothing is read again.
+    clock.mockReturnValue(start + 1_000);
+    const joined = getProficiencyLookup(handle.db, [ids.pat, ids.sam]);
+    expect(select.mock.calls.length).toBe(alone);
+    // Past the join window the build is treated as lost: a reader starts its own.
+    clock.mockReturnValue(start + INFLIGHT_JOIN_MS);
+    const own = getProficiencyLookup(handle.db, [ids.pat, ids.sam]);
+    expect(select.mock.calls.length).toBe(2 * alone);
+    await Promise.all([first, joined, own]);
+    clock.mockRestore();
+    select.mockRestore();
+    invalidateProficiencyCache();
   });
 });
