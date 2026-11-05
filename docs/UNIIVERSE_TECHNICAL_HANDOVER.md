@@ -548,7 +548,7 @@ Mastery alone (no games in supported queues) caps the tier at Familiar.
 
 ### E2. Global evidence (removed with Meta & Trends, 19 Oct 2026)
 
-Meta & Trends (Solo Queue Meta, Duo Synergies, Pro Play) and the global evidence behind it are gone: the Emerald+ ladder sampling and ranked collection, rank and three-patch weighting, champion rework detection, Leaguepedia professional games and the aggregation jobs. Everything UNIIVERSE shows now comes from the linked players' own games. The tables stay in the database untouched until an approval-gated cleanup (`docs/DATA_PIPELINES.md`, "Retired tables"); `docs/ARCHITECTURE.md`, "Meta & Trends removed", lists what was kept.
+Meta & Trends (Solo Queue Meta, Duo Synergies, Pro Play) and the global evidence behind it are gone: the Emerald+ ladder sampling and ranked collection, rank and three-patch weighting, champion rework detection, Leaguepedia professional games and the aggregation jobs. Everything UNIIVERSE shows now comes from the linked players' own games. 12 of its tables (about 206 MB) were dropped on 4 Nov 2026 (migration `0062`, after a verified backup); the rest stay in the database, untouched, until the owner decides (`docs/DATA_PIPELINES.md`, "Retired tables"). `docs/ARCHITECTURE.md`, "Meta & Trends removed", lists what was kept.
 
 ### E3. Data limitations
 
@@ -562,9 +562,8 @@ Meta & Trends (Solo Queue Meta, Duo Synergies, Pro Play) and the global evidence
 
 The Draft feature (setup, Draft Room, live drafts, recommendation engine, scouting, series and
 Fearless rules, Match Playbook, the drafted-match archive and its editor, opponents, competition
-modes and Draft Settings) was **removed in October 2026**. Its database tables are still present
-and untouched until a separate, approval-gated cleanup migration drops them (see
-`docs/ARCHITECTURE.md`, "Draft removed").
+modes and Draft Settings) was **removed in October 2026**. Migration `0063` dropped its database
+tables on 4 Nov 2026, after a verified backup (see `docs/ARCHITECTURE.md`, "Draft removed").
 
 **Team → Matches** (`/matches`, `src/server/matches/*`) now holds only Riot games:
 - **Played together:** games where two or more current members were on the same side, with
@@ -605,7 +604,8 @@ and untouched until a separate, approval-gated cleanup migration drops them (see
   - **Policy review:** `docs/RIOT_COMPLIANCE.md` → Social links.
 - **Riot accounts:** Main + Alts, all counted (Section B2).
 - **Visibility:**
-  - Every member sees profiles, pools, Riot IDs and statistics. Teammates' statistics need `view-teammate-stats`.
+  - Every member sees team members' profiles, pools, Riot IDs and statistics. Teammates' statistics need `view-teammate-stats`.
+  - Who sees a profile, a teammate's rank and the players of a game (owner decisions of 4 Nov 2026: a teammate's rank is one of their statistics; a personal-use profile opens only for its player and administrators): `docs/PROFILE_VISIBILITY.md`.
   - Team Overview follows the same rule on the server (`getTeamRosterForViewer`): without `view-teammate-stats` a teammate's card carries name, roles, lineup place and pool champions only (no rank, season figures, champion figures, proficiency or rank change, and vacant-role suggestions do not cite games). Your own card always shows your figures.
   - Never shown: passwords, sessions, infrastructure.
 
@@ -836,7 +836,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 | Matches | `/matches` | Played together (with bookmarks); `?view=encounters` opens your profile's Encounters | `view-matches` (+ `view-teammate-stats` for Played together); bookmark removal by its creator or `manage-matches` | |
 | Resources | `/resources` | The team's library of League of Legends sites in five sections (League of Legends, Summoner's Rift, ARAM, Arena, Esports): a panel per section of rows opening in a new tab, search, a section filter, favourites kept in the browser; no management controls on the page | every signed-in account; managed in Admin Mode → Platform Settings → Resources (`manage-branding`) | `docs/ARCHITECTURE.md` (Resources) |
 | Settings | `/settings` | Username, password, profile picture, sign out | self | Riot accounts moved to the profile |
-| Admin Mode | `/admin`, `/admin/people` (+ `/access`), `/admin/branding`, `/admin/previews`, `/admin/data`, `/admin/system`, `/admin/audit`, `/admin/settings` | Dashboard, Users & Permissions, Platform Settings, Data & Integrations, System Health, Audit Logs | administrators | "Switch to Admin Mode" in the sidebar, the phone menu or Settings (C2a) |
+| Admin Mode | `/admin`, `/admin/people` (+ `/access`), `/admin/branding`, `/admin/previews`, `/admin/data`, `/admin/system`, `/admin/audit`, `/admin/settings` | Dashboard, Users & Permissions, Platform Settings, Data & Integrations, System Health, Audit Logs | administrators | "Switch to Admin Mode" in the sidebar, the tablet menu, the phone's account sheet or Settings (C2a) |
 | Auth | `/login`, `/setup`, `/recover`, `/welcome` | Sign-in, first-run Owner setup, Owner recovery, onboarding | — | |
 
 **Redirects kept for old links:**
@@ -855,7 +855,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 
 - **Breakpoints** (Tailwind defaults):
   - < 640 phone: top bar (the menu button at its left end) + a drawer from the left + a 3-tab bottom bar.
-    - The tabs are Profile, Team and Resources, the sidebar's three entries, in equal columns.
+    - The tabs are Team, Players, Leaderboards, Matches and Profile (`PHONE_TABS`); Resources, Settings, Install App, the mode switch and Sign out are in the account sheet behind the avatar (docs/MOBILE.md, November 2026).
     - Team stays marked on its own tabs: Players, Leaderboards and Matches.
   - 640–767 large phone.
   - 768–1023 tablet: top bar + drawer, no tab bar.
@@ -1200,8 +1200,8 @@ These are stable and working; extend them instead:
    - **Settings.**
    - **Admin Mode** (administrators): Dashboard, Users & Permissions, Platform Settings, Data & Integrations, System Health, Audit Logs.
 
-5. **Removed: Draft.** The draft setup, Draft Room, engine, scouting, series, Playbook and drafted-match archive are gone. Their tables stay in the database until an approval-gated cleanup migration.
-   **Removed: Meta & Trends** (19 Oct 2026). Solo Queue Meta, Duo Synergies, Pro Play and the global ranked, professional and aggregation jobs are gone; their tables also stay until an approval-gated cleanup.
+5. **Removed: Draft.** The draft setup, Draft Room, engine, scouting, series, Playbook and drafted-match archive are gone. Migration `0063` dropped their tables on 4 Nov 2026, after a verified backup.
+   **Removed: Meta & Trends** (19 Oct 2026). Solo Queue Meta, Duo Synergies, Pro Play and the global ranked, professional and aggregation jobs are gone; migration `0062` dropped 12 of their tables on 4 Nov 2026; the rest stay until the owner decides.
    **Removed: Clash Scout** (23 Oct 2026). Screenshot reading, opponent identification, saved scouts, the Testing Lab and the `lab-benchmark` job are gone; migration `0064` dropped their two tables, saved scouts and all, after a verified backup (`docs/CLASH_SCOUT.md`).
 
 6. **Current Riot data status** (14 Oct):
@@ -1219,7 +1219,7 @@ These are stable and working; extend them instead:
 8. **UI architecture.**
    - **Server components** with client islands (editors, menus, dialogs).
    - **Shell:** deep ink theme with a blue and violet identity; Inter; tokens in `src/app/globals.css`.
-   - **Navigation:** collapsible sidebar (My Profile, one Team entry, Resources); the sections of Team as tabs at the top of its pages (`SectionTabs`, `SECTION_HUBS`, `TEAM_SECTIONS`); account menu; phone tab bar (Profile, Team, Resources).
+   - **Navigation:** collapsible sidebar (My Profile, one Team entry, Resources); the sections of Team as tabs at the top of its pages (`SectionTabs`, `SECTION_HUBS`, `TEAM_SECTIONS`); account menu; phone tab bar (Team, Players, Leaderboards, Matches, Profile) and account sheet (docs/MOBILE.md).
    - **Shared primitives** in `src/components/ui` (Menu never clips, Dialog, Toast, InfoTip).
    - **One card identity** (featured champion art + skin + accent) across Team, Players and profiles.
 

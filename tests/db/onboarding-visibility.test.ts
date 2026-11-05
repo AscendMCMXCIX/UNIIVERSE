@@ -126,7 +126,7 @@ describe("players still in setup", () => {
     expect(ids).not.toContain(gone.id);
     expect(ids).not.toContain(solo.id);
     await expect(setLineupSlot(handle.db, teamId, "TOP", gone.id)).rejects.toThrow(/archived/);
-    await expect(setLineupSlot(handle.db, teamId, "ADC", solo.id)).rejects.toThrow(/not a member/);
+    await expect(setLineupSlot(handle.db, teamId, "ADC", solo.id)).rejects.toThrow("That player is not on the team, so they cannot join the lineup.");
   });
 });
 

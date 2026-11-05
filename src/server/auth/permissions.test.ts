@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canWatchFreshness, ACCESS_GROUPS, sanitiseAccessGroups, withAccessGroups, CAPABILITY_KEYS, canEditPlayer, canManageRiotAccounts, canUseAdminArea, capabilitiesOf, describeAccess, hasPermission, isAdmin, sanitiseCapabilities, STANDARD_PLAYER, type Capability, type Session } from "./permissions";
+import { canWatchFreshness, ACCESS_GROUPS, sanitiseAccessGroups, withAccessGroups, CAPABILITY_KEYS, canEditPlayer, canManageRiotAccounts, canOpenProfile, canUseAdminArea, canViewPlayerStats, capabilitiesOf, describeAccess, hasPermission, isAdmin, sanitiseCapabilities, STANDARD_PLAYER, type Capability, type Session } from "./permissions";
 import { NAV_LINKS, canOpen } from "@/lib/nav";
 
 const base = { userId: "u-self", label: "U", playerId: "p-self", username: "u", hasPassword: true, mustChangePassword: false, setupComplete: true };
@@ -182,5 +182,59 @@ describe("asking for a page's data version (/api/freshness): the page's own acce
 
   it("signed out: nothing", () => {
     for (const scope of [own, other, team, jobs]) expect(canWatchFreshness(null, scope)).toBe(false);
+  });
+});
+
+describe("a teammate's rank and statistics, and who may open a profile at all", () => {
+  // The viewer is always "p-self"; the target is a team member or a personal-use player ("p-target").
+  const member: Session = { ...player, playerId: "p-viewer", teamMember: true };
+  const restrictedViewer: Session = { ...restricted, playerId: "p-viewer", teamMember: true };
+  const playerManager: Session = { ...base, role: "player", playerId: "p-viewer", capabilities: withAccessGroups(STANDARD_PLAYER, ["player-manager"]), teamMember: true };
+  const restrictedManager: Session = { ...base, role: "player", playerId: "p-viewer", capabilities: withAccessGroups(restricted.capabilities!, ["player-manager"]), teamMember: true };
+  const administrator: Session = { ...player, playerId: "p-viewer", admin: true, teamMember: true };
+  const owner: Session = { ...admin, playerId: null };
+  const self: Session = { ...player, playerId: "p-target", teamMember: false };
+  const selfRestricted: Session = { ...restricted, playerId: "p-target", teamMember: false };
+  const teamTarget = { id: "p-target", teamMember: true };
+  const personalTarget = { id: "p-target", teamMember: false };
+
+  it("the rank is a statistic: one's own always, a teammate's with view-teammate-stats", () => {
+    const cases: Array<[string, Session | null, boolean]> = [
+      ["their own player (Standard)", { ...player, playerId: "p-target" }, true],
+      ["their own player (Restricted, no teammates' statistics)", selfRestricted, true],
+      ["a Standard member", member, true],
+      ["a Restricted member", restrictedViewer, false],
+      ["a Player Manager on Standard", playerManager, true],
+      ["a Player Manager on Restricted", restrictedManager, false],
+      ["an administrator", administrator, true],
+      ["the Owner", owner, true],
+      ["signed out", null, false],
+    ];
+    for (const [who, session, sees] of cases) expect(canViewPlayerStats(session, "p-target"), who).toBe(sees);
+    // An account without a profile never matches a player by a missing id.
+    expect(canViewPlayerStats({ ...restricted, playerId: null }, "")).toBe(false);
+  });
+
+  it("a team member's profile opens for every signed-in account; a personal-use one only for its player and administrators", () => {
+    const matrix: Array<[string, Session | null, { member: boolean; personal: boolean }]> = [
+      ["the player themself", self, { member: true, personal: true }],
+      ["a Standard member", member, { member: true, personal: false }],
+      ["a Restricted member", restrictedViewer, { member: true, personal: false }],
+      ["a Player Manager", playerManager, { member: true, personal: false }],
+      ["an administrator", administrator, { member: true, personal: true }],
+      ["the Owner", owner, { member: true, personal: true }],
+      ["signed out", null, { member: false, personal: false }],
+    ];
+    for (const [who, session, opens] of matrix) {
+      expect(canOpenProfile(session, teamTarget), `${who} · team member`).toBe(opens.member);
+      expect(canOpenProfile(session, personalTarget), `${who} · personal use`).toBe(opens.personal);
+    }
+    // Capabilities do not open it: every capability a player can hold, groups included, is not enough.
+    const everything: Session = { ...base, role: "player", playerId: "p-viewer", capabilities: withAccessGroups(CAPABILITY_KEYS, ACCESS_GROUPS.map((g) => g.key)), teamMember: true };
+    expect(hasPermission(everything, "manage-players")).toBe(true);
+    expect(canOpenProfile(everything, personalTarget)).toBe(false);
+    // A revoked administrator is a player again; an account without a profile is never "the player".
+    expect(canOpenProfile({ ...administrator, admin: false }, personalTarget)).toBe(false);
+    expect(canOpenProfile({ ...member, playerId: null }, { id: "", teamMember: false })).toBe(false);
   });
 });

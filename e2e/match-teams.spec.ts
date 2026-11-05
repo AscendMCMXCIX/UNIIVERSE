@@ -38,7 +38,9 @@ test("Match History: every stored game shows both teams, the player marked on th
   await expect(page.locator(`#${described}`)).toContainText(/Blue team/);
   const name = teams.locator('[data-side="red"] [data-testid="team-slot"]').first().getByTestId("team-slot-name");
   if (isPhone(page)) {
-    // Phones: the icons in one line per card; the names are there for screen readers only.
+    // Phones: a card leaves both teams to the game's own screen (docs/MOBILE.md); the row still
+    // describes them to screen readers (above), and the scoreboard lists all ten.
+    await expect(teams).toBeHidden();
     expect(await name.evaluate((e) => e.getBoundingClientRect().width)).toBeLessThanOrEqual(1);
   } else {
     // Wider screens: names readable without hovering or opening anything.
@@ -62,6 +64,7 @@ test("Match History: every stored game shows both teams, the player marked on th
 });
 
 test("Team → Matches: the same preview, with the team members marked", async ({ page }) => {
+  test.skip(isPhone(page), "a phone's card keeps to the members who played; both teams are in the game's own screen (e2e/mobile-nav.spec.ts)");
   await page.goto("/matches");
   const game = page.getByTestId("together-game").first();
   await expect(game).toBeVisible();

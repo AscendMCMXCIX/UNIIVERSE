@@ -140,6 +140,11 @@ export function OverviewFilters({
       <FilterBar
         summary={summary}
         activeCount={narrowed}
+        chips={[
+          ...(filter.season !== currentSeason ? [{ key: "season", text: seasonLabel(filter.season), clear: () => go({ season: currentSeason }) }] : []),
+          ...(filter.mode !== "all" ? [{ key: "mode", text: SEASON_MODES.find((m) => m.key === filter.mode)?.label ?? filter.mode, clear: () => go({ mode: "all" }) }] : []),
+          ...refinements,
+        ]}
         onReset={() => startTransition(() => router.replace(resetQuery ? `${basePath}?${resetQuery}` : basePath, { scroll: false }))}
         align="end"
         pending={pending}

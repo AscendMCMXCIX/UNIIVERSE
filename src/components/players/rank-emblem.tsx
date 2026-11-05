@@ -59,7 +59,12 @@ export interface CompactRank {
   queue: "solo" | "flex" | null;
 }
 
-/** Crest + "Emerald II", one line; "Unranked" with a neutral mark when there is none. */
+/**
+ * Crest + "Emerald II", one line; "Unranked" with a neutral mark when there is none. Null means no
+ * ranked placement on record, never "not shown to you": a rank the viewer may not see (a
+ * teammate's, without "view teammates' statistics") is left out by the caller instead
+ * (CardIdentity's showRank, the profile header's identity.showRank), so it is never read as Unranked.
+ */
 export function RankInline({ rank, className, showQueue = false }: { rank: CompactRank | null; className?: string; showQueue?: boolean }) {
   const label = rank ? rankLabel(rank.tier, rank.division) : "Unranked";
   const queue = rank?.queue === "flex" ? "Flex" : rank?.queue === "solo" ? "Solo/Duo" : null;

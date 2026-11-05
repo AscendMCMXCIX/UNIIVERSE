@@ -26,12 +26,14 @@ const QUEUE_LABEL = { solo: "Solo/Duo", flex: "Flex" } as const;
  * small control in the artwork's corner for whoever may edit the card. On the profile's other
  * sections (All Champions, Match History, Riot Accounts) the card is one compact band (CompactHeader),
  * so their content starts within the first screen of a phone; the Overview shows it in full.
+ * A rank this viewer may not see (`identity.showRank` false: a teammate's, without "view teammates'
+ * statistics") is left out of both, never shown as "Unranked".
  */
 export function ProfileHeader({ identity: served, self, editable = false, champions = [], basePath }: { identity: HeaderIdentity; self: boolean; editable?: boolean; champions?: PickerChampion[]; /** The profile's Overview address: any other section shows the compact band. */ basePath?: string }) {
   const p = useHeaderIdentity(served);
   const pathname = usePathname();
   const accent = accentCss(p.look.style);
-  const rank = p.rank;
+  const rank = p.showRank ? p.rank : null;
   const asOf = rank?.asOf ? formatDayMonth(rank.asOf) : null;
   const rankTitle = rank ? `${rank.queue ? `Ranked ${QUEUE_LABEL[rank.queue]}` : "Ranked"}: last known rank${asOf ? `, read from Riot on ${asOf}` : ""}` : "No ranked placement on record";
   const customise = (variant: "overlay" | "icon") => (
@@ -47,7 +49,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
       champions={champions}
       poolIds={p.featurable}
       // The card as Team shows it: the lineup role when they hold one, else the Primary Role (figures load on Team only).
-      preview={{ role: p.lineupRole ?? p.primaryRole, rank: p.rank, status: p.lineupRole ? (p.lineupRole === p.primaryRole ? "main" : "off") : p.primaryRole ? "main" : null, season: null, poolIds: p.featurable, social: p.social }}
+      preview={{ role: p.lineupRole ?? p.primaryRole, rank, showRank: p.showRank, status: p.lineupRole ? (p.lineupRole === p.primaryRole ? "main" : "off") : p.primaryRole ? "main" : null, season: null, poolIds: p.featurable, social: p.social }}
     />
   );
   if (basePath && pathname !== basePath && pathname.startsWith(`${basePath}/`))
@@ -76,17 +78,19 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
                   {ROLE_LABELS[p.primaryRole]}
                 </span>
               ) : null}
-              <span className="inline-flex items-center gap-1 whitespace-nowrap text-fg" data-testid="profile-rank" title={rankTitle}>
-                <RankEmblem tier={rank?.tier} className="h-4 w-4" />
-                {rank ? (
-                  <>
-                    {rankLabel(rank.tier, rank.division)}
-                    <span className="text-fg-muted">· {rank.leaguePoints} LP</span>
-                  </>
-                ) : (
-                  <span className="text-fg-muted">Unranked</span>
-                )}
-              </span>
+              {p.showRank ? (
+                <span className="inline-flex items-center gap-1 whitespace-nowrap text-fg" data-testid="profile-rank" title={rankTitle}>
+                  <RankEmblem tier={rank?.tier} className="h-4 w-4" />
+                  {rank ? (
+                    <>
+                      {rankLabel(rank.tier, rank.division)}
+                      <span className="text-fg-muted">· {rank.leaguePoints} LP</span>
+                    </>
+                  ) : (
+                    <span className="text-fg-muted">Unranked</span>
+                  )}
+                </span>
+              ) : null}
             </div>
           </div>
           {editable ? <div className="relative z-10 shrink-0">{customise("icon")}</div> : null}
@@ -138,18 +142,20 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
                   <RoleIcon role={r} className="h-4 w-4 text-fg-subtle" /> {ROLE_LABELS[r]} <span className="text-fg-subtle">(off role)</span>
                 </span>
               ))}
-              <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-fg" data-testid="profile-rank" title={rankTitle}>
-                <RankEmblem tier={rank?.tier} className="h-5 w-5" />
-                {rank ? (
-                  <>
-                    {rankLabel(rank.tier, rank.division)}
-                    <span className="text-fg-muted">· {rank.leaguePoints} LP</span>
-                    {rank.queue ? <span className="text-xs text-fg-subtle">{QUEUE_LABEL[rank.queue]}</span> : null}
-                  </>
-                ) : (
-                  <span className="text-fg-muted">Unranked</span>
-                )}
-              </span>
+              {p.showRank ? (
+                <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-fg" data-testid="profile-rank" title={rankTitle}>
+                  <RankEmblem tier={rank?.tier} className="h-5 w-5" />
+                  {rank ? (
+                    <>
+                      {rankLabel(rank.tier, rank.division)}
+                      <span className="text-fg-muted">· {rank.leaguePoints} LP</span>
+                      {rank.queue ? <span className="text-xs text-fg-subtle">{QUEUE_LABEL[rank.queue]}</span> : null}
+                    </>
+                  ) : (
+                    <span className="text-fg-muted">Unranked</span>
+                  )}
+                </span>
+              ) : null}
               {p.lineupRole ? (
                 <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs font-medium text-fg" data-testid="lineup-status" title="Plays this role in the current team lineup">
                   <RoleIcon role={p.lineupRole} className="h-3.5 w-3.5 text-accent" /> Main lineup · {ROLE_LABELS[p.lineupRole]}

@@ -4,8 +4,25 @@ import { expect, type Locator, type Page } from "./test";
   Match History's games open under their card (components/match-history/match-breakdown.tsx): the
   card is a toggle (its button's aria-expanded), and the breakdown (Scoreboard, Analysis, Timeline,
   Build) loads into the region below it. Team → Matches opens its games the same way. The match
-  window is for Matchups, Encounters and links to a game that is not on the page shown.
+  window is for Matchups, Encounters and links to a game that is not on the page shown, and on
+  phones for every game: there a game takes the whole screen (docs/MOBILE.md), so these helpers
+  open and close that window instead, and return the same breakdown from it.
 */
+
+/** Phones (below md) open a game as the match window over the whole screen. */
+export const opensFullScreen = (page: Page) => (page.viewportSize()?.width ?? 1440) < 768;
+
+/** Opens a game as the whole-screen match window (phones) and waits for its breakdown. */
+async function openWindowed(page: Page, click: () => Promise<void>): Promise<Locator> {
+  const win = page.getByTestId("match-detail");
+  await expect(async () => {
+    if (!(await win.isVisible())) await click();
+    await expect(win).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 15_000 });
+  const breakdown = win.getByTestId("match-breakdown");
+  await expect(breakdown).toBeVisible({ timeout: 15_000 });
+  return breakdown;
+}
 
 /** A card of the page by its match id. */
 export const cardOf = (page: Page, matchId: string) => page.getByTestId("match-card").filter({ has: page.locator(`[data-match="${matchId}"]`) });
@@ -19,6 +36,7 @@ export const expandedOf = (card: Locator) => card.locator("xpath=..").getByTestI
  * second click would close it).
  */
 export async function openGame(card: Locator): Promise<Locator> {
+  if (opensFullScreen(card.page())) return openWindowed(card.page(), () => card.click({ position: { x: 24, y: 16 }, timeout: 2_000 }));
   const row = card.getByTestId("match-row");
   await expect(async () => {
     if ((await row.getAttribute("aria-expanded")) !== "true") await card.click({ position: { x: 24, y: 16 }, timeout: 2_000 });
@@ -31,6 +49,7 @@ export async function openGame(card: Locator): Promise<Locator> {
 
 /** Opens a Team → Matches game (its list item, `together-game`) under its card and waits for its breakdown. */
 export async function openTogether(game: Locator): Promise<Locator> {
+  if (opensFullScreen(game.page())) return openWindowed(game.page(), () => game.getByTestId("together-card").click({ position: { x: 24, y: 12 }, timeout: 2_000 }));
   const button = game.getByTestId("together-open");
   await expect(async () => {
     if ((await button.getAttribute("aria-expanded")) !== "true") await game.getByTestId("together-card").click({ position: { x: 24, y: 12 }, timeout: 2_000 });
@@ -59,8 +78,14 @@ export async function openMatchWindow(page: Page): Promise<Locator> {
   return win;
 }
 
-/** Closes a game opened under its card (the card toggles it). */
+/** Closes a game opened under its card (the card toggles it); on a phone, its whole-screen window. */
 export async function closeGame(card: Locator) {
+  if (opensFullScreen(card.page())) {
+    const win = card.page().getByTestId("match-detail");
+    await win.getByTestId("match-detail-close").click();
+    await expect(win).toHaveCount(0);
+    return;
+  }
   await card.click({ position: { x: 24, y: 16 } });
   await expect(card.getByTestId("match-row")).toHaveAttribute("aria-expanded", "false");
   await expect(expandedOf(card)).toHaveCount(0);

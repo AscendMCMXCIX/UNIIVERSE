@@ -18,7 +18,7 @@ import { cardArt, featurableChampions, isCardAccent, type CardAccent, type CardA
 import { cardLookFor, type CardLook } from "@/domain/card-style";
 import { visibleSocialLinks, type SocialLinks, type SocialLinkView } from "@/domain/social-links";
 import { rankChangesFor, type RankChange } from "@/server/accounts/rank-history";
-import { hasPermission, type Session } from "@/server/auth/permissions";
+import { canViewPlayerStats, type Session } from "@/server/auth/permissions";
 
 export interface RosterChampion {
   championId: string;
@@ -253,11 +253,11 @@ function rosterCard(p: PlayerRecord & PlayerProfile, role: Role, from: { season:
 
 /**
  * The roster as one signed-in person may see it: their own statistics always, teammates' only with
- * "view teammates' statistics". The Team page uses this, so the rule lives on the server.
+ * "view teammates' statistics" (canViewPlayerStats, the profile's rule too). The Team page uses
+ * this, so the rule lives on the server.
  */
 export function getTeamRosterForViewer(db: Db, teamId: string, session: Session) {
-  const seeStats = hasPermission(session, "view-teammate-stats");
-  return getTeamRoster(db, teamId, { statsFor: (id) => seeStats || id === session.playerId });
+  return getTeamRoster(db, teamId, { statsFor: (id) => canViewPlayerStats(session, id) });
 }
 
 /** A pool champion without any figures: the champion's identity is all a viewer without statistics access receives. */

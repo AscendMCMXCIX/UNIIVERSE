@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getAppDb } from "@/server/bootstrap";
 import { getSession } from "@/server/auth/session";
-import { profileHeader, type ProfileSearch } from "@/components/players/profile-sections";
+import { viewableProfileHeader, type ProfileSearch } from "@/components/players/profile-sections";
 import { ProfileOverviewTab } from "@/components/players/profile-overview-tab";
 import { requirePageAccess } from "@/server/auth/page-access";
 
@@ -13,7 +13,8 @@ export default async function PlayerProfileRoute({ params, searchParams }: { par
   if (session?.playerId === id) redirect(`/overview${toQuery(sp)}`);
   await requirePageAccess("view-players");
   const db = await getAppDb();
-  const header = await profileHeader(db, id);
+  // A personal-use profile: its player and administrators only (not found for anyone else).
+  const header = await viewableProfileHeader(db, id, session);
   if (!header) notFound();
   return <ProfileOverviewTab db={db} header={header} session={session} basePath={`/players/${id}`} search={sp} />;
 }

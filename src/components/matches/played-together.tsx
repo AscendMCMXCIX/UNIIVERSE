@@ -80,6 +80,17 @@ export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams 
         activeCount={narrowed}
         resetHref={href({ season: currentSeason, queue: "all", min: 2, with: [], limit: 20 })}
         resetLabel="Clear filters"
+        end={
+          <Link href={href({ saved: !filters.saved, limit: 20 })} aria-current={filters.saved ? "page" : undefined} className={chipClass(filters.saved, "shrink-0")} data-testid="together-saved-phone">
+            <Bookmark className="h-3.5 w-3.5" aria-hidden /> Bookmarked{savedCount ? ` · ${savedCount}` : ""}
+          </Link>
+        }
+        chips={[
+          ...(filters.season !== currentSeason ? [{ key: "season", text: seasonLabel(filters.season), href: href({ season: currentSeason, limit: 20 }) }] : []),
+          ...(filters.queue !== "all" ? [{ key: "queue", text: TOGETHER_QUEUES[filters.queue]?.label ?? filters.queue, href: href({ queue: "all", limit: 20 }) }] : []),
+          ...(!filters.saved && filters.min !== 2 ? [{ key: "min", text: MEMBER_COUNTS[filters.min] ?? `${filters.min}+ members`, href: href({ min: 2, limit: 20 }) }] : []),
+          ...filters.with.map((pid) => ({ key: `with-${pid}`, text: `With ${p(pid)?.name ?? "player"}`, href: href({ with: filters.with.filter((x) => x !== pid), limit: 20 }) })),
+        ]}
       >
         {seasons.length > 1 ? (
           <FilterField label="Season" htmlFor="together-season">
@@ -108,15 +119,16 @@ export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams 
 
       {summary ? <TogetherSummaryPanel summary={summary} players={data.players} champ={champ} /> : null}
 
-      {/* The list's own header: how many games, and the bookmark switch that narrows them. */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      {/* The list's own header: how many games, and the bookmark switch that narrows them (on phones
+          beside Filters, where the page's line above already counts the games). */}
+      <div className={cn("flex-wrap items-center justify-between gap-2", data.unknownSide ? "flex" : "hidden md:flex")}>
         <p className="inline-flex items-center gap-1.5 text-sm text-fg-muted" data-testid="together-count">
           <span>
             <span className="font-semibold text-fg">{total}</span> game{total === 1 ? "" : "s"}
           </span>
           {data.unknownSide ? <InfoTip text="Some games with two or more members could not be checked yet: their match details are not stored, so which side each member was on is unknown. They appear once the details are synced." label="Games not checked yet" /> : null}
         </p>
-        <Link href={href({ saved: !filters.saved, limit: 20 })} aria-current={filters.saved ? "page" : undefined} className={chipClass(filters.saved)} data-testid="together-saved">
+        <Link href={href({ saved: !filters.saved, limit: 20 })} aria-current={filters.saved ? "page" : undefined} className={chipClass(filters.saved, "max-md:hidden")} data-testid="together-saved">
           <Bookmark className="h-3.5 w-3.5" aria-hidden /> Bookmarked{savedCount ? ` · ${savedCount}` : ""}
         </Link>
       </div>
@@ -145,7 +157,7 @@ export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams 
           )}
         </EmptyState>
       ) : (
-        <TogetherList entries={shown.map((g) => ({ entry: togetherEntry(g.matchId, g.teamId), matchId: g.matchId }))} className="space-y-2.5">
+        <TogetherList entries={shown.map((g) => ({ entry: togetherEntry(g.matchId, g.teamId), matchId: g.matchId, playerId: g.members[0]!.playerId }))} championsById={champions} className="space-y-2.5">
           {shown.map((g) => (
             <TogetherCard key={togetherEntry(g.matchId, g.teamId)} g={g} p={p} champions={champions} teams={teams[togetherEntry(g.matchId, g.teamId)] ?? teams[g.matchId] ?? null} />
           ))}
@@ -307,9 +319,11 @@ function TogetherCard({ g, p, champions, teams }: { g: TogetherListGame; p: (id:
           </ul>
         </div>
         {/* Both teams, the same preview as a player's Match History: everyone else in the game, and
-            any member on the other side, without opening the match. */}
+            any member on the other side, without opening the match. A phone's card keeps to the
+            members who played (what the list is for) and leaves both teams to the game's own screen,
+            where the scoreboard lists all ten. */}
         {teams ? (
-          <div className="relative min-w-0 border-t border-border/60 pt-2.5 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
+          <div className="relative min-w-0 border-t border-border/60 pt-2.5 max-md:hidden lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
             <TeamComposition teams={teams} champion={champOrUnknown} keepNames />
           </div>
         ) : (

@@ -174,6 +174,25 @@ test("Players: every card on the same regions, level with its neighbours, its po
     const ctx = await browser.newContext({ ...options, storageState: state });
     const page = await ctx.newPage();
     await page.goto("/players");
+    if (page.viewportSize()!.width < 640) {
+      // Phones list a row per player instead of the cards (docs/MOBILE.md): the member's row is
+      // whole, with their name, its pool's portraits are never cut, and nothing scrolls sideways.
+      const row = page.locator(`main [data-testid=player-row][data-player-name="${who.display}"]`);
+      await expect(row).toBeVisible();
+      await page.evaluate(() => document.fonts.ready);
+      const r = await row.evaluate((el) => {
+        const box = el.getBoundingClientRect();
+        const drawn = [...el.querySelectorAll("[data-testid=pool-portrait], [data-testid=row-pool-more]")].filter((p) => getComputedStyle(p).display !== "none" && p.getBoundingClientRect().width > 0);
+        return { overflow: document.documentElement.scrollWidth - innerWidth, cut: drawn.some((p) => p.getBoundingClientRect().right > box.right - 1), portraits: drawn.length, height: box.height, right: box.right };
+      });
+      expect(r.overflow, `${size}: nothing past the page's edge`).toBeLessThanOrEqual(1);
+      expect(r.cut, `${size}: no portrait cut`).toBe(false);
+      expect(r.portraits, `${size}: their pool shows`).toBeGreaterThan(0);
+      expect(r.height, `${size}: a finger-sized row`).toBeGreaterThanOrEqual(44);
+      await expect(row).toContainText(who.display.slice(0, 12));
+      await ctx.close();
+      continue;
+    }
     await expect(page.locator(`main [data-testid=player-card-item][data-player-name="${who.display}"]`)).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
     const m = await measure(page);

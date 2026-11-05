@@ -24,7 +24,14 @@ export interface HeaderIdentity {
   /** The member has not finished first-time setup (a member all the same). */
   setupPending: boolean;
   lineupRole: Role | null;
-  rank: { tier: string; division: string | null; leaguePoints: number; wins: number | null; losses: number | null; queue: "solo" | "flex" | null; asOf: string | null } | null;
+  /**
+   * False when this viewer may not see the player's statistics (canViewPlayerStats: not their own
+   * profile, no "view teammates' statistics"): the rank is then left out, on the server, and the
+   * header shows no rank at all, never "Unranked".
+   */
+  showRank: boolean;
+  /** The last known rank, when shown (null with showRank: no ranked placement on record). */
+  rank: { tier: string; division: string | null; leaguePoints: number; queue: "solo" | "flex" | null; asOf: string | null } | null;
   /** Champions offered first in the Customise dialog (the player's pools). */
   featurable: string[];
   /** The social links the player shows to team members (already filtered on the server). */

@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { chooseSeason, offeredSeasons } from "@/domain/season";
 import type { Db } from "@/server/db/types";
-import { compositionOf, loadCompositionParticipants, teamMembersByPuuid, type Composition } from "@/server/matches/compositions";
+import { compositionOf, loadCompositionParticipants, type Composition } from "@/server/matches/compositions";
 import { opggLinkFor, platformOfMatchId } from "@/domain/opgg";
 import { largestMultikill } from "@/domain/multikills";
 import { knownRiotIds } from "@/server/players/riot-names";
@@ -25,6 +25,7 @@ import { lookUpRanks, NO_CHECK, rankChecksAvailable, rankLookupClient, recordedR
 import { participantRank, UNKNOWN_RANK, type GameTime, type ParticipantRank, type RankReading } from "@/domain/known-rank";
 import { narrowsGames, patchOptions, readRefine, refineGames, sessionKeys, sessionSummaries, type HistoryRefine, type MembersInGame, type RefineParams, type SessionSummary } from "@/domain/history-refine";
 import { historyMembers, memberGameCounts, memberPlacements } from "@/server/players/history-members";
+import { gameAudience, namesMembers, OWN_STATS_ONLY, type StatsFor } from "@/server/players/game-audience";
 import { isoDay } from "@/lib/format";
 
 /*
@@ -223,8 +224,13 @@ export function teamKills(parts: readonly MatchParticipantDetail[], teamId: numb
   return typeof total === "number" ? total : 0;
 }
 
-/** One page of the history, newest first, with the same filters as the profile's statistics. */
-export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQuery, poolOf: (role: GameRole) => readonly string[] = () => []): Promise<MatchHistoryPage> {
+/**
+ * One page of the history, newest first, with the same filters as the profile's statistics. What
+ * the cards say about the other players follows players/game-audience: `statsFor` is whose
+ * statistics, rank included, the viewer may see (by default nobody's but the profile's own), and
+ * `viewer.admin` whether the viewer is an administrator.
+ */
+export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQuery, poolOf: (role: GameRole) => readonly string[] = () => [], statsFor: StatsFor = OWN_STATS_ONLY, viewer: { admin?: boolean } = {}): Promise<MatchHistoryPage> {
   const now = new Date();
   const [accounts, seasonNow, patch] = await Promise.all([listAccountsForPlayer(db, playerId), currentSeason(db, now), getCurrentPatch(db)]);
   const ids = accounts.map((a) => a.id);
@@ -248,8 +254,9 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
   // Refine's own choices. A team member's games are read only while one is chosen; the counts
   // beside each member, over the games the other filters leave, in one aggregated read.
   const refine = readRefine(q.refine ?? {});
-  const [owner] = await db.select({ teamId: players.teamId }).from(players).where(eq(players.id, playerId));
-  const members = owner && ids.length ? await historyMembers(db, owner.teamId, playerId) : [];
+  // A personal-use player's games name nobody on the team but for an administrator (players/game-audience): no member to choose.
+  const [owner] = await db.select({ teamId: players.teamId, teamMember: players.teamMember }).from(players).where(eq(players.id, playerId));
+  const members = owner && namesMembers(owner, viewer) && ids.length ? await historyMembers(db, owner.teamId, playerId) : [];
   const chosenMember = refine.member && (refine.member.id === "any" || members.some((m) => m.id === refine.member!.id)) ? refine.member : null;
   const unrefinedIds = unrefined.map((g) => g.matchId);
   const [memberCounts, placements] = await Promise.all([
@@ -305,11 +312,19 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
   const newest = [...sorted].slice(0, FORM_RECENT);
   const ladderQueue = filter.season === seasonNow && filter.mode !== "normal" ? (filter.mode === "flex" ? "flex" : "solo") : null;
   const ladderAccount = filter.accountId ? accounts.find((a) => a.id === filter.accountId) : accounts[0];
-  const [pageMembers, known, readings, before, teamKillRows, ladder, lpOf] = await Promise.all([
-    owner ? teamMembersByPuuid(db, owner.teamId, pagePuuids) : Promise.resolve(new Map<string, { id: string; name: string }>()),
-    knownRiotIds(db, pagePuuids, Math.min(...details.map((d) => d.gameCreation))),
-    storedRankReadings(db, others),
-    recordedRanksBefore(db, details.map((d) => ({ matchId: d.matchId, start: d.gameCreation, puuids: othersOf(d) }))),
+  // Who is named, and whose linked account is read, for this viewer (players/game-audience); the
+  // reads that need it follow it, while the others run beside them.
+  const audienceReads = async () => {
+    const seen = await gameAudience(db, { playerId, ownPuuids, owner: owner ?? null }, pagePuuids, statsFor, viewer);
+    const [known, readings, before] = await Promise.all([
+      knownRiotIds(db, pagePuuids, Math.min(...details.map((d) => d.gameCreation)), { linked: seen.riotIds }),
+      storedRankReadings(db, others.filter((p) => !seen.hidden.has(p)), { linked: seen.ranks }),
+      recordedRanksBefore(db, details.map((d) => ({ matchId: d.matchId, start: d.gameCreation, puuids: othersOf(d).filter((p) => seen.ranks.has(p)) }))),
+    ]);
+    return { seen, known, readings, before };
+  };
+  const [{ seen, known, readings, before }, teamKillRows, ladder, lpOf] = await Promise.all([
+    audienceReads(),
     newest.length
       ? db
           .select({ matchId: accountMatches.matchId, accountId: accountMatches.accountId, teamKills: accountMatches.teamKills })
@@ -319,6 +334,7 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     ladderQueue && ladderAccount ? ladderChange(db, ladderAccount.id, ladderQueue, now.getTime()) : Promise.resolve(null),
     lpForGames(db, slice.map((g) => ({ matchId: g.matchId, accountId: g.accountId, queueId: g.queueId, gameCreation: g.gameCreation }))),
   ]);
+  const pageMembers = seen.members;
   const teamKillsOf = new Map<string, number>();
   for (const g of newest) {
     const row = teamKillRows.find((r) => r.matchId === g.matchId && r.accountId === g.accountId) ?? teamKillRows.find((r) => r.matchId === g.matchId);
@@ -340,7 +356,7 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     const ic = me ? icons(me, assets, version) : { items: null, spells: null, keystone: null, secondary: null };
     const tk = me && d ? teamKills(d.participants, me.teamId, d.teams) : 0;
     const played = d ? gameTimeOf(d) : null;
-    const teams = d ? compositionOf(d.participants, pageMembers, (puuid) => puuid === me?.puuid, me?.teamId ?? null, { platform: platformOfMatchId(g.matchId), known, rankOf: (puuid) => participantRank(readingsAt(readings, before, g.matchId, puuid), g.queueId, nowMs, played) }) : null;
+    const teams = d ? compositionOf(d.participants, pageMembers, (puuid) => puuid === me?.puuid, me?.teamId ?? null, { platform: platformOfMatchId(g.matchId), known, rankOf: (puuid) => (seen.hidden.has(puuid) ? null : participantRank(readingsAt(readings, before, g.matchId, puuid), g.queueId, nowMs, played)) }) : null;
     const standout = standoutOf(personalComparison(g, history));
     return {
       matchId: g.matchId,
@@ -431,12 +447,13 @@ export interface DetailParticipant {
   /**
    * Their current or last-checked rank from stored readings (domain/known-rank.ts), never the rank
    * at the time of the match; "unknown" is not "unranked". A stale one is checked with Riot after
-   * the window opens (getMatchRanks).
+   * the window opens (getMatchRanks). Null for a team member whose statistics the viewer may not
+   * see (players/game-audience): left out, not shown as unknown or unranked.
    */
-  rank: ParticipantRank;
+  rank: ParticipantRank | null;
   /** The profile's own player in this game. */
   isPlayer: boolean;
-  /** A registered UNIIVERSE player (display name), when their linked account played. */
+  /** A current team member (display name), when their linked account played, in a team member's games (players/game-audience). */
   teamMember: string | null;
   /** That player's UNIIVERSE profile id, when the profile is active (not archived). */
   memberId: string | null;
@@ -612,20 +629,24 @@ export type MatchRanksResult = { status: "ok"; ranks: Array<{ slot: number; rank
  * The ranks of one match's players, by scoreboard slot, for a match window that is open: stored
  * readings first, and with `lookup` the players whose reading is missing or stale are checked
  * with Riot within the limits in server/players/participant-ranks.ts. The same match rule as
- * getMatchDetail: one of the player's stored games, or nothing.
+ * getMatchDetail: one of the player's stored games, or nothing. The same audience too
+ * (players/game-audience, `statsFor`, `admin`): a team member whose statistics the viewer may not
+ * see has no slot here and is never checked.
  */
-export async function getMatchRanks(db: Db, playerId: string, matchId: string, options: { lookup: boolean; client?: RiotApiClient | null; now?: Date; perDay?: number }): Promise<MatchRanksResult> {
-  if (!(await matchOfPlayer(db, playerId, matchId))) return { status: "not-found", message: "This match is not in this player's history." };
+export async function getMatchRanks(db: Db, playerId: string, matchId: string, options: { lookup: boolean; client?: RiotApiClient | null; now?: Date; perDay?: number; statsFor?: StatsFor; admin?: boolean }): Promise<MatchRanksResult> {
+  const owned = await matchOfPlayer(db, playerId, matchId);
+  if (!owned) return { status: "not-found", message: "This match is not in this player's history." };
   const [d] = await db.select({ queueId: matchDetails.queueId, platform: matchDetails.platform, gameCreation: matchDetails.gameCreation, gameDuration: matchDetails.gameDuration }).from(matchDetails).where(eq(matchDetails.matchId, matchId));
   const parts = (await loadCompositionParticipants(db, [matchId])).get(matchId) ?? [];
   if (!d || !parts.length) return { status: "ok", ranks: [], check: NO_CHECK };
   const now = options.now ?? new Date();
   const played = gameTimeOf(d);
-  const listed = parts.map((p, slot) => ({ slot, puuid: p.removed ? "" : p.puuid, name: p.name }));
+  const seen = await gameAudience(db, { playerId, ownPuuids: owned.accounts.map((a) => a.puuid) }, parts.map((p) => p.puuid), options.statsFor, { admin: options.admin });
+  const listed = parts.map((p, slot) => ({ slot, puuid: p.removed ? "" : p.puuid, name: p.name })).filter((p) => !seen.hidden.has(p.puuid));
   // A member's rank going into the game does not change with a check: read once.
-  const before = await recordedRanksBefore(db, [{ matchId, start: d.gameCreation, puuids: listed.map((p) => p.puuid) }]);
+  const before = await recordedRanksBefore(db, [{ matchId, start: d.gameCreation, puuids: listed.map((p) => p.puuid).filter((p) => seen.ranks.has(p)) }]);
   const rankOf = async () => {
-    const readings = await storedRankReadings(db, listed.map((p) => p.puuid));
+    const readings = await storedRankReadings(db, listed.map((p) => p.puuid), { linked: seen.ranks });
     return listed.map((p) => ({ ...p, rank: p.puuid ? participantRank(readingsAt(readings, before, matchId, p.puuid), d.queueId, now.getTime(), played) : { ...UNKNOWN_RANK, stale: false } }));
   };
   let ranked = await rankOf();
@@ -644,8 +665,11 @@ export type MatchDetailResult = { status: "ok"; view: MatchDetailView } | { stat
  * The full record of one match from a player's history. The match must be one of the player's
  * stored games (any other id finds nothing). A record not collected yet is fetched once from Riot
  * and kept, when Riot access is configured; otherwise the page says it is still being collected.
+ * What it says about the other players follows players/game-audience (`statsFor`: whose
+ * statistics, rank included, the viewer may see, by default nobody's but the profile's own;
+ * `admin`: the viewer is an administrator).
  */
-export async function getMatchDetail(db: Db, playerId: string, matchId: string, options: { viewerIsOwner: boolean; fetchMissing?: boolean; canShare?: boolean } = { viewerIsOwner: false }): Promise<MatchDetailResult> {
+export async function getMatchDetail(db: Db, playerId: string, matchId: string, options: { viewerIsOwner: boolean; fetchMissing?: boolean; canShare?: boolean; statsFor?: StatsFor; admin?: boolean } = { viewerIsOwner: false }): Promise<MatchDetailResult> {
   const owned = await matchOfPlayer(db, playerId, matchId);
   if (!owned) return { status: "not-found", message: "This match is not in this player's history." };
   const { accounts, mine } = owned;
@@ -680,21 +704,28 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
     d.participants.find((p) => puuids.has(p.puuid)) ??
     (mine.teamId !== null ? d.participants.find((p) => !isRemoved(p) && p.teamId === mine.teamId && p.championId === mine.championId) : undefined) ??
     null;
-  // Current team members in this game (any linked account), by display name: the rule of the match
-  // cards and Team → Matches (matches/compositions teamMembersByPuuid), so a personal-use or an
-  // archived profile is named and linked nowhere; everyone else to OP.GG when the record allows.
-  const [owner] = await db.select({ teamId: players.teamId }).from(players).where(eq(players.id, playerId));
-  const members = owner ? await teamMembersByPuuid(db, owner.teamId, d.participants.map((p) => p.puuid)) : new Map<string, { id: string; name: string }>();
-  const memberOf = new Map([...members].map(([puuid, m]) => [puuid, m.name]));
-  const profileOf = new Map([...members].map(([puuid, m]) => [puuid, m.id]));
-  const platform = platformOfMatchId(matchId);
+  // Current team members in this game (any linked account), by display name, in a team member's
+  // games (an administrator's view of a personal-use player's too): the rule of the match cards and
+  // Team → Matches, so a personal-use or an archived profile is named and linked nowhere; everyone
+  // else to OP.GG when the record allows. A member's rank only
+  // for a viewer who may see their statistics; everyone else's linked account is not read
+  // (players/game-audience).
   const inGame = d.participants.map((p) => p.puuid);
-  const [readings, before, known] = await Promise.all([storedRankReadings(db, inGame), recordedRanksBefore(db, [{ matchId, start: d.gameCreation, puuids: inGame }]), knownRiotIds(db, inGame, d.gameCreation)]);
+  const seen = await gameAudience(db, { playerId, ownPuuids: puuids }, inGame, options.statsFor, { admin: options.admin });
+  const memberOf = new Map([...seen.members].map(([puuid, m]) => [puuid, m.name]));
+  const profileOf = new Map([...seen.members].map(([puuid, m]) => [puuid, m.id]));
+  const platform = platformOfMatchId(matchId);
+  const shown = inGame.filter((p) => !seen.hidden.has(p));
+  const [readings, before, known] = await Promise.all([
+    storedRankReadings(db, shown, { linked: seen.ranks }),
+    recordedRanksBefore(db, [{ matchId, start: d.gameCreation, puuids: shown.filter((p) => seen.ranks.has(p)) }]),
+    knownRiotIds(db, inGame, d.gameCreation, { linked: seen.riotIds }),
+  ]);
   const [assets, patch] = await Promise.all([loadRiotAssets(db), getCurrentPatch(db)]);
   const version = ddragonVersionOf(d.gameVersion, patch?.ddragonVersion ?? null);
   const now = Date.now();
   const played = gameTimeOf(d);
-  const rankOf = (p: MatchParticipantDetail): ParticipantRank => (isRemoved(p) || !p.puuid ? { ...UNKNOWN_RANK, stale: false } : participantRank(readingsAt(readings, before, matchId, p.puuid), d!.queueId, now, played));
+  const rankOf = (p: MatchParticipantDetail): ParticipantRank | null => (isRemoved(p) || !p.puuid ? { ...UNKNOWN_RANK, stale: false } : seen.hidden.has(p.puuid) ? null : participantRank(readingsAt(readings, before, matchId, p.puuid), d!.queueId, now, played));
   const killsOf = new Map<number, number>();
   const damageOf = new Map<number, number | null>();
   for (const teamId of new Set(d.participants.map((x) => x.teamId))) {
@@ -775,7 +806,7 @@ export async function getMatchDetail(db: Db, playerId: string, matchId: string, 
       role: mine.role,
       player: { ...me, runePage: runePageOf(meRaw!, assets) },
       teams,
-      rankCheck: rankChecksAvailable({ matchId, platform: d.platform }) && teams.some((t) => t.participants.some((p) => !p.removed && p.rank.stale)),
+      rankCheck: rankChecksAvailable({ matchId, platform: d.platform }) && teams.some((t) => t.participants.some((p) => !p.removed && !!p.rank?.stale)),
       maxDamage: Math.max(1, ...d.participants.map((p) => p.damage ?? 0)),
       comparison: compareInMatch(d.participants, d.teams, meRaw!, d.gameDuration),
       personal: target ? personalComparison(target, history) : null,
