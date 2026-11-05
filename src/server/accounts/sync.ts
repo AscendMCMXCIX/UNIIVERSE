@@ -1,4 +1,5 @@
 import { matchesWithoutDetails, storeMatchDetail, storeMatchUnavailable } from "./match-details";
+import { errorLabel } from "@/server/errors";
 import { summariseMatches } from "./match-summary";
 import { and, desc, eq, inArray, isNotNull, isNull, like, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
@@ -118,7 +119,7 @@ export function friendlyAccountError(err: unknown, context: "resolve" | "sync" =
         return err.status >= 500 ? { message: "Riot's servers are having trouble. Your account is saved and retried automatically.", status: "pending" } : { message: "Riot answered in an unexpected way. Your account is saved and retried automatically.", status: "pending" };
     }
   }
-  const text = (err as Error)?.message ?? String(err);
+  const text = errorLabel(err);
   if (/Unexpected response shape/i.test(text)) return { message: "Riot answered in an unexpected format. Your account is saved and retried automatically.", status: "pending" };
   return { message: "Something went wrong while talking to Riot. Your account is saved and retried automatically.", status: "pending" };
 }
@@ -172,7 +173,7 @@ async function refreshRiotId(db: Db, client: RiotApiClient, account: RiotAccount
     }
   } catch (err) {
     if (err instanceof RiotDeadlineError || (err instanceof RiotApiError && (err.status === 401 || err.status === 403))) throw err;
-    log(`${accountRef(account)}: Riot ID check unavailable (${(err as Error).message}); keeping the stored name`);
+    log(`${accountRef(account)}: Riot ID check unavailable (${errorLabel(err)}); keeping the stored name`);
     return err;
   }
   return null;
@@ -203,7 +204,7 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
     // A 404 is an answer about this Riot ID, not about the key; everything else says something about the credential.
     if (!(err instanceof RiotApiError && err.status === 404)) await recordRiotOutcome(db, client, { ok: false, error: err });
     else await recordRiotOutcome(db, client, { ok: true });
-    log(`${accountRef(account)}: ${f.message} (${(err as Error)?.message ?? err})`);
+    log(`${accountRef(account)}: ${f.message} (${errorLabel(err)})`);
     return { ...result, error: f.message, status: f.status };
   };
   // The run's time ran out before the account was read, or before any of its history was: a run
@@ -294,7 +295,7 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
       } catch (err) {
         if (err instanceof RiotDeadlineError || (err instanceof RiotApiError && (err.status === 401 || err.status === 403))) throw err;
         lookupOutcome(err);
-        log(`${accountRef(account)}: active-server lookup unavailable (${(err as Error).message}); keeping ${platformLabel(platform)}`);
+        log(`${accountRef(account)}: active-server lookup unavailable (${errorLabel(err)}); keeping ${platformLabel(platform)}`);
       }
     }
     result.platform = platform;
@@ -316,7 +317,7 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
     } catch (err) {
       if (err instanceof RiotDeadlineError || (err instanceof RiotApiError && (err.status === 401 || err.status === 403))) throw err;
       lookupOutcome(err);
-      log(`${accountRef(account)}: rank lookup failed: ${(err as Error).message}`);
+      log(`${accountRef(account)}: rank lookup failed: ${errorLabel(err)}`);
     }
     // Riot's numeric champion keys to ids, read once for the mastery and the season's games.
     const keyToId = new Map((await db.select({ key: champions.key, id: champions.id }).from(champions)).map((c) => [c.key, c.id]));
@@ -336,7 +337,7 @@ export async function syncAccount(db: Db, client: RiotApiClient, account: RiotAc
     } catch (err) {
       if (err instanceof RiotDeadlineError || (err instanceof RiotApiError && (err.status === 401 || err.status === 403))) throw err;
       lookupOutcome(err);
-      log(`${accountRef(account)}: mastery lookup failed: ${(err as Error).message}`);
+      log(`${accountRef(account)}: mastery lookup failed: ${errorLabel(err)}`);
     }
 
     // Match history: every supported queue, the whole current season, collected incrementally.
@@ -535,7 +536,7 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
         if (!refusedForGood(err)) {
           // Anything else (Riot's servers, the network, the rate limit, a request Riot did not
           // accept): a later run tries again; nothing is recorded.
-          log(`match ${matchId} failed: ${(err as Error).message}`);
+          log(`match ${matchId} failed: ${errorLabel(err)}`);
           return stop(i);
         }
         // The same answer every time (refusedForGood). The game is recorded as unavailable, so the
@@ -549,17 +550,17 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
         if (newerRead || (await newerGameReads(queueId, ids.slice(0, i).filter((id) => folded.has(id)), !liveEdge || ids.slice(0, i).some((id) => known.has(id))))) {
           newerRead = true;
           await recordUnavailable(queueId, matchId);
-          log(`match ${matchId} unavailable (${(err as Error).message}); recorded, not asked for again`);
+          log(`match ${matchId} unavailable (${errorLabel(err)}); recorded, not asked for again`);
           continue;
         }
         if (liveEdge && i === 0) {
           // The season's newest game: Riot may still be preparing it. Asked for again by the next
           // run without holding the queue, and recorded as above once a newer game has been read.
           later += 1;
-          log(`match ${matchId} not served yet (${(err as Error).message}); tried again later`);
+          log(`match ${matchId} not served yet (${errorLabel(err)}); tried again later`);
           continue;
         }
-        log(`match ${matchId} failed: ${(err as Error).message}; nothing newer reads, so it is tried again later`);
+        log(`match ${matchId} failed: ${errorLabel(err)}; nothing newer reads, so it is tried again later`);
         return stop(i);
       }
       newerRead = true;
@@ -644,7 +645,7 @@ async function collectSeasonHistory(db: Db, client: RiotApiClient, account: Riot
   // unreachable Riot or the deadline stop the catch-up, as every further request would.
   const skipped: string[] = [];
   const unreadable = (matchId: string, err: unknown, what: string): "continue" | "break" => {
-    log(`match ${matchId} ${what} failed: ${(err as Error).message}`);
+    log(`match ${matchId} ${what} failed: ${errorLabel(err)}`);
     if (recordFailure(err) !== "skip" || skipped.length >= MAX_SKIPPED_RECORDS) return "break";
     skipped.push(matchId);
     return "continue";
