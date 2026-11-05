@@ -34,10 +34,10 @@ trap 'rm -rf "$WORK"' EXIT
 DUMP="$WORK/$NAME.dump"
 mkdir -p "$OUT_DIR"
 
-# Retired tables still in the database: what Meta & Trends left after #86 and #138 dropped the rest
-# on 4 Nov 2026 (docs/DATA_PIPELINES.md, "Retired tables"). Dropping them is a separate decision for
-# the owner. Each backup proves their rows survive the round trip, so the backup kept before a drop
-# is known to hold them. A table that no longer exists is skipped, so the list can outlive a drop.
+# Retired tables: what Meta & Trends left after #86 and #138 dropped the rest on 4 Nov 2026, which
+# migration 0066 drops (docs/DATA_PIPELINES.md, "Retired tables"). Each backup taken while they exist
+# proves their rows survive the round trip, so the backup kept before the drop is known to hold them.
+# A table that no longer exists is skipped, so the list outlives the drop.
 RETIRED="tracked_summoners region_status stat_periods stat_region_periods stat_rank_periods champion_change_points"
 
 # Tables whose row counts must survive the round trip, and the newest migration. The retired

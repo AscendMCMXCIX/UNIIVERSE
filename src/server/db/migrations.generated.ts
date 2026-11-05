@@ -938,5 +938,20 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
     "statements": [
       "ALTER TABLE \"rank_snapshots\" ADD COLUMN \"confirmed_at\" timestamp with time zone;"
     ]
+  },
+  {
+    "idx": 66,
+    "tag": "0066_retire_meta_trends_rest",
+    "hash": "3db5c674fe105a2665caeafbca668ebae4a2c4321fb496f51b2fb5d0838be3e4",
+    "statements": [
+      "-- Drops what was left of Meta & Trends and deletes the other players' ranks no stored game names.\n-- Tables (nothing has read or written them since the feature was removed on 19 Oct 2026; 0062 dropped\n-- the other 12): tracked_summoners (the ladder players; 0048 copied the ranks Match History shows\n-- into last_known_ranks), region_status (the collection's per-region state), stat_periods,\n-- stat_region_periods and stat_rank_periods (the aggregation's periods) with stat_source, the enum\n-- type only they used, and champion_change_points (rework discounts).\n-- Ranks: last_known_ranks rows whose player is in no stored game (the ladder's and the Draft's\n-- sightings 0048 copied, and lookups whose games are gone). A rank is only ever shown for a player\n-- in a stored game, so nothing on any page changes. Data jobs db-usage counts them (\"lastKnownRanks\").\n-- Held until, and only after, all of these:\n--   1. the owner has independently verified an encrypted backup that holds these tables and\n--      last_known_ranks (docs/BACKUPS.md: restored and counted) and secured an offline copy;\n--   2. Data jobs db-usage, \"retired\", twice a day apart: no new writes to these tables, and no\n--      dependent outside them;\n--   3. the owner's explicit go-ahead to delete this data.\n-- No CASCADE: each table goes after anything that references it (champion_change_points references\n-- champions, which stays), so a dependency nobody expected makes this migration fail instead of\n-- being dropped with them. Recovery: pg_restore --table (and the last_known_ranks rows) from that\n-- backup, then revert this change.\nDROP TABLE \"champion_change_points\";",
+      "DROP TABLE \"stat_rank_periods\";",
+      "DROP TABLE \"stat_region_periods\";",
+      "DROP TABLE \"stat_periods\";",
+      "DROP TYPE \"public\".\"stat_source\";",
+      "DROP TABLE \"region_status\";",
+      "DROP TABLE \"tracked_summoners\";",
+      "WITH stored AS (SELECT DISTINCT jsonb_array_elements_text(jsonb_path_query_array(\"participants\", '$[*].puuid')) AS puuid FROM \"match_details\")\nDELETE FROM \"last_known_ranks\" l WHERE NOT EXISTS (SELECT 1 FROM stored s WHERE s.puuid = l.puuid);"
+    ]
   }
 ];

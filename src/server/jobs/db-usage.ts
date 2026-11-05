@@ -13,12 +13,11 @@ const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
   tables, columns and enum types (decision 3, docs/ARCHITECTURE.md "Draft removed"; migration 0063),
   the scouts Clash Scout saved (migration 0064; docs/CLASH_SCOUT.md) and what the retired Ranked
   Development kept (docs/RANKED_DEVELOPMENT.md; no drop migration is prepared for these yet). The
-  rest of Meta & Trends is still kept: the ladder players, the collection's per-region state, the
-  aggregation's period tables (and their enum type) and the rework change points; dropping them is
-  a separate decision for the owner. The report checks each against production before it goes, and
-  confirms afterwards that it went (a dropped one is reported as gone). Until their drop, permanent
-  erasure and its reconciliation still read and write the Ranked Development records and the ladder
-  players (server/privacy).
+  rest of Meta & Trends (the ladder players, the collection's per-region state, the aggregation's
+  period tables with their enum type and the rework change points) went in migration 0066. The
+  report checks each against production before it goes, and confirms afterwards that it went (a
+  dropped one is reported as gone). Until their drop, permanent erasure and its reconciliation still
+  read and write the Ranked Development records (server/privacy).
 */
 const RETIRED_TABLES = [
   ...["ranked_matches", "ranked_participants", "ranked_bans", "match_fetch_queue", "champion_role_stats", "champion_ban_stats", "champion_matchups", "champion_synergies", "pro_pick_slot_stats", "pro_games", "pro_game_picks", "pro_game_bans"],
