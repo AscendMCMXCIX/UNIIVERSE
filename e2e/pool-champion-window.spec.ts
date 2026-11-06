@@ -23,6 +23,10 @@ test("a pool champion opens the shared champion window, with Matchups, in that r
   const first = page.getByTestId("primary-pool").getByTestId("pool-item").first();
   const championId = (await first.getAttribute("data-champion"))!;
   await expect(first.getByTestId("pool-splash")).toHaveCount(1);
+  // The art behind a row: on phones the champion's small tile, from tablets up the splash (a 48 px
+  // strip at a quarter opacity needs no 1215 px image on a phone).
+  await first.scrollIntoViewIfNeeded();
+  await expect.poll(() => first.getByTestId("pool-splash").locator("img").evaluate((img) => (img as HTMLImageElement).currentSrc), { message: "the backdrop's chosen source" }).toContain(test.info().project.name === "phone" ? "/img/champion/tiles/" : "/img/champion/splash/");
   const win = page.getByTestId("champion-detail");
   // A click before the page is interactive does nothing: click again until the window opens.
   await expect(async () => {

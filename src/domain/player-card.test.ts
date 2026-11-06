@@ -37,5 +37,6 @@ describe("card art", () => {
     expect(championArtUrl({ championId: "Riven", skinNum: 16 }, "splash")).toBe("https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Riven_16.jpg");
     expect(championArtUrl({ championId: "MonkeyKing", skinNum: 0 }, "loading")).toBe("https://ddragon.leagueoflegends.com/cdn/img/champion/loading/MonkeyKing_0.jpg");
     expect(championArtUrl({ championId: "Riven", skinNum: -3 }, "splash")).toBe("https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Riven_0.jpg");
+    expect(championArtUrl({ championId: "Riven", skinNum: 16 }, "tiles")).toBe("https://ddragon.leagueoflegends.com/cdn/img/champion/tiles/Riven_16.jpg");
   });
 });
