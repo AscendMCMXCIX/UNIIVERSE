@@ -22,6 +22,15 @@ set -euo pipefail
 
 : "${BACKUP_DATABASE_URL:?BACKUP_DATABASE_URL is not set}"
 : "${BACKUP_PASSPHRASE:?BACKUP_PASSPHRASE is not set}"
+# The repository is public, so anyone signed in to GitHub can download the encrypted backup and try
+# passphrases offline for as long as they like. A short passphrase is refused before anything is read.
+# Length is the one property a script can check; the passphrase must also be random (a password
+# manager's generator) and used nowhere else (docs/BACKUPS.md, "Rotating the passphrase").
+MIN_PASSPHRASE_CHARS=32
+if [ "${#BACKUP_PASSPHRASE}" -lt "$MIN_PASSPHRASE_CHARS" ]; then
+  echo "BACKUP_PASSPHRASE is shorter than $MIN_PASSPHRASE_CHARS characters. Set a new random one (docs/BACKUPS.md, \"Rotating the passphrase\"); nothing was backed up." >&2
+  exit 1
+fi
 OUT_DIR="${OUT_DIR:-backup}"
 MAX_MB="${MAX_MB:-100}"
 RESTORE_DB=uniiverse_restore_check
