@@ -135,7 +135,15 @@ only:
 - `placesMissingFromOwnHistory`: members' places in the season's stored records that are missing from
   that member's own history. Played Together reads the histories, so it misses those games. A non-zero
   count points at a gap in that member's own season history: a game the sync never stored for them
-  (`docs/DATA_PIPELINES.md` describes how the history is collected).
+  (`docs/DATA_PIPELINES.md` describes how the history is collected). Since 6 Nov 2026 it also says why,
+  for the account the record names:
+  - `reasons.unavailable`: the account has the game as a row Riot refused (no time, or its record gone);
+  - `reasons.withoutChampion`: the account has the game, stored without a champion;
+  - `reasons.noRow`: no row at all. `noRow` splits these by the game's queue (`unsupportedQueue`: a
+    queue the sync does not collect) and by where the game falls in that account's stored history:
+    `beforeOldestGame`, `afterNewestGame`, or `insideHistory`: a game inside the stored range that the
+    sync did not store, which points at the list or the sync rather than at how far back it reached;
+  - `byMember`: places per anonymous label.
 
 ## Code and tests
 

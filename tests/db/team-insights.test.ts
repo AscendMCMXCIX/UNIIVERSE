@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { accountMatches, matchDetails, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
@@ -134,10 +134,44 @@ describe("team insights from stored games", () => {
     expect(audit.memberGames).toBe(7);
     expect(audit.tested).toBe(0);
     // Bea's place in G4 is in the record but not in her history.
-    expect(audit.placesMissingFromOwnHistory).toEqual({ places: 1, matches: 1, members: 1 });
+    // It has no row in her history at all: a Normal Draft game older than her oldest stored game.
+    expect(audit.placesMissingFromOwnHistory).toMatchObject({
+      places: 1,
+      matches: 1,
+      members: 1,
+      reasons: { unavailable: 0, withoutChampion: 0, noRow: 1 },
+      noRow: { byQueue: { "400": 1 }, unsupportedQueue: 0, beforeOldestGame: 1, afterNewestGame: 0, insideHistory: 0 },
+    });
+    expect(audit.placesMissingFromOwnHistory.byMember).toEqual([{ member: expect.stringMatching(/^p\d+$/), places: 1 }]);
     const text = JSON.stringify(audit);
     for (const secret of ["Ace", "Bea", "Cy", "p-ace", "p-bea", "OC1_", ...Object.values(ids)]) expect(text).not.toContain(secret);
     expect(audit.comparisons.every((c) => c.member === null || /^p\d+$/.test(c.member))).toBe(true);
+  });
+
+  it("tells data-audit why a place is missing: a row Riot refused, a row without a champion, or no row", async () => {
+    const at = (days: number) => NOW.getTime() - days * DAY;
+    const row = (key: string, matchId: string, over: Partial<typeof accountMatches.$inferInsert>) => ({ accountId: acc[key]!, matchId, gameCreation: at(2), queueId: 420, championId: "Ahri", role: "MID", win: true, patch: "16.21", gameDuration: 1800, ...over });
+    await handle.db.insert(accountMatches).values([
+      // G20: Ace's game; Cy's own row has no champion (a champion not yet known).
+      row("ace", "OC1_20", {}),
+      row("cy", "OC1_20", { championId: null }),
+      // G21: Ace's game; Riot refused Bea's copy (no time, no champion).
+      row("ace", "OC1_21", {}),
+      row("bea", "OC1_21", { championId: null, gameCreation: 0 }),
+    ]);
+    await handle.db.insert(matchDetails).values([
+      { matchId: "OC1_20", gameCreation: 1, gameDuration: 1800, teams: [], participants: [part("p-ace", 100), part("p-cy", 100)] },
+      { matchId: "OC1_21", gameCreation: 1, gameDuration: 1800, teams: [], participants: [part("p-ace", 100), part("p-bea", 100)] },
+    ]);
+    try {
+      const audit = await teamInsightsAudit(handle.db, teamId, (id) => `p${Object.values(ids).indexOf(id) + 1}`, NOW);
+      expect(audit.placesMissingFromOwnHistory).toMatchObject({ places: 3, reasons: { unavailable: 1, withoutChampion: 1, noRow: 1 }, noRow: { beforeOldestGame: 1 } });
+      expect(audit.placesMissingFromOwnHistory.byMember.reduce((n, m) => n + m.places, 0)).toBe(3);
+    } finally {
+      await handle.db.delete(accountMatches).where(inArray(accountMatches.matchId, ["OC1_20", "OC1_21"]));
+      await handle.db.delete(matchDetails).where(inArray(matchDetails.matchId, ["OC1_20", "OC1_21"]));
+      invalidateTeamInsightsCache();
+    }
   });
 
   it("is cached until the history changes", async () => {

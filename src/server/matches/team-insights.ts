@@ -3,7 +3,7 @@ import type { Db } from "@/server/db/types";
 import { registerLocalCache } from "@/server/observability/cache";
 import { riotAccounts } from "@/server/db/schema";
 import { summariseMatches } from "@/server/accounts/match-summary";
-import { currentSeason } from "@/server/accounts/sync";
+import { SYNC_QUEUE_IDS, currentSeason } from "@/server/accounts/sync";
 import { listPlayers } from "@/server/repositories/team";
 import { seasonStartUnix } from "@/domain/season";
 import { isoDay } from "@/lib/format";
@@ -160,6 +160,74 @@ export async function loadTeamInsights(db: Db, teamId: string, now: Date = new D
 }
 
 /**
+ * Why a member's place in a stored record is missing from their own history (data-audit, read
+ * only; counts and anonymous labels only). Each place is classified once, by the account whose
+ * PUUID the record names:
+ * - `unavailable`: the account has the game as a ledger row Riot refused (no time, or its record gone);
+ * - `withoutChampion`: the account has the game, stored without a champion (a remake, or a champion not yet known);
+ * - `noRow`: the account's history has no row for the game at all. Split by the game's queue
+ *   (from the teammate's row: a queue the sync does not collect is never in anyone's own history),
+ *   and by where the game falls against that account's stored history (before its oldest game,
+ *   after its newest, or inside it: a game the list skipped).
+ */
+async function missingPlaceReasons(db: Db, accounts: ReadonlyArray<{ id: string; playerId: string }>, season: number, labelOf: (playerId: string) => string) {
+  const empty = { reasons: { unavailable: 0, withoutChampion: 0, noRow: 0 }, noRow: { byQueue: {} as Record<string, number>, unsupportedQueue: 0, beforeOldestGame: 0, afterNewestGame: 0, insideHistory: 0 }, byMember: [] as Array<{ member: string; places: number }> };
+  if (accounts.length === 0) return empty;
+  const idList = sql.join(accounts.map((a) => sql`${a.id}::uuid`), sql`, `);
+  const since = seasonStartUnix(season) * 1000 - SEASON_LEAD_MS;
+  const result = await db.execute(sql`
+    WITH acc AS (SELECT ra.id, ra.puuid, ra.player_id FROM riot_accounts ra WHERE ra.id IN (${idList})),
+    own AS (
+      SELECT am.match_id, acc.player_id, min(am.game_creation) AS game_creation, min(am.queue_id) AS queue_id
+      FROM account_matches am JOIN acc ON acc.id = am.account_id
+      WHERE am.champion_id IS NOT NULL AND am.game_creation >= ${since}
+      GROUP BY am.match_id, acc.player_id
+    ),
+    team AS (SELECT match_id, min(game_creation) AS game_creation, min(queue_id) AS queue_id FROM own GROUP BY match_id),
+    places AS (
+      SELECT DISTINCT ON (t.match_id, acc.player_id) t.match_id, t.game_creation, t.queue_id, acc.player_id, acc.id AS account_id
+      FROM team t
+      JOIN match_details md ON md.match_id = t.match_id
+      CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(md.participants) = 'array' THEN md.participants ELSE '[]'::jsonb END) AS pt(value)
+      JOIN acc ON acc.puuid = pt.value->>'puuid' AND acc.puuid <> ''
+      WHERE pt.value->>'teamId' IN ('100', '200')
+      ORDER BY t.match_id, acc.player_id, acc.id
+    ),
+    span AS (
+      SELECT am.account_id, min(am.game_creation) FILTER (WHERE am.game_creation > 0) AS oldest, max(am.game_creation) AS newest
+      FROM account_matches am JOIN acc ON acc.id = am.account_id GROUP BY am.account_id
+    )
+    SELECT p.player_id, p.queue_id,
+      CASE
+        WHEN EXISTS (SELECT 1 FROM account_matches am WHERE am.account_id = p.account_id AND am.match_id = p.match_id AND (am.game_creation = 0 OR am.kills = -1)) THEN 'unavailable'
+        WHEN EXISTS (SELECT 1 FROM account_matches am WHERE am.account_id = p.account_id AND am.match_id = p.match_id) THEN 'withoutChampion'
+        ELSE 'noRow'
+      END AS reason,
+      CASE WHEN s.oldest IS NULL OR p.game_creation < s.oldest THEN 'before' WHEN p.game_creation > s.newest THEN 'after' ELSE 'inside' END AS position
+    FROM places p
+    LEFT JOIN span s ON s.account_id = p.account_id
+    WHERE NOT EXISTS (SELECT 1 FROM own o WHERE o.match_id = p.match_id AND o.player_id = p.player_id)`);
+  const rows = rowsOf<{ player_id: string; queue_id: number | string | null; reason: "unavailable" | "withoutChampion" | "noRow"; position: "before" | "after" | "inside" }>(result);
+  const out = structuredClone(empty);
+  const perMember = new Map<string, number>();
+  const collected = new Set<number>(SYNC_QUEUE_IDS);
+  for (const r of rows) {
+    out.reasons[r.reason] += 1;
+    const label = labelOf(r.player_id);
+    perMember.set(label, (perMember.get(label) ?? 0) + 1);
+    if (r.reason !== "noRow") continue;
+    const queue = r.queue_id === null ? "unknown" : String(Number(r.queue_id));
+    out.noRow.byQueue[queue] = (out.noRow.byQueue[queue] ?? 0) + 1;
+    if (r.queue_id !== null && !collected.has(Number(r.queue_id))) out.noRow.unsupportedQueue += 1;
+    if (r.position === "before") out.noRow.beforeOldestGame += 1;
+    else if (r.position === "after") out.noRow.afterNewestGame += 1;
+    else out.noRow.insideHistory += 1;
+  }
+  out.byMember = [...perMember].map(([member, places]) => ({ member, places })).sort((a, b) => b.places - a.places);
+  return out;
+}
+
+/**
  * For data-audit (read only, counts and anonymous labels only): what Team insights would show on
  * this database, and how many members' places in the season's stored records are missing from
  * that member's own history (a history gap; Played Together, which reads the histories, misses
@@ -173,6 +241,7 @@ export async function teamInsightsAudit(db: Db, teamId: string, labelOf: (player
   const r = teamInsights({ ...inputs, memberIds, season, now: now.getTime() });
   const own = new Set(inputs.games.map((g) => `${g.matchId}|${g.playerId}`));
   const missing = inputs.presences.filter((p) => !own.has(`${p.matchId}|${p.playerId}`));
+  const reasons = await missingPlaceReasons(db, accounts, season, labelOf);
   const round = (v: number | null, digits: number) => (v === null ? null : Number(v.toFixed(digits)));
   return {
     season,
@@ -184,7 +253,7 @@ export async function teamInsightsAudit(db: Db, teamId: string, labelOf: (player
     tested: r.tested,
     findings: r.findings.length,
     typicalMarginPoints: round(r.typicalMargin === null ? null : r.typicalMargin * 100, 1),
-    placesMissingFromOwnHistory: { places: missing.length, matches: new Set(missing.map((p) => p.matchId)).size, members: new Set(missing.map((p) => p.playerId)).size },
+    placesMissingFromOwnHistory: { places: missing.length, matches: new Set(missing.map((p) => p.matchId)).size, members: new Set(missing.map((p) => p.playerId)).size, ...reasons },
     comparisons: r.comparisons.map((c) => ({
       kind: c.kind,
       member: c.playerId ? labelOf(c.playerId) : null,
