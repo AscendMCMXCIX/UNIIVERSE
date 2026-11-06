@@ -86,7 +86,8 @@ function settleSectionTop(): () => void {
     const top = sectionTop();
     if (top === null) return;
     expected = top;
-    window.scrollTo({ top });
+    // Instant: a smooth scroll would still be under way when the next change to the page arrives.
+    window.scrollTo({ top, behavior: "instant" });
     height = document.documentElement.scrollHeight;
   };
   const observer = new MutationObserver(() => {
