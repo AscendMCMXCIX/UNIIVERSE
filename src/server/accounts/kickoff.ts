@@ -1,4 +1,6 @@
+import { sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
+import type { HistoryBackfill } from "@/server/db/schema";
 import { dueForViewRefresh } from "@/domain/account-status";
 import { VIEW_REFRESH_LEASE_MS, backgroundRefreshEnabled, claimLease, releaseLease, viewRefreshLeaseKey } from "@/server/jobs/background";
 import { listAccountsForPlayer } from "./repository";
@@ -60,17 +62,34 @@ export async function kickoffAccountSync(db: Db, playerId: string, options: { ma
 export const VIEW_REFRESH_BUDGET_MS = 40_000;
 
 /**
+ * How far an account's season history has come, as one comparable figure per part: the queues'
+ * offsets, the finished queues and whether the season is complete. A slice made progress when any
+ * part grew or it folded a game; a history Riot holds at one game (a 5xx for good, a champion
+ * still unknown) does not move, and the slice says so (below).
+ */
+function historyReach(h: HistoryBackfill | null | undefined): number[] {
+  if (!h) return [0, 0, 0];
+  const queues = Object.values(h.queues ?? {});
+  return [queues.reduce((n, q) => n + (q.offset ?? 0), 0), queues.filter((q) => q.done).length, h.completedAt ? 1 : 0];
+}
+const reached = (before: number[], after: number[]) => after.some((v, i) => v > (before[i] ?? 0));
+
+/**
  * Refresh while someone looks at a player (their overview, profile or Riot settings), after the
  * page has been sent: unverified accounts, accounts still adding this season's history and
  * accounts not refreshed for 15 minutes get one bounded sync (about 40 seconds, 60 matches).
  * The page asks every ten seconds while this runs and reads itself again when the data changed
  * (components/ui/freshness-watcher.tsx), and each render may start the next slice. A two-minute
  * lease per player keeps slices from overlapping; the per-account lease keeps them from
- * overlapping the scheduler, a Refresh or the first sync. What this does not do: the page renders
- * again only when its data changes, and a slice's last write lands while its own lease (or another
- * sync's account lease) still stands, so once a slice is over the next one waits for a later data
- * change or for the person to open the page again. A new account therefore fills in a slice per
- * visit, and the scheduler (every run until the season history is complete) does the rest.
+ * overlapping the scheduler, a Refresh or the first sync. A slice's last write lands while its own
+ * lease still stands, so the render it causes starts nothing; the player's version
+ * (server/ops/freshness.ts) also changes once the lease is over while an account is still adding
+ * this season's history, so the open page renders again and starts the next slice. A new account
+ * therefore fills in while its profile stays open, and the scheduler (every run until the season
+ * history is complete) does the rest. Only after a slice that moved the history on: each slice
+ * records in its lease whether it did (`progress`), and a history that does not move (a game Riot
+ * answers 5xx for every time) gets one slice per visit or data change, as before, not one every
+ * two minutes for as long as the page stays open.
  */
 export async function refreshPlayerAccountsIfDue(db: Db, playerId: string, options: { deadlineMs?: number; maxMatchesPerRun?: number } = {}): Promise<number> {
   if (!backgroundRefreshEnabled()) return 0;
@@ -87,6 +106,8 @@ export async function refreshPlayerAccountsIfDue(db: Db, playerId: string, optio
     if (due.length === 0 || !(await claimLease(db, sliceKey, VIEW_REFRESH_LEASE_MS, now))) return 0;
     let synced = 0;
     let started = 0;
+    let progress = false;
+    const reachBefore = new Map(due.map((a) => [a.id, historyReach(a.historyBackfill)]));
     for (const account of due) {
       if (outOfTime()) break;
       // Another sync (the scheduler, a Refresh, the first sync) is on this account or just was.
@@ -98,7 +119,17 @@ export async function refreshPlayerAccountsIfDue(db: Db, playerId: string, optio
       const r = await syncAccount(db, client, account, { maxMatchesPerRun: options.maxMatchesPerRun ?? 60, outOfTime });
       // An account whose sync stopped for time before it read anything was not synced.
       if (!r.outOfTime || r.matchesFolded > 0 || r.masteryRows > 0) synced += 1;
+      if (r.matchesFolded > 0) progress = true;
       if (r.outOfTime) break;
+    }
+    if (started > 0) {
+      if (!progress) {
+        const after = await listAccountsForPlayer(db, playerId);
+        progress = after.some((a) => reachBefore.has(a.id) && reached(reachBefore.get(a.id)!, historyReach(a.historyBackfill)));
+      }
+      // Kept with the lease (its time unchanged, so claims and give-backs work as before): the
+      // player's version (server/ops/freshness.ts) carries on by itself only after a slice that did.
+      await db.execute(sql`UPDATE app_settings SET value = jsonb_build_object('at', ${now.toISOString()}::text, 'progress', ${progress}::boolean) WHERE key = ${sliceKey} AND updated_at = ${now.toISOString()}::timestamptz`);
     }
     // Every due account was held by another sync (the first sync right after sign-up, say): this
     // slice did nothing, so the next render may start one at once instead of two minutes later.

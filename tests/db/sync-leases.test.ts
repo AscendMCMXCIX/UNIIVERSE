@@ -192,6 +192,42 @@ describe("a profile view's refresh", () => {
   });
 });
 
+describe("a slice records whether it moved the history on (server/ops/freshness.ts carries on only then)", () => {
+  const sliceValue = async (playerId: string) => {
+    const [row] = await handle.db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, viewRefreshLeaseKey(playerId)));
+    return row?.value as { progress?: boolean } | string | undefined;
+  };
+  it("says progress when a queue or the season finishes", async () => {
+    const db = handle.db;
+    const player = await createPlayer(db, teamId, { displayName: "Moving", primaryRole: "MID", primaryPool: [] });
+    const account = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Moving#OCE", platform: "oc1", puuid: "puuid-Moving" });
+    await db.update(riotAccounts).set({ syncStatus: "ok", lastSyncAt: new Date(), historyBackfill: { season: 16, startedAt: new Date().toISOString(), completedAt: null, queues: { "420": { offset: 0, done: false } } } }).where(eq(riotAccounts.id, account.id));
+    // Riot lists no game: the queue finishes, and so does the season.
+    expect(await refreshPlayerAccountsIfDue(db, player.id)).toBe(1);
+    expect(await sliceValue(player.id)).toMatchObject({ progress: true });
+  });
+  it("says no progress when Riot holds the history at one game, so an open page does not slice every two minutes", async () => {
+    const db = handle.db;
+    const player = await createPlayer(db, teamId, { displayName: "Stuck", primaryRole: "MID", primaryPool: [] });
+    const account = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Stuck#OCE", platform: "oc1", puuid: "puuid-Stuck" });
+    const queues = Object.fromEntries(["440", "400", "430", "480", "490", "700"].map((q) => [q, { offset: 0, done: true }]));
+    await db.update(riotAccounts).set({ syncStatus: "ok", lastSyncAt: new Date(), historyBackfill: { season: 16, startedAt: new Date().toISOString(), completedAt: null, queues: { ...queues, "420": { offset: 0, done: false } } } }).where(eq(riotAccounts.id, account.id));
+    // The newest Solo/Duo game answers 500 every time (a corrupted game): nothing is stored, the offset stays.
+    const quiet = quietRiot(calls);
+    vi.stubGlobal("fetch", async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes("/ids?") && url.includes("queue=420")) return json(["OC1_STUCK"]);
+      if (url.includes("/matches/OC1_STUCK")) return json({ status: { message: "Internal server error" } }, 500);
+      return quiet(input);
+    });
+    await refreshPlayerAccountsIfDue(db, player.id, { deadlineMs: 1_500 });
+    expect(await sliceValue(player.id)).toMatchObject({ progress: false });
+    const [after] = await db.select({ h: riotAccounts.historyBackfill }).from(riotAccounts).where(eq(riotAccounts.id, account.id));
+    expect(after!.h?.completedAt ?? null).toBeNull();
+    expect(after!.h?.queues["420"]).toMatchObject({ offset: 0, done: false });
+  });
+});
+
 describe("the first sync after sign-up", () => {
   it("syncs a newly linked account at once, holds it while it runs, and gives it back when done", async () => {
     const db = handle.db;

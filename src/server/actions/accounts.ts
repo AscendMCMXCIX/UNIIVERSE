@@ -7,7 +7,7 @@ import { getAppDb } from "@/server/bootstrap";
 import { requirePermission, requireRiotAccountEditor } from "@/server/auth/session";
 import { AccountError, accountForBrowser, addAccount, listAccountsForPlayer, listPendingAccounts, removeAccount, reorderAccounts, setMainAccount, withoutRank, type RiotAccountRecord } from "@/server/accounts/repository";
 import { syncAccount } from "@/server/accounts/sync";
-import { accountSyncLeaseKey, accountSyncRetryIn, claimAccountSync, isSyncableAccount, REFRESH_COOLDOWN_MS, SCHEDULED_SYNC_LEASE_MS } from "@/server/accounts/refresh";
+import { accountSyncLeaseKey, accountSyncRetryIn, claimAccountSync, isSyncableAccount, REFRESH_COOLDOWN_MS, ACCOUNT_ACTION_BUDGET_MS, SCHEDULED_SYNC_LEASE_MS } from "@/server/accounts/refresh";
 import { changeAccountRiotId, type RiotIdChange } from "@/server/accounts/change-riot-id";
 import { createRiotClient, parsePlatforms } from "@/server/riot/api/client";
 import { browserTestRiotClient } from "@/server/riot/browser-test";
@@ -38,8 +38,10 @@ export async function addPlayerAccountAction(playerId: string, input: { riotId: 
     // Resolve immediately when a key is available so the user sees whether the Riot ID exists
     // (under the account's sync lease, like every sync: a view's slice must not start on the new
     // row while this runs). The claim is given back as soon as the sync is done, as the sign-up
-    // kickoff does, so the page's own refresh carries the history on at once, not 100 s later.
-    const client = createRiotClient();
+    // kickoff does, so the page's own refresh carries the history on at once, not 100 s later. Its
+    // Riot client carries the panel's budget (ACCOUNT_ACTION_BUDGET_MS), so the sync ends inside the
+    // lease, never waiting out Riot's limits while the person waits; the next sync carries on.
+    const client = createRiotClient({ deadline: Date.now() + ACCOUNT_ACTION_BUDGET_MS });
     const claimedAt = new Date();
     if (client && (await claimAccountSync(db, account.id, SCHEDULED_SYNC_LEASE_MS, claimedAt))) {
       try {
@@ -66,7 +68,9 @@ export async function changeRiotIdAction(playerId: string, accountId: string, ri
   try {
     await requireRiotAccountEditor(playerId);
     const db = await getAppDb();
-    const client = createRiotClient();
+    // One deadline for the lookup and the replacement's first sync (ACCOUNT_ACTION_BUDGET_MS): a
+    // lookup it stops is "Riot is not answering right now, so nothing was changed".
+    const client = createRiotClient({ deadline: Date.now() + ACCOUNT_ACTION_BUDGET_MS });
     if (!client) return { ok: false, error: "Riot verification is not available right now, so nothing was changed." };
     const account = (await listAccountsForPlayer(db, playerId)).find((a) => a.id === accountId);
     if (!account) return { ok: false, error: "Account not found." };
@@ -127,13 +131,15 @@ export async function reorderAccountsAction(playerId: string, orderedIds: string
  * Retry sync, on an account that is Delayed or needs attention: the full sync of that one account,
  * under the same per-account lease and cooldown as a profile's Refresh (server/accounts/refresh.ts),
  * so repeated clicks, or a retry beside a Refresh or the scheduler, never ask Riot twice. It says
- * what the sync found, never "up to date" for the click alone.
+ * what the sync found, never "up to date" for the click alone. Its Riot client carries a deadline
+ * (ACCOUNT_ACTION_BUDGET_MS), so it ends inside the lease the scheduler respects; a sync stopped by
+ * it says so (`outOfTime`), and the next sync carries on.
  */
-export async function syncPlayerAccountAction(playerId: string, accountId: string): Promise<Result<{ status: "ok" | "pending" | "unresolved" | "failed"; newGames: number; error?: string } | { status: "recent"; retryInSeconds: number }>> {
+export async function syncPlayerAccountAction(playerId: string, accountId: string): Promise<Result<{ status: "ok" | "pending" | "unresolved" | "failed"; newGames: number; error?: string; outOfTime?: boolean } | { status: "recent"; retryInSeconds: number }>> {
   try {
     await requireRiotAccountEditor(playerId);
     const db = await getAppDb();
-    const client = createRiotClient() ?? browserTestRiotClient();
+    const client = createRiotClient({ deadline: Date.now() + ACCOUNT_ACTION_BUDGET_MS }) ?? browserTestRiotClient();
     if (!client) return { ok: false, error: "RIOT_API_KEY is not configured on the server, so accounts cannot be synced yet." };
     const account = (await listAccountsForPlayer(db, playerId)).find((a) => a.id === accountId);
     if (!account) return { ok: false, error: "Account not found." };
@@ -142,7 +148,7 @@ export async function syncPlayerAccountAction(playerId: string, accountId: strin
     const r = await syncAccount(db, client, account, { maxMatchesPerRun: 60 });
     if (r.matchesFolded > 0 || r.masteryRows > 0) invalidateProficiencyCache();
     touch();
-    return { ok: true, data: { status: r.status, newGames: r.matchesFolded, error: r.error } };
+    return { ok: true, data: { status: r.status, newGames: r.matchesFolded, error: r.error, outOfTime: !!r.outOfTime } };
   } catch (err) {
     return fail(err);
   }

@@ -95,6 +95,51 @@ describe("a player's version", () => {
     expect((await playerFreshness(db, playerId)).pace).toBe("idle");
   });
 
+  it("changes when the next slice of a history still being added could start, so a watched profile carries on by itself", async () => {
+    const db = handle.db;
+    const env = { key: process.env.RIOT_API_KEY, bg: process.env.UNIIVERSE_BACKGROUND_REFRESH };
+    process.env.RIOT_API_KEY = "RGAPI-00000000-0000-0000-0000-000000000000";
+    process.env.UNIIVERSE_BACKGROUND_REFRESH = "true";
+    const lease = `account_refresh:${playerId}`;
+    try {
+      await db.update(riotAccounts).set({ historyBackfill: { season: 16, startedAt: new Date().toISOString(), completedAt: null, queues: { "420": { offset: 20, done: false } } } }).where(eq(riotAccounts.id, accountId));
+      // A view's slice holds the player: nothing can start, and the version waits for its results.
+      await db.execute(sql`INSERT INTO app_settings (key, value, updated_at) VALUES (${lease}, '"x"'::jsonb, now()) ON CONFLICT (key) DO UPDATE SET updated_at = now()`);
+      const held = await playerFreshness(db, playerId);
+      expect((await playerFreshness(db, playerId)).v).toBe(held.v);
+      // Its two minutes ran out: the next slice could start, so the open page renders again (and starts it).
+      await db.execute(sql`UPDATE app_settings SET updated_at = now() - interval '3 minutes' WHERE key = ${lease}`);
+      const free = await playerFreshness(db, playerId);
+      expect(free.v).not.toBe(held.v);
+      expect((await playerFreshness(db, playerId)).v).toBe(free.v);
+      // Another sync holds the account (the scheduler, a Refresh): nothing could start yet; once its
+      // 100 s are over, the version moves and the open page starts the slice then.
+      const accountLease = `account_sync:${accountId}`;
+      await db.execute(sql`INSERT INTO app_settings (key, value, updated_at) VALUES (${accountLease}, '"x"'::jsonb, now() - interval '30 seconds') ON CONFLICT (key) DO UPDATE SET updated_at = now() - interval '30 seconds'`);
+      expect((await playerFreshness(db, playerId)).v).toBe(held.v);
+      await db.execute(sql`UPDATE app_settings SET updated_at = now() - interval '2 minutes' WHERE key = ${accountLease}`);
+      expect((await playerFreshness(db, playerId)).v).toBe(free.v);
+      await db.execute(sql`DELETE FROM app_settings WHERE key = ${accountLease}`);
+      // The last slice could not move the history (it recorded progress: false): no slice every two
+      // minutes; the next visit or data change starts one. One that moved it on carries on.
+      await db.execute(sql`UPDATE app_settings SET value = '{"progress": false}'::jsonb WHERE key = ${lease}`);
+      expect((await playerFreshness(db, playerId)).v).toBe(held.v);
+      await db.execute(sql`UPDATE app_settings SET value = '{"progress": true}'::jsonb WHERE key = ${lease}`);
+      expect((await playerFreshness(db, playerId)).v).toBe(free.v);
+      // A complete history: the lease running out moves nothing (a profile left open never renders again for it).
+      await db.update(riotAccounts).set({ historyBackfill: { season: 16, startedAt: new Date().toISOString(), completedAt: new Date().toISOString(), queues: { "420": { offset: 20, done: true } } } }).where(eq(riotAccounts.id, accountId));
+      const completeFree = await playerFreshness(db, playerId);
+      await db.execute(sql`UPDATE app_settings SET updated_at = now() WHERE key = ${lease}`);
+      expect((await playerFreshness(db, playerId)).v).toBe(completeFree.v);
+    } finally {
+      await db.execute(sql`DELETE FROM app_settings WHERE key = ${lease}`);
+      if (env.key === undefined) delete process.env.RIOT_API_KEY;
+      else process.env.RIOT_API_KEY = env.key;
+      if (env.bg === undefined) delete process.env.UNIIVERSE_BACKGROUND_REFRESH;
+      else process.env.UNIIVERSE_BACKGROUND_REFRESH = env.bg;
+    }
+  });
+
   it("follows the timelines of the player's games, so Matchups updates when the backfill stores one", async () => {
     const db = handle.db;
     const [game] = await db.select({ matchId: accountMatches.matchId }).from(accountMatches).where(eq(accountMatches.accountId, accountId)).limit(1);
