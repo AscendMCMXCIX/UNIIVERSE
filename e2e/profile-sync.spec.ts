@@ -80,8 +80,17 @@ test("a changed card shows on Team, Players and the profile for someone who had 
   await watcher.goto("/players");
   await watcher.locator(`main a[href='${href}']`).filter({ visible: true }).first().click();
   await watcher.waitForURL((u) => u.pathname === href);
-  // Crimson's primary, #f05a6e, as the browser writes it inside the light's colour-mix.
-  await expect.poll(() => watcher.getByTestId("player-profile").evaluate((el) => getComputedStyle(el).backgroundImage), { message: "the frame's light carries the new colours" }).toContain("240, 90, 110");
+  // Crimson's primary (#f05a6e) inside the light's colour-mix, written as the browser writes a
+  // computed colour-mix (a probe element gives the exact form, whatever the browser's syntax).
+  const crimson = await watcher.evaluate(() => {
+    const probe = document.createElement("span");
+    probe.style.color = "color-mix(in srgb, #f05a6e 16%, transparent)";
+    document.body.append(probe);
+    const colour = getComputedStyle(probe).color;
+    probe.remove();
+    return colour;
+  });
+  await expect.poll(() => watcher.getByTestId("player-profile").evaluate((el) => getComputedStyle(el).backgroundImage), { message: "the frame's light carries the new colours" }).toContain(crimson);
   // Back to the standard colours for the tests that follow (the artwork stays, as before).
   await editor.getByTestId("customise-card").click();
   await editor.getByTestId("preset-uniiverse").click();
