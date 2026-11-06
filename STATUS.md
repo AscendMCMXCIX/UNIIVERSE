@@ -1,6 +1,6 @@
 # UNIIVERSE status
 
-**The one status record.** Each session updates it in place: what is live, what is verified and what is still open, with the evidence for each. Detail stays in the linked PRs and docs. Last updated 6 Nov 2026, 03:40 UTC.
+**The one status record.** Each session updates it in place: what is live, what is verified and what is still open, with the evidence for each. Detail stays in the linked PRs and docs. Last updated 6 Nov 2026, 04:50 UTC.
 
 **Production on 6 Nov, 03:11 UTC** (read from the live site): `/api/health` answers `ok` from 77c43cd (#202's merge) in `syd1`, with the database up, the Riot key accepted and no job failing. `main` (501d704) differs from it only by docs (#195, #200, #213), which Vercel does not build, so production runs the latest code on `main`.
 
