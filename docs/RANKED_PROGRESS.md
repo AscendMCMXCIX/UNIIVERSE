@@ -157,8 +157,10 @@ traffic per run. No GitHub Actions minutes.
 ## Checking it
 
 - **Data jobs → `rank-audit`** (read-only): per account and queue, Riot's count of the year's games
-  at the first reading against the stored games, the readings and the games between them, how many
-  games have a figure and why the others have none, with the last few figures and the minutes
+  at the first reading against the stored games, the queue's rows without a champion by kind (a game
+  Riot refused for good, recorded with no start time, or one whose champion the list did not have),
+  which say why Riot's count can exceed the stored games, the readings and the games between them,
+  how many games have a figure and why the others have none, with the last few figures and the minutes
   between each game and its two readings; the 2026 seasons' first patches as stored; how often
   ranks were read; the year's games and readings week by week. Accounts appear as P1/A1 only.
 - **Ranked progress → History and coverage**: every reading with its first and last time.
