@@ -52,16 +52,23 @@ Compact, in Profile Overview under the season card and Recent form (`ranked-prog
 
 - **Now:** the crest, the current rank and LP (with how far into the division), and Riot's wins and
   losses for the ranked year with the win rate.
-- **How it moved:** from the reading in effect 30 days ago to the latest, labelled "Last 30 days";
-  when recording began inside those 30 days the first reading is the start and the label says
-  "Since 16 Oct" instead. Same division (or Master and above): the LP difference. Across divisions:
-  divisions gained or lost, no LP figure (LP restarts after a promotion). Never across a reset.
-- **Highest recorded** rank and LP, with the day it was first read.
+- **How it moved:** over the last 30 days, from the reading in effect when the window began (one
+  seen by then and still confirmed then, or followed by its next reading within a single game) to
+  the latest, labelled "Last 30 days". Where recording began inside the window, or several unseen
+  games straddle its start, the first reading inside the window is the start and the label says
+  "Since 16 Oct" instead: the figure never takes in games that were not read. A rank read before
+  the window and confirmed inside it is "No change"; an account unranked now has nothing to compare.
+  Same division (or Master and above): the LP difference. Across divisions: divisions gained or
+  lost, no LP figure (LP restarts after a promotion). Never across a reset.
+- **Highest recorded** rank and LP, with the day it was first read (the first time, if read again later).
 - **The chart** (`rank-timeline-chart.tsx`, 120 px tall): only the stretch with readings, from the
-  first reading to now (at least three days). No empty band for the months before it.
+  first reading to now (at least three days; the days before a newer first reading are hatched).
+  No empty band for the months before it. Day and month ticks sit on the installation's midnights.
 - **History and coverage** (closed at first, a native disclosure): the ranked year as one strip
-  (every stored ranked game week by week, the three seasons marked, the days with readings lit, and
-  "Rank recorded on N of M days"), what cannot be recovered and why, every rank change, the chart's
+  (every stored ranked game week by week, the three seasons marked, the stretch since the first
+  reading lit, and "Rank known on N of M days": the installation's calendar days covered by a
+  reading, from its first sight to its last confirmation, or between two readings at most one game
+  apart, out of the days of the ranked year so far), what cannot be recovered and why, every rank change, the chart's
   key, and every reading (the newest 200) with its first and last time.
 
 ## LP per game: the rule

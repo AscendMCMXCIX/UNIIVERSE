@@ -34,7 +34,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
   const cur = rankProgress(queue, snapshots, now).current;
   const timeline = rankTimeline(snapshots, now);
   const movement = rankMovement(timeline, now);
-  const coverage = rankedYearCoverage(timeline.trackingSince, account.weeks[queue], now);
+  const coverage = rankedYearCoverage(timeline, account.weeks[queue], now);
   const names = accountShortNames(accounts);
   const changes = [...timeline.markers].reverse();
   const season = coverage.season ? `${RANKED_YEAR} ${coverage.season.label}` : null;
@@ -104,14 +104,14 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
           </div>
           {cur ? (
             <dl className="grid grid-cols-2 gap-x-4 border-t border-border pt-2.5">
-              <Movement m={movement} />
+              <Movement m={movement} unranked={cur.tier === null} />
               <div className="min-w-0" data-testid="ranked-peak-stat">
                 <dt className="text-2xs text-fg-subtle">Highest recorded</dt>
                 <dd>
                   {timeline.peak ? (
                     <>
-                      <span className="block truncate text-sm font-semibold text-fg">
-                        {timeline.peak.label} · {timeline.peak.lp} LP
+                      <span className="block text-sm font-semibold text-fg" title={`${timeline.peak.label} ${timeline.peak.lp} LP`}>
+                        {timeline.peak.label} · {timeline.peak.lp}\u00a0LP
                       </span>
                       <span className="block text-2xs text-fg-subtle">first read {formatDayMonth(timeline.peak.at)}</span>
                     </>
@@ -175,12 +175,14 @@ function LpBar({ tier, lp }: { tier: string | null; lp: number | null }) {
   );
 }
 
-function Movement({ m }: { m: RankMovement | null }) {
+function Movement({ m, unranked }: { m: RankMovement | null; unranked: boolean }) {
   if (!m)
     return (
       <div className="min-w-0">
-        <dt className="text-2xs text-fg-subtle">Change</dt>
-        <dd className="text-sm text-fg-muted">Not enough readings yet</dd>
+        <dt className="text-2xs text-fg-subtle">Last 30 days</dt>
+        <dd className="text-sm text-fg-muted" data-testid="ranked-change-none">
+          {unranked ? "Unranked now: nothing to compare" : "Not enough readings in 30 days"}
+        </dd>
       </div>
     );
   const value = m.kind === "lp" ? (m.amount === 0 ? "No change" : formatLpChange(m.amount)) : m.kind === "divisions" ? `${m.amount > 0 ? "+" : "−"}${Math.abs(m.amount)} division${Math.abs(m.amount) === 1 ? "" : "s"}` : `${m.from.label} → ${m.to.label}`;
@@ -194,7 +196,7 @@ function Movement({ m }: { m: RankMovement | null }) {
           {value}
         </span>
         <span className="block truncate text-2xs text-fg-subtle" title={path}>
-          from {m.from.label} {m.from.lp ?? 0} LP
+          {m.from === m.to ? `${m.to.label} ${m.to.lp ?? 0} LP since ${formatDayMonth(m.to.from)}` : `from ${m.from.label} ${m.from.lp ?? 0} LP`}
         </span>
       </dd>
     </div>
@@ -216,8 +218,8 @@ function YearCoverage({ c, queue }: { c: RankedYearCoverage; queue: RankQueue })
     <div className="min-w-0" data-testid="ranked-coverage">
       <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-x-3">
         <h3 className="text-xs font-medium text-fg-subtle">{RANKED_YEAR} ranked year</h3>
-        <span className="text-2xs tabular-nums text-fg-subtle" data-testid="ranked-coverage-days">
-          Rank recorded on {formatCount(c.trackedDays)} of {formatCount(c.yearDays)} days
+        <span className="text-2xs tabular-nums text-fg-subtle" data-testid="ranked-coverage-days" title="Calendar days covered by a reading (from its first sight to its last confirmation), or between two readings at most one game apart">
+          Rank known on {formatCount(c.knownDays)} of {formatCount(c.yearDays)} days
         </span>
       </div>
       <div className="relative h-10" aria-hidden>
@@ -258,7 +260,7 @@ function ChangeRow({ m }: { m: TimelineMarker }) {
       <span className="min-w-0 flex-1 truncate text-fg">
         {word}: {m.kind === "reset" ? `${m.from} → ${m.to}` : m.to}
       </span>
-      <span className="shrink-0 tabular-nums text-fg-subtle" title={m.exact ? "Between two readings one game apart" : "Somewhere between these two readings, several games apart"}>
+      <span className="shrink-0 tabular-nums text-fg-subtle" title={m.exact ? "Between two readings one game apart" : m.kind === "reset" || m.kind === "placed" ? "Somewhere between these two readings" : "Somewhere between these two readings, several games apart"}>
         {m.exact ? formatDate(m.at) : `${formatDayMonth(m.since)} – ${formatDayMonth(m.at)}`}
       </span>
     </li>
@@ -274,7 +276,7 @@ function ChartKey({ t }: { t: RankTimeline }) {
       <ul className="space-y-1 text-2xs text-fg-muted" data-testid="ranked-key">
         <li className="flex items-center gap-1.5">
           <span className="h-0.5 w-4 shrink-0 rounded bg-gradient-to-r from-accent to-accent-2" aria-hidden />
-          Rank read by UNIIVERSE; a dot is a reading
+          Rank read by UNIIVERSE
         </li>
         <li className="flex items-center gap-1.5">
           <span className="shrink-0 text-good" aria-hidden>

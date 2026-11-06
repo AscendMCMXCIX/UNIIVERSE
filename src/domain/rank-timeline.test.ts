@@ -57,6 +57,17 @@ describe("rankTimeline", () => {
     expect(t.markers[0]!.since).toBe(D(10, 16));
   });
 
+  it("dates the highest recorded rank by the first time it was read", () => {
+    const t = rankTimeline([snap(D(10, 18), "GOLD", "II", 75, 10, 10), snap(D(10, 22), "GOLD", "II", 50, 10, 11), snap(D(10, 28), "GOLD", "II", 75, 11, 11)], NOW);
+    expect(t.peak?.at).toBe(D(10, 18));
+  });
+
+  it("never pads the scale below Iron IV 0 LP", () => {
+    const t = rankTimeline([snap(D(10, 18), "IRON", "IV", 5, 10, 10)], NOW);
+    expect(t.scoreRange![0]).toBe(0);
+    expect(ladderGrid(t.scoreRange!).map((g) => g.label)).not.toContain("Unranked");
+  });
+
   it("names the highest recorded rank and pads the scale to whole divisions", () => {
     const t = rankTimeline(readings, NOW);
     expect(t.peak).toEqual({ at: D(10, 18), score: 3 * 400 + 3 * 100 + 12, label: "Gold I", lp: 12 });
@@ -71,10 +82,23 @@ describe("rankTimeline", () => {
 });
 
 describe("rankMovement", () => {
-  it("compares the reading in effect 30 days ago with the latest", () => {
+  // NOW is 4 Nov, so the window opens on 5 Oct.
+  it("compares the reading in effect when the window began (confirmed inside it) with the latest", () => {
+    const t = rankTimeline([snap(D(9, 1), "GOLD", "II", 0, 40, 40), snap(D(9, 20), "GOLD", "II", 10, 50, 50, D(10, 6)), snap(D(10, 10), "GOLD", "II", 40, 60, 55), snap(D(11, 1), "GOLD", "II", 64, 70, 58)], NOW);
+    const m = rankMovement(t, NOW)!;
+    expect([m.windowed, m.kind, m.amount, m.from.from]).toEqual([true, "lp", 54, D(9, 20)]);
+  });
+
+  it("takes a reading followed within one game as still in effect at the window's start", () => {
+    const t = rankTimeline([snap(D(9, 20), "GOLD", "II", 10, 50, 50), snap(D(10, 10), "GOLD", "II", 30, 51, 50), snap(D(11, 1), "GOLD", "II", 64, 55, 52)], NOW);
+    expect(rankMovement(t, NOW)).toMatchObject({ windowed: true, amount: 54 });
+  });
+
+  it("never credits the window with unseen games that straddle its start: it starts inside, and says so", () => {
+    // 20 Sep last seen on 20 Sep, then fifteen games unseen to 10 Oct: the rank on 5 Oct is unknown.
     const t = rankTimeline([snap(D(9, 20), "GOLD", "II", 10, 50, 50), snap(D(10, 10), "GOLD", "II", 40, 60, 55), snap(D(11, 1), "GOLD", "II", 64, 70, 58)], NOW);
     const m = rankMovement(t, NOW)!;
-    expect([m.windowed, m.kind, m.amount, m.from.lp]).toEqual([true, "lp", 54, 10]);
+    expect([m.windowed, m.amount, m.from.from]).toEqual([false, 24, D(10, 10)]);
   });
 
   it("starts at the first reading when recording began inside the window, and says so", () => {
@@ -82,6 +106,17 @@ describe("rankMovement", () => {
     const m = rankMovement(t, NOW)!;
     expect([m.windowed, m.kind, m.amount]).toEqual([false, "divisions", 2]);
     expect(m.from.from).toBe(D(10, 15));
+  });
+
+  it("says no change when the rank read before the window still holds, confirmed inside it", () => {
+    const t = rankTimeline([snap(D(9, 1), "GOLD", "I", 70, 40, 40), snap(D(10, 1), "GOLD", "II", 40, 50, 50, D(11, 3))], NOW);
+    const m = rankMovement(t, NOW)!;
+    expect([m.windowed, m.kind, m.amount]).toEqual([true, "lp", 0]);
+    expect(m.from).toBe(m.to);
+  });
+
+  it("claims nothing when no reading was confirmed inside the window", () => {
+    expect(rankMovement(rankTimeline([snap(D(9, 1), "GOLD", "II", 40, 50, 50, D(9, 2))], NOW), NOW)).toBeNull();
   });
 
   it("counts divisions lost as negative, with no LP figure across them", () => {
@@ -96,7 +131,7 @@ describe("rankMovement", () => {
     expect(rankMovement(across, NOW)).toMatchObject({ kind: "tiers", amount: 0 });
   });
 
-  it("never reaches across a reset, and has nothing to say with one reading or an unranked latest", () => {
+  it("never reaches across a reset, and has nothing to say with one new reading or an unranked latest", () => {
     const reset = rankTimeline([snap(D(10, 15), "GOLD", "II", 46, 100, 90), snap(D(10, 20), "SILVER", "I", 10, 3, 2), snap(D(11, 1), "SILVER", "I", 40, 5, 2)], NOW);
     expect(rankMovement(reset, NOW)).toMatchObject({ kind: "lp", amount: 30 });
     expect(rankMovement(rankTimeline([snap(D(10, 15), "GOLD", "II", 46, 100, 90)], NOW), NOW)).toBeNull();
@@ -110,21 +145,35 @@ describe("rankedYearCoverage", () => {
     { week: Date.UTC(2026, 3, 27), wins: 3, losses: 1 },
     { week: Date.UTC(2026, 9, 12), wins: 2, losses: 2 },
   ];
+  const readings = [
+    snap(D(10, 15), "GOLD", "II", 46, 100, 90, D(10, 15, 20)),
+    snap(D(10, 16), "GOLD", "II", 70, 101, 90),
+    snap(D(10, 18), "GOLD", "I", 12, 104, 91, D(10, 18, 18)),
+    snap(D(10, 20), "GOLD", "II", 75, 104, 92),
+  ];
 
-  it("covers the ranked year to now, with Riot's three seasons and the part that has readings", () => {
-    const c = rankedYearCoverage(D(10, 15), weeks, NOW);
+  it("covers the ranked year to now, with Riot's three seasons, in the installation's calendar days", () => {
+    const c = rankedYearCoverage(rankTimeline(readings, NOW), weeks, NOW);
     expect(c.from).toBe(Date.UTC(2026, 0, 8));
     expect(c.seasons.map((s) => s.label)).toEqual(["Season 1", "Season 2", "Season 3"]);
     expect(c.season?.label).toBe("Season 3");
     expect(c.trackedFrom).toBe(D(10, 15));
-    expect([c.trackedDays, c.yearDays]).toEqual([20, 301]);
+    // 8 Jan to 4 Nov in Sydney: 301 days.
+    expect(c.yearDays).toBe(301);
     expect(c.games).toEqual({ wins: 6, losses: 3 });
   });
 
-  it("offers only the seasons begun, and no tracked part without a reading", () => {
-    const c = rankedYearCoverage(null, weeks, Date.UTC(2026, 4, 1));
+  it("counts only the days the rank is known: readings, and single games between them, not the unseen gap", () => {
+    // Sydney days: 15–16 Oct (a reading, then one game to the next), the gap of several games to
+    // 18 Oct unknown, then 18–20 Oct. 17 Oct is not known.
+    const c = rankedYearCoverage(rankTimeline(readings, NOW), weeks, NOW);
+    expect(c.knownDays).toBe(5);
+  });
+
+  it("offers only the seasons begun, and no known days without a reading", () => {
+    const c = rankedYearCoverage(rankTimeline([], Date.UTC(2026, 4, 1)), weeks, Date.UTC(2026, 4, 1));
     expect(c.seasons.map((s) => s.label)).toEqual(["Season 1", "Season 2"]);
-    expect([c.trackedFrom, c.trackedDays]).toEqual([null, 0]);
+    expect([c.trackedFrom, c.knownDays]).toEqual([null, 0]);
     expect(c.weeks).toHaveLength(2);
   });
 });
