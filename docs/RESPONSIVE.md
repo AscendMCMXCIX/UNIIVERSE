@@ -16,8 +16,8 @@ Touch devices of any width also get 44px buttons (`pointer-coarse:`).
 
 ## Phones held either way
 
-Width decides the layout; height decides how much may stay pinned. A **short window** is one under
-480px tall: in practice a phone held sideways (320–430px tall). Tailwind has a `short:` variant for
+Width decides the layout; height decides how much may stay pinned. A **short window** is one 480px
+tall or shorter: in practice a phone held sideways (320–430px tall). Tailwind has a `short:` variant for
 it (`globals.css`), and every pinned element follows these rules:
 
 | Element | Upright phone | Short window (phone sideways) |
@@ -76,11 +76,29 @@ fit (iPhone 15 and wider) and scroll on narrower phones.
     at most five, those the account may open). A teammate's profile is under Players. The current
     tab's icon sits in an accent pill and its label is bright, so it does not rely on colour alone;
   - tablets: the top bar with the menu at its left end, the drawer from the left (the sidebar's
-    side) with all links, status rows and sign-out, and the account menu behind the avatar.
+    side) with all links, status rows and sign-out, and the account menu behind the avatar. The
+    drawer is a native `<dialog>`, like every sheet and window: focus stays inside, the page behind
+    is inert, Escape or a tap beside the panel closes it, and focus returns to the menu button.
+    In the installed app, which has no browser Back, the bar also shows Back on a page reached
+    from another (a teammate's profile), named as on phones.
   - Both bars pad for safe areas (`pt-safe`, `pb-safe`, `px-safe`); in short windows they slide
-    away while reading (see above). The top bar sets the page's `scroll-padding-top` to its
-    measured height (and the stylesheet clears the tab bar), so whatever scrolls into view stays
-    clear of both bars.
+    away while reading (see above). On phones the top bar sets the page's `scroll-padding-top` to
+    its measured height (and the stylesheet clears the tab bar); on tablets the stylesheet's value
+    stands, so whatever scrolls into view stays clear of both bars.
+- **Section tabs stay in reach** on tablets and desktops: Team's sections, a profile's sections
+  and Platform Settings' (`TabBar` with `sticky`, the `sticky-tabs` utility in globals.css) stay
+  pinned at the top of the page once it has scrolled past them, under the tablet's top bar
+  (`--bar-top`) and at the window's edge beside the sidebar, so a long section (Players, Matches, a
+  Match History) never needs scrolling back up
+  to leave it: the desktop's answer to the phone's bottom bar and in-bar sections. While pinned
+  (`data-stuck`, set by an observer in `TabBar`) the row is frame, not content: the frame's ink
+  (`chrome`) blurred like the top bar; at rest it is plain, part of the page. Anything pinned under
+  it (All Champions' column headings) offsets by `--tabs-top`, and `scroll-padding-top` clears
+  both. A short window (480px tall or shorter) keeps its height for the page: nothing is pinned
+  there. The pinned bars' own controls take that padding back (a negative scroll margin), so focus
+  moving onto a pinned tab, the sidebar's logo or the top bar's buttons never scrolls the page.
+  A sticky bar must be a child of what the page scrolls through, never of a wrapper that ends with
+  it.
 - `main` pads for the tab bar (`pb-tabbar`) so content never hides behind it.
 
 ## Primitives
@@ -110,6 +128,13 @@ gold, CS and vision columns from 60rem; its four section tabs share a phone's wi
 desktop (1440) against a production build on an in-memory database with the demo roster. It
 checks: no horizontal overflow on every page, navigation (tab bar, drawer, sidebar), 44px targets
 and 16px inputs on phones, and the champion picker on the player profile.
+`e2e/navigation-reach.spec.ts` keeps where you are in reach: on a phone a profile section chosen
+far down the page starts at its top once its content has arrived (tapped in place, without
+Playwright's own scroll into view); on tablets and desktops the Team and profile tabs stay pinned
+as a long page scrolls, All Champions' column headings pin under them, and nothing is pinned in a
+short window; the tablet's menu keeps focus inside and gives it back to the menu button; the
+installed app's Back on a tablet (the display mode stood in for, as Chromium cannot emulate it);
+the filter sheet's Done leaves with its motion; Admin Mode's Settings has its title.
 In this repository's sandbox set `PW_CHROMIUM_PATH` to the Chromium binary.
 
 The wider audit script that produced the before/after numbers (eight viewports × twelve routes,
@@ -180,6 +205,10 @@ Three levels, each saying what it proves:
   5. Swipe Team's cards: one card at a time, and an upward swipe still scrolls the page.
   6. Open and close a detail window and the Card Studio: the page behind does not move.
   7. Open the app with no connection: the offline notice shows.
+  8. On an iPad, add to Home Screen and open it: Players scrolls under the pinned Team tabs, a tab
+     from there switches the section; a teammate's profile shows "‹ Players" in the top bar (the
+     installed app has no browser Back) and it leads back; the menu drawer opens, the page behind it
+     cannot be tapped, and closing it returns to the menu button.
 
 **Browser features against Safari 16.4** (reviewed 21 Oct 2026). Tailwind v4 and Next.js 16 need
 Safari 16.4 or later, so that is the floor. Nothing the app uses needs more:

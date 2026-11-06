@@ -389,7 +389,8 @@ export function AllChampions({ data, basePath, championsById, playerId, detail, 
           </p>
         ) : (
           <>
-            <div className={cn("sticky top-0 z-[1] hidden items-center border-b border-border/70 bg-surface px-3 @min-[44rem]:grid", GRID)} role="group" aria-label="Sort the champions" data-testid="all-champions-header">
+            {/* Pinned under the profile's section tabs, which stay pinned above it (globals.css: --bar-top, --tabs-top). */}
+            <div className={cn("sticky top-[calc(var(--bar-top)+var(--tabs-top))] z-[1] hidden items-center border-b border-border/70 bg-surface px-3 @min-[44rem]:grid", GRID)} role="group" aria-label="Sort the champions" data-testid="all-champions-header">
               {COLUMNS.map((c) => {
                 const active = sortsAs(c.key, sort.key);
                 const right = c.key !== "champion";
