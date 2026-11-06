@@ -21,6 +21,7 @@ import { FORM_MIN_GAMES } from "@/domain/recent-form";
 import type { PoolStats } from "@/components/profile/pool-stats";
 import type { OverviewCard } from "@/server/players/overview";
 import { championMap, IdentitySync, refreshFor, type ProfileSearch } from "./profile-sections";
+import { cardLookFor } from "@/domain/card-style";
 
 /* The player profile's Overview tab (components/players/profile-sections.tsx has the frame shared by every tab). */
 
@@ -133,6 +134,7 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
             detail={detail}
             championsById={championsById}
             playerId={player.id}
+            look={cardLookFor(player)}
             inspect={showStats}
           />
         </div>

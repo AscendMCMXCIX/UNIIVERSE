@@ -214,7 +214,7 @@ function FormRowItem({ r, p }: { r: FormRow; p: BoardPlayer }) {
                 <span className="sr-only"> (shared)</span>
               </>
             ) : null}
-            {r.place === 1 ? <Crown className="ml-0.5 h-3.5 w-3.5 shrink-0 text-warn" aria-label="First place" role="img" /> : null}
+            {r.place === 1 ? <Crown className="ml-0.5 h-4 w-4 shrink-0 text-gold" aria-label="First place" role="img" /> : null}
           </>
         )}
       </span>
@@ -305,7 +305,7 @@ function Records({ records, player, champ, viewerIsPlayer }: { records: RecordsV
           </p>
         ) : null}
         {records.multikills.length ? (
-          <div className="overflow-hidden rounded-card border border-border bg-surface" data-testid="records-multikills">
+          <div className="overflow-hidden rounded-card border border-border bg-surface panel-depth" data-testid="records-multikills">
             <div className={cn("grid items-center border-b border-border/70 py-2.5", MULTI_GRID)} aria-hidden>
               <span className={HEAD}>Member</span>
               <span className={cn(HEAD, "text-right")}>Penta</span>
@@ -364,21 +364,28 @@ function RecordCard({ id, label, definition, holder, yours, viewerIsPlayer, play
       {definition ? <span className="text-xs text-fg-muted">{definition}</span> : null}
       {holder && p ? (
         <>
-          <span className="mt-1 flex items-baseline gap-1.5">
-            <span className="text-2xl font-bold leading-tight tabular-nums text-fg" data-testid="record-value">
-              {holder.value}
+          {/* The champion the record was set on leads the card, beside the figure (the same portrait
+              the line below used to show at 28px, so no new bytes); the streak, set on no one
+              champion, keeps the figure alone. Then who holds it, as the member's card names them. */}
+          <span className="mt-1 flex min-w-0 items-center gap-3">
+            {c ? <ChampionPortrait champion={c} size="md" className="rounded-panel ring-1 ring-border-strong/60" title={c.name} /> : null}
+            <span className="min-w-0">
+              <span className="flex items-baseline gap-1.5">
+                <span className="text-2xl font-bold leading-tight tabular-nums text-fg" data-testid="record-value">
+                  {holder.value}
+                </span>
+                <span className="text-sm text-fg-muted">{holder.unit}</span>
+              </span>
+              <span className="block truncate text-xs text-fg-muted" title={detail}>
+                {detail}
+              </span>
             </span>
-            <span className="text-sm text-fg-muted">{holder.unit}</span>
           </span>
           <span className="flex min-w-0 items-center gap-2 text-sm" style={cardColourVars(p.look)}>
             <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="sm" />
             <span className="min-w-0 text-fg" data-testid="record-holder">
               <CardName look={p.look} name={p.name} />
             </span>
-          </span>
-          <span className="flex min-w-0 items-center gap-1.5 text-xs text-fg-muted">
-            {c ? <ChampionPortrait champion={c} size="xs" title={c.name} /> : null}
-            <span className="truncate">{detail}</span>
           </span>
         </>
       ) : (
@@ -400,10 +407,11 @@ function RecordCard({ id, label, definition, holder, yours, viewerIsPlayer, play
       ) : null}
     </>
   );
-  const cls = "flex h-full min-w-0 flex-col gap-1.5 rounded-card border border-border bg-surface p-4";
+  const cls = "flex h-full min-w-0 flex-col gap-1.5 rounded-card border border-border bg-surface p-4 panel-depth";
   return holder?.href ? (
     // The card's own text is its name (what it says is what a screen reader says), ending "Open the game".
-    <Link href={holder.href} className={cn(cls, "group transition-colors hover:border-border-strong focus-visible:border-accent")} data-testid="season-record" data-record={id}>
+    // A card that opens a game lifts while pointed at (panel-lift: a pixel, the edge brighter; still under reduced motion).
+    <Link href={holder.href} className={cn(cls, "group panel-lift focus-visible:border-accent")} data-testid="season-record" data-record={id}>
       {body}
       <span className="flex items-center gap-1 text-xs font-medium text-accent">
         Open the game <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden />
@@ -416,11 +424,12 @@ function RecordCard({ id, label, definition, holder, yours, viewerIsPlayer, play
   );
 }
 
-const TIER_CLASS = ["border-border bg-surface-2/60", "border-border-strong bg-surface-2", "border-accent/50 bg-accent/10", "border-warn/60 bg-warn/10"] as const;
+/** A milestone's tier, as the system marks rarities: plain, raised, violet, gold (never a state colour). */
+const TIER_CLASS = ["border-border bg-surface-2/60", "border-border-strong bg-surface-2", "border-violet/50 bg-violet/10", "border-gold/60 bg-gold/10"] as const;
 
 function MilestoneList({ title, hint, empty, groups, player, champ, testId }: { title: string; hint: string; empty: string; groups: MilestoneGroup[]; player: (id: string) => BoardPlayer; champ: (id: string | null) => PortraitChampion | null; testId: string }) {
   return (
-    <div className="flex min-w-0 flex-col gap-2 rounded-card border border-border bg-surface p-4" data-testid={testId}>
+    <div className="flex min-w-0 flex-col gap-2 rounded-card border border-border bg-surface p-4 panel-depth" data-testid={testId}>
       <h4 className="text-sm font-semibold text-fg">{title}</h4>
       <p className="text-xs text-fg-muted">{hint}</p>
       {groups.length ? (
