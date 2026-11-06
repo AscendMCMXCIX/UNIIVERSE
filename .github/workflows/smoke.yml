@@ -7,6 +7,9 @@ name: Production smoke
 on:
   workflow_dispatch:
 
+# No GITHUB_TOKEN scope: this workflow only calls the deployed app (least privilege).
+permissions: {}
+
 jobs:
   smoke:
     runs-on: ubuntu-latest

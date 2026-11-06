@@ -440,6 +440,10 @@ describe("the key check's time limit", () => {
     const { value: result, elapsed } = await onFakeClock(() => runJob(local.db, "riot-check", "test", { budgetMs: 240_000 }), 120_000);
     await expectStoppedInTime(log, startedAt, elapsed, before);
     expect(result).toMatchObject({ ok: true, degraded: true, summary: { state: "unavailable", statusCode: null } });
+    // The answer is printed in the public Actions log (Data jobs), so it carries nothing of the key,
+    // not even its last characters: Settings shows the fingerprint to signed-in administrators.
+    expect(result?.summary).not.toHaveProperty("keyInUse");
+    expect(JSON.stringify(result)).not.toMatch(/beef|RGAPI/i);
     expect(result?.error).toMatch(/could not finish asking .* in time/);
     expect(result?.error).toMatch(/refusal stands/);
   }, 20_000);
