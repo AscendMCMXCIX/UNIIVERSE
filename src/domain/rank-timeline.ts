@@ -1,5 +1,6 @@
 import { ladderScore, rankLabel, TIERS, type RankSnapshot } from "./rank-progress";
 import { RANKED_SEASONS_2026, RANKED_YEAR, RANKED_YEAR_START, rankedSeasonAt, type RankedSeason } from "./ranked-year";
+import { isoDay, localPeriodStarts } from "@/lib/format";
 
 /*
   THE RANK TIMELINE: what Ranked progress draws for one account and queue, from the stored readings
@@ -138,9 +139,9 @@ export function rankTimeline(snapshots: readonly RankSnapshot[], now: number): R
     }
   }
   let peak: RankTimeline["peak"] = null;
-  for (const r of all) if (r.score !== null && (!peak || r.score >= peak.score)) peak = { at: r.from, score: r.score, label: r.label, lp: r.lp ?? 0 };
+  for (const r of all) if (r.score !== null && (!peak || r.score > peak.score)) peak = { at: r.from, score: r.score, label: r.label, lp: r.lp ?? 0 };
   const scores = all.filter((r) => r.score !== null).map((r) => r.score!);
-  const scoreRange: [number, number] | null = scores.length ? [Math.floor((Math.min(...scores) - 20) / 100) * 100, Math.ceil((Math.max(...scores) + 20) / 100) * 100] : null;
+  const scoreRange: [number, number] | null = scores.length ? [Math.max(0, Math.floor((Math.min(...scores) - 20) / 100) * 100), Math.ceil((Math.max(...scores) + 20) / 100) * 100] : null;
   const trackingSince = all[0]?.from ?? null;
   const to = Math.max(now, all.at(-1)?.to ?? now);
   const from = trackingSince === null ? to - MIN_DRAWN_SPAN : Math.max(RANKED_YEAR_START, Math.min(trackingSince, to - MIN_DRAWN_SPAN));
@@ -148,10 +149,18 @@ export function rankTimeline(snapshots: readonly RankSnapshot[], now: number): R
 }
 
 /**
- * How the rank moved: from the reading in effect when the window began (30 days ago) to the latest,
- * within the current ladder (never across a reset). When recording began inside the window the
- * first reading is the start instead (`windowed` false), so the figure never claims more days
- * than were read. Null without two different readings to compare, or when the latest is unranked.
+ * How the rank moved over the last 30 days, within the current ladder (never across a reset):
+ *
+ * - from the reading in effect when the window began: one seen at or before that moment and still
+ *   confirmed then, or followed by its next reading within a single game (the rank held until it);
+ * - otherwise (recording began inside the window, or several unseen games straddle its start) from
+ *   the first reading inside the window, `windowed` false, so the figure never claims days, or
+ *   games, that were not read;
+ * - "no change" (an LP movement of 0) when the latest reading was already in effect at the window's
+ *   start and is confirmed inside it.
+ *
+ * Null when the latest reading is unranked, when nothing was confirmed inside the window, or with no
+ * second reading inside it to compare.
  *
  *   lp         one LP ladder (the same division, or both Master and above): the LP difference
  *   divisions  divisions apart below Master, the LP left aside (after a promotion the LP restarts)
@@ -168,19 +177,58 @@ export interface RankMovement {
 
 export function rankMovement(t: Pick<RankTimeline, "readings" | "links">, now: number, windowDays = 30): RankMovement | null {
   const last = t.readings.length - 1;
-  if (last < 1 || t.readings[last]!.score === null) return null;
+  const to = t.readings[last];
+  if (!to || to.score === null) return null;
+  const since = now - windowDays * DAY;
+  if (to.to < since) return null;
   let first = last;
   while (first > 0 && t.links[first - 1]!.kind !== "reset" && t.readings[first - 1]!.score !== null) first -= 1;
-  const since = now - windowDays * DAY;
-  let start = first;
+  let start = -1;
   for (let i = first; i <= last; i++) if (t.readings[i]!.from <= since) start = i;
-  if (start === last) return null;
+  if (start === last) return { from: to, to, windowed: true, kind: "lp", amount: 0 };
+  let windowed = start >= 0 && (t.readings[start]!.to >= since || t.links[start]!.kind === "step");
+  if (!windowed) {
+    start = -1;
+    for (let i = first; i <= last; i++) {
+      if (t.readings[i]!.from > since) {
+        start = i;
+        break;
+      }
+    }
+    windowed = false;
+  }
+  if (start < 0 || start === last) return null;
   const from = t.readings[start]!;
-  const to = t.readings[last]!;
-  const windowed = from.from <= since;
   if (isApex(from.tier) !== isApex(to.tier)) return { from, to, windowed, kind: "tiers", amount: 0 };
   if (isApex(from.tier) || (from.tier === to.tier && from.division === to.division)) return { from, to, windowed, kind: "lp", amount: (to.lp ?? 0) - (from.lp ?? 0) };
   return { from, to, windowed, kind: "divisions", amount: divisionOrder(to) - divisionOrder(from) };
+}
+
+/**
+ * The stretches over which the rank is known: each reading from its first sight to its last
+ * confirmation, carried on to the next reading when at most one game lies between them (the rank
+ * held until that game). Several unseen games, or a reset, leave the stretch between unknown.
+ */
+export function knownSpans(t: Pick<RankTimeline, "readings" | "links">): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  t.readings.forEach((r, i) => {
+    const next = t.readings[i + 1];
+    const end = next && t.links[i]?.kind === "step" ? next.from : r.to;
+    const prev = out.at(-1);
+    if (prev && r.from <= prev[1]) prev[1] = Math.max(prev[1], end);
+    else out.push([r.from, end]);
+  });
+  return out;
+}
+
+/** The installation's calendar days a set of stretches touches (as "2026-10-21"). */
+function daysTouched(spans: ReadonlyArray<[number, number]>): Set<string> {
+  const days = new Set<string>();
+  for (const [a, b] of spans) {
+    days.add(isoDay(a));
+    for (const at of localPeriodStarts(a, b, "day")) days.add(isoDay(at));
+  }
+  return days;
 }
 
 /**
@@ -195,26 +243,29 @@ export interface RankedYearCoverage {
   /** The season now (Riot's numbering within the 2026 ranked year); null outside it. */
   season: RankedSeason | null;
   trackedFrom: number | null;
-  /** Whole days of the year so far, and of them the days since the first reading. */
+  /** The installation's calendar days of the year so far, and of them the days the rank is known on (`knownSpans`). */
   yearDays: number;
-  trackedDays: number;
+  knownDays: number;
   weeks: Array<{ week: number; wins: number; losses: number }>;
   games: { wins: number; losses: number };
 }
 
-export function rankedYearCoverage(trackingSince: number | null, weeks: ReadonlyArray<{ week: number; wins: number; losses: number }>, now: number): RankedYearCoverage {
+export function rankedYearCoverage(t: Pick<RankTimeline, "trackingSince" | "readings" | "links">, weeks: ReadonlyArray<{ week: number; wins: number; losses: number }>, now: number): RankedYearCoverage {
   const from = RANKED_YEAR_START;
   const to = Math.min(Math.max(now, from), Date.UTC(RANKED_YEAR + 1, 0, 1));
   const inYear = weeks.filter((w) => w.week + WEEK > from && w.week <= to).sort((a, b) => a.week - b.week);
-  const trackedFrom = trackingSince !== null && trackingSince <= to ? Math.max(from, trackingSince) : null;
+  const trackedFrom = t.trackingSince !== null && t.trackingSince <= to ? Math.max(from, t.trackingSince) : null;
+  const spans = knownSpans(t)
+    .map(([a, b]): [number, number] => [Math.max(a, from), Math.min(b, to)])
+    .filter(([a, b]) => b >= a);
   return {
     from,
     to,
     seasons: RANKED_SEASONS_2026.filter((s) => s.from <= to).map((s) => ({ label: s.label, from: s.from })),
     season: rankedSeasonAt(now),
     trackedFrom,
-    yearDays: Math.max(1, Math.ceil((to - from) / DAY)),
-    trackedDays: trackedFrom === null ? 0 : Math.max(1, Math.ceil((to - trackedFrom) / DAY)),
+    yearDays: daysTouched([[from, to]]).size,
+    knownDays: daysTouched(spans).size,
     weeks: inYear,
     games: { wins: inYear.reduce((n, w) => n + w.wins, 0), losses: inYear.reduce((n, w) => n + w.losses, 0) },
   };

@@ -8,7 +8,7 @@ import type { Role } from "@/domain/roles";
 import type { RosterSlot, RosterSubstitute } from "@/server/team/roster";
 import { ACCENT_COLOR } from "@/domain/player-card";
 import { accentCss } from "@/domain/card-style";
-import { CardFrame, cardShellStyle } from "@/components/players/card-look";
+import { CardFrame, cardColourVars, cardShellStyle } from "@/components/players/card-look";
 import { setLineupSlotAction, setLineupSubstituteAction } from "@/server/actions/players";
 import type { PickerChampion } from "@/components/champions/types";
 import { Button, buttonClass } from "@/components/ui/button";
@@ -127,7 +127,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
           <div className="flex flex-col gap-1.5">
             <p className="flex items-center justify-between text-2xs font-medium uppercase tracking-label text-fg-subtle">
               <span className="truncate">{slot.roleLabel} pool</span>
-              <span className="inline-flex items-center gap-0.5 normal-case tracking-normal group-hover/card:text-accent">
+              <span className="inline-flex items-center gap-0.5 normal-case tracking-normal group-hover/card:text-[var(--card-accent)]">
                 {slot.champions.length ? (
                   <>
                     {slot.champions.length}
@@ -587,10 +587,11 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profi
       // The player's card, opened up: their saved artwork and colours behind the role, identity and
       // rank, with this season's figures in the same block and the way to the full profile. Static
       // art only (no card motion, no blur), so opening and moving between players stays light. The
-      // window is as tall as its content.
+      // window is as tall as its content. The shell style's `--card-accent` is the readable one
+      // (lightened to 4.5:1 on the surface), the same the card draws its text and icons in.
       headerClassName="overflow-hidden"
       header={
-        <div className="relative isolate" style={{ ...cardShellStyle(p.look, { glow: false }), borderColor: undefined, ["--card-accent" as string]: accentCss(p.look.style) }} data-testid="player-detail-hero">
+        <div className="relative isolate" style={{ ...cardShellStyle(p.look, { glow: false }), borderColor: undefined }} data-testid="player-detail-hero">
           <CardArtLayer art={p.art} accent={accentCss(p.look.style)} kind="splash" position="center 22%" look={p.look} decorate={false} strength="normal" testId="detail-art" foot />
           <div className={cn("relative flex min-h-[11rem] flex-col justify-end gap-2.5 px-4 pb-4 sm:min-h-[12.5rem] sm:px-6 sm:pb-5", BELOW_CONTROLS)}>
             <h2 id="player-detail-title" className="sr-only">
@@ -678,7 +679,7 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profi
           </p>
         )
       ) : null}
-      <section aria-labelledby="detail-pool" className="space-y-2.5" style={{ ["--card-accent" as string]: accentCss(p.look.style) }}>
+      <section aria-labelledby="detail-pool" className="space-y-2.5" style={cardColourVars(p.look)}>
         <div className="flex items-center justify-between gap-2">
           <h3 id="detail-pool" className="text-sm font-semibold text-fg">
             {slot.roleLabel} champion pool{slot.champions.length ? <span className="font-normal text-fg-subtle"> · {slot.champions.length}, in order of preference</span> : null}
@@ -811,7 +812,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
           logo is drawn at its own proportions in a square (BrandMark: object-contain, never
           squeezed), and animates where the browser allows motion. */}
       <header className={cn(LINEUP_WIDTH, "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2.5 [text-shadow:0_1px_14px_rgb(0_0_0/0.55)] sm:gap-x-4 sm:gap-y-1")} data-testid="team-header">
-        <BrandMark src={team.logo} still={team.logoStill} name={team.shortName} className="col-start-1 row-start-1 h-12 w-12 shrink-0 rounded-panel text-lg shadow-lg shadow-accent/15 ring-1 ring-border-strong sm:row-end-3 sm:h-16 sm:w-16 sm:rounded-card sm:text-2xl lg:h-20 lg:w-20 lg:text-3xl short:h-11 short:w-11 short:rounded-panel short:text-lg" />
+        <BrandMark src={team.logo} still={team.logoStill} name={team.shortName} className="col-start-1 row-start-1 h-12 w-12 shrink-0 rounded-panel text-lg shadow-lg shadow-black/40 ring-1 ring-border-strong sm:row-end-3 sm:h-16 sm:w-16 sm:rounded-card sm:text-2xl lg:h-20 lg:w-20 lg:text-3xl short:h-11 short:w-11 short:rounded-panel short:text-lg" />
         <div className="col-start-2 col-end-4 row-start-1 min-w-0 sm:col-end-3 sm:self-end">
           <p className="text-xs font-semibold uppercase tracking-label text-accent max-sm:sr-only short:sr-only">Team Overview</p>
           <h1 className="truncate text-[1.375rem] font-bold leading-tight tracking-tight text-fg sm:text-3xl lg:text-4xl short:text-xl" data-testid="team-name">

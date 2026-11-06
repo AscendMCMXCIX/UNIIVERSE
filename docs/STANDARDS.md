@@ -30,7 +30,9 @@ from each section; this page does not repeat them.
 
 - Never show an invented value. Missing is "—", nothing recorded is said in words ("No games
   this season"), and a figure states what it covers (a season, a queue, the games that have the
-  figure). A sample too small to mean much says so.
+  figure). A sample too small to mean much says so. "Unranked" means a rank check found no
+  placement: a player without a linked Riot account gets no rank line at all ("No Riot account"
+  in its place on the Players cards and rows; nothing on the first sign-in's card preview).
 - Never present an uncertain identity or relationship as certain: what is only possible is
   labelled as possible (a match's possible groups, for example, never "premade").
 - Two players' relationship is what the stored games record: against (opposite teams) or
@@ -107,7 +109,7 @@ that line up use `tabular-nums`.
 which are the same sizes under other names. Page widths: `--content-max` (text and card pages),
 `--content-wide` (Team, statistics and data pages).
 
-**Layers.** Inside a component: `z-0` to `z-10`. Sticky bars (top bar, sidebar): `z-40`. Drawers,
+**Layers.** Inside a component: `z-0` to `z-10`. Pinned section tabs (`sticky-tabs`): `z-30`. Sticky bars (top bar, sidebar): `z-40`. Drawers,
 pickers and popovers: `z-50`. Menus and toasts: `z-[60]`. Tooltips: `z-[100]`. Detail windows and
 dialogs are native `<dialog>` elements in the browser's top layer, above everything.
 
@@ -184,7 +186,7 @@ Use the shared component before writing a new one (`src/components/ui`):
 | Choices in a list | `Menu`, `MenuItem`, `MenuLink` |
 | Filters | `FilterBar`, `RefineButton`, `FilterField`, `SearchInput`, `ToggleChip`. On phones the bar folds to a Filters button that opens a sheet, with what is narrowed as removable chips beside it (`chips`) |
 | One choice out of a few that filters what a page shows (a role, a side, a sort) | `segmentedGroupClass` with `segmentClass` (`size: "md"` for a list's main filter, as Encounters' All, Against and Alongside), `RoleSegmented`. Never to move between views or pages |
-| A page's sections (primary) | `TabBar`: a profile's Overview, All Champions, Match History and Riot Accounts; Team's sections. On phones Team's sections are the bottom tab bar and a profile's ride in the top bar (`ProfileTabs variant="chrome"`) |
+| A page's sections (primary) | `TabBar`: a profile's Overview, All Champions, Match History and Riot Accounts; Team's sections. On tablets and desktops the bar stays pinned at the top of the page once it scrolls (`sticky`; [RESPONSIVE.md](RESPONSIVE.md) → Shell). On phones Team's sections are the bottom tab bar and a profile's ride in the top bar (`ProfileTabs variant="chrome"`) |
 | Equal views of one section, or related pages (secondary) | `SubTabs` (`ui/sub-tabs.tsx`): links with `aria-current`, directly under the primary tabs, in the section title's place (`SectionHeader`'s `nav`): Match History's Games and Encounters. `SubNav` when the path decides the current one (Admin's Users & Permissions) |
 | Views inside one panel (a game's Scoreboard, Analysis, Timeline and Build; a champion's views) | `role="tablist"` buttons with `tabIndicatorClass` |
 | Tabs that filter one list | `TabLinks`, only where it is today (Leaderboards' categories, Admin's audit categories), until those pages are redesigned |
@@ -202,6 +204,7 @@ Use the shared component before writing a new one (`src/components/ui`):
 | A section of Riot data's heading: title, scope line and status, a toolbar of filters ending in Refresh | `SectionHeader` |
 | A button in a toolbar beside the filters (Refine, Refresh) | `toolbarButtonClass` (`filter-bar.tsx`) |
 | A player's identity on a card (picture and links, name, rank and labels, tagline) | `CardIdentity` (`players/player-card.tsx`) inside a `@container/card`; on Players, `layout="rows"` on the directory card's grid (`DirectoryCardLayout`) |
+| A member's name in a list row (Players on phones, Leaderboards) | `CardAvatar` and `CardName` (`players/card-look.tsx`) under the card's colour variables (`cardColourVars` on the row), so the saved name style, emblem and avatar frame follow the member off their card; `CardTagline lines={1}` where a row has room for the tagline. No art, frame or effect on a row |
 | A champion pool's rows (first choice marked, win rate, games, KDA, CS) | `PoolChampionTile` under `PoolColumnNames` (`players/player-card.tsx`) |
 | Both teams of a game | `TeamComposition` (`match-history/team-composition.tsx`); `keepNames` where the line-ups are what the card is for (Team → Matches), so phones keep the names too |
 | Two players' relationship in recorded games (against, alongside) | `RelationTag` (`match-history/encounters-view.tsx`): the word with the side's colour |

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { VITALS, VITAL_METRICS, deviceClassOf, formatVitalBound, pageGroupOf, parseVitalsBeacon, summariseVital, vitalBucket } from "./web-vitals";
+import { VITALS, VITAL_METRICS, deviceClassOf, formatVitalBound, navigationParts, pageGroupOf, parseVitalsBeacon, summariseVital, vitalBucket } from "./web-vitals";
 
 describe("field performance", () => {
   it("puts a value in the bucket whose bound it does not exceed, and refuses what is not a measurement", () => {
@@ -75,5 +75,31 @@ describe("field performance", () => {
     ]) {
       expect(parseVitalsBeacon(bad)).toBeNull();
     }
+  });
+});
+
+describe("TTFB's parts from the navigation entry", () => {
+  const entry = (over: Partial<PerformanceNavigationTiming>) => ({ startTime: 0, redirectCount: 0, redirectEnd: 0, requestStart: 0, responseStart: 0, ...over }) as PerformanceNavigationTiming;
+
+  it("reports a same-origin redirect and the request's own time", () => {
+    // Opening the app at /: the start page answered and redirected, then /team's request took 240 ms.
+    expect(navigationParts(entry({ redirectCount: 1, redirectEnd: 410, requestStart: 460, responseStart: 700 }))).toEqual({ REDIRECT: 410, SERVER: 240 });
+  });
+
+  it("sends no redirect for a direct load, or for one the browser hides (cross-origin: redirectEnd is 0)", () => {
+    expect(navigationParts(entry({ requestStart: 30, responseStart: 130 }))).toEqual({ SERVER: 100 });
+    expect(navigationParts(entry({ redirectCount: 1, redirectEnd: 0, requestStart: 30, responseStart: 130 }))).toEqual({ SERVER: 100 });
+  });
+
+  it("sends nothing it cannot measure", () => {
+    expect(navigationParts(undefined)).toEqual({});
+    expect(navigationParts(entry({}))).toEqual({});
+    expect(navigationParts(entry({ requestStart: 500, responseStart: 400 }))).toEqual({});
+  });
+
+  it("buckets both like the other metrics, and a beacon carrying them is accepted", () => {
+    expect(vitalBucket("REDIRECT", 410)).toBe(VITALS.REDIRECT.bounds.indexOf(600));
+    expect(vitalBucket("SERVER", 240)).toBe(VITALS.SERVER.bounds.indexOf(300));
+    expect(parseVitalsBeacon({ page: "team", device: "phone", metrics: { TTFB: 5, REDIRECT: 5, SERVER: 2 } })).toEqual({ page: "team", device: "phone", metrics: { TTFB: 5, REDIRECT: 5, SERVER: 2 } });
   });
 });

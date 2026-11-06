@@ -41,7 +41,7 @@ export interface VitalsReport {
    * Core Web Vitals and the server's first byte, then the loads, LCP and TTFB of each device class
    * (a page can be slow on phones only, or only before the server's first byte).
    */
-  pages: Array<{ page: PageGroup; loads: number; LCP: VitalSummary | null; INP: VitalSummary | null; CLS: VitalSummary | null; TTFB: VitalSummary | null; byDevice: Array<{ device: DeviceClass; loads: number; LCP: VitalSummary | null; TTFB: VitalSummary | null }> }>;
+  pages: Array<{ page: PageGroup; loads: number; LCP: VitalSummary | null; INP: VitalSummary | null; CLS: VitalSummary | null; TTFB: VitalSummary | null; REDIRECT: VitalSummary | null; SERVER: VitalSummary | null; byDevice: Array<{ device: DeviceClass; loads: number; LCP: VitalSummary | null; TTFB: VitalSummary | null; REDIRECT: VitalSummary | null; SERVER: VitalSummary | null }> }>;
 }
 
 /** The last `days` UTC days (today included), summarised. One grouped query: at most a few hundred rows. */
@@ -92,12 +92,17 @@ export async function vitalsReport(db: Db, days = 28, now = new Date()): Promise
       const LCP = summary("LCP", `LCP|page|${page}`);
       const INP = summary("INP", `INP|page|${page}`);
       const CLS = summary("CLS", `CLS|page|${page}`);
+      // TTFB's parts: REDIRECT counts only the loads that had one, so its count over TTFB's is the share redirected.
+      const REDIRECT = summary("REDIRECT", `REDIRECT|page|${page}`);
+      const SERVER = summary("SERVER", `SERVER|page|${page}`);
       const byDevice = DEVICE_CLASSES.flatMap((device) => {
         const ttfb = summary("TTFB", `TTFB|page|${page}|${device}`);
         const lcp = summary("LCP", `LCP|page|${page}|${device}`);
-        return ttfb || lcp ? [{ device, loads: ttfb?.count ?? 0, LCP: lcp, TTFB: ttfb }] : [];
+        const redirect = summary("REDIRECT", `REDIRECT|page|${page}|${device}`);
+        const server = summary("SERVER", `SERVER|page|${page}|${device}`);
+        return ttfb || lcp ? [{ device, loads: ttfb?.count ?? 0, LCP: lcp, TTFB: ttfb, REDIRECT: redirect, SERVER: server }] : [];
       });
-      return loads || LCP || INP || CLS ? [{ page, loads, LCP, INP, CLS, TTFB, byDevice }] : [];
+      return loads || LCP || INP || CLS ? [{ page, loads, LCP, INP, CLS, TTFB, REDIRECT, SERVER, byDevice }] : [];
     }).sort((a, b) => b.loads - a.loads),
   };
 }

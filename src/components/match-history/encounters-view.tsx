@@ -303,7 +303,7 @@ function Highlights({ insights, gamesOf }: { insights: EncounterInsight[]; games
           return (
             <li key={i.kind} className="min-w-0">
               {/* What it is, then who and the record; on a narrow screen the two wrap onto lines of their own rather than cut the name. */}
-              <Link href={gamesOf(i.summary.key, relation === "opponent" ? "against" : "alongside")} className="group flex min-h-10 min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 rounded-lg px-2 py-1 transition-colors hover:bg-surface-2/60 focus-visible:outline-2 focus-visible:outline-accent" data-testid="encounter-insight" data-kind={i.kind}>
+              <Link href={gamesOf(i.summary.key, relation === "opponent" ? "against" : "alongside")} className="group flex min-h-10 min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 rounded-lg px-2 py-1 transition-colors hover:bg-surface-2/60 focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11" data-testid="encounter-insight" data-kind={i.kind}>
                 <span className="flex items-center gap-x-2">
                   <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", REL[relation].dot)} aria-hidden />
                   <span className="whitespace-nowrap text-xs text-fg-muted">{INSIGHT_LABELS[i.kind]}</span>
@@ -413,9 +413,10 @@ function EncounterRow({ s, relation, href }: { s: EncounterSummary; relation: En
   const rowLink = "absolute inset-0 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent";
   if (relation === "all") {
     return (
-      <li className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-3 py-2.5 transition-colors hover:bg-surface-2/50 @min-[60rem]/enc:gap-y-0 @min-[60rem]/enc:py-0 @min-[60rem]/enc:pl-4 @min-[60rem]/enc:pr-3", BOTH_SIDES_GRID)} data-testid="encounter-row" data-key={s.key} data-against={s.opponent.games} data-alongside={s.ally.games}>
+      <li className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-3 py-2.5 transition-colors hover:bg-surface-2/50 max-md:active:bg-surface-2 @min-[60rem]/enc:gap-y-0 @min-[60rem]/enc:py-0 @min-[60rem]/enc:pl-4 @min-[60rem]/enc:pr-3", BOTH_SIDES_GRID)} data-testid="encounter-row" data-key={s.key} data-against={s.opponent.games} data-alongside={s.ally.games}>
         <span className="flex min-w-0 flex-col @min-[60rem]/enc:py-2.5">
-          <RiotId name={s.name} className="text-sm" />
+          {/* A phone row's name at the row standard (text-md, docs/MOBILE.md); the table's size from md. */}
+          <RiotId name={s.name} className="text-sm max-md:text-md max-md:leading-snug" />
         </span>
         <span className="text-right text-xs tabular-nums text-fg-muted @min-[60rem]/enc:order-last @min-[60rem]/enc:col-start-5 @min-[60rem]/enc:row-start-1 @min-[60rem]/enc:text-sm" data-testid="encounter-last">
           <span className="sr-only">Last met </span>
@@ -439,9 +440,9 @@ function EncounterRow({ s, relation, href }: { s: EncounterSummary; relation: En
   const other: Relation = side === "opponent" ? "ally" : "opponent";
   const rec = recordFor(s, relation);
   return (
-    <li className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-3 py-2.5 transition-colors hover:bg-surface-2/50 @min-[40rem]/enc:pl-4 @min-[40rem]/enc:pr-3", ONE_SIDE_GRID)} data-testid="encounter-row" data-key={s.key} data-against={s.opponent.games} data-alongside={s.ally.games}>
+    <li className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-3 py-2.5 transition-colors hover:bg-surface-2/50 max-md:active:bg-surface-2 @min-[40rem]/enc:pl-4 @min-[40rem]/enc:pr-3", ONE_SIDE_GRID)} data-testid="encounter-row" data-key={s.key} data-against={s.opponent.games} data-alongside={s.ally.games}>
       <span className="flex min-w-0 flex-col">
-        <RiotId name={s.name} className="text-sm" />
+        <RiotId name={s.name} className="text-sm max-md:text-md max-md:leading-snug" />
         {/* Met on the other side too: said quietly, so the player is easy to find under both. */}
         {s[other].games ? (
           <span className="truncate text-xs text-fg-muted" data-testid="encounter-also">

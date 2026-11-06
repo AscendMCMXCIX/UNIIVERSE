@@ -167,11 +167,14 @@ p a.text-accent {
 }
 
 /*
-  Short windows: a phone held sideways, or any window under 480px tall. The phone tab bar is
+  Short windows: a phone held sideways, or any window 480px tall or shorter. The phone tab bar is
   hidden there, the top bar slides away while the page scrolls down, and detail windows, editors
   and pickers take the whole screen (see docs/RESPONSIVE.md).
 */
 @custom-variant short (@media (max-height: 480px));
+
+/* The installed app, in the display modes an install opens in (see install-state.ts): what a browser's own chrome would otherwise provide, such as Back on a tablet. */
+@custom-variant standalone (@media (display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui), (display-mode: window-controls-overlay));
 
 /* Safe-area helpers for notched phones (no-ops elsewhere). */
 @utility pt-safe {
@@ -243,6 +246,81 @@ p a.text-accent {
 @media (max-width: 47.99rem) {
   html {
     scroll-padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+  }
+}
+
+/*
+  What is pinned above the page from md (tablets and desktops), for the section tabs that stay in
+  reach (sticky-tabs below, docs/RESPONSIVE.md → Shell) and anything pinned under them (All
+  Champions' column headings):
+    --bar-top   the tablet top bar's height, its hairline included (md to lg; the sidebar's widths
+                have nothing above the page). Zero in a short window (480px tall or shorter), where
+                the bar slides away while reading, so nothing is pinned to its edge there;
+    --tabs-top  the pinned section tabs' height (a 2.75rem row whose hairline is its own) where they
+                are pinned, else 0: a short window keeps its height for the page, and phones carry a
+                profile's sections in the top bar instead.
+  Static values, so the root is never re-styled by script (see useTopBarHeight).
+*/
+:root {
+  --bar-top: 0px;
+  --tabs-top: 0px;
+}
+@media (min-width: 48rem) and (max-width: 63.99rem) and (min-height: 481px) {
+  :root {
+    --bar-top: calc(3.5rem + 1px + env(safe-area-inset-top));
+  }
+}
+@media (min-width: 48rem) and (min-height: 481px) {
+  :root {
+    --tabs-top: 2.75rem;
+  }
+  /* Whatever is scrolled into view on a page with pinned section tabs stops below them (WCAG 2.4.11), as under the phone's bars. */
+  html:has([data-sticky-tabs]) {
+    scroll-padding-top: calc(var(--bar-top) + var(--tabs-top) + 0.5rem);
+  }
+}
+/*
+  The scroll padding keeps the page's content clear of what is pinned above it, but the pinned
+  bars' own controls sit inside that band: focus moving onto a pinned tab, the sidebar's logo or
+  the top bar's buttons would otherwise scroll the page up each time. Their scroll margin takes the
+  padding back exactly: the stylesheet's value from md, the measured one on phones (--bar-pad, set
+  on the bar by useTopBarHeight).
+*/
+[data-testid="mobile-topbar"] {
+  --bar-pad: calc(var(--bar-top) + 0.5rem);
+}
+@media (min-width: 48rem) and (max-width: 63.99rem) {
+  html:has([data-sticky-tabs]) [data-testid="mobile-topbar"] {
+    --bar-pad: calc(var(--bar-top) + var(--tabs-top) + 0.5rem);
+  }
+}
+[data-testid="mobile-topbar"] :is(a, button) {
+  scroll-margin-top: calc(-1 * var(--bar-pad));
+}
+@media (min-width: 48rem) and (min-height: 481px) {
+  [data-sticky-tabs] a,
+  html:has([data-sticky-tabs]) [data-testid="sidebar"] :is(a, button) {
+    scroll-margin-top: calc(-1 * (var(--bar-top) + var(--tabs-top) + 0.5rem));
+  }
+}
+/*
+  Section tabs (Team's, a profile's, Platform Settings') pinned at the top of the page once it has
+  scrolled past them: under the tablet's top bar, at the window's edge beside the sidebar, so the
+  sections stay one tap away however long the page. While pinned (data-stuck, set by TabBar) the
+  row is frame, not content: the frame's ink, blurred like the top bar; at rest it is as plain as
+  before, part of the page. Not in a short window (480px tall or shorter), where a pinned row would
+  take too much of the height.
+*/
+@utility sticky-tabs {
+  @media (min-width: 48rem) and (min-height: 481px) {
+    position: sticky;
+    top: var(--bar-top);
+    z-index: 30;
+    transition: background-color 150ms;
+    &[data-stuck] {
+      background-color: color-mix(in srgb, var(--color-chrome) 90%, transparent);
+      backdrop-filter: blur(12px);
+    }
   }
 }
 
@@ -594,6 +672,8 @@ p a.text-accent {
    docs/PERFORMANCE.md "Team Overview's first card"). From @xl the lineup is a grid and nothing waits. */
 @container lineup (width < 36rem) {
   [data-art-wait] > [data-art-later] .card-art-img { display: none; }
+  /* The later cards' pool portraits too: ~570 KB that would share the connection with the first card's art. */
+  [data-art-wait] > [data-art-later] [data-card-pool] img { display: none; }
 }
 .flip-card { perspective: 1800px; }
 .flip-card-inner { transform-style: preserve-3d; }

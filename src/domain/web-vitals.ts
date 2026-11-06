@@ -11,7 +11,14 @@
   counts, where a single estimated figure would not be.
 */
 
-export const VITAL_METRICS = ["LCP", "CLS", "INP", "FCP", "TTFB"] as const;
+/**
+ * Google's five, plus two parts of TTFB read from the page's own navigation entry (not Core Web
+ * Vitals): REDIRECT, the time spent on same-origin redirects before the page (sent only for a load
+ * that had one, such as opening the app at `/`), and SERVER, from sending the page's request to its
+ * first byte (the server's work plus one round trip). TTFB counts both, and the connection before
+ * them, so a slow TTFB alone does not say which part is slow (docs/PERFORMANCE.md).
+ */
+export const VITAL_METRICS = ["LCP", "CLS", "INP", "FCP", "TTFB", "REDIRECT", "SERVER"] as const;
 export type VitalMetric = (typeof VITAL_METRICS)[number];
 
 export const DEVICE_CLASSES = ["phone", "tablet", "desktop"] as const;
@@ -42,7 +49,20 @@ export const VITALS: Record<VitalMetric, MetricDefinition> = {
   CLS: { label: "Cumulative Layout Shift", unit: "score", good: 0.1, poor: 0.25, bounds: [0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.25, 0.4, 0.6, 1], max: 50 },
   FCP: { label: "First Contentful Paint", unit: "ms", good: 1800, poor: 3000, bounds: [500, 1000, 1500, 1800, 2500, 3000, 4000, 6000, 10000], max: 120_000 },
   TTFB: { label: "Time to First Byte", unit: "ms", good: 800, poor: 1800, bounds: [100, 200, 300, 400, 600, 800, 1000, 1500, 1800, 3000], max: 120_000 },
+  // Not Google's: thresholds chosen so the two parts of a good TTFB (≤ 800 ms) are good on their own.
+  REDIRECT: { label: "Redirect before the page (part of TTFB)", unit: "ms", good: 200, poor: 600, bounds: [50, 100, 200, 300, 400, 600, 800, 1000, 1500, 2000, 3000], max: 120_000 },
+  SERVER: { label: "Request to first byte (part of TTFB)", unit: "ms", good: 600, poor: 1500, bounds: [100, 200, 300, 400, 600, 800, 1000, 1500, 2000, 3000], max: 120_000 },
 };
+
+/** The page load's REDIRECT and SERVER, from its navigation entry (milliseconds; absent when unknown). */
+export function navigationParts(nav: Pick<PerformanceNavigationTiming, "startTime" | "redirectCount" | "redirectEnd" | "requestStart" | "responseStart"> | undefined): Partial<Record<"REDIRECT" | "SERVER", number>> {
+  if (!nav) return {};
+  const out: Partial<Record<"REDIRECT" | "SERVER", number>> = {};
+  // redirectEnd is 0 when a redirect crossed origins (the browser hides it): then nothing is sent.
+  if (nav.redirectCount > 0 && nav.redirectEnd > 0) out.REDIRECT = nav.redirectEnd - nav.startTime;
+  if (nav.requestStart > 0 && nav.responseStart >= nav.requestStart) out.SERVER = nav.responseStart - nav.requestStart;
+  return out;
+}
 
 export const isVitalMetric = (v: unknown): v is VitalMetric => typeof v === "string" && (VITAL_METRICS as readonly string[]).includes(v);
 export const isDeviceClass = (v: unknown): v is DeviceClass => typeof v === "string" && (DEVICE_CLASSES as readonly string[]).includes(v);

@@ -7,6 +7,7 @@ import { isGameRole } from "@/domain/season-stats";
 import type { OverviewCard, PlayerOverviewData } from "@/server/players/overview";
 import type { MatchupsData } from "@/server/players/matchups";
 import type { PortraitChampion } from "@/components/champion-portrait";
+import type { CardLook } from "@/domain/card-style";
 import { ChampionDetail, type ChampionSelection, type ChampionTab, type RefineChange } from "./champion-detail";
 
 /*
@@ -95,7 +96,7 @@ export function useChampionWindow({ championKey = "champion" }: { championKey?: 
 /** What the window needs from the player's overview (the page's scope and its champions). */
 export type ChampionWindowScope = Pick<PlayerOverviewData, "topChampions" | "season" | "seasons" | "currentSeason" | "mode" | "filter" | "accountOptions">;
 
-export function ChampionWindow({ state, data, detail, championsById, playerId }: { state: ReturnType<typeof useChampionWindow>; data: ChampionWindowScope; detail: MatchupsData | null; championsById: Record<string, PortraitChampion>; playerId: string }) {
+export function ChampionWindow({ state, data, detail, championsById, playerId, look }: { state: ReturnType<typeof useChampionWindow>; data: ChampionWindowScope; detail: MatchupsData | null; championsById: Record<string, PortraitChampion>; playerId: string; /** The player's card look, for the window's colours. */ look?: CardLook | null }) {
   const { sel } = state;
   if (!sel) return null;
   // The server's lane data, only once it is for the window on screen.
@@ -103,6 +104,7 @@ export function ChampionWindow({ state, data, detail, championsById, playerId }:
   return (
     <ChampionDetail
       playerId={playerId}
+      look={look}
       sel={sel}
       card={cardFor(data.topChampions, sel)}
       data={windowData}

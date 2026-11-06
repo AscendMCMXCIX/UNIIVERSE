@@ -6,10 +6,15 @@ import { deleteEndedSessions } from "@/server/auth/sessions";
 import { pruneAuthFailures } from "@/server/auth/throttle";
 import { reconcileErasures } from "@/server/privacy/reconcile";
 import { clearCachesAfterErasure } from "@/server/privacy/after-erasure";
+import { foldMissingPresences } from "@/server/accounts/sync";
+import { invalidateProficiencyCache } from "@/server/proficiency/service";
+
+/** Whether the daily housekeeping folds missing presences, or only counts them (see below). */
+export const FOLD_MISSING_PRESENCES = false;
 
 defineJob({
   key: "integrity",
-  description: "Housekeeping: unstick job states left running by an interrupted process (each counts as a failed run) and close the runs left open; delete run records older than 60 days, sign-in sessions that ended over a week ago and failed sign-ins past the throttling window; keep personal-data erasures in force on what was stored lately.",
+  description: "Housekeeping: unstick job states left running by an interrupted process (each counts as a failed run) and close the runs left open; delete run records older than 60 days, sign-in sessions that ended over a week ago and failed sign-ins past the throttling window; fold into each account's history the stored records that name it but that its own collection never stored (no Riot request); keep personal-data erasures in force on what was stored lately.",
   defaultIntervalMinutes: 24 * 60,
   run: async (ctx) => {
     // A job still "running" after half an hour died with its process. It counts as one more
@@ -28,6 +33,16 @@ defineJob({
     const endedSessionsDeleted = await deleteEndedSessions(ctx.db);
     const oldFailedSignInsDeleted = await pruneAuthFailures(ctx.db);
     const oldJobRunsDeleted = await pruneJobRuns(ctx.db, { now });
+    // Games a teammate's collection stored that an account's own list never did (data-audit's
+    // "places missing from own history"): folded from the stored record, a bounded batch a day,
+    // through the sync's own fold-from-record path. No Riot request.
+    // HELD since 6 Nov 2026: the first run folded 200 (its cap) where data-audit had counted 96,
+    // because the fold also takes earlier seasons and personal-use profiles' accounts, which the
+    // audit never counted, and a folded row cannot be told apart afterwards. Until the owner has
+    // seen the counts by kind (summary.missingPresences.kinds) the job only counts the candidates.
+    // To fold again, set FOLD_MISSING_PRESENCES to true (STATUS.md, Outstanding 6).
+    const missingPresences = await foldMissingPresences(ctx.db, { limit: FOLD_MISSING_PRESENCES ? 200 : 5000, now, hold: !FOLD_MISSING_PRESENCES });
+    if (missingPresences.folded > 0) invalidateProficiencyCache();
     // Erasures stay in force: anything stored in the last two days that names an erased person
     // is removed again (the sync should never store it; this is the safety net).
     const erasures = await reconcileErasures(ctx.db, { mode: "recent" });
@@ -39,7 +54,7 @@ defineJob({
       ok: true,
       degraded: !!unusable,
       error: unusable,
-      summary: { unstuck: unstuck.map((u) => u.key), interruptedRunsClosed, endedSessionsDeleted, oldFailedSignInsDeleted, oldJobRunsDeleted, erasures: { records: erasures.records, unusable: erasures.unusable, people: erasures.people, traces: erasures.traces } },
+      summary: { unstuck: unstuck.map((u) => u.key), interruptedRunsClosed, endedSessionsDeleted, oldFailedSignInsDeleted, oldJobRunsDeleted, missingPresences, erasures: { records: erasures.records, unusable: erasures.unusable, people: erasures.people, traces: erasures.traces } },
     };
   },
 });
