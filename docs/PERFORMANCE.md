@@ -614,7 +614,7 @@ production effect is to be confirmed by `perf-probe` after a deploy.
 **Next steps, in order.**
 1. **Record the LCP element** with the field figures (the `web-vitals` attribution build gives a CSS selector, which holds no personal data). That tells (1) from (2).
 2. **If it is the artwork:** load the first card's art eagerly, with `fetchpriority="high"`. Leave the others lazy, since on phones they start off screen.
-3. **If it is server time:** Vercel's Fluid compute is meant to cut cold starts. It is a project setting for the owner. Check that it adds no cost on the plan before turning it on.
+3. **If it is server time:** Vercel's Fluid compute is meant to cut cold starts. The project is probably already on it (5 Nov): the handover lists it, and the Hobby plan deploys `maxDuration = 300` only with it (docs/DEPLOYMENT.md, "Function duration"). The owner can confirm it in Project → Settings → Functions.
 
 A keep-warm ping is not proposed: a frequent GitHub Actions schedule would exceed the minutes budget, and Vercel's free cron runs once a day.
 
@@ -691,7 +691,7 @@ Opening the app asks for `/`, which looks up the session and redirects to the me
 
 **Not measurable here:** Vercel's cold starts. Read the field result from the probe's `last7` a week after the deploy:
 - **The target:** Team's TTFB p75 ≤ 1 s, like the pages people open directly.
-- **If it stays above that,** what remains is the first function's own cold start. Vercel's Fluid compute is the lever: a project setting for the owner, with its cost on the plan checked first.
+- **If it stays above that,** what remains is the first function's own cold start. Fluid compute, which is meant to cut it, is probably already on (5 Nov): the handover lists it, and the Hobby plan deploys `maxDuration = 300` only with it. The owner can confirm it in Project → Settings → Functions before anything else is tried.
 
 ## Mobile redesign (4 Nov 2026)
 
