@@ -71,6 +71,23 @@ test("a changed card shows on Team, Players and the profile for someone who had 
   await watcher.waitForURL((u) => u.pathname === href);
   await expect(watcher.getByTestId("profile-header")).toHaveAttribute("data-art-champion", again);
 
+  // A change of colours reaches the frame's light too (the player's colours behind the banner),
+  // for the watcher who had the profile open before: the frame follows the synced identity.
+  await editor.getByTestId("customise-card").click();
+  await editor.getByTestId("preset-crimson").click();
+  await editor.getByTestId("save-card-style").click();
+  await expect(dialog).toBeHidden();
+  await watcher.goto("/players");
+  await watcher.locator(`main a[href='${href}']`).filter({ visible: true }).first().click();
+  await watcher.waitForURL((u) => u.pathname === href);
+  // Crimson's primary, #f05a6e, as the browser writes it inside the light's colour-mix.
+  await expect.poll(() => watcher.getByTestId("player-profile").evaluate((el) => getComputedStyle(el).backgroundImage), { message: "the frame's light carries the new colours" }).toContain("240, 90, 110");
+  // Back to the standard colours for the tests that follow (the artwork stays, as before).
+  await editor.getByTestId("customise-card").click();
+  await editor.getByTestId("preset-uniiverse").click();
+  await editor.getByTestId("save-card-style").click();
+  await expect(dialog).toBeHidden();
+
   await watcher.context().close();
   await editor.context().close();
 });

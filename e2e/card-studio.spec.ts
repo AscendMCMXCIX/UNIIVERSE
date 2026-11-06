@@ -148,6 +148,15 @@ test("a saved card shows on the profile, Team and Players, and cards stay aligne
   await expect(card).toHaveAttribute("data-frame", "angular");
   await expect(card.getByTestId("card-tagline")).toHaveText("“Calm in the chaos”");
 
+  // The compact band on the profile's other sections keeps the tagline and the lineup status (from sm up), within its height.
+  await page.goto(`/players/${id}/champions`);
+  const band = page.getByTestId("profile-header");
+  await expect(band).toHaveAttribute("data-compact");
+  await expect(band.getByTestId("card-tagline")).toHaveText("“Calm in the chaos”");
+  await expect(band.getByTestId("card-emblem")).toHaveAttribute("data-emblem", "flame");
+  await expect(band.getByTestId("lineup-status")).toBeVisible();
+  expect((await band.boundingBox())!.height, "the band stays a band").toBeLessThanOrEqual(80);
+
   // Leaderboards: the member's name on the board carries their emblem and name style, as on the card.
   await page.goto("/leaderboards");
   await expect(page.getByTestId("leaderboards")).toHaveAttribute("data-ready", "true");
