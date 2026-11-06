@@ -54,6 +54,8 @@ jobs:
           --health-retries 10
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: Install the PostgreSQL client tools
         run: |
           sudo install -d /usr/share/postgresql-common/pgdg
