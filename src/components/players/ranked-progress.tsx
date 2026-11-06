@@ -111,7 +111,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
                   {timeline.peak ? (
                     <>
                       <span className="block text-sm font-semibold text-fg" title={`${timeline.peak.label} ${timeline.peak.lp} LP`}>
-                        {timeline.peak.label} · {timeline.peak.lp}\u00a0LP
+                        {timeline.peak.label} · {`${timeline.peak.lp}\u00a0LP`}
                       </span>
                       <span className="block text-2xs text-fg-subtle">first read {formatDayMonth(timeline.peak.at)}</span>
                     </>
