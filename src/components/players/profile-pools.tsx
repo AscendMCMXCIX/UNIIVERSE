@@ -4,6 +4,7 @@ import * as React from "react";
 import type { MatchupsData } from "@/server/players/matchups";
 import type { PickerChampion } from "@/components/champions/types";
 import type { PortraitChampion } from "@/components/champion-portrait";
+import type { CardLook } from "@/domain/card-style";
 import { ProfileEditor } from "@/components/profile/profile-editor";
 import { ChampionWindow, useChampionWindow, type ChampionWindowScope } from "./champion-window";
 
@@ -15,12 +16,12 @@ import { ChampionWindow, useChampionWindow, type ChampionWindowScope } from "./c
  * Each card links to the window's address, so a click before the page is interactive still opens it.
  * Without permission to see the player's statistics, the cards stay names only and open nothing.
  */
-export function ProfilePools({ editor, scope, detail, championsById, playerId, inspect }: { editor: Omit<React.ComponentProps<typeof ProfileEditor>, "onInspect" | "inspectHref" | "champions"> & { champions: PickerChampion[] }; scope: ChampionWindowScope; detail: MatchupsData | null; championsById: Record<string, PortraitChampion>; playerId: string; inspect: boolean }) {
+export function ProfilePools({ editor, scope, detail, championsById, playerId, look, inspect }: { editor: Omit<React.ComponentProps<typeof ProfileEditor>, "onInspect" | "inspectHref" | "champions"> & { champions: PickerChampion[] }; scope: ChampionWindowScope; detail: MatchupsData | null; championsById: Record<string, PortraitChampion>; playerId: string; /** The player's card look, for the window's colours. */ look?: CardLook | null; inspect: boolean }) {
   const win = useChampionWindow({ championKey: "champ" });
   return (
     <>
       <ProfileEditor {...editor} onInspect={inspect ? (id, role) => win.open(id, role) : undefined} inspectHref={inspect ? win.hrefFor : undefined} />
-      {inspect ? <ChampionWindow state={win} data={scope} detail={detail} championsById={championsById} playerId={playerId} /> : null}
+      {inspect ? <ChampionWindow state={win} data={scope} detail={detail} championsById={championsById} playerId={playerId} look={look} /> : null}
     </>
   );
 }

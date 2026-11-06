@@ -15,6 +15,8 @@ import { AfterOpen, CLEAR_OF_CONTROLS, DetailModal } from "@/components/ui/detai
 import { MultikillSummaryRow } from "./multikill-summary";
 import { MatchDetailModal } from "@/components/match-history/match-detail";
 import { CardArtLayer } from "./card-art";
+import { cardColourVars } from "./card-look";
+import { accentCss, type CardLook } from "@/domain/card-style";
 import { LaneChart, LaneGameCard, LaneTable, timelineCoverage, type LaneMetric } from "./lane-parts";
 import { OpponentPicker } from "./opponent-picker";
 import { Select } from "@/components/ui/input";
@@ -63,6 +65,7 @@ const plural = (n: number, word: string) => `${formatCount(n)} ${word}${n === 1 
 
 export function ChampionDetail({
   playerId,
+  look,
   sel,
   card,
   data,
@@ -75,6 +78,8 @@ export function ChampionDetail({
   onClose,
 }: {
   playerId: string;
+  /** The player's card look: the window's header takes their colours (the splash stays the champion's). */
+  look?: CardLook | null;
   sel: ChampionSelection;
   /** The champion's row in All Champions (null when it has no games in this scope). */
   card: OverviewCard | null;
@@ -105,12 +110,15 @@ export function ChampionDetail({
     ["matchups", opponents.length ? `Matchups · ${opponents.length}` : "Matchups"],
   ];
 
+  // The window is about the champion (its own splash, never the player's banner or effects), in
+  // the player's colours: the highlight over the art and the portrait's ring take the card's accent.
+  const accent = look ? accentCss(look.style) : "var(--color-accent)";
   const header = (
-    <div className="relative isolate overflow-hidden">
-      <CardArtLayer art={{ championId: sel.championId, skinNum: 0 }} accent="var(--color-accent)" kind="splash" position="center 22%" strength="strong" testId="champion-detail-art" />
+    <div className="relative isolate overflow-hidden" style={cardColourVars(look)} data-testid="champion-detail-header">
+      <CardArtLayer art={{ championId: sel.championId, skinNum: 0 }} accent={accent} kind="splash" position="center 22%" strength="strong" testId="champion-detail-art" />
       <div className={cn("relative pl-4 pt-4 sm:pl-6 sm:pt-5", CLEAR_OF_CONTROLS)}>
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-          <ChampionPortrait champion={me} size="lg" className="shrink-0 rounded-panel ring-2 ring-accent/50 shadow-lg shadow-black/40" />
+          <ChampionPortrait champion={me} size="lg" className="shrink-0 rounded-panel ring-2 ring-[color:var(--card-accent,var(--color-accent))]/50 shadow-lg shadow-black/40" />
           <div className="min-w-0 space-y-1">
             <h2 id="champion-detail-title" className="truncate text-2xl font-bold tracking-tight text-fg sm:text-3xl" data-testid="champion-detail-name">
               {me.name}

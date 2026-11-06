@@ -96,6 +96,10 @@ test("Records & achievements: season records open their game, multikills rarest 
   await expect(page).toHaveURL(/\/leaderboards\?view=records/);
   await expect(page.getByTestId("records-volume-note")).toContainText("reward playing more");
   await expect(page.getByTestId("season-record")).toHaveCount(7);
+  // A record set on a champion leads with that champion's portrait, beside the figure, at the size of a pool row's.
+  const portrait = page.locator("[data-testid=season-record][data-record=kills] img, [data-testid=season-record][data-record=kills] [role=img]").first();
+  await expect(portrait).toBeVisible();
+  expect((await portrait.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   const multis = await page.getByTestId("multikill-row").evaluateAll((els) => els.map((e) => ["data-penta", "data-quadra", "data-triple"].map((k) => Number(e.getAttribute(k)))));
   expect(multis.length).toBeGreaterThan(0);
   const key = (m: number[]) => m[0]! * 1e6 + m[1]! * 1e3 + m[2]!;
