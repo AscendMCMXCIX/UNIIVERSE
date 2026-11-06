@@ -85,9 +85,11 @@ jobs:
           fi
       - if: steps.tested.outputs.tested != 'true'
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       # pnpm version comes from the "packageManager" field in package.json.
       - if: steps.tested.outputs.tested != 'true'
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - if: steps.tested.outputs.tested != 'true'
         uses: actions/setup-node@v7
         with:
@@ -126,7 +128,9 @@ jobs:
           --health-retries 10
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - uses: actions/setup-node@v7
         with:
           node-version: 22
@@ -160,7 +164,9 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - uses: actions/setup-node@v7
         with:
           node-version: 22

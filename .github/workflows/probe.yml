@@ -9,6 +9,9 @@ on:
         description: "Space-separated public paths to time"
         default: "/api/health /login /recover"
 
+# No GITHUB_TOKEN scope: this workflow only calls the deployed app (least privilege).
+permissions: {}
+
 jobs:
   probe:
     runs-on: ubuntu-latest
