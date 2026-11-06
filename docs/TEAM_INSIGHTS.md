@@ -144,7 +144,10 @@ only:
   game, are in a queue the sync does not collect, or belong to a member whose season is not complete
   yet) and `row` (a row without a champion, which every reader skips: a game Riot refused for good, a
   remake, another queue, or a champion the list did not have). `byQueue` counts the places by the
-  game's queue.
+  game's queue. The daily `integrity` job folds such places into the member's history from the stored
+  record (`foldMissingPresences`, `docs/DATA_PIPELINES.md`), so the count should fall to zero within a
+  day of the records existing; a count that stays is a record the fold cannot use (a remake, a queue
+  the sync does not count, or a champion the list does not have).
 
 ## Code and tests
 
