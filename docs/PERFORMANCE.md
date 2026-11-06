@@ -693,6 +693,12 @@ Opening the app asks for `/`, which looks up the session and redirects to the me
 - **The target:** Team's TTFB p75 ≤ 1 s, like the pages people open directly.
 - **If it stays above that,** what remains is the first function's own cold start. Fluid compute, which is meant to cut it, is probably already on (5 Nov): the handover lists it, and the Hobby plan deploys `maxDuration = 300` only with it. The owner can confirm it in Project → Settings → Functions before anything else is tried.
 
+**What Team's TTFB includes (6 Nov 2026).** The field's TTFB comes from `useReportWebVitals`, that is the `web-vitals` library. It counts from the moment the browser starts the load, so it includes any redirect, the service worker's start, the connection and the request.
+- **A load that opens the app at `/`** reports the start page's whole answer, its redirect and then `/team`'s first byte, all as Team's TTFB. The lab table above shows the same thing: `/` 0.28–0.32 s against `/team` 0.13–0.15 s. The pages people open directly carry no redirect.
+- **The service worker is not the cost.** `public/sw.js` enables navigation preload, so the page's request starts while the worker starts.
+- **So a high figure on 16 Nov does not yet say which part is slow.** If it is still above 1 s, the next step is a measurement, not a setting: report each load's redirect time (`redirectEnd − startTime` when `redirectCount > 0`) and its request time (`responseStart − requestStart`) as two more bucketed metrics. Both come from the page's own `PerformanceNavigationTiming` entry and carry nothing about the person. `web_vitals_daily.metric` is text, so this needs no migration, only `VITAL_METRICS`, the reporter, the probe's summary and the privacy notice's wording. Redirect time large means the start page; request time large means the function's cold start; neither means the connection.
+- **Measured from here, for reference** (6 Nov, 03:12 UTC, from a US data centre through Vercel's `iad1` edge to the `syd1` function, so every function answer carries one trans-Pacific round trip): function pages answered in 0.37–0.50 s warm, the edge's redirect of a signed-out `/team` in 0.13–0.17 s, and one first `/` in 0.69 s, probably a cold start. Members load it from Australia, so these are not their figures.
+
 ## Mobile redesign (4 Nov 2026)
 
 The phone redesign (docs/MOBILE.md) measured against `main` at f4e5372, which already has the new
