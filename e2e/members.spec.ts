@@ -22,6 +22,12 @@ test("members in setup are listed beside configured members and their profiles o
   await expect(newcomer.getByTestId("setup-incomplete")).toBeVisible();
   if (rows) await expect(newcomer).toContainText("Roles not set");
   else await expect(newcomer.getByTestId("directory-no-roles")).toBeVisible();
+  // Neither has a Riot account: nothing was read, so no rank is claimed ("Unranked" would mean a
+  // check found no placement); the note says why instead.
+  for (const member of [newcomer, halfway]) {
+    await expect(member).toContainText("No Riot account");
+    await expect(member).not.toContainText("Unranked");
+  }
   await expect(cards.filter({ hasText: "Demo Top" }).getByTestId("setup-incomplete")).toHaveCount(0);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);

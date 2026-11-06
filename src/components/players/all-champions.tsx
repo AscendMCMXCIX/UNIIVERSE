@@ -24,6 +24,8 @@ import { InfoTip } from "@/components/ui/info-tip";
 import { DataStatusNote, RefreshButton, type DataRefreshTarget } from "@/components/ui/data-status";
 import { SectionHeader } from "@/components/ui/section-header";
 import type { DataStatus } from "@/domain/data-status";
+import type { CardLook } from "@/domain/card-style";
+import { RoleTag } from "@/components/role-icon";
 
 type KindKey = keyof MultikillCounts;
 type SortKey = "champion" | "games" | "win" | "kda" | "cs" | "kills" | "multikills" | KindKey | "mastery";
@@ -209,7 +211,7 @@ const masteryText = (n: number | null | undefined) => (n == null ? "—" : forma
  * exploring. A champion opens its window (Overview and Matchups) in the same scope; the window
  * lives in the URL, so it can be linked, and Back closes it.
  */
-export function AllChampions({ data, basePath, championsById, playerId, detail, status, refresh }: { data: PlayerOverviewData; basePath: string; championsById: Record<string, PortraitChampion>; playerId: string; detail: MatchupsData | null; /** The page's data status (domain/data-status). */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts, where Riot can be asked. */ refresh?: DataRefreshTarget | null }) {
+export function AllChampions({ data, basePath, championsById, playerId, look, detail, status, refresh }: { data: PlayerOverviewData; basePath: string; championsById: Record<string, PortraitChampion>; playerId: string; /** The player's card look: the champion window takes their colours. */ look?: CardLook | null; detail: MatchupsData | null; /** The page's data status (domain/data-status). */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts, where Riot can be asked. */ refresh?: DataRefreshTarget | null }) {
   const [query, setQuery] = React.useState("");
   // Opened from Overview's multikills (?sort=multikills) or any other link with a sort: that order first.
   const initialSort = useSearchParams().get("sort");
@@ -270,13 +272,12 @@ export function AllChampions({ data, basePath, championsById, playerId, detail, 
                 <ChampionPortrait champion={ch} size="sm" className="h-10 w-10 rounded-lg ring-1 ring-border-strong/60 transition-[box-shadow] duration-150 group-hover/row:ring-fg-subtle/60 @min-[44rem]:h-8 @min-[44rem]:w-8 @min-[44rem]:rounded-md" />
                 <span className="min-w-0">
                   {/* The whole row opens the champion's window (the button covers it). */}
-                  <button type="button" onClick={() => openRef.current(c)} className="block max-w-full truncate text-left text-md font-semibold leading-tight text-fg outline-none after:absolute after:inset-0 after:content-[''] focus-visible:underline @min-[44rem]:text-sm" aria-label={`${ch.name}, ${ROLE_LABELS[c.role]}: open the champion's overview and matchups`} data-open-champion data-testid="open-champion">
+                  {/* The row opens a window: the pointer says so, and the name underlines while pointed at, as the pools' cards do. */}
+                  <button type="button" onClick={() => openRef.current(c)} className="block max-w-full cursor-pointer truncate text-left text-md font-semibold leading-tight text-fg outline-none after:absolute after:inset-0 after:content-[''] focus-visible:underline group-hover/row:underline group-hover/row:decoration-fg-subtle group-hover/row:underline-offset-2 @min-[44rem]:text-sm" aria-label={`${ch.name}, ${ROLE_LABELS[c.role]}: open the champion's overview and matchups`} data-open-champion data-testid="open-champion">
                     {ch.name}
                   </button>
                   <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-fg-subtle">
-                    <span className="inline-flex min-w-0 items-center gap-1">
-                      <RoleIcon role={c.role} className="h-3.5 w-3.5 shrink-0" /> {ROLE_LABELS[c.role]}
-                    </span>
+                    <RoleTag role={c.role} />
                     {c.inPool ? (
                       <span className="whitespace-nowrap rounded-full border border-border-strong px-1.5 text-2xs font-medium leading-4 text-fg-muted" title="In the player's champion pool for this role: their own choice, not worked out from games" data-testid="in-pool">
                         In pool
@@ -389,7 +390,8 @@ export function AllChampions({ data, basePath, championsById, playerId, detail, 
           </p>
         ) : (
           <>
-            <div className={cn("sticky top-0 z-[1] hidden items-center border-b border-border/70 bg-surface px-3 @min-[44rem]:grid", GRID)} role="group" aria-label="Sort the champions" data-testid="all-champions-header">
+            {/* Pinned under the profile's section tabs, which stay pinned above it (globals.css: --bar-top, --tabs-top). */}
+            <div className={cn("sticky top-[calc(var(--bar-top)+var(--tabs-top))] z-[1] hidden items-center border-b border-border/70 bg-surface px-3 @min-[44rem]:grid", GRID)} role="group" aria-label="Sort the champions" data-testid="all-champions-header">
               {COLUMNS.map((c) => {
                 const active = sortsAs(c.key, sort.key);
                 const right = c.key !== "champion";
@@ -423,7 +425,7 @@ export function AllChampions({ data, basePath, championsById, playerId, detail, 
           {multikillsIncomplete ? <InfoTip text={MULTIKILL_HELP} label="About multikills" /> : null}
         </p>
       ) : null}
-      <ChampionWindow state={win} data={data} detail={detail} championsById={championsById} playerId={playerId} />
+      <ChampionWindow state={win} data={data} detail={detail} championsById={championsById} playerId={playerId} look={look} />
     </section>
   );
 }

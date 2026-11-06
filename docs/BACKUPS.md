@@ -119,7 +119,7 @@ Each run:
 1. dumps the `public` schema (all of UNIIVERSE's tables) in one consistent snapshot, reading only;
 2. restores it into a throw-away Postgres on the runner and checks that the number of tables, teams, accounts, players, Riot accounts, stored games and other players' last known ranks (`last_known_ranks`), and the newest migration, match production. It also checks the retired tables still in the database, what Meta & Trends left after #86 and #138 dropped the rest (`tracked_summoners`, `region_status`, the three `stat_*_periods` tables and `champion_change_points`): each must restore with all its rows, so the backup kept before any drop of them is known to hold them. The manifest lists them under `retiredTableRows`, and `last_known_ranks` under `rows`;
 3. encrypts it with AES-256 and checks the encrypted file opens again;
-4. keeps it for 28 days as a private artifact of the run: about four weekly copies. A manifest beside it lists sizes, row counts and checksums, with no data and no secrets.
+4. keeps it for 28 days as an artifact of the run: about four weekly copies. **Since 6 Nov 2026 the repository is public, so anyone signed in to GitHub can download these artifacts.** Each stays encrypted (AES-256, gpg) and cannot be opened without `BACKUP_PASSPHRASE`; the owner decided on 6 Nov to keep them here behind a new, strong passphrase ("Rotating the passphrase" below), and `scripts/backup-db.sh` refuses a passphrase shorter than 32 characters. A manifest beside it lists sizes, row counts and checksums, with no data and no secrets.
 
 A failed run is a failed workflow, so GitHub's usual email reports it.
 
@@ -156,6 +156,19 @@ A failed run is a failed workflow, so GitHub's usual email reports it.
 Never paste either value into a chat, an issue or a pull request.
 
 To remove the role later: `DROP OWNED BY uniiverse_backup; DROP ROLE uniiverse_backup;` (it owns nothing, so this only removes its grants), then delete the two secrets.
+
+### Rotating the passphrase
+
+Because anyone signed in to GitHub can download the encrypted backups, the passphrase is the only thing protecting the data in them, and a downloaded copy can be attacked offline indefinitely. Rotate it whenever you are not sure it is long, random and used nowhere else.
+
+On 6 Nov 2026 the owner was not sure about the passphrase in use, so the **Database backup** workflow was disabled (Actions → Database backup → ⋯ → Disable workflow) until it is rotated. Nothing is backed up while it is disabled. The daily Production check fails once the last good backup (6 Nov, 00:24 UTC) is more than 8 days old, from about 15 Nov, so finish the rotation before 14 Nov.
+
+1. **Keep the old passphrase.** Backups taken before the rotation open only with the old passphrase. Keep it in your password manager, labelled as old, until the last of those backups and every offline copy of them is gone. The backup that #212 relies on (run 7, `database-backup-42136432466`, 6 Nov) is one of them.
+2. **Generate a new one.** In your password manager, generate at least 32 random characters, used nowhere else. Save it as the new `BACKUP_PASSPHRASE`.
+3. **Replace the secret.** GitHub → Settings → Secrets and variables → Actions → `BACKUP_PASSPHRASE` → Update. Never paste it into a chat, an issue or a pull request.
+4. **Turn the workflow back on and run it once.** Actions → Database backup → Enable workflow, then Run workflow. The run fails before reading anything if the passphrase is shorter than 32 characters.
+5. **Prove the new passphrase opens it.** Download that run's backup and decrypt it with the new passphrase ("Open and check a backup" below). Then delete the decrypted file.
+6. **The older public copies.** Copies that someone downloaded before the rotation stay protected by the old passphrase only, and deleting the artifacts cannot recall them. Delete them anyway once you hold an offline copy of the ones you still need: open each Database backup run → Artifacts → delete `database-backup-<run>`. Deleting cannot be undone. If the old passphrase was weak, also treat the members' password hashes in those copies as exposed, and ask members with weak passwords to change them.
 
 ### Open and check a backup
 

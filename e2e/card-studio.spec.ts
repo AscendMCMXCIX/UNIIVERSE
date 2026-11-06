@@ -95,7 +95,7 @@ test("presets change the live preview only; Cancel and Escape keep the saved car
   await expect(page.getByTestId("profile-header")).toHaveAttribute("data-frame", savedFrame ?? "none");
 });
 
-test("a saved card shows on the profile, Team and Players, and cards stay aligned", async ({ page }, info) => {
+test("a saved card shows on the profile, Team and Players, and cards stay aligned", async ({ page, browser }, info) => {
   test.skip(info.project.name !== "desktop", "runs once, on the desktop project");
   const id = await openTopProfile(page);
   await openStudio(page);
@@ -115,6 +115,13 @@ test("a saved card shows on the profile, Team and Players, and cards stay aligne
   await expect(page.getByTestId("save-card-style")).toBeEnabled();
   await page.getByRole("radiogroup", { name: "Emblem" }).locator("[data-value=flame]").click();
   await expect(page.getByTestId("card-preview").getByTestId("card-tagline")).toHaveText("“Calm in the chaos”");
+  // The Players view also previews the list row (Players on phones, Leaderboards): the same name, emblem and tagline.
+  await page.getByTestId("preview-directory").click();
+  const rowPreview = page.getByTestId("card-preview-row");
+  await expect(rowPreview.getByTestId("card-tagline")).toHaveText("“Calm in the chaos”");
+  await expect(rowPreview.getByTestId("card-emblem")).toHaveAttribute("data-emblem", "flame");
+  await expect(rowPreview.locator("[data-art-layer]")).toHaveCount(0);
+  await page.getByTestId("preview-team").click();
   // One animated effect, to see how a page of several cards treats it.
   await step(page, "effects");
   const shimmerSwitch = page.getByRole("switch", { name: "Accent shimmer" });
@@ -162,6 +169,35 @@ test("a saved card shows on the profile, Team and Players, and cards stay aligne
   const card = page.locator("main [data-testid='player-card-item']").filter({ has: page.locator(`a[href='/players/${id}']`) });
   await expect(card).toHaveAttribute("data-frame", "angular");
   await expect(card.getByTestId("card-tagline")).toHaveText("“Calm in the chaos”");
+
+  // The compact band on the profile's other sections keeps the tagline and the lineup status (from sm up), within its height.
+  await page.goto(`/players/${id}/champions`);
+  const band = page.getByTestId("profile-header");
+  await expect(band).toHaveAttribute("data-compact");
+  await expect(band.getByTestId("card-tagline")).toHaveText("“Calm in the chaos”");
+  await expect(band.getByTestId("card-emblem")).toHaveAttribute("data-emblem", "flame");
+  await expect(band.getByTestId("lineup-status")).toBeVisible();
+  expect((await band.boundingBox())!.height, "the band stays a band").toBeLessThanOrEqual(80);
+
+  // Leaderboards: the member's name on the board carries their emblem and name style, as on the card.
+  await page.goto("/leaderboards");
+  await expect(page.getByTestId("leaderboards")).toHaveAttribute("data-ready", "true");
+  const formRow = page.locator(`[data-testid=form-row][data-player-id="${id}"]`);
+  await expect(formRow.getByTestId("card-emblem")).toHaveAttribute("data-emblem", "flame");
+  await expect(formRow.getByTestId("card-name")).toHaveAttribute("data-name-style", "wide");
+
+  // Players on a phone: the row shows the same name style, emblem and tagline (no art: rows stay light).
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, storageState: await page.context().storageState() });
+  const small = await phone.newPage();
+  await small.goto("/players");
+  const row = small.locator(`main a[data-testid=player-row][href="/players/${id}"]`);
+  await expect(row).toBeVisible();
+  await expect(row).toHaveAttribute("data-frame", "angular");
+  await expect(row.getByTestId("card-emblem")).toHaveAttribute("data-emblem", "flame");
+  await expect(row.getByTestId("card-name")).toHaveAttribute("data-name-style", "wide");
+  await expect(row.getByTestId("card-tagline")).toHaveText("“Calm in the chaos”");
+  await expect(row.locator("[data-art-layer]")).toHaveCount(0);
+  await phone.close();
 
   // Back to the standard card.
   await page.goto(`/players/${id}`);

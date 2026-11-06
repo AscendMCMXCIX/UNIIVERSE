@@ -7,8 +7,8 @@ import { ROLE_LABELS, type Role } from "@/domain/roles";
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { cn } from "@/lib/cn";
 import { CardArtLayer } from "./card-art";
-import { CardFrame, cardShellStyle } from "./card-look";
-import { CardIdentity, CardPerformance, CardPool, CardRoleChip, PoolPreview, type CardSeason } from "./player-card";
+import { CardFrame, cardColourVars, cardShellStyle } from "./card-look";
+import { CardIdentity, CardPerformance, CardPool, CardRoleChip, PoolPreview, RowIdentity, type CardSeason } from "./player-card";
 import type { CompactRank } from "./rank-emblem";
 import { CardSocialIcons } from "./social-links";
 import { DirectoryCardLayout, DirectoryPoolLabel } from "./player-summary-card";
@@ -44,27 +44,41 @@ export const CardPreview = React.memo(function CardPreview({ view, look, art, na
   const roleLabel = data?.role ? ROLE_LABELS[data.role] : "Role";
   if (view === "directory") {
     // The directory's own card. The role here may be the lineup's and the pool every champion the
-    // player can feature, so the pool's heading names neither as the Primary Role.
+    // player can feature, so the pool's heading names neither as the Primary Role. Under it, the
+    // same member as a list row (the Players list on phones, the Leaderboards rows): the name,
+    // emblem, colours and tagline follow the look there; the art, frame and effects do not.
     return (
-      <div className="@container/card mx-auto w-full max-w-[20rem]" data-testid="card-preview" data-view="directory">
-        <DirectoryCardLayout
-          look={look}
-          art={art}
-          artTestId="preview-art"
-          smooth={false}
-          className="mb-0"
-          header={<CardRoleChip role={data?.role ?? null} label={roleLabel} className="px-2.5 py-0.5 text-xs" />}
-          identity={<CardIdentity layout="rows" look={look} name={name} avatarUrl={avatarUrl} rank={data?.rank ?? null} showRank={data?.showRank ?? true} social={data?.social?.length ? <CardSocialIcons links={data.social} owner={name} mode="static" /> : null} />}
-          poolLabel={data?.role ? <DirectoryPoolLabel heading={`${roleLabel} · Champion pool`} count={null} /> : null}
-          pool={<PoolPreview champions={pool} total={pool.length} label="Champion pool" fit="count" testId="preview-pool" />}
-        />
+      <div className="mx-auto w-full max-w-[20rem]">
+        <div className="@container/card" data-testid="card-preview" data-view="directory">
+          <DirectoryCardLayout
+            look={look}
+            art={art}
+            artTestId="preview-art"
+            smooth={false}
+            className="mb-0"
+            header={<CardRoleChip role={data?.role ?? null} label={roleLabel} className="px-2.5 py-0.5 text-xs" />}
+            identity={<CardIdentity layout="rows" look={look} name={name} avatarUrl={avatarUrl} rank={data?.rank ?? null} showRank={data?.showRank ?? true} social={data?.social?.length ? <CardSocialIcons links={data.social} owner={name} mode="static" /> : null} />}
+            poolLabel={data?.role ? <DirectoryPoolLabel heading={`${roleLabel} · Champion pool`} count={null} /> : null}
+            pool={<PoolPreview champions={pool} total={pool.length} label="Champion pool" fit="count" testId="preview-pool" />}
+          />
+        </div>
+        <div className="mt-3 flex items-center gap-3 rounded-card border border-border bg-surface px-3.5 py-2.5 panel-depth" style={cardColourVars(look)} data-testid="card-preview-row">
+          <RowIdentity look={look} name={name} avatarUrl={avatarUrl} role={data?.role ?? null} rank={data?.rank ?? null} showRank={data?.showRank ?? true}>
+            {pool.length ? (
+              <span className="mt-1.5 block">
+                <PoolPreview champions={pool} total={pool.length} label="Champion pool" fit="count" testId="preview-row-pool" />
+              </span>
+            ) : null}
+          </RowIdentity>
+        </div>
+        <p className="mt-1.5 text-center text-xs text-fg-subtle">In lists (Players on a phone, Leaderboards): the name, emblem, colours and tagline follow; the art does not.</p>
       </div>
     );
   }
   const phone = view === "phone";
   return (
     <div className={cn("mx-auto w-full", phone ? "max-w-[20rem]" : "max-w-[24rem]")} data-testid="card-preview" data-view={view} data-frame={look.style.frame} data-zoom={look.style.art.zoom}>
-      <article className="@container/card relative flex flex-col overflow-hidden rounded-card border" style={cardShellStyle(look)}>
+      <article className="@container/card relative flex flex-col overflow-hidden rounded-card border border-border" style={cardShellStyle(look)}>
         <CardFrame look={look} />
         {/* The Team card's artwork: as tall as the identity at its foot needs, never less than the card's own minimum. */}
         <div className="relative flex min-h-[10.5rem] shrink-0 flex-col justify-end px-3 pb-2.5 pt-12">

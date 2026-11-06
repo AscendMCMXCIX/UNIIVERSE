@@ -6,8 +6,12 @@ import { requiresAccounts, missingProductionSetup } from "@/server/auth/mode";
 import { patches, dataRefreshStatus, riotAccounts } from "@/server/db/schema";
 import { RETIRED_JOB_KEYS, failuresInARow } from "@/server/ops/refresh-status";
 import { getRiotCredentialStatus } from "@/server/riot/credential";
+import { log } from "@/server/observability/log";
 
 export const dynamic = "force-dynamic";
+
+/** What a failed database check tells the public; the driver's own message is logged instead. */
+const PUBLIC_DB_ERROR = "The database did not answer (details in the server log).";
 
 /**
  * Cheap health check for uptime monitors: the app answers, the database answers (and how fast),
@@ -56,6 +60,11 @@ export async function GET() {
       ms: Math.round((performance.now() - started) * 10) / 10,
     });
   } catch (err) {
-    return NextResponse.json({ ...base, ok: false, db: { ok: false, error: (err as Error).message.replace(/postgres(ql)?:\/\/\S+/gi, "[redacted]") }, ms: Math.round((performance.now() - started) * 10) / 10 }, { status: 503 });
+    // The driver's message can name the database host, its region and the database user (for
+    // example "password authentication failed for user …" or "getaddrinfo ENOTFOUND …"). This
+    // endpoint is public and its answer is printed in the public Actions logs, so the detail goes
+    // to the server log only (redacted there too) and visitors get a fixed message.
+    log("error", "health.db_failed", { error: err });
+    return NextResponse.json({ ...base, ok: false, db: { ok: false, error: PUBLIC_DB_ERROR }, ms: Math.round((performance.now() - started) * 10) / 10 }, { status: 503 });
   }
 }

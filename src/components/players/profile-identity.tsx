@@ -5,6 +5,7 @@ import type { Role } from "@/domain/roles";
 import type { CardAccent, CardArt } from "@/domain/player-card";
 import type { CardLook } from "@/domain/card-style";
 import type { SocialLinkView } from "@/domain/social-links";
+import { bannerLightStyle } from "./banner-light";
 
 /**
  * What the profile header shows about a player: only display fields (never notes or account
@@ -73,4 +74,19 @@ export function ProfileIdentitySync({ identity }: { identity: HeaderIdentity }) 
 
 export function useHeaderIdentity(fallback: HeaderIdentity): HeaderIdentity {
   return React.useContext(Ctx)?.identity ?? fallback;
+}
+
+/**
+ * The profile's frame, lit from behind the banner in the player's own colours (bannerLightStyle).
+ * Drawn from the synced identity for the same reason as the header: a layout Next.js reuses would
+ * otherwise keep the colours of the card as it was when the profile was first opened. The children
+ * (the header, the section bar, the page) are server-rendered and pass through.
+ */
+export function ProfileFrameShell({ initial, className, children }: { initial: HeaderIdentity; className?: string; children: React.ReactNode }) {
+  const identity = useHeaderIdentity(initial);
+  return (
+    <div className={className} style={bannerLightStyle(identity.look.style.colours)} data-testid="player-profile">
+      {children}
+    </div>
+  );
 }

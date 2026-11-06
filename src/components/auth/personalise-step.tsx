@@ -8,6 +8,7 @@ import type { Role } from "@/domain/roles";
 import type { PickerChampion } from "@/components/champions/types";
 import { CardPreview } from "@/components/players/card-preview";
 import { CustomiseCardButton } from "@/components/players/customise-card-button";
+import type { CompactRank } from "@/components/players/rank-emblem";
 import { AvatarEditor } from "@/components/settings/account-details";
 import { SocialLinksEditor } from "@/components/settings/social-links-editor";
 import type { SocialLinkView, SocialLinks } from "@/domain/social-links";
@@ -27,6 +28,10 @@ export interface PersonaliseCard {
   poolIds: string[];
   /** The social links teammates see on the card (filtered on the server). */
   social?: SocialLinkView[];
+  /** The rank read from the player's Riot accounts, as Team and Players show it. */
+  rank?: CompactRank | null;
+  /** False (the default): no account was read, so the card claims no rank rather than "Unranked". */
+  showRank?: boolean;
 }
 
 /**
@@ -37,7 +42,7 @@ export interface PersonaliseCard {
  * `preview`: Admin → Previews, where nothing may be saved, so the editors are described, not opened.
  */
 export function PersonaliseStep({ card, champions, customised, social = null, preview = false, onPreviewBack, onPreviewDone }: { card: PersonaliseCard; champions: PickerChampion[]; customised: boolean; social?: SocialLinks | null; preview?: boolean; onPreviewBack?: () => void; onPreviewDone?: () => void }) {
-  const data = { role: card.role, rank: null, status: card.role ? ("main" as const) : null, season: null, poolIds: card.poolIds, social: card.social };
+  const data = { role: card.role, rank: card.rank ?? null, showRank: card.showRank ?? false, status: card.role ? ("main" as const) : null, season: null, poolIds: card.poolIds, social: card.social };
   const { productName } = useBrandNames();
   return (
     <div data-testid="personalise-step">

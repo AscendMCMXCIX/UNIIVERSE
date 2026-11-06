@@ -7,6 +7,7 @@ import { FilterBar, FilterField } from "@/components/ui/filter-bar";
 import { SearchInput } from "@/components/ui/search-input";
 import { Select } from "@/components/ui/input";
 import { Panel, PanelHeader } from "@/components/ui/panel";
+import { ScrollRow } from "@/components/ui/scroll-row";
 import { cn } from "@/lib/cn";
 import { ResourceIcon } from "./resource-icon";
 import { useFavourites } from "./favourites";
@@ -55,23 +56,30 @@ export function ResourcesView({ entries }: { entries: Resource[] }) {
         </FilterField>
       </FilterBar>
 
-      {favourites.length && !narrowed ? (
-        <section aria-labelledby="resources-favourites" className="space-y-2" data-testid="resources-favourites">
-          <h2 id="resources-favourites" className="text-xs font-semibold uppercase tracking-label text-fg-muted">
+      {/* Favourites are read from this browser after the page is interactive: the row is in the
+          server's HTML at its final height either way (one line of chips, or one quiet line saying
+          what the star does), so the library never moves down once they arrive. */}
+      {!narrowed ? (
+        <section aria-labelledby="resources-favourites-title" className="space-y-2" data-testid={favourites.length ? "resources-favourites" : "resources-favourites-empty"}>
+          <h2 id="resources-favourites-title" className="text-xs font-semibold uppercase tracking-label text-fg-muted">
             Favourites <span className="font-normal normal-case tracking-normal text-fg-subtle">· on this device</span>
           </h2>
-          <ul className="flex flex-wrap gap-2">
-            {favourites.map((e) => (
-              <li key={e.id} className="min-w-0 max-w-full">
-                <a href={e.url} target="_blank" rel="noopener noreferrer" className="flex min-h-11 min-w-0 max-w-full items-center gap-2 rounded-md border border-border bg-surface px-2 text-sm font-medium text-fg hover:border-border-strong focus-visible:outline-2 focus-visible:outline-accent md:pointer-fine:min-h-9" data-testid="resources-favourite-link">
-                  <ResourceIcon icon={e.icon} url={e.url} className="h-6 w-6 border-0 bg-transparent" />
-                  <span className="min-w-0 truncate">{e.title}</span>
-                  <ExternalLink className="h-3 w-3 shrink-0 text-fg-subtle" aria-hidden />
-                  <span className="sr-only">(opens in a new tab)</span>
-                </a>
-              </li>
-            ))}
-          </ul>
+          {favourites.length ? (
+            <ScrollRow as="ul" className="flex min-h-11 items-center gap-2 md:pointer-fine:min-h-9">
+              {favourites.map((e) => (
+                <li key={e.id} className="shrink-0">
+                  <a href={e.url} target="_blank" rel="noopener noreferrer" className="flex min-h-11 max-w-[16rem] items-center gap-2 rounded-md border border-border bg-surface px-2 text-sm font-medium text-fg hover:border-border-strong focus-visible:outline-2 focus-visible:outline-accent md:pointer-fine:min-h-9" data-testid="resources-favourite-link">
+                    <ResourceIcon icon={e.icon} url={e.url} className="h-6 w-6 border-0 bg-transparent p-0.5" />
+                    <span className="min-w-0 truncate">{e.title}</span>
+                    <ExternalLink className="h-3 w-3 shrink-0 text-fg-subtle" aria-hidden />
+                    <span className="sr-only">(opens in a new tab)</span>
+                  </a>
+                </li>
+              ))}
+            </ScrollRow>
+          ) : (
+            <p className="flex min-h-11 items-center text-xs text-fg-subtle md:pointer-fine:min-h-9">None yet: star a site to keep it here, on this device.</p>
+          )}
         </section>
       ) : null}
 
@@ -105,7 +113,8 @@ function ResourceRow({ resource: e, favourite, onToggle }: { resource: Resource;
         <ResourceIcon icon={e.icon} url={e.url} className="h-9 w-9" />
         <span className="min-w-0 flex-1">
           <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-            <span className="min-w-0 truncate text-sm font-medium leading-snug text-fg group-hover:text-accent">{e.title}</span>
+            {/* A phone row's name at the row standard (text-md semibold, docs/MOBILE.md); the table's size from md. */}
+            <span className="min-w-0 truncate text-sm font-medium leading-snug text-fg group-hover:text-accent max-md:text-md max-md:font-semibold">{e.title}</span>
             <span className="min-w-0 truncate text-xs text-fg-subtle">{resourceHost(e.url)}</span>
           </span>
           {e.description ? <span className="mt-0.5 line-clamp-2 block text-xs leading-snug text-fg-muted">{e.description}</span> : null}

@@ -18,7 +18,9 @@ import { cn } from "@/lib/cn";
  * (the team's home page, whose header already shows it) name the team at the bar's right end.
  * On desktop the bar is compact (40 px tabs level with the sidebar's brand row). The bar is the
  * shared TabBar (ui/tab-bar.tsx), as on a profile: on phones the tabs share the width when they
- * fit, and otherwise scroll sideways with the current one in view. Pages inside a section (a
+ * fit, and otherwise scroll sideways with the current one in view; on tablets and desktops it stays
+ * pinned at the top of the page once it has scrolled past (TabBar's sticky), so a long section
+ * (Players, Matches) never needs scrolling back up to leave it. Pages inside a section (a
  * profile, a match) have their own headers and no Team bar.
  */
 export function SectionTabs({ allowed, team }: { allowed: string[]; team: { name: string; logo: string | null; logoStill: string | null } }) {
@@ -33,6 +35,7 @@ export function SectionTabs({ allowed, team }: { allowed: string[]; team: { name
       items={sections.map((s) => ({ key: s.href, href: s.href, label: s.label, icon: s.icon, testId: `${hub.key}-tab-${s.href.split("/").pop()}` }))}
       current={current.href}
       dense
+      sticky
       // Phones reach Team's sections from the bottom tab bar (MobileNav), so the bar is not repeated in the page there.
       className={cn("mb-4 sm:mb-5 lg:mb-4 lg:first:-mt-2", hub.key === "team" && "max-md:hidden")}
       testId={`${hub.key}-tabs`}
