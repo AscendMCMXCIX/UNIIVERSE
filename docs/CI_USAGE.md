@@ -213,3 +213,32 @@ The day-to-day rules are in `CLAUDE.md`. In short:
 - **Workflow lint** (`workflow-lint.yml`): about 15 seconds, only on pull requests that change a workflow. It does not start CI.
 - **Database backup:** the size summary and the manifest artifact add a few seconds a week. Changes to `backup.yml` no longer start CI.
 
+
+## 6 Nov 2026: November measured by job
+
+**How.** Every run since 1 Nov (263, from the Actions API), each job's own time rounded up to the minute, as GitHub bills a private repository. All jobs ran on Linux runners. The API's per-run billing figure still reads 0 here, so this is the closest figure short of the billing page.
+
+| Workflow | Billed minutes, 1–6 Nov |
+|---|---|
+| CI | 2,580 |
+| Production check | 75 |
+| WebKit | 55 |
+| Data jobs | 44 |
+| Workflow lint | 18 |
+| Dependabot (probably not billed) | 13 |
+| Database backup | 8 |
+| **All** | **about 2,793** |
+
+**CI's jobs** (green pull-request runs, n = 50 each, medians):
+
+| Job | Median | Total |
+|---|---|---|
+| Build and browser tests | 39 min | 1,869 |
+| Database tests on PostgreSQL 16 | 5 min | 251 |
+| Typecheck, lint, unit tests | 3 min | 127 |
+
+- **A full run bills 47 minutes** (median of 58), up from about 40 on 23 Oct. The browser job is 80% of it.
+- **The 34 small runs** (the push to `main` reusing the PR's result, or skipped jobs) cost 35 minutes in all, as designed.
+- **What the schedule really costs:** Data jobs delivered 3–5 scheduled runs a day at 1 minute each, not 24; the daily Production check bills about 3; the weekly backup about 3.
+- **The remainder of November:** about 207 minutes, against about 160–210 for the schedule through 30 Nov. No full CI run fits (STATUS.md, Outstanding 4).
+- **For December:** the browser job is the only lever that matters. Its options are listed under "Ways to shorten it, not applied" (23 Oct). Each changes what or how the suite tests, so each needs a local before/after run of the full suite first.
