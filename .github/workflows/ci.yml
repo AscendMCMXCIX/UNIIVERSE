@@ -1,6 +1,6 @@
 name: CI
 
-# Actions minutes are limited (2,000 a month on the free plan, shared with data-jobs.yml), so:
+# CI stays small and fast (public since 6 Nov 2026, so standard runners are not billed; the rules keep the queue short), so:
 # - pull requests are checked once, on the pull_request event, and main once per push. Pushes to
 #   other branches no longer run CI on their own: open a PR, or start a run by hand
 #   (Actions → CI → Run workflow). Before this, every commit on a PR branch ran CI twice (push
