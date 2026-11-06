@@ -246,6 +246,51 @@ p a.text-accent {
   }
 }
 
+/*
+  What is pinned above the page from md (tablets and desktops), for the section tabs that stay in
+  reach (sticky-tabs below, docs/RESPONSIVE.md → Shell) and anything pinned under them (All
+  Champions' column headings):
+    --bar-top   the tablet top bar's height, its hairline included (md to lg; the sidebar's widths
+                have nothing above the page);
+    --tabs-top  the pinned section tabs' height where they are pinned, else 0: a short window (under
+                481px tall) keeps its height for the page, and phones carry a profile's sections in
+                the top bar instead.
+  Static values, so the root is never re-styled by script (see useTopBarHeight).
+*/
+:root {
+  --bar-top: 0px;
+  --tabs-top: 0px;
+}
+@media (min-width: 48rem) and (max-width: 63.99rem) {
+  :root {
+    --bar-top: calc(3.5625rem + env(safe-area-inset-top));
+  }
+}
+@media (min-width: 48rem) and (min-height: 481px) {
+  :root {
+    --tabs-top: 2.8125rem;
+  }
+  /* Whatever is scrolled into view on a page with pinned section tabs stops below them (WCAG 2.4.11), as under the phone's bars. */
+  html:has([data-sticky-tabs]) {
+    scroll-padding-top: calc(var(--bar-top) + var(--tabs-top) + 0.5rem);
+  }
+}
+/*
+  Section tabs (Team's, a profile's, Platform Settings') pinned at the top of the page once it has
+  scrolled past them: under the tablet's top bar, at the window's edge beside the sidebar, over the
+  page's own ground and blurred like the top bar, so the sections stay one tap away however long
+  the page. Not in a short window, where a pinned row would take too much of the height.
+*/
+@utility sticky-tabs {
+  @media (min-width: 48rem) and (min-height: 481px) {
+    position: sticky;
+    top: var(--bar-top);
+    z-index: 30;
+    background-color: color-mix(in srgb, var(--color-bg) 85%, transparent);
+    backdrop-filter: blur(12px);
+  }
+}
+
 /* A sideways-scrolling row (tabs, chips) fades only at the ends that hide more of it; the ends
    are marked by useScrollEdges (components/ui/scroll-row.tsx). Without script nothing fades. */
 @utility scroll-fade-x {

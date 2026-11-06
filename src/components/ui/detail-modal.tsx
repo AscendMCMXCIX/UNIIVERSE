@@ -82,6 +82,18 @@ const SETTLE_MS = 120;
 /** True once the window has finished opening (immediately for reduced motion). */
 const SettledContext = React.createContext(true);
 
+/** Closes the window this is rendered in, with its closing motion, as the close button does. */
+const CloseContext = React.createContext<() => void>(() => undefined);
+
+/**
+ * The way a window's own controls close it (a sheet's Done, a form's Cancel): the same request as
+ * the close button and Escape, so the window leaves with its motion (and asks `canClose` first)
+ * instead of vanishing when its owner stops rendering it.
+ */
+export function useModalClose(): () => void {
+  return React.useContext(CloseContext);
+}
+
 /**
  * What opened a window that has just closed, for a window opened in the same render: one that
  * replaces another (a game opened from a player's Encounters, and Back to them) finds focus on the
@@ -357,7 +369,7 @@ export function DetailModal({
       data-flow={flow || undefined}
     >
       {open ? (
-        <>
+        <CloseContext.Provider value={requestClose}>
           {/* Short windows (a phone held sideways) scroll as one: a large header would otherwise leave
               the body a strip. So does a phone window whose header would fill much of the screen
               (FLOW_SHARE). A custom header then scrolls away while its controls float at the top
@@ -403,7 +415,7 @@ export function DetailModal({
             <SettledContext.Provider value={settled}>{children}</SettledContext.Provider>
           </div>
           {footer ? <div className={cn("flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border bg-bg-elevated px-4 py-3 pb-safe sm:px-6", !innerScroll && !pinned && "short:sticky short:bottom-0 short:z-10 short:mt-auto", flow && "sticky bottom-0 z-10 mt-auto")}>{footer}</div> : null}
-        </>
+        </CloseContext.Provider>
       ) : null}
     </dialog>
   );

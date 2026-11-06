@@ -33,13 +33,17 @@ export interface TabBarItem {
  * new tabs and the keyboard work. On phones the tabs share the width when they fit; when they do
  * not, the bar scrolls sideways, an edge fades where more tabs are hidden and the current tab is
  * kept in view. `keepScroll`: the page stays where it is when the section changes (a profile, whose
- * header sits above its tabs). `end`: content at the bar's right end (Team names the team there).
+ * header sits above its tabs). `sticky`: on tablets and desktops the bar stays pinned at the top of
+ * the page once it has scrolled past it (under the tablet's top bar), so the sections stay in reach
+ * however long the page (globals.css sticky-tabs; docs/RESPONSIVE.md → Shell); it must be a child of
+ * the element the page scrolls through, never of a wrapper that ends with it. `end`: content at the
+ * bar's right end (Team names the team there).
  */
-export function TabBar({ label, items, current, keepScroll = false, dense = false, className, testId, end }: { label: string; items: readonly TabBarItem[]; current: string; keepScroll?: boolean; dense?: boolean; className?: string; testId?: string; end?: React.ReactNode }) {
+export function TabBar({ label, items, current, keepScroll = false, dense = false, sticky = false, className, testId, end }: { label: string; items: readonly TabBarItem[]; current: string; keepScroll?: boolean; dense?: boolean; sticky?: boolean; className?: string; testId?: string; end?: React.ReactNode }) {
   const listRef = React.useRef<HTMLUListElement>(null);
   useScrollEdges(listRef, { keepCurrentInView: true, current });
   return (
-    <nav aria-label={label} className={cn("flex items-end gap-4 border-b border-border", className)} data-testid={testId}>
+    <nav aria-label={label} className={cn("flex items-end gap-4 border-b border-border", sticky && "sticky-tabs", className)} data-testid={testId} data-sticky-tabs={sticky || undefined}>
       <ul ref={listRef} className="scroll-fade-x -mb-px flex min-w-0 flex-1 snap-x gap-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {items.map((s) => {
           const on = s.key === current;

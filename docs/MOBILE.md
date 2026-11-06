@@ -46,8 +46,10 @@ anywhere else:
    to Admin Mode, Sign out, then the patch and Riot's notice. It replaces both the menu drawer and
    the account dropdown on phones. Admin Mode lists all its pages there too, as its bar holds four.
 
-Tablets keep the menu drawer, the account dropdown and the page tabs (`SectionTabs`); the bottom
-bar and the account sheet are phones only.
+Tablets keep the menu drawer (a modal dialog), the account dropdown and the page tabs
+(`SectionTabs`, pinned at the top of the page once it scrolls, as a profile's sections are, so they
+stay in reach as on a phone); the bottom bar and the account sheet are phones only. The installed
+app on a tablet, which has no browser Back, gets the same Back in its top bar as a phone.
 
 ### Back
 
@@ -64,7 +66,11 @@ Settings → home). A destination's own pages have no Back: they are where you s
   320px screen) ride in the top bar under its first row, so they stay in reach however long the
   page (`ProfileTabs variant="chrome"`). Moving between them replaces the history entry, as tabs
   inside one screen do on a phone, so Back leaves the profile rather than stepping through its
-  sections; a section opened far down the page starts at its top, just under the bar.
+  sections; a section opened far down the page starts at its top, just under the bar. That top is
+  measured on the new section once it has committed (the Overview's card is taller than the band
+  the other sections show), and held while its content replaces its loading state, which is
+  shorter and would otherwise leave the page clamped or, through scroll anchoring, mid-list
+  (`settleSectionTop`); a reader who scrolls meanwhile keeps their place.
 - **Team's sections** are the bottom bar itself, so the page tabs are not repeated on phones.
 - **A page's views** (Match History's Games and Encounters, Leaderboards' Recent form and Records &
   achievements) share one quiet track (`SubTabs`). A label too long to share the line on a phone
