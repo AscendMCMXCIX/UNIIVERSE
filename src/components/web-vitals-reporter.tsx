@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useReportWebVitals } from "next/web-vitals";
-import { deviceClassOf, isVitalMetric, pageGroupOf, vitalBucket, type VitalMetric, type VitalsBeacon } from "@/domain/web-vitals";
+import { deviceClassOf, isVitalMetric, navigationParts, pageGroupOf, vitalBucket, type VitalMetric, type VitalsBeacon } from "@/domain/web-vitals";
 
 /*
   Field performance (domain/web-vitals): this page load's LCP, CLS, INP, FCP and TTFB as the
@@ -15,6 +15,15 @@ import { deviceClassOf, isVitalMetric, pageGroupOf, vitalBucket, type VitalMetri
 const pending: Partial<Record<VitalMetric, number>> = {};
 const sent = new Set<VitalMetric>();
 let where: Pick<VitalsBeacon, "page" | "device"> | null = null;
+
+/** Keeps one bucket per metric for this load; a later value of a metric already kept is ignored. */
+function record(name: VitalMetric, value: number) {
+  if (sent.has(name)) return;
+  const bucket = vitalBucket(name, value);
+  if (bucket === null) return;
+  sent.add(name);
+  pending[name] = bucket;
+}
 
 function send() {
   const metrics = { ...pending };
@@ -31,16 +40,16 @@ function send() {
 export function WebVitalsReporter() {
   useReportWebVitals((metric: { name: string; value: number }) => {
     const name = metric.name;
-    if (!isVitalMetric(name) || sent.has(name)) return;
-    const bucket = vitalBucket(name, metric.value);
-    if (bucket === null) return;
-    sent.add(name);
-    pending[name] = bucket;
+    if (!isVitalMetric(name)) return;
+    record(name, metric.value);
     // The final CLS and INP arrive as the page is hidden, possibly after the listener below ran.
     if (document.visibilityState === "hidden") send();
   });
   useEffect(() => {
     where ??= { page: pageGroupOf(location.pathname), device: deviceClassOf(window.innerWidth) };
+    // TTFB's parts (REDIRECT, SERVER), from the load's own navigation entry, once.
+    const nav = performance.getEntriesByType?.("navigation")[0] as PerformanceNavigationTiming | undefined;
+    for (const [name, value] of Object.entries(navigationParts(nav)) as Array<[VitalMetric, number]>) record(name, value);
     const hidden = () => {
       if (document.visibilityState === "hidden") send();
     };
