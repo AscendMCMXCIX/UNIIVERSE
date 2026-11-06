@@ -20,7 +20,7 @@ on:
   workflow_dispatch:
     inputs:
       max_mb:
-        description: "Fail when the encrypted backup is larger than this many MB (100 keeps four weekly copies inside GitHub Free's 500 MB of artifacts)"
+        description: "Fail when the encrypted backup is larger than this many MB (100 keeps four weekly copies well inside GitHub Pro's 1 GB of artifact storage)"
         type: number
         default: 100
 

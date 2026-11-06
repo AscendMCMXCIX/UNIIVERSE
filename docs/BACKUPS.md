@@ -174,9 +174,9 @@ To remove the role later: `DROP OWNED BY uniiverse_backup; DROP ROLE uniiverse_b
 ### Limits
 
 - **Retention.** 28 days of weekly copies, so it protects against a mistake noticed within about four weeks. Keep a copy offline by hand before risky changes, such as dropping the retired Meta & Trends tables (one offline copy at a time; see "Backups and permanent removal").
-- **Storage.** GitHub Free keeps 500 MB of artifacts per account in all, CI's included.
-  - The script fails above 100 MB, so four weekly copies fit and a growing database is noticed rather than cut off. A run started by hand can allow more (`max_mb`), for example the last backup before the retired tables are dropped; the copies after the drop are much smaller.
-  - Production was 300 MB on 19 Oct 2026 (`db-usage`), about 200 MB of it the retired Meta & Trends tables. Most of that is numbers that compress well: the first backup (21 Oct 2026) was a 56 MB dump and 55 MB encrypted, under the limit.
+- **Storage.** GitHub Pro includes 1 GB of artifact storage per account, shared with GitHub Packages and CI's own artifacts (GitHub Free: 500 MB).
+  - The script fails above 100 MB, so four weekly copies fit with room to spare and a growing database is noticed rather than cut off. A run started by hand can allow more (`max_mb`), for example the last backup before the retired tables are dropped; the copies after the drop are smaller.
+  - Production was 300 MB on 19 Oct 2026 (`db-usage`), about 200 MB of it the retired Meta & Trends tables. Most of that is numbers that compress well: the first backup (21 Oct 2026) was a 56 MB dump and 55 MB encrypted, under the limit. The last copy before the drops of 4 Nov 2026 was 67 MB encrypted (3 Nov); the copy of 6 Nov, after them, was 48 MB.
 - **The window between backups.** Up to a week of changes can be lost. A paid Supabase plan (daily backups, optional point-in-time recovery) shortens that, at a monthly cost.
 
 ## Monitoring (3 Nov 2026)
