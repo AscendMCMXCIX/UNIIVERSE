@@ -346,7 +346,7 @@ Supersedes the items above that add a second account in the same browser.
 
 Supersedes the items above that sign in as `adminascend`. Migration `0055_restore_ascend_owner` makes `ascend` the Owner and only administrator and locks `adminascend` out. It is merged only after a production backup has succeeded (docs/BACKUPS.md).
 
-- [ ] Before merging: GitHub Actions → Database backup has a successful run from the same day (the dump restored and its counts matched production).
+- [ ] Before merging: the private repository `uniiverse-backups` → Actions → Database backup has a successful run from the same day (the dump restored and its counts matched production).
 - [ ] Data jobs → `smoke auth-audit`: `owners` lists `ascend` only (active, with a password and a profile), `administrators.active` is 0, `migrationsApplied` ends with `0055_restore_ascend_owner`, and `deployment.commit` is the merge commit.
 - [ ] Sign in as `ascend`: it opens Team (Player Mode) with the profile, Riot accounts, card and statistics as before; the sidebar has **Switch to Admin Mode**, which opens the Dashboard; **Return to Player Mode** opens Team.
 - [ ] Sign-in as `adminascend` is refused with the generic message. Audit Logs shows the migration's entries (`account.role` for both accounts, `account.deactivate` for `adminascend`).

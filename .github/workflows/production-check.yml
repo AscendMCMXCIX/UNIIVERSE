@@ -10,8 +10,8 @@
 # with no error, no sideways scroll and no serious axe violation (WCAG 2.1 AA). The member pages are checked too once the repository secrets
 # UNIIVERSE_VERIFY_USER and UNIIVERSE_VERIFY_PASSWORD exist (a non-admin account kept off the
 # roster); until then they are reported as pending, never as a failure.
-# The daily run also checks that a database backup passed within the last 8 days and the database's
-# size against its plan (DB_PLAN_MB, default 500: the free plan's 0.5 GB in decimal megabytes, the
+# The daily run also checks the database's size against its plan (database backups run, and are
+# checked daily, in the private repository AscendMCMXCIX/uniiverse-backups: docs/BACKUPS.md) (DB_PLAN_MB, default 500: the free plan's 0.5 GB in decimal megabytes, the
 # safer reading). From 80% it opens one database-size issue, once, with the remedy; from 95% the
 # check fails too. On Mondays it runs the perf probe (about 6 MB of egress, docs/HOSTING_USAGE.md).
 # A failure opens one issue labelled production-check (or comments on the open one) with what failed
@@ -33,7 +33,6 @@ on:
 permissions:
   contents: read
   issues: write
-  actions: read
 
 jobs:
   check:
@@ -97,16 +96,9 @@ jobs:
           status=0
           {
             echo "## Backups and database size"
-            # The newest database backup that passed every check (Database backup, weekly).
-            if ! at="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow backup.yml --status success --limit 1 --json createdAt --jq '.[0].createdAt // empty')"; then
-              echo "- FAIL: the Database backup runs could not be read (gh run list)."; status=1
-            elif [ -z "$at" ]; then
-              echo "- FAIL: no database backup has passed (Actions → Database backup)."; status=1
-            else
-              age=$(( ( $(date -u +%s) - $(date -u -d "$at" +%s) ) / 86400 ))
-              if [ "$age" -gt 8 ]; then echo "- FAIL: the newest database backup that passed is $age days old ($at); the weekly run should keep it under 8."; status=1
-              else echo "- ok: the newest database backup passed $age days ago ($at)."; fi
-            fi
+            # Database backups run in the private repository AscendMCMXCIX/uniiverse-backups, whose
+            # daily Backup age check fails, and opens an issue there, when none passed within 8 days.
+            echo "- info: database backups are checked in the private backup repository (docs/BACKUPS.md)."
             # The database's size against its plan, from the db-usage report (one small read).
             if [ -z "$CRON_SECRET" ]; then
               echo "- warning: the CRON_SECRET secret is not set, so the database's size was not read."
