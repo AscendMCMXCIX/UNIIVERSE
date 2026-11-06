@@ -99,7 +99,7 @@ The notice says each of these:
 
 - The contact, permanent-removal and backup paragraphs are wording the owner approved (22 October 2026). Change them only with the owner's approval.
 - Update `PRIVACY_UPDATED` in `src/domain/privacy.ts` with any change to the text.
-- `BACKUP_RETENTION_DAYS` must match `retention-days` in `.github/workflows/backup.yml`.
+- `BACKUP_RETENTION_DAYS` must match `retention-days` in the private backup repository's `.github/workflows/backup.yml` (its source: `docs/backup-repository/`).
 - The public Riot statistics sentence follows `UNIIVERSE_PUBLIC_RIOT_DATA` (`publicRiotDataAllowed`), so it is right for each deployment.
 - `e2e/privacy.spec.ts` checks the approved wording, the contact and its copy button, the index, the phone layout in both orientations and the links to the page.
 

@@ -239,7 +239,7 @@ export default async function PrivacyPage() {
       <Section id="backups">
         <div data-testid="privacy-backups">
           <p className="mt-1 text-sm text-fg-muted">
-            An encrypted database backup is scheduled weekly. Each successful backup is tested by restoring it into a temporary database and is retained for {BACKUP_RETENTION_DAYS} days as a GitHub Actions artifact of the project&apos;s repository, which is public. Anyone with a GitHub account can download the encrypted file, but it cannot be opened without the backup passphrase, which only the team owner holds. Information removed from the live database may remain in existing encrypted backups until those backups expire.
+            An encrypted database backup is scheduled weekly. Each successful backup is tested by restoring it into a temporary database and is retained for {BACKUP_RETENTION_DAYS} days as an artifact in a separate, private GitHub repository of the project, which only the team owner can access. It cannot be opened without the backup passphrase, which only the team owner holds. Information removed from the live database may remain in existing encrypted backups until those backups expire.
           </p>
           <p className="mt-2 text-sm text-fg-muted">
             GitHub deletes each backup automatically when its {BACKUP_RETENTION_DAYS} days are up. The team owner may also download a backup to keep offline, in case GitHub&apos;s copies are ever lost; such a copy stays encrypted, but GitHub&apos;s {BACKUP_RETENTION_DAYS} days do not apply to it. Restoring any backup follows a written procedure that applies every removal made since the backup was taken before the app is used again, so erased information is not brought back.
@@ -252,7 +252,7 @@ export default async function PrivacyPage() {
           <li>The app runs on Vercel and its database on Supabase, in the regions chosen when the app was set up. Each keeps its own short-lived request logs under its own policy.</li>
           <li>Game data comes from Riot Games&apos; API. Champion and item pictures load from Riot&apos;s image servers, which see your browser&apos;s address as any website does.</li>
           <li>On Resources, your browser loads each listed site&apos;s small icon from that site, which sees your browser&apos;s address in the same way (without the address of the page you are on).</li>
-          <li>The encrypted backups are kept by GitHub, as artifacts of the project&apos;s public repository; only the team owner can open them (see Backups).</li>
+          <li>The encrypted backups are kept by GitHub, in a private repository of the project (see Backups).</li>
           <li>Privacy requests are made on Discord, which handles the messages under its own policy.</li>
           <li>Nothing is sold, and nothing is shared beyond these services.</li>
         </ul>

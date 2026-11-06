@@ -78,7 +78,7 @@ test("carries the approved wording on permanent removal and backups, and its ind
   await expect(removal).toContainText("Previously created encrypted backups may temporarily retain information after deletion. Backup retention, offline copies and restoration procedures are managed to prevent previously erased information from being inadvertently restored.");
   await expect(removal).toContainText("Removal cannot be undone.");
   await expect(page.getByTestId("privacy-backups")).toContainText(
-    "An encrypted database backup is scheduled weekly. Each successful backup is tested by restoring it into a temporary database and is retained for 28 days as a GitHub Actions artifact of the project's repository, which is public. Anyone with a GitHub account can download the encrypted file, but it cannot be opened without the backup passphrase, which only the team owner holds. Information removed from the live database may remain in existing encrypted backups until those backups expire.",
+    "An encrypted database backup is scheduled weekly. Each successful backup is tested by restoring it into a temporary database and is retained for 28 days as an artifact in a separate, private GitHub repository of the project, which only the team owner can access. It cannot be opened without the backup passphrase, which only the team owner holds. Information removed from the live database may remain in existing encrypted backups until those backups expire.",
   );
   await expect(page.getByTestId("privacy-clash-scout")).toHaveCount(0);
 

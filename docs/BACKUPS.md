@@ -113,15 +113,15 @@ The daily `integrity` job also re-applies the records to anything stored in the 
 
 ## Automatic weekly backup
 
-`.github/workflows/backup.yml` runs `scripts/backup-db.sh` every Monday at 02:43 UTC, and on demand from the Actions tab. No new service, and no cost beyond about 3 Actions minutes a week.
+**Since 6 Nov 2026 the backups run in the private repository [`AscendMCMXCIX/uniiverse-backups`](https://github.com/AscendMCMXCIX/uniiverse-backups)** ("Where backups are kept" below). Its `.github/workflows/backup.yml` checks out this repository's `main` and runs `scripts/backup-db.sh` every Monday at 02:43 UTC, and on demand from that repository's Actions tab. Its `backup-age.yml` checks daily that one passed within 8 days. Their source is `docs/backup-repository/` here. Change them here first, then copy them across. It costs about 3 private Actions minutes a week, plus 1 a day for the age check, within GitHub Pro's allowance.
 
 Each run:
 1. dumps the `public` schema (all of UNIIVERSE's tables) in one consistent snapshot, reading only;
 2. restores it into a throw-away Postgres on the runner and checks that the number of tables, teams, accounts, players, Riot accounts, stored games and other players' last known ranks (`last_known_ranks`), and the newest migration, match production. It also checks the retired tables still in the database, what Meta & Trends left after #86 and #138 dropped the rest (`tracked_summoners`, `region_status`, the three `stat_*_periods` tables and `champion_change_points`): each must restore with all its rows, so the backup kept before any drop of them is known to hold them. The manifest lists them under `retiredTableRows`, and `last_known_ranks` under `rows`;
 3. encrypts it with AES-256 and checks the encrypted file opens again;
-4. keeps it for 28 days as an artifact of the run: about four weekly copies. **Since 6 Nov 2026 the repository is public, so anyone signed in to GitHub can download these artifacts.** Each stays encrypted (AES-256, gpg) and cannot be opened without `BACKUP_PASSPHRASE`; the owner decided on 6 Nov to keep them here behind a new, strong passphrase ("Rotating the passphrase" below), and `scripts/backup-db.sh` refuses a passphrase shorter than 32 characters. A manifest beside it lists sizes, row counts and checksums, with no data and no secrets.
+4. keeps it for 28 days as an artifact of the run in the private repository, so only people with access to it can download it: about four weekly copies. Each is encrypted (AES-256, gpg, the strongest key derivation OpenPGP allows) and can't be opened without `BACKUP_PASSPHRASE`, and `scripts/backup-db.sh` refuses a passphrase shorter than 32 characters. A manifest beside it lists sizes, row counts and checksums, with no data and no secrets.
 
-A failed run is a failed workflow, so GitHub's usual email reports it.
+A failed run is a failed workflow, so GitHub's usual email reports it, and it opens a `database-backup` issue in the private repository.
 
 ### One-time setup (the owner)
 
@@ -147,10 +147,10 @@ A failed run is a failed workflow, so GitHub's usual email reports it.
    - `BYPASSRLS` is needed because Row Level Security hides every row from roles other than the owner. Without it, `pg_dump` stops instead of saving empty tables.
    - Every run checks this before reading anything (`scripts/backup-db.sh`) and fails if the role could change data, create roles, or not read a table. The result is in the run's log and the backup's manifest (`backupRole`).
    - If Supabase refuses `BYPASSRLS`, don't fall back to the `postgres` user: that one can change and delete data, and the check refuses it.
-2. **Two repository secrets** (GitHub → Settings → Secrets and variables → Actions → New repository secret):
+2. **Two repository secrets in the private backup repository** (`uniiverse-backups` → Settings → Secrets and variables → Actions → New repository secret):
    - `BACKUP_DATABASE_URL`: the **Session pooler** connection string (Supabase → Connect, port 5432). Replace the user `postgres.<project ref>` with `uniiverse_backup.<project ref>`, and put that role's password in place of `[YOUR-PASSWORD]`.
    - `BACKUP_PASSPHRASE`: another long random passphrase. **Keep it in your password manager. Without it no backup can be opened, and GitHub cannot recover it.**
-3. Run **Database backup** once from the Actions tab (Run workflow) and check its summary.
+3. Run **Database backup** once from the private repository's Actions tab (Run workflow) and check its summary.
 4. Once, download that run's backup and open it with the passphrase from your password manager (below). That proves your copy of the passphrase is the one the backups use.
 
 Never paste either value into a chat, an issue or a pull request.
@@ -165,31 +165,31 @@ To remove the role later: `DROP OWNED BY uniiverse_backup; DROP ROLE uniiverse_b
 - **Little to maintain:** the private repository holds only two workflow files and two secrets, and its backup checks out this repository's `scripts/backup-db.sh` on every run. The files are in `docs/backup-repository/`.
 - **No 60-day rule:** a private repository's schedules are not switched off after 60 days without activity.
 
-**Order, so backups never lapse:**
+**Done on 6 Nov 2026, in this order, so backups never lapsed:**
 1. **The owner** (account-level steps that sessions cannot take):
    - create the private repository `uniiverse-backups` (GitHub → New repository → Private, with a README);
    - add the two secrets `BACKUP_DATABASE_URL` and `BACKUP_PASSPHRASE` there (Settings → Secrets and variables → Actions). Use the same database URL as this repository. A new passphrase of 32+ random characters, from the password manager, is better than reusing the old one.
    - give the coordinating session access to the repository.
-2. **The session:** pushes `docs/backup-repository/.github/` to it, runs Database backup there by hand and reads the run (role check, restore check, encryption, artifact uploaded). It then runs Backup age by hand.
-3. **Only once that run has passed:** a PR in this repository removes `.github/workflows/backup.yml` and the backup-age half of the Production check, and updates the privacy notice ("a separate, private GitHub repository"). Until it merges, the weekly backup here keeps running, so there is never a week without one.
-4. **The copies already published here** (6 Nov) are not deleted. They expire on their own 28 days after their run. #212 relies on run 7 until then, or on a private backup taken before #212 merges.
+2. **The session:** pushed `docs/backup-repository/.github/` to it (650f49f), ran Database backup there by hand and read the run (role check, restore check, encryption, artifact uploaded). It then runs Backup age by hand. **Result:** run 42307672549 passed (22:50 UTC): the role is read-only (0 writable tables), all 49 tables were restored and their counts matched, the retired tables were restored with all their rows, the file is AES-256 with SHA-512 iterated key derivation, and its checksum matches the manifest. Backup age run 42307998044 passed.
+3. **After that run passed:** a PR here removed `.github/workflows/backup.yml` and the backup-age half of the Production check, and changed the privacy notice to say "a separate, private GitHub repository". No backup is published here any more.
+4. **The copies already published here are not deleted.** They expire on their own 28 days after their run: run 7 (`database-backup-42136432466`) on 4 Dec, and run 42192124079's on 4 Dec. Older runs stay listed under Actions, but their workflow file is gone. #212 can rely on the first private backup, run 42307672549, which holds the retired tables with all their rows, or on run 7 until it expires.
 
 ### Rotating the passphrase
 
-Because anyone signed in to GitHub can download the encrypted backups, the passphrase is the only thing protecting the data in them, and a downloaded copy can be attacked offline indefinitely. Rotate it whenever you are not sure it is long, random and used nowhere else.
+The backups are private now, but the passphrase is still what protects a copy that leaves the repository (an offline copy, or one of the earlier public copies someone may have downloaded). Rotate it whenever you are not sure it is long, random and used nowhere else.
 
 On 6 Nov 2026 the owner wasn't sure about the passphrase in use, so the workflow was disabled for a few hours. A run by hand then showed that the passphrase is at least 32 characters (run 42192124079; the script refuses a shorter one before reading anything), and the weekly schedule resumed. Rotate anyway if it was ever reused or isn't random. While the workflow is disabled nothing is backed up, and the daily Production check fails once the last good backup is more than 8 days old.
 
 1. **Keep the old passphrase.** Backups taken before the rotation open only with the old passphrase. Keep it in your password manager, labelled as old, until the last of those backups and every offline copy of them is gone. The backup that #212 relies on (run 7, `database-backup-42136432466`, 6 Nov) is one of them.
 2. **Generate a new one.** In your password manager, generate at least 32 random characters, used nowhere else. Save it as the new `BACKUP_PASSPHRASE`.
-3. **Replace the secret.** GitHub → Settings → Secrets and variables → Actions → `BACKUP_PASSPHRASE` → Update. Never paste it into a chat, an issue or a pull request.
-4. **Turn the workflow back on and run it once.** Actions → Database backup → Enable workflow, then Run workflow. The run fails before reading anything if the passphrase is shorter than 32 characters.
+3. **Replace the secret.** `uniiverse-backups` → Settings → Secrets and variables → Actions → `BACKUP_PASSPHRASE` → Update. Never paste it into a chat, an issue or a pull request.
+4. **Run it once.** `uniiverse-backups` → Actions → Database backup → Run workflow. The run fails before reading anything if the passphrase is shorter than 32 characters.
 5. **Prove the new passphrase opens it.** Download that run's backup and decrypt it with the new passphrase ("Open and check a backup" below). Then delete the decrypted file.
 6. **The older public copies.** Copies that someone downloaded before the rotation stay protected by the old passphrase only, and deleting the artifacts cannot recall them. Delete them anyway once you hold an offline copy of the ones you still need: open each Database backup run → Artifacts → delete `database-backup-<run>`. Deleting cannot be undone. If the old passphrase was weak, also treat the members' password hashes in those copies as exposed, and ask members with weak passwords to change them.
 
 ### Open and check a backup
 
-1. Download the artifact `database-backup-<run>` from the run's page and unzip it.
+1. Download the artifact `database-backup-<run>` from the run's page in the private repository and unzip it.
 2. Decrypt it: `gpg --decrypt --output uniiverse.dump uniiverse-<time>.dump.gpg`. It asks for `BACKUP_PASSPHRASE`.
 3. Restore it into a throw-away local database. The backup creates its own `public` schema, so drop the empty one first:
 

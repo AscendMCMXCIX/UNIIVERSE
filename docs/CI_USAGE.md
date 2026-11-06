@@ -211,7 +211,7 @@ The day-to-day rules are in `CLAUDE.md`. In short:
 
 - **Production check** (`production-check.yml`): about 3 billed minutes a run (install with the pnpm and Playwright caches, then the live check at three widths). It runs after each successful production deployment (a docs-only merge is not deployed, so it does not run) and once a day: with about one deployment a day, about 180 minutes a month. Mondays add the perf probe (under a minute). It does not start CI.
 - **Workflow lint** (`workflow-lint.yml`): about 15 seconds, only on pull requests that change a workflow. It does not start CI.
-- **Database backup:** the size summary and the manifest artifact add a few seconds a week. Changes to `backup.yml` no longer start CI.
+- **Database backup:** the size summary and the manifest artifact add a few seconds a week. Since 6 Nov 2026 it runs in the private repository `uniiverse-backups`, where its minutes count against GitHub Pro's private allowance: about 3 a week, plus about 1 a day for its Backup age check.
 
 
 ## 6 Nov 2026: November measured by job
