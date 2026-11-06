@@ -98,6 +98,16 @@ describe("team bookmarks", () => {
     expect(await listTeamBookmarks(handle.db, teamId)).toEqual([]);
   });
 
+  it("stores one bookmark per game however the id was typed", async () => {
+    state.session = asPlayer(ids.Bot!, "33333333-3333-4333-8333-333333333333");
+    expect((await setTeamBookmarkAction("oc1_200", true)).ok).toBe(true);
+    expect((await setTeamBookmarkAction("OC1_200", true)).ok).toBe(true);
+    expect((await listTeamBookmarks(handle.db, teamId)).map((b) => b.riotMatchId)).toEqual(["OC1_200"]);
+    state.session = manager;
+    expect((await setTeamBookmarkAction("oc1_200", false)).ok).toBe(true);
+    expect(await listTeamBookmarks(handle.db, teamId)).toEqual([]);
+  });
+
   it("refuses a game that was not played together unless its own player shares it", async () => {
     state.session = asPlayer(ids.Mid!);
     const notTogether = await setTeamBookmarkAction("OC1_300", true);

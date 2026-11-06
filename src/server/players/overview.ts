@@ -160,18 +160,27 @@ export const EVIDENCE_WORDS = { high: "solid (plenty of recent games)", medium: 
 /** What the season figures cover, in one honest sentence. */
 export function seasonCompleteness(accounts: Pick<RiotAccountRecord, "historyBackfill" | "syncStatus">[], season: number, currentSeason: number, games: number): SeasonCompleteness {
   if (accounts.length === 0) return { complete: false, label: "No Riot account", detail: "No Riot account is linked, so there are no games to count." };
+  // An account Riot cannot read until a person acts (a Riot ID Riot could not find, or the same
+  // Riot account as another linked one) is never "collecting": its games are not counted, and
+  // the figures will not grow by themselves. Said as such.
+  const unreadable = accounts.filter((a) => a.syncStatus === "unresolved" || a.syncStatus === "failed");
+  const readable = accounts.filter((a) => a.syncStatus !== "demo" && !unreadable.includes(a));
+  const unreadableNote = unreadable.length ? ` ${unreadable.length} of ${accounts.length} linked account${accounts.length === 1 ? "" : "s"} cannot be read until ${unreadable.length === 1 ? "it is" : "they are"} corrected or removed; ${unreadable.length === 1 ? "its" : "their"} games are not counted.` : "";
+  const from = `${accounts.length === 1 ? "the linked account" : `all ${accounts.length} linked accounts`}`;
   if (season === currentSeason - 1) {
     // The previous season is collected after the current one is complete (lowest priority).
-    const pending = accounts.filter((a) => a.syncStatus !== "demo" && !(a.historyBackfill?.previous?.season === season && a.historyBackfill.previous.completedAt));
-    if (pending.length === 0) return games === 0 ? { complete: true, label: "No games that season", detail: `The linked accounts have no supported games in ${seasonLabel(season)}.` } : { complete: true, label: "Complete season", detail: `Every supported ${seasonLabel(season)} game from ${accounts.length === 1 ? "the linked account" : `all ${accounts.length} linked accounts`}.` };
-    return { complete: false, label: "Partial Data", detail: `${seasonLabel(season)} games are still being collected from ${pending.length} of ${accounts.length} linked account${accounts.length === 1 ? "" : "s"}, after this season's; the numbers grow by themselves.` };
+    const pending = readable.filter((a) => !(a.historyBackfill?.previous?.season === season && a.historyBackfill.previous.completedAt));
+    if (pending.length === 0 && unreadable.length) return { complete: false, label: "Partial Data", detail: `Every supported ${seasonLabel(season)} game from the accounts Riot can read.${unreadableNote}` };
+    if (pending.length === 0) return games === 0 ? { complete: true, label: "No games that season", detail: `The linked accounts have no supported games in ${seasonLabel(season)}.` } : { complete: true, label: "Complete season", detail: `Every supported ${seasonLabel(season)} game from ${from}.` };
+    return { complete: false, label: "Partial Data", detail: `${seasonLabel(season)} games are still being collected from ${pending.length} of ${accounts.length} linked account${accounts.length === 1 ? "" : "s"}, after this season's; the numbers grow by themselves.${unreadableNote}` };
   }
   if (season !== currentSeason) return { complete: false, label: "Partial Data", detail: `${seasonLabel(season)}: only the games stored while these accounts were tracked; seasons before last are not collected.` };
-  const collecting = accounts.filter((a) => a.syncStatus !== "demo" && !(a.historyBackfill?.season === season && a.historyBackfill.completedAt));
+  const collecting = readable.filter((a) => !(a.historyBackfill?.season === season && a.historyBackfill.completedAt));
+  if (collecting.length === 0 && unreadable.length) return { complete: false, label: "Partial Data", detail: `${games === 0 ? "No supported game is stored for this season from the accounts Riot can read." : "Every supported game this season from the accounts Riot can read."}${unreadableNote}` };
   if (collecting.length === 0 && games === 0) return { complete: true, label: "No games this season", detail: "The linked accounts have no supported games stored for this season." };
-  if (collecting.length === 0) return { complete: true, label: "Complete season", detail: `Every supported game this season from ${accounts.length === 1 ? "the linked account" : `all ${accounts.length} linked accounts`}.` };
-  if (games === 0) return { complete: false, label: "No games yet", detail: "This season's games are still being collected from Riot; figures appear as they arrive." };
-  return { complete: false, label: "Partial Data", detail: `Still collecting older games from ${collecting.length} of ${accounts.length} linked account${accounts.length === 1 ? "" : "s"}; the numbers grow by themselves.` };
+  if (collecting.length === 0) return { complete: true, label: "Complete season", detail: `Every supported game this season from ${from}.` };
+  if (games === 0) return { complete: false, label: "No games yet", detail: `This season's games are still being collected from Riot; figures appear as they arrive.${unreadableNote}` };
+  return { complete: false, label: "Partial Data", detail: `Still collecting older games from ${collecting.length} of ${accounts.length} linked account${accounts.length === 1 ? "" : "s"}; the numbers grow by themselves.${unreadableNote}` };
 }
 
 /**

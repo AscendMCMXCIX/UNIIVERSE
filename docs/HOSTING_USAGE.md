@@ -175,7 +175,7 @@ The branding images are the other large function responses (see "What still need
    - Before: every patch and rank-band row of the chosen pairing (~9,900 rows a request).
    - Now: one row per champion pair that reaches the listing minimum, plus one row of totals.
    - Checked against the previous implementation: identical reports for every role pair, orientation, patch choice, sort and lineup-pool filter (4,410 listed rows, 9,606 pairs), on PGlite and on Postgres.
-5. **A player's stored games kept until they change** (`loadSeasonGames`, `cachedUntilChanged` in `src/server/observability/cache.ts`).
+5. **A player's stored games kept until they change** (`loadSeasonGames`; then `cachedUntilChanged` in `src/server/observability/cache.ts`, today `accountRows` in `src/server/accounts/account-rows.ts`).
    - Each read first asks the database for a one-row fingerprint of the rows: a count plus a hash of every column read, computed in Postgres.
    - Only a new fingerprint loads the rows again. Nothing is ever stale: a synced game, a filled-in record or a removed game shows on the next read.
    - A warm instance sends one small row instead of a thousand.
@@ -200,7 +200,7 @@ Bytes sent by Postgres to the app while running the perf probe (`runPerfProbe`, 
 
 Other tests:
 - `tests/db/season-games-cache.test.ts`: the cached games follow every change at once.
-- `src/server/observability/cache.test.ts`: `cachedUntilChanged` loads again only on a new fingerprint and stays bounded.
+- `src/server/observability/cache.test.ts` (today `tests/db/account-rows.test.ts`): the cache loads again only on a new fingerprint and stays bounded.
 - `tests/db/duo-synergies.test.ts`: unchanged, passed (removed later with Meta & Trends).
 
 ## 21 Oct 2026: the first days with the counter

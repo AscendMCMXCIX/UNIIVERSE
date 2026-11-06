@@ -8,9 +8,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InfoTip } from "@/components/ui/info-tip";
 import { loadPlayedTogether, type PlayedTogether } from "@/server/matches/played-together";
-import { compositionOf, loadCompositionParticipants, teamMembersByPuuid, type Composition } from "@/server/matches/compositions";
-import { platformOfMatchId } from "@/domain/opgg";
-import { knownRiotIds } from "@/server/players/riot-names";
+import { togetherCompositions } from "@/server/matches/compositions";
 import { listTeamBookmarks, sharedGameRows, type TeamBookmark } from "@/server/matches/links";
 import type { Session } from "@/server/auth/permissions";
 import { filterTogether, summariseTogether } from "@/domain/played-together";
@@ -134,18 +132,10 @@ async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<Ret
           .map((s) => ({ season: s, games: filterTogether(pool, { season: s, queues: TOGETHER_QUEUES[queue]!.queues, minMembers: min, playerIds: chosen }).length }))
           .filter((e) => e.games > 0)
       : [];
-  // Both teams of the games on screen only: the participants reduced to five fields in the
-  // database, and team members found in one query (see server/matches/compositions).
+  // Both teams of the games on screen only, one composition per listed side (a game with members
+  // on both sides is listed once per side, each marking its own): server/matches/compositions.
   const shown = all.slice(0, limit);
-  const parts = await loadCompositionParticipants(db, shown.map((g) => g.matchId));
-  const puuids = [...parts.values()].flat().map((x) => x.puuid);
-  // Players who renamed since a game on screen are linked by their newer Riot ID.
-  const [members, known] = await Promise.all([teamMembersByPuuid(db, teamId, puuids), knownRiotIds(db, puuids, Math.min(...shown.map((g) => g.gameCreation)))]);
-  const teams: Record<string, Composition | null> = {};
-  for (const g of shown) {
-    const ps = parts.get(g.matchId);
-    teams[g.matchId] = ps ? compositionOf(ps, members, (puuid) => !!session.playerId && members.get(puuid)?.id === session.playerId, g.teamId, { platform: platformOfMatchId(g.matchId), known }) : null;
-  }
+  const teams = await togetherCompositions(db, teamId, shown, session.playerId ?? null);
   const wins = all.filter((g) => g.win).length;
   const decided = all.filter((g) => g.win !== null).length;
   return (

@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { getDbHandle } from "@/server/db/client";
 import { deploymentInfo } from "@/server/ops/deployment";
 import { requiresAccounts, missingProductionSetup } from "@/server/auth/mode";
-import { patches, dataRefreshStatus } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { patches, dataRefreshStatus, riotAccounts } from "@/server/db/schema";
 import { RETIRED_JOB_KEYS, failuresInARow } from "@/server/ops/refresh-status";
 import { getRiotCredentialStatus } from "@/server/riot/credential";
 
@@ -38,11 +37,19 @@ export async function GET() {
     // is listed as failing, which fails the scheduled Data jobs run (the owner's email).
     const credential = await getRiotCredentialStatus(handle.db);
     if (credential.state === "rejected") failing.push("riot-key");
+    // When a linked account was last read from Riot in full (sync_cursor is written on success
+    // only), from the accounts themselves: the account-sync job records a run as a success when
+    // it had nothing to do, no key, or every account failed, so its time says nothing about data.
+    const [read] = await handle.db
+      .select({ cursor: sql<number | null>`max(${riotAccounts.syncCursor})` })
+      .from(riotAccounts)
+      .where(and(eq(riotAccounts.ownerType, "player"), ne(riotAccounts.label, "demo"), ne(riotAccounts.syncStatus, "demo")));
+    const accountsReadAt = read?.cursor ? new Date(Number(read.cursor) * 1000) : null;
     return NextResponse.json({
       ...base,
       db: { ok: true, mode: handle.mode, ms: dbMs },
       patch: patch?.id ?? null,
-      data: { champions: jobs.find((j) => j.key === "version-check")?.lastSuccessAt ?? jobs.find((j) => j.key === "static-sync")?.lastSuccessAt ?? null, accounts: jobs.find((j) => j.key === "account-sync")?.lastSuccessAt ?? null },
+      data: { champions: jobs.find((j) => j.key === "version-check")?.lastSuccessAt ?? jobs.find((j) => j.key === "static-sync")?.lastSuccessAt ?? null, accounts: accountsReadAt },
       jobs: jobs.map((j) => ({ key: j.key, status: j.status, lastSuccessAt: j.lastSuccessAt })),
       failingJobs: failing,
       riot: { credential: credential.state },

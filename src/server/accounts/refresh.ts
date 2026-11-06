@@ -122,9 +122,15 @@ export async function getMatchSyncStatus(db: Db, playerId: string): Promise<Matc
   };
 }
 
+/** Accounts a refresh could not read while others were read: said beside the result, never hidden by it. */
+export interface RefreshProblem {
+  accounts: number;
+  message: string;
+}
+
 export type RefreshOutcome =
-  | { status: "updated"; newGames: number; checkedAt: string }
-  | { status: "no-new"; checkedAt: string }
+  | { status: "updated"; newGames: number; checkedAt: string; problem?: RefreshProblem }
+  | { status: "no-new"; checkedAt: string; problem?: RefreshProblem }
   | { status: "recent"; checkedAt: string | null; retryInSeconds: number }
   | { status: "failed"; message: string }
   | { status: "unavailable"; message: string };
@@ -141,21 +147,19 @@ export async function refreshPlayerMatches(db: Db, client: RiotApiClient, player
   const accounts = linked.filter(isSyncableAccount);
   if (accounts.length === 0) return { status: "unavailable", message: "Demo accounts are not read from Riot; their games are sample data." };
   const started = now().getTime();
-  const claimed = [];
-  for (const account of accounts) if (await claimAccountSync(db, account.id, REFRESH_COOLDOWN_MS, now())) claimed.push(account);
-  if (claimed.length === 0) {
-    const ids = accounts.map((a) => a.id);
-    const [reads, retryInSeconds] = await Promise.all([db.select({ cursor: riotAccounts.syncCursor }).from(riotAccounts).where(inArray(riotAccounts.id, ids)), accountSyncRetryIn(db, ids, now())]);
-    const lastRead = Math.max(0, ...reads.map((r) => r.cursor ?? 0));
-    return { status: "recent", checkedAt: lastRead ? new Date(lastRead * 1000).toISOString() : null, retryInSeconds };
-  }
   const season = await currentSeason(db, now());
   const outOfTime = () => now().getTime() - started > REFRESH_BUDGET_MS;
   let folded = 0;
   let succeeded = 0;
+  let claimed = 0;
+  let failed = 0;
   let firstError: string | null = null;
-  for (const account of claimed) {
+  for (const account of accounts) {
     if (outOfTime()) break;
+    // Each account's lease is claimed right before its sync, never for the ones the budget does
+    // not reach: those stay free for the scheduler, and a second press reads them.
+    if (!(await claimAccountSync(db, account.id, REFRESH_COOLDOWN_MS, now()))) continue;
+    claimed += 1;
     const r = await syncAccount(db, client, account, {
       season,
       now,
@@ -171,15 +175,26 @@ export async function refreshPlayerMatches(db: Db, client: RiotApiClient, player
       recheckEmptyQueues: true,
     });
     folded += r.matchesFolded;
-    if (r.error) firstError ??= r.error;
+    if (r.error) {
+      failed += 1;
+      firstError ??= r.error;
+    }
     // Out of time (the client's deadline) before it found anything: the account was not fully
     // checked, so it cannot stand for "no new games". The other accounts would wait the same way.
     else if (!r.outOfTime || r.matchesFolded > 0) succeeded += 1;
     if (r.outOfTime) break;
   }
+  if (claimed === 0) {
+    const ids = accounts.map((a) => a.id);
+    const [reads, retryInSeconds] = await Promise.all([db.select({ cursor: riotAccounts.syncCursor }).from(riotAccounts).where(inArray(riotAccounts.id, ids)), accountSyncRetryIn(db, ids, now())]);
+    const lastRead = Math.max(0, ...reads.map((r) => r.cursor ?? 0));
+    return { status: "recent", checkedAt: lastRead ? new Date(lastRead * 1000).toISOString() : null, retryInSeconds };
+  }
   if (succeeded === 0) return { status: "failed", message: firstError ?? "Riot did not answer in time. Please try again in a few minutes." };
   const checkedAt = now().toISOString();
-  return folded > 0 ? { status: "updated", newGames: folded, checkedAt } : { status: "no-new", checkedAt };
+  // Some accounts read, some not: the result stands for the ones read, and says which could not be.
+  const problem = failed > 0 && firstError ? { problem: { accounts: failed, message: firstError } } : {};
+  return folded > 0 ? { status: "updated", newGames: folded, checkedAt, ...problem } : { status: "no-new", checkedAt, ...problem };
 }
 
 /*

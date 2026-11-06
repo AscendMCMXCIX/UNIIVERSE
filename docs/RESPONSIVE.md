@@ -89,8 +89,8 @@ fit (iPhone 15 and wider) and scroll on narrower phones.
 - `Input`, `Select`, `Textarea`: 44px and 16px text on phones (iOS does not zoom a 16px field),
   36px / 14px from `md`.
 - `ToggleChip` (`ui/toggle.tsx`): every selectable chip (roles, modes, filters).
-- `MobileSection` (`ui/mobile-section.tsx`): collapsible below a breakpoint, always open above it,
-  with no hydration flash (the first render leaves the decision to CSS).
+- A section that folds on phones: `Disclosure` (`ui/disclosure.tsx`, a native `<details>`) or a CSS
+  breakpoint. The former `MobileSection` was removed.
 - `PanelHeader` wraps its actions; `Panel` is `min-w-0` so grids never force page overflow.
 - `ChampionPortrait` images carry width/height, `loading="lazy"` and `decoding="async"`.
 

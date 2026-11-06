@@ -95,7 +95,7 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
   const perf = overview.summary.performance;
   const m = overview.summary.multikills;
   const status = sync
-    ? dataStatus({ accounts: overview.accounts.map((a) => a.sync), checkedAt: sync.checkedAt, attemptedAt: sync.attemptedAt, newestGameAt: sync.newestGameAt, season: overview.completeness, multikills: m, details: { games: perf.games, detailed: perf.detailedGames }, unknownRole: overview.summary.unknownRole })
+    ? dataStatus({ accounts: overview.accounts.map((a) => a.sync), checkedAt: sync.checkedAt, attemptedAt: sync.attemptedAt, newestGameAt: sync.newestGameAt, season: overview.completeness, multikills: m, details: { games: perf.games, detailed: perf.detailedGames, unavailable: perf.unavailableGames }, unknownRole: overview.summary.unknownRole })
     : null;
   // The pools' heading (Edit sits at the end of its line) and what the figures on the cards count.
   const poolsHeading = (

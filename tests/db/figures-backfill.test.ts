@@ -124,7 +124,7 @@ describe("figures backfill", () => {
     limiter.pause(90);
     const calls: string[] = [];
     const run = await backfillFigures(handle.db, client(calls, false, { limiter, now, sleep, maxRetries: 0, deadline: t + 25_000 }), { limit: 10, deadline: t + 25_000 });
-    expect(run).toEqual({ fetched: 0, unavailable: 0, stoppedBy: "time budget" });
+    expect(run).toEqual({ fetched: 0, unavailable: 0, skipped: [], stoppedBy: "time budget" });
     expect(calls).toHaveLength(0);
     expect((await row("OC1_FIGS")).extraStats).toBeNull();
   });
@@ -134,7 +134,7 @@ describe("figures backfill", () => {
     await handle.db.update(riotAccounts).set({ platform: "euw1" }).where(eq(riotAccounts.id, account));
     const calls: string[] = [];
     const run = await backfillFigures(handle.db, client(calls), { limit: 2, deadline: Date.now() + 60_000 });
-    expect(run).toEqual({ fetched: 2, unavailable: 0, stoppedBy: null });
+    expect(run).toEqual({ fetched: 2, unavailable: 0, skipped: [], stoppedBy: null });
     expect(calls.map((u) => /\/matches\/([^/?]+)$/.exec(u)?.[1])).toEqual(["OC1_FIGS", "OC1_FIGS2"]);
     expect(calls[0]).toContain("sea.api.riotgames.com/lol/match/v5/matches/OC1_FIGS");
     expect(await row("OC1_FIGS")).toMatchObject({ extraStats: { doubleKills: 3, tripleKills: 1, quadraKills: 0, pentaKills: 1 } });
@@ -146,12 +146,12 @@ describe("figures backfill", () => {
   it("marks a record Riot no longer serves, and asks for nothing twice", async () => {
     const calls: string[] = [];
     const run = await backfillFigures(handle.db, client(calls), { limit: 10, deadline: Date.now() + 60_000 });
-    expect(run).toEqual({ fetched: 0, unavailable: 1, stoppedBy: null });
+    expect(run).toEqual({ fetched: 0, unavailable: 1, skipped: [], stoppedBy: null });
     expect(calls.map((u) => /\/matches\/([^/?]+)$/.exec(u)?.[1])).toEqual(["OC1_GONE"]);
     expect((await row("OC1_GONE")).extraStats).toEqual({});
     // Nothing left: another run asks Riot for nothing.
     const again: string[] = [];
-    expect(await backfillFigures(handle.db, client(again), { limit: 10, deadline: Date.now() + 60_000 })).toEqual({ fetched: 0, unavailable: 0, stoppedBy: null });
+    expect(await backfillFigures(handle.db, client(again), { limit: 10, deadline: Date.now() + 60_000 })).toEqual({ fetched: 0, unavailable: 0, skipped: [], stoppedBy: null });
     expect(again).toEqual([]);
   });
 

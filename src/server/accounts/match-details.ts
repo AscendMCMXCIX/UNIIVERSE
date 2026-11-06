@@ -107,11 +107,12 @@ export function matchDetailRow(platform: string | null, match: RiotMatch, keyToI
  * each linked player's figures onto their stored game. Anyone whose personal data was erased is
  * stored as a "Removed player" (server/privacy).
  */
-export async function storeMatchDetail(db: Db, platform: string | null, match: RiotMatch, keyToId: Map<number, string>): Promise<void> {
+export async function storeMatchDetail(db: Db, platform: string | null, match: RiotMatch, keyToId: Map<number, string>, options: { summarise?: boolean } = {}): Promise<void> {
   const erased = await erasureFilter(db);
   await db.insert(matchDetails).values(matchDetailRow(platform, match, keyToId, erased)).onConflictDoNothing();
   await erased.remember(db);
-  await summariseMatches(db, { matchIds: [match.metadata.matchId], maxBatches: 1 });
+  // The caller may summarise once itself, after it has stored the game's ledger row (foldMatch).
+  if (options.summarise !== false) await summariseMatches(db, { matchIds: [match.metadata.matchId], maxBatches: 1 });
 }
 
 /** Stored games of an account whose details are not kept yet, newest first (for the backfill). */

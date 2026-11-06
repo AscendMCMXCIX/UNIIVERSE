@@ -46,6 +46,8 @@ const games = {
   damage: accountMatches.damage,
   visionScore: accountMatches.visionScore,
   gameDuration: accountMatches.gameDuration,
+  /** 100 or 200, copied from the stored record (match-summary); null until then. */
+  teamId: accountMatches.teamId,
   multikills,
 };
 const mastery = { accountId: accountMastery.accountId, championId: accountMastery.championId, points: accountMastery.points, level: accountMastery.level, lastPlayedAt: accountMastery.lastPlayedAt };

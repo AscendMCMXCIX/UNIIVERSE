@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { accountMatches, accountMastery, matchDetails, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
+import { accountMatches, accountMastery, matchDetails, players, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
 import { currentSeason } from "@/server/accounts/sync";
 import { archivePlayer, createPlayer, getOrCreateTeam, setLineupSlot, setTeamMember } from "@/server/repositories/team";
 import { createUser } from "@/server/repositories/users";
@@ -186,4 +186,21 @@ describe("team leaderboards data", () => {
     expect(met.error).toBeUndefined();
     expect(met.note).toMatch(/^(\d+ players of the newest game met in other games this season · \d+ games with them|the newest game is not in the current season)$/);
   }, 60_000);
+
+  it("dates the boards by the newest successful read of a member account, never by a failed attempt", async () => {
+    const db = handle.db;
+    const [member] = await db.select({ id: players.id }).from(players).where(and(eq(players.teamMember, true), isNull(players.archivedAt))).limit(1);
+    const before = (await loadLeaderboardData(db, teamId)).lastUpdated;
+    // A failed attempt just now on a new account of a member: last_sync_at moves, sync_cursor does not.
+    const [failed] = await db.insert(riotAccounts).values({ ownerType: "player", playerId: member!.id, gameName: "Failing", tagLine: "T", platform: "oc1", puuid: "p-failing", label: "alt", syncStatus: "failed", syncError: "Riot is not answering.", lastSyncAt: new Date(), syncCursor: null }).returning({ id: riotAccounts.id });
+    invalidateLeaderboardCache();
+    expect((await loadLeaderboardData(db, teamId)).lastUpdated).toBe(before);
+    // A successful read later: the boards are dated by it.
+    const read = Date.UTC(2026, 10, 3, 12);
+    await db.update(riotAccounts).set({ syncStatus: "ok", syncError: null, syncCursor: Math.floor(read / 1000), lastSyncAt: new Date(read) }).where(eq(riotAccounts.id, failed!.id));
+    invalidateLeaderboardCache();
+    expect((await loadLeaderboardData(db, teamId)).lastUpdated).toBe(new Date(read).toISOString());
+    await db.delete(riotAccounts).where(eq(riotAccounts.id, failed!.id));
+    invalidateLeaderboardCache();
+  });
 });

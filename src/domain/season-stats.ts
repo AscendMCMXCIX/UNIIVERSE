@@ -33,6 +33,8 @@ export interface SeasonGame {
   gameDuration?: number | null;
   /** The game's multikill counts in their short stored form; null when its record has none (domain/multikills). */
   multikills?: string | null;
+  /** The player's side, 100 or 200, copied from the stored record; null or absent until then. */
+  teamId?: number | null;
 }
 
 /**
@@ -51,6 +53,8 @@ export interface PerformanceSummary {
   games: number;
   /** Games with kills/deaths/assists. */
   detailedGames: number;
+  /** Games whose record Riot no longer serves (the kills = -1 marker): they will never have figures. */
+  unavailableGames: number;
   /** Kills, deaths and assists per game, over those games. */
   kills: number | null;
   deaths: number | null;
@@ -86,6 +90,7 @@ export function performanceOfGames(
   games: readonly SeasonGame[],
 ): PerformanceSummary {
   let n = 0;
+  let unavailable = 0;
   let k = 0;
   let d = 0;
   let a = 0;
@@ -112,7 +117,7 @@ export function performanceOfGames(
       k += g.kills!;
       d += g.deaths!;
       a += g.assists!;
-    }
+    } else if (typeof g.kills === "number" && g.kills < 0) unavailable += 1;
     if (typeof g.cs === "number" && g.cs >= 0) {
       csSum += g.cs;
       csN += 1;
@@ -141,6 +146,7 @@ export function performanceOfGames(
   return {
     games: games.length,
     detailedGames: n,
+    unavailableGames: unavailable,
     kills: n ? k / n : null,
     deaths: n ? d / n : null,
     assists: n ? a / n : null,

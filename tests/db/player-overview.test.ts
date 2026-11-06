@@ -9,6 +9,7 @@ import { syncStaticData } from "@/server/riot/static/sync";
 import { createPlayer, getOrCreateTeam, getPlayer } from "@/server/repositories/team";
 import { addAccount } from "@/server/accounts/repository";
 import { getPlayerOverview } from "@/server/players/overview";
+import { seasonCompleteness } from "@/server/players/overview";
 
 let handle: DbHandle;
 let playerId: string;
@@ -191,5 +192,22 @@ describe("Player overview (current season)", () => {
     expect(after.topChampions.find((c) => c.championId === "Riven")!.multikills).toMatchObject({ games: 6, counted: 2, unavailable: 1 });
     const afterMain = await getPlayerOverview(db, player, { mode: "all", accountId: mainId, riotConfigured: true });
     expect(afterMain.summary.multikills).toMatchObject({ games: 6, counted: 3, unavailable: 1 });
+  });
+});
+
+describe("season completeness and an account Riot cannot read", () => {
+  const done = { season: 16, queues: {}, startedAt: "2026-10-01T00:00:00.000Z", completedAt: "2026-10-01T01:00:00.000Z" };
+  it("never calls an unresolved or duplicate account 'collecting': its games are not counted, and the figures will not grow", () => {
+    const withTypo = seasonCompleteness([{ syncStatus: "ok", historyBackfill: done }, { syncStatus: "unresolved", historyBackfill: null }], 16, 16, 40);
+    expect(withTypo).toMatchObject({ complete: false, label: "Partial Data" });
+    expect(withTypo.detail).toBe("Every supported game this season from the accounts Riot can read. 1 of 2 linked accounts cannot be read until it is corrected or removed; its games are not counted.");
+    const only = seasonCompleteness([{ syncStatus: "unresolved", historyBackfill: null }], 16, 16, 0);
+    expect(only).toMatchObject({ complete: false, label: "Partial Data" });
+    expect(only.detail).toMatch(/^No supported game is stored for this season from the accounts Riot can read\. 1 of 1 linked account cannot be read/);
+    // One still collecting and one unreadable: both said.
+    const mixed = seasonCompleteness([{ syncStatus: "ok", historyBackfill: { ...done, completedAt: null } }, { syncStatus: "failed", historyBackfill: null }], 16, 16, 12);
+    expect(mixed.detail).toBe("Still collecting older games from 1 of 2 linked accounts; the numbers grow by themselves. 1 of 2 linked accounts cannot be read until it is corrected or removed; its games are not counted.");
+    // Readable accounts alone keep their words.
+    expect(seasonCompleteness([{ syncStatus: "ok", historyBackfill: done }], 16, 16, 40)).toMatchObject({ complete: true, label: "Complete season" });
   });
 });

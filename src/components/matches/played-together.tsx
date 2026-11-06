@@ -121,12 +121,13 @@ export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams 
 
       {/* The list's own header: how many games, and the bookmark switch that narrows them (on phones
           beside Filters, where the page's line above already counts the games). */}
-      <div className={cn("flex-wrap items-center justify-between gap-2", data.unknownSide ? "flex" : "hidden md:flex")}>
+      <div className={cn("flex-wrap items-center justify-between gap-2", data.unknownSide || data.unavailableSide ? "flex" : "hidden md:flex")}>
         <p className="inline-flex items-center gap-1.5 text-sm text-fg-muted" data-testid="together-count">
           <span>
             <span className="font-semibold text-fg">{total}</span> game{total === 1 ? "" : "s"}
           </span>
           {data.unknownSide ? <InfoTip text="Some games with two or more members could not be checked yet: their match details are not stored, so which side each member was on is unknown. They appear once the details are synced." label="Games not checked yet" /> : null}
+          {data.unavailableSide ? <InfoTip text={`${data.unavailableSide} game${data.unavailableSide === 1 ? "" : "s"} with two or more members ${data.unavailableSide === 1 ? "is" : "are"} left out: Riot no longer provides the record, so which side each member was on cannot be known. The results still count on the members' profiles.`} label="Games Riot no longer serves" /> : null}
         </p>
         <Link href={href({ saved: !filters.saved, limit: 20 })} aria-current={filters.saved ? "page" : undefined} className={chipClass(filters.saved, "max-md:hidden")} data-testid="together-saved">
           <Bookmark className="h-3.5 w-3.5" aria-hidden /> Bookmarked{savedCount ? ` · ${savedCount}` : ""}
@@ -159,7 +160,7 @@ export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams 
       ) : (
         <TogetherList entries={shown.map((g) => ({ entry: togetherEntry(g.matchId, g.teamId), matchId: g.matchId, playerId: g.members[0]!.playerId }))} championsById={champions} className="space-y-2.5">
           {shown.map((g) => (
-            <TogetherCard key={togetherEntry(g.matchId, g.teamId)} g={g} p={p} champions={champions} teams={teams[g.matchId] ?? null} />
+            <TogetherCard key={togetherEntry(g.matchId, g.teamId)} g={g} p={p} champions={champions} teams={teams[togetherEntry(g.matchId, g.teamId)] ?? teams[g.matchId] ?? null} />
           ))}
         </TogetherList>
       )}

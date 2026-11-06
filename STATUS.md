@@ -1,6 +1,6 @@
 # UNIIVERSE status
 
-**The one status record.** Each session updates it in place: what is live, what is verified and what is still open, with the evidence for each. Detail stays in the linked PRs and docs. Last updated 5 Nov 2026, 22:21 UTC.
+**The one status record.** Each session updates it in place: what is live, what is verified and what is still open, with the evidence for each. Detail stays in the linked PRs and docs. Last updated 5 Nov 2026, 23:15 UTC.
 
 **Statuses:**
 - **Verified:** deployed and checked on the live site after the deploy.
@@ -37,6 +37,7 @@
 
 | Area | Who | State |
 |---|---|---|
+| Data integrity and reliability: backfills and catch-ups that cannot be stalled by one unreadable game, syncs that never overlap, pages that never show the "unavailable" marker as a figure or promise games that will never come, Riot error messages that name nobody | Session "Autonomous Data Integrity & Reliability Engineering", 4 Nov: branch `reliability/data-integrity`, PR #202 | One commit per confirmed defect, each with the test that fails without it (reproduced first, then verified by independent reviewers); the merged branch was reviewed again the same way and its thirteen findings fixed. Up to date with `main` through #208. `pnpm verify`, the database suite on Postgres 16 and the browser suite, locally. No migration, no visible design change; a few status sentences are more precise, Team → Matches says which games Riot no longer serves are left out, run records are deleted after 60 days and the privacy notice says so |
 
 ## Outstanding, by impact
 

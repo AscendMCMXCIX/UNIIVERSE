@@ -98,3 +98,11 @@ describe("season statistics by champion, grouped in one pass", () => {
     }
   });
 });
+
+describe("performanceOfGames and games whose record Riot no longer serves", () => {
+  it("counts them apart from games still to collect, and in no average", () => {
+    const game = (matchId: string, kills: number | null): SeasonGame => ({ matchId, accountId: "a", queueId: 420, championId: "Ahri", role: "MID", win: true, patch: "16.20", gameCreation: 1, kills, deaths: kills === null ? null : kills < 0 ? null : 2, assists: kills === null ? null : kills < 0 ? null : 3, cs: null, damage: null, visionScore: null, gameDuration: 1800, multikills: null });
+    const p = performanceOfGames([game("a", 4), game("b", null), game("c", -1)]);
+    expect(p).toMatchObject({ games: 3, detailedGames: 1, unavailableGames: 1, kills: 4, totalKills: 4 });
+  });
+});
