@@ -8,17 +8,21 @@ const rows = (result: unknown): Row[] => ((result as { rows?: Row[] }).rows ?? (
 const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
 
 /*
-  What the held cleanup migrations remove: the retired Meta & Trends tables (audit decision 2,
-  docs/DATA_PIPELINES.md "Retired tables"), the Draft feature's tables, columns and enum types
-  (decision 3, docs/ARCHITECTURE.md "Draft removed"), the scouts Clash Scout saved (dropped by
-  migration 0064; docs/CLASH_SCOUT.md) and what the retired Ranked Development kept
-  (docs/RANKED_DEVELOPMENT.md; no drop migration is prepared for these yet). The report checks them
-  against production before they go, and confirms afterwards that they went (a dropped one is
-  reported as gone). Until their drop, permanent erasure and its reconciliation still read and write
-  the Ranked Development records (server/privacy).
+  What the cleanup migrations remove: the retired Meta & Trends tables (audit decision 2,
+  docs/DATA_PIPELINES.md "Retired tables"; migration 0062 dropped 12 of them), the Draft feature's
+  tables, columns and enum types (decision 3, docs/ARCHITECTURE.md "Draft removed"; migration 0063),
+  the scouts Clash Scout saved (migration 0064; docs/CLASH_SCOUT.md) and what the retired Ranked
+  Development kept (docs/RANKED_DEVELOPMENT.md; no drop migration is prepared for these yet). The
+  rest of Meta & Trends is still kept: the ladder players, the collection's per-region state, the
+  aggregation's period tables (and their enum type) and the rework change points; dropping them is
+  a separate decision for the owner. The report checks each against production before it goes, and
+  confirms afterwards that it went (a dropped one is reported as gone). Until their drop, permanent
+  erasure and its reconciliation still read and write the Ranked Development records and the ladder
+  players (server/privacy).
 */
 const RETIRED_TABLES = [
   ...["ranked_matches", "ranked_participants", "ranked_bans", "match_fetch_queue", "champion_role_stats", "champion_ban_stats", "champion_matchups", "champion_synergies", "pro_pick_slot_stats", "pro_games", "pro_game_picks", "pro_game_bans"],
+  ...["tracked_summoners", "region_status", "stat_periods", "stat_region_periods", "stat_rank_periods", "champion_change_points"],
   ...["drafts", "draft_actions", "draft_role_swaps", "draft_presence", "draft_enemy_scouting", "matches", "series", "opponent_teams", "opponent_players"],
   ...["clash_scouts", "clash_scout_accounts"],
   ...["ranked_profiles", "ranked_blocks", "ranked_games", "development_objectives", "development_plans"],
@@ -27,7 +31,7 @@ const RETIRED_COLUMNS: Array<[table: string, column: string]> = [
   ["riot_accounts", "opponent_player_id"],
   ["teams", "engine_config"],
 ];
-const RETIRED_ENUMS = ["action_type", "competition_mode", "draft_status", "match_result", "scouting_confidence", "series_status"];
+const RETIRED_ENUMS = ["action_type", "competition_mode", "draft_status", "match_result", "scouting_confidence", "series_status", "stat_source"];
 const list = (names: string[]) => sql.join(names.map((n) => sql`${n}`), sql`, `);
 
 /**
@@ -160,6 +164,18 @@ async function retiredReport(db: Db) {
     publications: (await safe(sql`SELECT pubname || ':' || tablename AS name FROM pg_publication_tables WHERE schemaname = 'public' AND tablename IN (${list(RETIRED_TABLES)}) ORDER BY 1`)).map((r) => String(r.name)),
   };
   const enums = new Set((await safe(sql`SELECT typname AS name FROM pg_type WHERE typnamespace = 'public'::regnamespace AND typname IN (${list(RETIRED_ENUMS)})`)).map((r) => String(r.name)));
+  // Other players' last known ranks, by where each came from ("match lookup", or the retired
+  // features' "ranked ladder" and "draft scouting" sightings that migration 0048 copied): how many
+  // rows no stored game names any more. Only a player in a stored game is ever shown, so those
+  // rows are what a prune of rows not tied to a stored game would delete (counts only). The stored
+  // games' players are listed once and joined: a lookup per row went through every stored game
+  // each time (the planner does not use the PUUID index for it), 161 s for 33,000 ranks and 9,000
+  // games, against 0.3 s this way.
+  const lastKnownRanks = (
+    await safe(sql`WITH stored AS (SELECT DISTINCT jsonb_array_elements_text(jsonb_path_query_array(participants, '$[*].puuid')) AS puuid FROM match_details)
+      SELECT l.source, count(*) AS rows, count(*) FILTER (WHERE s.puuid IS NULL) AS untied
+      FROM last_known_ranks l LEFT JOIN stored s ON s.puuid = l.puuid GROUP BY l.source ORDER BY l.source`)
+  ).map((r) => ({ source: String(r.source), rows: num(r.rows), notInAStoredGame: num(r.untied) }));
   return {
     statsReset: reset?.stats_reset ? new Date(String(reset.stats_reset)).toISOString() : null,
     tables,
@@ -167,5 +183,6 @@ async function retiredReport(db: Db) {
     enums: RETIRED_ENUMS.map((name) => ({ name, gone: !enums.has(name) })),
     opponentAccounts: num(opponents?.n),
     dependents,
+    lastKnownRanks,
   };
 }
