@@ -7,8 +7,7 @@ import { loadProfileHeader, type ProfileHeaderData } from "@/server/players/prof
 import { refreshAvailable, type MatchSyncStatus } from "@/server/accounts/refresh";
 import type { DataRefreshTarget } from "@/components/ui/data-status";
 import { ProfileHeader } from "@/components/players/profile-header";
-import { bannerLightStyle } from "@/components/players/banner-light";
-import { ProfileIdentityProvider, ProfileIdentitySync, type HeaderIdentity } from "@/components/players/profile-identity";
+import { ProfileFrameShell, ProfileIdentityProvider, ProfileIdentitySync, type HeaderIdentity } from "@/components/players/profile-identity";
 import { cardArt, featurableChampions, isCardAccent } from "@/domain/player-card";
 import { cardLookFor } from "@/domain/card-style";
 import { ProfileTabs } from "@/components/players/profile-tabs";
@@ -103,14 +102,15 @@ export async function ProfileFrame({ db, header, session, basePath, children }: 
   const identity = headerIdentity(header, session);
   return (
     <ProfileIdentityProvider initial={identity}>
-    <div className="mx-auto max-w-[var(--content-max)] space-y-4" style={bannerLightStyle(identity.look.style.colours)} data-testid="player-profile">
-      {/* The section bar belongs to the profile card: tucked right under it. */}
-      <div className="space-y-1.5">
-        <ProfileHeader identity={identity} self={self} editable={editable} champions={champions} basePath={basePath} />
-        <ProfileTabs basePath={basePath} />
-      </div>
-      {children}
-    </div>
+      {/* The frame's light follows the player's current colours (ProfileFrameShell), as the header does. */}
+      <ProfileFrameShell initial={identity} className="mx-auto max-w-[var(--content-max)] space-y-4">
+        {/* The section bar belongs to the profile card: tucked right under it. */}
+        <div className="space-y-1.5">
+          <ProfileHeader identity={identity} self={self} editable={editable} champions={champions} basePath={basePath} />
+          <ProfileTabs basePath={basePath} />
+        </div>
+        {children}
+      </ProfileFrameShell>
     </ProfileIdentityProvider>
   );
 }
