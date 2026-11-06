@@ -3,8 +3,7 @@
 import * as React from "react";
 import { PanelLeftClose, PanelLeftOpen, Pin } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { SIDEBAR_COOKIE, SIDEBAR_RAIL } from "@/lib/sidebar";
-import { RAIL_HIGHLIGHT } from "./nav-links";
+import { RAIL_DIVIDER, RAIL_FADE, RAIL_HIGHLIGHT, RAIL_HOVER, RAIL_ICON, RAIL_ICON_IDLE, RAIL_ROW, SIDEBAR_COOKIE, SIDEBAR_RAIL } from "@/lib/sidebar";
 
 /** Delays that keep the hover preview calm: no flicker when the pointer only grazes the edge. */
 export const PEEK_OPEN_DELAY_MS = 90;
@@ -12,8 +11,6 @@ export const PEEK_CLOSE_DELAY_MS = 240;
 
 /** The slide: transform only (composited), one curve for the edge and the content so they stay in step. */
 const SLIDE = "transition-transform duration-220 ease-glide motion-reduce:transition-none";
-/** Labels fade as the edge passes them (opacity only). */
-const FADE = "transition-opacity duration-150 group-data-[collapsed=true]/sidebar:opacity-0 group-data-[collapsed=true]/sidebar:duration-75";
 
 /**
  * The desktop sidebar. Two saved states, chosen with the button under the logo (or Ctrl+\): pinned
@@ -164,37 +161,50 @@ export function CollapsibleSidebar({ initialCollapsed, brand, children, footer }
         {/* The edge line is drawn just outside the window (a 1px shadow, not a border), so the
             collapsed rail's inside is the full 4.5rem and its centre line is the icons' and the logo's. */}
         <div className={cn(SLIDE, "pointer-events-auto absolute inset-0 overflow-clip bg-chrome shadow-[1px_0_0_var(--color-border)]", open ? "translate-x-0" : "-translate-x-[11.5rem]")} data-testid="sidebar-window">
-          {/* The content moves the other way by the same amount on the same curve: it stays still on screen. */}
-          <div className={cn(SLIDE, "flex h-full w-64 flex-col overflow-y-auto overflow-x-hidden", open ? "translate-x-0" : "translate-x-[11.5rem]")}>
-            {/* One vertical rhythm down the icon column: logo, the collapse control and the entries
-                sit 2.625rem apart, centre to centre (the footer keeps the same step). No padding on
-                the left: the brand centres the logo in a rail-wide column from this edge
+          {/* The content moves the other way by the same amount on the same curve: it stays still on
+              screen. It wears the frame's light (chrome-light, globals.css): a sheen from the top and
+              a faint violet glow behind the logo, the page's ambient light continued into the frame,
+              so the logo sits in light rather than on a flat block, open or collapsed. */}
+          <div className={cn(SLIDE, "chrome-light flex h-full w-64 flex-col overflow-y-auto overflow-x-hidden", open ? "translate-x-0" : "translate-x-[11.5rem]")}>
+            {/* Three zones, each separated by a hairline (RAIL_DIVIDER): the brand with the collapse
+                control under it, the pages, and the footer (the switch between the modes, Install App,
+                the account). Inside a zone every icon is one 2.625rem step below the last; the logo
+                is a step and a half above the control, so the brand has room around it. No padding
+                on the left: the brand centres the logo in a rail-wide column from this edge
                 (SIDEBAR_RAIL_COLUMN, app-shell.tsx). */}
-            <div className="pb-1 pr-4 pt-5">{brand}</div>
+            <div className="pb-2 pr-4 pt-4">{brand}</div>
             {/* The collapse control: under the logo, in the icon column, so it is in the same place open or collapsed. */}
-            <div className="px-3 pb-1">
+            <div className="px-3 pb-3">
               {/* Named by its visible text (no aria-label): the name is exactly what is shown, so a
                   speech user can say it. The shortcut hint is not part of the name; screen readers
-                  get it from aria-keyshortcuts and the tooltip. */}
+                  get it from aria-keyshortcuts and the tooltip. It is a quieter row than the pages
+                  (lighter text, no weight); its shortcut appears over the row's end while it is pointed
+                  at or focused, taking no room from the label. */}
               <button
                 type="button"
                 onClick={toggle}
                 aria-expanded={!collapsed}
                 aria-keyshortcuts="Control+Backslash Meta+Backslash"
                 title={`${label} (Ctrl+\\)`}
-                className="group isolate relative flex min-h-9 w-full items-center gap-3 rounded-lg pl-[0.9375rem] pr-2 text-left text-sm text-fg-subtle transition-colors hover:text-fg"
+                className={cn(RAIL_ROW, "min-h-9 py-1.5 font-normal text-fg-subtle hover:text-fg")}
                 data-testid="sidebar-toggle"
               >
-                <span className={cn(RAIL_HIGHLIGHT, "group-hover:bg-fg/5")} aria-hidden />
-                <ToggleIcon className="h-[1.125rem] w-[1.125rem] shrink-0" aria-hidden />
-                <span className={cn("min-w-0 flex-1 truncate", FADE)}>{label}</span>
-                <kbd className={cn("shrink-0 rounded border border-border px-1.5 py-px font-sans text-2xs leading-4 text-fg-subtle", FADE)} aria-hidden>
+                <span className={cn(RAIL_HIGHLIGHT, RAIL_HOVER)} aria-hidden />
+                <ToggleIcon className={cn(RAIL_ICON, RAIL_ICON_IDLE)} aria-hidden />
+                <span className={cn("min-w-0 flex-1 truncate", RAIL_FADE)}>{label}</span>
+                <kbd className="absolute right-3 top-1/2 -translate-y-1/2 rounded border border-border bg-bg/40 px-1.5 py-px font-sans text-2xs leading-4 text-fg-subtle opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 group-data-[collapsed=true]/sidebar:opacity-0!" aria-hidden>
                   Ctrl {"\\"}
                 </kbd>
               </button>
             </div>
-            {children}
-            {footer ? <div className="mt-auto space-y-1 px-3 pb-3 pt-6">{footer}</div> : null}
+            <div className={RAIL_DIVIDER} aria-hidden data-testid="rail-divider" />
+            <div className="pt-3">{children}</div>
+            {footer ? (
+              <div className="mt-auto pt-6">
+                <div className={RAIL_DIVIDER} aria-hidden data-testid="rail-divider" />
+                <div className="space-y-1 px-3 pb-3 pt-3">{footer}</div>
+              </div>
+            ) : null}
           </div>
         </div>
       </aside>

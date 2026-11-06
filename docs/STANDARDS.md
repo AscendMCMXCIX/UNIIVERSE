@@ -1,6 +1,8 @@
 # Standards
 
 How UNIIVERSE is built, so every change looks, reads and behaves like the rest of the platform.
+The visual identity, colour budget, interaction states and the app's frame are in
+[DESIGN_SYSTEM.md](DESIGN_SYSTEM.md).
 CLAUDE.md says how a change is developed, tested and merged; this page says what it should be.
 Where a rule has an automated check, the check is named. Detailed rules live in the pages linked
 from each section; this page does not repeat them.
@@ -76,7 +78,7 @@ list fades out before the figures (a pool row's left half).
 | Token | Use |
 | --- | --- |
 | `bg`, `bg-elevated` | page background; fields, menus and popovers (a step above the panel they sit on) |
-| `chrome` | the app's frame: sidebar, top bar, drawer and tab bar. A near-neutral charcoal, so navigation recedes; colour in it marks only the current page (a neutral lift, the brand gradient as a thin bar, the icon in `accent`) |
+| `chrome` | the app's frame: sidebar, top bar, drawer and tab bar. The page's own ink, half a step up, so navigation recedes; colour in it marks only the current page (a neutral lift, the brand gradient as a thin bar, the icon in `accent`). The frame's zones, rows and states: [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) |
 | `surface`, `surface-2`, `surface-3` | panels and cards; raised rows and tiles inside them; selected or hovered |
 | `border`, `border-strong`, `border-control` | structure (dividers, panel and card edges); emphasis (a menu's or dialog's edge, a hovered row); the edge of a field, toolbar button, segmented group or switch, 3:1 against the page, the panels and popovers (WCAG 1.4.11; Branding derives it from custom colours) |
 | `fg`, `fg-muted`, `fg-subtle` | text: main, secondary, captions and metadata; all three 4.5:1 or more on every surface, `surface-3` included |
@@ -116,7 +118,8 @@ border and `panel-depth` (globals.css: a faint sheen along the top, a hairline o
 edge, a soft shadow; `Panel` has it). The card a page leads with may use `panel-featured` instead
 (the same depth with a faint wash of the violet light in its corner). A card that opens something
 can add `panel-lift` (it rises a pixel and its edge brightens while pointed at; no movement with
-reduced motion). None of them makes a stacking context, so tooltips and menus inside keep their layer. What floats above
+reduced motion). The frame has its own two: `chrome-light` (the sidebar's light) and `brand-plate`
+(the logo set into it); see [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md). None of them makes a stacking context, so tooltips and menus inside keep their layer. What floats above
 the page (a menu, picker or popover, a card being dragged) is `bg-bg-elevated`, lighter than the
 panels, with a border and `shadow-2xl`. No blur filters on content.
 

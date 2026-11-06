@@ -14,11 +14,8 @@ import { SectionTabs } from "./section-tabs";
 import { InstallAppEntry, InstallAppProvider } from "./install/install-app";
 import { ModeSwitch } from "./mode-switch";
 import { ADMIN_HOME } from "@/lib/nav";
-import { SIDEBAR_RAIL_COLUMN } from "@/lib/sidebar";
+import { RAIL_FADE, SIDEBAR_RAIL_COLUMN } from "@/lib/sidebar";
 import { cn } from "@/lib/cn";
-
-/** Text that fades while the desktop sidebar is collapsed to its icon column. */
-const SIDEBAR_FADE = "transition-[opacity,visibility] duration-150 group-data-[collapsed=true]/sidebar:opacity-0 group-data-[collapsed=true]/sidebar:duration-75";
 
 /** Riot's required notice, naming the app as the install calls itself (Admin → Branding). */
 export const riotLegal = (productName: string) =>
@@ -107,11 +104,15 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
               // The logo is centred in the rail's width, so collapsed it sits on the icons' centre line
               // whatever its size. The link starts at the sidebar's edge: its focus ring is drawn
               // inside it, where the edge cannot clip it.
-              <Link href={home} className="flex min-w-0 items-center rounded-lg focus-visible:-outline-offset-2" title={b.teamName}>
+              // The logo sits on a plate (brand-plate, globals.css): a hairline of light around it and a
+              // soft shadow under it, so any uploaded square, light or dark, reads as set into the frame.
+              <Link href={home} className="group/brand flex min-h-12 min-w-0 items-center rounded-lg focus-visible:-outline-offset-2" title={b.teamName}>
                 <span className={SIDEBAR_RAIL_COLUMN}>
-                  <BrandMark src={logoSrc(b)} still={logoStillSrc(b)} name={b.shortName} className="h-10 w-10 text-lg" />
+                  <span className="brand-plate rounded-lg transition-transform duration-200 ease-emphasized group-hover/brand:scale-[1.04] motion-reduce:transition-none motion-reduce:group-hover/brand:scale-100">
+                    <BrandMark src={logoSrc(b)} still={logoStillSrc(b)} name={b.shortName} className="h-10 w-10 text-lg" />
+                  </span>
                 </span>
-                <span className={cn("min-w-0", SIDEBAR_FADE)}>
+                <span className={cn("min-w-0", RAIL_FADE)}>
                   <span className="block truncate text-base font-bold tracking-label text-fg">{b.shortName}</span>
                   {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-label text-accent">Admin mode</span> : b.tagline ? <span className="block truncate text-xs text-fg-subtle">{b.tagline}</span> : null}
                 </span>
@@ -123,7 +124,7 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
                 {/* Beside the account menu, where Settings is. */}
                 <InstallAppEntry variant="sidebar" />
                 {user ? <AccountMenu user={user} showSignOut={showSignOut} adminMode={adminMode} /> : null}
-                <div className={cn("px-2 pt-2", SIDEBAR_FADE)}>
+                <div className={cn("px-2 pt-2", RAIL_FADE)}>
                   <DataLine status={status} />
                   <p className="mt-1 text-xs leading-snug text-fg-subtle" title={riotLegal(b.productName)}>
                     Not endorsed by Riot Games. <Link href={`${adminMode ? "/admin" : ""}/settings#compliance`} className="underline-offset-2 hover:underline">Details</Link>
