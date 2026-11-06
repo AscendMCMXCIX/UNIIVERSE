@@ -251,24 +251,25 @@ p a.text-accent {
   reach (sticky-tabs below, docs/RESPONSIVE.md → Shell) and anything pinned under them (All
   Champions' column headings):
     --bar-top   the tablet top bar's height, its hairline included (md to lg; the sidebar's widths
-                have nothing above the page);
-    --tabs-top  the pinned section tabs' height where they are pinned, else 0: a short window (under
-                481px tall) keeps its height for the page, and phones carry a profile's sections in
-                the top bar instead.
+                have nothing above the page). Zero in a short window (under 481px tall), where the
+                bar slides away while reading, so nothing is pinned to its edge there;
+    --tabs-top  the pinned section tabs' height (a 2.75rem row whose hairline is its own) where they
+                are pinned, else 0: a short window keeps its height for the page, and phones carry a
+                profile's sections in the top bar instead.
   Static values, so the root is never re-styled by script (see useTopBarHeight).
 */
 :root {
   --bar-top: 0px;
   --tabs-top: 0px;
 }
-@media (min-width: 48rem) and (max-width: 63.99rem) {
+@media (min-width: 48rem) and (max-width: 63.99rem) and (min-height: 481px) {
   :root {
-    --bar-top: calc(3.5625rem + env(safe-area-inset-top));
+    --bar-top: calc(3.5rem + 1px + env(safe-area-inset-top));
   }
 }
 @media (min-width: 48rem) and (min-height: 481px) {
   :root {
-    --tabs-top: 2.8125rem;
+    --tabs-top: 2.75rem;
   }
   /* Whatever is scrolled into view on a page with pinned section tabs stops below them (WCAG 2.4.11), as under the phone's bars. */
   html:has([data-sticky-tabs]) {

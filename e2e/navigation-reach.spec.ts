@@ -188,7 +188,12 @@ test("tablet: the menu is a modal dialog: focus stays inside, the page behind is
   await expect(drawer).toBeVisible();
   await page.mouse.click(700, 500);
   await expect(drawer).toHaveCount(0);
-  // Left open while the browser's Back changes the page, it is gone, and Forward does not bring it back unasked.
+  // Left open while the browser's Back changes the page (within the app, so the menu's state
+  // survives the change), it is gone, and Forward does not bring it back unasked.
+  await page.goto("/team");
+  await page.getByTestId("team-tab-players").click();
+  await expect(page).toHaveURL(/\/players$/);
+  await expect(page.getByTestId("players-directory")).toBeVisible();
   await menu.click();
   await expect(drawer).toBeVisible();
   await page.goBack();
