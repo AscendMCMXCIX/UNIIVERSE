@@ -1,10 +1,10 @@
 # UNIIVERSE status
 
-**The one status record and the one backlog.** What is live, what is verified, what is still open and what comes next, with the evidence for each. Detail stays in the linked PRs and docs. `OVERNIGHT_ENGINEERING_REPORT.md` and `SESSION_REVIEW.md` are historical records; where they differ from this file, this file is right. Last updated 6 Nov 2026, 10:50 UTC.
+**The one status record and the one backlog.** What is live, what is verified, what is still open and what comes next, with the evidence for each. Detail stays in the linked PRs and docs. `OVERNIGHT_ENGINEERING_REPORT.md` and `SESSION_REVIEW.md` are historical records; where they differ from this file, this file is right. Last updated 6 Nov 2026, 11:35 UTC.
 
 **One coordinating session.** Since 6 Nov, 06:30 UTC, the owner runs UNIIVERSE through one master session (`session_01CeotmQNT7Y1ygWs6eENvZr`). It keeps this record, owns the merge order and the scheduled check-ins, and merges PRs itself once every CI job on the latest commit has passed (the owner's approval of 6 Nov), one deploy at a time with its Production check read in between. Only the owner approves #212 (it deletes data) and changes to workflows, secrets or settings. The earlier sessions (design, navigation, ranked progress, personalization, reliability, security, LP tracking, mobile) were asked to stand down and report. Their open work is in the tables below.
 
-**Production on 6 Nov, 10:45 UTC** (read from the live site): `/api/health` answers `ok` from 10369b4 (#227's merge) in `syd1`, with the database up, the Riot key accepted and no job failing. **The repository has been public since 6 Nov, about 04:20 UTC.** Its effects on the backups and logs are in Outstanding ("Needs the owner").
+**Production on 6 Nov, 11:30 UTC** (read from the live site): `/api/health` answers `ok` from 56c4132 (#233's merge) in `syd1`, with the database up, the Riot key accepted and no job failing. **The repository has been public since 6 Nov, about 04:20 UTC.** Its effects on the backups and logs are in Outstanding ("Needs the owner").
 
 **Statuses:**
 - **Verified:** deployed and checked on the live site after the deploy.
@@ -61,6 +61,8 @@
 | Personalization everywhere: rows, cards, profile band and records carry each player's saved look; no "Unranked" for a rank never read | #223 | Deployed 6 Nov, 08:44 | `main` merged in (one conflict, in the profile frame, resolved so #216's pinned tabs still work). Locally verify 764 and the full browser suite 542 passed, 1 failed (the studio test's race, #237). PR CI passed on 48559cb. `main` CI 42189833079 and Production check 42189923057 passed on b656abb |
 | Design system: the desktop sidebar set into the page's ink, a lit brand plate, `docs/DESIGN_SYSTEM.md` | #218 | Deployed 6 Nov, 09:53 | `main` with #223 merged in. Locally verify 764 and the full browser suite 543 passed, 0 failed. PR CI passed on 80bf773. `main` CI 42198401426 and Production check 42198523388 passed on 8710014 |
 | Lighter phone pages: pool rows draw the champion's tile, not the full splash (a 14-champion profile at 390 px: 2,253 → 429 KB); card effects exist only while hovered or focused | #227 | Deployed 6 Nov, 10:38 | `main` with #223 and #218 merged in. Card Studio spec conflict with #223 resolved by keeping both checks. Locally verify 764, 143 browser tests across the 16 affected specs passed, 0 failed. PR CI passed on 752f875. Production check 42204365450 passed on 10369b4 |
+| Studio test: the Card Studio window measured once its opening motion is over (it failed now and then by catching the window on its way up) | #237 | Deployed 6 Nov, 10:43 | Locally 6 of 6 runs passed on their own, against 1 in 2 failed before. PR CI passed. Production check 42204869907 passed on 461b143 (the app is unchanged) |
+| Account syncs a person waits on end inside the lease (a 40 s Riot deadline for Retry, linking and a replaced Riot ID); an open profile carries a new account's history on | #233 | Deployed 6 Nov, 11:16 | Locally on `main` with #227: verify 764, database suite 660, full browser suite 543 passed, 0 failed. PR CI passed on 50dd64e, up to date. Production check 42209249434 passed on 56c4132. Perf probe 42209488652: no step #233 touches is measured. Cold times rose across the board against this morning's probe on f1e73f3 (cache state). `team.roster` is also slower warm, 144 → 233 ms, most likely the 200 rows #229 folded. Monday's scheduled probe will confirm |
 
 ## In progress
 
@@ -68,9 +70,7 @@
 |---|---|---|
 | Drop what Meta & Trends left and the ranks of players no stored game names (migration 0066) | PR #212, a draft from #211's session | **Held for the owner:** it deletes data for good (Outstanding 7) |
 | #212's condition 2: the second `db-usage` reading | The master session, a check-in at 7 Nov 00:35 UTC | Read only; the result goes in #212, then the owner is asked |
-| Merge order (one deploy at a time, a Production check between) | The master session | #237 → #233. Each merges once every CI job on its latest commit has passed, then its deploy and Production check are read |
-| Studio test: measure the Card Studio window once its opening motion is over (an intermittent failure: it caught the window on its way up) | #237 | CI running. Locally 6 of 6 runs passed on their own; before the fix, 1 in 2 failed |
-| Account syncs a person waits on end inside the lease; an open profile carries its history on | #233 | `main` merged in (no conflict). Full local validation running: verify, database suite, build, full browser suite. Then ready, CI, merge, and a perf probe (two small reads per poll) |
+| Merge order | The master session | **The queue is empty** (since #233 merged, 6 Nov, 11:16 UTC). New work goes through a branch, local validation, green CI, and one deploy at a time with its Production check read in between |
 | The four short Solo/Duo lists re-read from the top, each account's previous position kept | Not yet a branch | Adds rows only; each account's previous position is recorded first |
 | Backups to a private repository | The master session | Workflows ready (#236, `docs/backup-repository/`). Waiting on the owner to create the repository and add its two secrets (Outstanding 9) |
 
