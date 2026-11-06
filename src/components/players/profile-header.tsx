@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { ROLE_LABELS } from "@/domain/roles";
+import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { accentCss } from "@/domain/card-style";
 import { CardAvatar, CardFrame, CardName, CardTagline, cardShellStyle } from "./card-look";
 import type { PickerChampion } from "@/components/champions/types";
@@ -20,12 +20,23 @@ import { cn } from "@/lib/cn";
 
 const QUEUE_LABEL = { solo: "Solo/Duo", flex: "Flex" } as const;
 
+/** "Main lineup · Top": the role the player holds in the current lineup, a status pill in the accent (one form on both headers). */
+function LineupStatus({ role, className }: { role: Role; className?: string }) {
+  return (
+    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs font-medium text-fg", className)} data-testid="lineup-status" title="Plays this role in the current team lineup">
+      <RoleIcon role={role} className="h-3.5 w-3.5 text-accent" /> Main lineup · {ROLE_LABELS[role]}
+    </span>
+  );
+}
+
 /**
  * The profile header: the player's Team card, expanded. Same artwork (chosen champion and skin),
  * accent, picture, roles and rank. "Main lineup" is a status, so it reads as one; Customise is a
  * small control in the artwork's corner for whoever may edit the card. On the profile's other
- * sections (All Champions, Match History, Riot Accounts) the card is one compact band (CompactHeader),
- * so their content starts within the first screen of a phone; the Overview shows it in full.
+ * sections (All Champions, Match History, Riot Accounts) the card is one compact band, so their
+ * content starts within the first screen of a phone; the Overview shows it in full. The band keeps
+ * the player's identity where it has the room (from `sm`): their tagline on one line after the
+ * name, the lineup status after the rank, the setup badge; a phone's band stays two short lines.
  * A rank this viewer may not see (`identity.showRank` false: a teammate's, without "view teammates'
  * statistics") is left out of both, never shown as "Unranked".
  */
@@ -57,17 +68,20 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
       <header className="relative overflow-hidden rounded-card border border-border bg-surface" style={cardShellStyle(p.look)} data-testid="profile-header" data-compact data-art-champion={p.art?.championId ?? ""} data-accent={p.accent} data-frame={p.look.style.frame}>
         <CardArtLayer art={p.art} accent={accent} kind="splash" position="center 25%" strength="strong" testId="profile-art" look={p.look} />
         <CardFrame look={p.look} />
-        {/* One band: the picture, the name, then the role and the rank on one line; the roles in
-            full, the lineup, the links and the picture's editor stay on the Overview. */}
+        {/* One band: the picture, the name (its tagline after it from sm, cut before the name is),
+            then the role, the rank and the lineup status on one line; the off roles in full, the
+            links and the picture's editor stay on the Overview. */}
         <div className="relative flex min-h-16 items-center gap-3 px-3 py-2.5 sm:px-4">
           <CardAvatar look={p.look} name={p.displayName} src={p.avatarUrl} size="md" />
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-2">
-              <h1 className="min-w-0 truncate text-lg tracking-tight text-fg drop-shadow sm:text-xl">
+              <h1 className="min-w-0 truncate text-lg tracking-tight text-fg drop-shadow sm:shrink-0 sm:text-xl">
                 <CardName look={p.look} name={p.displayName} />
               </h1>
               {self ? <Badge tone="accent">You</Badge> : null}
               {p.archived ? <Badge tone="warn">Archived</Badge> : null}
+              {p.setupPending ? <SetupIncompleteBadge /> : null}
+              <CardTagline look={p.look} lines={1} className="min-w-0 drop-shadow max-sm:hidden" />
             </div>
             <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-fg-muted">
               {p.primaryRole ? (
@@ -91,6 +105,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
                   )}
                 </span>
               ) : null}
+              {p.lineupRole ? <LineupStatus role={p.lineupRole} className="max-sm:hidden" /> : null}
             </div>
           </div>
           {editable ? <div className="relative z-10 shrink-0">{customise("icon")}</div> : null}
@@ -99,7 +114,8 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
     );
   return (
     <header className="relative overflow-hidden rounded-card border border-border bg-surface" style={cardShellStyle(p.look)} data-testid="profile-header" data-art-champion={p.art?.championId ?? ""} data-accent={p.accent} data-frame={p.look.style.frame}>
-      <CardArtLayer art={p.art} accent={accent} kind="splash" position="center 25%" strength="normal" testId="profile-art" look={p.look} foot />
+      {/* The Overview's largest element at every width: fetched at once and ahead of the rest (the compact band stays lazy: there the content below it is the largest). */}
+      <CardArtLayer art={p.art} accent={accent} kind="splash" position="center 25%" strength="normal" testId="profile-art" look={p.look} foot priority />
       <CardFrame look={p.look} />
       {editable ? <div className="absolute right-2.5 top-2.5 z-10 sm:right-3 sm:top-3">{customise("overlay")}</div> : null}
       {/* Phones: the picture beside the name, then roles, rank and links across the full width (a
@@ -156,11 +172,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
                   )}
                 </span>
               ) : null}
-              {p.lineupRole ? (
-                <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs font-medium text-fg" data-testid="lineup-status" title="Plays this role in the current team lineup">
-                  <RoleIcon role={p.lineupRole} className="h-3.5 w-3.5 text-accent" /> Main lineup · {ROLE_LABELS[p.lineupRole]}
-                </span>
-              ) : null}
+              {p.lineupRole ? <LineupStatus role={p.lineupRole} /> : null}
             </div>
             <SocialLinks links={p.social} owner={p.displayName} className="mt-2" />
           </div>

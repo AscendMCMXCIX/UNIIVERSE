@@ -28,7 +28,9 @@ from each section; this page does not repeat them.
 
 - Never show an invented value. Missing is "—", nothing recorded is said in words ("No games
   this season"), and a figure states what it covers (a season, a queue, the games that have the
-  figure). A sample too small to mean much says so.
+  figure). A sample too small to mean much says so. "Unranked" means a rank check found no
+  placement: a player without a linked Riot account gets no rank line at all ("No Riot account"
+  in its place on the Players cards and rows; nothing on the first sign-in's card preview).
 - Never present an uncertain identity or relationship as certain: what is only possible is
   labelled as possible (a match's possible groups, for example, never "premade").
 - Two players' relationship is what the stored games record: against (opposite teams) or
@@ -199,6 +201,7 @@ Use the shared component before writing a new one (`src/components/ui`):
 | A section of Riot data's heading: title, scope line and status, a toolbar of filters ending in Refresh | `SectionHeader` |
 | A button in a toolbar beside the filters (Refine, Refresh) | `toolbarButtonClass` (`filter-bar.tsx`) |
 | A player's identity on a card (picture and links, name, rank and labels, tagline) | `CardIdentity` (`players/player-card.tsx`) inside a `@container/card`; on Players, `layout="rows"` on the directory card's grid (`DirectoryCardLayout`) |
+| A member's name in a list row (Players on phones, Leaderboards) | `CardAvatar` and `CardName` (`players/card-look.tsx`) under the card's colour variables (`cardColourVars` on the row), so the saved name style, emblem and avatar frame follow the member off their card; `CardTagline lines={1}` where a row has room for the tagline. No art, frame or effect on a row |
 | A champion pool's rows (first choice marked, win rate, games, KDA, CS) | `PoolChampionTile` under `PoolColumnNames` (`players/player-card.tsx`) |
 | Both teams of a game | `TeamComposition` (`match-history/team-composition.tsx`); `keepNames` where the line-ups are what the card is for (Team → Matches), so phones keep the names too |
 | Two players' relationship in recorded games (against, alongside) | `RelationTag` (`match-history/encounters-view.tsx`): the word with the side's colour |

@@ -96,11 +96,34 @@ test("Records & achievements: season records open their game, multikills rarest 
   await expect(page).toHaveURL(/\/leaderboards\?view=records/);
   await expect(page.getByTestId("records-volume-note")).toContainText("reward playing more");
   await expect(page.getByTestId("season-record")).toHaveCount(7);
+  // A record set on a champion leads with that champion's portrait, beside the figure, at the size of a pool row's.
+  const portrait = page.locator("[data-testid=season-record][data-record=kills] img, [data-testid=season-record][data-record=kills] [role=img]").first();
+  await expect(portrait).toBeVisible();
+  expect((await portrait.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   const multis = await page.getByTestId("multikill-row").evaluateAll((els) => els.map((e) => ["data-penta", "data-quadra", "data-triple"].map((k) => Number(e.getAttribute(k)))));
   expect(multis.length).toBeGreaterThan(0);
   const key = (m: number[]) => m[0]! * 1e6 + m[1]! * 1e3 + m[2]!;
   for (let i = 1; i < multis.length; i++) expect(key(multis[i]!)).toBeLessThanOrEqual(key(multis[i - 1]!));
   await expect(page.getByTestId("milestones-mastery").getByTestId("milestone-member").first()).toBeVisible();
+  // A member's name on the multikills table keeps a line's room at every width: whole words, at most
+  // two lines, never a letter a line (on phones the member takes the row's first line, the figures the second).
+  await page.evaluate(() => document.fonts.ready);
+  const names = await page.getByTestId("multikill-row").evaluateAll((rows) =>
+    rows.map((row) => {
+      const name = row.querySelector<HTMLElement>("[data-testid=card-name]")!;
+      const box = name.getBoundingClientRect();
+      // The room is the member cell's name column (what a long name may fill), not the name's own box: a short name is narrower than its room.
+      const column = row.querySelector<HTMLElement>("[data-testid=board-member-name]")!;
+      return { name: name.textContent, room: column.getBoundingClientRect().width, lines: Math.round(box.height / parseFloat(getComputedStyle(name).lineHeight)), inside: box.right <= row.getBoundingClientRect().right + 0.5, cut: name.scrollWidth > name.clientWidth + 1 };
+    }),
+  );
+  expect(names.length).toBeGreaterThan(0);
+  for (const n of names) {
+    expect(n.room, `${n.name}: room for a name`).toBeGreaterThanOrEqual(80);
+    expect(n.lines, `${n.name}: at most two lines`).toBeLessThanOrEqual(2);
+    expect(n.inside, `${n.name}: inside its row`).toBe(true);
+    expect(n.cut, `${n.name}: whole`).toBe(false);
+  }
   await noOverflow(page);
   await axe(page, "[data-testid=records]");
   // A record opens its game in the holder's Match History (under its card, or in the match window).

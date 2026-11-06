@@ -31,6 +31,8 @@ test("a pool champion opens the shared champion window, with Matchups, in that r
   }).toPass({ timeout: 15_000 });
   await expect(page).toHaveURL(new RegExp(`champ=${championId}.*crole=TOP|crole=TOP.*champ=${championId}`));
   await expect(page.getByTestId("champion-detail-scope")).toBeVisible();
+  // The window speaks in the player's colours: its header carries the card's accent variable.
+  expect(await page.getByTestId("champion-detail-header").evaluate((el) => getComputedStyle(el).getPropertyValue("--card-accent").trim())).not.toBe("");
   // The same window as All Champions: Overview and Matchups.
   await win.getByRole("tab", { name: /Matchups/ }).click();
   await expect(page).toHaveURL(/tab=matchups/);

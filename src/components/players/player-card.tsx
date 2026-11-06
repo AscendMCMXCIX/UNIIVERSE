@@ -1,11 +1,12 @@
 import * as React from "react";
-import type { Role } from "@/domain/roles";
+import { ROLE_LABELS, type Role } from "@/domain/roles";
 import type { CardLook } from "@/domain/card-style";
 import type { ProficiencyTier } from "@/domain/proficiency";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone } from "@/domain/stats/win-rate";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
 import { InfoTip } from "@/components/ui/info-tip";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 import { CardAvatar, CardName, CardTagline } from "./card-look";
 import { RankInline, type CompactRank } from "./rank-emblem";
@@ -169,6 +170,57 @@ export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isY
       {labels}
       {taglineSlot}
     </span>
+  );
+}
+
+/**
+ * A member's identity as a list row shows it (the Players list on phones, the Studio's row preview):
+ * their picture in its frame, their name in its style with its emblem, the primary role (its icon in
+ * the card's colour) and the rank where this viewer may see it (never "Unranked" otherwise; `note`
+ * takes the rank's place, as "No Riot account"), then their tagline on one line. `children` follow
+ * in the same column (the pool, a status). The row's own element carries `cardColourVars(look)`.
+ */
+export function RowIdentity({ look, name, avatarUrl, role, rank, showRank = true, isYou = false, note, children }: { look: CardLook | null | undefined; name: string; avatarUrl: string | null; role: Role | null; rank: CompactRank | null; showRank?: boolean; isYou?: boolean; /** In the rank's place (the rank is then left out). */ note?: React.ReactNode; children?: React.ReactNode }) {
+  return (
+    <>
+      <CardAvatar look={look} name={name} src={avatarUrl} size="md" />
+      <span className="min-w-0 flex-1">
+        <span className="flex min-w-0 items-center gap-1.5">
+          {/* The name as on the card (its style, its emblem), never cut: a long one takes another line. */}
+          <CardName look={look} name={name} className="text-md leading-snug text-fg" />
+          {isYou ? <Badge tone="accent" className="shrink-0">You</Badge> : null}
+        </span>
+        <span className="mt-0.5 flex min-w-0 items-center gap-x-2 text-xs text-fg-muted">
+          {role ? (
+            <span className="inline-flex shrink-0 items-center gap-1">
+              <span style={{ color: "var(--card-accent)" }} className="inline-flex">
+                <RoleIcon role={role} className="h-3.5 w-3.5" />
+              </span>
+              {ROLE_LABELS[role]}
+            </span>
+          ) : (
+            <span className="shrink-0 text-fg-subtle">Roles not set</span>
+          )}
+          {note ? (
+            <>
+              <span className="text-fg-subtle" aria-hidden>
+                ·
+              </span>
+              {note}
+            </>
+          ) : showRank ? (
+            <>
+              <span className="text-fg-subtle" aria-hidden>
+                ·
+              </span>
+              <RankInline rank={rank} />
+            </>
+          ) : null}
+        </span>
+        <CardTagline look={look} lines={1} className="mt-0.5" />
+        {children}
+      </span>
+    </>
   );
 }
 
@@ -339,7 +391,7 @@ export function CardPool({ champions, roleLabel, showFigures = true, testId = "p
   const games = first.games ?? 0;
   const firstLine = !showFigures ? "First choice" : games > 0 ? `${games} game${games === 1 ? "" : "s"}${first.winRate != null ? ` · ${Math.round(first.winRate * 100)}%` : ""}` : (first.tierLabel ?? "No games this season");
   return (
-    <div className="flex min-w-0 items-center gap-2.5" aria-label={`${roleLabel} champion pool, in order of preference`} data-testid={testId}>
+    <div className="flex min-w-0 items-center gap-2.5" aria-label={`${roleLabel} champion pool, in order of preference`} data-testid={testId} data-card-pool>
       <span className="flex min-w-0 shrink-0 items-center gap-2" data-testid="pool-first">
         <ChampionPortrait champion={first} size="md" className="ring-1 ring-[color:var(--card-accent)]/50" />
         <span className="min-w-0 max-w-[7.5rem]">
@@ -551,7 +603,7 @@ export function PoolChampionTile({ index, champion, row, support, withStats = tr
       </span>
       <span className="min-w-0">
         <span className="flex min-w-0 items-baseline gap-2">
-          <span className="truncate text-sm font-semibold text-fg">{champion.name}</span>
+          <span className="truncate text-sm font-semibold text-fg" data-testid="pool-champion-name">{champion.name}</span>
           {first ? <span className="shrink-0 text-2xs font-semibold uppercase tracking-label text-[var(--card-accent)]">First choice</span> : null}
         </span>
         {withStats ? (
@@ -579,7 +631,9 @@ export function PoolChampionTile({ index, champion, row, support, withStats = tr
             <span className="hidden text-right text-sm tabular-nums text-fg-muted sm:block">{third}</span>
           </>
         ) : (
-          <span className="text-right sm:col-span-4" data-testid="pool-champion-stats">
+          // A note too long for a phone's figure column ("189K mastery · no games this season") would
+          // leave the name one letter: there it takes a line of its own under the name instead.
+          <span className="min-w-0 text-right max-sm:col-span-2 max-sm:col-start-2 max-sm:row-start-2 max-sm:pt-1 max-sm:text-left sm:col-span-4" data-testid="pool-champion-stats">
             {row.masteryPoints ? (
               <span className="inline-flex items-center gap-1">
                 <span className="text-xs tabular-nums text-fg-muted">

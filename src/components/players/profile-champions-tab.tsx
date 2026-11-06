@@ -9,6 +9,7 @@ import { type ProfileHeaderData } from "@/server/players/profile-header";
 import { getMatchSyncStatus } from "@/server/accounts/refresh";
 import { dataStatus } from "@/domain/data-status";
 import { AllChampions } from "@/components/players/all-champions";
+import { cardLookFor } from "@/domain/card-style";
 import { championMap, IdentitySync, refreshFor, type ProfileSearch } from "./profile-sections";
 
 /* The player profile's All Champions tab (components/players/profile-sections.tsx has the frame shared by every tab). */
@@ -45,5 +46,5 @@ async function ProfileChampionsTabBody({ db, header, session, basePath, search }
   const m = overview.summary.multikills;
   const perf = overview.summary.performance;
   const status = dataStatus({ accounts: overview.accounts.map((a) => a.sync), checkedAt: sync.checkedAt, attemptedAt: sync.attemptedAt, newestGameAt: sync.newestGameAt, season: overview.completeness, multikills: m, details: { games: perf.games, detailed: perf.detailedGames, unavailable: perf.unavailableGames } });
-  return <AllChampions data={overview} basePath={`${basePath}/champions`} championsById={championsById} playerId={player.id} detail={detail} status={status} refresh={refreshFor(session, player.id, sync, m.games - m.counted - m.unavailable > 0)} />;
+  return <AllChampions data={overview} basePath={`${basePath}/champions`} championsById={championsById} playerId={player.id} look={cardLookFor(player)} detail={detail} status={status} refresh={refreshFor(session, player.id, sync, m.games - m.counted - m.unavailable > 0)} />;
 }

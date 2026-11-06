@@ -42,7 +42,8 @@ export function DirectoryCardLayout({ look, art, header, identity, poolLabel, po
     <div className={cn("group relative row-span-7 mb-3 grid min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-subgrid overflow-hidden rounded-card border border-border bg-surface pb-3.5", className)} style={cardShellStyle(look, { glow: false })} {...rest}>
       <CardFrame look={look} />
       {overlay}
-      <div className="relative col-start-1 row-span-5 row-start-1" data-testid="directory-art">
+      {/* The art answers the pointer as the Team card's does (a transform only; the card clips it). */}
+      <div className="relative col-start-1 row-span-5 row-start-1 [&_.card-art-img]:group-hover:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover:scale-100" data-testid="directory-art">
         <CardArtLayer art={art} accent={accentCss(look.style)} kind="loading" position="center 16%" strength="normal" testId={artTestId} look={look} decorate={false} smooth={smooth} foot />
       </div>
       <div className="relative col-start-1 row-start-1 flex min-w-0 flex-wrap items-center gap-1.5 px-3 pt-3">{header}</div>
@@ -140,7 +141,9 @@ export function PlayerSummaryCard({ player, championsById, lineupRole, isYou, ri
           ) : null}
         </>
       }
-      identity={<CardIdentity layout="rows" look={look} name={player.displayName} avatarUrl={avatarUrl} rank={rank} showRank={showRank} isYou={isYou} nameClassName="group-hover:text-accent" tag={riot && riot.state !== "synced" ? <RiotNote riot={riot} /> : null} social={social.length ? <CardSocialIcons links={social} owner={player.displayName} className="relative z-[2]" /> : null} reserveTagline={reserveTagline} />}
+      // Without a Riot account no rank was read, so none is claimed ("Unranked" means a check found no
+      // placement): the Riot note says so in the rank's place. The name's hover takes the card's own colour.
+      identity={<CardIdentity layout="rows" look={look} name={player.displayName} avatarUrl={avatarUrl} rank={rank} showRank={showRank && riot?.state !== "none"} isYou={isYou} nameClassName="group-hover:text-[var(--card-accent)]" tag={riot && riot.state !== "synced" ? <RiotNote riot={riot} /> : null} social={social.length ? <CardSocialIcons links={social} owner={player.displayName} className="relative z-[2]" /> : null} reserveTagline={reserveTagline} />}
       poolLabel={
         player.primaryRole ? (
           <DirectoryPoolLabel heading={`${ROLE_LABELS[player.primaryRole]} · Primary Role`} count={primary.length} />
