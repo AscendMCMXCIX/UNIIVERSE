@@ -13,7 +13,7 @@
 @theme {
   --color-bg: #0a0b12;
   --color-bg-elevated: #181a25; /* menus, popovers and fields: a step above the panel they sit on */
-  --color-chrome: #131418; /* the app's frame (sidebar, top bar, drawer, tab bar): a near-neutral charcoal, so navigation recedes and the content leads */
+  --color-chrome: #0e0f17; /* the app's frame (sidebar, top bar, drawer, tab bar): the page's own ink, half a step up (surface and bg mixed evenly), so the frame is the same material as the page and recedes behind the content */
   --color-surface: #12131c;
   --color-surface-2: #1b1d29;
   --color-surface-3: #252837;
@@ -276,6 +276,36 @@ p a.text-accent {
 @utility panel-depth {
   background-image: linear-gradient(to bottom, color-mix(in srgb, var(--color-fg) 3%, transparent), transparent 5rem);
   box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--color-fg) 6%, transparent), 0 1px 2px 0 rgb(0 0 0 / 0.35), 0 18px 36px -22px rgb(0 0 0 / 0.8);
+}
+
+/*
+  The frame's light (the desktop sidebar's content layer): a faint sheen from the top and the
+  page's violet ambient light continued into the frame behind the logo, so the brand sits in light
+  instead of on a flat block. Image only, on the layer that stays still while the sidebar slides,
+  so the light never moves; the frame's opaque colour is bg-chrome underneath it.
+*/
+@utility chrome-light {
+  background-image: radial-gradient(16rem 11rem at 2.25rem 0, color-mix(in srgb, var(--color-accent-2) 9%, transparent), transparent 72%), linear-gradient(to bottom, color-mix(in srgb, var(--color-fg) 2.5%, transparent), transparent 9rem);
+}
+
+/*
+  The team's logo set into the frame (the sidebar's brand): a hairline of light around it, brighter
+  along the top edge, and a soft shadow under it, so any uploaded square (a saturated tile, a
+  transparent mark, the lettered stand-in) reads as one object on the frame rather than a pasted
+  block. Wrap the logo in it; the plate takes the logo's radius from its own rounded-* class.
+*/
+@utility brand-plate {
+  position: relative;
+  display: grid;
+  box-shadow: 0 8px 18px -10px rgb(0 0 0 / 0.9), 0 0 0 1px rgb(0 0 0 / 0.35);
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--color-fg) 22%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--color-fg) 10%, transparent);
+  }
 }
 
 /* The card a page leads with (the profile's season card): panel-depth plus a faint wash of the violet light in its top corner. */
