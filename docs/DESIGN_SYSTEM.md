@@ -111,8 +111,9 @@ It should not appear:
 
 - as a **fill or border on idle controls**. The sidebar's old "Switch to Admin Mode" box was one;
   it is now a neutral row whose shield turns blue while pointed at.
-- as a **glow or shadow colour**. The Team hero's logo had `shadow-accent/15`; it is now a neutral
-  `shadow-black/40`.
+- as a **glow or shadow colour**. The Team hero's logo still has `shadow-accent/15`
+  (`team-roster.tsx`, owned by the personalization session); it should become a neutral
+  `shadow-black/40` (§9).
 - as the **colour of the logo's stand-in** (`BrandMark` without an upload). That is now a neutral
   tile lit faintly in violet, with the letter in `fg`.
 
@@ -247,6 +248,7 @@ deliberately. Each needs its own small PR. Check STATUS.md for the Actions-minut
 | Hover on panels | About 50 controls use `hover:bg-surface-2`, a few `hover:bg-surface-2/70` or `bg-fg/5` | Converge on §5: surface steps on panels, fg overlays on the frame |
 | Page headers | Players, Matches and Resources open with `PageHeader`. Leaderboards opens with its sub-tabs in the title's place; Settings centres a narrower column with its own heading | Intended by STANDARDS.md's three tiers. Leaderboards could take a `PageHeader` when its page is next redesigned |
 | Eyebrows | `PageHeader`'s eyebrow is `accent`; `SectionLabel` is `fg-subtle` | Both are valid. Keep `accent` eyebrows to the two landing heroes and admin pages |
+| Team hero logo | `shadow-accent/15`: a blue glow under the team's logo (`team-roster.tsx`) | A neutral `shadow-black/40`, or `brand-plate`; left to the session that owns Team's cards |
 | Tablet and phone mode switch | A bordered accent button in the drawer and sheet, a quiet row in the sidebar | Deliberate (§7). Revisit only with the owner, since phones were verified |
 
 ## 10. Working on the design
