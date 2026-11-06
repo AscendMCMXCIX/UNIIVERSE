@@ -137,8 +137,14 @@ else
 fi
 
 # Encrypt, then prove the encrypted file opens with the passphrase and matches the dump.
+# The repository is public, so anyone signed in to GitHub can download the encrypted artifact and
+# try passphrases offline for as long as they like. The key is therefore derived with the most
+# expensive settings OpenPGP allows (salted and iterated SHA-512, the maximum count), instead of
+# whatever gpg's defaults are on the runner. gpg --decrypt reads these settings from the file, so
+# restoring needs nothing new (docs/BACKUPS.md).
 ENC="$OUT_DIR/$NAME.dump.gpg"
 gpg --batch --yes --quiet --pinentry-mode loopback --passphrase-fd 3 --symmetric --cipher-algo AES256 \
+  --s2k-mode 3 --s2k-digest-algo SHA512 --s2k-count 65011712 \
   --output "$ENC" "$DUMP" 3<<<"$BACKUP_PASSPHRASE"
 DUMP_SHA="$(sha256sum "$DUMP" | cut -d' ' -f1)"
 ROUND_SHA="$(gpg --batch --quiet --pinentry-mode loopback --passphrase-fd 3 --decrypt "$ENC" 3<<<"$BACKUP_PASSPHRASE" | sha256sum | cut -d' ' -f1)"

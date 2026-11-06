@@ -54,7 +54,9 @@ jobs:
         run: |
           if [ -z "$APP_URL" ]; then echo "::error::The APP_URL secret is not set (it is also Data jobs' address of the site)."; exit 1; fi
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - uses: actions/setup-node@v7
         with:
           node-version: 22
@@ -141,6 +143,21 @@ jobs:
             echo "::warning::The perf probe did not answer (see this step's log); production's pages were checked above."
           fi
 
+      # Artifacts of a public repository can be downloaded by anyone signed in to GitHub. Once the
+      # verification account exists, the screenshots show member pages (the team's players, games
+      # and ranks), so they are left out of the artifact unless the repository is private; the
+      # report and summary (checks, counts and CSS selectors only) are still kept. An event whose
+      # payload does not say the visibility counts as public.
+      - name: Keep member-page screenshots out of a public artifact
+        if: ${{ !cancelled() }}
+        env:
+          VISIBILITY: ${{ github.event.repository.visibility || 'unknown' }}
+          SIGNED_IN: ${{ secrets.UNIIVERSE_VERIFY_USER != '' && secrets.UNIIVERSE_VERIFY_PASSWORD != '' }}
+        run: |
+          if [ "$SIGNED_IN" = "true" ] && [ "$VISIBILITY" != "private" ] && [ -d live-check ]; then
+            removed=$(find live-check -name '*.png' -print -delete | wc -l)
+            echo "::notice::$removed screenshot(s) left out of the artifact: the run opened member pages and the repository is $VISIBILITY."
+          fi
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
