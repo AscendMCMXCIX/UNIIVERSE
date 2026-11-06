@@ -23,7 +23,7 @@ In Ranked Solo/Duo a party is two players at most, so a Solo/Duo game with three
 - **Filters:** season (from Season 2026), games (All, Ranked Solo/Duo, Ranked Flex, Normal games, Clash), size (2+, 3+, 4+, all five) and members (every chosen member on the same side).
 - **Summary:** one line with the season, the games and the record. With members chosen, their record together, their most played champions and the champion combinations they repeated. The "played together most" pair rankings were removed on 19 Oct 2026.
 - **Details:** a game opens under its card on tablets and desktops, and full screen on phones (Back closes it; #203), with both teams, items and runes, from the first listed member's stored history.
-- **A game whose side is unknown** (no stored match details for one of its members yet) is counted as "could not be checked yet" and listed once its details arrive. A game Riot no longer serves keeps an unknown side for good.
+- **A game whose side is unknown** (no stored match details for one of its members yet) is counted as "could not be checked yet" and listed once its details arrive. A game Riot no longer serves is counted apart and left out for good: the page says how many ("Games Riot no longer serves"), and their results still count on the members' profiles (#202).
 
 ## Access and privacy
 
