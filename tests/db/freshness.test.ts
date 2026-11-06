@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { accountMatches, jobRuns, lastKnownRanks, playerChampionPools, riotAccounts, players, users } from "@/server/db/schema";
+import { accountMatches, jobRuns, lastKnownRanks, matchTimelines, playerChampionPools, riotAccounts, players, users } from "@/server/db/schema";
 import { createPlayer, getOrCreateTeam, setCardStyle, setTeamMember } from "@/server/repositories/team";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
@@ -93,6 +93,21 @@ describe("a player's version", () => {
     expect((await playerFreshness(db, playerId)).pace).toBe("catching-up");
     await db.update(riotAccounts).set({ historyBackfill: { season: 16, startedAt: new Date().toISOString(), completedAt: new Date().toISOString(), queues: { "420": { offset: 20, done: true } } } }).where(eq(riotAccounts.id, accountId));
     expect((await playerFreshness(db, playerId)).pace).toBe("idle");
+  });
+
+  it("follows the timelines of the player's games, so Matchups updates when the backfill stores one", async () => {
+    const db = handle.db;
+    const [game] = await db.select({ matchId: accountMatches.matchId }).from(accountMatches).where(eq(accountMatches.accountId, accountId)).limit(1);
+    const before = await playerFreshness(db, playerId, { now });
+    await db.insert(matchTimelines).values({ matchId: game!.matchId, platform: "oc1", participants: [], frames: null });
+    const stored = await playerFreshness(db, playerId, { now });
+    expect(stored.v).not.toBe(before.v);
+    await db.update(matchTimelines).set({ frames: { t: [0, 60_000], p: {} } }).where(eq(matchTimelines.matchId, game!.matchId));
+    const framed = await playerFreshness(db, playerId, { now });
+    expect(framed.v).not.toBe(stored.v);
+    // Another player's timeline is not this player's.
+    await db.insert(matchTimelines).values({ matchId: "OC1_NOT_MINE", platform: "oc1", participants: [], frames: null });
+    expect((await playerFreshness(db, playerId, { now })).v).toBe(framed.v);
   });
 });
 

@@ -79,7 +79,7 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
     what: "Background job records: when the app's data jobs ran and how they went, with their last log lines (older lines can name team members' Riot IDs; newer ones name an account by a short number instead)",
     why: "Seeing whether syncing with Riot and the housekeeping work",
     who: "Administrators",
-    kept: "Not deleted automatically. Permanent removal takes the person's Riot IDs out of them",
+    kept: "Deleted after 60 days by the daily clean-up. Until then, permanent removal takes the person's Riot IDs out of them",
   },
   {
     what: "Page speed counts: how fast a signed-in page loaded and responded in your browser, rounded to a range, counted with only the page's section (such as Players) and the screen size class (phone, tablet or desktop). Nothing identifies you, your account or what you opened",
@@ -149,7 +149,7 @@ export default async function PrivacyPage() {
         {name} is a private app for one League of Legends team. Administrators create every account; there is no public sign-up. This notice explains what it stores about members, why, who can see it, how long it stays, and how to reach us about it.
       </p>
       <p className="mt-1 text-xs text-fg-subtle">
-        Updated <time dateTime="2026-11-04">{PRIVACY_UPDATED}</time>
+        Updated <time dateTime="2026-11-05">{PRIVACY_UPDATED}</time>
       </p>
 
       <nav aria-label="On this page" className="mt-4" data-testid="privacy-index">

@@ -92,12 +92,16 @@ describe("season records", () => {
 
 describe("multikills and milestones", () => {
   it("adds up Riot's multikills from the games that carry them, rarest first", () => {
+    // Riot sends the four counts together; a record with extra figures but none of them (as the
+    // profiles' multikill coverage reads it) carries no counts and is left out, never read as zero.
+    const counts = (o: Partial<Record<"doubleKills" | "tripleKills" | "quadraKills" | "pentaKills", number>>) => ({ doubleKills: 0, tripleKills: 0, quadraKills: 0, pentaKills: 0, ...o });
     const r = records([
-      game("a", 1, { extra: { tripleKills: 3 } }),
-      game("b", 1, { extra: { quadraKills: 1, tripleKills: 1 } }),
-      game("c", 1, { extra: { pentaKills: 1 } }),
-      game("d", 1, { extra: { doubleKills: 4 } }),
+      game("a", 1, { extra: counts({ tripleKills: 3 }) }),
+      game("b", 1, { extra: counts({ quadraKills: 1, tripleKills: 1 }) }),
+      game("c", 1, { extra: counts({ pentaKills: 1 }) }),
+      game("d", 1, { extra: counts({ doubleKills: 4 }) }),
       game("e", 1),
+      game("f", 1, { extra: { firstBloodKill: true, wardsKilled: 3 } }),
     ]);
     expect(r.multikills.map((m) => m.playerId)).toEqual(["c", "b", "a"]);
     expect(r.multikills[1]).toEqual({ playerId: "b", penta: 0, quadra: 1, triple: 1 });

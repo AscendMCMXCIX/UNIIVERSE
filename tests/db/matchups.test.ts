@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { accountMatches, matchDetails, matchTimelines, riotAccounts, type MatchFrames, type MatchParticipantDetail } from "@/server/db/schema";
@@ -225,7 +225,7 @@ describe("timeline backfill", () => {
     };
     const client = new RiotApiClient({ apiKey: "k", fetchImpl, limiter: new RateLimiter([{ requests: 1000, seconds: 1 }]), sleep: async () => {}, maxRetries: 0 });
     const first = await backfillTimelines(db, client, { limit: 2, deadline: Date.now() + 60_000 });
-    expect(first).toEqual({ fetched: 2, unavailable: 0, stoppedBy: null });
+    expect(first).toEqual({ fetched: 2, unavailable: 0, skipped: [], stoppedBy: null });
     // Newest first: game 3 (3 days old), then game 5.
     expect(calls.map((u) => u.match(/OC1_\d/)![0])).toEqual(["OC1_3", "OC1_5"]);
     const [kept] = await db.select().from(matchTimelines).where(eq(matchTimelines.matchId, "OC1_5"));
@@ -233,11 +233,11 @@ describe("timeline backfill", () => {
     expect(kept!.participants).toEqual([{ puuid: "me-main", purchases: [[2000, 3078]], skills: [3], kills: [], deaths: [], assists: [] }]);
     expect(kept!.frames!.t).toEqual([0, 60_100, 120_300]);
     const second = await backfillTimelines(db, client, { limit: 5, deadline: Date.now() + 60_000 });
-    expect(second).toEqual({ fetched: 0, unavailable: 1, stoppedBy: null });
+    expect(second).toEqual({ fetched: 0, unavailable: 1, skipped: [], stoppedBy: null });
     expect(await timelineCoverage(db)).toMatchObject({ laneGames: 6, withFrames: 5, unavailable: 1, pending: 0 });
     // Nothing left: no request at all. A refusal stops the run without writing anything.
     calls.length = 0;
-    expect(await backfillTimelines(db, client, { limit: 5, deadline: Date.now() + 60_000 })).toEqual({ fetched: 0, unavailable: 0, stoppedBy: null });
+    expect(await backfillTimelines(db, client, { limit: 5, deadline: Date.now() + 60_000 })).toEqual({ fetched: 0, unavailable: 0, skipped: [], stoppedBy: null });
     expect(calls).toHaveLength(0);
     await db.update(matchTimelines).set({ frames: null }).where(eq(matchTimelines.matchId, "OC1_3"));
     refuse = true;
@@ -263,7 +263,7 @@ describe("timeline backfill", () => {
     };
     const client = new RiotApiClient({ apiKey: "k", fetchImpl, limiter, now, sleep, maxRetries: 0, deadline: t + 25_000 });
     const run = await backfillTimelines(db, client, { limit: 5, deadline: t + 25_000 });
-    expect(run).toEqual({ fetched: 0, unavailable: 0, stoppedBy: "time budget" });
+    expect(run).toEqual({ fetched: 0, unavailable: 0, skipped: [], stoppedBy: "time budget" });
     expect(calls).toHaveLength(0);
     // Nothing is recorded as unavailable: the timeline is asked for again next run.
     const [still] = await db.select().from(matchTimelines).where(eq(matchTimelines.matchId, "OC1_3"));
@@ -284,5 +284,44 @@ describe("data audit: queue classification", () => {
     expect(q.accountVsDetailsQueueMismatch).toEqual({ games: 0, soloFlexSwapped: 0 });
     // The drafted-match archive belonged to the removed Draft feature; the audit no longer reads it.
     expect(q).not.toHaveProperty("draftedByMode");
+  });
+});
+
+describe("a game whose record Riot no longer serves", () => {
+  it("counts for the record, with no figures: the ledger's -1 marker never reaches the champion window or Matchups", async () => {
+    const db = handle.db;
+    // What the sync's catch-up leaves on a ledger row when Riot answers 404 for the game (accounts/sync.ts).
+    await db.insert(accountMatches).values({ accountId: mainId, matchId: "OC1_9", gameCreation: Date.now() - 9 * DAY, queueId: 420, championId: "Gwen", role: "TOP", win: true, enemyChampionId: "Nasus", patch: "16.20", gameDuration: 1700, ...DETAILS_UNAVAILABLE });
+    const w = await getPlayerMatchups(db, playerId, { account: null, mode: "all", champion: "Gwen", vs: "Nasus", role: "TOP", exact: true });
+    // One more game against Nasus, won: the record moves from 4–2 to 5–3.
+    expect(w.detail).toMatchObject({ games: 5, wins: 3 });
+    const gone = w.detail!.matches.find((g) => g.matchId === "OC1_9")!;
+    expect(gone).toMatchObject({ win: true, kills: null, deaths: null, assists: null, cs: null });
+    // The marker alone (no record row) says the record is gone, not still being collected.
+    expect(gone.timeline).toBe("unavailable");
+    expect(w.lane!.recent.every((g) => g.kills === null || g.kills >= 0)).toBe(true);
+    await db.delete(accountMatches).where(eq(accountMatches.matchId, "OC1_9"));
+  });
+
+  it("tells a record still to be collected (pending) from one Riot no longer serves (unavailable), never 'lane opponent unclear'", async () => {
+    const db = handle.db;
+    const row = (matchId: string, age: number) => ({ accountId: mainId, matchId, gameCreation: Date.now() - age * DAY, queueId: 420, championId: "Gwen", role: "TOP", win: true, enemyChampionId: "Nasus", patch: "16.20", gameDuration: 1700, kills: 4, deaths: 2, assists: 5, cs: 200 });
+    await db.insert(accountMatches).values([row("OC1_10", 10), row("OC1_11", 11)]);
+    await db.insert(matchDetails).values({ matchId: "OC1_11", platform: null, queueId: 420, gameCreation: Date.now() - 11 * DAY, gameDuration: 1700, gameVersion: null, teams: [], participants: [] });
+    const w = await getPlayerMatchups(db, playerId, { account: null, mode: "all", champion: "Gwen", vs: "Nasus", role: "TOP", exact: true });
+    const status = (id: string) => w.detail!.matches.find((g) => g.matchId === id)!.timeline;
+    expect(status("OC1_10")).toBe("pending");
+    expect(status("OC1_11")).toBe("unavailable");
+    expect(status("OC1_6")).toBe("no-details");
+    // No PUUID known on any account (being verified again after a Riot key change): a stored
+    // record is not examined, so it is pending, not "unclear"; the others say what they are.
+    const before = await db.select({ id: riotAccounts.id, puuid: riotAccounts.puuid }).from(riotAccounts).where(eq(riotAccounts.playerId, playerId));
+    await db.update(riotAccounts).set({ puuid: null }).where(eq(riotAccounts.playerId, playerId));
+    const unverified = await getPlayerMatchups(db, playerId, { account: null, mode: "all", champion: "Gwen", vs: "Nasus", role: "TOP", exact: true });
+    const statusThen = (id: string) => unverified.detail!.matches.find((g) => g.matchId === id)!.timeline;
+    expect([statusThen("OC1_10"), statusThen("OC1_11"), statusThen("OC1_6")]).toEqual(["pending", "unavailable", "pending"]);
+    for (const a of before) await db.update(riotAccounts).set({ puuid: a.puuid }).where(eq(riotAccounts.id, a.id));
+    await db.delete(accountMatches).where(inArray(accountMatches.matchId, ["OC1_10", "OC1_11"]));
+    await db.delete(matchDetails).where(eq(matchDetails.matchId, "OC1_11"));
   });
 });

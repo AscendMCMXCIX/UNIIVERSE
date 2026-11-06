@@ -6,11 +6,12 @@ import { accountMatches, appSettings, matchDetails, patches, rankSnapshots, riot
 import { patchSortKey } from "@/domain/patch";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
-import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
+import { createPlayer, getOrCreateTeam, setTeamMember } from "@/server/repositories/team";
 import { addAccount, listAccountsForPlayer } from "@/server/accounts/repository";
-import { syncAccount } from "@/server/accounts/sync";
+import { DETAILS_UNAVAILABLE, syncAccount } from "@/server/accounts/sync";
 import { storeMatchDetail } from "@/server/accounts/match-details";
 import { compareInMatch, getMatchDetail, getMatchHistory } from "@/server/players/match-history";
+import type { MatchDetailView } from "@/server/players/match-history";
 import { compositionOf, loadCompositionParticipants, teamMembersByPuuid } from "@/server/matches/compositions";
 import { compactAssets, ddragonVersionOf } from "@/server/riot/static/assets";
 import { invalidateCache } from "@/server/observability/cache";
@@ -445,6 +446,42 @@ describe("personal match history", () => {
     expect(totals.dragon).toMatchObject({ own: 3, enemy: 1 });
   });
 
+  it("keeps the player in their stored games while the account's PUUID is being verified again (a Riot key change)", async () => {
+    const db = handle.db;
+    const [account] = await db.select({ puuid: riotAccounts.puuid }).from(riotAccounts).where(eq(riotAccounts.id, main));
+    await db.update(riotAccounts).set({ puuid: null, syncStatus: "pending" }).where(eq(riotAccounts.id, main));
+    try {
+      const row = (await getMatchHistory(db, playerId, { per: 25 })).rows.find((r) => r.matchId === "OC1_700000018")!;
+      expect(row.teams?.side).toBe("blue");
+      expect(row.teams?.blue.some((p) => p.you)).toBe(true);
+      expect(row.items).not.toBeNull();
+      expect(row.killParticipation).not.toBeNull();
+      const detail = await getMatchDetail(db, playerId, "OC1_700000018", { viewerIsOwner: true });
+      expect(detail.status).toBe("ok");
+      expect((detail as { view: MatchDetailView }).view.player.isPlayer).toBe(true);
+      expect((detail as { view: MatchDetailView }).view.championId).toBe("Gwen");
+    } finally {
+      await db.update(riotAccounts).set({ puuid: account!.puuid, syncStatus: "ok" }).where(eq(riotAccounts.id, main));
+    }
+  });
+
+  it("names and links current team members only: a personal-use profile in the game stays a stranger, as on the cards", async () => {
+    const db = handle.db;
+    const [record] = await db.select({ participants: matchDetails.participants }).from(matchDetails).where(eq(matchDetails.matchId, "OC1_700000019"));
+    const stranger = record!.participants.find((p) => !["h-main", "h-alt", "h-mate"].includes(p.puuid))!;
+    const solo = (await createPlayer(db, teamId, { displayName: "Personal Use", primaryRole: "ADC", primaryPool: ["Jinx"] })).id;
+    await setTeamMember(db, teamId, solo, false);
+    const account = (await addAccount(db, { ownerType: "player", playerId: solo, riotId: "Personal#OCE", platform: "oc1" })).id;
+    await db.update(riotAccounts).set({ puuid: stranger.puuid }).where(eq(riotAccounts.id, account));
+    const r = await getMatchDetail(db, playerId, "OC1_700000019", { viewerIsOwner: true });
+    expect(r.status).toBe("ok");
+    const seen = (r as { view: MatchDetailView }).view.teams.flatMap((t) => t.participants).find((p) => p.name === stranger.name)!;
+    expect(seen).toMatchObject({ teamMember: null, memberId: null });
+    // A team member stays named and linked.
+    expect((r as { view: MatchDetailView }).view.teams.flatMap((t) => t.participants).find((p) => p.teamMember === "Duo Mate")).toMatchObject({ memberId: mateId });
+    await db.delete(riotAccounts).where(eq(riotAccounts.id, account));
+  });
+
   it("compares from the player's side wherever they played, and pairs no opponent without positions", () => {
     const part = (teamId: number, position: string | null, over: Partial<MatchParticipantDetail> = {}): MatchParticipantDetail => ({ puuid: `${teamId}-${position}`, name: null, teamId, championId: "Ahri", championKey: 103, champLevel: 18, position, win: teamId === 200, kills: 2, deaths: 2, assists: 2, cs: 200, gold: 10_000, damage: 20_000, damageTaken: 10_000, vision: 20, wardsPlaced: 5, items: null, spells: null, runes: null, ...over });
     const lanes = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
@@ -476,6 +513,44 @@ describe("personal match history", () => {
     // Not collected yet, and no Riot access here: says so instead of guessing.
     const missing = await getMatchDetail(db, playerId, "OC1_700000016", { viewerIsOwner: true, fetchMissing: true });
     expect(missing.status).toBe("missing");
+  });
+
+  it("says games are being collected only for accounts Riot will read, never for one a person has to correct", async () => {
+    const db = handle.db;
+    const typo = (await createPlayer(db, teamId, { displayName: "Typo", primaryRole: "TOP", primaryPool: ["Gwen"] })).id;
+    const account = (await addAccount(db, { ownerType: "player", playerId: typo, riotId: "Typo#OCE", platform: "oc1" })).id;
+    expect((await getMatchHistory(db, typo, {})).syncing).toBe(true);
+    await db.update(riotAccounts).set({ syncStatus: "unresolved", syncError: "Riot could not find this Riot ID." }).where(eq(riotAccounts.id, account));
+    expect((await getMatchHistory(db, typo, {})).syncing).toBe(false);
+  });
+
+  it("tells a record Riot no longer serves apart from one still to be collected, from the ledger alone", async () => {
+    const db = handle.db;
+    // What the sync's catch-up of older games leaves when Riot answers 404 for a game: the marker
+    // on the ledger row (accounts/sync.ts DETAILS_UNAVAILABLE). Rows marked before the catch-up also
+    // stored the unavailable record have no record at all; they are not "still being collected".
+    await db.insert(accountMatches).values({ accountId: main, matchId: "OC1_GONE2", gameCreation: base - 20 * 3_600_000, queueId: 420, championId: "Gwen", role: "TOP", win: false, patch: "16.20", gameDuration: 1700, ...DETAILS_UNAVAILABLE });
+    const page = await getMatchHistory(db, playerId, { per: 25 });
+    expect(page.rows.find((r) => r.matchId === "OC1_GONE2")).toMatchObject({ record: "unavailable", win: false, kills: null, deaths: null, assists: null, kda: null });
+    // The window says so too, and asks Riot nothing even where it could.
+    const prev = process.env.RIOT_API_KEY;
+    process.env.RIOT_API_KEY = "RGAPI-00000000-0000-0000-0000-000000000000";
+    const realFetch = globalThis.fetch;
+    let requests = 0;
+    globalThis.fetch = (async () => {
+      requests += 1;
+      throw new Error("no request expected");
+    }) as typeof fetch;
+    try {
+      const detail = await getMatchDetail(db, playerId, "OC1_GONE2", { viewerIsOwner: true, fetchMissing: true });
+      expect(detail.status).toBe("unavailable");
+      expect((detail as { message: string }).message).toMatch(/no longer provides/);
+      expect(requests).toBe(0);
+    } finally {
+      globalThis.fetch = realFetch;
+      if (prev === undefined) delete process.env.RIOT_API_KEY;
+      else process.env.RIOT_API_KEY = prev;
+    }
   });
 
   it("marks a game's largest multikill from its stored record, and nothing without one", async () => {

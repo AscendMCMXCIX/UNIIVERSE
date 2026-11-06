@@ -58,6 +58,12 @@ export function refreshNote(games: RefreshOutcome, multikills: CatchUpOutcome | 
         break;
     }
   }
+  // An account that could not be read while the others were: said, with the warning tone, so
+  // "no new games" never stands for a check that did not happen.
+  if ((games.status === "updated" || games.status === "no-new") && games.problem) {
+    parts.push(`${games.problem.accounts === 1 ? "1 account" : `${n(games.problem.accounts)} accounts`} could not be read: ${games.problem.message}`);
+    tone = "info";
+  }
   const text = parts.join(" · ");
   return { text: retry > 0 && tone !== "good" ? `${text} · try again in ${waitText(retry)}` : text, tone, retryInSeconds: retry };
 }

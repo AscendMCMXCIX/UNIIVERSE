@@ -28,6 +28,10 @@ export async function summariseMatches(db: Db, scope: { accountIds?: readonly st
         FROM account_matches am
         JOIN riot_accounts ra ON ra.id = am.account_id
         WHERE am.summarised_at IS NULL AND am.champion_id IS NOT NULL ${byAccount} ${byMatch}
+          -- Not while the account's PUUID is unknown (being verified again after a Riot key
+          -- change): the participant could not be found, and a row marked checked without its
+          -- side would never be looked at again.
+          AND ra.puuid IS NOT NULL
           AND EXISTS (SELECT 1 FROM match_details md WHERE md.match_id = am.match_id)
         LIMIT ${BATCH}
       ),

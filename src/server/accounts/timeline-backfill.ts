@@ -1,7 +1,8 @@
 import { eq, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { matchTimelines } from "@/server/db/schema";
-import { RiotApiError, RiotDeadlineError, type RiotApiClient } from "@/server/riot/api/client";
+import { MAX_SKIPPED_RECORDS, recordFailure, RiotDeadlineError, type RiotApiClient } from "@/server/riot/api/client";
+import { describeStop } from "./figures-backfill";
 import { SYNC_QUEUE_IDS } from "./sync";
 import { completedTimeline, keptTimeline, timelineRow } from "./match-timeline";
 
@@ -44,13 +45,15 @@ export async function timelineCoverage(db: Db): Promise<{ laneGames: number; wit
 export interface BackfillResult {
   fetched: number;
   unavailable: number;
+  /** Timelines Riot could not serve this run (by match id): passed over, asked for again next time (recordFailure). */
+  skipped: string[];
   /** Why the run stopped early, if it did (a refusal, an error, the time budget). */
   stoppedBy: string | null;
 }
 
 /** Fetches up to `limit` missing timelines, newest games first, stopping at the deadline or the first refusal. */
 export async function backfillTimelines(db: Db, client: RiotApiClient, options: { limit: number; deadline: number; log?: (m: string) => void }): Promise<BackfillResult> {
-  const result: BackfillResult = { fetched: 0, unavailable: 0, stoppedBy: null };
+  const result: BackfillResult = { fetched: 0, unavailable: 0, skipped: [], stoppedBy: null };
   if (options.limit <= 0) return result;
   const due = rows(
     await db.execute(sql`
@@ -81,12 +84,18 @@ export async function backfillTimelines(db: Db, client: RiotApiClient, options: 
         result.stoppedBy = "time budget";
         break;
       }
-      if (err instanceof RiotApiError && err.status === 404) {
+      const kind = recordFailure(err);
+      if (kind === "unavailable") {
         row = timelineRow(matchId, platform, null);
         result.unavailable += 1;
       } else {
-        result.stoppedBy = err instanceof RiotApiError ? `Riot answered ${err.status || "with an error"}` : "a network error";
         options.log?.(`${matchId}: ${(err as Error).message}`);
+        // A timeline Riot cannot serve right now: passed over, a few a run, asked for again next time.
+        if (kind === "skip" && result.skipped.length < MAX_SKIPPED_RECORDS) {
+          result.skipped.push(matchId);
+          continue;
+        }
+        result.stoppedBy = kind === "skip" ? `${MAX_SKIPPED_RECORDS} records could not be read` : describeStop(err);
         break;
       }
     }

@@ -1,12 +1,13 @@
 "use server";
 
 import { publicErrorMessage } from "@/server/errors";
+import { releaseLease } from "@/server/jobs/background";
 import { revalidatePath } from "next/cache";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePermission, requireRiotAccountEditor } from "@/server/auth/session";
 import { AccountError, accountForBrowser, addAccount, listAccountsForPlayer, listPendingAccounts, removeAccount, reorderAccounts, setMainAccount, withoutRank, type RiotAccountRecord } from "@/server/accounts/repository";
 import { syncAccount } from "@/server/accounts/sync";
-import { REFRESH_COOLDOWN_MS, accountSyncRetryIn, claimAccountSync, isSyncableAccount } from "@/server/accounts/refresh";
+import { accountSyncLeaseKey, accountSyncRetryIn, claimAccountSync, isSyncableAccount, REFRESH_COOLDOWN_MS, SCHEDULED_SYNC_LEASE_MS } from "@/server/accounts/refresh";
 import { changeAccountRiotId, type RiotIdChange } from "@/server/accounts/change-riot-id";
 import { createRiotClient, parsePlatforms } from "@/server/riot/api/client";
 import { browserTestRiotClient } from "@/server/riot/browser-test";
@@ -34,9 +35,19 @@ export async function addPlayerAccountAction(playerId: string, input: { riotId: 
     const session = await requireRiotAccountEditor(playerId);
     const db = await getAppDb();
     const account = await addAccount(db, { ownerType: "player", playerId, riotId: input.riotId, platform: input.platform?.trim() || defaultPlatform() });
-    // Resolve immediately when a key is available so the user sees whether the Riot ID exists.
+    // Resolve immediately when a key is available so the user sees whether the Riot ID exists
+    // (under the account's sync lease, like every sync: a view's slice must not start on the new
+    // row while this runs). The claim is given back as soon as the sync is done, as the sign-up
+    // kickoff does, so the page's own refresh carries the history on at once, not 100 s later.
     const client = createRiotClient();
-    if (client) await syncAccount(db, client, account, { maxMatchesPerRun: 20 });
+    const claimedAt = new Date();
+    if (client && (await claimAccountSync(db, account.id, SCHEDULED_SYNC_LEASE_MS, claimedAt))) {
+      try {
+        await syncAccount(db, client, account, { maxMatchesPerRun: 20 });
+      } finally {
+        await releaseLease(db, accountSyncLeaseKey(account.id), claimedAt);
+      }
+    }
     invalidateProficiencyCache();
     touch();
     const fresh = (await listAccountsForPlayer(db, playerId)).find((a) => a.id === account.id) ?? account;
@@ -138,7 +149,7 @@ export async function syncPlayerAccountAction(playerId: string, accountId: strin
 }
 
 /** Owner: re-run the sync for every linked account that is not currently synced (bounded). */
-export async function retryPendingAccountsAction(): Promise<Result<{ attempted: number; synced: number; pending: number; failed: number }>> {
+export async function retryPendingAccountsAction(): Promise<Result<{ attempted: number; synced: number; pending: number; failed: number; skipped: number }>> {
   try {
     await requirePermission("manage-data");
     const db = await getAppDb();
@@ -147,11 +158,19 @@ export async function retryPendingAccountsAction(): Promise<Result<{ attempted: 
     const client = createRiotClient({ deadline: started + 40_000 });
     if (!client) return { ok: false, error: "RIOT_API_KEY is not configured on the server." };
     const pending = await listPendingAccounts(db, 20);
+    let attempted = 0;
+    let skipped = 0;
     let synced = 0;
     let stillPending = 0;
     let failed = 0;
     for (const account of pending) {
       if (Date.now() - started > 40_000) break;
+      // An account the scheduler or a Refresh is syncing right now is left to that run.
+      if (!(await claimAccountSync(db, account.id, SCHEDULED_SYNC_LEASE_MS))) {
+        skipped += 1;
+        continue;
+      }
+      attempted += 1;
       const r = await syncAccount(db, client, account, { maxMatchesPerRun: 20 });
       if (r.status === "ok") synced += 1;
       else if (r.status === "pending") stillPending += 1;
@@ -162,7 +181,7 @@ export async function retryPendingAccountsAction(): Promise<Result<{ attempted: 
     invalidateProficiencyCache();
     touch();
     revalidatePath("/settings");
-    return { ok: true, data: { attempted: pending.length, synced, pending: stillPending, failed } };
+    return { ok: true, data: { attempted, synced, pending: stillPending, failed, skipped } };
   } catch (err) {
     return fail(err);
   }
