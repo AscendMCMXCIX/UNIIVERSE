@@ -157,11 +157,28 @@ Never paste either value into a chat, an issue or a pull request.
 
 To remove the role later: `DROP OWNED BY uniiverse_backup; DROP ROLE uniiverse_backup;` (it owns nothing, so this only removes its grants), then delete the two secrets.
 
+### Where backups are kept: moving to a private repository
+
+**Decided 6 Nov 2026:** future backups move to a private repository, `AscendMCMXCIX/uniiverse-backups`, so the encrypted files can no longer be downloaded by anyone signed in to GitHub. Why this destination:
+- **Free:** the owner's GitHub Pro plan covers it, at about 3 private Actions minutes a week for the backup and 1 a day for the age check.
+- **Away from the database:** a backup kept in Supabase Storage would be lost with the project it protects.
+- **Little to maintain:** the private repository holds only two workflow files and two secrets, and its backup checks out this repository's `scripts/backup-db.sh` on every run. The files are in `docs/backup-repository/`.
+- **No 60-day rule:** a private repository's schedules are not switched off after 60 days without activity.
+
+**Order, so backups never lapse:**
+1. **The owner** (account-level steps that sessions cannot take):
+   - create the private repository `uniiverse-backups` (GitHub → New repository → Private, with a README);
+   - add the two secrets `BACKUP_DATABASE_URL` and `BACKUP_PASSPHRASE` there (Settings → Secrets and variables → Actions). Use the same database URL as this repository. A new passphrase of 32+ random characters, from the password manager, is better than reusing the old one.
+   - give the coordinating session access to the repository.
+2. **The session:** pushes `docs/backup-repository/.github/` to it, runs Database backup there by hand and reads the run (role check, restore check, encryption, artifact uploaded). It then runs Backup age by hand.
+3. **Only once that run has passed:** a PR in this repository removes `.github/workflows/backup.yml` and the backup-age half of the Production check, and updates the privacy notice ("a separate, private GitHub repository"). Until it merges, the weekly backup here keeps running, so there is never a week without one.
+4. **The copies already published here** (6 Nov) are not deleted. They expire on their own 28 days after their run. #212 relies on run 7 until then, or on a private backup taken before #212 merges.
+
 ### Rotating the passphrase
 
 Because anyone signed in to GitHub can download the encrypted backups, the passphrase is the only thing protecting the data in them, and a downloaded copy can be attacked offline indefinitely. Rotate it whenever you are not sure it is long, random and used nowhere else.
 
-On 6 Nov 2026 the owner was not sure about the passphrase in use, so the **Database backup** workflow was disabled (Actions → Database backup → ⋯ → Disable workflow) until it is rotated. Nothing is backed up while it is disabled. The daily Production check fails once the last good backup (6 Nov, 00:24 UTC) is more than 8 days old, from about 15 Nov, so finish the rotation before 14 Nov.
+On 6 Nov 2026 the owner wasn't sure about the passphrase in use, so the workflow was disabled for a few hours. A run by hand then showed that the passphrase is at least 32 characters (run 42192124079; the script refuses a shorter one before reading anything), and the weekly schedule resumed. Rotate anyway if it was ever reused or isn't random. While the workflow is disabled nothing is backed up, and the daily Production check fails once the last good backup is more than 8 days old.
 
 1. **Keep the old passphrase.** Backups taken before the rotation open only with the old passphrase. Keep it in your password manager, labelled as old, until the last of those backups and every offline copy of them is gone. The backup that #212 relies on (run 7, `database-backup-42136432466`, 6 Nov) is one of them.
 2. **Generate a new one.** In your password manager, generate at least 32 random characters, used nowhere else. Save it as the new `BACKUP_PASSPHRASE`.
