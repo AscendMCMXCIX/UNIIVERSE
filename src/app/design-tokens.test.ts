@@ -21,7 +21,7 @@ const CSS = readFileSync(path.join(__dirname, "globals.css"), "utf8");
 const TAILWIND_THEME = readFileSync(path.join(ROOT, "node_modules/tailwindcss/theme.css"), "utf8");
 
 /** SVG charts drawn 1:1 in px size their text in px, so it matches the chart's fixed gutters. */
-const CHART_TEXT = new Set(["src/components/players/ranked-progress.tsx", "src/components/players/lane-parts.tsx"]);
+const CHART_TEXT = new Set(["src/components/players/lane-parts.tsx"]);
 
 const KINDS: Record<string, string> = { text: "text", tracking: "tracking", radius: "rounded", ease: "ease" };
 

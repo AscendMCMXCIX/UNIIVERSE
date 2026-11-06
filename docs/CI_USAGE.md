@@ -1,6 +1,6 @@
 # GitHub Actions usage
 
-The repository is private, so Actions minutes come out of the 3,000 minutes a month included in the owner's GitHub Pro plan (2,000 on GitHub Free, before the upgrade). GitHub bills every job separately and rounds each job up to a whole minute. CI and the data-jobs schedule share the budget.
+**Since 6 Nov 2026 the repository is public**, so GitHub does not bill the minutes its standard (GitHub-hosted) runners spend on it; the measurements and rules below were made while it was private, when Actions minutes came out of the 3,000 minutes a month included in the owner's GitHub Pro plan (2,000 on GitHub Free, before the upgrade), GitHub billed every job separately and rounded each job up to a whole minute, and CI and the data-jobs schedule shared the budget. They are kept as the record of what each run costs in time and as the hygiene that keeps runs few and meaningful (CLAUDE.md §3 and §6).
 
 ## What used the minutes (audit of 13–15 Oct 2026)
 
