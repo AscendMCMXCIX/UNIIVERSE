@@ -167,11 +167,14 @@ p a.text-accent {
 }
 
 /*
-  Short windows: a phone held sideways, or any window under 480px tall. The phone tab bar is
+  Short windows: a phone held sideways, or any window 480px tall or shorter. The phone tab bar is
   hidden there, the top bar slides away while the page scrolls down, and detail windows, editors
   and pickers take the whole screen (see docs/RESPONSIVE.md).
 */
 @custom-variant short (@media (max-height: 480px));
+
+/* The installed app, in the display modes an install opens in (see install-state.ts): what a browser's own chrome would otherwise provide, such as Back on a tablet. */
+@custom-variant standalone (@media (display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui), (display-mode: window-controls-overlay));
 
 /* Safe-area helpers for notched phones (no-ops elsewhere). */
 @utility pt-safe {
@@ -251,8 +254,8 @@ p a.text-accent {
   reach (sticky-tabs below, docs/RESPONSIVE.md → Shell) and anything pinned under them (All
   Champions' column headings):
     --bar-top   the tablet top bar's height, its hairline included (md to lg; the sidebar's widths
-                have nothing above the page). Zero in a short window (under 481px tall), where the
-                bar slides away while reading, so nothing is pinned to its edge there;
+                have nothing above the page). Zero in a short window (480px tall or shorter), where
+                the bar slides away while reading, so nothing is pinned to its edge there;
     --tabs-top  the pinned section tabs' height (a 2.75rem row whose hairline is its own) where they
                 are pinned, else 0: a short window keeps its height for the page, and phones carry a
                 profile's sections in the top bar instead.
@@ -277,12 +280,36 @@ p a.text-accent {
   }
 }
 /*
+  The scroll padding keeps the page's content clear of what is pinned above it, but the pinned
+  bars' own controls sit inside that band: focus moving onto a pinned tab, the sidebar's logo or
+  the top bar's buttons would otherwise scroll the page up each time. Their scroll margin takes the
+  padding back exactly: the stylesheet's value from md, the measured one on phones (--bar-pad, set
+  on the bar by useTopBarHeight).
+*/
+[data-testid="mobile-topbar"] {
+  --bar-pad: calc(var(--bar-top) + 0.5rem);
+}
+@media (min-width: 48rem) and (max-width: 63.99rem) {
+  html:has([data-sticky-tabs]) [data-testid="mobile-topbar"] {
+    --bar-pad: calc(var(--bar-top) + var(--tabs-top) + 0.5rem);
+  }
+}
+[data-testid="mobile-topbar"] :is(a, button) {
+  scroll-margin-top: calc(-1 * var(--bar-pad));
+}
+@media (min-width: 48rem) and (min-height: 481px) {
+  [data-sticky-tabs] a,
+  html:has([data-sticky-tabs]) [data-testid="sidebar"] :is(a, button) {
+    scroll-margin-top: calc(-1 * (var(--bar-top) + var(--tabs-top) + 0.5rem));
+  }
+}
+/*
   Section tabs (Team's, a profile's, Platform Settings') pinned at the top of the page once it has
   scrolled past them: under the tablet's top bar, at the window's edge beside the sidebar, so the
   sections stay one tap away however long the page. While pinned (data-stuck, set by TabBar) the
   row is frame, not content: the frame's ink, blurred like the top bar; at rest it is as plain as
-  before, part of the page. Not in a short window, where a pinned row would take too much of the
-  height.
+  before, part of the page. Not in a short window (480px tall or shorter), where a pinned row would
+  take too much of the height.
 */
 @utility sticky-tabs {
   @media (min-width: 48rem) and (min-height: 481px) {

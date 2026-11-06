@@ -118,6 +118,16 @@ test("tablet and desktop: Team's sections stay in reach as a long page scrolls, 
   await expect(tabs).toHaveAttribute("data-stuck", "");
   // The ink fades in over 150 ms: wait for it rather than sample its first frame.
   await expect.poll(ink).not.toBe("rgba(0, 0, 0, 0)");
+  // Focus moving onto a pinned tab (or the sidebar's logo) does not scroll the page: the pinned
+  // controls take the page's scroll padding back.
+  const scrolled = await page.evaluate(() => window.scrollY);
+  await tabs.getByRole("link", { name: "Overview" }).focus();
+  await expect(tabs.getByRole("link", { name: "Overview" })).toBeFocused();
+  expect(await page.evaluate(() => window.scrollY)).toBe(scrolled);
+  if (!isTablet(page)) {
+    await page.locator("aside a[title]").first().focus();
+    expect(await page.evaluate(() => window.scrollY)).toBe(scrolled);
+  }
   await page.evaluate(() => window.scrollTo(0, 0));
   await expect(tabs).not.toHaveAttribute("data-stuck", /.*/);
   await page.evaluate(() => window.scrollTo(0, 1200));
@@ -153,7 +163,7 @@ test("tablet and desktop: a profile's sections stay in reach, and All Champions'
   const pinnedHeader = await rect(header);
   expect(pinnedTabs.top).toBe(barBottom);
   expect(pinnedHeader.top).toBeGreaterThanOrEqual(pinnedTabs.bottom - 1);
-  // A short window (under 481px tall) keeps its height for the page: nothing stays pinned there.
+  // A short window (480px tall or shorter) keeps its height for the page: nothing stays pinned there.
   await page.setViewportSize({ width: width(page), height: 420 });
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await expect.poll(async () => (await rect(tabs)).top).toBeLessThan(barBottom);
@@ -184,11 +194,17 @@ test("tablet: the menu is a modal dialog: focus stays inside, the page behind is
   await page.keyboard.press("Escape");
   await expect(drawer).toHaveCount(0);
   await expect(menu).toBeFocused();
-  // A click outside the panel closes it too.
+  // A click outside the panel closes it too, and a page scrolled far down stays where it was when
+  // focus returns to the menu button in the bar.
+  await page.evaluate(() => window.scrollTo(0, 800));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(500);
+  const scrolled = await page.evaluate(() => window.scrollY);
   await menu.click();
   await expect(drawer).toBeVisible();
   await page.mouse.click(700, 500);
   await expect(drawer).toHaveCount(0);
+  await expect(menu).toBeFocused();
+  expect(await page.evaluate(() => window.scrollY)).toBe(scrolled);
   // Left open while the browser's Back changes the page (within the app, so the menu's state
   // survives the change), it is gone, and Forward does not bring it back unasked.
   await page.goto("/team");

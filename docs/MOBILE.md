@@ -79,7 +79,7 @@ Settings → home). A destination's own pages have no Back: they are where you s
 
 ### Phones held sideways
 
-Short windows (under 480px tall) keep both bars, compact, and slide them away while the page
+Short windows (480px tall or shorter) keep both bars, compact, and slide them away while the page
 scrolls down; any scroll up brings them back. Nothing is lost when a phone turns.
 
 ## 3. Data presentation

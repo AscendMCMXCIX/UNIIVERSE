@@ -16,8 +16,8 @@ Touch devices of any width also get 44px buttons (`pointer-coarse:`).
 
 ## Phones held either way
 
-Width decides the layout; height decides how much may stay pinned. A **short window** is one under
-480px tall: in practice a phone held sideways (320–430px tall). Tailwind has a `short:` variant for
+Width decides the layout; height decides how much may stay pinned. A **short window** is one 480px
+tall or shorter: in practice a phone held sideways (320–430px tall). Tailwind has a `short:` variant for
 it (`globals.css`), and every pinned element follows these rules:
 
 | Element | Upright phone | Short window (phone sideways) |
@@ -94,7 +94,9 @@ fit (iPhone 15 and wider) and scroll on narrower phones.
   (`data-stuck`, set by an observer in `TabBar`) the row is frame, not content: the frame's ink
   (`chrome`) blurred like the top bar; at rest it is plain, part of the page. Anything pinned under
   it (All Champions' column headings) offsets by `--tabs-top`, and `scroll-padding-top` clears
-  both. A short window (under 481px tall) keeps its height for the page: nothing is pinned there.
+  both. A short window (480px tall or shorter) keeps its height for the page: nothing is pinned
+  there. The pinned bars' own controls take that padding back (a negative scroll margin), so focus
+  moving onto a pinned tab, the sidebar's logo or the top bar's buttons never scrolls the page.
   A sticky bar must be a child of what the page scrolls through, never of a wrapper that ends with
   it.
 - `main` pads for the tab bar (`pb-tabbar`) so content never hides behind it.

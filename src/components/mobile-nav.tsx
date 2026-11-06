@@ -81,10 +81,11 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   const menuRef = React.useRef<HTMLButtonElement>(null);
   const setOpen = (next: boolean) => setOpenedAt(next ? { what: "drawer", path: pathname } : null);
   // Focus goes back to the menu button once the drawer has gone: while the drawer is open the page
-  // behind it is inert, so the button cannot take focus any earlier.
+  // behind it is inert, so the button cannot take focus any earlier. Without scrolling: the button
+  // is in the bar, inside the page's scroll padding, and the page stays where the reader left it.
   const drawerWasOpen = React.useRef(false);
   React.useEffect(() => {
-    if (drawerWasOpen.current && !open) menuRef.current?.focus();
+    if (drawerWasOpen.current && !open) menuRef.current?.focus({ preventScroll: true });
     drawerWasOpen.current = open;
   }, [open]);
   const closeRef = React.useRef<HTMLButtonElement>(null);
@@ -125,13 +126,13 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
           {/* Phones: Back where the page was reached from another (labelled with where it leads), else the team's mark. */}
           {back ? (
             back.history ? (
-              <button type="button" onClick={back.go} className={cn(BACK_CLASS, !standalone && "md:hidden")} data-testid="mobile-back">
+              <button type="button" onClick={back.go} className={cn(BACK_CLASS, !standalone && BACK_TABLET)} data-testid="mobile-back">
                 <ChevronLeft className="h-5 w-5 shrink-0" aria-hidden />
                 <span className="truncate">{back.label}</span>
                 <span className="sr-only">, back</span>
               </button>
             ) : (
-              <Link href={back.href} className={cn(BACK_CLASS, !standalone && "md:hidden")} data-testid="mobile-back">
+              <Link href={back.href} className={cn(BACK_CLASS, !standalone && BACK_TABLET)} data-testid="mobile-back">
                 <ChevronLeft className="h-5 w-5 shrink-0" aria-hidden />
                 <span className="truncate">{back.label}</span>
                 <span className="sr-only">, back</span>
@@ -233,14 +234,9 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                 </SheetLink>
               ))}
               {/* The install window opens over the page: the menu closes first, and focus goes back
-                  to the menu button, where the window returns it when it closes. */}
-              <InstallAppEntry
-                variant="drawer"
-                beforeOpen={() => {
-                  menuRef.current?.focus();
-                  setOpen(false);
-                }}
-              />
+                  to the menu button (the effect above, once the menu has gone), where the window
+                  returns it when it closes. */}
+              <InstallAppEntry variant="drawer" beforeOpen={() => setOpen(false)} />
               {showSignOut ? (
                 <form action="/api/auth/logout" method="post">
                   <button className="flex min-h-12 w-full items-center gap-3 rounded-lg pl-[0.9375rem] pr-3 text-left text-sm text-fg-muted hover:bg-surface-2 hover:text-fg" type="submit">
@@ -282,8 +278,15 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   );
 }
 
-/** Phones; and tablets in the installed app, which has no browser Back (a tablet in a browser has the browser's: md:hidden). */
+/** Phones; and tablets in the installed app, which has no browser Back (a tablet in a browser has the browser's). */
 const BACK_CLASS = "-ml-1 flex min-h-11 min-w-0 max-w-[45%] shrink-0 items-center gap-0.5 rounded-md pr-2 text-sm font-medium text-accent hover:bg-surface-2";
+/**
+ * Tablets: hidden in a browser, shown in the installed app's display mode from the first paint (the
+ * `standalone` variant, globals.css), so a cold start never draws the bar without it and then with
+ * it. Once the page runs, the browser's answer (useInstallState) shows it too: iOS's own flag, and
+ * the test's stand-in for a display mode Chromium cannot emulate.
+ */
+const BACK_TABLET = "md:hidden md:standalone:flex";
 
 /**
  * The tablet's menu: a modal dialog (the native <dialog>, as every sheet and window), so focus stays
@@ -303,7 +306,7 @@ function Drawer({ onClose, initialFocus, children }: { onClose: () => void; /** 
     const d = ref.current;
     if (!d) return;
     if (!d.open) d.showModal();
-    initialFocus.current?.focus();
+    initialFocus.current?.focus({ preventScroll: true });
     // The page behind stays where it is.
     const root = document.documentElement;
     const previous = root.style.overflow;
@@ -369,8 +372,16 @@ function useTopBarHeight(ref: React.RefObject<HTMLElement | null>): number {
     const apply = () => {
       const h = el.offsetHeight;
       setHeight(h);
-      if (h && phone.matches) root.style.scrollPaddingTop = `${h + 8}px`;
-      else root.style.removeProperty("scroll-padding-top");
+      // The bar's own controls keep clear of that padding (globals.css: their scroll margin takes it
+      // back), so focus moving onto them never scrolls the page; the value sits on the bar, which
+      // re-styles the bar alone.
+      if (h && phone.matches) {
+        root.style.scrollPaddingTop = `${h + 8}px`;
+        el.style.setProperty("--bar-pad", `${h + 8}px`);
+      } else {
+        root.style.removeProperty("scroll-padding-top");
+        el.style.removeProperty("--bar-pad");
+      }
     };
     const observer = new ResizeObserver(apply);
     observer.observe(el);
@@ -379,6 +390,7 @@ function useTopBarHeight(ref: React.RefObject<HTMLElement | null>): number {
       observer.disconnect();
       phone.removeEventListener("change", apply);
       root.style.removeProperty("scroll-padding-top");
+      el.style.removeProperty("--bar-pad");
     };
   }, [ref]);
   return height;
