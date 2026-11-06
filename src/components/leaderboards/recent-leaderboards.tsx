@@ -30,7 +30,8 @@ import { SeasonChoice } from "./season-choice";
 const HEAD = "whitespace-nowrap text-2xs font-semibold uppercase tracking-label text-fg-subtle";
 /** Place · player · main role · record · win rate · dates, from a 40rem board up (the row stacks below). */
 const FORM_GRID = "@min-[40rem]/lb:grid-cols-[2.5rem_minmax(0,1fr)_7rem_5.5rem_4.5rem_8.5rem]";
-const MULTI_GRID = "grid-cols-[minmax(0,1fr)_repeat(3,4.5rem)]";
+/** Member · penta · quadra · triple. On phones the member takes the whole first line of a row and the three figures the second, under their headings, so a name is never squeezed to a sliver. */
+const MULTI_GRID = "grid-cols-[minmax(0,1fr)_repeat(3,3.5rem)] gap-x-2 px-3 sm:grid-cols-[minmax(0,1fr)_repeat(3,4.5rem)] sm:gap-x-3 sm:px-4";
 
 export function RecentLeaderboards({ view, champions, status }: { view: RecentLeaderboardView; champions: Record<string, PortraitChampion>; /** The members' page: the team's data status. */ status?: DataStatus | null }) {
   const player = (id: string) => view.players[id]!;
@@ -85,13 +86,13 @@ export function RecentLeaderboards({ view, champions, status }: { view: RecentLe
  * TEAM_LEADERBOARDS.md): no colour from a look reaches a place or a figure. The name links to their
  * profile for members; on the public boards, the same without a link.
  */
-function Who({ p, you = false, size = "md", sub, className, stretch = false }: { p: BoardPlayer; you?: boolean; size?: "sm" | "md"; /** Lines under the name (the gap to the place above). */ sub?: ReactNode; className?: string; /** On phones the link covers its row (the nearest positioned box), so the whole row is one tap, as on Players (docs/MOBILE.md, touch targets). */ stretch?: boolean }) {
+function Who({ p, you = false, size = "md", sub, className, nameClassName, stretch = false }: { p: BoardPlayer; you?: boolean; size?: "sm" | "md"; /** Lines under the name (the gap to the place above). */ sub?: ReactNode; className?: string; /** The name's size where a row's name is the row's primary value (the phone's form rows: text-md, as the Players rows). */ nameClassName?: string; /** On phones the link covers its row (the nearest positioned box), so the whole row is one tap, as on Players (docs/MOBILE.md, touch targets). */ stretch?: boolean }) {
   const name = p.profileHref ? (
     <Link href={p.profileHref} className={cn("min-w-0 rounded-sm text-fg hover:underline", stretch && "max-md:after:absolute max-md:after:inset-0")}>
-      <CardName look={p.look} name={p.name} />
+      <CardName look={p.look} name={p.name} className={nameClassName} />
     </Link>
   ) : (
-    <CardName look={p.look} name={p.name} className="min-w-0 text-fg" />
+    <CardName look={p.look} name={p.name} className={cn("min-w-0 text-fg", nameClassName)} />
   );
   return (
     <span className={cn("flex min-w-0 items-center gap-2.5 text-sm", className)} style={cardColourVars(p.look)}>
@@ -99,7 +100,7 @@ function Who({ p, you = false, size = "md", sub, className, stretch = false }: {
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="flex min-w-0 items-center gap-1.5">
           {name}
-          {you ? <Badge tone="accent">You</Badge> : null}
+          {you ? <Badge tone="accent" className="shrink-0">You</Badge> : null}
         </span>
         {sub}
       </span>
@@ -221,6 +222,7 @@ function FormRowItem({ r, p }: { r: FormRow; p: BoardPlayer }) {
         p={p}
         you={r.you}
         stretch
+        nameClassName="max-md:text-md max-md:leading-snug"
         sub={
           <>
             {r.note ? (
@@ -304,7 +306,7 @@ function Records({ records, player, champ, viewerIsPlayer }: { records: RecordsV
         ) : null}
         {records.multikills.length ? (
           <div className="overflow-hidden rounded-card border border-border bg-surface" data-testid="records-multikills">
-            <div className={cn("grid items-center gap-x-3 border-b border-border/70 px-4 py-2.5", MULTI_GRID)} aria-hidden>
+            <div className={cn("grid items-center border-b border-border/70 py-2.5", MULTI_GRID)} aria-hidden>
               <span className={HEAD}>Member</span>
               <span className={cn(HEAD, "text-right")}>Penta</span>
               <span className={cn(HEAD, "text-right")}>Quadra</span>
@@ -312,10 +314,10 @@ function Records({ records, player, champ, viewerIsPlayer }: { records: RecordsV
             </div>
             <ol className="divide-y divide-border/60" aria-label="Multikills, rarest first">
               {records.multikills.map((m) => (
-                <li key={m.playerId} className={cn("grid items-center gap-x-3 px-4 py-2", MULTI_GRID)} data-testid="multikill-row" data-player-id={m.playerId} data-penta={m.penta} data-quadra={m.quadra} data-triple={m.triple}>
-                  <Who p={player(m.playerId)} size="sm" />
-                  {(["penta", "quadra", "triple"] as const).map((k) => (
-                    <span key={k} className={cn("text-right text-sm tabular-nums", m[k] ? "font-semibold text-fg" : "text-fg-subtle")}>
+                <li key={m.playerId} className={cn("grid items-center py-2", MULTI_GRID)} data-testid="multikill-row" data-player-id={m.playerId} data-penta={m.penta} data-quadra={m.quadra} data-triple={m.triple}>
+                  <Who p={player(m.playerId)} size="sm" className="max-sm:col-span-4" />
+                  {(["penta", "quadra", "triple"] as const).map((k, i) => (
+                    <span key={k} className={cn("text-right text-sm tabular-nums max-sm:row-start-2", ["max-sm:col-start-2", "max-sm:col-start-3", "max-sm:col-start-4"][i], m[k] ? "font-semibold text-fg" : "text-fg-subtle")}>
                       {m[k] ? formatCount(m[k]) : "—"}
                       <span className="sr-only"> {k === "penta" ? "pentakills" : k === "quadra" ? "quadra kills" : "triple kills"}</span>
                     </span>
