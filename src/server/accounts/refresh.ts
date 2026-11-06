@@ -43,9 +43,9 @@ export const REFRESH_COOLDOWN_MS = REFRESH_COOLDOWN_SECONDS * 1000;
  * a watched account's next slice is never refused by its own last one.
  * Not covered, as they can hold an account for longer than this, so a background sync may join
  * them: a direct run of the account-sync job (Data jobs → account-sync, `pnpm job account-sync`),
- * whose budget is UNIIVERSE_JOB_BUDGET_MS, 240 s by default; and Retry sync on the Riot accounts
- * tab (actions/accounts.ts), which has no deadline (it can wait out Riot's limits while the
- * person waits, within the page function's 300 s).
+ * whose budget is UNIIVERSE_JOB_BUDGET_MS, 240 s by default. The syncs of the Riot accounts panel
+ * (Retry sync, linking, a replaced Riot ID: actions/accounts.ts) are covered: their Riot client
+ * carries ACCOUNT_ACTION_BUDGET_MS, so each ends within one request's timeout of that.
  */
 export const SCHEDULED_SYNC_LEASE_MS = 100_000;
 /**
@@ -53,6 +53,13 @@ export const SCHEDULED_SYNC_LEASE_MS = 100_000;
  * Riot client carries the same deadline (actions/match-history.ts), so no request waits past it.
  */
 export const REFRESH_BUDGET_MS = 40_000;
+/**
+ * The syncs a person waits on in the Riot accounts panel (Retry sync, linking an account, a
+ * replaced Riot ID's lookup and first sync): the same budget as a Refresh, carried by their Riot
+ * client, so each ends within one request's timeout of it, well inside SCHEDULED_SYNC_LEASE_MS:
+ * the scheduler or a view's slice never starts the same account meanwhile.
+ */
+export const ACCOUNT_ACTION_BUDGET_MS = REFRESH_BUDGET_MS;
 /** New games fetched per account per refresh (each one is one Riot request). */
 const REFRESH_MATCHES_PER_ACCOUNT = 15;
 

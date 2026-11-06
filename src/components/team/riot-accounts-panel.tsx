@@ -83,6 +83,9 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
     const a = r.data;
     if (a.puuid && a.syncStatus === "ok") toast.success(`${a.riotId} linked and synced.`, { description: platformLabel(a.platform) });
     else if (a.syncStatus === "failed" || a.syncStatus === "unresolved") toast.error(a.syncError ?? "Riot could not verify that account.");
+    // Riot confirmed it and its first sync stopped for time (a busy minute): the row says it is
+    // confirmed, so the message must not say "pending" (the next sync carries on).
+    else if (a.puuid && a.syncStatus === "never" && !a.syncError) toast.success(`${a.riotId} linked.`, { description: "Riot confirmed this account; its games follow with the next sync." });
     else toast.info(`${a.riotId} saved.`, { description: riotConfigured ? (a.syncError ?? "Verification with Riot is pending and retried automatically.") : "It will be verified once Riot data is available." });
     router.refresh();
   };
@@ -115,6 +118,9 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
               if (!r.ok) toast.error(r.error);
               else if (r.data.status === "recent") toast.info(`${a.riotId} was checked recently · try again in ${waitText(r.data.retryInSeconds)}`);
               else if (r.data.error) (r.data.status === "pending" ? toast.warning : toast.error)(r.data.error);
+              // Stopped by its time limit (Riot's rate limits, or a long history): what it found so
+              // far, and that the next sync carries on, never "no new games" for a sync cut short.
+              else if (r.data.outOfTime) toast.info(`${a.riotId}: ${r.data.newGames ? `${formatCount(r.data.newGames)} new game${r.data.newGames === 1 ? "" : "s"} so far` : "not finished"} · the next sync carries on`);
               else toast.success(`${a.riotId}: ${r.data.newGames ? `${formatCount(r.data.newGames)} new game${r.data.newGames === 1 ? "" : "s"}` : "no new games"}`);
               router.refresh();
             };

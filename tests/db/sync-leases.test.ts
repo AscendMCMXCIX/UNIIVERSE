@@ -9,6 +9,7 @@ import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { addAccount } from "@/server/accounts/repository";
 import { VIEW_REFRESH_BUDGET_MS, kickoffAccountSync, refreshPlayerAccountsIfDue } from "@/server/accounts/kickoff";
 import { VIEW_REFRESH_LEASE_MS, claimLease, releaseLease, viewRefreshLeaseKey } from "@/server/jobs/background";
+import { playerFreshness } from "@/server/ops/freshness";
 import { ACCOUNT_SYNC_TICK_MS } from "@/server/jobs/scheduler";
 import { REFRESH_COOLDOWN_MS, SCHEDULED_SYNC_LEASE_MS, accountSyncLeaseKey, claimAccountSync, refreshPlayerMatches } from "@/server/accounts/refresh";
 import { RIOT_REQUEST_TIMEOUT_MS, RiotApiClient } from "@/server/riot/api/client";
@@ -189,6 +190,62 @@ describe("a profile view's refresh", () => {
     calls.length = 0;
     expect(await refreshPlayerMatches(db, testClient(), player.id)).toMatchObject({ status: "recent" });
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe("a slice lists the accounts it read and could not move (server/ops/freshness.ts carries the others on)", () => {
+  const sliceValue = async (playerId: string) => {
+    const [row] = await handle.db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, viewRefreshLeaseKey(playerId)));
+    return row?.value as { stuck?: string[] } | string | undefined;
+  };
+  it("lists nothing when a queue or the season finishes", async () => {
+    const db = handle.db;
+    const player = await createPlayer(db, teamId, { displayName: "Moving", primaryRole: "MID", primaryPool: [] });
+    const account = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Moving#OCE", platform: "oc1", puuid: "puuid-Moving" });
+    await db.update(riotAccounts).set({ syncStatus: "ok", lastSyncAt: new Date(), historyBackfill: { season: 16, startedAt: new Date().toISOString(), completedAt: null, queues: { "420": { offset: 0, done: false } } } }).where(eq(riotAccounts.id, account.id));
+    // Riot lists no game: the queue finishes, and so does the season.
+    expect(await refreshPlayerAccountsIfDue(db, player.id)).toBe(1);
+    expect(await sliceValue(player.id)).toMatchObject({ stuck: [] });
+  });
+  it("lists an account Riot holds at one game, so an open page does not slice every two minutes", async () => {
+    const db = handle.db;
+    const player = await createPlayer(db, teamId, { displayName: "Stuck", primaryRole: "MID", primaryPool: [] });
+    const account = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Stuck#OCE", platform: "oc1", puuid: "puuid-Stuck" });
+    const queues = Object.fromEntries(["440", "400", "430", "480", "490", "700"].map((q) => [q, { offset: 0, done: true }]));
+    await db.update(riotAccounts).set({ syncStatus: "ok", lastSyncAt: new Date(), historyBackfill: { season: 16, startedAt: new Date().toISOString(), completedAt: null, queues: { ...queues, "420": { offset: 0, done: false } } } }).where(eq(riotAccounts.id, account.id));
+    // The newest Solo/Duo game answers 500 every time (a corrupted game): nothing is stored, the offset stays.
+    const quiet = quietRiot(calls);
+    vi.stubGlobal("fetch", async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes("/ids?") && url.includes("queue=420")) return json(["OC1_STUCK"]);
+      if (url.includes("/matches/OC1_STUCK")) return json({ status: { message: "Internal server error" } }, 500);
+      return quiet(input);
+    });
+    await refreshPlayerAccountsIfDue(db, player.id, { deadlineMs: 1_500 });
+    expect(await sliceValue(player.id)).toMatchObject({ stuck: [account.id] });
+    const [after] = await db.select({ h: riotAccounts.historyBackfill }).from(riotAccounts).where(eq(riotAccounts.id, account.id));
+    expect(after!.h?.completedAt ?? null).toBeNull();
+    expect(after!.h?.queues["420"]).toMatchObject({ offset: 0, done: false });
+  });
+  it("never lists an account it did not try: an alt another sync holds carries on once that sync's claim is over", async () => {
+    const db = handle.db;
+    const player = await createPlayer(db, teamId, { displayName: "Mixed", primaryRole: "MID", primaryPool: [] });
+    const main = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "MixedMain#OCE", platform: "oc1", puuid: "puuid-MixedMain" });
+    const alt = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "MixedAlt#OCE", platform: "oc1", puuid: "puuid-MixedAlt" });
+    // Every queue finished: reading it moves nothing, so the slice lists the main account as stuck.
+    const done = { season: 16, startedAt: new Date().toISOString(), completedAt: new Date().toISOString(), queues: Object.fromEntries(["420", "440", "400", "430", "480", "490", "700"].map((q) => [q, { offset: 3, done: true, checkedAt: new Date().toISOString() }])) };
+    // The main account is complete but due (last read 20 minutes ago); the alt is still catching up.
+    await db.update(riotAccounts).set({ syncStatus: "ok", lastSyncAt: new Date(Date.now() - 20 * 60_000), historyBackfill: done }).where(eq(riotAccounts.id, main.id));
+    await db.update(riotAccounts).set({ syncStatus: "ok", lastSyncAt: new Date(), historyBackfill: { season: 16, startedAt: new Date().toISOString(), completedAt: null, queues: { "420": { offset: 0, done: false } } } }).where(eq(riotAccounts.id, alt.id));
+    // The scheduler is on the alt: the slice reads only the main account.
+    expect(await claimAccountSync(db, alt.id, SCHEDULED_SYNC_LEASE_MS)).toBe(true);
+    expect(await refreshPlayerAccountsIfDue(db, player.id)).toBe(1);
+    // The main account was read and could not move (listed); the alt was not tried (never listed).
+    expect(await sliceValue(player.id)).toMatchObject({ stuck: [main.id] });
+    const waiting = (await playerFreshness(db, player.id)).v;
+    // Both claims over (the scheduler's 100 s, the slice's two minutes): the open page renders again and starts the alt's slice.
+    await db.execute(sql`UPDATE app_settings SET updated_at = updated_at - interval '3 minutes' WHERE key IN (${accountSyncLeaseKey(alt.id)}, ${viewRefreshLeaseKey(player.id)})`);
+    expect((await playerFreshness(db, player.id)).v).not.toBe(waiting);
   });
 });
 
