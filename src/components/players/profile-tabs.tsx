@@ -40,16 +40,29 @@ export function ProfileTabs({ basePath, variant = "page" }: { basePath: string; 
   return <TabBar label="Profile sections" items={sections.map((s) => ({ key: s.key, href: hrefOf(s), label: s.label, icon: s.icon, testId: `profile-tab-${s.key}` }))} current={current.key} keepScroll sticky testId="profile-tabs" className="max-md:hidden md:-mt-2.5" />;
 }
 
+const CARD = "[data-testid=profile-header]";
+const BAR = "[data-testid=mobile-topbar]";
+
 /** Where a section starts when it is opened far down the page: just under the bar, the profile card scrolled away. */
 function sectionTop(): number | null {
-  const card = document.querySelector<HTMLElement>("[data-testid=profile-header]");
+  const card = document.querySelector<HTMLElement>(CARD);
   if (!card) return null;
-  const bar = document.querySelector<HTMLElement>("[data-testid=mobile-topbar]")?.offsetHeight ?? 0;
+  const bar = document.querySelector<HTMLElement>(BAR)?.offsetHeight ?? 0;
   return Math.max(0, card.getBoundingClientRect().bottom + window.scrollY - bar);
 }
 
-/** How long a section just chosen is held at its top while its content arrives (its loading state comes first). */
-const SETTLE_MS = 3000;
+/** The profile card has gone under the bar, wholly or in part: the reader is in the section's content. */
+function cardScrolledPast(): boolean {
+  const card = document.querySelector<HTMLElement>(CARD);
+  if (!card) return false;
+  const bar = document.querySelector<HTMLElement>(BAR)?.offsetHeight ?? 0;
+  return card.getBoundingClientRect().top < bar;
+}
+
+/** The settle ends once the section's content has replaced its loading state, or after this long at most. */
+const SETTLE_MAX_MS = 10_000;
+/** Input from the reader: from then on the page is theirs. */
+const READER_INPUT = ["wheel", "touchstart", "pointerdown", "keydown"] as const;
 
 /**
  * Brings a section just chosen to its top and keeps it there while its content arrives. The card
@@ -58,42 +71,55 @@ const SETTLE_MS = 3000;
  * route commits with the section's loading state, shorter than the content (the browser clamps the
  * scroll offset to it), and the content then replaces it (scroll anchoring can move the page to
  * keep a piece of the loading state in view): so the place is set again on each change to the page
- * until it has settled, unless the reader has scrolled meanwhile. Returns the cleanup.
+ * until the loading state has gone, or for ten seconds at most on a slow connection. The reader
+ * takes over with any input, or with a scroll of their own (one that moved the page while its
+ * height stayed the same: a clamp or an anchoring adjustment comes with a change of height).
+ * Returns the cleanup.
  */
 function settleSectionTop(): () => void {
   const main = document.querySelector("main");
   let expected = -1;
+  let height = 0;
   let timer = 0;
-  const observer = new MutationObserver(() => place());
-  const stop = () => {
-    observer.disconnect();
-    window.removeEventListener("scroll", onScroll);
-    window.clearTimeout(timer);
-  };
+  const loading = () => !!main?.querySelector('[role="status"][aria-label="Loading"]');
   const place = () => {
     const top = sectionTop();
     if (top === null) return;
     expected = top;
     window.scrollTo({ top });
+    height = document.documentElement.scrollHeight;
   };
-  // The reader scrolled: the page is theirs (a scroll clamped by a shorter loading state is not theirs).
+  const observer = new MutationObserver(() => {
+    place();
+    if (!loading()) stop();
+  });
+  const stop = () => {
+    observer.disconnect();
+    window.removeEventListener("scroll", onScroll);
+    for (const type of READER_INPUT) window.removeEventListener(type, stop);
+    window.clearTimeout(timer);
+  };
   const onScroll = () => {
-    const max = document.documentElement.scrollHeight - window.innerHeight;
-    if (Math.abs(window.scrollY - expected) > 1 && window.scrollY < max - 1) stop();
+    if (Math.abs(window.scrollY - expected) > 1 && document.documentElement.scrollHeight === height) stop();
   };
   place();
-  if (main) observer.observe(main, { childList: true, subtree: true });
+  if (!main || !loading()) return () => undefined;
+  observer.observe(main, { childList: true, subtree: true });
   window.addEventListener("scroll", onScroll, { passive: true });
-  timer = window.setTimeout(stop, SETTLE_MS);
+  for (const type of READER_INPUT) window.addEventListener(type, stop, { passive: true });
+  timer = window.setTimeout(stop, SETTLE_MAX_MS);
   return stop;
 }
 
 function ChromeTabs({ items, current }: { items: Array<{ key: string; href: string; label: string; testId: string }>; current: string }) {
-  // The section was chosen with the card scrolled away: the new one starts at its top (settleSectionTop).
-  const pending = React.useRef(false);
+  // The section chosen while the card was under the bar: it starts at its top (settleSectionTop)
+  // once it is the current one. Any other change of section (Back to one reached by a link) is
+  // the reader's own place to keep.
+  const pending = React.useRef<string | null>(null);
   React.useEffect(() => {
-    if (!pending.current) return;
-    pending.current = false;
+    const chosen = pending.current;
+    pending.current = null;
+    if (chosen !== current) return;
     return settleSectionTop();
   }, [current]);
   return (
@@ -110,8 +136,7 @@ function ChromeTabs({ items, current }: { items: Array<{ key: string; href: stri
                 scroll={false}
                 aria-current={on ? "page" : undefined}
                 onClick={() => {
-                  const top = sectionTop();
-                  pending.current = !on && top !== null && window.scrollY > top;
+                  pending.current = !on && cardScrolledPast() ? t.key : null;
                 }}
                 // 6px a side: the four names fit a 320px screen with the bar's gutters.
                 className={cn("flex min-h-11 items-center justify-center whitespace-nowrap px-1.5 text-sm font-medium transition-colors duration-150", tabIndicatorClass(on))}

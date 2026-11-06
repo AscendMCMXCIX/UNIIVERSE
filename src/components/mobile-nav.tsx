@@ -70,6 +70,12 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   // The drawer (tablets) and the account sheet (phones) remember the path they were opened on, so any
   // navigation closes them without an effect.
   const [openedAt, setOpenedAt] = React.useState<{ what: "drawer" | "sheet"; path: string } | null>(null);
+  // Forgotten once the page has changed, so coming back to that page (Forward) opens nothing unasked.
+  const [seenPath, setSeenPath] = React.useState(pathname);
+  if (seenPath !== pathname) {
+    setSeenPath(pathname);
+    if (openedAt && openedAt.path !== pathname) setOpenedAt(null);
+  }
   const open = openedAt?.what === "drawer" && openedAt.path === pathname;
   const sheetOpen = openedAt?.what === "sheet" && openedAt.path === pathname;
   const menuRef = React.useRef<HTMLButtonElement>(null);
@@ -325,7 +331,8 @@ function Drawer({ onClose, initialFocus, children }: { onClose: () => void; /** 
       onClick={(e) => {
         if (e.target === ref.current) latest.current();
       }}
-      className="m-0 h-dvh max-h-none w-[min(calc(20rem+env(safe-area-inset-left)),86vw)] max-w-none border-0 bg-transparent p-0 text-fg backdrop:bg-black/60 backdrop:backdrop-blur-sm open:flex motion-safe:backdrop:fade-in"
+      // overflow-visible: the panel scrolls itself, and its shadow falls over the backdrop (a dialog clips its contents by default).
+      className="m-0 h-dvh max-h-none w-[min(calc(20rem+env(safe-area-inset-left)),86vw)] max-w-none overflow-visible border-0 bg-transparent p-0 text-fg backdrop:bg-black/60 backdrop:backdrop-blur-sm open:flex motion-safe:backdrop:fade-in"
       data-testid="mobile-drawer"
     >
       {children}

@@ -66,6 +66,16 @@ test("phone: a section chosen far down a profile starts at its top, just under t
   await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
   await settled("Overview → History");
 
+  // From a section sitting exactly at its top (the band just under the bar), the next one starts at
+  // its own top too: the Overview's card is taller than the band, so the place differs.
+  await tapInPlace(page, tabs.getByRole("link", { name: "Overview" }));
+  await expect(page).toHaveURL(new RegExp(`${profile}$`));
+  await expect(page.getByTestId("season-summary")).toBeVisible();
+  await settled("History at its top → Overview");
+
+  await tapInPlace(page, tabs.getByRole("link", { name: "History" }));
+  await expect(page).toHaveURL(new RegExp(`${profile}/matches$`));
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
   await page.evaluate(() => window.scrollTo(0, 1200));
   await tapInPlace(page, tabs.getByRole("link", { name: "Overview" }));
   await expect(page).toHaveURL(new RegExp(`${profile}$`));
@@ -177,6 +187,16 @@ test("tablet: the menu is a modal dialog: focus stays inside, the page behind is
   await menu.click();
   await expect(drawer).toBeVisible();
   await page.mouse.click(700, 500);
+  await expect(drawer).toHaveCount(0);
+  // Left open while the browser's Back changes the page, it is gone, and Forward does not bring it back unasked.
+  await menu.click();
+  await expect(drawer).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/team$/);
+  await expect(drawer).toHaveCount(0);
+  await page.goForward();
+  await expect(page).toHaveURL(/\/players$/);
+  await expect(page.getByTestId("players-directory")).toBeVisible();
   await expect(drawer).toHaveCount(0);
 });
 
