@@ -1144,7 +1144,7 @@ function FramePanel({ style, set }: { style: CardStyle; set: Setter }) {
           const on = style.frame === f;
           return (
             <button key={f} type="button" role="radio" aria-checked={on} onClick={() => set((s) => ({ ...s, frame: f }))} className={cn("relative rounded-panel border p-1.5 text-left transition-colors", on ? "border-accent bg-accent/10 ring-1 ring-accent" : "border-border hover:border-border-strong")} data-value={f}>
-              <span className="relative block h-11 overflow-hidden rounded-lg border sm:h-14" style={cardShellStyle(look, { glow: false })}>
+              <span className="relative block h-11 overflow-hidden rounded-lg border border-border sm:h-14" style={cardShellStyle(look, { glow: false })}>
                 <CardFrame look={look} />
                 <span className="absolute inset-x-3 bottom-2 h-1.5 rounded-full" style={{ background: "var(--card-accent)" }} />
               </span>

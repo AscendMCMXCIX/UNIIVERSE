@@ -82,7 +82,10 @@ export function cardShellStyle(look: CardLook | null | undefined, opts: { glow?:
     ...cardColourVars(look),
     ["--card-surface" as string]: surface(s),
     background: surface(s),
-    borderColor: borderColour(s),
+    // A chosen border colour (primary, secondary) is the card's own; the subtle one is left to the
+    // element's classes (`border-border hover:border-border-strong`, a selected card's accent), which
+    // an inline colour would override: the edge then never answered the pointer.
+    borderColor: s.colours.border === "subtle" || s.colours.border === "gradient" ? undefined : borderColour(s),
     boxShadow: glow,
   };
 }

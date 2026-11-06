@@ -64,7 +64,7 @@ export const CardPreview = React.memo(function CardPreview({ view, look, art, na
   const phone = view === "phone";
   return (
     <div className={cn("mx-auto w-full", phone ? "max-w-[20rem]" : "max-w-[24rem]")} data-testid="card-preview" data-view={view} data-frame={look.style.frame} data-zoom={look.style.art.zoom}>
-      <article className="@container/card relative flex flex-col overflow-hidden rounded-card border" style={cardShellStyle(look)}>
+      <article className="@container/card relative flex flex-col overflow-hidden rounded-card border border-border" style={cardShellStyle(look)}>
         <CardFrame look={look} />
         {/* The Team card's artwork: as tall as the identity at its foot needs, never less than the card's own minimum. */}
         <div className="relative flex min-h-[10.5rem] shrink-0 flex-col justify-end px-3 pb-2.5 pt-12">

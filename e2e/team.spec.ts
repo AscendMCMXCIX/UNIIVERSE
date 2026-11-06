@@ -137,3 +137,38 @@ test("the Players directory previews only the Primary Role's champions", async (
   await card.click();
   await expect(page.getByTestId("primary-pool-list").getByTestId("pool-item")).toHaveCount(primaryCount);
 });
+
+test("the player window never cuts a pool champion's name, whatever the row holds (a mastery note, no games), on phones too", async ({ page }) => {
+  await page.goto("/team");
+  await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
+  await page.getByTestId("lineup-row-TOP").getByTestId("open-player-detail").click();
+  const panel = page.getByTestId("player-detail");
+  await expect(panel).toBeVisible();
+  const rows = panel.getByTestId("pool-champion");
+  await expect(rows.first()).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  const names = await rows.evaluateAll((els) =>
+    els.map((el) => {
+      const name = el.querySelector<HTMLElement>("[data-testid=pool-champion-name]")!;
+      const stats = el.querySelector<HTMLElement>("[data-testid=pool-champion-stats]");
+      const row = el.getBoundingClientRect();
+      return { name: name.textContent, cut: name.scrollWidth > name.clientWidth + 1, note: stats?.textContent ?? "", inside: !stats || (stats.getBoundingClientRect().right <= row.right + 0.5 && stats.getBoundingClientRect().left >= row.left - 0.5) };
+    }),
+  );
+  // The demo Top pool holds champions with mastery and no games this season: the longest note a row can carry.
+  expect(names.some((n) => /no games this season/.test(n.note)), "a row with the mastery note").toBe(true);
+  expect(names.filter((n) => n.cut).map((n) => n.name), "every name whole").toEqual([]);
+  expect(names.filter((n) => !n.inside).map((n) => n.name), "every note inside its row").toEqual([]);
+});
+
+test("a card with the standard look brightens its edge while pointed at", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "hover needs a pointer");
+  await page.goto("/team");
+  // Jungle: no browser test changes this card's look, so its border is the standard, subtle one.
+  const card = page.getByTestId("lineup-row-JUNGLE");
+  await expect(card).toBeVisible();
+  await expect(card).toHaveAttribute("data-frame", "none");
+  const before = await card.evaluate((el) => getComputedStyle(el).borderTopColor);
+  await card.hover();
+  await expect.poll(() => card.evaluate((el) => getComputedStyle(el).borderTopColor), { message: "the edge answers the pointer" }).not.toBe(before);
+});

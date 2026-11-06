@@ -28,7 +28,9 @@ from each section; this page does not repeat them.
 
 - Never show an invented value. Missing is "—", nothing recorded is said in words ("No games
   this season"), and a figure states what it covers (a season, a queue, the games that have the
-  figure). A sample too small to mean much says so.
+  figure). A sample too small to mean much says so. "Unranked" means a rank check found no
+  placement: a player without a linked Riot account gets no rank line at all ("No Riot account"
+  in its place on the Players cards and rows).
 - Never present an uncertain identity or relationship as certain: what is only possible is
   labelled as possible (a match's possible groups, for example, never "premade").
 - Two players' relationship is what the stored games record: against (opposite teams) or

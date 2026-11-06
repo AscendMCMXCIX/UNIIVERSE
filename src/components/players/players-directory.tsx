@@ -158,7 +158,15 @@ function PlayerRow({ entry: e, championsById }: { entry: DirectoryEntry; champio
             ) : (
               <span className="shrink-0 text-fg-subtle">Roles not set</span>
             )}
-            {e.showRank ? (
+            {e.riot?.state === "none" ? (
+              // No account: nothing was read, so no rank is claimed; the note takes its place.
+              <>
+                <span className="text-fg-subtle" aria-hidden>
+                  ·
+                </span>
+                <span className="truncate text-fg-subtle">No Riot account</span>
+              </>
+            ) : e.showRank ? (
               <>
                 <span className="text-fg-subtle" aria-hidden>
                   ·
