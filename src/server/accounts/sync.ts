@@ -1,7 +1,7 @@
 import { matchesWithoutDetails, storeMatchDetail, storeMatchUnavailable } from "./match-details";
 import { errorLabel } from "@/server/errors";
 import { summariseMatches } from "./match-summary";
-import { and, desc, eq, inArray, isNotNull, isNull, like, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, like, ne, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountChampionHistory, accountMastery, accountMatches, champions, patches, players, riotAccounts } from "@/server/db/schema";
 import { MAX_SKIPPED_RECORDS, recordFailure, RiotApiError, RiotDeadlineError, type RiotApiClient } from "@/server/riot/api/client";
@@ -12,7 +12,7 @@ import { RIOT_POSITION_TO_ROLE } from "@/domain/roles";
 import { FIRST_SEASON, seasonForDate, seasonOfPatch, seasonStartUnix } from "@/domain/season";
 import type { HistoryBackfill } from "@/server/db/schema";
 import { recordRiotOutcome } from "@/server/riot/credential";
-import type { RiotAccountRecord } from "./repository";
+import { listAccountsForPlayers, type RiotAccountRecord } from "./repository";
 import { foldInputFromMatch, foldInputFromRecord, type FoldInput, type FoldRecord } from "./fold-input";
 import { recordRankSnapshots, storedRankFrom } from "./rank-history";
 import { erasureFilter, type ErasureFilter } from "@/server/privacy/ledger";
@@ -844,6 +844,56 @@ async function storedFoldRecords(db: Db, matchIds: readonly string[]): Promise<M
     const participants = (typeof r.participants === "string" ? JSON.parse(r.participants) : r.participants) as FoldRecord["participants"] | null;
     const input = foldInputFromRecord({ matchId: r.match_id, gameCreation: Number(r.game_creation), gameDuration: Number(r.game_duration), queueId: r.queue_id === null ? null : Number(r.queue_id), gameVersion: r.game_version, participants: participants ?? [] });
     if (input) out.set(r.match_id, input);
+  }
+  return out;
+}
+
+/**
+ * Folds into each player account's history the stored records that name its PUUID on a side but
+ * have no ledger row for it: games a teammate's collection stored that the account's own list
+ * never did (a queue marked done before the rescan existed, or a game Riot's list left out), found
+ * by data-audit as "places missing from own history". The same rows, figures and summary the sync
+ * writes when it folds a listed game from a stored record (foldGame with the record), and the
+ * same rules: a remake, another queue or a champion not in the list yet is remembered or left for
+ * later exactly as the sync would. Never a request to Riot; on conflict nothing, so never a
+ * duplicate. Bounded per call (the daily integrity job): newest games first.
+ */
+export async function foldMissingPresences(db: Db, options: { limit?: number; now?: Date } = {}): Promise<{ accounts: number; candidates: number; folded: number; skipped: number; later: number }> {
+  const now = options.now ?? new Date();
+  let budget = options.limit ?? 200;
+  const owners = await db
+    .selectDistinct({ playerId: riotAccounts.playerId })
+    .from(riotAccounts)
+    .where(and(eq(riotAccounts.ownerType, "player"), isNotNull(riotAccounts.puuid), isNotNull(riotAccounts.playerId), ne(riotAccounts.label, "demo")));
+  const accounts = (await listAccountsForPlayers(db, owners.map((o) => o.playerId!))).filter((a): a is RiotAccountRecord & { puuid: string } => !!a.puuid && a.label !== "demo");
+  const out = { accounts: accounts.length, candidates: 0, folded: 0, skipped: 0, later: 0 };
+  if (accounts.length === 0) return out;
+  const keyToId = new Map((await db.select({ key: champions.key, id: champions.id }).from(champions)).map((c) => [c.key, c.id]));
+  const erased = await erasureFilter(db);
+  for (const account of accounts) {
+    if (budget <= 0) break;
+    // Records naming the account on a side (the PUUID index first), with no row for it yet.
+    const result = await db.execute(sql`
+      SELECT d.match_id
+      FROM match_details d
+      WHERE jsonb_path_query_array(d.participants, '$[*].puuid') ?| ARRAY[${account.puuid}]::text[]
+        AND EXISTS (SELECT 1 FROM jsonb_array_elements(d.participants) p WHERE p->>'puuid' = ${account.puuid} AND p->>'teamId' IN ('100', '200'))
+        AND NOT EXISTS (SELECT 1 FROM account_matches am WHERE am.account_id = ${account.id}::uuid AND am.match_id = d.match_id)
+      ORDER BY d.game_creation DESC
+      LIMIT ${budget}`);
+    const ids = (((result as { rows?: Array<{ match_id: string }> }).rows ?? (result as unknown as Array<{ match_id: string }>)) as Array<{ match_id: string }>).map((r) => r.match_id);
+    if (ids.length === 0) continue;
+    out.candidates += ids.length;
+    budget -= ids.length;
+    const records = await storedFoldRecords(db, ids);
+    for (const matchId of ids) {
+      const record = records.get(matchId);
+      if (!record) continue;
+      const outcome = await foldGame(db, account, record, keyToId, SYNC_QUEUE_IDS, erased, now, null);
+      if (outcome === "folded") out.folded += 1;
+      else if (outcome === "later") out.later += 1;
+      else out.skipped += 1;
+    }
   }
   return out;
 }
