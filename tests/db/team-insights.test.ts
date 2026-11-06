@@ -139,7 +139,8 @@ describe("team insights from stored games", () => {
       places: 1,
       matches: 1,
       members: 1,
-      byReason: { noRow: { places: 1, beforeOwnFirstGame: 1, queueNotCollected: 0, historyIncomplete: 1 }, row: { places: 0, refusedForGood: 0, remake: 0, otherQueue: 0, championUnknown: 0, withChampion: 0 } },
+      thisSeason: 1,
+      byReason: { noRow: { places: 1, beforeSeasonStart: 0, beforeOwnFirstGame: 1, queueNotCollected: 0, historyIncomplete: 1 }, row: { places: 0, refusedForGood: 0, remake: 0, otherQueue: 0, championUnknown: 0, withChampion: 0 } },
       byQueue: { "400": 1 },
     });
     const text = JSON.stringify(audit);
@@ -169,8 +170,17 @@ describe("team insights from stored games", () => {
     await handle.db.delete(accountMatches).where(and(eq(accountMatches.accountId, acc.bea!), eq(accountMatches.matchId, "OC1_4")));
     // Her season complete: the same missing place no longer counts as an unfinished history.
     await handle.db.update(riotAccounts).set({ historyBackfill: { season: 16, queues: {}, startedAt: NOW.toISOString(), completedAt: NOW.toISOString() } }).where(eq(riotAccounts.id, acc.bea!));
-    expect((await reasons()).byReason.noRow).toEqual({ places: 1, beforeOwnFirstGame: 1, queueNotCollected: 0, historyIncomplete: 0 });
+    expect((await reasons()).byReason.noRow).toEqual({ places: 1, beforeSeasonStart: 0, beforeOwnFirstGame: 1, queueNotCollected: 0, historyIncomplete: 0 });
     await handle.db.update(riotAccounts).set({ historyBackfill: null }).where(eq(riotAccounts.id, acc.bea!));
+    // A game of last December, inside the month the insights read before the season's start:
+    // Ace's longer history holds it, Bea's season list never named it. Not a gap in this season.
+    const december = Date.UTC(2025, 11, 15, 12);
+    await handle.db.insert(accountMatches).values({ accountId: acc.ace!, matchId: "OC1_12", gameCreation: december, queueId: 420, championId: "Ahri", role: "TOP", win: true, patch: "15.24", gameDuration: 1800 });
+    await handle.db.insert(matchDetails).values({ matchId: "OC1_12", gameCreation: december, gameDuration: 1800, teams: [], participants: [part("p-ace", 100), part("p-bea", 100), stranger(14, 200)] });
+    const withDecember = await reasons();
+    expect(withDecember).toMatchObject({ places: 2, thisSeason: 1, byReason: { noRow: { places: 2, beforeSeasonStart: 1, beforeOwnFirstGame: 2 } }, byQueue: { "400": 1, "420": 1 } });
+    await handle.db.delete(accountMatches).where(eq(accountMatches.matchId, "OC1_12"));
+    await handle.db.delete(matchDetails).where(eq(matchDetails.matchId, "OC1_12"));
   });
 
   it("is cached until the history changes", async () => {

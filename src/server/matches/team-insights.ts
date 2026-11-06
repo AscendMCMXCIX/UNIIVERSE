@@ -3,9 +3,9 @@ import type { Db } from "@/server/db/types";
 import { registerLocalCache } from "@/server/observability/cache";
 import { riotAccounts } from "@/server/db/schema";
 import { summariseMatches } from "@/server/accounts/match-summary";
-import { SYNC_QUEUE_IDS, currentSeason } from "@/server/accounts/sync";
+import { SYNC_QUEUE_IDS, currentSeason, seasonListStart } from "@/server/accounts/sync";
 import { listPlayers } from "@/server/repositories/team";
-import { seasonStartUnix } from "@/domain/season";
+import { seasonOfGame, seasonStartUnix } from "@/domain/season";
 import { isoDay } from "@/lib/format";
 import { teamInsights, type InsightGame, type InsightPresence, type TeamInsights } from "@/domain/team-insights";
 
@@ -161,10 +161,18 @@ export async function loadTeamInsights(db: Db, teamId: string, now: Date = new D
 
 /** A member's place in a stored record that their own history lacks, counted by what the history holds for it. */
 export interface MissingPlaceReasons {
+  /**
+   * Places whose game is this season by its patch. The insights read from a month before the
+   * season's start (SEASON_LEAD_MS), where a longer-stored teammate's history holds last season's
+   * games that a newer account's season list never covered: those are not gaps in this season.
+   */
+  thisSeason: number;
   byReason: {
     /** No ledger row at all for the game under any of the member's accounts. */
     noRow: {
       places: number;
+      /** The game started before the season's list start (seasonListStart): no account's list of this season names it. */
+      beforeSeasonStart: number;
       /** The game is older than the member's earliest stored game: their history does not reach back to it. */
       beforeOwnFirstGame: number;
       /** The game's queue is not one the sync collects (the teammate's row came from an earlier queue list). */
@@ -197,24 +205,26 @@ export interface MissingPlaceReasons {
  */
 export async function missingPlaceReasons(db: Db, accounts: ReadonlyArray<{ id: string; playerId: string }>, season: number): Promise<MissingPlaceReasons> {
   const out: MissingPlaceReasons = {
-    byReason: { noRow: { places: 0, beforeOwnFirstGame: 0, queueNotCollected: 0, historyIncomplete: 0 }, row: { places: 0, refusedForGood: 0, remake: 0, otherQueue: 0, championUnknown: 0, withChampion: 0 } },
+    thisSeason: 0,
+    byReason: { noRow: { places: 0, beforeSeasonStart: 0, beforeOwnFirstGame: 0, queueNotCollected: 0, historyIncomplete: 0 }, row: { places: 0, refusedForGood: 0, remake: 0, otherQueue: 0, championUnknown: 0, withChampion: 0 } },
     byQueue: {},
   };
   if (accounts.length === 0) return out;
   const idList = sql.join(accounts.map((a) => sql`${a.id}::uuid`), sql`, `);
   const since = seasonStartUnix(season) * 1000 - SEASON_LEAD_MS;
+  const listStartMs = (await seasonListStart(db, season)) * 1000;
   const result = await db.execute(sql`
     WITH acc AS (
       SELECT ra.id, ra.puuid, ra.player_id, (ra.history_backfill->>'completedAt') IS NOT NULL AS complete
       FROM riot_accounts ra WHERE ra.id IN (${idList})
     ),
     own AS (
-      SELECT am.match_id, acc.player_id, min(am.game_creation) AS game_creation, min(am.queue_id) AS queue_id
+      SELECT am.match_id, acc.player_id, min(am.game_creation) AS game_creation, min(am.queue_id) AS queue_id, min(am.patch) AS patch
       FROM account_matches am JOIN acc ON acc.id = am.account_id
       WHERE am.champion_id IS NOT NULL AND am.game_creation >= ${since}
       GROUP BY am.match_id, acc.player_id
     ),
-    matches AS (SELECT match_id, min(game_creation) AS game_creation, min(queue_id) AS queue_id FROM own GROUP BY match_id),
+    matches AS (SELECT match_id, min(game_creation) AS game_creation, min(queue_id) AS queue_id, min(patch) AS patch FROM own GROUP BY match_id),
     record_places AS (
       SELECT DISTINCT x.match_id, acc.player_id
       FROM matches x
@@ -229,7 +239,7 @@ export async function missingPlaceReasons(db: Db, accounts: ReadonlyArray<{ id: 
       WHERE o.match_id IS NULL
     )
     SELECT
-      x.queue_id AS match_queue,
+      x.queue_id AS match_queue, x.game_creation AS match_creation, x.patch AS match_patch,
       x.game_creation < (SELECT min(o2.game_creation) FROM own o2 WHERE o2.player_id = m.player_id) AS before_own_first,
       (SELECT bool_and(a3.complete) FROM acc a3 WHERE a3.player_id = m.player_id) AS history_complete,
       r.found AS row_found, r.has_champion AS row_champion, r.game_creation AS row_creation, r.game_duration AS row_duration, r.queue_id AS row_queue
@@ -241,14 +251,17 @@ export async function missingPlaceReasons(db: Db, accounts: ReadonlyArray<{ id: 
       WHERE a4.player_id = m.player_id AND am.match_id = m.match_id
       ORDER BY am.account_id LIMIT 1
     ) r ON true`);
-  type Row = { match_queue: number | string | null; before_own_first: boolean | null; history_complete: boolean | null; row_found: boolean | null; row_champion: boolean | null; row_creation: number | string | null; row_duration: number | null; row_queue: number | string | null };
+  type Row = { match_queue: number | string | null; match_creation: number | string; match_patch: string | null; before_own_first: boolean | null; history_complete: boolean | null; row_found: boolean | null; row_champion: boolean | null; row_creation: number | string | null; row_duration: number | null; row_queue: number | string | null };
   const collected = new Set<number>(SYNC_QUEUE_IDS);
   for (const r of rowsOf<Row>(result)) {
     const queue = r.match_queue === null ? "none" : String(r.match_queue);
     out.byQueue[queue] = (out.byQueue[queue] ?? 0) + 1;
+    const creation = Number(r.match_creation);
+    if (seasonOfGame(r.match_patch, creation) === season) out.thisSeason += 1;
     if (!r.row_found) {
       const n = out.byReason.noRow;
       n.places += 1;
+      if (creation < listStartMs) n.beforeSeasonStart += 1;
       if (r.before_own_first === true) n.beforeOwnFirstGame += 1;
       if (r.match_queue === null || !collected.has(Number(r.match_queue))) n.queueNotCollected += 1;
       if (r.history_complete !== true) n.historyIncomplete += 1;
