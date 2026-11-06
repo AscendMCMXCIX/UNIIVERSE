@@ -48,8 +48,6 @@ export interface ProfileSearch {
   /** Ranked progress: queue (solo | flex) and account. */
   rq?: string;
   ra?: string;
-  /** Ranked progress's period: the 2026 ranked year (absent) or one of its seasons (s1, s2, s3). */
-  rv?: string;
   /** The champion window: All Champions keys it on `champion`; Overview's pools on `champ` (where `champion` is a filter). Then the role it was opened in, view, opponent. */
   champ?: string;
   crole?: string;
