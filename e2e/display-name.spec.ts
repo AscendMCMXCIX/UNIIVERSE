@@ -66,6 +66,8 @@ test("a new player picks a display name apart from their username, goes back wit
   const personalise = page.getByTestId("personalise-step");
   await expect(page.getByTestId("setup-steps")).toHaveAttribute("data-current", "personalise");
   await expect(personalise.getByTestId("personalise-preview")).toContainText(display);
+  // The card's rank line is the Players card's: this member's verified account has no placement on record.
+  await expect(personalise.getByTestId("personalise-preview").getByTestId("card-preview")).toContainText("Unranked");
   await expect(personalise.getByTestId("personalise-done")).toHaveText("Skip for now");
   // Social links are offered here too, each private until its Show publicly switch is on.
   await expect(personalise.getByTestId("social-links-form")).toBeVisible();

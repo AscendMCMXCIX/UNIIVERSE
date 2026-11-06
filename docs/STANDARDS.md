@@ -30,7 +30,7 @@ from each section; this page does not repeat them.
   this season"), and a figure states what it covers (a season, a queue, the games that have the
   figure). A sample too small to mean much says so. "Unranked" means a rank check found no
   placement: a player without a linked Riot account gets no rank line at all ("No Riot account"
-  in its place on the Players cards and rows).
+  in its place on the Players cards and rows; nothing on the first sign-in's card preview).
 - Never present an uncertain identity or relationship as certain: what is only possible is
   labelled as possible (a match's possible groups, for example, never "premade").
 - Two players' relationship is what the stored games record: against (opposite teams) or
