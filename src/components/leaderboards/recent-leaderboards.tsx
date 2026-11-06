@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { ChevronRight, Crown, Flame, Medal, Sparkles, Trophy, TrendingUp } from "lucide-react";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
-import { CardAvatar } from "@/components/players/card-look";
+import { CardAvatar, CardName, cardColourVars } from "@/components/players/card-look";
 import { RoleIcon } from "@/components/role-icon";
 import { Badge } from "@/components/ui/badge";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -78,17 +78,23 @@ export function RecentLeaderboards({ view, champions, status }: { view: RecentLe
   );
 }
 
-/** A member's picture and name: their profile for members; on the public boards, the same without a link. */
+/**
+ * A member's picture and name, as their card shows them (their avatar frame, their name style and
+ * emblem in their own colour: CardAvatar, CardName under the card's colour variables), so a member
+ * is the same person on the board as on Team and Players. The ranking itself stays neutral (docs/
+ * TEAM_LEADERBOARDS.md): no colour from a look reaches a place or a figure. The name links to their
+ * profile for members; on the public boards, the same without a link.
+ */
 function Who({ p, you = false, size = "md", sub, className, stretch = false }: { p: BoardPlayer; you?: boolean; size?: "sm" | "md"; /** Lines under the name (the gap to the place above). */ sub?: ReactNode; className?: string; /** On phones the link covers its row (the nearest positioned box), so the whole row is one tap, as on Players (docs/MOBILE.md, touch targets). */ stretch?: boolean }) {
   const name = p.profileHref ? (
-    <Link href={p.profileHref} className={cn("min-w-0 truncate rounded-sm font-semibold text-fg hover:underline", stretch && "max-md:after:absolute max-md:after:inset-0")}>
-      {p.name}
+    <Link href={p.profileHref} className={cn("min-w-0 rounded-sm text-fg hover:underline", stretch && "max-md:after:absolute max-md:after:inset-0")}>
+      <CardName look={p.look} name={p.name} />
     </Link>
   ) : (
-    <span className="min-w-0 truncate font-semibold text-fg">{p.name}</span>
+    <CardName look={p.look} name={p.name} className="min-w-0 text-fg" />
   );
   return (
-    <span className={cn("flex min-w-0 items-center gap-2.5 text-sm", className)}>
+    <span className={cn("flex min-w-0 items-center gap-2.5 text-sm", className)} style={cardColourVars(p.look)}>
       <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size={size} />
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="flex min-w-0 items-center gap-1.5">
@@ -362,10 +368,10 @@ function RecordCard({ id, label, definition, holder, yours, viewerIsPlayer, play
             </span>
             <span className="text-sm text-fg-muted">{holder.unit}</span>
           </span>
-          <span className="flex min-w-0 items-center gap-2 text-sm">
+          <span className="flex min-w-0 items-center gap-2 text-sm" style={cardColourVars(p.look)}>
             <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="sm" />
-            <span className="min-w-0 truncate font-semibold text-fg" data-testid="record-holder">
-              {p.name}
+            <span className="min-w-0 text-fg" data-testid="record-holder">
+              <CardName look={p.look} name={p.name} />
             </span>
           </span>
           <span className="flex min-w-0 items-center gap-1.5 text-xs text-fg-muted">

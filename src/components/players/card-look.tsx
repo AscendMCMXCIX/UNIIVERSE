@@ -54,6 +54,22 @@ function surface(style: CardStyle): string {
 }
 
 /**
+ * The card's colour variables alone: `--card-accent` (the primary, lightened until it reads on the
+ * surface, for text and icons) and the two chosen colours. For a row or line that shows a player's
+ * name in their look without their card's surface (the Players list on phones, the Leaderboards
+ * rows), so the emblem and the role icon take the player's colour there as they do on the card.
+ */
+export function cardColourVars(look: CardLook | null | undefined): React.CSSProperties {
+  if (!look) return {};
+  const s = look.style;
+  return {
+    ["--card-accent" as string]: s.colours.primary === "#1fc3ff" ? accentCss(s) : readableColour(s.colours.primary),
+    ["--card-primary" as string]: s.colours.primary,
+    ["--card-secondary" as string]: s.colours.secondary,
+  };
+}
+
+/**
  * Inline style for a card's outer element: colour variables for everything inside it
  * (`--card-accent` is the readable primary for text and icons), the surface, the border colour
  * and the optional glow. `glow` false for small variants.
@@ -63,9 +79,7 @@ export function cardShellStyle(look: CardLook | null | undefined, opts: { glow?:
   const s = look.style;
   const glow = opts.glow !== false && s.effects.glow ? `0 0 ${Math.round(10 + 22 * (s.effects.intensity / 100))}px ${mix(s.colours.primary, Math.round(18 + 30 * (s.effects.intensity / 100)))}` : undefined;
   return {
-    ["--card-accent" as string]: s.colours.primary === "#1fc3ff" ? accentCss(s) : readableColour(s.colours.primary),
-    ["--card-primary" as string]: s.colours.primary,
-    ["--card-secondary" as string]: s.colours.secondary,
+    ...cardColourVars(look),
     ["--card-surface" as string]: surface(s),
     background: surface(s),
     borderColor: borderColour(s),
@@ -224,13 +238,14 @@ export function CardName({ look, name, className, decorative = false }: { look: 
  * The player's own tagline, in quotes, wrapping onto as many lines as it needs (at most 40
  * characters, so two lines on the narrowest card; a third only for unusually wide letters, where
  * it stops with an ellipsis and its title holds the whole text). One step larger on a card of
- * 17rem or more. `decorative` as for CardName.
+ * 17rem or more. `lines={1}` for a list row (the Players list on phones): one line, cut with an
+ * ellipsis, the whole text in its title. `decorative` as for CardName.
  */
-export function CardTagline({ look, className, decorative = false }: { look: CardLook | null | undefined; className?: string; decorative?: boolean }) {
+export function CardTagline({ look, className, decorative = false, lines = 3 }: { look: CardLook | null | undefined; className?: string; decorative?: boolean; lines?: 1 | 3 }) {
   const text = look?.style.identity.tagline ?? "";
   if (!text) return null;
   return (
-    <span className={cn("line-clamp-3 text-xs leading-snug text-fg-muted [overflow-wrap:anywhere] @min-[17rem]/card:text-sm", className)} {...(decorative ? {} : { title: text, "data-testid": "card-tagline" })}>
+    <span className={cn(lines === 1 ? "line-clamp-1" : "line-clamp-3", "text-xs leading-snug text-fg-muted [overflow-wrap:anywhere] @min-[17rem]/card:text-sm", className)} {...(decorative ? {} : { title: text, "data-testid": "card-tagline" })}>
       “{text}”
     </span>
   );

@@ -6,6 +6,8 @@ The Studio is the editor behind **Customise** on a player's card. It opens from 
 - the profile header;
 - the Studio's own preview.
 
+Where a member is listed without their card, the name still follows the look: the Players list rows on phones (name style, emblem, the tagline on one line, the role icon in the card's colour) and the Leaderboards rows and record holders (name style and emblem), through `CardName` under the card's colour variables (`cardColourVars`, `src/components/players/card-look.tsx`). Rows carry no art, frame or effect, so a list downloads nothing for a look.
+
 ## Using it
 
 - **Seven sections**, in the order most players go. Links appears on your own card only.
