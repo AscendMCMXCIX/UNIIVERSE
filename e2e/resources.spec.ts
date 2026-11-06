@@ -62,9 +62,10 @@ test("every member finds the library in the sidebar: a panel per section, rows t
   expect(tried.find((f) => f.src === "https://op.gg/favicon.ico")).toEqual({ src: "https://op.gg/favicon.ico", referrerPolicy: "no-referrer", loading: "lazy" });
   expect(tried.every((f) => /^https:\/\/[^/]+\/favicon\.ico$/.test(f.src) && f.referrerPolicy === "no-referrer")).toBe(true);
   // (Rows far below the fold keep a lazy image that has not started; these are near the top.)
-  for (const title of ["League of Legends news", "OP.GG"]) {
+  // The stand-in is the host's initial on its own tinted tile, not one generic mark for every site.
+  for (const [title, initial] of [["League of Legends news", "L"], ["OP.GG", "O"]] as const) {
     await expect(row(page, title).locator("img")).toHaveCount(0);
-    await expect(row(page, title).locator("svg").first()).toBeVisible();
+    await expect(row(page, title).getByTestId("resource-icon-standin")).toHaveText(initial);
   }
 
   // Search: title, description or site; then a section.
@@ -103,10 +104,15 @@ test("favourites stay on this device, at the top of the page", async ({ page }) 
   await blockFavicons(page);
   await page.goto("/resources");
   await expect(page.getByTestId("resources-favourites")).toHaveCount(0);
+  // The row is there before any favourite, saying what the star does, at the height the chips will have.
+  const empty = page.getByTestId("resources-favourites-empty");
+  await expect(empty).toContainText("star a site");
+  const emptyHeight = (await empty.boundingBox())!.height;
   const star = row(page, "LoLalytics ARAM").getByTestId("resource-favourite");
   await star.click();
   await expect(star).toHaveAttribute("aria-pressed", "true");
   const strip = page.getByTestId("resources-favourites");
+  expect(Math.abs((await strip.boundingBox())!.height - emptyHeight), "the row keeps its height with a favourite in it").toBeLessThanOrEqual(1);
   await expect(strip.getByTestId("resources-favourite-link")).toHaveCount(1);
   await expect(strip.getByTestId("resources-favourite-link")).toContainText("LoLalytics ARAM");
   await expect(strip.getByTestId("resources-favourite-link")).toHaveAttribute("target", "_blank");
