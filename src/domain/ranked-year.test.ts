@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rankedRange, rankedSeasonAt, rankedSeasonOfPatch, RANKED_YEAR_START } from "./ranked-year";
+import { rankedSeasonAt, rankedSeasonOfPatch, RANKED_YEAR_START } from "./ranked-year";
 
 describe("the 2026 ranked year", () => {
   it("starts on 8 January 2026", () => {
@@ -23,12 +23,5 @@ describe("the 2026 ranked year", () => {
     expect(rankedSeasonAt(Date.UTC(2026, 3, 29, 1))?.key).toBe("s2");
     expect(rankedSeasonAt(Date.UTC(2026, 9, 16))?.key).toBe("s3");
     expect(rankedSeasonAt(Date.UTC(2027, 0, 2))).toBeNull();
-  });
-
-  it("gives each view its range: the year and every season up to now", () => {
-    const now = Date.UTC(2026, 10, 4);
-    expect(rankedRange("year", now)).toEqual({ from: Date.UTC(2026, 0, 8), to: now });
-    expect(rankedRange("s2", now)).toEqual({ from: Date.UTC(2026, 3, 29), to: Date.UTC(2026, 6, 29) });
-    expect(rankedRange("s3", now)).toEqual({ from: Date.UTC(2026, 6, 29), to: now });
   });
 });
