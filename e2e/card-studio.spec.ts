@@ -115,6 +115,13 @@ test("a saved card shows on the profile, Team and Players, and cards stay aligne
   await expect(page.getByTestId("save-card-style")).toBeEnabled();
   await page.getByRole("radiogroup", { name: "Emblem" }).locator("[data-value=flame]").click();
   await expect(page.getByTestId("card-preview").getByTestId("card-tagline")).toHaveText("“Calm in the chaos”");
+  // The Players view also previews the list row (Players on phones, Leaderboards): the same name, emblem and tagline.
+  await page.getByTestId("preview-directory").click();
+  const rowPreview = page.getByTestId("card-preview-row");
+  await expect(rowPreview.getByTestId("card-tagline")).toHaveText("“Calm in the chaos”");
+  await expect(rowPreview.getByTestId("card-emblem")).toHaveAttribute("data-emblem", "flame");
+  await expect(rowPreview.locator("[data-art-layer]")).toHaveCount(0);
+  await page.getByTestId("preview-team").click();
   await page.getByTestId("save-card-style").click();
   await expect(page.getByTestId("card-studio")).toBeHidden();
 

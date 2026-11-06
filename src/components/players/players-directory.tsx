@@ -12,12 +12,11 @@ import { SearchInput } from "@/components/ui/search-input";
 import { ChevronRight } from "lucide-react";
 import { PlayerSummaryCard, type RiotState } from "./player-summary-card";
 import { cardLookFor } from "@/domain/card-style";
-import { RankInline, type CompactRank } from "./rank-emblem";
+import type { CompactRank } from "./rank-emblem";
 import type { SocialLinkView } from "@/domain/social-links";
-import { CardAvatar, CardName, CardTagline, cardColourVars } from "./card-look";
-import { PoolPreview } from "./player-card";
+import { cardColourVars } from "./card-look";
+import { PoolPreview, RowIdentity } from "./player-card";
 import { SetupIncompleteBadge } from "./setup-incomplete";
-import { RoleIcon } from "@/components/role-icon";
 import { Badge } from "@/components/ui/badge";
 
 export interface DirectoryEntry {
@@ -125,13 +124,13 @@ export function PlayersDirectory({ entries, championsById, archived = null }: { 
 }
 
 /**
- * One player on a phone: the same identity as their card (their picture in its frame, their name
- * in their own name style with their emblem, the primary role and rank, their tagline on one line),
- * the status that matters at a glance (in the lineup, setup or Riot state, archived) and the first
- * champions of their primary pool. The row carries the card's colour variables (cardColourVars),
- * so the emblem and the role icon take the player's colour as on the card; the art, frame and
- * effects stay on the card (docs/MOBILE.md: rows in one panel, nothing downloaded for a list). The
- * whole row opens the profile.
+ * One player on a phone: the same identity as their card (RowIdentity: their picture in its frame,
+ * their name in their own name style with their emblem, the primary role and rank, their tagline
+ * on one line), the status that matters at a glance (in the lineup, setup or Riot state, archived)
+ * and the first champions of their primary pool. The row carries the card's colour variables
+ * (cardColourVars), so the emblem and the role icon take the player's colour as on the card; the
+ * art, frame and effects stay on the card (docs/MOBILE.md: rows in one panel, nothing downloaded
+ * for a list). The whole row opens the profile.
  */
 function PlayerRow({ entry: e, championsById }: { entry: DirectoryEntry; championsById: Record<string, PortraitChampion> }) {
   const p = e.player;
@@ -140,42 +139,8 @@ function PlayerRow({ entry: e, championsById }: { entry: DirectoryEntry; champio
   return (
     <li style={cardColourVars(look)}>
       <Link href={`/players/${p.id}`} className="flex min-h-[4.5rem] items-center gap-3 px-3.5 py-2.5 transition-colors active:bg-surface-2 hover:bg-surface-2/60" data-testid="player-row" data-player-name={p.displayName} data-frame={look.style.frame}>
-        <CardAvatar look={look} name={p.displayName} src={e.avatarUrl} size="md" />
-        <span className="min-w-0 flex-1">
-          <span className="flex min-w-0 items-center gap-1.5">
-            {/* The name as on the card (its style, its emblem), never cut: a long one takes another line. */}
-            <CardName look={look} name={p.displayName} className="text-md leading-snug text-fg" />
-            {e.isYou ? <Badge tone="accent" className="shrink-0">You</Badge> : null}
-          </span>
-          <span className="mt-0.5 flex min-w-0 items-center gap-x-2 text-xs text-fg-muted">
-            {p.primaryRole ? (
-              <span className="inline-flex shrink-0 items-center gap-1">
-                <span style={{ color: "var(--card-accent)" }} className="inline-flex">
-                  <RoleIcon role={p.primaryRole} className="h-3.5 w-3.5" />
-                </span>
-                {ROLE_LABELS[p.primaryRole]}
-              </span>
-            ) : (
-              <span className="shrink-0 text-fg-subtle">Roles not set</span>
-            )}
-            {e.riot?.state === "none" ? (
-              // No account: nothing was read, so no rank is claimed; the note takes its place.
-              <>
-                <span className="text-fg-subtle" aria-hidden>
-                  ·
-                </span>
-                <span className="truncate text-fg-subtle">No Riot account</span>
-              </>
-            ) : e.showRank ? (
-              <>
-                <span className="text-fg-subtle" aria-hidden>
-                  ·
-                </span>
-                <RankInline rank={e.rank} />
-              </>
-            ) : null}
-          </span>
-          <CardTagline look={look} lines={1} className="mt-0.5" />
+        {/* No account: nothing was read, so no rank is claimed; the note takes its place. */}
+        <RowIdentity look={look} name={p.displayName} avatarUrl={e.avatarUrl} role={p.primaryRole} rank={e.rank} showRank={e.showRank} isYou={e.isYou} note={e.riot?.state === "none" ? <span className="truncate text-fg-subtle">No Riot account</span> : null}>
           {/* The pool's champions, as many whole portraits as the room left holds and the rest
               counted (PoolPreview), then what to know at a glance at the line's end, never cut. */}
           <span className="mt-1.5 flex min-w-0 items-center gap-2">
@@ -197,7 +162,7 @@ function PlayerRow({ entry: e, championsById }: { entry: DirectoryEntry; champio
               Riot data: {e.riot.label}
             </span>
           ) : null}
-        </span>
+        </RowIdentity>
         <ChevronRight className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />
       </Link>
     </li>
