@@ -37,9 +37,10 @@ Riot calls the year "the 2026 Season" and its three parts "Season 1", "Season 2"
 word) nor "act". The three seasons share **one ladder**: ranks reset once, on 8 January. Season 1
 from 8 January (patch 26.1), Season 2 from 29 April (26.9; apex tiers hard-reset to Master 0 LP on
 BR, EUNE, EUW, LAN, NA and TR only, "for all other players, nothing will change"), Season 3 from
-29 July (26.15). The data agrees: LEAGUE-V4's wins + losses at each account's first reading equal the
-games stored since 8 January (`rank-audit`), so Riot's count spans the year, not a season. Every
-linked account plays on OCE, where no season reset anything.
+29 July (26.15). The data agrees: LEAGUE-V4's wins + losses at each account's first reading count the
+games stored since 8 January, not those of one season (`rank-audit`, 6 Nov: exactly for 12 of the 16
+account/queue pairs with a reading, the store short by 1 to 6 games for the other four), so Riot's
+count spans the year. Every linked account plays on OCE, where no season reset anything.
 
 So Ranked progress does not offer the seasons as separate periods (it did until November 2026: Season
 1 and Season 2 could only ever show "not recorded"). It names the season now ("2026 Season 3") and
