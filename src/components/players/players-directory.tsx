@@ -100,7 +100,7 @@ export function PlayersDirectory({ entries, championsById, archived = null }: { 
       {/* Phones: one list, a row per player (picture, name, primary role and rank, status, the first
           champions of the pool), so the whole roster reads on a screen or two; the row opens the
           profile, where the card, the links and every pool are. From sm up, the cards below. */}
-      <ul className="divide-y divide-border/70 overflow-hidden rounded-card border border-border bg-surface sm:hidden" aria-label="Players" data-testid="players-list">
+      <ul className="divide-y divide-border/70 overflow-hidden rounded-card border border-border bg-surface panel-depth sm:hidden" aria-label="Players" data-testid="players-list">
         {shown.length === 0 ? <li className="px-4 py-5 text-sm text-fg-muted">{entries.length === 0 ? "No players yet." : "No player matches. Try another name or role."}</li> : null}
         {shown.map((e) => (
           <PlayerRow key={e.player.id} entry={e} championsById={championsById} />
