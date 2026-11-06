@@ -54,7 +54,11 @@ const DDRAGON = `${DATA_DRAGON_ORIGIN}/cdn/img/champion`;
  * Team card and the profile header); "loading" is the portrait loading-screen crop (308×560, a
  * few dozen KB: directory cards and skin thumbnails), so small cards never download a full splash.
  */
-export function championArtUrl(art: CardArt, kind: "splash" | "loading"): string {
+/**
+ * A champion's art from Data Dragon: the splash (1215×717, 150–200 KB), the loading-screen crop
+ * (308×560) or the square tile (380×380, about 40 KB, the splash's centre), each for the chosen skin.
+ */
+export function championArtUrl(art: CardArt, kind: "splash" | "loading" | "tiles"): string {
   const num = Number.isInteger(art.skinNum) && art.skinNum >= 0 ? art.skinNum : 0;
   return `${DDRAGON}/${kind}/${encodeURIComponent(art.championId)}_${num}.jpg`;
 }

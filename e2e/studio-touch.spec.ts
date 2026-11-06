@@ -72,7 +72,11 @@ test("every Studio control can be reached and tapped on phones and a tablet, and
     const { context, page } = await onDevice(browser, member.context, name);
     await openStudio(page);
     const viewport = page.viewportSize()!;
-    const win = (await page.getByTestId("card-studio-window").boundingBox())!;
+    // The window rises into place as it opens (modal-in): measure it once that motion is over, or
+    // a slow frame measures it on its way and reports a window that fits as off the screen.
+    const studioWindow = page.getByTestId("card-studio-window");
+    await studioWindow.evaluate((el) => Promise.all(el.getAnimations().filter((a) => a.effect?.getComputedTiming().iterations !== Infinity).map((a) => a.finished)));
+    const win = (await studioWindow.boundingBox())!;
     if (win.x < -1 || win.y < -1 || win.x + win.width > viewport.width + 1 || win.y + win.height > viewport.height + 1) problems.push(`${name}: the window is larger than the screen (${Math.round(win.width)}×${Math.round(win.height)} on ${viewport.width}×${viewport.height})`);
     for (const id of ["studio-cancel", "save-card-style", "studio-reset-all"]) {
       await page
