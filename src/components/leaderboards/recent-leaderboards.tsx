@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { ChevronRight, Crown, Flame, Medal, Sparkles, Trophy, TrendingUp } from "lucide-react";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
-import { CardAvatar } from "@/components/players/card-look";
+import { CardAvatar, CardName, cardColourVars } from "@/components/players/card-look";
 import { RoleIcon } from "@/components/role-icon";
 import { Badge } from "@/components/ui/badge";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -30,7 +30,8 @@ import { SeasonChoice } from "./season-choice";
 const HEAD = "whitespace-nowrap text-2xs font-semibold uppercase tracking-label text-fg-subtle";
 /** Place · player · main role · record · win rate · dates, from a 40rem board up (the row stacks below). */
 const FORM_GRID = "@min-[40rem]/lb:grid-cols-[2.5rem_minmax(0,1fr)_7rem_5.5rem_4.5rem_8.5rem]";
-const MULTI_GRID = "grid-cols-[minmax(0,1fr)_repeat(3,4.5rem)]";
+/** Member · penta · quadra · triple. On phones the member takes the whole first line of a row and the three figures the second, under their headings, so a name is never squeezed to a sliver. */
+const MULTI_GRID = "grid-cols-[minmax(0,1fr)_repeat(3,3.5rem)] gap-x-2 px-3 sm:grid-cols-[minmax(0,1fr)_repeat(3,4.5rem)] sm:gap-x-3 sm:px-4";
 
 export function RecentLeaderboards({ view, champions, status }: { view: RecentLeaderboardView; champions: Record<string, PortraitChampion>; /** The members' page: the team's data status. */ status?: DataStatus | null }) {
   const player = (id: string) => view.players[id]!;
@@ -78,22 +79,28 @@ export function RecentLeaderboards({ view, champions, status }: { view: RecentLe
   );
 }
 
-/** A member's picture and name: their profile for members; on the public boards, the same without a link. */
-function Who({ p, you = false, size = "md", sub, className, stretch = false }: { p: BoardPlayer; you?: boolean; size?: "sm" | "md"; /** Lines under the name (the gap to the place above). */ sub?: ReactNode; className?: string; /** On phones the link covers its row (the nearest positioned box), so the whole row is one tap, as on Players (docs/MOBILE.md, touch targets). */ stretch?: boolean }) {
+/**
+ * A member's picture and name, as their card shows them (their avatar frame, their name style and
+ * emblem in their own colour: CardAvatar, CardName under the card's colour variables), so a member
+ * is the same person on the board as on Team and Players. The ranking itself stays neutral (docs/
+ * TEAM_LEADERBOARDS.md): no colour from a look reaches a place or a figure. The name links to their
+ * profile for members; on the public boards, the same without a link.
+ */
+function Who({ p, you = false, size = "md", sub, className, nameClassName, stretch = false }: { p: BoardPlayer; you?: boolean; size?: "sm" | "md"; /** Lines under the name (the gap to the place above). */ sub?: ReactNode; className?: string; /** The name's size where a row's name is the row's primary value (the phone's form rows: text-md, as the Players rows). */ nameClassName?: string; /** On phones the link covers its row (the nearest positioned box), so the whole row is one tap, as on Players (docs/MOBILE.md, touch targets). */ stretch?: boolean }) {
   const name = p.profileHref ? (
-    <Link href={p.profileHref} className={cn("min-w-0 truncate rounded-sm font-semibold text-fg hover:underline", stretch && "max-md:after:absolute max-md:after:inset-0")}>
-      {p.name}
+    <Link href={p.profileHref} className={cn("min-w-0 rounded-sm text-fg hover:underline", stretch && "max-md:after:absolute max-md:after:inset-0")}>
+      <CardName look={p.look} name={p.name} className={nameClassName} />
     </Link>
   ) : (
-    <span className="min-w-0 truncate font-semibold text-fg">{p.name}</span>
+    <CardName look={p.look} name={p.name} className={cn("min-w-0 text-fg", nameClassName)} />
   );
   return (
-    <span className={cn("flex min-w-0 items-center gap-2.5 text-sm", className)}>
+    <span className={cn("flex min-w-0 items-center gap-2.5 text-sm", className)} style={cardColourVars(p.look)}>
       <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size={size} />
-      <span className="flex min-w-0 flex-1 flex-col">
+      <span className="flex min-w-0 flex-1 flex-col" data-testid="board-member-name">
         <span className="flex min-w-0 items-center gap-1.5">
           {name}
-          {you ? <Badge tone="accent">You</Badge> : null}
+          {you ? <Badge tone="accent" className="shrink-0">You</Badge> : null}
         </span>
         {sub}
       </span>
@@ -207,7 +214,7 @@ function FormRowItem({ r, p }: { r: FormRow; p: BoardPlayer }) {
                 <span className="sr-only"> (shared)</span>
               </>
             ) : null}
-            {r.place === 1 ? <Crown className="ml-0.5 h-3.5 w-3.5 shrink-0 text-warn" aria-label="First place" role="img" /> : null}
+            {r.place === 1 ? <Crown className="ml-0.5 h-4 w-4 shrink-0 text-gold" aria-label="First place" role="img" /> : null}
           </>
         )}
       </span>
@@ -215,6 +222,7 @@ function FormRowItem({ r, p }: { r: FormRow; p: BoardPlayer }) {
         p={p}
         you={r.you}
         stretch
+        nameClassName="max-md:text-md max-md:leading-snug"
         sub={
           <>
             {r.note ? (
@@ -297,8 +305,8 @@ function Records({ records, player, champ, viewerIsPlayer }: { records: RecordsV
           </p>
         ) : null}
         {records.multikills.length ? (
-          <div className="overflow-hidden rounded-card border border-border bg-surface" data-testid="records-multikills">
-            <div className={cn("grid items-center gap-x-3 border-b border-border/70 px-4 py-2.5", MULTI_GRID)} aria-hidden>
+          <div className="overflow-hidden rounded-card border border-border bg-surface panel-depth" data-testid="records-multikills">
+            <div className={cn("grid items-center border-b border-border/70 py-2.5", MULTI_GRID)} aria-hidden>
               <span className={HEAD}>Member</span>
               <span className={cn(HEAD, "text-right")}>Penta</span>
               <span className={cn(HEAD, "text-right")}>Quadra</span>
@@ -306,10 +314,10 @@ function Records({ records, player, champ, viewerIsPlayer }: { records: RecordsV
             </div>
             <ol className="divide-y divide-border/60" aria-label="Multikills, rarest first">
               {records.multikills.map((m) => (
-                <li key={m.playerId} className={cn("grid items-center gap-x-3 px-4 py-2", MULTI_GRID)} data-testid="multikill-row" data-player-id={m.playerId} data-penta={m.penta} data-quadra={m.quadra} data-triple={m.triple}>
-                  <Who p={player(m.playerId)} size="sm" />
-                  {(["penta", "quadra", "triple"] as const).map((k) => (
-                    <span key={k} className={cn("text-right text-sm tabular-nums", m[k] ? "font-semibold text-fg" : "text-fg-subtle")}>
+                <li key={m.playerId} className={cn("grid items-center py-2", MULTI_GRID)} data-testid="multikill-row" data-player-id={m.playerId} data-penta={m.penta} data-quadra={m.quadra} data-triple={m.triple}>
+                  <Who p={player(m.playerId)} size="sm" className="max-sm:col-span-4" />
+                  {(["penta", "quadra", "triple"] as const).map((k, i) => (
+                    <span key={k} className={cn("text-right text-sm tabular-nums max-sm:row-start-2", ["max-sm:col-start-2", "max-sm:col-start-3", "max-sm:col-start-4"][i], m[k] ? "font-semibold text-fg" : "text-fg-subtle")}>
                       {m[k] ? formatCount(m[k]) : "—"}
                       <span className="sr-only"> {k === "penta" ? "pentakills" : k === "quadra" ? "quadra kills" : "triple kills"}</span>
                     </span>
@@ -356,21 +364,28 @@ function RecordCard({ id, label, definition, holder, yours, viewerIsPlayer, play
       {definition ? <span className="text-xs text-fg-muted">{definition}</span> : null}
       {holder && p ? (
         <>
-          <span className="mt-1 flex items-baseline gap-1.5">
-            <span className="text-2xl font-bold leading-tight tabular-nums text-fg" data-testid="record-value">
-              {holder.value}
+          {/* The champion the record was set on leads the card, beside the figure (the same portrait
+              the line below used to show at 28px, so no new bytes); the streak, set on no one
+              champion, keeps the figure alone. Then who holds it, as the member's card names them. */}
+          <span className="mt-1 flex min-w-0 items-center gap-3">
+            {c ? <ChampionPortrait champion={c} size="md" className="rounded-panel ring-1 ring-border-strong/60" title={c.name} /> : null}
+            <span className="min-w-0">
+              <span className="flex items-baseline gap-1.5">
+                <span className="text-2xl font-bold leading-tight tabular-nums text-fg" data-testid="record-value">
+                  {holder.value}
+                </span>
+                <span className="text-sm text-fg-muted">{holder.unit}</span>
+              </span>
+              <span className="block truncate text-xs text-fg-muted" title={detail}>
+                {detail}
+              </span>
             </span>
-            <span className="text-sm text-fg-muted">{holder.unit}</span>
           </span>
-          <span className="flex min-w-0 items-center gap-2 text-sm">
+          <span className="flex min-w-0 items-center gap-2 text-sm" style={cardColourVars(p.look)}>
             <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="sm" />
-            <span className="min-w-0 truncate font-semibold text-fg" data-testid="record-holder">
-              {p.name}
+            <span className="min-w-0 text-fg" data-testid="record-holder">
+              <CardName look={p.look} name={p.name} />
             </span>
-          </span>
-          <span className="flex min-w-0 items-center gap-1.5 text-xs text-fg-muted">
-            {c ? <ChampionPortrait champion={c} size="xs" title={c.name} /> : null}
-            <span className="truncate">{detail}</span>
           </span>
         </>
       ) : (
@@ -392,10 +407,11 @@ function RecordCard({ id, label, definition, holder, yours, viewerIsPlayer, play
       ) : null}
     </>
   );
-  const cls = "flex h-full min-w-0 flex-col gap-1.5 rounded-card border border-border bg-surface p-4";
+  const cls = "flex h-full min-w-0 flex-col gap-1.5 rounded-card border border-border bg-surface p-4 panel-depth";
   return holder?.href ? (
     // The card's own text is its name (what it says is what a screen reader says), ending "Open the game".
-    <Link href={holder.href} className={cn(cls, "group transition-colors hover:border-border-strong focus-visible:border-accent")} data-testid="season-record" data-record={id}>
+    // A card that opens a game lifts while pointed at (panel-lift: a pixel, the edge brighter; still under reduced motion).
+    <Link href={holder.href} className={cn(cls, "group panel-lift focus-visible:border-accent")} data-testid="season-record" data-record={id}>
       {body}
       <span className="flex items-center gap-1 text-xs font-medium text-accent">
         Open the game <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden />
@@ -408,11 +424,12 @@ function RecordCard({ id, label, definition, holder, yours, viewerIsPlayer, play
   );
 }
 
-const TIER_CLASS = ["border-border bg-surface-2/60", "border-border-strong bg-surface-2", "border-accent/50 bg-accent/10", "border-warn/60 bg-warn/10"] as const;
+/** A milestone's tier, as the system marks rarities: plain, raised, violet, gold (never a state colour). */
+const TIER_CLASS = ["border-border bg-surface-2/60", "border-border-strong bg-surface-2", "border-violet/50 bg-violet/10", "border-gold/60 bg-gold/10"] as const;
 
 function MilestoneList({ title, hint, empty, groups, player, champ, testId }: { title: string; hint: string; empty: string; groups: MilestoneGroup[]; player: (id: string) => BoardPlayer; champ: (id: string | null) => PortraitChampion | null; testId: string }) {
   return (
-    <div className="flex min-w-0 flex-col gap-2 rounded-card border border-border bg-surface p-4" data-testid={testId}>
+    <div className="flex min-w-0 flex-col gap-2 rounded-card border border-border bg-surface p-4 panel-depth" data-testid={testId}>
       <h4 className="text-sm font-semibold text-fg">{title}</h4>
       <p className="text-xs text-fg-muted">{hint}</p>
       {groups.length ? (

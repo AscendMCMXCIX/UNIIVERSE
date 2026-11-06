@@ -3,6 +3,8 @@ import { getAuthState } from "@/server/auth/session";
 import { getAppDb } from "@/server/bootstrap";
 import { loadPickerChampions } from "@/server/champions/picker";
 import { getPlayer } from "@/server/repositories/team";
+import { listAccountsForPlayer } from "@/server/accounts/repository";
+import { rankView } from "@/server/players/overview";
 import { avatarUrl } from "@/server/repositories/users";
 import { loadSocialLinks } from "@/server/repositories/profile";
 import { visibleSocialLinks } from "@/domain/social-links";
@@ -27,14 +29,19 @@ export default async function PersonalisePage() {
   if (!session?.userId) redirect("/login?next=%2Fwelcome%2Fpersonalise");
   if (session.mustChangePassword || !session.setupComplete) redirect("/welcome");
   if (!session.playerId) redirect("/");
-  const [player, champions, social] = await Promise.all([getPlayer(db, session.playerId), loadPickerChampions(db), loadSocialLinks(db, [session.playerId])]);
+  const [player, champions, social, accounts] = await Promise.all([getPlayer(db, session.playerId), loadPickerChampions(db), loadSocialLinks(db, [session.playerId]), listAccountsForPlayer(db, session.playerId)]);
   if (!player) redirect("/");
+  // The card's rank as Team and Players show it: the main account's, else the first ranked one.
+  // With no account nothing was read, so the card claims no rank (never "Unranked").
+  const ranked = (accounts.find((a) => a.label === "main" && a.tier) ?? accounts.find((a) => a.tier)) ?? null;
+  const read = ranked ? rankView(ranked) : null;
+  const rank = read ? { tier: read.tier, division: read.division, leaguePoints: read.leaguePoints, queue: read.queue } : null;
   const picture = avatarUrl(session.userId, session.avatarVersion ?? null);
   const customised = !!picture || player.cardStyle !== null || player.cardBannerVersion !== null || !!player.featuredChampionId;
   return (
     <BrandFrame eyebrow={welcomeEyebrow} width="max-w-4xl">
       <PersonaliseStep
-        card={{ playerId: player.id, name: player.displayName, avatarUrl: picture, look: cardLookFor(player), art: cardArt(player), role: player.primaryRole, poolIds: featurableChampions(player), social: visibleSocialLinks(social.get(player.id)) }}
+        card={{ playerId: player.id, name: player.displayName, avatarUrl: picture, look: cardLookFor(player), art: cardArt(player), role: player.primaryRole, rank, showRank: accounts.length > 0, poolIds: featurableChampions(player), social: visibleSocialLinks(social.get(player.id)) }}
         champions={champions}
         customised={customised}
         social={social.get(player.id) ?? null}

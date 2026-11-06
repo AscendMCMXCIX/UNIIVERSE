@@ -77,7 +77,7 @@ test("a profile shows recent form and ranked progress per queue", async ({ page 
   await expect(page.getByTestId("ranked-table")).toBeHidden();
   await page.getByTestId("ranked-details-toggle").click();
   await expect(details).toHaveAttribute("open", "");
-  await expect(page.getByTestId("ranked-coverage-days")).toHaveText(/^Rank recorded on \d+ of \d+ days$/);
+  await expect(page.getByTestId("ranked-coverage-days")).toHaveText(/^Rank known on \d+ of \d+ days$/);
   await expect(page.getByTestId("ranked-coverage-tracked")).toBeVisible();
   expect(await ranked.getByTestId("ranked-week").count()).toBeGreaterThan(3);
   await expect(page.getByTestId("ranked-coverage-note")).toContainText("cannot be recovered");

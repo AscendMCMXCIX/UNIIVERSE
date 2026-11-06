@@ -13,7 +13,7 @@
 @theme {
   --color-bg: #0a0b12;
   --color-bg-elevated: #181a25; /* menus, popovers and fields: a step above the panel they sit on */
-  --color-chrome: #131418; /* the app's frame (sidebar, top bar, drawer, tab bar): a near-neutral charcoal, so navigation recedes and the content leads */
+  --color-chrome: #0e0f17; /* the app's frame (sidebar, top bar, drawer, tab bar): the page's own ink, half a step up (surface and bg mixed evenly), so the frame is the same material as the page and recedes behind the content */
   --color-surface: #12131c;
   --color-surface-2: #1b1d29;
   --color-surface-3: #252837;
@@ -167,11 +167,14 @@ p a.text-accent {
 }
 
 /*
-  Short windows: a phone held sideways, or any window under 480px tall. The phone tab bar is
+  Short windows: a phone held sideways, or any window 480px tall or shorter. The phone tab bar is
   hidden there, the top bar slides away while the page scrolls down, and detail windows, editors
   and pickers take the whole screen (see docs/RESPONSIVE.md).
 */
 @custom-variant short (@media (max-height: 480px));
+
+/* The installed app, in the display modes an install opens in (see install-state.ts): what a browser's own chrome would otherwise provide, such as Back on a tablet. */
+@custom-variant standalone (@media (display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui), (display-mode: window-controls-overlay));
 
 /* Safe-area helpers for notched phones (no-ops elsewhere). */
 @utility pt-safe {
@@ -246,6 +249,81 @@ p a.text-accent {
   }
 }
 
+/*
+  What is pinned above the page from md (tablets and desktops), for the section tabs that stay in
+  reach (sticky-tabs below, docs/RESPONSIVE.md → Shell) and anything pinned under them (All
+  Champions' column headings):
+    --bar-top   the tablet top bar's height, its hairline included (md to lg; the sidebar's widths
+                have nothing above the page). Zero in a short window (480px tall or shorter), where
+                the bar slides away while reading, so nothing is pinned to its edge there;
+    --tabs-top  the pinned section tabs' height (a 2.75rem row whose hairline is its own) where they
+                are pinned, else 0: a short window keeps its height for the page, and phones carry a
+                profile's sections in the top bar instead.
+  Static values, so the root is never re-styled by script (see useTopBarHeight).
+*/
+:root {
+  --bar-top: 0px;
+  --tabs-top: 0px;
+}
+@media (min-width: 48rem) and (max-width: 63.99rem) and (min-height: 481px) {
+  :root {
+    --bar-top: calc(3.5rem + 1px + env(safe-area-inset-top));
+  }
+}
+@media (min-width: 48rem) and (min-height: 481px) {
+  :root {
+    --tabs-top: 2.75rem;
+  }
+  /* Whatever is scrolled into view on a page with pinned section tabs stops below them (WCAG 2.4.11), as under the phone's bars. */
+  html:has([data-sticky-tabs]) {
+    scroll-padding-top: calc(var(--bar-top) + var(--tabs-top) + 0.5rem);
+  }
+}
+/*
+  The scroll padding keeps the page's content clear of what is pinned above it, but the pinned
+  bars' own controls sit inside that band: focus moving onto a pinned tab, the sidebar's logo or
+  the top bar's buttons would otherwise scroll the page up each time. Their scroll margin takes the
+  padding back exactly: the stylesheet's value from md, the measured one on phones (--bar-pad, set
+  on the bar by useTopBarHeight).
+*/
+[data-testid="mobile-topbar"] {
+  --bar-pad: calc(var(--bar-top) + 0.5rem);
+}
+@media (min-width: 48rem) and (max-width: 63.99rem) {
+  html:has([data-sticky-tabs]) [data-testid="mobile-topbar"] {
+    --bar-pad: calc(var(--bar-top) + var(--tabs-top) + 0.5rem);
+  }
+}
+[data-testid="mobile-topbar"] :is(a, button) {
+  scroll-margin-top: calc(-1 * var(--bar-pad));
+}
+@media (min-width: 48rem) and (min-height: 481px) {
+  [data-sticky-tabs] a,
+  html:has([data-sticky-tabs]) [data-testid="sidebar"] :is(a, button) {
+    scroll-margin-top: calc(-1 * (var(--bar-top) + var(--tabs-top) + 0.5rem));
+  }
+}
+/*
+  Section tabs (Team's, a profile's, Platform Settings') pinned at the top of the page once it has
+  scrolled past them: under the tablet's top bar, at the window's edge beside the sidebar, so the
+  sections stay one tap away however long the page. While pinned (data-stuck, set by TabBar) the
+  row is frame, not content: the frame's ink, blurred like the top bar; at rest it is as plain as
+  before, part of the page. Not in a short window (480px tall or shorter), where a pinned row would
+  take too much of the height.
+*/
+@utility sticky-tabs {
+  @media (min-width: 48rem) and (min-height: 481px) {
+    position: sticky;
+    top: var(--bar-top);
+    z-index: 30;
+    transition: background-color 150ms;
+    &[data-stuck] {
+      background-color: color-mix(in srgb, var(--color-chrome) 90%, transparent);
+      backdrop-filter: blur(12px);
+    }
+  }
+}
+
 /* A sideways-scrolling row (tabs, chips) fades only at the ends that hide more of it; the ends
    are marked by useScrollEdges (components/ui/scroll-row.tsx). Without script nothing fades. */
 @utility scroll-fade-x {
@@ -276,6 +354,36 @@ p a.text-accent {
 @utility panel-depth {
   background-image: linear-gradient(to bottom, color-mix(in srgb, var(--color-fg) 3%, transparent), transparent 5rem);
   box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--color-fg) 6%, transparent), 0 1px 2px 0 rgb(0 0 0 / 0.35), 0 18px 36px -22px rgb(0 0 0 / 0.8);
+}
+
+/*
+  The frame's light (the desktop sidebar's content layer): a faint sheen from the top and the
+  page's violet ambient light continued into the frame behind the logo, so the brand sits in light
+  instead of on a flat block. Image only, on the layer that stays still while the sidebar slides,
+  so the light never moves; the frame's opaque colour is bg-chrome underneath it.
+*/
+@utility chrome-light {
+  background-image: radial-gradient(16rem 11rem at 2.25rem 0, color-mix(in srgb, var(--color-accent-2) 9%, transparent), transparent 72%), linear-gradient(to bottom, color-mix(in srgb, var(--color-fg) 2.5%, transparent), transparent 9rem);
+}
+
+/*
+  The team's logo set into the frame (the sidebar's brand): a hairline of light around it, brighter
+  along the top edge, and a soft shadow under it, so any uploaded square (a saturated tile, a
+  transparent mark, the lettered stand-in) reads as one object on the frame rather than a pasted
+  block. Wrap the logo in it; the plate takes the logo's radius from its own rounded-* class.
+*/
+@utility brand-plate {
+  position: relative;
+  display: grid;
+  box-shadow: 0 8px 18px -10px rgb(0 0 0 / 0.9), 0 0 0 1px rgb(0 0 0 / 0.35);
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--color-fg) 22%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--color-fg) 10%, transparent);
+  }
 }
 
 /* The card a page leads with (the profile's season card): panel-depth plus a faint wash of the violet light in its top corner. */
@@ -564,6 +672,8 @@ p a.text-accent {
    docs/PERFORMANCE.md "Team Overview's first card"). From @xl the lineup is a grid and nothing waits. */
 @container lineup (width < 36rem) {
   [data-art-wait] > [data-art-later] .card-art-img { display: none; }
+  /* The later cards' pool portraits too: ~570 KB that would share the connection with the first card's art. */
+  [data-art-wait] > [data-art-later] [data-card-pool] img { display: none; }
 }
 .flip-card { perspective: 1800px; }
 .flip-card-inner { transform-style: preserve-3d; }

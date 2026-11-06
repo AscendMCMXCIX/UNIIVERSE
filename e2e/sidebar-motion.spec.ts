@@ -5,7 +5,8 @@ import { expect, test, type Page } from "./test";
   no highlight or label stands out over the page while it moves (before, the current page's
   highlight showed as a band across the page for 220 ms). The control sits under the logo, in the
   same place open or collapsed, works from the keyboard, and rapid toggling settles on the last
-  choice. Frames are checked by freezing the running transitions (Web Animations API).
+  choice. The rail is three zones (the brand, the pages, the footer) split by hairlines
+  (docs/DESIGN_SYSTEM.md → Navigation). Frames are checked by freezing the running transitions (Web Animations API).
 */
 
 test.beforeEach(async ({ context, baseURL }, info) => {
@@ -110,7 +111,7 @@ test("with reduced motion the sidebar switches at once", async ({ page }) => {
   expect(Math.round(edge)).toBe(72);
 });
 
-test("collapsed, the logo and every icon sit on the rail's centre line, evenly spaced, and the current page's highlight is centred on its icon", async ({ page, context, baseURL }) => {
+test("collapsed, the logo and every icon sit on the rail's centre line, the entries evenly spaced in zones apart from the brand, and the current page's highlight is centred on its icon", async ({ page, context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_sidebar", value: "collapsed", url: baseURL! }]);
   await page.goto("/team");
   await page.mouse.move(900, 600);
@@ -125,14 +126,26 @@ test("collapsed, the logo and every icon sit on the rail's centre line, evenly s
       return { name: e.closest("[data-testid]")?.getAttribute("data-testid") ?? e.tagName, x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2 };
     };
     const logo = el.querySelector("a[title] img, a[title] [data-testid=brand-mark-text]")!;
-    const column = [logo, ...el.querySelectorAll("[data-testid=sidebar-toggle] svg, nav a svg")].map(mid);
+    const toggle = el.querySelector("[data-testid=sidebar-toggle] svg")!;
+    const entries = [...el.querySelectorAll("nav a svg")].map(mid);
+    const column = [mid(logo), mid(toggle), ...entries];
+    const dividers = [...el.querySelectorAll("[data-testid=rail-divider]")].map((d) => d.getBoundingClientRect()).map((r) => ({ name: "divider", x: (r.left + r.right) / 2, y: r.top, width: r.width }));
     const footer = [...el.querySelectorAll("[data-testid=mode-switch] svg, [data-testid=install-app] svg, [data-testid=account-menu-button] > :first-child")].map(mid);
     const current = el.querySelector("nav a[aria-current=page] [data-testid=nav-highlight]")!.getBoundingClientRect();
-    return { column, footer, highlight: (current.left + current.right) / 2 };
+    return { column, entries, dividers, footer, highlight: (current.left + current.right) / 2 };
   });
-  for (const m of [...marks.column, ...marks.footer]) expect(Math.abs(m.x - centre), `${m.name} at ${m.x}, the rail's centre ${centre}`).toBeLessThanOrEqual(0.5);
+  for (const m of [...marks.column, ...marks.footer, ...marks.dividers]) expect(Math.abs(m.x - centre), `${m.name} at ${m.x}, the rail's centre ${centre}`).toBeLessThanOrEqual(0.5);
   expect(Math.abs(marks.highlight - centre), "the current page's highlight").toBeLessThanOrEqual(0.5);
-  // One step from the logo down through the entries.
-  const steps = marks.column.slice(1).map((m, i) => m.y - marks.column[i]!.y);
+  // The pages: one step from entry to entry.
+  const steps = marks.entries.slice(1).map((m, i) => m.y - marks.entries[i]!.y);
   for (const step of steps) expect(Math.abs(step - steps[0]!), `steps ${steps.join(", ")}`).toBeLessThanOrEqual(1);
+  // The brand zone (logo, then the collapse control) and the pages are apart: each gap is more than
+  // a step, with a hairline between the zones, as wide collapsed as an entry's highlight (3rem).
+  const [logo, toggle, first] = marks.column;
+  expect(toggle!.y - logo!.y, "logo to collapse control").toBeGreaterThan(steps[0]!);
+  expect(first!.y - toggle!.y, "collapse control to the first page").toBeGreaterThan(steps[0]!);
+  expect(marks.dividers.length, "a hairline under the brand and one over the footer").toBe(2);
+  expect(marks.dividers[0]!.y).toBeGreaterThan(toggle!.y);
+  expect(marks.dividers[0]!.y).toBeLessThan(first!.y);
+  for (const d of marks.dividers) expect(Math.round(d.width)).toBe(48);
 });

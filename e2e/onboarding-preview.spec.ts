@@ -86,6 +86,8 @@ test("the new player setup preview runs end to end, with real checks, back and f
   await expect(page.getByTestId("onboarding-step-personalise")).toBeVisible();
   await expect(page.getByTestId("setup-steps")).toHaveAttribute("data-current", "personalise");
   await expect(page.getByTestId("personalise-preview").getByTestId("card-preview")).toContainText("Mid Lane Hero");
+  // Nothing is read for the preview's card, so it claims no rank (never "Unranked").
+  await expect(page.getByTestId("personalise-preview").getByTestId("card-preview")).not.toContainText("Unranked");
   await page.getByTestId("personalise-back").click();
   await expect(page.getByTestId("onboarding-step-profile")).toBeVisible();
   await finish.click();

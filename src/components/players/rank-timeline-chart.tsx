@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { ladderGrid, type RankTimeline, type TimelineReading } from "@/domain/rank-timeline";
-import { formatDate, formatDateTime, formatDayMonth, formatMonth } from "@/lib/format";
+import { formatDate, formatDateTime, formatDayMonth, formatMonth, localPeriodStarts } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
 /*
@@ -51,7 +51,7 @@ export function RankTimelineChart({ t, label }: { t: RankTimeline; label: string
   }, []);
 
   const narrow = width < 420;
-  const pad = { l: narrow ? 50 : 64, r: 8 };
+  const pad = { l: narrow ? 58 : 64, r: 8 };
   const span = Math.max(1, t.to - t.from);
   const plotW = width - pad.l - pad.r;
   const x = (at: number) => pad.l + ((Math.min(Math.max(at, t.from), t.to) - t.from) / span) * plotW;
@@ -91,17 +91,14 @@ export function RankTimelineChart({ t, label }: { t: RankTimeline; label: string
   const gaps = t.links.map((l, i) => (l.kind === "gap" ? { from: reads[i]!.to, to: reads[i + 1]!.from, games: l.games ?? 0, i } : null)).filter((g): g is NonNullable<typeof g> => g !== null);
   const resets = t.links.map((l, i) => (l.kind === "reset" ? { at: reads[i + 1]!.from } : null)).filter((g): g is NonNullable<typeof g> => g !== null);
 
-  // Date labels where they fit, at least 56 px apart: days over a short stretch, month starts over a long one.
+  // Date labels where they fit, at least 56 px apart: the installation's days over a short stretch,
+  // its months over a long one, each tick on the local midnight its label names.
   const ticks: Array<{ at: number; label: string; end?: boolean }> = [];
   {
     const long = span > 75 * MS_DAY;
-    const first = new Date(t.from);
-    let at = long ? Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 1) : Date.UTC(first.getUTCFullYear(), first.getUTCMonth(), first.getUTCDate() + 1);
-    while (at <= t.to) {
+    for (const at of localPeriodStarts(t.from, t.to, long ? "month" : "day")) {
       const mx = x(at);
-      if (ticks.every((tk) => Math.abs(x(tk.at) - mx) >= 56) && mx - pad.l >= 18) ticks.push({ at, label: long ? formatMonth(at + 12 * 3_600_000) : formatDayMonth(at + 12 * 3_600_000), end: mx + 40 > width - pad.r });
-      const dd = new Date(at);
-      at = long ? Date.UTC(dd.getUTCFullYear(), dd.getUTCMonth() + 1, 1) : Date.UTC(dd.getUTCFullYear(), dd.getUTCMonth(), dd.getUTCDate() + 1);
+      if (ticks.every((tk) => Math.abs(x(tk.at) - mx) >= 56) && mx - pad.l >= 18) ticks.push({ at, label: long ? formatMonth(at) : formatDayMonth(at), end: mx + 40 > width - pad.r });
     }
   }
 

@@ -119,6 +119,12 @@ test("the first card's art loads first, and on phones the other cards' art waits
     await held;
     await route.fulfill({ contentType: "image/png", body: PIXEL });
   });
+  // The pool portraits (small PNGs under the versioned path) answer at once; which ones are asked for is what matters.
+  const portraits: string[] = [];
+  await page.route(/ddragon\.leagueoflegends\.com\/cdn\/[^/]+\/img\/champion\/[^/]+\.png/, async (route) => {
+    portraits.push(new URL(route.request().url()).pathname.split("/").pop()!);
+    await route.fulfill({ contentType: "image/png", body: PIXEL });
+  });
   // The page's load event waits for the first art, which is held: wait for the page itself.
   await page.goto("/team", { waitUntil: "domcontentloaded" });
   const track = page.getByTestId("lineup-overview");
@@ -139,6 +145,11 @@ test("the first card's art loads first, and on phones the other cards' art waits
     await expect(second).toBeHidden();
     await page.waitForTimeout(500);
     expect(requested).toEqual([firstArt]);
+    // Nor are the later cards' pool portraits (they would share the connection with the first art): only the first card's are asked for.
+    await expect(cells.nth(1).locator("[data-card-pool] img").first()).toBeHidden();
+    const firstPool = await cells.nth(0).locator("[data-card-pool] img").evaluateAll((els) => els.map((e) => (e as HTMLImageElement).src.split("/").pop()!));
+    expect(firstPool.length).toBeGreaterThan(0);
+    expect(portraits.filter((n) => !firstPool.includes(n)), "only the first card's portraits").toEqual([]);
   } else {
     // Several cards side by side: every card's art is shown and fetched together.
     await expect(second).toBeVisible();
@@ -148,4 +159,5 @@ test("the first card's art loads first, and on phones the other cards' art waits
   // Once the first art has arrived, nothing waits.
   await expect(track).not.toHaveAttribute("data-art-wait", "true");
   await expect(second).toBeVisible();
+  await expect(cells.nth(1).locator("[data-card-pool] img").first()).toBeVisible();
 });
