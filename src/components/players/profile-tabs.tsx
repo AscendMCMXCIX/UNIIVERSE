@@ -85,9 +85,11 @@ function settleSectionTop(): () => void {
   const place = () => {
     const top = sectionTop();
     if (top === null) return;
-    expected = top;
     // Instant: a smooth scroll would still be under way when the next change to the page arrives.
     window.scrollTo({ top, behavior: "instant" });
+    // Where the page is now: a loading state too short for the top clamps it, and that is still
+    // this settle's own doing (the next change to the page brings the top within reach).
+    expected = window.scrollY;
     height = document.documentElement.scrollHeight;
   };
   const observer = new MutationObserver(() => {

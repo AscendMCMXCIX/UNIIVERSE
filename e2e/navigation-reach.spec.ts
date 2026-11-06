@@ -116,7 +116,8 @@ test("tablet and desktop: Team's sections stay in reach as a long page scrolls, 
   expect(pinned.top).toBe(barBottom);
   expect(pinned.height).toBe(resting.height);
   await expect(tabs).toHaveAttribute("data-stuck", "");
-  expect(await ink()).not.toBe("rgba(0, 0, 0, 0)");
+  // The ink fades in over 150 ms: wait for it rather than sample its first frame.
+  await expect.poll(ink).not.toBe("rgba(0, 0, 0, 0)");
   await page.evaluate(() => window.scrollTo(0, 0));
   await expect(tabs).not.toHaveAttribute("data-stuck", /.*/);
   await page.evaluate(() => window.scrollTo(0, 1200));
@@ -239,10 +240,17 @@ test("phone: Done closes the filter sheet the way Escape does, with its motion",
   await page.getByTestId("filter-toggle").click();
   const sheet = page.getByTestId("filter-sheet");
   await expect(sheet).toBeVisible();
+  // The sheet is marked as closing for its motion (140 ms) before it goes: watched, not sampled.
+  await sheet.evaluate((dialog) => {
+    const w = window as unknown as { __sheetClosing?: boolean };
+    w.__sheetClosing = false;
+    new MutationObserver(() => {
+      if (dialog.getAttribute("data-closing") === "true") w.__sheetClosing = true;
+    }).observe(dialog, { attributes: true, attributeFilter: ["data-closing"] });
+  });
   await page.getByTestId("filter-sheet-done").click();
-  // Still on the page for its closing motion, marked as closing; gone once it has run.
-  expect(await page.evaluate(() => new Promise<boolean>((done) => requestAnimationFrame(() => done(!!document.querySelector("dialog[open][data-closing=true]")))))).toBe(true);
   await expect(sheet).toHaveCount(0);
+  expect(await page.evaluate(() => (window as unknown as { __sheetClosing?: boolean }).__sheetClosing)).toBe(true);
   await expect(page.getByTestId("filter-toggle")).toBeFocused();
 });
 
