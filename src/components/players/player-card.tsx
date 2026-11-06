@@ -391,7 +391,7 @@ export function CardPool({ champions, roleLabel, showFigures = true, testId = "p
   const games = first.games ?? 0;
   const firstLine = !showFigures ? "First choice" : games > 0 ? `${games} game${games === 1 ? "" : "s"}${first.winRate != null ? ` · ${Math.round(first.winRate * 100)}%` : ""}` : (first.tierLabel ?? "No games this season");
   return (
-    <div className="flex min-w-0 items-center gap-2.5" aria-label={`${roleLabel} champion pool, in order of preference`} data-testid={testId}>
+    <div className="flex min-w-0 items-center gap-2.5" aria-label={`${roleLabel} champion pool, in order of preference`} data-testid={testId} data-card-pool>
       <span className="flex min-w-0 shrink-0 items-center gap-2" data-testid="pool-first">
         <ChampionPortrait champion={first} size="md" className="ring-1 ring-[color:var(--card-accent)]/50" />
         <span className="min-w-0 max-w-[7.5rem]">

@@ -114,7 +114,8 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
     );
   return (
     <header className="relative overflow-hidden rounded-card border border-border bg-surface" style={cardShellStyle(p.look)} data-testid="profile-header" data-art-champion={p.art?.championId ?? ""} data-accent={p.accent} data-frame={p.look.style.frame}>
-      <CardArtLayer art={p.art} accent={accent} kind="splash" position="center 25%" strength="normal" testId="profile-art" look={p.look} foot />
+      {/* The Overview's largest element at every width: fetched at once and ahead of the rest (the compact band stays lazy: there the content below it is the largest). */}
+      <CardArtLayer art={p.art} accent={accent} kind="splash" position="center 25%" strength="normal" testId="profile-art" look={p.look} foot priority />
       <CardFrame look={p.look} />
       {editable ? <div className="absolute right-2.5 top-2.5 z-10 sm:right-3 sm:top-3">{customise("overlay")}</div> : null}
       {/* Phones: the picture beside the name, then roles, rank and links across the full width (a

@@ -564,6 +564,8 @@ p a.text-accent {
    docs/PERFORMANCE.md "Team Overview's first card"). From @xl the lineup is a grid and nothing waits. */
 @container lineup (width < 36rem) {
   [data-art-wait] > [data-art-later] .card-art-img { display: none; }
+  /* The later cards' pool portraits too: ~570 KB that would share the connection with the first card's art. */
+  [data-art-wait] > [data-art-later] [data-card-pool] img { display: none; }
 }
 .flip-card { perspective: 1800px; }
 .flip-card-inner { transform-style: preserve-3d; }
