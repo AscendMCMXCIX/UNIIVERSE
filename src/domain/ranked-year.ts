@@ -7,9 +7,11 @@ import { canonicalPatch } from "./patch";
   once, at the start of the year, and its three seasons share the ladder. Season 1 opened on
   8 January (patch 26.1), Season 2 on 29 April (patch 26.9) and Season 3 on 29 July (patch 26.15),
   each at noon local server time. Season 2 also hard-reset the apex tiers (Master and above) on BR,
-  EUNE, EUW, LAN, NA and TR only. Dates and patches as Riot announced them and the press reported
-  them; Riot's own pages could not be opened from the build environment on 4 Nov 2026, so the
-  first games stored on each patch are reported by `rank-audit` as a check.
+  EUNE, EUW, LAN, NA and TR only ("for all other players, nothing will change"). Riot's own words,
+  checked on 6 Nov 2026: "the 2026 Season", "Season 2", "Season 3" (/dev: Apex Tier Ranked Reset,
+  21 April 2026) and "SR Ranked Season 2 will start at 12:00:00 noon, April 29, local server time"
+  (patch 26.9 notes); no "split" or "act" in the ranked notes. The first games stored on each patch
+  are reported by `rank-audit` as a check (8 Jan, 29 Apr, 29 Jul in production).
 
   A game's season comes from its patch, which match data always carries. A date places only what
   has no patch (a rank reading), to the day: the noon start is not applied, as no reading of the
@@ -60,13 +62,4 @@ export function rankedSeasonAt(at: number): RankedSeason | null {
   let found: RankedSeason | null = null;
   for (const s of RANKED_SEASONS_2026) if (at >= s.from) found = s;
   return found;
-}
-
-/** Where a season (or the whole year) starts and ends (ms): a season ends where the next begins, the last one now. */
-export function rankedRange(key: RankedSeasonKey | "year", now: number): { from: number; to: number } {
-  if (key === "year") return { from: RANKED_YEAR_START, to: Math.max(RANKED_YEAR_START, now) };
-  const i = RANKED_SEASONS_2026.findIndex((s) => s.key === key);
-  const from = RANKED_SEASONS_2026[i]!.from;
-  const next = RANKED_SEASONS_2026[i + 1];
-  return { from, to: Math.max(from, next ? Math.min(next.from, now) : now) };
 }

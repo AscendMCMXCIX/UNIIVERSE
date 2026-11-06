@@ -2,7 +2,7 @@
 
 How UNIIVERSE records rank and LP, what it can and cannot know, and why. Code:
 `src/domain/lp-attribution.ts` (one game's LP), `src/domain/rank-timeline.ts` (the chart),
-`src/domain/ranked-year.ts` (the 2026 ranked year), `src/server/accounts/rank-history.ts`
+`src/domain/ranked-year.ts` (the 2026 ranked year and its seasons), `src/server/accounts/rank-history.ts`
 (readings), `src/server/jobs/rank-watch.ts` (the frequent readings), `src/server/jobs/rank-audit.ts`
 (the read-only audit).
 
@@ -25,16 +25,44 @@ reading exists anywhere. The retired features' tables hold none either (Ranked D
 no LP; the opponents' ranks were other players').
 
 What does exist for the whole year, from **8 January 2026**: every ranked game, collected from
-MATCH-V5 for each linked account (the season backfill). Ranked progress draws those games week by
-week under the rank, for the whole year, and Riot's own wins + losses count is checked against them
-(`rank-audit`). The rank itself before the first reading is shown as **not recorded**.
+MATCH-V5 for each linked account (the season backfill). Riot's own wins + losses count is checked
+against them (`rank-audit`). The rank itself before the first reading is **not recorded** and is
+never estimated from those games.
 
-## The 2026 ranked year
+## The 2026 ranked year: seasons, not splits
 
-One ladder from 8 January 2026, with three seasons that share it (no reset between them on OCE):
-Season 1 from 8 January (patch 26.1), Season 2 from 29 April (26.9; apex tiers hard-reset on BR,
-EUNE, EUW, LAN, NA and TR only), Season 3 from 29 July (26.15). Games are placed by patch; a reading
-by date. Ranked progress opens on the whole year and offers each season on its own.
+Riot calls the year "the 2026 Season" and its three parts "Season 1", "Season 2" and "Season 3"
+(the /dev post on the apex reset, 21 April 2026; patch 26.9's "SR Ranked Season 2 will start at
+12:00:00 noon, April 29, local server time"). Riot's 2026 ranked notes use neither "split" (the 2024
+word) nor "act". The three seasons share **one ladder**: ranks reset once, on 8 January. Season 1
+from 8 January (patch 26.1), Season 2 from 29 April (26.9; apex tiers hard-reset to Master 0 LP on
+BR, EUNE, EUW, LAN, NA and TR only, "for all other players, nothing will change"), Season 3 from
+29 July (26.15). The data agrees: LEAGUE-V4's wins + losses at each account's first reading count the
+games stored since 8 January, not those of one season (`rank-audit`, 6 Nov: exactly for 12 of the 16
+account/queue pairs with a reading, the store short by 1 to 6 games for the other four), so Riot's
+count spans the year. Every linked account plays on OCE, where no season reset anything.
+
+So Ranked progress does not offer the seasons as separate periods (it did until November 2026: Season
+1 and Season 2 could only ever show "not recorded"). It names the season now ("2026 Season 3") and
+marks the three seasons on the year's coverage strip. Games are placed by patch; a reading by date.
+
+## What Ranked progress shows
+
+Compact, in Profile Overview under the season card and Recent form (`ranked-progress.tsx`):
+
+- **Now:** the crest, the current rank and LP (with how far into the division), and Riot's wins and
+  losses for the ranked year with the win rate.
+- **How it moved:** from the reading in effect 30 days ago to the latest, labelled "Last 30 days";
+  when recording began inside those 30 days the first reading is the start and the label says
+  "Since 16 Oct" instead. Same division (or Master and above): the LP difference. Across divisions:
+  divisions gained or lost, no LP figure (LP restarts after a promotion). Never across a reset.
+- **Highest recorded** rank and LP, with the day it was first read.
+- **The chart** (`rank-timeline-chart.tsx`, 120 px tall): only the stretch with readings, from the
+  first reading to now (at least three days). No empty band for the months before it.
+- **History and coverage** (closed at first, a native disclosure): the ranked year as one strip
+  (every stored ranked game week by week, the three seasons marked, the days with readings lit, and
+  "Rank recorded on N of M days"), what cannot be recovered and why, every rank change, the chart's
+  key, and every reading (the newest 200) with its first and last time.
 
 ## LP per game: the rule
 
@@ -128,4 +156,4 @@ traffic per run. No GitHub Actions minutes.
   how many games have a figure and why the others have none, with the last few figures and the minutes
   between each game and its two readings; the 2026 seasons' first patches as stored; how often
   ranks were read; the year's games and readings week by week. Accounts appear as P1/A1 only.
-- **Ranked progress → Show the readings**: every reading with its first and last time.
+- **Ranked progress → History and coverage**: every reading with its first and last time.
