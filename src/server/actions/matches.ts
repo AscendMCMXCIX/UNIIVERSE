@@ -22,7 +22,8 @@ const RIOT_MATCH_ID = /^[A-Z0-9]+_\d+$/i;
 export async function setTeamBookmarkAction(riotMatchId: string, on: boolean, opts: { share?: boolean } = {}): Promise<Result<{ bookmarked: boolean }>> {
   try {
     const session = await requireTeamMember();
-    const id = riotMatchId.trim();
+    // Riot's own spelling (OC1_123…): a game bookmarked as "oc1_123" is the same bookmark.
+    const id = riotMatchId.trim().toUpperCase();
     if (!RIOT_MATCH_ID.test(id)) return { ok: false, error: "Not a Riot match ID." };
     const db = await getAppDb();
     const team = await getOrCreateTeam(db);

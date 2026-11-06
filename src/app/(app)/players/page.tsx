@@ -69,7 +69,8 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
       <PlayersDirectory
         archived={admin ? { on: showArchived } : null}
         championsById={championsById}
-        entries={visible.map((p) => ({ player: p, lineupRole: lineupRoleOf(p.id), isYou: session.playerId === p.id, riot: riot[p.id] ?? null, avatarUrl: avatars[p.id] ?? null, ...rankFor(p.id), riotIds: accounts.filter((a) => a.playerId === p.id).map((a) => a.riotId), social: visibleSocialLinks(social.get(p.id)) }))}
+        // The record as the cards show it: a profile's notes are nobody else's to receive.
+        entries={visible.map((p) => ({ player: { ...p, notes: "" }, lineupRole: lineupRoleOf(p.id), isYou: session.playerId === p.id, riot: riot[p.id] ?? null, avatarUrl: avatars[p.id] ?? null, ...rankFor(p.id), riotIds: accounts.filter((a) => a.playerId === p.id).map((a) => a.riotId), social: visibleSocialLinks(social.get(p.id)) }))}
       />
     </div>
   );

@@ -12,6 +12,13 @@ describe("refreshNote", () => {
     expect(refreshNote({ status: "no-new", checkedAt: at }, { status: "complete", fetched: 0 }).text).toBe("No new games · multikill counts complete");
   });
 
+  it("names an account that could not be read beside the result, with the warning tone", () => {
+    const problem = { accounts: 1, message: "Riot's servers are having trouble. Your account is saved and retried automatically." };
+    expect(refreshNote({ status: "no-new", checkedAt: at, problem }, null)).toEqual({ text: `No new games · 1 account could not be read: ${problem.message}`, tone: "info", retryInSeconds: 0 });
+    expect(refreshNote({ status: "updated", newGames: 3, checkedAt: at, problem: { ...problem, accounts: 2 } }, null)).toMatchObject({ text: `3 new games · 2 accounts could not be read: ${problem.message}`, tone: "info" });
+    expect(REFRESH_TOAST[refreshNote({ status: "no-new", checkedAt: at, problem }, null).tone]).toBe("warning");
+  });
+
   it("waits out the server's cooldown and says for how long", () => {
     const r = refreshNote({ status: "recent", checkedAt: at, retryInSeconds: 75 }, { status: "recent", remaining: 12, retryInSeconds: 110 });
     expect(r).toEqual({ text: "Games checked recently · multikills fetched recently; 12 still to come · try again in 2 min", tone: "wait", retryInSeconds: 110 });

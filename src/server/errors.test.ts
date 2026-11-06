@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { publicErrorMessage } from "./errors";
+import { errorLabel as label } from "./errors";
 
 describe("the words an action shows for an error", () => {
   it("keeps messages the app writes for people", () => {
@@ -14,5 +15,13 @@ describe("the words an action shows for an error", () => {
     const url = new Error("could not reach postgres://user:pw@db.example:5432/app");
     for (const err of [drizzle, unique, network, url, null, undefined, "text", {}]) expect(publicErrorMessage(err, "Could not save.")).toBe("Could not save.");
     spy.mockRestore();
+  });
+});
+
+describe("errorLabel", () => {
+  it("drops a query's parameters and keeps every other message", () => {
+    expect(label(new Error("Failed query: select 1 where x = $1\nparams: Secret#OCE,abc"))).toBe("Failed query: select 1 where x = $1");
+    expect(label(new Error("Riot answered 503 on /lol/match/v5/matches/OC1_1"))).toBe("Riot answered 503 on /lol/match/v5/matches/OC1_1");
+    expect(label("plain")).toBe("plain");
   });
 });

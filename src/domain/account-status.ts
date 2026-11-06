@@ -30,12 +30,15 @@ export const VIEW_REFRESH_AFTER_MS = 15 * 60_000;
 /**
  * Whether viewing a player refreshes this account (server/accounts/kickoff.ts): unverified accounts,
  * accounts still adding this season's history, and accounts not refreshed for 15 minutes. Never a
- * demo account, nor a Riot ID Riot could not find (a person must correct it).
+ * demo account, nor an account a person must correct or remove (a Riot ID Riot could not find, or
+ * one already linked).
  */
 export function dueForViewRefresh(a: AccountSyncFacts, now: Date = new Date()): boolean {
   if (a.syncStatus === "demo") return false;
   const view = describeAccountSync(a, now);
-  if (view.state === "error" && a.syncStatus === "unresolved") return false;
+  // Riot could not find the Riot ID, or the account is the same as another linked one: a person
+  // has to correct or remove it; the scheduler retries it with its back-off, a view does not.
+  if (view.state === "error" && (a.syncStatus === "unresolved" || a.syncStatus === "failed")) return false;
   if (view.state === "syncing" || view.state === "pending" || view.state === "verified") return true;
   return !a.lastSyncAt || now.getTime() - a.lastSyncAt.getTime() > VIEW_REFRESH_AFTER_MS;
 }

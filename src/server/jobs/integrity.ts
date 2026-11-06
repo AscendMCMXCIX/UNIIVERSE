@@ -1,7 +1,7 @@
 import { and, eq, lt, sql } from "drizzle-orm";
 import { defineJob } from "./registry";
 import { dataRefreshStatus } from "@/server/db/schema";
-import { INTERRUPTED_RUN_ERROR, closeInterruptedRuns } from "@/server/ops/refresh-status";
+import { INTERRUPTED_RUN_ERROR, closeInterruptedRuns, pruneJobRuns } from "@/server/ops/refresh-status";
 import { deleteEndedSessions } from "@/server/auth/sessions";
 import { pruneAuthFailures } from "@/server/auth/throttle";
 import { reconcileErasures } from "@/server/privacy/reconcile";
@@ -9,7 +9,7 @@ import { clearCachesAfterErasure } from "@/server/privacy/after-erasure";
 
 defineJob({
   key: "integrity",
-  description: "Housekeeping: unstick job states left running by an interrupted process (each counts as a failed run) and close the runs left open; delete sign-in sessions that ended over a week ago and failed sign-ins past the throttling window; keep personal-data erasures in force on what was stored lately.",
+  description: "Housekeeping: unstick job states left running by an interrupted process (each counts as a failed run) and close the runs left open; delete run records older than 60 days, sign-in sessions that ended over a week ago and failed sign-ins past the throttling window; keep personal-data erasures in force on what was stored lately.",
   defaultIntervalMinutes: 24 * 60,
   run: async (ctx) => {
     // A job still "running" after half an hour died with its process. It counts as one more
@@ -27,6 +27,7 @@ defineJob({
     // Retention (privacy notice): bounded batches, so one run stays small however much piled up.
     const endedSessionsDeleted = await deleteEndedSessions(ctx.db);
     const oldFailedSignInsDeleted = await pruneAuthFailures(ctx.db);
+    const oldJobRunsDeleted = await pruneJobRuns(ctx.db, { now });
     // Erasures stay in force: anything stored in the last two days that names an erased person
     // is removed again (the sync should never store it; this is the safety net).
     const erasures = await reconcileErasures(ctx.db, { mode: "recent" });
@@ -38,7 +39,7 @@ defineJob({
       ok: true,
       degraded: !!unusable,
       error: unusable,
-      summary: { unstuck: unstuck.map((u) => u.key), interruptedRunsClosed, endedSessionsDeleted, oldFailedSignInsDeleted, erasures: { records: erasures.records, unusable: erasures.unusable, people: erasures.people, traces: erasures.traces } },
+      summary: { unstuck: unstuck.map((u) => u.key), interruptedRunsClosed, endedSessionsDeleted, oldFailedSignInsDeleted, oldJobRunsDeleted, erasures: { records: erasures.records, unusable: erasures.unusable, people: erasures.people, traces: erasures.traces } },
     };
   },
 });

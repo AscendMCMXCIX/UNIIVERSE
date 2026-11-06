@@ -1,6 +1,6 @@
 # UNIIVERSE status
 
-**The one status record.** Each session updates it in place: what is live, what is verified and what is still open, with the evidence for each. Detail stays in the linked PRs and docs. Last updated 4 Nov 2026, 12:35 UTC.
+**The one status record.** Each session updates it in place: what is live, what is verified and what is still open, with the evidence for each. Detail stays in the linked PRs and docs. Last updated 5 Nov 2026, 23:15 UTC.
 
 **Statuses:**
 - **Verified:** deployed and checked on the live site after the deploy.
@@ -31,12 +31,13 @@
 | Field page speed in members' browsers | #186, #191 | Verified | Production check run 15's probe returned it with #191's split by page, device and the last 7 days |
 | Team Overview's first load on phones | #191 | Deployed 4 Nov, 08:52 | Every CI job passed on the merged tree. The browser suite finished at 09:09, 19 minutes after the merge. Production check run 14 passed: the public Team page, which has the same cards, at three widths. The field result comes from a probe after 11 Nov (`last7`): Team on phones was LCP p75 ≤ 6 s, 10% good, before it |
 | Ranked progress over the 2026 year, LP on match cards, rank watch | #190, #198 | Deployed 4 Nov, 12:20 | Production check run 18 passed on 562d653 (public pages and security; the member pages have not been checked live). Data jobs run 41829346265: migration 0065 applied (`auth-audit`); the rank watch read 12 of 12 accounts, no failure; `rank-audit` as before. **Why 16 Oct:** rank readings exist only since migration 0035 (first 15 Oct 11:33 UTC; most accounts 20:51 UTC, 16 Oct in Sydney), and Riot gives only the current rank. **What exists:** 1,514 ranked games of 2026 from 8 Jan; Riot's whole-year count matches the store for 12 of 16 account/queue pairs. **LP:** 12 figures and 2 promotions are provable from the readings before today; later games get theirs from the rank watch, in every tick, or every five minutes once the owner adds the schedule (Outstanding 2) |
+| Mobile redesign: a five-tab bar, Back and the page's title in the top bar, the account sheet, phone-native lists, filters in a sheet, games full screen | #203 | Verified 5 Nov | Deployed 4 Nov, 18:49. **The owner checked it on the live site on 5 Nov and reported it good.** Every CI job passed on ddb8bcd, up to date with main 2701eec; the WebKit workflow passed on the branch (16 of 16). Production check run 23 passed on bacfcfd: the public pages at three widths and security. The automated check still opens only the public pages until the verification account exists (Outstanding 1). #207 applies the rank rule to the phone Players rows too. Design and measurements: docs/MOBILE.md, docs/PERFORMANCE.md |
 
 ## In progress
 
 | Area | Who | State |
 |---|---|---|
-| Mobile redesign: phone navigation, filters, match cards, Players, Team Matches | Session "UNIIVERSE mobile redesign", since 4 Nov 06:44 | Not pushed. Its Leaderboards changes were made before #188 replaced those files |
+| Data integrity and reliability: backfills and catch-ups that cannot be stalled by one unreadable game, syncs that never overlap, pages that never show the "unavailable" marker as a figure or promise games that will never come, Riot error messages that name nobody | Session "Autonomous Data Integrity & Reliability Engineering", 4 Nov: branch `reliability/data-integrity`, PR #202 | One commit per confirmed defect, each with the test that fails without it (reproduced first, then verified by independent reviewers); the merged branch was reviewed again the same way and its thirteen findings fixed. Up to date with `main` through #208. `pnpm verify`, the database suite on Postgres 16 and the browser suite, locally. No migration, no visible design change; a few status sentences are more precise, Team → Matches says which games Riot no longer serves are left out, run records are deleted after 60 days and the privacy notice says so |
 
 ## Outstanding, by impact
 

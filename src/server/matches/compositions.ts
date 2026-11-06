@@ -1,8 +1,10 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { players, riotAccounts } from "@/server/db/schema";
-import { opggLinkFor, type KnownRiotId } from "@/domain/opgg";
+import { opggLinkFor, platformOfMatchId, type KnownRiotId } from "@/domain/opgg";
 import type { ParticipantRank } from "@/domain/known-rank";
+import { togetherEntry } from "@/domain/played-together";
+import { knownRiotIds } from "@/server/players/riot-names";
 
 /*
   Both teams of a Riot game, as the match lists show them (a player's Match History and Team →
@@ -136,4 +138,28 @@ export async function loadCompositionParticipants(db: Db, matchIds: readonly str
     );
   }
   return out;
+}
+
+/**
+ * The compositions of the games on a Team → Matches page, keyed by the listed entry
+ * (togetherEntry: a game with members on both sides is listed once per side, and each listing's
+ * composition marks its own side), and by match id for a reader that does not know the side: with
+ * members on both sides that one marks no side as its own, so neither side's card highlights
+ * the other. The participants are reduced in the database and the team members found in one
+ * query (see above); players who renamed since a game are linked by their newer Riot ID.
+ */
+export async function togetherCompositions(db: Db, teamId: string, shown: ReadonlyArray<{ matchId: string; teamId: number | null; gameCreation: number }>, youId: string | null): Promise<Record<string, Composition | null>> {
+  const parts = await loadCompositionParticipants(db, shown.map((g) => g.matchId));
+  const puuids = [...parts.values()].flat().map((x) => x.puuid);
+  const [members, known] = await Promise.all([teamMembersByPuuid(db, teamId, puuids), shown.length ? knownRiotIds(db, puuids, Math.min(...shown.map((g) => g.gameCreation))) : Promise.resolve(new Map<string, KnownRiotId>())]);
+  const sides = new Map<string, Set<number | null>>();
+  for (const g of shown) sides.set(g.matchId, new Set([...(sides.get(g.matchId) ?? []), g.teamId]));
+  const teams: Record<string, Composition | null> = {};
+  for (const g of shown) {
+    const ps = parts.get(g.matchId);
+    const composition = ps ? compositionOf(ps, members, (puuid) => !!youId && members.get(puuid)?.id === youId, g.teamId, { platform: platformOfMatchId(g.matchId), known }) : null;
+    teams[togetherEntry(g.matchId, g.teamId)] = composition;
+    teams[g.matchId] = composition && sides.get(g.matchId)!.size > 1 ? { ...composition, side: null } : composition;
+  }
+  return teams;
 }

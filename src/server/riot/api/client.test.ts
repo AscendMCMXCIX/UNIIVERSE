@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RiotApiClient, RiotApiError, RiotDeadlineError, riotKeyTier } from "./client";
+import { RiotApiClient, RiotApiError, RiotDeadlineError, riotKeyTier, routeLabel } from "./client";
 import { RateLimiter } from "./rate-limiter";
 
 function clientWith(calls: string[]) {
@@ -256,5 +256,31 @@ describe("Riot API client addresses", () => {
     expect(calls).toEqual([]);
     await client.platformStatus("oc1");
     expect(calls).toHaveLength(1);
+  });
+});
+
+describe("Riot API client answers that are not Riot's, and its messages", () => {
+  const client = (fetchImpl: typeof fetch) => new RiotApiClient({ apiKey: "RGAPI-test", fetchImpl, limiter: new RateLimiter([{ requests: 1000, seconds: 1 }]), sleep: async () => {}, maxRetries: 0 });
+
+  it("treats an answer that is not JSON (a proxy's error page) as a failed request, not a crash", async () => {
+    const html = client(async () => new Response("<html>maintenance</html>", { status: 200, headers: { "content-type": "text/html" } }));
+    await expect(html.platformStatus("oc1")).rejects.toBeInstanceOf(RiotApiError);
+    await expect(html.platformStatus("oc1")).rejects.toMatchObject({ status: 0, retryable: true });
+  });
+
+  it("names nobody in its messages: a PUUID or a Riot ID in the path is elided, a match id stays", async () => {
+    expect(routeLabel("/lol/match/v5/matches/by-puuid/abc-DEF_123/ids?queue=420&start=0")).toBe("/lol/match/v5/matches/by-puuid/…/ids");
+    expect(routeLabel("/riot/account/v1/accounts/by-riot-id/Alice%20Secret/OCE")).toBe("/riot/account/v1/accounts/by-riot-id/…");
+    expect(routeLabel("/riot/account/v1/region/by-game/lol/by-puuid/abc")).toBe("/riot/account/v1/region/by-game/lol/by-puuid/…");
+    expect(routeLabel("/lol/match/v5/matches/OC1_123")).toBe("/lol/match/v5/matches/OC1_123");
+    const refusing = client(async () => new Response("{}", { status: 404 }));
+    const errors: string[] = [];
+    for (const call of [() => refusing.accountByRiotId("oc1", "Alice Secret", "OCE"), () => refusing.leagueEntriesByPuuid("oc1", "secret-puuid"), () => refusing.matchIdsByPuuid("oc1", "secret-puuid")]) {
+      await call().catch((err: Error) => errors.push(err.message));
+    }
+    expect(errors).toHaveLength(3);
+    for (const message of errors) expect(message).not.toMatch(/secret|Alice/i);
+    const shape = client(async () => new Response(JSON.stringify({ nope: 1 }), { status: 200, headers: { "content-type": "application/json" } }));
+    await expect(shape.accountByPuuid("oc1", "secret-puuid")).rejects.toThrow(/Unexpected response shape on \/riot\/account\/v1\/accounts\/by-puuid\/…/);
   });
 });

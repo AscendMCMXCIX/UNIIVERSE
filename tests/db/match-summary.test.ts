@@ -57,3 +57,25 @@ describe("match summaries", () => {
     expect((await row("M_GONE")).summarisedAt).not.toBeNull();
   });
 });
+
+describe("an account whose PUUID is unknown", () => {
+  it("has its games left waiting by the summary until the PUUID is known, never marked checked without a side", async () => {
+    const db = handle.db;
+    const [player] = await db.select({ playerId: riotAccounts.playerId }).from(riotAccounts).where(eq(riotAccounts.id, account));
+    const inserted = await db.insert(riotAccounts).values({ ownerType: "player", playerId: player!.playerId, gameName: "sum", tagLine: "ALT", platform: "oc1", puuid: null, label: "alt" }).returning({ id: riotAccounts.id });
+    const unverified = inserted[0]!.id;
+    await db.insert(accountMatches).values({ accountId: unverified, matchId: "OC1_NOPUUID", gameCreation: 1, queueId: 420, championId: "Ahri", role: "MID", win: true, patch: "16.1", gameDuration: 1800, kills: 5, deaths: 1, assists: 2 });
+    await db.insert(matchDetails).values({ matchId: "OC1_NOPUUID", platform: "oc1", queueId: 420, gameCreation: 1, gameDuration: 1800, gameVersion: null, teams: [], participants: [part("puuid-sum-alt", 200), part("other-1", 100)] });
+    expect(await summariseMatches(db, { accountIds: [unverified] })).toBe(0);
+    const waiting = (await db.select({ summarisedAt: accountMatches.summarisedAt, teamId: accountMatches.teamId }).from(accountMatches).where(and(eq(accountMatches.accountId, unverified), eq(accountMatches.matchId, "OC1_NOPUUID"))))[0]!;
+    expect(waiting).toEqual({ summarisedAt: null, teamId: null });
+    // The PUUID verified again: the game gets its side.
+    await db.update(riotAccounts).set({ puuid: "puuid-sum-alt" }).where(eq(riotAccounts.id, unverified));
+    expect(await summariseMatches(db, { accountIds: [unverified] })).toBe(1);
+    const done = (await db.select({ summarisedAt: accountMatches.summarisedAt, teamId: accountMatches.teamId }).from(accountMatches).where(and(eq(accountMatches.accountId, unverified), eq(accountMatches.matchId, "OC1_NOPUUID"))))[0]!;
+    expect(done.summarisedAt).not.toBeNull();
+    expect(done.teamId).toBe(200);
+    await db.delete(riotAccounts).where(eq(riotAccounts.id, unverified));
+    await db.delete(matchDetails).where(eq(matchDetails.matchId, "OC1_NOPUUID"));
+  });
+});

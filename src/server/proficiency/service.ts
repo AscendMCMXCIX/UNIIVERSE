@@ -1,5 +1,5 @@
 import type { Db } from "@/server/db/types";
-import { registerLocalCache } from "@/server/observability/cache";
+import { INFLIGHT_JOIN_MS, registerLocalCache } from "@/server/observability/cache";
 import { comparePatches } from "@/domain/patch";
 import { estimateProficiency, type ChampionHistoryEvidence, type MasteryEvidence, type ProficiencyEstimate, type ProficiencyLookup } from "@/domain/proficiency";
 import type { Role } from "@/domain/roles";
@@ -14,7 +14,7 @@ interface Bundle {
 }
 
 declare global {
-  var __uniiverseProficiencyCache: { loadedAt: number; bundles: Map<string, Bundle> } | undefined;
+  var __uniiverseProficiencyCache: { loadedAt: number; bundles: Map<string, Bundle>; building: Map<string, { promise: Promise<Bundle>; since: number }> } | undefined;
 }
 
 const TTL_MS = 5 * 60_000;
@@ -63,14 +63,27 @@ async function buildBundle(db: Db, ownerIds: string[]): Promise<Bundle> {
 export async function getProficiencyLookup(db: Db, playerIds: string[]): Promise<ProficiencyLookup & { hasData: (ownerId: string) => boolean }> {
   const key = [...playerIds].sort().join(",");
   // Installed before the build, so an invalidation during it (which drops the global) shows.
-  const cache = (globalThis.__uniiverseProficiencyCache ??= { loadedAt: Date.now(), bundles: new Map() });
+  const cache = (globalThis.__uniiverseProficiencyCache ??= { loadedAt: Date.now(), bundles: new Map(), building: new Map() });
   if (Date.now() - cache.loadedAt > TTL_MS) {
     cache.bundles.clear();
     cache.loadedAt = Date.now();
   }
   let bundle = cache.bundles.get(key);
   if (!bundle) {
-    bundle = await buildBundle(db, playerIds);
+    // Readers that arrive together share one build (it reads every account's history and
+    // mastery): the builds belong to this cache, so a reader after a drop never joins a build
+    // started before it; and, as cachedFor's loads, a build is joined for INFLIGHT_JOIN_MS only,
+    // so one that never settles (a query on a socket the host dropped) holds nobody after that.
+    let build = cache.building.get(key);
+    if (!build || Date.now() - build.since >= INFLIGHT_JOIN_MS) {
+      const entry = { since: Date.now() } as { promise: Promise<Bundle>; since: number };
+      entry.promise = buildBundle(db, playerIds).finally(() => {
+        if (cache.building.get(key) === entry) cache.building.delete(key);
+      });
+      cache.building.set(key, entry);
+      build = entry;
+    }
+    bundle = await build.promise;
     // Kept only if the cache was not dropped while it was built (a sync, a new account, an
     // erasure): putting the old cache back would undo that, and this bundle may have been read
     // before the change. It still answers this lookup.

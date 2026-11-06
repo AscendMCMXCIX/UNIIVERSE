@@ -1,4 +1,4 @@
-import { and, eq, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, lt, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { dataRefreshStatus, jobRuns } from "@/server/db/schema";
 
@@ -133,6 +133,21 @@ export async function closeInterruptedRuns(db: Db, { job, startedBefore, at = ne
  * already, before the next run or the integrity job records it. A job killed on every run is
  * therefore reported like one that fails on every run.
  */
+/**
+ * How long run records are kept: 60 days. What reads them looks back far less (Admin → Data
+ * health's last 40 runs, the rank audit's 21 days, the two-day freshness digest), and a run's
+ * summary or error can name an account, so they are not kept for good (docs/PRIVACY.md).
+ */
+export const JOB_RUN_KEEP_MS = 60 * 86_400_000;
+
+/** Deletes run records older than JOB_RUN_KEEP_MS, a bounded batch a call (the daily integrity job). */
+export async function pruneJobRuns(db: Db, options: { now?: Date; limit?: number } = {}): Promise<number> {
+  const now = options.now ?? new Date();
+  const batch = db.select({ id: jobRuns.id }).from(jobRuns).where(lt(jobRuns.startedAt, new Date(now.getTime() - JOB_RUN_KEEP_MS))).limit(options.limit ?? 5000);
+  const rows = await db.delete(jobRuns).where(inArray(jobRuns.id, batch)).returning({ id: jobRuns.id });
+  return rows.length;
+}
+
 export function failuresInARow(s: { status: string; consecutiveFailures: number; lastStartedAt: Date | null }, now: number = Date.now()): number {
   if (s.status === "failed") return Math.max(1, s.consecutiveFailures);
   if (s.status !== "running") return 0;

@@ -18,6 +18,18 @@ export function parsePlatforms(spec: string | undefined, fallback: string[] = [D
 /** How long one Riot request may take before it is abandoned (and retried, when there is time). */
 export const RIOT_REQUEST_TIMEOUT_MS = 15_000;
 
+/**
+ * A request's path with the identifiers it names elided (a PUUID, a Riot ID), so an error message
+ * names nobody: the messages reach job logs, run summaries, the Data health page and the host's
+ * logs, which no erasure reaches. A match id stays: it names no one.
+ */
+export function routeLabel(path: string): string {
+  return path
+    .replace(/\/by-puuid\/[^/?]+/g, "/by-puuid/…")
+    .replace(/\/by-riot-id\/[^/?]+\/[^/?]+/g, "/by-riot-id/…")
+    .replace(/\?.*$/, "");
+}
+
 export class RiotApiError extends Error {
   constructor(
     message: string,
@@ -166,6 +178,7 @@ export class RiotApiClient {
     // time to try again, that failure is the answer, not a stop for time: Riot did fail.
     let failure: RiotApiError | null = null;
     const limiter = this.limiterFor(host);
+    const route = routeLabel(path);
     for (;;) {
       // Once the deadline has passed, no request starts (the limiter would still give a free slot):
       // whatever holds an account for this run lets go of it by the deadline plus one timeout.
@@ -173,7 +186,7 @@ export class RiotApiClient {
       // With a deadline, the wait for a slot (a 429's Retry-After included: it pauses the limiter)
       // is not started when it would end after the deadline.
       if (this.options.noWait && limiter.tryAcquire) {
-        if (!limiter.tryAcquire(this.limitShare)) throw new RiotApiError(`No room in the rate limits for ${path} now`, 429, true);
+        if (!limiter.tryAcquire(this.limitShare)) throw new RiotApiError(`No room in the rate limits for ${route} now`, 429, true);
       } else if (!(await limiter.acquire(this.limitShare, this.deadline))) throw failure ?? new RiotDeadlineError(host, "waiting for Riot's rate limits");
       this.requestCount += 1;
       this.requestsByHost.set(host, (this.requestsByHost.get(host) ?? 0) + 1);
@@ -188,7 +201,7 @@ export class RiotApiClient {
         if (res.ok) text = await res.text();
       } catch (err) {
         clearTimeout(timer);
-        failure = new RiotApiError(`Network error calling ${path}: ${(err as Error).message}`, 0, true);
+        failure = new RiotApiError(`Network error calling ${route}: ${(err as Error).message}`, 0, true);
         // Out of retries, or no time left to back off before one: the failure itself is the answer.
         // It is Riot (or the network) failing, not the run running out of time, so callers record
         // it as such (an account waits as pending, the key's status says Riot is unavailable).
@@ -210,22 +223,32 @@ export class RiotApiClient {
         failure = null;
         const retryAfter = Number(res.headers.get("retry-after") ?? "2");
         limiter.pause(Number.isFinite(retryAfter) ? retryAfter : 2);
-        if (attempt++ >= this.maxRetries) throw new RiotApiError(`Rate limited on ${path}`, 429, true);
+        if (attempt++ >= this.maxRetries) throw new RiotApiError(`Rate limited on ${route}`, 429, true);
         continue;
       }
       if (res.status >= 500) {
         // As above: a failing Riot is reported as failing, even when there is no time left to retry.
-        failure = new RiotApiError(`Riot API ${res.status} on ${path}`, res.status, true);
+        failure = new RiotApiError(`Riot API ${res.status} on ${route}`, res.status, true);
         if (attempt++ >= this.maxRetries || !this.canWait(500 * 2 ** attempt)) throw failure;
         await this.sleep(500 * 2 ** attempt);
         continue;
       }
       if (!res.ok) {
-        throw new RiotApiError(`Riot API ${res.status} on ${path}`, res.status, false);
+        throw new RiotApiError(`Riot API ${res.status} on ${route}`, res.status, false);
       }
-      const json: unknown = JSON.parse(text ?? "");
+      let json: unknown;
+      try {
+        json = JSON.parse(text ?? "");
+      } catch (err) {
+        // A body that is not JSON (a proxy's error page in place of Riot's answer): a failed
+        // request like a network error, retried the same way, never a crash in the caller.
+        failure = new RiotApiError(`Unreadable answer from ${route}: ${(err as Error).message}`, 0, true);
+        if (attempt++ >= this.maxRetries || !this.canWait(500 * 2 ** attempt)) throw failure;
+        await this.sleep(500 * 2 ** attempt);
+        continue;
+      }
       const parsed = schema.safeParse(json);
-      if (!parsed.success) throw new RiotApiError(`Unexpected response shape on ${path}: ${parsed.error.issues[0]?.message ?? "schema mismatch"}`, res.status, false);
+      if (!parsed.success) throw new RiotApiError(`Unexpected response shape on ${route}: ${parsed.error.issues[0]?.message ?? "schema mismatch"}`, res.status, false);
       return parsed.data;
     }
   }
@@ -282,6 +305,29 @@ export class RiotApiClient {
     return this.get(platform, `/lol/league/v4/entries/by-puuid/${encodeURIComponent(puuid)}`, leagueEntriesSchema);
   }
 }
+
+/**
+ * How a run that reads one record at a time (the figures and timeline backfills, the account
+ * sync's catch-up of older games) treats a failed request for one record:
+ * - "stop": the run must stop, because every further request would fail the same way: the key
+ *   was refused (401, 403), the rate limit is full (429), Riot could not be reached (0) or the
+ *   run's deadline passed (RiotDeadlineError);
+ * - "unavailable": Riot no longer serves the record (404); it is marked so and never asked for again;
+ * - "skip": this one record could not be read: Riot answers 5xx for some games for good (a
+ *   corrupted game), or 400, or a body of an unexpected shape. The run goes on to the next record,
+ *   so one unreadable game never holds up every game behind it (newest first, it would stop every
+ *   run at the same place), and asks for it again on a later run. MAX_SKIPPED_RECORDS bounds how
+ *   many such requests a run spends, so an outage that fails every record stops the run as before.
+ */
+export function recordFailure(err: unknown): "stop" | "unavailable" | "skip" {
+  if (!(err instanceof RiotApiError) || err instanceof RiotDeadlineError) return "stop";
+  if (err.status === 401 || err.status === 403 || err.status === 429 || err.status === 0) return "stop";
+  if (err.status === 404) return "unavailable";
+  return "skip";
+}
+
+/** Records a run skips before it stops (see recordFailure). */
+export const MAX_SKIPPED_RECORDS = 3;
 
 /** Trims whitespace and stray quotes that sometimes come along when a key is pasted into a dashboard. */
 export function normaliseRiotKey(raw: string | undefined): string | null {

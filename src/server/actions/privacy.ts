@@ -1,6 +1,7 @@
 "use server";
 
 import { publicErrorMessage } from "@/server/errors";
+import { log } from "@/server/observability/log";
 import { revalidatePath } from "next/cache";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePermission } from "@/server/auth/session";
@@ -27,7 +28,12 @@ type Result<T = null> = { ok: true; data: T } | { ok: false; error: string };
 
 const fail = (err: unknown): Result<never> => {
   if (err instanceof UserError || (err as Error).name === "NotAuthorizedError") return { ok: false, error: (err as Error).message };
-  console.error(err);
+  // Never the raw error: a query's error carries its parameters, here the person's identifiers,
+  // which no erasure would reach in the host's logs. publicErrorMessage logs a database error's
+  // kind, code and statement without them; any other error (the app's own) is logged here by its
+  // kind and message, so a failed erasure always leaves a trace.
+  const shown = publicErrorMessage(err, "");
+  if (shown) log("error", "action.failed", { kind: typeof (err as { name?: unknown })?.name === "string" ? (err as Error).name : "unknown", message: shown.slice(0, 300) });
   return { ok: false, error: "Something went wrong. Nothing was changed. Please try again." };
 };
 

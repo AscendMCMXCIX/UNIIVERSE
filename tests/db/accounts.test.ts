@@ -545,3 +545,80 @@ describe("season history: gaps and games that cannot be stored", () => {
     }
   });
 });
+
+describe("account changes", () => {
+  const limiter = new RateLimiter([{ requests: 10_000, seconds: 1 }]);
+  const ledgerRows = async (accountId: string) => (await handle.db.select({ matchId: accountMatches.matchId }).from(accountMatches).where(eq(accountMatches.accountId, accountId))).length;
+
+  it("refuses a Riot ID that resolves to a PUUID another player already linked, leaving both players' rows and games as they were", async () => {
+    const db = handle.db;
+    const team = await getOrCreateTeam(db);
+    const x = await createPlayer(db, team.id, { displayName: "Owner X", primaryRole: "TOP", primaryPool: ["Gwen"] });
+    const y = await createPlayer(db, team.id, { displayName: "Player Y", primaryRole: "MID", primaryPool: ["Ahri"] });
+    const now = Date.now();
+    const games = { OC1_X1: { champion: "Gwen", role: "TOP", win: true, queue: 420, created: now - 86_400_000 }, OC1_X2: { champion: "Gwen", role: "TOP", win: false, queue: 440, created: now - 2 * 86_400_000 } };
+    // The fake resolves every Riot ID to X's PUUID: what Riot answers when Y types X's account under its new name.
+    const riot = () => new RiotApiClient({ apiKey: "k", fetchImpl: fakeFetch("puuid-main-x", games), limiter, sleep: async () => {} });
+    const mine = await addAccount(db, { ownerType: "player", playerId: x.id, riotId: "Owner X#OCE", platform: "oc1" });
+    expect((await syncAccount(db, riot(), mine)).status).toBe("ok");
+    expect(await ledgerRows(mine.id)).toBe(2);
+
+    const other = await addAccount(db, { ownerType: "player", playerId: y.id, riotId: "Other#OCE", platform: "oc1" });
+    const r = await syncAccount(db, riot(), other);
+    expect(r.status).toBe("failed");
+    expect(r.error).toMatch(/already linked to another player/);
+    expect(r.error).toMatch(/Owner X#OCE/);
+    expect(r.resolved).toBe(false);
+    // Y's row keeps no PUUID (the identity stays X's), with the reason; X's account and its games are untouched.
+    const stored = (await listAccountsForPlayer(db, y.id))[0]!;
+    expect(stored).toMatchObject({ puuid: null, puuidResolvedAt: null, syncStatus: "failed", syncError: r.error });
+    expect((await listAccountsForPlayer(db, x.id))[0]).toMatchObject({ puuid: "puuid-main-x", syncStatus: "ok" });
+    expect(await ledgerRows(mine.id)).toBe(2);
+  });
+
+  it("treats a 400 for the stored PUUID as a Riot key change: the id is forgotten and resolved again from the Riot ID, the games kept", async () => {
+    const db = handle.db;
+    const team = await getOrCreateTeam(db);
+    const player = await createPlayer(db, team.id, { displayName: "Key Change", primaryRole: "MID", primaryPool: ["Ahri"] });
+    const account = await addAccount(db, { ownerType: "player", playerId: player.id, riotId: "Key Change#OCE", platform: "oc1" });
+    const now = Date.now();
+    const games = {
+      OC1_KC1: { champion: "Ahri", role: "MIDDLE", win: true, queue: 420, created: now - 86_400_000 },
+      OC1_KC2: { champion: "Ahri", role: "MIDDLE", win: false, queue: 420, created: now - 2 * 86_400_000 },
+      OC1_KC3: { champion: "Orianna", role: "MIDDLE", win: true, queue: 440, created: now - 3 * 86_400_000 },
+    };
+    const healthy = fakeFetch("puuid-key-change", games);
+    const client = (fetchImpl: typeof healthy) => new RiotApiClient({ apiKey: "k", fetchImpl, limiter, sleep: async () => {} });
+    expect(await syncAccount(db, client(healthy), account)).toMatchObject({ status: "ok", resolved: true, matchesFolded: 3 });
+    let stored = (await listAccountsForPlayer(db, player.id))[0]!;
+    expect(stored).toMatchObject({ puuid: "puuid-key-change", platformSource: "riot", syncStatus: "ok" });
+    expect(await ledgerRows(account.id)).toBe(3);
+
+    // Riot after a key change: PUUIDs are encrypted per key, so every request carrying the stored
+    // one is a 400. The Riot ID check, the rank and the mastery each swallow theirs; the match-ids
+    // request's 400 is the one that ends the run.
+    const calls: string[] = [];
+    const keyChanged = async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input);
+      calls.push(url);
+      if (!url.includes("puuid-key-change")) return healthy(input);
+      return new Response(JSON.stringify({ status: { message: "Bad Request - Exception Decrypting puuid-key-change", status_code: 400 } }), { status: 400, headers: { "content-type": "application/json" } });
+    };
+    const r = await syncAccount(db, client(keyChanged), stored);
+    expect(r).toMatchObject({ resolved: false, status: "pending", matchesFolded: 0 });
+    expect(r.error).toMatch(/key changed/i);
+    expect(calls.some((u) => u.includes("/ids?"))).toBe(true);
+    expect(calls.some((u) => /\/matches\/OC1_/.test(u))).toBe(false);
+    stored = (await listAccountsForPlayer(db, player.id))[0]!;
+    expect(stored).toMatchObject({ puuid: null, puuidResolvedAt: null, platformSource: "user", syncStatus: "pending", syncError: r.error });
+    expect(await ledgerRows(account.id)).toBe(3);
+
+    // The next run resolves the Riot ID again (here to the same id): the same row, its games intact, nothing fetched again.
+    expect(await syncAccount(db, client(healthy), stored)).toMatchObject({ status: "ok", resolved: true, matchesFolded: 0, matchesFetched: 0 });
+    const accounts = await listAccountsForPlayer(db, player.id);
+    expect(accounts).toHaveLength(1);
+    expect(accounts[0]).toMatchObject({ id: account.id, puuid: "puuid-key-change", platformSource: "riot", syncStatus: "ok" });
+    expect(accounts[0]!.puuidResolvedAt).not.toBeNull();
+    expect(await ledgerRows(account.id)).toBe(3);
+  });
+});
