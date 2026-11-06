@@ -224,6 +224,21 @@ Phones keep the top bar, the five-tab bar and the account sheet (MOBILE.md). The
 `chrome` ink automatically. Their mode switch keeps its bordered button: in the sheet it sits among
 large rows with nothing else to set it apart.
 
+With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shell):
+
+- **Pinned section tabs (tablets and desktops).** Team's, a profile's and Platform Settings'
+  section tabs stay pinned at the top of the page once it has scrolled past them. They sit under
+  the tablet's top bar (`--bar-top`) and at the window's edge beside the sidebar, 2.8125rem tall.
+  - While pinned (`data-stuck`, set by `TabBar`), the row is frame, not content: the frame's ink
+    (`chrome` at 90%) blurred like the phone top bar. At rest it is plain, part of the page, so
+    "no blur on content" (§3) holds.
+  - Anything pinned under it (All Champions' column headings) offsets by `--tabs-top`.
+  - Nothing is pinned in a window under 481px tall.
+- **Tablet drawer.** It is a native `<dialog>`: it keeps focus inside, the page behind it cannot
+  be used, and closing it returns focus to the menu button.
+- **The installed app on a tablet.** It shows Back in the top bar, as phones do, because the
+  installed app has no browser Back.
+
 ## 8. Brand assets (white label)
 
 The installation's logo, colours and art come from Branding (Admin → Branding) and are never written
