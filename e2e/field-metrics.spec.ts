@@ -29,9 +29,12 @@ test("a page load is counted by page group and device class, and System Health s
   expect(Object.keys(beacon).sort()).toEqual(["device", "metrics", "page"]);
   expect(Object.keys(beacon.metrics).length).toBeGreaterThan(0);
   for (const [name, bucket] of Object.entries(beacon.metrics)) {
-    expect(["LCP", "CLS", "INP", "FCP", "TTFB"]).toContain(name);
+    expect(["LCP", "CLS", "INP", "FCP", "TTFB", "REDIRECT", "SERVER"]).toContain(name);
     expect(Number.isInteger(bucket)).toBe(true);
   }
+  // Opened directly: the request's own time, and no redirect.
+  expect(beacon.metrics.SERVER).toEqual(expect.any(Number));
+  expect(beacon.metrics.REDIRECT).toBeUndefined();
   await context.close();
 
   await page.goto("/admin/system");
@@ -61,5 +64,29 @@ test("pages outside the app send nothing", async ({ browser }, info) => {
   });
   await guest.waitForTimeout(500);
   expect(sent).toEqual([]);
+  await context.close();
+});
+
+test("opening the app at its start page reports the redirect as part of TTFB", async ({ browser }, info) => {
+  test.skip(info.project.name !== "desktop", "runs once");
+  const context = await browser.newContext();
+  const tab = await context.newPage();
+  const sent: string[] = [];
+  tab.on("request", (r) => {
+    if (new URL(r.url()).pathname === "/api/vitals") sent.push(r.postData() ?? "");
+  });
+  // "/" looks up the session and redirects to the account's start page, as the installed app does.
+  await tab.goto("/");
+  await expect.poll(() => new URL(tab.url()).pathname).not.toBe("/");
+  await expect(tab.getByRole("heading", { level: 1 })).toBeVisible();
+  await tab.waitForLoadState("load");
+  await tab.evaluate(() => {
+    Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await expect.poll(() => sent.length).toBeGreaterThan(0);
+  const beacon = JSON.parse(sent[0]!) as { metrics: Record<string, number> };
+  expect(beacon.metrics.REDIRECT).toEqual(expect.any(Number));
+  expect(beacon.metrics.SERVER).toEqual(expect.any(Number));
   await context.close();
 });

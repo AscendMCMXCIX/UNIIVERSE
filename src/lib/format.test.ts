@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import path from "node:path";
 import { ESLint } from "eslint";
-import { DISPLAY_TIME_ZONE, calendarDay, formatCompactCount, formatCount, formatDate, formatDateTime, formatDayMonth, formatIsoDay, formatKilo, formatNumber, formatTimeOfDay, isoDay, timeAgo, formatLpChange } from "./format";
+import { DISPLAY_TIME_ZONE, calendarDay, localPeriodStarts, formatCompactCount, formatCount, formatDate, formatDateTime, formatDayMonth, formatIsoDay, formatKilo, formatNumber, formatTimeOfDay, isoDay, timeAgo, formatLpChange } from "./format";
 
 /*
   Every date on the site is written in the installation's time zone (Sydney unless
@@ -117,3 +117,18 @@ describe("numbers", () => {
     expect(formatLpChange(0)).toBe("0 LP");
   });
 });
+
+describe("localPeriodStarts", () => {
+  it("gives each Sydney midnight in a stretch, daylight saving's start (4 Oct 2026) included", () => {
+    const H = 3_600_000;
+    expect(localPeriodStarts(Date.UTC(2026, 9, 2), Date.UTC(2026, 9, 6), "day")).toEqual([Date.UTC(2026, 9, 2, 14), Date.UTC(2026, 9, 3, 14), Date.UTC(2026, 9, 4, 13), Date.UTC(2026, 9, 5, 13)]);
+    expect(localPeriodStarts(Date.UTC(2026, 9, 2, 14), Date.UTC(2026, 9, 2, 14) + 23 * H, "day")).toEqual([]);
+  });
+
+  it("gives each Sydney month start, and labels read as the day they mark", () => {
+    const starts = localPeriodStarts(Date.UTC(2026, 8, 15), Date.UTC(2026, 10, 15), "month");
+    expect(starts).toEqual([Date.UTC(2026, 8, 30, 14), Date.UTC(2026, 9, 31, 13)]);
+    expect(starts.map((s) => formatDayMonth(s))).toEqual(["1 Oct", "1 Nov"]);
+  });
+});
+
