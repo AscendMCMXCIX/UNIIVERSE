@@ -120,11 +120,11 @@ describe("a player's version", () => {
       await db.execute(sql`UPDATE app_settings SET updated_at = now() - interval '2 minutes' WHERE key = ${accountLease}`);
       expect((await playerFreshness(db, playerId)).v).toBe(free.v);
       await db.execute(sql`DELETE FROM app_settings WHERE key = ${accountLease}`);
-      // The last slice could not move the history (it recorded progress: false): no slice every two
-      // minutes; the next visit or data change starts one. One that moved it on carries on.
-      await db.execute(sql`UPDATE app_settings SET value = '{"progress": false}'::jsonb WHERE key = ${lease}`);
+      // The last slice read the account and could not move it (listed as stuck): no slice every two
+      // minutes; the next visit or data change starts one. An account it did not list carries on.
+      await db.execute(sql`UPDATE app_settings SET value = jsonb_build_object('stuck', jsonb_build_array(${accountId}::text)) WHERE key = ${lease}`);
       expect((await playerFreshness(db, playerId)).v).toBe(held.v);
-      await db.execute(sql`UPDATE app_settings SET value = '{"progress": true}'::jsonb WHERE key = ${lease}`);
+      await db.execute(sql`UPDATE app_settings SET value = '{"stuck": []}'::jsonb WHERE key = ${lease}`);
       expect((await playerFreshness(db, playerId)).v).toBe(free.v);
       // A complete history: the lease running out moves nothing (a profile left open never renders again for it).
       await db.update(riotAccounts).set({ historyBackfill: { season: 16, startedAt: new Date().toISOString(), completedAt: new Date().toISOString(), queues: { "420": { offset: 20, done: true } } } }).where(eq(riotAccounts.id, accountId));

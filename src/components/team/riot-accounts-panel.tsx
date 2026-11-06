@@ -83,6 +83,9 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
     const a = r.data;
     if (a.puuid && a.syncStatus === "ok") toast.success(`${a.riotId} linked and synced.`, { description: platformLabel(a.platform) });
     else if (a.syncStatus === "failed" || a.syncStatus === "unresolved") toast.error(a.syncError ?? "Riot could not verify that account.");
+    // Riot confirmed it and its first sync stopped for time (a busy minute): the row says it is
+    // confirmed, so the message must not say "pending" (the next sync carries on).
+    else if (a.puuid && a.syncStatus === "never" && !a.syncError) toast.success(`${a.riotId} linked.`, { description: "Riot confirmed this account; its games follow with the next sync." });
     else toast.info(`${a.riotId} saved.`, { description: riotConfigured ? (a.syncError ?? "Verification with Riot is pending and retried automatically.") : "It will be verified once Riot data is available." });
     router.refresh();
   };

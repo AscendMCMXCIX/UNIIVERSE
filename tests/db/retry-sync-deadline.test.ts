@@ -33,7 +33,11 @@ const riot = async (input: string | URL | Request): Promise<Response> => {
   started.push(Date.now());
   await new Promise((r) => setTimeout(r, DELAY_MS));
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-  if (url.includes("/riot/account/v1/accounts/by-riot-id/")) return json({ puuid: "p-slow", gameName: "Slow", tagLine: "OCE" });
+  // Each Riot ID its own account (the same PUUID twice would stop the second at the duplicate check).
+  if (url.includes("/riot/account/v1/accounts/by-riot-id/")) {
+    const name = decodeURIComponent(url.split("/by-riot-id/")[1]!.split("/")[0]!);
+    return json({ puuid: `p-${name}`, gameName: name, tagLine: "OCE" });
+  }
   if (url.includes("/riot/account/v1/accounts/by-puuid/")) return json({ puuid: "p-slow", gameName: "Slow", tagLine: "OCE" });
   if (url.includes("/riot/account/v1/region/by-game/lol/by-puuid/")) return json({ puuid: "p-slow", game: "lol", region: "oc1" });
   if (url.includes("/ids?")) return json(["OC1_1", "OC1_2"]);
@@ -87,5 +91,10 @@ describe("Retry sync on the Riot accounts tab", () => {
     expect(started.length).toBeGreaterThan(0);
     expect(Math.max(...started) - t0).toBeLessThan(BUDGET_MS + 50);
     expect(took).toBeLessThan(BUDGET_MS + DELAY_MS + 500);
+    // Stopped for time, not failed: the account is linked and waits for the next sync.
+    if (!r.ok) throw new Error("expected the account");
+    expect(r.data.syncStatus).not.toBe("failed");
+    expect(r.data.syncStatus).not.toBe("unresolved");
+    expect(r.data.syncError).toBeNull();
   });
 });

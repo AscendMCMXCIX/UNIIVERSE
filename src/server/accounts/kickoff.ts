@@ -63,9 +63,9 @@ export const VIEW_REFRESH_BUDGET_MS = 40_000;
 
 /**
  * How far an account's season history has come, as one comparable figure per part: the queues'
- * offsets, the finished queues and whether the season is complete. A slice made progress when any
- * part grew or it folded a game; a history Riot holds at one game (a 5xx for good, a champion
- * still unknown) does not move, and the slice says so (below).
+ * offsets, the finished queues and whether the season is complete. An account moved on when any
+ * part grew or the slice folded a game for it; a history Riot holds at one game (a 5xx for good, a
+ * champion still unknown) does not move, and the slice lists it as stuck (below).
  */
 function historyReach(h: HistoryBackfill | null | undefined): number[] {
   if (!h) return [0, 0, 0];
@@ -86,10 +86,11 @@ const reached = (before: number[], after: number[]) => after.some((v, i) => v > 
  * (server/ops/freshness.ts) also changes once the lease is over while an account is still adding
  * this season's history, so the open page renders again and starts the next slice. A new account
  * therefore fills in while its profile stays open, and the scheduler (every run until the season
- * history is complete) does the rest. Only after a slice that moved the history on: each slice
- * records in its lease whether it did (`progress`), and a history that does not move (a game Riot
+ * history is complete) does the rest. Not for an account the last slice read and could not move:
+ * each slice records those in its lease (`stuck`), and a history that does not move (a game Riot
  * answers 5xx for every time) gets one slice per visit or data change, as before, not one every
- * two minutes for as long as the page stays open.
+ * two minutes for as long as the page stays open. An account the slice did not try (another sync
+ * held it, or the slice ran out of time first) is never listed, so it carries on once it is free.
  */
 export async function refreshPlayerAccountsIfDue(db: Db, playerId: string, options: { deadlineMs?: number; maxMatchesPerRun?: number } = {}): Promise<number> {
   if (!backgroundRefreshEnabled()) return 0;
@@ -106,8 +107,11 @@ export async function refreshPlayerAccountsIfDue(db: Db, playerId: string, optio
     if (due.length === 0 || !(await claimLease(db, sliceKey, VIEW_REFRESH_LEASE_MS, now))) return 0;
     let synced = 0;
     let started = 0;
-    let progress = false;
     const reachBefore = new Map(due.map((a) => [a.id, historyReach(a.historyBackfill)]));
+    // The accounts this slice read and the games each folded: only an account the slice actually
+    // read can be found stuck. One another sync held, one the slice did not reach for time, and one
+    // stopped for time before it read a list were not tried, so they are never marked stuck.
+    const read = new Map<string, number>();
     for (const account of due) {
       if (outOfTime()) break;
       // Another sync (the scheduler, a Refresh, the first sync) is on this account or just was.
@@ -119,17 +123,16 @@ export async function refreshPlayerAccountsIfDue(db: Db, playerId: string, optio
       const r = await syncAccount(db, client, account, { maxMatchesPerRun: options.maxMatchesPerRun ?? 60, outOfTime });
       // An account whose sync stopped for time before it read anything was not synced.
       if (!r.outOfTime || r.matchesFolded > 0 || r.masteryRows > 0) synced += 1;
-      if (r.matchesFolded > 0) progress = true;
+      if (!r.outOfTime || r.listsRead) read.set(account.id, r.matchesFolded);
       if (r.outOfTime) break;
     }
     if (started > 0) {
-      if (!progress) {
-        const after = await listAccountsForPlayer(db, playerId);
-        progress = after.some((a) => reachBefore.has(a.id) && reached(reachBefore.get(a.id)!, historyReach(a.historyBackfill)));
-      }
+      // Stuck: read, nothing folded, and its history no further on (a game Riot answers 5xx for).
+      const after = read.size > 0 ? await listAccountsForPlayer(db, playerId) : [];
+      const stuck = after.filter((a) => read.has(a.id) && read.get(a.id) === 0 && !reached(reachBefore.get(a.id) ?? [0, 0, 0], historyReach(a.historyBackfill))).map((a) => a.id);
       // Kept with the lease (its time unchanged, so claims and give-backs work as before): the
-      // player's version (server/ops/freshness.ts) carries on by itself only after a slice that did.
-      await db.execute(sql`UPDATE app_settings SET value = jsonb_build_object('at', ${now.toISOString()}::text, 'progress', ${progress}::boolean) WHERE key = ${sliceKey} AND updated_at = ${now.toISOString()}::timestamptz`);
+      // player's version (server/ops/freshness.ts) carries an account on by itself unless it is listed here.
+      await db.execute(sql`UPDATE app_settings SET value = jsonb_build_object('at', ${now.toISOString()}::text, 'stuck', ${JSON.stringify(stuck)}::jsonb) WHERE key = ${sliceKey} AND updated_at = ${now.toISOString()}::timestamptz`);
     }
     // Every due account was held by another sync (the first sync right after sign-up, say): this
     // slice did nothing, so the next render may start one at once instead of two minutes later.

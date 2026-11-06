@@ -44,7 +44,7 @@ interface PlayerAccountRow {
  * after the page is sent when an account is due, so the page should ask again soon.
  */
 export async function playerFreshness(db: Db, playerId: string, { now = new Date(), visit = false }: { now?: Date; visit?: boolean } = {}): Promise<Freshness> {
-  const [row] = rowsOf<{ profile: string | null; pools: string | null; accounts: PlayerAccountRow[] | null; games: unknown; ranks: unknown; mastery: string | number | null; timelines: unknown; lookups: string | null; lease: string | null; slice: { progress?: boolean } | string | null; account_leases: Record<string, string> | null }>(
+  const [row] = rowsOf<{ profile: string | null; pools: string | null; accounts: PlayerAccountRow[] | null; games: unknown; ranks: unknown; mastery: string | number | null; timelines: unknown; lookups: string | null; lease: string | null; slice: { stuck?: unknown } | string | null; account_leases: Record<string, string> | null }>(
     await db.execute(sql`
       WITH acc AS (SELECT id FROM riot_accounts WHERE player_id = ${playerId} AND owner_type = 'player')
       SELECT
@@ -67,7 +67,7 @@ export async function playerFreshness(db: Db, playerId: string, { now = new Date
         -- Opponents' ranks shown in Match History, stored when someone opens a game (any player's: rare, and one value).
         (SELECT max(observed_at) FROM last_known_ranks WHERE source = 'match lookup') AS lookups,
         (SELECT updated_at FROM app_settings WHERE key = ${viewRefreshLeaseKey(playerId)}) AS lease,
-        -- What the last view's slice recorded (accounts/kickoff.ts): whether it moved the history on.
+        -- What the last view's slice recorded (accounts/kickoff.ts): the accounts it read and could not move.
         (SELECT value FROM app_settings WHERE key = ${viewRefreshLeaseKey(playerId)}) AS slice,
         -- When each account was last claimed by a sync (the scheduler, a Refresh, Retry sync, a slice).
         (SELECT json_object_agg(key, updated_at) FROM app_settings WHERE key IN (SELECT 'account_sync:' || id::text FROM acc)) AS account_leases`),
@@ -85,16 +85,16 @@ export async function playerFreshness(db: Db, playerId: string, { now = new Date
   // The next slice of an account still adding this season's history could start now: no view's
   // slice holds the player (the last one gave its lease back, or its two minutes ran out), no other
   // sync holds the account (the scheduler, a Refresh, Retry sync: SCHEDULED_SYNC_LEASE_MS), and the
-  // last slice moved the history on. It is part of the version, so a page left open on the
-  // profile renders again, and that render starts the slice: the history fills in while the page
-  // is watched, not one slice per visit. Never for a complete profile, and never for a history the
-  // last slice could not move (a game Riot answers 5xx for every time): those wait for a visit or
-  // a data change, as before, instead of a slice every two minutes.
+  // last slice did not read it without moving it on. It is part of the version, so a page left open
+  // on the profile renders again, and that render starts the slice: the history fills in while the
+  // page is watched, not one slice per visit. Never for a complete profile, and never for an
+  // account the last slice could not move (a game Riot answers 5xx for every time): it waits for a
+  // visit or a data change, as before, instead of a slice every two minutes.
   const accountLeases = row?.account_leases ?? {};
   const heldByAnotherSync = (accountId: string) => (time(accountLeases[accountSyncLeaseKey(accountId)]) ?? 0) > now.getTime() - SCHEDULED_SYNC_LEASE_MS;
-  const lastSliceMoved = !(row?.slice && typeof row.slice === "object" && row.slice.progress === false);
+  const stuck = new Set(row?.slice && typeof row.slice === "object" && Array.isArray(row.slice.stuck) ? (row.slice.stuck as unknown[]).map(String) : []);
   const sliceCanStart =
-    riotConfigured && backgroundRefreshEnabled() && !leaseHeld && lastSliceMoved && accounts.some((a, i) => states[i] === "syncing" && dueForViewRefresh(facts[i]!, now) && !heldByAnotherSync(a.id));
+    riotConfigured && backgroundRefreshEnabled() && !leaseHeld && accounts.some((a, i) => states[i] === "syncing" && dueForViewRefresh(facts[i]!, now) && !heldByAnotherSync(a.id) && !stuck.has(a.id));
   return {
     v: digest([row?.profile ?? null, row?.pools ?? null, accounts.map((a) => [a.id, a.sync_status, a.sync_error, time(a.last_sync_at), a.riot_id, a.history?.completedAt ?? null, a.rank]), row?.games, row?.ranks, Number(row?.mastery ?? 0), row?.timelines ?? null, time(row?.lookups), sliceCanStart]),
     pace,
