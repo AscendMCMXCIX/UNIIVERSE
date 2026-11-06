@@ -92,7 +92,7 @@ Finishing what is open comes before anything new.
 ## Outstanding, by impact
 
 **Needs the owner, most urgent first:**
-- **Backups (item 9): nothing needed.** Weekly backups resumed on 6 Nov; the passphrase passed the 32-character check.
+- **Backups (item 9): create the private backup repository** and add its two secrets (about 5 minutes; docs/BACKUPS.md, "Where backups are kept"). Backups keep running here meanwhile.
 - **The verification account (item 1),** the five-minute rank watch (item 2), #212's go-ahead (item 7).
 - **Smaller, any time (item 10):** a ruleset on `main`, deleting 187 merged branches, the Dependabot alert (item 8).
 
@@ -130,6 +130,7 @@ Finishing what is open comes before anything new.
    - **6 Nov, 06:30 UTC:** the Database backup workflow was disabled, because the owner wasn't sure the passphrase was strong. #231 makes `scripts/backup-db.sh` refuse a passphrase shorter than 32 characters before it reads anything, and the privacy notice now says the artifacts are public and encrypted.
    - **6 Nov, 09:03 UTC, with the owner's go-ahead:** the workflow was re-enabled and run by hand (run 42192124079 on b656abb). **The passphrase passed the 32-character check,** and the dump, the restore check and the encryption all passed, with #225's strongest key derivation (SHA-512, the maximum iteration count). The weekly schedule (Mondays, 02:43 UTC) runs again. This session can't write repository secrets, so a check of the passphrase's length was the way to settle it without the owner.
    - **Older copies:** the four from 21 Oct, 26 Oct, 2 Nov and 3 Nov, encrypted with gpg's default key derivation, were **deleted** on 6 Nov with the owner's confirmation. Kept: run 7 (`database-backup-42136432466`, 6 Nov, until 4 Dec), which #212 relies on, and the new run's copy. A copy downloaded before then can't be recalled, and the 32+ character passphrase protects it.
+   - **Moving to a private repository (decided 6 Nov):** future backups go to the private repository `AscendMCMXCIX/uniiverse-backups`, so they can't be downloaded publicly. Its two workflows are ready and linted (`docs/backup-repository/`; docs/BACKUPS.md, "Where backups are kept"). **Waiting on the owner:** create the repository, add its two secrets and give the session access. Sessions can't create repositories or write secrets. The weekly backup here keeps running until the first private one has passed. Then a PR removes it here, and the published copies expire on their own.
    - **Still advisable, when convenient:** a passphrase from a password manager's generator, used nowhere else (docs/BACKUPS.md, "Rotating the passphrase"). Length is the one property the script can check.
 10. **Smaller public-repository items** (from the 6 Nov public-exposure audit, which found no secret in any of the 237 branches, the PR bodies or their 235 comments; every key-shaped string is a test dummy):
     - **No ruleset protects `main`.** The owner's setting. CLAUDE.md's rules are the protection meanwhile.

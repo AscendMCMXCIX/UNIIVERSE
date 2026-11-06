@@ -1,0 +1,49 @@
+# Daily: fails, and opens one issue labelled database-backup, when no Database backup run in THIS
+# repository has passed within the last 8 days (the weekly run should keep it under 8). The next
+# day it passes again, it closes the issue. It replaces the check the public UNIIVERSE Production
+# check made while the backups ran there. A private repository's schedules are not switched off
+# after 60 days without activity, as a public repository's are. About 1 private Actions minute a day.
+# Source of this file: UNIIVERSE docs/backup-repository/ (docs/BACKUPS.md, "Where backups are kept").
+name: Backup age
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+
+jobs:
+  age:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # Only the issue reporter is needed from the public UNIIVERSE repository.
+      - uses: actions/checkout@v7
+        with:
+          repository: AscendMCMXCIX/UNIIVERSE
+          ref: main
+          persist-credentials: false
+          sparse-checkout: scripts/report-issue.sh
+          sparse-checkout-cone-mode: false
+      - name: Newest passed backup
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          at="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow backup.yml --status success --limit 1 --json createdAt --jq '.[0].createdAt // empty')"
+          if [ -z "$at" ]; then
+            msg="No Database backup run has passed in this repository yet."
+          else
+            age=$(( ( $(date -u +%s) - $(date -u -d "$at" +%s) ) / 86400 ))
+            echo "The newest database backup that passed is $age days old ($at)." >> "$GITHUB_STEP_SUMMARY"
+            if [ "$age" -le 8 ]; then scripts/report-issue.sh database-backup "Database backup needs attention" ok; exit 0; fi
+            msg="The newest database backup that passed is $age days old ($at); the weekly run should keep it under 8."
+          fi
+          printf '%s\n\n%s\n' "$msg ($RUN_URL)" "Actions → Database backup: run it by hand, and read the failed run's log if there is one." > issue.md
+          scripts/report-issue.sh database-backup "Database backup needs attention" fail issue.md
+          echo "::error::$msg"
+          exit 1
