@@ -101,6 +101,21 @@ test("Records & achievements: season records open their game, multikills rarest 
   const key = (m: number[]) => m[0]! * 1e6 + m[1]! * 1e3 + m[2]!;
   for (let i = 1; i < multis.length; i++) expect(key(multis[i]!)).toBeLessThanOrEqual(key(multis[i - 1]!));
   await expect(page.getByTestId("milestones-mastery").getByTestId("milestone-member").first()).toBeVisible();
+  // A member's name on the multikills table keeps a line's room at every width: whole words, at most
+  // two lines, never a letter a line (on phones the member takes the row's first line, the figures the second).
+  await page.evaluate(() => document.fonts.ready);
+  const names = await page.getByTestId("multikill-row").evaluateAll((rows) =>
+    rows.map((row) => {
+      const name = row.querySelector<HTMLElement>("[data-testid=card-name]")!;
+      const box = name.getBoundingClientRect();
+      return { name: name.textContent, width: box.width, lines: Math.round(box.height / parseFloat(getComputedStyle(name).lineHeight)), inside: box.right <= row.getBoundingClientRect().right + 0.5 };
+    }),
+  );
+  for (const n of names) {
+    expect(n.width, `${n.name}: room for a name`).toBeGreaterThanOrEqual(80);
+    expect(n.lines, `${n.name}: at most two lines`).toBeLessThanOrEqual(2);
+    expect(n.inside, `${n.name}: inside its row`).toBe(true);
+  }
   await noOverflow(page);
   await axe(page, "[data-testid=records]");
   // A record opens its game in the holder's Match History (under its card, or in the match window).
