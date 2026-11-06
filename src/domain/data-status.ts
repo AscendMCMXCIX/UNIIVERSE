@@ -69,8 +69,8 @@ export interface DataStatusFacts {
   season?: { complete: boolean; label: string; detail: string } | null;
   /** Multikill counts over this page's games. */
   multikills?: MultikillSummary | null;
-  /** Games of this page with and without Riot's full record (KDA, CS, damage, vision). */
-  details?: { games: number; detailed: number } | null;
+  /** Games of this page with and without Riot's full record (KDA, CS, damage, vision); `unavailable`: games whose record Riot no longer serves, which will never have one. */
+  details?: { games: number; detailed: number; unavailable?: number } | null;
   /** Games without a recorded position, left out of a role's figures. */
   unknownRole?: number;
   /** Anything else on the page that is still being collected (Match History: a page's items and runes). */
@@ -112,8 +112,14 @@ export function dataStatus(f: DataStatusFacts): DataStatus {
   }
   const d = f.details;
   if (d && d.games > 0 && d.detailed < d.games) {
-    const missing = d.games - d.detailed;
-    parts.push({ key: "details", state: "partial", label: `Kills, KDA, CS, damage and vision from ${n(d.detailed)} of ${games(d.games)}`, detail: `Riot's full record of ${missing === 1 ? "1 older game is" : `${n(missing)} older games are`} still being collected; the results already count.` });
+    // Games still to collect are said to be; games Riot no longer serves are said to be, so a
+    // figure from some of the games never promises the rest when they will never come.
+    const unavailable = Math.min(d.unavailable ?? 0, d.games - d.detailed);
+    const pending = d.games - d.detailed - unavailable;
+    const notes: string[] = [];
+    if (pending > 0) notes.push(`Riot's full record of ${pending === 1 ? "1 older game is" : `${n(pending)} older games are`} still being collected; the results already count.`);
+    if (unavailable > 0) notes.push(`Riot no longer provides the record${unavailable === 1 ? "" : "s"} of ${games(unavailable)}, so ${unavailable === 1 ? "its" : "their"} figures are left out; the results still count.`);
+    parts.push({ key: "details", state: "partial", label: `Kills, KDA, CS, damage and vision from ${n(d.detailed)} of ${games(d.games)}`, detail: notes.join(" ") });
   }
   for (const note of f.notes ?? []) parts.push({ key: "note", state: "partial", label: note.label, detail: note.detail });
   if (f.unknownRole && f.unknownRole > 0) parts.push({ key: "positions", state: "partial", label: `${games(f.unknownRole)} without a recorded position left out of this role`, detail: "Riot recorded no position for these games, so they cannot count for a role. They still count with no role chosen." });

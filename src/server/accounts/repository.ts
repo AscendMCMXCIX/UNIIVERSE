@@ -41,6 +41,28 @@ export interface RiotAccountRecord {
   createdAt: Date;
 }
 
+/**
+ * What a page or a server action sends to the browser in place of a linked account's PUUID. The
+ * PUUID is Riot's permanent id for the player and stays on the server (docs/RIOT_COMPLIANCE.md);
+ * the browser only needs to know whether one is known (the account's sync state and the server
+ * shown beside it depend on that).
+ */
+export const PUUID_KEPT_ON_SERVER = "kept-on-server";
+
+/** A linked account as it may leave the server: everything the account panel shows, never the PUUID. */
+export function accountForBrowser(account: RiotAccountRecord): RiotAccountRecord {
+  return { ...account, puuid: account.puuid ? PUUID_KEPT_ON_SERVER : null };
+}
+
+/**
+ * A linked account without its rank (tier, division, LP, ranked wins and losses, queue and when it
+ * was read), for a viewer who may not see this player's statistics (canViewPlayerStats): the panel
+ * then shows no rank, rather than one that reads as unranked.
+ */
+export function withoutRank(account: RiotAccountRecord): RiotAccountRecord {
+  return { ...account, tier: null, division: null, leaguePoints: null, rankedWins: null, rankedLosses: null, rankUpdatedAt: null, rankQueue: null };
+}
+
 export class AccountError extends Error {}
 
 function toRecord(row: typeof riotAccounts.$inferSelect): RiotAccountRecord {

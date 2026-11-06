@@ -1,7 +1,7 @@
 import { inArray, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountMatches, champions, matchDetails } from "@/server/db/schema";
-import { RiotApiError, type RiotApiClient } from "@/server/riot/api/client";
+import { MAX_SKIPPED_RECORDS, recordFailure, RiotApiError, RiotDeadlineError, type RiotApiClient } from "@/server/riot/api/client";
 import { FIRST_SEASON } from "@/domain/season";
 import { erasureFilter } from "@/server/privacy/ledger";
 import { matchDetailRow } from "./match-details";
@@ -27,6 +27,9 @@ import { seasonListStart } from "./sync";
 type Row = Record<string, unknown>;
 const rows = (r: unknown): Row[] => ((r as { rows?: Row[] }).rows ?? (r as Row[])) as Row[];
 
+/** Why a run stopped, for the job summary (no match id, no URL: the log line has those). */
+export const describeStop = (err: unknown): string => (err instanceof RiotApiError ? `Riot answered ${err.status || "with an error"}` : "a network error");
+
 /** Marks games as checked: their record has no figures, now or ever. */
 const CHECKED = sql`'{}'::jsonb`;
 
@@ -45,7 +48,7 @@ export async function figuresCoverage(db: Db): Promise<{ games: number; withFigu
     await db.execute(sql`
       SELECT count(*) AS games,
         count(*) FILTER (WHERE am.extra_stats->>'doubleKills' IS NOT NULL) AS with_figures,
-        count(*) FILTER (WHERE am.extra_stats IS NOT NULL AND am.extra_stats->>'doubleKills' IS NULL) AS unavailable
+        count(*) FILTER (WHERE (am.extra_stats IS NOT NULL AND am.extra_stats->>'doubleKills' IS NULL) OR (am.extra_stats IS NULL AND am.kills < 0)) AS unavailable
       FROM account_matches am
       JOIN riot_accounts a ON a.id = am.account_id AND a.owner_type = 'player'
       WHERE am.champion_id IS NOT NULL AND am.game_creation >= ${since}`),
@@ -64,7 +67,7 @@ export async function pendingFiguresForPlayer(db: Db, playerId: string): Promise
       SELECT count(DISTINCT am.match_id) AS pending
       FROM account_matches am
       JOIN riot_accounts a ON a.id = am.account_id AND a.owner_type = 'player' AND a.player_id = ${playerId}
-      WHERE am.champion_id IS NOT NULL AND am.extra_stats IS NULL AND am.game_creation >= ${since}`),
+      WHERE am.champion_id IS NOT NULL AND am.extra_stats IS NULL AND coalesce(am.kills, 0) >= 0 AND am.game_creation >= ${since}`),
   );
   return Number(r?.pending ?? 0);
 }
@@ -73,6 +76,8 @@ export interface FiguresBackfillResult {
   fetched: number;
   /** Records Riot no longer provides (or never had the figures): marked, not asked for again. */
   unavailable: number;
+  /** Records Riot could not serve this run (by match id): passed over, asked for again next time (recordFailure). */
+  skipped: string[];
   /** Why the run stopped early, if it did (a refusal, an error, the time budget). */
   stoppedBy: string | null;
 }
@@ -82,13 +87,16 @@ export interface FiguresBackfillResult {
  * the deadline or the first refusal. With `playerId`, only that player's games (a profile's Refresh).
  */
 export async function backfillFigures(db: Db, client: RiotApiClient, options: { limit: number; deadline: number; playerId?: string; log?: (m: string) => void }): Promise<FiguresBackfillResult> {
-  const result: FiguresBackfillResult = { fetched: 0, unavailable: 0, stoppedBy: null };
+  const result: FiguresBackfillResult = { fetched: 0, unavailable: 0, skipped: [], stoppedBy: null };
   if (options.limit <= 0) return result;
-  // A game whose stored record is itself marked unavailable (no players) has nothing to ask for.
+  // A game whose stored record is itself marked unavailable (no players) has nothing to ask for;
+  // nor has a ledger row the sync marked kills = -1 (Riot no longer serves the game) before it
+  // also stored the unavailable record.
   await db.execute(sql`
     UPDATE account_matches am SET extra_stats = ${CHECKED}
     FROM match_details d
     WHERE d.match_id = am.match_id AND am.extra_stats IS NULL AND am.champion_id IS NOT NULL AND ${NO_PLAYERS}`);
+  await db.execute(sql`UPDATE account_matches SET extra_stats = ${CHECKED} WHERE extra_stats IS NULL AND champion_id IS NOT NULL AND kills < 0`);
   const since = (await seasonListStart(db, FIRST_SEASON)) * 1000;
   const due = rows(
     await db.execute(sql`
@@ -113,26 +121,40 @@ export async function backfillFigures(db: Db, client: RiotApiClient, options: { 
     }
     const matchId = String(r.match_id);
     const platform = String(r.platform);
+    let match;
     try {
-      const row = matchDetailRow(platform, await client.match(platform, matchId), keyToId, erased);
-      // A record with a "Removed player" keeps its players as they are: a fresh copy from Riot
-      // never brings an erased player back, even one the erasure records no longer recognise.
-      await db
-        .update(matchDetails)
-        .set({ teams: row.teams, participants: sql`CASE WHEN ${matchDetails.participants} @> '[{"removed": true}]'::jsonb THEN ${matchDetails.participants} ELSE ${JSON.stringify(row.participants)}::jsonb END`, gameVersion: row.gameVersion })
-        .where(sql`${matchDetails.matchId} = ${matchId}`);
-      refreshed.push(matchId);
-      result.fetched += 1;
+      match = await client.match(platform, matchId);
     } catch (err) {
-      if (err instanceof RiotApiError && err.status === 404) {
+      if (err instanceof RiotDeadlineError) {
+        // The client's deadline: Riot's rate limits would have kept the request waiting past the
+        // run's budget. The same stop as the time check above, nothing marked.
+        result.stoppedBy = "time budget";
+        break;
+      }
+      const kind = recordFailure(err);
+      if (kind === "unavailable") {
         checked.push(matchId);
         result.unavailable += 1;
         continue;
       }
-      result.stoppedBy = err instanceof RiotApiError ? `Riot answered ${err.status || "with an error"}` : "a network error";
       options.log?.(`${matchId}: ${(err as Error).message}`);
+      // A record Riot cannot serve right now: passed over, a few a run, asked for again next time.
+      if (kind === "skip" && result.skipped.length < MAX_SKIPPED_RECORDS) {
+        result.skipped.push(matchId);
+        continue;
+      }
+      result.stoppedBy = kind === "skip" ? `${MAX_SKIPPED_RECORDS} records could not be read` : describeStop(err);
       break;
     }
+    const row = matchDetailRow(platform, match, keyToId, erased);
+    // A record with a "Removed player" keeps its players as they are: a fresh copy from Riot
+    // never brings an erased player back, even one the erasure records no longer recognise.
+    await db
+      .update(matchDetails)
+      .set({ teams: row.teams, participants: sql`CASE WHEN ${matchDetails.participants} @> '[{"removed": true}]'::jsonb THEN ${matchDetails.participants} ELSE ${JSON.stringify(row.participants)}::jsonb END`, gameVersion: row.gameVersion })
+      .where(sql`${matchDetails.matchId} = ${matchId}`);
+    refreshed.push(matchId);
+    result.fetched += 1;
   }
   await erased.remember(db);
   // Each refreshed game's summary is copied again from its new record (one pass for the run).

@@ -174,14 +174,14 @@ Use the shared component before writing a new one (`src/components/ui`):
 | Page title, eyebrow, actions | `PageHeader` |
 | A titled section | `Panel`, `PanelHeader`, `PanelBody`, `SectionLabel` |
 | A figure with its label and explanation | `Metric`, `MetricLabel`, `InfoTip` |
-| A game in a list of games (Match History, Team → Matches) | Opens under its card: `MatchExpansion` (`match-history/inline-match.tsx`), one game at a time, `?match=` in the address. The match window is only for where a list cannot open it in place (inside another window, or a link to a game not on the page) |
+| A game in a list of games (Match History, Team → Matches) | Opens under its card: `MatchExpansion` (`match-history/inline-match.tsx`), one game at a time, `?match=` in the address. The match window is only for where a list cannot open it in place (inside another window, or a link to a game not on the page), and on phones, where the game takes the whole screen as a new history entry, so Back closes it ([MOBILE.md](MOBILE.md)) |
 | A record opened from a list (a player met in Encounters) | The page that already lists its data, filtered to it, with a way back (Encounters opens a player's games in Match History: `match-history/encounter-games.tsx`), never a second window that repeats that page |
 | Details over the page (a match, a player, a champion) | `DetailModal` (the standard size fits its content up to the screen's height); a custom `header` keeps clear of the close button's corner with `CLEAR_OF_CONTROLS` (content beside it) or `BELOW_CONTROLS` (content that starts under it), never a fixed padding |
 | A question or a short form | `Dialog`, `ConfirmDialog` |
 | Choices in a list | `Menu`, `MenuItem`, `MenuLink` |
-| Filters | `FilterBar`, `RefineButton`, `FilterField`, `SearchInput`, `ToggleChip` |
+| Filters | `FilterBar`, `RefineButton`, `FilterField`, `SearchInput`, `ToggleChip`. On phones the bar folds to a Filters button that opens a sheet, with what is narrowed as removable chips beside it (`chips`) |
 | One choice out of a few that filters what a page shows (a role, a side, a sort) | `segmentedGroupClass` with `segmentClass` (`size: "md"` for a list's main filter, as Encounters' All, Against and Alongside), `RoleSegmented`. Never to move between views or pages |
-| A page's sections (primary) | `TabBar`: a profile's Overview, All Champions, Match History and Riot Accounts; Team's sections |
+| A page's sections (primary) | `TabBar`: a profile's Overview, All Champions, Match History and Riot Accounts; Team's sections. On phones Team's sections are the bottom tab bar and a profile's ride in the top bar (`ProfileTabs variant="chrome"`) |
 | Equal views of one section, or related pages (secondary) | `SubTabs` (`ui/sub-tabs.tsx`): links with `aria-current`, directly under the primary tabs, in the section title's place (`SectionHeader`'s `nav`): Match History's Games and Encounters. `SubNav` when the path decides the current one (Admin's Users & Permissions) |
 | Views inside one panel (a game's Scoreboard, Analysis, Timeline and Build; a champion's views) | `role="tablist"` buttons with `tabIndicatorClass` |
 | Tabs that filter one list | `TabLinks`, only where it is today (Leaderboards' categories, Admin's audit categories), until those pages are redesigned |
@@ -224,7 +224,9 @@ ones lazily, and keep uploaded brand images small ([HOSTING_USAGE.md](HOSTING_US
 ## Responsive and accessible
 
 - Layouts follow [RESPONSIVE.md](RESPONSIVE.md): Tailwind's breakpoints, the `short:` variant for
-  phones held sideways, safe areas, nothing wider than the screen from 320px up.
+  phones held sideways, safe areas, nothing wider than the screen from 320px up. Phones have their
+  own frame and patterns ([MOBILE.md](MOBILE.md)): the bottom tab bar, a top bar with Back and the
+  page's title, filters in a sheet, lists as rows, games opened over the whole screen.
 - Targets are at least 24px everywhere and 44px on touch screens (`pointer-coarse:`,
   `touch-target`, `Button` does it).
 - Focus: every element the keyboard reaches shows the same accent ring (`:focus-visible` in

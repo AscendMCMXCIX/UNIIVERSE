@@ -51,7 +51,8 @@ const intText = (v: number | null) => (v === null ? "—" : formatCount(v));
 const decText = (v: number | null, digits = 1) => (v === null ? "—" : v.toFixed(digits));
 
 export interface RankProps {
-  rankOf: (x: DetailParticipant) => ParticipantRank;
+  /** Null: a team member whose statistics this viewer may not see (players/game-audience); no badge at all. */
+  rankOf: (x: DetailParticipant) => ParticipantRank | null;
   queueId: number | null;
   /** The rank check is still answering. */
   checking: boolean;
@@ -171,8 +172,8 @@ function RankBadge({ rank, queueId, checking }: { rank: ParticipantRank; queueId
  * away from it (the clock), and the state of a rank check that could not ask for every player. What
  * a rank is, and is not, is in its (i).
  */
-export function RanksNote({ ranks, queueId, checking, result }: { ranks: ParticipantRank[]; queueId: number | null; checking: boolean; result: MatchRanksResult | null }) {
-  const { around, away } = rankTimingCounts(ranks);
+export function RanksNote({ ranks, queueId, checking, result }: { ranks: ReadonlyArray<ParticipantRank | null>; queueId: number | null; checking: boolean; result: MatchRanksResult | null }) {
+  const { around, away } = rankTimingCounts(ranks.filter((r): r is ParticipantRank => r !== null));
   const check = result?.status === "ok" ? result.check : null;
   const status = checking
     ? "Checking ranks with Riot…"
@@ -331,7 +332,7 @@ function MetChip({ met, href }: { met: MatchMeeting; href: string }) {
   );
 }
 
-function ParticipantRow({ x, champ, maxDamage, group, lane, rank, queueId, checking, met, meetHref }: { x: DetailParticipant; champ: (id: string | null) => PortraitChampion; maxDamage: number; group: { index: number; label: string } | null; lane: boolean; rank: ParticipantRank; queueId: number | null; checking: boolean; met: MatchMeeting | null; meetHref: ((key: string) => string) | null }) {
+function ParticipantRow({ x, champ, maxDamage, group, lane, rank, queueId, checking, met, meetHref }: { x: DetailParticipant; champ: (id: string | null) => PortraitChampion; maxDamage: number; group: { index: number; label: string } | null; lane: boolean; rank: ParticipantRank | null; queueId: number | null; checking: boolean; met: MatchMeeting | null; meetHref: ((key: string) => string) | null }) {
   if (x.removed) return <RemovedRow />;
   const c = champ(x.championId);
   const kda = x.deaths === 0 ? "Perfect" : x.kda.toFixed(2);
@@ -372,7 +373,7 @@ function ParticipantRow({ x, champ, maxDamage, group, lane, rank, queueId, check
                 Lane
               </span>
             ) : null}
-            <RankBadge rank={rank} queueId={queueId} checking={checking && rank.stale} />
+            {rank ? <RankBadge rank={rank} queueId={queueId} checking={checking && rank.stale} /> : null}
           </span>
         </span>
       </span>

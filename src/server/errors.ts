@@ -14,6 +14,15 @@ export function publicErrorMessage(err: unknown, fallback = "Something went wron
   return fallback;
 }
 
+/**
+ * An error's message for a log line: a database driver's "Failed query: … params: …" without the
+ * parameters (which can hold a Riot ID or a PUUID); any other error's message as it is.
+ */
+export function errorLabel(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  return message.split(/\nparams:/)[0]!;
+}
+
 function isInternal(e: { name?: unknown; code?: unknown }, message: string): boolean {
   if (e.name === "DrizzleQueryError" || e.name === "PostgresError") return true;
   if (/^Failed query:/.test(message)) return true;

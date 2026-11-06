@@ -1,4 +1,5 @@
 import { expect, test } from "./test";
+import { listsAsRows, playerEntry } from "./players";
 
 /*
   Membership and setup are separate (demo roster, in-memory only): "Demo Newcomer" has chosen
@@ -10,14 +11,17 @@ import { expect, test } from "./test";
 test("members in setup are listed beside configured members and their profiles open with clear empty states", async ({ page }) => {
   await page.goto("/players");
   // Each card is a container with one link laid over it; the badges and texts are the container's.
-  const cards = page.locator("main [data-testid='player-card-item']");
+  // Phones list a row per player instead (one link), with the same badges.
+  const rows = listsAsRows(page);
+  const cards = page.locator(rows ? "main [data-testid='player-row']" : "main [data-testid='player-card-item']");
   await expect(cards.filter({ hasText: "Demo Top" })).toHaveCount(1);
   const newcomer = cards.filter({ hasText: "Demo Newcomer" });
   const halfway = cards.filter({ hasText: "Demo Halfway" });
   await expect(newcomer).toHaveCount(1);
   await expect(halfway).toHaveCount(1);
   await expect(newcomer.getByTestId("setup-incomplete")).toBeVisible();
-  await expect(newcomer.getByTestId("directory-no-roles")).toBeVisible();
+  if (rows) await expect(newcomer).toContainText("Roles not set");
+  else await expect(newcomer.getByTestId("directory-no-roles")).toBeVisible();
   await expect(cards.filter({ hasText: "Demo Top" }).getByTestId("setup-incomplete")).toHaveCount(0);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
@@ -51,8 +55,8 @@ test("a member with a role but unfinished setup is offered for that role; a memb
 test("Players are listed A to Z by display name, whatever their lineup role", async ({ page }) => {
   await page.goto("/players");
   // Read once shown: streamed content waits, hidden and outside main, until React reveals it.
-  await expect(page.locator("main a[data-testid='player-card']").first()).toBeVisible();
-  const names = await page.locator("main a[data-testid='player-card']").evaluateAll((cards) => cards.map((c) => c.getAttribute("data-player-name") ?? ""));
+  await expect(playerEntry(page).first()).toBeVisible();
+  const names = await playerEntry(page).evaluateAll((cards) => cards.map((c) => c.getAttribute("data-player-name") ?? ""));
   expect(names.length).toBeGreaterThan(3);
   // English collation, case and accents ignored, numbers as numbers (src/domain/display-name.ts).
   const collator = new Intl.Collator("en", { sensitivity: "base", numeric: true });

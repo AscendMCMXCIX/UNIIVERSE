@@ -1,19 +1,25 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, RotateCcw, SlidersHorizontal } from "lucide-react";
+import { RotateCcw, SlidersHorizontal, X } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
+import { Button } from "./button";
+import { DetailModal } from "./detail-modal";
+import { ScrollRow } from "./scroll-row";
 
 /*
   The one filter bar. Every list that can be narrowed (Players, a profile's statistics, Match
-  History, Leaderboards, Matches) behaves the same way:
+  History, Leaderboards, Matches, Resources) behaves the same way:
     - Search, when there is one, comes first and is never folded away.
     - From the breakpoint up, the filters sit inline on one row, 36px tall with a mouse and 44px on
       touch screens, labelled for screen readers (each control says what it holds: "All roles", "Any patch").
-    - Below it, they fold behind one full-width "Filters · what is chosen" button with a count of
-      narrowed filters, so the content starts on the first screen; opened, each filter gets a
-      visible label above it.
+    - Below it (phones), one compact "Filters" button with the count of narrowed filters, followed
+      by those filters as chips that remove themselves with a tap, so what is narrowed is always in
+      view and the content starts on the first screen. The button opens every filter in a sheet
+      from the bottom edge, within reach of the thumb, each with its visible label; Reset and Done
+      at its foot. The page's own line above says what is counted (the scope line), so the button
+      does not repeat it.
     - "Reset" appears only when something is narrowed and puts every filter back to its default.
     - Choices apply at once (no Apply button); the page shows a pending state meanwhile.
   Pages decide which filters they need; the bar decides how they look and behave.
@@ -43,6 +49,14 @@ const AT: Record<Breakpoint, { row: string; toggle: string; controls: string; se
 
 const FoldContext = React.createContext<Breakpoint>("md");
 
+/** A narrowed filter shown as a chip beside the folded Filters button: a tap removes it (clear) or follows its link (href). */
+export interface FilterChip {
+  key: string;
+  text: string;
+  clear?: () => void;
+  href?: string;
+}
+
 export function FilterBar({
   summary,
   activeCount = 0,
@@ -58,8 +72,10 @@ export function FilterBar({
   after,
   className,
   resetLabel = "Reset",
+  chips = [],
+  end,
 }: {
-  /** What is chosen, in a few words ("Season 2026 · All supported games"), shown on the folded button. */
+  /** What is chosen, in a few words ("Season 2026 · All supported games"): the sheet's subtitle, and read with the folded button. */
   summary: string;
   /** How many filters differ from their default: shown as a count, and enables Reset. */
   activeCount?: number;
@@ -67,7 +83,7 @@ export function FilterBar({
   resetHref?: string;
   /** A search box (SearchInput), kept visible at every size. */
   search?: React.ReactNode;
-  /** Below this breakpoint the filters fold behind the summary button. */
+  /** Below this breakpoint the filters fold behind the Filters button and its sheet. */
   foldBelow?: Breakpoint;
   /** Where the inline filters sit from the breakpoint up. */
   align?: "start" | "end";
@@ -75,67 +91,124 @@ export function FilterBar({
   testId?: string;
   toggleTestId?: string;
   children: React.ReactNode;
-  /** Shown under the bar at every size (e.g. removable chips for the active refinements). */
+  /** Shown under the bar at every size (e.g. removable chips for the active refinements on wide screens). */
   after?: React.ReactNode;
   className?: string;
   /** The reset action's wording ("Clear filters"). */
   resetLabel?: string;
+  /** The narrowed filters, as chips beside the folded button (phones). */
+  chips?: readonly FilterChip[];
+  /** Beside the folded button at the row's far end (phones): a page's own action, such as Bookmarked. */
+  end?: React.ReactNode;
 }) {
   const [open, setOpen] = React.useState(false);
   const id = React.useId();
   const at = AT[foldBelow];
-  const reset =
-    activeCount > 0 && (onReset || resetHref)
-      ? (() => {
-          const cls = "inline-flex min-h-11 items-center justify-center gap-1 rounded-md px-2 text-sm font-medium text-accent hover:bg-accent/10 md:pointer-fine:min-h-9";
-          const body = (
-            <>
-              <RotateCcw className="h-3.5 w-3.5" aria-hidden /> {resetLabel}
-            </>
-          );
-          return resetHref ? (
-            <Link href={resetHref} scroll={false} className={cls} data-testid="reset-filters">
-              {body}
-            </Link>
-          ) : (
-            <button type="button" onClick={onReset} className={cls} data-testid="reset-filters">
-              {body}
-            </button>
-          );
-        })()
-      : null;
+  const resetCls = "inline-flex min-h-11 items-center justify-center gap-1 rounded-md px-2 text-sm font-medium text-accent hover:bg-accent/10 md:pointer-fine:min-h-9";
+  const resetBody = (
+    <>
+      <RotateCcw className="h-3.5 w-3.5" aria-hidden /> {resetLabel}
+    </>
+  );
+  const reset = (inSheet: boolean) =>
+    activeCount > 0 && (onReset || resetHref) ? (
+      resetHref ? (
+        <Link href={resetHref} scroll={false} className={cn(resetCls, inSheet && "mr-auto")} data-testid="reset-filters" onClick={inSheet ? () => setOpen(false) : undefined}>
+          {resetBody}
+        </Link>
+      ) : (
+        <button type="button" onClick={onReset} className={cn(resetCls, inSheet && "mr-auto")} data-testid="reset-filters">
+          {resetBody}
+        </button>
+      )
+    ) : null;
+  const filtersButton = (
+    <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined} className={toolbarButtonClass(activeCount > 0, at.toggle)} data-testid={toggleTestId} data-filter-toggle="">
+      <SlidersHorizontal className="h-4 w-4 shrink-0 text-accent" aria-hidden />
+      Filters
+      <span className="sr-only">: {summary}</span>
+      {activeCount ? <span className="rounded-full bg-accent px-1.5 text-xs font-semibold tabular-nums text-bg">{activeCount}</span> : null}
+    </button>
+  );
   return (
     <FoldContext.Provider value={foldBelow}>
       <div className={cn("flex min-w-0 flex-col gap-2 transition-opacity motion-reduce:transition-none", pending && "opacity-60", className)} data-testid={testId} aria-busy={pending || undefined}>
         <div className={cn("flex min-w-0 flex-col gap-2", at.row, align === "end" && !search && "justify-end")}>
-          {search ? <div className={cn("w-full min-w-0", at.search)}>{search}</div> : null}
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            aria-expanded={open}
-            aria-controls={id}
-            className={cn("flex min-h-11 w-full items-center gap-2 rounded-md border bg-bg-elevated px-3 text-left text-sm transition-colors", open || activeCount ? "border-accent/60" : "border-border-control hover:border-fg-subtle", at.toggle)}
-            data-testid={toggleTestId}
-            data-filter-toggle=""
-          >
-            <SlidersHorizontal className="h-4 w-4 shrink-0 text-accent" aria-hidden />
-            <span className="min-w-0 flex-1 truncate">
-              <span className="font-medium text-fg">Filters</span>
-              <span className="text-fg-muted"> · {summary}</span>
-            </span>
-            {activeCount ? <span className="rounded-full bg-accent px-1.5 text-xs font-semibold tabular-nums text-bg">{activeCount}</span> : null}
-            <ChevronDown className={cn("h-4 w-4 shrink-0 text-fg-muted transition-transform motion-reduce:transition-none", open && "rotate-180")} aria-hidden />
-          </button>
-          <div id={id} className={cn("min-w-0 flex-col gap-3", open ? "flex rounded-panel border border-border bg-surface p-3" : "hidden", at.controls, foldBelow === "md" ? "md:gap-2 md:border-0 md:bg-transparent md:p-0" : "lg:gap-2 lg:border-0 lg:bg-transparent lg:p-0", align === "end" && (foldBelow === "md" ? "md:ml-auto md:justify-end" : "lg:ml-auto lg:justify-end"))} data-testid={testId ? `${testId}-controls` : undefined} data-filter-controls="">
-            {children}
-            {reset}
-          </div>
+          {/* Folded (phones): the search and Filters share the first row; what is narrowed follows as
+              chips, then the page's own action. From the breakpoint up the wrapper steps aside
+              (display: contents) and the search sits in the bar's row as before. */}
+          {search ? (
+            <div className={cn("flex min-w-0 items-center gap-2", foldBelow === "md" ? "md:contents" : "lg:contents")}>
+              <div className={cn("w-full min-w-0 flex-1", at.search)}>{search}</div>
+              {filtersButton}
+            </div>
+          ) : null}
+          {!search || chips.length > 0 || end ? (
+            <div className={cn("flex min-w-0 items-center gap-2", at.toggle)}>
+              {search ? null : filtersButton}
+              {chips.length ? (
+                <ScrollRow as="ul" className="-my-1 flex min-w-0 flex-1 gap-1.5 py-1" aria-label="Active filters" data-testid={testId ? `${testId}-chips` : undefined}>
+                  {chips.map((c) => (
+                    <li key={c.key} className="shrink-0">
+                      {c.href ? (
+                        <Link href={c.href} scroll={false} className={CHIP} aria-label={`${c.text}: remove this filter`}>
+                          {c.text} <X className="h-3 w-3 text-fg-subtle" aria-hidden />
+                        </Link>
+                      ) : (
+                        <button type="button" onClick={c.clear} className={CHIP} aria-label={`${c.text}: remove this filter`}>
+                          {c.text} <X className="h-3 w-3 text-fg-subtle" aria-hidden />
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ScrollRow>
+              ) : (
+                <span className="flex-1" />
+              )}
+              {end}
+            </div>
+          ) : null}
+          {/* Inline from the breakpoint up; while the sheet is open its fields live there instead (one copy of each field and its id). */}
+          {open ? null : (
+            <div className={cn("hidden min-w-0 flex-col gap-3", at.controls, foldBelow === "md" ? "md:gap-2" : "lg:gap-2", align === "end" && (foldBelow === "md" ? "md:ml-auto md:justify-end" : "lg:ml-auto lg:justify-end"))} data-testid={testId ? `${testId}-controls` : undefined} data-filter-controls="">
+              {children}
+              {reset(false)}
+            </div>
+          )}
         </div>
         {after}
+        {/* The sheet: a native dialog in the browser's top layer, so its place inside the bar changes
+            nothing on screen, and the bar's fields stay the bar's for whoever looks for them there. */}
+        {open ? (
+          <DetailModal
+            open
+            onClose={() => setOpen(false)}
+            size="sheet"
+            title="Filters"
+            description={summary}
+            testId={testId ? `${testId}-sheet` : "filter-sheet"}
+            closeTestId="filter-sheet-close"
+            footer={
+              <>
+                {reset(true)}
+                <Button variant="primary" onClick={() => setOpen(false)} className="min-w-24" data-testid="filter-sheet-done">
+                  Done
+                </Button>
+              </>
+            }
+          >
+            <div id={id} className={cn("flex min-w-0 flex-col gap-4 transition-opacity", pending && "opacity-60")} data-testid={testId ? `${testId}-controls` : undefined} data-filter-controls="" aria-busy={pending || undefined}>
+              {children}
+            </div>
+          </DetailModal>
+        ) : null}
       </div>
     </FoldContext.Provider>
   );
 }
+
+/** A narrowed filter beside the folded Filters button: a small pill with a finger-sized target. */
+const CHIP = "touch-target inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-full border border-accent/40 bg-accent/10 px-2.5 text-xs font-medium text-fg hover:border-accent/70";
 
 /**
  * The look of a button in a page's toolbar beside the filters (Refine, Refresh): the height of the

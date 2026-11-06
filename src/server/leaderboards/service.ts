@@ -97,7 +97,9 @@ export async function loadLeaderboardData(db: Db, teamId: string): Promise<Leade
     const pick = mine.find((a) => a.label === "main") ?? mine[0];
     return pick?.tier ? { tier: pick.tier, division: pick.division, leaguePoints: pick.leaguePoints ?? 0, queue: pick.rankQueue === "flex" ? "flex" : pick.rankQueue === "solo" ? "solo" : null } : null;
   };
-  const lastSync = accounts.reduce<number>((m, a) => Math.max(m, a.lastSyncAt?.getTime() ?? 0), 0);
+  // The newest successful read of a member account (sync_cursor is written on success only; a
+  // failed attempt also moves last_sync_at), demo accounts aside: never "updated" at a time nothing was read.
+  const lastSync = accounts.filter(isSyncableAccount).reduce<number>((m, a) => Math.max(m, (a.syncCursor ?? 0) * 1000), 0);
   const seasons = offeredSeasons(season, games.map((g) => seasonOfPatch(g.patch)));
   const extraSince = games.reduce<number | null>((m, g) => (g.extra && (m === null || g.gameCreation < m) ? g.gameCreation : m), null);
   return {

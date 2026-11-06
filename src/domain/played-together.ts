@@ -17,6 +17,12 @@ export interface TogetherRow {
   playerId: string;
   /** 100 or 200; null when the match details are not stored (side unknown). */
   teamId: number | null;
+  /**
+   * With teamId null: the stored record was looked at and holds no side for this player (Riot no
+   * longer serves the game), so the side will never be known; false or absent while the record is
+   * still to be stored.
+   */
+  recordChecked?: boolean;
   queueId: number | null;
   gameCreation: number;
   /** The game's season (from its patch); unknown in older fixtures. */
@@ -62,8 +68,9 @@ export const SOLO_DUO_QUEUE = 420;
  * Groups the members' stored games into games played together (newest first), and counts the
  * shared games that could not be checked because their side is unknown.
  */
-export function groupPlayedTogether(rows: readonly TogetherRow[], nameOf: (playerId: string) => string): { games: TogetherGame[]; unknownSide: number } {
-  // One row per member per game (two accounts of one person in one game: keep the first).
+export function groupPlayedTogether(rows: readonly TogetherRow[], nameOf: (playerId: string) => string): { games: TogetherGame[]; unknownSide: number; unavailableSide: number } {
+  // One row per member per game (two accounts of one person in one game: keep the first, which
+  // the server orders by account id, the same choice as the profile's own list: domain/season-stats dedupeGames).
   const byMatch = new Map<string, Map<string, TogetherRow>>();
   for (const r of rows) {
     const m = byMatch.get(r.matchId) ?? new Map<string, TogetherRow>();
@@ -72,11 +79,15 @@ export function groupPlayedTogether(rows: readonly TogetherRow[], nameOf: (playe
   }
   const games: TogetherGame[] = [];
   let unknownSide = 0;
+  let unavailableSide = 0;
   for (const [matchId, members] of byMatch) {
     if (members.size < 2) continue;
     const list = [...members.values()];
-    if (list.some((r) => r.teamId === null)) {
-      unknownSide += 1;
+    const unsided = list.filter((r) => r.teamId === null);
+    if (unsided.length) {
+      // Still to be checked once the record is stored, or never (Riot no longer serves the game).
+      if (unsided.every((r) => r.recordChecked)) unavailableSide += 1;
+      else unknownSide += 1;
       continue;
     }
     const sides = new Map<number, TogetherRow[]>();
@@ -90,7 +101,7 @@ export function groupPlayedTogether(rows: readonly TogetherRow[], nameOf: (playe
     }
   }
   games.sort((x, y) => y.gameCreation - x.gameCreation || x.matchId.localeCompare(y.matchId));
-  return { games, unknownSide };
+  return { games, unknownSide, unavailableSide };
 }
 
 /**

@@ -190,7 +190,7 @@ p a.text-accent {
   padding-left: max(calc(var(--spacing) * --value(integer)), env(safe-area-inset-left));
   padding-right: max(calc(var(--spacing) * --value(integer)), env(safe-area-inset-right));
 }
-/* Small inline text links ("Every Highlights statistic", a name in a list) keep
+/* Small inline text links ("Switch to Admin Mode", a name in a list) keep
    their look but get a finger-sized hit area on touch screens: an invisible box around the text, at
    least 44px tall, that does not move anything around it. */
 @utility touch-target {
@@ -205,20 +205,44 @@ p a.text-accent {
   }
 }
 
-/* Room under a phone page for the bottom tab bar; short windows have no tab bar, only the home
-   indicator's inset. From md up pages set their own padding (there is no tab bar there either). */
+/* Room under a phone page for the bottom tab bar (and the home indicator's inset); in short windows
+   the bar is a compact row that slides away while reading. From md up pages set their own padding
+   (there is no tab bar there). */
 @utility pb-tabbar {
   padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
   @media (max-height: 480px) {
-    padding-bottom: calc(1.25rem + env(safe-area-inset-bottom));
+    padding-bottom: calc(3.5rem + env(safe-area-inset-bottom));
   }
 }
 /* Where things pinned to the bottom of a phone screen sit (notifications, a sticky save bar):
-   just above the tab bar, or near the bottom edge in short windows. md: variants take over above. */
+   just above the tab bar; in short windows above its compact row, and near the bottom edge while
+   it has slid away (MobileNav marks the page with data-tabbar-hidden). md: variants take over above. */
 @utility bottom-tabbar {
   bottom: calc(4.5rem + env(safe-area-inset-bottom));
+  transition: bottom 200ms ease-out;
   @media (max-height: 480px) {
-    bottom: calc(0.75rem + env(safe-area-inset-bottom));
+    bottom: calc(3.5rem + env(safe-area-inset-bottom));
+    :root[data-tabbar-hidden] & {
+      bottom: calc(0.75rem + env(safe-area-inset-bottom));
+    }
+  }
+}
+
+/*
+  Below lg the top bar stays at the top of the screen (on phones with a profile's sections under
+  it) and on phones the tab bar at the bottom: whatever is scrolled into view (a link to a section,
+  a game brought up, the element the keyboard moves to) stops clear of both instead of under them
+  (WCAG 2.4.11). This is the bar's usual height, until MobileNav sets the measured one on the root
+  (useTopBarHeight).
+*/
+@media (max-width: 63.99rem) {
+  html {
+    scroll-padding-top: calc(3.5rem + env(safe-area-inset-top) + 0.5rem);
+  }
+}
+@media (max-width: 47.99rem) {
+  html {
+    scroll-padding-bottom: calc(4rem + env(safe-area-inset-bottom));
   }
 }
 

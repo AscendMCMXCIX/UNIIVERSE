@@ -4,6 +4,7 @@ import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { runJob } from "@/server/jobs";
+import { lastKnownRanks, matchDetails } from "@/server/db/schema";
 
 /* The database usage report lists table sizes and query statistics, holds no data values and changes nothing. */
 
@@ -39,17 +40,17 @@ describe("db-usage", () => {
     };
     const read = async () => ((await runJob(handle.db, "db-usage", "cli")).summary as { retired: Retired }).retired;
     const retired = await read();
-    expect(retired.tables).toHaveLength(28);
-    // The Meta & Trends, Draft and Clash Scout tables are gone (0062, 0063, 0064). What the retired
-    // Ranked Development kept stays until its own drop (its keys point only at each other, players
-    // and Riot accounts).
-    const kept = ["ranked_profiles", "ranked_blocks", "ranked_games", "development_objectives", "development_plans"];
+    expect(retired.tables).toHaveLength(34);
+    // 12 Meta & Trends tables, the Draft's and Clash Scout's are gone (0062, 0063, 0064). The rest of
+    // Meta & Trends (and the period tables' enum type) and what the retired Ranked Development kept
+    // stay until their own drop: their keys point only at each other, players and Riot accounts.
+    const kept = ["ranked_profiles", "ranked_blocks", "ranked_games", "development_objectives", "development_plans", "tracked_summoners", "region_status", "stat_periods", "stat_region_periods", "stat_rank_periods", "champion_change_points"];
     expect(retired.tables.filter((t) => !t.gone).map((t) => t.name).sort()).toEqual([...kept].sort());
     expect(retired.columns).toEqual([
       { name: "riot_accounts.opponent_player_id", gone: true },
       { name: "teams.engine_config", gone: true },
     ]);
-    expect(retired.enums.filter((e) => !e.gone)).toEqual([]);
+    expect(retired.enums.filter((e) => !e.gone)).toEqual([{ name: "stat_source", gone: false }]);
     expect(retired.opponentAccounts).toBe(0);
     expect(retired.dependents).toEqual({ foreignKeys: [], views: [], enumColumns: [], publications: [] });
 
@@ -70,5 +71,26 @@ describe("db-usage", () => {
       await handle.db.execute(sql`DROP TABLE drafts`);
       await handle.db.execute(sql`DROP TYPE competition_mode`);
     }
+  });
+
+  it("counts the last known ranks by source, and those of players no stored game names (counts only)", async () => {
+    const part = (puuid: string) => ({ puuid, riotId: "Hidden Name#TAG" }) as never;
+    await handle.db.insert(matchDetails).values({ matchId: "OC1_LKR", gameCreation: Date.now(), gameDuration: 1800, teams: [], participants: [part("in-game-lookup"), part("in-game-ladder")] });
+    const at = new Date();
+    await handle.db.insert(lastKnownRanks).values([
+      { puuid: "in-game-lookup", tier: "GOLD", division: "II", leaguePoints: 40, observedAt: at, source: "match lookup" },
+      { puuid: "in-game-ladder", tier: "MASTER", observedAt: at, source: "ranked ladder" },
+      { puuid: "ladder-only", tier: "DIAMOND", observedAt: at, source: "ranked ladder" },
+      { puuid: "scouted-only", tier: "SILVER", observedAt: at, source: "draft scouting" },
+    ]);
+    const summary = (await runJob(handle.db, "db-usage", "cli")).summary as { retired: { lastKnownRanks: Array<{ source: string; rows: number; notInAStoredGame: number }> } };
+    expect(summary.retired.lastKnownRanks).toEqual([
+      { source: "draft scouting", rows: 1, notInAStoredGame: 1 },
+      { source: "match lookup", rows: 1, notInAStoredGame: 0 },
+      { source: "ranked ladder", rows: 2, notInAStoredGame: 1 },
+    ]);
+    // Counts only: no PUUID or name leaves the database.
+    const text = JSON.stringify(summary);
+    for (const value of ["in-game-lookup", "ladder-only", "scouted-only", "Hidden Name"]) expect(text).not.toContain(value);
   });
 });

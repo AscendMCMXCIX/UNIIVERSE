@@ -55,8 +55,9 @@ describe("dueForViewRefresh", () => {
     expect(dueForViewRefresh({ syncStatus: "ok", syncError: null, lastSyncAt: m(5), puuid: "p", history: { completedAt: null, queues: {} } }, now)).toBe(true);
   });
 
-  it("never refreshes a demo account, nor a Riot ID Riot could not find", () => {
+  it("never refreshes a demo account, nor an account a person has to correct (a Riot ID Riot could not find, or one already linked)", () => {
     expect(dueForViewRefresh({ syncStatus: "demo", syncError: null, lastSyncAt: null, puuid: null }, now)).toBe(false);
     expect(dueForViewRefresh({ syncStatus: "unresolved", syncError: null, lastSyncAt: m(60), puuid: null }, now)).toBe(false);
+    expect(dueForViewRefresh({ syncStatus: "failed", syncError: "This is the same Riot account as Old#OCE, which is already linked.", lastSyncAt: m(60), puuid: null }, now)).toBe(false);
   });
 });

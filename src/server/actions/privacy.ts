@@ -1,6 +1,7 @@
 "use server";
 
 import { publicErrorMessage } from "@/server/errors";
+import { log } from "@/server/observability/log";
 import { revalidatePath } from "next/cache";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePermission } from "@/server/auth/session";
@@ -10,8 +11,7 @@ import { parseRiotId } from "@/server/accounts/repository";
 import { defaultPlatform } from "@/server/auth/signup";
 import { createVerificationClient } from "@/server/riot/verify-identity";
 import { RiotApiError } from "@/server/riot/api/client";
-import { clearLocalCaches, invalidateCache } from "@/server/observability/cache";
-import { invalidatePublicTeam } from "@/server/public/team";
+import { clearCachesAfterErasure } from "@/server/privacy/after-erasure";
 import { eraseSubject, formerMemberSubject, guardErasure, memberSubject, previewErasure, type ErasureCounts, type ErasurePreview, type ErasureSubject, type Mention } from "@/server/privacy/erasure";
 import { exportErasures, importErasures, listErasureRecords, parseErasureFile, releaseErasure, type ErasureExport, type ErasureRecordView } from "@/server/privacy/ledger";
 import { reconcileErasures, type ReconcileResult } from "@/server/privacy/reconcile";
@@ -28,16 +28,18 @@ type Result<T = null> = { ok: true; data: T } | { ok: false; error: string };
 
 const fail = (err: unknown): Result<never> => {
   if (err instanceof UserError || (err as Error).name === "NotAuthorizedError") return { ok: false, error: (err as Error).message };
-  console.error(err);
+  // Never the raw error: a query's error carries its parameters, here the person's identifiers,
+  // which no erasure would reach in the host's logs. publicErrorMessage logs a database error's
+  // kind, code and statement without them; any other error (the app's own) is logged here by its
+  // kind and message, so a failed erasure always leaves a trace.
+  const shown = publicErrorMessage(err, "");
+  if (shown) log("error", "action.failed", { kind: typeof (err as { name?: unknown })?.name === "string" ? (err as Error).name : "unknown", message: shown.slice(0, 300) });
   return { ok: false, error: "Something went wrong. Nothing was changed. Please try again." };
 };
 
 /** After an erasure every page, cache and public view must stop showing the person at once (other server instances follow within their cache times). */
 function afterErasure() {
-  invalidateCache("team");
-  invalidateCache("shell-facts");
-  invalidatePublicTeam();
-  clearLocalCaches();
+  clearCachesAfterErasure();
   revalidatePath("/", "layout");
 }
 

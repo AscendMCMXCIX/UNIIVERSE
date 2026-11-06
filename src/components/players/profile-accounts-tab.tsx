@@ -1,9 +1,9 @@
 import type { Db } from "@/server/db/types";
 import type { Session } from "@/server/auth/permissions";
-import { canManageRiotAccounts, hasPermission } from "@/server/auth/permissions";
+import { canManageRiotAccounts, canViewPlayerStats, hasPermission } from "@/server/auth/permissions";
 import { defaultPlatform } from "@/server/auth/signup";
 import { type ProfileHeaderData } from "@/server/players/profile-header";
-import { listAccountsForPlayer } from "@/server/accounts/repository";
+import { accountForBrowser, listAccountsForPlayer, withoutRank } from "@/server/accounts/repository";
 import { getMatchSyncStatus } from "@/server/accounts/refresh";
 import { dataStatus } from "@/domain/data-status";
 import { describeAccountSync } from "@/domain/account-status";
@@ -20,7 +20,7 @@ import { championMap, IdentitySync, refreshFor } from "./profile-sections";
 export async function ProfileAccountsTab(props: { db: Db; header: ProfileHeaderData; session: Session | null }) {
   return (
     <>
-      <IdentitySync header={props.header} />
+      <IdentitySync header={props.header} session={props.session} />
       <ProfileAccountsTabBody {...props} />
     </>
   );
@@ -30,6 +30,9 @@ async function ProfileAccountsTabBody({ db, header, session }: { db: Db; header:
   const player = header.player;
   const riotConfigured = !!process.env.RIOT_API_KEY;
   const dataAdmin = hasPermission(session, "manage-data");
+  // A teammate's ranks are a statistic: without "view teammates' statistics" the accounts reach the
+  // browser without them (withoutRank), as the header's rank does; one's own always.
+  const showRank = canViewPlayerStats(session, player.id);
   const [accounts, sync, report, championsById] = await Promise.all([
     listAccountsForPlayer(db, player.id),
     getMatchSyncStatus(db, player.id),
@@ -45,7 +48,7 @@ async function ProfileAccountsTabBody({ db, header, session }: { db: Db; header:
     <div className="space-y-5">
       <RiotAccountsPanel
         playerId={player.id}
-        accounts={accounts}
+        accounts={accounts.map((a) => (showRank ? accountForBrowser(a) : withoutRank(accountForBrowser(a))))}
         riotConfigured={riotConfigured}
         defaultPlatform={defaultPlatform()}
         editable={canManageRiotAccounts(session, player.id)}

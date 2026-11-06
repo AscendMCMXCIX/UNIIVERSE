@@ -18,7 +18,7 @@ import { cardArt, featurableChampions, isCardAccent, type CardAccent, type CardA
 import { cardLookFor, type CardLook } from "@/domain/card-style";
 import { visibleSocialLinks, type SocialLinks, type SocialLinkView } from "@/domain/social-links";
 import { rankChangesFor, type RankChange } from "@/server/accounts/rank-history";
-import { hasPermission, type Session } from "@/server/auth/permissions";
+import { canViewPlayerStats, type Session } from "@/server/auth/permissions";
 
 export interface RosterChampion {
   championId: string;
@@ -136,10 +136,12 @@ export async function getTeamRoster(db: Db, teamId: string, options: { statsFor?
     avatarUrlsByPlayer(db),
     // Read here and filtered on the server (rosterCard): a card carries only the links shown to team members.
     loadSocialLinks(db, [...overview.rows.flatMap((r) => (r.player ? [r.player.id] : [])), ...[...designated.values()].map((m) => m.id)]),
-    // Each player's season in the role they hold in the lineup (not their profile role); not loaded at all for hidden statistics.
-    Promise.all(overview.rows.map((r) => (r.player && statsFor(r.player.id) ? getPlayerOverview(db, r.player, { mode: "all", role: r.role, riotConfigured }).catch(() => null) : Promise.resolve(null)))),
+    // Each player's season in the role they hold in the lineup (not their profile role); not loaded
+    // at all for hidden statistics. A load that fails fails the page (its error boundary), never a
+    // card that says "No games this season" for a player who has them.
+    Promise.all(overview.rows.map((r) => (r.player && statsFor(r.player.id) ? getPlayerOverview(db, r.player, { mode: "all", role: r.role, riotConfigured }) : Promise.resolve(null)))),
     // A substitute's season in each role they cover, from one load of their games (same rule).
-    Promise.all([...benchRoles.values()].map(async ({ player, roles }) => [player.id, statsFor(player.id) ? await getPlayerOverview(db, player, { mode: "all", riotConfigured, roleSummaries: roles }).catch(() => null) : null] as const)).then((e) => new Map(e)),
+    Promise.all([...benchRoles.values()].map(async ({ player, roles }) => [player.id, statsFor(player.id) ? await getPlayerOverview(db, player, { mode: "all", riotConfigured, roleSummaries: roles }) : null] as const)).then((e) => new Map(e)),
   ]);
   // Rank history is part of a player's statistics: only for the players this viewer may see it for.
   const wanted = [
@@ -251,11 +253,11 @@ function rosterCard(p: PlayerRecord & PlayerProfile, role: Role, from: { season:
 
 /**
  * The roster as one signed-in person may see it: their own statistics always, teammates' only with
- * "view teammates' statistics". The Team page uses this, so the rule lives on the server.
+ * "view teammates' statistics" (canViewPlayerStats, the profile's rule too). The Team page uses
+ * this, so the rule lives on the server.
  */
 export function getTeamRosterForViewer(db: Db, teamId: string, session: Session) {
-  const seeStats = hasPermission(session, "view-teammate-stats");
-  return getTeamRoster(db, teamId, { statsFor: (id) => seeStats || id === session.playerId });
+  return getTeamRoster(db, teamId, { statsFor: (id) => canViewPlayerStats(session, id) });
 }
 
 /** A pool champion without any figures: the champion's identity is all a viewer without statistics access receives. */

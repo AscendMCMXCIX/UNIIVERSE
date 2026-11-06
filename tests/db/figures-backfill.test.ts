@@ -8,7 +8,7 @@ import { syncStaticData } from "@/server/riot/static/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { backfillFigures, figuresCoverage } from "@/server/accounts/figures-backfill";
 import { accountRows } from "@/server/accounts/account-rows";
-import { RiotApiClient } from "@/server/riot/api/client";
+import { RiotApiClient, type RiotClientOptions } from "@/server/riot/api/client";
 import { RateLimiter } from "@/server/riot/api/rate-limiter";
 import fixture from "@/server/riot/fixtures/champions.fixture.json";
 
@@ -60,7 +60,7 @@ function riotMatch(matchId: string, created: number) {
   return { metadata: { matchId, participants: participants.map((p) => p.puuid) }, info: { gameCreation: created, gameDuration: 1800, gameVersion: "16.11.1.1", queueId: 420, teams: [{ teamId: 100, win: true, bans: [], objectives: {} }, { teamId: 200, win: false, bans: [], objectives: {} }], participants } };
 }
 
-function client(calls: string[], refuse = false) {
+function client(calls: string[], refuse = false, options: Partial<RiotClientOptions> = {}) {
   const fetchImpl = async (input: string | URL | Request) => {
     const url = String(input);
     calls.push(url);
@@ -69,7 +69,7 @@ function client(calls: string[], refuse = false) {
     if (id === "OC1_FIGS" || id === "OC1_FIGS2") return new Response(JSON.stringify(riotMatch(id, IN_SEASON)), { status: 200, headers: { "content-type": "application/json" } });
     return new Response(JSON.stringify({ status: { message: "not found" } }), { status: 404, headers: { "content-type": "application/json" } });
   };
-  return new RiotApiClient({ apiKey: "k", fetchImpl, limiter: new RateLimiter([{ requests: 1000, seconds: 1 }]), sleep: async () => {} });
+  return new RiotApiClient({ apiKey: "k", fetchImpl, limiter: new RateLimiter([{ requests: 1000, seconds: 1 }]), sleep: async () => {}, ...options });
 }
 
 const row = async (matchId: string) => (await handle.db.select().from(accountMatches).where(eq(accountMatches.matchId, matchId)))[0]!;
@@ -116,12 +116,25 @@ describe("figures backfill", () => {
     expect((await row("OC1_UNAVAILABLE")).extraStats).toEqual({});
   });
 
+  it("stops for time, not as a refusal, when Riot's rate limits would keep the next request waiting past the deadline", async () => {
+    let t = Date.now();
+    const now = () => t;
+    const sleep = async (ms: number) => void (t += ms);
+    const limiter = new RateLimiter([{ requests: 100, seconds: 120 }], now, sleep);
+    limiter.pause(90);
+    const calls: string[] = [];
+    const run = await backfillFigures(handle.db, client(calls, false, { limiter, now, sleep, maxRetries: 0, deadline: t + 25_000 }), { limit: 10, deadline: t + 25_000 });
+    expect(run).toEqual({ fetched: 0, unavailable: 0, skipped: [], stoppedBy: "time budget" });
+    expect(calls).toHaveLength(0);
+    expect((await row("OC1_FIGS")).extraStats).toBeNull();
+  });
+
   it("fetches each Season 2026 game's record once, newest first, and copies its counts", async () => {
     // The account has since moved server: its old games are still asked for where they were played.
     await handle.db.update(riotAccounts).set({ platform: "euw1" }).where(eq(riotAccounts.id, account));
     const calls: string[] = [];
     const run = await backfillFigures(handle.db, client(calls), { limit: 2, deadline: Date.now() + 60_000 });
-    expect(run).toEqual({ fetched: 2, unavailable: 0, stoppedBy: null });
+    expect(run).toEqual({ fetched: 2, unavailable: 0, skipped: [], stoppedBy: null });
     expect(calls.map((u) => /\/matches\/([^/?]+)$/.exec(u)?.[1])).toEqual(["OC1_FIGS", "OC1_FIGS2"]);
     expect(calls[0]).toContain("sea.api.riotgames.com/lol/match/v5/matches/OC1_FIGS");
     expect(await row("OC1_FIGS")).toMatchObject({ extraStats: { doubleKills: 3, tripleKills: 1, quadraKills: 0, pentaKills: 1 } });
@@ -133,12 +146,12 @@ describe("figures backfill", () => {
   it("marks a record Riot no longer serves, and asks for nothing twice", async () => {
     const calls: string[] = [];
     const run = await backfillFigures(handle.db, client(calls), { limit: 10, deadline: Date.now() + 60_000 });
-    expect(run).toEqual({ fetched: 0, unavailable: 1, stoppedBy: null });
+    expect(run).toEqual({ fetched: 0, unavailable: 1, skipped: [], stoppedBy: null });
     expect(calls.map((u) => /\/matches\/([^/?]+)$/.exec(u)?.[1])).toEqual(["OC1_GONE"]);
     expect((await row("OC1_GONE")).extraStats).toEqual({});
     // Nothing left: another run asks Riot for nothing.
     const again: string[] = [];
-    expect(await backfillFigures(handle.db, client(again), { limit: 10, deadline: Date.now() + 60_000 })).toEqual({ fetched: 0, unavailable: 0, stoppedBy: null });
+    expect(await backfillFigures(handle.db, client(again), { limit: 10, deadline: Date.now() + 60_000 })).toEqual({ fetched: 0, unavailable: 0, skipped: [], stoppedBy: null });
     expect(again).toEqual([]);
   });
 

@@ -5,13 +5,22 @@ import { useSearchParams } from "next/navigation";
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { MatchDetailCacheContext, createMatchDetailCache, type MatchDetailCache } from "@/components/match-history/match-detail-cache";
 import { MatchExpansion, revealIfAbove, revealOpened } from "@/components/match-history/inline-match";
+import { isPhone, usePhone } from "@/components/ui/use-phone";
 import { cn } from "@/lib/cn";
+
+/**
+ * The match window, which only a phone opens from this list (wider screens open the game under its
+ * card): loaded on demand, so tablets and desktops never download it, and fetched ahead on a phone
+ * once the list is on screen, so the first game opens without waiting for it.
+ */
+const loadMatchWindow = () => import("@/components/match-history/match-detail");
+const MatchDetailModal = React.lazy(() => loadMatchWindow().then((m) => ({ default: m.MatchDetailModal })));
 
 /** Clicks on these inside a card do their own thing (a name, a bookmark). */
 const OWN_ACTION = "a, button, input, select, textarea, summary, label";
 
 interface TogetherOpen {
-  /** The open game's entry (match and side), or null. */
+  /** The game open under its card: its entry (match and side), or null (always null on a phone, where the game takes the whole screen). */
   open: string | null;
   toggle: (entry: string, matchId: string) => void;
   prefetch: (playerId: string, matchId: string) => void;
@@ -20,13 +29,18 @@ const TogetherOpenContext = React.createContext<TogetherOpen | null>(null);
 
 const domId = (entry: string) => `together-${entry.replace(/[^\w-]/g, "-")}`;
 
-/** The open game in the address, replacing the current entry (Back leaves the page, not the game). */
-function writeMatch(matchId: string | null) {
+/**
+ * The open game in the address: replacing the current entry under a card (Back leaves the page, not
+ * the game), a new entry on a phone, where the game takes the whole screen and Back closes it.
+ */
+function writeMatch(matchId: string | null, push = false) {
   const next = new URLSearchParams(window.location.search);
   if (matchId) next.set("match", matchId);
   else next.delete("match");
   // No state of our own: Next.js keeps its router in step with the new address (as Match History does).
-  window.history.replaceState(null, "", `${window.location.pathname}${next.size ? `?${next.toString()}` : ""}`);
+  const url = `${window.location.pathname}${next.size ? `?${next.toString()}` : ""}`;
+  if (push) window.history.pushState(null, "", url);
+  else window.history.replaceState(null, "", url);
 }
 
 /**
@@ -36,7 +50,7 @@ function writeMatch(matchId: string | null) {
  * address (?match=), so a link to it opens it here, and Back and Forward follow it. Details the
  * list has loaded are kept (MatchDetailCache) while it is shown.
  */
-export function TogetherList({ entries, className, children }: { entries: Array<{ entry: string; matchId: string }>; className?: string; children: React.ReactNode }) {
+export function TogetherList({ entries, championsById, className, children }: { entries: Array<{ entry: string; matchId: string; playerId: string }>; /** For a phone's whole-screen game. */ championsById: Record<string, PortraitChampion>; className?: string; children: React.ReactNode }) {
   // A link to a game (?match= on arrival): it opens under its card when listed, and is brought into view.
   const params = useSearchParams();
   const [arrival] = React.useState(() => {
@@ -55,9 +69,28 @@ export function TogetherList({ entries, className, children }: { entries: Array<
     const id = new URLSearchParams(window.location.search).get("match");
     return id ? (entriesRef.current.find((e) => e.matchId === id)?.entry ?? null) : null;
   }, []);
+  // A phone fetches the match window's code ahead, once the page is idle (it opens the games), so
+  // the first game opens at once without adding to the page's start.
+  React.useEffect(() => {
+    if (!isPhone()) return;
+    const load = () => void loadMatchWindow().catch(() => {});
+    // Safari has no requestIdleCallback.
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(load, { timeout: 4000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = window.setTimeout(load, 2000);
+    return () => window.clearTimeout(id);
+  }, []);
+  /** The entry this list added to the browser's history when a phone opened it. */
+  const pushed = React.useRef<string | null>(null);
   // Back and Forward follow the address: the game it names opens under its card when listed.
   React.useEffect(() => {
-    const onPop = () => setOpen(fromAddress());
+    const onPop = () => {
+      const entry = fromAddress();
+      if (pushed.current !== entry) pushed.current = null;
+      setOpen(entry);
+    };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, [fromAddress]);
@@ -70,28 +103,49 @@ export function TogetherList({ entries, className, children }: { entries: Array<
     const next = openRef.current === entry ? null : entry;
     setOpen(next);
     reveal.current = next;
-    writeMatch(next ? matchId : null);
+    const push = !!next && isPhone();
+    pushed.current = push ? next : null;
+    writeMatch(next ? matchId : null, push);
   }, []);
   const prefetch = React.useCallback((playerId: string, matchId: string) => void cache.load(playerId, matchId).catch(() => {}), [cache]);
   // A game the new filters no longer list is not open; one they still list stays open, and stays in
   // the address (the filters' links do not carry it).
   const shown = open && entries.some((e) => e.entry === open) ? open : null;
+  // Phones open a game as a whole screen of its own (the match window); Back closes it. Asked only
+  // while a game is open, so the list does not render twice on a phone once it has hydrated.
+  const phone = usePhone(shown !== null);
   React.useEffect(() => {
     const matchId = shown ? entries.find((e) => e.entry === shown)!.matchId : null;
     if (new URLSearchParams(window.location.search).get("match") !== matchId) writeMatch(matchId);
   }, [entries, shown]);
   React.useLayoutEffect(() => {
-    if (!shown || reveal.current !== shown) return;
+    if (!shown || reveal.current !== shown || phone) return;
     reveal.current = null;
     revealOpened(document.getElementById(domId(shown)));
-  }, [shown]);
-  const value = React.useMemo<TogetherOpen>(() => ({ open: shown, toggle, prefetch }), [shown, toggle, prefetch]);
+  }, [shown, phone]);
+  const value = React.useMemo<TogetherOpen>(() => ({ open: phone ? null : shown, toggle, prefetch }), [shown, phone, toggle, prefetch]);
+  const windowed = phone && shown ? entries.find((e) => e.entry === shown)! : null;
+  const closeWindow = () => {
+    // Opened from its card: closing is Back (the list follows the address). Opened by a link: no entry of ours to leave.
+    if (pushed.current && pushed.current === shown) {
+      pushed.current = null;
+      window.history.back();
+      return;
+    }
+    setOpen(null);
+    writeMatch(null);
+  };
   return (
     <MatchDetailCacheContext.Provider value={cache}>
       <TogetherOpenContext.Provider value={value}>
         <ol className={className} data-testid="together-list">
           {children}
         </ol>
+        {windowed ? (
+          <React.Suspense fallback={null}>
+            <MatchDetailModal playerId={windowed.playerId} matchId={windowed.matchId} championsById={championsById} onClose={closeWindow} />
+          </React.Suspense>
+        ) : null}
       </TogetherOpenContext.Provider>
     </MatchDetailCacheContext.Provider>
   );
@@ -114,7 +168,7 @@ export function TogetherCardFrame({ entry, playerId, matchId, championsById, lab
   const champ = React.useCallback((c: string | null): PortraitChampion => (c ? (championsById[c] ?? { id: c, name: c, portraitUrl: "" }) : { id: "unknown", name: "Unknown champion", portraitUrl: "" }), [championsById]);
   return (
     // group/together: the card's chevron turns while its game is open (TogetherCard).
-    <li id={id} className="group/together scroll-mt-16 lg:scroll-mt-3" data-expanded={expanded || undefined} {...data}>
+    <li id={id} className="group/together scroll-mt-0 lg:scroll-mt-3" data-expanded={expanded || undefined} {...data}>
       <div
         className={cn("group cursor-pointer", className, expanded && "rounded-b-none border-b-border/40")}
         onClick={(e) => {

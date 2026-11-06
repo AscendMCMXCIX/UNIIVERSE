@@ -68,6 +68,26 @@ describe("skin classification", () => {
     for (const n of [0, 4, 13, 60, 70]) expect((await rowOf(n)).kind).toBe("skin");
   });
 
+  it("gives up a splash check that does not answer in time and starts none after the deadline, leaving both for the next run", async () => {
+    // A Data Dragon that accepts the connection and then never answers (until the request is aborted).
+    const hanging = ((_input: string | URL | Request, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(init.signal!.reason));
+      })) as typeof fetch;
+    const started = Date.now();
+    expect(await checkSkinSplashes(handle.db, { fetchImpl: hanging, timeoutMs: 50 })).toEqual({ checked: 0, ok: 0, missing: 0 });
+    expect(Date.now() - started).toBeLessThan(5_000);
+    expect((await rowOf(4)).splashStatus).toBe("unknown");
+    // Past the job's deadline nothing is asked at all.
+    const calls: string[] = [];
+    const answering = (async (input: string | URL | Request) => {
+      calls.push(String(input));
+      return new Response(null, { status: 200 });
+    }) as typeof fetch;
+    expect(await checkSkinSplashes(handle.db, { fetchImpl: answering, deadline: Date.now() - 1 })).toEqual({ checked: 0, ok: 0, missing: 0 });
+    expect(calls).toEqual([]);
+  }, 10_000);
+
   it("checks each real skin's splash once, never the chromas", async () => {
     const result = await checkSkinSplashes(handle.db, { fetchImpl: splashFetch() });
     expect(result).toEqual({ checked: 5, ok: 4, missing: 1 });
@@ -94,6 +114,20 @@ describe("skin classification", () => {
     expect(result).toEqual({ checked: 1, ok: 1, missing: 0 });
     expect((await rowOf(70)).splashStatus).toBe("ok");
     await handle.db.update(championSkins).set({ splashStatus: "missing" }).where(and(eq(championSkins.championId, "Akali"), eq(championSkins.num, 70)));
+  });
+});
+
+describe("skins asked for by id", () => {
+  it("keeps an entry for a champion in the game and none for a made-up id, and answers both as before", async () => {
+    // Card Studio asks for any id that passes the action's pattern (listChampionSkinsAction).
+    invalidateCache("champions:skins");
+    const entries = () => [...(globalThis.__uniiverseCache?.keys() ?? [])].filter((k) => k.includes("champions:skins:"));
+    for (let i = 0; i < 50; i++) expect(await listSkins(handle.db, `MadeUp${i}`)).toEqual([{ num: 0, name: "Default" }]);
+    expect(entries()).toEqual([]);
+    const akali = await listSkins(handle.db, "Akali");
+    expect(akali.map((s) => s.num)).toEqual([0, 4, 13]);
+    expect(await listSkins(handle.db, "Akali")).toBe(akali); // the same array: read once, then kept
+    expect(entries()).toHaveLength(1);
   });
 });
 

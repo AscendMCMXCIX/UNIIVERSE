@@ -10,7 +10,7 @@ import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { BELOW_CONTROLS_ON_PHONES, CLEAR_OF_CONTROLS, DetailModal } from "@/components/ui/detail-modal";
 import { MatchDetailCacheContext } from "./match-detail-cache";
-import { fmtDuration } from "./match-history-view";
+import { fmtDuration } from "./match-format";
 import { IconImg, ItemRow } from "./icon-img";
 import { MatchBreakdown } from "./match-breakdown";
 
@@ -26,7 +26,7 @@ import { MatchBreakdown } from "./match-breakdown";
  * `back` is for a match opened from another window (a champion's matchup): that window gives way to
  * this one, and Back returns to it; Close and Escape close both.
  */
-export function MatchDetailModal({ playerId, matchId, championsById, onClose, back }: { playerId: string; matchId: string; championsById: Record<string, PortraitChampion>; onClose: () => void; back?: { label: string; onBack: () => void } }) {
+export function MatchDetailModal({ playerId, matchId, championsById, onClose, back, encounterLinks = false }: { playerId: string; matchId: string; championsById: Record<string, PortraitChampion>; onClose: () => void; back?: { label: string; onBack: () => void }; /** Opened over Match History itself (a phone): the scoreboard's marks lead to its Encounters (see MatchBreakdown). */ encounterLinks?: boolean }) {
   const cache = React.useContext(MatchDetailCacheContext);
   const [loaded, setLoaded] = React.useState<{ matchId: string; result: MatchDetailResult } | null>(null);
   // The record starts loading as the window opens, but is shown only once the window has finished
@@ -103,7 +103,7 @@ export function MatchDetailModal({ playerId, matchId, championsById, onClose, ba
       {!result ? (
         <DetailSkeleton />
       ) : (
-        <div className="motion-safe:fade-in">{result.status !== "ok" ? <p className="rounded-panel border border-dashed border-border p-4 text-sm text-fg-muted" data-testid="match-detail-message">{result.message}</p> : <MatchBreakdown key={view!.matchId} playerId={playerId} view={view!} champ={champ} variant="window" />}</div>
+        <div className="motion-safe:fade-in">{result.status !== "ok" ? <p className="rounded-panel border border-dashed border-border p-4 text-sm text-fg-muted" data-testid="match-detail-message">{result.message}</p> : <MatchBreakdown key={view!.matchId} playerId={playerId} view={view!} champ={champ} variant="window" encounterLinks={encounterLinks} />}</div>
       )}
     </DetailModal>
   );

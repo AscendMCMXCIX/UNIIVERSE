@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "./test";
-import { cardOf, expandedOf, openGame } from "./match-history";
+import { cardOf, expandedOf, openGame, opensFullScreen } from "./match-history";
 
 /*
   Match History's layout on every size (29 Oct 2026): the profile card is one compact band on the
@@ -39,12 +39,13 @@ test("the profile card is a compact band on the other sections and in full on th
     expect(band.height).toBeLessThan(full.height * 0.6);
     expect(await overflow(page)).toBeLessThanOrEqual(1);
   }
-  // Back on the Overview (a tab, no reload): the full card again.
-  await page.getByTestId("profile-tab-overview").click();
+  // Back on the Overview (a tab, no reload): the full card again. (On a phone the sections ride in the top bar.)
+  await page.getByTestId((page.viewportSize()?.width ?? 1440) < 768 ? "profile-chrome-tab-overview" : "profile-tab-overview").click();
   await expect(header).not.toHaveAttribute("data-compact");
 });
 
 test("an open game ends with a control that closes it and brings its card into view, with the focus on it", async ({ page }) => {
+  test.skip(opensFullScreen(page), "phones open a game as a whole screen, closed by Back or its close button: e2e/mobile-nav.spec.ts");
   const profile = await profileOf(page, "TOP");
   await page.goto(`${profile}/matches`, { waitUntil: "networkidle" });
   const card = page.getByTestId("match-card").nth(1);

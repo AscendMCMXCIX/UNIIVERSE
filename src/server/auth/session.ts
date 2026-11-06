@@ -214,19 +214,35 @@ export async function requireOwner(): Promise<Session> {
   return session;
 }
 
-/** Own Riot accounts (with the capability) or any player's as a player manager. */
+/**
+ * Own Riot accounts (with the capability) or any team member's as a player manager. A personal-use
+ * profile's only for its player and administrators (requireOpenableProfile).
+ */
 export async function requireRiotAccountEditor(playerId: string): Promise<Session> {
   const session = await requireSession();
   const { canManageRiotAccounts } = await import("./permissions");
   if (!canManageRiotAccounts(session, playerId)) throw new NotAuthorizedError();
+  await requireOpenableProfile(session, playerId);
   return session;
 }
 
+/** Own profile (with the capability) or any team member's as a player manager; a personal-use one only for its player and administrators. */
 export async function requirePlayerEditor(playerId: string): Promise<Session> {
   const session = await requireSession();
   const { canEditPlayer } = await import("./permissions");
   if (!canEditPlayer(session, playerId)) throw new NotAuthorizedError();
+  await requireOpenableProfile(session, playerId);
   return session;
+}
+
+/**
+ * A personal-use profile (not on the team) is its player's and the administrators' only: anyone
+ * else, whatever their capabilities, is told it does not exist (auth/profile-access.ts). Its own
+ * player and administrators pass without a query.
+ */
+export async function requireOpenableProfile(session: Session, playerId: string): Promise<void> {
+  const [{ getAppDb }, { mayOpenProfile, PROFILE_NOT_FOUND }] = await Promise.all([import("@/server/bootstrap"), import("./profile-access")]);
+  if (!(await mayOpenProfile(await getAppDb(), session, playerId))) throw new NotAuthorizedError(PROFILE_NOT_FOUND);
 }
 
 /** Sync-only mode check for places that cannot touch the database (kept for the proxy). */

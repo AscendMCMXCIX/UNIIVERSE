@@ -1,3 +1,4 @@
+import { INTERRUPTED_RUN_ERROR } from "@/server/ops/refresh-status";
 import { and, desc, eq, gte, inArray, lt, lte, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { lastKnownRanks, rankSnapshots, riotAccounts } from "@/server/db/schema";
@@ -63,17 +64,23 @@ const queueRank = (tier: string | null, division: string | null, leaguePoints: n
 /**
  * Every stored reading for these players (no Riot request): their linked account's last sync,
  * with each queue's latest rank snapshot, and their last_known_ranks row. Three indexed queries.
+ * With `linked`, only those players' linked accounts are read; everyone else's readings are the
+ * checks of a game's players alone, as for anyone (players/game-audience: a personal-use profile's
+ * account, for instance, is private to it).
  */
-export async function storedRankReadings(db: Db, puuids: readonly string[]): Promise<Map<string, RankReading[]>> {
+export async function storedRankReadings(db: Db, puuids: readonly string[], options: { linked?: ReadonlySet<string> } = {}): Promise<Map<string, RankReading[]>> {
   const ids = [...new Set(puuids.filter(Boolean))];
   const out = new Map<string, RankReading[]>();
   if (!ids.length) return out;
   const add = (puuid: string, r: RankReading) => out.set(puuid, [...(out.get(puuid) ?? []), r]);
+  const fromAccounts = options.linked ? ids.filter((id) => options.linked!.has(id)) : ids;
   const [accounts, known] = await Promise.all([
-    db
-      .select({ id: riotAccounts.id, puuid: riotAccounts.puuid, tier: riotAccounts.tier, division: riotAccounts.division, leaguePoints: riotAccounts.leaguePoints, queue: riotAccounts.rankQueue, at: riotAccounts.rankUpdatedAt })
-      .from(riotAccounts)
-      .where(inArray(riotAccounts.puuid, ids)),
+    fromAccounts.length
+      ? db
+          .select({ id: riotAccounts.id, puuid: riotAccounts.puuid, tier: riotAccounts.tier, division: riotAccounts.division, leaguePoints: riotAccounts.leaguePoints, queue: riotAccounts.rankQueue, at: riotAccounts.rankUpdatedAt })
+          .from(riotAccounts)
+          .where(inArray(riotAccounts.puuid, fromAccounts))
+      : Promise.resolve([]),
     db.select().from(lastKnownRanks).where(inArray(lastKnownRanks.puuid, ids)),
   ]);
   const synced = accounts.filter((a) => a.puuid && a.at);
@@ -425,7 +432,7 @@ export async function rankCoverage(db: Db, now = new Date()) {
   const recentChecks = rowsOf<Record<string, unknown>>(
     await db.execute(sql`
       SELECT started_at, trigger, summary->>'waiting' AS waiting, summary->>'games' AS games, summary->>'found' AS found, summary->>'failed' AS failed, summary->>'waits' AS waits, summary->>'reason' AS reason
-      FROM job_runs WHERE job = 'rank-checks' AND finished_at IS NOT NULL ORDER BY started_at DESC LIMIT 24`),
+      FROM job_runs WHERE job = 'rank-checks' AND finished_at IS NOT NULL AND error IS DISTINCT FROM ${INTERRUPTED_RUN_ERROR} ORDER BY started_at DESC LIMIT 24`),
   ).map((r) => ({ at: new Date(String(r.started_at)).toISOString(), trigger: String(r.trigger), waiting: n(r.waiting), games: n(r.games), checked: n(r.found), failed: n(r.failed), waits: n(r.waits), reason: r.reason ? String(r.reason) : null }));
   return {
     limits: { lookupsPerDay: RANK_LOOKUPS_PER_DAY, rateLimitShare: RANK_LOOKUP_SHARE, freshDays: RANK_FRESH_DAYS },

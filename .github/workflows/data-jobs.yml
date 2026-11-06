@@ -20,7 +20,10 @@
 # A scheduled run also reads /api/health and fails when production is unwell (the app or database
 # down, a job failing three times in a row, or no account sync for 12 hours), or when yesterday's
 # database egress went over its daily budget (the "egress" job), so GitHub's failed-workflow email
-# is the alert (docs/MONITORING.md).
+# is the alert (docs/MONITORING.md). When health lists "riot-key" (Riot refused a request under the
+# API key), the run first asks again with one riot-check call: "accepted" (Riot accepts the key and
+# the requests an account sync makes) is a warning, not a failure; any other answer, or none, fails
+# the run as before and names the re-check's result.
 # GitHub also disables scheduled workflows after 60 days without commits; re-enable it under the
 # Actions tab if that happens. Set the repository variable DATA_JOBS_ENABLED=false to pause it.
 name: Data jobs
@@ -124,17 +127,45 @@ jobs:
           done
           # A scheduled run also fails when production is unwell, so GitHub's failed-workflow email
           # reaches the owner (docs/MONITORING.md): the app or its database not answering, a job
-          # failing three times in a row, or no successful account sync for SYNC_STALE_HOURS.
+          # failing three times in a row, or no linked account read from Riot in full for
+          # SYNC_STALE_HOURS (data.accounts: from the accounts themselves, as the account-sync job
+          # records a success when it had nothing to do, no key, or every account failed).
           if [ "$EVENT" = "schedule" ]; then
             health="$(curl --silent --max-time 60 "$APP_URL/api/health" || true)"
+            # "riot-key" stays listed after Riot refused a request under the key (401/403) until Riot
+            # accepts one again; a failure with no answer (5xx, 429, network) leaves it listed. After
+            # a short Riot-side incident that can take hours, as the accounts back off, so the run
+            # asks riot-check once (it records the answer) before failing on it. riot-check answers
+            # "accepted" only when Riot accepts the key and each request an account sync makes, so
+            # one API or routing host that Riot refuses on its own still fails the run. Only
+            # .summary.state is read: the answer also names the key's fingerprint, so it is never
+            # printed. Health is not read again (the app caches the key's state for 30 s).
+            # The wait for riot-check (--max-time 45) is longer than the check can take: it starts no
+            # Riot request after its 30 s deadline and a request already sent ends within its 7 s
+            # timeout (riotKeyCheckLimits, src/server/riot/credential.ts), so it answers within
+            # about 37 s plus the function's start and a few database queries. Raise the wait with
+            # those limits; a wait that ends first reads as "no answer" and fails the run.
+            recheck=""
+            if printf '%s' "$health" | jq -e --arg job riot-key 'any(.failingJobs[]?; . == $job)' >/dev/null 2>&1; then
+              answer="$(curl --silent --max-time 45 -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/jobs/riot-check" || true)"
+              recheck="$(printf '%s' "$answer" | jq -r '.summary.state | select(type == "string" and test("^[a-z-]{1,32}$"))' 2>/dev/null || true)"
+              [ -n "$answer" ] || recheck="no answer"
+              [ -n "$recheck" ] || recheck="an unreadable answer"
+              unset answer
+              if [ "$recheck" = "accepted" ]; then
+                health="$(printf '%s' "$health" | jq -c --arg job riot-key '.failingJobs -= [$job]' 2>/dev/null || true)"
+                echo "::warning::Riot had refused a request under the API key and accepts the key and the account sync's requests now (re-checked with riot-check)."
+              fi
+            fi
             problem="$(printf '%s' "$health" | jq -r --argjson hours "$SYNC_STALE_HOURS" '
               if .ok != true then "the app or its database is not answering"
               elif (.failingJobs | length) > 0 then "failing jobs: " + (.failingJobs | join(", "))
-              else ([.jobs[] | select(.key == "account-sync") | .lastSuccessAt][0]) as $at
+              else (.data.accounts) as $at
                 | if $at != null and (now - ($at | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601)) > $hours * 3600
-                  then "no successful account sync for over \($hours) hours" else empty end
+                  then "no linked account read from Riot in full for over \($hours) hours" else empty end
               end' 2>/dev/null || echo "the health check could not be read")"
             [ -n "$health" ] || problem="the health check could not be read"
+            case "$recheck" in ""|accepted) ;; *) problem="$problem (re-checked with riot-check: $recheck)" ;; esac
             if [ -n "$problem" ]; then echo "::error::Production health: $problem"; status=1; else echo "Production health: ok"; fi
             # Database egress: yesterday's estimate, counted by the app, against the daily budget
             # (docs/HOSTING_USAGE.md). Over budget fails the run, so the same email arrives. A

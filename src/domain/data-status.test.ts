@@ -48,6 +48,17 @@ describe("dataStatus", () => {
     expect(s.parts.at(-1)!.detail).toMatch(/39 older games are still being collected/);
   });
 
+  it("tells games Riot no longer serves apart from games still to collect, and never promises the former", () => {
+    // One game's record is gone for good: nothing is "still being collected".
+    const gone = dataStatus({ ...at, accounts: [synced], details: { games: 40, detailed: 39, unavailable: 1 } });
+    expect(gone.state).toBe("partial");
+    expect(gone.headline).toBe("Kills, KDA, CS, damage and vision from 39 of 40 games");
+    expect(gone.parts.at(-1)!.detail).toBe("Riot no longer provides the record of 1 game, so its figures are left out; the results still count.");
+    // Both at once: each said with its own count.
+    const both = dataStatus({ ...at, accounts: [synced], details: { games: 100, detailed: 61, unavailable: 2 } });
+    expect(both.parts.at(-1)!.detail).toBe("Riot's full record of 37 older games are still being collected; the results already count. Riot no longer provides the records of 2 games, so their figures are left out; the results still count.");
+  });
+
   it("puts syncing before partial, a delay before partial, and an account that needs a person before everything", () => {
     expect(dataStatus({ ...at, accounts: [synced, view("syncing")], multikills: multikills(1, 2) }).state).toBe("syncing");
     expect(dataStatus({ ...at, accounts: [view("stale")], multikills: multikills(1, 2) }).state).toBe("delayed");
