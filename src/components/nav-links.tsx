@@ -4,19 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { ADMIN_ENTRIES, ADMIN_LINKS, NAV_ENTRIES, NAV_LINKS, activeHref, isNavHub, type NavEntry, type NavLink } from "@/lib/nav";
+import { RAIL_CURRENT, RAIL_FADE, RAIL_HIGHLIGHT, RAIL_HOVER, RAIL_ICON, RAIL_ICON_IDLE, RAIL_ROW } from "@/lib/sidebar";
 
 export { ADMIN_LINKS, NAV_LINKS, isActivePath, canOpen, type NavLink } from "@/lib/nav";
-
-/** Labels fade while the desktop sidebar is collapsed to its icon column (the icons never move). */
-const FADE = "transition-opacity duration-150 group-data-[collapsed=true]/sidebar:opacity-0 group-data-[collapsed=true]/sidebar:duration-75";
-
-/**
- * A row's highlight (the current page, or the pointer over it): the whole row in the open sidebar
- * and the drawer; in the collapsed sidebar a 3rem square on the icon, as far from the rail's right
- * edge as from its left, so the icon column reads as centred instead of a band cut off by the edge.
- * Shared by the collapse control (collapsible-sidebar.tsx).
- */
-export const RAIL_HIGHLIGHT = "absolute inset-y-0 left-0 right-0 -z-10 rounded-lg transition-[background-color,right] duration-150 group-data-[collapsed=true]/sidebar:right-[calc(100%-3rem)]";
 
 function NavItem({ link, active, large, onNavigate, testId }: { link: NavLink; active: boolean; large: boolean; onNavigate?: () => void; testId?: string }) {
   const Icon = link.icon;
@@ -27,21 +17,17 @@ function NavItem({ link, active, large, onNavigate, testId }: { link: NavLink; a
       aria-current={active ? "page" : undefined}
       data-testid={testId}
       title={link.label}
-      className={cn(
-        // Offsets in rem like the rail itself (4.5rem), so the icon stays on the rail's centre line
-        // whatever text size the browser is set to.
-        "group isolate relative flex items-center gap-3 rounded-lg pl-[0.9375rem] pr-3 text-sm font-semibold transition-colors duration-150",
-        large ? "min-h-11 py-1.5" : "min-h-10 py-2",
-        active ? "text-fg" : "text-fg-muted hover:text-fg",
-      )}
+      // The shared sidebar row (src/lib/sidebar.ts): its icon sits on the collapsed rail's centre line.
+      className={cn(RAIL_ROW, large && "min-h-11 py-1.5", active ? "text-fg" : "text-fg-muted hover:text-fg")}
     >
-      {/* The current page: a quiet neutral lift, the brand gradient as a thin bar at the edge and the
-          icon in the brand blue. The frame stays neutral; colour marks only where you are. */}
-      <span className={cn(RAIL_HIGHLIGHT, active ? "bg-fg/7" : "group-hover:bg-fg/5")} aria-hidden data-testid="nav-highlight" />
-      <span className={cn("absolute inset-y-2 left-0 w-0.5 rounded-full", active ? "bg-gradient-to-b from-accent to-accent-2" : "bg-transparent")} aria-hidden />
-      <Icon className={cn("h-[1.125rem] w-[1.125rem] shrink-0 transition-colors", active ? "text-accent" : "text-fg-subtle group-hover:text-fg-muted")} aria-hidden />
+      {/* The current page: a neutral lift with a hairline of light on top, the brand gradient as a
+          short bar at the row's edge and the icon in the brand blue. The frame stays neutral; colour
+          marks only where you are. The bar grows in from its centre when the page becomes current. */}
+      <span className={cn(RAIL_HIGHLIGHT, active ? RAIL_CURRENT : RAIL_HOVER)} aria-hidden data-testid="nav-highlight" />
+      <span className={cn("absolute inset-y-2.5 left-0 w-0.5 rounded-full bg-gradient-to-b from-accent to-accent-2 transition-[opacity,scale] duration-200 ease-emphasized", active ? "scale-y-100 opacity-100" : "scale-y-50 opacity-0")} aria-hidden />
+      <Icon className={cn(RAIL_ICON, active ? "text-accent" : RAIL_ICON_IDLE)} aria-hidden />
       {/* Collapsed sidebar: icon only; the label stays for screen readers and as the tooltip (title). */}
-      <span className={cn("truncate", FADE)}>{link.label}</span>
+      <span className={cn("truncate", RAIL_FADE)}>{link.label}</span>
     </Link>
   );
 }

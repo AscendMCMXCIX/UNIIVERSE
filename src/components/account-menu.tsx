@@ -7,6 +7,7 @@ import { Avatar } from "./ui/avatar";
 import { Menu, MenuItem, MenuLabel, MenuLink, MenuSeparator } from "./ui/menu";
 import { announceAccountChange, markAccountChange } from "./account-guard";
 import { cn } from "@/lib/cn";
+import { RAIL_FADE, RAIL_HIGHLIGHT } from "@/lib/sidebar";
 
 export interface AccountMenuUser {
   /** The display name. */
@@ -40,16 +41,19 @@ export function AccountMenu({ user, showSignOut, variant = "sidebar", adminMode 
       testId="account-menu"
       trigger={(p) =>
         variant === "sidebar" ? (
-          // 7px inside the 1px border: the avatar's centre is the collapsed rail's centre line.
-          <button {...p} type="button" title="Your account" className="flex w-full min-w-0 items-center gap-2.5 rounded-lg border border-border bg-surface/60 p-[0.4375rem] text-left transition-colors duration-150 hover:border-border-strong hover:bg-surface-2 group-data-[collapsed=true]/sidebar:border-transparent group-data-[collapsed=true]/sidebar:bg-transparent" data-testid="account-menu-button">
+          // A raised tile in the open sidebar (the one surface in the footer: who you are), its
+          // avatar 8px inside, so the avatar's centre is the collapsed rail's centre line. Collapsed,
+          // the tile is the rail's 3rem highlight square, like every other row's.
+          <button {...p} type="button" title="Your account" className="group isolate relative flex w-full min-w-0 items-center gap-2.5 rounded-lg p-2 text-left transition-colors duration-150 aria-expanded:[&>[data-tile]]:bg-fg/7" data-testid="account-menu-button">
             <Avatar name={user.name} src={user.avatarUrl} size="sm" />
-            <span className="min-w-0 flex-1 transition-opacity duration-150 group-data-[collapsed=true]/sidebar:opacity-0 group-data-[collapsed=true]/sidebar:duration-75">
+            <span data-tile className={cn(RAIL_HIGHLIGHT, "bg-fg/[0.035] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-fg)_6%,transparent)] group-hover:bg-fg/6 group-data-[collapsed=true]/sidebar:bg-transparent group-data-[collapsed=true]/sidebar:shadow-none group-data-[collapsed=true]/sidebar:group-hover:bg-fg/5")} aria-hidden />
+            <span className={cn("min-w-0 flex-1", RAIL_FADE)}>
               <span className="block truncate text-sm font-medium text-fg" data-testid="account-current-name">
                 {user.name}
               </span>
               <span className="block truncate text-xs text-fg-subtle">{user.roleLabel}</span>
             </span>
-            <ChevronsUpDown className="h-4 w-4 shrink-0 text-fg-subtle transition-opacity duration-150 group-data-[collapsed=true]/sidebar:opacity-0 group-data-[collapsed=true]/sidebar:duration-75" aria-hidden />
+            <ChevronsUpDown className={cn("h-4 w-4 shrink-0 text-fg-subtle", RAIL_FADE)} aria-hidden />
           </button>
         ) : (
           <button {...p} type="button" aria-label={`Your account: ${user.name}`} title="Your account" className="grid h-11 w-11 place-items-center rounded-full" data-testid="account-menu-button">
