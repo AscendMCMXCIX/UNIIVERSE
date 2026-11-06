@@ -66,6 +66,8 @@ jobs:
     steps:
       # Push to main: did this exact source tree already pass the database and browser jobs (as a
       # pull request's merge result)? Any doubt (API error, missing or expired marker) runs CI.
+      # Only a marker from a run of this repository's own branches counts: the repository is
+      # public, and a fork's pull request runs its own copy of this workflow, which could upload one.
       - id: tested
         if: github.event_name == 'push'
         env:
@@ -75,7 +77,7 @@ jobs:
           found() {
             curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
               "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/artifacts?name=ci-passed-$TREE-$1&per_page=10" \
-              | jq -e '[.artifacts[] | select(.expired | not)] | length > 0' >/dev/null
+              | jq -e '[.artifacts[] | select((.expired | not) and .workflow_run.head_repository_id == .workflow_run.repository_id)] | length > 0' >/dev/null
           }
           if [ -n "$TREE" ] && found db && found e2e; then
             echo "Tree $TREE already passed every CI job in a pull request run; skipping the suites."
