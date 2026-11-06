@@ -1,6 +1,8 @@
 # UNIIVERSE status
 
-**The one status record.** Each session updates it in place: what is live, what is verified and what is still open, with the evidence for each. Detail stays in the linked PRs and docs. Last updated 6 Nov 2026, 06:25 UTC.
+**The one status record and the one backlog.** What is live, what is verified, what is still open and what comes next, with the evidence for each. Detail stays in the linked PRs and docs. `OVERNIGHT_ENGINEERING_REPORT.md` and `SESSION_REVIEW.md` are historical records; where they differ from this file, this file is right. Last updated 6 Nov 2026, 06:50 UTC.
+
+**One coordinating session.** Since 6 Nov, 06:30 UTC, the owner runs UNIIVERSE through one master session (`session_01CeotmQNT7Y1ygWs6eENvZr`). It keeps this record, owns the merge order and the scheduled check-ins, and merges PRs itself once every CI job on the latest commit has passed (the owner's approval of 6 Nov), one deploy at a time with its Production check read in between. Only the owner approves #212 (it deletes data) and changes to workflows, secrets or settings. The earlier sessions (design, navigation, ranked progress, personalization, reliability, security, LP tracking, mobile) were asked to stand down and report. Their open work is in the tables below.
 
 **Production on 6 Nov, 06:24 UTC** (read from the live site): `/api/health` answers `ok` from 5724daa (#228's merge) in `syd1`, with the database up, the Riot key accepted and no job failing. **The repository has been public since 6 Nov, about 04:20 UTC.** Its effects on the backups and logs are in Outstanding ("Needs the owner").
 
@@ -58,15 +60,34 @@
 | Area | Who | State |
 |---|---|---|
 | Drop what Meta & Trends left and the ranks of players no stored game names (migration 0066) | PR #212, a draft from #211's session | **Held for the owner:** it deletes data for good (Outstanding 7) |
-| #212's condition 2: the second `db-usage` reading | #212's session, a check-in at 7 Nov 00:35 UTC | Read only; the result goes in #212 |
-| Merge order (one deploy at a time, a Production check between) | The coordinating session | #216 (merging) → #218 / #223 (whichever is ready first) → the other → #227. #229 and the ranked re-read merge in any gap once green. Each session merges its own PR on the coordinator's word; this record is kept by the coordinator |
-| Navigation in reach: pinned section tabs on tablets and desktops, the tablet drawer a modal dialog, Back in the installed tablet app, a phone section that lands at its top | #216 | CI passed on 132c9c5 (main with #217–#225 merged in); merging. WebKit passed on an earlier head |
-| Design system: the desktop sidebar set into the page's ink, a lit brand plate, `docs/DESIGN_SYSTEM.md` | #218 | Merges main after #216, then its final CI |
-| Personalization everywhere: rows, cards, profile band and records carry each player's saved look; no "Unranked" for a rank never read | #223 | Merges main after #216, then its final CI. Validated locally |
-| Lighter phone pages: pool rows draw the champion's tile, not the full splash (a 14-champion profile at 390 px: 2,253 → 429 KB); card effects exist only while hovered or focused | #227 | After #223 (a shared test file) |
-| Retry sync's deadline; a watched profile re-renders when another history slice can start | A session (`session_01CeotmUE6SaRQJ9zCphDyPc`) | Not yet a PR |
-| Repairs for Outstanding 6: the daily integrity job folds a member's missing games from the stored records that name them (at most 200 a run, no Riot request) | #229 | CI running. After the merge, one Data jobs run `integrity data-audit`: about 96 places folded, then 0 missing |
-| The four short Solo/Duo lists re-read from the top, each account's previous position kept | `session_01CeotmQEmWnPvXG3E4GbL1Z` | Not yet a PR |
+| #212's condition 2: the second `db-usage` reading | The master session, a check-in at 7 Nov 00:35 UTC | Read only; the result goes in #212, then the owner is asked |
+| Merge order (one deploy at a time, a Production check between) | The master session | `main`'s push CI on 5724daa (all of #217–#228) finishes uncancelled first, then: #216 → #229 → #223 → #218 (merges main in, re-checks the frame against #223's cards) → #227 (after #223: a shared test file) → the sync deadlines PR |
+| Navigation in reach: pinned section tabs on tablets and desktops, the tablet drawer a modal dialog, Back in the installed tablet app, a phone section that lands at its top | #216 | CI passed on 132c9c5; behind `main` by docs only (#230). Next to merge. WebKit passed on an earlier head |
+| Repairs for Outstanding 6: the daily integrity job folds a member's missing games from the stored records that name them (at most 200 a run, no Riot request) | #229 | CI passed on 29caf17. After the merge, one Data jobs run `integrity data-audit`: no more than 96 places folded, then 0 missing. If far more are folded, stop before the next integrity run |
+| Personalization everywhere: rows, cards, profile band and records carry each player's saved look; no "Unranked" for a rank never read | #223 (draft) | Merges main, full local validation, then ready and CI. It contains six side branches whole (`team/card-window-fixes`, `profile/band-identity`, `polish/champions-records`, `personalization/row-identity`, `library/site-icons`, `encounters/phone-rows`) |
+| Design system: the desktop sidebar set into the page's ink, a lit brand plate, `docs/DESIGN_SYSTEM.md` | #218 (draft) | Merges main after #223, re-checks the frame, then ready and CI. A trial merge with #216 is clean |
+| Lighter phone pages: pool rows draw the champion's tile, not the full splash (a 14-champion profile at 390 px: 2,253 → 429 KB); card effects exist only while hovered or focused | #227 (draft) | After #223 |
+| Account syncs a person waits on end inside the lease; an open profile carries its history on | Branch `sync/panel-deadlines-watched-history`, not yet a PR | Its session was finishing validation at the handover |
+| The four short Solo/Duo lists re-read from the top, each account's previous position kept | Not yet a branch | Adds rows only; each account's previous position is recorded first |
+| Backup passphrase rotation: the backup refuses a passphrase under 32 characters; the privacy notice says the artifacts are public and encrypted | #231 | Outstanding 9 |
+
+## Branches with work not on `main` (reviewed 6 Nov)
+
+Nothing here is deleted without the owner. Besides the open PRs above:
+- **Contained in #223:** the six side branches named in its row. They can go once #223 merges.
+- **Superseded, already on `main` another way:** `audit/missing-place-reasons` (closed #222, replaced by #220), `security-hardening` and `audit-log` (19 Oct; row-level security, the security headers and `audit_events`, migration 0043, all landed later).
+- **Kept as archives of retired features, not to be merged:** `research/draft-intelligence` (the Draft pilot's protocol and results, 2 Nov) and `clash-live` (paused Clash API work, 22 Oct). Draft and Clash Scout are retired.
+- **187 branches fully merged into `main`:** listed in the 6 Nov exposure audit with their tip commits. Deleting them loses nothing, but it is the owner's call.
+
+## Engineering backlog, in order
+
+Finishing what is open comes before anything new.
+1. **Merge the queue above,** each with its Production check, and record each in Live.
+2. **#229's repair reading,** then the Solo/Duo re-read as a PR. Close Outstanding 6 when `data-audit` reads 0.
+3. **Sweep the by-hand Data jobs logs for the key fragment** (read only: 276 `workflow_dispatch` runs from 13 Oct, 11:53 UTC, to #225's deploy; two are confirmed). The owner then decides whether to delete those logs.
+4. **The 2027 ranked year:** `RANKED_SEASONS_2026` and `RANKED_YEAR` cover 2026 only. Before 1 Jan, add 2027 and end the year's count exclusively (noted in #228).
+5. **16 Nov:** read Team's TTFB from the weekly probe, now split into redirect and server time (a check-in is scheduled).
+6. **A small always-run CI job,** so the owner's ruleset on `main` can require a check that docs-only PRs also report (it needs the owner's approval: it is a workflow change).
 
 ## Outstanding, by impact
 
