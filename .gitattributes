@@ -1,0 +1,16 @@
+# Line endings: every text file is stored with LF (all tracked files already are), so a checkout
+# on Windows cannot turn a whole file into a diff.
+* text=auto eol=lf
+
+# Binary assets: never diffed or converted.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+
+# Generated files: collapsed in pull request diffs and left out of GitHub's language statistics.
+pnpm-lock.yaml linguist-generated=true
+drizzle/meta/*.json linguist-generated=true

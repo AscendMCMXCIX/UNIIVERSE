@@ -242,3 +242,12 @@ The day-to-day rules are in `CLAUDE.md`. In short:
 - **What the schedule really costs:** Data jobs delivered 3–5 scheduled runs a day at 1 minute each, not 24; the daily Production check bills about 3; the weekly backup about 3.
 - **The remainder of November:** about 207 minutes, against about 160–210 for the schedule through 30 Nov. No full CI run fits (STATUS.md, Outstanding 4).
 - **For December:** the browser job is the only lever that matters. Its options are listed under "Ways to shorten it, not applied" (23 Oct). Each changes what or how the suite tests, so each needs a local before/after run of the full suite first.
+
+## 6 Nov 2026: the repository is public
+
+**Minutes.** Standard GitHub-hosted runners are free for a public repository, so CI, the Production check, the Data jobs schedule and the backup no longer draw on the 3,000 minutes. The estimates above are kept as history.
+
+**What a public repository changes for the workflows:**
+- **Fork pull requests** run `ci.yml` and `workflow-lint.yml`, which use no secrets and read the repository only. No workflow uses `pull_request_target`, and the workflows with secrets (Data jobs, Production check, backup, probe, smoke) start only from a schedule, a deployment or a person with write access.
+- **CI's reuse marker:** a push to `main` skips the suites when an artifact `ci-passed-<tree>-db` and `-e2e` exists. A fork's pull request runs its own copy of `ci.yml` and could upload such a name, so the lookup now counts only artifacts from runs of this repository's own branches (`workflow_run.head_repository_id == repository_id`).
+- **Logs and artifacts are readable by everyone.** Every job's output must hold counts and anonymous labels only. `auth-audit` printed the owner's username and last sign-in time; it now prints a label and the day. The weekly database backup is an encrypted artifact, downloadable by anyone signed in to GitHub: STATUS.md lists where to keep it as the owner's decision.

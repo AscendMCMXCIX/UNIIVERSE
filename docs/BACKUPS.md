@@ -119,7 +119,7 @@ Each run:
 1. dumps the `public` schema (all of UNIIVERSE's tables) in one consistent snapshot, reading only;
 2. restores it into a throw-away Postgres on the runner and checks that the number of tables, teams, accounts, players, Riot accounts, stored games and other players' last known ranks (`last_known_ranks`), and the newest migration, match production. It also checks the retired tables still in the database, what Meta & Trends left after #86 and #138 dropped the rest (`tracked_summoners`, `region_status`, the three `stat_*_periods` tables and `champion_change_points`): each must restore with all its rows, so the backup kept before any drop of them is known to hold them. The manifest lists them under `retiredTableRows`, and `last_known_ranks` under `rows`;
 3. encrypts it with AES-256 and checks the encrypted file opens again;
-4. keeps it for 28 days as a private artifact of the run: about four weekly copies. A manifest beside it lists sizes, row counts and checksums, with no data and no secrets.
+4. keeps it for 28 days as an artifact of the run: about four weekly copies. **Since 6 Nov 2026 the repository is public, so anyone signed in to GitHub can download these artifacts.** Each stays encrypted (AES-256, gpg) and cannot be opened without `BACKUP_PASSPHRASE`; where they are kept is the owner's open decision (STATUS.md). A manifest beside it lists sizes, row counts and checksums, with no data and no secrets.
 
 A failed run is a failed workflow, so GitHub's usual email reports it.
 

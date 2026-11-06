@@ -23,3 +23,18 @@ coverage
 # Playwright
 /test-results
 /playwright-report
+
+# Output that can hold production data or member screenshots: never commit it
+# (the repository is public; see SECURITY.md)
+/live-check*/
+/backup/
+*.dump
+*.dump.gpg
+*.sql.gz
+perf-probe.json
+
+# Keys and certificates
+*.pem
+*.key
+*.p12
+*.pfx
