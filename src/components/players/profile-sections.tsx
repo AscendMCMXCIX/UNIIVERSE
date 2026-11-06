@@ -47,8 +47,6 @@ export interface ProfileSearch {
   /** Ranked progress: queue (solo | flex) and account. */
   rq?: string;
   ra?: string;
-  /** Ranked progress's period: the 2026 ranked year (absent) or one of its seasons (s1, s2, s3). */
-  rv?: string;
   /** The champion window: All Champions keys it on `champion`; Overview's pools on `champ` (where `champion` is a filter). Then the role it was opened in, view, opponent. */
   champ?: string;
   crole?: string;
@@ -102,13 +100,12 @@ export async function ProfileFrame({ db, header, session, basePath, children }: 
   const identity = headerIdentity(header, session);
   return (
     <ProfileIdentityProvider initial={identity}>
-      {/* The frame's light follows the player's current colours (ProfileFrameShell), as the header does. */}
+      {/* The frame's light follows the player's current colours (ProfileFrameShell), as the header does.
+          The section bar belongs to the profile card: tucked right under it (its own margin), and a
+          child of the whole profile, so it can stay pinned while every section scrolls (ProfileTabs). */}
       <ProfileFrameShell initial={identity} className="mx-auto max-w-[var(--content-max)] space-y-4">
-        {/* The section bar belongs to the profile card: tucked right under it. */}
-        <div className="space-y-1.5">
-          <ProfileHeader identity={identity} self={self} editable={editable} champions={champions} basePath={basePath} />
-          <ProfileTabs basePath={basePath} />
-        </div>
+        <ProfileHeader identity={identity} self={self} editable={editable} champions={champions} basePath={basePath} />
+        <ProfileTabs basePath={basePath} />
         {children}
       </ProfileFrameShell>
     </ProfileIdentityProvider>

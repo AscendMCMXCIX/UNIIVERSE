@@ -509,7 +509,11 @@ export async function fieldVitals(db: Db) {
         clsP75: p75(p.CLS),
         ttfbP75: p75(p.TTFB),
         ttfbGood: good(p.TTFB),
-        devices: p.byDevice.map((d) => ({ device: d.device, loads: d.loads, lcpP75: p75(d.LCP), lcpGood: good(d.LCP), ttfbP75: p75(d.TTFB) })),
+        // TTFB's parts: how many loads came through a redirect and what it cost, and the request's own time.
+        redirectedLoads: p.REDIRECT?.count ?? 0,
+        redirectP75: p75(p.REDIRECT),
+        serverP75: p75(p.SERVER),
+        devices: p.byDevice.map((d) => ({ device: d.device, loads: d.loads, lcpP75: p75(d.LCP), lcpGood: good(d.LCP), ttfbP75: p75(d.TTFB), redirectedLoads: d.REDIRECT?.count ?? 0, redirectP75: p75(d.REDIRECT), serverP75: p75(d.SERVER) })),
       }));
     return { since: r.since, all, pages: pages(r), last7: { since: week.since, pages: pages(week) } };
   } catch (err) {

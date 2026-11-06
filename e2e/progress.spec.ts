@@ -3,7 +3,7 @@ import { expect, test } from "./test";
 /*
   R7/R8 on a teammate's profile (demo roster; the rank readings are synthetic demo data, seeded
   in demo mode only, from the demo games): the recent-form strip follows the filter's newest games,
-  and Ranked progress shows the 2026 ranked year, its seasons, Solo/Duo and Flex separately.
+  and Ranked progress shows the rank read so far, compactly, Solo/Duo and Flex separately.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -30,27 +30,29 @@ test("a profile shows recent form and ranked progress per queue", async ({ page 
   // Recent KDA beside the whole sample (sample-aware: an arrow only on enough games and a clear gap).
   await expect(page.getByTestId("recent-form-kda")).toContainText(/\d\.\d vs \d\.\d/);
 
-  // Ranked progress: the whole 2026 ranked year by default, Solo/Duo first, with where recording
-  // began, what was read, the unrecorded stretch shaded behind a marked break, the gaps of several
-  // games left unjoined, and the weeks' games under it (demo readings are synthetic, demo mode only).
+  // Ranked progress, compact: the current rank and LP, how it moved, the highest recorded rank and a
+  // chart of the stretch that was read only (from the first reading: nothing earlier is drawn), the
+  // gaps of several games left unjoined (demo readings are synthetic, demo mode only).
   const ranked = page.getByTestId("ranked-progress");
   await expect(ranked).toBeVisible();
   await expect(page.getByTestId("ranked-queue-solo")).toHaveAttribute("aria-current", "page");
-  await expect(page.getByTestId("ranked-view-year")).toHaveAttribute("aria-current", "page");
-  await expect(page.getByTestId("ranked-tracking")).toContainText(/rank recorded since \d{1,2} [A-Z][a-z]{2} 2026/);
+  await expect(page.getByTestId("ranked-tracking")).toContainText(/2026 Season \d · rank recorded since \d{1,2} [A-Z][a-z]{2} 2026/);
+  // No period tabs: the seasons share one ladder, and nothing was read before the first reading.
+  await expect(ranked.locator('[data-testid^="ranked-view-"]')).toHaveCount(0);
   const chart = page.getByTestId("ranked-chart");
   await expect(chart).toBeVisible();
-  await expect(chart).toHaveAttribute("data-view", "year");
-  await expect(chart).toHaveAttribute("aria-label", /Rank recorded from .*; not recorded before\./);
-  await expect(ranked.getByTestId("ranked-untracked")).toHaveCount(1);
-  await expect(ranked.getByTestId("ranked-axis-break")).toHaveCount(1);
+  await expect(chart).toHaveAttribute("aria-label", /Rank recorded from .*; Riot reports no earlier ranks\./);
+  await expect(ranked.getByTestId("ranked-untracked")).toHaveCount(0);
   expect(await ranked.getByTestId("ranked-line").count()).toBeGreaterThanOrEqual(2);
   // Several games between two readings: a band, and the line does not cross it.
   expect(await ranked.getByTestId("ranked-gap").count()).toBeGreaterThanOrEqual(1);
   expect(Number(await ranked.getByTestId("ranked-gap").first().getAttribute("data-games"))).toBeGreaterThanOrEqual(2);
-  expect(await ranked.getByTestId("ranked-week").count()).toBeGreaterThan(3);
-  await expect(page.getByTestId("ranked-events").locator("li").first()).toContainText(/Promoted|Demoted/);
   await expect(page.getByTestId("ranked-peak-stat")).toContainText(/LP/);
+  await expect(page.getByTestId("ranked-change")).toHaveText(/^([+\u2212]\d+ (LP|divisions?)|No change)$/);
+  await expect(page.getByTestId("ranked-lp-bar")).toBeVisible();
+  // Compact: well under half a desktop screen, and under 520 px on a phone.
+  const height = (await ranked.boundingBox())!.height;
+  expect(height, "Ranked progress's height").toBeLessThan(info.project.name === "phone" ? 520 : 320);
   // The header shows the same current rank as Ranked progress.
   const current = (await page.getByTestId("ranked-current").innerText()).split("·")[0]!.trim();
   await expect(page.getByTestId("profile-rank")).toContainText(current);
@@ -67,9 +69,22 @@ test("a profile shows recent form and ranked progress per queue", async ({ page 
   await page.keyboard.press("ArrowLeft");
   await expect(page.getByTestId("ranked-tip")).toContainText(/Read \d{1,2} [A-Z][a-z]{2} 2026/);
   await page.keyboard.press("Escape");
-  // Every reading as a table, on request.
-  await page.getByTestId("ranked-table-toggle").click();
+
+  // The details, closed at first: the ranked year's coverage (the year's games week by week, the
+  // part with readings lit, what cannot be recovered), every rank change and every reading.
+  const details = page.getByTestId("ranked-details");
+  await expect(details).not.toHaveAttribute("open", "");
+  await expect(page.getByTestId("ranked-table")).toBeHidden();
+  await page.getByTestId("ranked-details-toggle").click();
+  await expect(details).toHaveAttribute("open", "");
+  await expect(page.getByTestId("ranked-coverage-days")).toHaveText(/^Rank known on \d+ of \d+ days$/);
+  await expect(page.getByTestId("ranked-coverage-tracked")).toBeVisible();
+  expect(await ranked.getByTestId("ranked-week").count()).toBeGreaterThan(3);
+  await expect(page.getByTestId("ranked-coverage-note")).toContainText("cannot be recovered");
+  await expect(page.getByTestId("ranked-coverage")).toContainText("Season 3");
+  await expect(page.getByTestId("ranked-events").locator("li").first()).toContainText(/Promoted|Demoted/);
   expect(await page.getByTestId("ranked-table").locator("tbody tr").count()).toBeGreaterThan(3);
+  await page.getByTestId("ranked-details-toggle").click();
 
   // Accounts are tabbed by their Riot names alone, every one the same way: never "Main", and no
   // "Primary" badge beside the main one (it simply comes first).
@@ -83,15 +98,14 @@ test("a profile shows recent form and ranked progress per queue", async ({ page 
     expect(new Set(heights).size).toBe(1);
   }
 
-  // A season on its own: nothing was read in Season 1, so it is all "not recorded", with no peak.
-  await page.getByTestId("ranked-view-s1").click();
-  await expect(page).toHaveURL(/rv=s1/);
-  await expect(page.getByTestId("ranked-chart")).toHaveAttribute("data-view", "s1");
-  await expect(page.getByTestId("ranked-peak-stat")).toContainText("Not recorded");
-  await expect(page.getByTestId("ranked-line")).toHaveCount(0);
+  // An old link to a season view still opens Ranked progress, which shows what was read.
+  await page.goto(`/players/${id}?rv=s1#ranked-progress`);
+  await expect(page.getByTestId("ranked-chart")).toBeVisible();
+  await page.getByTestId("ranked-queue-flex").click();
+  await expect(page).not.toHaveURL(/rv=/);
+  await page.getByTestId("ranked-queue-solo").click();
 
   // Flex is its own ladder.
-  await page.getByTestId("ranked-view-year").click();
   await page.getByTestId("ranked-queue-flex").click();
   await expect(page).toHaveURL(/rq=flex/);
   await expect(page.getByTestId("ranked-current")).toContainText(/Silver|Bronze|Gold/);

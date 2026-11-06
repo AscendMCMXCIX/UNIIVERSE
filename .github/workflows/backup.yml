@@ -5,7 +5,7 @@
 #   BACKUP_PASSPHRASE    a long random passphrase, also kept in the owner's password manager: without
 #                        it no backup can be opened
 # Each run dumps the public schema, restores it into a throw-away Postgres on the runner and compares
-# row counts with production, encrypts it (AES-256) and keeps it 28 days as a private artifact of
+# row counts with production, encrypts it (AES-256) and keeps it 28 days as an artifact of
 # the run. It costs about 3 Actions minutes a week. Its manifest alone (sizes, row counts and
 # checksums: no data, no secret) is kept 90 days as a second artifact, so the backup's growth can be
 # followed. A failed run, or a backup over 80% of MAX_MB, opens one issue labelled database-backup
@@ -54,6 +54,8 @@ jobs:
           --health-retries 10
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: Install the PostgreSQL client tools
         run: |
           sudo install -d /usr/share/postgresql-common/pgdg

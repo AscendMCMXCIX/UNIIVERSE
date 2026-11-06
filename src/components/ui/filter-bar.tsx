@@ -5,7 +5,7 @@ import { RotateCcw, SlidersHorizontal, X } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
 import { Button } from "./button";
-import { DetailModal } from "./detail-modal";
+import { DetailModal, useModalClose } from "./detail-modal";
 import { ScrollRow } from "./scroll-row";
 
 /*
@@ -191,9 +191,7 @@ export function FilterBar({
             footer={
               <>
                 {reset(true)}
-                <Button variant="primary" onClick={() => setOpen(false)} className="min-w-24" data-testid="filter-sheet-done">
-                  Done
-                </Button>
+                <SheetDone />
               </>
             }
           >
@@ -204,6 +202,16 @@ export function FilterBar({
         ) : null}
       </div>
     </FoldContext.Provider>
+  );
+}
+
+/** Done, at the sheet's foot: closes it the way the close button does, with the sheet's motion. */
+function SheetDone() {
+  const close = useModalClose();
+  return (
+    <Button variant="primary" onClick={close} className="min-w-24" data-testid="filter-sheet-done">
+      Done
+    </Button>
   );
 }
 

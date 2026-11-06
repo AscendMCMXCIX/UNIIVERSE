@@ -24,6 +24,6 @@ defineJob({
     ctx.log(result.message);
     // The limits Riot states for the key tell a Production key from the other two; expiry tells a
     // Development key from a Personal one (it stops working 24 hours after it is issued).
-    return { ok: true, degraded: !result.ok, error: result.ok ? undefined : result.message, summary: { state: result.state, statusCode: result.statusCode, platform, keyInUse: client.keyFingerprint, appRateLimit: client.reportedAppLimits ?? null, tier: riotKeyTier(client.reportedAppLimits) } };
+    return { ok: true, degraded: !result.ok, error: result.ok ? undefined : result.message, summary: { state: result.state, statusCode: result.statusCode, platform, appRateLimit: client.reportedAppLimits ?? null, tier: riotKeyTier(client.reportedAppLimits) } };
   },
 });

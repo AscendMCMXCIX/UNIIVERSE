@@ -66,14 +66,16 @@ describe("field performance storage", () => {
   it("the production probe reports each page's figures, as counts and bucket bounds only", async () => {
     const { fieldVitals } = await import("@/server/observability/perf-probe");
     const db = handle.db;
-    await recordVitals(db, { page: "leaderboards", device: "desktop", metrics: { LCP: 2, INP: 1, CLS: 0, TTFB: 1 } });
+    await recordVitals(db, { page: "leaderboards", device: "desktop", metrics: { LCP: 2, INP: 1, CLS: 0, TTFB: 1, REDIRECT: 1, SERVER: 0 } });
     const field = await fieldVitals(db);
     expect("error" in field).toBe(false);
     const page = (field as { pages: Array<Record<string, unknown>> }).pages.find((p) => p.page === "leaderboards");
     expect(page).toMatchObject({ page: "leaderboards", loads: 1, lcpGood: expect.any(Number), ttfbP75: 200, ttfbGood: 1 });
     expect(typeof page!.lcpP75).toBe("number");
-    expect(Object.keys(page!).sort()).toEqual(["clsP75", "devices", "inpP75", "lcpGood", "lcpP75", "loads", "page", "ttfbGood", "ttfbP75"]);
-    expect(page!.devices).toEqual([{ device: "desktop", loads: 1, lcpP75: 1500, lcpGood: 1, ttfbP75: 200 }]);
+    expect(Object.keys(page!).sort()).toEqual(["clsP75", "devices", "inpP75", "lcpGood", "lcpP75", "loads", "page", "redirectP75", "redirectedLoads", "serverP75", "ttfbGood", "ttfbP75"]);
+    // TTFB's parts: one load came through a redirect (≤ 100 ms), and its request took ≤ 100 ms.
+    expect(page).toMatchObject({ redirectedLoads: 1, redirectP75: 100, serverP75: 100 });
+    expect(page!.devices).toEqual([{ device: "desktop", loads: 1, lcpP75: 1500, lcpGood: 1, ttfbP75: 200, redirectedLoads: 1, redirectP75: 100, serverP75: 100 }]);
     // The last 7 days, the same figures: a run a week after a change reads only the loads since.
     const week = (field as { last7: { since: string; pages: Array<Record<string, unknown>> } }).last7;
     expect(week.pages.find((p) => p.page === "leaderboards")).toMatchObject({ loads: 1, ttfbP75: 200 });

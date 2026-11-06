@@ -50,6 +50,41 @@ export function isoDay(date: DateInput): string {
   return c ? `${c.year}-${String(c.month).padStart(2, "0")}-${String(c.day).padStart(2, "0")}` : "";
 }
 
+/** The instant a calendar day begins in the installation's time zone (its local midnight). */
+function localMidnight(year: number, month: number, day: number): number {
+  const guess = Date.UTC(year, month - 1, day);
+  const offsetAt = (t: number) => {
+    const c = clock(t)!;
+    return Date.UTC(c.year, c.month - 1, c.day, c.hour, c.minute) - Math.floor(t / 60_000) * 60_000;
+  };
+  const first = guess - offsetAt(guess);
+  const second = guess - offsetAt(first);
+  return second;
+}
+
+/**
+ * The starts of the installation's calendar days (or months) after `from` and up to `to`, as
+ * instants: where a chart's day or month ticks go, so each sits on the midnight its label names.
+ */
+export function localPeriodStarts(from: number, to: number, unit: "day" | "month"): number[] {
+  const out: number[] = [];
+  const c = clock(from);
+  if (!c || to < from) return out;
+  let y = c.year;
+  let m = c.month;
+  let d = unit === "day" ? c.day : 1;
+  for (let guard = 0; guard < 4000; guard++) {
+    const next = new Date(Date.UTC(y, m - 1 + (unit === "month" ? 1 : 0), d + (unit === "day" ? 1 : 0)));
+    y = next.getUTCFullYear();
+    m = next.getUTCMonth() + 1;
+    d = next.getUTCDate();
+    const at = localMidnight(y, m, d);
+    if (at > to) break;
+    if (at > from) out.push(at);
+  }
+  return out;
+}
+
 /** "21 Oct 2026" for a calendar day as a date input writes it ("2026-10-21"); "—" for anything else. */
 export function formatIsoDay(day: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);

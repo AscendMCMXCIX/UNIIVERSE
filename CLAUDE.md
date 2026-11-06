@@ -1,6 +1,6 @@
 # UNIIVERSE: notes for coding agents
 
-These rules apply to every change: features, bug fixes, UI changes and docs. The aim is to keep quality and automatic Vercel deploys while staying within the 3,000 GitHub Actions minutes a month included in the owner's GitHub Pro plan. A full CI run costs about 40 billed minutes (34–48 measured on 22 Oct); the details are in `docs/CI_USAGE.md`. Branch protection is not configured on `main` (Pro would allow it; turning it on is the owner's decision), so these rules are the protection. Follow them even when nothing stops you.
+These rules apply to every change: features, bug fixes, UI changes and docs. The aim is to keep quality and automatic Vercel deploys while keeping GitHub Actions usage small and meaningful. The repository has been public since 6 Nov 2026, so GitHub does not bill the minutes its standard runners spend on it (while it was private they came out of the 3,000 a month of the owner's GitHub Pro plan, which November nearly used up). A full CI run still takes about 40 minutes of wall-clock time (34–48 measured on 22 Oct); the details are in `docs/CI_USAGE.md`. Public also means the repository, its history, its Actions logs and its artifacts can be read by anyone: never commit personal data, and never print a username, Riot ID, PUUID or other personal data in a job's output (counts and anonymous labels only). Branch protection is not configured on `main` (Pro would allow it; turning it on is the owner's decision), so these rules are the protection. Follow them even when nothing stops you.
 
 ## 1. Branch
 
