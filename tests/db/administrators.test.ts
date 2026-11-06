@@ -187,6 +187,9 @@ describe("administrator access", () => {
     const audit = await runJob(handle.db, "auth-audit", "cli");
     expect((audit.summary as { administrators: unknown }).administrators).toEqual({ active: 2, deactivated: 0 });
     expect(JSON.stringify(audit.summary)).not.toContain("Teammate");
+    // Owners too: the summary goes to public Actions logs, so an owner is a label, never a username.
+    expect((audit.summary as { owners: unknown }).owners).toEqual([expect.objectContaining({ owner: "owner 1", hasPassword: true, isActive: true })]);
+    expect(JSON.stringify(audit.summary).toLowerCase()).not.toContain("founder");
     expect((await usersActions.setAdministratorAction(otherId, false)).ok).toBe(true);
     expect((await getUser(handle.db, otherId))!.isAdmin).toBe(false);
     const actions = (await listAudit(handle.db, 10)).filter((e) => e.targetName === "Teammate").map((e) => e.action);

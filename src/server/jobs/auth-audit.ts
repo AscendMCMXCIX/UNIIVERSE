@@ -5,7 +5,8 @@ import { listUsers, validateUsername } from "@/server/repositories/users";
 
 /**
  * Read-only account audit: can every account sign in the way the product expects? Reports
- * owner usernames (owners only; members are counted, never named), how many other accounts hold
+ * each owner account by number, never by username (the repository and its Actions logs are
+ * public), with the day it last signed in; members are counted, never named. Also how many other accounts hold
  * administrator access, accounts without a password
  * or a player profile, usernames that no longer satisfy the rules, whether the legacy email
  * column is really gone, which migrations are applied, any table without Row Level Security
@@ -19,7 +20,10 @@ defineJob({
   allowConcurrent: true,
   run: async (ctx) => {
     const users = await listUsers(ctx.db);
-    const owners = users.filter((u) => u.role === "owner").map((u) => ({ username: u.username, hasPassword: u.hasPassword, hasPlayer: !!u.playerId, isActive: u.isActive, lastLoginAt: u.lastLoginAt?.toISOString() ?? null }));
+    // A label and the day, never the username or the time: this summary is printed in public Actions logs.
+    const owners = users
+      .filter((u) => u.role === "owner")
+      .map((u, i) => ({ owner: `owner ${i + 1}`, hasPassword: u.hasPassword, hasPlayer: !!u.playerId, isActive: u.isActive, lastLoginDay: u.lastLoginAt?.toISOString().slice(0, 10) ?? null }));
     const invalidUsernames = users.filter((u) => validateUsername(u.username) !== null).length;
     const now = new Date();
     const liveSessions = await ctx.db.select({ userId: sessions.userId }).from(sessions).where(gt(sessions.expiresAt, now));

@@ -46,4 +46,26 @@ describe("/api/health", () => {
     await db.update(riotAccounts).set({ syncCursor: null }).where(eq(riotAccounts.puuid, "p-health"));
     expect(((await (await GET()).json()) as { data: { accounts: string | null } }).data.accounts).toBeNull();
   });
+
+  it("never shows a visitor the database driver's message: it can name the host, region and user", async () => {
+    const driverMessage = 'password authentication failed for user "postgres.abcdefghijklmnopqrst" (aws-0-ap-southeast-2.pooler.supabase.com:6543)';
+    const failing = { mode: "postgres", db: { execute: async () => { throw new Error(driverMessage); } }, close: async () => {} };
+    const silent = process.env.UNIIVERSE_LOG_SILENT;
+    process.env.UNIIVERSE_LOG_SILENT = "true";
+    state.handle = failing;
+    try {
+      const res = await GET();
+      const text = await res.text();
+      expect(res.status).toBe(503);
+      const body = JSON.parse(text) as { ok: boolean; db: { ok: boolean; error: string } };
+      expect(body.ok).toBe(false);
+      expect(body.db.ok).toBe(false);
+      expect(body.db.error).toMatch(/did not answer/);
+      for (const leak of ["abcdefghijklmnopqrst", "pooler", "supabase", "ap-southeast", "authentication", "postgres."]) expect(text).not.toContain(leak);
+    } finally {
+      state.handle = handle;
+      if (silent === undefined) delete process.env.UNIIVERSE_LOG_SILENT;
+      else process.env.UNIIVERSE_LOG_SILENT = silent;
+    }
+  });
 });
