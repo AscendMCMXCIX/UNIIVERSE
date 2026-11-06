@@ -532,18 +532,25 @@ p a.text-accent {
   to { transform: translateX(60%); }
 }
 @keyframes card-drift {
-  0%, 100% { transform: translate3d(-10%, 0, 0); }
-  50% { transform: translate3d(10%, 0, 0); }
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  25% { transform: translate3d(-10%, 0, 0); }
+  75% { transform: translate3d(10%, 0, 0); }
 }
 .card-fx-shimmer { animation: card-shimmer 7s linear infinite; will-change: transform; }
 .card-fx-drift { animation: card-drift 16s ease-in-out infinite; will-change: transform; }
-/* Pages with several cards: effects wait until the card is hovered or focused. */
-.card-fx-hover .card-fx-shimmer, .card-fx-hover .card-fx-drift { animation-play-state: paused; }
-[data-fx-host]:hover .card-fx-hover .card-fx-shimmer, [data-fx-host]:hover .card-fx-hover .card-fx-drift,
-[data-fx-host]:focus-within .card-fx-hover .card-fx-shimmer, [data-fx-host]:focus-within .card-fx-hover .card-fx-drift { animation-play-state: running; }
+/*
+  Pages with several cards: the effects exist only while the card is hovered or focused. A paused
+  animation would still keep a compositor layer per effect (five phone cards: 19 layers and 6.5 MB
+  at 1x, for effects a touch screen never hovers). The shimmer starts off the card and the drift at
+  rest, so nothing jumps when they begin; a shimmer stopped mid-card disappears instead of freezing.
+*/
+.card-fx-hover .card-fx-shimmer { animation: none; will-change: auto; opacity: 0; }
+.card-fx-hover .card-fx-drift { animation: none; will-change: auto; }
+[data-fx-host]:hover .card-fx-hover .card-fx-shimmer, [data-fx-host]:focus-within .card-fx-hover .card-fx-shimmer { animation: card-shimmer 7s linear infinite; will-change: transform; opacity: 1; }
+[data-fx-host]:hover .card-fx-hover .card-fx-drift, [data-fx-host]:focus-within .card-fx-hover .card-fx-drift { animation: card-drift 16s ease-in-out infinite; will-change: transform; }
 @media (prefers-reduced-motion: reduce) {
-  .card-fx-shimmer { animation: none; opacity: 0 !important; }
-  .card-fx-drift { animation: none; }
+  .card-fx-shimmer { animation: none !important; opacity: 0 !important; will-change: auto !important; }
+  .card-fx-drift { animation: none !important; will-change: auto !important; }
 }
 /*
   Team cards turn over to a substitute (team-roster.tsx, LineupCard, which runs the turn with Web
