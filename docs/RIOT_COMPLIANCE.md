@@ -206,3 +206,5 @@ A Personal key is the right key while the public pages carry no Riot API data (C
 If the portal asks to verify the site, it fetches `/riot.txt`: that is `public/riot.txt` (the code alone, no newline), served without sign-in (`src/proxy.ts`), and the Production check confirms it is served. If Riot issues a new code, replace the file.
 
 Already checked, with nothing to do (Checked without the portal, above): the required notice is visible, `RIOT_API_KEY` is set only in the host's environment and never in the repository, and the endpoints match the description. Keep this file and the compliance panel (Admin → System Health) in sync with reality when features change.
+
+**Logs deleted on 6 Nov 2026.** The logs of 23 by-hand Data jobs runs (13 Oct to 3 Nov), among them 41534575560, 41602528625 and 41733812716 cited above, were deleted with the owner's confirmation, because `riot-check` printed the key's last four characters in them (#225 removed that field). The runs' records remain, and the findings above are recorded here.
