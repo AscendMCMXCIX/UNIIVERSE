@@ -12,7 +12,9 @@ import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, ADMIN_TABS, PROFILE_SECTIONS, RESOU
 import { AccountMenu, otherUsername } from "./account-menu";
 import { announceAccountChange, markAccountChange } from "./account-guard";
 import { InstallAppEntry } from "./install/install-app";
+import { useInstallState } from "./install/install-state";
 import { ProfileTabs } from "./players/profile-tabs";
+import { PHONE_QUERY } from "./ui/use-phone";
 import { cn } from "@/lib/cn";
 
 export interface MobileNavProps {
@@ -52,7 +54,8 @@ export interface MobileNavProps {
     - the account sheet (a sheet from the bottom edge) holds the rest: Resources when it has no tab,
       Settings, Install App, the switch between the modes, Sign out, the patch and Riot's notice.
   Tablets keep the top bar with the menu at its left end and the drawer with every page, and the
-  page tabs (Team's sections) in the page.
+  page tabs (Team's sections) in the page, pinned at its top once it scrolls. Installed as an app, a
+  tablet has no browser Back, so the bar offers Back there too, on a page reached from another.
 
   Safe-area insets keep both bars clear of notches, rounded corners and the home indicator. In
   short windows (a phone held sideways) both bars slide away while the page scrolls down and come
@@ -67,11 +70,27 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   // The drawer (tablets) and the account sheet (phones) remember the path they were opened on, so any
   // navigation closes them without an effect.
   const [openedAt, setOpenedAt] = React.useState<{ what: "drawer" | "sheet"; path: string } | null>(null);
+  // Forgotten once the page has changed, so coming back to that page (Forward) opens nothing unasked.
+  const [seenPath, setSeenPath] = React.useState(pathname);
+  if (seenPath !== pathname) {
+    setSeenPath(pathname);
+    if (openedAt && openedAt.path !== pathname) setOpenedAt(null);
+  }
   const open = openedAt?.what === "drawer" && openedAt.path === pathname;
   const sheetOpen = openedAt?.what === "sheet" && openedAt.path === pathname;
-  const setOpen = (next: boolean) => setOpenedAt(next ? { what: "drawer", path: pathname } : null);
-  const closeRef = React.useRef<HTMLButtonElement>(null);
   const menuRef = React.useRef<HTMLButtonElement>(null);
+  const setOpen = (next: boolean) => setOpenedAt(next ? { what: "drawer", path: pathname } : null);
+  // Focus goes back to the menu button once the drawer has gone: while the drawer is open the page
+  // behind it is inert, so the button cannot take focus any earlier. Without scrolling: the button
+  // is in the bar, inside the page's scroll padding, and the page stays where the reader left it.
+  const drawerWasOpen = React.useRef(false);
+  React.useEffect(() => {
+    if (drawerWasOpen.current && !open) menuRef.current?.focus({ preventScroll: true });
+    drawerWasOpen.current = open;
+  }, [open]);
+  const closeRef = React.useRef<HTMLButtonElement>(null);
+  // The installed app has no browser Back: tablets get one in the bar too (phones always have it).
+  const { standalone } = useInstallState();
   const headerRef = React.useRef<HTMLElement>(null);
   const hidden = useHideOnScroll();
   const bar = useTopBarHeight(headerRef);
@@ -86,21 +105,6 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
     document.documentElement.toggleAttribute("data-tabbar-hidden", tabsHidden);
     return () => document.documentElement.removeAttribute("data-tabbar-hidden");
   }, [tabsHidden]);
-
-  React.useEffect(() => {
-    if (!open) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    closeRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpenedAt(null);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = previous;
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
 
   // Resources has a tab when the bar has room; otherwise it is the sheet's first entry.
   const sheetPages = adminMode ? [] : [RESOURCES].filter((l) => allowed.includes(l.href) && !tabs.some((t) => t.href === l.href));
@@ -122,13 +126,13 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
           {/* Phones: Back where the page was reached from another (labelled with where it leads), else the team's mark. */}
           {back ? (
             back.history ? (
-              <button type="button" onClick={back.go} className={BACK_CLASS} data-testid="mobile-back">
+              <button type="button" onClick={back.go} className={cn(BACK_CLASS, !standalone && BACK_TABLET)} data-testid="mobile-back">
                 <ChevronLeft className="h-5 w-5 shrink-0" aria-hidden />
                 <span className="truncate">{back.label}</span>
                 <span className="sr-only">, back</span>
               </button>
             ) : (
-              <Link href={back.href} className={BACK_CLASS} data-testid="mobile-back">
+              <Link href={back.href} className={cn(BACK_CLASS, !standalone && BACK_TABLET)} data-testid="mobile-back">
                 <ChevronLeft className="h-5 w-5 shrink-0" aria-hidden />
                 <span className="truncate">{back.label}</span>
                 <span className="sr-only">, back</span>
@@ -203,9 +207,8 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
       ) : null}
 
       {open ? (
-        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Menu" id="mobile-drawer">
-          <button type="button" className="fade-in absolute inset-0 bg-black/60 backdrop-blur-sm" aria-label="Close menu" onClick={() => setOpen(false)} />
-          <div className="drawer-in absolute inset-y-0 left-0 flex w-[min(calc(20rem+env(safe-area-inset-left)),86vw)] flex-col overflow-y-auto overscroll-contain border-r border-border bg-chrome pt-safe pl-[env(safe-area-inset-left)] pb-safe shadow-2xl" data-testid="mobile-drawer-panel">
+        <Drawer onClose={() => setOpen(false)} initialFocus={closeRef}>
+          <div className="drawer-in flex h-full w-full flex-col overflow-y-auto overscroll-contain border-r border-border bg-chrome pt-safe pl-[env(safe-area-inset-left)] pb-safe shadow-2xl" data-testid="mobile-drawer-panel">
             <div className="flex items-center justify-between gap-2 px-4 py-3">
               {user ? (
                 <Link href={hasPlayer && !adminMode ? "/overview" : (accountLinks[0]?.href ?? "/settings")} onClick={() => setOpen(false)} className="flex min-w-0 items-center gap-2.5">
@@ -231,14 +234,9 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                 </SheetLink>
               ))}
               {/* The install window opens over the page: the menu closes first, and focus goes back
-                  to the menu button, where the window returns it when it closes. */}
-              <InstallAppEntry
-                variant="drawer"
-                beforeOpen={() => {
-                  menuRef.current?.focus();
-                  setOpen(false);
-                }}
-              />
+                  to the menu button (the effect above, once the menu has gone), where the window
+                  returns it when it closes. */}
+              <InstallAppEntry variant="drawer" beforeOpen={() => setOpen(false)} />
               {showSignOut ? (
                 <form action="/api/auth/logout" method="post">
                   <button className="flex min-h-12 w-full items-center gap-3 rounded-lg pl-[0.9375rem] pr-3 text-left text-sm text-fg-muted hover:bg-surface-2 hover:text-fg" type="submit">
@@ -249,7 +247,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
             </div>
             <div className="mt-auto border-t border-border px-4 py-3">{status}</div>
           </div>
-        </div>
+        </Drawer>
       ) : null}
 
       {tabs.length > 0 ? (
@@ -280,7 +278,70 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   );
 }
 
-const BACK_CLASS = "-ml-1 flex min-h-11 min-w-0 max-w-[45%] shrink-0 items-center gap-0.5 rounded-md pr-2 text-sm font-medium text-accent hover:bg-surface-2 md:hidden";
+/** Phones; and tablets in the installed app, which has no browser Back (a tablet in a browser has the browser's). */
+const BACK_CLASS = "-ml-1 flex min-h-11 min-w-0 max-w-[45%] shrink-0 items-center gap-0.5 rounded-md pr-2 text-sm font-medium text-accent hover:bg-surface-2";
+/**
+ * Tablets: hidden in a browser, shown in the installed app's display mode from the first paint (the
+ * `standalone` variant, globals.css), so a cold start never draws the bar without it and then with
+ * it. Once the page runs, the browser's answer (useInstallState) shows it too: iOS's own flag, and
+ * the test's stand-in for a display mode Chromium cannot emulate.
+ */
+const BACK_TABLET = "md:hidden md:standalone:flex";
+
+/**
+ * The tablet's menu: a modal dialog (the native <dialog>, as every sheet and window), so focus stays
+ * inside, the page behind is inert and never scrolls, and Escape or a tap beside the panel closes
+ * it. The panel is docked to the left edge, the sidebar's side. Closed, or removed while open (a
+ * navigation, the window grown to the sidebar's widths), it gives focus back where it came from.
+ */
+function Drawer({ onClose, initialFocus, children }: { onClose: () => void; /** What takes focus when it opens (the close button). */ initialFocus: React.RefObject<HTMLElement | null>; children: React.ReactNode }) {
+  const ref = React.useRef<HTMLDialogElement>(null);
+  const latest = React.useRef(onClose);
+  React.useLayoutEffect(() => {
+    latest.current = onClose;
+  });
+  // A layout effect: its cleanup runs while the dialog is still on the page, so it can be closed
+  // properly (out of the top layer, the page no longer inert) before it is removed.
+  React.useLayoutEffect(() => {
+    const d = ref.current;
+    if (!d) return;
+    if (!d.open) d.showModal();
+    initialFocus.current?.focus({ preventScroll: true });
+    // The page behind stays where it is.
+    const root = document.documentElement;
+    const previous = root.style.overflow;
+    root.style.overflow = "hidden";
+    // The sidebar takes over from lg: a menu left open across that width would keep the page inert.
+    const wide = window.matchMedia("(min-width: 64rem)");
+    const onWide = () => wide.matches && latest.current();
+    wide.addEventListener("change", onWide);
+    return () => {
+      wide.removeEventListener("change", onWide);
+      root.style.overflow = previous;
+      if (d.open) d.close();
+    };
+  }, [initialFocus]);
+  return (
+    <dialog
+      ref={ref}
+      id="mobile-drawer"
+      aria-label="Menu"
+      // Escape asks the owner to close, so the menu button gets focus back the same way every time.
+      onCancel={(e) => {
+        e.preventDefault();
+        latest.current();
+      }}
+      onClick={(e) => {
+        if (e.target === ref.current) latest.current();
+      }}
+      // overflow-visible: the panel scrolls itself, and its shadow falls over the backdrop (a dialog clips its contents by default).
+      className="m-0 h-dvh max-h-none w-[min(calc(20rem+env(safe-area-inset-left)),86vw)] max-w-none overflow-visible border-0 bg-transparent p-0 text-fg backdrop:bg-black/60 backdrop:backdrop-blur-sm open:flex motion-safe:backdrop:fade-in"
+      data-testid="mobile-drawer"
+    >
+      {children}
+    </dialog>
+  );
+}
 
 /** A row of the account sheet or the tablet drawer: an icon and a page, 48px tall. */
 function SheetLink({ href, icon: Icon, active, onNavigate, children }: { href: string; icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>; active: boolean; onNavigate: () => void; children: React.ReactNode }) {
@@ -292,13 +353,14 @@ function SheetLink({ href, icon: Icon, active, onNavigate, children }: { href: s
 }
 
 /**
- * The top bar's height (status bar included, a profile's sections too), measured, and the page's
- * scroll-padding-top to match, so whatever scrolls into view (a link to a section, a game brought
- * up, the keyboard's focus) stops below the bar rather than under it (WCAG 2.4.11; globals.css has
- * the value before this runs). Zero where there is no bar (the sidebar's widths), and the padding
- * is left to the stylesheet. Written as scroll-padding-top itself: a custom property set on the root
- * re-styles every element of the page (about 870 on a profile, 50 ms on a slow phone), even one
- * registered as not inherited, where this re-styles the root alone.
+ * The top bar's height (status bar included, a profile's sections too), measured, and on phones the
+ * page's scroll-padding-top to match, so whatever scrolls into view (a link to a section, a game
+ * brought up, the keyboard's focus) stops below the bar rather than under it (WCAG 2.4.11;
+ * globals.css has the value before this runs). On tablets the bar's height is fixed and the
+ * stylesheet's value stands, with the pinned section tabs added where a page has them (globals.css
+ * --bar-top and --tabs-top); the sidebar's widths have no bar. Written as scroll-padding-top itself:
+ * a custom property set on the root re-styles every element of the page (about 870 on a profile,
+ * 50 ms on a slow phone), even one registered as not inherited, where this re-styles the root alone.
  */
 function useTopBarHeight(ref: React.RefObject<HTMLElement | null>): number {
   const [height, setHeight] = React.useState(0);
@@ -306,16 +368,29 @@ function useTopBarHeight(ref: React.RefObject<HTMLElement | null>): number {
     const el = ref.current;
     if (!el) return;
     const root = document.documentElement;
-    const observer = new ResizeObserver(() => {
+    const phone = window.matchMedia(PHONE_QUERY);
+    const apply = () => {
       const h = el.offsetHeight;
       setHeight(h);
-      if (h) root.style.scrollPaddingTop = `${h + 8}px`;
-      else root.style.removeProperty("scroll-padding-top");
-    });
+      // The bar's own controls keep clear of that padding (globals.css: their scroll margin takes it
+      // back), so focus moving onto them never scrolls the page; the value sits on the bar, which
+      // re-styles the bar alone.
+      if (h && phone.matches) {
+        root.style.scrollPaddingTop = `${h + 8}px`;
+        el.style.setProperty("--bar-pad", `${h + 8}px`);
+      } else {
+        root.style.removeProperty("scroll-padding-top");
+        el.style.removeProperty("--bar-pad");
+      }
+    };
+    const observer = new ResizeObserver(apply);
     observer.observe(el);
+    phone.addEventListener("change", apply);
     return () => {
       observer.disconnect();
+      phone.removeEventListener("change", apply);
       root.style.removeProperty("scroll-padding-top");
+      el.style.removeProperty("--bar-pad");
     };
   }, [ref]);
   return height;

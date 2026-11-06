@@ -102,11 +102,10 @@ export async function ProfileFrame({ db, header, session, basePath, children }: 
   return (
     <ProfileIdentityProvider initial={identity}>
     <div className="mx-auto max-w-[var(--content-max)] space-y-4" style={bannerLightStyle(identity.look.style.colours)} data-testid="player-profile">
-      {/* The section bar belongs to the profile card: tucked right under it. */}
-      <div className="space-y-1.5">
-        <ProfileHeader identity={identity} self={self} editable={editable} champions={champions} basePath={basePath} />
-        <ProfileTabs basePath={basePath} />
-      </div>
+      {/* The section bar belongs to the profile card: tucked right under it (its own margin), and a
+          child of the whole profile, so it can stay pinned while every section scrolls (ProfileTabs). */}
+      <ProfileHeader identity={identity} self={self} editable={editable} champions={champions} basePath={basePath} />
+      <ProfileTabs basePath={basePath} />
       {children}
     </div>
     </ProfileIdentityProvider>

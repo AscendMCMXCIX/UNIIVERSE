@@ -21,15 +21,18 @@ import { MatchBreakdown } from "./match-breakdown";
 const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /** Brings an element to the top of the screen when it sits above it (the list moved while a game was open). */
+/** What is pinned above the page (the top bar, a profile's or Team's pinned section tabs): the page's scroll padding, which scrollIntoView honours. */
+const pinnedAbove = () => parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
+
 export function revealIfAbove(el: HTMLElement | null) {
-  if (el && el.getBoundingClientRect().top < 0) el.scrollIntoView({ block: "start", behavior: reduced() ? "auto" : "smooth" });
+  if (el && el.getBoundingClientRect().top < pinnedAbove()) el.scrollIntoView({ block: "start", behavior: reduced() ? "auto" : "smooth" });
 }
 
-/** Brings a card just opened into view when it sits low on the screen or above it; one in the upper part of the screen stays where it is. */
+/** Brings a card just opened into view when it sits low on the screen or under what is pinned above it; one in the upper part of the screen stays where it is. */
 export function revealOpened(el: HTMLElement | null) {
   if (!el) return;
   const top = el.getBoundingClientRect().top;
-  if (top < 0 || top > window.innerHeight * 0.55) el.scrollIntoView({ block: "start", behavior: reduced() ? "auto" : "smooth" });
+  if (top < pinnedAbove() || top > window.innerHeight * 0.55) el.scrollIntoView({ block: "start", behavior: reduced() ? "auto" : "smooth" });
 }
 
 /**
