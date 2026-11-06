@@ -135,7 +135,12 @@ only:
 - `placesMissingFromOwnHistory`: members' places in the season's stored records that are missing from
   that member's own history. Played Together reads the histories, so it misses those games. A non-zero
   count points at a gap in that member's own season history: a game the sync never stored for them
-  (`docs/DATA_PIPELINES.md` describes how the history is collected).
+  (`docs/DATA_PIPELINES.md` describes how the history is collected). `byReason` says what the ledger
+  holds for each place (counts only): `noRow` (no row under any of the member's accounts, with how many
+  of those games are older than the member's earliest stored game, in a queue the sync does not
+  collect, or belong to a member whose season is not complete yet) and `row` (a row without a
+  champion, which every reader skips: a game Riot refused for good, a remake, another queue, or a
+  champion the list did not have). `byQueue` counts the places by the game's queue.
 
 ## Code and tests
 

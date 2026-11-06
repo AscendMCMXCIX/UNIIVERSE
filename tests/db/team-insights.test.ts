@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { accountMatches, matchDetails, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
@@ -133,11 +133,44 @@ describe("team insights from stored games", () => {
     const audit = await teamInsightsAudit(handle.db, teamId, labelOf, NOW);
     expect(audit.memberGames).toBe(7);
     expect(audit.tested).toBe(0);
-    // Bea's place in G4 is in the record but not in her history.
-    expect(audit.placesMissingFromOwnHistory).toEqual({ places: 1, matches: 1, members: 1 });
+    // Bea's place in G4 is in the record but not in her history: no row at all, for a game older
+    // than her earliest stored game, in a collected queue, with her season history not yet complete.
+    expect(audit.placesMissingFromOwnHistory).toEqual({
+      places: 1,
+      matches: 1,
+      members: 1,
+      byReason: { noRow: { places: 1, beforeOwnFirstGame: 1, queueNotCollected: 0, historyIncomplete: 1 }, row: { places: 0, refusedForGood: 0, remake: 0, otherQueue: 0, championUnknown: 0, withChampion: 0 } },
+      byQueue: { "400": 1 },
+    });
     const text = JSON.stringify(audit);
     for (const secret of ["Ace", "Bea", "Cy", "p-ace", "p-bea", "OC1_", ...Object.values(ids)]) expect(text).not.toContain(secret);
     expect(audit.comparisons.every((c) => c.member === null || /^p\d+$/.test(c.member))).toBe(true);
+  });
+
+  it("tells a place with no row from one whose row has no champion, and says what kind of row it is", async () => {
+    const labelOf = (id: string) => id.slice(0, 2);
+    const reasons = async () => (await teamInsightsAudit(handle.db, teamId, labelOf, NOW)).placesMissingFromOwnHistory;
+    const stub = (over: Partial<typeof accountMatches.$inferInsert>) => ({ accountId: acc.bea!, matchId: "OC1_4", gameCreation: NOW.getTime() - 6 * DAY, queueId: 400, championId: null, gameDuration: 1800, ...over });
+    // A row Riot refused for good (no start time), as the sync records it.
+    await handle.db.insert(accountMatches).values(stub({ gameCreation: 0 }));
+    expect((await reasons()).byReason).toMatchObject({ noRow: { places: 0 }, row: { places: 1, refusedForGood: 1, remake: 0, otherQueue: 0, championUnknown: 0, withChampion: 0 } });
+    await handle.db.delete(accountMatches).where(and(eq(accountMatches.accountId, acc.bea!), eq(accountMatches.matchId, "OC1_4")));
+    // A remake's row.
+    await handle.db.insert(accountMatches).values(stub({ gameDuration: 200 }));
+    expect((await reasons()).byReason.row).toMatchObject({ places: 1, remake: 1, refusedForGood: 0 });
+    await handle.db.delete(accountMatches).where(and(eq(accountMatches.accountId, acc.bea!), eq(accountMatches.matchId, "OC1_4")));
+    // A queue the sync does not count.
+    await handle.db.insert(accountMatches).values(stub({ queueId: 450 }));
+    expect((await reasons()).byReason.row).toMatchObject({ places: 1, otherQueue: 1 });
+    await handle.db.delete(accountMatches).where(and(eq(accountMatches.accountId, acc.bea!), eq(accountMatches.matchId, "OC1_4")));
+    // A champion the list did not have.
+    await handle.db.insert(accountMatches).values(stub({}));
+    expect((await reasons()).byReason.row).toMatchObject({ places: 1, championUnknown: 1 });
+    await handle.db.delete(accountMatches).where(and(eq(accountMatches.accountId, acc.bea!), eq(accountMatches.matchId, "OC1_4")));
+    // Her season complete: the same missing place no longer counts as an unfinished history.
+    await handle.db.update(riotAccounts).set({ historyBackfill: { season: 16, queues: {}, startedAt: NOW.toISOString(), completedAt: NOW.toISOString() } }).where(eq(riotAccounts.id, acc.bea!));
+    expect((await reasons()).byReason.noRow).toEqual({ places: 1, beforeOwnFirstGame: 1, queueNotCollected: 0, historyIncomplete: 0 });
+    await handle.db.update(riotAccounts).set({ historyBackfill: null }).where(eq(riotAccounts.id, acc.bea!));
   });
 
   it("is cached until the history changes", async () => {
