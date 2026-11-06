@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { accountChampionHistory, accountMatches, matchDetails, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
+import { accountChampionHistory, accountMatches, matchDetails, players, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
@@ -66,7 +66,7 @@ describe("folding a member's missing places from the stored records", () => {
   it("folds the game as the sync would, remembers the remake, leaves the rest, and does nothing twice", async () => {
     const db = handle.db;
     const first = await foldMissingPresences(db, { now: NOW });
-    expect(first).toEqual({ accounts: 2, candidates: 2, folded: 1, skipped: 1, later: 0 });
+    expect(first).toEqual({ accounts: 2, candidates: 2, folded: 1, skipped: 1, later: 0, held: false, kinds: { thisSeason: 2, earlierSeasons: 0, teamMembers: 2, personalUse: 0 } });
     const rows = await beaRows();
     expect(rows).toEqual([
       { matchId: "OC1_1", championId: "Gwen", role: "TOP", win: true, kills: 7, deaths: 1, assists: 2, teamId: 100 },
@@ -77,7 +77,7 @@ describe("folding a member's missing places from the stored records", () => {
     // Ace's history is untouched: he had every game the records name him in.
     expect((await db.select({ matchId: accountMatches.matchId }).from(accountMatches).where(eq(accountMatches.accountId, acc.ace!)).orderBy(accountMatches.matchId)).map((r) => r.matchId)).toEqual(["OC1_1", "OC1_2", "OC1_3"]);
     // Nothing is left to fold, and nothing is folded twice.
-    expect(await foldMissingPresences(db, { now: NOW })).toEqual({ accounts: 2, candidates: 0, folded: 0, skipped: 0, later: 0 });
+    expect(await foldMissingPresences(db, { now: NOW })).toEqual({ accounts: 2, candidates: 0, folded: 0, skipped: 0, later: 0, held: false, kinds: { thisSeason: 0, earlierSeasons: 0, teamMembers: 0, personalUse: 0 } });
     expect((await beaRows()).length).toBe(2);
     expect(history).toEqual({ games: 1, wins: 1 });
   });
@@ -89,11 +89,34 @@ describe("folding a member's missing places from the stored records", () => {
       { matchId: "OC1_5", platform: "oc1", queueId: 420, gameCreation: at(1), gameDuration: 1700, gameVersion: "16.20.1.1", teams: [], participants: [part("p-bea", 200, "Gwen", { position: "TOP", win: false })] },
       { matchId: "OC1_6", platform: "oc1", queueId: 420, gameCreation: at(9), gameDuration: 1700, gameVersion: "16.20.1.1", teams: [], participants: [part("p-bea", 100, "Gwen", { position: "TOP" })] },
     ]);
-    expect(await foldMissingPresences(db, { now: NOW, limit: 1 })).toEqual({ accounts: 2, candidates: 1, folded: 1, skipped: 0, later: 0 });
+    expect(await foldMissingPresences(db, { now: NOW, limit: 1 })).toEqual({ accounts: 2, candidates: 1, folded: 1, skipped: 0, later: 0, held: false, kinds: { thisSeason: 1, earlierSeasons: 0, teamMembers: 1, personalUse: 0 } });
     expect((await beaRows()).map((r) => r.matchId)).toEqual(["OC1_1", "OC1_2", "OC1_5"]);
+    // The housekeeping job holds the fold (FOLD_MISSING_PRESENCES): it reports the candidate, and
+    // writes nothing.
     const result = await runJob(db, "integrity", "test");
     expect(result.ok).toBe(true);
-    expect((result.summary as { missingPresences: unknown }).missingPresences).toEqual({ accounts: 2, candidates: 1, folded: 1, skipped: 0, later: 0 });
+    expect((result.summary as { missingPresences: unknown }).missingPresences).toEqual({ accounts: 2, candidates: 1, folded: 0, skipped: 0, later: 0, held: true, kinds: { thisSeason: 1, earlierSeasons: 0, teamMembers: 1, personalUse: 0 } });
+    expect((await beaRows()).map((r) => r.matchId)).toEqual(["OC1_1", "OC1_2", "OC1_5"]);
+    // Folded by hand, the same game goes in once.
+    expect((await foldMissingPresences(db, { now: NOW })).folded).toBe(1);
     expect((await beaRows()).map((r) => r.matchId)).toEqual(["OC1_1", "OC1_2", "OC1_5", "OC1_6"]);
+  });
+
+  it("counts held candidates by kind: earlier seasons and personal-use profiles, which data-audit never counts", async () => {
+    const db = handle.db;
+    const teamId = (await getOrCreateTeam(db)).id;
+    const solo = await createPlayer(db, teamId, { displayName: "Cy", primaryRole: "ADC", primaryPool: ["Ahri"] });
+    await db.update(players).set({ teamMember: false }).where(eq(players.id, solo.id));
+    const [row] = await db.insert(riotAccounts).values({ ownerType: "player", playerId: solo.id, gameName: "cy", tagLine: "T", platform: "oc1", puuid: "p-cy", label: "main" }).returning({ id: riotAccounts.id });
+    const lastYear = Date.UTC(2025, 5, 1);
+    await db.insert(matchDetails).values([
+      { matchId: "OC1_7", platform: "oc1", queueId: 420, gameCreation: NOW.getTime() - DAY, gameDuration: 1700, gameVersion: "16.20.1.1", teams: [], participants: [part("p-cy", 100, "Ahri", { position: "BOTTOM" })] },
+      { matchId: "OC1_8", platform: "oc1", queueId: 420, gameCreation: lastYear, gameDuration: 1700, gameVersion: "15.11.1.1", teams: [], participants: [part("p-bea", 100, "Gwen", { position: "TOP" })] },
+    ]);
+    const held = await foldMissingPresences(db, { now: NOW, hold: true });
+    expect(held).toEqual({ accounts: 3, candidates: 2, folded: 0, skipped: 0, later: 0, held: true, kinds: { thisSeason: 1, earlierSeasons: 1, teamMembers: 1, personalUse: 1 } });
+    // Holding writes nothing.
+    expect(await db.select({ matchId: accountMatches.matchId }).from(accountMatches).where(eq(accountMatches.accountId, row!.id))).toEqual([]);
+    expect((await beaRows()).map((r) => r.matchId)).not.toContain("OC1_8");
   });
 });

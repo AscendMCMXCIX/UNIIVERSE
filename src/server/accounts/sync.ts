@@ -858,33 +858,59 @@ async function storedFoldRecords(db: Db, matchIds: readonly string[]): Promise<M
  * later exactly as the sync would. Never a request to Riot; on conflict nothing, so never a
  * duplicate. Bounded per call (the daily integrity job): newest games first.
  */
-export async function foldMissingPresences(db: Db, options: { limit?: number; now?: Date } = {}): Promise<{ accounts: number; candidates: number; folded: number; skipped: number; later: number }> {
+export interface MissingPresenceFold {
+  accounts: number;
+  candidates: number;
+  folded: number;
+  skipped: number;
+  later: number;
+  /** True when nothing was written: the candidates were only counted (`hold`). */
+  held: boolean;
+  /**
+   * The candidates by kind, folded or not: of this calendar season or earlier, and for an account
+   * of a team member or of a personal-use profile. data-audit's "places missing from own history"
+   * counts only this season's games of team members, so the other kinds are what it never saw.
+   */
+  kinds: { thisSeason: number; earlierSeasons: number; teamMembers: number; personalUse: number };
+}
+
+export async function foldMissingPresences(db: Db, options: { limit?: number; now?: Date; hold?: boolean } = {}): Promise<MissingPresenceFold> {
   const now = options.now ?? new Date();
+  const hold = options.hold ?? false;
   let budget = options.limit ?? 200;
   const owners = await db
     .selectDistinct({ playerId: riotAccounts.playerId })
     .from(riotAccounts)
     .where(and(eq(riotAccounts.ownerType, "player"), isNotNull(riotAccounts.puuid), isNotNull(riotAccounts.playerId), ne(riotAccounts.label, "demo")));
   const accounts = (await listAccountsForPlayers(db, owners.map((o) => o.playerId!))).filter((a): a is RiotAccountRecord & { puuid: string } => !!a.puuid && a.label !== "demo");
-  const out = { accounts: accounts.length, candidates: 0, folded: 0, skipped: 0, later: 0 };
+  const out: MissingPresenceFold = { accounts: accounts.length, candidates: 0, folded: 0, skipped: 0, later: 0, held: hold, kinds: { thisSeason: 0, earlierSeasons: 0, teamMembers: 0, personalUse: 0 } };
   if (accounts.length === 0) return out;
+  const memberOf = new Map((await db.select({ id: players.id, teamMember: players.teamMember }).from(players).where(inArray(players.id, owners.map((o) => o.playerId!)))).map((r) => [r.id, r.teamMember]));
+  const seasonStartMs = seasonStartUnix(seasonForDate(now)) * 1000;
   const keyToId = new Map((await db.select({ key: champions.key, id: champions.id }).from(champions)).map((c) => [c.key, c.id]));
   const erased = await erasureFilter(db);
   for (const account of accounts) {
     if (budget <= 0) break;
     // Records naming the account on a side (the PUUID index first), with no row for it yet.
     const result = await db.execute(sql`
-      SELECT d.match_id
+      SELECT d.match_id, d.game_creation
       FROM match_details d
       WHERE jsonb_path_query_array(d.participants, '$[*].puuid') ?| ARRAY[${account.puuid}]::text[]
         AND EXISTS (SELECT 1 FROM jsonb_array_elements(d.participants) p WHERE p->>'puuid' = ${account.puuid} AND p->>'teamId' IN ('100', '200'))
         AND NOT EXISTS (SELECT 1 FROM account_matches am WHERE am.account_id = ${account.id}::uuid AND am.match_id = d.match_id)
       ORDER BY d.game_creation DESC
       LIMIT ${budget}`);
-    const ids = (((result as { rows?: Array<{ match_id: string }> }).rows ?? (result as unknown as Array<{ match_id: string }>)) as Array<{ match_id: string }>).map((r) => r.match_id);
+    const found = ((result as { rows?: Array<{ match_id: string; game_creation: string | number }> }).rows ?? (result as unknown as Array<{ match_id: string; game_creation: string | number }>)) as Array<{ match_id: string; game_creation: string | number }>;
+    const ids = found.map((r) => r.match_id);
     if (ids.length === 0) continue;
     out.candidates += ids.length;
     budget -= ids.length;
+    const thisSeason = found.filter((r) => Number(r.game_creation) >= seasonStartMs).length;
+    out.kinds.thisSeason += thisSeason;
+    out.kinds.earlierSeasons += ids.length - thisSeason;
+    if (memberOf.get(account.playerId ?? "") === false) out.kinds.personalUse += ids.length;
+    else out.kinds.teamMembers += ids.length;
+    if (hold) continue;
     const records = await storedFoldRecords(db, ids);
     for (const matchId of ids) {
       const record = records.get(matchId);
