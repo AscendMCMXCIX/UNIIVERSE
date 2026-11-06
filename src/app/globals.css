@@ -277,17 +277,22 @@ p a.text-accent {
 }
 /*
   Section tabs (Team's, a profile's, Platform Settings') pinned at the top of the page once it has
-  scrolled past them: under the tablet's top bar, at the window's edge beside the sidebar, over the
-  page's own ground and blurred like the top bar, so the sections stay one tap away however long
-  the page. Not in a short window, where a pinned row would take too much of the height.
+  scrolled past them: under the tablet's top bar, at the window's edge beside the sidebar, so the
+  sections stay one tap away however long the page. While pinned (data-stuck, set by TabBar) the
+  row is frame, not content: the frame's ink, blurred like the top bar; at rest it is as plain as
+  before, part of the page. Not in a short window, where a pinned row would take too much of the
+  height.
 */
 @utility sticky-tabs {
   @media (min-width: 48rem) and (min-height: 481px) {
     position: sticky;
     top: var(--bar-top);
     z-index: 30;
-    background-color: color-mix(in srgb, var(--color-bg) 85%, transparent);
-    backdrop-filter: blur(12px);
+    transition: background-color 150ms;
+    &[data-stuck] {
+      background-color: color-mix(in srgb, var(--color-chrome) 90%, transparent);
+      backdrop-filter: blur(12px);
+    }
   }
 }
 

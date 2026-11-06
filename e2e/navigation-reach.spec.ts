@@ -93,13 +93,24 @@ test("tablet and desktop: Team's sections stay in reach as a long page scrolls, 
   await expect(page.getByTestId("records")).toBeVisible();
   const tabs = page.getByTestId("team-tabs");
   const resting = await rect(tabs);
+  // At rest the bar is part of the page: no ink of its own.
+  await expect(tabs).not.toHaveAttribute("data-stuck", /.*/);
+  const ink = () => tabs.evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(await ink()).toBe("rgba(0, 0, 0, 0)");
   await page.evaluate(() => window.scrollTo(0, 1200));
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(600);
-  // Pinned at the top of the page: under the tablet's top bar, at the window's edge beside the sidebar.
+  // Pinned at the top of the page: under the tablet's top bar, at the window's edge beside the
+  // sidebar, and in the frame's ink while it is.
   const pinned = await rect(tabs);
   const barBottom = isTablet(page) ? (await rect(page.getByTestId("mobile-topbar"))).bottom : 0;
   expect(pinned.top).toBe(barBottom);
   expect(pinned.height).toBe(resting.height);
+  await expect(tabs).toHaveAttribute("data-stuck", "");
+  expect(await ink()).not.toBe("rgba(0, 0, 0, 0)");
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(tabs).not.toHaveAttribute("data-stuck", /.*/);
+  await page.evaluate(() => window.scrollTo(0, 1200));
+  await expect(tabs).toHaveAttribute("data-stuck", "");
   // Whatever is brought into view stops under them (scroll-padding), as it does under the phone's bars.
   expect(await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop))).toBeGreaterThanOrEqual(pinned.bottom);
   await tapInPlace(page, tabs.getByRole("link", { name: "Matches" }));

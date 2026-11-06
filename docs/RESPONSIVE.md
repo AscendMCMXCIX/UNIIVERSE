@@ -88,13 +88,15 @@ fit (iPhone 15 and wider) and scroll on narrower phones.
 - **Section tabs stay in reach** on tablets and desktops: Team's sections, a profile's sections
   and Platform Settings' (`TabBar` with `sticky`, the `sticky-tabs` utility in globals.css) stay
   pinned at the top of the page once it has scrolled past them, under the tablet's top bar
-  (`--bar-top`) and at the window's edge beside the sidebar, over the page's ground and blurred like
-  the top bar, so a long section (Players, Matches, a Match History) never needs scrolling back up
-  to leave it: the desktop's answer to the phone's bottom bar and in-bar sections. Anything pinned
-  under them (All Champions' column headings) offsets by `--tabs-top`, and `scroll-padding-top`
-  clears both. A short window (under 481px tall) keeps its height for the page: nothing is pinned
-  there. A sticky bar must be a child of what the page scrolls through, never of a wrapper that
-  ends with it.
+  (`--bar-top`) and at the window's edge beside the sidebar, so a long section (Players, Matches, a
+  Match History) never needs scrolling back up
+  to leave it: the desktop's answer to the phone's bottom bar and in-bar sections. While pinned
+  (`data-stuck`, set by an observer in `TabBar`) the row is frame, not content: the frame's ink
+  (`chrome`) blurred like the top bar; at rest it is plain, part of the page. Anything pinned under
+  it (All Champions' column headings) offsets by `--tabs-top`, and `scroll-padding-top` clears
+  both. A short window (under 481px tall) keeps its height for the page: nothing is pinned there.
+  A sticky bar must be a child of what the page scrolls through, never of a wrapper that ends with
+  it.
 - `main` pads for the tab bar (`pb-tabbar`) so content never hides behind it.
 
 ## Primitives

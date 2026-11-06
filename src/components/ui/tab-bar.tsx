@@ -28,6 +28,43 @@ export interface TabBarItem {
 }
 
 /**
+ * Marks a pinned bar while it is actually pinned (data-stuck): the stylesheet then gives it the
+ * frame's ink and blur, and leaves it plain while it sits in the page. A bar is pinned once its top
+ * edge has reached its sticky offset, which an observer with that offset taken off the top of the
+ * window reports as the bar no longer wholly inside. Watched again when the window changes size
+ * (the offset differs between a tablet and the sidebar's widths, and a short window pins nothing).
+ */
+function useStuck(ref: React.RefObject<HTMLElement | null>, enabled: boolean) {
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!enabled || !el) return;
+    let observer: IntersectionObserver | null = null;
+    const watch = () => {
+      observer?.disconnect();
+      observer = null;
+      el.removeAttribute("data-stuck");
+      const style = getComputedStyle(el);
+      if (style.position !== "sticky") return;
+      const top = parseFloat(style.top) || 0;
+      observer = new IntersectionObserver(
+        ([entry]) => {
+          if (entry) el.toggleAttribute("data-stuck", entry.intersectionRatio < 1 && entry.boundingClientRect.top <= top + 1);
+        },
+        { threshold: [1], rootMargin: `-${Math.ceil(top) + 1}px 0px 0px 0px` },
+      );
+      observer.observe(el);
+    };
+    watch();
+    window.addEventListener("resize", watch);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", watch);
+      el.removeAttribute("data-stuck");
+    };
+  }, [ref, enabled]);
+}
+
+/**
  * Section tabs: the one way to move between the sections of a page (Team's sections, a player's
  * profile), the same on every screen. Every tab is a link with its own address, so Back/Forward,
  * new tabs and the keyboard work. On phones the tabs share the width when they fit; when they do
@@ -41,9 +78,11 @@ export interface TabBarItem {
  */
 export function TabBar({ label, items, current, keepScroll = false, dense = false, sticky = false, className, testId, end }: { label: string; items: readonly TabBarItem[]; current: string; keepScroll?: boolean; dense?: boolean; sticky?: boolean; className?: string; testId?: string; end?: React.ReactNode }) {
   const listRef = React.useRef<HTMLUListElement>(null);
+  const navRef = React.useRef<HTMLElement>(null);
   useScrollEdges(listRef, { keepCurrentInView: true, current });
+  useStuck(navRef, sticky);
   return (
-    <nav aria-label={label} className={cn("flex items-end gap-4 border-b border-border", sticky && "sticky-tabs", className)} data-testid={testId} data-sticky-tabs={sticky || undefined}>
+    <nav ref={navRef} aria-label={label} className={cn("flex items-end gap-4 border-b border-border", sticky && "sticky-tabs", className)} data-testid={testId} data-sticky-tabs={sticky || undefined}>
       <ul ref={listRef} className="scroll-fade-x -mb-px flex min-w-0 flex-1 snap-x gap-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {items.map((s) => {
           const on = s.key === current;
