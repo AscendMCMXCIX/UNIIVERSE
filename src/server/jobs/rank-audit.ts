@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, or, sql } from "drizzle-orm";
 import { defineJob } from "./registry";
 import { accountMatches, jobRuns, rankSnapshots } from "@/server/db/schema";
 import { listPlayers, getOrCreateTeam } from "@/server/repositories/team";
@@ -46,7 +46,7 @@ function lpTally(records: Iterable<LpRecord>) {
 
 defineJob({
   key: "rank-audit",
-  description: "Read-only: the 2026 ranked year's rank history per account and queue (Riot's game count against the stored games, the readings and the gaps between them, the games with a recorded LP change and why the others have none), the 2026 seasons' first patches, how often ranks were read, and the year's games by week. Accounts as P1/A1 only. Changes nothing.",
+  description: "Read-only: the 2026 ranked year's rank history per account and queue (Riot's game count against the stored games, the rows without a champion by kind, the readings and the gaps between them, the games with a recorded LP change and why the others have none), the 2026 seasons' first patches, how often ranks were read, and the year's games by week. Accounts as P1/A1 only. Changes nothing.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,
   run: async (ctx) => {
@@ -64,9 +64,10 @@ defineJob({
       ? await Promise.all([
           db.select().from(rankSnapshots).where(inArray(rankSnapshots.accountId, ids)),
           db
-            .select({ accountId: accountMatches.accountId, matchId: accountMatches.matchId, gameCreation: accountMatches.gameCreation, gameDuration: accountMatches.gameDuration, queueId: accountMatches.queueId, win: accountMatches.win, patch: accountMatches.patch })
+            .select({ accountId: accountMatches.accountId, matchId: accountMatches.matchId, gameCreation: accountMatches.gameCreation, gameDuration: accountMatches.gameDuration, queueId: accountMatches.queueId, win: accountMatches.win, patch: accountMatches.patch, championId: accountMatches.championId })
             .from(accountMatches)
-            .where(and(inArray(accountMatches.accountId, ids), inArray(accountMatches.queueId, [420, 440]), gte(accountMatches.gameCreation, RANKED_YEAR_START - 7 * DAY))),
+            // Also the rows with no start time: a listed game Riot refused for good is recorded that way (accounts/sync).
+            .where(and(inArray(accountMatches.accountId, ids), inArray(accountMatches.queueId, [420, 440]), or(gte(accountMatches.gameCreation, RANKED_YEAR_START - 7 * DAY), eq(accountMatches.gameCreation, 0)))),
         ])
       : [[], []];
     // The 2026 ranked year's games: those on a 16.x patch (a game of December 2025 is not one).
@@ -88,6 +89,14 @@ defineJob({
           const countedGames = list.filter(isCountedGame);
           // Riot's count of the year's games at the first reading, against the stored games ended by then.
           const check = first && first.wins !== null && first.losses !== null ? { riotCount: first.wins + first.losses, ...storedCountAt(first.capturedAt, list) } : null;
+          // The queue's rows without a champion, which no page counts, by what they are: a game
+          // Riot refused for good (recorded with no start time, so it is on no page and in no count
+          // here), or one whose champion the list did not have when it was stored (counted above as
+          // a game, shown nowhere). Where Riot's count exceeds the stored games, these say why.
+          const withoutChampion = {
+            refusedForGood: games.filter((g) => g.accountId === a.id && g.queueId === QUEUE_ID[queue] && Number(g.gameCreation) === 0).length,
+            championUnknown: yearGames.filter((g) => g.accountId === a.id && g.queueId === QUEUE_ID[queue] && g.championId === null && isCountedGame({ matchId: g.matchId, createdAt: g.gameCreation, durationS: g.gameDuration, win: g.win })).length,
+          };
           const gaps: Record<string, number> = { "0 games": 0, "1 game": 0, "2 games": 0, "3-5 games": 0, "6+ games": 0, reset: 0 };
           const minutes: number[] = [];
           for (let i = 1; i < readings.length; i++) {
@@ -138,6 +147,7 @@ defineJob({
               lastReading: iso(last?.capturedAt),
               lastRank: last ? (last.tier ? `${rankLabel(last.tier, last.division)} ${last.leaguePoints} LP` : "Unranked") : null,
               riotCountCheck: check ? { ...check, agrees: check.riotCount >= check.certain && check.riotCount <= check.possible } : null,
+              withoutChampion,
               gamesBetweenReadings: gaps,
               medianMinutesBetweenReadings: median(minutes),
               lp: lpTally(countedGames.map((g) => lp.get(g.matchId)!)),

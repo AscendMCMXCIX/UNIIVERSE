@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { accountMatches, rankSnapshots, riotAccounts } from "@/server/db/schema";
@@ -35,6 +35,8 @@ beforeAll(async () => {
     g("OC1_M", "2026-10-20T08:22:00Z", 25, true), // the game the readings enclose
     g("OC1_F", "2026-10-05T08:00:00Z", 30, true, 440), // Flex, never read: before tracking
     g("OC1_OLD", "2025-12-20T08:00:00Z", 30, true, 420, "15.24"), // the 2025 season: not part of the year
+    // A listed game Riot refused for good, as the sync records it: no start time, no champion.
+    { accountId, matchId: "OC1_GONE", gameCreation: 0, queueId: 420 },
   ]);
   await db.insert(rankSnapshots).values([
     { accountId, queue: "solo", tier: "GOLD", division: "II", leaguePoints: 46, wins: 2, losses: 2, capturedAt: at("2026-10-20T08:20:00Z") },
@@ -46,6 +48,16 @@ afterAll(async () => {
 });
 
 describe("rank-audit", () => {
+  it("counts a game stored without a champion (the list did not have it) beside Riot's count, so a shortfall says why", async () => {
+    const db = handle.db;
+    const [account] = await db.select({ id: riotAccounts.id }).from(riotAccounts);
+    await db.insert(accountMatches).values({ accountId: account!.id, matchId: "OC1_NEWCHAMP", gameCreation: ms("2026-10-06T08:00:00Z"), gameDuration: 1500, queueId: 420, win: true, patch: "16.20", championId: null });
+    const result = await runJob(db, "rank-audit", "test");
+    const summary = result.summary as unknown as { accounts: Array<{ queues: Record<"solo", { games: number; withoutChampion: { refusedForGood: number; championUnknown: number } }> }> };
+    expect(summary.accounts[0]!.queues.solo.withoutChampion).toEqual({ refusedForGood: 1, championUnknown: 1 });
+    await db.delete(accountMatches).where(eq(accountMatches.matchId, "OC1_NEWCHAMP"));
+  });
+
   it("reports the year's rank history per account and queue, proves the one enclosed game, and changes nothing", async () => {
     const db = handle.db;
     const count = async () => {
@@ -77,7 +89,8 @@ describe("rank-audit", () => {
     const acc = summary.accounts[0]!;
     expect(acc.account).toBe("P1/A1");
     const solo = acc.queues.solo;
-    expect(solo).toMatchObject({ games: 5, remakes: 1, readings: 2, firstRank: "Gold II 46 LP", lastRank: "Gold II 70 LP" });
+    expect(solo).toMatchObject({ games: 5, remakes: 1, readings: 2, firstRank: "Gold II 46 LP", lastRank: "Gold II 70 LP", withoutChampion: { refusedForGood: 1, championUnknown: 0 } });
+    expect(acc.queues.flex).toMatchObject({ withoutChampion: { refusedForGood: 0, championUnknown: 0 } });
     // Riot counted 4 games of the year by the first reading; the store holds exactly those 4 (the remake aside).
     expect(solo.riotCountCheck).toMatchObject({ riotCount: 4, certain: 4, possible: 4, agrees: true });
     expect(solo.gamesBetweenReadings["1 game"]).toBe(1);
