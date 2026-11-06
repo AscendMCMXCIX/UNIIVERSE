@@ -97,7 +97,7 @@ function Who({ p, you = false, size = "md", sub, className, nameClassName, stret
   return (
     <span className={cn("flex min-w-0 items-center gap-2.5 text-sm", className)} style={cardColourVars(p.look)}>
       <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size={size} />
-      <span className="flex min-w-0 flex-1 flex-col">
+      <span className="flex min-w-0 flex-1 flex-col" data-testid="board-member-name">
         <span className="flex min-w-0 items-center gap-1.5">
           {name}
           {you ? <Badge tone="accent" className="shrink-0">You</Badge> : null}

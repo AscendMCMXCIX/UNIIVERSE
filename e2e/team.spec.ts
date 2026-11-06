@@ -150,9 +150,11 @@ test("the player window never cuts a pool champion's name, whatever the row hold
   const names = await rows.evaluateAll((els) =>
     els.map((el) => {
       const name = el.querySelector<HTMLElement>("[data-testid=pool-champion-name]")!;
+      // The phone's figure block is not drawn from sm up (the figures take their columns): an undrawn note has no box to check.
       const stats = el.querySelector<HTMLElement>("[data-testid=pool-champion-stats]");
+      const drawn = stats && stats.getClientRects().length > 0 ? stats.getBoundingClientRect() : null;
       const row = el.getBoundingClientRect();
-      return { name: name.textContent, cut: name.scrollWidth > name.clientWidth + 1, note: stats?.textContent ?? "", inside: !stats || (stats.getBoundingClientRect().right <= row.right + 0.5 && stats.getBoundingClientRect().left >= row.left - 0.5) };
+      return { name: name.textContent, cut: name.scrollWidth > name.clientWidth + 1, note: stats?.textContent ?? "", inside: !drawn || (drawn.right <= row.right + 0.5 && drawn.left >= row.left - 0.5) };
     }),
   );
   // The demo Top pool holds champions with mastery and no games this season: the longest note a row can carry.

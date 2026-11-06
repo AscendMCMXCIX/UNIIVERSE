@@ -112,13 +112,17 @@ test("Records & achievements: season records open their game, multikills rarest 
     rows.map((row) => {
       const name = row.querySelector<HTMLElement>("[data-testid=card-name]")!;
       const box = name.getBoundingClientRect();
-      return { name: name.textContent, width: box.width, lines: Math.round(box.height / parseFloat(getComputedStyle(name).lineHeight)), inside: box.right <= row.getBoundingClientRect().right + 0.5 };
+      // The room is the member cell's name column (what a long name may fill), not the name's own box: a short name is narrower than its room.
+      const column = row.querySelector<HTMLElement>("[data-testid=board-member-name]")!;
+      return { name: name.textContent, room: column.getBoundingClientRect().width, lines: Math.round(box.height / parseFloat(getComputedStyle(name).lineHeight)), inside: box.right <= row.getBoundingClientRect().right + 0.5, cut: name.scrollWidth > name.clientWidth + 1 };
     }),
   );
+  expect(names.length).toBeGreaterThan(0);
   for (const n of names) {
-    expect(n.width, `${n.name}: room for a name`).toBeGreaterThanOrEqual(80);
+    expect(n.room, `${n.name}: room for a name`).toBeGreaterThanOrEqual(80);
     expect(n.lines, `${n.name}: at most two lines`).toBeLessThanOrEqual(2);
     expect(n.inside, `${n.name}: inside its row`).toBe(true);
+    expect(n.cut, `${n.name}: whole`).toBe(false);
   }
   await noOverflow(page);
   await axe(page, "[data-testid=records]");
