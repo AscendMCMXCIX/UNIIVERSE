@@ -122,6 +122,11 @@ test("a saved card shows on the profile, Team and Players, and cards stay aligne
   await expect(rowPreview.getByTestId("card-emblem")).toHaveAttribute("data-emblem", "flame");
   await expect(rowPreview.locator("[data-art-layer]")).toHaveCount(0);
   await page.getByTestId("preview-team").click();
+  // One animated effect, to see how a page of several cards treats it.
+  await step(page, "effects");
+  const shimmerSwitch = page.getByRole("switch", { name: "Accent shimmer" });
+  if (!(await shimmerSwitch.isChecked())) await page.getByText("Accent shimmer").click();
+  await expect(shimmerSwitch).toBeChecked();
   await page.getByTestId("save-card-style").click();
   await expect(page.getByTestId("card-studio")).toBeHidden();
 
@@ -147,6 +152,16 @@ test("a saved card shows on the profile, Team and Players, and cards stay aligne
   // Competitive information stays visible on the decorated card.
   await expect(top.locator("[data-status]")).toBeVisible();
   await expect(top.getByTestId("card-season")).toBeVisible();
+  // Among several cards a decorative effect exists only while its card is pointed at or focused:
+  // nothing animates (or holds a layer) on its own, and it leaves with the pointer.
+  const shimmer = top.getByTestId("card-shimmer");
+  await expect(shimmer).toHaveCount(1);
+  const animationOf = () => shimmer.evaluate((e) => getComputedStyle(e).animationName);
+  expect(await animationOf()).toBe("none");
+  await top.hover();
+  await expect.poll(animationOf, { message: "the shimmer runs while pointed at" }).toBe("card-shimmer");
+  await page.mouse.move(0, 0);
+  await expect.poll(animationOf, { message: "and stops when the pointer leaves" }).toBe("none");
 
   // Players directory.
   await page.goto("/players");

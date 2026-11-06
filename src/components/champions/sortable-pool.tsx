@@ -429,7 +429,11 @@ export function SortablePool({
                 {/* The champion's own splash art along the item's left half, faint and fading into the
                     panel (a static, lazy image; no blur), a little brighter while pointed at. */}
                 <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 -z-10 w-3/5 overflow-hidden [mask-image:linear-gradient(to_right,black_20%,transparent)]" data-testid="pool-splash">
-                  <RemoteImage src={championArtUrl({ championId: id, skinNum: 0 }, "splash")} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover object-[60%_22%] opacity-25 transition-opacity duration-300 group-hover:opacity-40" />
+                  <picture className="contents">
+                    {/* Phones: the champion's tile (about 40 KB) rather than the full splash (150–200 KB) for a 48 px strip at a quarter opacity. */}
+                    <source media="(max-width: 767px)" srcSet={championArtUrl({ championId: id, skinNum: 0 }, "tiles")} />
+                    <RemoteImage src={championArtUrl({ championId: id, skinNum: 0 }, "splash")} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover object-[60%_22%] opacity-25 transition-opacity duration-300 group-hover:opacity-40" />
+                  </picture>
                 </span>
                 {inspector}
                 <span className={cn("flex min-w-0 flex-1 items-center gap-2.5 @lg:gap-3", onInspect && "pointer-events-none relative z-[1] [&_button]:pointer-events-auto")}>
@@ -467,7 +471,10 @@ export function SortablePool({
                 // blur; a little brighter on hover) under a dark gradient that keeps every label readable whatever
                 // the artwork. Riot's art, through the same address as the player cards.
                 <span aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden" data-testid="pool-splash">
-                  <RemoteImage src={championArtUrl({ championId: id, skinNum: 0 }, "splash")} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover object-[70%_18%] opacity-55 transition-opacity duration-300 group-hover:opacity-70" />
+                  <picture className="contents">
+                    <source media="(max-width: 767px)" srcSet={championArtUrl({ championId: id, skinNum: 0 }, "tiles")} />
+                    <RemoteImage src={championArtUrl({ championId: id, skinNum: 0 }, "splash")} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover object-[70%_18%] opacity-55 transition-opacity duration-300 group-hover:opacity-70" />
+                  </picture>
                   <span className="absolute inset-0 bg-gradient-to-r from-surface via-surface/80 to-surface/20" />
                   <span className="absolute inset-0 bg-gradient-to-t from-bg/80 via-transparent to-transparent" />
                 </span>
