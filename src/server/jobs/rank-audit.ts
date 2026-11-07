@@ -78,7 +78,7 @@ defineJob({
         (["solo", "flex"] as const).map((queue) => {
           const rows: RankReadingRow[] = snapshots
             .filter((s) => s.accountId === a.id && s.queue === queue)
-            .map((s) => ({ tier: s.tier, division: s.division, leaguePoints: s.leaguePoints, wins: s.wins, losses: s.losses, capturedAt: s.capturedAt.getTime(), confirmedAt: null }));
+            .map((s) => ({ tier: s.tier, division: s.division, leaguePoints: s.leaguePoints, wins: s.wins, losses: s.losses, capturedAt: s.capturedAt.getTime(), confirmedAt: s.confirmedAt?.getTime() ?? null }));
           const list: Array<QueueGame & { patch: string | null }> = yearGames
             .filter((g) => g.accountId === a.id && g.queueId === QUEUE_ID[queue])
             .map((g) => ({ matchId: g.matchId, createdAt: g.gameCreation, durationS: g.gameDuration, win: g.win, patch: g.patch }))
