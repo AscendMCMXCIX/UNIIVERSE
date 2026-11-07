@@ -12,14 +12,16 @@ const state = vi.hoisted(() => ({
   ran: [] as RunJobResult[],
   single: null as RunJobResult | null,
   later: [] as Array<() => Promise<unknown>>,
+  calls: 0,
 }));
 vi.mock("@/server/bootstrap", () => ({ getAppDb: async () => ({}) }));
 vi.mock("@/server/jobs", () => ({
-  getJob: (key: string) => (key === "integrity" ? { key } : undefined),
+  getJob: (key: string) => (key === "integrity" || key === "rank-watch" ? { key } : undefined),
   runJob: async () => state.single,
   runTick: async () => ({ ran: state.ran, skipped: ["figures-backfill: not due"] }),
 }));
 vi.mock("next/server", async (orig) => ({ ...(await orig<object>()), after: (task: () => Promise<unknown>) => void state.later.push(task) }));
+vi.mock("@/server/ops/rank-schedule-calls", () => ({ markRankScheduleCall: async () => void (state.calls += 1) }));
 
 import { GET } from "@/app/api/jobs/[job]/route";
 
@@ -36,6 +38,7 @@ beforeEach(() => {
   state.ran = [];
   state.single = null;
   state.later = [];
+  state.calls = 0;
 });
 
 const result = (key: RunJobResult["key"], outcome: Partial<RunJobResult>): RunJobResult => ({ key, ok: true, durationMs: 10, ...outcome });
@@ -73,5 +76,25 @@ describe("the tick's answer", () => {
     expect(await call("integrity")).toMatchObject({ status: 500, body: { ok: false } });
     state.single = result("integrity", {});
     expect(await call("integrity")).toMatchObject({ status: 200, body: { ok: true } });
+  });
+});
+
+describe("the five-minute rank schedule's sign of life", () => {
+  it("is recorded for a direct, authorised rank-watch call, the call the schedule sends, and for nothing else", async () => {
+    state.single = result("rank-watch", {});
+    await call("rank-watch");
+    expect(state.calls).toBe(1);
+    // A tick runs the rank watch too, but it is not the schedule.
+    state.ran = [result("rank-watch", {})];
+    await call("tick");
+    await call("tick", "?background=1");
+    for (const task of state.later) await task();
+    state.single = result("integrity", {});
+    await call("integrity");
+    expect(state.calls).toBe(1);
+    // A refused call records nothing: that silence is what /api/health reports.
+    const refused = await GET(new NextRequest("http://localhost/api/jobs/rank-watch", { headers: { authorization: "Bearer not-the-secret" } }), { params: Promise.resolve({ job: "rank-watch" }) });
+    expect(refused.status).toBe(401);
+    expect(state.calls).toBe(1);
   });
 });
