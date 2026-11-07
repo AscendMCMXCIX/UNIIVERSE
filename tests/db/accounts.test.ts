@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
-import { accountChampionHistory, accountMatches, champions, patches } from "@/server/db/schema";
+import { accountChampionHistory, accountMatches, appSettings, champions, matchDetails, patches } from "@/server/db/schema";
+import { HISTORY_RESCAN_PREVIOUS_KEY, markHistoryRescan } from "@/server/jobs/history-rescan";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
@@ -343,6 +344,46 @@ describe("season history: gaps and games that cannot be stored", () => {
     expect(folded).toEqual([80, 50, 0, 0]);
     expect((await stored()).size).toBe(280);
     expect((await reload()).historyBackfill).toMatchObject({ completedAt: expect.any(String), queues: { "420": { done: true } } });
+  });
+
+  it("history-rescan reads a finished queue's older pages again and stores a listed game the old paging left behind", async () => {
+    const db = handle.db;
+    const { account, reload, stored } = await linkedAccount("Rescan Player");
+    const matches: Record<string, GameSpec> = {};
+    for (let i = 0; i < 120; i++) matches[`OC1_RES${i}`] = solo(1 + i);
+    const calls: string[] = [];
+    const client = clientFor("puuid-rescan", matches, calls);
+    const opts = { season: 16, queueIds: [420], maxMatchesPerRun: 200, now: () => new Date(NOW) };
+    expect((await syncAccount(db, client, account, opts)).history).toMatchObject({ complete: true });
+    // A game on the second page that the collection never stored, as the paging before #201 could
+    // leave one: the queue is finished, so plain syncs never read that far again.
+    await db.delete(accountMatches).where(and(eq(accountMatches.accountId, account.id), eq(accountMatches.matchId, "OC1_RES110")));
+    await db.delete(matchDetails).where(eq(matchDetails.matchId, "OC1_RES110"));
+    await syncAccount(db, client, await reload(), opts);
+    expect((await stored()).has("OC1_RES110")).toBe(false);
+    const before = (await reload()).historyBackfill!;
+
+    const marked = await markHistoryRescan(db, new Date(NOW));
+    expect(marked.season).toBe(16);
+    expect(marked.queuesMarked).toBeGreaterThanOrEqual(1);
+    expect((await reload()).historyBackfill?.queues["420"]).toMatchObject({ done: true, rescan: true, offset: before.queues["420"]!.offset });
+    // The earlier state is kept, so the marking can be undone.
+    const [kept] = await db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, HISTORY_RESCAN_PREVIOUS_KEY));
+    expect((kept!.value as { accounts: Record<string, unknown> }).accounts[account.id]).toEqual(before);
+    // Marked under the account's sync lease: a second run right away finds it held, and counts it as
+    // nothing new either way.
+    const again = await markHistoryRescan(db, new Date(NOW));
+    expect(again.marked).toBe(0);
+
+    calls.length = 0;
+    const repaired = await syncAccount(db, client, await reload(), opts);
+    expect(repaired.matchesFolded).toBe(1);
+    expect((await stored()).get("OC1_RES110")).toMatchObject({ championId: "Ahri", queueId: 420 });
+    // Only the missing game is fetched: the stored ones along the way cost nothing.
+    expect(calls.filter((u) => u.includes("/matches/OC1_RES")).length).toBe(1);
+    expect((await reload()).historyBackfill?.queues["420"]).toMatchObject({ done: true });
+    expect((await reload()).historyBackfill?.queues["420"]?.rescan).toBeUndefined();
+    expect((await stored()).size).toBe(120);
   });
 
   it("records a listed game Riot does not have, or sends in a form that cannot be read, so its queue still finishes; a game Riot cannot serve right now is tried again", async () => {

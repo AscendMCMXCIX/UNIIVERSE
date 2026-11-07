@@ -22,6 +22,7 @@ export type JobKey =
   | "db-usage"
   | "egress"
   | "erasure-reconcile"
+  | "history-rescan"
   | "tick";
 
 export interface JobOutcome {
