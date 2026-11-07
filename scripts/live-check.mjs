@@ -46,6 +46,7 @@
 */
 import { chromium } from "@playwright/test";
 import { AxeBuilder } from "@axe-core/playwright";
+import { redact } from "./redact.mjs";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 
@@ -60,10 +61,12 @@ const waitSeconds = Number(process.env.LIVE_WAIT_SECONDS ?? 300);
 mkdirSync(out, { recursive: true });
 
 const report = { base, startedAt: new Date().toISOString(), local, deployment: null, checks: [], axe: [], pages: [], blockedByEnvironment: 0 };
+const redactValue = (value) => (value === undefined || value === null ? value ?? null : JSON.parse(redact(JSON.stringify(value))));
+
 function check(area, name, status, detail) {
-  report.checks.push({ area, name, status, detail: detail ?? null });
+  report.checks.push({ area, name: redact(name), status, detail: redactValue(detail) });
   const shown = detail === undefined ? "" : `  ${typeof detail === "string" ? detail : JSON.stringify(detail)}`;
-  console.log(`${status.padEnd(4)} [${area}] ${name}${shown.slice(0, 400)}`);
+  console.log(redact(`${status.padEnd(4)} [${area}] ${name}${shown.slice(0, 400)}`));
 }
 const pass = (area, name, ok, detail) => check(area, name, ok ? "PASS" : "FAIL", detail);
 const warn = (area, name, detail) => check(area, name, "WARN", detail);
@@ -492,7 +495,7 @@ riotCompliance();
 const count = (s) => report.checks.filter((c) => c.status === s).length;
 report.finishedAt = new Date().toISOString();
 report.totals = { pass: count("PASS"), fail: count("FAIL"), warn: count("WARN") };
-writeFileSync(`${out}/report.json`, JSON.stringify(report, null, 1));
+writeFileSync(`${out}/report.json`, redact(JSON.stringify(report, null, 1)));
 const lines = [
   `# Live check: ${base}`,
   "",
@@ -506,6 +509,6 @@ const lines = [
   "",
   "Screenshots are beside this file, named <width>-<page>.png.",
 ];
-writeFileSync(`${out}/summary.md`, lines.join("\n") + "\n");
+writeFileSync(`${out}/summary.md`, redact(lines.join("\n") + "\n"));
 console.log(`\n${report.totals.pass} passed, ${report.totals.fail} failed, ${report.totals.warn} warnings · deployment ${report.deployment?.commit ?? "unknown"} · report in ${out}`);
 process.exit(report.totals.fail ? 1 : 0);
