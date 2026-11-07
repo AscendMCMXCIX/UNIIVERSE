@@ -23,6 +23,9 @@ export type JobKey =
   | "egress"
   | "erasure-reconcile"
   | "history-rescan"
+  | "rank-schedule"
+  | "rank-schedule-off"
+  | "rank-schedule-status"
   | "tick";
 
 export interface JobOutcome {

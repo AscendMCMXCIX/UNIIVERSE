@@ -127,7 +127,20 @@ How often runs happen is what decides how many games get a figure:
   Vercel's daily cron. Most games then fall between readings several games apart: `—`.
 - **With the five-minute schedule** below: nearly every ranked game gets its figure.
 
-### The five-minute schedule (Supabase pg_cron, free, one-time setup by the owner)
+### The five-minute schedule (Supabase pg_cron, free, installed by the app)
+
+**Install it:** Actions → **Data jobs** → Run workflow → job `rank-schedule`. The app installs the schedule itself, from its own server, with the `CRON_SECRET` it already holds, so nobody types or sees the secret:
+- it enables pg_cron and pg_net;
+- it stores the secret in Supabase Vault (`uniiverse_cron_secret`);
+- it schedules `uniiverse-rank-watch` every five minutes.
+
+Running it again changes nothing, except that it updates the Vault copy after a change of `CRON_SECRET`. Only the production deployment installs it.
+- **Check it:** Data jobs `rank-schedule-status` (read only). It reports whether the schedule exists, its runs of the last hour by status, and its calls by HTTP status. `/api/health` shows `rank-watch`'s last success, which should never be more than about five minutes old.
+- **Remove it:** Data jobs `rank-schedule-off`. It unschedules the job and deletes the Vault copy.
+
+`src/server/jobs/rank-schedule.test.ts` covers the guards and the command text. CI's Postgres has no pg_cron, so the SQL itself was run against a real pg_cron, with stand-ins for Vault and pg_net, when it was written.
+
+**By hand instead** (the same result, if the job cannot run):
 
 The database itself calls the rank watch every five minutes. Supabase includes pg_cron and pg_net
 on the free plan; the secret is kept in Supabase Vault, not in the schedule's text.
