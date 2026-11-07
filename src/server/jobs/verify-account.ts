@@ -4,6 +4,7 @@ import { defineJob } from "./registry";
 import { createUser, findUserByUsername, setPassword } from "@/server/repositories/users";
 import { verifyPassword } from "@/server/auth/password";
 import { recordAudit } from "@/server/audit/log";
+import { VERIFY_DISPLAY_NAME, VERIFY_USERNAME } from "@/server/auth/verification-account";
 
 /*
   THE PRODUCTION VERIFICATION ACCOUNT (docs/LIVE_VALIDATION.md). The daily Production check signs in
@@ -30,8 +31,7 @@ import { recordAudit } from "@/server/audit/log";
   owner turns the signed-in checks off.
 */
 
-export const VERIFY_USERNAME = "verify";
-export const VERIFY_DISPLAY_NAME = "Production verification";
+export { VERIFY_DISPLAY_NAME, VERIFY_USERNAME };
 const LABEL = "uniiverse:production-verification-account:v1";
 
 /** The account's password, worked out from CRON_SECRET (base64url HMAC-SHA256; the workflow does the same with openssl). */
