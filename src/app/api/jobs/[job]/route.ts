@@ -5,6 +5,7 @@ import { markRankScheduleCall } from "@/server/ops/rank-schedule-calls";
 import type { JobKey } from "@/server/ops/refresh-status";
 import { deploymentInfo } from "@/server/ops/deployment";
 import { jobRequestAuthorised } from "@/server/jobs/authorise";
+import { redactedJson } from "@/server/jobs/answer-redact";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -41,14 +42,15 @@ async function handle(request: NextRequest, params: Promise<{ job: string }>) {
     // running elsewhere did not run here. A failure answers 500 with the same list, so a manual
     // Data jobs run (`curl --fail`) and Vercel Cron's log record the tick as failed.
     const ok = result.ran.every((r) => r.skipped || r.ok);
-    return NextResponse.json({ ...result, ok, deployment }, { status: ok ? 200 : 500 });
+    // A manual Data jobs run prints the answer in a public log, so it carries no player identifier.
+    return redactedJson({ ...result, ok, deployment }, ok ? 200 : 500);
   }
   if (!getJob(job)) return NextResponse.json({ ok: false, error: `Unknown job "${job}"` }, { status: 404 });
   // The five-minute rank schedule calls exactly this, so its call (run or skipped) is its sign of
   // life for /api/health (server/ops/rank-schedule-calls.ts). A failed write must not fail the job.
   if (job === "rank-watch") await markRankScheduleCall(db).catch(() => undefined);
   const result = await runJob(db, job as JobKey, "http", { budgetMs });
-  return NextResponse.json({ ...result, deployment }, { status: result.ok ? 200 : 500 });
+  return redactedJson({ ...result, deployment }, result.ok ? 200 : 500);
 }
 
 export async function GET(request: NextRequest, ctx: { params: Promise<{ job: string }> }) {
