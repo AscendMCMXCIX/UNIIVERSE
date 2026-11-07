@@ -68,10 +68,12 @@ Settings → home). A destination's own pages have no Back: they are where you s
   inside one screen do on a phone, so Back leaves the profile rather than stepping through its
   sections; a section opened once the card has gone under the bar starts at its top, just under
   the bar. That top is measured on the new section once it has committed (the Overview's card is
-  taller than the band the other sections show), and held while its content replaces its loading
-  state, which is shorter and would otherwise leave the page clamped or, through scroll
-  anchoring, mid-list (`settleSectionTop`); a reader who touches or scrolls the page meanwhile
-  keeps their place.
+  taller than the band the other sections show), and held until the content is on the page and the
+  page is at that top (`settleSectionTop`): the loading state is shorter than the content and would
+  otherwise leave the page clamped or, through scroll anchoring, mid-list, and the route can also
+  commit for a moment with neither, no taller than the screen, which clamps the page to its top
+  (#262: before it, the landing failed now and then). A reader who touches or scrolls the page
+  meanwhile keeps their place, and the hold ends after ten seconds on a slow connection.
 - **Team's sections** are the bottom bar itself, so the page tabs are not repeated on phones.
 - **A page's views** (Match History's Games and Encounters, Leaderboards' Recent form and Records &
   achievements) share one quiet track (`SubTabs`). A label too long to share the line on a phone
