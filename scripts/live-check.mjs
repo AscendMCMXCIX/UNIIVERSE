@@ -306,7 +306,17 @@ async function frameChecks(page, kind, context) {
     return;
   }
   pass("frame", `${kind}: the top bar is painted with the frame colour`, sameAsFrame(paint.top, paint.chrome), { topBar: paint.top, chrome: paint.chrome });
-  if (kind === "phone") pass("frame", "phone: the tab bar is painted with the frame colour", sameAsFrame(paint.tabs, paint.chrome), { tabBar: paint.tabs, chrome: paint.chrome });
+  if (kind === "phone") {
+    pass("frame", "phone: the tab bar is painted with the frame colour", sameAsFrame(paint.tabs, paint.chrome), { tabBar: paint.tabs, chrome: paint.chrome });
+    // Phones have no drawer: the avatar opens the account sheet (docs/MOBILE.md, "The account sheet").
+    await page.getByTestId("account-sheet-button").click();
+    const sheet = await page.getByTestId("account-sheet").waitFor({ timeout: 5_000 }).then(() => true, () => false);
+    pass("frame", "phone: the avatar opens the account sheet", sheet);
+    if (sheet) await shot(page, "phone-account-sheet");
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(400);
+    return;
+  }
   await page.getByTestId("menu-button").click();
   await page.getByTestId("mobile-drawer-panel").waitFor({ timeout: 5_000 });
   const drawer = await colours(page, { panel: "[data-testid=mobile-drawer-panel]" });
@@ -353,11 +363,34 @@ async function allChampions(page, log, kind, playerId) {
   }
 }
 
+/**
+ * On a phone a game takes the whole screen (docs/MOBILE.md, "Open a game"; e2e/mobile-nav.spec.ts):
+ * the match window with its scoreboard, in the address, nothing opened under the card, and Back
+ * closes it and returns to the list.
+ */
+async function phoneGame(page, kind, name, slug, open) {
+  await open();
+  const win = page.getByTestId("match-detail");
+  const shown = await win.getByTestId("match-breakdown").first().waitFor({ timeout: 30_000 }).then(() => true, () => false);
+  const box = shown ? await win.boundingBox() : null;
+  pass("games", `${kind}: ${name} opens a game as a whole screen`, shown && !!box && box.width >= page.viewportSize().width - 1, box ? Math.round(box.width) : null);
+  pass("games", `${kind}: ${name}'s open game is in the address (?match=)`, /[?&]match=/.test(page.url()), page.url().replace(base, ""));
+  pass("games", `${kind}: ${name} opens nothing under the card`, (await page.getByTestId("match-expanded").count()) === 0, await page.getByTestId("match-expanded").count());
+  if (shown) {
+    await shot(page, `${kind}-${slug}-open`);
+    await axe(page, kind, `${slug}-game-open`, "[data-testid=match-detail]");
+  }
+  await page.goBack();
+  const closed = await win.waitFor({ state: "detached", timeout: 15_000 }).then(() => true, () => false);
+  pass("games", `${kind}: Back closes the game and returns to ${name}`, closed && !/[?&]match=/.test(page.url()), page.url().replace(base, ""));
+}
+
 async function teamMatches(page, log, kind, context) {
   if (!(await visit(page, log, kind, "team-matches", "/matches", { fullPage: false }))) return;
   const games = page.getByTestId("together-game");
   if (!(await games.first().waitFor({ timeout: 20_000 }).then(() => true, () => false))) return warn("games", `${kind}: Team Matches lists no games`, "nothing to open");
   const game = games.first();
+  if (kind === "phone") return phoneGame(page, kind, "Team Matches", "team-matches", () => game.getByTestId("together-card").click({ position: { x: 24, y: 12 } }));
   const toggle = game.getByTestId("together-open");
   await game.getByTestId("together-card").click({ position: { x: 24, y: 12 } });
   await page.waitForFunction(() => document.querySelector("[data-testid=together-open][aria-expanded=true]"), null, { timeout: 10_000 }).catch(() => {});
@@ -415,11 +448,14 @@ async function matchHistory(page, log, kind, playerId) {
   if (!(await visit(page, log, kind, "match-history", path, { fullPage: false }))) return;
   const card = page.getByTestId("match-card").first();
   if (!(await card.waitFor({ timeout: 20_000 }).then(() => true, () => false))) return warn("games", `${kind}: Match History lists no games`, path);
-  await card.click({ position: { x: 24, y: 16 } });
-  const opened = await page.getByTestId("match-expanded").getByTestId("match-breakdown").first().waitFor({ timeout: 30_000 }).then(() => true, () => false);
-  pass("games", `${kind}: Match History opens a game under its card`, opened);
-  await shot(page, `${kind}-match-history-open`);
-  if (kind !== "tablet") await axe(page, kind, "match-history-game-open");
+  if (kind === "phone") await phoneGame(page, kind, "Match History", "match-history", () => card.click({ position: { x: 24, y: 16 } }));
+  else {
+    await card.click({ position: { x: 24, y: 16 } });
+    const opened = await page.getByTestId("match-expanded").getByTestId("match-breakdown").first().waitFor({ timeout: 30_000 }).then(() => true, () => false);
+    pass("games", `${kind}: Match History opens a game under its card`, opened);
+    await shot(page, `${kind}-match-history-open`);
+    if (kind !== "tablet") await axe(page, kind, "match-history-game-open");
+  }
   // Encounters, the players met, from the view switch.
   const switcher = page.getByTestId("match-views").getByRole("link", { name: /encounters/i }).or(page.getByTestId("match-views").getByRole("button", { name: /encounters/i })).or(page.getByTestId("match-views").getByRole("tab", { name: /encounters/i }));
   if (await switcher.count()) {
