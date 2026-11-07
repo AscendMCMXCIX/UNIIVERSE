@@ -118,7 +118,7 @@ Everything that can be done without the owner is done or scheduled (Final reconc
 - **Smaller, any time (item 10):** a ruleset on `main`, deleting 187 merged branches, the Dependabot alert (item 8).
 
 
-1. **Member pages are not verified on the live site.** The Production check opens them only with a verification account, which needs the owner (about 10 minutes, docs/LIVE_VALIDATION.md, "Setting up the verification account"). Until then, every member-page change stays "Deployed".
+1. **Member pages on the live site: the verification account needs no owner step.** #250 adds Data jobs `verify-account`: a member account with no player profile, so it is in no list, statistic or leaderboard and nothing is collected from Riot for it. Its password is worked out from `CRON_SECRET` by the app and by the Production check, never stored or shown. The Production check signs in with it (docs/LIVE_VALIDATION.md). Until its first signed-in run passes, the member-page changes stay "Deployed".
 2. **LP for future games: the five-minute rank schedule runs since 7 Nov 08:10 UTC.** It was installed by the app itself (#245, Data jobs `rank-schedule`), and its runs are read with `rank-schedule-status`. Before it, the rank watch ran only on ticks (GitHub's hourly runs, delivered 4 to 5 times a day; visits; the daily cron), so most games fell between readings several games apart and showed `—`. The games played since get their figure from the readings around them. A check-in on 8 Nov reads rank-audit to confirm it. To remove the schedule: Data jobs `rank-schedule-off`.
 3. **Team's first byte.** Production check run 15's probe covered the 28 days to 4 Nov, all from before #191.
    - **Team:** TTFB p75 > 3 s on desktop (43 loads) and ≤ 3 s on phones (35 loads); 23% good.

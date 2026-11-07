@@ -38,23 +38,15 @@ node scripts/live-check.mjs [base url] [output folder]
 - **Base url:** defaults to https://team-uniiverse.vercel.app.
 - **Output folder:** defaults to `live-check-<time>`. It holds the screenshots, `report.json` and `summary.md`. The run exits with 1 when any check fails.
 - **Sign-in:** `UNIIVERSE_VERIFY_USER` and `UNIIVERSE_VERIFY_PASSWORD`, for a non-admin team member who is not in the lineup. They are read from the environment and never printed. In a cloud session they go in the environment's settings, and the site must be under its allowed domains.
-- **Setting up the verification account** (the owner, about 10 minutes):
-  1. Admin Mode → Users & Permissions → Add account:
-     - a username such as `verify`;
-     - a Riot ID of yours that no member uses here (Riot confirms it exists);
-     - **Member of the team**. "Personal use only" has no Team pages, so the check would fail on every one of them.
-  2. Give it no access group and leave it a standard member, not an administrator: the check only reads.
-  3. Sign in once as that account:
-     - replace the temporary password with a long random one;
-     - finish first-time setup;
-     - leave it out of the lineup.
-  4. GitHub → the repository's Settings → Secrets and variables → Actions: add `UNIIVERSE_VERIFY_USER` (the username) and `UNIIVERSE_VERIFY_PASSWORD` (the password).
-  5. Actions → Production check → Run workflow, once. Its summary then lists the member pages instead of "pending".
-
-  **What it costs:**
-  - The account appears under Players like any member.
-  - Its Riot account's games are collected like any member's.
-  - The app has no hidden, read-only account type. Adding one would be a product and security change, for your approval.
+- **The verification account** (no owner step; since 7 Nov 2026). The job `verify-account` keeps a member account called `verify` with **no player profile**. The Production check calls it before signing in, and it can also be run by hand from Data jobs (production only):
+  - **Invisible to members:** it is in no list a member sees. Players, the lineup, leaderboards, statistics and team insights all read player profiles.
+  - **Nothing collected:** it has no Riot account, so no Riot request is ever made for it.
+  - **Access:** exactly the default member access, with no access group, no custom permissions and no administrator rights. It is the access a new member gets: Team, Players, a teammate's statistics, Matches.
+  - **Sign-in:** through the normal sign-in form, with the normal password check and throttling.
+  - **Its password is never typed, stored or shown.** It is worked out from `CRON_SECRET`, which the app and the Production check already hold (an HMAC with a fixed label; `src/server/jobs/verify-account.ts`). The workflow masks it the moment it computes it. Whoever holds `CRON_SECRET` could therefore sign in as this member, but they can already run every job and reach the database. After a change of `CRON_SECRET`, the next Production check updates the password by itself.
+  - **What the job does:** it creates the account, changes nothing when run again, or updates the password after a secret change. It never touches an account of that name it did not make. It records its changes in Admin → Audit Logs.
+  - **To turn the signed-in checks off:** set the repository variable `SIGNED_IN_CHECKS` to `false`, or deactivate `verify` in Admin. Then the member pages are reported as pending, not as a failure. Explicit `UNIIVERSE_VERIFY_USER` / `UNIIVERSE_VERIFY_PASSWORD` secrets, if set, take precedence.
+  - **What it cannot show:** a member's own profile, Overview and first-time setup, because it has none of its own. CI covers those on demo data at three widths. It sees teammates' profiles as any member does.
 - **Read only:** it signs in, opens pages and opens and closes games and windows. It also switches a view and presses Back, Forward, Enter and Escape. It never submits a form after sign-in, and never presses a bookmark, edit, save, sync, refresh, invite or admin control. As with any member's visit, an open game can start the app's own background reads (rank checks).
 - **What it checks:**
   - Signed-out and forged-cookie requests to member pages are turned away to sign-in and carry no player data (#170). Security headers on the sign-in page.

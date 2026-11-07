@@ -34,7 +34,7 @@ on:
   workflow_dispatch:
     inputs:
       job:
-        description: "Job or space-separated jobs to run, in order (smoke, web, tick, version-check, static-sync, account-sync, timeline-backfill, figures-backfill, integrity, history-rescan, rank-schedule, rank-schedule-status, rank-schedule-off, erasure-reconcile, auth-audit, access-audit, data-audit, db-usage, egress, skin-audit, proficiency-audit, perf-probe, riot-check)"
+        description: "Job or space-separated jobs to run, in order (smoke, web, tick, version-check, static-sync, account-sync, timeline-backfill, figures-backfill, integrity, history-rescan, rank-schedule, rank-schedule-status, rank-schedule-off, verify-account, erasure-reconcile, auth-audit, access-audit, data-audit, db-usage, egress, skin-audit, proficiency-audit, perf-probe, riot-check)"
         default: "tick"
 
 # No GITHUB_TOKEN scope: this workflow only calls the deployed app (least privilege).
