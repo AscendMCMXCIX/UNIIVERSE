@@ -48,23 +48,25 @@ node scripts/live-check.mjs [base url] [output folder]
   - **What the job does:** it creates the account, changes nothing when run again, or updates the password after a secret change. It never touches an account of that name it did not make. It records its changes in Admin → Audit Logs.
   - **To turn the signed-in checks off:** set the repository variable `SIGNED_IN_CHECKS` to `false`, or deactivate `verify` in Admin. Then the member pages are reported as pending, not as a failure. Explicit `UNIIVERSE_VERIFY_USER` / `UNIIVERSE_VERIFY_PASSWORD` secrets, if set, take precedence.
   - **What it cannot show:** a member's own profile, Overview and first-time setup, because it has none of its own. CI covers those on demo data at three widths. It sees teammates' profiles as any member does.
-- **Read only:** it signs in, opens pages and opens and closes games and windows. It also switches a view and presses Back, Forward, Enter and Escape. It never submits a form after sign-in, and never presses a bookmark, edit, save, sync, refresh, invite or admin control. As with any member's visit, an open game can start the app's own background reads (rank checks).
+- **Read only:** it signs in, opens pages and opens and closes games and windows. It also switches a view and presses Back, Enter and Escape. It never submits a form after sign-in, and never presses a bookmark, edit, save, sync, refresh, invite or admin control; every other request it makes is a GET. As with any member's visit, an open game can start the app's own background reads (rank checks).
 - **What it checks:**
-  - Signed-out and forged-cookie requests to member pages are turned away to sign-in and carry no player data (#170). Security headers on the sign-in page.
+  - Signed out and with a forged session cookie (#170): the member pages (`/team`, `/players`, `/matches`, `/leaderboards`, `/overview`, `/overview/accounts`, `/me`, `/settings`), the Admin Mode pages (`/admin`, `/admin/players`, `/admin/people`, `/admin/audit`, `/admin/system`, `/admin/data`) and a real member's profile, champions, matches and Riot Accounts are turned away to sign-in and carry no player or admin data. The members' API routes (`/api/freshness`, `/api/avatars/…`, `/api/card-banners/…`) answer 401, and the jobs endpoint answers 401 without the scheduler's secret or with a wrong one. Security headers on the sign-in page.
+  - Signed in as the verification account, a standard member (desktop, requests only, no page opened): `/admin`, `/admin/people`, `/admin/audit`, `/admin/system`, `/admin/data` and `/admin/settings` are turned away to Player Mode with no admin data, the jobs' freshness answers 403, and the switch to Admin Mode keeps Player Mode without setting the admin view. Other Admin Mode pages (access levels, privacy records, branding, previews, resources) are not requested; their own permission checks are covered in CI (`src/app/page-guards.test.ts`).
   - The charcoal frame (#178): the sidebar open and folded, the current page's gradient bar, and the top bar, drawer and tab bar on tablets and phones.
-  - All Champions (#178): compact rows, sorted by games, no heading cut short. The champion window still opens and closes.
+  - All Champions (#178): compact rows, sorted by games, no heading cut short. The champion window still opens and closes. In a new ranked year's first six weeks, a list empty because the player has games but none in the new season yet is a warning; any other empty list fails.
   - Games (#178):
     - Team Matches opens a game under its card, with no window and `?match=` in the address;
     - a copied link opens it, and Back returns to it;
     - Enter toggles it, and "Close this game" closes it with the focus back on the card;
     - Match History and its Encounters view still open.
   - axe (#173) on the main pages at every width, with a game open, and in the champion window: WCAG 2.1 A and AA plus `label-content-name-mismatch`, with no serious or critical violation.
-  - Every page at every width loads signed in, with:
+  - Every page at every width loads signed in (not turned away, and not the not-found or error screen, which can arrive with HTTP 200 once a page has begun streaming), with:
     - no sideways scroll;
     - no page error or app console error;
     - no failed request to the app;
     - no broken image from the app.
-- **Locally:** `LIVE_LOCAL=1 node scripts/live-check.mjs http://127.0.0.1:<port>` checks a demo build started like the browser tests' server. There is no sign-in, and the security checks are skipped. On 3 Nov 2026 the demo build of `main` at `d72619a` passed all 200 checks, with no axe violation.
+  - Signed in it opens 8 routes at each width: Team, Players, a teammate's profile, their All Champions, Team Matches, their Match History, Leaderboards and Settings. The teammate is the lineup's first player; if Team shows none, it opens the account's own `/overview/champions` and `/overview/matches` instead, which the verification account (no profile) cannot fill, so All Champions then fails. It never opens Resources, a teammate's Riot Accounts or Matchups tabs, the member's own `/overview/*`, `/me`, `/welcome*`, `/matches/insights` or any `/admin` page in the browser. A change to a page it renders but asserts nothing about (Ranked progress, Card Studio looks, the phone tiles) is "deployed, its pages load cleanly on production", not production-verified; CI checks its behaviour on demo data.
+- **Locally:** `LIVE_LOCAL=1 node scripts/live-check.mjs http://127.0.0.1:<port>` checks a demo build started like the browser tests' server. There is no sign-in, and the security checks are skipped. On 3 Nov 2026 the demo build of `main` at `d72619a` passed all 200 checks, with no axe violation; on 7 Nov the demo build passed all 199 with the boundary checks added.
 
 ## 1. Data Dragon (champions, patches, portraits)
 
