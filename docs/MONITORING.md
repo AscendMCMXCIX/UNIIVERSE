@@ -64,7 +64,7 @@ The Production check and the Database backup (in the private backup repository) 
 
 - **Nothing checks from outside GitHub.** If GitHub Actions is paused (it disables scheduled workflows after 60 days without a commit), the alerts stop too. A free outside uptime monitor on `/api/health` would cover this; the owner creates its account, and no credentials go through the repository.
 - **Between scheduled runs,** a fault is noticed only at the next run (hours at worst).
-- **Signed-in pages from outside:** the Production check opens the member pages only once a non-admin verification account exists and its sign-in is stored as the repository secrets `UNIIVERSE_VERIFY_USER` and `UNIIVERSE_VERIFY_PASSWORD`. Until then it checks the public pages and the signed-out security only, and says the rest is pending.
+- **Signed-in pages from outside:** the Production check opens the member pages as the verification account `verify`, which Data jobs `verify-account` keeps, its password worked out from `CRON_SECRET` (docs/LIVE_VALIDATION.md). A lost sign-in (the account withdrawn, a conflict, no answer, no `CRON_SECRET`) fails the check and opens its issue; only the owner's off switches (`SIGNED_IN_CHECKS=false`, or the account deactivated) leave the member pages pending.
 
 Until an outside monitor exists: open Admin → System Health now and then, or run Data jobs `smoke` after anything unusual.
 

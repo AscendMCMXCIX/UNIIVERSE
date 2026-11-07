@@ -43,8 +43,6 @@ export interface ShellStatus {
   user: { name: string; username?: string | null; avatarUrl: string | null; roleLabel: string } | null;
   /** The active account's fingerprint (see AccountGuard); null when there is no account. */
   identity: string | null;
-  /** Account from before automatic profiles: asks for Riot ID and role once (see /me). */
-  needsProfile: boolean;
   /** Account created without a password: can only use this session until one is set. */
   needsPassword: boolean;
   /** Admin-created account that has not chosen roles, pools and a password yet. */
@@ -62,7 +60,6 @@ function DataLine({ status }: { status: ShellStatus }) {
 /** Things only this person can fix about their own account: an action card at the top of the page, not a header error. */
 function AccountNudges({ status }: { status: ShellStatus }) {
   const items: Array<{ href: string; text: string }> = [];
-  if (status.needsProfile) items.push({ href: "/me", text: "Complete your player profile: add your Riot ID and main role." });
   if (status.needsPassword) items.push({ href: "/settings#password", text: "Your account has no password yet. Set one so you can sign in again." });
   if (items.length === 0) return null;
   return (

@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { getAppDb } from "@/server/bootstrap";
-import { requirePermission, requireSession, SESSION_COOKIE } from "@/server/auth/session";
+import { requireOwner, requirePermission, requireSession, SESSION_COOKIE } from "@/server/auth/session";
+import { isVerificationAccount } from "@/server/auth/verification-account";
 import { validatePasswordStrength, verifyPassword } from "@/server/auth/password";
 import { setPassword, UserError } from "@/server/repositories/users";
 import { completeLegacyProfile, defaultPlatform, type RiotIdInput } from "@/server/auth/signup";
@@ -193,6 +194,7 @@ export async function changeOwnPasswordAction(input: { current: string; next: st
   try {
     const session = await requireSession();
     if (!session.userId) return { ok: false, error: "No account session." };
+    if (isVerificationAccount(session)) return { ok: false, error: "This account's password is kept by the verify-account job; it cannot be changed here." };
     if (input.next !== input.confirm) return { ok: false, error: "The two new passwords do not match." };
     const weak = validatePasswordStrength(input.next);
     if (weak) return { ok: false, error: weak };
@@ -211,10 +213,16 @@ export async function changeOwnPasswordAction(input: { current: string; next: st
   }
 }
 
-/** One-time completion for an account that predates automatic profiles. */
+/**
+ * One-time completion for the Owner's account when it has no player profile (an Owner from before
+ * automatic profiles, or after a recovery). Every other account gets its profile from an
+ * administrator, with the account, and its Riot IDs checked: an account without one (the Production
+ * check's verification account) must not give itself a profile, which would put it among the players
+ * and start Riot collection for it.
+ */
 export async function completeProfileAction(input: { riotId: string; platform: string; extraRiot?: RiotIdInput[]; primaryRole: Role; secondaryRole?: Role | null }): Promise<Result<{ playerId: string }>> {
   try {
-    const session = await requireSession();
+    const session = await requireOwner();
     if (!session.userId) return { ok: false, error: "No account session." };
     const db = await getAppDb();
     const user = await completeLegacyProfile(db, session.userId, { primaryRiot: { riotId: input.riotId, platform: input.platform }, extraRiot: input.extraRiot ?? [], primaryRole: input.primaryRole, secondaryRole: input.secondaryRole ?? null });

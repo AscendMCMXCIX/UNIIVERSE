@@ -8,6 +8,10 @@ import { changeUsername, loadSocialLinks, removeAvatar, setAvatar, setDisplayNam
 import { invalidatePublicTeam } from "@/server/public/team";
 import { normaliseSocialLinks, SOCIAL_LABELS, type SocialKind, type SocialLinks } from "@/domain/social-links";
 import { decodeDataUrl } from "@/server/images";
+import { isVerificationAccount } from "@/server/auth/verification-account";
+
+/** The verification account keeps the name its job gives it (server/jobs/verify-account.ts). */
+const KEPT_BY_JOB = "This account's name and password are kept by the verify-account job; they cannot be changed here.";
 
 /*
   Self-service account details (everyone, for their own account only): display name, username and
@@ -27,6 +31,7 @@ export async function changeUsernameAction(username: string): Promise<Result<{ u
   try {
     const session = await requireSession();
     if (!session.userId) return { ok: false, error: "No account session." };
+    if (isVerificationAccount(session)) return { ok: false, error: KEPT_BY_JOB };
     const r = await changeUsername(await getAppDb(), session.userId, username);
     touch();
     return { ok: true, data: r };
@@ -40,6 +45,7 @@ export async function changeDisplayNameAction(displayName: string): Promise<Resu
   try {
     const session = await requireSession();
     if (!session.userId) return { ok: false, error: "No account session." };
+    if (isVerificationAccount(session)) return { ok: false, error: KEPT_BY_JOB };
     if (typeof displayName !== "string") return { ok: false, error: "Enter a display name." };
     const r = await setDisplayName(await getAppDb(), session.userId, displayName);
     touch();
