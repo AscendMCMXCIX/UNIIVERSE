@@ -683,7 +683,7 @@ describe("comparisons, the summary and the ladder (Match History 2.0)", () => {
     expect((await getMatchHistory(db, playerId, { mode: "flex", per: 25 })).ladder).toBeNull();
     // Reading only the window and the reading before it gives the answer over every reading.
     const now = Date.now();
-    const every = rankMovement(rankTimeline(rows.map((r) => ({ queue: "solo" as const, tier: r.tier, division: r.division, leaguePoints: r.leaguePoints, wins: r.wins, losses: r.losses, capturedAt: r.capturedAt.getTime(), confirmedAt: r.confirmedAt?.getTime() ?? null })), now), now)!;
+    const every = rankMovement(rankTimeline(rows.map((r) => ({ queue: "solo" as const, tier: r.tier, division: r.division, leaguePoints: r.leaguePoints, wins: r.wins, losses: r.losses, capturedAt: r.capturedAt.getTime(), confirmedAt: r.confirmedAt?.getTime() ?? null })), now, { anyYear: true }), now)!;
     expect(await ladderChange(db, account, "solo", now)).toEqual({ queue: "solo", days: 30, points: every.to.score! - every.from.score!, from: `${every.from.label} ${every.from.lp} LP`, to: `${every.to.label} ${every.to.lp} LP`, since: every.windowed ? null : every.from.from });
     // Team's panel: the same figure for the player's Main account, whatever its Flex readings.
     await db.insert(rankSnapshots).values([
