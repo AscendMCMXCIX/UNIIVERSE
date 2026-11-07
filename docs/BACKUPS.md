@@ -70,6 +70,8 @@ This replaces live data, so do it only with the owner's explicit decision. Have 
 2. Check it with the steps above and by signing in.
 3. Apply the newest erasure records ("Restoring after an erasure" below).
 4. Only then switch `DATABASE_URL` in Vercel and redeploy.
+5. Set up again what a backup does not hold (it dumps the `public` schema only): run Data jobs `rank-schedule` (it creates pg_cron and pg_net if missing, the Vault secret and the five-minute job); add the ten-minute `uniiverse-tick` if wanted (docs/DEPLOYMENT.md §4c, reading the Vault secret); create the backup role (One-time setup, step 1) and set the new `BACKUP_DATABASE_URL` in `uniiverse-backups`.
+6. Check: Data jobs `rank-schedule-status` (calls answer 200, `vaultMatchesServerSecret` true), `access-audit` (the backup role reads every table) and `auth-audit`; then run the Production check and one Database backup, both by hand.
 
 Never restore over the live database in place.
 
