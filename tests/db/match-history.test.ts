@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { accountMatches, appSettings, matchDetails, patches, rankSnapshots, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
@@ -665,19 +665,39 @@ describe("comparisons, the summary and the ladder (Match History 2.0)", () => {
     expect((await getMatchHistory(db, playerId, { championId: "Garen", per: 25 })).summary).toBeNull();
   });
 
-  it("reads the 30-day ladder change from stored readings, the same as the profile's ranked progress", async () => {
+  it("reads the 30-day ladder change by the profile's Ranked progress rule, and says since when the window's start was not read", async () => {
     const db = handle.db;
+    const day = 86_400_000;
+    const { ladderChange, rankChangesFor } = await import("@/server/accounts/rank-history");
+    const { rankMovement, rankTimeline } = await import("@/domain/rank-timeline");
+    const rows = await db.select().from(rankSnapshots).where(eq(rankSnapshots.accountId, account));
+    const forty = rows.find((r) => r.leaguePoints === 50)!;
+    const twenty = rows.find((r) => r.leaguePoints === 10)!.capturedAt.getTime();
+    // Fifteen games, none read, lie between the reading 40 days ago and the one 20 days ago: the rank
+    // when the window began is unknown, so the figure starts at the first reading inside it and says
+    // since when (it used to count the games before the window: +110 from Gold II 50 LP, "30 days").
     const page = await getMatchHistory(db, playerId, { per: 25 });
-    expect(page.ladder).toMatchObject({ queue: "solo", days: 30, points: 110, from: "Gold II 50 LP", to: "Gold I 60 LP", riotId: null });
+    expect(page.ladder).toEqual({ queue: "solo", days: 30, points: 50, from: "Gold I 10 LP", to: "Gold I 60 LP", since: twenty, riotId: null });
     // Normal games have no ladder; Flex has no readings here.
     expect((await getMatchHistory(db, playerId, { mode: "normal", per: 25 })).ladder).toBeNull();
     expect((await getMatchHistory(db, playerId, { mode: "flex", per: 25 })).ladder).toBeNull();
-    // Reading only the window and the reading before it gives rankProgress's answer over every reading.
-    const { ladderChange } = await import("@/server/accounts/rank-history");
-    const { rankProgress } = await import("@/domain/rank-progress");
-    const rows = await db.select().from(rankSnapshots).where(eq(rankSnapshots.accountId, account));
-    const every = rankProgress("solo", rows.map((r) => ({ queue: "solo" as const, tier: r.tier, division: r.division, leaguePoints: r.leaguePoints, wins: r.wins, losses: r.losses, capturedAt: r.capturedAt.getTime() })), Date.now()).change;
-    expect(await ladderChange(db, account, "solo")).toEqual({ ...every, queue: "solo" });
+    // Reading only the window and the reading before it gives the answer over every reading.
+    const now = Date.now();
+    const every = rankMovement(rankTimeline(rows.map((r) => ({ queue: "solo" as const, tier: r.tier, division: r.division, leaguePoints: r.leaguePoints, wins: r.wins, losses: r.losses, capturedAt: r.capturedAt.getTime(), confirmedAt: r.confirmedAt?.getTime() ?? null })), now), now)!;
+    expect(await ladderChange(db, account, "solo", now)).toEqual({ queue: "solo", days: 30, points: every.to.score! - every.from.score!, from: `${every.from.label} ${every.from.lp} LP`, to: `${every.to.label} ${every.to.lp} LP`, since: every.windowed ? null : every.from.from });
+    // Team's panel: the same figure for the player's Main account, whatever its Flex readings.
+    await db.insert(rankSnapshots).values([
+      { accountId: account, queue: "flex", tier: "SILVER", division: "IV", leaguePoints: 20, wins: 3, losses: 3, capturedAt: new Date(now - 45 * day) },
+      { accountId: account, queue: "flex", tier: "SILVER", division: "III", leaguePoints: 40, wins: 6, losses: 3, capturedAt: new Date(now - day) },
+    ]);
+    expect((await rankChangesFor(db, [{ id: playerId, queue: null }], now)).get(playerId)).toEqual({ queue: "solo", days: 30, points: 50, from: "Gold I 10 LP", to: "Gold I 60 LP", since: twenty });
+    await db.delete(rankSnapshots).where(and(eq(rankSnapshots.accountId, account), eq(rankSnapshots.queue, "flex")));
+    // Once the reading 40 days ago is confirmed inside the window (25 days ago), it was in effect when
+    // the window began: the whole 30 days, +110.
+    await db.update(rankSnapshots).set({ confirmedAt: new Date(now - 25 * day) }).where(eq(rankSnapshots.id, forty.id));
+    expect((await getMatchHistory(db, playerId, { per: 25 })).ladder).toMatchObject({ points: 110, from: "Gold II 50 LP", to: "Gold I 60 LP", since: null });
+    expect((await rankChangesFor(db, [{ id: playerId, queue: null }], now)).get(playerId)).toMatchObject({ points: 110, since: null });
+    await db.update(rankSnapshots).set({ confirmedAt: null }).where(eq(rankSnapshots.id, forty.id));
   });
 
   it("opens the game beside the player's usual, with each player's shares and rates", async () => {

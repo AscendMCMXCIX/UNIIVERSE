@@ -2,7 +2,8 @@ import { orderAccounts } from "@/domain/account-order";
 import { and, asc, desc, eq, gt, inArray, lte, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { rankSnapshots, riotAccounts } from "@/server/db/schema";
-import { rankProgress, snapshotChanged, type RankQueue, type RankSnapshot } from "@/domain/rank-progress";
+import { snapshotChanged, type RankQueue, type RankSnapshot } from "@/domain/rank-progress";
+import { rankMovement, rankTimeline } from "@/domain/rank-timeline";
 import { RANKED_YEAR_START } from "@/domain/ranked-year";
 import { REMAKE_MAX_S } from "@/domain/lp-attribution";
 
@@ -136,7 +137,31 @@ async function rankHistoryAccounts(db: Db, playerId: string): Promise<RankHistor
     }));
 }
 
-export type RankChange = NonNullable<ReturnType<typeof rankProgress>["change"]> & { queue: RankQueue };
+/** A ladder change over the last `days` (Match History's summary, Team's detail panel). */
+export interface RankChange {
+  queue: RankQueue;
+  days: number;
+  /** Ladder points: LP, with 100 for each division gained or lost (the two readings' difference). */
+  points: number;
+  from: string;
+  to: string;
+  /** When the start was first seen, when that lies inside the window ("since <date>"); null when it was in effect at the window's start. */
+  since: number | null;
+}
+
+/**
+ * The ladder change over the last `windowDays` in one queue, by Ranked progress's rule
+ * (domain/rank-timeline's rankMovement, with confirmations): from the reading in effect when the
+ * window began, or, when that is not known (recording began inside the window, or several unseen
+ * games straddle its start), from the first reading inside it, with `since` set so the figure
+ * never claims days or games that were not read. Null when nothing changed or there is nothing to
+ * compare.
+ */
+function windowChange(queue: RankQueue, snapshots: readonly RankSnapshot[], now: number, windowDays = 30): RankChange | null {
+  const m = rankMovement(rankTimeline(snapshots.filter((s) => s.queue === queue), now), now, windowDays);
+  if (!m || m.from === m.to) return null;
+  return { queue, days: windowDays, points: m.to.score! - m.from.score!, from: `${m.from.label} ${m.from.lp ?? 0} LP`, to: `${m.to.label} ${m.to.lp ?? 0} LP`, since: m.windowed ? null : m.from.from };
+}
 
 /**
  * The 30-day ladder change for several players at once (Team's detail panel): each player's Main
@@ -157,9 +182,8 @@ export async function rankChangesFor(db: Db, players: ReadonlyArray<{ id: string
     const mine = orderAccounts(accounts.filter((a) => a.playerId === p.id));
     const account = mine.find((a) => a.label === "main") ?? mine.find((a) => rows.some((r) => r.accountId === a.id));
     if (!account) continue;
-    const snapshots = rows.filter((r) => r.accountId === account.id).map((r) => ({ queue: r.queue as RankQueue, tier: r.tier, division: r.division, leaguePoints: r.leaguePoints, wins: r.wins, losses: r.losses, capturedAt: r.capturedAt.getTime() }));
-    const change = rankProgress(queue, snapshots, now).change;
-    out.set(p.id, change ? { ...change, queue } : null);
+    const snapshots = rows.filter((r) => r.accountId === account.id).map((r) => ({ queue: r.queue as RankQueue, tier: r.tier, division: r.division, leaguePoints: r.leaguePoints, wins: r.wins, losses: r.losses, capturedAt: r.capturedAt.getTime(), confirmedAt: r.confirmedAt?.getTime() ?? null }));
+    out.set(p.id, windowChange(queue, snapshots, now));
   }
   return out;
 }
@@ -167,18 +191,17 @@ export async function rankChangesFor(db: Db, players: ReadonlyArray<{ id: string
 /**
  * One account's ladder change over the last `windowDays` in one queue (the Match History summary).
  * Only the readings that decide it are read: those inside the window and the last one before it.
- * The answer is rankProgress's over every reading: season segments are decided by consecutive
- * readings, and nothing before the last reading ahead of the window can be the window's start.
+ * The answer is the same as over every reading: ladders are split by consecutive readings, and
+ * nothing before the last reading ahead of the window can be the window's start.
  */
 export async function ladderChange(db: Db, accountId: string, queue: RankQueue, now = Date.now(), windowDays = 30): Promise<RankChange | null> {
   const since = new Date(now - windowDays * 86_400_000);
-  const columns = { tier: rankSnapshots.tier, division: rankSnapshots.division, leaguePoints: rankSnapshots.leaguePoints, wins: rankSnapshots.wins, losses: rankSnapshots.losses, capturedAt: rankSnapshots.capturedAt };
+  const columns = { tier: rankSnapshots.tier, division: rankSnapshots.division, leaguePoints: rankSnapshots.leaguePoints, wins: rankSnapshots.wins, losses: rankSnapshots.losses, capturedAt: rankSnapshots.capturedAt, confirmedAt: rankSnapshots.confirmedAt };
   const mine = and(eq(rankSnapshots.accountId, accountId), eq(rankSnapshots.queue, queue));
   const [inside, before] = await Promise.all([
     db.select(columns).from(rankSnapshots).where(and(mine, gt(rankSnapshots.capturedAt, since))),
     db.select(columns).from(rankSnapshots).where(and(mine, lte(rankSnapshots.capturedAt, since))).orderBy(desc(rankSnapshots.capturedAt)).limit(1),
   ]);
-  const snapshots = [...before, ...inside].map((r) => ({ queue, tier: r.tier, division: r.division, leaguePoints: r.leaguePoints, wins: r.wins, losses: r.losses, capturedAt: r.capturedAt.getTime() }));
-  const change = rankProgress(queue, snapshots, now, windowDays).change;
-  return change ? { ...change, queue } : null;
+  const snapshots = [...before, ...inside].map((r) => ({ queue, tier: r.tier, division: r.division, leaguePoints: r.leaguePoints, wins: r.wins, losses: r.losses, capturedAt: r.capturedAt.getTime(), confirmedAt: r.confirmedAt?.getTime() ?? null }));
+  return windowChange(queue, snapshots, now, windowDays);
 }
