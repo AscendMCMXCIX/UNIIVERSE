@@ -468,7 +468,7 @@ request is a game's match timeline, once per game, when a section that needs it 
   in `src/domain/rank-timeline.ts`: from the reading in effect when the window began, otherwise from
   the first reading inside it, labelled "since <date>" instead of "30 days"; LP with 100 for a
   division; Flex when the list is Flex, otherwise Solo/Duo; the account filtered on, else the Main
-  account; the ranked year only). Team's detail panel (`rankChangesFor`) gives the same figure for
+  account; every year's readings, so January's still count until Riot's reset ends the ladder). Team's detail panel (`rankChangesFor`) gives the same figure for
   each player's Main account.
 - **Refine** (`src/domain/history-refine.ts`, `history-refine-fields.tsx`,
   `src/server/players/history-members.ts`): Match History's own fields at the end of the profile's

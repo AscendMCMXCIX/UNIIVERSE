@@ -158,7 +158,9 @@ export interface RankChange {
  * compare.
  */
 function windowChange(queue: RankQueue, snapshots: readonly RankSnapshot[], now: number, windowDays = 30): RankChange | null {
-  const m = rankMovement(rankTimeline(snapshots.filter((s) => s.queue === queue), now), now, windowDays);
+  // Every year's readings: the ranked year's bound would drop the readings of the next one and leave
+  // a stale change from the last; a reset (unranked, or a lower game count) ends the ladder anyway.
+  const m = rankMovement(rankTimeline(snapshots.filter((s) => s.queue === queue), now, { anyYear: true }), now, windowDays);
   if (!m || m.from === m.to) return null;
   return { queue, days: windowDays, points: m.to.score! - m.from.score!, from: `${m.from.label} ${m.from.lp ?? 0} LP`, to: `${m.to.label} ${m.to.lp ?? 0} LP`, since: m.windowed ? null : m.from.from };
 }
