@@ -69,7 +69,7 @@
 | Area | Who | State |
 |---|---|---|
 | Drop what Meta & Trends left and the ranks of players no stored game names (migration 0066) | PR #212, a draft from #211's session | **Held for the owner:** it deletes data for good (Outstanding 7) |
-| #212's condition 2: the second `db-usage` reading | The master session, a check-in at 7 Nov 00:35 UTC | Read only; the result goes in #212, then the owner is asked |
+| #212's condition 2: the second `db-usage` reading | The master session | **Done** (Data jobs 42319247302): no writes, no reads but the backups'. Waiting on the owner's go-ahead (Outstanding 7) |
 | Merge order | The master session | **The queue is empty** (since #233 merged, 6 Nov, 11:16 UTC). New work goes through a branch, local validation, green CI, and one deploy at a time with its Production check read in between |
 | The four short Solo/Duo lists re-read from the top, each account's previous position kept | Not yet a branch | Adds rows only; each account's previous position is recorded first |
 | Backups to a private repository | #240 | First private backup passed (42307672549). #240 removes the public workflow and updates the privacy notice: CI, then merge |
@@ -96,7 +96,7 @@ Finishing what is open comes before anything new.
 
 **Needs the owner, most urgent first:**
 - **Backups (item 9): nothing needed.** They run privately since 6 Nov.
-- **The verification account (item 1),** the five-minute rank watch (item 2), #212's go-ahead (item 7).
+- **The verification account (item 1),** the five-minute rank watch (item 2), #212's go-ahead (item 7: both readings done).
 - **Smaller, any time (item 10):** a ruleset on `main`, deleting 187 merged branches, the Dependabot alert (item 8).
 
 
@@ -127,7 +127,10 @@ Finishing what is open comes before anything new.
    - **Held** by #234 (`FOLD_MISSING_PRESENCES = false`): from its deploy on, the daily job only counts the candidates, by kind (this season or earlier, team member or personal use). The next integrity run without it would have been about 7 Nov, 07:30 UTC.
    - **Next:** read the held counts from the next integrity run, then the owner chooses: fold everything, fold only this season's team-member games, or stop.
    - **Still open:** the four short Solo/Duo lists (Riot's count one to six games above what's stored) need their lists re-read from the top. That isn't a PR yet.
-7. **Retired data (#212) needs the owner.** It deletes what Meta & Trends left (`tracked_summoners` and five small tables) and the ladder ranks in `last_known_ranks` that no stored game names; no page changes. That closes docs/RIOT_COMPLIANCE.md row 5: non-members' data kept for removed features. #211's readings ran on 6 Nov. A Database backup by hand (run 7), whose restore check now covers these tables, passed and counted 32,749 `tracked_summoners` rows; `main`'s docs keep 14 Oct's 20,423, taken while the ladder was still being collected, until #212 merges. Data jobs `db-usage` (run 465) found 31,172 of the 32,724 ladder ranks in no stored game, and `tracked_summoners`'s read and write counters unchanged since 4 Nov. It waits for the owner's check of a backup with an offline copy, and an explicit go-ahead.
+7. **Retired data (#212) needs the owner's go-ahead. Both readings are done.** #212 deletes what Meta & Trends left (`tracked_summoners` and five small tables) and the ladder ranks in `last_known_ranks` that no stored game names. No page changes. That closes docs/RIOT_COMPLIANCE.md row 5: non-members' data kept for removed features.
+   - **Second reading** (Data jobs 42319247302, 7 Nov 00:36 UTC, read only): **no writes** on the six tables since 6 Nov 00:23. Every one gained exactly 9 reads, the three backups' three reads each (run 7, public run 42192124079, private run 42307672549), so nothing in the app reads them. No dependents; `stat_source` still present. Ladder ranks: 32,720 rows, 31,171 of them in no stored game. Details in #212's description.
+   - **A backup holding all of it:** the private backup 42307672549 (until 4 Dec) restored the six tables with every row.
+   - **Waiting on the owner,** in their own words: (a) approval to delete the six tables and the 31,171 untied ladder ranks for good; (b) confirmation that they have checked a backup taken before the drop (the private 42307672549, or run 7) and keep an offline copy of it. #212 is not merged without both.
 8. **Dependabot's security update for `minimatch` fails on every push to `main`** (6 runs since 2 Nov; Actions lists them as failed). The advisory is moderate (a pattern can take long to match) and reaches only development tools: ESLint 9 pins `minimatch` 3.1.5, and `@typescript-eslint` uses 10.2.6. The fix needs 11.0.1 or later, which ESLint 9 cannot take, so Dependabot gives up. Nothing the app runs uses it: `pnpm audit --prod` finds no known vulnerability (6 Nov). It closes when ESLint moves on. The owner can dismiss the alert as development-only (Security → Dependabot); this repository's tools cannot.
 9. **Database backups are private since 6 Nov 2026.** They run in the private repository `AscendMCMXCIX/uniiverse-backups`, which only the owner can access. Its two workflows (source: `docs/backup-repository/`) check out this repository's `scripts/backup-db.sh`. Each backup is one gpg AES-256 file of the whole database, with the strongest key derivation OpenPGP allows.
    - **First private backup** (run 42307672549, 22:50 UTC; owner's repository and secrets): passed. The role is read-only (0 writable tables), all 49 tables were restored and their counts matched (11 users, 14 Riot accounts, 7,472 stored games), and the six retired tables were restored with all their rows. The file is AES-256 with SHA-512 iterated key derivation, and its checksum matches the manifest. Backup age run 42307998044 passed. The weekly schedule (Mondays 02:43 UTC) and the daily age check run there from now on.
