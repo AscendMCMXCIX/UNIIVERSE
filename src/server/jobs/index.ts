@@ -17,6 +17,7 @@ import "./perf-probe";
 import "./riot-check";
 import "./privacy";
 import "./history-rescan";
+import "./rank-schedule";
 
 export * from "./registry";
 export * from "./scheduler";
