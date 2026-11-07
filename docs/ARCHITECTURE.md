@@ -464,9 +464,12 @@ request is a game's match timeline, once per game, when a section that needs it 
   team kills, from `account_matches.team_kills`, one narrow query), the streak, the three champions
   played most, a trend only by Recent form's rule, and the ladder change of the last 30 days
   (`ladderChange` in `src/server/accounts/rank-history.ts`: the readings in the window plus the last
-  one before it, two indexed queries, the same arithmetic as the Overview's `rankProgress`; LP with
-  100 for a division; Flex when the list is Flex, otherwise Solo/Duo; the account filtered on, else
-  the Main account; current season only).
+  one before it, two indexed queries, with their confirmations; Ranked progress's rule, `rankMovement`
+  in `src/domain/rank-timeline.ts`: from the reading in effect when the window began, otherwise from
+  the first reading inside it, labelled "since <date>" instead of "30 days"; LP with 100 for a
+  division; Flex when the list is Flex, otherwise Solo/Duo; the account filtered on, else the Main
+  account; every year's readings, so January's still count until Riot's reset ends the ladder). Team's detail panel (`rankChangesFor`) gives the same figure for
+  each player's Main account.
 - **Refine** (`src/domain/history-refine.ts`, `history-refine-fields.tsx`,
   `src/server/players/history-members.ts`): Match History's own fields at the end of the profile's
   shared Refine panel (`OverviewFilters`' `extraFields`; their chips join the shared ones): the
