@@ -15,6 +15,18 @@ describe("the verification account's derived password", () => {
     expect(workflow).toContain("export UNIIVERSE_VERIFY_USER=verify UNIIVERSE_VERIFY_PASSWORD");
   });
 
+  it("fails the check when the account is lost (withdrawn, conflict, no answer), except by the owner's two off switches", () => {
+    const workflow = readFileSync(".github/workflows/production-check.yml", "utf8");
+    // A missing sign-in fails live-check.mjs...
+    expect(workflow).toContain("export LIVE_REQUIRE_SIGN_IN=1");
+    // ...except with SIGNED_IN_CHECKS=false or the account deactivated in Admin.
+    expect(workflow).toContain("unset UNIIVERSE_VERIFY_USER UNIIVERSE_VERIFY_PASSWORD LIVE_REQUIRE_SIGN_IN");
+    expect(workflow).toMatch(/deactivated\)\n\s+unset LIVE_REQUIRE_SIGN_IN\n/);
+    // Any other answer is a failure, said in the step summary and the production-check issue.
+    expect(workflow).toContain('> verify-account.md');
+    expect(workflow.match(/cat verify-account\.md/g)).toHaveLength(2);
+  });
+
   it("is long, URL-safe, and changes with CRON_SECRET", () => {
     const a = deriveVerifyPassword("secret-one-0123456789");
     expect(a).toMatch(/^[A-Za-z0-9_-]{43}$/);
