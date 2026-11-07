@@ -39,7 +39,7 @@ describe("the backup script's restore check", () => {
   });
 
   it("stays optional locally", () => {
-    // The run goes on to the role check (and fails there, on the closed address), never on the guard.
+    // The run goes on past the guard and fails at its first psql (the closed address), never on the guard.
     expect(run({}).stderr).not.toContain(GUARD);
   });
 });

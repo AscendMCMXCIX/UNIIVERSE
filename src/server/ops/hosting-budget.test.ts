@@ -8,7 +8,7 @@ import path from "node:path";
   - Vercel builds production, and a preview only when one is asked for (each preview stores another
     full copy of the app's functions);
   - a build with a DATABASE_URL leaves PGlite (the demo database, about 19 MB per function) out.
-  (In src/, so pnpm verify and CI's unit job run it; tests/ops ran nowhere.)
+  (In src/, so pnpm verify and CI's unit job run it; in tests/ops only `pnpm test` ran it, never CI.)
 */
 
 const root = path.resolve(__dirname, "../../..");
