@@ -99,6 +99,40 @@ describe("/api/health", () => {
     expect(body.jobs.map((j) => j.key)).toEqual(expect.arrayContaining(rows.map((r) => r.key)));
     await db.delete(dataRefreshStatus).where(inArray(dataRefreshStatus.key, rows.map((r) => r.key)));
   });
+
+  it("lists the five-minute rank schedule while it is installed and the rank watch has been silent for 20 minutes", async () => {
+    const db = handle.db;
+    const KEYS = ["rank-schedule", "rank-schedule-off", "rank-watch"];
+    /** Status rows as these jobs leave them: each succeeded the given minutes ago. */
+    const set = async (rows: Array<[string, number]>) => {
+      await db.delete(dataRefreshStatus).where(inArray(dataRefreshStatus.key, KEYS));
+      const now = Date.now();
+      for (const [key, minutesAgo] of rows) {
+        const at = new Date(now - minutesAgo * 60_000);
+        await db.insert(dataRefreshStatus).values({ key, status: "ok", lastStartedAt: at, lastSuccessAt: at, updatedAt: at, consecutiveFailures: 0 });
+      }
+    };
+    const listed = async () => (await readHealth()).body.failingJobs.includes("rank-schedule");
+    // Installed, and no rank-watch success for 21 minutes (calls refused or never sent): listed, so the scheduled run fails.
+    await set([["rank-schedule", 120], ["rank-watch", 21]]);
+    const { body } = await readHealth();
+    expect(body.ok).toBe(true);
+    expect(body.failingJobs).toContain("rank-schedule");
+    // Installed again after an off, then silent: listed.
+    await set([["rank-schedule-off", 600], ["rank-schedule", 500], ["rank-watch", 30]]);
+    expect(await listed()).toBe(true);
+    // Healthy: the rank watch succeeded within 20 minutes.
+    await set([["rank-schedule", 120], ["rank-watch", 19]]);
+    expect(await listed()).toBe(false);
+    // Removed on purpose (rank-schedule-off after the install), never installed, or installed minutes ago: not listed.
+    await set([["rank-schedule", 120], ["rank-schedule-off", 60], ["rank-watch", 300]]);
+    expect(await listed()).toBe(false);
+    await set([["rank-watch", 300]]);
+    expect(await listed()).toBe(false);
+    await set([["rank-schedule", 3], ["rank-watch", 300]]);
+    expect(await listed()).toBe(false);
+    await db.delete(dataRefreshStatus).where(inArray(dataRefreshStatus.key, KEYS));
+  });
 });
 
 /** Riot as the account sync sees it: `refuse` answers every request with that status; "Gone#OCE" does not exist. */

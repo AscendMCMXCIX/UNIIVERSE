@@ -13,6 +13,9 @@ export const dynamic = "force-dynamic";
 /** What a failed database check tells the public; the driver's own message is logged instead. */
 const PUBLIC_DB_ERROR = "The database did not answer (details in the server log).";
 
+/** How long the installed five-minute rank schedule may go without a rank-watch success: four calls. */
+const RANK_SCHEDULE_SILENT_MS = 20 * 60_000;
+
 /**
  * Cheap health check for uptime monitors: the app answers, the database answers (and how fast),
  * which auth mode is active, which patch and build are live, when each pipeline last succeeded,
@@ -36,6 +39,16 @@ export async function GET() {
     // since (also while it is being run again, which is when a scheduled check reads this).
     const now = Date.now();
     const failing = jobs.filter((j) => failuresInARow(j, now) > 0).map((j) => j.key);
+    // The five-minute rank schedule (pg_cron and pg_net in the database, docs/RANKED_PROGRESS.md) is
+    // installed while the rank-schedule job's last success is later than rank-schedule-off's, and the
+    // rank watch then succeeds every five minutes. A call the app refuses (401: CRON_SECRET changed
+    // and rank-schedule not run again) or never gets (pg_cron stopped, the job removed by hand, a
+    // restore into a new project) records nothing anywhere, so its silence is the only sign. Shorter
+    // than the 30 minutes between visit ticks, which also run the rank watch. Read from the status
+    // rows above: this public endpoint never reads pg_cron or Vault.
+    const successAt = (key: string) => jobs.find((j) => j.key === key)?.lastSuccessAt?.getTime() ?? 0;
+    const installedAt = successAt("rank-schedule");
+    if (installedAt > successAt("rank-schedule-off") && now - Math.max(installedAt, successAt("rank-watch")) > RANK_SCHEDULE_SILENT_MS && !failing.includes("rank-schedule")) failing.push("rank-schedule");
     // While Riot rejects the key (expired or revoked), every linked account waits, backing off
     // for hours, and the account sync finds nothing due and reports success. So the key itself
     // is listed as failing, which fails the scheduled Data jobs run (the owner's email).
