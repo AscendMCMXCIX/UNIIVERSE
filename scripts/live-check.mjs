@@ -384,11 +384,18 @@ async function allChampions(page, log, kind, playerId) {
       heights: rows.slice(0, 8).map((r) => Math.round(r.getBoundingClientRect().height)),
       cut: headers.filter((b) => b.textContent.trim() !== "Champion" && b.scrollWidth > b.clientWidth + 1).map((b) => b.textContent.trim().slice(0, 16)),
       sortedBy: document.querySelector("[data-testid=all-champions-header] [data-sort]")?.textContent?.trim().slice(0, 16) ?? null,
-      empty: !!document.querySelector("[data-testid=all-champions-empty]"),
+      // "No games match these filters." when the player has stored games but none in the default
+      // season; "No stored games yet…" when they have none at all.
+      emptyNoMatch: /^No games match/.test(document.querySelector("[data-testid=all-champions-empty]")?.textContent?.trim() ?? ""),
     };
   });
-  // No games in the default season and mode (a new season's first days, or a new lineup player): nothing to measure.
-  if (facts.rows === 0 && facts.empty) warn("all-champions", `${kind}: All Champions lists no champions`, "no games in the current season yet");
+  // A new ranked year: the season follows the current patch's major version (17.x from early
+  // January), so the lineup's first player can have games, but none in the new season, for their
+  // first days. Only then, and only in the year's first six weeks, is an empty list a warning;
+  // otherwise it fails, as a list the player's games should fill.
+  const yearStart = Date.UTC(new Date().getUTCFullYear(), 0, 1);
+  const newRankedYear = Date.now() - yearStart < 42 * 86_400_000;
+  if (facts.rows === 0 && facts.emptyNoMatch && newRankedYear) warn("all-champions", `${kind}: All Champions lists no champions in the current season`, "the player has stored games but none this season: a new ranked year's first weeks");
   else {
     pass("all-champions", `${kind}: lists champions`, facts.rows > 0, facts.rows);
     if (kind !== "phone") pass("all-champions", `${kind}: rows are compact (at most 56 px)`, facts.heights.length > 0 && Math.max(...facts.heights) <= 56, facts.heights);
