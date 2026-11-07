@@ -189,8 +189,8 @@ traffic per run. No GitHub Actions minutes.
   how many games have a figure and why the others have none, with the last few figures and the minutes
   between each game and its two readings; the 2026 seasons' first patches as stored; the rank changes
   recorded; the year's games and rank changes week by week. Accounts appear as P1/A1 only. Its
-  `readings`, `lastReading`, `medianMinutesBetweenReadings`, weekly and daily `readings` count the
-  stored rows, one per rank change (an unchanged reading confirms the last row and adds none), not
+  `readings`, `lastReading`, `medianMinutesBetweenReadings`, weekly `soloReadings`/`flexReadings` and
+  daily `cadence[].readings` count the stored rows, one per rank change (an unchanged reading confirms the last row and adds none), not
   how often ranks were read: for that, Data jobs `rank-schedule-status` (the schedule's runs and
   calls) and `/api/health` (`rank-watch`'s last success). Its LP tally reads the confirmations, as
   the match cards do, since #255.
