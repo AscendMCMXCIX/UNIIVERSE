@@ -147,8 +147,9 @@ How often runs happen is what decides how many games get a figure:
 - it schedules `uniiverse-rank-watch` every five minutes.
 
 Running it again changes nothing, except that it updates the Vault copy after a change of `CRON_SECRET`. Only the production deployment installs it.
-- **Check it:** Data jobs `rank-schedule-status` (read only). It reports whether the schedule exists, its runs of the last hour by status, and its calls by HTTP status. `/api/health` shows `rank-watch`'s last success, which should never be more than about five minutes old.
-- **Remove it:** Data jobs `rank-schedule-off`. It unschedules the job and deletes the Vault copy.
+- **Check it:** Data jobs `rank-schedule-status` (read only). It reports whether the schedule exists, its runs of the last hour by status, and its calls by HTTP status. `/api/health` shows `rank-watch`'s last success, which should never be more than about five minutes old, and lists `rank-schedule` in `failingJobs` once the installed schedule has not called the app for 20 minutes (its direct calls of `/api/jobs/rank-watch` are recorded; a tick's rank watch does not count), which fails the next scheduled Data jobs run (docs/MONITORING.md). A run in which no account could be read is *degraded* with a count-only message, which Admin repeats.
+- **After a change of `CRON_SECRET`:** run Data jobs `rank-schedule` again (it updates the Vault copy), then `rank-schedule-status`: `vaultMatchesServerSecret` should be `true` and the calls `200`. Until then every call is refused (401).
+- **Remove it:** Data jobs `rank-schedule-off`. It unschedules the job and deletes the Vault copy, unless another pg_cron job still reads it (production's ten-minute `uniiverse-tick` does): then it keeps it and says how many jobs read it (`secretStillUsedBy`, a count only). To remove both, unschedule `uniiverse-tick` first (docs/DEPLOYMENT.md), then run `rank-schedule-off`.
 
 `src/server/jobs/rank-schedule.test.ts` covers the guards and the command text. CI's Postgres has no pg_cron, so the SQL itself was run against a real pg_cron, with stand-ins for Vault and pg_net, when it was written.
 

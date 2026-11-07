@@ -124,6 +124,9 @@ defineJob({
     const run = await watchRanks(ctx.db, client, { deadline: ctx.startedAt + ctx.budgetMs, log: ctx.log });
     ctx.log(`rank-watch: ${run.read} of ${run.due} due read (${run.active} active), ${run.changed} changed${run.failed ? `, ${run.failed} failed` : ""}${run.stoppedBy ? `, stopped: ${run.stoppedBy}` : ""}`);
     const refused = run.stoppedBy?.startsWith("Riot refused") ?? false;
-    return { ok: true, degraded: refused || (run.read === 0 && run.failed > 0), error: refused ? (run.stoppedBy ?? undefined) : undefined, summary: { ...run, requests: client.requestCount } };
+    // Every account tried failed (Riot 5xx, a timeout, the network): said in counts, so Admin repeats it as a warning.
+    const noneRead = run.read === 0 && run.failed > 0;
+    const error = refused ? (run.stoppedBy ?? undefined) : noneRead ? `${run.failed === 1 ? "The one account tried this run could not be read" : `None of the ${run.failed} accounts tried this run could be read`}; the run's log says why.` : undefined;
+    return { ok: true, degraded: refused || noneRead, error, summary: { ...run, requests: client.requestCount } };
   },
 });
