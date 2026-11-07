@@ -115,11 +115,13 @@ export function timelineReadings(snapshots: readonly RankSnapshot[]): TimelineRe
 
 /**
  * Builds the timeline of one queue's readings in the 2026 ranked year: the stretch from the first
- * reading to now, never the months before it (nothing was read there).
+ * reading to now, never the months before it (nothing was read there). `anyYear` keeps the readings
+ * of every year, for a figure over the last days rather than the ranked year's view: a new year's
+ * reset is a reset link, which rankMovement never crosses.
  */
-export function rankTimeline(snapshots: readonly RankSnapshot[], now: number): RankTimeline {
+export function rankTimeline(snapshots: readonly RankSnapshot[], now: number, options: { anyYear?: boolean } = {}): RankTimeline {
   const yearEnd = Date.UTC(RANKED_YEAR + 1, 0, 1);
-  const all = timelineReadings(snapshots).filter((r) => r.to >= RANKED_YEAR_START && r.from < yearEnd);
+  const all = timelineReadings(snapshots).filter((r) => options.anyYear || (r.to >= RANKED_YEAR_START && r.from < yearEnd));
   const links: TimelineLink[] = [];
   const markers: TimelineMarker[] = [];
   for (let i = 0; i + 1 < all.length; i++) {
