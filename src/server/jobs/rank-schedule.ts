@@ -46,11 +46,27 @@ function clean(err: unknown, secret: string): string {
   return (secret ? message.split(secret).join("[secret]") : message).slice(0, 300);
 }
 
-/** How the schedule is doing: whether it exists, and its runs and calls of the last hour. Counts only. */
-export async function rankScheduleStatus(db: Db): Promise<Record<string, unknown>> {
+/** How the schedule is doing: whether it exists, and its runs and calls of the last hour. No secret, no command text. */
+export async function rankScheduleStatus(db: Db, env: Record<string, string | undefined> = process.env): Promise<Record<string, unknown>> {
   const ext = rowsOf(await db.execute(sql`select extname from pg_extension where extname in ('pg_cron', 'pg_net', 'supabase_vault')`)).map((r) => String(r.extname));
   const out: Record<string, unknown> = { extensions: ext.sort() };
   if (!ext.includes("pg_cron")) return { ...out, scheduled: false };
+  // Why a schedule might not run, or be refused: the scheduler itself, its settings, every job's
+  // name and schedule (never its command), the recent runs of each, and the recent calls' answers.
+  const settings = rowsOf(await db.execute(sql`select current_setting('cron.database_name', true) as database, current_setting('cron.log_run', true) as log_run, current_setting('cron.use_background_workers', true) as background_workers, current_database() as current, (select count(*)::int from pg_stat_activity where backend_type ilike '%cron%' or application_name ilike '%pg_cron%') as launcher`))[0];
+  out.cron = settings;
+  out.jobs = rowsOf(await db.execute(sql`select jobid::int as id, jobname as name, schedule, active, database, username from cron.job order by jobid`));
+  out.runsLastHourByJob = rowsOf(await db.execute(sql`select jobid::int as id, status, count(*)::int as n, max(start_time) as last from cron.job_run_details where start_time > now() - interval '1 hour' group by 1, 2 order by 1`)).map((r) => ({ ...r, last: r.last ? new Date(String(r.last)).toISOString() : null }));
+  const failure = rowsOf(await db.execute(sql`select left(regexp_replace(coalesce(return_message, ''), 'Bearer [^ ''"]+', 'Bearer [secret]', 'g'), 200) as message from cron.job_run_details d join cron.job j on j.jobid = d.jobid where j.jobname = ${RANK_SCHEDULE_JOB} and d.status <> 'succeeded' order by d.start_time desc limit 1`))[0];
+  if (failure) out.lastFailure = failure.message;
+  if (ext.includes("pg_net")) {
+    out.recentCalls = rowsOf(await db.execute(sql`select created, status_code, left(coalesce(content::text, error_msg, ''), 80) as answer from net._http_response order by created desc limit 8`)).map((r) => ({ at: r.created ? new Date(String(r.created)).toISOString() : null, status: r.status_code, answer: String(r.answer ?? "").replace(/Bearer [^ '"]+/g, "Bearer [secret]") }));
+    out.queued = Number(rowsOf(await db.execute(sql`select count(*)::int as n from net.http_request_queue`))[0]?.n ?? 0);
+  }
+  if (ext.includes("supabase_vault") && env.CRON_SECRET) {
+    const [match] = rowsOf(await db.execute(sql`select d.decrypted_secret = ${env.CRON_SECRET} as same from vault.decrypted_secrets d where d.name = ${RANK_SCHEDULE_SECRET}`));
+    out.vaultMatchesServerSecret = match ? match.same === true : null;
+  }
   const [job] = rowsOf(await db.execute(sql`select jobid, schedule, active from cron.job where jobname = ${RANK_SCHEDULE_JOB}`));
   out.scheduled = !!job;
   if (!job) return out;
