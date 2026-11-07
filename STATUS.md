@@ -1,6 +1,6 @@
 # UNIIVERSE status
 
-**The one status record and the one backlog.** What is live, what is verified, what is still open and what comes next, with the evidence for each. Detail stays in the linked PRs and docs. `OVERNIGHT_ENGINEERING_REPORT.md` and `SESSION_REVIEW.md` are historical records; where they differ from this file, this file is right. Last updated 7 Nov 2026, 03:40 UTC.
+**The one status record and the one backlog.** What is live, what is verified, what is still open and what comes next, with the evidence for each. Detail stays in the linked PRs and docs. `OVERNIGHT_ENGINEERING_REPORT.md` and `SESSION_REVIEW.md` are historical records; where they differ from this file, this file is right. Last updated 7 Nov 2026, 06:20 UTC.
 
 **One coordinating session.** Since 6 Nov, 06:30 UTC, the owner runs UNIIVERSE through one master session (`session_01CeotmQNT7Y1ygWs6eENvZr`). It keeps this record, owns the merge order and the scheduled check-ins, and merges PRs itself once every CI job on the latest commit has passed (the owner's approval of 6 Nov), one deploy at a time with its Production check read in between. Only the owner approves #212 (it deletes data) and changes to workflows, secrets or settings. The earlier sessions (design, navigation, ranked progress, personalization, reliability, security, LP tracking, mobile) were asked to stand down and report. Their open work is in the tables below.
 
@@ -19,7 +19,7 @@ Every item open at the end of 31 Oct to 7 Nov, by state. **COMPLETED:** done and
 | Item | State | Evidence and next step |
 |---|---|---|
 | Played Together: team games missing from a member's own history | **COMPLETED** | data-audit read **0** places missing (was 96; Data jobs 42328578855, 7 Nov) after #229. The rest of the fold is **held** (#234): 33 candidates, all of earlier seasons, all on personal-use profiles' accounts, none a team member's game of this season (Outstanding 6). |
-| Solo/Duo lists short of Riot's count (4 pairs, 1 to 6 games) | **DEPLOYED BUT UNVERIFIED** | Cause: queues finished before #201's rescan existed. #242 (history-rescan) is live (Production check 42331502332); it marked 36 finished queues on 13 accounts (Data jobs 42331659250). The repair happens on each account's next sync: 2 accounts done so far. A check-in at 06:00 UTC syncs the rest and reads rank-audit |
+| Solo/Duo lists short of Riot's count (4 pairs, 1 to 6 games) | **COMPLETED** (nothing to recover) | #242 (history-rescan) marked 36 finished queues on 13 accounts (Data jobs 42331659250). Every account has synced since (last sync 03:20 to 06:01 UTC), and a second marking (42345363272) found all 36 finished again, so every rescan ran to its end. None folded a game (account-sync 42333541076 and 42345161087: folded 0). rank-audit afterwards (42345245011) shows the same four pairs (64/63, 256/255, 449/443, 68/67). **Every game in Riot's lists for those accounts is stored.** The difference is Riot's ranked win/loss count including games its own match list doesn't return, which can't be collected. data-audit still reads 0 |
 | LP on match cards, automatic rank readings | **BLOCKED** (owner) | Live since #198, but only **14 of about 161** ranked games since tracking began have an LP figure: the rank watch runs only on ticks (GitHub delivered 4 hourly runs in 25 h), visits and Vercel's daily cron. The fix is the five-minute schedule in Supabase (docs/RANKED_PROGRESS.md, about 3 minutes), which needs the production cron secret |
 | Member pages checked on the live site | **BLOCKED** (owner) | The Production check opens member pages only with `UNIIVERSE_VERIFY_USER` / `UNIIVERSE_VERIFY_PASSWORD` (docs/LIVE_VALIDATION.md). Until then every member-page change below is DEPLOYED BUT UNVERIFIED: #216, #217, #218, #223, #227, #228, #233. CI checks them on demo data at three widths with axe; the public pages are checked live on every deploy |
 | Mobile redesign (#203) | **COMPLETED** | The owner checked it on the live site (5 Nov). Real-device checks of the newer phone changes (Safari, the installed app, screen readers) need a person (Outstanding 5) |
@@ -93,7 +93,7 @@ Every item open at the end of 31 Oct to 7 Nov, by state. **COMPLETED:** done and
 | Drop what Meta & Trends left and the ranks of players no stored game names (migration 0066) | PR #212, a draft from #211's session | **Held for the owner:** it deletes data for good (Outstanding 7) |
 | #212's condition 2: the second `db-usage` reading | The master session | **Done** (Data jobs 42319247302): no writes, no reads but the backups'. Waiting on the owner's go-ahead (Outstanding 7) |
 | Merge order | The master session | **The queue is empty** (since #233 merged, 6 Nov, 11:16 UTC). New work goes through a branch, local validation, green CI, and one deploy at a time with its Production check read in between |
-| history-rescan: the marked queues are re-read on each account's next sync | The master session | 2 of 13 accounts synced (account-sync 42333541076: no missing game in them). The rest are due from 05:50 UTC, and a check-in at 06:00 syncs them and reads rank-audit for the four short pairs |
+| history-rescan | Done | Every marked queue was re-read to its end. Nothing was missing from Riot's lists (Final reconciliation). The second marking (42345363272) costs one more re-read of list pages, adding nothing |
 
 ## Branches with work not on `main` (reviewed 6 Nov)
 
@@ -106,10 +106,9 @@ Nothing here is deleted without the owner. Besides the open PRs above:
 ## Engineering backlog, in order
 
 Everything that can be done without the owner is done or scheduled (Final reconciliation, above):
-1. **history-rescan's verification** (check-in, 7 Nov 06:00 UTC): the four short Solo/Duo pairs against Riot's count.
-2. **The first scheduled private backup** (check-in, 9 Nov 04:00 UTC).
-3. **Team's TTFB from the weekly probe** (check-in, 16 Nov), and Monday's probe for `team.roster`.
-4. **The 2027 ranked year** (check-in, 5 Jan 2027), once Riot publishes its dates.
+1. **The first scheduled private backup** (check-in, 9 Nov 04:00 UTC).
+2. **Team's TTFB from the weekly probe** (check-in, 16 Nov), and Monday's probe for `team.roster`.
+3. **The 2027 ranked year** (check-in, 5 Jan 2027), once Riot publishes its dates.
 
 ## Outstanding, by impact
 
@@ -145,7 +144,7 @@ Everything that can be done without the owner is done or scheduled (Final reconc
    - **Why 200, not 96:** the fold takes every stored record that names any player's account and has no row for it, including games of earlier seasons and personal-use profiles' accounts. data-audit counts only this season's games of the team members. Those ~104 extra rows are real games those accounts played, but they were not what was reviewed, and a folded row can't be told apart afterwards (`account_matches` records no time of writing).
    - **Held** by #234 (`FOLD_MISSING_PRESENCES = false`): from its deploy on, the daily job only counts the candidates, by kind (this season or earlier, team member or personal use). The next integrity run without it would have been about 7 Nov, 07:30 UTC.
    - **Held counts** (integrity, Data jobs 42328578855, 7 Nov, held so nothing written): **33 candidates, all earlier seasons, all personal-use profiles' accounts, none a team member's game of this season**; data-audit reads 0. Games of earlier seasons are never shown on a page (Season 2026 is the floor). **Recommendation: keep the hold** (`FOLD_MISSING_PRESENCES = false`): what is left would change nothing anyone sees, and a folded row can't be told apart afterwards.
-   - **Still open:** the four short Solo/Duo lists (Riot's count one to six games above what's stored) need their lists re-read from the top. That isn't a PR yet.
+   - **The four short Solo/Duo lists: closed.** #242 re-read every finished queue on every account to its end (7 Nov), and no game was missing from Riot's lists. The remaining 1 to 6 games are in Riot's ranked win/loss count but not in its match list, so no collection can recover them.
 7. **Retired data (#212) needs the owner's go-ahead. Both readings are done.** #212 deletes what Meta & Trends left (`tracked_summoners` and five small tables) and the ladder ranks in `last_known_ranks` that no stored game names. No page changes. That closes docs/RIOT_COMPLIANCE.md row 5: non-members' data kept for removed features.
    - **Second reading** (Data jobs 42319247302, 7 Nov 00:36 UTC, read only): **no writes** on the six tables since 6 Nov 00:23. Every one gained exactly 9 reads, the three backups' three reads each (run 7, public run 42192124079, private run 42307672549), so nothing in the app reads them. No dependents; `stat_source` still present. Ladder ranks: 32,720 rows, 31,171 of them in no stored game. Details in #212's description.
    - **A backup holding all of it:** the private backup 42307672549 (until 4 Dec) restored the six tables with every row.
