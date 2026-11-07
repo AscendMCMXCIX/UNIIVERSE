@@ -140,7 +140,7 @@ Each is a scheduled task that resumes the master session (`session_01CeotmQNT7Y1
 | 8 Nov, 08:30 | LP coverage under the five-minute schedule: `rank-schedule-status`, then `rank-audit` against the baseline taken after #255 | Games since the baseline mostly carry `lp`, `promoted` or `demoted`, with "1 game" between readings; at most 3 retries a day apart if no ranked game was played |
 | 9 Nov, 10:30 | The first scheduled private backup (Mondays 02:43, delivered hours late), then #259 | The run passed with `restoreChecked: true` and 0 writable tables; Backup age passed |
 | 16 Nov, 14:00 | Team's first byte from the weekly perf probe (`fieldVitals.last7`, REDIRECT and SERVER parts) | Recorded in docs/PERFORMANCE.md and here. The verification account's loads are left out since #256 (7 Nov, about 18:31 UTC), so `last7` is clean |
-| 1 Dec, 10:17 | The 2027 ranked year: Riot's dates, one exclusive year end instead of the four 1 Jan cut-offs | Live before 1 Jan 2027, 00:00 UTC |
+| 1 Dec, 10:17 | The 2027 ranked year: Riot's dates, one exclusive year end instead of the four 1 Jan cut-offs; first, the tests that would turn CI red on 1 Jan 2027 (with a faked clock, `match-views.test.ts` 4 and `participant-ranks.test.ts` 3 fail from 1 Jan; `e2e/progress.spec.ts` expects 2026 dates) | Live before 1 Jan 2027, 00:00 UTC, and the DB suite passes with the clock set to 4 Jan and 1 Mar 2027 |
 
 Between them: the Production check after every deploy and daily at 05:37 UTC, Data jobs hourly (delivered about 4 a day), the private Backup age check daily. Their failures open issues (`production-check`, `database-backup`) or send GitHub's failed-workflow email (Data jobs; "Needs the owner" 4).
 
