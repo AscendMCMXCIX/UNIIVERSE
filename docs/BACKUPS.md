@@ -2,14 +2,12 @@
 
 A backup only counts once it has been restored and checked. This page says how to take one and how to prove it works. It costs nothing on the free plans.
 
-**Status (21 Oct 2026):** the first production backup succeeded, and restoring it matched production.
-- **The run:** Database backup run #3, 21 Oct 2026 at 22:25 UTC, on `main` at f15cd85 ([run 39686307330](https://github.com/AscendMCMXCIX/UNIIVERSE/actions/runs/39686307330)), after the owner created the read-only role and the two repository secrets (one-time setup, below).
-- **Role check passed:** `uniiverse_backup` is not a superuser, bypasses Row Level Security, starts every session read-only, owns nothing, and could read all 69 tables and write none.
-- **Restore check passed:** the dump (69 tables, 56 MB) was restored into a throw-away PostgreSQL 17 and matched production: 1 team, 16 users, 15 players, 18 Riot accounts, 7,208 match details, newest migration `0054_web_vitals`.
-- **The copy:** encrypted with AES-256, 55 MB, kept as the run's artifact `database-backup-39686307330` until 18 Nov 2026. From now on it runs every Monday at 02:43 UTC, the first on 26 Oct.
-- **Weekly runs since then:** 26 Oct and 2 Nov 2026 both passed every check. The 2 Nov copy ([run 41424554552](https://github.com/AscendMCMXCIX/UNIIVERSE/actions/runs/41424554552)) is 67 MB encrypted and kept until 30 Nov 2026.
-- **Growth:** the encrypted copy grew from 55 MB (21 Oct) to 67 MB (2 Nov), about 1 MB a day. At that pace the run's 100 MB limit (Limits, below) would have been reached in early December. The drops of 4 Nov 2026 (below) took the database from 378 MB to 161 MB; the next weekly copy (9 Nov) shows the backup's new size. Raising `max_mb` is the other way, if it ever grows back.
-- **The owner's own check, done (4 Nov 2026):** the owner decrypted a backup themselves and keeps an offline copy (one-time setup, step 4). The retired tables were dropped the same day (#86, #138). The 2 Nov copy, kept until 30 Nov 2026, is the last weekly copy that holds them.
+**Status (7 Nov 2026):** backups run in the private repository `AscendMCMXCIX/uniiverse-backups` since 6 Nov ("Where backups are kept", below).
+- **The first private backup** (run 42307672549, 6 Nov, 22:50 UTC) passed every check: the role is read-only (0 writable tables); all 49 tables were restored into a throw-away Postgres and their counts matched; the six retired tables still in the database restored with all their rows; the file is AES-256 with SHA-512 iterated key derivation and its checksum matches the manifest. Backup age (run 42307998044) passed.
+- **From now on** it runs every Monday at 02:43 UTC (the first scheduled run on 9 Nov, often delivered hours late) and Backup age daily; both report failures as `database-backup` issues in the private repository.
+- **Copies published in this repository earlier:** two remain, encrypted, until 4 Dec 2026 (run 7, `database-backup-42136432466`, and run 42192124079). The four older ones were deleted on 6 Nov with the owner's confirmation.
+- **The tables dropped on 4 Nov 2026** (#86, #138) survive only in the owner's offline copy (one-time setup step 4: the backup the owner decrypted and kept on 4 Nov, taken before the drop): every backup kept now was taken after it.
+- **History:** the first production backup passed on 21 Oct 2026 (run 39686307330: 69 tables, 56 MB, restored and matched); weekly copies followed from 26 Oct. The encrypted copy grew about 1 MB a day until the drops of 4 Nov took the database from 378 MB to 161 MB.
 - Supabase's free plan includes no automatic backups and no point-in-time recovery; both come with paid plans. The project's own Backups page was not checked for this note, so these weekly copies are the ones to rely on.
 
 ## What is worth keeping
@@ -213,4 +211,4 @@ On 6 Nov 2026 the owner wasn't sure about the passphrase in use, so the workflow
 
 - **Each run** writes the encrypted size against `MAX_MB` and the rows it proved to its summary, and keeps its manifest (sizes, counts and checksums: no data, no secret) for 90 days as `database-backup-manifest-<run>`, so growth can be followed.
 - **A failed run, or a copy over 80% of `MAX_MB`,** opens one issue labelled `database-backup` (later runs comment on it); the next healthy run closes it.
-- **The daily Production check** fails when no backup has passed for 8 days (`docs/MONITORING.md`).
+- **Backup age**, in the private repository, fails daily and opens a `database-backup` issue there when no backup has passed for 8 days (since #240 the Production check no longer reads backups here; `docs/MONITORING.md`).
