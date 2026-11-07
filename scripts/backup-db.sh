@@ -3,7 +3,7 @@
 #
 #   BACKUP_DATABASE_URL  the database to back up (Supabase: the session pooler, port 5432). Only read.
 #   BACKUP_PASSPHRASE    encrypts the backup (AES-256, gpg). Without it the backup cannot be opened.
-#   RESTORE_SERVER_URL   optional: a throw-away Postgres server, without a database name
+#   RESTORE_SERVER_URL   optional locally, required in GitHub Actions: a throw-away Postgres server, without a database name
 #                        (postgres://user:password@host:port). The backup is restored into a new
 #                        database there and its row counts compared with the source. Never production.
 #   OUT_DIR              where the encrypted backup and its manifest go (default: backup)
@@ -29,6 +29,12 @@ set -euo pipefail
 MIN_PASSPHRASE_CHARS=32
 if [ "${#BACKUP_PASSPHRASE}" -lt "$MIN_PASSPHRASE_CHARS" ]; then
   echo "BACKUP_PASSPHRASE is shorter than $MIN_PASSPHRASE_CHARS characters. Set a new random one (docs/BACKUPS.md, \"Rotating the passphrase\"); nothing was backed up." >&2
+  exit 1
+fi
+# In GitHub Actions the restore check is what proves a backup can be used (docs/BACKUPS.md): a run
+# without its throw-away server fails instead of keeping a backup nobody restored.
+if [ "${GITHUB_ACTIONS:-}" = "true" ] && [ -z "${RESTORE_SERVER_URL:-}" ]; then
+  echo "RESTORE_SERVER_URL is not set: in GitHub Actions the restore check is required (docs/BACKUPS.md); nothing was backed up." >&2
   exit 1
 fi
 OUT_DIR="${OUT_DIR:-backup}"
