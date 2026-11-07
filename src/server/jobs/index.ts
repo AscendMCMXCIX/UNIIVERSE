@@ -18,6 +18,7 @@ import "./riot-check";
 import "./privacy";
 import "./history-rescan";
 import "./rank-schedule";
+import "./verify-account";
 
 export * from "./registry";
 export * from "./scheduler";

@@ -26,6 +26,7 @@ export type JobKey =
   | "rank-schedule"
   | "rank-schedule-off"
   | "rank-schedule-status"
+  | "verify-account"
   | "tick";
 
 export interface JobOutcome {

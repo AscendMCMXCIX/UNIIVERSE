@@ -7,11 +7,11 @@
 # signed-out and forged-session requests to member pages are turned away with no player data; the
 # security headers are there; Riot's rules for a Personal key hold (no Riot API data on the public
 # pages, Riot's required notice, /riot.txt served for the Developer Portal); the public pages load
-# with no error, no sideways scroll and no serious axe violation (WCAG 2.1 AA). The member pages are checked too once the repository secrets
-# UNIIVERSE_VERIFY_USER and UNIIVERSE_VERIFY_PASSWORD exist (a non-admin account kept off the
-# roster); until then they are reported as pending, never as a failure.
-# The daily run also checks the database's size against its plan (database backups run, and are
-# checked daily, in the private repository AscendMCMXCIX/uniiverse-backups: docs/BACKUPS.md) (DB_PLAN_MB, default 500: the free plan's 0.5 GB in decimal megabytes, the
+# with no error, no sideways scroll and no serious axe violation (WCAG 2.1 AA). The member pages are checked too once the
+# verification account exists (Data jobs `verify-account`: a member with no player profile, its
+# password worked out from CRON_SECRET), or UNIIVERSE_VERIFY_USER / UNIIVERSE_VERIFY_PASSWORD are set.
+# Database backups run, and are checked daily, in the private repository
+# AscendMCMXCIX/uniiverse-backups (docs/BACKUPS.md). The daily run checks the database's size against its plan (DB_PLAN_MB, default 500: the free plan's 0.5 GB in decimal megabytes, the
 # safer reading). From 80% it opens one database-size issue, once, with the remedy; from 95% the
 # check fails too. On Mondays it runs the perf probe (about 6 MB of egress, docs/HOSTING_USAGE.md).
 # A failure opens one issue labelled production-check (or comments on the open one) with what failed
@@ -78,9 +78,33 @@ jobs:
         env:
           UNIIVERSE_VERIFY_USER: ${{ secrets.UNIIVERSE_VERIFY_USER }}
           UNIIVERSE_VERIFY_PASSWORD: ${{ secrets.UNIIVERSE_VERIFY_PASSWORD }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SIGNED_IN_CHECKS: ${{ vars.SIGNED_IN_CHECKS || 'true' }}
           EXPECTED_COMMIT: ${{ github.event_name == 'deployment_status' && github.event.deployment.sha || '' }}
         run: |
           status=0
+          # The member pages are opened as the verification account (docs/LIVE_VALIDATION.md): a member
+          # with no player profile, kept by Data jobs `verify-account`. Its password is worked out from
+          # CRON_SECRET exactly as the app does (src/server/jobs/verify-account.ts) and masked at once;
+          # it is never stored. Explicit UNIIVERSE_VERIFY_* secrets take precedence. The repository
+          # variable SIGNED_IN_CHECKS=false leaves the member pages unopened.
+          if [ "$SIGNED_IN_CHECKS" = "false" ]; then
+            unset UNIIVERSE_VERIFY_USER UNIIVERSE_VERIFY_PASSWORD
+          elif [ -z "$UNIIVERSE_VERIFY_USER" ] && [ -n "$CRON_SECRET" ]; then
+            # The app keeps the account first (created once, then a no-op; it follows a CRON_SECRET
+            # change by itself). Its answer is the account's state only.
+            state="$(curl --silent --max-time 60 -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/jobs/verify-account" | jq -r '.summary.state // "no answer"' 2>/dev/null || true)"
+            echo "verification account: ${state:-no answer}"
+            case "$state" in
+              created|unchanged|password-updated)
+                UNIIVERSE_VERIFY_PASSWORD="$(node -e 'process.stdout.write(require("node:crypto").createHmac("sha256", process.env.CRON_SECRET).update("uniiverse:production-verification-account:v1", "utf8").digest("base64url"))')"
+                echo "::add-mask::$UNIIVERSE_VERIFY_PASSWORD"
+                export UNIIVERSE_VERIFY_USER=verify UNIIVERSE_VERIFY_PASSWORD ;;
+              *) echo "::warning::The verification account is not available (${state:-no answer}), so the member pages stay pending (docs/LIVE_VALIDATION.md)." ;;
+            esac
+          fi
+          unset CRON_SECRET
+          if [ -n "${UNIIVERSE_VERIFY_USER:-}" ]; then echo "signed_in=true" >> "$GITHUB_OUTPUT"; else echo "signed_in=false" >> "$GITHUB_OUTPUT"; fi
           node scripts/live-check.mjs "$APP_URL" live-check || status=$?
           if [ -f live-check/summary.md ]; then cat live-check/summary.md >> "$GITHUB_STEP_SUMMARY"; fi
           exit $status
@@ -144,7 +168,8 @@ jobs:
         if: ${{ !cancelled() }}
         env:
           VISIBILITY: ${{ github.event.repository.visibility || 'unknown' }}
-          SIGNED_IN: ${{ secrets.UNIIVERSE_VERIFY_USER != '' && secrets.UNIIVERSE_VERIFY_PASSWORD != '' }}
+          # Signed in whether with the explicit secrets or the derived verification account (above).
+          SIGNED_IN: ${{ steps.live.outputs.signed_in == 'true' }}
         run: |
           if [ "$SIGNED_IN" = "true" ] && [ "$VISIBILITY" != "private" ] && [ -d live-check ]; then
             removed=$(find live-check -name '*.png' -print -delete | wc -l)
