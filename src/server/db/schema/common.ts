@@ -5,7 +5,6 @@ export const roleEnum = pgEnum("role", ROLES);
 export const sideEnum = pgEnum("side", ["blue", "red"]);
 export const playerGroupEnum = pgEnum("player_group", ["main", "other"]);
 export const poolSlotEnum = pgEnum("pool_slot", ["primary", "secondary"]);
-export const statSourceEnum = pgEnum("stat_source", ["ranked", "pro", "demo"]);
 export const refreshStatusEnum = pgEnum("refresh_status", ["never", "ok", "degraded", "failed", "running"]);
 export const userRoleEnum = pgEnum("user_role", ["owner", "coach", "player"]);
 export const accountOwnerEnum = pgEnum("account_owner", ["player", "opponent"]);

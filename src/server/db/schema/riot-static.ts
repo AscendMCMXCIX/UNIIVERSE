@@ -1,4 +1,4 @@
-import { boolean, integer, jsonb, pgTable, primaryKey, real, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { boolean, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { timestamps } from "./common";
 
 /**
@@ -45,24 +45,6 @@ export const champions = pgTable(
   },
   (t) => [uniqueIndex("champions_key_idx").on(t.key)],
 );
-
-/**
- * Retired with Meta & Trends: nothing reads or writes this table any more; it stays defined so
- * drizzle-kit never generates a DROP (docs/DATA_PIPELINES.md, "Retired tables").
- *
- * Change points let historical evidence be discounted after reworks. `discount` multiplies
- * the weight of evidence from patches before `patch` (0 = ignore completely).
- */
-export const championChangePoints = pgTable("champion_change_points", {
-  id: serial("id").primaryKey(),
-  championId: text("champion_id").notNull().references(() => champions.id, { onDelete: "cascade" }),
-  patch: text("patch").notNull(),
-  discount: real("discount").notNull().default(0.15),
-  reason: text("reason").notNull().default(""),
-  source: text("source").notNull().default("manual"), // manual | auto
-  confirmed: boolean("confirmed").notNull().default(true),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
 
 /**
  * Champion skins (splash art) discovered from Data Dragon: the static-sync job reads each

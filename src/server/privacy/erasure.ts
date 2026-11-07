@@ -32,9 +32,8 @@ import { keyCheckOf, normaliseRiotId, tagged } from "./tokens";
     deleted with their timelines; games shared with others keep the others and replace the person
     with a "Removed player" (server/privacy/redact.ts), their timeline entries removed, and other
     members' lane opponent champion forgotten where the opponent was them;
-  - last known ranks and the one kept Meta & Trends table (tracked_summoners) lose their rows
-    (migrations 0062, 0063 and 0064 dropped the rest of Meta & Trends, the Draft feature's records
-    and the Clash scouts);
+  - last known ranks lose their rows (migrations 0062 to 0064 and 0066 dropped Meta & Trends, the
+    Draft feature's records and the Clash scouts);
   - the admin activity log keeps what happened but names them "Erased member" (the one exception
     to it being append-only), and job logs lose their Riot IDs;
   - an erasure record keeps keyed tokens of their identifiers (server/privacy/tokens.ts), so games
@@ -411,11 +410,10 @@ async function planErasure(db: Db, s: ErasureSubject): Promise<Plan> {
   const notes = await notesToEdit(db, s);
 
   // What their own records add up to.
-  const [games, journal, ranks, retired, lanePartners] = await Promise.all([
+  const [games, journal, ranks, lanePartners] = await Promise.all([
     s.accountIds.length ? count(db, sql`SELECT count(*) AS n FROM account_matches WHERE account_id IN (${uuidList(s.accountIds)}) AND champion_id IS NOT NULL`) : 0,
     s.playerId ? count(db, sql`SELECT count(*) AS n FROM ranked_games WHERE player_id = ${s.playerId}::uuid`) : 0,
     s.puuids.length ? count(db, sql`SELECT count(*) AS n FROM last_known_ranks WHERE puuid IN (${textList(s.puuids)})`) : 0,
-    s.puuids.length ? count(db, sql`SELECT count(*) AS n FROM tracked_summoners WHERE puuid IN (${textList(s.puuids)})`) : 0,
     shared.length ? countLanePartners(db, s, shared) : 0,
   ]);
 
@@ -443,7 +441,7 @@ async function planErasure(db: Db, s: ErasureSubject): Promise<Plan> {
       notes: notes.edits.length,
       auditEntries: audit.length,
       jobLogs: jobRows.length + refreshRows.length,
-      otherRecords: ranks + retired + opponentAccounts.length,
+      otherRecords: ranks + opponentAccounts.length,
     },
     mentions: notes.mentions,
   };
@@ -595,7 +593,6 @@ async function applyPlan(tx: Db, plan: Plan): Promise<void> {
   // 2. The other Riot-identity rows.
   if (s.puuids.length) {
     await tx.delete(lastKnownRanks).where(inArray(lastKnownRanks.puuid, s.puuids));
-    await tx.execute(sql`DELETE FROM tracked_summoners WHERE puuid IN (${textList(s.puuids)})`);
   }
   if (plan.opponentAccounts.length) await tx.delete(riotAccounts).where(inArray(riotAccounts.id, plan.opponentAccounts));
 

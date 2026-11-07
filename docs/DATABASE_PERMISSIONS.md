@@ -81,11 +81,10 @@ What differs is who sees the data **through the app**. The server decides that (
 | Static game data | `patches`, `champions`, `champion_skins` | Signed-in members. Nothing personal. |
 | Branding and settings | `app_settings`, `brand_assets`, `brand_upload_chunks` | Everyone sees the published branding. Changing it is for admins. |
 | Operations | `data_refresh_status`, `job_runs`, `audit_events`, `db_egress_daily`, `uniiverse_migrations` | Admins (System Health, Admin activity). |
-| Retired, data kept | Meta & Trends: `tracked_summoners`, `region_status`, `stat_periods`, `stat_region_periods`, `stat_rank_periods`, `champion_change_points`. | Nobody: nothing reads them. Dropping them is a separate decision for the owner (`docs/DATA_PIPELINES.md`, "Retired tables"). The other Meta & Trends tables and the Draft's were dropped on 4 Nov 2026 (migrations `0062` and `0063`, #86). |
 
 - **The public team page is the only anonymous view.** Its server builds it field by field from a fixed allowlist (`src/server/public/team.ts`), reading as the owner like every other page. It never goes through the Data API.
 - **Read-only data stays read-only.** Only the app's own server writes. The backup role can only `SELECT`, and its sessions are read-only.
-- **Sequences.** Six tables use one, for a `serial` id: `champion_change_points`, `draft_actions`, `draft_role_swaps`, `audit_events`, `job_runs` and `auth_failures`. The backup role needs `SELECT` on them so `pg_dump` can save their current values. Nobody else needs anything on them.
+- **Sequences.** Three tables use one, for a `serial` id: `audit_events`, `job_runs` and `auth_failures` (the retired Draft's two and `champion_change_points` went with their tables, migrations `0063` and `0066`). The backup role needs `SELECT` on them so `pg_dump` can save their current values. Nobody else needs anything on them.
 - **Views and functions.** There are none in `public`.
 
 ## How a new table gets its grants

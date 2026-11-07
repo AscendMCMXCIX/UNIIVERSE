@@ -8,7 +8,7 @@
 #                        database there and its row counts compared with the source. Never production.
 #   OUT_DIR              where the encrypted backup and its manifest go (default: backup)
 #   MAX_MB               fail when the encrypted backup is larger (default: 100, so four weekly copies
-#                        stay inside the 500 MB of artifacts GitHub Free keeps, with room for CI's)
+#                        stay well inside GitHub Pro's 1 GB of artifact storage, with room for CI's)
 #
 # Writes OUT_DIR/uniiverse-<UTC time>.dump.gpg and a manifest (.json: sizes, row counts, checksums,
 # the backup role's privileges; no data, no secrets). The unencrypted dump only ever exists in a
@@ -43,10 +43,10 @@ trap 'rm -rf "$WORK"' EXIT
 DUMP="$WORK/$NAME.dump"
 mkdir -p "$OUT_DIR"
 
-# Retired tables still in the database: what Meta & Trends left after #86 and #138 dropped the rest
-# on 4 Nov 2026 (docs/DATA_PIPELINES.md, "Retired tables"). Dropping them is a separate decision for
-# the owner. Each backup proves their rows survive the round trip, so the backup kept before a drop
-# is known to hold them. A table that no longer exists is skipped, so the list can outlive a drop.
+# Retired tables: what Meta & Trends left after #86 and #138 dropped the rest on 4 Nov 2026, which
+# migration 0066 drops (docs/DATA_PIPELINES.md, "Retired tables"). Each backup taken while they exist
+# proves their rows survive the round trip, so the backup kept before the drop is known to hold them.
+# A table that no longer exists is skipped, so the list outlives the drop.
 RETIRED="tracked_summoners region_status stat_periods stat_region_periods stat_rank_periods champion_change_points"
 
 # Tables whose row counts must survive the round trip, and the newest migration. The retired

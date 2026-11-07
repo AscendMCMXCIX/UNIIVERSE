@@ -41,16 +41,16 @@ describe("db-usage", () => {
     const read = async () => ((await runJob(handle.db, "db-usage", "cli")).summary as { retired: Retired }).retired;
     const retired = await read();
     expect(retired.tables).toHaveLength(34);
-    // 12 Meta & Trends tables, the Draft's and Clash Scout's are gone (0062, 0063, 0064). The rest of
-    // Meta & Trends (and the period tables' enum type) and what the retired Ranked Development kept
-    // stay until their own drop: their keys point only at each other, players and Riot accounts.
-    const kept = ["ranked_profiles", "ranked_blocks", "ranked_games", "development_objectives", "development_plans", "tracked_summoners", "region_status", "stat_periods", "stat_region_periods", "stat_rank_periods", "champion_change_points"];
+    // The Meta & Trends, Draft and Clash Scout tables are gone (0062 to 0064, and 0066 for the rest of
+    // Meta & Trends with its enum type). What the retired Ranked Development kept stays until its own
+    // drop (its keys point only at each other, players and Riot accounts).
+    const kept = ["ranked_profiles", "ranked_blocks", "ranked_games", "development_objectives", "development_plans"];
     expect(retired.tables.filter((t) => !t.gone).map((t) => t.name).sort()).toEqual([...kept].sort());
     expect(retired.columns).toEqual([
       { name: "riot_accounts.opponent_player_id", gone: true },
       { name: "teams.engine_config", gone: true },
     ]);
-    expect(retired.enums.filter((e) => !e.gone)).toEqual([{ name: "stat_source", gone: false }]);
+    expect(retired.enums.filter((e) => !e.gone)).toEqual([]);
     expect(retired.opponentAccounts).toBe(0);
     expect(retired.dependents).toEqual({ foreignKeys: [], views: [], enumColumns: [], publications: [] });
 
