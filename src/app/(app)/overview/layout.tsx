@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { after } from "next/server";
 import { getAppDb } from "@/server/bootstrap";
-import { getSession } from "@/server/auth/session";
+import { getSession, isOwner } from "@/server/auth/session";
 import { refreshPlayerAccountsIfDue } from "@/server/accounts/kickoff";
 import { playerFreshness } from "@/server/ops/freshness";
 import { FreshnessWatcher } from "@/components/ui/freshness-watcher";
@@ -25,11 +25,18 @@ export default async function MyProfileLayout({ children }: { children: React.Re
         <PageHeader title="My Profile" description="Your roles, rank, champion pools and this season's statistics." />
         <Panel>
           <PanelBody className="text-sm text-fg">
-            This account has no player profile yet.{" "}
-            <Link href="/me" className="text-accent underline underline-offset-2">
-              Complete your profile
-            </Link>{" "}
-            and come back here.
+            {/* Only the Owner completes a missing profile (/me); every other profile is created by an administrator. */}
+            {isOwner(session) ? (
+              <>
+                This account has no player profile yet.{" "}
+                <Link href="/me" className="text-accent underline underline-offset-2">
+                  Complete your profile
+                </Link>{" "}
+                and come back here.
+              </>
+            ) : (
+              "This account has no player profile. Player profiles are created by an administrator, together with the account."
+            )}
           </PanelBody>
         </Panel>
       </div>

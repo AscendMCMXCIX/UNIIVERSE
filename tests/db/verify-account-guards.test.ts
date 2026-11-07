@@ -56,6 +56,7 @@ import * as auth from "@/server/actions/auth";
 import * as usersActions from "@/server/actions/users";
 import * as account from "@/server/actions/account";
 import MePage from "@/app/(app)/me/page";
+import OverviewLayout from "@/app/(app)/overview/layout";
 import { CompleteProfileForm } from "@/components/auth/complete-profile-form";
 
 const SECRET = "a-test-cron-secret-0123456789abcdef";
@@ -116,6 +117,13 @@ const profileless = async () => (await listUsers(handle.db)).filter((u) => !u.pl
 async function players(): Promise<number> {
   const r = (await handle.db.execute(sql`SELECT count(*)::int AS n FROM players`)) as unknown as { rows?: Array<{ n: number }> } & Array<{ n: number }>;
   return Number((r.rows ?? r)[0]?.n);
+}
+/** Every string a rendered element tree holds (its text). */
+function textOf(node: unknown): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(textOf).join("");
+  if (!node || typeof node !== "object" || !("props" in node)) return "";
+  return textOf((node as { props?: { children?: unknown } }).props?.children);
 }
 function contains(node: unknown, type: unknown): boolean {
   if (Array.isArray(node)) return node.some((n) => contains(n, type));
@@ -190,6 +198,26 @@ describe("the job withdraws the derived password from its own account once that 
     expect(await opens(VERIFY_USERNAME, DERIVED)).toBe(false);
   });
 
+  it("ends, on every later run, a session that raced the withdrawal (signed in just before it, created just after)", async () => {
+    const id = await verifyId();
+    await change("group");
+    expect((await ensureVerificationAccount(handle.db, PROD)).summary.state).toBe("withdrawn");
+    // The late session of a sign-in that had checked the derived password before the withdrawal committed.
+    await createSession(handle.db, id);
+    expect(await sessionCount(id)).toBe(1);
+    expect((await ensureVerificationAccount(handle.db, PROD)).summary.state).toBe("conflict");
+    expect(await sessionCount(id)).toBe(0);
+  });
+
+  it("never signs out an account of that name it did not withdraw (a real member called verify, still without a password)", async () => {
+    await handle.db.delete(usersTable).where(eq(usersTable.username, VERIFY_USERNAME));
+    const real = await registerAccount(handle.db, { username: VERIFY_USERNAME, password: "Their-own-pass-123", role: "player", primaryRiot: { riotId: "Real Verify#OCE", platform: "oc1" }, primaryRole: "ADC" });
+    await handle.db.update(usersTable).set({ passwordHash: null }).where(eq(usersTable.id, real.id));
+    await createSession(handle.db, real.id);
+    expect((await ensureVerificationAccount(handle.db, PROD)).summary.state).toBe("conflict");
+    expect(await sessionCount(real.id)).toBe(1);
+  });
+
   it("ends an open session at the withdrawal: it is signed out and cannot set a first password", async () => {
     expect(await login(VERIFY_USERNAME, DERIVED)).toBe("/team");
     await change("group");
@@ -239,6 +267,10 @@ describe("only the Owner completes a missing player profile", () => {
     expect((await usersActions.completeProfileAction({ riotId: "Some Name#OCE", platform: "oc1", primaryRole: "MID" })).ok).toBe(false);
     expect(await players()).toBe(before);
     expect(contains(await MePage(), CompleteProfileForm)).toBe(false);
+    // Profile (/overview) says the same, with no link to a form it cannot use.
+    const overview = textOf(await OverviewLayout({ children: null }));
+    expect(overview).toContain("Player profiles are created by an administrator");
+    expect(overview).not.toContain("Complete your profile");
     expect((await ensureVerificationAccount(handle.db, PROD)).summary.state).toBe("unchanged");
   });
 
@@ -253,6 +285,7 @@ describe("only the Owner completes a missing player profile", () => {
     state.cookies.clear();
     state.cookies.set(SESSION_COOKIE, (await createSession(handle.db, legacy.id)).token);
     expect(contains(await MePage(), CompleteProfileForm)).toBe(true);
+    expect(textOf(await OverviewLayout({ children: null }))).toContain("Complete your profile");
     expect((await usersActions.completeProfileAction({ riotId: "Legacy Owner#OCE", platform: "oc1", primaryRole: "ADC" })).ok).toBe(true);
   });
 });

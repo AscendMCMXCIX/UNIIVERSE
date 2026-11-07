@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { users } from "@/server/db/schema";
+import { auditEvents, users } from "@/server/db/schema";
 import { defineJob } from "./registry";
 import { createUser, findUserByUsername, setPassword } from "@/server/repositories/users";
 import { verifyPassword } from "@/server/auth/password";
@@ -33,11 +33,12 @@ import { VERIFY_DISPLAY_NAME, VERIFY_USERNAME } from "@/server/auth/verification
   It creates the account, or changes nothing when its password is already the derived one, or
   updates the password after a CRON_SECRET change. When its own account (the derived password) has
   been changed, given more access, a level, a profile or another name, it withdraws the password and
-  ends its sessions ("withdrawn"), so CRON_SECRET no longer opens it; once the change is undone, the
-  next run sets the password again. It never touches an account of that name whose password is not
-  the derived one ("conflict"), and leaves a deactivated one deactivated: deactivating it in Admin is
-  how the owner turns the signed-in checks off. The Production check fails on withdrawn, conflict or
-  no answer.
+  ends its sessions ("withdrawn"), so CRON_SECRET no longer opens it; until the change is undone,
+  each run ends any session it still has, and then the next run sets the password again. An account
+  of that name that is not the plain member it keeps, and whose password is not the derived one, it
+  never touches: an active one answers "conflict", a deactivated one "deactivated". A deactivated
+  account stays deactivated: deactivating it in Admin is how the owner turns the signed-in checks
+  off. The Production check fails on withdrawn, conflict or no answer.
 */
 
 export { VERIFY_DISPLAY_NAME, VERIFY_USERNAME };
@@ -79,6 +80,11 @@ export async function ensureVerificationAccount(db: Db, env: Record<string, stri
     await recordAudit(db, JOB, { action: "account.password-withdrawn", target: { type: "user", id: existing.id, name: VERIFY_USERNAME }, details: { purpose: "production verification", reason: "access, profile or name changed" } });
     return { ok: false, error: `The account "${VERIFY_USERNAME}" no longer has only the default member access, or its profile or name changed; its password was withdrawn, so CRON_SECRET no longer opens it.`, summary: { username: VERIFY_USERNAME, state: "withdrawn" } };
   }
+  // A sign-in that checked the derived password just before the withdrawal can create its session
+  // just after it. So while the job's own withdrawn account (its audit record says so) is still
+  // changed and has no password, every run ends its sessions again: such a session lasts until the
+  // next run at most. Never for any other account of that name.
+  if (!plain && !existing.passwordHash && (await withdrawnByThisJob(db, existing.id))) await revokeAllSessions(db, existing.id);
   // Deactivated is the owner's off switch, whatever else it is: nothing signs in to it.
   if (!existing.isActive) return { ok: true, summary: { username: VERIFY_USERNAME, state: "deactivated" } };
   if (!plain) return { ok: false, error: `An account named "${VERIFY_USERNAME}" exists that is not the plain member this job keeps, and its password is not the derived one; nothing was changed.`, summary: { username: VERIFY_USERNAME, state: "conflict" } };
@@ -86,6 +92,12 @@ export async function ensureVerificationAccount(db: Db, env: Record<string, stri
   await setPassword(db, existing.id, password);
   await recordAudit(db, JOB, { action: "account.password-reset", target: { type: "user", id: existing.id, name: VERIFY_USERNAME }, details: { purpose: "production verification", reason: "derived again" } });
   return { ok: true, summary: { username: VERIFY_USERNAME, state: "password-updated" } };
+}
+
+/** This job withdrew this account's password before (Admin → Audit Logs). */
+async function withdrawnByThisJob(db: Db, userId: string): Promise<boolean> {
+  const [row] = await db.select({ id: auditEvents.id }).from(auditEvents).where(and(eq(auditEvents.action, "account.password-withdrawn"), eq(auditEvents.targetId, userId))).limit(1);
+  return !!row;
 }
 
 defineJob({
