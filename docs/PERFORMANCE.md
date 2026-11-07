@@ -27,7 +27,8 @@ Playwright script against a PostgreSQL database seeded with 3,000 ranked games
   member's own browser measured it, counted by page group and device class over the last 28 days
   ([MONITORING.md](MONITORING.md)). Those are real loads on real devices and networks; every other
   figure on this page is a lab measurement on one emulated device or a server timing. The two are
-  reported apart and never averaged together.
+  reported apart and never averaged together. The Production check's verification account is not
+  counted (its beacons are dropped; [LIVE_VALIDATION.md](LIVE_VALIDATION.md)).
 - **Health**: `/api/health` answers in about 10 ms of server time with database round trip,
   auth mode, patch, data freshness and failing jobs; it never touches statistics or providers.
 
