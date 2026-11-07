@@ -105,7 +105,7 @@ All phases were developed between 1 and 14 October 2026. Phase 1 started on 13 O
 
 **Still being worked on / not finished**
 - **Global ranked data collection stalled.** It stalled between about 07:15 and 11:15 UTC on 14 Oct. A fix was deployed (commit `562fe24`) and confirmed working in production: 619 new games were stored at 11:25 UTC. It should be watched for a day of ordinary, visit-started updates.
-- **Hourly GitHub schedule unreliable.** It often does not run. Supabase `pg_cron` (documented in `docs/DEPLOYMENT.md` §4c) would make collection regular. Whether it has been set up is **UNKNOWN**.
+- **Hourly GitHub schedule unreliable.** It often does not run. Since 7 Nov 2026 Supabase `pg_cron` makes collection regular: the tick every 10 minutes and the rank watch every 5 (`docs/DEPLOYMENT.md` §4c, `docs/RANKED_PROGRESS.md`).
 - **Team setup incomplete.** No Support player is assigned in production, and 4 accounts have not finished setup.
 - **Live site not clicked through.** Nobody has walked through the signed-in production pages; `docs/LIVE_VALIDATION.md` §15 is the checklist.
 
@@ -148,4 +148,4 @@ All phases were developed between 1 and 14 October 2026. Phase 1 started on 13 O
   - "NEW" champion badges;
   - Draft History as a separate list.
 
-**Proposed / open ideas** (not decisions): more reliable scheduled updates (`pg_cron`). Anything else should be confirmed with the user first.
+**Proposed / open ideas** (not decisions): none open (`pg_cron` runs since 7 Nov 2026). Anything else should be confirmed with the user first.

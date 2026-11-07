@@ -115,7 +115,7 @@ Key single files:
   - `.github/workflows/data-jobs.yml`: hourly at minute 17, best-effort; also runs one job or several (space-separated, in one run) by hand.
   - `vercel.json`: a daily cron at 04:00 UTC to `/api/jobs/tick`.
   - Site visits: a background tick when none ran for 30 minutes.
-  - Optional Supabase `pg_cron` every 10 minutes (`docs/DEPLOYMENT.md` §4c). Whether it is configured is **UNKNOWN**; the evidence suggests not, because there were no `http`-triggered ticks between 07:15 and 11:00 UTC on 14 Oct.
+  - Supabase `pg_cron` (since 7 Nov 2026, read with Data jobs `rank-schedule-status`): `uniiverse-tick` every 10 minutes (`docs/DEPLOYMENT.md` §4c; its calls were refused until the Vault secret existed, 7 Nov 08:05 UTC) and `uniiverse-rank-watch` every 5 minutes (installed by the app, `docs/RANKED_PROGRESS.md`). Both read the cron secret from Supabase Vault.
 - **Other workflows:**
   - `smoke.yml`: public pages, sign-in redirects and `/api/health` with the deployed commit.
   - `probe.yml`: HTTP timing of public paths.
@@ -466,7 +466,7 @@ Riot ID typed (account creation, or an Alt added on the profile)
   | integrity | 24 h |
 
   - `static-sync` (forced) and the diagnostic jobs run on demand only. Diagnostic jobs: `auth-audit`, `data-audit`, `perf-probe`, `riot-check`, `skin-audit`, `proficiency-audit`.
-- **Triggers:** GitHub hourly (best-effort; often skipped), Vercel daily 04:00 UTC, visits (every 30 min while people use the site), optional `pg_cron`.
+- **Triggers:** GitHub hourly (best-effort; often skipped), Vercel daily 04:00 UTC, visits (every 30 min while people use the site), and since 7 Nov 2026 `pg_cron`: the tick every 10 minutes and the rank watch every 5.
 - **Retry / back-off:**
   - Accounts: 5 min after the first failure, doubling up to 6 h.
   - Interrupted runs count as failed runs: the job's next start (after 15 min) or `integrity` records each one and closes its `job_runs` row.
@@ -1026,7 +1026,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 |---|---|---|---|---|---|---|---|---|
 | 1 | Global ranked collection stalled for ~4 h | Data pipeline | **High** | Statistics stop growing; Trends go stale | 2,321 games at 08:00 and 11:11 UTC; discovery visit runs averaged 39.3 s against a 40 s cap; ~253 players ever scanned | Ladder refreshes used the whole discovery budget | Fixed in `562fe24` (refresh share capped at 50 %) | Closed (Oct 2026): the global collection was removed with Meta & Trends |
 | 2 | Dead platforms PH2 / TH2 are retried first every run | Data pipeline | Medium | Wasted time each discovery run | `ph2`/`th2` "fetch failed" in every run; never refreshed, so always "stalest" | Riot merged them into SG2; the registry still lists them under `RIOT_PLATFORMS=all` | Remove `ph2`/`th2` from the platform registry, or back off platforms that keep failing | Closed (Oct 2026): only the removed ladder discovery visited every platform |
-| 3 | GitHub hourly schedule unreliable | Automation | Medium | Data refreshes depend on visits | No `http` ticks 07:15–11:00 UTC on 14 Oct; earlier audit showed irregular delivery | GitHub cron is best-effort | Set up Supabase `pg_cron` every 10 min (`docs/DEPLOYMENT.md` §4c; one secret typed into Supabase's SQL editor) | **Open (user action)**; whether done: UNKNOWN |
+| 3 | GitHub hourly schedule unreliable | Automation | Medium | Data refreshes depend on visits | No `http` ticks 07:15–11:00 UTC on 14 Oct; earlier audit showed irregular delivery | GitHub cron is best-effort | Set up Supabase `pg_cron` every 10 min (`docs/DEPLOYMENT.md` §4c) | **Done** (7 Nov 2026): `uniiverse-tick` every 10 minutes and `uniiverse-rank-watch` every 5, both reading the secret from Vault |
 | 5 | Region skew (OCE 66 %), Emerald under-sampled | Data | Low–Medium | Mostly OCE-flavoured meta | data-audit | Early OCE-only collection; SEA host carries only OCE | Fair-share rules exist; volume will dilute | Closed (Oct 2026): removed with Meta & Trends |
 | 6 | No Support player in the lineup | Team setup | Medium | The Support card is empty | Team card empty | Roster | Owner assigns a Support player on Team | **Open (user action)** |
 | 7 | 4 accounts with setup pending | Accounts | Low | Those players have no full profile yet | auth-audit | Players have not signed in | Remind players | Open (user action) |
@@ -1083,7 +1083,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 | Solo Queue Blocks redesign | **Removed** (29 Oct 2026, at the user's request, with Ranked Development, which it had become) |
 | Sidebar collapsing | **Implemented** |
 | Draft (and with it unfinished drafts, Fearless, opponent rosters) | **Removed** (Oct 2026, at the user's request) |
-| Reliable 10-minute scheduling (`pg_cron`) | **Requested / recommended; not confirmed set up** (user action) |
+| Reliable 10-minute scheduling (`pg_cron`) | **Done** (7 Nov 2026; read with Data jobs `rank-schedule-status`) |
 | Remove dead platforms PH2/TH2 from collection | **Not started** (recommended) |
 | Data-staleness warning in health | **Not started** (recommended) |
 | Higher Emerald share (15–20 %) | **Dropped** (Meta & Trends removed, Oct 2026) |

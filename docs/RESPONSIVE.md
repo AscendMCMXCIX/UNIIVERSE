@@ -191,8 +191,8 @@ Three levels, each saying what it proves:
   `985c65a`; removed with that feature).
 
   This is WebKit as Playwright builds it for Linux: Safari's engine, not Safari on an iPhone.
-  **Status, 21 Oct 2026:** the spec passes in Chromium with the same iPhone settings; its first
-  WebKit run is still to be done (WebKit is not installed in the development container).
+  **Status, 7 Nov 2026:** the WebKit workflow passes: 17 of 17 on `main` (run 42373258830) and on
+  #262's branch (run 42401195789).
 - **A real iPhone** (by a person; nothing above covers it):
   1. Add to Home Screen from Safari's Share menu: the icon and name come from Branding, and the app
      opens full screen with its content clear of the notch and the home indicator.

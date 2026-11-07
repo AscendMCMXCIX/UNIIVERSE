@@ -53,8 +53,10 @@ Compact, in Profile Overview under the season card and Recent form (`ranked-prog
 - **Now:** the crest, the current rank and LP (with how far into the division), and Riot's wins and
   losses for the ranked year with the win rate.
 - **How it moved:** over the last 30 days, from the reading in effect when the window began (one
-  seen by then and still confirmed then, or followed by its next reading within a single game) to
-  the latest, labelled "Last 30 days". Where recording began inside the window, or several unseen
+  seen by then and still confirmed then, or followed by its next reading within a single game; that
+  game may have been played shortly before the window began, and the figure then includes it) to
+  the latest, labelled "Last 30 days". Match History's summary and Team's detail panel give the same
+  figure, in ladder points, by the same rule. Where recording began inside the window, or several unseen
   games straddle its start, the first reading inside the window is the start and the label says
   "Since 16 Oct" instead: the figure never takes in games that were not read. A rank read before
   the window and confirmed inside it is "No change"; an account unranked now has nothing to compare.
@@ -78,9 +80,13 @@ only when those two readings enclose that game and nothing else (`attributeLp`):
 
 1. **Which game.** Riot's wins + losses counts the queue's games of the ranked year, so between two
    readings exactly as many games ended as that count rose. The stored games are matched to the
-   count in the order they ended. If a game is missing from the store (not collected yet, or Riot
-   never served it), or a stored game was not counted, the match breaks and nothing in that
-   stretch is attributed. Remakes (under five minutes) are not counted by Riot and never take part.
+   count in the order they ended. If a game is missing from the store (not collected yet, Riot
+   never served it, or stored without a length), or a stored game was not counted, the match breaks
+   and nothing in that stretch is attributed, provided a reading sees the missing game counted
+   before the next stored game can have ended. When none does (Riot counting it 20 or more minutes
+   late, or no reading in between), the next stored game of the same result is matched to the
+   missing game's change. The rule assumes Riot counts each game within about ten minutes of its
+   end. Remakes (under five minutes) are not counted by Riot and never take part.
 2. **Nothing else in between.** The earlier reading must still have held when the game began:
    confirmed while it was played, or in the five minutes before it was created. A queue dodge, the
    only other LP change a player makes, happens in champion select and is followed by a six-minute
@@ -103,8 +109,10 @@ Then:
 next reading would be counted with that game: Riot reports no dodges, so no tracker can separate
 them. The same holds for decay (Diamond and above, after weeks without a game) in the last minutes
 of a game, after its last reading during play; decay earlier in the game shows in that reading,
-apart from the game. The rank watch keeps both windows to a few minutes. Every figure's tooltip
-names the two readings it rests on, with their times, so it can be checked.
+apart from the game. The rank watch keeps both windows to a few minutes. Nor can a game Riot
+counted but did not list, or listed late, be told from the next game of the same result when no
+reading falls between them (rule 1). Every figure's tooltip names the two readings it rests on,
+with their times, so it can be checked.
 
 ## Readings: when ranks are read
 
@@ -122,10 +130,14 @@ Readings come from:
   five minutes, each game has a reading while it is played and one a few minutes after it ends.
 
 How often runs happen is what decides how many games get a figure:
-- **Today (without a dedicated schedule):** ticks come from GitHub Actions (hourly, delivered four to
-  six times a day), from visits (at most every 30 minutes while someone uses the site) and from
-  Vercel's daily cron. Most games then fall between readings several games apart: `—`.
-- **With the five-minute schedule** below: nearly every ranked game gets its figure.
+- **Without a dedicated schedule** (before 7 Nov 2026): ticks came from GitHub Actions (hourly,
+  delivered four to six times a day), from visits (at most every 30 minutes while someone uses the
+  site) and from Vercel's daily cron. Most games fell between readings several games apart: `—`.
+- **With the five-minute schedule** below (running since 7 Nov 2026, 08:10 UTC): nearly every
+  ranked game of an active account gets its figure.
+- **An account idle for 30 days** (no ranked game and no rank change) is read about hourly, so its
+  first game back usually has no figure, and in about a third of sessions neither does the second;
+  from then on it is read every run. Expect `readings-too-far` and `several-games` for such games.
 
 ### The five-minute schedule (Supabase pg_cron, free, installed by the app)
 
@@ -135,7 +147,7 @@ How often runs happen is what decides how many games get a figure:
 - it schedules `uniiverse-rank-watch` every five minutes.
 
 Running it again changes nothing, except that it updates the Vault copy after a change of `CRON_SECRET`. Only the production deployment installs it.
-- **Check it:** Data jobs `rank-schedule-status` (read only). It reports whether the schedule exists, its runs of the last hour by status, and its calls by HTTP status. `/api/health` shows `rank-watch`'s last success, which should never be more than about five minutes old, and lists `rank-schedule` in `failingJobs` once the installed schedule has not called the app for 20 minutes (its direct calls of `/api/jobs/rank-watch` are recorded; a tick's rank watch does not count), which fails the next scheduled Data jobs run (docs/MONITORING.md). A run in which no account could be read is *degraded* with a count-only message, which Admin repeats.
+- **Check it:** Data jobs `rank-schedule-status` (read only). It reports whether the schedule exists, its runs of the last hour by status, and its calls by HTTP status. `/api/health` shows `rank-watch`'s last success, which should never be more than about five minutes old, and lists `rank-schedule` in `failingJobs` once the installed schedule has not called the app for 20 minutes (its direct calls of `/api/jobs/rank-watch` are recorded; a tick's rank watch does not count), which fails the next scheduled Data jobs run (docs/MONITORING.md). A run in which every account it tried failed is *degraded* with a count-only message, which Admin repeats; one stopped by a full rate limit before its first reading is not (the next run reads again).
 - **After a change of `CRON_SECRET`:** run Data jobs `rank-schedule` again (it updates the Vault copy), then `rank-schedule-status`: `vaultMatchesServerSecret` should be `true` and the calls `200`. Until then every call is refused (401).
 - **Remove it:** Data jobs `rank-schedule-off`. It unschedules the job and deletes the Vault copy, unless another pg_cron job still reads it (production's ten-minute `uniiverse-tick` does): then it keeps it and says how many jobs read it (`secretStillUsedBy`, a count only). To remove both, unschedule `uniiverse-tick` first (docs/DEPLOYMENT.md), then run `rank-schedule-off`.
 
@@ -175,6 +187,11 @@ traffic per run. No GitHub Actions minutes.
   Riot refused for good, recorded with no start time, or one whose champion the list did not have),
   which say why Riot's count can exceed the stored games, the readings and the games between them,
   how many games have a figure and why the others have none, with the last few figures and the minutes
-  between each game and its two readings; the 2026 seasons' first patches as stored; how often
-  ranks were read; the year's games and readings week by week. Accounts appear as P1/A1 only.
+  between each game and its two readings; the 2026 seasons' first patches as stored; the rank changes
+  recorded; the year's games and rank changes week by week. Accounts appear as P1/A1 only. Its
+  `readings`, `lastReading`, `medianMinutesBetweenReadings`, weekly `soloReadings`/`flexReadings` and
+  daily `cadence[].readings` count the stored rows, one per rank change (an unchanged reading confirms the last row and adds none), not
+  how often ranks were read: for that, Data jobs `rank-schedule-status` (the schedule's runs and
+  calls) and `/api/health` (`rank-watch`'s last success). Its LP tally reads the confirmations, as
+  the match cards do, since #255.
 - **Ranked progress → History and coverage**: every reading with its first and last time.
