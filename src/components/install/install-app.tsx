@@ -9,6 +9,7 @@ import { installGuideFor, type InstallGuide } from "@/domain/install-guide";
 import { promptInstall, useInstallState } from "./install-state";
 import { cn } from "@/lib/cn";
 import { RAIL_FADE, RAIL_HIGHLIGHT, RAIL_HOVER, RAIL_ICON, RAIL_ICON_IDLE, RAIL_ROW } from "@/lib/sidebar";
+import { SHEET_TILE, SHEET_TILE_ICON, SHEET_TILE_IDLE } from "@/lib/sheet";
 
 /*
   Install App: one entry beside Settings (sidebar and phone menu), and one in the public team
@@ -43,7 +44,7 @@ export function InstallAppProvider({ children }: { children: React.ReactNode }) 
  * by CSS in the installed app's display modes (so the installed app never shows it, even for a
  * moment), and by the browser's own signals once the page runs.
  */
-export function InstallAppEntry({ variant, beforeOpen, className }: { variant: "sidebar" | "drawer" | "public"; beforeOpen?: () => void; className?: string }) {
+export function InstallAppEntry({ variant, beforeOpen, className }: { variant: "sidebar" | "drawer" | "public" | "tile"; beforeOpen?: () => void; className?: string }) {
   const openWindow = React.useContext(InstallContext);
   const state = useInstallState();
   if (state.ready && (state.standalone || state.installed)) return null;
@@ -59,6 +60,15 @@ export function InstallAppEntry({ variant, beforeOpen, className }: { variant: "
       <button type="button" onClick={onClick} aria-haspopup="dialog" className={cn(buttonClass("ghost", "sm", "text-fg-muted max-sm:min-w-11"), hiddenWhenInstalled, className)} data-testid="install-app">
         <Download className="h-4 w-4" aria-hidden />
         <span className="max-sm:sr-only">Install App</span>
+      </button>
+    );
+  }
+  if (variant === "tile") {
+    // The phone account sheet: a tile among its pages (lib/sheet.ts).
+    return (
+      <button type="button" onClick={onClick} aria-haspopup="dialog" className={cn(SHEET_TILE, SHEET_TILE_IDLE, hiddenWhenInstalled, className)} data-testid="install-app">
+        <Download className={cn(SHEET_TILE_ICON, "text-fg-subtle")} aria-hidden />
+        Install App
       </button>
     );
   }
