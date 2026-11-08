@@ -293,7 +293,7 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 - [ ] (Only after a Production key whose registration describes the public pages, with `UNIIVERSE_PUBLIC_RIOT_DATA=true` set in Vercel.) Signed out: the cards show ranks and this season's figures, the Leaderboards link opens boards that rank only the lineup and its substitutes and link to no profile, and the privacy page says the public page shows ranks and statistics.
 - [ ] A role with a designated substitute shows the turn icon; it turns the card over to the substitute and back. Nothing is saved.
 - [ ] Opening a card shows the champion pool, with no link to a profile. Every link on the page opens without asking to sign in, except **Sign in** itself.
-- [ ] Signed in: `/public` looks the same, with **Open the app** instead of **Sign in**. Settings has no Public profile panel, and Admin has no Public Access entry. Settings' picture and display-name help say teammates see them, and the public team page while you are in the lineup or a substitute.
+- [ ] Signed in: `/public` looks the same, with **Open the app** instead of **Sign in**. Settings has no Public profile panel, and Admin has no Public Access entry. Settings' picture and display-name help say teammates see them, and the public team page while you are in the lineup or a substitute; so does the Card Studio's banner help (Style → My banner).
 - [ ] A lineup change shows on the public page within a minute.
 
 ## 21. Meta & Trends removed (19 Oct 2026)

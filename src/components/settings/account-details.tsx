@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Camera, Trash2 } from "lucide-react";
 import { changeDisplayNameAction, changeUsernameAction } from "@/server/actions/account";
 import { DISPLAY_NAME_MAX, displayNameProblem, normaliseDisplayName } from "@/domain/display-name";
+import { ON_THE_PUBLIC_PAGE } from "@/domain/privacy";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -20,13 +21,6 @@ function usernameProblem(value: string): string | null {
   if (!USERNAME_RULE.test(v)) return "Letters, digits, spaces, dots, underscores and hyphens.";
   return null;
 }
-
-/**
- * Who else sees the picture and the display name: the public team page, open to everyone with no
- * switch and no opt-in, shows the players holding a lineup role and each role's substitute
- * (server/public/team.ts). Both helps say it in these words; change them with that rule.
- */
-const ON_THE_PUBLIC_PAGE = "on the public team page while you're in the lineup or a substitute";
 
 /**
  * Display name: the name teammates see (Team, Players, your profile, cards, Leaderboards,
@@ -73,7 +67,7 @@ export function DisplayNameEditor({ displayName }: { displayName: string }) {
           aria-describedby="display-name-help"
         />
         <p id="display-name-help" className={shown ? "mt-1.5 text-xs text-bad" : "mt-1.5 text-pretty text-xs text-fg-subtle"} role={shown ? "alert" : undefined}>
-          {shown ?? `Shown to teammates on Team, Players, your profile, cards and Leaderboards, and ${ON_THE_PUBLIC_PAGE}. It doesn't have to be unique or match your Riot ID.`}
+          {shown ?? `Shown to teammates across the app, and ${ON_THE_PUBLIC_PAGE}. It doesn't have to be unique or match your Riot ID.`}
         </p>
       </div>
       <Button type="submit" variant="outline" className="mt-5" disabled={busy || !changed || !!local}>
