@@ -196,7 +196,7 @@ function useSheetDrag(ref: React.RefObject<HTMLDialogElement | null>, enabled: b
       if (samples.length > 8) samples.shift();
       d.style.transform = `translateY(${dy}px)`;
     };
-    const onEnd = (e: TouchEvent) => {
+    const onEnd = () => {
       const was = mode;
       mode = "idle";
       if (was !== "drag") return;
