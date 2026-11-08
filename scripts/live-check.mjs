@@ -40,8 +40,9 @@
   - All Champions (#178): compact rows, sorted by games, no heading cut short.
   - games (#178): Team Matches opens a game under its card (no window), with ?match= in the address;
     a copied link opens it; Back returns to it; the keyboard toggles it; "Close this game" closes it
-    and keeps the focus on the card. Match History opens games under their cards; its Encounters
-    view and the champion window still open.
+    and keeps the focus on the card. Match History opens games under their cards; at 1440 the
+    first three cards' CS totals and damage shares end before the next column (the build or the
+    teams); its Encounters view and the champion window still open.
   - accessibility (#173): axe (WCAG 2.1 A and AA, plus label-content-name-mismatch) on the main pages
     at every width, with a game open, and in the champion window: no serious or critical violation.
   - every page at every width: it loads signed in, no sideways scroll, no page error, no app console
@@ -506,6 +507,27 @@ async function matchHistory(page, log, kind, playerId) {
   if (!(await visit(page, log, kind, "match-history", path, { fullPage: false }))) return;
   const card = page.getByTestId("match-card").first();
   if (!(await card.waitFor({ timeout: 20_000 }).then(() => true, () => false))) return warn("games", `${kind}: Match History lists no games`, path);
+  if (kind === "desktop") {
+    // A wide card's figures never run under the next column (the build, or the teams where the
+    // list has no room for the build): how far each total or share ends before it, in px (negative is clear).
+    const overruns = await page.evaluate(() =>
+      [...document.querySelectorAll("[data-testid=match-card]")].slice(0, 3).map((c) => {
+        const end = (e) => {
+          const range = document.createRange();
+          range.selectNodeContents(e);
+          return range.getBoundingClientRect().right;
+        };
+        const cs = c.querySelector("[data-testid=match-cs]");
+        const damage = c.querySelector("[data-testid=match-damage]");
+        if (!cs || !damage) return null;
+        let next = cs.parentElement.nextElementSibling;
+        while (next && next.getBoundingClientRect().width < 0.5) next = next.nextElementSibling;
+        return next ? Math.round(Math.max(end(cs), end(damage)) - next.getBoundingClientRect().left) : null;
+      }),
+    );
+    const measured = overruns.filter((x) => x !== null);
+    pass("games", "1440: on the first three cards the CS total and the damage share end before the next column", measured.length > 0 && measured.every((x) => x <= 0), overruns);
+  }
   if (kind === "phone") await phoneGame(page, kind, "Match History", "match-history", () => card.click({ position: { x: 24, y: 16 } }));
   else {
     await card.click({ position: { x: 24, y: 16 } });

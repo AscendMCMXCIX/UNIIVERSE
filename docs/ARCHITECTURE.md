@@ -421,6 +421,29 @@ request is a game's match timeline, once per game, when a section that needs it 
   player (teammates too, from storage only; `compositionOf`'s `rankOf`), the damage share, and one
   standout at most (`standoutOf`): a figure higher than every one of at least 20 earlier comparable
   games, named "Best <figure> in N". Most games have none, by design.
+- **The wide card** (8 Nov 2026, `match-history-view.tsx`): one row from a 50rem list, the spells
+  and runes from 54rem and the compact build from 61rem (narrower lists leave them to the
+  breakdown). The KDA and figure tracks are sized by their text (`minmax(auto, …)`), with floors
+  every common value fits ("10 / 10 / 10", "1,234 dmg/min (45%)"), so a total or share never runs
+  under the build or the teams and the columns stay level from card to card; the teams keep at
+  least 13rem and their names; the columns sit 10px apart until 64rem, where the wider gaps fit.
+  Each threshold is at or above the row's real minimum width there (about 49.9, 53 and 59.5rem
+  with the floors). The card is about 100px tall (the teams' five 16px lines, 1px apart); the
+  time and a ranked game's LP share the result column's third line (a promotion's longer mark
+  takes the next); the "Best … in N" chip sits with the figures, as on narrow cards. Before, the KDA and figure tracks had fixed minimums narrower than their text:
+  at 1280–1440px with the sidebar open "(241)" and "(31%)" ran up to 14px under the build (in
+  production the item icons covered them), and on 800–960px lists under the teams.
+- **Builds on cards** (`icon-img.tsx`): an item, spell or rune whose image fails (Data Dragon
+  down, a blocked host, the installed app offline) shows its initials on a tile, named in its
+  title and for screen readers; an empty slot stays a plain tile. A stored record without items
+  draws no build on its card (empty slots there read as a build; screen readers hear "Items not
+  recorded"), and the page's data status says it once: "Items of N games on this page were not
+  recorded", counted from the page's rows (`unrecordedOnPage`, no extra query). A game's
+  scoreboard keeps its quiet empty slots, so its columns stay in line.
+- **Pager**: ten games a page (`PER_PAGE_DEFAULT`; a window with room for more than ten whole
+  cards below the list's top, a portrait monitor, gets as many as fit, up to 25). Its buttons are
+  44px on touch screens (`pointer-coarse:`), 32px with a mouse from md, and wrap onto a second
+  line rather than overflow a 320px phone.
 - **Ranks around each game** (29 Oct 2026; `src/domain/known-rank.ts`,
   `src/server/players/participant-ranks.ts`): every rank is read against its game
   (`participantRank(…, game)`, `RankTiming`): a member's last rank recorded before the game
@@ -442,7 +465,8 @@ request is a game's match timeline, once per game, when a section that needs it 
   accounts) the profile card is one compact band (`ProfileHeader`'s `basePath`: name, role, rank
   and Customise, about 65px instead of about 250px on a 390px phone); the Overview keeps the full card. A
   narrow card's meta line keeps the time of its game in view ("Ranked" dropped from the queue on
-  cards under 36rem), and its team members fold to the first name and "+N". On a phone a scoreboard
+  cards under 36rem; since 8 Nov 2026 it wraps between its parts rather than cut the time off on a
+  320px phone), and its team members fold to the first name and "+N". On a phone a scoreboard
   row is three lines (the items share the damage's line). An open game ends with "Close this
   game", which closes it, brings its card back into view and puts the focus on it. On a phone,
   Refine shows Result and keeps the other fields behind "More filters" (open when one is in use).
@@ -506,7 +530,13 @@ request is a game's match timeline, once per game, when a section that needs it 
 - **Demo data** (`src/server/demo/seed.ts`): synthetic frames, builds and skills for all ten
   players of every demo game, with each game's own seeded randomness; the Encounters fixture renames
   the same players in the timelines as in the records. Each demo player's three newest games of
-  their own follow each other within minutes, so the demo has a three-game playing session.
+  their own follow each other within minutes, so the demo has a three-game playing session. Since
+  8 Nov 2026 the stored records carry what a real one does: each player's final items
+  (`demoFinalItems`: their timeline's purchases, each component built into the next finished item,
+  potions drunk, the support item upgraded after 15 minutes, the role's trinket), summoner spells
+  and a rune page per role, all Data Dragon ids. Demo games without a timeline, and Team → Matches'
+  demo games, draw those purchases from a sequence of the game's own, so no other demo figure
+  changes. Before, the records had none, so every demo card drew seven empty slots.
 - **Tests:** `src/domain/match-analysis.test.ts`, `src/domain/history-summary.test.ts`,
   `src/domain/history-refine.test.ts` (reading the address, each choice, sessions),
   `src/lib/format.test.ts` (`formatKilo`), `tests/db/match-timeline.test.ts` (fetch once, 429, the

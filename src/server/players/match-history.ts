@@ -134,6 +134,8 @@ export interface MatchHistoryPage {
   accountsLinked: number;
   /** Games of the season stored but whose full record is still being collected (on this page). */
   missingOnPage: number;
+  /** Games on this page whose stored record holds no items (their cards draw no build), counted from the page's rows. */
+  unrecordedOnPage: number;
   /** Accounts whose history is still being collected for this season. */
   syncing: boolean;
   /** Games per game mode in the chosen season, and other seasons holding the chosen mode (see modeBreakdown). */
@@ -406,6 +408,7 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     accountOptions: accounts.length > 1 ? accounts.map((a) => ({ id: a.id, riotId: a.riotId, label: a.label })) : [],
     accountsLinked: accounts.length,
     missingOnPage: rows.filter((r) => r.record === "missing").length,
+    unrecordedOnPage: rows.filter((r) => r.record === "stored" && !r.items).length,
     summary: games.length ? historySummary(games.map((g) => ({ ...g, teamKills: teamKillsOf.get(g.matchId) ?? null }))) : null,
     ladder: ladder ? { ...ladder, riotId: accounts.length > 1 ? (ladderAccount?.riotId ?? null) : null } : null,
     // Only accounts that will be read: one Riot cannot read until a person acts (unresolved, or

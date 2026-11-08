@@ -60,7 +60,8 @@ node scripts/live-check.mjs [base url] [output folder]
     - Team Matches opens a game under its card, with no window and `?match=` in the address;
     - a copied link opens it, and Back returns to it;
     - Enter toggles it, and "Close this game" closes it with the focus back on the card;
-    - Match History and its Encounters view still open.
+    - Match History and its Encounters view still open;
+    - at 1440 (the sidebar open, a 70rem list): on the first three Match History cards the CS total and the damage share end before the next column (the build, or the teams where the list has no room for it), as the overrun in px (negative is clear). It asserts the wide card's tracks on real games and real builds; the card's height, names, pager and build states are checked in CI on demo data (`e2e/match-history-layout.spec.ts`).
   - axe (#173) on the main pages at every width, with a game open, and in the champion window: WCAG 2.1 A and AA plus `label-content-name-mismatch`, with no serious or critical violation.
   - Every page at every width loads signed in (not turned away, and not the not-found or error screen, which can arrive with HTTP 200 once a page has begun streaming), with:
     - no sideways scroll;
@@ -68,7 +69,7 @@ node scripts/live-check.mjs [base url] [output folder]
     - no failed request to the app;
     - no broken image from the app.
   - Signed in it opens 8 routes at each width: Team, Players, a teammate's profile, their All Champions, Team Matches, their Match History, Leaderboards and Settings. The teammate is the lineup's first player; if Team shows none, it opens the account's own `/overview/champions` and `/overview/matches` instead, which the verification account (no profile) cannot fill, so All Champions then fails. It never opens Resources, a teammate's Riot Accounts or Matchups tabs, the member's own `/overview/*`, `/me`, `/welcome*`, `/matches/insights` or any `/admin` page in the browser. A change to a page it renders but asserts nothing about (Ranked progress, Card Studio looks, the phone tiles) is "deployed, its pages load cleanly on production", not production-verified; CI checks its behaviour on demo data.
-- **Locally:** `LIVE_LOCAL=1 node scripts/live-check.mjs http://127.0.0.1:<port>` checks a demo build started like the browser tests' server. There is no sign-in, and the security checks are skipped. On 3 Nov 2026 the demo build of `main` at `d72619a` passed all 200 checks, with no axe violation; on 7 Nov the demo build passed all 199 with the boundary checks added.
+- **Locally:** `LIVE_LOCAL=1 node scripts/live-check.mjs http://127.0.0.1:<port>` checks a demo build started like the browser tests' server. There is no sign-in, and the security checks are skipped. On 3 Nov 2026 the demo build of `main` at `d72619a` passed all 200 checks, with no axe violation; on 7 Nov the demo build passed all 199 with the boundary checks added; on 8 Nov, with the wide card's check added (the first three cards' totals and shares 28px clear of the build), it passed all 200.
 
 ## 1. Data Dragon (champions, patches, portraits)
 

@@ -46,7 +46,7 @@ test("Match History: every stored game shows both teams, the player marked on th
     // Wider screens: names readable without hovering or opening anything.
     await expect(name).toBeVisible();
     await expect(name).toContainText(/\S/);
-    // Compact: one band on wide lists (about 110 px), three short rows where the card stacks.
+    // Compact: one band on wide lists (about 100 px, the teams' five lines), three short rows where the card stacks.
     const box = (await row.boundingBox())!;
     expect(box.height, "a card stays compact").toBeLessThan((page.viewportSize()?.width ?? 0) >= 1280 ? 140 : 170);
     // Members' names open their profile; the demo's synthetic players (DEMO_ match ids, no Riot

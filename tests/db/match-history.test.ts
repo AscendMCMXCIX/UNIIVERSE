@@ -275,6 +275,32 @@ describe("personal match history", () => {
     expect(bare).toMatchObject({ kills: null, deaths: null, assists: null, kda: null, csPerMin: null, damagePerMin: null, perfect: false });
   });
 
+  it("counts the page's stored games whose record holds no items, from the rows it built (the page's one note)", async () => {
+    const db = handle.db;
+    const id = (await createPlayer(db, teamId, { displayName: "No Build", primaryRole: "TOP", primaryPool: ["Gwen"] })).id;
+    const account = (await addAccount(db, { ownerType: "player", playerId: id, riotId: "NoBuild#OCE", platform: "oc1" })).id;
+    await db.update(riotAccounts).set({ puuid: "nb-main", syncStatus: "ok" }).where(eq(riotAccounts.id, account));
+    const game = (i: number) => ({ accountId: account, matchId: `OC1_NB${i}`, gameCreation: base + i * 3_600_000, queueId: 420, championId: "Gwen", role: "TOP", win: true, patch: "16.20", kills: 6, deaths: 2, assists: 8, cs: 192, damage: 27_000, visionScore: 24, gameDuration: 1800 });
+    await db.insert(accountMatches).values([game(1), game(2), game(3)]);
+    // The newest with its build; the next one stored from a record Riot sent without items; the oldest not collected yet.
+    await storeMatchDetail(db, "oc1", riotMatch("OC1_NB3", { puuid: "nb-main", champion: "Gwen", role: "TOP", win: true, queue: 420, created: base + 3 * 3_600_000 }), keyToId);
+    const bare = riotMatch("OC1_NB2", { puuid: "nb-main", champion: "Gwen", role: "TOP", win: true, queue: 420, created: base + 2 * 3_600_000 });
+    for (const p of bare.info.participants as unknown as Array<Record<string, unknown>>) for (const slot of ["item0", "item1", "item2", "item3", "item4", "item5", "item6"]) delete p[slot];
+    await storeMatchDetail(db, "oc1", bare, keyToId);
+    const page = await getMatchHistory(db, id, { per: 10 });
+    expect(page.rows.map((r) => [r.matchId, r.record, r.items === null])).toEqual([
+      ["OC1_NB3", "stored", false],
+      ["OC1_NB2", "stored", true],
+      ["OC1_NB1", "missing", true],
+    ]);
+    // The record without items is "not recorded" (its card draws no build); the one still to collect is not.
+    expect(page.unrecordedOnPage).toBe(1);
+    expect(page.missingOnPage).toBe(1);
+    // Its other figures still show.
+    expect(page.rows[1]!.kda).toBeCloseTo(7, 6);
+    expect(page.rows[1]!.teams?.blue).toHaveLength(5);
+  });
+
   it("counts every matching game, filters by pool and previews both lineups", async () => {
     const db = handle.db;
     const all = await getMatchHistory(db, playerId, { per: 10 });

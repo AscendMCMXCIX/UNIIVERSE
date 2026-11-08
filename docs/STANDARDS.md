@@ -224,8 +224,10 @@ count in a tight space `formatCompactCount` ("45K"). A relative time in a client
 
 Every image from another host has a designed stand-in (initials, a tier dot, a plain tile) and
 never shows a broken-image glyph: use `RemoteImage` or `useImageFailure`, which also catch images
-that fail before the page is interactive. Give images their width and height, load below-the-fold
-ones lazily, and keep uploaded brand images small ([HOSTING_USAGE.md](HOSTING_USAGE.md)).
+that fail before the page is interactive. A missing picture and a failed one never look alike: a
+Riot item, spell or rune icon (`IconImg`) is a plain tile where the slot is empty and the icon's
+initials, named in its title, where its image failed. Give images their width and height, load
+below-the-fold ones lazily, and keep uploaded brand images small ([HOSTING_USAGE.md](HOSTING_USAGE.md)).
 
 ## Responsive and accessible
 

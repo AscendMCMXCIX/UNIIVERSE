@@ -49,11 +49,19 @@ const LINE_BELOW = {
  * The result, then the game: the column at the start of a wide card, read top down in order of
  * importance: Victory or Defeat (the largest, in the result's colour, the word saying it without the
  * colour) with the game's length, the queue in the secondary grey, and when in the quietest. With
- * `lineBelow`, narrower screens show it as one line instead, in the same order.
+ * `lineBelow`, narrower screens show it as one line instead, in the same order. `extra` (a ranked
+ * game's LP change, no taller than a line of text) shares when's line, and takes a line of its own
+ * only when the two do not fit side by side.
  */
-export function MatchResult({ win, queue, when, duration, lineBelow, extra, className }: { win: MatchOutcome; queue: string; when: string; duration: string | null; lineBelow?: keyof typeof LINE_BELOW; /** A last line, under when (a ranked game's LP change). */ extra?: React.ReactNode; className?: string }) {
+export function MatchResult({ win, queue, when, duration, lineBelow, extra, className }: { win: MatchOutcome; queue: string; when: string; duration: string | null; lineBelow?: keyof typeof LINE_BELOW; /** After when, on its line when there is room (a ranked game's LP change). */ extra?: React.ReactNode; className?: string }) {
   const t = matchTone(win);
   const line = lineBelow ? LINE_BELOW[lineBelow] : null;
+  // "3h ago" is measured on the server first, then by the browser's own clock (useNow).
+  const time = (
+    <span className="truncate text-xs tabular-nums text-fg-subtle" suppressHydrationWarning data-testid="match-when">
+      {when}
+    </span>
+  );
   return (
     <span className={cn("flex min-w-0 flex-col leading-snug", line?.wrap, className)}>
       <span className="flex items-baseline gap-1.5">
@@ -61,11 +69,14 @@ export function MatchResult({ win, queue, when, duration, lineBelow, extra, clas
         {duration ? <span className="text-xs tabular-nums text-fg-subtle">{duration}</span> : null}
       </span>
       <span className="truncate text-xs font-medium text-fg-muted">{queue}</span>
-      {/* "3h ago" is measured on the server first, then by the browser's own clock (useNow). */}
-      <span className="truncate text-xs tabular-nums text-fg-subtle" suppressHydrationWarning>
-        {when}
-      </span>
-      {extra ? <span className="mt-0.5 flex">{extra}</span> : null}
+      {extra ? (
+        <span className="flex min-w-0 flex-wrap items-center gap-x-1.5">
+          {time}
+          <span className="flex">{extra}</span>
+        </span>
+      ) : (
+        time
+      )}
     </span>
   );
 }
