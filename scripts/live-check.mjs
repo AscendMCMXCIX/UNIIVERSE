@@ -37,8 +37,7 @@
     page shows Riot's required notice.
   - frame (#178): the charcoal frame token; the sidebar, open and folded, with the gradient bar on
     the current page; the phone and tablet top bar, drawer and tab bar.
-  - All Champions (#178): compact rows, sorted by games, no heading cut short; on the tablet, the
-    lineup's Bottom and Support players' rows too (the longest role tags beside "In pool").
+  - All Champions (#178): compact rows, sorted by games, no heading cut short.
   - games (#178): Team Matches opens a game under its card (no window), with ?match= in the address;
     a copied link opens it; Back returns to it; the keyboard toggles it; "Close this game" closes it
     and keeps the focus on the card. Match History opens games under their cards; its Encounters
@@ -373,27 +372,23 @@ async function frameChecks(page, kind, context) {
   await page.waitForTimeout(400);
 }
 
-/** All Champions as drawn: how many rows, the heights of the first `count`, the headings, the sort. */
-const championTable = (page, count) =>
-  page.evaluate((count) => {
+async function allChampions(page, log, kind, playerId) {
+  const path = playerId ? `/players/${playerId}/champions` : "/overview/champions";
+  if (!(await visit(page, log, kind, "all-champions", path))) return;
+  await page.getByTestId("all-champions").waitFor({ timeout: 20_000 });
+  const facts = await page.evaluate(() => {
     const rows = [...document.querySelectorAll("[data-testid=top-champion]")];
     const headers = [...document.querySelectorAll("[data-testid=all-champions-header] button")];
     return {
       rows: rows.length,
-      heights: rows.slice(0, count).map((r) => Math.round(r.getBoundingClientRect().height)),
+      heights: rows.slice(0, 8).map((r) => Math.round(r.getBoundingClientRect().height)),
       cut: headers.filter((b) => b.textContent.trim() !== "Champion" && b.scrollWidth > b.clientWidth + 1).map((b) => b.textContent.trim().slice(0, 16)),
       sortedBy: document.querySelector("[data-testid=all-champions-header] [data-sort]")?.textContent?.trim().slice(0, 16) ?? null,
       // "No games match these filters." when the player has stored games but none in the default
       // season; "No stored games yet…" when they have none at all.
       emptyNoMatch: /^No games match/.test(document.querySelector("[data-testid=all-champions-empty]")?.textContent?.trim() ?? ""),
     };
-  }, count);
-
-async function allChampions(page, log, kind, playerId) {
-  const path = playerId ? `/players/${playerId}/champions` : "/overview/champions";
-  if (!(await visit(page, log, kind, "all-champions", path))) return;
-  await page.getByTestId("all-champions").waitFor({ timeout: 20_000 });
-  const facts = await championTable(page, 8);
+  });
   // A new ranked year: the season follows the current patch's major version (17.x from early
   // January), so the lineup's first player can have games, but none in the new season, for their
   // first days. Only then, and only in the year's first six weeks, is an empty list a warning;
@@ -404,6 +399,10 @@ async function allChampions(page, log, kind, playerId) {
   else {
     pass("all-champions", `${kind}: lists champions`, facts.rows > 0, facts.rows);
     if (kind !== "phone") pass("all-champions", `${kind}: rows are compact (at most 56 px)`, facts.heights.length > 0 && Math.max(...facts.heights) <= 56, facts.heights);
+    if (kind !== "phone") {
+      const roles = await everyRoleRow(page);
+      pass("all-champions", `${kind}: rows stay compact for every role beside "In pool" (at most 56 px)`, !!roles && Math.max(...Object.values(roles.heights)) <= 56, roles ?? "no row with a role line to measure");
+    }
     pass("all-champions", `${kind}: sorted by games by default`, /games/i.test(facts.sortedBy ?? ""), facts.sortedBy);
   }
   pass("all-champions", `${kind}: no heading cut short`, facts.cut.length === 0, facts.cut);
@@ -427,25 +426,40 @@ async function allChampions(page, log, kind, playerId) {
 }
 
 /**
- * The first player is usually the Top laner, whose "Top" and "Mid" tags are short. A row's longest
- * line is "Support · In pool" or "Bottom · In pool", under the name beside the portrait, so the
- * tablet also opens the lineup's Bottom and Support players' All Champions (their rendered rows,
- * up to 20). A role the lineup leaves empty, or an empty list, has no rows to measure.
+ * A row's longest line is under the champion's name: the role with "In pool" beside it ("Support"
+ * and "Bottom" are the widest of ROLE_LABELS, src/domain/roles.ts). The lineup's first player is
+ * usually the Top laner, whose own rows carry only short roles, and opening another teammate's
+ * pages would refresh that teammate's Riot data when it is due (the profile's layout does), so the
+ * first row is copied instead: once per role, with that role's name and an "In pool" tag (a copy
+ * of one from the list, or drawn with the tag's classes from src/components/players/all-champions.tsx
+ * when no row has one). Each copy goes into the list beside the row, so it takes the rows' columns,
+ * and is removed in the same step, before anything is drawn. The copy's height for each role, or
+ * null without a row and its role line.
  */
-async function longRoleRows(page, log, kind, lineup) {
-  for (const [role, label] of [["ADC", "Bottom"], ["SUPPORT", "Support"]]) {
-    const name = `${kind}: the lineup's ${label} player's All Champions rows are compact (at most 56 px)`;
-    const id = lineup?.[role];
-    if (!id) {
-      pass("all-champions", name, true, `not applicable: the lineup has no ${label} player`);
-      continue;
+async function everyRoleRow(page) {
+  return page.evaluate(async () => {
+    await document.fonts.ready;
+    const row = document.querySelector("[data-testid=top-champion]");
+    if (!row?.querySelector("[data-testid=champion-role-line] > :first-child")) return null;
+    const tag = document.querySelector("[data-testid=top-champion] [data-testid=in-pool]");
+    const heights = {};
+    for (const role of ["Top", "Jungle", "Mid", "Bottom", "Support"]) {
+      const copy = row.cloneNode(true);
+      const line = copy.querySelector("[data-testid=champion-role-line]");
+      // The role's name: the role tag's last part (its icon comes first).
+      const name = [...line.firstElementChild.childNodes].reverse().find((n) => (n.nodeType === Node.TEXT_NODE ? !!n.data.trim() : n.nodeType === Node.ELEMENT_NODE && !n.matches("[data-role-icon]")));
+      if (!name) return null;
+      name.textContent = role;
+      if (!line.querySelector("[data-testid=in-pool]")) line.append(tag ? tag.cloneNode(true) : Object.assign(document.createElement("span"), { className: "shrink-0 whitespace-nowrap rounded-full border border-border-strong px-1.5 text-2xs font-medium leading-4 text-fg-muted", textContent: "In pool" }));
+      row.after(copy);
+      try {
+        heights[role] = Math.round(copy.getBoundingClientRect().height);
+      } finally {
+        copy.remove();
+      }
     }
-    if (!(await visit(page, log, kind, `all-champions-${label.toLowerCase()}`, `/players/${id}/champions`))) continue;
-    await page.getByTestId("all-champions").waitFor({ timeout: 20_000 });
-    const facts = await championTable(page, 20);
-    if (facts.rows === 0) pass("all-champions", name, true, "not applicable: their list is empty in the current filters");
-    else pass("all-champions", name, Math.max(...facts.heights) <= 56, facts.heights);
-  }
+    return { heights, inPool: tag ? "copied from a row" : "drawn with the tag's classes" };
+  });
 }
 
 /**
@@ -556,8 +570,6 @@ if (!signedIn) check("setup", "signed-in checks", process.env.LIVE_REQUIRE_SIGN_
 if (!local) await deployment();
 const browser = await chromium.launch({ executablePath, proxy });
 let playerId = null;
-// The lineup's players by role (TOP, JUNGLE, MID, ADC, SUPPORT), as Team's cards carry them.
-let lineup = null;
 // The public pages, signed out, at every width: what anyone can open (the public team page and its
 // leaderboards only where the team turned them on).
 if (!local) {
@@ -588,7 +600,6 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
   await guarded(kind, "team overview", async () => {
     if (await visit(page, log, kind, "team", "/team")) {
       playerId ??= await page.locator("[data-testid^=lineup-row-][data-player-id]").first().getAttribute("data-player-id").catch(() => null);
-      lineup ??= await page.evaluate(() => Object.fromEntries([...document.querySelectorAll("[data-testid^=lineup-row-][data-player-id]")].map((e) => [e.getAttribute("data-testid").slice("lineup-row-".length), e.getAttribute("data-player-id")]))).catch(() => null);
       await axe(page, kind, "team");
     }
   });
@@ -601,7 +612,6 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
     });
   }
   await guarded("all-champions", `${kind}: All Champions`, () => allChampions(page, log, kind, playerId));
-  if (kind === "tablet") await guarded("all-champions", `${kind}: the lineup's Bottom and Support players' All Champions`, () => longRoleRows(page, log, kind, lineup));
   await guarded("games", `${kind}: Team Matches`, () => teamMatches(page, log, kind, context));
   await guarded("games", `${kind}: Match History`, () => matchHistory(page, log, kind, playerId));
   await guarded(kind, "leaderboards", async () => {
