@@ -20,10 +20,17 @@ async function topId(page: Page) {
 
 test("a profile opened from a scrolled list starts at its top, and Back returns to the list where it was", async ({ page }, info) => {
   await page.goto("/players");
-  // The list's last profile link (a profile itself, not one of its sections).
-  const href = await page.evaluate(() => [...document.querySelectorAll<HTMLAnchorElement>("main a[href^='/players/']")].map((a) => a.getAttribute("href")!).filter((h) => /^\/players\/[0-9a-f-]{36}$/.test(h)).pop());
-  const link = page.locator(`main a[href="${href}"]`).last();
-  await link.scrollIntoViewIfNeeded();
+  await page.waitForLoadState("networkidle");
+  // The list's last profile link (a profile itself, not one of its sections); found again if the list re-renders meanwhile.
+  const href = await page.evaluate(() =>
+    [...document.querySelectorAll<HTMLAnchorElement>("main a[href^='/players/']")]
+      .filter((a) => a.offsetParent !== null)
+      .map((a) => a.getAttribute("href")!)
+      .filter((h) => /^\/players\/[0-9a-f-]{36}$/.test(h))
+      .pop(),
+  );
+  const link = page.locator(`main a[href="${href}"]:visible`).last();
+  await expect(async () => link.scrollIntoViewIfNeeded({ timeout: 2_000 })).toPass({ timeout: 15_000 });
   const listY = await scrollY(page);
   test.skip(listY === 0, `the Players list does not scroll on ${info.project.name}`);
   await link.click();
