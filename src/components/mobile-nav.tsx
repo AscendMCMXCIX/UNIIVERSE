@@ -15,6 +15,7 @@ import { InstallAppEntry } from "./install/install-app";
 import { useInstallState } from "./install/install-state";
 import { ProfileTabs } from "./players/profile-tabs";
 import { PHONE_QUERY } from "./ui/use-phone";
+import { releaseEarlyTaps } from "./early-taps";
 import { cn } from "@/lib/cn";
 import { SHEET_TILE, SHEET_TILE_CURRENT, SHEET_TILE_ICON, SHEET_TILE_IDLE } from "@/lib/sheet";
 
@@ -54,11 +55,15 @@ export interface MobileNavProps {
       within reach of the thumb;
     - the account sheet (a sheet from the bottom edge) holds the rest, in one short screen: tiles
       for the pages the tab bar does not hold (Resources when it has no tab; in Admin Mode the admin
-      pages without a tab), Settings and Install App; the switch between the modes beside Sign out;
-      the patch and Riot's notice.
+      pages without a tab), Settings and Install App, then the patch and Riot's notice; the switch
+      between the modes and Sign out sit in its footer, always in view (only the body scrolls).
   Tablets keep the top bar with the menu at its left end and the drawer with every page, and the
   page tabs (Team's sections) in the page, pinned at its top once it scrolls. Installed as an app, a
   tablet has no browser Back, so the bar offers Back there too, on a page reached from another.
+
+  The avatar and the menu answer a tap made before the page's code has run: the inline script in
+  the root layout keeps it (early-taps.ts), shows the button pressed, and this opens what was asked
+  for once it runs, exactly once.
 
   Safe-area insets keep both bars clear of notches, rounded corners and the home indicator. In
   short windows (a phone held sideways) both bars slide away while the page scrolls down and come
@@ -83,6 +88,10 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   const sheetOpen = openedAt?.what === "sheet" && openedAt.path === pathname;
   const menuRef = React.useRef<HTMLButtonElement>(null);
   const setOpen = (next: boolean) => setOpenedAt(next ? { what: "drawer", path: pathname } : null);
+  // The page's code runs now: a tap on the avatar or the menu made before it (early-taps.ts) is
+  // passed on to the button, once, which opens what was asked for; from here on the buttons answer
+  // for themselves.
+  React.useEffect(() => releaseEarlyTaps("sheet", "drawer"), []);
   // Focus goes back to the menu button once the drawer has gone: while the drawer is open the page
   // behind it is inert, so the button cannot take focus any earlier. Without scrolling: the button
   // is in the bar, inside the page's scroll padding, and the page stays where the reader left it.
@@ -128,8 +137,10 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
         data-testid="mobile-topbar"
       >
         <div className="flex min-h-13 items-center gap-1 px-safe-2 sm:px-safe-4 md:min-h-14 md:gap-2">
-          {/* Tablets: the menu button at the left end, by the side the drawer opens from. */}
-          <button ref={menuRef} type="button" onClick={() => setOpen(true)} className="-ml-1.5 grid h-11 w-11 shrink-0 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg max-md:hidden sm:-ml-2.5" aria-label="Open menu" aria-expanded={open} aria-controls="mobile-drawer" data-testid="menu-button">
+          {/* Tablets: the menu button at the left end, by the side the drawer opens from. A tap before
+              the page's code has run is kept (data-early; suppressHydrationWarning: the script may
+              have marked it aria-busy, which React leaves alone). */}
+          <button ref={menuRef} type="button" onClick={() => setOpen(true)} className="-ml-1.5 grid h-11 w-11 shrink-0 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg max-md:hidden sm:-ml-2.5" aria-label="Open menu" aria-expanded={open} aria-controls="mobile-drawer" data-early="drawer" suppressHydrationWarning data-testid="menu-button">
             <Menu className="h-5 w-5" aria-hidden />
           </button>
           {/* Phones: Back where the page was reached from another (labelled with where it leads), else the team's mark. */}
@@ -169,7 +180,8 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
               <span className="max-md:hidden">
                 <AccountMenu user={user} showSignOut={showSignOut} variant="topbar" adminMode={adminMode} />
               </span>
-              <button type="button" onClick={() => setOpenedAt({ what: "sheet", path: pathname })} aria-haspopup="dialog" aria-expanded={sheetOpen} aria-label={`Your account: ${user.name}`} className="-mr-1 grid h-11 w-11 shrink-0 place-items-center rounded-full transition-transform duration-100 active:scale-90 motion-reduce:active:scale-100 md:hidden" data-testid="account-sheet-button">
+              {/* A tap before the page's code has run is kept, as on the menu button. */}
+              <button type="button" onClick={() => setOpenedAt({ what: "sheet", path: pathname })} aria-haspopup="dialog" aria-expanded={sheetOpen} aria-label={`Your account: ${user.name}`} className="-mr-1 grid h-11 w-11 shrink-0 place-items-center rounded-full transition-transform duration-100 active:scale-90 motion-reduce:active:scale-100 md:hidden" data-early="sheet" suppressHydrationWarning data-testid="account-sheet-button">
                 <Avatar name={user.name} src={user.avatarUrl} size="sm" />
               </button>
             </>
@@ -194,6 +206,23 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
           testId="account-sheet"
           closeTestId="account-sheet-close"
           bodyClassName="pt-3 sm:pt-4"
+          footer={
+            modeSwitch || showSignOut ? (
+              // The way between the modes and Sign out, in the sheet's footer: always in view, since
+              // only the body scrolls (at a large text size it must), side by side where the screen
+              // allows (both 48px tall).
+              <div className={cn("grid w-full gap-2", modeSwitch && showSignOut && "min-[22.5rem]:grid-cols-2")} data-testid="account-sheet-actions">
+                {modeSwitch}
+                {showSignOut ? (
+                  <form action="/api/auth/logout" method="post" onSubmit={onSignOut}>
+                    <button className="flex min-h-12 w-full items-center gap-3 rounded-lg border border-border bg-surface/60 pl-[0.875rem] pr-3 text-left text-sm font-medium text-fg-muted transition-colors duration-150 hover:border-border-strong hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent" type="submit" data-testid="sign-out">
+                      <LogOut className="h-[1.125rem] w-[1.125rem] shrink-0 text-fg-subtle" aria-hidden /> Sign out
+                    </button>
+                  </form>
+                ) : null}
+              </div>
+            ) : undefined
+          }
         >
           {/* Everything as tiles in one short screen: the pages the tab bar does not hold, Settings and
               Install App (lib/sheet.ts), three to a row upright and up to six sideways. */}
@@ -206,21 +235,8 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
             {/* The install window opens over the page: the sheet closes first. */}
             <InstallAppEntry variant="tile" beforeOpen={() => setOpenedAt(null)} />
           </nav>
-          {modeSwitch || showSignOut ? (
-            // The way between the modes and Sign out share a row where the screen allows (both 48px tall).
-            <div className={cn("mt-2 grid gap-2", modeSwitch && showSignOut && "min-[22.5rem]:grid-cols-2")}>
-              {modeSwitch}
-              {showSignOut ? (
-                <form action="/api/auth/logout" method="post" onSubmit={() => (markAccountChange(true), announceAccountChange())}>
-                  <button className="flex min-h-12 w-full items-center gap-3 rounded-lg border border-border bg-surface/60 pl-[0.875rem] pr-3 text-left text-sm font-medium text-fg-muted transition-colors duration-150 hover:border-border-strong hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent" type="submit" data-testid="sign-out">
-                    <LogOut className="h-[1.125rem] w-[1.125rem] shrink-0 text-fg-subtle" aria-hidden /> Sign out
-                  </button>
-                </form>
-              ) : null}
-            </div>
-          ) : null}
-          {/* The patch and Riot's notice: one quiet line (two on a narrow screen) at the foot. */}
-          <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border pt-2.5">
+          {/* The patch and Riot's notice: one quiet line (two on a narrow screen), the body's last. */}
+          <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1" data-testid="account-sheet-notes">
             {status}
             {legal}
           </div>
@@ -259,7 +275,8 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                   returns it when it closes. */}
               <InstallAppEntry variant="drawer" beforeOpen={() => setOpen(false)} />
               {showSignOut ? (
-                <form action="/api/auth/logout" method="post">
+                // The same Sign out as the sheet's and the account menu's: the browser's other tabs are told.
+                <form action="/api/auth/logout" method="post" onSubmit={onSignOut}>
                   <button className="flex min-h-12 w-full items-center gap-3 rounded-lg pl-[0.9375rem] pr-3 text-left text-sm text-fg-muted hover:bg-surface-2 hover:text-fg" type="submit">
                     <LogOut className="h-[1.125rem] w-[1.125rem] text-fg-subtle" /> Sign out
                   </button>
@@ -308,6 +325,15 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
       ) : null}
     </>
   );
+}
+
+/**
+ * Sign out (a plain form post, from the sheet or the drawer, as from the account menu): this tab's
+ * account guard stands aside while it leaves, and the browser's other tabs are told (account-guard.tsx).
+ */
+function onSignOut() {
+  markAccountChange(true);
+  announceAccountChange();
 }
 
 /** Back to the top of the page: smooth, or at once with reduced motion. */

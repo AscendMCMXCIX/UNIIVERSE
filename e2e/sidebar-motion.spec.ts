@@ -4,8 +4,9 @@ import { expect, test, type Page } from "./test";
   The desktop sidebar's collapse and expand. The visible edge clips everything in every frame, so
   no highlight or label stands out over the page while it moves (before, the current page's
   highlight showed as a band across the page for 220 ms). The control sits under the logo, in the
-  same place open or collapsed, works from the keyboard, and rapid toggling settles on the last
-  choice. The rail is three zones (the brand, the pages, the footer) split by hairlines
+  same place open or collapsed, works from the keyboard, rapid toggling settles on the last
+  choice, and a click made before the page's code has run is applied once it runs, exactly once.
+  The rail is three zones (the brand, the pages, the footer) split by hairlines
   (docs/DESIGN_SYSTEM.md → Navigation). Frames are checked by freezing the running transitions (Web Animations API).
 */
 
@@ -99,6 +100,55 @@ test("rapid toggling settles on the last choice, and it is remembered", async ({
   expect(await page.evaluate(() => document.elementFromPoint(160, 200)?.closest("aside") ?? null)).toBeNull();
   await page.reload();
   await expect(page.getByTestId("sidebar")).toHaveAttribute("data-collapsed", "true");
+});
+
+test.describe("before the page's code has run", () => {
+  // The page is loaded twice; a service worker would serve the second load's navigation itself.
+  test.use({ serviceWorkers: "block" });
+
+  /** Holds the page's JavaScript back until released: the server's page is drawn, and nothing of the app runs. */
+  async function holdScripts(page: Page): Promise<{ release: () => void }> {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    await page.route(/\/_next\/static\/chunks\/.+\.js(\?.*)?$/, async (route) => {
+      await held;
+      await route.continue().catch(() => undefined);
+    });
+    return { release };
+  }
+
+  test("a click on the collapse control is kept, shown pressed, and applied once the code runs, exactly once; from the keyboard too", async ({ page }) => {
+    const aside = page.getByTestId("sidebar");
+    const toggle = page.getByTestId("sidebar-toggle");
+    let scripts = await holdScripts(page);
+    await page.goto("/team", { waitUntil: "domcontentloaded" });
+    await expect(aside).toHaveAttribute("data-collapsed", "false");
+    // Two clicks before the code runs: one toggle (applied twice it would undo itself).
+    await toggle.click();
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-busy", "true");
+    expect(await page.evaluate(() => window.__earlyTaps)).toEqual(["sidebar"]);
+    await page.mouse.move(900, 600);
+    scripts.release();
+    await expect(aside).toHaveAttribute("data-collapsed", "true");
+    await expect(toggle).not.toHaveAttribute("aria-busy");
+    await page.waitForTimeout(600);
+    await expect(aside).toHaveAttribute("data-collapsed", "true");
+    expect(await page.evaluate(() => document.cookie)).toContain("uniiverse_sidebar=collapsed");
+    // Enter on the focused control, before the code runs, goes the same way: the folded rail opens.
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+    scripts = await holdScripts(page);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(aside).toHaveAttribute("data-collapsed", "true");
+    await toggle.focus();
+    await page.keyboard.press("Enter");
+    await expect(toggle).toHaveAttribute("aria-busy", "true");
+    scripts.release();
+    await expect(aside).toHaveAttribute("data-collapsed", "false");
+    await page.waitForTimeout(600);
+    await expect(aside).toHaveAttribute("data-collapsed", "false");
+    await expect(toggle).toHaveAccessibleName("Collapse sidebar");
+  });
 });
 
 test("with reduced motion the sidebar switches at once", async ({ page }) => {

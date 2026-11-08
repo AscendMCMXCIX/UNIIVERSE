@@ -46,17 +46,30 @@ anywhere else:
 3. **The account sheet** (from the avatar, a sheet from the bottom edge): who is signed in, then
    tiles, an icon over a name, three to a row (up to six on a phone held sideways): the pages the tab
    bar does not hold (Resources when it has no tab, as an account with the Team pages has five tabs
-   already; in Admin Mode the admin pages without a tab), Settings and Install App; then the switch
-   between the modes beside Sign out, and one quiet line with the patch and Riot's notice. It
-   replaces both the menu drawer and the account dropdown on phones, and fits one short screen
-   (about 270px, 350px in Admin Mode, on a 320 × 568 phone too): it once listed everything as
-   full-width rows, which in Admin Mode ran below the sheet's own scroll on small phones and made a
-   phone held sideways a scrolling window (#265).
+   already; in Admin Mode the admin pages without a tab), Settings and Install App; then one quiet
+   line with the patch and Riot's notice, the last line of its body. The switch between the modes
+   and Sign out sit in its footer, side by side from 22.5rem: always in view, because only the body
+   scrolls (at a large text size it must; at 200% the header and Sign out stay put). It replaces
+   both the menu drawer and the account dropdown on phones, and fits one short screen (about 270px,
+   360px in Admin Mode, on a 320 × 568 phone too): it once listed everything as full-width rows,
+   which in Admin Mode ran below the sheet's own scroll on small phones and made a phone held
+   sideways a scrolling window (#265).
+
+   **The first tap counts.** The avatar is a button the page's code drives, and on a slow network
+   the page is drawn, and the avatar pressable, seconds before that code has run: a tap then did
+   nothing. An inline script in the root layout keeps such a tap (`src/components/early-taps.ts`):
+   the avatar shows pressed at once (an accent ring on the hover surface), and the sheet opens as
+   soon as the code runs, exactly once, however often it was tapped. Enter or Space on the focused
+   avatar goes the same way. Links need none of this: they work before the code has run.
 
 Tablets keep the menu drawer (a modal dialog), the account dropdown and the page tabs
 (`SectionTabs`, pinned at the top of the page once it scrolls, as a profile's sections are, so they
-stay in reach as on a phone); the bottom bar and the account sheet are phones only. The installed
-app on a tablet, which has no browser Back, gets the same Back in its top bar as a phone.
+stay in reach as on a phone); the bottom bar and the account sheet are phones only. The menu button
+keeps an early tap as the avatar does, and the drawer's Sign out tells the browser's other tabs, as
+the sheet's and the account menu's do (`AccountGuard` checks each of them then; a tab left on a
+member's page goes to sign-in at its next page, since the server answers every request from its own
+session cookie). The installed app on a tablet, which has no browser Back, gets the same Back in its
+top bar as a phone.
 
 ### Back
 
@@ -130,8 +143,10 @@ inert), Escape and the backdrop close it, focus returns to what opened it, a she
 - is as tall as its content, up to the screen less a strip of the page above it, measured in small
   viewport units (`svh`), so Safari's toolbars sliding in and out never resize it under the finger;
 - keeps its header and footer in place, and only its body scrolls when it must (never the whole
-  sheet, never a scroll inside a scroll);
-- keeps its last line at least 1rem from the bottom edge, more where a home indicator is;
+  sheet, never a scroll inside a scroll); its choices go in the body and its actions in the footer;
+- keeps its body's last line at least 1rem from the bottom edge, and a footer's actions 0.75rem,
+  more where a home indicator is (`pb-safe-4`, `pb-safe-3`: the padding, or the inset where it is
+  larger);
 - can be pulled down by its handle or header to close (a long pull or a flick; a short pull settles
   back), and a touch that would move nothing inside it never moves the page behind (no rubber band,
   no toolbar sliding).
@@ -161,7 +176,7 @@ inert), Escape and the backdrop close it, focus returns to what opened it, a she
 | Surfaces | One panel per list, hairline dividers inside; cards for objects that open (games); no frame around a single group that already has one. Colour and gradient are kept for meaning (a game's result, a selected tab). |
 | Touch targets | 44px for everything a finger presses (tabs, rows, chips through `touch-target`, sheet rows 48px). |
 | Titles | One `h1` per page; on phones the page tabs and the bar's title say where you are, so instructions under a title are left out (`PageHeader guide`), while a scope line ("Season 2026 · 6 games") always shows. |
-| Interactive states | Pressed rows darken to `surface-2` (`active:`); the current tab, section or view is marked twice (colour and a pill, bar or weight); narrowed filters are accent chips; focus keeps the accent ring everywhere. |
+| Interactive states | Pressed rows darken to `surface-2` (`active:`); the current tab, section or view is marked twice (colour and a pill, bar or weight); narrowed filters are accent chips; focus keeps the accent ring everywhere. The avatar tapped before the page's code has run shows pressed (`[data-early][aria-busy]`: `surface-2` in a ring of accent) until it opens the sheet. |
 | Loading, empty, errors | Unchanged components: `Skeleton`, `EmptyState`, `PageError`; the match window shows its skeleton until the game has loaded. Results of actions are toasts, which sit above the tab bar (`bottom-tabbar`) and follow it down when it slides away. |
 | Motion | Bars slide 200ms ease-out in short windows; sheets as above; the title fades in 150ms. Everything respects reduced motion. |
 
@@ -170,8 +185,10 @@ inert), Escape and the backdrop close it, focus returns to what opened it, a she
 - `pnpm verify` (unit tests include the phone tab bar, `currentTab`, `profileBase` and `phoneParent`
   in `src/lib/nav.test.ts`).
 - `pnpm build && pnpm test:e2e`: `e2e/mobile-nav.spec.ts` checks the frame on a phone (the five
-  tabs, Back and its label, the title, the profile's sections, the account sheet, the filter sheet
-  and chips, a game opening full screen and Back closing it, the Players and Recent form rows); `e2e/responsive.spec.ts`,
+  tabs, Back and its label, the title, the profile's sections, the account sheet, including a tap
+  made while the page's code is held back and the sheet at 200% text, the filter sheet and chips, a
+  game opening full screen and Back closing it, the Players and Recent form rows) and, on a tablet,
+  that the drawer's Sign out reaches the browser's other tabs; `e2e/responsive.spec.ts`,
   `e2e/mobile-landscape.spec.ts` and `e2e/quality.spec.ts` keep overflow, targets, short windows
   and axe in check at every width.
 - Real devices: see RESPONSIVE.md → Safari and iPhones. Emulated phones prove layout and behaviour

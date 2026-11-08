@@ -308,25 +308,27 @@ test("Player Customisation: the Studio opens, its sections switch from the secti
   await expect(page.getByTestId("profile-header")).toHaveAttribute("data-frame", frame ?? "none");
 });
 
-test("the account sheet in Safari's engine: docked at the bottom edge, everything in one screen, its last line clear of the edge", async ({ page }) => {
+test("the account sheet in Safari's engine: one tap opens it, docked at the bottom edge, everything in one screen, its actions clear of the edge", async ({ page }) => {
   const sheet = page.getByTestId("account-sheet");
   await page.goto("/team");
-  await expect(async () => {
-    if (!(await sheet.isVisible())) await page.getByTestId("account-sheet-button").tap({ timeout: 2_000 });
-    await expect(sheet).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 15_000 });
+  // One tap, whenever it lands: before the page's code has run it is kept and applied once the code
+  // runs (src/components/early-taps.ts), so no retry is needed.
+  await page.getByTestId("account-sheet-button").tap();
+  await expect(sheet).toBeVisible();
   // Past the opening motion.
   await expect(async () => expect(await sheet.evaluate((d) => getComputedStyle(d).transform)).toBe("none")).toPass();
   const fit = await sheet.evaluate((d) => {
     const body = d.querySelector<HTMLElement>("[data-sheet-scroll]")!;
     const box = d.getBoundingClientRect();
-    const last = [...d.querySelectorAll("a, button, p")].filter((el) => (el as HTMLElement).offsetParent !== null).pop()!.getBoundingClientRect();
-    return { scrolls: body.scrollHeight > body.clientHeight + 1, docked: Math.abs(box.bottom - innerHeight) <= 1, top: box.top, clearance: box.bottom - last.bottom };
+    const actions = d.querySelector("[data-testid=account-sheet-actions]")!.getBoundingClientRect();
+    return { scrolls: body.scrollHeight > body.clientHeight + 1, docked: Math.abs(box.bottom - innerHeight) <= 1, top: box.top, actionsUnderBody: actions.top >= body.getBoundingClientRect().bottom - 1, clearance: box.bottom - actions.bottom };
   });
   expect(fit.docked).toBe(true);
   expect(fit.scrolls).toBe(false);
   expect(fit.top).toBeGreaterThan(40);
-  expect(fit.clearance).toBeGreaterThanOrEqual(16);
+  // The mode switch (and Sign out, with accounts) sit in the footer, which keeps them clear of the edge.
+  expect(fit.actionsUnderBody).toBe(true);
+  expect(fit.clearance).toBeGreaterThanOrEqual(12);
   await sheet.getByTestId("account-sheet-close").tap();
   await expect(sheet).toHaveCount(0);
 });
@@ -337,10 +339,9 @@ test("Admin Mode: the account sheet's switch moves between Admin Mode and Player
   await page.goto("/admin");
   await expect(page.getByTestId("mobile-topbar")).toContainText("Admin mode");
   await expect(tabs).toHaveText(["Dashboard", "Users", "Settings", "Health"]);
-  await expect(async () => {
-    if (!(await sheet.isVisible())) await page.getByTestId("account-sheet-button").tap({ timeout: 2_000 });
-    await expect(sheet).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 15_000 });
+  // One tap: kept if it lands before the page's code has run (early-taps.ts).
+  await page.getByTestId("account-sheet-button").tap();
+  await expect(sheet).toBeVisible();
   await sheet.getByTestId("mode-switch").tap();
   await expect(page).toHaveURL(/\/team$/);
   await expect(tabs).toHaveText(["Team", "Players", "Leaderboards", "Matches", "Profile"]);

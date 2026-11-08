@@ -126,9 +126,8 @@ function InstallWindow({ onClose }: { onClose: () => void }) {
       title={`Install ${name}`}
       description={description}
       testId="install-window"
-      // Phones: room between the last step and the buttons (the window's own bottom padding is
-      // only the safe area there).
-      bodyClassName="max-sm:pb-[max(1rem,env(safe-area-inset-bottom))]"
+      // Room between the last step and the buttons is the window's own (1rem): a centred card,
+      // whose footer keeps clear of the bottom edge and the home indicator (DetailModal).
       footer={
         offer ? (
           <>

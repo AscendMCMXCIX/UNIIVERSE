@@ -548,11 +548,13 @@ export function DetailModal({
               innerScroll
                 ? "flex min-h-0 flex-1 flex-col overflow-hidden"
                 : [
-                    "px-4 py-4 sm:px-6 sm:py-5",
+                    "px-4 sm:px-6",
                     // The last line keeps clear of the bottom edge, and of the home indicator where
-                    // there is one (pb-safe alone was 0 px in a browser, with the text on the edge);
-                    // with a footer, the footer keeps that clearance instead.
-                    footer ? null : "pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-[max(1.25rem,env(safe-area-inset-bottom))]",
+                    // there is one (pb-safe-N: N steps, or the inset where larger; pb-safe alone was
+                    // 0 px in a browser, with the text on the edge). With a footer, the footer keeps
+                    // that clearance instead. A safe padding is the only one for its edge
+                    // (globals.css), so the top is padded on its own beside it.
+                    footer ? "py-4 sm:py-5" : "pt-4 pb-safe-4 sm:pt-5 sm:pb-safe-5",
                     flow ? "flex-none" : pinned || docked ? "min-h-0 flex-1 overflow-y-auto overscroll-contain" : "min-h-0 flex-1 overflow-y-auto overscroll-contain short:flex-none short:overflow-y-visible",
                   ],
               bodyClassName,
@@ -562,7 +564,7 @@ export function DetailModal({
           >
             <SettledContext.Provider value={settled}>{children}</SettledContext.Provider>
           </div>
-          {footer ? <div className={cn("flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border bg-bg-elevated px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6", !innerScroll && !pinned && "short:sticky short:bottom-0 short:z-10 short:mt-auto", flow && "sticky bottom-0 z-10 mt-auto")}>{footer}</div> : null}
+          {footer ? <div className={cn("flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border bg-bg-elevated px-4 pt-3 pb-safe-3 sm:px-6", !innerScroll && !pinned && "short:sticky short:bottom-0 short:z-10 short:mt-auto", flow && "sticky bottom-0 z-10 mt-auto")}>{footer}</div> : null}
         </CloseContext.Provider>
       ) : null}
     </dialog>

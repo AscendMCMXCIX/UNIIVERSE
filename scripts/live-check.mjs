@@ -36,7 +36,9 @@
     (/public/leaderboards is not found and the public team page shows no rank); the public team
     page shows Riot's required notice.
   - frame (#178): the charcoal frame token; the sidebar, open and folded, with the gradient bar on
-    the current page; the phone and tablet top bar, drawer and tab bar.
+    the current page; the phone and tablet top bar, drawer and tab bar. Phone: the avatar opens the
+    account sheet on the first tap, made as soon as it is on screen; Sign out is in view without
+    scrolling the sheet (its footer).
   - All Champions (#178): compact rows, sorted by games, no heading cut short.
   - games (#178): Team Matches opens a game under its card (no window), with ?match= in the address;
     a copied link opens it; Back returns to it; the keyboard toggles it; "Close this game" closes it
@@ -355,10 +357,35 @@ async function frameChecks(page, kind, context) {
   if (kind === "phone") {
     pass("frame", "phone: the tab bar is painted with the frame colour", sameAsFrame(paint.tabs, paint.chrome), { tabBar: paint.tabs, chrome: paint.chrome });
     // Phones have no drawer: the avatar opens the account sheet (docs/MOBILE.md, "The account sheet").
-    await page.getByTestId("account-sheet-button").click();
-    const sheet = await page.getByTestId("account-sheet").waitFor({ timeout: 5_000 }).then(() => true, () => false);
-    pass("frame", "phone: the avatar opens the account sheet", sheet);
-    if (sheet) await shot(page, "phone-account-sheet");
+    // The first tap counts: a fresh load, one tap as soon as the avatar is on screen (before the
+    // page's code has run, on a slow load, it is kept and applied once it runs: early-taps.ts), and
+    // no second one.
+    await page.goto(`${base}/team`, { waitUntil: "commit" });
+    const avatar = page.getByTestId("account-sheet-button");
+    await avatar.waitFor({ timeout: 20_000 });
+    const tappedAt = Date.now();
+    await avatar.tap();
+    const sheet = await page.getByTestId("account-sheet").waitFor({ timeout: 15_000 }).then(() => true, () => false);
+    pass("frame", "phone: the avatar opens the account sheet on the first tap", sheet, { openedAfterMs: sheet ? Date.now() - tappedAt : null });
+    if (sheet) {
+      // Sign out sits in the sheet's footer, under the body (which scrolls when it must): in view
+      // without scrolling the sheet.
+      const actions = await page.getByTestId("account-sheet").evaluate((d) => {
+        const body = d.querySelector("[data-sheet-scroll]");
+        const box = d.getBoundingClientRect();
+        const place = (selector) => {
+          const el = d.querySelector(selector);
+          if (!el) return null;
+          const r = el.getBoundingClientRect();
+          return { inView: r.top >= Math.max(0, box.top) - 1 && r.bottom <= Math.min(innerHeight, box.bottom) + 1, inScrollingBody: !!body?.contains(el) };
+        };
+        return { signOut: place("[data-testid=sign-out]"), modeSwitch: place("[data-testid=mode-switch]") };
+      });
+      if (actions.signOut) pass("frame", "phone: Sign out is in view without scrolling the sheet", actions.signOut.inView && !actions.signOut.inScrollingBody, actions.signOut);
+      else if (local) warn("frame", "phone: Sign out not offered", { why: "LIVE_LOCAL=1: the demo build has no sign-in; its footer holds the mode switch", modeSwitch: actions.modeSwitch });
+      else pass("frame", "phone: Sign out is in view without scrolling the sheet", false, { signOut: null });
+      await shot(page, "phone-account-sheet");
+    }
     await page.keyboard.press("Escape");
     await page.waitForTimeout(400);
     return;

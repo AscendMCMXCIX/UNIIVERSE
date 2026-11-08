@@ -10,6 +10,7 @@ import { ServiceWorker } from "@/components/service-worker";
 import { LegacyStorageCleanup } from "@/components/legacy-storage";
 import { CAPTURE_INSTALL_SCRIPT } from "@/components/install/capture-script";
 import { CAPTURE_IMAGE_ERRORS_SCRIPT } from "@/components/ui/image-errors";
+import { EARLY_TAPS_SCRIPT } from "@/components/early-taps";
 
 /*
   Inter, served with the app and preloaded with the page. Until it arrives the text is drawn in a
@@ -70,9 +71,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" className={`h-full ${inter.variable}`}>
       <head>
-        {/* First on the page: the browser can offer to install before the app's code loads, and an
-            image that fails while the page loads is noted before any image can fail. */}
-        <script dangerouslySetInnerHTML={{ __html: CAPTURE_INSTALL_SCRIPT + CAPTURE_IMAGE_ERRORS_SCRIPT }} />
+        {/* First on the page: the browser can offer to install before the app's code loads, an
+            image that fails while the page loads is noted before any image can fail, and a tap on
+            the avatar, the tablet's menu or the sidebar's collapse control before the code has run
+            is kept and applied once it runs (early-taps.ts). Inline scripts are allowed: the pages'
+            Content-Security-Policy has no script-src (next.config.ts). */}
+        <script dangerouslySetInnerHTML={{ __html: CAPTURE_INSTALL_SCRIPT + CAPTURE_IMAGE_ERRORS_SCRIPT + EARLY_TAPS_SCRIPT }} />
       </head>
       <body className="min-h-full bg-bg text-fg">
         {children}
