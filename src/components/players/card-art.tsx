@@ -108,10 +108,10 @@ function useArtChain(urls: string[]) {
 
 /**
  * The player's art as a faint strip at the start of a list row (Players): their banner, otherwise
- * the chosen skin's square tile (about 40 KB; the champion's default skin if that skin has none),
- * fading out before the row's figures, a little brighter while the row is pointed at (the row is
- * `group/row`). Nothing when the player chose no art. Lazy, and left out of the page's layout by the
- * caller's `className` where a screen shows no strip (phones), so nothing is downloaded there.
+ * the chosen skin's square tile (about 40 KB; the champion's default skin if that skin has none), at
+ * 20% opacity at rest and while pointed at (the row's own hover marks it), behind the picture and
+ * name: gone by 60% of the strip's width, before the rank and the pool, so no figure sits on art. Nothing when the player chose no art. Lazy, and left out of the page's layout by
+ * the caller's `className` where a screen shows no strip (phones), so nothing is downloaded there.
  */
 export function RowArtStrip({ art, look, className }: { art: CardArt | null; look: CardLook | null | undefined; className?: string }) {
   const source = look?.style.art.source ?? "champion";
@@ -123,7 +123,7 @@ export function RowArtStrip({ art, look, className }: { art: CardArt | null; loo
   const style = look?.style;
   const focus = style && (style.art.focusX !== null || style.art.focusY !== null) ? `${style.art.focusX ?? 50}% ${style.art.focusY ?? 25}%` : "center 25%";
   return (
-    <span aria-hidden className={cn("pointer-events-none absolute inset-y-0 left-0 -z-10 w-2/5 max-w-56 overflow-hidden [mask-image:linear-gradient(to_right,black_15%,transparent)]", className)} data-row-art={banner ? "banner" : `${art!.championId}:${art!.skinNum}`}>
+    <span aria-hidden className={cn("pointer-events-none absolute inset-y-0 left-0 -z-10 w-2/5 max-w-56 overflow-hidden [mask-image:linear-gradient(to_right,black_15%,transparent_60%)]", className)} data-row-art={banner ? "banner" : `${art!.championId}:${art!.skinNum}`}>
       <StripImage key={urls.join("|")} urls={urls} position={focus} />
     </span>
   );
@@ -134,7 +134,7 @@ function StripImage({ urls, position }: { urls: string[]; position: string }) {
   if (!src) return null;
   // Official Riot art from Data Dragon or the player's validated banner; a plain <img> so the browser caches it.
   // eslint-disable-next-line @next/next/no-img-element
-  return <img key={src} src={src} alt="" loading="lazy" decoding="async" ref={ref} onError={onError} className="h-full w-full object-cover opacity-20 transition-opacity duration-300 group-hover/row:opacity-30 motion-reduce:transition-none" style={{ objectPosition: position }} data-testid="row-art-image" />;
+  return <img key={src} src={src} alt="" loading="lazy" decoding="async" ref={ref} onError={onError} className="h-full w-full object-cover opacity-20" style={{ objectPosition: position }} data-testid="row-art-image" />;
 }
 
 /** The image itself, with its fallback chain (remounted whenever the art changes). */

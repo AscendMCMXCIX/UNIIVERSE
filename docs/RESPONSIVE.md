@@ -207,7 +207,7 @@ Three levels, each saying what it proves:
   6. Open and close a detail window and the Card Studio: the page behind does not move.
   7. Open the app with no connection: the offline notice shows.
   8. On an iPad, add to Home Screen and open it: Players shows the whole roster on one screen, two
-     rows across, and a row opens its profile with one tap; Matches scrolls under the pinned Team
+     up, and a row opens its profile with one tap; Matches scrolls under the pinned Team
      tabs, a tab from there switches the section; a teammate's profile shows "‹ Players" in the top
      bar (the installed app has no browser Back) and it leads back; the menu drawer opens, the page
      behind it cannot be tapped, and closing it returns to the menu button.

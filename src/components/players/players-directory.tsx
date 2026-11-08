@@ -43,14 +43,17 @@ const players = (n: number) => `${formatCount(n)} player${n === 1 ? "" : "s"}`;
 
 /**
  * The Players page under the app's frame: its header (the title, and the count as its scope line,
- * read out as it changes), one toolbar (a search by name or Riot ID, the role, the lineup and, for
- * administrators, the archived and deactivated players) and the roster: one panel of rows, A to Z,
- * a row per player at every width (RosterRow), laid out one, two or three across by the roster's own
- * width (from 38rem and 76rem), so an open or folded sidebar is right at the first paint. With a role
- * chosen, everyone who plays it is listed, as their main role or an off role, and each row shows the
- * champions they play there. On a phone held sideways (a short window, the filters folded behind
- * their button) the title and the toolbar share one row; a short window as wide as a tablet keeps the
- * inline toolbar on a row of its own, which it needs whole to stay one row.
+ * read out as it changes, with what narrows it), one toolbar (a search by name or Riot ID, the role,
+ * the main lineup and, for administrators, the archived and deactivated players) and the roster: one
+ * panel of rows, A to Z, a row per player at every width (RosterRow), laid out one or two across by
+ * the roster's own width (two from 38rem; three from 84rem, so a column never drops below the 28rem a
+ * row needs for its off roles and its whole pool), so an open or folded sidebar is right at the first
+ * paint. With a role chosen, everyone who plays it is listed, as their main role or an off role, and
+ * each row shows the champions they play there. On a phone held sideways (a short window below md,
+ * the filters folded behind their button) the title and the toolbar share one row from 34rem wide;
+ * narrower short windows (a split screen, a small phone zoomed in) stack them, so the search keeps
+ * its width. A short window as wide as a tablet keeps the inline toolbar on a row of its own, which
+ * it needs whole to stay one row.
  */
 export function PlayersDirectory({ entries, championsById, archived = null, myProfile = false }: { entries: DirectoryEntry[]; championsById: Record<string, PortraitChampion>; /** Admins: whether archived and deactivated players are included (kept in the URL). */ archived?: { on: boolean } | null; /** A member with a profile of their own, which is not listed here: offer it. */ myProfile?: boolean }) {
   const router = useRouter();
@@ -65,12 +68,13 @@ export function PlayersDirectory({ entries, championsById, archived = null, myPr
     return fold(e.player.displayName).includes(q) || e.riotIds.some((id) => fold(id).includes(q));
   });
   const filtered = role === "ALL" ? null : role;
-  const scopeLine = [shown.length === entries.length ? players(entries.length) : `${formatCount(shown.length)} of ${players(entries.length)}`, filtered ? `${ROLE_LABELS[filtered]} as primary or off role` : null, archived?.on ? "With archived and deactivated" : null].filter(Boolean).join(" · ");
+  const scopeLine = [shown.length === entries.length ? players(entries.length) : `${formatCount(shown.length)} of ${players(entries.length)}`, filtered ? `${ROLE_LABELS[filtered]} as primary or off role` : null, scope === "lineup" ? "Main lineup" : null, archived?.on ? "With archived and deactivated" : null].filter(Boolean).join(" · ");
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-4 max-md:short:flex-row max-md:short:items-center max-md:short:gap-x-5">
+      {/* Sideways phones: one row from 34rem (room for the title's 15rem and a bar of about 16rem), stacked below it. */}
+      <div className="flex flex-col gap-4 max-md:short:min-[34rem]:flex-row max-md:short:min-[34rem]:items-center max-md:short:min-[34rem]:gap-x-5">
         <PageHeader
-          className="max-md:short:max-w-[15rem] max-md:short:shrink-0 [&_p]:text-balance"
+          className="max-md:short:min-[34rem]:max-w-[15rem] max-md:short:min-[34rem]:shrink-0 [&_p]:text-balance"
           title="Players"
           description={
             <span aria-live="polite" data-testid="players-scope">
@@ -86,7 +90,7 @@ export function PlayersDirectory({ entries, championsById, archived = null, myPr
           }
         />
         <FilterBar
-          className="min-w-0 max-md:short:flex-1"
+          className="min-w-0 max-md:short:min-[34rem]:flex-1"
           testId="players-filters"
           summary={[filtered ? ROLE_LABELS[filtered] : "All roles", scope === "lineup" ? "Main lineup" : null, archived?.on ? "With archived" : null].filter(Boolean).join(" · ")}
           activeCount={(filtered ? 1 : 0) + (scope === "lineup" ? 1 : 0) + (archived?.on ? 1 : 0)}
@@ -109,13 +113,17 @@ export function PlayersDirectory({ entries, championsById, archived = null, myPr
           </FilterField>
           <FilterField label="Lineup">
             <button type="button" className={chipClass(scope === "lineup", "self-start")} aria-pressed={scope === "lineup"} onClick={() => setScope(scope === "lineup" ? "all" : "lineup")} data-testid="lineup-filter">
-              Lineup only
+              Main lineup
             </button>
           </FilterField>
           {archived ? (
             <FilterField label="Archived">
               <Link href={archived.on ? "/players" : "/players?archived=1"} scroll={false} aria-current={archived.on ? "true" : undefined} className={chipClass(archived.on, "self-start")} data-testid="archived-filter">
-                Archived<span className="sr-only"> and deactivated players</span>
+                {/* Inline the one word (its label is hidden there); the sheet, with room, says what it brings back. One text run, so the words keep their spacing. */}
+                <span>
+                  Archived<span className="md:sr-only"> and deactivated</span>
+                  <span className="sr-only"> players</span>
+                </span>
               </Link>
             </FilterField>
           ) : null}
@@ -126,7 +134,7 @@ export function PlayersDirectory({ entries, championsById, archived = null, myPr
           edges, which clip it, so the last column and the last row draw no line of their own. */}
       <div className="@container/roster overflow-clip rounded-card border border-border bg-surface panel-depth" data-testid="players-directory">
         {shown.length ? (
-          <ol className="-mb-px -mr-px grid grid-cols-1 @min-[38rem]/roster:grid-cols-2 @min-[76rem]/roster:grid-cols-3" aria-label="Players">
+          <ol className="-mb-px -mr-px grid grid-cols-1 @min-[38rem]/roster:grid-cols-2 @min-[84rem]/roster:grid-cols-3" aria-label="Players">
             {shown.map((e) => (
               <Row key={e.player.id} entry={e} role={filtered} championsById={championsById} />
             ))}

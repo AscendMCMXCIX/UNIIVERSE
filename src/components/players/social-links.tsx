@@ -16,7 +16,10 @@ import { cn } from "@/lib/cn";
   it. One look everywhere: a round dark chip around the mark, `md` in headers and windows, `card`
   on a player card (sized by the card's own width: 1.75rem on a narrow card, 2rem from 17rem, a
   step more on touch screens), `row` on a Players row (1.5rem, so the name's line keeps its height),
-  and on touch screens an invisible margin makes each a finger-sized target (44px).
+  and on touch screens an invisible margin makes each a finger-sized target (44px). On a row the
+  target is 44px wide and 38px tall: it stays inside the row (4px above the chip, which sits 4px
+  below the row's edge) and off the next icon's chip (the icons are 12px apart there), so a tap meant
+  for the row above, or for the next icon, never lands on this one.
 */
 
 const SIZE = {
@@ -27,7 +30,7 @@ const SIZE = {
 type IconSize = keyof typeof SIZE;
 
 /** The invisible margin on touch screens that makes each icon a 44px target, by size. */
-const TOUCH: Record<IconSize, string> = { md: "pointer-coarse:after:-inset-1.5", card: "pointer-coarse:after:-inset-1.5", row: "pointer-coarse:after:-inset-2.5" };
+const TOUCH: Record<IconSize, string> = { md: "pointer-coarse:after:-inset-1.5", card: "pointer-coarse:after:-inset-1.5", row: "pointer-coarse:after:-inset-x-2.5 pointer-coarse:after:-top-1 pointer-coarse:after:-bottom-2.5" };
 
 const CHIP = "relative grid shrink-0 place-items-center rounded-full bg-bg/80 shadow-sm shadow-black/30 ring-1 ring-white/10";
 const CONTROL = cn(CHIP, "transition-[background-color,transform] duration-150 hover:bg-bg active:scale-95 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none pointer-coarse:after:absolute pointer-coarse:after:content-['']");
@@ -92,8 +95,8 @@ export function SocialLinks({ links, owner, className }: { links: readonly Socia
  */
 export function CardSocialIcons({ links, owner, mode = "interactive", size = "card", className }: { links: readonly SocialLinkView[]; owner: string; mode?: "interactive" | "static"; size?: "card" | "row"; className?: string }) {
   if (!links.length) return null;
-  // On a row the touch areas (44px around a 24px chip) need a little more room between the icons.
-  const row = cn("flex shrink-0 items-center", size === "row" ? "gap-1.5 pointer-coarse:gap-2" : "gap-1.5 @min-[17rem]/card:gap-2");
+  // On a row the touch areas (44px around a 24px chip) meet in the gap between the icons, never on a chip.
+  const row = cn("flex shrink-0 items-center", size === "row" ? "gap-1.5 pointer-coarse:gap-3" : "gap-1.5 @min-[17rem]/card:gap-2");
   if (mode === "static")
     return (
       <span className={cn(row, className)} aria-hidden data-testid="card-social-preview">

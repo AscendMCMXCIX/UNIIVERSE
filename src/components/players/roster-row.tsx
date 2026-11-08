@@ -24,6 +24,8 @@ export interface RiotState {
 
 // A few words for a state other than up to date, on the row's last line; the whole sentence is what a screen reader reads.
 const RIOT_SHORT: Record<RiotState["state"], string> = { synced: "up to date", syncing: "catching up", verified: "updating", pending: "updating", stale: "delayed", error: "needs attention", none: "no account" };
+// Their colour, as the account badges elsewhere: delayed in the warning colour, needs attention in the error colour, the rest quiet.
+const RIOT_TONE: Record<RiotState["state"], string> = { synced: "text-fg-subtle", syncing: "text-fg-subtle", verified: "text-fg-subtle", pending: "text-fg-subtle", stale: "text-warn", error: "text-bad", none: "text-fg-subtle" };
 
 export interface RosterRowProps {
   look: CardLook | null;
@@ -66,21 +68,27 @@ const LINKS: Record<NonNullable<RosterRowProps["screen"]>, string | null> = { an
  * in one panel), 64px tall unless a name, a tagline or Riot's state needs another line:
  * - their picture in its frame, under the card's colours (cardColourVars), so the emblem and the role
  *   icon take the player's colour as on their card; from tablets up a faint strip of their chosen art
- *   behind the picture and name, fading out before the figures (RowArtStrip);
+ *   behind the picture and name, faded out before the rank and pool (RowArtStrip);
  * - first line: the name in its style with its emblem, never cut ("You" after it), the tagline on the
- *   same line where the row has room (a line of its own under the second on narrower rows), then the
- *   status at the line's end (Lineup, Setup incomplete, Archived; they wrap under the name only when
- *   both do not fit) and, from tablets up, the social links as icons, each its own control above the
- *   row's link;
+ *   same line where the row has room for all of it (a line of its own otherwise: under the name on
+ *   wide rows, under the second line on narrower ones), then the status at the line's end (Lineup,
+ *   Setup incomplete, shortened to "Setup" on narrow rows, Archived) and, from tablets up, the social
+ *   links as icons, each its own control above the row's link. On a narrow row, or one without a
+ *   tagline, a long name wraps in its own column beside the status rather than pushing it down, and
+ *   the status stays beside its first line;
  * - second line: the main role (its icon in the card's colour, then its name where there is room),
  *   the off roles as quiet icons on wide rows or the off role the list is narrowed to, the rank ("No
  *   Riot account" in its place without one; nothing where this viewer may not see it), then the pool
- *   as whole portraits with the rest counted (PoolPreview fit="count");
- * - a last line only for Riot data that is not up to date.
+ *   as whole portraits with the rest counted (PoolPreview fit="count"). Larger text wraps this line
+ *   rather than cutting it: the pool moves under the role and rank once it cannot keep a portrait
+ *   and its count beside them;
+ * - a last line only for Riot data that is not up to date (delayed and needs attention in their tone).
+ * The row's content starts at its top, the picture centred on the first two lines, so rows side by
+ * side, one taller than the other, keep their names and second lines level.
  * What a row shows follows its own width (the `row` container: its content box, without its 1.5rem
  * of padding): the links from 20rem, the role's name and the tagline beside the name from 24rem, the
  * off roles from 26rem; under 18rem (the smallest phones, or two rows side by side on a phone held
- * sideways) the chevron gives its room to the pool.
+ * sideways) the chevron and the word "Off" give their room to the pool.
  * The whole row opens the profile through one link laid over it, named after the player, so the
  * social icons drawn above it stay links of their own.
  */
@@ -92,7 +100,8 @@ export function RosterRow({ look, art, name, avatarUrl, role, offRoles, offRoleS
   return (
     <li
       className={cn(
-        "group/row @container/row relative isolate flex min-h-16 items-center gap-x-2.5 border-b border-r border-border/60 px-3 py-1 transition-colors duration-150",
+        "group/row @container/row relative isolate flex min-h-16 items-start gap-x-2.5 border-b border-r border-border/60 px-3 py-1 transition-colors duration-150",
+        // Pressed: surface-3 as on every list row; on phones (no hover) surface-2, the pressed shade of the phone row checked on 5 Nov 2026.
         href && "hover:bg-surface-2 has-[[data-row-link]:active]:bg-surface-3 max-md:has-[[data-row-link]:active]:bg-surface-2",
         isYou && "bg-accent/5",
       )}
@@ -109,10 +118,14 @@ export function RosterRow({ look, art, name, avatarUrl, role, offRoles, offRoleS
           <span className="sr-only">{name}</span>
         </Link>
       ) : null}
-      <CardAvatar look={look} name={name} src={avatarUrl} size="md" />
+      {/* Centred on the first two lines (the name's 1.5rem, the gap, the second line's 1.75rem), wherever the row grows. */}
+      <span className="flex h-[3.375rem] shrink-0 items-center">
+        <CardAvatar look={look} name={name} src={avatarUrl} size="md" />
+      </span>
       {/* One wrapping line of parts: the name's line, then the second line and the last ones, each a whole line (basis-full). */}
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-0.5">
-        <span className="flex min-h-6 min-w-0 items-center gap-1.5">
+        {/* The name's first line 2px down its 1.5rem line (where one line of it sits centred), so a name of two lines starts level with its neighbour's. */}
+        <span className={cn("flex min-h-6 items-start gap-1.5 pt-0.5", tagline ? "min-w-0 @max-[24rem]/row:min-w-[min(100%,6rem)] @max-[24rem]/row:basis-0 @max-[24rem]/row:grow" : "min-w-[min(100%,6rem)] basis-0 grow")}>
           <CardName look={look} name={name} className="text-md leading-snug text-fg" />
           {isYou ? (
             <span className="inline-flex shrink-0" data-testid="card-you">
@@ -120,17 +133,18 @@ export function RosterRow({ look, art, name, avatarUrl, role, offRoles, offRoleS
             </span>
           ) : null}
         </span>
-        {tagline ? <CardTagline look={look} lines={1} className="order-3 basis-full @min-[24rem]/row:order-none @min-[24rem]/row:w-0 @min-[24rem]/row:grow @min-[24rem]/row:basis-auto" /> : null}
+        {/* Beside the name only when it fits whole (its own width, at least 9rem), otherwise on the next line. */}
+        {tagline ? <CardTagline look={look} lines={1} className="order-3 basis-full @min-[24rem]/row:order-none @min-[24rem]/row:min-w-36 @min-[24rem]/row:grow @min-[24rem]/row:basis-[max-content]" /> : null}
         {status || links ? (
-          <span className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+          <span className="ml-auto flex min-h-6 max-w-full shrink-0 flex-wrap items-center justify-end gap-1.5 self-start" data-testid="roster-status">
             {lineupRole ? (
-              <span className="inline-flex" data-testid="directory-lineup">
-                <Badge tone="good" className="whitespace-nowrap" title={`In the current lineup as ${ROLE_LABELS[lineupRole]}`}>
+              <span className="inline-flex max-w-full" data-testid="directory-lineup">
+                <Badge tone="good" title={`In the current lineup as ${ROLE_LABELS[lineupRole]}`}>
                   {lineupRole === role ? "Lineup" : `Lineup · ${ROLE_LABELS[lineupRole]}`}
                 </Badge>
               </span>
             ) : null}
-            {setupPending ? <SetupIncompleteBadge /> : null}
+            {setupPending ? <SetupIncompleteBadge wordClassName="@max-[24rem]/row:sr-only" /> : null}
             {archived ? <Badge tone="warn">Archived</Badge> : null}
             {links ? (
               <span className={cn("relative z-[2]", LINKS[screen])}>
@@ -139,30 +153,34 @@ export function RosterRow({ look, art, name, avatarUrl, role, offRoles, offRoleS
             ) : null}
           </span>
         ) : null}
-        <span className="order-2 flex min-h-7 min-w-0 basis-full items-center gap-x-1.5 text-xs text-fg-muted" data-testid="roster-meta">
+        {/* Wraps, never cuts: each part moves whole to the next line when it no longer fits (larger text,
+            the narrowest rows), and only a part wider than a whole line wraps its own words. The pool
+            keeps at least a portrait and its count (one portrait for a pool of one) and takes the rest
+            of its line. */}
+        <span className="order-2 flex min-h-7 min-w-0 basis-full flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-fg-muted" data-testid="roster-meta">
           <RoleCluster role={role} offRoles={offRoles} shown={offRoleShown} />
           {/* Without a Riot account no rank was read, so none is claimed ("Unranked" means a check found no placement). */}
           {riot?.state === "none" ? (
-            <>
+            <span className="inline-flex min-w-0 items-center gap-x-1.5">
               <Dot />
-              <span className="shrink-0 whitespace-nowrap text-fg-subtle">No Riot account</span>
-            </>
+              <span className="min-w-0 text-fg-subtle [overflow-wrap:anywhere]">No Riot account</span>
+            </span>
           ) : showRank ? (
-            <>
+            <span className="inline-flex min-w-0 items-center gap-x-1.5">
               <Dot />
-              <RankInline rank={rank} className="shrink-0" />
-            </>
+              <RankInline rank={rank} wrap />
+            </span>
           ) : null}
-          {role ? <PoolPreview champions={pool} total={pool.length} label={poolLabel} fit="count" size="xs" testId="directory-pool" className="ml-0.5 flex-1" /> : null}
+          {role ? <PoolPreview champions={pool} total={pool.length} label={poolLabel} fit="count" size="xs" testId="directory-pool" className={pool.length ? cn("ml-0.5 basis-0 grow", pool.length > 1 ? "min-w-15" : "min-w-7") : "ml-0.5 min-w-0"} /> : null}
         </span>
         {riotNote ? (
-          <span className="order-4 basis-full truncate text-xs text-fg-subtle" data-testid="directory-riot" data-state={riotNote.state}>
+          <span className={cn("order-4 basis-full text-xs", RIOT_TONE[riotNote.state])} data-testid="directory-riot" data-state={riotNote.state}>
             <span aria-hidden>Riot data: {RIOT_SHORT[riotNote.state]}</span>
             <span className="sr-only">Riot data: {riotNote.label}</span>
           </span>
         ) : null}
       </div>
-      <ChevronRight className="h-4 w-4 shrink-0 text-fg-subtle @max-[18rem]/row:hidden" aria-hidden />
+      <ChevronRight className="h-4 w-4 shrink-0 self-center text-fg-subtle @max-[18rem]/row:hidden" aria-hidden />
     </li>
   );
 }
@@ -177,14 +195,14 @@ function Dot() {
 
 /**
  * The main role (its icon in the card's colour; its name from 24rem, read out on narrower rows), then
- * either the off role the list is narrowed to ("· [icon] Off role", "Off" on narrower rows) or the
- * other off roles as quiet icons from 26rem, always read out. "Roles not set" for a member who has
- * chosen none.
+ * either the off role the list is narrowed to ("· [icon] Off role", "Off" on narrower rows, the icon
+ * alone under 18rem) or the other off roles as quiet icons from 26rem, always read out. "Roles not
+ * set" for a member who has chosen none.
  */
 function RoleCluster({ role, offRoles, shown }: { role: Role | null; offRoles: readonly Role[]; shown: Role | null }) {
   if (!role)
     return (
-      <span className="shrink-0 text-fg-subtle" data-testid="directory-no-roles">
+      <span className="min-w-0 text-fg-subtle [overflow-wrap:anywhere]" data-testid="directory-no-roles">
         Roles not set
       </span>
     );
@@ -201,7 +219,8 @@ function RoleCluster({ role, offRoles, shown }: { role: Role | null; offRoles: r
           <Dot />
           <RoleIcon role={shown} className="h-3.5 w-3.5 text-fg-muted" decorative />
           <span className="sr-only">{ROLE_LABELS[shown]}, </span>
-          <span>
+          {/* Under 18rem the word gives its room to the pool: the icon, the active filter and the pool's name still say it. */}
+          <span className="@max-[18rem]/row:sr-only">
             Off<span className="@max-[24rem]/row:sr-only"> role</span>
           </span>
         </span>

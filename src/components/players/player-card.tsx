@@ -386,18 +386,27 @@ export function countFit(n: number, size: CountFitSize = "sm"): { portraits: str
  * width holds and the rest counted at its end, the count the size of a portrait. A pool that fits
  * shows whole without a count; a portrait is never cut. Decided by the row's own width (a container
  * query), so it is right from the first paint, at any card width. `size="xs"`: smaller portraits, for
- * the line a Players row gives its pool. The pool's whole size is in `data-pool-size`.
+ * the line a Players row gives its pool. The pool's whole size is in `data-pool-size`, each
+ * portrait's champion in `data-champion`. The caller's `className` sizes the pool's box (its
+ * minimum width and how it grows): a size container takes no width from what it holds. An empty
+ * pool is its message alone, outside that box, so it moves whole to another line (wrapping its words
+ * only where it is wider than a whole line).
  */
 export function PoolPreview({ champions, total, label, max = 4, fit = false, size = "sm", testId = "pool-preview", className }: { champions: PortraitChampion[]; total: number; label: string; max?: number; fit?: boolean | "count"; /** With fit="count". */ size?: CountFitSize; testId?: string; className?: string }) {
   if (fit === "count") {
+    if (champions.length === 0)
+      return (
+        <span role="group" className={cn("text-xs text-warn [overflow-wrap:anywhere]", className)} aria-label={label} data-testid={testId} data-pool-size={0}>
+          No champions yet
+        </span>
+      );
     const { portraits, counts } = countFit(champions.length, size);
     const xs = size === "xs";
     return (
-      <div className={cn("@container/pool min-w-0", className)}>
+      <div className={cn("@container/pool", className ?? "min-w-0")}>
         <div role="group" className={cn("flex min-w-0 items-center gap-1", xs ? "min-h-7" : "min-h-9")} aria-label={label} data-testid={testId} data-pool-size={champions.length}>
-          {champions.length === 0 ? <span className="text-xs text-warn">No champions yet</span> : null}
           {portraits.map((hide, j) => (
-            <span key={champions[j]!.id} className={cn("shrink-0", hide)} data-testid="pool-portrait">
+            <span key={champions[j]!.id} className={cn("shrink-0", hide)} data-testid="pool-portrait" data-champion={champions[j]!.id}>
               <ChampionPortrait champion={champions[j]} size={size} />
             </span>
           ))}

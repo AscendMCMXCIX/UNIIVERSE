@@ -115,8 +115,8 @@ test("a saved card shows on the profile, Team and Players, and cards stay aligne
   await expect(page.getByTestId("save-card-style")).toBeEnabled();
   await page.getByRole("radiogroup", { name: "Emblem" }).locator("[data-value=flame]").click();
   await expect(page.getByTestId("card-preview").getByTestId("card-tagline")).toHaveText("“Calm in the chaos”");
-  // The Players view previews the player's row on Players, twice: as tablets and desktops show it (a
-  // faint strip of the chosen art) and as a phone shows it (no art), with the same name, emblem and tagline.
+  // The Players view previews the player's row on Players, twice: as a tablet shows it (a faint strip
+  // of the chosen art) and as a phone shows it (no art), with the same name, emblem and tagline.
   await page.getByTestId("preview-directory").click();
   const wideRow = page.getByTestId("card-preview-row-wide");
   await expect(wideRow.getByTestId("card-tagline")).toHaveText("“Calm in the chaos”");

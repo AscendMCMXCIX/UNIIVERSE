@@ -1,4 +1,4 @@
-import { devices, expect, test, type Browser, type Page } from "./test";
+import { devices, expect, test, type Browser, type Locator, type Page } from "./test";
 import { choosePassword, createMember } from "./member-account";
 import { closeFilterSheet, openFilterBar } from "./filters";
 
@@ -10,11 +10,12 @@ import { closeFilterSheet, openFilterBar } from "./filters";
   pool of two, no roles at all, setup not finished, an off role. The first test adds the hardest row a
   member can make: a long name in wide capitals, a tagline, all three links, an emblem, a frame and a
   pool of twelve. Then, at desktop widths (sidebar open), a tablet, a phone held sideways and two
-  phones:
-  - the roster has one column below 38rem of its own width, two from 38rem, three from 76rem;
+  phones (and a large phone held sideways in Safari, 852px wide):
+  - the roster has one column below 38rem of its own width, two from 38rem, three from 84rem;
   - every row is a finger-sized target, and a row of two lines is 4rem tall;
-  - rows side by side are the same height, and rows with as many lines keep their names and their
-    second lines level;
+  - rows side by side are the same height and keep their names level, whatever either holds, and
+    their second lines too where nothing above it took a line of its own (a long name, a tagline
+    pushed under the name);
   - no part covers another or leaves its row, and nothing runs past the page's edge;
   - the name is whole; the tagline keeps to one line, its whole text in its title;
   - a pool shows its first portraits whole, as many as fit, and counts the rest: never "+1", never a
@@ -93,6 +94,8 @@ const SIZES: Array<[string, Parameters<Browser["newContext"]>[0]]> = [
   ["1280", { viewport: { width: 1280, height: 800 } }],
   ["1024", { viewport: { width: 1024, height: 768 } }],
   ["tablet-768", { viewport: { width: 768, height: 1024 }, hasTouch: true }],
+  // Safari lays the page out at the whole screen's width held sideways (viewport-fit=cover): 852px on an iPhone 15.
+  ["landscape-852", { viewport: { width: 852, height: 343 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3 }],
   ["landscape-734", { ...devices["iPhone 15 landscape"] }],
   ["phone-393", { ...devices["iPhone 15"] }],
   ["phone-320", { ...devices["iPhone SE"] }],
@@ -120,10 +123,18 @@ async function measure(page: Page) {
       const tagline = row.querySelector<HTMLElement>("[data-testid=card-tagline]");
       const meta = row.querySelector<HTMLElement>("[data-testid=roster-meta]")!;
       const icons = [...row.querySelectorAll("[data-testid^=card-social-]")].filter(shown).map(box);
-      // The row's lines: its parts' rows (parts on one row are centred on it), and any more lines the name takes.
-      const centres = [...meta.parentElement!.children].filter(shown).map((c) => box(c).top + box(c).height / 2).sort((a, b) => a - b);
+      // The row's lines: its parts' rows (parts on one row are centred on it; the second line and the
+      // status count by their own parts, which wrap), and any more lines the name takes.
+      const status = row.querySelector("[data-testid=roster-status]");
+      const leaves = [...meta.parentElement!.children].flatMap((c) => (c === meta || c === status ? [...c.children] : [c])).filter(shown);
+      const distinct = (els: Element[]) => {
+        const centres = els.map((c) => box(c).top + box(c).height / 2).sort((a, b) => a - b);
+        return centres.filter((c, i) => i === 0 || c - centres[i - 1]! > 6).length;
+      };
       const nameLines = Math.round(box(name).height / parseFloat(getComputedStyle(name).lineHeight));
-      const lines = centres.filter((c, i) => i === 0 || c - centres[i - 1]! > 6).length + nameLines - 1;
+      const lines = distinct(leaves) + nameLines - 1;
+      // The lines above the second one (1 unless a long name or a tagline pushed under the name took more).
+      const above = distinct(leaves.filter((c) => box(c).bottom <= box(meta).top + 1)) + nameLines - 1;
       const parts: Array<[string, DOMRect | null]> = [
         ["picture", one("[data-avatar-frame]")],
         ["name", one("[data-testid=card-name]")],
@@ -153,6 +164,7 @@ async function measure(page: Page) {
         left: r.left,
         height: r.height,
         lines,
+        above,
         level: { name: box(name).top - r.top, meta: box(meta).top - r.top },
         linkCovers: Math.abs(box(link).height - (inner.bottom - inner.top)) <= 1 && Math.abs(box(link).width - (inner.right - inner.left)) <= 1,
         nameText: name.textContent ?? "",
@@ -198,17 +210,20 @@ test("Players: every row whole and level with its neighbours, its pool whole, at
     const wide = page.viewportSize()!.width >= 768;
     expect(m.overflow, `${size}: nothing past the page's edge`).toBeLessThanOrEqual(1);
 
-    // Columns from the roster's own width: one, two from 38rem, three from 76rem.
+    // Columns from the roster's own width: one, two from 38rem, three from 84rem (a column never under 28rem).
     const columns = new Set(m.rows.map((r) => Math.round(r.left))).size;
-    const fits = m.width >= 76 * m.rem - 1 ? 3 : m.width >= 38 * m.rem - 1 ? 2 : 1;
+    const fits = m.width >= 84 * m.rem - 1 ? 3 : m.width >= 38 * m.rem - 1 ? 2 : 1;
     expect(columns, `${size}: columns for a ${Math.round(m.width)}px roster`).toBe(fits);
 
-    // Side by side: the same height, and rows with as many lines keep their lines level.
+    // Side by side: the same height, and the names level whatever either row holds (the owner saw
+    // content at different heights from player to player); the second lines too where neither row
+    // has more than the name's line above it.
     const gridRows = [...new Set(m.rows.map((r) => Math.round(r.top)))].map((top) => m.rows.filter((r) => Math.abs(r.top - top) <= 1));
     for (const side of gridRows.filter((g) => g.length > 1)) {
       const names = side.map((r) => r.player).join(", ");
       expect(spread(side.map((r) => r.height)), `${size}: ${names} are the same height`).toBeLessThanOrEqual(1);
-      if (side.every((r) => r.lines === side[0]!.lines)) for (const key of ["name", "meta"] as const) expect(spread(side.map((r) => r.level[key])), `${size}: ${key} level along ${names}`).toBeLessThanOrEqual(1);
+      expect(spread(side.map((r) => r.level.name)), `${size}: names level along ${names}`).toBeLessThanOrEqual(1);
+      if (side.every((r) => r.above === 1)) expect(spread(side.map((r) => r.level.meta)), `${size}: second lines level along ${names}`).toBeLessThanOrEqual(1);
     }
 
     for (const r of m.rows) {
@@ -238,6 +253,12 @@ test("Players: every row whole and level with its neighbours, its pool whole, at
     // One icon size everywhere.
     expect(spread(m.rows.flatMap((r) => r.icons.map((i) => i.size))), `${size}: every link icon the same size`).toBeLessThanOrEqual(0.5);
 
+    // Unfinished setup (Demo Halfway, Demo Newcomer) keeps to two lines, the smallest phones included
+    // ("Setup" beside the name on narrow rows), so the row is 4rem like its neighbours (checked above).
+    const setup = m.rows.filter((o) => o.player === "Demo Halfway" || o.player === "Demo Newcomer");
+    expect(setup.length, `${size}: both members in setup are listed`).toBe(2);
+    for (const r of setup) expect(r.lines, `${size}, ${r.player}: setup incomplete in two lines`).toBeLessThanOrEqual(2);
+
     // The member's own row keeps everything they chose.
     const mine = m.rows.find((r) => r.player === who.display)!;
     expect(mine.frame, `${size}: their frame`).toBe(who.frame);
@@ -252,7 +273,29 @@ test("Players: every row whole and level with its neighbours, its pool whole, at
   }
 });
 
-test("Players: the count is the title's scope line, the toolbar keeps to one row, and the roster to one panel", async ({ page, baseURL }, info) => {
+const ROLES = ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"] as const;
+
+/** How many rows the inline toolbar's controls take (the search and each control, by their centres). */
+const controlRows = (toolbar: Locator) => toolbar.evaluate((bar) => new Set([...bar.querySelectorAll("[data-testid=players-search], [data-filter-controls] > *")].filter((e) => e.getBoundingClientRect().width > 0).map((e) => Math.round(e.getBoundingClientRect().top + e.getBoundingClientRect().height / 2))).size);
+
+/** Chooses each role in turn in the inline toolbar, and checks the toolbar keeps to one row with each (Reset beside it). */
+async function everyRoleOnOneRow(page: Page, label: string) {
+  const toolbar = page.getByTestId("players-filters");
+  expect(await controlRows(toolbar), `${label}: the toolbar keeps to one row`).toBe(1);
+  for (const role of ROLES) {
+    // Retried: a click before the page is interactive does nothing.
+    await expect(async () => {
+      await page.getByTestId(`role-filter-${role}`).click();
+      await expect(page.getByTestId(`role-filter-${role}`)).toHaveAttribute("aria-checked", "true", { timeout: 1000 });
+    }).toPass({ timeout: 15_000 });
+    await expect(page.getByTestId("reset-filters")).toBeVisible();
+    expect(await controlRows(toolbar), `${label}: one row with ${role} chosen`).toBe(1);
+  }
+  await page.getByTestId("reset-filters").click();
+  await expect(page.getByTestId("reset-filters")).toHaveCount(0);
+}
+
+test("Players: the count is the title's scope line, the toolbar keeps to one row, and the roster to one panel", async ({ page, browser, baseURL }, info) => {
   await page.context().addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
   await page.goto("/players");
   const roster = page.getByTestId("players-directory");
@@ -274,21 +317,54 @@ test("Players: the count is the title's scope line, the toolbar keeps to one row
     expect(await first(), "the first row high on the first screen").toBeLessThan(260);
     expect(await rows.locator("[data-row-art]").evaluateAll((els) => els.filter((e) => getComputedStyle(e).display !== "none").length), "no art on a phone").toBe(0);
   } else {
-    // Tablets and desktops: one row of controls, with a role chosen (and Reset beside them) too.
-    const controlRows = () => toolbar.evaluate((bar) => new Set([...bar.querySelectorAll("[data-testid=players-search], [data-filter-controls] > *")].filter((e) => e.getBoundingClientRect().width > 0).map((e) => Math.round(e.getBoundingClientRect().top + e.getBoundingClientRect().height / 2))).size);
-    expect(await controlRows(), "the toolbar keeps to one row").toBe(1);
-    // Retried: a click before the page is interactive does nothing.
-    await expect(async () => {
-      await page.getByTestId("role-filter-MID").click();
-      await expect(page.getByTestId("reset-filters")).toBeVisible({ timeout: 1000 });
-    }).toPass({ timeout: 15_000 });
-    expect(await controlRows(), "one row with a role chosen").toBe(1);
-    await page.getByTestId("reset-filters").click();
-    await expect(page.getByTestId("reset-filters")).toHaveCount(0);
+    // Tablets and desktops: one row of controls, whichever role is chosen (and Reset beside them):
+    // the touch tablet keeps the chosen role to its icon too (an administrator's Archived chip is there).
+    await everyRoleOnOneRow(page, info.project.name);
     // Two columns on a tablet and at 1440 with the sidebar open; a strip of each player's art.
     expect(await columns(), "two columns").toBe(2);
     expect(await first(), "the first rows high on the first screen").toBeLessThan(info.project.name === "tablet" ? 300 : 230);
     expect(await rows.locator("[data-row-art]").evaluateAll((els) => els.filter((e) => getComputedStyle(e).display !== "none").length), "art strips from tablets up").toBeGreaterThan(0);
+  }
+  if (info.project.name === "desktop") {
+    // The strip stays at 20% while its row is pointed at (D4: at most 0.2; the row's own hover marks it).
+    const art = rows.filter({ has: page.locator("[data-testid=row-art-image]") }).first();
+    const image = art.getByTestId("row-art-image");
+    const opacity = () => image.evaluate((img) => Number(getComputedStyle(img).opacity));
+    expect(await opacity(), "the strip at 20% at rest").toBeLessThanOrEqual(0.2);
+    await art.hover();
+    await page.waitForTimeout(400);
+    expect(await opacity(), "and while its row is pointed at").toBeLessThanOrEqual(0.2);
+    await page.mouse.move(0, 0);
+    // A touch laptop or tablet at 1024px with the sidebar open: the toolbar keeps to one row with any role chosen.
+    const ctx = await browser.newContext({ viewport: { width: 1024, height: 768 }, hasTouch: true, storageState: await page.context().storageState() });
+    await ctx.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: baseURL! }]);
+    const touch = await ctx.newPage();
+    await touch.goto("/players");
+    await expect(touch.getByTestId("players-directory").getByTestId("player-card-item").first()).toBeVisible();
+    await everyRoleOnOneRow(touch, "1024 with touch, sidebar open");
+    await ctx.close();
+  }
+  if (info.project.name === "tablet") {
+    // A row's link icons take taps only inside their own row and on their own chip: 2px above the
+    // row (the row above) is never this row's icon, and 1px inside an icon's right edge is that icon.
+    const taps = await roster.evaluate((panel) => {
+      const out: Array<{ above: boolean; edge: boolean }> = [];
+      for (const row of panel.querySelectorAll<HTMLElement>("[data-testid=player-card-item]")) {
+        const r = row.getBoundingClientRect();
+        // Points are read on screen: rows a longer roster (other tests add members) pushes below the window wait.
+        if (r.top < 2 || r.bottom > innerHeight) continue;
+        for (const icon of [...row.querySelectorAll<HTMLElement>("[data-testid^=card-social-]")].filter((e) => e.getBoundingClientRect().width > 0)) {
+          const b = icon.getBoundingClientRect();
+          const above = document.elementFromPoint(b.left + b.width / 2, r.top - 2);
+          const edge = document.elementFromPoint(b.right - 1, b.top + b.height / 2);
+          out.push({ above: !!above && row.contains(above), edge: !!edge && icon.contains(edge) });
+        }
+      }
+      return out;
+    });
+    expect(taps.length, "rows with link icons on a tablet").toBeGreaterThan(0);
+    expect(taps.filter((t) => t.above), "no icon takes a tap meant for the row above").toEqual([]);
+    expect(taps.filter((t) => !t.edge), "every icon takes a tap on its own chip").toEqual([]);
   }
   // The demo's nine players in view at once on a tablet and a desktop (other tests may have added more).
   if (info.project.name !== "phone") {
@@ -300,7 +376,7 @@ test("Players: the count is the title's scope line, the toolbar keeps to one row
   expect(overflow).toBeLessThanOrEqual(1);
 });
 
-test("Players: with a role chosen, every row shows that role's champions, and an off role says so", async ({ page, baseURL }) => {
+test("Players: with a role chosen, every row shows that role's champions, and an off role says so", async ({ page, baseURL }, info) => {
   await page.context().addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
   await page.goto("/players");
   const row = (name: string) => page.locator(`main [data-testid=player-card-item][data-player-name="${name}"]`);
@@ -325,6 +401,16 @@ test("Players: with a role chosen, every row shows that role's champions, and an
   await expect(pool.getByRole("img", { name: "Sylas" })).toBeVisible();
   await expect(top.getByTestId("roster-off-role")).toHaveAttribute("data-role", "MID");
   await expect(top.getByTestId("roster-off-role")).toContainText("Off");
+  if (info.project.name === "phone") {
+    // The smallest phone (320px): the pool still shows its champions, never a count on its own (the
+    // word "Off" gives its room to them; the icon, the chip and the pool's name still say it).
+    await page.setViewportSize({ width: 320, height: 568 });
+    await expect(pool.getByRole("img", { name: "Galio" })).toBeVisible();
+    expect(await pool.locator("[data-testid=pool-portrait]:visible").count(), "320px: at least one portrait").toBeGreaterThan(0);
+    await expect(pool.getByTestId("directory-pool-more").filter({ visible: true })).toHaveCount(0);
+    await expect(top.getByTestId("roster-off-role")).toContainText("Mid, Off role");
+    await page.setViewportSize({ width: 375, height: 667 });
+  }
   // Mid's own player: their main pool, no off-role mark; a player without Mid is not listed.
   await expect(row("Demo Mid").getByTestId("directory-pool")).toHaveAccessibleName("Mid champions");
   await expect(row("Demo Mid").getByTestId("roster-off-role")).toHaveCount(0);
@@ -336,4 +422,79 @@ test("Players: with a role chosen, every row shows that role's champions, and an
   await expect(page.getByTestId("players-scope")).toHaveText(/^\d+ players$/);
   await expect(top.getByTestId("directory-pool")).toHaveAccessibleName("Top champions");
   await expect(top.getByTestId("directory-pool")).toHaveAttribute("data-pool-size", "6");
+});
+
+test("Players in short narrow windows (a split screen, a small phone zoomed in): the search keeps its width beside Filters", async ({ page, baseURL }, info) => {
+  test.skip(info.project.name !== "phone", "windows of phone width");
+  await page.context().addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+  // Two short windows too narrow for the title and the bar to share a row (they stack), and an SE held sideways, where they do.
+  for (const [width, height, shared] of [[412, 400, false], [326, 477, false], [568, 320, true]] as const) {
+    const label = `${width}×${height}`;
+    await page.setViewportSize({ width, height });
+    await page.goto("/players");
+    const bar = page.getByTestId("players-filters");
+    await expect(page.getByTestId("players-directory").getByTestId("player-card-item").first()).toBeVisible();
+    // With a role chosen: the scope line widens the header to its limit, and a chip joins the bar.
+    await openFilterBar(bar);
+    await expect(async () => {
+      await page.getByTestId("role-filter-MID").click();
+      await expect(page.getByTestId("players-scope")).toHaveText(/Mid as primary or off role$/, { timeout: 1000 });
+    }).toPass({ timeout: 15_000 });
+    await closeFilterSheet(page);
+    const facts = await page.evaluate(() => {
+      const box = (el: Element | null) => el!.getBoundingClientRect();
+      const input = box(document.querySelector("input[data-testid=players-search]"));
+      const toggle = box(document.querySelector("main [data-filter-toggle]"));
+      const title = box(document.querySelector("main h1"));
+      const bar = box(document.querySelector("[data-testid=players-filters]"));
+      const overlap = Math.min(input.right, toggle.right) - Math.max(input.left, toggle.left) > 0 && Math.min(input.bottom, toggle.bottom) - Math.max(input.top, toggle.top) > 0;
+      return { rem: parseFloat(getComputedStyle(document.documentElement).fontSize), search: input.width, overlap, shared: bar.left >= title.right, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+    });
+    expect(facts.search, `${label}: the search keeps room to type`).toBeGreaterThanOrEqual((shared ? 9 : 10) * facts.rem);
+    expect(facts.overlap, `${label}: Filters never covers the search`).toBe(false);
+    expect(facts.overflow, `${label}: nothing past the window's edge`).toBeLessThanOrEqual(1);
+    expect(facts.shared, `${label}: the title and the bar ${shared ? "share a row" : "stack"}`).toBe(shared);
+  }
+});
+
+test("Players at 200% text: every row wraps rather than cuts, on a phone and a desktop", async ({ browser, baseURL }, info) => {
+  test.skip(info.project.name !== "desktop", "checked once, at both sizes");
+  for (const [width, height] of [[390, 844], [1440, 900]] as const) {
+    const ctx = await browser.newContext({ viewport: { width, height }, ...(width < 768 ? { isMobile: true, hasTouch: true } : {}) });
+    await ctx.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+    const page = await ctx.newPage();
+    // The browser's own text size, as a reader sets it (Chromium): twice the default.
+    const cdp = await ctx.newCDPSession(page);
+    await cdp.send("Page.enable");
+    await cdp.send("Page.setFontSizes", { fontSizes: { standard: 32 } });
+    await page.goto("/players");
+    await expect(page.getByTestId("players-directory").getByTestId("player-card-item").first()).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    const facts = await page.getByTestId("players-directory").evaluate((panel) => {
+      const edge = panel.getBoundingClientRect().right;
+      const hidden = (el: Element) => {
+        for (let e: Element | null = el; e && e !== panel; e = e.parentElement) {
+          const cs = getComputedStyle(e);
+          if (cs.display === "none" || cs.visibility === "hidden" || (cs.position === "absolute" && (cs.clipPath === "inset(50%)" || cs.clip.startsWith("rect(0"))) || e.hasAttribute("data-row-art")) return true;
+        }
+        return false;
+      };
+      const texts = [...panel.querySelectorAll("*")].filter((el) => [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent!.trim()) && el.getClientRects().length && !hidden(el));
+      return {
+        root: parseFloat(getComputedStyle(document.documentElement).fontSize),
+        past: texts.filter((el) => el.getBoundingClientRect().right > edge + 1).map((el) => el.textContent!.trim().slice(0, 24)),
+        // Text cut short must say all of itself in a title (the tagline's one line).
+        cut: texts.filter((el) => el.scrollWidth > el.clientWidth + 1 && !el.closest("[title]")).map((el) => el.textContent!.trim().slice(0, 24)),
+        // The page's own content (its header, toolbar and roster; the frame's bars are the frame's own
+        // matter) stays inside the window.
+        outside: [...document.querySelectorAll("main *")].filter((el) => el.getClientRects().length && !hidden(el) && el.getBoundingClientRect().right > document.documentElement.clientWidth + 1).map((el) => el.getAttribute("data-testid") ?? el.tagName.toLowerCase()),
+      };
+    });
+    const label = `${width}px at 200% text`;
+    expect(facts.root, `${label}: the root follows the browser's text size`).toBeGreaterThanOrEqual(30);
+    expect(facts.past, `${label}: no text past the roster's edge`).toEqual([]);
+    expect(facts.cut, `${label}: no text cut without its title`).toEqual([]);
+    expect(facts.outside, `${label}: nothing on the page past the window's edge`).toEqual([]);
+    await ctx.close();
+  }
 });

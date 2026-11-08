@@ -20,8 +20,17 @@ describe("playsRole", () => {
 describe("offRoles", () => {
   it("lists the roles after the main one, in order, without repeats or the main role", () => {
     expect(offRoles(top)).toEqual(["MID", "SUPPORT"]);
-    expect(offRoles({ primaryRole: "MID", secondaryRole: "MID", additionalRoles: [{ role: "TOP", pool: [] }, { role: "TOP", pool: [] }] })).toEqual(["TOP"]);
+    expect(offRoles({ ...top, primaryRole: "MID", secondaryRole: "MID", additionalRoles: [{ role: "TOP", pool: [] }, { role: "TOP", pool: [] }] })).toEqual(["TOP"]);
     expect(offRoles(newcomer)).toEqual([]);
+  });
+});
+
+describe("before a main role is chosen", () => {
+  it("plays no role and shows no pool, whatever else is stored (the lineup's rule)", () => {
+    const partial: RosterPlayer = { ...newcomer, secondaryRole: "MID", secondaryPool: ["Galio"] };
+    expect(playsRole(partial, "MID")).toBe(false);
+    expect(offRoles(partial)).toEqual([]);
+    expect(poolForRole(partial, "MID")).toEqual({ role: null, pool: [], slot: "primary" });
   });
 });
 

@@ -505,8 +505,9 @@ test("Players held sideways: rows two up, level with each other, every portrait 
   expect(rows[0]!.length, "two rows side by side").toBe(2);
   for (const row of rows.filter((r) => r.length > 1)) {
     expect(spread(row.map((c) => c.height)), "the same height").toBeLessThanOrEqual(1);
-    // Rows with as many lines share their lines: the names, then the role, rank and pool.
-    if (spread(row.map((c) => c.content)) <= 1) for (const key of ["name", "meta"] as const) expect(spread(row.map((c) => c[key])), `${key} level`).toBeLessThanOrEqual(1);
+    // The names level whatever either row holds; the role, rank and pool too where the rows' content is as tall.
+    expect(spread(row.map((c) => c.name)), "name level").toBeLessThanOrEqual(1);
+    if (spread(row.map((c) => c.content)) <= 1) expect(spread(row.map((c) => c.meta)), "meta level").toBeLessThanOrEqual(1);
   }
   expect(rows.flat().filter((c) => c.cut), "no portrait cut").toEqual([]);
   await fitsWidth(page, "Players, sideways");

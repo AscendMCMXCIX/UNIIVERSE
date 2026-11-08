@@ -43,10 +43,11 @@ export const CardPreview = React.memo(function CardPreview({ view, look, art, na
   const pool = (data?.poolIds ?? []).map((id) => byId.get(id) ?? { id, name: id, portraitUrl: "" });
   const roleLabel = data?.role ? ROLE_LABELS[data.role] : "Role";
   if (view === "directory") {
-    // The player's row on Players (RosterRow), as tablets and desktops show it (a faint strip of the
-    // chosen art behind the picture and name, the links as icons) and as a phone shows it (no art, the
-    // links left to the profile). The role here may be the lineup's and the pool every champion the
-    // player can feature, so the pool is named neither as the Primary Role's.
+    // The player's row on Players (RosterRow), as a tablet shows it (a faint strip of the chosen art
+    // behind the picture and name, the links as icons; a desktop's wider row adds the role's name and
+    // its off roles) and as a phone shows it (no art, the links left to the profile). The role here may
+    // be the lineup's and the pool every champion the player can feature, so the pool is named
+    // neither as the Primary Role's.
     const row = (screen: "wide" | "phone") => <RosterRow screen={screen} look={look} art={art} name={name} avatarUrl={avatarUrl} role={data?.role ?? null} offRoles={[]} rank={data?.rank ?? null} showRank={data?.showRank ?? true} riot={null} pool={pool} poolLabel="Champion pool" social={data?.social} />;
     // In a panel as on Players: the row's own hairlines run past its edges, which clip them.
     const panel = (screen: "wide" | "phone", label: string, testId: string) => (
@@ -59,8 +60,8 @@ export const CardPreview = React.memo(function CardPreview({ view, look, art, na
     return (
       <div className="mx-auto w-full max-w-[24rem] space-y-3" data-testid="card-preview" data-view="directory">
         <div>
-          {panel("wide", "Your row on Players, on tablets and desktops", "card-preview-row-wide")}
-          <p className="mt-1 text-center text-xs text-fg-subtle">Players, on tablets and desktops</p>
+          {panel("wide", "Your row on Players, on a tablet", "card-preview-row-wide")}
+          <p className="mt-1 text-center text-xs text-fg-subtle">Players, on a tablet</p>
         </div>
         <div className="mx-auto max-w-[20rem]">
           {panel("phone", "Your row on Players, on a phone", "card-preview-row")}

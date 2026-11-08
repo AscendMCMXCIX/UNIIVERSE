@@ -44,6 +44,13 @@
     view and the champion window still open.
   - accessibility (#173): axe (WCAG 2.1 A and AA, plus label-content-name-mismatch) on the main pages
     at every width, with a game open, and in the champion window: no serious or critical violation.
+  - players (the roster board, Nov 2026), at every width: one profile link per listed player, and no
+    pool counts "+1"; on the phone every roster row of two lines is at most 72px tall; at 1440 with
+    the sidebar open the roster shows two columns once it lists two or more players. A roster too
+    small for a fact passes it as not applicable.
+  - navigation (#266): on the phone a teammate's profile opened from the scrolled Players list starts
+    at its top and Back returns to the list at its place (not applicable when the list fits the
+    screen); on the desktop Skip to content is the first Tab stop and moves focus to the page.
   - every page at every width: it loads signed in, no sideways scroll, no page error, no app console
     error, no failed request to the app, no broken image from the app, and a screenshot to review.
 */
@@ -443,6 +450,125 @@ async function phoneGame(page, kind, name, slug, open) {
   pass("games", `${kind}: Back closes the game and returns to ${name}`, closed && !/[?&]match=/.test(page.url()), page.url().replace(base, ""));
 }
 
+/**
+ * The Players roster (the roster board, Nov 2026; docs/MOBILE.md and e2e/players-directory.spec.ts),
+ * read from the page as it stands, whatever the real roster holds. Each row is one profile link (the
+ * row's own, `data-row-link`; its social icons link elsewhere) and the rows number what the scope line
+ * counts; no pool counts "+1" (a count stands for two or more). On the phone every row of two lines (the
+ * name's, then the role, rank and pool) is at most 72px tall: a tagline, a Riot state, a name on two
+ * lines or a status that wraps adds a line by design, so those rows are counted, not measured. At 1440
+ * with the sidebar open the roster is two columns once it lists two players. Only counts, heights and
+ * true or false are reported.
+ */
+async function playersFacts(page, kind) {
+  const facts = await page.evaluate(() => {
+    const panel = document.querySelector("[data-testid=players-directory]");
+    if (!panel) return null;
+    const box = (el) => el.getBoundingClientRect();
+    const shown = (el) => !!el && box(el).width > 0 && box(el).height > 0 && getComputedStyle(el).display !== "none";
+    const rows = [...panel.querySelectorAll("[data-testid=player-card-item]")];
+    const scope = (document.querySelector("[data-testid=players-scope]")?.textContent ?? "").trim();
+    const counted = /^([\d,]+)/.exec(scope)?.[1];
+    // A row's lines, as e2e/players-directory.spec.ts counts them: its parts' rows (the second line
+    // and the status by their own parts, which wrap), and any more lines the name takes.
+    const lines = (row) => {
+      const meta = row.querySelector("[data-testid=roster-meta]");
+      const name = row.querySelector("[data-testid=card-name]");
+      if (!meta || !name) return null;
+      const status = row.querySelector("[data-testid=roster-status]");
+      const leaves = [...meta.parentElement.children].flatMap((c) => (c === meta || c === status ? [...c.children] : [c])).filter(shown);
+      const centres = leaves.map((c) => box(c).top + box(c).height / 2).sort((a, b) => a - b);
+      const nameLines = Math.round(box(name).height / parseFloat(getComputedStyle(name).lineHeight));
+      return centres.filter((c, i) => i === 0 || c - centres[i - 1] > 6).length + nameLines - 1;
+    };
+    const measured = rows.map((row) => ({ height: Math.round(box(row).height * 10) / 10, lines: lines(row), left: Math.round(box(row).left) }));
+    const counts = [...panel.querySelectorAll("[data-testid=directory-pool-more]")].filter(shown).map((c) => Number(/^\+(\d+)/.exec((c.textContent ?? "").trim())?.[1] ?? NaN));
+    return {
+      rows: rows.length,
+      counted: counted === undefined ? null : Number(counted.replace(/,/g, "")),
+      links: rows.map((row) => row.querySelectorAll("a[href^='/players/']").length),
+      rowLinks: rows.filter((row) => row.querySelector("a[data-row-link][href^='/players/']")).length,
+      twoLine: measured.filter((r) => r.lines !== null && r.lines <= 2).map((r) => r.height),
+      longer: measured.filter((r) => r.lines === null || r.lines > 2).length,
+      columns: new Set(measured.map((r) => r.left)).size,
+      counts,
+      sidebarOpen: document.querySelector("[data-testid=sidebar]")?.getAttribute("data-collapsed") !== "true",
+    };
+  });
+  if (!facts) return pass("players", `${kind}: the roster is on the page`, false, "no players-directory");
+  const oneLink = facts.links.every((n) => n === 1) && facts.rowLinks === facts.rows;
+  if (facts.rows === 0) check("players", `${kind}: one profile link per listed player`, "PASS", "not applicable: no player listed");
+  else pass("players", `${kind}: one profile link per listed player`, oneLink && facts.counted === facts.rows, { rows: facts.rows, counted: facts.counted, rowsWithOneLink: facts.links.filter((n) => n === 1).length });
+  const plusOne = facts.counts.filter((n) => n === 1).length;
+  if (facts.counts.length === 0) check("players", `${kind}: no pool shows +1`, "PASS", "not applicable: every pool shows whole");
+  else pass("players", `${kind}: no pool shows +1`, plusOne === 0 && facts.counts.every((n) => n >= 2), { counts: facts.counts.length, plusOne });
+  if (kind === "phone") {
+    const name = "phone: every roster row of two lines is at most 72px tall";
+    if (facts.twoLine.length === 0) check("players", name, "PASS", `not applicable: no row of two lines (${facts.longer} with a tagline, a Riot state or a long name)`);
+    else pass("players", name, Math.max(...facts.twoLine) <= 72, { twoLine: facts.twoLine.length, tallest: Math.max(...facts.twoLine), longerByDesign: facts.longer });
+  }
+  if (kind === "desktop") {
+    const name = "1440 with the sidebar open: the roster shows 2 columns once it lists 2 or more players";
+    if (facts.rows < 2) check("players", name, "PASS", `not applicable: ${facts.rows} player listed`);
+    else pass("players", name, facts.sidebarOpen && facts.columns === 2, { columns: facts.columns, sidebarOpen: facts.sidebarOpen, rows: facts.rows });
+  }
+}
+
+/**
+ * The navigation contract (#266; e2e/navigation-landings.spec.ts), on the phone: a teammate's profile
+ * opened from the scrolled Players list starts at its top (scrollY 0, the profile header at y >= 0),
+ * and Back returns to the list at its place (within 2px). The list is scrolled to its end and its last
+ * row opened; a list that scrolls no further than that 2px (it fits the screen) has no place to
+ * restore. Only positions are reported, never whose profile it was.
+ */
+async function profileLanding(page) {
+  const name = "phone: a teammate's profile opened from the scrolled Players list starts at its top, and Back returns to the list at its place";
+  const y = () => page.evaluate(() => Math.round(window.scrollY));
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await page.waitForTimeout(400);
+  const listY = await y();
+  if (listY <= 2) return check("navigation", name, "PASS", `not applicable: the list fits the screen (it scrolls ${listY}px)`);
+  const href = await page.evaluate(() => [...document.querySelectorAll("main a[data-row-link][href^='/players/']")].filter((a) => { const r = a.getBoundingClientRect(); return r.height > 0 && r.top >= 0 && r.bottom <= innerHeight; }).map((a) => a.getAttribute("href")).pop() ?? null);
+  if (!href) return check("navigation", name, "PASS", "not applicable: no teammate's row on screen at the list's end");
+  await Promise.all([page.waitForURL((u) => /^\/players\/[^/]+$/.test(u.pathname), { timeout: 30_000 }), page.locator(`main a[data-row-link][href="${href}"]`).last().click()]);
+  const header = page.getByTestId("profile-header");
+  await header.waitFor({ timeout: 20_000 });
+  let profileY = await y();
+  for (let i = 0; i < 25 && profileY !== 0; i++) {
+    await page.waitForTimeout(200);
+    profileY = await y();
+  }
+  const headerTop = Math.round((await header.boundingBox())?.y ?? -1);
+  await Promise.all([page.waitForURL((u) => u.pathname === "/players", { timeout: 30_000 }), page.goBack()]);
+  await page.locator("main [data-testid=player-card-item]").first().waitFor({ timeout: 20_000 });
+  let backY = await y();
+  for (let i = 0; i < 25 && Math.abs(backY - listY) > 2; i++) {
+    await page.waitForTimeout(200);
+    backY = await y();
+  }
+  pass("navigation", name, profileY === 0 && headerTop >= 0 && Math.abs(backY - listY) <= 2, { listY, profileY, headerTop, backY });
+}
+
+/** On the desktop: Skip to content is the page's first Tab stop, in view, and moves focus to the page itself (main#content). */
+async function skipToContent(page) {
+  const name = "desktop: Skip to content is the first Tab stop and moves focus to main#content";
+  await page.goto(`${base}/players`, { waitUntil: "domcontentloaded", timeout: 45_000 });
+  await settle(page);
+  await page.keyboard.press("Tab");
+  const first = await page.evaluate(() => {
+    const el = document.activeElement;
+    const r = el?.getBoundingClientRect();
+    return { skip: el?.getAttribute("data-testid") === "skip-link", inView: !!r && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth };
+  });
+  await page.keyboard.press("Enter");
+  let moved = false;
+  for (let i = 0; i < 10 && !moved; i++) {
+    moved = await page.evaluate(() => !!document.activeElement?.matches("main#content"));
+    if (!moved) await page.waitForTimeout(100);
+  }
+  pass("navigation", name, first.skip && first.inView && moved, { firstStop: first.skip, inView: first.inView, focusedMain: moved });
+}
+
 async function teamMatches(page, log, kind, context) {
   if (!(await visit(page, log, kind, "team-matches", "/matches", { fullPage: false }))) return;
   const games = page.getByTestId("together-game");
@@ -563,7 +689,12 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
     }
   });
   await guarded(kind, "players", async () => {
-    if (await visit(page, log, kind, "players", "/players")) await axe(page, kind, "players");
+    if (await visit(page, log, kind, "players", "/players")) {
+      await playersFacts(page, kind);
+      await axe(page, kind, "players");
+      if (kind === "phone") await guarded("navigation", "phone: a profile from the scrolled Players list", () => profileLanding(page));
+      if (kind === "desktop") await guarded("navigation", "desktop: Skip to content", () => skipToContent(page));
+    }
   });
   if (playerId) {
     await guarded(kind, "profile", async () => {
