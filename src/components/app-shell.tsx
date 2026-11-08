@@ -13,6 +13,7 @@ import { BrandNamesProvider } from "./brand-names";
 import { SectionTabs } from "./section-tabs";
 import { InstallAppEntry, InstallAppProvider } from "./install/install-app";
 import { ModeSwitch } from "./mode-switch";
+import { ScrollOnNavigate } from "./scroll-on-navigate";
 import { ADMIN_HOME } from "@/lib/nav";
 import { RAIL_FADE, SIDEBAR_RAIL_COLUMN } from "@/lib/sidebar";
 import { cn } from "@/lib/cn";
@@ -90,11 +91,19 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
   const showSignOut = status.authMode === "accounts";
   const adminMode = status.adminMode && status.isAdmin;
   const allowed = adminMode ? status.allowedAdminLinks : status.allowedPlayerLinks;
-  const home = adminMode ? ADMIN_HOME : (status.allowedPlayerLinks[0] ?? "/settings");
+  // Player Mode starts at the first page this account may open, but an account without a player
+  // profile (the verification account, an administrator before their profile) never at /overview,
+  // which has nothing of its own for it: Back from Settings then leads to Team, not to an empty Profile.
+  const home = adminMode ? ADMIN_HOME : (status.allowedPlayerLinks.find((l) => l !== "/overview" || status.playerId) ?? "/settings");
   const user = status.user;
   return (
     <BrandNamesProvider names={b}>
       <InstallAppProvider>
+        {/* The keyboard's first stop: straight to the page, past the frame's links. */}
+        <a href="#content" className="sr-only rounded-md bg-chrome px-4 py-2 text-sm font-semibold text-fg shadow-lg focus:not-sr-only focus:fixed focus:left-3 focus:top-[max(0.75rem,env(safe-area-inset-top))] focus:z-[60]" data-testid="skip-link">
+          Skip to content
+        </a>
+        <ScrollOnNavigate />
         <div className="flex min-h-dvh flex-col lg:flex-row">
           <SiteBackdrop branding={b} />
           <AccountGuard identity={status.identity} />
@@ -158,7 +167,8 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
             }
           />
           <div className="relative flex min-w-0 flex-1 flex-col">
-            <main className="min-w-0 flex-1 px-safe-4 py-5 pb-tabbar sm:px-safe-6 md:pb-6 lg:px-8 lg:py-7">
+            {/* id and tabIndex: the skip link's target (focused without an outline: it is not a control). */}
+            <main id="content" tabIndex={-1} className="min-w-0 flex-1 px-safe-4 py-5 pb-tabbar outline-none sm:px-safe-6 md:pb-6 lg:px-8 lg:py-7">
               <AccountNudges status={status} />
               <SectionTabs allowed={allowed} team={{ name: b.teamName, logo: logoSrc(b), logoStill: logoStillSrc(b) }} />
               {children}

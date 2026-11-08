@@ -41,6 +41,8 @@ anywhere else:
    those the account may open). The current tab's icon sits in an accent pill and its label is
    bright, so it never relies on colour alone. The Profile tab shows your own picture when you have
    one. A teammate's profile belongs to Players; your own profile's sections to Profile.
+   Tapping the current tab on its own page goes back to the top, and so does tapping the page's
+   title once it has moved into the top bar (docs/DESIGN_SYSTEM.md, "The navigation contract").
 3. **The account sheet** (from the avatar, a sheet from the bottom edge): who is signed in, then
    tiles, an icon over a name, three to a row (up to six on a phone held sideways): the pages the tab
    bar does not hold (Resources when it has no tab, as an account with the Team pages has five tabs
@@ -124,7 +126,7 @@ text below 12px; 11px (`text-2xs`) only for badges and labels.
 | Open a game | The game takes the whole screen (the match window), as a new entry in the browser's history, so Back (the button, the edge swipe, Android's key) closes it and returns to the list exactly as it was. Its scoreboard keeps the marks for players met in other games; following one closes the game, and Back returns to it. | A scoreboard inside a list is a detour on a narrow screen. Desktop keeps the game under its card. |
 | A champion, a player from Team | The existing detail windows, which already take the whole screen on phones. | |
 | Account, Settings, Sign out | The account sheet. | One menu, not two. |
-| A short question or form | `Dialog` (a sheet on phones). | |
+| A short question or form | `Dialog`: the same sheet as every other (built on `DetailModal`). | One sheet: one look, one motion, one height rule. |
 
 Every sheet and window shares `DetailModal`: native `<dialog>` (focus kept inside, the page behind
 inert), Escape and the backdrop close it, focus returns to what opened it, a sheet slides up in

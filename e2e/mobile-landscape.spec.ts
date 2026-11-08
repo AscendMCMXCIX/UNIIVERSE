@@ -228,6 +228,8 @@ test("the tab bar's five destinations fit side by side on the narrowest phones, 
     await page.goto("/matches");
     const bar = page.getByTestId("phone-tabbar");
     await expect(bar.getByRole("link")).toHaveText(["Team", "Players", "Leaderboards", "Matches", "Profile"]);
+    // Measured in the page's own font: the fallback is wider, and a busy machine can measure before the font is in.
+    await page.evaluate(() => document.fonts.ready);
     const width = page.viewportSize()!.width;
     for (const tab of await bar.getByRole("link").all()) {
       const box = (await tab.boundingBox())!;
