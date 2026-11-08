@@ -89,6 +89,11 @@ Settings → home). A destination's own pages have no Back: they are where you s
 Short windows (480px tall or shorter) keep both bars, compact, and slide them away while the page
 scrolls down; any scroll up brings them back. Nothing is lost when a phone turns.
 
+Team Overview's lineup stays one sideways track there, two cards in view (19rem each, the first at
+the page's gutter, clear of the notch, the track running to the screen's edges as it scrolls), with
+no role bar and the substitutes under it: about two screens of page instead of four for a grid of
+three rows of cards taller than the window.
+
 ## 3. Data presentation
 
 The rule: **the first screen answers the question the page exists for**, and more is one obvious
@@ -97,6 +102,7 @@ opens.
 
 | Page | Phone layout | Height at 390px (`main` at f4e5372 → this redesign) |
 |---|---|---|
+| Team Overview | One header row: the team's name over "Main lineup · season" and its ⓘ, with Edit lineup ("Edit", read as "Edit lineup") at the row's end; no logo, as the top bar right above shows the team's mark; a complete lineup draws no status there, one that is not keeps its pill. Then the role bar, a tab per role with the player's picture in their frame (the role's icon on its corner, the role's name under it), above the swipe track of the five cards, unchanged inside. The first card is whole above the tab bar on an iPhone 15 and SE (3rd gen). Under the track, the substitutes as chips (the role's icon, the name, the turn mark): a tap brings that card into view and turns it to them. | 722 → 737px (November 2026: the first card whole on the first screen, the substitutes added under it) |
 | Players | One list, a row per player: picture in its frame, the name in the player's own style with their emblem, primary role (its icon in the card's colour) and rank, their tagline on one line, the pool as many whole portraits as fit plus a count, and the status that matters (Lineup, Setup incomplete, Archived). A row carries the card's colours but no art, frame or effect. The row opens the profile (the card, links and every pool). Cards from `sm` up. | 2,966 → 1,227px |
 | Leaderboards | Built for phones in #188 (docs/LEADERBOARDS_MODEL.md): Recent form is one panel with a row per member (place, picture and name, the gap to the place above, then role, record and dates on one line, the win rate at the right end); Records & achievements are the season's records, the multikills and the milestones. The frame adds the tab, the title in the bar and Back; on phones the whole row of Recent form opens the member's profile, not only the name. | 1,093 → 1,037px (Recent form) |
 | Matches | Each game: result, length, queue and date, then the members who played (champion, role, multikill, K/D/A). Both full teams are in the game's screen, where the scoreboard lists all ten. Bookmarked sits beside Filters. | 2,330 → 1,528px |
@@ -171,6 +177,8 @@ inert), Escape and the backdrop close it, focus returns to what opened it, a she
   tabs, Back and its label, the title, the profile's sections, the account sheet, the filter sheet
   and chips, a game opening full screen and Back closing it, the Players and Recent form rows); `e2e/responsive.spec.ts`,
   `e2e/mobile-landscape.spec.ts` and `e2e/quality.spec.ts` keep overflow, targets, short windows
-  and axe in check at every width.
+  and axe in check at every width. Team Overview's phone layout (the one-row header, the role
+  bar's pictures, the first card above the tab bar) is in `e2e/team-layout.spec.ts`, its sideways
+  track in `e2e/mobile-landscape.spec.ts`, the substitutes' chips in `e2e/team-flip.spec.ts`.
 - Real devices: see RESPONSIVE.md → Safari and iPhones. Emulated phones prove layout and behaviour
   in Chromium, not Safari's own toolbars or gestures.

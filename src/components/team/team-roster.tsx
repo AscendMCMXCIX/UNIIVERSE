@@ -8,7 +8,7 @@ import type { Role } from "@/domain/roles";
 import type { RosterSlot, RosterSubstitute } from "@/server/team/roster";
 import { ACCENT_COLOR } from "@/domain/player-card";
 import { accentCss } from "@/domain/card-style";
-import { CardFrame, cardColourVars, cardShellStyle } from "@/components/players/card-look";
+import { CardAvatar, CardFrame, cardColourVars, cardShellStyle } from "@/components/players/card-look";
 import { setLineupSlotAction, setLineupSubstituteAction } from "@/server/actions/players";
 import type { PickerChampion } from "@/components/champions/types";
 import { Button, buttonClass } from "@/components/ui/button";
@@ -28,6 +28,7 @@ import { assignmentStatus } from "@/domain/roster";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
 import { CardSocialIcons, SocialLinks } from "@/components/players/social-links";
 import { formatCount, formatDayMonth } from "@/lib/format";
+import { LineupBench, benchShape, createLineupTurns, type LineupTurns } from "./lineup-bench";
 
 type ChampionsById = Map<string, { id: string; name: string; portraitUrl: string }>;
 const lookup = (championsById: ChampionsById, id: string) => championsById.get(id) ?? { id, name: id, portraitUrl: "" };
@@ -83,7 +84,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
   const twoControls = own && !editingLineup && !!flip;
 
   return (
-    <article className={cn(!bench && "rise-in", "group/card @container/card relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-card border bg-surface transition-[transform,opacity,box-shadow,border-color,filter] duration-200 ease-out motion-reduce:transition-none", editingLineup ? "border-accent/50" : "border-border hover:border-border-strong", selected && "z-[1] -translate-y-1 border-accent shadow-xl shadow-accent/15 ring-2 ring-accent motion-reduce:translate-y-0", dimmed && "opacity-50 saturate-[0.6]")} data-selected={selected || undefined} style={p ? { ...cardShellStyle(p.look), ...(editingLineup ? { borderColor: undefined } : {}) } : { ["--card-accent" as string]: accent }} data-frame={p?.look.style.frame} data-fx-host data-testid={bench ? `lineup-sub-${slot.role}` : `lineup-row-${slot.role}`} data-player-id={p?.id} data-player-name={p?.name} data-pool-size={slot.champions.length} data-off-role={status ? status === "off" : undefined} data-role-status={status ?? undefined}>
+    <article className={cn(!bench && "rise-in", "group/card @container/card relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-card border bg-surface transition-[transform,opacity,box-shadow,border-color,filter] duration-200 ease-out motion-reduce:transition-none", editingLineup ? "border-accent/50" : "border-border hover:border-border-strong", selected && "z-[1] -translate-y-1 border-accent shadow-xl shadow-black/40 ring-2 ring-accent motion-reduce:translate-y-0", dimmed && "opacity-50 saturate-[0.6]")} data-selected={selected || undefined} style={p ? { ...cardShellStyle(p.look), ...(editingLineup ? { borderColor: undefined } : {}) } : { ["--card-accent" as string]: accent }} data-frame={p?.look.style.frame} data-fx-host data-testid={bench ? `lineup-sub-${slot.role}` : `lineup-row-${slot.role}`} data-player-id={p?.id} data-player-name={p?.name} data-pool-size={slot.champions.length} data-off-role={status ? status === "off" : undefined} data-role-status={status ?? undefined}>
       <CardFrame look={p?.look} />
       {p ? (
         // The whole card opens the detail panel; the controls are drawn above this button. On the
@@ -95,11 +96,26 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
           height follows its content (a fixed height cut the identity off on narrow cards and drew
           the picture over the role), from a minimum. Its top keeps clear of the role and the
           card's controls: two controls stand one above the other five across, so a card with both
-          keeps more. Five across on wide screens it is tall, a portrait card. */}
-      <div className={cn("pointer-events-none relative flex min-h-[10.5rem] shrink-0 flex-col justify-end px-3 pb-2.5 pt-12 @5xl/lineup:min-h-[clamp(13rem,29vh,20rem)] [&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100", twoControls && "@5xl/lineup:pt-[5.25rem] @5xl/lineup:pointer-coarse:pt-[6.75rem]")} data-testid="card-art">
+          keeps more. Five across it takes the window's height the page leaves the lineup, a
+          portrait card (globals.css, lineup-art-height). */}
+      {/* On a card under 12.5rem (five across a 1280px laptop) the sides step in by 2px, so three
+          links still share the picture's row (wrapped under it, they lifted that card's picture
+          above its row's). */}
+      <div className={cn("lineup-art-height pointer-events-none relative flex shrink-0 flex-col justify-end px-3 pb-2.5 pt-12 @max-[12.5rem]/card:px-2.5 [&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100", twoControls && "@min-[58rem]/lineup:pt-[5.25rem] @min-[58rem]/lineup:pointer-coarse:pt-[6.75rem] short:pt-12 short:pointer-coarse:pt-12")} data-testid="card-art">
         {/* Splash of the player's chosen champion and skin, darkened towards the text, tinted with their accent. */}
         <CardArtLayer art={deferImages ? null : (p?.art ?? null)} accent={accent} kind="splash" position="center 22%" look={p?.look} motion="hover" foot={!!p} priority={priority} />
         <CardRoleChip role={slot.role} label={slot.roleLabel} className="absolute left-3 top-3" />
+        {!p ? (
+          // Five across, where the artwork is tall: a role nobody shows here is an open place, not an empty gradient.
+          <span aria-hidden className="absolute inset-x-0 bottom-0 top-12 hidden place-items-center @min-[58rem]/lineup:grid short:hidden" data-testid="open-role-emblem">
+            <span className="flex flex-col items-center gap-2 text-fg-subtle">
+              <span className="grid h-14 w-14 place-items-center rounded-full border border-dashed border-border-strong bg-bg/40">
+                <RoleIcon role={slot.role} className="h-6 w-6" decorative />
+              </span>
+              {slot.privateMember ? null : <span className="text-2xs font-medium uppercase tracking-label">Open role</span>}
+            </span>
+          </span>
+        ) : null}
         {p ? (
           <span className="relative">
             <CardIdentity look={p.look} name={p.name} avatarUrl={deferImages ? null : p.avatarUrl} rank={p.rank} showRank={p.statsVisible} isYou={p.id === viewerPlayerId} status={status} role={slot.role} tag={bench ? <SubstituteTag /> : null} social={p.social.length ? <CardSocialIcons links={p.social} owner={p.name} className="pointer-events-auto relative z-[2]" /> : null} align={align} />
@@ -109,7 +125,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
       {/* The card's own controls, over the artwork's top corner: personalising your own card, and
           turning the card. Side by side; one above the other five across, where the cards are
           narrow and the artwork tall. Lineup changes are never here: they sit at the card's foot. */}
-      <span className="absolute right-2.5 top-2.5 z-[2] flex items-center gap-1.5 empty:hidden @5xl/lineup:flex-col @5xl/lineup:items-end" data-card-overlay>
+      <span className="absolute right-2.5 top-2.5 z-[2] flex items-center gap-1.5 empty:hidden @min-[58rem]/lineup:flex-col @min-[58rem]/lineup:items-end short:flex-row short:items-center" data-card-overlay>
         {own && !editingLineup && p ? <CustomiseCardButton variant="icon" ownLinks playerId={p.id} name={p.name} avatarUrl={p.avatarUrl} art={p.art} accent={p.cardAccent} look={p.look} champions={champions} poolIds={p.poolIds} preview={{ role: slot.role, rank: p.rank, status, season: p.season, poolIds: slot.champions.map((c) => c.championId), social: p.social }} /> : null}
         {bench ? (
           <button type="button" ref={turnRef} className={ART_BUTTON} onClick={bench.onBack} aria-label={bench.backLabel} title="Back to the starter" data-testid="flip-back">
@@ -122,7 +138,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
         // The body continues the artwork (the card's accent fades down from it), so identity, season
         // and pool read as one card, not three strips. Every filled card has the same parts in the
         // same order, so a row of cards lines up whatever each player has recorded.
-        <div className="pointer-events-none relative flex flex-1 flex-col gap-2.5 px-3 pb-3 pt-2.5" style={{ backgroundImage: "linear-gradient(to bottom, color-mix(in srgb, var(--card-accent) 7%, transparent), transparent 70%)" }}>
+        <div className="pointer-events-none relative flex flex-1 flex-col gap-2.5 px-3 pb-3 pt-2.5 @max-[12.5rem]/card:px-2.5" style={{ backgroundImage: "linear-gradient(to bottom, color-mix(in srgb, var(--card-accent) 7%, transparent), transparent 70%)" }}>
           {p.statsVisible ? <CardPerformance season={p.season} support={support} roleLabel={slot.roleLabel} /> : null}
           <div className="flex flex-col gap-1.5">
             <p className="flex items-center justify-between text-2xs font-medium uppercase tracking-label text-fg-subtle">
@@ -403,12 +419,16 @@ function startTurn(root: HTMLElement, toBack: boolean): Animation[] | null {
  * with more to show (a longer name, tagline or labels) makes the card taller instead of being cut
  * off at the starter's height. So the back is built with the card, and the card has its final
  * height from the start: building it on the way to a turn moved the lineup under the pointer (a
- * taller card re-centres the lineup) as it was pressed. Its pictures (artwork, picture, champions)
- * load only once the card is about to turn (a pointer on the turn control, or focus).
+ * taller card moves the cards beside it) as it was pressed. Its pictures (artwork, picture,
+ * champions) load only once the card is about to turn (a pointer on the turn control, or focus).
+ *
+ * The bench under the lineup turns a card too (`turns`): the card registers its own turn there and
+ * reports which side it shows, so both ways turn the same card the same way (Escape, the way back
+ * and Make starter included) and no other card re-renders.
  */
 type CardSide = "starter" | "substitute";
 
-function LineupCard({ openSide, onOpenSide, ...props }: Omit<React.ComponentProps<typeof RosterCard>, "onOpen" | "selected"> & { /** Which side of this card has its details open, if any. */ openSide: CardSide | null; onOpenSide: (side: CardSide) => void }) {
+function LineupCard({ openSide, onOpenSide, turns, ...props }: Omit<React.ComponentProps<typeof RosterCard>, "onOpen" | "selected"> & { /** Which side of this card has its details open, if any. */ openSide: CardSide | null; onOpenSide: (side: CardSide) => void; /** The bench's way to turn this card and see its side. */ turns?: LineupTurns }) {
   const { slot, canManageLineup, editingLineup } = props;
   const router = useRouter();
   const [flipped, setFlipped] = React.useState(false);
@@ -437,16 +457,17 @@ function LineupCard({ openSide, onOpenSide, ...props }: Omit<React.ComponentProp
     if (document.activeElement === target) focusTo.current = null;
   }, []);
   const turn = React.useCallback(
-    (to: boolean) => {
-      const hadFocus = !!rootRef.current?.contains(document.activeElement);
+    (to: boolean, focus = false) => {
+      // Focus moves with the turn when it was on the card, or when the turn asks for it (the bench).
+      const moveFocus = focus || !!rootRef.current?.contains(document.activeElement);
       setBackReady(true);
       setFlipped(to);
       for (const t of timers.current) clearTimeout(t);
       timers.current = [];
       // Keyboard focus follows the turn to the other face as soon as it is no longer inert, or, if
       // that face is still hidden (a turn reversed past half way), as the turn ends.
-      focusTo.current = hadFocus ? (to ? backButton : frontButton) : null;
-      if (hadFocus) timers.current.push(window.setTimeout(placeFocus, 0));
+      focusTo.current = moveFocus ? (to ? backButton : frontButton) : null;
+      if (moveFocus) timers.current.push(window.setTimeout(placeFocus, 0));
     },
     [placeFocus],
   );
@@ -492,6 +513,16 @@ function LineupCard({ openSide, onOpenSide, ...props }: Omit<React.ComponentProp
     turn(false);
   }, [refreshing, turn]);
   const canTurn = !!starter && !!sub;
+  // The bench turns this card through the card's own turn, and shows which side it shows.
+  React.useEffect(() => {
+    if (!turns) return;
+    turns.register(slot.role, canTurn ? turn : null);
+    return () => turns.register(slot.role, null);
+  }, [turns, slot.role, canTurn, turn]);
+  React.useEffect(() => {
+    turns?.report(slot.role, shown);
+  }, [turns, slot.role, shown]);
+  React.useEffect(() => () => turns?.report(slot.role, false), [turns, slot.role]);
   const front = <RosterCard {...props} onOpen={() => onOpenSide("starter")} selected={openSide === "starter"} flip={canTurn ? { substituteName: sub.player.name, onFlip: () => turn(true), onIntent: () => setBackReady(true) } : undefined} turnRef={frontButton} />;
   if (!starter) return front;
 
@@ -711,25 +742,46 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profi
 }
 
 /**
- * One width for the header and the cards, following the card grid's own breakpoints. Five across
- * from a 64rem content area (normal desktops, sidebar open or not) up to a shared maximum, so on
- * wide screens the lineup stays one centred group of equal cards instead of stretching.
+ * One width for the header, the cards and the bench, following the card grid's own breakpoints:
+ * the phone's track, then the whole lineup's width; five across (from a 58rem lineup) up to a
+ * shared maximum, so on wide screens the lineup stays one centred group of equal cards instead of
+ * stretching, a larger one from a 90rem lineup (2560px screens and up), where the cards' art reads
+ * as portraits. A short window's track runs the whole width.
  */
-const LINEUP_WIDTH = "mx-auto w-full max-w-[26rem] @xl:max-w-[54rem] @4xl:max-w-[80rem] @5xl:max-w-[84rem]";
+const LINEUP_WIDTH = "mx-auto w-full max-w-[26rem] @xl:max-w-[84rem] @min-[90rem]:max-w-[100rem] short:max-w-none";
 
 /**
- * The five roles as one bar (phones only): where you are in the track, and a tap away from any
- * player. The one part of the lineup that follows the track as it scrolls (useSnapIndex), so a
- * swipe never draws the cards again.
+ * The five roles as one bar (phones only, upright): where you are in the track, and a tap away from
+ * any player. Each tab shows who plays: the player's picture in their frame with the role's icon on
+ * its corner, and the role's name under it (a role nobody holds: its icon in a dashed circle). The
+ * pictures wait while the first card's art loads (`artWait`, initials meanwhile), so the page's
+ * largest picture keeps the connection to itself. The one part of the lineup that follows the
+ * track as it scrolls (useSnapIndex), so a swipe never draws the cards again.
  */
-function LineupPager({ slots, index, go }: { slots: RosterSlot[]; index: SnapIndex; go: (i: number) => void }) {
+function LineupPager({ slots, index, go, artWait }: { slots: RosterSlot[]; index: SnapIndex; go: (i: number) => void; artWait: boolean }) {
   const current = useSnapIndex(index);
   return (
-    <div className="relative z-[1] mx-auto mb-3 grid max-w-[26rem] grid-cols-5 gap-1 rounded-card border border-border bg-surface/85 p-1 shadow-sm shadow-black/20 @xl:hidden" role="tablist" aria-label="Lineup position" data-testid="lineup-pager">
+    <div className="relative z-[1] mx-auto mb-2 grid max-w-[26rem] grid-cols-5 gap-1 rounded-card border border-border bg-surface/85 p-1 shadow-sm shadow-black/20 @xl:hidden short:hidden" role="tablist" aria-label="Lineup position" data-testid="lineup-pager">
       {slots.map((s, i) => (
-        <button key={s.role} type="button" role="tab" aria-selected={current === i} aria-label={`${s.roleLabel}${s.player ? `: ${s.player.name}` : ""}`} onClick={() => go(i)} className={cn("flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-panel px-1 text-2xs font-semibold leading-none transition-[background-color,color,box-shadow] duration-150 motion-reduce:transition-none", current === i ? "bg-accent/15 text-accent shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-accent)_40%,transparent)]" : "text-fg-muted hover:bg-surface-2/60 hover:text-fg")} data-testid="lineup-dot">
-          <RoleIcon role={s.role} className="h-4 w-4" decorative />
-          <span className="max-w-full truncate">{s.roleLabel}</span>
+        // Named by what it shows, the role first ("Top: Demo Top"): an aria-label would hide the
+        // picture's initial from the name it is compared with (STANDARDS.md, accessible names).
+        <button key={s.role} type="button" role="tab" aria-selected={current === i} onClick={() => go(i)} className={cn("flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-panel px-1 text-2xs font-semibold leading-none transition-[background-color,color,box-shadow] duration-150 motion-reduce:transition-none", current === i ? "bg-accent/15 text-accent shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-accent)_40%,transparent)]" : "text-fg-muted hover:bg-surface-2/60 hover:text-fg")} style={s.player ? cardColourVars(s.player.look) : undefined} data-testid="lineup-dot">
+          {s.player ? (
+            <span className="relative">
+              <CardAvatar look={s.player.look} name={s.player.name} src={artWait ? null : s.player.avatarUrl} size="xs" />
+              <span className="absolute -bottom-1 -right-1.5 grid h-3.5 w-3.5 place-items-center rounded-full bg-surface ring-1 ring-border" style={{ color: "var(--card-accent)" }}>
+                <RoleIcon role={s.role} className="h-2.5 w-2.5" decorative />
+              </span>
+            </span>
+          ) : (
+            <span className="grid h-6 w-6 place-items-center rounded-full border border-dashed border-border-strong">
+              <RoleIcon role={s.role} className="h-3.5 w-3.5" decorative />
+            </span>
+          )}
+          <span className="max-w-full truncate">
+            <span data-testid="lineup-dot-label">{s.roleLabel}</span>
+            {s.player ? <span className="sr-only">: {s.player.name}</span> : null}
+          </span>
         </button>
       ))}
     </div>
@@ -737,13 +789,14 @@ function LineupPager({ slots, index, go }: { slots: RosterSlot[]; index: SnapInd
 }
 
 /**
- * OUR TEAM: the team's header (logo, name, the lineup's context and Edit lineup) and the main
- * lineup as five player cards, as one centred section. "Edit lineup" (lineup managers only)
- * switches every card into a mode with a Change/Assign control; your own card's brush personalises
- * its look. A card opens its player in the shared detail window: that card lifts, the others step back.
- * Champion pools are shown here and edited on the profile. On phones the five cards are a
- * swipeable track (native scrolling with snap points, each card centred with a glimpse of its neighbours) under a
- * bar of the five roles that says where you are and moves to any of them.
+ * OUR TEAM: the team's header (logo, name, the lineup's context and Edit lineup) in one row, the
+ * main lineup as five player cards, and the bench of their substitutes, as one section from the
+ * top of the page. "Edit lineup" (lineup managers only) switches every card into a mode with a
+ * Change/Assign control; your own card's brush personalises its look. A card opens its player in
+ * the shared detail window: that card lifts, the others step back. Champion pools are shown here
+ * and edited on the profile. On phones the five cards are a swipeable track (native scrolling with
+ * snap points, each card centred with a glimpse of its neighbours) under a bar of the five roles,
+ * with each player's picture, that says where you are and moves to any of them.
  */
 export function TeamRoster({ team, slots, complete, champions, canManageLineup, canViewPlayers, editablePlayerIds, viewerPlayerId, guest = null }: { team: { name: string; shortName: string; logo: string | null; logoStill: string | null }; slots: RosterSlot[]; complete: boolean; champions: PickerChampion[]; canManageLineup: boolean; /** Without the Players directory the detail panel does not offer a profile it cannot open. */ canViewPlayers: boolean; editablePlayerIds: string[]; viewerPlayerId: string | null; /** The public Team Overview: profiles open under this path, and nothing about managing the lineup is shown. */ guest?: { profileBase: string | null } | null }) {
   const [editingLineup, setEditingLineup] = React.useState(false);
@@ -797,100 +850,112 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
   // Everyone the lineup can show, starters and substitutes: cards side by side keep their names and
   // taglines level whichever side each shows (CardIdentity's align).
   const align = React.useMemo(() => slots.flatMap((s) => [s.player, s.substitute?.player].flatMap((p) => (p ? [{ name: p.name, look: p.look }] : []))), [slots]);
+  // The bench turns a card through the card's own turn (LineupCard registers it): on a phone it first
+  // brings that card into view, and turning to the substitute moves focus onto the card's way back.
+  const [turns] = React.useState(createLineupTurns);
+  const turnFromBench = (role: Role, to: boolean) => {
+    if (to) go(slots.findIndex((s) => s.role === role));
+    turns.turn(role, to, to);
+  };
+  // What sizes the cards' art five across (globals.css, lineup-art-height): the bench under them (its
+  // row with room for a name on two lines, or its one-line hint) and whether any card shows this
+  // season's figures.
+  const bench = benchShape(slots, canManageLineup);
+  const lineupVars = { ["--lineup-bench" as string]: bench === "row" ? "5.25rem" : bench === "hint" ? "1.75rem" : "0rem", ["--lineup-figures" as string]: slots.some((s) => s.player?.statsVisible) ? 1 : 0 };
+  const status = !guest && !editingLineup ? (
+    complete ? (
+      // A complete lineup is the usual state: a quiet word (left to the ⓘ on a phone).
+      <span className="inline-flex items-center gap-1.5 font-medium text-good max-sm:hidden" data-testid="lineup-status">
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+        Lineup complete
+      </span>
+    ) : (
+      // One that is not asks for something: a pill, on a line of its own on a phone.
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-warn/35 bg-warn/10 px-2 py-px text-xs font-medium leading-5 text-warn [text-shadow:none]" data-testid="lineup-status">
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+        {canManageLineup ? "Assign all five roles" : "A lineup manager assigns the five roles"}
+      </span>
+    )
+  ) : null;
   return (
-    // The team's identity and its five players as one composition, centred in the window (desktop):
-    // the frame takes the height left under the section tabs (main and the page are flex columns on
-    // this page) and centres its content (flex, nothing positioned), so there is as much room above
-    // the header as below the cards and the header stays right above them. On a short window the content is taller than that minimum,
-    // so it simply starts at the top and scrolls. The floor's light is clipped at the frame, so it
-    // never adds a scroll.
-    <div className="@container/lineup flex flex-col gap-5 lg:flex-1 lg:justify-center lg:gap-6 lg:overflow-y-clip @7xl/lineup:gap-7" data-testid="lineup-frame">
-      {/* The team's identity: logo, name and the lineup's state, with Edit lineup. Wider screens: one
-          row, the logo and Edit lineup either side of the name, its line and the state. Phones: the
-          logo and the name on the first line, then the state and Edit lineup on a line of their own,
-          so neither squeezes the name (the tab above already says this is the Team Overview). The
-          logo is drawn at its own proportions in a square (BrandMark: object-contain, never
-          squeezed), and animates where the browser allows motion. */}
-      <header className={cn(LINEUP_WIDTH, "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2.5 [text-shadow:0_1px_14px_rgb(0_0_0/0.55)] sm:gap-x-4 sm:gap-y-1")} data-testid="team-header">
-        <BrandMark src={team.logo} still={team.logoStill} name={team.shortName} className="col-start-1 row-start-1 h-12 w-12 shrink-0 rounded-panel text-lg shadow-lg shadow-black/40 ring-1 ring-border-strong sm:row-end-3 sm:h-16 sm:w-16 sm:rounded-card sm:text-2xl lg:h-20 lg:w-20 lg:text-3xl short:h-11 short:w-11 short:rounded-panel short:text-lg" />
-        <div className="col-start-2 col-end-4 row-start-1 min-w-0 sm:col-end-3 sm:self-end">
-          <p className="text-xs font-semibold uppercase tracking-label text-accent max-sm:sr-only short:sr-only">Team Overview</p>
-          <h1 className="truncate text-[1.375rem] font-bold leading-tight tracking-tight text-fg sm:text-3xl lg:text-4xl short:text-xl" data-testid="team-name">
+    // The team's identity, its five players and their substitutes as one composition, from the top of
+    // the page under the section tabs (desktop): the header, the cards, the bench. Five across, the
+    // cards take the height the window leaves them (their art grows, globals.css lineup-art-height),
+    // so nothing floats in a band of empty page above or under them.
+    <div className="@container/lineup flex flex-col gap-3 [--lineup-head:4rem] sm:gap-4 lg:gap-5 lg:[--lineup-head:4.75rem]" style={lineupVars} data-testid="lineup-frame">
+      {/* The team's identity in one row: the logo, the name over one line of the lineup's context and
+          state, and Edit lineup at the row's end. The tab above already says this is the Team
+          Overview (so that line is for screen readers only), and on a phone held upright the top bar
+          right above shows the team's mark, so the row leaves its logo out there. The logo is drawn
+          at its own proportions in a square (BrandMark: object-contain, never squeezed), and
+          animates where the browser allows motion. */}
+      <header className={cn(LINEUP_WIDTH, "flex items-center gap-3 [text-shadow:0_1px_14px_rgb(0_0_0/0.55)] sm:gap-4")} data-testid="team-header">
+        <BrandMark src={team.logo} still={team.logoStill} name={team.shortName} className="h-12 w-12 shrink-0 rounded-panel text-lg shadow-lg shadow-black/40 ring-1 ring-border-strong max-sm:not-short:hidden lg:h-14 lg:w-14 lg:rounded-card lg:text-2xl short:h-11 short:w-11 short:rounded-panel short:text-lg" />
+        <div className="min-w-0 flex-1">
+          <p className="sr-only">Team Overview</p>
+          {/* A long name takes a second line rather than being cut. */}
+          <h1 className="line-clamp-2 text-2xl font-bold leading-tight tracking-tight text-fg [overflow-wrap:anywhere] sm:leading-7 lg:text-3xl lg:leading-9 short:text-xl short:leading-7" data-testid="team-name">
             {team.name}
           </h1>
-          <p className="mt-0.5 text-xs text-fg-muted sm:mt-1 sm:text-sm short:mt-0.5 short:text-xs" data-testid="team-subtitle">
-            {guest ? <span>Main lineup</span> : editingLineup ? <span className="font-medium text-accent">Editing the lineup</span> : <span>Main lineup{season ? ` · ${season}` : ""}</span>}
-          </p>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs leading-4 text-fg-muted sm:mt-0 sm:text-sm sm:leading-5 short:mt-0 short:text-xs short:leading-4">
+            <p data-testid="team-subtitle">{guest ? <span>Main lineup</span> : editingLineup ? <span className="font-medium text-accent">Editing the lineup</span> : <span>Main lineup{season ? ` · ${season}` : ""}</span>}</p>
+            {status}
+            {!guest && !editingLineup ? <InfoTip text="Each card is about the role the player holds in this lineup: its figures count this season's supported games (Ranked Solo/Duo, Ranked Flex, Normal games) played in that role, on any champion, from their linked Riot accounts; the champions are their whole pool for that role, in order of preference." /> : null}
+          </div>
         </div>
-        {!guest && !editingLineup ? (
-          <span className={cn("row-start-2 inline-flex items-center gap-1.5 justify-self-start rounded-full border py-px pl-2 pr-1 text-xs font-medium leading-5 [text-shadow:none] sm:col-start-2 sm:col-end-3 sm:self-start sm:text-sm short:text-xs", canManageLineup ? "col-start-1 col-end-3" : "col-start-2 col-end-4", complete ? "border-good/35 bg-good/10 text-good" : "border-warn/35 bg-warn/10 text-warn")} data-testid="lineup-status">
-            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
-            {complete ? "Lineup complete" : canManageLineup ? "Assign all five roles" : "A lineup manager assigns the five roles"}
-            <InfoTip text="Each card is about the role the player holds in this lineup: its figures count this season's supported games (Ranked Solo/Duo, Ranked Flex, Normal games) played in that role, on any champion, from their linked Riot accounts; the champions are their whole pool for that role, in order of preference." />
-          </span>
-        ) : null}
         {canManageLineup ? (
-          <Button size="sm" variant={editingLineup ? "primary" : "outline"} className="col-start-3 row-start-2 shrink-0 justify-self-end sm:row-start-1 sm:row-end-3 sm:self-center" onClick={() => setEditingLineup((v) => !v)} aria-pressed={editingLineup} data-testid="edit-lineup">
+          <Button size="sm" variant={editingLineup ? "primary" : "outline"} className="shrink-0" onClick={() => setEditingLineup((v) => !v)} aria-pressed={editingLineup} data-testid="edit-lineup">
             {editingLineup ? (
               <>
                 <Check className="h-4 w-4" aria-hidden /> Done
               </>
             ) : (
               <>
-                <Users className="h-4 w-4" aria-hidden /> Edit lineup
+                <Users className="h-4 w-4" aria-hidden /> Edit<span className="max-sm:sr-only"> lineup</span>
               </>
             )}
           </Button>
         ) : null}
       </header>
       {/* Phones (a narrow content area): one track of five cards that scrolls sideways on its own,
-          one card centred with an equal glimpse of the cards either side. Wider: a grid of half-width tracks (cards in a row
-          share its height; each row is as tall as its own content) and a short last row is centred
-          (2 + 2 + 1, 3 + 2), five across when the content area allows. Cards never shrink below a
-          readable width. */}
-      {/* The stage: five across on wide screens, the cards stand on a floor lit from just under them
-          in the team's colour and carrying the team's name. Decoration only: it never moves or sizes
-          a card, and is hidden from screen readers. */}
-      <div className="relative isolate flex flex-col" data-testid="lineup-stage">
-        <div className="relative">
-          <LineupPager slots={slots} index={inView} go={go} />
-          {/* The track's vertical padding (taken back by its margins) leaves room for a card's edges
-              while it turns over: a scrolling track clips anything outside its box. */}
-          <div
-            ref={trackRef}
-            onScroll={onTrackScroll}
-            onPointerDown={artWait ? () => setArtWait(false) : undefined}
-            className={cn(
-              "flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain scroll-smooth px-7 pt-3 pb-4 -my-3 [scrollbar-width:none] motion-reduce:scroll-auto [&::-webkit-scrollbar]:hidden",
-              "-mx-4",
-              "@xl:mx-auto @xl:my-0 @xl:grid @xl:w-full @xl:max-w-[54rem] @xl:grid-cols-4 @xl:overflow-visible @xl:px-0 @xl:py-0 @xl:[&>*]:col-span-2 @xl:[&>*:nth-child(5)]:col-start-2",
-              "@4xl:max-w-[80rem] @4xl:grid-cols-6 @4xl:[&>*:nth-child(4)]:col-start-2 @4xl:[&>*:nth-child(5)]:col-start-auto",
-              "@5xl:max-w-[84rem] @5xl:grid-cols-5 @5xl:[&>*]:col-span-1 @5xl:[&>*:nth-child(4)]:col-start-auto @7xl:gap-5",
-            )}
-            role="region"
-            aria-roledescription="carousel"
-            aria-label="Main lineup"
-            data-testid="lineup-overview"
-            data-ready={interactive ? "true" : undefined}
-            data-art-wait={artWait || undefined}
-          >
-            {slots.map((s, i) => (
-              <div key={s.role} className="flex w-full max-w-[26rem] shrink-0 snap-center snap-always @xl:w-auto @xl:max-w-none @xl:min-w-0" role="group" aria-roledescription="slide" aria-label={`${s.roleLabel}: ${s.player?.name ?? (s.privateMember ? "team member" : "no player")} (${i + 1} of ${slots.length})`} data-testid="lineup-cell" data-art-later={i > 0 || undefined}>
-                <LineupCard slot={s} champions={champions} championsById={championsById} canManageLineup={canManageLineup} editingLineup={editingLineup} canEdit={!!s.player && editable.has(s.player.id)} viewerPlayerId={viewerPlayerId} onOpenSide={(side) => setDetail({ role: s.role, side })} openSide={detail?.role === s.role ? detail.side : null} dimmed={detail !== null && detail.role !== s.role} guest={!!guest} startsElsewhere={startsElsewhere} align={align} priority={i === 0} />
-              </div>
-            ))}
-          </div>
-          <div aria-hidden className="pointer-events-none absolute inset-x-0 top-full -z-10 -mt-10 hidden h-[clamp(10rem,30vh,18rem)] overflow-hidden @5xl:block" data-testid="lineup-stage-floor">
-            <div className="absolute inset-x-0 top-0 h-[85%]" style={{ background: "radial-gradient(50% 75% at 50% 0%, color-mix(in srgb, var(--color-accent) 16%, transparent), transparent 75%)" }} />
-            <div className="absolute inset-x-[6%] top-10 h-px" style={{ background: "linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-accent) 50%, transparent), transparent)" }} />
-            {team.logo ? (
-              // eslint-disable-next-line @next/next/no-img-element -- the team's validated logo, decorative
-              <img src={team.logoStill ?? team.logo} alt="" className="absolute left-1/2 top-[38%] h-[min(9rem,45%)] w-auto -translate-x-1/2 -translate-y-1/2 opacity-[0.07] grayscale" />
-            ) : (
-              <span className="absolute inset-x-0 top-[45%] -translate-y-1/2 pl-(--tracking-tagline) text-center text-[clamp(3rem,7vw,7.5rem)] font-black uppercase leading-none tracking-tagline text-fg opacity-[0.035]">{team.shortName}</span>
-            )}
-          </div>
+          one card centred with an equal glimpse of the cards either side, under the role bar. Wider:
+          a grid (cards in a row share its height; each row is as tall as its own content) with a
+          short last row centred: 2 + 2 + 1 from a 36rem lineup, 3 + 2 from 42rem (upright tablets),
+          five across from 58rem (a 1280px laptop with the sidebar open). A short window (a phone held
+          sideways) keeps one sideways track at any width, two or three cards in view, so all five
+          are a swipe apart at one height instead of three rows of cards taller than the window.
+          Then the bench: the substitutes. */}
+      <div className="relative flex flex-col" data-testid="lineup-stage">
+        <LineupPager slots={slots} index={inView} go={go} artWait={artWait} />
+        {/* The track's vertical padding (taken back by its margins) leaves room for a card's edges
+            while it turns over: a scrolling track clips anything outside its box. */}
+        <div
+          ref={trackRef}
+          onScroll={onTrackScroll}
+          onPointerDown={artWait ? () => setArtWait(false) : undefined}
+          className={cn(
+            "flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain scroll-smooth px-7 pt-3 pb-4 -my-3 -mx-4 [scrollbar-width:none] motion-reduce:scroll-auto [&::-webkit-scrollbar]:hidden",
+            "@xl:mx-auto @xl:my-0 @xl:grid @xl:w-full @xl:grid-cols-4 @xl:overflow-visible @xl:px-0 @xl:py-0 @xl:[&>*]:col-span-2 @xl:[&>*:nth-child(5)]:col-start-2",
+            "@2xl:grid-cols-6 @2xl:[&>*:nth-child(4)]:col-start-2 @2xl:[&>*:nth-child(5)]:col-start-auto",
+            // A 58rem lineup: five across. Not a named size: the first width where five cards keep
+            // their figures readable (a 1280px laptop with the sidebar open gives 60rem).
+            "@min-[58rem]:max-w-[84rem] @min-[58rem]:grid-cols-5 @min-[58rem]:[&>*]:col-span-1 @min-[58rem]:[&>*:nth-child(4)]:col-start-auto @min-[90rem]:max-w-[100rem] @7xl:gap-5",
+            "short:-my-3 short:flex short:w-auto short:max-w-none short:overflow-x-auto short:pt-3 short:pb-4 short:lineup-bleed",
+          )}
+          role="region"
+          aria-roledescription="carousel"
+          aria-label="Main lineup"
+          data-testid="lineup-overview"
+          data-ready={interactive ? "true" : undefined}
+          data-art-wait={artWait || undefined}
+        >
+          {slots.map((s, i) => (
+            <div key={s.role} className="flex w-full max-w-[26rem] shrink-0 snap-center snap-always @xl:w-auto @xl:max-w-none @xl:min-w-0 short:w-[19rem] short:max-w-none short:snap-start short:snap-normal" role="group" aria-roledescription="slide" aria-label={`${s.roleLabel}: ${s.player?.name ?? (s.privateMember ? "team member" : "no player")} (${i + 1} of ${slots.length})`} data-testid="lineup-cell" data-art-later={i > 0 || undefined} data-art-far={i > 1 || undefined}>
+              <LineupCard slot={s} champions={champions} championsById={championsById} canManageLineup={canManageLineup} editingLineup={editingLineup} canEdit={!!s.player && editable.has(s.player.id)} viewerPlayerId={viewerPlayerId} onOpenSide={(side) => setDetail({ role: s.role, side })} openSide={detail?.role === s.role ? detail.side : null} dimmed={detail !== null && detail.role !== s.role} guest={!!guest} startsElsewhere={startsElsewhere} align={align} priority={i === 0} turns={turns} />
+            </div>
+          ))}
         </div>
+        <LineupBench slots={slots} turns={turns} onTurn={turnFromBench} canManageLineup={canManageLineup} editingLineup={editingLineup} />
       </div>
       {detailSlot ? (
         <PlayerDetailPanel

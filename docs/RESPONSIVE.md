@@ -25,6 +25,7 @@ it (`globals.css`), and every pinned element follows these rules:
 | Top bar | sticky | slides away while the page scrolls down; back on any scroll up, at the top, and while it holds focus |
 | Tab bar | fixed at the bottom | a compact row that slides away with the top bar and comes back with it; `main` keeps room for it (`pb-tabbar`) |
 | Detail windows (`DetailModal`) | whole screen below `sm`, centred window above; one whose header would fill over 40% of a phone's screen (the Team player window on a small phone) scrolls as one, as in a short window | whole screen, scrolling as one: a large header scrolls away, its close and step buttons float at the top, a footer stays pinned |
+| Team Overview's lineup | a swipe track, a card at a time, under the role bar | a sideways track of 19rem cards, two in view, from the page's gutter to the screen's edges (`lineup-bleed`), no role bar (below) |
 | Dialogs (`Dialog`) | bottom sheet, at most the screen minus a strip | centred card, at most the screen minus 1rem; title and actions stay, only the body scrolls |
 | Things pinned to the bottom (toasts, a save bar) | `bottom-tabbar`: above the tab bar | near the bottom edge |
 
@@ -63,6 +64,38 @@ Tabs and chip rows that do not fit scroll sideways inside themselves (never the 
 `ScrollRow` or `useScrollEdges` (`ui/scroll-row.tsx`): an edge fades (`scroll-fade-x`) only where
 more is hidden, and the current item is kept in view. The Team tabs share the width when they
 fit (iPhone 15 and wider) and scroll on narrower phones.
+
+## Team Overview's lineup
+
+The lineup (`team-roster.tsx`) is laid out by its own width (the `lineup` container), so the same
+rules hold beside an open or a collapsed sidebar, and by the window's height:
+
+| Lineup | Layout |
+| --- | --- |
+| under 36rem (phones upright) | one swipe track, a card at a time, under the role bar (each tab the player's picture and the role) |
+| 36–42rem | 2 + 2 + 1 |
+| 42–58rem (upright tablets, a 1024px laptop) | 3 + 2: an iPad shows the whole lineup on one screen |
+| 58rem and up (a 1280px laptop with the sidebar open) | five across, capped at 84rem, at 100rem from a 90rem lineup (2560px and up) |
+| a short window, any width | one sideways track, two or three cards in view, no role bar |
+
+- **The header** is one row everywhere: the logo (56px on desktops, 48px on tablets, 44px held
+  sideways, none on a phone held upright, where the top bar shows it), the team's name over one
+  line of the lineup's context and state, and Edit lineup.
+- **Five across, the cards fill the window:** the page starts under the section tabs (no centring),
+  and the cards' art takes the height the window leaves: everything else down the page is known in
+  rem (the page's frame, the header, the card's body, the bench), so `lineup-art-height` in
+  globals.css sizes the art from `100dvh` less that, from 13rem up to 1.9 times the card's width
+  and 30rem. At 1280 × 800, 1366 × 768, 1440 × 900 and 1920 × 1080 the lineup and its bench end on
+  the first screen with nothing to scroll; on 2560px screens and wider the art reaches its largest
+  size and the page ends above the window's foot. Edit lineup's bar is left out of the sum, so
+  entering it moves nothing on the cards (the page grows instead).
+- **The bench** follows the cards: five across, a cell under each card (the substitute, or "No
+  substitute"); otherwise a row of chips for the roles that have one.
+- **Narrow cards** (five across a laptop): a card under 12.5rem shows its season as two columns (the
+  win rate; KDA over CS/min) and steps its sides in by 2px and its link icons 2px closer, so three
+  links still share the picture's row and the pictures stay level along the row; under 15rem the
+  rest of the pool gets a row of its own; kills / deaths / assists per game show from 16.5rem, where
+  they fit uncut.
 
 ## Shell
 
@@ -136,6 +169,10 @@ as a long page scrolls, All Champions' column headings pin under them, and nothi
 short window; the tablet's menu keeps focus inside and gives it back to the menu button; the
 installed app's Back on a tablet (the display mode stood in for, as Chromium cannot emulate it);
 the filter sheet's Done leaves with its motion; Admin Mode's Settings has its title.
+Team Overview's lineup: `e2e/home-layout.spec.ts` (five across from 1280 × 800 to 2560 × 1440,
+anchored under the tabs, nothing to scroll, the bench under the cards), `e2e/team-layout.spec.ts`
+(the one-row header, 3 + 2 on a tablet, the phone's track and role bar) and
+`e2e/mobile-landscape.spec.ts` (the sideways track held sideways).
 In this repository's sandbox set `PW_CHROMIUM_PATH` to the Chromium binary.
 
 The wider audit script that produced the before/after numbers (eight viewports × twelve routes,

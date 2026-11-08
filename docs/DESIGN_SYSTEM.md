@@ -34,7 +34,8 @@ decorative chrome.
 
 - **Profile Overview** (`/overview`, `/players/[id]`) and **Team Overview** (`/team`) are the
   reference pages. A new page should look like it belongs beside them. They have:
-  - an expressive banner or hero;
+  - an expressive banner or hero (Team Overview's is its five splash-art player cards under a
+    one-row team header, filling the first screen with the bench of substitutes under them);
   - a compact first screen of opaque panels in a clear order of importance;
   - a single `panel-featured` lead card;
   - quiet labels and strong figures.
@@ -111,9 +112,10 @@ It should not appear:
 
 - as a **fill or border on idle controls**. The sidebar's old "Switch to Admin Mode" box was one;
   it is now a neutral row whose shield turns blue while pointed at.
-- as a **glow or shadow colour**. The Team hero's logo still has `shadow-accent/15`
-  (`team-roster.tsx`, owned by the personalization session); it should become a neutral
-  `shadow-black/40` (§9).
+- as a **glow or shadow colour**. Team Overview's selected card had `shadow-accent/15` and its
+  lineup stood on a floor lit in the brand blue (a radial glow, a hairline and the team's name as a
+  watermark); the card's shadow is now a neutral `shadow-black/40`, and the floor gave way to the
+  bench of substitutes (November 2026).
 - as the **colour of the logo's stand-in** (`BrandMark` without an upload). That is now a neutral
   tile lit faintly in violet, with the letter in `fg`.
 
@@ -262,8 +264,7 @@ deliberately. Each needs its own small PR. Check STATUS.md for the Actions-minut
 |---|---|---|
 | Hover on panels | About 50 controls use `hover:bg-surface-2`, a few `hover:bg-surface-2/70` or `bg-fg/5` | Converge on §5: surface steps on panels, fg overlays on the frame |
 | Page headers | Players, Matches and Resources open with `PageHeader`. Leaderboards opens with its sub-tabs in the title's place; Settings centres a narrower column with its own heading | Intended by STANDARDS.md's three tiers. Leaderboards could take a `PageHeader` when its page is next redesigned |
-| Eyebrows | `PageHeader`'s eyebrow is `accent`; `SectionLabel` is `fg-subtle` | Both are valid. Keep `accent` eyebrows to the two landing heroes and admin pages |
-| Team hero logo | `shadow-accent/15`: a blue glow under the team's logo (`team-roster.tsx`) | A neutral `shadow-black/40`, or `brand-plate`; left to the session that owns Team's cards |
+| Eyebrows | `PageHeader`'s eyebrow is `accent`; `SectionLabel` is `fg-subtle` | Both are valid. Keep `accent` eyebrows to admin pages and Profile Overview's hero; Team Overview's one-row header leaves its eyebrow to screen readers, since the selected tab right above says it |
 | Tablet and phone mode switch | A bordered accent button in the drawer and sheet, a quiet row in the sidebar | Deliberate (§7). Revisit only with the owner, since phones were verified |
 
 ## 10. Working on the design
@@ -272,6 +273,10 @@ deliberately. Each needs its own small PR. Check STATUS.md for the Actions-minut
   frame components (`app-shell.tsx`, `collapsible-sidebar.tsx`, `nav-links.tsx`, `mode-switch.tsx`,
   `account-menu.tsx`, `brand-mark.tsx`) belong to the design system. A session changing them
   updates this page in the same PR.
+  - `main` (`app-shell.tsx`) is the same block on every page: Team Overview no longer turns it
+    into a flex column, since its lineup starts under the section tabs instead of being centred in
+    the window (November 2026). The lineup's own rules in `globals.css` (`lineup-art-height`,
+    `lineup-bleed`, the art-wait rules) are described in RESPONSIVE.md → Team Overview's lineup.
 - **Validation:** `pnpm verify`, then `pnpm build && pnpm test:e2e`. The sidebar's geometry and
   motion are in `e2e/sidebar-motion.spec.ts` and `e2e/quality.spec.ts`; axe runs at three widths
   in `e2e/quality.spec.ts`.

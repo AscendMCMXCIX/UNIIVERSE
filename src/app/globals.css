@@ -682,6 +682,69 @@ p a.text-accent {
   /* The later cards' pool portraits too: ~570 KB that would share the connection with the first card's art. */
   [data-art-wait] > [data-art-later] [data-card-pool] img { display: none; }
 }
+/* Held sideways (a short window) the track shows two or three cards: the cards after the second wait the same way. */
+@media (max-height: 480px) {
+  [data-art-wait] > [data-art-far] .card-art-img, [data-art-wait] > [data-art-far] [data-card-pool] img { display: none; }
+}
+/*
+  Team Overview's card artwork (team-roster.tsx), which carries the player's identity at its foot:
+  as tall as what it holds, from 10.5rem. Five across (a lineup of 58rem or more) the cards take
+  the height of the window that the page leaves them, so the lineup and its bench fill the first
+  screen without bands of empty page above or under them; the artwork grows into it, from 13rem up
+  to 1.9 times the card's width (cqw: the card is a container), so it stays a portrait, and 30rem.
+  What the page leaves is the window less everything else down the page, all in rem (the root size
+  grows on big screens, and the page with it):
+    --lineup-page     the page's own frame above and below the lineup: the app's section tabs and
+                      padding, or the public page's header and padding (set by each page);
+    --lineup-head     the team's header and the gap under it (set by the lineup);
+    --lineup-bench    the bench under the cards: its row, its one-line hint, or nothing (the lineup);
+    --lineup-figures  1 where a card shows this season's figures, 0 where none does (the lineup);
+  and the card's own body: its season block (7.125rem with the gap under it; 8rem under 12.5rem,
+  where its two columns stand KDA over CS/min), its pool (3rem; 5.125rem under 15rem, where the
+  rest of the pool takes a row of its own), and its fixed parts: the pool's label, the padding and
+  the border, with a quarter rem to spare (3.1875rem), so the page never scrolls by a few pixels.
+  Edit lineup's bar is left out: entering it moves nothing on the cards, the page grows instead. A
+  short window (480px tall or less) shows a sideways track of the cards at their own height.
+*/
+@utility lineup-art-height {
+  --card-season: 7.125rem;
+  --card-pool: 3rem;
+  min-height: 10.5rem;
+  @container card (width < 15rem) {
+    --card-pool: 5.125rem;
+  }
+  @container card (width < 12.5rem) {
+    --card-season: 8rem;
+  }
+  @container lineup (width >= 58rem) {
+    min-height: clamp(13rem, min(calc(100dvh - var(--lineup-page, 6.5rem) - var(--lineup-head, 4.75rem) - var(--lineup-bench, 0rem) - var(--lineup-figures, 1) * var(--card-season) - var(--card-pool) - 3.1875rem), 190cqw), 30rem);
+  }
+  @media (max-height: 480px) {
+    min-height: 10.5rem;
+  }
+}
+/*
+  Team Overview in a short window below lg (a phone held sideways): the lineup's sideways track runs
+  to the screen's edges while it scrolls, but its first card starts, and every card snaps, at the
+  page's gutter (the notch's inset where that is larger): the same gutter as main's (px-safe-4,
+  px-safe-6 from sm), taken back by the track's margins. From lg the track stays inside the page.
+*/
+@utility lineup-bleed {
+  @media (width < 64rem) {
+    --bleed-left: max(1rem, env(safe-area-inset-left));
+    --bleed-right: max(1rem, env(safe-area-inset-right));
+    @media (width >= 40rem) {
+      --bleed-left: max(1.5rem, env(safe-area-inset-left));
+      --bleed-right: max(1.5rem, env(safe-area-inset-right));
+    }
+    margin-left: calc(-1 * var(--bleed-left));
+    margin-right: calc(-1 * var(--bleed-right));
+    padding-left: var(--bleed-left);
+    padding-right: var(--bleed-right);
+    scroll-padding-left: var(--bleed-left);
+    scroll-padding-right: var(--bleed-right);
+  }
+}
 .flip-card { perspective: 1800px; }
 .flip-card-inner { transform-style: preserve-3d; }
 .flip-card[data-flipped] .flip-card-inner { rotate: y 180deg; }

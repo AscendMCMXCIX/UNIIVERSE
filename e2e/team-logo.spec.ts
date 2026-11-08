@@ -8,16 +8,17 @@ import path from "node:path";
   animation (served as its web copy), and only someone who asks for reduced motion gets the still
   first frame. It is drawn where its place is: on the desktop sidebar's centre line with the icons,
   and at the start of its row everywhere else (the picture's still-frame source takes no place of
-  its own). Each test removes the logo again at the end, so other tests see the usual team mark.
+  its own). Team Overview's one-row header shows it at 44px held sideways, 48px on tablets and 56px
+  on desktops; a phone held upright shows it in the top bar right above instead. Each test removes
+  the logo again at the end, so other tests see the usual team mark.
 */
 
 const GIF = path.join(__dirname, "fixtures/animated-logo.gif");
 
 const SCREENS = [
-  { name: "phone", viewport: { width: 375, height: 667 }, isMobile: true, hasTouch: true, side: 48 },
   { name: "phone sideways", viewport: { width: 812, height: 375 }, isMobile: true, hasTouch: true, side: 44 },
-  { name: "tablet", viewport: { width: 768, height: 1024 }, isMobile: false, hasTouch: true, side: 64 },
-  { name: "desktop", viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false, side: 80 },
+  { name: "tablet", viewport: { width: 768, height: 1024 }, isMobile: false, hasTouch: true, side: 48 },
+  { name: "desktop", viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false, side: 56 },
 ] as const;
 
 /** Uploads the animated logo, runs `checks`, then removes the logo again whatever happened. */
@@ -79,10 +80,12 @@ test("the team logo keeps its proportions in a square everywhere, and animates u
       expect(Math.round(still.box.width)).toBe(screen.side);
       expect(Math.round(still.box.height)).toBe(screen.side);
     }
-    // The phone's top bar shows the same logo, square too.
-    const phone = await openPage(browser, baseURL!, "/team", "header img", { viewport: { width: 375, height: 667 }, isMobile: true, hasTouch: true });
-    const bar = (await phone.locator("header img").first().boundingBox())!;
+    // A phone held upright: the top bar shows the same logo, square too, and the page's header leaves it out.
+    const phone = await openPage(browser, baseURL!, "/team", "[data-testid=mobile-topbar] img", { viewport: { width: 375, height: 667 }, isMobile: true, hasTouch: true });
+    const bar = (await phone.getByTestId("mobile-topbar").locator("img").first().boundingBox())!;
     expect(Math.round(bar.width)).toBe(Math.round(bar.height));
+    expect(new URL(await phone.getByTestId("mobile-topbar").locator("img").first().evaluate((i: HTMLImageElement) => i.currentSrc)).pathname).toBe("/api/branding/logo");
+    await expect(phone.getByTestId("team-header").locator("img")).toBeHidden();
     await phone.context().close();
   });
 });
@@ -189,10 +192,15 @@ test("everywhere else the logo starts its row: nothing unseen stands before it, 
       });
       expect(Math.abs(off), `${at}: the sign-in page's logo and name are ${off}px off centre`).toBeLessThanOrEqual(0.5);
       await signIn.context().close();
-      // Team Overview's header, a grid: no empty row under the header's own.
-      const team = await openPage(browser, baseURL!, "/team", "[data-testid=team-header] img", options);
-      const tracks = await team.getByTestId("team-header").evaluate((h) => getComputedStyle(h).gridTemplateRows);
-      expect(tracks.split(" "), `${at}: the header's rows (${tracks})`).not.toContain("0px");
+      // Team Overview's header, one row: nothing unseen makes it taller than what it shows (an
+      // empty row under its own, as the still-frame source once added to it).
+      const team = await openPage(browser, baseURL!, "/team", options === phone ? "[data-testid=mobile-topbar] img" : "[data-testid=team-header] img", options);
+      const fit = await team.getByTestId("team-header").evaluate((h) => {
+        // The logo's <picture> takes no box of its own (display: contents): its image is the part.
+        const shown = [...h.querySelectorAll(":scope > *, :scope > picture > *")].map((c) => c.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
+        return { header: h.getBoundingClientRect().height, tallest: Math.max(...shown.map((r) => r.height)) };
+      });
+      expect(fit.header, `${at}: the header (${fit.header}px) is as tall as its tallest part (${fit.tallest}px)`).toBeLessThanOrEqual(fit.tallest + 0.5);
       await team.context().close();
     }
   });

@@ -87,7 +87,8 @@ export function SocialLinks({ links, owner, className }: { links: readonly Socia
  */
 export function CardSocialIcons({ links, owner, mode = "interactive", className }: { links: readonly SocialLinkView[]; owner: string; mode?: "interactive" | "static"; className?: string }) {
   if (!links.length) return null;
-  const row = "flex shrink-0 items-center gap-1.5 @min-[17rem]/card:gap-2";
+  // A step closer on a card under 12.5rem (five across a 1280px laptop), so three still share the picture's row.
+  const row = "flex shrink-0 items-center gap-1.5 @max-[12.5rem]/card:gap-1 @min-[17rem]/card:gap-2";
   if (mode === "static")
     return (
       <span className={cn(row, className)} aria-hidden data-testid="card-social-preview">

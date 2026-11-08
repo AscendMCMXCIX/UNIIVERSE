@@ -92,6 +92,33 @@ test("held upright: the tab bar stays and the top bar stays put", async ({ brows
   await done(page);
 });
 
+test("held sideways, Team Overview's lineup is one sideways track: the cards side by side at one height, about two screens of page, never wider than the window", async ({ browser, baseURL }) => {
+  for (const device of [IPHONE_LANDSCAPE, SE_LANDSCAPE]) {
+    const page = await phone(browser, baseURL!, device);
+    await page.goto("/team");
+    const track = page.getByTestId("lineup-overview");
+    await expect(track).toHaveAttribute("data-ready", "true");
+    const cells = await page.getByTestId("lineup-cell").evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ top: Math.round(r.top), left: r.left, right: r.right })));
+    expect(cells).toHaveLength(5);
+    // One row (it was three rows of cards taller than the window), the first card at the page's
+    // gutter under the header's start, the next one beside it in view.
+    expect(new Set(cells.map((c) => c.top)).size, "one row").toBe(1);
+    const header = (await page.getByTestId("team-header").boundingBox())!;
+    expect(Math.abs(cells[0]!.left - header.x)).toBeLessThanOrEqual(1);
+    const vw = page.viewportSize()!.width;
+    expect(cells[1]!.left).toBeLessThan(vw - 100);
+    // The track scrolls sideways on its own; the page never does.
+    expect(await track.evaluate((el) => el.scrollWidth > el.clientWidth + 100)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+    // About two screens of page for the whole lineup and its substitutes (four before).
+    expect(await page.evaluate(() => document.documentElement.scrollHeight / window.innerHeight)).toBeLessThanOrEqual(2);
+    // No role bar: the cards side by side are the way through; the substitutes follow the track.
+    await expect(page.getByTestId("lineup-pager")).toBeHidden();
+    await expect(page.getByTestId("lineup-bench")).toBeVisible();
+    await done(page);
+  }
+});
+
 test("held sideways: a detail window takes the whole screen, scrolls as one, and its controls stay in reach", async ({ browser, baseURL }) => {
   const page = await phone(browser, baseURL!, IPHONE_LANDSCAPE);
   await page.goto("/team");

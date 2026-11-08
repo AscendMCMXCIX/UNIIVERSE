@@ -315,7 +315,7 @@ Items in earlier sections about Other players, substitutes or the Coach role are
 - [ ] Changes made in one section are still there after visiting the others and after turning the phone; held sideways, the preview stands beside the controls and Save is on screen.
 - [ ] Typing the tagline on a real phone: the keyboard never covers the field or Save; the preview becomes a strip while typing and comes back after.
 - [ ] Reset look, Cancel with changes, the close button, Android's back gesture and (on an iPhone) swiping back from the edge each ask "Discard your changes?" or "Reset the whole look?" first; Keep editing keeps every change; with nothing changed, Cancel simply closes.
-- [ ] Team Overview, on a phone and on a desktop: the team logo is square and whole (not taller than wide), animates, and shows only its still frame when the phone asks for reduced motion; the role bar marks the current player; each card swipes into the centre with a glimpse of the cards either side.
+- [ ] Team Overview, on a phone and on a desktop: the team logo (in the top bar on a phone held upright, in the header elsewhere) is square and whole (not taller than wide), animates, and shows only its still frame when the phone asks for reduced motion; the role bar marks the current player and shows each player's picture; each card swipes into the centre with a glimpse of the cards either side.
 
 ## Administrator access, Player Mode and Admin Mode (21 Oct 2026)
 

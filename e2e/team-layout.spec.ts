@@ -1,10 +1,13 @@
 import { expect, test, type CDPSession, type Page } from "./test";
 
 /*
-  Team Overview layout: the header shares the cards' width and centre on wider screens, and on
-  phones the five cards are one sideways track
-  (real touch swipes, snap points, role tabs and arrows) that never makes the page itself scroll
-  sideways.
+  Team Overview layout: the team's header is one row (its name, the lineup's line and Edit lineup
+  side by side) that shares the cards' width and centre on wider screens; upright tablets show the
+  lineup 3 + 2 and desktops five across, with the bench of substitutes under the cards (five
+  across, each role's cell under its card); on phones the five cards are one sideways track (real
+  touch swipes, snap points, role tabs with each player's picture) under a header without the
+  logo the top bar already shows, its first card whole on the first screen, and the track never
+  makes the page itself scroll sideways.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -36,6 +39,53 @@ test("the header is centred over the cards and sits close to them", async ({ pag
   expect(cards.y - (header.y + header.height)).toBeLessThanOrEqual(24);
   await expect(page.getByTestId("edit-lineup")).toBeVisible();
   await expect(page.getByTestId("lineup-pager")).toBeHidden();
+  // One row: the logo, the name over its one line, and Edit lineup side by side, no taller than the logo.
+  const logo = (await page.getByTestId("team-header").locator("img, [data-testid=brand-mark-text]").first().boundingBox())!;
+  const name = (await page.getByTestId("team-name").boundingBox())!;
+  const edit = (await page.getByTestId("edit-lineup").boundingBox())!;
+  expect(header.height).toBeLessThanOrEqual(logo.height + 1);
+  for (const part of [name, edit]) expect(part.y >= header.y - 1 && part.y + part.height <= header.y + header.height + 1).toBe(true);
+  expect(edit.x).toBeGreaterThan(name.x + name.width);
+  // The tab above already says Team Overview: the header does not repeat it on screen.
+  await expect(page.getByTestId("team-header").getByText("Team Overview")).toHaveClass(/sr-only/);
+});
+
+test("upright tablets show the lineup 3 + 2 and desktops five across, with the substitutes under the cards", async ({ page }) => {
+  test.skip(isPhone(page), "the phone layout has its own test");
+  await page.goto("/team");
+  const cells = page.getByTestId("lineup-cell");
+  await expect(cells).toHaveCount(5);
+  const boxes = await cells.evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ x: r.x, top: Math.round(r.top), bottom: r.bottom, width: r.width })));
+  const track = (await page.getByTestId("lineup-overview").boundingBox())!;
+  const tablet = (page.viewportSize()?.width ?? 1440) < 1024;
+  if (tablet) {
+    // 3 + 2: three cards share the first row, the last two the second, centred under them.
+    expect(new Set(boxes.slice(0, 3).map((b) => b.top)).size).toBe(1);
+    expect(new Set(boxes.slice(3).map((b) => b.top)).size).toBe(1);
+    expect(boxes[3]!.top).toBeGreaterThan(boxes[0]!.top);
+    const pair = (boxes[3]!.x + boxes[4]!.x + boxes[4]!.width) / 2;
+    expect(Math.abs(pair - (track.x + track.width / 2))).toBeLessThanOrEqual(2);
+  } else {
+    expect(new Set(boxes.map((b) => b.top)).size, "one row").toBe(1);
+  }
+  // The bench: under the cards, a substitute's entry for each role whose card turns to one.
+  const bench = page.getByTestId("lineup-bench");
+  await expect(bench).toBeVisible();
+  expect((await bench.boundingBox())!.y).toBeGreaterThanOrEqual(Math.max(...boxes.map((b) => b.bottom)) - 1);
+  for (const role of ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"]) {
+    const turns = (await page.getByTestId(`lineup-sub-${role}`).count()) > 0;
+    await expect(page.getByTestId(`bench-${role}`)).toHaveCount(turns ? 1 : 0);
+    if (tablet) await expect(page.getByTestId(`bench-empty-${role}`)).toBeHidden();
+  }
+  if (!tablet) {
+    // Five across: a cell under every card, the substitute's or a quiet "No substitute", in the cards' columns.
+    for (const [i, role] of ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"].entries()) {
+      const under = (await page.getByTestId(`bench-${role}`).or(page.getByTestId(`bench-empty-${role}`)).boundingBox())!;
+      expect(Math.abs(under.x - boxes[i]!.x), `${role}: under its card`).toBeLessThanOrEqual(1);
+      expect(Math.abs(under.width - boxes[i]!.width), `${role}: the card's width`).toBeLessThanOrEqual(1);
+    }
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
 });
 
 // Cards side by side keeping their pictures, names and labels level whatever the names and
@@ -62,6 +112,23 @@ test("phones swipe sideways through the five cards, one at a time", async ({ pag
   const subtitle = page.getByTestId("team-subtitle");
   await expect(subtitle.locator(":scope > span", { hasText: /^·$/ })).toHaveCount(0);
   expect((await subtitle.locator(":scope > span").first().boundingBox())!.height).toBeLessThanOrEqual(20);
+  // The header is one row: the name and its line beside Edit lineup (a 44px target), and no logo:
+  // the top bar right above shows the team's mark.
+  const header = (await page.getByTestId("team-header").boundingBox())!;
+  const edit = (await page.getByTestId("edit-lineup").boundingBox())!;
+  const name = (await page.getByTestId("team-name").boundingBox())!;
+  expect(edit.y).toBeLessThan(name.y + name.height);
+  expect(edit.x).toBeGreaterThan(name.x + name.width - 1);
+  expect(edit.height).toBeGreaterThanOrEqual(44);
+  expect(header.height).toBeLessThanOrEqual(56);
+  await expect(page.getByTestId("team-header").locator("img, [data-testid=brand-mark-text]")).toBeHidden();
+  await expect(page.getByTestId("edit-lineup")).toHaveAccessibleName("Edit lineup");
+  // The first card is whole on the first screen, above the tab bar (375 × 667).
+  const tabBar = (await page.getByRole("navigation", { name: "Primary" }).boundingBox())!;
+  const first = (await cells.first().boundingBox())!;
+  expect(first.y + first.height, "the first card ends above the tab bar").toBeLessThanOrEqual(tabBar.y);
+  // Each role's tab shows who plays it: their picture in its frame, the role's name under it.
+  for (const tab of await tabs.all()) await expect(tab.locator("[data-avatar-frame]")).toHaveCount(1);
 
   // A real touch swipe to the left lands on the next card, centred (snap).
   const cdp = await context.newCDPSession(page);
@@ -92,7 +159,10 @@ test("phones swipe sideways through the five cards, one at a time", async ({ pag
   await page.evaluate(() => window.scrollTo(0, 0));
 
   // The role bar moves too (a tap away from any player), names each role and says where you are.
-  await expect(tabs).toHaveText(["Top", "Jungle", "Mid", "Bottom", "Support"]);
+  await expect(page.getByTestId("lineup-dot-label")).toHaveText(["Top", "Jungle", "Mid", "Bottom", "Support"]);
+  // Named by what it shows, the role first, then the player (read from hidden text, which Chromium
+  // sets off with a space: "Top : Demo Top").
+  await expect(tabs.first()).toHaveAccessibleName(/^Top ?: .+/);
   await tabs.nth(2).click();
   await expect(tabs.nth(2)).toHaveAttribute("aria-selected", "true");
   await tabs.nth(4).click();

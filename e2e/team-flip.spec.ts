@@ -117,6 +117,64 @@ test("the turn control is one quiet icon, and only on cards whose role has a sub
   for (const r of without) await expect(page.getByTestId(`lineup-sub-${r}`)).toHaveCount(0);
 });
 
+test("the bench lists each role's substitute; pressing one turns that card to them, and pressing it again turns it back", async ({ page }) => {
+  await openTeam(page);
+  const withSub: string[] = [];
+  for (const r of ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"]) if ((await page.getByTestId(`lineup-sub-${r}`).count()) > 0) withSub.push(r);
+  expect(withSub.length).toBeGreaterThan(0);
+  const bench = page.getByTestId("lineup-bench");
+  await expect(bench).toBeVisible();
+  // Exactly the roles whose card turns to a substitute, each by that substitute's name.
+  const listed = await bench.locator("[data-testid^=bench-]:not([data-testid^=bench-empty-])").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")!.slice("bench-".length)));
+  expect(listed.sort()).toEqual([...withSub].sort());
+  // The last of them: on a phone its card is not the one in view.
+  const role = withSub.at(-1)!;
+  const entry = page.getByTestId(`bench-${role}`);
+  await expect(entry).toContainText((await page.getByTestId(`lineup-sub-${role}`).getAttribute("data-player-name"))!);
+  await expect(entry).toHaveAttribute("aria-pressed", "false");
+  const press = async () => {
+    await entry.scrollIntoViewIfNeeded();
+    if (isPhone(page)) await entry.tap();
+    else await entry.click();
+  };
+  await press();
+  await expect(card(page, role)).toHaveAttribute("data-flipped", "true");
+  await expect(entry).toHaveAttribute("aria-pressed", "true");
+  // Focus moves onto the card's way back, as the card's own turn control does.
+  await expect(page.getByTestId(`lineup-sub-${role}`).getByTestId("flip-back")).toBeFocused();
+  if (isPhone(page)) {
+    // A phone shows one card at a time: the bench brought this one into view, and the role bar follows.
+    const label = ({ TOP: "Top", JUNGLE: "Jungle", MID: "Mid", ADC: "Bottom", SUPPORT: "Support" } as Record<string, string>)[role]!;
+    await expect(page.getByTestId("lineup-pager").getByRole("tab", { name: new RegExp(`^${label}`) })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByTestId(`lineup-sub-${role}`)).toBeInViewport({ ratio: 0.5 });
+  }
+  // A second press turns it back; nothing was saved or fetched for either.
+  await press();
+  await expect(card(page, role)).not.toHaveAttribute("data-flipped", "true");
+  await expect(entry).toHaveAttribute("aria-pressed", "false");
+  // The card's own turn control and the bench stay in step.
+  await turnOver(page, role);
+  await expect(entry).toHaveAttribute("aria-pressed", "true");
+  await page.getByTestId(`lineup-sub-${role}`).getByTestId("flip-back").click();
+  await expect(card(page, role)).not.toHaveAttribute("data-flipped", "true");
+  await expect(entry).toHaveAttribute("aria-pressed", "false");
+});
+
+test("from the keyboard, a bench entry turns its card and Escape turns it back, with focus on the card's turn control", async ({ page }) => {
+  test.skip(isPhone(page), "desktop keyboard");
+  await openTeam(page);
+  const role = await withSubstitute(page);
+  const entry = page.getByTestId(`bench-${role}`);
+  await entry.focus();
+  await page.keyboard.press("Enter");
+  await expect(card(page, role)).toHaveAttribute("data-flipped", "true");
+  await expect(page.getByTestId(`lineup-sub-${role}`).getByTestId("flip-back")).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(card(page, role)).not.toHaveAttribute("data-flipped", "true");
+  await expect(flipButton(page, role)).toBeFocused();
+  await expect(entry).toHaveAttribute("aria-pressed", "false");
+});
+
 test("the keyboard turns a card, focus follows to the other side, and Escape turns it back", async ({ page }) => {
   test.skip(isPhone(page), "desktop keyboard");
   await openTeam(page);
