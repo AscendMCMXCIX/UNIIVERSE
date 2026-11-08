@@ -155,10 +155,15 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
               {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-label text-accent">Admin mode</span> : tagline ? <span className="block truncate text-xs text-fg-subtle max-md:hidden">{tagline}</span> : null}
             </span>
           </Link>
-          {/* Phones: the page's own title, once its heading has gone up under the bar. */}
-          <p className={cn("min-w-0 flex-1 truncate px-1 text-base font-semibold text-fg transition-opacity duration-150 md:hidden", titleShown ? "opacity-100" : "opacity-0")} aria-hidden data-testid="mobile-title">
-            {titleShown ? heading.text : ""}
-          </p>
+          {/* Phones: the page's own title, once its heading has gone up under the bar; a tap on it goes
+              back to the top, as iOS's status bar does. */}
+          {titleShown ? (
+            <button type="button" onClick={toTop} className="min-h-11 min-w-0 flex-1 truncate rounded-md px-1 text-left text-base font-semibold text-fg transition-opacity duration-150 md:hidden" aria-label={`${heading.text}: back to top`} data-testid="mobile-title">
+              {heading.text}
+            </button>
+          ) : (
+            <p className="min-w-0 flex-1 px-1 opacity-0 md:hidden" aria-hidden data-testid="mobile-title" />
+          )}
           {user ? (
             <>
               <span className="max-md:hidden">
@@ -278,7 +283,18 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
               const own = href === "/overview" && user?.avatarUrl;
               return (
                 <li key={href} className="min-w-max flex-1 basis-0">
-                  <Link href={href} aria-current={active ? "page" : undefined} className={cn("group flex min-h-14 flex-col items-center justify-center gap-1 px-1 pb-1 pt-1.5 text-2xs font-medium transition-colors duration-150 short:min-h-11 short:flex-row short:gap-1.5 short:py-1", active ? "font-semibold text-fg" : "text-fg-muted hover:text-fg")} data-testid={`tab-${href.slice(1)}`}>
+                  <Link
+                    href={href}
+                    aria-current={active ? "page" : undefined}
+                    // The current tab on its own page: back to the top, as a phone's tab bar does (a page
+                    // under the tab, such as a teammate's profile under Players, still goes to the tab's page).
+                    onClick={(e) => {
+                      if (active && pathname === href) {
+                        e.preventDefault();
+                        toTop();
+                      }
+                    }}
+                    className={cn("group flex min-h-14 flex-col items-center justify-center gap-1 px-1 pb-1 pt-1.5 text-2xs font-medium transition-colors duration-150 short:min-h-11 short:flex-row short:gap-1.5 short:py-1", active ? "font-semibold text-fg" : "text-fg-muted hover:text-fg")} data-testid={`tab-${href.slice(1)}`}>
                     <span className={cn("grid h-7 w-12 place-items-center rounded-full transition-colors duration-150", active ? "bg-accent/15 text-accent" : "group-hover:bg-surface-2")} aria-hidden>
                       {own ? <Avatar name={user!.name} src={user!.avatarUrl} size="xs" className={cn(active && "ring-2 ring-accent")} /> : <Icon className="h-5 w-5" />}
                     </span>
@@ -292,6 +308,12 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
       ) : null}
     </>
   );
+}
+
+/** Back to the top of the page: smooth, or at once with reduced motion. */
+function toTop() {
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  window.scrollTo({ top: 0, behavior: reduce ? "instant" : "smooth" });
 }
 
 /** Phones; and tablets in the installed app, which has no browser Back (a tablet in a browser has the browser's). */

@@ -35,7 +35,7 @@ const SIZE: Record<ModalSize, string> = {
   // grew and shrank under the finger; svh is the height with the toolbars shown, so the sheet always
   // fits what is visible and never moves. Sideways it spans up to 44rem, centred. Taller wider
   // screens: a compact centred window.
-  sheet: "w-full max-h-[calc(100svh-env(safe-area-inset-top)-2.5rem)] rounded-t-[1.25rem] border-b-0 max-sm:mb-0 max-sm:mt-auto sm:w-[min(30rem,calc(100vw-2rem))] sm:max-h-[min(88svh,44rem)] sm:rounded-card sm:border-b short:mb-0 short:mt-auto short:w-[min(44rem,100vw)] short:max-h-[calc(100svh-0.5rem)] short:rounded-b-none short:border-b-0",
+  sheet: "w-full max-h-[calc(100svh-env(safe-area-inset-top)-2.5rem)] rounded-t-[1.25rem] border-b-0 max-sm:mb-0 max-sm:mt-auto sm:w-[min(30rem,calc(100vw-2rem))] sm:max-h-[min(88svh,52rem)] sm:rounded-card sm:border-b short:mb-0 short:mt-auto short:w-[min(44rem,100vw)] short:max-h-[calc(100svh-0.5rem)] short:rounded-b-none short:border-b-0",
   // As tall as its fields on wider screens (fit-content, the browser's own size for a dialog:
   // `auto` would stretch it between the dialog's top and bottom insets).
   form: `h-dvh w-full max-h-none rounded-none border-0 max-sm:pt-safe sm:h-fit sm:max-h-[min(88dvh,44rem)] sm:w-[min(28rem,calc(100vw-2rem))] sm:rounded-card sm:border ${WHOLE_SCREEN} short:pt-safe`,
@@ -256,6 +256,7 @@ export function DetailModal({
   footer,
   onSettled,
   innerScroll = false,
+  sheetWidth = "standard",
 }: {
   open: boolean;
   onClose: () => void;
@@ -281,6 +282,8 @@ export function DetailModal({
   footer?: React.ReactNode;
   /** Called once the opening motion is over (see AfterOpen), e.g. to show content kept back until then. */
   onSettled?: () => void;
+  /** A sheet's width where it is a centred window (taller wider screens): wide for an editor with a table (48rem). */
+  sheetWidth?: "standard" | "wide";
   /**
    * The content scrolls itself (an editor with a fixed preview and toolbar): the body is a
    * fixed-height column that never scrolls, on every screen, short windows and phones included,
@@ -484,7 +487,7 @@ export function DetailModal({
         flow ? "overflow-y-auto overscroll-contain" : "overflow-hidden",
         MODAL_BACKDROP,
         MOTION[size] ?? MODAL_MOTION,
-        SIZE[size],
+        size === "sheet" && sheetWidth === "wide" ? SIZE.sheet.replace("sm:w-[min(30rem,calc(100vw-2rem))]", "sm:w-[min(48rem,calc(100vw-2rem))]") : SIZE[size],
         className,
       )}
       data-testid={testId}
