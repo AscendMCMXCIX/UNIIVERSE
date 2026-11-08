@@ -25,7 +25,7 @@ it (`globals.css`), and every pinned element follows these rules:
 | Top bar | sticky | slides away while the page scrolls down; back on any scroll up, at the top, and while it holds focus |
 | Tab bar | fixed at the bottom | a compact row that slides away with the top bar and comes back with it; `main` keeps room for it (`pb-tabbar`) |
 | Detail windows (`DetailModal`) | whole screen below `sm`, centred window above; one whose header would fill over 40% of a phone's screen (the Team player window on a small phone) scrolls as one, as in a short window | whole screen, scrolling as one: a large header scrolls away, its close and step buttons float at the top, a footer stays pinned |
-| Sheets (`DetailModal size="sheet"`: `Dialog`'s confirmations and editors, the account sheet, the filter sheet, the lineup sheet) | docked to the bottom edge, as tall as its content up to the screen less 2.5rem (in `svh`); a taller wider screen gets a centred window | docked to the bottom edge too, up to 44rem wide and the screen less 0.5rem; in both, the header and footer stay and only the body scrolls |
+| Sheets (`DetailModal size="sheet"`: `Dialog`'s confirmations and editors, the account sheet, the filter sheet, the lineup sheet) | docked to the bottom edge, as tall as its content up to the screen less 2.5rem (in `svh`); a taller wider screen gets a centred window | docked to the bottom edge too, up to 44rem wide and the screen less 0.5rem; in both, the header and footer stay and only the body scrolls, unless they would leave it less room than its tallest control needs (large text or a zoomed page, mostly on a phone held sideways): then the whole sheet scrolls as one, like a page (`data-flow`) |
 | Things pinned to the bottom (toasts, a save bar) | `bottom-tabbar`: above the tab bar | near the bottom edge |
 
 Turning the phone keeps state: windows, filters and tabs live in the address or in component
@@ -35,7 +35,7 @@ state, never in the orientation, so a window open in one orientation is open in 
 translucent status bar, so:
 - side gutters use `px-safe-4` / `px-safe-6` (the gutter, or the notch's inset where larger) for
   the top bar, `main`, the public page, toasts and whole-screen windows;
-- whole-screen windows pad the status bar (`max-sm:pt-safe`); a window's body keeps its last line 1rem from the bottom edge (1.25rem from `sm`) and a footer its actions 0.75rem, or the home indicator's inset where it is larger (`pb-safe-4`, `sm:pb-safe-5`, `pb-safe-3`); a window that scrolls as one on a phone keeps a bar over the status bar, so text never scrolls under the clock;
+- whole-screen windows pad the status bar (`max-sm:pt-safe`); a window's body keeps its last line 1rem from the bottom edge (1.25rem from `sm`), a sheet's footer its actions 1rem where the sheet is docked (0.75rem where it is a centred window), and other windows' footers 0.75rem, or the home indicator's inset where it is larger (`pb-safe-4`, `sm:pb-safe-5`, `pb-safe-3`); a window that scrolls as one on a phone keeps a bar over the status bar, so text never scrolls under the clock;
 - `pt-safe-N` and `pb-safe-N` (like `px-safe-N`) are N spacing steps or the inset, whichever is larger, and are an element's only padding for that edge: beside another one (`py-4 pb-safe`) Tailwind's own order decides which wins, and the bare inset did, 0px in a browser (#265). `src/app/design-tokens.test.ts` refuses that pairing, and an arbitrary `max(…, env(safe-area-inset-…))` padding a utility writes;
 - preview pages (Admin → Previews) leave room for their fixed "Preview" badge (`PREVIEW_PAD_TOP`);
 - the drawer, which opens from the left, pads the left-hand inset; the tab bar pads all three.
@@ -84,10 +84,11 @@ fit (iPhone 15 and wider) and scroll on narrower phones.
     Its Sign out tells the browser's other tabs, as the sheet's and the account menu's do.
     In the installed app, which has no browser Back, the bar also shows Back on a page reached
     from another (a teammate's profile), named as on phones.
-  - Before the page's code has run: the avatar, the tablet's menu button and the sidebar's collapse
-    control are buttons that code drives, and a tap on one is kept by an inline script in the root
-    layout (`src/components/early-taps.ts`, `data-early` on the button). The button shows pressed at
-    once (`[data-early][aria-busy]`, globals.css) and does what was asked once the code runs, exactly
+  - Before the page's code has run: the avatar, the tablet's menu button, the account menu's
+    triggers (the tablet's avatar, the sidebar's tile) and the sidebar's collapse control are
+    buttons that code drives, and a tap on one is kept by an inline script in the root layout
+    (`src/components/early-taps.ts`, `data-early` on the button). The button shows pressed at once
+    (`[data-early][aria-busy]`, globals.css) and does what was asked once the code runs, exactly
     once; Enter and Space go the same way. Once the page runs, the script does nothing.
   - Both bars pad for safe areas (`pt-safe`, `pb-safe`, `px-safe`); in short windows they slide
     away while reading (see above). On phones the top bar sets the page's `scroll-padding-top` to

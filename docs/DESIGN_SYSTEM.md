@@ -267,14 +267,17 @@ test):
   its first other page.
 - **Overlays.** One sheet for every choice and editor (`DetailModal` `size="sheet"`, `Dialog` built
   on it): its choices in the body and its actions in the footer, which stays in view while only the
-  body scrolls (the account sheet's mode switch and Sign out too); Escape, the backdrop, Close and a
-  pull down close the topmost one, focus returns to what opened it without scrolling, and the page
-  behind never moves (MOBILE.md, "Every sheet and window").
+  body scrolls (the account sheet's mode switch and Sign out too). Where the header and footer would
+  leave the body too little room for its tallest control (large text on a phone held sideways), the
+  whole sheet scrolls as one instead, like a page, so nothing is ever cut short in a strip. Escape,
+  the backdrop, Close and a pull down close the topmost one, focus returns to what opened it without
+  scrolling, and the page behind never moves (MOBILE.md, "Every sheet and window").
 - **Before the page's code has run.** Destinations are real links, and work at once. The frame's
-  controls that code drives (the phone's avatar, the tablet's menu button, the sidebar's collapse
-  control) keep a tap made before it has run (`data-early`, `src/components/early-taps.ts`): they
-  show pressed at once (`[data-early][aria-busy]`: the hover surface in an accent ring) and act once
-  the code runs, exactly once. (`e2e/mobile-nav.spec.ts`, `e2e/sidebar-motion.spec.ts`)
+  controls that code drives (the phone's avatar, the tablet's menu button, the account menu's
+  triggers on tablets and in the sidebar, the sidebar's collapse control) keep a tap made before it
+  has run (`data-early`, `src/components/early-taps.ts`): they show pressed at once
+  (`[data-early][aria-busy]`: the hover surface in an accent ring) and act once the code runs,
+  exactly once. (`e2e/mobile-nav.spec.ts`, `e2e/sidebar-motion.spec.ts`)
 - **The keyboard.** "Skip to content" is the first stop on every page and moves focus to the page
   (`main#content`); every control has the shared focus ring.
 

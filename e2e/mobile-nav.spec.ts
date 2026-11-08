@@ -144,9 +144,10 @@ test("the avatar opens the account sheet: Resources, Settings, Install App and S
 });
 
 /**
- * How the open account sheet sits: whether its body scrolls, whether it is docked to the bottom edge,
- * its top, whether the patch and Riot's notice end the body whole, and the clearance of the footer's
- * actions (the mode switch, Sign out) from the sheet's bottom edge.
+ * How the open account sheet sits: whether its body scrolls, whether the whole sheet scrolls as one
+ * instead (large text), whether it is docked to the bottom edge, its top, whether the patch and
+ * Riot's notice end the body whole, and the clearance of the footer's actions (the mode switch,
+ * Sign out) from the sheet's bottom edge.
  */
 async function sheetFit(page: Page) {
   const sheet = page.getByTestId("account-sheet");
@@ -161,6 +162,7 @@ async function sheetFit(page: Page) {
     const actions = d.querySelector("[data-testid=account-sheet-actions]")!.getBoundingClientRect();
     return {
       scrolls: body.scrollHeight > body.clientHeight + 1,
+      asOne: d.hasAttribute("data-flow"),
       docked: Math.abs(box.bottom - innerHeight) <= 1,
       top: box.top,
       width: box.width,
@@ -180,14 +182,15 @@ test("the account sheet fits a small phone in one screen, in Player Mode and Adm
     const sheet = page.getByTestId("account-sheet");
     const fit = await sheetFit(page);
     expect(fit.scrolls).toBe(false);
+    expect(fit.asOne).toBe(false);
     expect(fit.docked).toBe(true);
     // A strip of the page stays above it, to tap away.
     expect(fit.top).toBeGreaterThan(40);
-    // The patch and Riot's notice end the body; the actions sit in the footer under it, which keeps
-    // them clear of the bottom edge (the last line once sat on it in a browser).
+    // The patch and Riot's notice end the body; the actions sit in the footer under it, at least
+    // 1rem from the bottom edge, as a body's last line (the last line once sat on it in a browser).
     expect(fit.notesEndBody).toBe(true);
     expect(fit.actionsUnderBody).toBe(true);
-    expect(fit.clearance).toBeGreaterThanOrEqual(12);
+    expect(fit.clearance).toBeGreaterThanOrEqual(16);
     if (path === "/admin") {
       // Admin Mode: the admin pages the tab bar does not hold, and nothing the tab bar repeats.
       await expect(sheet.getByRole("link", { name: "Audit Logs" })).toBeVisible();
@@ -212,6 +215,8 @@ test("held sideways, the account sheet stays docked at the bottom edge, fits, an
   // It used to become a centred window as tall as the screen, scrolling as a whole.
   expect(fit.docked).toBe(true);
   expect(fit.scrolls).toBe(false);
+  expect(fit.asOne).toBe(false);
+  expect(fit.clearance).toBeGreaterThanOrEqual(16);
   expect(fit.top).toBeGreaterThan(24);
   expect(fit.width).toBeLessThanOrEqual(704);
   await page.mouse.click(367, Math.round(fit.top / 2));
@@ -320,6 +325,121 @@ test("at a 200% text size the account sheet keeps its header and Sign out in vie
   expect((await sheet.getByTestId("sign-out").boundingBox())!.y).toBe(signOut.y);
   expect(await fit()).toMatchObject({ title: true, close: true, signOut: true });
   await member.context.close();
+});
+
+/**
+ * Each tile of the open account sheet, brought to the top of whatever scrolls (its body, or the whole
+ * sheet while it scrolls as one), between there and the footer when the footer is in the way: is it
+ * whole on screen?
+ */
+async function tilesShownWhole(page: Page): Promise<boolean[]> {
+  return page.getByTestId("account-sheet").evaluate((d) => {
+    const scroller = d.matches("[data-sheet-scroll]") ? (d as HTMLElement) : d.querySelector<HTMLElement>("[data-sheet-scroll]")!;
+    const footer = d.querySelector("[data-testid=account-sheet-actions]")!.parentElement!;
+    const band = () => {
+      const s = scroller.getBoundingClientRect();
+      const f = footer.getBoundingClientRect();
+      const bottom = Math.min(innerHeight, s.bottom);
+      return { top: Math.max(0, s.top), bottom: f.top < bottom && f.bottom > s.top ? Math.min(bottom, f.top) : bottom };
+    };
+    const whole = [...d.querySelectorAll<HTMLElement>("nav a, nav button")].map((tile) => {
+      scroller.scrollTop += tile.getBoundingClientRect().top - band().top - 1;
+      const r = tile.getBoundingClientRect();
+      const b = band();
+      return r.top >= b.top - 1 && r.bottom <= b.bottom + 1;
+    });
+    scroller.scrollTop = 0;
+    return whole;
+  });
+}
+
+test("with large text on a phone held sideways, the account sheet scrolls as one where its header and footer would leave the body a strip: every tile can be shown whole", async ({ page, context, baseURL }) => {
+  const cases = [
+    // 125%: the body keeps room for a tile, so it scrolls alone between the header and the footer.
+    { size: "125% text", viewport: { width: 734, height: 343 }, root: 125, asOne: false },
+    // The header and footer took 63% of the sheet at 150% and 84% at 200%, and no tile could be
+    // shown whole in the strip between them.
+    { size: "150% text", viewport: { width: 734, height: 343 }, root: 150, asOne: true },
+    { size: "200% text", viewport: { width: 734, height: 343 }, root: 200, asOne: true },
+    // Safari's page zoom at 150% on an iPhone 15 held sideways: the page sees a smaller screen.
+    { size: "page zoom 150%", viewport: { width: 489, height: 229 }, root: 100, asOne: true },
+  ];
+  for (const { size, viewport, root, asOne } of cases) {
+    await page.setViewportSize(viewport);
+    for (const mode of ["player", "admin"] as const) {
+      const where = `${size}, ${mode === "admin" ? "Admin Mode" : "Player Mode"}`;
+      await context.addCookies([{ name: "uniiverse_view", value: mode, url: baseURL! }]);
+      await page.goto(mode === "admin" ? "/admin" : "/team");
+      if (root !== 100) await page.addStyleTag({ content: `html { font-size: ${root}% !important; }` });
+      await page.getByTestId("account-sheet-button").focus();
+      await page.keyboard.press("Enter");
+      const sheet = page.getByTestId("account-sheet");
+      await expect(sheet).toBeVisible();
+      await expect(async () => expect(await sheet.evaluate((d) => getComputedStyle(d).transform)).toBe("none")).toPass();
+      if (asOne) await expect(sheet, where).toHaveAttribute("data-flow", "true");
+      else await expect(sheet, where).not.toHaveAttribute("data-flow");
+      // Docked at the bottom edge, its header at the top of the first screen.
+      const box = (await sheet.boundingBox())!;
+      expect(Math.abs(box.y + box.height - viewport.height), where).toBeLessThanOrEqual(1);
+      await expect(sheet.locator("#account-sheet-title")).toBeInViewport();
+      expect(await tilesShownWhole(page), where).not.toContain(false);
+      // At the end of what scrolls: the patch, Riot's notice and the actions, clear of the edge.
+      await (asOne ? sheet : sheet.locator("[data-sheet-scroll]")).evaluate((el) => el.scrollTo(0, el.scrollHeight));
+      await expect(sheet.getByText("Not endorsed by Riot Games.")).toBeInViewport();
+      await expect(sheet.getByTestId("mode-switch")).toBeInViewport({ ratio: 1 });
+      const actions = (await sheet.getByTestId("account-sheet-actions").boundingBox())!;
+      expect(box.y + box.height - (actions.y + actions.height), where).toBeGreaterThanOrEqual(16);
+      // One scroll area, never one inside another: while the sheet scrolls as one, its body does not.
+      const scrollers = await sheet.evaluate((d) => [d, ...d.querySelectorAll<HTMLElement>("*")].filter((el) => el.scrollHeight > el.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(el).overflowY)).length);
+      expect(scrollers, where).toBe(1);
+      await page.keyboard.press("Escape");
+      await expect(sheet).toHaveCount(0);
+    }
+  }
+});
+
+test.describe("a tablet before the page's code has run", () => {
+  // The page is loaded twice; a service worker would serve the second load's navigation itself.
+  test.use({ serviceWorkers: "block" });
+
+  test("a tap on the menu button or on the avatar is kept, shown pressed, and opens the drawer or the account menu once the code runs, exactly once", { tag: "@tablet" }, async ({ page }) => {
+    await page.addInitScript(COUNT_OPENINGS);
+    let scripts = await holdScripts(page);
+    await page.goto("/team", { waitUntil: "domcontentloaded" });
+    const menuButton = page.getByTestId("menu-button");
+    await menuButton.tap();
+    await menuButton.tap();
+    await expect(menuButton).toHaveAttribute("aria-busy", "true");
+    expect(await page.evaluate(() => window.__earlyTaps)).toEqual(["drawer"]);
+    scripts.release();
+    const drawer = page.getByTestId("mobile-drawer-panel");
+    await expect(drawer).toBeVisible();
+    await expect(menuButton).not.toHaveAttribute("aria-busy");
+    await page.waitForTimeout(600);
+    await expect(drawer).toBeVisible();
+    expect(await openings(page)).toEqual({ "mobile-drawer": 1 });
+    await page.keyboard.press("Escape");
+    await expect(drawer).toHaveCount(0);
+    // The account menu behind the avatar goes the same way (its other trigger, the sidebar's tile,
+    // is on the page too, hidden at this width: the tap opens the one tapped).
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+    scripts = await holdScripts(page);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    const avatar = page.getByTestId("mobile-topbar").getByTestId("account-menu-button");
+    await avatar.tap();
+    await avatar.tap();
+    await expect(avatar).toHaveAttribute("aria-busy", "true");
+    expect(await page.evaluate(() => window.__earlyTaps)).toEqual(["account"]);
+    scripts.release();
+    const menu = page.getByTestId("account-menu");
+    await expect(menu).toBeVisible();
+    await expect(avatar).toHaveAttribute("aria-expanded", "true");
+    await expect(avatar).not.toHaveAttribute("aria-busy");
+    // Exactly once: a second click would have closed it again.
+    await page.waitForTimeout(600);
+    await expect(menu).toBeVisible();
+    await expect(menu.getByRole("menuitem", { name: "Settings" })).toBeVisible();
+  });
 });
 
 test("Sign out from the tablet's menu is told to the browser's other tabs, and the next thing they do lands on sign-in", { tag: "@tablet" }, async ({ page, browser }) => {

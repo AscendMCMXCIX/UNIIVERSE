@@ -49,11 +49,13 @@ anywhere else:
    already; in Admin Mode the admin pages without a tab), Settings and Install App; then one quiet
    line with the patch and Riot's notice, the last line of its body. The switch between the modes
    and Sign out sit in its footer, side by side from 22.5rem: always in view, because only the body
-   scrolls (at a large text size it must; at 200% the header and Sign out stay put). It replaces
-   both the menu drawer and the account dropdown on phones, and fits one short screen (about 270px,
-   360px in Admin Mode, on a 320 × 568 phone too): it once listed everything as full-width rows,
-   which in Admin Mode ran below the sheet's own scroll on small phones and made a phone held
-   sideways a scrolling window (#265).
+   scrolls (at a large text size it must; at 200% on an upright phone the header and Sign out stay
+   put). Where large text, or a page zoomed in, would leave the body a strip in which no tile fits
+   (mostly on a phone held sideways), the whole sheet scrolls as one, like a page, and Sign out
+   follows the patch line (see "Every sheet and window"). It replaces both the menu drawer and the
+   account dropdown on phones, and fits one short screen (about 275px, 360px in Admin Mode, on a
+   320 × 568 phone too): it once listed everything as full-width rows, which in Admin Mode ran below
+   the sheet's own scroll on small phones and made a phone held sideways a scrolling window (#265).
 
    **The first tap counts.** The avatar is a button the page's code drives, and on a slow network
    the page is drawn, and the avatar pressable, seconds before that code has run: a tap then did
@@ -65,7 +67,8 @@ anywhere else:
 Tablets keep the menu drawer (a modal dialog), the account dropdown and the page tabs
 (`SectionTabs`, pinned at the top of the page once it scrolls, as a profile's sections are, so they
 stay in reach as on a phone); the bottom bar and the account sheet are phones only. The menu button
-keeps an early tap as the avatar does, and the drawer's Sign out tells the browser's other tabs, as
+and the avatar that opens the account dropdown keep an early tap as the phone's avatar does (so does
+the account tile in the desktop sidebar), and the drawer's Sign out tells the browser's other tabs, as
 the sheet's and the account menu's do (`AccountGuard` checks each of them then; a tab left on a
 member's page goes to sign-in at its next page, since the server answers every request from its own
 session cookie). The installed app on a tablet, which has no browser Back, gets the same Back in its
@@ -142,11 +145,16 @@ inert), Escape and the backdrop close it, focus returns to what opened it, a she
   spans up to 44rem), and is a compact centred window on taller wider screens;
 - is as tall as its content, up to the screen less a strip of the page above it, measured in small
   viewport units (`svh`), so Safari's toolbars sliding in and out never resize it under the finger;
-- keeps its header and footer in place, and only its body scrolls when it must (never the whole
-  sheet, never a scroll inside a scroll); its choices go in the body and its actions in the footer;
-- keeps its body's last line at least 1rem from the bottom edge, and a footer's actions 0.75rem,
-  more where a home indicator is (`pb-safe-4`, `pb-safe-3`: the padding, or the inset where it is
-  larger);
+- keeps its header and footer in place, and only its body scrolls when it must (never a scroll
+  inside a scroll); its choices go in the body and its actions in the footer;
+- scrolls as one instead, like a page, its header and footer included, only where they would leave
+  its body less room than the tallest control in it needs (large text, or a page zoomed in, on a
+  phone held sideways: the account sheet's header and footer once took 63% of it at 150% and 84% at
+  200%, and no tile could ever be shown whole between them). `DetailModal` measures this on every
+  change of size (`SHEET_SPARE_REM`), and the sheet carries `data-flow` while it does;
+- keeps its last line at least 1rem from the bottom edge, its footer's actions included, more where
+  a home indicator is (`pb-safe-4`: the padding, or the inset where it is larger); a sheet that is a
+  centred window keeps its footer 0.75rem from its own edge;
 - can be pulled down by its handle or header to close (a long pull or a flick; a short pull settles
   back), and a touch that would move nothing inside it never moves the page behind (no rubber band,
   no toolbar sliding).
@@ -186,9 +194,12 @@ inert), Escape and the backdrop close it, focus returns to what opened it, a she
   in `src/lib/nav.test.ts`).
 - `pnpm build && pnpm test:e2e`: `e2e/mobile-nav.spec.ts` checks the frame on a phone (the five
   tabs, Back and its label, the title, the profile's sections, the account sheet, including a tap
-  made while the page's code is held back and the sheet at 200% text, the filter sheet and chips, a
-  game opening full screen and Back closing it, the Players and Recent form rows) and, on a tablet,
-  that the drawer's Sign out reaches the browser's other tabs; `e2e/responsive.spec.ts`,
+  made while the page's code is held back, the sheet at 200% text, and held sideways at 125%, 150%
+  and 200% text and at a 150% page zoom, where every tile can be shown whole, the filter sheet and
+  chips, a game opening full screen and Back closing it, the Players and Recent form rows) and, on a
+  tablet, an early tap on the menu button and on the avatar, and that the drawer's Sign out reaches
+  the browser's other tabs; `e2e/sidebar-motion.spec.ts` the same early click on the desktop
+  sidebar's collapse control and account tile; `e2e/responsive.spec.ts`,
   `e2e/mobile-landscape.spec.ts` and `e2e/quality.spec.ts` keep overflow, targets, short windows
   and axe in check at every width.
 - Real devices: see RESPONSIVE.md → Safari and iPhones. Emulated phones prove layout and behaviour

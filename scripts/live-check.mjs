@@ -38,7 +38,8 @@
   - frame (#178): the charcoal frame token; the sidebar, open and folded, with the gradient bar on
     the current page; the phone and tablet top bar, drawer and tab bar. Phone: the avatar opens the
     account sheet on the first tap, made as soon as it is on screen; Sign out is in view without
-    scrolling the sheet (its footer).
+    scrolling the sheet (its footer). Tablet and desktop: the account menu opens on the first tap or
+    click on its avatar or tile, made as soon as it is on screen.
   - All Champions (#178): compact rows, sorted by games, no heading cut short.
   - games (#178): Team Matches opens a game under its card (no window), with ?match= in the address;
     a copied link opens it; Back returns to it; the keyboard toggles it; "Close this game" closes it
@@ -351,6 +352,7 @@ async function frameChecks(page, kind, context) {
     pass("frame", "desktop: the folded sidebar keeps the frame", folded === "true", { collapsed: folded });
     await shot(page, "desktop-frame-folded");
     await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: base }]);
+    await accountMenuFirstTap(page, kind, page.getByTestId("sidebar").getByTestId("account-menu-button"));
     return;
   }
   pass("frame", `${kind}: the top bar is painted with the frame colour`, sameAsFrame(paint.top, paint.chrome), { topBar: paint.top, chrome: paint.chrome });
@@ -395,6 +397,24 @@ async function frameChecks(page, kind, context) {
   const drawer = await colours(page, { panel: "[data-testid=mobile-drawer-panel]" });
   pass("frame", `${kind}: the drawer is painted with the frame colour`, sameAsFrame(drawer.panel, drawer.chrome), { drawer: drawer.panel, chrome: drawer.chrome });
   await shot(page, `${kind}-frame-drawer`);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(400);
+  await accountMenuFirstTap(page, kind, page.getByTestId("mobile-topbar").getByTestId("account-menu-button"));
+}
+
+/**
+ * The account menu opens on the first tap or click, made on a fresh load as soon as its trigger is on
+ * screen (the tablet's avatar, the sidebar's tile): before the page's code has run, on a slow load,
+ * the tap is kept and applied once it runs (early-taps.ts); and no second one.
+ */
+async function accountMenuFirstTap(page, kind, trigger) {
+  await page.goto(`${base}/team`, { waitUntil: "commit" });
+  await trigger.waitFor({ timeout: 20_000 });
+  const tappedAt = Date.now();
+  if (kind === "tablet") await trigger.tap();
+  else await trigger.click();
+  const menu = await page.getByTestId("account-menu").waitFor({ timeout: 15_000 }).then(() => true, () => false);
+  pass("frame", `${kind}: the account menu opens on the first ${kind === "tablet" ? "tap" : "click"}`, menu, { openedAfterMs: menu ? Date.now() - tappedAt : null });
   await page.keyboard.press("Escape");
   await page.waitForTimeout(400);
 }

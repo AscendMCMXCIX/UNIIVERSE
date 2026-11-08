@@ -54,6 +54,16 @@ const MOTION: Partial<Record<ModalSize, string>> = {
 const FLOW_SHARE = 0.4;
 /** Phones: below Tailwind's `sm`, where the windows above take the whole screen. */
 const PHONE_QUERY = "(max-width: 39.99rem)";
+/**
+ * A docked sheet keeps its header and footer in place and only its body scrolls. Where they would
+ * leave the body less room than the tallest control in it needs, with this much to spare (in rem),
+ * the whole sheet scrolls as one instead, like a page, its header and footer included: large text,
+ * or a page zoomed in, on a phone held sideways, where the account sheet's header and footer took
+ * most of its height and its tiles, in the strip between them, could never be shown whole.
+ */
+const SHEET_SPARE_REM = 0.25;
+/** What a sheet's body holds that must be seen whole to be used: its controls. */
+const SHEET_CONTROLS = "a[href], button, input, select, textarea, [tabindex]:not([tabindex='-1'])";
 
 /**
  * The backdrop and motion every modal on the site shares (detail windows and editors alike). The
@@ -301,7 +311,11 @@ export function DetailModal({
   // A window that closes (or hides behind another) opens with its motion again next time.
   const [wasOpen, setWasOpen] = React.useState(open);
   const headerRef = React.useRef<HTMLDivElement>(null);
-  // Scroll as one on a phone (see FLOW_SHARE); measured once the window is on the page.
+  const grabberRef = React.useRef<HTMLDivElement>(null);
+  const bodyRef = React.useRef<HTMLDivElement>(null);
+  const footerRef = React.useRef<HTMLDivElement>(null);
+  // Scroll as one on a phone (see FLOW_SHARE), or a docked sheet with too little room for its body
+  // (SHEET_SPARE_REM); measured once the window is on the page.
   const [flow, setFlow] = React.useState(false);
   if (wasOpen !== open) {
     setWasOpen(open);
@@ -331,7 +345,8 @@ export function DetailModal({
   const pinned = size === "form";
   /**
    * A sheet is docked to the bottom edge on phones and in short windows, its header and footer in
-   * place and only its body scrolling, never the whole sheet (one scroll area, inside the sheet).
+   * place and only its body scrolling (one scroll area, inside the sheet). Where that would leave
+   * its body too little room (SHEET_SPARE_REM), the whole sheet is the one scroll area instead.
    */
   const docked = size === "sheet";
   // How much room the corner controls take, for CLEAR_OF_CONTROLS and BELOW_CONTROLS: measured
@@ -381,6 +396,32 @@ export function DetailModal({
       phone.removeEventListener("change", check);
     };
   }, [open, custom, innerScroll, pinned, docked, size]);
+  // A docked sheet whose header and footer would leave its body less room than the body's tallest
+  // control needs, with SHEET_SPARE_REM to spare, scrolls as one. The room is the sheet less its
+  // handle, header and footer, which is the same whichever way it scrolls, so the choice holds once
+  // made; it is made again on every change of size (the text size, the phone turning, content
+  // arriving), reported before the sheet is first drawn.
+  React.useLayoutEffect(() => {
+    const d = ref.current;
+    const body = bodyRef.current;
+    if (!open || !docked || innerScroll || !d || !body) return;
+    const query = window.matchMedia(DOCKED_QUERY);
+    const check = () => {
+      const room = d.clientHeight - [grabberRef.current, headerRef.current, footerRef.current].reduce((sum, el) => sum + (el?.offsetHeight ?? 0), 0);
+      const overflows = d.scrollHeight > d.clientHeight + 1 || body.scrollHeight > body.clientHeight + 1;
+      let tallest = 0;
+      for (const el of body.querySelectorAll<HTMLElement>(SHEET_CONTROLS)) tallest = Math.max(tallest, el.offsetHeight);
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      setFlow(query.matches && overflows && room < tallest + SHEET_SPARE_REM * rem);
+    };
+    const observer = new ResizeObserver(check);
+    for (const el of [d, body, ...body.children, headerRef.current, footerRef.current]) if (el) observer.observe(el);
+    query.addEventListener("change", check);
+    return () => {
+      observer.disconnect();
+      query.removeEventListener("change", check);
+    };
+  }, [open, docked, innerScroll]);
 
   React.useEffect(() => {
     const d = ref.current;
@@ -493,6 +534,9 @@ export function DetailModal({
       data-testid={testId}
       data-size={size}
       data-flow={flow || undefined}
+      // What a pull on a docked sheet scrolls before it drags the sheet (useSheetDrag): the body, or
+      // the whole sheet while it scrolls as one.
+      data-sheet-scroll={docked && flow ? "" : undefined}
     >
       {open ? (
         <CloseContext.Provider value={requestClose}>
@@ -500,11 +544,15 @@ export function DetailModal({
               the body a strip. So does a phone window whose header would fill much of the screen
               (FLOW_SHARE). A custom header then scrolls away while its controls float at the top
               (under a bar that covers the status bar of the installed app); a plain title bar
-              stays pinned, and so does the footer. */}
-          {flow ? <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 z-20 h-[env(safe-area-inset-top)] bg-bg-elevated/90" /> : null}
+              stays pinned, and so does the footer. A docked sheet scrolls as one only where its
+              header and footer would leave its body too little room (SHEET_SPARE_REM), and then
+              like a page: its header, the close button with it, goes up with the body, and its
+              footer comes after the body's last line (a sheet is docked below the status bar, so
+              no bar covers it). */}
+          {flow && !docked ? <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 z-20 h-[env(safe-area-inset-top)] bg-bg-elevated/90" /> : null}
           {/* A docked sheet's handle: it can be pulled down to close (useSheetDrag). */}
           {docked ? (
-            <div aria-hidden className="flex shrink-0 justify-center pt-2 sm:hidden short:flex" data-testid="sheet-grabber">
+            <div ref={grabberRef} aria-hidden className="flex shrink-0 justify-center pt-2 sm:hidden short:flex" data-testid="sheet-grabber">
               <span className="h-1 w-9 rounded-full bg-border-strong" />
             </div>
           ) : null}
@@ -516,7 +564,7 @@ export function DetailModal({
                 data-testid="modal-controls"
                 className={cn(
                   "flex items-center gap-1",
-                  flow
+                  flow && !docked
                     ? "fixed right-[max(0.5rem,env(safe-area-inset-right))] top-[calc(env(safe-area-inset-top)+0.5rem)] z-20 rounded-lg bg-bg-elevated/85 shadow-lg backdrop-blur"
                     : innerScroll || pinned || docked
                       ? "absolute right-2 top-2 sm:right-3 sm:top-3"
@@ -527,7 +575,7 @@ export function DetailModal({
               </span>
             </div>
           ) : (
-            <div className={cn("flex shrink-0 items-start justify-between gap-3 border-b border-border bg-bg-elevated px-4 py-3 sm:px-5 sm:py-4 short:sticky short:top-0 short:z-10", headerClassName)} data-testid={headerTestId}>
+            <div ref={headerRef} className={cn("flex shrink-0 items-start justify-between gap-3 border-b border-border bg-bg-elevated px-4 py-3 sm:px-5 sm:py-4", !(docked && flow) && "short:sticky short:top-0 short:z-10", headerClassName)} data-testid={headerTestId}>
               <div className="min-w-0">
                 <h2 id={titleId} className="text-lg font-semibold leading-tight">
                   {title}
@@ -544,6 +592,7 @@ export function DetailModal({
             </div>
           )}
           <div
+            ref={bodyRef}
             className={cn(
               innerScroll
                 ? "flex min-h-0 flex-1 flex-col overflow-hidden"
@@ -560,11 +609,14 @@ export function DetailModal({
               bodyClassName,
             )}
             data-testid={bodyTestId}
-            data-sheet-scroll={docked ? "" : undefined}
+            data-sheet-scroll={docked && !flow ? "" : undefined}
           >
             <SettledContext.Provider value={settled}>{children}</SettledContext.Provider>
           </div>
-          {footer ? <div className={cn("flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border bg-bg-elevated px-4 pt-3 pb-safe-3 sm:px-6", !innerScroll && !pinned && "short:sticky short:bottom-0 short:z-10 short:mt-auto", flow && "sticky bottom-0 z-10 mt-auto")}>{footer}</div> : null}
+          {/* The footer's actions keep clear of the bottom edge: 1rem where a sheet is docked to it
+              (phones and short windows), as a body's last line does, 0.75rem in a centred window and
+              in the other windows, or the home indicator's inset where it is larger. */}
+          {footer ? <div ref={footerRef} className={cn("flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border bg-bg-elevated px-4 pt-3 sm:px-6", docked ? "pb-safe-4 sm:pb-safe-3 short:pb-safe-4" : "pb-safe-3", !innerScroll && !pinned && !(docked && flow) && "short:sticky short:bottom-0 short:z-10 short:mt-auto", flow && !docked && "sticky bottom-0 z-10 mt-auto")}>{footer}</div> : null}
         </CloseContext.Provider>
       ) : null}
     </dialog>

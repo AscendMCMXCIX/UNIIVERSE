@@ -326,9 +326,9 @@ test("the account sheet in Safari's engine: one tap opens it, docked at the bott
   expect(fit.docked).toBe(true);
   expect(fit.scrolls).toBe(false);
   expect(fit.top).toBeGreaterThan(40);
-  // The mode switch (and Sign out, with accounts) sit in the footer, which keeps them clear of the edge.
+  // The mode switch (and Sign out, with accounts) sit in the footer, at least 1rem from the edge.
   expect(fit.actionsUnderBody).toBe(true);
-  expect(fit.clearance).toBeGreaterThanOrEqual(12);
+  expect(fit.clearance).toBeGreaterThanOrEqual(16);
   await sheet.getByTestId("account-sheet-close").tap();
   await expect(sheet).toHaveCount(0);
 });

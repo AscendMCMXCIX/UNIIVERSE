@@ -73,9 +73,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <head>
         {/* First on the page: the browser can offer to install before the app's code loads, an
             image that fails while the page loads is noted before any image can fail, and a tap on
-            the avatar, the tablet's menu or the sidebar's collapse control before the code has run
-            is kept and applied once it runs (early-taps.ts). Inline scripts are allowed: the pages'
-            Content-Security-Policy has no script-src (next.config.ts). */}
+            the avatar, the tablet's menu, the account menu or the sidebar's collapse control before
+            the code has run is kept and applied once it runs (early-taps.ts). Inline scripts are
+            allowed: the pages' Content-Security-Policy has no script-src (next.config.ts). */}
         <script dangerouslySetInnerHTML={{ __html: CAPTURE_INSTALL_SCRIPT + CAPTURE_IMAGE_ERRORS_SCRIPT + EARLY_TAPS_SCRIPT }} />
       </head>
       <body className="min-h-full bg-bg text-fg">

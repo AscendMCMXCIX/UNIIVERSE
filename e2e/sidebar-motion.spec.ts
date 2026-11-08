@@ -5,7 +5,8 @@ import { expect, test, type Page } from "./test";
   no highlight or label stands out over the page while it moves (before, the current page's
   highlight showed as a band across the page for 220 ms). The control sits under the logo, in the
   same place open or collapsed, works from the keyboard, rapid toggling settles on the last
-  choice, and a click made before the page's code has run is applied once it runs, exactly once.
+  choice, and a click made before the page's code has run is applied once it runs, exactly once (on
+  the account tile too, which then opens the account menu).
   The rail is three zones (the brand, the pages, the footer) split by hairlines
   (docs/DESIGN_SYSTEM.md → Navigation). Frames are checked by freezing the running transitions (Web Animations API).
 */
@@ -148,6 +149,28 @@ test.describe("before the page's code has run", () => {
     await page.waitForTimeout(600);
     await expect(aside).toHaveAttribute("data-collapsed", "false");
     await expect(toggle).toHaveAccessibleName("Collapse sidebar");
+  });
+
+  test("a click on the account tile is kept, shown pressed, and opens the account menu once the code runs, exactly once", async ({ page }) => {
+    const scripts = await holdScripts(page);
+    await page.goto("/team", { waitUntil: "domcontentloaded" });
+    // The tile in the sidebar's footer; the tablet's avatar, the menu's other trigger, is on the page
+    // too, hidden at this width: the click opens the one clicked.
+    const tile = page.getByTestId("sidebar").getByTestId("account-menu-button");
+    await tile.click();
+    await tile.click();
+    await expect(tile).toHaveAttribute("aria-busy", "true");
+    expect(await page.evaluate(() => window.__earlyTaps)).toEqual(["account"]);
+    scripts.release();
+    const menu = page.getByTestId("account-menu");
+    await expect(menu).toBeVisible();
+    await expect(tile).toHaveAttribute("aria-expanded", "true");
+    await expect(tile).not.toHaveAttribute("aria-busy");
+    // Exactly once: a second click would have closed it again.
+    await page.waitForTimeout(600);
+    await expect(menu).toBeVisible();
+    await expect(menu.getByRole("menuitem", { name: "Settings" })).toBeVisible();
+    await expect(page.getByTestId("sidebar")).toHaveAttribute("data-collapsed", "false");
   });
 });
 

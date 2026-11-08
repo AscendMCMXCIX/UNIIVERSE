@@ -167,11 +167,11 @@ p a.text-accent {
 }
 
 /*
-  A frame control tapped before the page's code has run (the avatar, the tablet's menu, the
-  sidebar's collapse control): the inline script in the root layout keeps the tap and marks the
-  control aria-busy (src/components/early-taps.ts), and it shows pressed, the hover surface inside
-  an accent ring, until the page runs and opens what was asked for. Static: nothing moves, so
-  reduced motion has nothing to stop.
+  A frame control tapped before the page's code has run (the avatar, the tablet's menu, the account
+  menu, the sidebar's collapse control): the inline script in the root layout keeps the tap and
+  marks the control aria-busy (src/components/early-taps.ts), and it shows pressed, the hover
+  surface inside an accent ring, until the page runs and opens what was asked for. Static: nothing
+  moves, so reduced motion has nothing to stop.
 */
 [data-early][aria-busy="true"] {
   background-color: var(--color-surface-2);
