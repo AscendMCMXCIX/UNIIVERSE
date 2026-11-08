@@ -61,7 +61,7 @@ node scripts/live-check.mjs [base url] [output folder]
     - a copied link opens it, and Back returns to it;
     - Enter toggles it, and "Close this game" closes it with the focus back on the card;
     - Match History and its Encounters view still open;
-    - at 1440 (the sidebar open, a 70rem list): on the first three Match History cards the CS total and the damage share end before the next column (the build, or the teams where the list has no room for it), as the overrun in px (negative is clear). It asserts the wide card's tracks on real games and real builds; the card's height, names, pager and build states are checked in CI on demo data (`e2e/match-history-layout.spec.ts`).
+    - at 1440 (the sidebar open, a 70rem list): on the first three Match History cards the CS total and the damage share end before the next column (the build, the room kept for it on a card whose build was not recorded, or the teams where the list has no room for it; never a box out of the row's flow, such as that card's screen-reader note), as the overrun in px (negative is clear). It asserts the wide card's tracks on real games and real builds; the card's height, names, pager and build states are checked in CI on demo data (`e2e/match-history-layout.spec.ts`).
   - axe (#173) on the main pages at every width, with a game open, and in the champion window: WCAG 2.1 A and AA plus `label-content-name-mismatch`, with no serious or critical violation.
   - Every page at every width loads signed in (not turned away, and not the not-found or error screen, which can arrive with HTTP 200 once a page has begun streaming), with:
     - no sideways scroll;

@@ -424,14 +424,20 @@ request is a game's match timeline, once per game, when a section that needs it 
 - **The wide card** (8 Nov 2026, `match-history-view.tsx`): one row from a 50rem list, the spells
   and runes from 54rem and the compact build from 61rem (narrower lists leave them to the
   breakdown). The KDA and figure tracks are sized by their text (`minmax(auto, …)`), with floors
-  every common value fits ("10 / 10 / 10", "1,234 dmg/min (45%)"), so a total or share never runs
-  under the build or the teams and the columns stay level from card to card; the teams keep at
-  least 13rem and their names; the columns sit 10px apart until 64rem, where the wider gaps fit.
-  Each threshold is at or above the row's real minimum width there (about 49.9, 53 and 59.5rem
-  with the floors). The card is about 100px tall (the teams' five 16px lines, 1px apart); the
-  time and a ranked game's LP share the result column's third line (a promotion's longer mark
-  takes the next); the "Best … in N" chip sits with the figures, as on narrow cards. Before, the KDA and figure tracks had fixed minimums narrower than their text:
-  at 1280–1440px with the sidebar open "(241)" and "(31%)" ran up to 14px under the build (in
+  that the widest real values fit: "10 / 10 / 10" (tabular digits, so every K/D/A of three
+  two-digit numbers is that wide; 6.5rem, and between 50 and 54rem, where the row has no width to
+  spare, the K/D/A keeps the narrow card's size, which 5.75rem fits) and "1,234 dmg/min (45%)"
+  (8.125rem). So a total or share never runs under the build or the teams, and the columns stay
+  level from card to card. The champion's name has 6rem (6.25rem from 54rem, which the longest
+  one-word name, "Heimerdinger", fits) and takes a second line rather than lose its end ("Nunu &"
+  / "Willump"), with the whole name as its hover text; the teams keep at least 13rem and their
+  names; the columns sit 10px apart until 64rem, where the wider gaps fit. Each threshold is at or
+  above the row's real minimum width there (about 49.9, 54 and 60.5rem with the floors). The card
+  is about 100px tall (the teams' five 16px lines, 1px apart; four lines of champion, role and
+  members fit beside them); the time and a ranked game's LP share the result column's third line
+  (a promotion's longer mark takes the next); the "Best … in N" chip sits with the figures, as on
+  narrow cards. Before, the KDA and figure tracks had fixed minimums narrower than their text: at
+  1280–1440px with the sidebar open "(241)" and "(31%)" ran up to 14px under the build (in
   production the item icons covered them), and on 800–960px lists under the teams.
 - **Builds on cards** (`icon-img.tsx`): an item, spell or rune whose image fails (Data Dragon
   down, a blocked host, the installed app offline) shows its initials on a tile, named in its
@@ -441,9 +447,14 @@ request is a game's match timeline, once per game, when a section that needs it 
   recorded", counted from the page's rows (`unrecordedOnPage`, no extra query). A game's
   scoreboard keeps its quiet empty slots, so its columns stay in line.
 - **Pager**: ten games a page (`PER_PAGE_DEFAULT`; a window with room for more than ten whole
-  cards below the list's top, a portrait monitor, gets as many as fit, up to 25). Its buttons are
-  44px on touch screens (`pointer-coarse:`), 32px with a mouse from md, and wrap onto a second
-  line rather than overflow a 320px phone.
+  cards below the list's top, a portrait monitor, gets as many as fit, up to 25, counted at the
+  first card's height as drawn: about 100px in one row, about 160px stacked). Its buttons are
+  44px on touch screens (`pointer-coarse:`), 32px with a mouse from md. A phone too narrow for
+  every button on one line (a middle page of a long history: seven buttons and two "…" need
+  23.4rem) leaves the pages either side of the current one to the arrows, which go to the same
+  pages, so both arrows stay on the line, at its ends (`pager.ts`, a container query per line,
+  each a little over that line's width; folded, a line is at most 17.4rem, which a 320px phone
+  holds).
 - **Ranks around each game** (29 Oct 2026; `src/domain/known-rank.ts`,
   `src/server/players/participant-ranks.ts`): every rank is read against its game
   (`participantRank(…, game)`, `RankTiming`): a member's last rank recorded before the game
@@ -544,6 +555,9 @@ request is a game's match timeline, once per game, when a section that needs it 
   `tests/db/match-history.test.ts` (standout, summary, ladder, `ladderChange` against
   `rankProgress`, the detail's personal comparison and shares; Refine's result, patch, days,
   members with and against, highlights and sessions on Postgres), `tests/db/participant-ranks.test.ts`
-  (teammates' stored ranks), and the browser tests through `e2e/match-history.ts` (`openGame`,
+  (teammates' stored ranks), `src/components/match-history/pager.test.ts` (the pager's pages and
+  how it folds on a narrow phone), `src/components/match-history/icon-img.test.ts` (a failed
+  icon's initials), and the browser tests through `e2e/match-history.ts` (`openGame`,
   `closeGame`): `detail-panel`, `match-teams`, `match-ranks`, `match-card-ranks`,
-  `possible-groups`, `multikills`, `webkit`, `match-breakdown` and `match-refine`.
+  `possible-groups`, `multikills`, `webkit`, `match-breakdown`, `match-refine` and
+  `match-history-layout` (the wide card's columns, names and builds, the pager).

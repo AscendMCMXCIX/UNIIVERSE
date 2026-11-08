@@ -520,8 +520,11 @@ async function matchHistory(page, log, kind, playerId) {
         const cs = c.querySelector("[data-testid=match-cs]");
         const damage = c.querySelector("[data-testid=match-damage]");
         if (!cs || !damage) return null;
+        // The next column: past what takes no room in the row, hidden or out of flow (a build that
+        // was not recorded leaves only its screen-reader note, a 1px box at the row's start).
+        const inRow = (e) => e.getBoundingClientRect().width >= 0.5 && !["absolute", "fixed"].includes(getComputedStyle(e).position);
         let next = cs.parentElement.nextElementSibling;
-        while (next && next.getBoundingClientRect().width < 0.5) next = next.nextElementSibling;
+        while (next && !inRow(next)) next = next.nextElementSibling;
         return next ? Math.round(Math.max(end(cs), end(damage)) - next.getBoundingClientRect().left) : null;
       }),
     );
