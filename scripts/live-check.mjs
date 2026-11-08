@@ -38,6 +38,8 @@
   - frame (#178): the charcoal frame token; the sidebar, open and folded, with the gradient bar on
     the current page; the phone and tablet top bar, drawer and tab bar.
   - All Champions (#178): compact rows, sorted by games, no heading cut short.
+  - settings: the picture and display-name help name the public team page, and Settings never
+    mentions a Public profile switch (retired; true or false only).
   - games (#178): Team Matches opens a game under its card (no window), with ?match= in the address;
     a copied link opens it; Back returns to it; the keyboard toggles it; "Close this game" closes it
     and keeps the focus on the card. Match History opens games under their cards; at 1440 the
@@ -373,6 +375,21 @@ async function frameChecks(page, kind, context) {
   await page.waitForTimeout(400);
 }
 
+/**
+ * Settings says who sees a member's picture and display name: teammates, and the public team page
+ * while they are in the lineup or a substitute. The Public profile switch it once named is gone
+ * (19 Oct 2026; docs/UNIIVERSE_TECHNICAL_HANDOVER.md §C4). Only true or false is reported.
+ */
+async function settingsFacts(page, kind) {
+  const facts = await page.evaluate(() => ({
+    publicProfile: /public profile/i.test(document.querySelector("main")?.innerText ?? ""),
+    picture: /public team page/.test(document.querySelector("[data-testid=avatar-help]")?.textContent ?? ""),
+    displayName: /public team page/.test(document.getElementById("display-name-help")?.textContent ?? ""),
+  }));
+  pass("settings", `${kind}: Settings never mentions a Public profile switch`, !facts.publicProfile, { mentioned: facts.publicProfile });
+  pass("settings", `${kind}: the picture and display-name help name the public team page`, facts.picture && facts.displayName, { picture: facts.picture, displayName: facts.displayName });
+}
+
 async function allChampions(page, log, kind, playerId) {
   const path = playerId ? `/players/${playerId}/champions` : "/overview/champions";
   if (!(await visit(page, log, kind, "all-champions", path))) return;
@@ -554,8 +571,8 @@ if (!signedIn) check("setup", "signed-in checks", process.env.LIVE_REQUIRE_SIGN_
 if (!local) await deployment();
 const browser = await chromium.launch({ executablePath, proxy });
 let playerId = null;
-// The public pages, signed out, at every width: what anyone can open (the public team page and its
-// leaderboards only where the team turned them on).
+// The public pages, signed out, at every width: what anyone can open (sign-in, privacy, home and the
+// public team page, which has no switch).
 if (!local) {
   for (const [kind, options] of Object.entries(VIEWPORTS)) {
     const context = await browser.newContext({ ...options, reducedMotion: "reduce" });
@@ -602,7 +619,10 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
     if (await visit(page, log, kind, "leaderboards", "/leaderboards")) await axe(page, kind, "leaderboards");
   });
   await guarded(kind, "settings", async () => {
-    if (await visit(page, log, kind, "settings", "/settings")) await axe(page, kind, "settings");
+    if (await visit(page, log, kind, "settings", "/settings")) {
+      await settingsFacts(page, kind);
+      await axe(page, kind, "settings");
+    }
   });
   // Last in the desktop context, so a mode switch that went wrong cannot affect the other checks. Not
   // under LIVE_LOCAL: the demo build's visitor is the local owner, an administrator.
