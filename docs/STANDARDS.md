@@ -147,8 +147,11 @@ roomy. Empty or thin data shrinks a card rather than leaving a frame to fill.
   section's moves beside its title from `xl` (`SectionHeader`).
 - **Density, by what the page is for:**
   - an analytical table has 2rem portraits and rows of about 48px wherever it is a table. Its
-    figure columns are as wide as their heading needs and a little more, and the name column takes
-    the rest, so figures stay together on a wide screen. On phones the rows become compact pairs;
+    figure columns are as wide as their heading needs and a little more (at least room for the sort
+    arrow beside the heading, clear of the heading before it), and the name column takes the rest,
+    so figures stay together on a wide screen. The name column never gets less than the name and the
+    line under it need, each on one line (a role and "In pool"), so every row keeps one height at
+    the table's narrowest. On phones the rows become compact pairs;
   - a list of games is one card per game, and a game opens under its card;
   - a dashboard's cards are as large as their content.
 

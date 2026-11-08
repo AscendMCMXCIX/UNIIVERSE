@@ -103,7 +103,7 @@ export interface RosterSlot {
   substitute: RosterSubstitute | null;
   /** Who could be the substitute (bench members who list the role, best fit first), for Edit lineup. */
   substituteCandidates: Array<{ id: string; name: string; avatarUrl: string | null; fit: RoleFit }>;
-  /** Public pages only: the role is held by a member whose profile is not public (no identity given). */
+  /** Public pages only: the role's player may not appear publicly (archived, off the team or deactivated), so no identity is given. */
   privateMember?: boolean;
 }
 
