@@ -82,7 +82,7 @@ export function PermissionPresetsPanel({ presets }: { presets: PermissionPreset[
           open
           onClose={() => setEditing(null)}
           title={editing.id ? `Edit “${editing.name || "level"}”` : "New access level"}
-          className="sm:max-w-3xl"
+          width="wide"
           footer={
             <>
               <Button variant="ghost" onClick={() => setEditing(null)} disabled={busy}>

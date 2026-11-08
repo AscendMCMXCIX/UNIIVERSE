@@ -143,6 +143,8 @@ function ChromeTabs({ items, current }: { items: Array<{ key: string; href: stri
                 href={t.href}
                 replace
                 scroll={false}
+                // Lands at the section's own top (settleSectionTop), never at the page's (ScrollOnNavigate).
+                data-keep-scroll=""
                 aria-current={on ? "page" : undefined}
                 onClick={() => {
                   pending.current = !on && cardScrolledPast() ? t.key : null;
