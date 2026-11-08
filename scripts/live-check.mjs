@@ -44,7 +44,8 @@
     a copied link opens it; Back returns to it; the keyboard toggles it; "Close this game" closes it
     and keeps the focus on the card. Match History opens games under their cards; at 1440 the
     first three cards' CS totals and damage shares end before the next column (the build or the
-    teams); its Encounters view and the champion window still open.
+    teams), and a copy of a card with the widest K/D/A and the longest champion names stays level
+    with it and keeps the names whole; its Encounters view and the champion window still open.
   - accessibility (#173): axe (WCAG 2.1 A and AA, plus label-content-name-mismatch) on the main pages
     at every width, with a game open, and in the champion window: no serious or critical violation.
   - every page at every width: it loads signed in, no sideways scroll, no page error, no app console
@@ -547,6 +548,37 @@ async function matchHistory(page, log, kind, playerId) {
     );
     const measured = overruns.filter((x) => x !== null);
     pass("games", "1440: on the first three cards the CS total and the damage share end before the next column", measured.length > 0 && measured.every((x) => x <= 0), overruns);
+    // Real games go further than most pages show: the widest K/D/A ("10 / 10 / 10", every K/D/A
+    // of three two-digit numbers, digits being tabular) and the longest champion names ("Nunu &
+    // Willump" on two lines, the one-word "Heimerdinger" on one). The first card with both teams
+    // is copied with them, the copy going into the list beside it so it takes the cards' columns,
+    // and removed in the same step, before anything is drawn: how far the copy's teams start from
+    // the card's, in px, and whether each name is cut. Null without a card that shows its teams.
+    const extremes = await page.evaluate(async () => {
+      await document.fonts.ready;
+      const item = [...document.querySelectorAll("[data-testid=match-item]")].find((li) => li.querySelector("[data-testid=match-teams]") && li.querySelector("[data-testid=match-kda]") && li.querySelector("[data-testid=match-champion]"));
+      if (!item) return null;
+      const teams = (li) => li.querySelector("[data-testid=match-teams]").getBoundingClientRect().left;
+      const out = { shift: [], cut: [] };
+      for (const name of ["Nunu & Willump", "Heimerdinger"]) {
+        const copy = item.cloneNode(true);
+        copy.removeAttribute("id");
+        copy.querySelector("[data-testid=match-kda]").textContent = "10 / 10 / 10";
+        const champion = copy.querySelector("[data-testid=match-champion]");
+        champion.textContent = name;
+        item.after(copy);
+        try {
+          out.shift.push(Math.round(Math.abs(teams(copy) - teams(item))));
+          // scrollWidth and scrollHeight are whole pixels: a cut name overflows by far more than one.
+          out.cut.push(champion.scrollWidth > champion.clientWidth + 1 || champion.scrollHeight > champion.clientHeight + 1);
+        } finally {
+          copy.remove();
+        }
+      }
+      return out;
+    });
+    if (!extremes) warn("games", "1440: no card on the first page shows its teams, so the widest K/D/A and the longest names were not tried", path);
+    else pass("games", "1440: a card with the widest K/D/A and the longest champion names stays level with the others and keeps the names whole", extremes.shift.every((x) => x <= 1) && extremes.cut.every((x) => !x), extremes);
   }
   if (kind === "phone") await phoneGame(page, kind, "Match History", "match-history", () => card.click({ position: { x: 24, y: 16 } }));
   else {

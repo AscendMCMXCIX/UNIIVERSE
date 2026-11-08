@@ -44,12 +44,12 @@ export function pagerRem(items: readonly PagerItem[]): number {
 }
 
 /**
- * When the pager folds: below the first of these widths of its own (a container query) that its
- * whole line needs, a little over it, so a line that fits never folds. A 320px phone gives the
- * pager 18rem, which every line of six buttons or fewer fits; the widest line, seven buttons and
- * two "…" (23.375rem), folds on phones narrower than about 410px. Folded, the line is at most five
- * buttons and two "…" (17.375rem). Written out whole for Tailwind: `hide` on a page that folds,
- * `show` on the "…" that stands in for it.
+ * When the pager folds: below the first of these widths of its own (a container query) at or a
+ * little over what its whole line needs, so a line that fits never folds. A 320px phone gives the
+ * pager 18rem; a line that needs no more (up to six buttons without a "…", 17.75rem) never folds.
+ * The widest line, seven buttons and two "…" (23.375rem), folds on phones narrower than about
+ * 410px. Folded, a line is at most five buttons and two "…" (17.375rem), which 18rem holds.
+ * Written out whole for Tailwind: `hide` on a page that folds, `show` on the "…" standing in for it.
  */
 const FOLDS = [
   { below: 18, hide: "", show: "hidden" },

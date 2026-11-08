@@ -14,7 +14,7 @@ import { pagerFold, pagerItems, pagerRem } from "../src/components/match-history
   names stay whole; an item whose image fails shows its initials, an empty slot stays a plain
   tile, and a build that was not recorded draws nothing (the page says it once); the pager's
   buttons are finger-sized on touch screens, and on a narrow phone both arrows stay on its line;
-  and icon-only teams tint only their icons.
+  a tall window's page size counts its cards as drawn; and icon-only teams tint only their icons.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -211,8 +211,9 @@ test("a wide card's figures end before the next column, the teams keep their nam
       return {
         teams: [first, second].map((c) => c.querySelector('[data-testid="match-teams"]')!.getBoundingClientRect().left),
         kda: { text: range.getBoundingClientRect().width, box: kda.getBoundingClientRect().width },
-        nunu: { cut: nunu.scrollWidth > nunu.clientWidth + 0.5 || nunu.scrollHeight > nunu.clientHeight + 0.5, lines: lines(nunu), title: nunu.title },
-        heimer: { cut: heimer.scrollWidth > heimer.clientWidth + 0.5, lines: lines(heimer) },
+        // scrollWidth and scrollHeight are whole pixels: a cut name overflows by far more than one.
+        nunu: { cut: nunu.scrollWidth > nunu.clientWidth + 1 || nunu.scrollHeight > nunu.clientHeight + 1, lines: lines(nunu), title: nunu.title },
+        heimer: { cut: heimer.scrollWidth > heimer.clientWidth + 1, lines: lines(heimer) },
         height: first.getBoundingClientRect().height,
       };
     }, wide);
@@ -350,6 +351,7 @@ test("the pager's buttons are finger-sized on a touch screen and keep the mouse'
     // The whole line needs pagerRem(items); it folds below the first width of FOLDS over that.
     const fold = pagerFold(items);
     const folded = fold.hide !== "" && line.room < fold.below * line.rem;
+    if (width === 320) expect(folded, `${at}: the narrowest phone folds a middle page`).toBe(true);
     if (!folded) expect(pagerRem(items) * line.rem, `${at}: the whole line fits where it does not fold`).toBeLessThanOrEqual(line.room);
     for (const item of items) {
       if ("gap" in item || !item.folds) continue;
@@ -358,6 +360,32 @@ test("the pager's buttons are finger-sized on a touch screen and keep the mouse'
     }
     expect(await overflow(page)).toBeLessThanOrEqual(1);
   }
+});
+
+test("a tall window gets as many whole cards as fit, counted at their height as drawn", async ({ page, context, baseURL }, info) => {
+  test.skip(info.project.name !== "desktop", "a portrait monitor, at 1080×1920");
+  const profile = await profileOf(page, "JUNGLE");
+  await page.setViewportSize({ width: 1080, height: 1920 });
+  // The sidebar folded: a 59rem list of one-row cards, about 100px each, so more than ten fit and
+  // the page asks for them (?per=, replaced).
+  await context.addCookies([{ name: "uniiverse_sidebar", value: "collapsed", url: baseURL! }]);
+  await page.goto(`${profile}/matches`, { waitUntil: "networkidle" });
+  await expect(page).toHaveURL(/[?&]per=1[1-9]/);
+  await expect(page.getByTestId("match-card")).toHaveCount(Number(new URL(page.url()).searchParams.get("per")));
+  const bottom = await page.getByTestId("match-card").last().evaluate((card) => card.getBoundingClientRect().bottom + scrollY);
+  expect(bottom, "the last card ends inside the window").toBeLessThanOrEqual(1920);
+  // The sidebar open: a 47.5rem list, whose cards are stacked and 150–165px tall, so ten (the
+  // least a page holds) and no more; counted at the wide card's height it asked for thirteen.
+  await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: baseURL! }]);
+  await page.goto(`${profile}/matches`, { waitUntil: "networkidle" });
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  // Room to change its mind: a page size that did not fit would replace the address by now.
+  await page.waitForLoadState("networkidle");
+  await page.waitForTimeout(500);
+  const stacked = await page.getByTestId("match-card").evaluateAll((els) => ({ count: els.length, height: els[0]!.getBoundingClientRect().height }));
+  expect(stacked.height, "stacked cards").toBeGreaterThan(130);
+  expect(stacked.count).toBe(10);
+  expect(new URL(page.url()).searchParams.get("per")).toBeNull();
 });
 
 test("icon-only teams tint only their five icons, never the empty rest of the row", async ({ page }) => {

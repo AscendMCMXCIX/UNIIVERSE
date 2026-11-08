@@ -433,7 +433,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
 
   // The page size: ten (phones always), or as many whole cards as the room below the list's top
   // holds when that is more than ten (only very tall windows; up to 25). Cards are counted at the
-  // first one's height as drawn: about 100px in one row, about 160px stacked (a list under 50rem,
+  // first one's height as drawn: about 100px in one row, 150–165px stacked (a list under 50rem,
   // such as a portrait monitor's with the sidebar open). Ten is also the server's default, so
   // nearly every arrival renders once.
   React.useEffect(() => {
