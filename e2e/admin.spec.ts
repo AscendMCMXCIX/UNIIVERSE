@@ -108,9 +108,10 @@ test("on a phone the switch is in the account sheet, and each mode has its own t
   await expect(page.getByTestId("mobile-topbar")).toContainText("Admin mode");
   await expect(tabs).toHaveText(["Dashboard", "Users", "Settings", "Health"]);
   await expect(tabs.first()).toHaveAttribute("aria-current", "page");
-  // Admin Mode's sheet lists all its pages (its bar holds four) and the way back to Player Mode.
+  // Admin Mode's sheet holds the admin pages its bar does not (the bar holds four of six), the
+  // account's Settings, and the way back to Player Mode: every admin page is one tap away, once.
   await openSheet();
-  await expect(sheet.getByRole("navigation", { name: "Main" }).getByRole("link")).toHaveText(ADMIN_SECTIONS);
+  await expect(sheet.getByRole("navigation").getByRole("link")).toHaveText(["Data & Integrations", "Audit Logs", "Settings"]);
   await expect(sheet.getByTestId("mode-switch")).toHaveText("Return to Player Mode");
   await sheet.getByTestId("mode-switch").click();
   await expect(page).toHaveURL(/\/team$/);

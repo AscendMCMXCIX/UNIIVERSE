@@ -308,6 +308,29 @@ test("Player Customisation: the Studio opens, its sections switch from the secti
   await expect(page.getByTestId("profile-header")).toHaveAttribute("data-frame", frame ?? "none");
 });
 
+test("the account sheet in Safari's engine: docked at the bottom edge, everything in one screen, its last line clear of the edge", async ({ page }) => {
+  const sheet = page.getByTestId("account-sheet");
+  await page.goto("/team");
+  await expect(async () => {
+    if (!(await sheet.isVisible())) await page.getByTestId("account-sheet-button").tap({ timeout: 2_000 });
+    await expect(sheet).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 15_000 });
+  // Past the opening motion.
+  await expect(async () => expect(await sheet.evaluate((d) => getComputedStyle(d).transform)).toBe("none")).toPass();
+  const fit = await sheet.evaluate((d) => {
+    const body = d.querySelector<HTMLElement>("[data-sheet-scroll]")!;
+    const box = d.getBoundingClientRect();
+    const last = [...d.querySelectorAll("a, button, p")].filter((el) => (el as HTMLElement).offsetParent !== null).pop()!.getBoundingClientRect();
+    return { scrolls: body.scrollHeight > body.clientHeight + 1, docked: Math.abs(box.bottom - innerHeight) <= 1, top: box.top, clearance: box.bottom - last.bottom };
+  });
+  expect(fit.docked).toBe(true);
+  expect(fit.scrolls).toBe(false);
+  expect(fit.top).toBeGreaterThan(40);
+  expect(fit.clearance).toBeGreaterThanOrEqual(16);
+  await sheet.getByTestId("account-sheet-close").tap();
+  await expect(sheet).toHaveCount(0);
+});
+
 test("Admin Mode: the account sheet's switch moves between Admin Mode and Player Mode, each with its own tab bar", async ({ page }) => {
   const tabs = page.getByRole("navigation", { name: "Primary" }).getByRole("link");
   const sheet = page.getByTestId("account-sheet");

@@ -113,6 +113,97 @@ test("the avatar opens the account sheet: Resources, Settings, Install App and S
   await expect(page.getByTestId("mobile-back")).toBeVisible();
 });
 
+/** How the open account sheet sits: whether its body scrolls, whether it is docked to the bottom edge, its top, and its last line's clearance from its bottom edge. */
+async function sheetFit(page: Page) {
+  const sheet = page.getByTestId("account-sheet");
+  await expect(sheet).toBeVisible();
+  // Past the opening motion (220ms), so the box is where it rests.
+  await expect(async () => expect(await sheet.evaluate((d) => getComputedStyle(d).transform)).toBe("none")).toPass();
+  return sheet.evaluate((d) => {
+    const body = d.querySelector<HTMLElement>("[data-sheet-scroll]")!;
+    const box = d.getBoundingClientRect();
+    const last = [...d.querySelectorAll("a, button, p")].filter((el) => (el as HTMLElement).offsetParent !== null).pop()!.getBoundingClientRect();
+    return { scrolls: body.scrollHeight > body.clientHeight + 1, docked: Math.abs(box.bottom - innerHeight) <= 1, top: box.top, width: box.width, clearance: box.bottom - last.bottom };
+  });
+}
+
+test("the account sheet fits a small phone in one screen, in Player Mode and Admin Mode: nothing scrolls, nothing is cut off", async ({ page, context, baseURL }) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  for (const path of ["/team", "/admin"]) {
+    if (path === "/admin") await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
+    await page.goto(path);
+    await page.getByTestId("account-sheet-button").click();
+    const sheet = page.getByTestId("account-sheet");
+    const fit = await sheetFit(page);
+    expect(fit.scrolls).toBe(false);
+    expect(fit.docked).toBe(true);
+    // A strip of the page stays above it, to tap away.
+    expect(fit.top).toBeGreaterThan(40);
+    // The last line keeps clear of the bottom edge (it once sat on it in a browser).
+    expect(fit.clearance).toBeGreaterThanOrEqual(16);
+    if (path === "/admin") {
+      // Admin Mode: the admin pages the tab bar does not hold, and nothing the tab bar repeats.
+      await expect(sheet.getByRole("link", { name: "Audit Logs" })).toBeVisible();
+      await expect(sheet.getByRole("link", { name: "Dashboard" })).toHaveCount(0);
+      await expect(sheet.getByTestId("mode-switch")).toBeInViewport();
+    } else {
+      await expect(sheet.getByRole("link", { name: "Resources" })).toBeInViewport();
+    }
+    await expect(sheet.getByText("Not endorsed by Riot Games.")).toBeInViewport();
+    await page.keyboard.press("Escape");
+    await expect(sheet).toHaveCount(0);
+    await expect(page.getByTestId("account-sheet-button")).toBeFocused();
+  }
+});
+
+test("held sideways, the account sheet stays docked at the bottom edge, fits, and a tap above it closes it", async ({ page }) => {
+  await page.setViewportSize({ width: 734, height: 343 });
+  await page.goto("/team");
+  await page.getByTestId("account-sheet-button").click();
+  const sheet = page.getByTestId("account-sheet");
+  const fit = await sheetFit(page);
+  // It used to become a centred window as tall as the screen, scrolling as a whole.
+  expect(fit.docked).toBe(true);
+  expect(fit.scrolls).toBe(false);
+  expect(fit.top).toBeGreaterThan(24);
+  expect(fit.width).toBeLessThanOrEqual(704);
+  await page.mouse.click(367, Math.round(fit.top / 2));
+  await expect(sheet).toHaveCount(0);
+});
+
+test("the account sheet can be pulled down to close; a short pull settles back, and the page behind never moves", async ({ page, context }) => {
+  await page.goto("/players");
+  await page.evaluate(() => window.scrollTo(0, 300));
+  const scrolled = await page.evaluate(() => scrollY);
+  const sheet = page.getByTestId("account-sheet");
+  const cdp = await context.newCDPSession(page);
+  const touch = (type: "touchStart" | "touchMove" | "touchEnd", x: number, y: number) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x, y }] });
+  async function pull(x: number, from: number, to: number) {
+    await touch("touchStart", x, from);
+    for (let i = 1; i <= 8; i++) {
+      await touch("touchMove", x, from + ((to - from) * i) / 8);
+      await page.waitForTimeout(25);
+    }
+    await page.waitForTimeout(150); // a pause before letting go: no flick
+    await touch("touchEnd", x, to);
+  }
+  await page.getByTestId("account-sheet-button").click();
+  await sheetFit(page);
+  const box = (await sheet.boundingBox())!;
+  // A short pull on the handle: the sheet settles back where it was.
+  await pull(box.x + box.width / 2, box.y + 8, box.y + 48);
+  await expect(async () => expect(Math.abs((await sheet.boundingBox())!.y - box.y)).toBeLessThan(2)).toPass();
+  // Drags on the dimmed page above it move nothing behind it.
+  await pull(box.width / 2, 40, 160);
+  await pull(box.width / 2, 160, 40);
+  await expect(sheet).toBeVisible();
+  expect(await page.evaluate(() => scrollY)).toBe(scrolled);
+  // A long pull on its header closes it; the page is where it was.
+  await pull(box.x + box.width / 2, box.y + 40, box.y + 40 + Math.min(220, box.height));
+  await expect(sheet).toHaveCount(0);
+  expect(await page.evaluate(() => scrollY)).toBe(scrolled);
+});
+
 test("filters open in a sheet; what is narrowed shows as chips beside Filters, and a chip removes itself", async ({ page }) => {
   await page.goto(`/players/${await idOf(page, "TOP")}/matches`);
   await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");

@@ -41,10 +41,15 @@ anywhere else:
    those the account may open). The current tab's icon sits in an accent pill and its label is
    bright, so it never relies on colour alone. The Profile tab shows your own picture when you have
    one. A teammate's profile belongs to Players; your own profile's sections to Profile.
-3. **The account sheet** (from the avatar, a sheet from the bottom edge): Resources (when it has no
-   tab: an account with the Team pages has five tabs already), Settings, Install App, the switch
-   to Admin Mode, Sign out, then the patch and Riot's notice. It replaces both the menu drawer and
-   the account dropdown on phones. Admin Mode lists all its pages there too, as its bar holds four.
+3. **The account sheet** (from the avatar, a sheet from the bottom edge): who is signed in, then
+   tiles, an icon over a name, three to a row (up to six on a phone held sideways): the pages the tab
+   bar does not hold (Resources when it has no tab, as an account with the Team pages has five tabs
+   already; in Admin Mode the admin pages without a tab), Settings and Install App; then the switch
+   between the modes beside Sign out, and one quiet line with the patch and Riot's notice. It
+   replaces both the menu drawer and the account dropdown on phones, and fits one short screen
+   (about 270px, 350px in Admin Mode, on a 320 × 568 phone too): it once listed everything as
+   full-width rows, which in Admin Mode ran below the sheet's own scroll on small phones and made a
+   phone held sideways a scrolling window (#265).
 
 Tablets keep the menu drawer (a modal dialog), the account dropdown and the page tabs
 (`SectionTabs`, pinned at the top of the page once it scrolls, as a profile's sections are, so they
@@ -117,7 +122,17 @@ text below 12px; 11px (`text-2xs`) only for badges and labels.
 
 Every sheet and window shares `DetailModal`: native `<dialog>` (focus kept inside, the page behind
 inert), Escape and the backdrop close it, focus returns to what opened it, a sheet slides up in
-220ms with `--ease-emphasized` and out in 140ms (instant with reduced motion).
+220ms with `--ease-emphasized` and out in 140ms (instant with reduced motion). A sheet:
+- is docked to the bottom edge on phones and in short windows (a phone held sideways, where it
+  spans up to 44rem), and is a compact centred window on taller wider screens;
+- is as tall as its content, up to the screen less a strip of the page above it, measured in small
+  viewport units (`svh`), so Safari's toolbars sliding in and out never resize it under the finger;
+- keeps its header and footer in place, and only its body scrolls when it must (never the whole
+  sheet, never a scroll inside a scroll);
+- keeps its last line at least 1rem from the bottom edge, more where a home indicator is;
+- can be pulled down by its handle or header to close (a long pull or a flick; a short pull settles
+  back), and a touch that would move nothing inside it never moves the page behind (no rubber band,
+  no toolbar sliding).
 
 ## 5. The phone design system
 
