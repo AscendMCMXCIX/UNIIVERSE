@@ -418,6 +418,10 @@ async function allChampions(page, log, kind, playerId) {
   else {
     pass("all-champions", `${kind}: lists champions`, facts.rows > 0, facts.rows);
     if (kind !== "phone") pass("all-champions", `${kind}: rows are compact (at most 56 px)`, facts.heights.length > 0 && Math.max(...facts.heights) <= 56, facts.heights);
+    if (kind !== "phone") {
+      const roles = await everyRoleRow(page);
+      pass("all-champions", `${kind}: rows stay compact for every role beside "In pool" (at most 56 px)`, !!roles && Math.max(...Object.values(roles.heights)) <= 56, roles ?? "no row with a role line to measure");
+    }
     pass("all-champions", `${kind}: sorted by games by default`, /games/i.test(facts.sortedBy ?? ""), facts.sortedBy);
   }
   pass("all-champions", `${kind}: no heading cut short`, facts.cut.length === 0, facts.cut);
@@ -438,6 +442,43 @@ async function allChampions(page, log, kind, playerId) {
     const closed = await win.waitFor({ state: "hidden", timeout: 5_000 }).then(() => true, () => false);
     pass("games", `${kind}: the champion window opens and Escape closes it`, opened && closed, { opened, closed });
   }
+}
+
+/**
+ * A row's longest line is under the champion's name: the role with "In pool" beside it ("Support"
+ * and "Bottom" are the widest of ROLE_LABELS, src/domain/roles.ts). The lineup's first player is
+ * usually the Top laner, whose own rows carry only short roles, and opening another teammate's
+ * pages would refresh that teammate's Riot data when it is due (the profile's layout does), so the
+ * first row is copied instead: once per role, with that role's name and an "In pool" tag (a copy
+ * of one from the list, or drawn with the tag's classes from src/components/players/all-champions.tsx
+ * when no row has one). Each copy goes into the list beside the row, so it takes the rows' columns,
+ * and is removed in the same step, before anything is drawn. The copy's height for each role, or
+ * null without a row and its role line.
+ */
+async function everyRoleRow(page) {
+  return page.evaluate(async () => {
+    await document.fonts.ready;
+    const row = document.querySelector("[data-testid=top-champion]");
+    if (!row?.querySelector("[data-testid=champion-role-line] > :first-child")) return null;
+    const tag = document.querySelector("[data-testid=top-champion] [data-testid=in-pool]");
+    const heights = {};
+    for (const role of ["Top", "Jungle", "Mid", "Bottom", "Support"]) {
+      const copy = row.cloneNode(true);
+      const line = copy.querySelector("[data-testid=champion-role-line]");
+      // The role's name: the role tag's last part (its icon comes first).
+      const name = [...line.firstElementChild.childNodes].reverse().find((n) => (n.nodeType === Node.TEXT_NODE ? !!n.data.trim() : n.nodeType === Node.ELEMENT_NODE && !n.matches("[data-role-icon]")));
+      if (!name) return null;
+      name.textContent = role;
+      if (!line.querySelector("[data-testid=in-pool]")) line.append(tag ? tag.cloneNode(true) : Object.assign(document.createElement("span"), { className: "shrink-0 whitespace-nowrap rounded-full border border-border-strong px-1.5 text-2xs font-medium leading-4 text-fg-muted", textContent: "In pool" }));
+      row.after(copy);
+      try {
+        heights[role] = Math.round(copy.getBoundingClientRect().height);
+      } finally {
+        copy.remove();
+      }
+    }
+    return { heights, inPool: tag ? "copied from a row" : "drawn with the tag's classes" };
+  });
 }
 
 /**
