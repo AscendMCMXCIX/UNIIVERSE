@@ -115,12 +115,16 @@ test("a saved card shows on the profile, Team and Players, and cards stay aligne
   await expect(page.getByTestId("save-card-style")).toBeEnabled();
   await page.getByRole("radiogroup", { name: "Emblem" }).locator("[data-value=flame]").click();
   await expect(page.getByTestId("card-preview").getByTestId("card-tagline")).toHaveText("“Calm in the chaos”");
-  // The Players view also previews the list row (Players on phones, Leaderboards): the same name, emblem and tagline.
+  // The Players view previews the player's row on Players, twice: as tablets and desktops show it (a
+  // faint strip of the chosen art) and as a phone shows it (no art), with the same name, emblem and tagline.
   await page.getByTestId("preview-directory").click();
+  const wideRow = page.getByTestId("card-preview-row-wide");
+  await expect(wideRow.getByTestId("card-tagline")).toHaveText("“Calm in the chaos”");
+  await expect(wideRow.locator("[data-row-art]")).toHaveCount(1);
   const rowPreview = page.getByTestId("card-preview-row");
   await expect(rowPreview.getByTestId("card-tagline")).toHaveText("“Calm in the chaos”");
   await expect(rowPreview.getByTestId("card-emblem")).toHaveAttribute("data-emblem", "flame");
-  await expect(rowPreview.locator("[data-art-layer]")).toHaveCount(0);
+  await expect(rowPreview.locator("[data-art-layer], [data-row-art]")).toHaveCount(0);
   await page.getByTestId("preview-team").click();
   // One animated effect, to see how a page of several cards treats it.
   await step(page, "effects");
@@ -163,12 +167,14 @@ test("a saved card shows on the profile, Team and Players, and cards stay aligne
   await page.mouse.move(0, 0);
   await expect.poll(animationOf, { message: "and stops when the pointer leaves" }).toBe("none");
 
-  // Players directory.
+  // Players: the player's row, with one link to the profile laid over it, keeps their look, and from
+  // tablets up a faint strip of their art (Gwen, the featured champion) behind the picture and name.
   await page.goto("/players");
-  // The card is a container with one link to the profile laid over it.
   const card = page.locator("main [data-testid='player-card-item']").filter({ has: page.locator(`a[href='/players/${id}']`) });
   await expect(card).toHaveAttribute("data-frame", "angular");
   await expect(card.getByTestId("card-tagline")).toHaveText("“Calm in the chaos”");
+  await expect(card.getByTestId("card-name")).toHaveAttribute("data-name-style", "wide");
+  await expect(card.locator("[data-row-art]")).toBeVisible();
 
   // The compact band on the profile's other sections keeps the tagline and the lineup status (from sm up), within its height.
   await page.goto(`/players/${id}/champions`);
@@ -186,17 +192,25 @@ test("a saved card shows on the profile, Team and Players, and cards stay aligne
   await expect(formRow.getByTestId("card-emblem")).toHaveAttribute("data-emblem", "flame");
   await expect(formRow.getByTestId("card-name")).toHaveAttribute("data-name-style", "wide");
 
-  // Players on a phone: the row shows the same name style, emblem and tagline (no art: rows stay light).
+  // Players on a phone: the same row shows the same name style, emblem and tagline, and no art (the
+  // strip is left out of the page's layout, so its lazy picture is never requested: rows stay light).
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, storageState: await page.context().storageState() });
   const small = await phone.newPage();
+  const art: string[] = [];
+  small.on("request", (r) => {
+    if (/\/cdn\/img\/champion\/tiles\//.test(r.url())) art.push(r.url());
+  });
   await small.goto("/players");
-  const row = small.locator(`main a[data-testid=player-row][href="/players/${id}"]`);
+  const row = small.locator("main [data-testid='player-card-item']").filter({ has: small.locator(`a[href='/players/${id}']`) });
   await expect(row).toBeVisible();
   await expect(row).toHaveAttribute("data-frame", "angular");
   await expect(row.getByTestId("card-emblem")).toHaveAttribute("data-emblem", "flame");
   await expect(row.getByTestId("card-name")).toHaveAttribute("data-name-style", "wide");
   await expect(row.getByTestId("card-tagline")).toHaveText("“Calm in the chaos”");
   await expect(row.locator("[data-art-layer]")).toHaveCount(0);
+  await expect(row.locator("[data-row-art]")).toBeHidden();
+  await small.waitForLoadState("networkidle");
+  expect(art, "no row art requested on a phone").toEqual([]);
   await phone.close();
 
   // Back to the standard card.

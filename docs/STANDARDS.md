@@ -32,7 +32,7 @@ from each section; this page does not repeat them.
   this season"), and a figure states what it covers (a season, a queue, the games that have the
   figure). A sample too small to mean much says so. "Unranked" means a rank check found no
   placement: a player without a linked Riot account gets no rank line at all ("No Riot account"
-  in its place on the Players cards and rows; nothing on the first sign-in's card preview).
+  in its place on the Players rows; nothing on the first sign-in's card preview).
 - Never present an uncertain identity or relationship as certain: what is only possible is
   labelled as possible (a match's possible groups, for example, never "premade").
 - Two players' relationship is what the stored games record: against (opposite teams) or
@@ -184,8 +184,8 @@ Use the shared component before writing a new one (`src/components/ui`):
 | Details over the page (a match, a player, a champion) | `DetailModal` (the standard size fits its content up to the screen's height); a custom `header` keeps clear of the close button's corner with `CLEAR_OF_CONTROLS` (content beside it) or `BELOW_CONTROLS` (content that starts under it), never a fixed padding |
 | A question or a short form | `Dialog`, `ConfirmDialog` |
 | Choices in a list | `Menu`, `MenuItem`, `MenuLink` |
-| Filters | `FilterBar`, `RefineButton`, `FilterField`, `SearchInput`, `ToggleChip`. On phones the bar folds to a Filters button that opens a sheet, with what is narrowed as removable chips beside it (`chips`) |
-| One choice out of a few that filters what a page shows (a role, a side, a sort) | `segmentedGroupClass` with `segmentClass` (`size: "md"` for a list's main filter, as Encounters' All, Against and Alongside), `RoleSegmented`. Never to move between views or pages |
+| Filters | `FilterBar`, `RefineButton`, `FilterField`, `SearchInput`, `ToggleChip`. On phones the bar folds to a Filters button that opens a sheet, with what is narrowed as removable chips beside it (`chips`). A bar with several filters keeps to one row inline with `compact` (a narrower search to start from, Reset as its icon below `xl`) |
+| One choice out of a few that filters what a page shows (a role, a side, a sort) | `segmentedGroupClass` with `segmentClass` (`size: "md"` for a list's main filter, as Encounters' All, Against and Alongside), `RoleSegmented` (`compactBelow="xl"`: icons only for the roles not chosen on tablets and laptops, in a crowded toolbar). Never to move between views or pages |
 | A page's sections (primary) | `TabBar`: a profile's Overview, All Champions, Match History and Riot Accounts; Team's sections. On tablets and desktops the bar stays pinned at the top of the page once it scrolls (`sticky`; [RESPONSIVE.md](RESPONSIVE.md) → Shell). On phones Team's sections are the bottom tab bar and a profile's ride in the top bar (`ProfileTabs variant="chrome"`) |
 | Equal views of one section, or related pages (secondary) | `SubTabs` (`ui/sub-tabs.tsx`): links with `aria-current`, directly under the primary tabs, in the section title's place (`SectionHeader`'s `nav`): Match History's Games and Encounters. `SubNav` when the path decides the current one (Admin's Users & Permissions) |
 | Views inside one panel (a game's Scoreboard, Analysis, Timeline and Build; a champion's views) | `role="tablist"` buttons with `tabIndicatorClass` |
@@ -203,8 +203,9 @@ Use the shared component before writing a new one (`src/components/ui`):
 | How current a page's Riot data is, and Refresh | `DataStatusNote` beside the scope line, `RefreshButton` at the toolbar's end (`usePlayerRefresh` in `refresh-store.ts` behind every Refresh of a player, `usePlayerRefreshState` for what only shows it) |
 | A section of Riot data's heading: title, scope line and status, a toolbar of filters ending in Refresh | `SectionHeader` |
 | A button in a toolbar beside the filters (Refine, Refresh) | `toolbarButtonClass` (`filter-bar.tsx`) |
-| A player's identity on a card (picture and links, name, rank and labels, tagline) | `CardIdentity` (`players/player-card.tsx`) inside a `@container/card`; on Players, `layout="rows"` on the directory card's grid (`DirectoryCardLayout`) |
-| A member's name in a list row (Players on phones, Leaderboards) | `CardAvatar` and `CardName` (`players/card-look.tsx`) under the card's colour variables (`cardColourVars` on the row), so the saved name style, emblem and avatar frame follow the member off their card; `CardTagline lines={1}` where a row has room for the tagline. No art, frame or effect on a row |
+| A player's identity on a card (picture and links, name, rank and labels, tagline) | `CardIdentity` (`players/player-card.tsx`) inside a `@container/card` |
+| A member's name in a list row (Players, Leaderboards) | `CardAvatar` and `CardName` (`players/card-look.tsx`) under the card's colour variables (`cardColourVars` on the row), so the saved name style, emblem and avatar frame follow the member off their card; `CardTagline lines={1}` where a row has room for the tagline. No frame or effect on a row; Players' rows may carry a faint strip of the member's art (below) |
+| A player on Players (one row of the roster, every width) | `RosterRow` (`players/roster-row.tsx`) in the roster's one panel: picture, name and status, then role, rank and the pool counted to fit (`PoolPreview fit="count" size="xs"`); one link over the row, the social icons (`CardSocialIcons size="row"`) above it; what shows follows the row's own width (`@container/row`). From tablets up, `RowArtStrip` (`players/card-art.tsx`): the player's banner or skin tile at 20% opacity behind the picture and name, faded out before the figures, never on phones |
 | A champion pool's rows (first choice marked, win rate, games, KDA, CS) | `PoolChampionTile` under `PoolColumnNames` (`players/player-card.tsx`) |
 | Both teams of a game | `TeamComposition` (`match-history/team-composition.tsx`); `keepNames` where the line-ups are what the card is for (Team → Matches), so phones keep the names too |
 | Two players' relationship in recorded games (against, alongside) | `RelationTag` (`match-history/encounters-view.tsx`): the word with the side's colour |

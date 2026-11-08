@@ -130,7 +130,7 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 
 - [ ] Owner signs in and lands in the **Player View** (Team, Players, Matches, Overview, Settings; no admin links). The sidebar (phone: the drawer) offers **Switch to Admin**; Admin Mode shows ADMIN MODE and Users & Permissions, Players & Accounts, Competition, Data & Riot, Branding, System Health; **Back to Player View** returns.
 - [ ] Account creation and first sign-in: see §10.
-- [ ] Signed in as that player: Players lists the team's players (Primary Role champions only); another player's profile opens read-only (roles, pools, Riot accounts, overview) with no Edit button; `/players/<their id>/edit` redirects back to the profile; `/admin/players` redirects to Team; the own profile shows **Edit my profile** and pools can be changed there.
+- [ ] Signed in as that player: Players lists the team's players as rows (their Primary Role's champions; with a role chosen, that role's); another player's profile opens read-only (roles, pools, Riot accounts, overview) with no Edit button; `/players/<their id>/edit` redirects back to the profile; `/admin/players` redirects to Team; the own profile shows **Edit my profile** and pools can be changed there.
 - [ ] Team shows the five roles with the assigned Main player and labelled champion context (Recent games, Win rate, Proficiency); a player sees no Change/Assign control; an admin does, listing the team members who play that role.
 - [ ] My Overview: rank, season record, one card per pool champion (portrait, games, W/L, win rate, combined mastery, proficiency, last played); the **Season** and **Game mode** dropdowns (All supported games, Ranked Solo/Duo, Ranked Flex, Normal games) change the URL and the figures; the season shows *Partial* until every account is read back to the season start; "Show other champions played" is optional; Solo Queue Blocks opens from the panel at the bottom.
 
@@ -176,7 +176,7 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 ## 14. Phase 5: profiles, statistics, pools
 
 - [ ] Team: no "What the lineup brings" strip; each card has 2–3 strength tags (or a plain "<Role> Main" while data is thin), equal heights, the chosen featured champion's art behind the header, and "+N more" when the pool is longer than three.
-- [ ] My Profile (sidebar): the same layout as a teammate's profile; your own card is not in the Players list; a teammate's profile is read-only unless you are an admin.
+- [ ] My Profile (sidebar): the same layout as a teammate's profile; your own row is not on Players (its header offers My profile instead); a teammate's profile is read-only unless you are an admin.
 - [ ] My Profile → Team card style: pick a featured champion and an accent; the Team page shows them after a reload.
 - [ ] Profile statistics: win rate, games and KDA lead; CS, damage and vision show "per game" with how many games had details; switching season or mode updates every figure; a champion card shows its own KDA and the proficiency badge with an info (i) explanation.
 - [ ] Champion pools: add a third role (Add another role), give it champions, reorder roles; add more than six champions to a pool (no limit message); drag to reorder still works.

@@ -2,11 +2,10 @@
 
 The Studio is the editor behind **Customise** on a player's card. It opens from your own Team card or from a profile header. It changes how one card looks everywhere it appears:
 - the Team card;
-- the Players directory card;
 - the profile header;
 - the Studio's own preview.
 
-Where a member is listed without their card, the name still follows the look: the Players list rows on phones (name style, emblem, the tagline on one line, the role icon in the card's colour) and the Leaderboards rows and record holders (name style and emblem), through `CardName` under the card's colour variables (`cardColourVars`, `src/components/players/card-look.tsx`). Rows carry no art, frame or effect, so a list downloads nothing for a look.
+Where a member is listed without their card, the name still follows the look: the Players rows (frame, name style, emblem, the tagline on one line, the role icon in the card's colour; from tablets up a faint strip of the chosen art behind the picture and name, `RowArtStrip`) and the Leaderboards rows and record holders (name style and emblem), through `CardName` under the card's colour variables (`cardColourVars`, `src/components/players/card-look.tsx`). Rows carry no frame or effect, and phones download nothing for a look.
 
 ## Using it
 
@@ -26,7 +25,7 @@ Where a member is listed without their card, the name still follows the look: th
 - **Moving between sections.**
   - Desktops: the numbered step bar in the header, and Back and Next in the action bar.
   - Phones and tablets: one section bar above the controls. It shows the section you are in (its number, name and what it holds), with previous and next beside it. Tapping it lists every section; the ones you changed are marked **Changed**. Escape or a tap outside closes the list.
-- **Live preview.** Team card, Phone and Players views. It follows every change at once.
+- **Live preview.** Team card, Phone and Players views (Players: your row as tablets and desktops show it, with the art strip, and as a phone shows it). It follows every change at once.
   - Desktops and phones held sideways: beside the controls.
   - Phones and tablets held upright: compact above the controls, at one scale for every view.
     - **Hide** puts it away to a small live strip, so the controls get the screen. Each device remembers the choice.
@@ -106,8 +105,8 @@ Where a member is listed without their card, the name still follows the look: th
 | Browser behaviour | `e2e/card-studio.spec.ts` |
 | Phones: the section bar, preview, confirmations, keyboard, held sideways | `e2e/studio-mobile.spec.ts` |
 | Every control by touch on five devices, and Save keeping it all | `e2e/studio-touch.spec.ts` |
-| Players directory: every card on the same regions, level with its neighbours, its pool whole, at eight sizes | `e2e/players-directory.spec.ts` |
-| The directory's pool row: whole portraits, the rest counted, never "+1", at every width | `src/components/players/pool-fit.test.ts` |
+| Players: every row whole, a row of two lines 4rem tall, rows side by side level, its pool whole, at eight sizes; one toolbar row; pools that follow the role filter | `e2e/players-directory.spec.ts` |
+| The pool on a row (both portrait sizes): whole portraits, the rest counted, never "+1", at every width | `src/components/players/pool-fit.test.ts` |
 
 The browser tests cover:
 - presets and live preview;

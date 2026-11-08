@@ -9,11 +9,11 @@ import { failedEarly } from "@/components/ui/remote-image";
 /**
  * The artwork behind a player's card, header or preview: the chosen skin's official art (or the
  * player's banner) under a readability veil tinted with the player's colours. Used by the Team
- * card, the Players directory card, the profile header and the Card Studio
- * preview, so a choice looks the same everywhere.
+ * card, the profile header and the Card Studio preview, so a choice looks the same everywhere
+ * (the Players rows show the same choice as a faint strip: RowArtStrip below).
  *
  * - kind "splash" (landscape, ~1215×717) for large headers; "loading" (portrait crop, a few
- *   dozen KB) for small cards, so the directory never downloads full splashes.
+ *   dozen KB) for small cards, so a small card never downloads a full splash.
  * - If a skin's art is missing (retired, or not published yet) it falls back to the champion's
  *   default art, then to the plain gradient; a broken image is never shown. A banner that fails
  *   falls back to the champion art.
@@ -92,14 +92,54 @@ function motifStyle(style: CardStyle, fx: number): React.CSSProperties {
   }
 }
 
-/** The image itself, with its fallback chain (remounted whenever the art changes). */
-function ArtImage({ urls, position, testId, art, zoom, blur, smooth, priority }: { urls: string[]; position: string; testId: string; art: CardArt | null; zoom: number; blur: number; smooth: boolean; priority: boolean }) {
+/**
+ * The art's fallback chain: the first address, then the next each time one fails (the banner, the
+ * chosen skin, the champion's default skin), and nothing once all have failed. A picture that
+ * failed before the page was interactive moves on down the chain too. Mount it again (a key) when
+ * the addresses change.
+ */
+function useArtChain(urls: string[]) {
   const [failed, setFailed] = React.useState(0);
-  // A picture that failed before the page was interactive moves on down the chain too.
-  const early = React.useCallback((img: HTMLImageElement | null) => {
+  const ref = React.useCallback((img: HTMLImageElement | null) => {
     if (failedEarly(img)) setFailed((n) => n + 1);
   }, []);
-  const src = urls[failed];
+  return { src: urls[failed], ref, onError: () => setFailed((n) => n + 1) };
+}
+
+/**
+ * The player's art as a faint strip at the start of a list row (Players): their banner, otherwise
+ * the chosen skin's square tile (about 40 KB; the champion's default skin if that skin has none),
+ * fading out before the row's figures, a little brighter while the row is pointed at (the row is
+ * `group/row`). Nothing when the player chose no art. Lazy, and left out of the page's layout by the
+ * caller's `className` where a screen shows no strip (phones), so nothing is downloaded there.
+ */
+export function RowArtStrip({ art, look, className }: { art: CardArt | null; look: CardLook | null | undefined; className?: string }) {
+  const source = look?.style.art.source ?? "champion";
+  if (source === "none") return null;
+  const banner = source === "banner" && look?.bannerUrl ? look.bannerUrl : null;
+  const champion = art ? [championArtUrl(art, "tiles"), championArtUrl({ ...art, skinNum: 0 }, "tiles")] : [];
+  const urls = [...new Set([...(banner ? [banner] : []), ...champion])];
+  if (!urls.length) return null;
+  const style = look?.style;
+  const focus = style && (style.art.focusX !== null || style.art.focusY !== null) ? `${style.art.focusX ?? 50}% ${style.art.focusY ?? 25}%` : "center 25%";
+  return (
+    <span aria-hidden className={cn("pointer-events-none absolute inset-y-0 left-0 -z-10 w-2/5 max-w-56 overflow-hidden [mask-image:linear-gradient(to_right,black_15%,transparent)]", className)} data-row-art={banner ? "banner" : `${art!.championId}:${art!.skinNum}`}>
+      <StripImage key={urls.join("|")} urls={urls} position={focus} />
+    </span>
+  );
+}
+
+function StripImage({ urls, position }: { urls: string[]; position: string }) {
+  const { src, ref, onError } = useArtChain(urls);
+  if (!src) return null;
+  // Official Riot art from Data Dragon or the player's validated banner; a plain <img> so the browser caches it.
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img key={src} src={src} alt="" loading="lazy" decoding="async" ref={ref} onError={onError} className="h-full w-full object-cover opacity-20 transition-opacity duration-300 group-hover/row:opacity-30 motion-reduce:transition-none" style={{ objectPosition: position }} data-testid="row-art-image" />;
+}
+
+/** The image itself, with its fallback chain (remounted whenever the art changes). */
+function ArtImage({ urls, position, testId, art, zoom, blur, smooth, priority }: { urls: string[]; position: string; testId: string; art: CardArt | null; zoom: number; blur: number; smooth: boolean; priority: boolean }) {
+  const { src, ref: early, onError } = useArtChain(urls);
   if (!src) return null;
   // A blurred edge shows the background through: scale up a touch to keep the edges covered.
   const scale = zoom * (blur > 0 ? 1 + blur / 60 : 1);
@@ -114,7 +154,7 @@ function ArtImage({ urls, position, testId, art, zoom, blur, smooth, priority }:
       fetchPriority={priority ? "high" : undefined}
       decoding="async"
       ref={early}
-      onError={() => setFailed((n) => n + 1)}
+      onError={onError}
       className={cn("card-art-img absolute inset-0 h-full w-full object-cover opacity-75", smooth ? "transition-transform duration-500 motion-reduce:transition-none" : "will-change-transform")}
       style={{ objectPosition: position, transform: scale !== 1 ? `scale(${scale})` : undefined, transformOrigin: position, filter: blur > 0 ? `blur(${blur}px)` : undefined }}
       data-testid={testId}

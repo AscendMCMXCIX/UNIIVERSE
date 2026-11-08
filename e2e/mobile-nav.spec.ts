@@ -48,7 +48,7 @@ test("the tab bar holds Team, Players, Leaderboards, Matches and Profile, one ta
 
 test("Back from a teammate's profile returns to where you came from, named after it; opened directly, it leads to Players", async ({ page }) => {
   await page.goto("/players");
-  await page.getByTestId("players-list").getByTestId("player-row").filter({ hasText: "Demo Mid" }).click();
+  await page.getByTestId("players-directory").locator("a[data-testid=player-card][data-player-name='Demo Mid']").click();
   await expect(page).toHaveURL(/\/players\/[^/]+$/);
   // A teammate's profile belongs to Players.
   await expect(tabBar(page).getByTestId("tab-players")).toHaveAttribute("aria-current", "page");
@@ -287,10 +287,15 @@ test("a page's views share one track on the narrowest phones, a long label by it
 
 test("Players and Leaderboards read as lists on a phone: a row per player, a row per member, each row one tap", async ({ page }) => {
   await page.goto("/players");
-  const rows = page.getByTestId("players-list").getByTestId("player-row");
+  // One panel, a row per player, one column; the whole row is the link to the profile.
+  const rows = page.getByTestId("players-directory").getByTestId("player-card-item");
   await expect(rows.first()).toBeVisible();
-  await expect(page.getByTestId("players-directory")).toBeHidden();
-  for (const h of await rows.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) expect(h).toBeGreaterThanOrEqual(44);
+  const boxes = await rows.evaluateAll((els) => els.map((e) => ({ left: Math.round(e.getBoundingClientRect().left), height: e.getBoundingClientRect().height, link: e.querySelector("a[data-testid=player-card]")!.getBoundingClientRect().height })));
+  expect(new Set(boxes.map((b) => b.left)).size, "one column").toBe(1);
+  for (const b of boxes) {
+    expect(b.height).toBeGreaterThanOrEqual(44);
+    expect(b.link, "the link covers its row").toBeGreaterThanOrEqual(b.height - 2);
+  }
   // Recent form: a row per member, the role, record and dates under the name; a tap anywhere on the
   // row (not only on the name) opens the member's profile.
   await page.goto("/leaderboards");

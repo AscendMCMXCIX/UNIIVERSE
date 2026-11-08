@@ -15,18 +15,22 @@ import { cn } from "@/lib/cn";
   the server). Every icon is its own control, so using one never reaches the card or header under
   it. One look everywhere: a round dark chip around the mark, `md` in headers and windows, `card`
   on a player card (sized by the card's own width: 1.75rem on a narrow card, 2rem from 17rem, a
-  step more on touch screens), and on touch screens an invisible margin makes each a finger-sized
-  target.
+  step more on touch screens), `row` on a Players row (1.5rem, so the name's line keeps its height),
+  and on touch screens an invisible margin makes each a finger-sized target (44px).
 */
 
 const SIZE = {
   md: "h-9 w-9 [&_svg]:h-5 [&_svg]:w-5",
   card: "h-7 w-7 pointer-coarse:h-8 pointer-coarse:w-8 [&_svg]:h-4 [&_svg]:w-4 @min-[17rem]/card:h-8 @min-[17rem]/card:w-8 @min-[17rem]/card:pointer-coarse:h-9 @min-[17rem]/card:pointer-coarse:w-9 @min-[17rem]/card:[&_svg]:h-[1.125rem] @min-[17rem]/card:[&_svg]:w-[1.125rem]",
+  row: "h-6 w-6 [&_svg]:h-3.5 [&_svg]:w-3.5",
 } as const;
 type IconSize = keyof typeof SIZE;
 
+/** The invisible margin on touch screens that makes each icon a 44px target, by size. */
+const TOUCH: Record<IconSize, string> = { md: "pointer-coarse:after:-inset-1.5", card: "pointer-coarse:after:-inset-1.5", row: "pointer-coarse:after:-inset-2.5" };
+
 const CHIP = "relative grid shrink-0 place-items-center rounded-full bg-bg/80 shadow-sm shadow-black/30 ring-1 ring-white/10";
-const CONTROL = cn(CHIP, "transition-[background-color,transform] duration-150 hover:bg-bg active:scale-95 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']");
+const CONTROL = cn(CHIP, "transition-[background-color,transform] duration-150 hover:bg-bg active:scale-95 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none pointer-coarse:after:absolute pointer-coarse:after:content-['']");
 
 function nameOf(link: SocialLinkView, owner?: string): string {
   const whose = owner ? `${owner} on ${link.label}` : link.label;
@@ -38,11 +42,11 @@ function SocialIcon({ link, owner, size, testId }: { link: SocialLinkView; owner
   const label = nameOf(link, owner);
   if (link.href)
     return (
-      <a href={link.href} target="_blank" rel="noopener noreferrer nofollow" className={cn(CONTROL, SIZE[size])} aria-label={label} title={`${link.label}: ${link.text}`} data-testid={testId} data-kind={link.kind}>
+      <a href={link.href} target="_blank" rel="noopener noreferrer nofollow" className={cn(CONTROL, TOUCH[size], SIZE[size])} aria-label={label} title={`${link.label}: ${link.text}`} data-testid={testId} data-kind={link.kind}>
         <BrandIcon kind={link.kind} />
       </a>
     );
-  return <CopyUsername link={link} label={label} className={cn(CONTROL, SIZE[size])} testId={testId} />;
+  return <CopyUsername link={link} label={label} className={cn(CONTROL, TOUCH[size], SIZE[size])} testId={testId} />;
 }
 
 /** Copies a Discord username (Discord has no public address for one), with a short "copied" state. */
@@ -81,18 +85,20 @@ export function SocialLinks({ links, owner, className }: { links: readonly Socia
 }
 
 /**
- * The same links as icons on a player card (Team, Players, the public page, previews), on the
- * picture's row of CardIdentity. `interactive`: each icon its own control, drawn above the card's
- * own link or button; `static`: the same icons without actions (card previews).
+ * The same links as icons on a player card (Team, the public page, previews), on the picture's row
+ * of CardIdentity, and on a Players row (`size="row"`, at the end of the name's line).
+ * `interactive`: each icon its own control, drawn above the card's or row's own link or button;
+ * `static`: the same icons without actions (card previews).
  */
-export function CardSocialIcons({ links, owner, mode = "interactive", className }: { links: readonly SocialLinkView[]; owner: string; mode?: "interactive" | "static"; className?: string }) {
+export function CardSocialIcons({ links, owner, mode = "interactive", size = "card", className }: { links: readonly SocialLinkView[]; owner: string; mode?: "interactive" | "static"; size?: "card" | "row"; className?: string }) {
   if (!links.length) return null;
-  const row = "flex shrink-0 items-center gap-1.5 @min-[17rem]/card:gap-2";
+  // On a row the touch areas (44px around a 24px chip) need a little more room between the icons.
+  const row = cn("flex shrink-0 items-center", size === "row" ? "gap-1.5 pointer-coarse:gap-2" : "gap-1.5 @min-[17rem]/card:gap-2");
   if (mode === "static")
     return (
       <span className={cn(row, className)} aria-hidden data-testid="card-social-preview">
         {links.map((l) => (
-          <span key={l.kind} className={cn(CHIP, SIZE.card)}>
+          <span key={l.kind} className={cn(CHIP, SIZE[size])}>
             <BrandIcon kind={l.kind} />
           </span>
         ))}
@@ -102,7 +108,7 @@ export function CardSocialIcons({ links, owner, mode = "interactive", className 
     <ul className={cn(row, className)} aria-label={`${owner}'s social links`} data-testid="card-social">
       {links.map((l) => (
         <li key={l.kind}>
-          <SocialIcon link={l} owner={owner} size="card" testId={`card-social-${l.kind}`} />
+          <SocialIcon link={l} owner={owner} size={size} testId={`card-social-${l.kind}`} />
         </li>
       ))}
     </ul>

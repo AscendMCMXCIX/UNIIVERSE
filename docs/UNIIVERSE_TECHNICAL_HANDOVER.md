@@ -805,7 +805,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 | InfoTip (ⓘ, hover/focus/tap), Metric, SaveStatus (autosave state), Skeleton, FreshnessWatcher (pages that update themselves) | `src/components/ui/*` | profiles, team pages, admin |
 | Champion grid / selector (search, Riot role filter), SortablePool | `src/components/champions/*` | profile editing, Welcome, Card Studio |
 | ChampionPortrait, RoleIcon | `src/components/champion-portrait.tsx`, `role-icon.tsx` | everywhere |
-| CardArtLayer, CustomiseCardButton, ProfileHeader, PlayerSummaryCard | `src/components/players/*` | Team, Players, profiles |
+| CardArtLayer, RowArtStrip, CustomiseCardButton, ProfileHeader, RosterRow | `src/components/players/*` | Team, Players, profiles |
 | Navigation: CollapsibleSidebar, NavGroupSection, AccountMenu, MobileNav | `src/components/*` | app shell |
 | Class helpers `cn` / `withDefaults` (caller classes replace defaults; no class-merge library) | `src/lib/cn.ts` | components |
 | **FilterBar / FilterField**, **SearchInput** | `src/components/ui/filter-bar.tsx`, `search-input.tsx` | Players, profile Overview / All Champions / Match History, Leaderboards, Matches (both tabs); SearchInput also on Admin → People and the skin search |

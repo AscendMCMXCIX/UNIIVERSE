@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { SearchInput } from "@/components/ui/search-input";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Expand, ImagePlus, LayoutGrid, Monitor, RotateCcw, Smartphone, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Expand, ImagePlus, Monitor, RotateCcw, Rows3, Smartphone, Trash2 } from "lucide-react";
 import { championArtUrl, type CardAccent, type CardArt } from "@/domain/player-card";
 import {
   applyPreset,
@@ -625,10 +625,10 @@ function SectionBar({ steps, step, edited, open, onOpen, onStep }: { steps: read
 const VIEWS = [
   ["team", Monitor, "Team card"],
   ["phone", Smartphone, "Phone"],
-  ["directory", LayoutGrid, "Players"],
+  ["directory", Rows3, "Players"],
 ] as const;
 
-/** Which card the preview shows: the Team card, a phone's, or the Players directory's. */
+/** Which card the preview shows: the Team card, a phone's, or the player's row on Players. */
 function ViewSwitch({ view, onView, labels = false, testIdPrefix = "preview" }: { view: PreviewView; onView: (v: PreviewView) => void; /** Always name each view (otherwise icons only on phones). */ labels?: boolean; testIdPrefix?: string }) {
   return (
     <div role="radiogroup" aria-label="Preview" className="flex rounded-lg border border-border bg-bg/40 p-0.5">

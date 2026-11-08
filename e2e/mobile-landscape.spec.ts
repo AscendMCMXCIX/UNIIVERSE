@@ -48,6 +48,8 @@ test("held sideways: a compact tab bar, and both bars get out of the way while r
   const page = await phone(browser, baseURL!, SE_LANDSCAPE);
   await page.goto("/players");
   await expect(playerEntry(page).first()).toBeVisible();
+  // The roster is one column of rows on a small phone held sideways: far more than the bars need to slide away.
+  expect(await page.evaluate(() => document.documentElement.scrollHeight - innerHeight), "Players scrolls on a small phone held sideways").toBeGreaterThan(200);
   const tabs = page.getByRole("navigation", { name: "Primary" });
   // The places to go stay one tap away sideways too (there is no menu drawer on a phone).
   await expect(tabs).toBeVisible();
@@ -84,7 +86,7 @@ test("held sideways: a compact tab bar, and both bars get out of the way while r
 test("held upright: the tab bar stays and the top bar stays put", async ({ browser, baseURL }) => {
   const page = await phone(browser, baseURL!, IPHONE);
   await page.goto("/players");
-  await expect(page.locator("main [data-testid='player-row']").first()).toBeVisible();
+  await expect(playerEntry(page).first()).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
   await page.mouse.wheel(0, 700);
   await page.waitForTimeout(300);

@@ -50,7 +50,9 @@ decorative chrome.
 3. **Opaque surfaces for data.** Tables, scoreboards and lists sit on panels, never on
    translucency over art.
 4. **Light at the edges.** The ambient glow, banners and card art may glow. Panels holding figures
-   do not.
+   do not. Art inside a list row stays faint (20–25%), at the row's start, and fades out before
+   the figures: a pool row's splash on a profile, a Players row's strip of the member's art
+   (tablets and up; `RowArtStrip`), so a dense list keeps each player's look without data on art.
 5. **Neutral first, then brand, then meaning.** Use neutrals (fg overlays and the surface steps)
    for structure and hover. Use the brand blue for the selected state and primary actions. Keep
    `good`, `warn`, `bad`, `blue` and `red` for outcomes and sides.
