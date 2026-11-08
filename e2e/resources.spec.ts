@@ -107,6 +107,9 @@ test("favourites stay on this device, at the top of the page", async ({ page }) 
   // The row is there before any favourite, saying what the star does, at the height the chips will have.
   const empty = page.getByTestId("resources-favourites-empty");
   await expect(empty).toContainText("star a site");
+  // The page streams in: its content sits in a hidden container until React reveals it, so the row
+  // has text before it has a box. Measure it once it is shown.
+  await expect(empty).toBeVisible();
   const emptyHeight = (await empty.boundingBox())!.height;
   const star = row(page, "LoLalytics ARAM").getByTestId("resource-favourite");
   await star.click();

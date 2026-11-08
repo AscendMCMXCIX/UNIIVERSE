@@ -3,8 +3,9 @@ import { expect, test, type Page } from "./test";
 /*
   Player Card Studio: presets and a live preview, nothing saved until Save (Cancel and Escape keep
   the saved card), the saved look on the profile, Team and Players, aligned cards whatever the
-  tagline, reduced motion, and a phone layout without sideways scrolling. Every test puts the card
-  back to the standard look (later tests share this demo roster).
+  tagline, reduced motion, a banner's help that says who sees it, and a phone layout without
+  sideways scrolling. Every test puts the card back to the standard look (later tests share this
+  demo roster).
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -216,6 +217,19 @@ test("animated effects stop for reduced motion", async ({ page }, info) => {
   expect(await shimmer.evaluate((e) => getComputedStyle(e).animationName)).toBe("card-shimmer");
   await page.emulateMedia({ reducedMotion: "reduce" });
   expect(await shimmer.evaluate((e) => getComputedStyle(e).animationName)).toBe("none");
+  await discard(page);
+});
+
+test("the banner's help says who sees it: teammates, and the public team page while in the lineup or a substitute", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "runs once, on the desktop project");
+  await openTopProfile(page);
+  await openStudio(page);
+  await expect(page.getByTestId("card-studio")).toHaveAttribute("data-step", "style");
+  await page.getByRole("radiogroup", { name: "Background" }).getByRole("radio", { name: "My banner" }).click();
+  // The public team page draws the lineup's and the substitutes' cards with their banner (server/public/team.ts, publicLook).
+  const panel = page.getByTestId("banner-panel");
+  await expect(panel).toContainText("Shown to teammates, and on the public team page while you're in the lineup or a substitute.");
+  await expect(panel).not.toContainText(/only members/i);
   await discard(page);
 });
 
