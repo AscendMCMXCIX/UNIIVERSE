@@ -28,7 +28,7 @@ import { assignmentStatus } from "@/domain/roster";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
 import { CardSocialIcons, SocialLinks } from "@/components/players/social-links";
 import { formatCount, formatDayMonth } from "@/lib/format";
-import { LineupBench, benchShape, createLineupTurns, type LineupTurns } from "./lineup-bench";
+import { LineupBench, createLineupTurns, lineupArtVars, type LineupTurns } from "./lineup-bench";
 
 type ChampionsById = Map<string, { id: string; name: string; portraitUrl: string }>;
 const lookup = (championsById: ChampionsById, id: string) => championsById.get(id) ?? { id, name: id, portraitUrl: "" };
@@ -206,7 +206,9 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
       )}
       {editing ? (
         // Edit lineup: this role's two choices, at the foot of the card where they never cover the player.
-        <div className="relative z-[2] grid grid-cols-2 gap-2 border-t border-white/10 bg-bg/50 p-2.5" data-testid={`lineup-actions-${slot.role}`}>
+        // On a narrow card (five across a laptop, three across a 1024px one) one above the other, so
+        // both labels stay whole; entering Edit lineup already lets the page grow.
+        <div className="relative z-[2] grid grid-cols-2 gap-2 border-t border-white/10 bg-bg/50 p-2.5 @max-[14.25rem]/card:grid-cols-1" data-testid={`lineup-actions-${slot.role}`}>
           <Button size="sm" variant="primary" onClick={() => setSheet({ kind: "starter" })} aria-haspopup="dialog" aria-label={`${p ? "Change" : "Assign"} ${slot.roleLabel} player`} className="min-w-0" data-testid={`lineup-change-${slot.role}`}>
             <ArrowLeftRight className="h-3.5 w-3.5 shrink-0" aria-hidden /> <span className="truncate">{p ? "Change" : "Assign"}</span>
           </Button>
@@ -348,11 +350,12 @@ function LineupSheet({ slot, kind, pick, startsElsewhere, onClose }: { slot: Ros
   );
 }
 
-/** The substitute side's label, beside the role status and drawn like it: "Sub" (read as "Substitute"). */
+/** The substitute side's label, beside the role status and drawn like it: "Sub", read as the whole word "Substitute" (a word split across hidden text is read in two parts). */
 function SubstituteTag() {
   return (
     <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-border-strong bg-bg/70 px-1.5 py-px text-2xs font-semibold leading-4 text-fg @min-[17rem]/card:text-xs" title="Substitute" data-testid="substitute-label">
-      Sub<span className="sr-only">stitute</span>
+      <span aria-hidden>Sub</span>
+      <span className="sr-only">Substitute</span>
     </span>
   );
 }
@@ -506,11 +509,15 @@ function LineupCard({ openSide, onOpenSide, turns, ...props }: Omit<React.Compon
     },
     [],
   );
-  // After a saved substitution the new lineup arrives, then the card turns back to show the new starter.
+  // After a saved substitution the new lineup arrives, then the card turns back to show the new
+  // starter. Make starter was disabled while it saved, which left keyboard focus nowhere: it moves
+  // to the card's turn control (the former starter is now the substitute behind it), unless the
+  // member has since put it somewhere else.
   React.useEffect(() => {
     if (refreshing || !saved.current) return;
     saved.current = false;
-    turn(false);
+    const lost = document.activeElement === document.body || !!rootRef.current?.contains(document.activeElement);
+    turn(false, lost);
   }, [refreshing, turn]);
   const canTurn = !!starter && !!sub;
   // The bench turns this card through the card's own turn, and shows which side it shows.
@@ -554,7 +561,8 @@ function LineupCard({ openSide, onOpenSide, turns, ...props }: Omit<React.Compon
       bench={{
         onBack: () => turn(false),
         backLabel,
-        start: canManageLineup && editingLineup ? { label: `Start ${sub.player.name} as ${slot.roleLabel}; ${starter.name} becomes the substitute`, onStart: () => void startSub(), busy: saving || refreshing } : null,
+        // Named from its visible words first, so speech input finds it by what it says.
+        start: canManageLineup && editingLineup ? { label: `Make starter: ${sub.player.name} starts as ${slot.roleLabel}; ${starter.name} becomes the substitute`, onStart: () => void startSub(), busy: saving || refreshing } : null,
       }}
       turnRef={backButton}
     />
@@ -748,7 +756,7 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profi
  * stretching, a larger one from a 90rem lineup (2560px screens and up), where the cards' art reads
  * as portraits. A short window's track runs the whole width.
  */
-const LINEUP_WIDTH = "mx-auto w-full max-w-[26rem] @xl:max-w-[84rem] @min-[90rem]:max-w-[100rem] short:max-w-none";
+const LINEUP_WIDTH = "mx-auto w-full max-w-[26rem] @xl:max-w-[84rem] @min-[90rem]:max-w-(--content-wide) short:max-w-none";
 
 /**
  * The five roles as one bar (phones only, upright): where you are in the track, and a tap away from
@@ -761,11 +769,12 @@ const LINEUP_WIDTH = "mx-auto w-full max-w-[26rem] @xl:max-w-[84rem] @min-[90rem
 function LineupPager({ slots, index, go, artWait }: { slots: RosterSlot[]; index: SnapIndex; go: (i: number) => void; artWait: boolean }) {
   const current = useSnapIndex(index);
   return (
-    <div className="relative z-[1] mx-auto mb-2 grid max-w-[26rem] grid-cols-5 gap-1 rounded-card border border-border bg-surface/85 p-1 shadow-sm shadow-black/20 @xl:hidden short:hidden" role="tablist" aria-label="Lineup position" data-testid="lineup-pager">
+    // As wide as the track's card (w-full: a flex column's child with auto margins would shrink to its content).
+    <div className="relative z-[1] mx-auto mb-2 grid w-full max-w-[26rem] grid-cols-5 gap-1 rounded-card border border-border bg-surface/85 p-1 shadow-sm shadow-black/20 @xl:hidden short:hidden" role="tablist" aria-label="Lineup position" data-testid="lineup-pager">
       {slots.map((s, i) => (
         // Named by what it shows, the role first ("Top: Demo Top"): an aria-label would hide the
         // picture's initial from the name it is compared with (STANDARDS.md, accessible names).
-        <button key={s.role} type="button" role="tab" aria-selected={current === i} onClick={() => go(i)} className={cn("flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-panel px-1 text-2xs font-semibold leading-none transition-[background-color,color,box-shadow] duration-150 motion-reduce:transition-none", current === i ? "bg-accent/15 text-accent shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-accent)_40%,transparent)]" : "text-fg-muted hover:bg-surface-2/60 hover:text-fg")} style={s.player ? cardColourVars(s.player.look) : undefined} data-testid="lineup-dot">
+        <button key={s.role} type="button" role="tab" aria-selected={current === i} onClick={() => go(i)} className={cn("flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-panel px-1 text-2xs font-semibold leading-none transition-[background-color,color,box-shadow] duration-150 motion-reduce:transition-none", current === i ? "bg-accent/15 text-accent ring-1 ring-inset ring-accent/40" : "text-fg-muted hover:bg-surface-2/60 hover:text-fg")} style={s.player ? cardColourVars(s.player.look) : undefined} data-testid="lineup-dot">
           {s.player ? (
             <span className="relative">
               <CardAvatar look={s.player.look} name={s.player.name} src={artWait ? null : s.player.avatarUrl} size="xs" />
@@ -857,11 +866,10 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
     if (to) go(slots.findIndex((s) => s.role === role));
     turns.turn(role, to, to);
   };
-  // What sizes the cards' art five across (globals.css, lineup-art-height): the bench under them (its
-  // row with room for a name on two lines, or its one-line hint) and whether any card shows this
-  // season's figures.
-  const bench = benchShape(slots, canManageLineup);
-  const lineupVars = { ["--lineup-bench" as string]: bench === "row" ? "5.25rem" : bench === "hint" ? "1.75rem" : "0rem", ["--lineup-figures" as string]: slots.some((s) => s.player?.statsVisible) ? 1 : 0 };
+  // What sizes the cards' art five across (globals.css, lineup-art-height): the bench under them and
+  // whether any card, on either side, shows this season's figures (lineup-bench.tsx, lineupArtVars).
+  const lineupVars = lineupArtVars(slots, canManageLineup);
+  const incomplete = canManageLineup ? "Assign all five roles" : "A lineup manager assigns the five roles";
   const status = !guest && !editingLineup ? (
     complete ? (
       // A complete lineup is the usual state: a quiet word (left to the ⓘ on a phone).
@@ -870,10 +878,17 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
         Lineup complete
       </span>
     ) : (
-      // One that is not asks for something: a pill, on a line of its own on a phone.
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-warn/35 bg-warn/10 px-2 py-px text-xs font-medium leading-5 text-warn [text-shadow:none]" data-testid="lineup-status">
+      // One that is not asks for something: a pill from sm. On a phone the header keeps its one row
+      // (the pill on a line of its own pushed the first card under the tab bar): a warn token on the
+      // same line, "● 4/5 roles", the whole sentence read out and in its title; where Edit lineup
+      // leaves no room for the words (a lineup manager on the narrowest phones), the dot alone,
+      // beside the role bar's empty tab.
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-warn/35 bg-warn/10 px-2 py-px text-xs font-medium leading-5 text-warn [text-shadow:none] max-sm:gap-1 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:leading-4 max-sm:[text-shadow:inherit]" title={incomplete} data-testid="lineup-status">
         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
-        {canManageLineup ? "Assign all five roles" : "A lineup manager assigns the five roles"}
+        <span aria-hidden className={cn("whitespace-nowrap sm:hidden", canManageLineup && "@max-[21rem]/lineup:hidden")} data-testid="lineup-status-count">
+          {formatCount(filled.length)}/{formatCount(slots.length)} roles
+        </span>
+        <span className="max-sm:sr-only">{incomplete}</span>
       </span>
     )
   ) : null;
@@ -893,8 +908,8 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
         <BrandMark src={team.logo} still={team.logoStill} name={team.shortName} className="h-12 w-12 shrink-0 rounded-panel text-lg shadow-lg shadow-black/40 ring-1 ring-border-strong max-sm:not-short:hidden lg:h-14 lg:w-14 lg:rounded-card lg:text-2xl short:h-11 short:w-11 short:rounded-panel short:text-lg" />
         <div className="min-w-0 flex-1">
           <p className="sr-only">Team Overview</p>
-          {/* A long name takes a second line rather than being cut. */}
-          <h1 className="line-clamp-2 text-2xl font-bold leading-tight tracking-tight text-fg [overflow-wrap:anywhere] sm:leading-7 lg:text-3xl lg:leading-9 short:text-xl short:leading-7" data-testid="team-name">
+          {/* A long name takes more lines rather than being cut (it is nowhere else whole on a phone). */}
+          <h1 className="text-2xl font-bold leading-tight tracking-tight text-fg [overflow-wrap:anywhere] sm:leading-7 lg:text-3xl lg:leading-9 short:text-xl short:leading-7" data-testid="team-name">
             {team.name}
           </h1>
           <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs leading-4 text-fg-muted sm:mt-0 sm:text-sm sm:leading-5 short:mt-0 short:text-xs short:leading-4">
@@ -939,7 +954,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
             "@2xl:grid-cols-6 @2xl:[&>*:nth-child(4)]:col-start-2 @2xl:[&>*:nth-child(5)]:col-start-auto",
             // A 58rem lineup: five across. Not a named size: the first width where five cards keep
             // their figures readable (a 1280px laptop with the sidebar open gives 60rem).
-            "@min-[58rem]:max-w-[84rem] @min-[58rem]:grid-cols-5 @min-[58rem]:[&>*]:col-span-1 @min-[58rem]:[&>*:nth-child(4)]:col-start-auto @min-[90rem]:max-w-[100rem] @7xl:gap-5",
+            "@min-[58rem]:max-w-[84rem] @min-[58rem]:grid-cols-5 @min-[58rem]:[&>*]:col-span-1 @min-[58rem]:[&>*:nth-child(4)]:col-start-auto @min-[90rem]:max-w-(--content-wide) @7xl:gap-5",
             "short:-my-3 short:flex short:w-auto short:max-w-none short:overflow-x-auto short:pt-3 short:pb-4 short:lineup-bleed",
           )}
           role="region"

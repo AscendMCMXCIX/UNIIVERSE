@@ -89,6 +89,26 @@ test("Team Overview on a short window: the lineup follows the header and the pag
   expect(await overflow(page)).toBeLessThanOrEqual(1);
 });
 
+test("Team Overview in a short desktop window (1280 × 450): the cards' track scrolls inside the page, which never scrolls sideways", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "wide screens");
+  // A window this short (devtools docked under it, a split screen) shows the lineup as one sideways
+  // track, as a phone held sideways does: inside the content, never as wide as its five cards.
+  await page.setViewportSize({ width: 1280, height: 450 });
+  for (const path of ["/team", "/public"]) {
+    await page.goto(path);
+    const track = page.getByTestId("lineup-overview");
+    await expect(track).toHaveAttribute("data-ready", "true");
+    expect(await overflow(page), `${path}: the page never scrolls sideways`).toBeLessThanOrEqual(1);
+    const room = await track.evaluate((el) => ({ scroll: el.scrollWidth, width: el.clientWidth, right: el.getBoundingClientRect().right }));
+    expect(room.right, `${path}: the track ends inside the window`).toBeLessThanOrEqual(1280);
+    expect(room.scroll, `${path}: the track holds more than it shows`).toBeGreaterThan(room.width + 100);
+    // It scrolls on its own, to its last card.
+    await track.evaluate((el) => el.scrollTo({ left: el.scrollWidth }));
+    await expect.poll(() => track.evaluate((el) => el.scrollLeft), { message: `${path}: the track scrolls` }).toBeGreaterThan(0);
+    expect(await overflow(page)).toBeLessThanOrEqual(1);
+  }
+});
+
 test("Team Overview on a 1366 × 768 laptop with the sidebar open: all five in one centred row of equal cards", async ({ page, context, baseURL }, info) => {
   test.skip(info.project.name !== "desktop", "laptop widths");
   await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: baseURL! }]);

@@ -93,8 +93,14 @@ test("held upright: the tab bar stays and the top bar stays put", async ({ brows
 });
 
 test("held sideways, Team Overview's lineup is one sideways track: the cards side by side at one height, about two screens of page, never wider than the window", async ({ browser, baseURL }) => {
-  for (const device of [IPHONE_LANDSCAPE, SE_LANDSCAPE]) {
+  // The iPhone with its notch's insets (59px at each side, 21px under), the SE without: the track
+  // starts at the page's gutter, which is the inset where that is larger.
+  for (const [device, inset] of [[IPHONE_LANDSCAPE, 59], [SE_LANDSCAPE, 0]] as const) {
     const page = await phone(browser, baseURL!, device);
+    if (inset) {
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 0, topMax: 0, left: inset, leftMax: inset, bottom: 21, bottomMax: 21, right: inset, rightMax: inset } });
+    }
     await page.goto("/team");
     const track = page.getByTestId("lineup-overview");
     await expect(track).toHaveAttribute("data-ready", "true");
@@ -104,6 +110,8 @@ test("held sideways, Team Overview's lineup is one sideways track: the cards sid
     // gutter under the header's start, the next one beside it in view.
     expect(new Set(cells.map((c) => c.top)).size, "one row").toBe(1);
     const header = (await page.getByTestId("team-header").boundingBox())!;
+    const gutter = Math.max(device.viewport.width >= 640 ? 24 : 16, inset);
+    expect(Math.abs(header.x - gutter), "the header starts at the gutter, clear of the notch").toBeLessThanOrEqual(1);
     expect(Math.abs(cells[0]!.left - header.x)).toBeLessThanOrEqual(1);
     const vw = page.viewportSize()!.width;
     expect(cells[1]!.left).toBeLessThan(vw - 100);
@@ -231,14 +239,18 @@ test("the tab bar's five destinations fit side by side on the narrowest phones, 
     // Measured in the page's own font: the fallback is wider, and a busy machine can measure before the font is in.
     await page.evaluate(() => document.fonts.ready);
     const width = page.viewportSize()!.width;
-    for (const tab of await bar.getByRole("link").all()) {
-      const box = (await tab.boundingBox())!;
-      expect(box.x).toBeGreaterThanOrEqual(-0.5);
-      expect(box.x + box.width).toBeLessThanOrEqual(width + 0.5);
-      expect(box.height).toBeGreaterThanOrEqual(44);
-      // The label is never cut.
-      expect(await tab.locator("span").last().evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
-    }
+    // Measured once the layout has settled (a loaded machine can lay the bar out before the font
+    // or the window's width has taken effect): every check holds together, on one reading.
+    await expect(async () => {
+      for (const tab of await bar.getByRole("link").all()) {
+        const box = (await tab.boundingBox())!;
+        expect(box.x).toBeGreaterThanOrEqual(-0.5);
+        expect(box.x + box.width).toBeLessThanOrEqual(width + 0.5);
+        expect(box.height).toBeGreaterThanOrEqual(44);
+        // The label is never cut.
+        expect(await tab.locator("span").last().evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+      }
+    }).toPass({ timeout: 15_000 });
     await done(page);
   }
 });

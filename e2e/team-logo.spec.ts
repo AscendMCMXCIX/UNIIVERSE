@@ -80,13 +80,18 @@ test("the team logo keeps its proportions in a square everywhere, and animates u
       expect(Math.round(still.box.width)).toBe(screen.side);
       expect(Math.round(still.box.height)).toBe(screen.side);
     }
-    // A phone held upright: the top bar shows the same logo, square too, and the page's header leaves it out.
-    const phone = await openPage(browser, baseURL!, "/team", "[data-testid=mobile-topbar] img", { viewport: { width: 375, height: 667 }, isMobile: true, hasTouch: true });
-    const bar = (await phone.getByTestId("mobile-topbar").locator("img").first().boundingBox())!;
-    expect(Math.round(bar.width)).toBe(Math.round(bar.height));
-    expect(new URL(await phone.getByTestId("mobile-topbar").locator("img").first().evaluate((i: HTMLImageElement) => i.currentSrc)).pathname).toBe("/api/branding/logo");
-    await expect(phone.getByTestId("team-header").locator("img")).toBeHidden();
-    await phone.context().close();
+    // A phone held upright: the top bar shows the same logo, square too, drawn whole, and the page's
+    // header leaves it out; reduced motion gets its still frame there too.
+    for (const reducedMotion of ["no-preference", "reduce"] as const) {
+      const phone = await openPage(browser, baseURL!, "/team", "[data-testid=mobile-topbar] img", { viewport: { width: 375, height: 667 }, isMobile: true, hasTouch: true, reducedMotion });
+      const logo = phone.getByTestId("mobile-topbar").locator("img").first();
+      const bar = (await logo.boundingBox())!;
+      expect(Math.round(bar.width)).toBe(Math.round(bar.height));
+      const shown = await logo.evaluate((i: HTMLImageElement) => ({ src: new URL(i.currentSrc).pathname, fit: getComputedStyle(i).objectFit }));
+      expect(shown, `phone, ${reducedMotion}`).toEqual({ src: reducedMotion === "reduce" ? "/api/branding/logo-static" : "/api/branding/logo", fit: "contain" });
+      await expect(phone.getByTestId("team-header").locator("img")).toBeHidden();
+      await phone.context().close();
+    }
   });
 });
 
@@ -195,6 +200,9 @@ test("everywhere else the logo starts its row: nothing unseen stands before it, 
       // Team Overview's header, one row: nothing unseen makes it taller than what it shows (an
       // empty row under its own, as the still-frame source once added to it).
       const team = await openPage(browser, baseURL!, "/team", options === phone ? "[data-testid=mobile-topbar] img" : "[data-testid=team-header] img", options);
+      // Measured once the header is in place: while the page streams in, its parts can stand in a
+      // hidden container (nothing has a size there yet).
+      await expect(team.getByTestId("team-header")).toBeVisible();
       const fit = await team.getByTestId("team-header").evaluate((h) => {
         // The logo's <picture> takes no box of its own (display: contents): its image is the part.
         const shown = [...h.querySelectorAll(":scope > *, :scope > picture > *")].map((c) => c.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);

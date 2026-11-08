@@ -60,14 +60,19 @@ function DataLine({ status }: { status: ShellStatus }) {
   return <p className="truncate text-xs text-fg-subtle">Patch {status.patch ?? "—"}</p>;
 }
 
-/** Things only this person can fix about their own account: an action card at the top of the page, not a header error. */
+/**
+ * Things only this person can fix about their own account: an action card at the top of the page, not
+ * a header error. `data-account-nudges` says how many: Team Overview's lineup, which fills the window
+ * five across, leaves their height out of it (globals.css, --lineup-nudges, which assumes each card
+ * keeps to one line, as it does at the widths where the lineup fills the window).
+ */
 function AccountNudges({ status }: { status: ShellStatus }) {
   const items: Array<{ href: string; text: string }> = [];
   if (status.needsProfile) items.push({ href: "/me", text: "Complete your player profile: add your Riot ID and main role." });
   if (status.needsPassword) items.push({ href: "/settings#password", text: "Your account has no password yet. Set one so you can sign in again." });
   if (items.length === 0) return null;
   return (
-    <div className="mb-4 space-y-2">
+    <div className="mb-4 space-y-2" data-account-nudges={items.length}>
       {items.map((i) => (
         <Link key={i.href} href={i.href} className="flex items-center justify-between gap-3 rounded-lg border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-fg hover:bg-warn/15">
           <span>{i.text}</span>

@@ -479,6 +479,45 @@ test("held sideways: the pages fit, the tab bar stays in reach as a compact row,
   await context.close();
 });
 
+test("Team Overview held sideways: one track of cards that snaps a card to the page's gutter without moving the page sideways, and a substitute's chip turns its card", async ({ browser, baseURL }) => {
+  const { defaultBrowserType: _, ...landscape } = devices["iPhone 15 landscape"];
+  const context = await browser.newContext(landscape);
+  await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+  const page = await context.newPage();
+  await page.goto("/team");
+  const track = page.getByTestId("lineup-overview");
+  await expect(track).toHaveAttribute("data-ready", "true");
+  const cells = page.getByTestId("lineup-cell");
+  await expect(cells).toHaveCount(5);
+  const lefts = () => cells.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().left)));
+  const tops = await cells.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
+  expect(new Set(tops).size, "the five cards in one row").toBe(1);
+  // The first card starts at the page's gutter, under the header's start.
+  const gutter = Math.round((await page.getByTestId("team-header").boundingBox())!.x);
+  expect(Math.abs((await lefts())[0]! - gutter)).toBeLessThanOrEqual(1);
+  await fitsWidth(page, "/team, sideways");
+  // Scrolled part of the way (by script: WebKit's touch emulation has no swipe), the track comes to
+  // rest with a card at the gutter (snap), and the page itself never scrolls sideways.
+  await track.evaluate((el) => el.scrollBy({ left: 180 }));
+  await expect.poll(async () => (await lefts()).some((x) => Math.abs(x - gutter) <= 2), { timeout: 5_000 }).toBe(true);
+  expect(await track.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+  await fitsWidth(page, "/team, sideways, the track scrolled");
+  // A substitute's chip under the track turns that card to them and moves focus onto its way back.
+  const chip = page.getByTestId("lineup-bench").locator("button[data-testid^=bench-]").first();
+  await expect(chip).toBeVisible();
+  const role = (await chip.getAttribute("data-testid"))!.slice("bench-".length);
+  await chip.scrollIntoViewIfNeeded();
+  // A tap before the page is interactive does nothing: tap until the card has turned.
+  await expect(async () => {
+    if ((await chip.getAttribute("aria-pressed")) !== "true") await chip.tap();
+    await expect(page.getByTestId(`lineup-card-${role}`)).toHaveAttribute("data-flipped", "true", { timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  await expect(chip).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId(`lineup-sub-${role}`).getByTestId("flip-back")).toBeFocused();
+  await fitsWidth(page, "/team, sideways, a card turned");
+  await context.close();
+});
+
 test("Players held sideways: cards side by side line up region by region, every portrait whole", async ({ browser, baseURL }) => {
   // Each card spans rows of the directory's grid (a subgrid): Safari has to share them too.
   const { defaultBrowserType: _, ...landscape } = devices["iPhone 15 landscape"];

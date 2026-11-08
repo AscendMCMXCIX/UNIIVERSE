@@ -115,7 +115,11 @@ It should not appear:
 - as a **glow or shadow colour**. Team Overview's selected card had `shadow-accent/15` and its
   lineup stood on a floor lit in the brand blue (a radial glow, a hairline and the team's name as a
   watermark); the card's shadow is now a neutral `shadow-black/40`, and the floor gave way to the
-  bench of substitutes (November 2026).
+  bench of substitutes (November 2026). The sign-in and setup frame's card (`BrandFrame`) glowed in
+  the brand blue too; it is lit in violet now, like the page's ambient light, and the role bar's
+  selected tab draws its blue edge as a ring, not a shadow. `design-tokens.test.ts` refuses
+  `shadow-accent` (any opacity or variant) and an arbitrary shadow made of `var(--color-accent)`;
+  `shadow-accent-2`, violet, stays allowed.
 - as the **colour of the logo's stand-in** (`BrandMark` without an upload). That is now a neutral
   tile lit faintly in violet, with the letter in `fg`.
 
@@ -294,7 +298,7 @@ deliberately. Each needs its own small PR. Check STATUS.md for the Actions-minut
 |---|---|---|
 | Hover on panels | About 50 controls use `hover:bg-surface-2`, a few `hover:bg-surface-2/70` or `bg-fg/5` | Converge on §5: surface steps on panels, fg overlays on the frame |
 | Page headers | Players, Matches and Resources open with `PageHeader`. Leaderboards opens with its sub-tabs in the title's place; Settings centres a narrower column with its own heading | Intended by STANDARDS.md's three tiers. Leaderboards could take a `PageHeader` when its page is next redesigned |
-| Eyebrows | `PageHeader`'s eyebrow is `accent`; `SectionLabel` is `fg-subtle` | Both are valid. Keep `accent` eyebrows to admin pages and Profile Overview's hero; Team Overview's one-row header leaves its eyebrow to screen readers, since the selected tab right above says it |
+| Eyebrows | `PageHeader`'s eyebrow is `accent`; `SectionLabel` is `fg-subtle` | Both are valid. Keep `accent` eyebrows to admin pages (`PageHeader`) and the sign-in frames (`BrandFrame`); Team Overview's one-row header leaves its eyebrow to screen readers, since the selected tab right above says it |
 | Tablet and phone mode switch | A bordered accent button in the drawer and sheet, a quiet row in the sidebar | Deliberate (§7). Revisit only with the owner, since phones were verified |
 
 ## 10. Working on the design
@@ -307,6 +311,9 @@ deliberately. Each needs its own small PR. Check STATUS.md for the Actions-minut
     into a flex column, since its lineup starts under the section tabs instead of being centred in
     the window (November 2026). The lineup's own rules in `globals.css` (`lineup-art-height`,
     `lineup-bleed`, the art-wait rules) are described in RESPONSIVE.md → Team Overview's lineup.
+    The account's action cards at the top of `main` (`AccountNudges`) say how many they show
+    (`data-account-nudges`), which the lineup's art leaves out of the window: a change to their
+    size changes `--lineup-nudges` beside `lineup-art-height`.
 - **Validation:** `pnpm verify`, then `pnpm build && pnpm test:e2e`. The sidebar's geometry and
   motion are in `e2e/sidebar-motion.spec.ts` and `e2e/quality.spec.ts`; axe runs at three widths
   in `e2e/quality.spec.ts`.

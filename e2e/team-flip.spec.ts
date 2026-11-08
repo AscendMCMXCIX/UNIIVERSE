@@ -132,6 +132,13 @@ test("the bench lists each role's substitute; pressing one turns that card to th
   const entry = page.getByTestId(`bench-${role}`);
   await expect(entry).toContainText((await page.getByTestId(`lineup-sub-${role}`).getAttribute("data-player-name"))!);
   await expect(entry).toHaveAttribute("aria-pressed", "false");
+  // Read out as whole words: the role, "Substitute" (shown as "Sub"), and how the role fits them.
+  const roleLabel = ({ TOP: "Top", JUNGLE: "Jungle", MID: "Mid", ADC: "Bottom", SUPPORT: "Support" } as Record<string, string>)[role]!;
+  await expect(entry).toHaveAccessibleName(new RegExp(`${roleLabel} Substitute · (Main|Off) Role$`));
+  // The card's back says "Sub" too, read as the whole word.
+  const tag = page.getByTestId(`lineup-sub-${role}`).getByTestId("substitute-label");
+  await expect(tag.locator("[aria-hidden]")).toHaveText("Sub");
+  await expect(tag.locator(".sr-only")).toHaveText("Substitute");
   const press = async () => {
     await entry.scrollIntoViewIfNeeded();
     if (isPhone(page)) await entry.tap();
@@ -329,9 +336,17 @@ test("in Edit lineup a manager saves the substitute as the starter; the former s
   await page.getByTestId("edit-lineup").click();
   await turnOver(page, role);
   await expect(page.getByTestId(`lineup-sub-${role}`)).toHaveAttribute("data-player-id", sub.id);
+  // Named from its visible words first ("Make starter: …"), so speech input finds it.
+  await expect(page.getByTestId(`lineup-sub-${role}`).getByTestId("start-substitute")).toHaveAccessibleName(/^Make starter: /);
   await page.getByTestId(`lineup-sub-${role}`).getByTestId("start-substitute").click();
   await expect(page.getByTestId(`lineup-row-${role}`)).toHaveAttribute("data-player-id", sub.id);
   await expect(card(page, role)).not.toHaveAttribute("data-flipped", "true");
+  // Keyboard focus is not left on the page: it is on the card's turn control (to the former starter).
+  await expect(flipButton(page, role)).toBeFocused();
+  // The bench follows: the former starter is the role's substitute there, and the card shows the starter.
+  const entry = page.getByTestId(`bench-${role}`);
+  await expect(entry).toContainText(starter.name);
+  await expect(entry).toHaveAttribute("aria-pressed", "false");
 
   // The former starter is now the role's substitute; starting them puts the lineup back.
   await turnOver(page, role);
