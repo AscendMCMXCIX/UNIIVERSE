@@ -560,7 +560,21 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
             )}
           </div>
 
-          {data.pages > 1 ? <Pages page={data.page} pages={data.pages} total={data.total} per={data.per} pending={pending} go={(p) => go({ page: String(p) })} /> : null}
+          {data.pages > 1 ? (
+            <Pages
+              page={data.page}
+              pages={data.pages}
+              total={data.total}
+              per={data.per}
+              pending={pending}
+              go={(p) => {
+                go({ page: String(p) });
+                // The next page starts with its first game, just under the bars (scroll padding): the
+                // pager sits at the list's end, where the new page would otherwise open at its last game.
+                listRef.current?.scrollIntoView({ block: "start", behavior: "instant" });
+              }}
+            />
+          ) : null}
 
           {windowed ? <MatchDetailModal playerId={playerId} matchId={windowed} championsById={championsById} onClose={closeWindow} encounterLinks={phone} /> : null}
         </EncounterLinkContext.Provider>

@@ -239,6 +239,36 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
 - **The installed app on a tablet.** It shows Back in the top bar, as phones do, because the
   installed app has no browser Back.
 
+### The navigation contract
+
+Every page follows the same rules, so moving around never needs thought (#266; each rule names its
+test):
+
+- **Three levels, each always in the same place.** Destinations: the sidebar (desktop), the drawer
+  (tablet), the five-tab bar (phone). Sections: the section tabs, pinned once the page scrolls past
+  them (tablet, desktop), the top bar's second row on a phone profile (Team's sections are the phone
+  tab bar itself). A page's own views and scope (its view switch, filters, search): in its header.
+- **Where a page starts.** A page opened by a link or by code starts at its top
+  (`ScrollOnNavigate`); Back and Forward restore the exact place (the browser and Next, untouched);
+  a link to a `#fragment` lands on its target. A link that changes the address but keeps the place
+  is marked `data-keep-scroll` (a profile's sections, which land at their own top themselves:
+  `settleSectionTop`). A change of the query alone (a filter, a view) keeps the place: it is the same
+  page. The next page of a list starts with its first item under the bars (Match History's pager).
+  (`e2e/navigation-landings.spec.ts`)
+- **Back to the top.** On a phone, tapping the current tab on its own page goes back to the top
+  (smooth; at once with reduced motion), and so does tapping the page's title once it has moved into
+  the top bar. A page under a tab (a teammate's profile under Players) still goes to the tab's page.
+- **Back.** Phones and the installed app show their own Back, named after where it leads: the
+  previous page when it is ours, else the page above (`phoneParent`). A full-screen game is a history
+  entry (Back closes it); a profile's sections replace the entry (Back leaves the profile). An
+  account without a player profile never starts at, or goes Back to, an empty Profile: its home is
+  its first other page.
+- **Overlays.** One sheet for every choice and editor (`DetailModal` `size="sheet"`, `Dialog` built
+  on it): Escape, the backdrop, Close and a pull down close the topmost one, focus returns to what
+  opened it without scrolling, and the page behind never moves (MOBILE.md, "Every sheet and window").
+- **The keyboard.** "Skip to content" is the first stop on every page and moves focus to the page
+  (`main#content`); every control has the shared focus ring.
+
 ## 8. Brand assets (white label)
 
 The installation's logo, colours and art come from Branding (Admin → Branding) and are never written
