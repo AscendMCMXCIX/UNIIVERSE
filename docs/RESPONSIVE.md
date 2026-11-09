@@ -82,9 +82,9 @@ rules hold beside an open or a collapsed sidebar, and by the window's height:
   sideways, none on a phone held upright, where the top bar shows it), the team's name over one
   line of the lineup's context and state, and Edit lineup. A long name wraps whole, never cut. The
   state: a quiet "Lineup complete", or for a lineup with a role open a pill from `sm`; on a phone
-  a warn token on the same line instead ("● 4/5 roles", the sentence read out and in its title; on
-  a lineup manager's narrowest phones, where Edit takes the room, the dot alone), so the header
-  keeps its one 48px row either way.
+  a warn token on the same line instead ("● 4/5 roles", the sentence read out and in its title;
+  where a lineup manager's Edit takes the room, "● 4/5" on a 360px phone and the dot alone at
+  320px), so the header keeps its one 48px row either way.
 - **Five across, the cards fill the window:** the page starts under the section tabs (no centring),
   and the cards' art takes the height the window leaves: everything else down the page is known in
   rem (the page's frame, the header, the card's body, the bench), so `lineup-art-height` in
@@ -106,15 +106,18 @@ rules hold beside an open or a collapsed sidebar, and by the window's height:
 - **The bench** follows the cards: five across, a cell under each card, of one height along the
   row (the substitute, "No substitute", or nothing under an open role: on the public page a role
   whose player is not shown keeps its substitute private too); otherwise a row of chips for the
-  roles that have one, two to a row on a phone held upright (a lone last chip takes the row), their
-  names wrapping inside the chip.
+  roles that have one, two to a row on a phone held upright (a lone last chip takes the row; at a
+  large text size, where two would leave a name less than about 4rem, one to a row), their names
+  wrapping inside the chip.
 - **Narrow cards** (five across a laptop): a card under 12.5rem shows its season as two columns (the
   win rate; KDA over CS/min) and steps its sides in by 2px and its link icons 2px closer, so three
   links still share the picture's row and the pictures stay level along the row; under 16.5rem
-  (five across up to about 2000px wide, three across a tablet, a 320px phone) the rest of the pool
-  gets a row of its own, so all five of its other champions show; kills / deaths / assists per
-  game show from 16.5rem, where they fit uncut. In Edit lineup a card under 14.25rem stands its two
-  controls one above the other, so both labels stay whole.
+  among cards side by side (five across up to about 2000px wide, three across a tablet) the rest of
+  the pool gets a row of its own, so all five of its other champions show, and kills / deaths /
+  assists per game show from 16.5rem, where they fit uncut. A phone's single card (about 16.4rem
+  on a 320px phone) is the phone card as it was: its pool on one row, its kills / deaths / assists
+  shown. In Edit lineup a card under 14.25rem stands its two controls one above the other, so both
+  labels stay whole.
 - **Identity rows** stay level side by side (`CardIdentity align`): a shorter name sits at the foot
   of the room kept for a longer one, on its rank, so the room stays above it in the art.
 

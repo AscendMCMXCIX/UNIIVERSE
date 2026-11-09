@@ -165,6 +165,14 @@ test("phones swipe sideways through the five cards, one at a time", async ({ pag
     expect(chips[i]!.top, "two chips share a row").toBe(chips[i + 1]!.top);
     for (const chip of [chips[i]!, chips[i + 1]!]) expect(chip.width).toBeLessThanOrEqual(bench.width / 2);
   }
+  // With the browser's text at 200% a chip takes a row of its own, so a substitute's name keeps room
+  // (two to a row squeezed it to one letter a line).
+  await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
+  const large = await page.getByTestId("lineup-bench").locator("[data-testid^=bench-]:not([data-testid^=bench-empty-])").evaluateAll((els) => els.map((e) => ({ top: Math.round(e.getBoundingClientRect().top), name: e.querySelector("[data-bench-name]")!.getBoundingClientRect().width })));
+  const rem = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
+  for (let i = 1; i < large.length; i++) expect(large[i]!.top, "one chip a row at 200% text").toBeGreaterThan(large[i - 1]!.top);
+  for (const chip of large) expect(chip.name, "a name keeps at least 4rem").toBeGreaterThanOrEqual(4 * rem);
+  await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
 
   // A real touch swipe to the left lands on the next card, centred (snap).
   const cdp = await context.newCDPSession(page);
@@ -228,15 +236,21 @@ test("with a role open (production's lineup), a phone's header keeps its one row
       const status = page.getByTestId("lineup-status");
       await expect(status).toHaveAttribute("title", "Assign all five roles");
       await expect(status).toContainText("Assign all five roles");
-      await expect(page.getByTestId("lineup-status-count")).toHaveText("4/5 roles");
+      await expect(page.getByTestId("lineup-status-count")).toHaveText("4/5 roles", { useInnerText: true });
       const header = (await page.getByTestId("team-header").boundingBox())!;
       expect(header.height, `${size.width}: one header row`).toBeLessThanOrEqual(56);
       const tabBar = (await page.getByRole("navigation", { name: "Primary" }).boundingBox())!;
       const first = (await page.getByTestId("lineup-cell").first().boundingBox())!;
       expect(first.y + first.height, `${size.width} × ${size.height}: the first card ends above the tab bar`).toBeLessThanOrEqual(tabBar.y);
     }
-    // The narrowest phones, where Edit lineup leaves no room for the words: the dot alone, the
-    // sentence still read out, and still one row.
+    // A 360px phone, where Edit lineup leaves room for the count but not the word: "4/5", one row.
+    await page.setViewportSize({ width: 360, height: 740 });
+    await page.goto("/team");
+    await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
+    await expect(page.getByTestId("lineup-status-count")).toHaveText("4/5", { useInnerText: true });
+    expect((await page.getByTestId("team-header").boundingBox())!.height, "360: one header row").toBeLessThanOrEqual(56);
+    // The narrowest phones (320px), where Edit lineup leaves no room for the count: the dot alone,
+    // the sentence still read out, and still one row.
     await page.setViewportSize({ width: 320, height: 568 });
     await page.goto("/team");
     await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");

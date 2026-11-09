@@ -712,8 +712,8 @@ p a.text-accent {
     --lineup-figures  1 where a card shows this season's figures on either side, 0 where none does
                       (the lineup);
   and the card's own body: its season block (7.125rem with the gap under it; 8rem under 12.5rem,
-  where its two columns stand KDA over CS/min), its pool (3rem; 5.125rem under 16.5rem, where the
-  rest of the pool takes a row of its own), and its fixed parts: the pool's label, the padding and
+  where its two columns stand KDA over CS/min), its pool (3rem; 5.125rem under 16.5rem among cards side by side, where
+  the rest of the pool takes a row of its own), and its fixed parts: the pool's label, the padding and
   the border, with a quarter rem to spare (3.1875rem), so the page never scrolls by a few pixels.
   Edit lineup's bar is left out: entering it moves nothing on the cards, the page grows instead. A
   short window (480px tall or less) shows a sideways track of the cards at their own height.
@@ -722,8 +722,10 @@ p a.text-accent {
   --card-season: 7.125rem;
   --card-pool: 3rem;
   min-height: 10.5rem;
-  @container card (width < 16.5rem) {
-    --card-pool: 5.125rem;
+  @container lineup (width >= 36rem) {
+    @container card (width < 16.5rem) {
+      --card-pool: 5.125rem;
+    }
   }
   @container card (width < 12.5rem) {
     --card-season: 8rem;

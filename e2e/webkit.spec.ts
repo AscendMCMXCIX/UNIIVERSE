@@ -497,9 +497,11 @@ test("Team Overview held sideways: one track of cards that snaps a card to the p
   expect(Math.abs((await lefts())[0]! - gutter)).toBeLessThanOrEqual(1);
   await fitsWidth(page, "/team, sideways");
   // Scrolled part of the way (by script: WebKit's touch emulation has no swipe), the track comes to
-  // rest with a card at the gutter (snap), and the page itself never scrolls sideways.
+  // rest with a later card at the gutter (snap), and the page itself never scrolls sideways. A later
+  // card, not any card: the first one sits at the gutter before the scroll, so `some` over all five
+  // would pass before the track had moved.
   await track.evaluate((el) => el.scrollBy({ left: 180 }));
-  await expect.poll(async () => (await lefts()).some((x) => Math.abs(x - gutter) <= 2), { timeout: 5_000 }).toBe(true);
+  await expect.poll(async () => (await lefts()).slice(1).some((x) => Math.abs(x - gutter) <= 2), { timeout: 5_000 }).toBe(true);
   expect(await track.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
   await fitsWidth(page, "/team, sideways, the track scrolled");
   // A substitute's chip under the track turns that card to them and moves focus onto its way back.

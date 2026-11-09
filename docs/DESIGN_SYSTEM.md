@@ -118,8 +118,8 @@ It should not appear:
   bench of substitutes (November 2026). The sign-in and setup frame's card (`BrandFrame`) glowed in
   the brand blue too; it is lit in violet now, like the page's ambient light, and the role bar's
   selected tab draws its blue edge as a ring, not a shadow. `design-tokens.test.ts` refuses
-  `shadow-accent` (any opacity or variant) and an arbitrary shadow made of `var(--color-accent)`;
-  `shadow-accent-2`, violet, stays allowed.
+  `shadow-accent` (any opacity or variant), an arbitrary shadow made of `var(--color-accent)` and
+  the shorthand `shadow-(color:--color-accent)`; `shadow-accent-2`, violet, stays allowed.
 - as the **colour of the logo's stand-in** (`BrandMark` without an upload). That is now a neutral
   tile lit faintly in violet, with the letter in `fg`.
 

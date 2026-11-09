@@ -880,13 +880,14 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
     ) : (
       // One that is not asks for something: a pill from sm. On a phone the header keeps its one row
       // (the pill on a line of its own pushed the first card under the tab bar): a warn token on the
-      // same line, "● 4/5 roles", the whole sentence read out and in its title; where Edit lineup
-      // leaves no room for the words (a lineup manager on the narrowest phones), the dot alone,
-      // beside the role bar's empty tab.
+      // same line, "● 4/5 roles", the whole sentence read out and in its title. Where Edit lineup
+      // leaves less room (a lineup manager on a phone): "● 4/5" under a 21rem lineup (360px phones),
+      // the dot alone under 19rem (320px), beside the role bar's empty tab.
       <span className="inline-flex items-center gap-1.5 rounded-full border border-warn/35 bg-warn/10 px-2 py-px text-xs font-medium leading-5 text-warn [text-shadow:none] max-sm:gap-1 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:leading-4 max-sm:[text-shadow:inherit]" title={incomplete} data-testid="lineup-status">
         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
-        <span aria-hidden className={cn("whitespace-nowrap sm:hidden", canManageLineup && "@max-[21rem]/lineup:hidden")} data-testid="lineup-status-count">
-          {formatCount(filled.length)}/{formatCount(slots.length)} roles
+        <span aria-hidden className={cn("whitespace-nowrap sm:hidden", canManageLineup && "@max-[19rem]/lineup:hidden")} data-testid="lineup-status-count">
+          {formatCount(filled.length)}/{formatCount(slots.length)}
+          <span className={cn(canManageLineup && "@max-[21rem]/lineup:hidden")}>{" roles"}</span>
         </span>
         <span className="max-sm:sr-only">{incomplete}</span>
       </span>

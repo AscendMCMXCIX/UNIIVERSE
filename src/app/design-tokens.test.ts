@@ -13,9 +13,10 @@ import path from "node:path";
   - a colour written as a hex value in a class (bg-[#…]) instead of a named palette colour;
   - an easing curve that is not one of the --ease-* tokens, in a class, a style or a script;
   - an uppercase label spaced other than tracking-label (a pill badge may use tracking-wide);
-  - the brand blue as a glow or shadow colour (shadow-accent at any opacity or variant, or an
-    arbitrary shadow made of var(--color-accent)): shadows are neutral and violet (accent-2) carries
-    the light; a selected item's blue edge is a ring (DESIGN_SYSTEM.md §4).
+  - the brand blue as a glow or shadow colour (shadow-accent at any opacity or variant, an
+    arbitrary shadow made of var(--color-accent), or the shorthand shadow-(color:--color-accent)):
+    shadows are neutral and violet (accent-2) carries the light; a selected item's blue edge is a
+    ring (DESIGN_SYSTEM.md §4).
   Arbitrary values that match no token (a clamp(), a one-off width) stay allowed.
 */
 
@@ -87,7 +88,7 @@ export function tokenProblems(source: string, tokens: Map<string, string>, optio
       if (!named("ease", m[0])) problems.push(`${at}: ${m[0]} is not an --ease token`);
     }
     // The brand blue is never a glow or shadow (shadow-accent-2, violet, is the light and stays allowed).
-    for (const m of text.matchAll(/(?<![\w-])(?:drop-|inset-|text-)?shadow-(?:accent(?:-strong)?(?![\w-])(?:\/[\w.]+)?|\[[^\]\s]*var\(--color-accent(?:-strong)?\)[^\]\s]*\])/g)) problems.push(`${at}: ${m[0]} is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light`);
+    for (const m of text.matchAll(/(?<![\w-])(?:drop-|inset-|text-)?shadow-(?:accent(?:-strong)?(?![\w-])(?:\/[\w.]+)?|\[[^\]\s]*var\(--color-accent(?:-strong)?\)[^\]\s]*\]|\((?:color:)?--color-accent(?:-strong)?\)(?:\/[\w.]+)?)/g)) problems.push(`${at}: ${m[0]} is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light`);
     // Uppercase labels share one letter spacing; a pill badge (rounded-full) may stay tighter.
     for (const m of text.matchAll(/(["'`])([^"'`]*\buppercase\b[^"'`]*)\1/g)) {
       const classes = m[2]!.split(/\s+/);
@@ -138,6 +139,7 @@ describe("design tokens", () => {
       `el.animate(frames, { easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" }); const odd = "cubic-bezier(0.1, 0.7, 0.1, 1)"; const c = "ease-[cubic-bezier(0.2,_0.8,_0.2,_1)]";`,
       `<span className="text-2xs uppercase tracking-wide" /><span className="rounded-full uppercase tracking-wide" /><span className="uppercase tracking-label sm:tracking-wider" />`,
       `<p className="shadow-accent/15 hover:shadow-accent drop-shadow-accent shadow-accent-strong shadow-[0_0_60px_-20px_var(--color-accent)] shadow-accent-2 shadow-black/40 shadow-[0_0_60px_-20px_var(--color-accent-2)] ring-1 ring-inset ring-accent/40" />`,
+      `<p className="shadow-(color:--color-accent) inset-shadow-(color:--color-accent-strong)/30 drop-shadow-(--color-accent) shadow-(color:--color-accent-2) shadow-(--my-shadow)" />`,
     ].join("\n");
     expect(tokenProblems(source, tokens)).toEqual([
       "1: text-[11px] is text-2xs",
@@ -164,6 +166,9 @@ describe("design tokens", () => {
       "6: drop-shadow-accent is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
       "6: shadow-accent-strong is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
       "6: shadow-[0_0_60px_-20px_var(--color-accent)] is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "7: shadow-(color:--color-accent) is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "7: inset-shadow-(color:--color-accent-strong)/30 is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "7: drop-shadow-(--color-accent) is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
     ]);
   });
 });
