@@ -22,7 +22,7 @@ const preload = () => {
  * downloads it for nothing. While it loads, the button shows it is busy and the page stays as it
  * was (the opening is a transition, so nothing is replaced by a loading state).
  */
-export function CustomiseCardButton(props: CustomiseCardProps & { variant?: "overlay" | "outline" | "icon"; className?: string }) {
+export function CustomiseCardButton(props: CustomiseCardProps & { variant?: "overlay" | "outline" | "icon"; /** An overlay that is a round icon chip on phones (below sm), its word read out (the profile header). */ iconOnPhones?: boolean; className?: string }) {
   const [open, setOpen] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
   const icon = props.variant === "icon";
@@ -41,13 +41,14 @@ export function CustomiseCardButton(props: CustomiseCardProps & { variant?: "ove
           // The icon is a round chip like the card's turn control beside it (both classes at once would leave the square corners).
           icon ? "h-8 w-8 rounded-full bg-bg/80 text-fg-muted shadow-sm shadow-black/30 hover:bg-bg/90 hover:text-accent pointer-coarse:h-11 pointer-coarse:w-11" : "min-h-9 rounded-lg px-2.5 pointer-coarse:min-h-11",
           !icon && (props.variant === "outline" ? "border border-border-strong bg-surface/70 text-fg hover:border-accent hover:text-accent" : "bg-bg/80 text-fg hover:bg-bg/90 hover:text-accent"),
+          !icon && props.iconOnPhones && "max-sm:h-11 max-sm:w-11 max-sm:rounded-full max-sm:px-0 max-sm:shadow-sm max-sm:shadow-black/30",
           props.className,
         )}
         aria-label="Customise profile card"
         title="Player Card Studio: artwork, colours, frame, identity and effects"
         data-testid="customise-card"
       >
-        <Icon className={cn(icon ? "h-4 w-4" : "h-3.5 w-3.5", pending && "animate-spin")} aria-hidden /> {icon ? null : <span>Customise</span>}
+        <Icon className={cn(icon ? "h-4 w-4" : "h-3.5 w-3.5", !icon && props.iconOnPhones && "max-sm:h-4 max-sm:w-4", pending && "animate-spin")} aria-hidden /> {icon ? null : <span className={cn(props.iconOnPhones && "max-sm:sr-only")}>Customise</span>}
       </button>
       {open ? (
         <StudioBoundary
