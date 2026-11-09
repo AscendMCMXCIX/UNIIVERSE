@@ -266,6 +266,22 @@ export const ADMIN_TABS: Array<{ href: string; label: string; icon: LucideIcon }
   { href: "/admin/system", label: "Health", icon: Activity },
 ];
 
+/**
+ * Admin Mode's pages in the phone account sheet: one link per entry, as the drawer lists them (a
+ * hub's link opens its first section this account may open, under the hub's name), less the pages
+ * the tab bar already holds, so the sheet repeats nothing that is one tap away (as Player Mode's
+ * sheet holds Resources only when it has no tab).
+ */
+export function adminSheetLinks(allowed: readonly string[], tabHrefs: readonly string[]): NavLink[] {
+  return ADMIN_ENTRIES.flatMap((entry): NavLink[] => {
+    if (isNavHub(entry)) {
+      const first = entry.sections.find((l) => allowed.includes(l.href));
+      return first && !tabHrefs.includes(first.href) ? [{ href: first.href, label: entry.label, icon: entry.icon }] : [];
+    }
+    return allowed.includes(entry.href) && !tabHrefs.includes(entry.href) ? [entry] : [];
+  });
+}
+
 /** Account settings in Admin Mode: the same page as Player Mode's, without leaving Admin Mode. */
 export const ADMIN_ACCOUNT_LINKS: NavLink[] = [{ href: "/admin/settings", label: "Settings", icon: Settings }];
 

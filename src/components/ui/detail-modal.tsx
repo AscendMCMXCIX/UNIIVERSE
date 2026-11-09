@@ -29,9 +29,13 @@ const SIZE: Record<ModalSize, string> = {
   // A fixed height on wide screens, so switching tabs inside never makes the window jump.
   wide: `h-dvh w-full max-h-none rounded-none max-sm:pt-safe sm:h-[min(90dvh,58rem)] sm:w-[min(76rem,calc(100vw-3rem))] sm:rounded-card ${WHOLE_SCREEN}`,
   full: `h-dvh w-full max-h-none rounded-none max-sm:pt-safe sm:h-[calc(100dvh-3rem)] sm:w-[calc(100vw-3rem)] sm:rounded-card ${WHOLE_SCREEN}`,
-  // Phones: docked to the bottom edge, as tall as its content up to most of the screen; a phone
-  // held sideways gets nearly all of its short height. Wider screens: a compact centred window.
-  sheet: "w-full max-h-[85dvh] rounded-t-[1.25rem] border-b-0 max-sm:mb-0 max-sm:mt-auto sm:w-[min(30rem,calc(100vw-2rem))] sm:rounded-card sm:border-b short:max-h-[calc(100dvh-0.5rem)]",
+  // Phones, and any short window (a phone held sideways): docked to the bottom edge, as tall as its
+  // content up to the screen's height less a strip of the page above it (to tap away). The cap is in
+  // small-viewport units: Safari's toolbars sliding in and out change dvh, and a sheet capped in dvh
+  // grew and shrank under the finger; svh is the height with the toolbars shown, so the sheet always
+  // fits what is visible and never moves. Sideways it spans up to 44rem, centred. Taller wider
+  // screens: a compact centred window.
+  sheet: "w-full max-h-[calc(100svh-env(safe-area-inset-top)-2.5rem)] rounded-t-[1.25rem] border-b-0 max-sm:mb-0 max-sm:mt-auto sm:w-[min(30rem,calc(100vw-2rem))] sm:max-h-[min(88svh,52rem)] sm:rounded-card sm:border-b short:mb-0 short:mt-auto short:w-[min(44rem,100vw)] short:max-h-[calc(100svh-0.5rem)] short:rounded-b-none short:border-b-0",
   // As tall as its fields on wider screens (fit-content, the browser's own size for a dialog:
   // `auto` would stretch it between the dialog's top and bottom insets).
   form: `h-dvh w-full max-h-none rounded-none border-0 max-sm:pt-safe sm:h-fit sm:max-h-[min(88dvh,44rem)] sm:w-[min(28rem,calc(100vw-2rem))] sm:rounded-card sm:border ${WHOLE_SCREEN} short:pt-safe`,
@@ -39,7 +43,7 @@ const SIZE: Record<ModalSize, string> = {
 
 /** The motion of each size: a sheet slides up from the bottom edge on phones, every window else rises into the centre. */
 const MOTION: Partial<Record<ModalSize, string>> = {
-  sheet: "motion-safe:sheet-in data-[closing=true]:sheet-out sm:motion-safe:modal-in sm:data-[closing=true]:modal-out backdrop:transition-opacity backdrop:duration-150 data-[closing=true]:backdrop:opacity-0",
+  sheet: "motion-safe:sheet-in data-[closing=true]:sheet-out sm:motion-safe:modal-in sm:data-[closing=true]:modal-out short:motion-safe:sheet-in short:data-[closing=true]:sheet-out backdrop:transition-opacity backdrop:duration-150 data-[closing=true]:backdrop:opacity-0",
 };
 
 /**
@@ -113,6 +117,116 @@ export function AfterOpen({ children, fallback = null, ready = true }: { childre
   return settled && ready ? <div className="motion-safe:fade-in">{children}</div> : <>{fallback}</>;
 }
 
+/** Where a sheet is docked to the bottom edge (SIZE.sheet): phones, and short windows. */
+const DOCKED_QUERY = "(max-width: 39.99rem), (max-height: 480px)";
+/** Distance a finger must travel before a touch counts as a drag (or a scroll), in px. */
+const DRAG_SLOP = 6;
+/** A sheet pulled down further than this share of its height (or 140px) closes when let go. */
+const DISMISS_SHARE = 0.3;
+/** ... or flicked down faster than this, in px per ms, over the last VELOCITY_WINDOW ms of the pull. */
+const DISMISS_VELOCITY = 0.5;
+const VELOCITY_WINDOW = 100;
+
+/**
+ * A docked sheet follows a finger pulling it down, and closes when let go far enough down or with a
+ * flick (with its closing motion, from where the finger left it); otherwise it settles back. A pull
+ * that starts in the sheet's body while the body is scrolled away from its top scrolls the body
+ * instead, as a native sheet does. Touches that would move nothing inside the sheet (on its header,
+ * on content that does not scroll, on the dimmed page around it) are kept from moving the page
+ * behind: no rubber band, no browser toolbars sliding, which on iOS also resized the sheet. Taps are
+ * untouched, so a tap on the dimmed page still closes the sheet and every link still works.
+ */
+function useSheetDrag(ref: React.RefObject<HTMLDialogElement | null>, enabled: boolean, onDismiss: () => void) {
+  React.useEffect(() => {
+    const d = ref.current;
+    if (!enabled || !d) return;
+    const docked = window.matchMedia(DOCKED_QUERY);
+    let startX = 0;
+    let startY = 0;
+    let dy = 0;
+    // The pull's recent positions, for its speed as the finger leaves (a flick is judged by its end).
+    let samples: Array<{ t: number; y: number }> = [];
+    // idle: no touch; pending: too small a move to tell; drag: the sheet follows the finger; pass:
+    // the browser scrolls the sheet's body; block: nothing moves, for the rest of the touch.
+    let mode: "idle" | "pending" | "drag" | "pass" | "block" = "idle";
+    let scroller: HTMLElement | null = null;
+    let settleTimer = 0;
+    const reset = () => {
+      d.style.removeProperty("transform");
+      d.style.removeProperty("transition");
+    };
+    const canScroll = (el: HTMLElement | null) => !!el && el.scrollHeight > el.clientHeight + 1;
+    const onStart = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (!docked.matches || e.touches.length !== 1 || !t) {
+        mode = "pass";
+        return;
+      }
+      window.clearTimeout(settleTimer);
+      startX = t.clientX;
+      startY = t.clientY;
+      dy = 0;
+      samples = [{ t: e.timeStamp, y: t.clientY }];
+      mode = "pending";
+      // The dimmed page around the sheet is the dialog itself (its ::backdrop); content is inside it.
+      scroller = e.target === d ? null : ((e.target as Element | null)?.closest?.("[data-sheet-scroll]") as HTMLElement | null);
+    };
+    const onMove = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (mode === "idle" || mode === "pass" || !t) return;
+      const moveX = t.clientX - startX;
+      const moveY = t.clientY - startY;
+      if (mode === "pending") {
+        if (Math.abs(moveX) < DRAG_SLOP && Math.abs(moveY) < DRAG_SLOP) return;
+        const scrollable = canScroll(scroller);
+        const onBackdrop = e.target === d;
+        if (!onBackdrop && moveY > 0 && Math.abs(moveY) > Math.abs(moveX) && !(scrollable && scroller!.scrollTop > 0)) {
+          mode = "drag";
+          d.style.transition = "none";
+        } else {
+          // Not a pull down: a scrollable body scrolls itself; anything else moves nothing.
+          mode = scrollable && !onBackdrop ? "pass" : "block";
+        }
+      }
+      if (mode === "pass") return;
+      if (e.cancelable) e.preventDefault();
+      if (mode === "block") return;
+      dy = Math.max(0, moveY);
+      samples.push({ t: e.timeStamp, y: t.clientY });
+      if (samples.length > 8) samples.shift();
+      d.style.transform = `translateY(${dy}px)`;
+    };
+    const onEnd = () => {
+      const was = mode;
+      mode = "idle";
+      if (was !== "drag") return;
+      const last = samples[samples.length - 1]!;
+      const from = samples.find((p) => last.t - p.t <= VELOCITY_WINDOW) ?? last;
+      const velocity = (last.y - from.y) / Math.max(1, last.t - from.t);
+      if (dy > Math.min(140, d.offsetHeight * DISMISS_SHARE) || velocity > DISMISS_VELOCITY) {
+        // Closes with sheet-out from this offset (its keyframes have no start), or at once for reduced motion.
+        onDismiss();
+        return;
+      }
+      d.style.transition = "transform 180ms var(--ease-emphasized)";
+      d.style.removeProperty("transform");
+      settleTimer = window.setTimeout(reset, 200);
+    };
+    d.addEventListener("touchstart", onStart, { passive: true });
+    d.addEventListener("touchmove", onMove, { passive: false });
+    d.addEventListener("touchend", onEnd);
+    d.addEventListener("touchcancel", onEnd);
+    return () => {
+      window.clearTimeout(settleTimer);
+      d.removeEventListener("touchstart", onStart);
+      d.removeEventListener("touchmove", onMove);
+      d.removeEventListener("touchend", onEnd);
+      d.removeEventListener("touchcancel", onEnd);
+      reset();
+    };
+  }, [ref, enabled, onDismiss]);
+}
+
 /**
  * The site's one window for contextual details (a player, a match, an analysis): it rises into
  * the centre of the screen over a dimmed page, which stays where it was underneath. Built on the
@@ -142,6 +256,7 @@ export function DetailModal({
   footer,
   onSettled,
   innerScroll = false,
+  sheetWidth = "standard",
 }: {
   open: boolean;
   onClose: () => void;
@@ -167,6 +282,8 @@ export function DetailModal({
   footer?: React.ReactNode;
   /** Called once the opening motion is over (see AfterOpen), e.g. to show content kept back until then. */
   onSettled?: () => void;
+  /** A sheet's width where it is a centred window (taller wider screens): wide for an editor with a table (48rem). */
+  sheetWidth?: "standard" | "wide";
   /**
    * The content scrolls itself (an editor with a fixed preview and toolbar): the body is a
    * fixed-height column that never scrolls, on every screen, short windows and phones included,
@@ -212,6 +329,11 @@ export function DetailModal({
   const custom = header != null;
   /** The header stays put on every screen, short windows included, and only the body scrolls (see `form`). */
   const pinned = size === "form";
+  /**
+   * A sheet is docked to the bottom edge on phones and in short windows, its header and footer in
+   * place and only its body scrolling, never the whole sheet (one scroll area, inside the sheet).
+   */
+  const docked = size === "sheet";
   // How much room the corner controls take, for CLEAR_OF_CONTROLS and BELOW_CONTROLS: measured
   // before the window is first drawn, because the close button is larger on touch screens and a
   // Back label varies. Layout sizes, not on-screen boxes, so the opening motion's scale is no matter.
@@ -245,7 +367,7 @@ export function DetailModal({
   React.useLayoutEffect(() => {
     const d = ref.current;
     const h = headerRef.current;
-    if (!open || !custom || innerScroll || pinned || size === "compact" || !d || !h) return;
+    if (!open || !custom || innerScroll || pinned || docked || size === "compact" || !d || !h) return;
     const phone = window.matchMedia(PHONE_QUERY);
     // A ResizeObserver reports the first sizes before the window is first drawn, then every change
     // (content arriving in the header, the phone turning).
@@ -258,7 +380,7 @@ export function DetailModal({
       observer.disconnect();
       phone.removeEventListener("change", check);
     };
-  }, [open, custom, innerScroll, pinned, size]);
+  }, [open, custom, innerScroll, pinned, docked, size]);
 
   React.useEffect(() => {
     const d = ref.current;
@@ -279,12 +401,15 @@ export function DetailModal({
     const root = document.documentElement;
     const body = document.body;
     const gap = window.innerWidth - root.clientWidth;
-    const prev = { overflow: root.style.overflow, padding: body.style.paddingRight };
+    const prev = { overflow: root.style.overflow, overscroll: root.style.overscrollBehavior, padding: body.style.paddingRight };
     root.style.overflow = "hidden";
+    // No rubber band or pull-to-refresh on the page either (iOS and Android browsers).
+    root.style.overscrollBehavior = "none";
     if (gap > 0) body.style.paddingRight = `${gap}px`;
     return () => {
       window.clearTimeout(settleTimer);
       root.style.overflow = prev.overflow;
+      root.style.overscrollBehavior = prev.overscroll;
       body.style.paddingRight = prev.padding;
       // Back to what opened the window, whether it was closed or removed from the page (or to the
       // window replacing it, see handedOver).
@@ -318,6 +443,7 @@ export function DetailModal({
       latest.current.onClose();
     }, EXIT_MS);
   }, []);
+  useSheetDrag(ref, open && docked, requestClose);
 
   // The close button alone in the top-right corner: the window's own navigation sits left of it,
   // past a divider, and nothing in the header comes within CLEARANCE_PX of either.
@@ -357,11 +483,11 @@ export function DetailModal({
       data-closing={closing || undefined}
       className={cn(
         "m-auto max-w-none border border-border-strong bg-bg-elevated p-0 px-safe text-fg shadow-2xl shadow-black/50 open:flex open:flex-col",
-        !innerScroll && !pinned && "short:overflow-y-auto short:overscroll-contain",
+        !innerScroll && !pinned && !docked && "short:overflow-y-auto short:overscroll-contain",
         flow ? "overflow-y-auto overscroll-contain" : "overflow-hidden",
         MODAL_BACKDROP,
         MOTION[size] ?? MODAL_MOTION,
-        SIZE[size],
+        size === "sheet" && sheetWidth === "wide" ? SIZE.sheet.replace("sm:w-[min(30rem,calc(100vw-2rem))]", "sm:w-[min(48rem,calc(100vw-2rem))]") : SIZE[size],
         className,
       )}
       data-testid={testId}
@@ -376,6 +502,12 @@ export function DetailModal({
               (under a bar that covers the status bar of the installed app); a plain title bar
               stays pinned, and so does the footer. */}
           {flow ? <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 z-20 h-[env(safe-area-inset-top)] bg-bg-elevated/90" /> : null}
+          {/* A docked sheet's handle: it can be pulled down to close (useSheetDrag). */}
+          {docked ? (
+            <div aria-hidden className="flex shrink-0 justify-center pt-2 sm:hidden short:flex" data-testid="sheet-grabber">
+              <span className="h-1 w-9 rounded-full bg-border-strong" />
+            </div>
+          ) : null}
           {header ? (
             <div ref={headerRef} className={cn("relative shrink-0 border-b border-border", headerClassName)} data-testid={headerTestId}>
               {header}
@@ -386,7 +518,7 @@ export function DetailModal({
                   "flex items-center gap-1",
                   flow
                     ? "fixed right-[max(0.5rem,env(safe-area-inset-right))] top-[calc(env(safe-area-inset-top)+0.5rem)] z-20 rounded-lg bg-bg-elevated/85 shadow-lg backdrop-blur"
-                    : innerScroll || pinned
+                    : innerScroll || pinned || docked
                       ? "absolute right-2 top-2 sm:right-3 sm:top-3"
                       : "absolute right-2 top-2 sm:right-3 sm:top-3 short:fixed short:right-[max(0.5rem,env(safe-area-inset-right))] short:top-2 short:z-20 short:rounded-lg short:bg-bg-elevated/85 short:shadow-lg short:backdrop-blur",
                 )}
@@ -411,10 +543,26 @@ export function DetailModal({
               </span>
             </div>
           )}
-          <div className={cn(innerScroll ? "flex min-h-0 flex-1 flex-col overflow-hidden" : ["px-4 py-4 pb-safe sm:px-6 sm:py-5", flow ? "flex-none" : pinned ? "min-h-0 flex-1 overflow-y-auto overscroll-contain" : "min-h-0 flex-1 overflow-y-auto overscroll-contain short:flex-none short:overflow-y-visible"], bodyClassName)} data-testid={bodyTestId}>
+          <div
+            className={cn(
+              innerScroll
+                ? "flex min-h-0 flex-1 flex-col overflow-hidden"
+                : [
+                    "px-4 py-4 sm:px-6 sm:py-5",
+                    // The last line keeps clear of the bottom edge, and of the home indicator where
+                    // there is one (pb-safe alone was 0 px in a browser, with the text on the edge);
+                    // with a footer, the footer keeps that clearance instead.
+                    footer ? null : "pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-[max(1.25rem,env(safe-area-inset-bottom))]",
+                    flow ? "flex-none" : pinned || docked ? "min-h-0 flex-1 overflow-y-auto overscroll-contain" : "min-h-0 flex-1 overflow-y-auto overscroll-contain short:flex-none short:overflow-y-visible",
+                  ],
+              bodyClassName,
+            )}
+            data-testid={bodyTestId}
+            data-sheet-scroll={docked ? "" : undefined}
+          >
             <SettledContext.Provider value={settled}>{children}</SettledContext.Provider>
           </div>
-          {footer ? <div className={cn("flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border bg-bg-elevated px-4 py-3 pb-safe sm:px-6", !innerScroll && !pinned && "short:sticky short:bottom-0 short:z-10 short:mt-auto", flow && "sticky bottom-0 z-10 mt-auto")}>{footer}</div> : null}
+          {footer ? <div className={cn("flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border bg-bg-elevated px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6", !innerScroll && !pinned && "short:sticky short:bottom-0 short:z-10 short:mt-auto", flow && "sticky bottom-0 z-10 mt-auto")}>{footer}</div> : null}
         </CloseContext.Provider>
       ) : null}
     </dialog>

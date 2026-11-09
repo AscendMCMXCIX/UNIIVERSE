@@ -70,8 +70,9 @@ fit (iPhone 15 and wider) and scroll on narrower phones.
 - `src/components/mobile-nav.tsx` (the phone frame is described in full in [MOBILE.md](MOBILE.md)):
   - phones: a sticky top bar with Back (named after where it leads) or the team's mark, the page's
     title once its heading has scrolled up under the bar, and your avatar, which opens the account
-    sheet (Resources when it has no tab, Settings, Install App, the mode switch, Sign out); on a
-    profile, its sections ride under the bar;
+    sheet (as tiles: the pages without a tab, Settings and Install App; the mode switch beside Sign
+    out; one short screen, docked at the bottom edge sideways too); on a profile, its sections ride
+    under the bar;
   - phones: a bottom tab bar with Team, Players, Leaderboards, Matches and Profile (`PHONE_TABS`,
     at most five, those the account may open). A teammate's profile is under Players. The current
     tab's icon sits in an accent pill and its label is bright, so it does not rely on colour alone;
@@ -191,8 +192,8 @@ Three levels, each saying what it proves:
   `985c65a`; removed with that feature).
 
   This is WebKit as Playwright builds it for Linux: Safari's engine, not Safari on an iPhone.
-  **Status, 21 Oct 2026:** the spec passes in Chromium with the same iPhone settings; its first
-  WebKit run is still to be done (WebKit is not installed in the development container).
+  **Status, 7 Nov 2026:** the WebKit workflow passes: 17 of 17 on `main` (run 42373258830) and on
+  #262's branch (run 42401195789).
 - **A real iPhone** (by a person; nothing above covers it):
   1. Add to Home Screen from Safari's Share menu: the icon and name come from Branding, and the app
      opens full screen with its content clear of the notch and the home indicator.

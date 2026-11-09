@@ -6,7 +6,7 @@ import path from "node:path";
 /*
   Hosting-usage safeguards that are easy to undo by accident:
   - Vercel builds production, and a preview only when one is asked for (each preview stores another
-    full copy of the app's functions);
+    full copy of the app's functions); production is not rebuilt for tests or tooling alone;
   - a build with a DATABASE_URL leaves PGlite (the demo database, about 19 MB per function) out.
   (In src/, so pnpm verify and CI's unit job run it; in tests/ops only `pnpm test` ran it, never CI.)
 */
@@ -24,6 +24,17 @@ describe("Vercel ignored build step", () => {
   });
   it("builds production when it cannot tell what changed", () => {
     expect(ignore({ VERCEL_ENV: "production" })).toBe(1);
+  });
+  // A production deployment costs Vercel Active CPU (cold starts, and the Production check runs
+  // against it): a merge of tests or tooling alone does not deploy (docs/HOSTING_USAGE.md).
+  const appFiles = (names: string[]) =>
+    spawnSync("bash", [path.join(root, "scripts/vercel-ignore-build.sh"), "--app-files"], { cwd: root, input: names.join("\n") + "\n", env: { PATH: process.env.PATH ?? "" } as unknown as NodeJS.ProcessEnv }).stdout.toString().split("\n").filter(Boolean);
+  it("does not deploy for tests, test runners, scripts, docs or repository settings", () => {
+    expect(appFiles(["e2e/team.spec.ts", "e2e/players.ts", "tests/db/rank-watch.test.ts", "tests/ops/hosting-budget.test.ts", "src/proxy.test.ts", "src/components/ui/tab-bar.test.tsx", "playwright.config.ts", "vitest.config.ts", "scripts/live-check.mjs", "scripts/backup-db.sh", "docs/HOSTING_USAGE.md", "STATUS.md", ".github/workflows/ci.yml", ".githooks/pre-push", ".claude/settings.json", ".env.example"])).toEqual([]);
+  });
+  it("deploys for anything the app is built from or serves", () => {
+    const app = ["src/proxy.ts", "src/app/(app)/layout.tsx", "src/lib/prefetch-mark.ts", "public/riot.txt", "drizzle/0066_example.sql", "package.json", "pnpm-lock.yaml", "next.config.ts", "postcss.config.mjs", "tsconfig.json", "vercel.json", "src/server/db/migrations.generated.ts"];
+    expect(appFiles(app)).toEqual(app);
   });
 });
 

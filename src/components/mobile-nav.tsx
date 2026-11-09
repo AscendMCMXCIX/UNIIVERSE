@@ -7,8 +7,8 @@ import { ChevronLeft, LogOut, Menu, X } from "lucide-react";
 import { BrandMark } from "./brand-mark";
 import { NavLinks } from "./nav-links";
 import { Avatar } from "./ui/avatar";
-import { DetailModal } from "./ui/detail-modal";
-import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, ADMIN_TABS, PROFILE_SECTIONS, RESOURCES, currentTab, isActivePath, phoneParent, phoneTabs, profileBase, type PhoneTab } from "@/lib/nav";
+import { CLEAR_OF_CONTROLS, DetailModal } from "./ui/detail-modal";
+import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, ADMIN_TABS, PROFILE_SECTIONS, RESOURCES, adminSheetLinks, currentTab, isActivePath, phoneParent, phoneTabs, profileBase, type NavLink, type PhoneTab } from "@/lib/nav";
 import { AccountMenu, otherUsername } from "./account-menu";
 import { announceAccountChange, markAccountChange } from "./account-guard";
 import { InstallAppEntry } from "./install/install-app";
@@ -16,6 +16,7 @@ import { useInstallState } from "./install/install-state";
 import { ProfileTabs } from "./players/profile-tabs";
 import { PHONE_QUERY } from "./ui/use-phone";
 import { cn } from "@/lib/cn";
+import { SHEET_TILE, SHEET_TILE_CURRENT, SHEET_TILE_ICON, SHEET_TILE_IDLE } from "@/lib/sheet";
 
 export interface MobileNavProps {
   logoSrc: string | null;
@@ -51,8 +52,10 @@ export interface MobileNavProps {
       in reach however far the page scrolls;
     - the bottom tab bar holds the five places a member goes to most (PHONE_TABS), one tap each,
       within reach of the thumb;
-    - the account sheet (a sheet from the bottom edge) holds the rest: Resources when it has no tab,
-      Settings, Install App, the switch between the modes, Sign out, the patch and Riot's notice.
+    - the account sheet (a sheet from the bottom edge) holds the rest, in one short screen: tiles
+      for the pages the tab bar does not hold (Resources when it has no tab; in Admin Mode the admin
+      pages without a tab), Settings and Install App; the switch between the modes beside Sign out;
+      the patch and Riot's notice.
   Tablets keep the top bar with the menu at its left end and the drawer with every page, and the
   page tabs (Team's sections) in the page, pinned at its top once it scrolls. Installed as an app, a
   tablet has no browser Back, so the bar offers Back there too, on a page reached from another.
@@ -106,8 +109,14 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
     return () => document.documentElement.removeAttribute("data-tabbar-hidden");
   }, [tabsHidden]);
 
-  // Resources has a tab when the bar has room; otherwise it is the sheet's first entry.
-  const sheetPages = adminMode ? [] : [RESOURCES].filter((l) => allowed.includes(l.href) && !tabs.some((t) => t.href === l.href));
+  // The sheet holds what the tab bar does not: in Player Mode Resources (when it has no tab) and My
+  // Profile (likewise), in Admin Mode the admin pages without a tab; then the account's own pages.
+  const tabHrefs = tabs.map((t) => t.href);
+  const sheetLinks: NavLink[] = [
+    ...(adminMode ? adminSheetLinks(allowed, tabHrefs) : [RESOURCES].filter((l) => allowed.includes(l.href) && !tabHrefs.includes(l.href))),
+    ...(hasPlayer && !adminMode && !tabHrefs.includes("/overview") ? [{ href: "/overview", label: "My Profile", icon: PROFILE_SECTIONS[0]!.icon }] : []),
+    ...accountLinks,
+  ];
   const titleShown = heading.past && !!heading.text;
 
   return (
@@ -146,16 +155,21 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
               {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-label text-accent">Admin mode</span> : tagline ? <span className="block truncate text-xs text-fg-subtle max-md:hidden">{tagline}</span> : null}
             </span>
           </Link>
-          {/* Phones: the page's own title, once its heading has gone up under the bar. */}
-          <p className={cn("min-w-0 flex-1 truncate px-1 text-base font-semibold text-fg transition-opacity duration-150 md:hidden", titleShown ? "opacity-100" : "opacity-0")} aria-hidden data-testid="mobile-title">
-            {titleShown ? heading.text : ""}
-          </p>
+          {/* Phones: the page's own title, once its heading has gone up under the bar; a tap on it goes
+              back to the top, as iOS's status bar does. */}
+          {titleShown ? (
+            <button type="button" onClick={toTop} className="min-h-11 min-w-0 flex-1 truncate rounded-md px-1 text-left text-base font-semibold text-fg transition-opacity duration-150 md:hidden" aria-label={`${heading.text}: back to top`} data-testid="mobile-title">
+              {heading.text}
+            </button>
+          ) : (
+            <p className="min-w-0 flex-1 px-1 opacity-0 md:hidden" aria-hidden data-testid="mobile-title" />
+          )}
           {user ? (
             <>
               <span className="max-md:hidden">
                 <AccountMenu user={user} showSignOut={showSignOut} variant="topbar" adminMode={adminMode} />
               </span>
-              <button type="button" onClick={() => setOpenedAt({ what: "sheet", path: pathname })} aria-haspopup="dialog" aria-expanded={sheetOpen} aria-label={`Your account: ${user.name}`} className="-mr-1 grid h-11 w-11 shrink-0 place-items-center rounded-full md:hidden" data-testid="account-sheet-button">
+              <button type="button" onClick={() => setOpenedAt({ what: "sheet", path: pathname })} aria-haspopup="dialog" aria-expanded={sheetOpen} aria-label={`Your account: ${user.name}`} className="-mr-1 grid h-11 w-11 shrink-0 place-items-center rounded-full transition-transform duration-100 active:scale-90 motion-reduce:active:scale-100 md:hidden" data-testid="account-sheet-button">
                 <Avatar name={user.name} src={user.avatarUrl} size="sm" />
               </button>
             </>
@@ -170,36 +184,43 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
       </header>
 
       {sheetOpen && user ? (
-        <DetailModal open onClose={() => setOpenedAt(null)} size="sheet" title={user.name} description={[otherUsername(user) ? `Username: ${otherUsername(user)}` : null, user.roleLabel].filter(Boolean).join(" · ")} testId="account-sheet" closeTestId="account-sheet-close">
-          <div className="-mx-1 flex flex-col gap-1">
-            {adminMode ? <NavLinks allowed={allowed} admin large onNavigate={() => setOpenedAt(null)} /> : null}
-            {sheetPages.map(({ href, label, icon: Icon }) => (
-              <SheetLink key={href} href={href} icon={Icon} active={isActivePath(pathname, href)} onNavigate={() => setOpenedAt(null)}>
+        <DetailModal
+          open
+          onClose={() => setOpenedAt(null)}
+          size="sheet"
+          title={user.name}
+          titleId={SHEET_TITLE_ID}
+          header={<AccountHeader user={user} />}
+          testId="account-sheet"
+          closeTestId="account-sheet-close"
+          bodyClassName="pt-3 sm:pt-4"
+        >
+          {/* Everything as tiles in one short screen: the pages the tab bar does not hold, Settings and
+              Install App (lib/sheet.ts), three to a row upright and up to six sideways. */}
+          <nav aria-label={adminMode ? "More admin pages and your account" : "More pages and your account"} className="grid grid-cols-3 gap-2 short:grid-cols-6">
+            {sheetLinks.map(({ href, label, icon }) => (
+              <SheetTile key={href} href={href} icon={icon} active={isActivePath(pathname, href)} onNavigate={() => setOpenedAt(null)}>
                 {label}
-              </SheetLink>
-            ))}
-            {hasPlayer && !adminMode && !tabs.some((t) => t.href === "/overview") ? (
-              <SheetLink href="/overview" icon={PROFILE_SECTIONS[0]!.icon} active={isActivePath(pathname, "/overview")} onNavigate={() => setOpenedAt(null)}>
-                My Profile
-              </SheetLink>
-            ) : null}
-            {accountLinks.map(({ href, label, icon: Icon }) => (
-              <SheetLink key={href} href={href} icon={Icon} active={isActivePath(pathname, href)} onNavigate={() => setOpenedAt(null)}>
-                {label}
-              </SheetLink>
+              </SheetTile>
             ))}
             {/* The install window opens over the page: the sheet closes first. */}
-            <InstallAppEntry variant="drawer" beforeOpen={() => setOpenedAt(null)} />
-            {modeSwitch ? <div className="mt-1">{modeSwitch}</div> : null}
-            {showSignOut ? (
-              <form action="/api/auth/logout" method="post" onSubmit={() => (markAccountChange(true), announceAccountChange())}>
-                <button className="flex min-h-12 w-full items-center gap-3 rounded-lg pl-[0.9375rem] pr-3 text-left text-sm text-fg-muted hover:bg-surface-2 hover:text-fg" type="submit" data-testid="sign-out">
-                  <LogOut className="h-[1.125rem] w-[1.125rem] text-fg-subtle" aria-hidden /> Sign out
-                </button>
-              </form>
-            ) : null}
-          </div>
-          <div className="mt-3 space-y-1 border-t border-border pt-3">
+            <InstallAppEntry variant="tile" beforeOpen={() => setOpenedAt(null)} />
+          </nav>
+          {modeSwitch || showSignOut ? (
+            // The way between the modes and Sign out share a row where the screen allows (both 48px tall).
+            <div className={cn("mt-2 grid gap-2", modeSwitch && showSignOut && "min-[22.5rem]:grid-cols-2")}>
+              {modeSwitch}
+              {showSignOut ? (
+                <form action="/api/auth/logout" method="post" onSubmit={() => (markAccountChange(true), announceAccountChange())}>
+                  <button className="flex min-h-12 w-full items-center gap-3 rounded-lg border border-border bg-surface/60 pl-[0.875rem] pr-3 text-left text-sm font-medium text-fg-muted transition-colors duration-150 hover:border-border-strong hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent" type="submit" data-testid="sign-out">
+                    <LogOut className="h-[1.125rem] w-[1.125rem] shrink-0 text-fg-subtle" aria-hidden /> Sign out
+                  </button>
+                </form>
+              ) : null}
+            </div>
+          ) : null}
+          {/* The patch and Riot's notice: one quiet line (two on a narrow screen) at the foot. */}
+          <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border pt-2.5">
             {status}
             {legal}
           </div>
@@ -262,7 +283,18 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
               const own = href === "/overview" && user?.avatarUrl;
               return (
                 <li key={href} className="min-w-max flex-1 basis-0">
-                  <Link href={href} aria-current={active ? "page" : undefined} className={cn("group flex min-h-14 flex-col items-center justify-center gap-1 px-1 pb-1 pt-1.5 text-2xs font-medium transition-colors duration-150 short:min-h-11 short:flex-row short:gap-1.5 short:py-1", active ? "font-semibold text-fg" : "text-fg-muted hover:text-fg")} data-testid={`tab-${href.slice(1)}`}>
+                  <Link
+                    href={href}
+                    aria-current={active ? "page" : undefined}
+                    // The current tab on its own page: back to the top, as a phone's tab bar does (a page
+                    // under the tab, such as a teammate's profile under Players, still goes to the tab's page).
+                    onClick={(e) => {
+                      if (active && pathname === href) {
+                        e.preventDefault();
+                        toTop();
+                      }
+                    }}
+                    className={cn("group flex min-h-14 flex-col items-center justify-center gap-1 px-1 pb-1 pt-1.5 text-2xs font-medium transition-colors duration-150 short:min-h-11 short:flex-row short:gap-1.5 short:py-1", active ? "font-semibold text-fg" : "text-fg-muted hover:text-fg")} data-testid={`tab-${href.slice(1)}`}>
                     <span className={cn("grid h-7 w-12 place-items-center rounded-full transition-colors duration-150", active ? "bg-accent/15 text-accent" : "group-hover:bg-surface-2")} aria-hidden>
                       {own ? <Avatar name={user!.name} src={user!.avatarUrl} size="xs" className={cn(active && "ring-2 ring-accent")} /> : <Icon className="h-5 w-5" />}
                     </span>
@@ -276,6 +308,12 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
       ) : null}
     </>
   );
+}
+
+/** Back to the top of the page: smooth, or at once with reduced motion. */
+function toTop() {
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  window.scrollTo({ top: 0, behavior: reduce ? "instant" : "smooth" });
 }
 
 /** Phones; and tablets in the installed app, which has no browser Back (a tablet in a browser has the browser's). */
@@ -343,7 +381,36 @@ function Drawer({ onClose, initialFocus, children }: { onClose: () => void; /** 
   );
 }
 
-/** A row of the account sheet or the tablet drawer: an icon and a page, 48px tall. */
+/** The account sheet's title (its custom header names the dialog). */
+const SHEET_TITLE_ID = "account-sheet-title";
+
+/** The account sheet's header: who is signed in, with their picture, beside the close button. */
+function AccountHeader({ user }: { user: NonNullable<MobileNavProps["user"]> }) {
+  const other = otherUsername(user);
+  return (
+    <div className={cn("flex min-w-0 items-center gap-3 py-3 pl-4", CLEAR_OF_CONTROLS)}>
+      <Avatar name={user.name} src={user.avatarUrl} size="md" />
+      <div className="min-w-0">
+        <h2 id={SHEET_TITLE_ID} className="truncate text-base font-semibold leading-tight">
+          {user.name}
+        </h2>
+        <p className="mt-0.5 truncate text-xs text-fg-subtle">{[other ? `Username: ${other}` : null, user.roleLabel].filter(Boolean).join(" · ")}</p>
+      </div>
+    </div>
+  );
+}
+
+/** A page in the account sheet: its icon over its name (lib/sheet.ts). */
+function SheetTile({ href, icon: Icon, active, onNavigate, children }: { href: string; icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>; active: boolean; onNavigate: () => void; children: React.ReactNode }) {
+  return (
+    <Link href={href} onClick={onNavigate} aria-current={active ? "page" : undefined} className={cn(SHEET_TILE, active ? SHEET_TILE_CURRENT : SHEET_TILE_IDLE)}>
+      <Icon className={cn(SHEET_TILE_ICON, active ? "text-accent" : "text-fg-subtle")} aria-hidden />
+      {children}
+    </Link>
+  );
+}
+
+/** A row of the tablet drawer: an icon and a page, 48px tall. */
 function SheetLink({ href, icon: Icon, active, onNavigate, children }: { href: string; icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>; active: boolean; onNavigate: () => void; children: React.ReactNode }) {
   return (
     <Link href={href} onClick={onNavigate} aria-current={active ? "page" : undefined} className={cn("flex min-h-12 items-center gap-3 rounded-lg pl-[0.9375rem] pr-3 text-sm hover:bg-surface-2 hover:text-fg", active ? "text-fg" : "text-fg-muted")}>
