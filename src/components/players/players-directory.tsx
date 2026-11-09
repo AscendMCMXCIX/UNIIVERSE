@@ -50,7 +50,7 @@ const players = (n: number) => `${formatCount(n)} player${n === 1 ? "" : "s"}`;
  * row needs for its off roles and its whole pool), so an open or folded sidebar is right at the first
  * paint. With a role chosen, everyone who plays it is listed, as their main role or an off role, and
  * each row shows the champions they play there. On a phone held sideways (a short window below md,
- * the filters folded behind their button) the title and the toolbar share one row from 34rem wide;
+ * the filters folded behind their button) the title and the toolbar share one row from 35rem wide;
  * narrower short windows (a split screen, a small phone zoomed in) stack them, so the search keeps
  * its width. A short window as wide as a tablet keeps the inline toolbar on a row of its own, which
  * it needs whole to stay one row.
@@ -71,10 +71,10 @@ export function PlayersDirectory({ entries, championsById, archived = null, myPr
   const scopeLine = [shown.length === entries.length ? players(entries.length) : `${formatCount(shown.length)} of ${players(entries.length)}`, filtered ? `${ROLE_LABELS[filtered]} as primary or off role` : null, scope === "lineup" ? "Main lineup" : null, archived?.on ? "With archived and deactivated" : null].filter(Boolean).join(" · ");
   return (
     <div className="space-y-4">
-      {/* Sideways phones: one row from 34rem (room for the title's 15rem and a bar of about 16rem), stacked below it. */}
-      <div className="flex flex-col gap-4 max-md:short:min-[34rem]:flex-row max-md:short:min-[34rem]:items-center max-md:short:min-[34rem]:gap-x-5">
+      {/* Sideways phones: one row from 35rem (room for the title's 15rem and a bar whose search keeps 9rem), stacked below it. */}
+      <div className="flex flex-col gap-4 max-md:short:min-[35rem]:flex-row max-md:short:min-[35rem]:items-center max-md:short:min-[35rem]:gap-x-5">
         <PageHeader
-          className="max-md:short:min-[34rem]:max-w-[15rem] max-md:short:min-[34rem]:shrink-0 [&_p]:text-balance"
+          className="max-md:short:min-[35rem]:max-w-[15rem] max-md:short:min-[35rem]:shrink-0 [&_p]:text-balance"
           title="Players"
           description={
             <span aria-live="polite" data-testid="players-scope">
@@ -90,7 +90,7 @@ export function PlayersDirectory({ entries, championsById, archived = null, myPr
           }
         />
         <FilterBar
-          className="min-w-0 max-md:short:min-[34rem]:flex-1"
+          className="min-w-0 max-md:short:min-[35rem]:flex-1"
           testId="players-filters"
           summary={[filtered ? ROLE_LABELS[filtered] : "All roles", scope === "lineup" ? "Main lineup" : null, archived?.on ? "With archived" : null].filter(Boolean).join(" · ")}
           activeCount={(filtered ? 1 : 0) + (scope === "lineup" ? 1 : 0) + (archived?.on ? 1 : 0)}

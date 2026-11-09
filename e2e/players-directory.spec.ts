@@ -18,6 +18,8 @@ import { closeFilterSheet, openFilterBar } from "./filters";
     pushed under the name);
   - no part covers another or leaves its row, and nothing runs past the page's edge;
   - the name is whole; the tagline keeps to one line, its whole text in its title;
+  - the status and links end the name's line (a tagline that does not fit beside the name goes
+    under it), at the laptop and tablet widths where a long tagline once pushed them down too;
   - a pool shows its first portraits whole, as many as fit, and counts the rest: never "+1", never a
     portrait cut, and no room left for one more;
   - every link icon is the same size, above the row's second line;
@@ -91,7 +93,10 @@ async function makeMember(browser: Browser, admin: Page, who: typeof MEMBER) {
 const SIZES: Array<[string, Parameters<Browser["newContext"]>[0]]> = [
   ["1920", { viewport: { width: 1920, height: 1080 } }],
   ["1440", { viewport: { width: 1440, height: 900 } }],
+  ["1366", { viewport: { width: 1366, height: 768 } }],
   ["1280", { viewport: { width: 1280, height: 800 } }],
+  // An iPad Air held sideways: a 1180px touch screen.
+  ["touch-1180", { viewport: { width: 1180, height: 820 }, hasTouch: true }],
   ["1024", { viewport: { width: 1024, height: 768 } }],
   ["tablet-768", { viewport: { width: 768, height: 1024 }, hasTouch: true }],
   // Safari lays the page out at the whole screen's width held sideways (viewport-fit=cover): 852px on an iPhone 15.
@@ -126,7 +131,8 @@ async function measure(page: Page) {
       // The row's lines: its parts' rows (parts on one row are centred on it; the second line and the
       // status count by their own parts, which wrap), and any more lines the name takes.
       const status = row.querySelector("[data-testid=roster-status]");
-      const leaves = [...meta.parentElement!.children].flatMap((c) => (c === meta || c === status ? [...c.children] : [c])).filter(shown);
+      const column = row.querySelector("[data-testid=roster-name-line]");
+      const leaves = [...meta.parentElement!.children].flatMap((c) => (c === meta || c === status || c === column ? [...c.children] : [c])).filter(shown);
       const distinct = (els: Element[]) => {
         const centres = els.map((c) => box(c).top + box(c).height / 2).sort((a, b) => a - b);
         return centres.filter((c, i) => i === 0 || c - centres[i - 1]! > 6).length;
@@ -166,6 +172,8 @@ async function measure(page: Page) {
         lines,
         above,
         level: { name: box(name).top - r.top, meta: box(meta).top - r.top },
+        // The badges and links: how far their top sits from the name's (on the name's line, never a line of their own).
+        statusFromName: status && shown(status) ? Math.abs(box(status).top - box(name).top) : null,
         linkCovers: Math.abs(box(link).height - (inner.bottom - inner.top)) <= 1 && Math.abs(box(link).width - (inner.right - inner.left)) <= 1,
         nameText: name.textContent ?? "",
         nameCut: name.scrollHeight > name.clientHeight + 1 || name.scrollWidth > name.clientWidth + 1,
@@ -237,6 +245,9 @@ test("Players: every row whole and level with its neighbours, its pool whole, at
       expect(r.outside, `${label}: every part inside the row`).toEqual([]);
       expect(r.nameCut, `${label}: the name is whole`).toBe(false);
       expect(r.taglineLines, `${label}: the tagline keeps to one line`).toBeLessThanOrEqual(1);
+      // The status and links end the name's line, whatever the tagline does (a tagline too long to
+      // sit beside the name goes under it, never pushing them onto a line of their own).
+      if (r.statusFromName !== null) expect(r.statusFromName, `${label}: the status on the name's line`).toBeLessThanOrEqual(4);
       // The art strip from tablets up, never on a phone (nothing is downloaded for it there).
       if (!wide) expect(r.art, `${label}: no art on a phone`).toBe(false);
       for (const icon of r.icons) expect(icon.aboveMeta, `${label}: links above the second line`).toBe(true);
@@ -427,8 +438,9 @@ test("Players: with a role chosen, every row shows that role's champions, and an
 test("Players in short narrow windows (a split screen, a small phone zoomed in): the search keeps its width beside Filters", async ({ page, baseURL }, info) => {
   test.skip(info.project.name !== "phone", "windows of phone width");
   await page.context().addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
-  // Two short windows too narrow for the title and the bar to share a row (they stack), and an SE held sideways, where they do.
-  for (const [width, height, shared] of [[412, 400, false], [326, 477, false], [568, 320, true]] as const) {
+  // Short windows too narrow for the title and the bar to share a row (they stack; 544px, a split
+  // screen, just under the 35rem where they start sharing), and an SE held sideways, where they do.
+  for (const [width, height, shared] of [[412, 400, false], [326, 477, false], [544, 400, false], [568, 320, true]] as const) {
     const label = `${width}×${height}`;
     await page.setViewportSize({ width, height });
     await page.goto("/players");

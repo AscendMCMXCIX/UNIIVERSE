@@ -87,8 +87,9 @@ const LINKS: Record<NonNullable<RosterRowProps["screen"]>, string | null> = { an
  * side, one taller than the other, keep their names and second lines level.
  * What a row shows follows its own width (the `row` container: its content box, without its 1.5rem
  * of padding): the links from 20rem, the role's name and the tagline beside the name from 24rem, the
- * off roles from 26rem; under 18rem (the smallest phones, or two rows side by side on a phone held
- * sideways) the chevron and the word "Off" give their room to the pool.
+ * off roles from 26rem; under 19.5rem (360px phones and narrower) the word "Off" gives its room to
+ * the pool, and under 18rem (the smallest phones, or two rows side by side on a phone held sideways)
+ * the chevron too.
  * The whole row opens the profile through one link laid over it, named after the player, so the
  * social icons drawn above it stay links of their own.
  */
@@ -97,6 +98,17 @@ export function RosterRow({ look, art, name, avatarUrl, role, offRoles, offRoleS
   const status = !!lineupRole || setupPending || archived;
   const links = social.length > 0 && LINKS[screen] !== null;
   const riotNote = riot && riot.state !== "synced" && riot.state !== "none" ? riot : null;
+  // The name's first line 2px down its 1.5rem line (where one line of it sits centred), so a name of two lines starts level with its neighbour's.
+  const nameLine = (
+    <span className={cn("flex min-h-6 items-start gap-1.5 pt-0.5", tagline ? "min-w-0 @max-[24rem]/row:min-w-[min(100%,6rem)] @max-[24rem]/row:basis-0 @max-[24rem]/row:grow" : "min-w-[min(100%,6rem)] basis-0 grow")}>
+      <CardName look={look} name={name} className="text-md leading-snug text-fg" />
+      {isYou ? (
+        <span className="inline-flex shrink-0" data-testid="card-you">
+          <Badge tone="accent">You</Badge>
+        </span>
+      ) : null}
+    </span>
+  );
   return (
     <li
       className={cn(
@@ -124,17 +136,19 @@ export function RosterRow({ look, art, name, avatarUrl, role, offRoles, offRoleS
       </span>
       {/* One wrapping line of parts: the name's line, then the second line and the last ones, each a whole line (basis-full). */}
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-0.5">
-        {/* The name's first line 2px down its 1.5rem line (where one line of it sits centred), so a name of two lines starts level with its neighbour's. */}
-        <span className={cn("flex min-h-6 items-start gap-1.5 pt-0.5", tagline ? "min-w-0 @max-[24rem]/row:min-w-[min(100%,6rem)] @max-[24rem]/row:basis-0 @max-[24rem]/row:grow" : "min-w-[min(100%,6rem)] basis-0 grow")}>
-          <CardName look={look} name={name} className="text-md leading-snug text-fg" />
-          {isYou ? (
-            <span className="inline-flex shrink-0" data-testid="card-you">
-              <Badge tone="accent">You</Badge>
-            </span>
-          ) : null}
-        </span>
-        {/* Beside the name only when it fits whole (its own width, at least 9rem), otherwise on the next line. */}
-        {tagline ? <CardTagline look={look} lines={1} className="order-3 basis-full @min-[24rem]/row:order-none @min-[24rem]/row:min-w-36 @min-[24rem]/row:grow @min-[24rem]/row:basis-[max-content]" /> : null}
+        {tagline ? (
+          // From 24rem the name and the tagline share one column that wraps inside itself, beside the
+          // badges and links, so those stay at the end of the name's line: the tagline beside the
+          // name when it fits whole (its own width, at least 9rem), otherwise under the name. On a
+          // narrower row the column steps aside (contents): the tagline takes a line of its own under
+          // the second line.
+          <span className="flex min-w-[min(100%,6rem)] basis-0 grow flex-wrap items-center gap-x-1.5 gap-y-0.5 @max-[24rem]/row:contents" data-testid="roster-name-line">
+            {nameLine}
+            <CardTagline look={look} lines={1} className="order-3 basis-full @min-[24rem]/row:order-none @min-[24rem]/row:min-w-[min(100%,9rem)] @min-[24rem]/row:grow @min-[24rem]/row:basis-[max-content]" />
+          </span>
+        ) : (
+          nameLine
+        )}
         {status || links ? (
           <span className="ml-auto flex min-h-6 max-w-full shrink-0 flex-wrap items-center justify-end gap-1.5 self-start" data-testid="roster-status">
             {lineupRole ? (
@@ -196,7 +210,7 @@ function Dot() {
 /**
  * The main role (its icon in the card's colour; its name from 24rem, read out on narrower rows), then
  * either the off role the list is narrowed to ("· [icon] Off role", "Off" on narrower rows, the icon
- * alone under 18rem) or the other off roles as quiet icons from 26rem, always read out. "Roles not
+ * alone under 19.5rem) or the other off roles as quiet icons from 26rem, always read out. "Roles not
  * set" for a member who has chosen none.
  */
 function RoleCluster({ role, offRoles, shown }: { role: Role | null; offRoles: readonly Role[]; shown: Role | null }) {
@@ -219,8 +233,9 @@ function RoleCluster({ role, offRoles, shown }: { role: Role | null; offRoles: r
           <Dot />
           <RoleIcon role={shown} className="h-3.5 w-3.5 text-fg-muted" decorative />
           <span className="sr-only">{ROLE_LABELS[shown]}, </span>
-          {/* Under 18rem the word gives its room to the pool: the icon, the active filter and the pool's name still say it. */}
-          <span className="@max-[18rem]/row:sr-only">
+          {/* Under 19.5rem (360px phones and narrower) the word gives its room to the pool, which keeps
+              the row to two lines: the icon, the active filter and the pool's name still say it. */}
+          <span className="@max-[19.5rem]/row:sr-only">
             Off<span className="@max-[24rem]/row:sr-only"> role</span>
           </span>
         </span>
