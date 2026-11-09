@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Camera, Trash2 } from "lucide-react";
 import { changeDisplayNameAction, changeUsernameAction } from "@/server/actions/account";
 import { DISPLAY_NAME_MAX, displayNameProblem, normaliseDisplayName } from "@/domain/display-name";
+import { ON_THE_PUBLIC_PAGE } from "@/domain/privacy";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -22,9 +23,10 @@ function usernameProblem(value: string): string | null {
 }
 
 /**
- * Display name: the name everyone sees (Team, Players, your profile, cards, Leaderboards,
- * Matches). Checked as you type with the server's rule, saved with an explicit button; changing it
- * never changes the username, links or anything that belongs to the account.
+ * Display name: the name teammates see (Team, Players, your profile, cards, Leaderboards,
+ * Matches), and the public team page while they are in the lineup or a substitute. Checked as you
+ * type with the server's rule, saved with an explicit button; changing it never changes the
+ * username, links or anything that belongs to the account.
  */
 export function DisplayNameEditor({ displayName }: { displayName: string }) {
   const router = useRouter();
@@ -64,8 +66,8 @@ export function DisplayNameEditor({ displayName }: { displayName: string }) {
           aria-invalid={!!shown}
           aria-describedby="display-name-help"
         />
-        <p id="display-name-help" className={shown ? "mt-1.5 text-xs text-bad" : "mt-1.5 text-xs text-fg-subtle"} role={shown ? "alert" : undefined}>
-          {shown ?? "What teammates see on Team, Players, your profile, cards and Leaderboards. It doesn't have to be unique or match your Riot ID."}
+        <p id="display-name-help" className={shown ? "mt-1.5 text-xs text-bad" : "mt-1.5 text-pretty text-xs text-fg-subtle"} role={shown ? "alert" : undefined}>
+          {shown ?? `Shown to teammates across the app, and ${ON_THE_PUBLIC_PAGE}. It doesn't have to be unique or match your Riot ID.`}
         </p>
       </div>
       <Button type="submit" variant="outline" className="mt-5" disabled={busy || !changed || !!local}>
@@ -123,7 +125,11 @@ export function UsernameEditor({ username }: { username: string }) {
   );
 }
 
-/** Optional profile picture: choose a file, adjust the square crop, upload. Remove any time (the same flow as on My Profile). */
+/**
+ * Optional profile picture: choose a file, adjust the square crop, upload. Remove any time (the
+ * same flow as on My Profile). Teammates see it, and the public team page while the member is in
+ * the lineup or a substitute (ON_THE_PUBLIC_PAGE).
+ */
 export function AvatarEditor({ name, src }: { name: string; src: string | null }) {
   const { choose, remove, busy, ui } = useAvatarUpload();
   return (
@@ -139,7 +145,7 @@ export function AvatarEditor({ name, src }: { name: string; src: string | null }
           </Button>
         ) : null}
       </div>
-      <p className="w-full text-xs text-fg-subtle">Optional. PNG, JPEG or WebP; it is cropped to a square and shown to teammates, and publicly only if you turn on Public profile in Settings. You can also change it from My Profile.</p>
+      <p className="w-full text-pretty text-xs text-fg-subtle" data-testid="avatar-help">{`Optional. PNG, JPEG or WebP, cropped to a square. Shown to teammates, and ${ON_THE_PUBLIC_PAGE}. You can also change it from My Profile.`}</p>
       {ui}
     </div>
   );

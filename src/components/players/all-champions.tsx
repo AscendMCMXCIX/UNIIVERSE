@@ -60,9 +60,18 @@ const FIRST = 20;
   columns (Double, Triple, Quadra, Penta). The figure columns grow only to a little more than their
   heading needs and the champion takes the rest, so on a wide screen the figures stay together
   (compared down the column and along the row) instead of spreading across the page.
+
+  The 44rem tier holds tablets from 752px wide and computers up to 1535px with the sidebar open. A
+  grid grows its fixed columns to their maxima before a 1fr column gets anything, so the champion
+  column keeps its minimum until the figures are full: 11.75rem, room for the portrait, the name
+  and "Support · In pool" on one line (rows of about 51px for every role). Each figure column's
+  minimum is its heading plus room for the sort arrow beside it (0.875rem with its margin): at
+  least 0.375rem more than the heading, which with the 0.5rem gap keeps the arrow clear of the
+  heading before it (Games follows the champion column, whose heading sits at its far left). With
+  a 0.75rem padding the minimums add up to exactly 44rem, the card's border included.
 */
 const GRID =
-  "@min-[44rem]:grid-cols-[minmax(9rem,1fr)_minmax(3.25rem,4.5rem)_minmax(4.75rem,6rem)_minmax(3.25rem,4.25rem)_minmax(3.75rem,4.5rem)_minmax(3.25rem,4.25rem)_minmax(5.25rem,6.5rem)_minmax(4.25rem,5.25rem)] @min-[44rem]:gap-x-3 @min-[44rem]:px-4 @min-[76rem]:grid-cols-[minmax(14rem,1fr)_minmax(4rem,4.5rem)_minmax(6rem,6.5rem)_minmax(3.5rem,4.25rem)_minmax(4rem,4.5rem)_minmax(3.5rem,4.25rem)_repeat(4,minmax(3.75rem,4.25rem))_minmax(4.5rem,5.25rem)] @min-[76rem]:gap-x-4 @min-[76rem]:px-5";
+  "@min-[44rem]:grid-cols-[minmax(11.75rem,1fr)_minmax(3.25rem,4.5rem)_minmax(4.5rem,6rem)_minmax(3.25rem,4.25rem)_minmax(3.5rem,4.5rem)_minmax(3rem,4.25rem)_minmax(5.25rem,6.5rem)_minmax(4.375rem,5.25rem)] @min-[44rem]:gap-x-2 @min-[44rem]:px-3 @min-[76rem]:grid-cols-[minmax(14rem,1fr)_minmax(4rem,4.5rem)_minmax(6rem,6.5rem)_minmax(3.5rem,4.25rem)_minmax(4rem,4.5rem)_minmax(3.5rem,4.25rem)_repeat(4,minmax(3.75rem,4.25rem))_minmax(4.5rem,5.25rem)] @min-[76rem]:gap-x-4 @min-[76rem]:px-5";
 /** A sortable number, or null when the figure is missing (missing rows always sort last). */
 function sortValue(c: OverviewCard, key: SortKey): number | null {
   switch (key) {
@@ -276,10 +285,12 @@ export function AllChampions({ data, basePath, championsById, playerId, look, de
                   <button type="button" onClick={() => openRef.current(c)} className="block max-w-full cursor-pointer truncate text-left text-md font-semibold leading-tight text-fg outline-none after:absolute after:inset-0 after:content-[''] focus-visible:underline group-hover/row:underline group-hover/row:decoration-fg-subtle group-hover/row:underline-offset-2 @min-[44rem]:text-sm" aria-label={`${ch.name}, ${ROLE_LABELS[c.role]}: open the champion's overview and matchups`} data-open-champion data-testid="open-champion">
                     {ch.name}
                   </button>
-                  <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-fg-subtle">
-                    <RoleTag role={c.role} />
+                  {/* Narrow rows let "In pool" go under the role; table rows keep both on one line (the role
+                      would shorten before "In pool" moves, though the column leaves room for both). */}
+                  <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-fg-subtle @min-[44rem]:flex-nowrap" data-testid="champion-role-line">
+                    <RoleTag role={c.role} className="min-w-0" />
                     {c.inPool ? (
-                      <span className="whitespace-nowrap rounded-full border border-border-strong px-1.5 text-2xs font-medium leading-4 text-fg-muted" title="In the player's champion pool for this role: their own choice, not worked out from games" data-testid="in-pool">
+                      <span className="shrink-0 whitespace-nowrap rounded-full border border-border-strong px-1.5 text-2xs font-medium leading-4 text-fg-muted" title="In the player's champion pool for this role: their own choice, not worked out from games" data-testid="in-pool">
                         In pool
                       </span>
                     ) : null}
@@ -359,7 +370,8 @@ export function AllChampions({ data, basePath, championsById, playerId, look, de
           names (each sorts, again to reverse), the rows, then the rest one click away. */}
       <div className="rounded-card border border-border bg-surface panel-depth" data-testid="all-champions-table">
         {data.topChampions.length ? (
-          <div className="flex flex-wrap items-center gap-2 border-b border-border/70 px-3 py-2.5 @min-[44rem]:px-4">
+          // Below 76rem the toolbar has the rows' padding, so the search lines up with the champions.
+          <div className="flex flex-wrap items-center gap-2 border-b border-border/70 px-3 py-2.5 @min-[76rem]:px-4">
             {/* The search keeps at least 12rem: on narrow phones it takes its own line above Sort by. */}
             <SearchInput value={query} onChange={setQuery} placeholder="Find a champion or role…" label="Find a champion or a role" className="flex-[1_1_12rem] @min-[44rem]:max-w-xs" testId="all-champions-search" />
             <span className="ml-auto hidden text-xs tabular-nums text-fg-subtle @min-[44rem]:inline" aria-live="polite" data-testid="all-champions-count">
