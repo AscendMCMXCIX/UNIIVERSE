@@ -1,11 +1,79 @@
 # Hosting usage (Supabase and Vercel free plans)
 
-UNIIVERSE runs on the free plans of Supabase (the Postgres database) and Vercel (the app). On 19 Oct 2026 the owner reported:
+UNIIVERSE runs on the free plans of Supabase (the Postgres database) and Vercel (the app). The newest record is first: Vercel Active CPU on 8–9 Nov. On 19 Oct 2026 the owner reported:
 - Supabase egress at 6.25 GB of the 5 GB a month;
 - database size at 0.311 GB of 0.5 GB;
 - a Vercel allowance of 10 GB described as "Functions Storage" at 100%.
 
 This page records what caused that, what was changed, how it was measured, and how to check it again. The second pass, after egress reached 7.14 GB on 20 Oct, is the next section.
+
+## 8–9 Nov 2026: Vercel Active CPU (the Hobby plan's 4 hours)
+
+Vercel reported that the project had used the Hobby plan's 4 hours of Fluid **Active CPU** and would be paused on 9 Nov. Community reports count Hobby usage over a rolling 30 days, so the budget is about **480 CPU-seconds a day for everything**. Active CPU is the time code spends executing: rendering, parsing, module loading when an instance starts cold, work in `after()`, and the Routing Middleware (`src/proxy.ts`). Waiting on the database or on Riot is not counted.
+
+**How it was measured.** On Hobby, Vercel's per-route CPU is only in the dashboard: its CLI and API metrics need Observability Plus. So the split was established from:
+- production counters: two `db-usage` reports 8 h 19 min apart (session lookups, connection set-ups, pg_cron calls), `rank-schedule-status`, and GitHub's run and deployment history;
+- a production-like local build on a copy of production's data volume. It had 14 Riot accounts, 5,217 stored games, 7,555 match records and 4,898 timelines, with a stub for Riot's API. The server's CPU per request was read from per-thread scheduler counters, cold and warm, 15 or more runs each.
+
+The local CPU is not Vercel's, which adds TLS, its own wrapper and function bundling, so production figures per call are likely somewhat higher. The ranking holds.
+
+**Where it goes today** (likely CPU-seconds a day; per-call cost measured, calls counted in production; range in brackets):
+
+| Source | Calls | CPU per call | CPU-s a day |
+|---|---|---|---|
+| The signed-in Production check (after every deploy and daily) | 1 daily + 1 a deploy (15 on 7 Nov) | about 15 s a run: 852 function invocations, 605–639 of them viewport prefetches | 92 (30–360) |
+| The five-minute rank watch (pg_cron) | 288 | 115 ms warm, 400–500 ms cold | 31 (24–46) |
+| Instances starting cold when a member opens the app | 5–20 | about 0.6 s to start, 0.7 s for the first page | 13 (3–44) |
+| Freshness polls and the re-renders they trigger | about 420 player polls | 7–8 ms; a re-render burst 100–200 ms | 8 (2–27) |
+| The ten-minute tick (pg_cron) | 144 | 7 ms with nothing due | 8 (5–15) |
+| Member pages | 5–20 page loads | 37–105 ms | 6 (2–19) |
+| The jobs function starting cold after each deploy | 4–19 | 0.35–0.6 s more | 5 (1.5–17) |
+| Riot syncs started by prefetches of profiles | n/a | 38–42 ms per account | 3 (1–10) |
+| Admin pages left open (they re-render on every routine job run) | n/a | 1.5–3 s per open hour | 3 (0–14) |
+| Manual Data jobs | 0–17 runs | 20 ms to 1.2 s per job | 3 (0.3–15) |
+| Members' viewport prefetches | 5–7 per page view | 5–13 ms | 2.5 (0.7–14) |
+| Everything else (scheduled Data jobs, the middleware, images, the daily cron, visit ticks) | | | about 6 |
+
+That is about 180 CPU-seconds on an ordinary day and about 350 on a day like 7 Nov, with 14 deploys.
+
+**What filled the 30 days:**
+- **Deploys.** There were 324 production deployments between 9 Oct and 8 Nov: 64 on 14 Oct, and 19 on each of 4, 6 and 7 Nov. Each one starts every function cold. Since 3 Nov, each was also followed by a Production check (71 runs), signed in since 7 Nov. Merges that changed only tests or tooling deployed too.
+- **A scheduler calling for nothing.** pg_cron's ten-minute tick was refused with 401 for at least 25 days, until its Vault secret was created on 7 Nov. Each call was most likely a cold start of a function that loads every job before it checks the secret: about 0.45 s, 144 times a day, about 55 s a day.
+- **Earlier work, now gone or finished.** The Meta & Trends collection (retired 19 Oct), the timeline and figures backfills (done by 2 Nov), ticks started by visits inside page functions (about 15 s a day), and October's frequent perf-probe and smoke runs (about 470 s in all).
+
+**What changed** (one PR, which itself does not deploy):
+1. **The Production check no longer prefetches on viewport, and answers its own page-speed beacons** (`scripts/live-check.mjs`, `checkContext`). Measured against the same local production-like server, accounts due before each run, with the same results (338 passed):
+   - server CPU per run: 15,184 CPU-ms before, 12,526 after (−18%);
+   - the investigation's run of the same suppression: 14,964 before, 9,774 after;
+   - function invocations: 852 before, 253 after;
+   - middleware invocations: 898 before, 299 after;
+   - prefetch requests across Team, Players and Leaderboards: 60 before, 0 after.
+
+   Fewer invocations also means fewer instances to start cold on Vercel. Every page it opens is still loaded and asserted in full, and a hover or tap still prefetches as it does for a member. The beacons were already dropped by the server for the verification account (#256).
+2. **Merges of tests or tooling alone no longer deploy** (`scripts/vercel-ignore-build.sh`). Besides docs, the skipped files are `e2e/`, `tests/`, `scripts/` (which `next build` never reads), `*.test.ts(x)` and the test runners' configuration. Each skipped deploy saves its cold starts and its Production check.
+3. **A deploy budget** (CLAUDE.md §4): batch merges, at most about 3 production deploys a day, and run manual Data jobs only when needed, several jobs in one run.
+
+This change touches only tests, scripts and docs, so by its own rule it does not deploy. The new check runs on the next deploy and in the daily run, which uses `main`'s script.
+
+**Expected after these:** about 100–150 CPU-seconds a day, roughly 50–75 minutes in 30 days, a quarter to a third of the allowance, with about 3 deploys on a busy day. Most of the saving comes from fewer and cheaper deploys and checks. The follow-ups below would save about 25 CPU-seconds a day more.
+
+**Not changed here** (each is a follow-up with its own review):
+- **Prefetches start Riot syncs.** A prefetch of a profile renders the profile's layout, and the layout starts the background account refresh. So seeing a teammate's name on Players syncs their accounts if they are 15 minutes old or more: about 55 Riot requests and about 3 CPU-seconds a day.
+  - The layout cannot tell a prefetch from a visit. Next 16 removes its router headers (`next-router-prefetch`, `next-router-segment-prefetch`) before the proxy runs (`server/web/adapter.js`), and hides them from `headers()` too. A proxy-set mark was tried and measured to make no difference.
+  - The fix is to start the refresh from the mounted page's first freshness request instead (`/api/freshness`, which already checks access). The history slices that continue while a profile stays open start from the same render, so they move with it. That needs its own review.
+- **The rank watch's writes.** It writes two locked transactions per account and queue on every reading, about 130 statements a run, even when nothing changed. Batching them would save about 18 s a day, but it touches the LP readings, so it needs a careful review first.
+- **Account sync** reads the rank again although the rank watch read it within 5 minutes, and rewrites every mastery row. About 1 s a day in all.
+- **Admin pages left open** re-render on every routine job run (0–3 s a day).
+- **Members' links** could prefetch on intent instead of on viewport. That is about 30% of a member's visit, but a link nobody pointed at would then open a little slower.
+- **Leaderboards' games cache** is invalidated by syncs that found nothing new.
+
+Lengthening the rank watch's interval is **not** a saving. Its calls every 5 minutes keep the jobs function warm, while 10-minute calls start cold, so 10 minutes would cost about 86 s a day. It would also lose LP figures for about 22% of ranked games at 10 minutes and 48% at 15. The 8 Nov check-in found every one of the 10 ranked games since 7 Nov carrying its figure.
+
+**If Vercel pauses the project:** the rolling 30 days fall under 4 hours as the heaviest October days leave the window (103 deployments on 13–14 Oct leave on 12–13 Nov). Then ask Vercel to unpause at vercel.com/help. What counts in the meantime is keeping each day's usage low.
+
+**How to check:**
+- the owner's Vercel dashboard: Usage → Fluid Active CPU (daily), and Observability → Functions (per route);
+- `db-usage` deltas between two runs: session lookups (one per authenticated request), connection set-ups (one per new connection) and `net.http_get` (pg_cron's calls).
 
 ## 20 Oct 2026: egress at 7.14 GB of 5 GB
 
