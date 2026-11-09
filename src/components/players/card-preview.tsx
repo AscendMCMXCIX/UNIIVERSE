@@ -7,11 +7,11 @@ import { ROLE_LABELS, type Role } from "@/domain/roles";
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { cn } from "@/lib/cn";
 import { CardArtLayer } from "./card-art";
-import { CardFrame, cardColourVars, cardShellStyle } from "./card-look";
-import { CardIdentity, CardPerformance, CardPool, CardRoleChip, PoolPreview, RowIdentity, type CardSeason } from "./player-card";
+import { CardFrame, cardShellStyle } from "./card-look";
+import { CardIdentity, CardPerformance, CardPool, CardRoleChip, type CardSeason } from "./player-card";
 import type { CompactRank } from "./rank-emblem";
+import { RosterRow } from "./roster-row";
 import { CardSocialIcons } from "./social-links";
-import { DirectoryCardLayout, DirectoryPoolLabel } from "./player-summary-card";
 import type { SocialLinkView } from "@/domain/social-links";
 
 /** What the player's card really shows, so a preview shows their card rather than a template. */
@@ -28,12 +28,12 @@ export interface StudioPreviewData {
   social?: readonly SocialLinkView[];
 }
 
-/** Which card a preview shows: the Team card, a phone's card, or the Players directory's. */
+/** Which card a preview shows: the Team card, a phone's card, or the player's Players row. */
 export type PreviewView = "team" | "phone" | "directory";
 
 /**
- * A player's card as Team ("team"), a phone ("phone") or the Players directory ("directory")
- * shows it, built from the same card parts. The Player Card Studio and the first-time setup both
+ * A player's card as Team ("team") or a phone ("phone") shows it, built from the same card parts,
+ * or their row on Players ("directory"). The Player Card Studio and the first-time setup both
  * preview with it, so a preview never drifts from the real card. Below desktop widths the Team
  * view shows the card's top only (to keep the controls in view); `full` shows all of it anywhere.
  */
@@ -43,35 +43,30 @@ export const CardPreview = React.memo(function CardPreview({ view, look, art, na
   const pool = (data?.poolIds ?? []).map((id) => byId.get(id) ?? { id, name: id, portraitUrl: "" });
   const roleLabel = data?.role ? ROLE_LABELS[data.role] : "Role";
   if (view === "directory") {
-    // The directory's own card. The role here may be the lineup's and the pool every champion the
-    // player can feature, so the pool's heading names neither as the Primary Role. Under it, the
-    // same member as a list row (the Players list on phones, the Leaderboards rows): the name,
-    // emblem, colours and tagline follow the look there; the art, frame and effects do not.
+    // The player's row on Players (RosterRow), as a tablet shows it (a faint strip of the chosen art
+    // behind the picture and name, the links as icons; a desktop's wider row adds the role's name and
+    // its off roles) and as a phone shows it (no art, the links left to the profile). The role here may
+    // be the lineup's and the pool every champion the player can feature, so the pool is named
+    // neither as the Primary Role's.
+    const row = (screen: "wide" | "phone") => <RosterRow screen={screen} look={look} art={art} name={name} avatarUrl={avatarUrl} role={data?.role ?? null} offRoles={[]} rank={data?.rank ?? null} showRank={data?.showRank ?? true} riot={null} pool={pool} poolLabel="Champion pool" social={data?.social} />;
+    // In a panel as on Players: the row's own hairlines run past its edges, which clip them.
+    const panel = (screen: "wide" | "phone", label: string, testId: string) => (
+      <div className="overflow-clip rounded-card border border-border bg-surface panel-depth" data-testid={testId}>
+        <ul className="-mb-px -mr-px" aria-label={label}>
+          {row(screen)}
+        </ul>
+      </div>
+    );
     return (
-      <div className="mx-auto w-full max-w-[20rem]">
-        <div className="@container/card" data-testid="card-preview" data-view="directory">
-          <DirectoryCardLayout
-            look={look}
-            art={art}
-            artTestId="preview-art"
-            smooth={false}
-            className="mb-0"
-            header={<CardRoleChip role={data?.role ?? null} label={roleLabel} className="px-2.5 py-0.5 text-xs" />}
-            identity={<CardIdentity layout="rows" look={look} name={name} avatarUrl={avatarUrl} rank={data?.rank ?? null} showRank={data?.showRank ?? true} social={data?.social?.length ? <CardSocialIcons links={data.social} owner={name} mode="static" /> : null} />}
-            poolLabel={data?.role ? <DirectoryPoolLabel heading={`${roleLabel} · Champion pool`} count={null} /> : null}
-            pool={<PoolPreview champions={pool} total={pool.length} label="Champion pool" fit="count" testId="preview-pool" />}
-          />
+      <div className="mx-auto w-full max-w-[24rem] space-y-3" data-testid="card-preview" data-view="directory">
+        <div>
+          {panel("wide", "Your row on Players, on a tablet", "card-preview-row-wide")}
+          <p className="mt-1 text-center text-xs text-fg-subtle">Players, on a tablet</p>
         </div>
-        <div className="mt-3 flex items-center gap-3 rounded-card border border-border bg-surface px-3.5 py-2.5 panel-depth" style={cardColourVars(look)} data-testid="card-preview-row">
-          <RowIdentity look={look} name={name} avatarUrl={avatarUrl} role={data?.role ?? null} rank={data?.rank ?? null} showRank={data?.showRank ?? true}>
-            {pool.length ? (
-              <span className="mt-1.5 block">
-                <PoolPreview champions={pool} total={pool.length} label="Champion pool" fit="count" testId="preview-row-pool" />
-              </span>
-            ) : null}
-          </RowIdentity>
+        <div className="mx-auto max-w-[20rem]">
+          {panel("phone", "Your row on Players, on a phone", "card-preview-row")}
+          <p className="mt-1 text-center text-xs text-fg-subtle">On a phone, and in Leaderboards: the name, emblem, colours and tagline follow; the art does not.</p>
         </div>
-        <p className="mt-1.5 text-center text-xs text-fg-subtle">In lists (Players on a phone, Leaderboards): the name, emblem, colours and tagline follow; the art does not.</p>
       </div>
     );
   }

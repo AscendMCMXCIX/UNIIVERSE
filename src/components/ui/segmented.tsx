@@ -41,16 +41,26 @@ export function chipClass(active: boolean, className?: string): string {
   );
 }
 
+/** Below which breakpoint inactive role segments show their icon only. */
+export type CompactBelow = "md" | "xl";
+const COMPACT: Record<CompactBelow, string> = { md: "max-md:sr-only", xl: "max-xl:sr-only" };
+// The chosen role's name, with "xl": hidden too in the inline bar of a touch tablet (md to xl), where
+// the roles' 44px targets leave no room for it; the page's scope line names the role.
+const ACTIVE_COMPACT: Record<CompactBelow, string | undefined> = { md: undefined, xl: "md:max-xl:pointer-coarse:sr-only" };
+
 /**
  * What a role segment shows: the role's icon, and its name. With `compactLabel`, inactive segments
  * keep only the icon on narrow screens (the name stays available to screen readers), so five roles
- * fit a phone without wrapping.
+ * fit a phone without wrapping; `compactBelow="xl"` keeps tablets and laptops (the sidebar open
+ * beside a 1024px window) to the icons too, for a toolbar that shares one row with a search and
+ * other filters (Players), and on touch tablets the chosen role as well, so choosing one never
+ * widens the bar.
  */
-export function RoleSegmentContent({ role, active, compactLabel = true, count, countTitle }: { role: Role | null; active: boolean; compactLabel?: boolean; count?: number | null; countTitle?: string }) {
+export function RoleSegmentContent({ role, active, compactLabel = true, compactBelow = "md", count, countTitle }: { role: Role | null; active: boolean; compactLabel?: boolean; compactBelow?: CompactBelow; count?: number | null; countTitle?: string }) {
   return (
     <>
       {role ? <RoleIcon role={role} className="h-4 w-4 shrink-0" /> : null}
-      <span className={cn(role && compactLabel && !active && "max-md:sr-only")}>{role ? ROLE_LABELS[role] : "All roles"}</span>
+      <span className={cn(role && compactLabel && (active ? ACTIVE_COMPACT[compactBelow] : COMPACT[compactBelow]))}>{role ? ROLE_LABELS[role] : "All roles"}</span>
       {count !== undefined && count !== null ? (
         <span className={cn("rounded px-1 text-2xs tabular-nums", count ? "bg-surface-3 text-fg-muted" : "text-fg-subtle/60")} title={countTitle}>
           {count}
@@ -62,17 +72,20 @@ export function RoleSegmentContent({ role, active, compactLabel = true, count, c
 
 /**
  * A role selector made of buttons (client state). Links in the URL use the class helpers above with
- * <Link> instead. `roles` is the order shown; `allowAll` adds "All roles" first.
+ * <Link> instead. `roles` is the order shown; `allowAll` adds "All roles" first. `compactBelow`: see
+ * RoleSegmentContent; with "xl", a role's segment keeps its name for screen readers and in its
+ * title, and is a finger's width on touch screens (from md, where the bar is inline).
  */
-export function RoleSegmented({ label, roles, value, onChange, allowAll = false, testId, className }: { label: string; roles: readonly Role[]; value: Role | null; onChange: (role: Role | null) => void; allowAll?: boolean; testId?: string; className?: string }) {
+export function RoleSegmented({ label, roles, value, onChange, allowAll = false, compactBelow = "md", testId, className }: { label: string; roles: readonly Role[]; value: Role | null; onChange: (role: Role | null) => void; allowAll?: boolean; compactBelow?: CompactBelow; testId?: string; className?: string }) {
   const options: Array<Role | null> = allowAll ? [null, ...roles] : [...roles];
   return (
     <div role="radiogroup" aria-label={label} className={segmentedGroupClass(className)} data-testid={testId}>
       {options.map((r) => {
         const on = value === r;
+        const iconOnly = compactBelow === "xl" && r !== null;
         return (
-          <button key={r ?? "ALL"} type="button" role="radio" aria-checked={on} onClick={() => onChange(r)} className={segmentClass(on)} data-value={r ?? "ALL"} data-testid={testId ? `${testId}-${r ?? "ALL"}` : undefined}>
-            <RoleSegmentContent role={r} active={on} />
+          <button key={r ?? "ALL"} type="button" role="radio" aria-checked={on} onClick={() => onChange(r)} className={segmentClass(on, { className: iconOnly ? "md:pointer-coarse:min-w-11" : undefined })} title={iconOnly ? ROLE_LABELS[r] : undefined} data-value={r ?? "ALL"} data-testid={testId ? `${testId}-${r ?? "ALL"}` : undefined}>
+            <RoleSegmentContent role={r} active={on} compactBelow={compactBelow} />
           </button>
         );
       })}

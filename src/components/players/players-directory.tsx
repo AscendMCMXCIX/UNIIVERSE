@@ -3,21 +3,22 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ChevronRight } from "lucide-react";
 import { ROLE_LABELS, ROLES, type Role } from "@/domain/roles";
+import { cardLookFor } from "@/domain/card-style";
+import { cardArt } from "@/domain/player-card";
+import { offRoles, playsRole, poolForRole } from "@/domain/roster/role-pool";
 import type { PlayerRecord } from "@/server/repositories/team";
 import type { PortraitChampion } from "@/components/champion-portrait";
+import type { SocialLinkView } from "@/domain/social-links";
+import { PageHeader } from "@/components/ui/page-header";
+import { buttonClass } from "@/components/ui/button";
 import { RoleSegmented, chipClass } from "@/components/ui/segmented";
 import { FilterBar, FilterField } from "@/components/ui/filter-bar";
 import { SearchInput } from "@/components/ui/search-input";
-import { ChevronRight } from "lucide-react";
-import { PlayerSummaryCard, type RiotState } from "./player-summary-card";
-import { cardLookFor } from "@/domain/card-style";
+import { formatCount } from "@/lib/format";
 import type { CompactRank } from "./rank-emblem";
-import type { SocialLinkView } from "@/domain/social-links";
-import { cardColourVars } from "./card-look";
-import { PoolPreview, RowIdentity } from "./player-card";
-import { SetupIncompleteBadge } from "./setup-incomplete";
-import { Badge } from "@/components/ui/badge";
+import { RosterRow, type RiotState } from "./roster-row";
 
 export interface DirectoryEntry {
   player: PlayerRecord;
@@ -28,7 +29,7 @@ export interface DirectoryEntry {
   rank: CompactRank | null;
   /** Whether this viewer may see the rank (their own, or teammates' statistics); when not, it is left out, not "Unranked". */
   showRank: boolean;
-  /** Linked Riot IDs, searchable (shown on the profile, not on the card). */
+  /** Linked Riot IDs, searchable (shown on the profile, not on the roster). */
   riotIds: string[];
   /** The social links the player shows to team members (filtered on the server). */
   social: SocialLinkView[];
@@ -38,12 +39,23 @@ type RoleFilter = Role | "ALL";
 type Scope = "all" | "lineup";
 
 const fold = (s: string) => s.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
+const players = (n: number) => `${formatCount(n)} player${n === 1 ? "" : "s"}`;
 
 /**
- * The Players directory: one combined list (lineup first), with a search box (name or Riot ID)
- * and role filters (primary or secondary role). Archived and deactivated players are not listed.
+ * The Players page under the app's frame: its header (the title, and the count as its scope line,
+ * read out as it changes, with what narrows it), one toolbar (a search by name or Riot ID, the role,
+ * the main lineup and, for administrators, the archived and deactivated players) and the roster: one
+ * panel of rows, A to Z, a row per player at every width (RosterRow), laid out one or two across by
+ * the roster's own width (two from 38rem; three from 84rem, so a column never drops below the 28rem a
+ * row needs for its off roles and its whole pool), so an open or folded sidebar is right at the first
+ * paint. With a role chosen, everyone who plays it is listed, as their main role or an off role, and
+ * each row shows the champions they play there. On a phone held sideways (a short window below md,
+ * the filters folded behind their button) the title and the toolbar share one row from 35rem wide;
+ * narrower short windows (a split screen, a small phone zoomed in) stack them, so the search keeps
+ * its width. A short window as wide as a tablet keeps the inline toolbar on a row of its own, which
+ * it needs whole to stay one row.
  */
-export function PlayersDirectory({ entries, championsById, archived = null }: { entries: DirectoryEntry[]; championsById: Record<string, PortraitChampion>; /** Admins: whether archived and deactivated players are included (kept in the URL). */ archived?: { on: boolean } | null }) {
+export function PlayersDirectory({ entries, championsById, archived = null, myProfile = false }: { entries: DirectoryEntry[]; championsById: Record<string, PortraitChampion>; /** Admins: whether archived and deactivated players are included (kept in the URL). */ archived?: { on: boolean } | null; /** A member with a profile of their own, which is not listed here: offer it. */ myProfile?: boolean }) {
   const router = useRouter();
   const [query, setQuery] = React.useState("");
   const [role, setRole] = React.useState<RoleFilter>("ALL");
@@ -51,120 +63,127 @@ export function PlayersDirectory({ entries, championsById, archived = null }: { 
   const q = fold(query.trim());
   const shown = entries.filter((e) => {
     if (scope === "lineup" && !e.lineupRole) return false;
-    if (role !== "ALL" && e.player.primaryRole !== role && e.player.secondaryRole !== role && !e.player.additionalRoles.some((a) => a.role === role)) return false;
+    if (role !== "ALL" && !playsRole(e.player, role)) return false;
     if (!q) return true;
     return fold(e.player.displayName).includes(q) || e.riotIds.some((id) => fold(id).includes(q));
   });
-  // Where any card shown has a tagline, the others keep its line too, so every card is the same height.
-  const taglines = shown.some((e) => cardLookFor(e.player).style.identity.tagline);
+  const filtered = role === "ALL" ? null : role;
+  const scopeLine = [shown.length === entries.length ? players(entries.length) : `${formatCount(shown.length)} of ${players(entries.length)}`, filtered ? `${ROLE_LABELS[filtered]} as primary or off role` : null, scope === "lineup" ? "Main lineup" : null, archived?.on ? "With archived and deactivated" : null].filter(Boolean).join(" · ");
   return (
     <div className="space-y-4">
-      <FilterBar
-        testId="players-filters"
-        summary={[role === "ALL" ? "All roles" : ROLE_LABELS[role], scope === "lineup" ? "Main lineup" : null, archived?.on ? "With archived" : null].filter(Boolean).join(" · ")}
-        activeCount={(role !== "ALL" ? 1 : 0) + (scope === "lineup" ? 1 : 0) + (archived?.on ? 1 : 0)}
-        chips={[
-          ...(role !== "ALL" ? [{ key: "role", text: ROLE_LABELS[role], clear: () => setRole("ALL") }] : []),
-          ...(scope === "lineup" ? [{ key: "lineup", text: "Main lineup", clear: () => setScope("all") }] : []),
-          ...(archived?.on ? [{ key: "archived", text: "With archived", href: "/players" }] : []),
-        ]}
-        onReset={() => {
-          setRole("ALL");
-          setScope("all");
-          if (archived?.on) router.replace("/players", { scroll: false });
-        }}
-        align="end"
-        search={<SearchInput value={query} onChange={setQuery} placeholder="Search by name or Riot ID" label="Search players by name or Riot ID" testId="players-search" />}
-      >
-        <FilterField label="Role" labelId="players-role-label">
-          <RoleSegmented label="Filter by role" roles={ROLES} value={role === "ALL" ? null : role} onChange={(r) => setRole(r ?? "ALL")} allowAll testId="role-filter" />
-        </FilterField>
-        <FilterField label="Lineup">
-          <button type="button" className={chipClass(scope === "lineup", "self-start")} aria-pressed={scope === "lineup"} onClick={() => setScope(scope === "lineup" ? "all" : "lineup")} data-testid="lineup-filter">
-            Main lineup only
-          </button>
-        </FilterField>
-        {archived ? (
-          <FilterField label="Archived">
-            <Link href={archived.on ? "/players" : "/players?archived=1"} scroll={false} aria-current={archived.on ? "true" : undefined} className={chipClass(archived.on, "self-start")} data-testid="archived-filter">
-              Archived and deactivated
-            </Link>
+      {/* Sideways phones: one row from 35rem (room for the title's 15rem and a bar whose search keeps 9rem), stacked below it. */}
+      <div className="flex flex-col gap-4 max-md:short:min-[35rem]:flex-row max-md:short:min-[35rem]:items-center max-md:short:min-[35rem]:gap-x-5">
+        <PageHeader
+          className="max-md:short:min-[35rem]:max-w-[15rem] max-md:short:min-[35rem]:shrink-0 [&_p]:text-balance"
+          title="Players"
+          description={
+            <span aria-live="polite" data-testid="players-scope">
+              {scopeLine}
+            </span>
+          }
+          actions={
+            myProfile ? (
+              <Link href="/overview" className={buttonClass("ghost", "sm", "-mr-1.5")} data-testid="players-my-profile">
+                My profile <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+              </Link>
+            ) : null
+          }
+        />
+        <FilterBar
+          className="min-w-0 max-md:short:min-[35rem]:flex-1"
+          testId="players-filters"
+          summary={[filtered ? ROLE_LABELS[filtered] : "All roles", scope === "lineup" ? "Main lineup" : null, archived?.on ? "With archived" : null].filter(Boolean).join(" · ")}
+          activeCount={(filtered ? 1 : 0) + (scope === "lineup" ? 1 : 0) + (archived?.on ? 1 : 0)}
+          chips={[
+            ...(filtered ? [{ key: "role", text: ROLE_LABELS[filtered], clear: () => setRole("ALL") }] : []),
+            ...(scope === "lineup" ? [{ key: "lineup", text: "Main lineup", clear: () => setScope("all") }] : []),
+            ...(archived?.on ? [{ key: "archived", text: "With archived", href: "/players" }] : []),
+          ]}
+          onReset={() => {
+            setRole("ALL");
+            setScope("all");
+            if (archived?.on) router.replace("/players", { scroll: false });
+          }}
+          align="end"
+          compact
+          search={<SearchInput value={query} onChange={setQuery} placeholder="Search by name or Riot ID" label="Search players by name or Riot ID" testId="players-search" />}
+        >
+          <FilterField label="Role" labelId="players-role-label">
+            <RoleSegmented label="Filter by role" roles={ROLES} value={filtered} onChange={(r) => setRole(r ?? "ALL")} allowAll compactBelow="xl" testId="role-filter" />
           </FilterField>
-        ) : null}
-      </FilterBar>
-      <p className="text-sm text-fg-muted" aria-live="polite">
-        {shown.length === entries.length ? `${entries.length} player${entries.length === 1 ? "" : "s"}` : `${shown.length} of ${entries.length} players`}
-        {role !== "ALL" ? ` · ${ROLE_LABELS[role]} as primary or off role` : ""}
-      </p>
-      {/* Phones: one list, a row per player (picture, name, primary role and rank, status, the first
-          champions of the pool), so the whole roster reads on a screen or two; the row opens the
-          profile, where the card, the links and every pool are. From sm up, the cards below. */}
-      <ul className="divide-y divide-border/70 overflow-hidden rounded-card border border-border bg-surface panel-depth sm:hidden" aria-label="Players" data-testid="players-list">
-        {shown.length === 0 ? <li className="px-4 py-5 text-sm text-fg-muted">{entries.length === 0 ? "No players yet." : "No player matches. Try another name or role."}</li> : null}
-        {shown.map((e) => (
-          <PlayerRow key={e.player.id} entry={e} championsById={championsById} />
-        ))}
-      </ul>
-      {/* As many columns as the directory's own width holds at 17.5rem a card, up to four, whatever
-          the screen (the sidebar open or closed). Each card spans seven of the grid's rows
-          (DirectoryCardLayout), so cards side by side keep their parts level; the space between
-          rows is the cards' own margin. The directory is also the cards' `card` container: beside
-          another card a card is never narrower than 17.5rem, and alone it is the directory's width,
-          so the directory answers each card's 17rem steps exactly as the card itself would. */}
-      <div className="@container [container-name:directory_card] max-sm:hidden">
-        <div className="grid grid-cols-1 gap-x-3 @min-[35.75rem]/directory:grid-cols-2 @min-[54rem]/directory:grid-cols-3 @min-[72.25rem]/directory:grid-cols-4" data-testid="players-directory">
-          {shown.length === 0 ? <p className="text-sm text-fg-muted">{entries.length === 0 ? "No players yet." : "No player matches. Try another name or role."}</p> : null}
-          {shown.map((e) => (
-            <PlayerSummaryCard key={e.player.id} player={e.player} championsById={championsById} lineupRole={e.lineupRole} isYou={e.isYou} riot={e.riot} avatarUrl={e.avatarUrl} rank={e.rank} showRank={e.showRank} social={e.social} reserveTagline={taglines} />
-          ))}
-        </div>
+          <FilterField label="Lineup">
+            <button type="button" className={chipClass(scope === "lineup", "self-start")} aria-pressed={scope === "lineup"} onClick={() => setScope(scope === "lineup" ? "all" : "lineup")} data-testid="lineup-filter">
+              Main lineup
+            </button>
+          </FilterField>
+          {archived ? (
+            <FilterField label="Archived">
+              <Link href={archived.on ? "/players" : "/players?archived=1"} scroll={false} aria-current={archived.on ? "true" : undefined} className={chipClass(archived.on, "self-start")} data-testid="archived-filter">
+                {/* Inline the one word (its label is hidden there); the sheet, with room, says what it brings back. One text run, so the words keep their spacing. */}
+                <span>
+                  Archived<span className="md:sr-only"> and deactivated</span>
+                  <span className="sr-only"> players</span>
+                </span>
+              </Link>
+            </FilterField>
+          ) : null}
+        </FilterBar>
+      </div>
+      {/* One panel of rows (docs/MOBILE.md: lists are rows in one panel), filled row by row. Hairlines
+          divide the rows and the columns; the list runs a pixel past the panel's right and bottom
+          edges, which clip it, so the last column and the last row draw no line of their own. */}
+      <div className="@container/roster overflow-clip rounded-card border border-border bg-surface panel-depth" data-testid="players-directory">
+        {shown.length ? (
+          <ol className="-mb-px -mr-px grid grid-cols-1 @min-[38rem]/roster:grid-cols-2 @min-[84rem]/roster:grid-cols-3" aria-label="Players">
+            {shown.map((e) => (
+              <Row key={e.player.id} entry={e} role={filtered} championsById={championsById} />
+            ))}
+          </ol>
+        ) : (
+          <p className="px-4 py-5 text-sm text-fg-muted" data-testid="players-empty">
+            {entries.length === 0 ? "No players yet." : "No player matches. Try another name or role."}
+            {myProfile && entries.length ? (
+              <>
+                {" "}
+                Looking for yourself?{" "}
+                <Link href="/overview" className="text-accent underline underline-offset-2">
+                  Open My Profile
+                </Link>
+              </>
+            ) : null}
+          </p>
+        )}
       </div>
     </div>
   );
 }
 
-/**
- * One player on a phone: the same identity as their card (RowIdentity: their picture in its frame,
- * their name in their own name style with their emblem, the primary role and rank, their tagline
- * on one line), the status that matters at a glance (in the lineup, setup or Riot state, archived)
- * and the first champions of their primary pool. The row carries the card's colour variables
- * (cardColourVars), so the emblem and the role icon take the player's colour as on the card; the
- * art, frame and effects stay on the card (docs/MOBILE.md: rows in one panel, nothing downloaded
- * for a list). The whole row opens the profile.
- */
-function PlayerRow({ entry: e, championsById }: { entry: DirectoryEntry; championsById: Record<string, PortraitChampion> }) {
+/** A directory entry as its row: the pool of the role the list is narrowed to (their main role's otherwise). */
+function Row({ entry: e, role, championsById }: { entry: DirectoryEntry; role: Role | null; championsById: Record<string, PortraitChampion> }) {
   const p = e.player;
-  const look = cardLookFor(p);
-  const pool = p.primaryPool.map((id) => championsById[id] ?? { id, name: id, portraitUrl: "" });
+  const shown = poolForRole(p, role);
+  const off = shown.slot === "primary" ? null : shown.role;
+  const poolLabel = shown.role ? `${ROLE_LABELS[shown.role]} champions${off ? ", off role" : ""}` : "Champions";
   return (
-    <li style={cardColourVars(look)}>
-      <Link href={`/players/${p.id}`} className="flex min-h-[4.5rem] items-center gap-3 px-3.5 py-2.5 transition-colors active:bg-surface-2 hover:bg-surface-2/60" data-testid="player-row" data-player-name={p.displayName} data-frame={look.style.frame}>
-        {/* No account: nothing was read, so no rank is claimed; the note takes its place. */}
-        <RowIdentity look={look} name={p.displayName} avatarUrl={e.avatarUrl} role={p.primaryRole} rank={e.rank} showRank={e.showRank} isYou={e.isYou} note={e.riot?.state === "none" ? <span className="truncate text-fg-subtle">No Riot account</span> : null}>
-          {/* The pool's champions, as many whole portraits as the room left holds and the rest
-              counted (PoolPreview), then what to know at a glance at the line's end, never cut. */}
-          <span className="mt-1.5 flex min-w-0 items-center gap-2">
-            <span className="min-w-0 flex-1">{pool.length ? <PoolPreview champions={pool} total={pool.length} label={`${p.primaryRole ? ROLE_LABELS[p.primaryRole] : "Primary"} champions`} fit="count" testId="row-pool" /> : null}</span>
-            {e.lineupRole || p.setupPending || p.archivedAt ? (
-              <span className="flex shrink-0 flex-col items-end gap-1">
-                {e.lineupRole ? (
-                  <Badge tone="good" className="whitespace-nowrap" title={`In the current lineup as ${ROLE_LABELS[e.lineupRole]}`}>
-                    {e.lineupRole === p.primaryRole ? "Lineup" : `Lineup · ${ROLE_LABELS[e.lineupRole]}`}
-                  </Badge>
-                ) : null}
-                {p.setupPending ? <SetupIncompleteBadge /> : null}
-                {p.archivedAt ? <Badge tone="warn">Archived</Badge> : null}
-              </span>
-            ) : null}
-          </span>
-          {e.riot && e.riot.state !== "synced" && e.riot.state !== "none" ? (
-            <span className="mt-1 block truncate text-xs text-fg-subtle" title={`Riot data: ${e.riot.label}`}>
-              Riot data: {e.riot.label}
-            </span>
-          ) : null}
-        </RowIdentity>
-        <ChevronRight className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />
-      </Link>
-    </li>
+    <RosterRow
+      href={`/players/${p.id}`}
+      look={cardLookFor(p)}
+      art={cardArt(p)}
+      name={p.displayName}
+      avatarUrl={e.avatarUrl}
+      role={p.primaryRole}
+      offRoles={offRoles(p)}
+      offRoleShown={off}
+      rank={e.rank}
+      showRank={e.showRank}
+      riot={e.riot}
+      pool={shown.pool.map((id) => championsById[id] ?? { id, name: id, portraitUrl: "" })}
+      poolLabel={poolLabel}
+      lineupRole={e.lineupRole}
+      setupPending={p.setupPending}
+      archived={!!p.archivedAt}
+      isYou={e.isYou}
+      social={e.social}
+    />
   );
 }

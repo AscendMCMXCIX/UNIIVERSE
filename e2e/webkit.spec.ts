@@ -465,9 +465,10 @@ test("held sideways: the pages fit, the tab bar stays in reach as a compact row,
     await expect(tabs, route).toBeVisible();
     expect((await tabs.boundingBox())!.height, `${route}: a compact row`).toBeLessThanOrEqual(56);
   }
-  // Reading down a long page, both bars slide away (scrolled by script: WebKit's touch emulation has no wheel).
+  // Reading down a page, both bars slide away (scrolled by script: WebKit's touch emulation has no wheel).
   await page.goto("/players");
   await expect(page.locator("main")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollHeight - innerHeight), "Players scrolls sideways: more than the bars need").toBeGreaterThan(100);
   await page.evaluate(async () => {
     for (let i = 0; i < 12; i++) {
       window.scrollBy(0, 60);
@@ -479,31 +480,34 @@ test("held sideways: the pages fit, the tab bar stays in reach as a compact row,
   await context.close();
 });
 
-test("Players held sideways: cards side by side line up region by region, every portrait whole", async ({ browser, baseURL }) => {
-  // Each card spans rows of the directory's grid (a subgrid): Safari has to share them too.
+test("Players held sideways: rows two up, level with each other, every portrait whole", async ({ browser, baseURL }) => {
+  // The roster lays its rows out by its own width and each row by its own (container queries): Safari has to as well.
   const { defaultBrowserType: _, ...landscape } = devices["iPhone 15 landscape"];
   const context = await browser.newContext(landscape);
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
   const page = await context.newPage();
   await page.goto("/players");
   await expect(page.locator("main [data-testid=player-card-item]").first()).toBeVisible();
-  const rows = await page.getByTestId("players-directory").evaluate((grid) => {
-    const cards = [...grid.querySelectorAll<HTMLElement>("[data-testid=player-card-item]")].map((card) => {
-      const c = card.getBoundingClientRect();
+  const rows = await page.getByTestId("players-directory").evaluate((panel) => {
+    const items = [...panel.querySelectorAll<HTMLElement>("[data-testid=player-card-item]")].map((row) => {
+      const r = row.getBoundingClientRect();
       const top = (selector: string) => {
-        const el = card.querySelector(selector);
-        return el ? el.getBoundingClientRect().top - c.top : null;
+        const el = row.querySelector(selector);
+        return el ? el.getBoundingClientRect().top - r.top : null;
       };
-      const drawn = [...card.querySelectorAll("[data-testid=pool-portrait], [data-testid=directory-pool-more]")].filter((el) => el.getBoundingClientRect().width > 0 && getComputedStyle(el).display !== "none");
-      return { top: Math.round(c.top), height: c.height, name: top("[data-testid=card-name]"), labels: top("[data-testid=card-fit]"), heading: top("[data-testid=directory-primary-role], [data-testid=directory-no-roles]"), cut: drawn.some((el) => el.getBoundingClientRect().right > c.right - 1) };
+      const meta = row.querySelector<HTMLElement>("[data-testid=roster-meta]")!;
+      const drawn = [...row.querySelectorAll("[data-testid=pool-portrait], [data-testid=directory-pool-more]")].filter((el) => el.getBoundingClientRect().width > 0 && getComputedStyle(el).display !== "none");
+      return { top: Math.round(r.top), height: r.height, content: meta.parentElement!.getBoundingClientRect().height, name: top("[data-testid=card-name]"), meta: top("[data-testid=roster-meta]"), cut: drawn.some((el) => el.getBoundingClientRect().right > r.right - 1) };
     });
-    return [...new Set(cards.map((c) => c.top))].map((t) => cards.filter((c) => c.top === t));
+    return [...new Set(items.map((c) => c.top))].map((t) => items.filter((c) => c.top === t));
   });
   const spread = (values: Array<number | null>) => Math.max(...values.map(Number)) - Math.min(...values.map(Number));
-  expect(rows[0]!.length, "two cards side by side").toBeGreaterThan(1);
+  expect(rows[0]!.length, "two rows side by side").toBe(2);
   for (const row of rows.filter((r) => r.length > 1)) {
     expect(spread(row.map((c) => c.height)), "the same height").toBeLessThanOrEqual(1);
-    for (const key of ["name", "labels", "heading"] as const) expect(spread(row.map((c) => c[key])), `${key} level`).toBeLessThanOrEqual(1);
+    // The names level whatever either row holds; the role, rank and pool too where the rows' content is as tall.
+    expect(spread(row.map((c) => c.name)), "name level").toBeLessThanOrEqual(1);
+    if (spread(row.map((c) => c.content)) <= 1) expect(spread(row.map((c) => c.meta)), "meta level").toBeLessThanOrEqual(1);
   }
   expect(rows.flat().filter((c) => c.cut), "no portrait cut").toEqual([]);
   await fitsWidth(page, "Players, sideways");

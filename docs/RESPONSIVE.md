@@ -89,8 +89,8 @@ fit (iPhone 15 and wider) and scroll on narrower phones.
 - **Section tabs stay in reach** on tablets and desktops: Team's sections, a profile's sections
   and Platform Settings' (`TabBar` with `sticky`, the `sticky-tabs` utility in globals.css) stay
   pinned at the top of the page once it has scrolled past them, under the tablet's top bar
-  (`--bar-top`) and at the window's edge beside the sidebar, so a long section (Players, Matches, a
-  Match History) never needs scrolling back up
+  (`--bar-top`) and at the window's edge beside the sidebar, so a long section (Matches, a Match
+  History, Players with a full roster) never needs scrolling back up
   to leave it: the desktop's answer to the phone's bottom bar and in-bar sections. While pinned
   (`data-stuck`, set by an observer in `TabBar`) the row is frame, not content: the frame's ink
   (`chrome`) blurred like the top bar; at rest it is plain, part of the page. Anything pinned under
@@ -206,10 +206,11 @@ Three levels, each saying what it proves:
   5. Swipe Team's cards: one card at a time, and an upward swipe still scrolls the page.
   6. Open and close a detail window and the Card Studio: the page behind does not move.
   7. Open the app with no connection: the offline notice shows.
-  8. On an iPad, add to Home Screen and open it: Players scrolls under the pinned Team tabs, a tab
-     from there switches the section; a teammate's profile shows "‹ Players" in the top bar (the
-     installed app has no browser Back) and it leads back; the menu drawer opens, the page behind it
-     cannot be tapped, and closing it returns to the menu button.
+  8. On an iPad, add to Home Screen and open it: Players shows the whole roster on one screen, two
+     up, and a row opens its profile with one tap; Matches scrolls under the pinned Team
+     tabs, a tab from there switches the section; a teammate's profile shows "‹ Players" in the top
+     bar (the installed app has no browser Back) and it leads back; the menu drawer opens, the page
+     behind it cannot be tapped, and closing it returns to the menu button.
 
 **Browser features against Safari 16.4** (reviewed 21 Oct 2026). Tailwind v4 and Next.js 16 need
 Safari 16.4 or later, so that is the floor. Nothing the app uses needs more:

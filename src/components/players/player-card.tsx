@@ -1,12 +1,11 @@
 import * as React from "react";
-import { ROLE_LABELS, type Role } from "@/domain/roles";
+import type { Role } from "@/domain/roles";
 import type { CardLook } from "@/domain/card-style";
 import type { ProficiencyTier } from "@/domain/proficiency";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone } from "@/domain/stats/win-rate";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
 import { InfoTip } from "@/components/ui/info-tip";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 import { CardAvatar, CardName, CardTagline } from "./card-look";
 import { RankInline, type CompactRank } from "./rank-emblem";
@@ -16,7 +15,7 @@ import { formatCount, formatCompactCount } from "@/lib/format";
 
 /*
   The pieces every player card is made of, so the Team card, its detail panel, the Players
-  directory and the Card Studio preview read as one object: the role chip, the identity block
+  roster and the Card Studio preview read as one object: the role chip, the identity block
   (avatar, tagline, name, rank, role status), the season figures, a small pool preview and the
   full pool rows. Each page arranges them for its purpose; the pieces themselves look the same.
 */
@@ -48,7 +47,7 @@ const SIZERS = "invisible hidden max-h-[2lh] overflow-hidden @xl/lineup:grid [&>
 
 /**
  * The player's identity at the foot of a card's artwork, the same block on every card (Team, its
- * substitutes, the public page, Players, the Studio and setup previews), in a fixed order:
+ * substitutes, the public page, the Studio and setup previews), in a fixed order:
  * 1. the picture ("You" as a tag on it), with the player's social links on the same row at its far
  *    end: their own place, on a row the name never shares;
  * 2. the name, across the card's whole width, never cut (CardName);
@@ -69,16 +68,10 @@ const SIZERS = "invisible hidden max-h-[2lh] overflow-hidden @xl/lineup:grid [&>
  * comes last, so room kept for one sits at the block's foot, not between the name and its rank.
  *
  * `layout="side"` (the Team player window's header, not a card): the picture beside the same rows.
- * `layout="rows"` (the Players directory): the same four parts, each placed on its own row of a
- * parent grid with four rows (DirectoryCardLayout), so cards side by side line up part by part. The
- * labels stay on one line there: the rank whole, a tag after it shortened with an ellipsis.
- * `reserveTagline` (with `rows`): a player without a tagline keeps one line's room for it, so their
- * card is as tall as a card with one wherever cards with taglines are listed.
  * `showRank={false}` leaves the rank out entirely (not "Unranked"): for viewers who may not see the
  * player's statistics.
  */
-export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isYou = false, status, role, size = "lg", nameClassName, tag, social, layout = "stack", align, reserveTagline = false }: { look: CardLook | null | undefined; name: string; avatarUrl: string | null; rank: CompactRank | null; showRank?: boolean; isYou?: boolean; status?: "main" | "off" | null; role?: Role | null; size?: "md" | "lg"; nameClassName?: string; /** One more label after the role status (the Team card's substitute side). */ tag?: React.ReactNode; /** The player's social icons (CardSocialIcons), on the picture's row. */ social?: React.ReactNode; layout?: "stack" | "side" | "rows"; /** Everyone the lineup can show, to keep cards side by side level. */ align?: ReadonlyArray<{ name: string; look: CardLook }>; /** With `rows`: keep a tagline's line when the player has none. */ reserveTagline?: boolean }) {
-  const rows = layout === "rows";
+export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isYou = false, status, role, size = "lg", nameClassName, tag, social, layout = "stack", align }: { look: CardLook | null | undefined; name: string; avatarUrl: string | null; rank: CompactRank | null; showRank?: boolean; isYou?: boolean; status?: "main" | "off" | null; role?: Role | null; size?: "md" | "lg"; nameClassName?: string; /** One more label after the role status (the Team card's substitute side). */ tag?: React.ReactNode; /** The player's social icons (CardSocialIcons), on the picture's row. */ social?: React.ReactNode; layout?: "stack" | "side"; /** Everyone the lineup can show, to keep cards side by side level. */ align?: ReadonlyArray<{ name: string; look: CardLook }> }) {
   const avatar = (
     <span className="relative shrink-0">
       <CardAvatar look={look} name={name} src={avatarUrl} size={size} />
@@ -94,8 +87,8 @@ export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isY
   const taglineShade = "mt-1.5 [text-shadow:0_1px_2px_rgb(0_0_0/0.7)]";
   const labels =
     showRank || (status && role) || tag ? (
-      <span className={cn("mt-2 flex min-w-0 items-center gap-x-1.5 gap-y-1 text-xs text-fg-muted @min-[17rem]/card:gap-x-2 @min-[17rem]/card:text-sm", !rows && "flex-wrap")} data-testid="card-fit">
-        {showRank ? <RankInline rank={rank} className={rows ? "shrink-0" : undefined} /> : null}
+      <span className="mt-2 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-fg-muted @min-[17rem]/card:gap-x-2 @min-[17rem]/card:text-sm" data-testid="card-fit">
+        {showRank ? <RankInline rank={rank} /> : null}
         {status && role ? <RoleStatusBadge status={status} role={role} className="@min-[17rem]/card:text-xs" /> : null}
         {tag}
       </span>
@@ -131,22 +124,6 @@ export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isY
   ) : (
     <CardTagline look={look} className={taglineShade} />
   );
-  if (rows) {
-    const tagline = look?.style.identity.tagline ? <CardTagline look={look} className={taglineShade} /> : reserveTagline ? <span aria-hidden className="mt-1.5 block min-h-[1lh] text-xs leading-snug @min-[17rem]/card:text-sm" data-testid="card-tagline-room" /> : null;
-    // No box of its own: each part is an item of the parent's four rows.
-    return (
-      <span className="contents" data-testid="card-identity" data-layout="rows">
-        <span className="row-start-1 flex min-w-0 flex-wrap items-center gap-2">
-          {avatar}
-          {links}
-        </span>
-        {/* At least a line of the standard name size: a smaller name style keeps the same room. */}
-        <span className={cn("row-start-2 mt-2.5 min-h-[1lh] min-w-0", NAME_SIZE)}>{nameLine}</span>
-        <span className="row-start-3 min-w-0">{labels}</span>
-        <span className="row-start-4 min-w-0">{tagline}</span>
-      </span>
-    );
-  }
   if (layout === "side")
     return (
       <span className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 sm:gap-x-4" data-testid="card-identity" data-layout="side">
@@ -170,57 +147,6 @@ export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isY
       {labels}
       {taglineSlot}
     </span>
-  );
-}
-
-/**
- * A member's identity as a list row shows it (the Players list on phones, the Studio's row preview):
- * their picture in its frame, their name in its style with its emblem, the primary role (its icon in
- * the card's colour) and the rank where this viewer may see it (never "Unranked" otherwise; `note`
- * takes the rank's place, as "No Riot account"), then their tagline on one line. `children` follow
- * in the same column (the pool, a status). The row's own element carries `cardColourVars(look)`.
- */
-export function RowIdentity({ look, name, avatarUrl, role, rank, showRank = true, isYou = false, note, children }: { look: CardLook | null | undefined; name: string; avatarUrl: string | null; role: Role | null; rank: CompactRank | null; showRank?: boolean; isYou?: boolean; /** In the rank's place (the rank is then left out). */ note?: React.ReactNode; children?: React.ReactNode }) {
-  return (
-    <>
-      <CardAvatar look={look} name={name} src={avatarUrl} size="md" />
-      <span className="min-w-0 flex-1">
-        <span className="flex min-w-0 items-center gap-1.5">
-          {/* The name as on the card (its style, its emblem), never cut: a long one takes another line. */}
-          <CardName look={look} name={name} className="text-md leading-snug text-fg" />
-          {isYou ? <Badge tone="accent" className="shrink-0">You</Badge> : null}
-        </span>
-        <span className="mt-0.5 flex min-w-0 items-center gap-x-2 text-xs text-fg-muted">
-          {role ? (
-            <span className="inline-flex shrink-0 items-center gap-1">
-              <span style={{ color: "var(--card-accent)" }} className="inline-flex">
-                <RoleIcon role={role} className="h-3.5 w-3.5" />
-              </span>
-              {ROLE_LABELS[role]}
-            </span>
-          ) : (
-            <span className="shrink-0 text-fg-subtle">Roles not set</span>
-          )}
-          {note ? (
-            <>
-              <span className="text-fg-subtle" aria-hidden>
-                ·
-              </span>
-              {note}
-            </>
-          ) : showRank ? (
-            <>
-              <span className="text-fg-subtle" aria-hidden>
-                ·
-              </span>
-              <RankInline rank={rank} />
-            </>
-          ) : null}
-        </span>
-        <CardTagline look={look} lines={1} className="mt-0.5" />
-        {children}
-      </span>
-    </>
   );
 }
 
@@ -428,14 +354,23 @@ const FIT_HIDDEN = ["", "@max-[4.75rem]:hidden", "@max-[7.25rem]:hidden", "@max-
 const PORTRAIT_FROM = ["@max-[4.75rem]/pool:hidden", "@max-[7.25rem]/pool:hidden", "@max-[9.75rem]/pool:hidden", "@max-[12.25rem]/pool:hidden", "@max-[14.75rem]/pool:hidden", "@max-[17.25rem]/pool:hidden", "@max-[19.75rem]/pool:hidden", "@max-[22.25rem]/pool:hidden", "@max-[24.75rem]/pool:hidden", "@max-[27.25rem]/pool:hidden", "@max-[29.75rem]/pool:hidden", "@max-[32.25rem]/pool:hidden", "@max-[34.75rem]/pool:hidden", "@max-[37.25rem]/pool:hidden"];
 // The count after k portraits; after the last one drawn (a pool longer than PORTRAIT_FROM), at any width beyond.
 const COUNT_AFTER = ["@max-[4.75rem]/pool:grid", "@min-[4.75rem]/pool:@max-[7.25rem]/pool:grid", "@min-[7.25rem]/pool:@max-[9.75rem]/pool:grid", "@min-[9.75rem]/pool:@max-[12.25rem]/pool:grid", "@min-[12.25rem]/pool:@max-[14.75rem]/pool:grid", "@min-[14.75rem]/pool:@max-[17.25rem]/pool:grid", "@min-[17.25rem]/pool:@max-[19.75rem]/pool:grid", "@min-[19.75rem]/pool:@max-[22.25rem]/pool:grid", "@min-[22.25rem]/pool:@max-[24.75rem]/pool:grid", "@min-[24.75rem]/pool:@max-[27.25rem]/pool:grid", "@min-[27.25rem]/pool:@max-[29.75rem]/pool:grid", "@min-[29.75rem]/pool:@max-[32.25rem]/pool:grid", "@min-[32.25rem]/pool:@max-[34.75rem]/pool:grid", "@min-[34.75rem]/pool:@max-[37.25rem]/pool:grid", "@min-[37.25rem]/pool:grid"];
+// The same for size "xs" (a Players row): portraits of 1.75rem, 0.25rem apart, so a 2rem stride. k
+// portraits and the count need 2k + 1.75rem, a whole pool of n 2n - 0.25rem; portrait j shows from
+// 2j + 3.75rem. Written out whole, as Tailwind only sees whole class names.
+const PORTRAIT_FROM_XS = ["@max-[3.75rem]/pool:hidden", "@max-[5.75rem]/pool:hidden", "@max-[7.75rem]/pool:hidden", "@max-[9.75rem]/pool:hidden", "@max-[11.75rem]/pool:hidden", "@max-[13.75rem]/pool:hidden", "@max-[15.75rem]/pool:hidden", "@max-[17.75rem]/pool:hidden", "@max-[19.75rem]/pool:hidden", "@max-[21.75rem]/pool:hidden", "@max-[23.75rem]/pool:hidden", "@max-[25.75rem]/pool:hidden", "@max-[27.75rem]/pool:hidden", "@max-[29.75rem]/pool:hidden"];
+const COUNT_AFTER_XS = ["@max-[3.75rem]/pool:grid", "@min-[3.75rem]/pool:@max-[5.75rem]/pool:grid", "@min-[5.75rem]/pool:@max-[7.75rem]/pool:grid", "@min-[7.75rem]/pool:@max-[9.75rem]/pool:grid", "@min-[9.75rem]/pool:@max-[11.75rem]/pool:grid", "@min-[11.75rem]/pool:@max-[13.75rem]/pool:grid", "@min-[13.75rem]/pool:@max-[15.75rem]/pool:grid", "@min-[15.75rem]/pool:@max-[17.75rem]/pool:grid", "@min-[17.75rem]/pool:@max-[19.75rem]/pool:grid", "@min-[19.75rem]/pool:@max-[21.75rem]/pool:grid", "@min-[21.75rem]/pool:@max-[23.75rem]/pool:grid", "@min-[23.75rem]/pool:@max-[25.75rem]/pool:grid", "@min-[25.75rem]/pool:@max-[27.75rem]/pool:grid", "@min-[27.75rem]/pool:@max-[29.75rem]/pool:grid", "@min-[29.75rem]/pool:grid"];
+
+/** A counted pool's portrait size: "sm" (2.25rem), or "xs" (1.75rem) where a Players row has one line for it. */
+export type CountFitSize = "sm" | "xs";
 
 /** Which portraits and which count a `fit="count"` row draws for a pool of `n` (see PORTRAIT_FROM). */
-export function countFit(n: number): { portraits: string[]; counts: Array<{ shown: number; className: string }> } {
+export function countFit(n: number, size: CountFitSize = "sm"): { portraits: string[]; counts: Array<{ shown: number; className: string }> } {
+  const [from, after] = size === "xs" ? [PORTRAIT_FROM_XS, COUNT_AFTER_XS] : [PORTRAIT_FROM, COUNT_AFTER];
   // A pool one longer than the table still shows whole: its last portrait takes the table's last width.
-  const whole = n <= PORTRAIT_FROM.length + 1;
-  const drawn = whole ? n : PORTRAIT_FROM.length;
-  const portraits = Array.from({ length: drawn }, (_, j) => (whole && j === n - 1 ? (j === 0 ? "" : PORTRAIT_FROM[j - 1]!) : PORTRAIT_FROM[j]!));
-  const counts = Array.from({ length: whole ? Math.max(0, n - 1) : drawn + 1 }, (_, k) => ({ shown: k, className: COUNT_AFTER[k]! }));
+  const whole = n <= from.length + 1;
+  const drawn = whole ? n : from.length;
+  const portraits = Array.from({ length: drawn }, (_, j) => (whole && j === n - 1 ? (j === 0 ? "" : from[j - 1]!) : from[j]!));
+  const counts = Array.from({ length: whole ? Math.max(0, n - 1) : drawn + 1 }, (_, k) => ({ shown: k, className: after[k]! }));
   return { portraits, counts };
 }
 
@@ -450,22 +385,33 @@ export function countFit(n: number): { portraits: string[]; counts: Array<{ show
  * `fit="count"` (Players; pass the whole pool): a row of its own, with as many whole portraits as its
  * width holds and the rest counted at its end, the count the size of a portrait. A pool that fits
  * shows whole without a count; a portrait is never cut. Decided by the row's own width (a container
- * query), so it is right from the first paint, at any card width.
+ * query), so it is right from the first paint, at any card width. `size="xs"`: smaller portraits, for
+ * the line a Players row gives its pool. The pool's whole size is in `data-pool-size`, each
+ * portrait's champion in `data-champion`. The caller's `className` sizes the pool's box (its
+ * minimum width and how it grows): a size container takes no width from what it holds. An empty
+ * pool is its message alone, outside that box, so it moves whole to another line (wrapping its words
+ * only where it is wider than a whole line).
  */
-export function PoolPreview({ champions, total, label, max = 4, fit = false, testId = "pool-preview" }: { champions: PortraitChampion[]; total: number; label: string; max?: number; fit?: boolean | "count"; testId?: string }) {
+export function PoolPreview({ champions, total, label, max = 4, fit = false, size = "sm", testId = "pool-preview", className }: { champions: PortraitChampion[]; total: number; label: string; max?: number; fit?: boolean | "count"; /** With fit="count". */ size?: CountFitSize; testId?: string; className?: string }) {
   if (fit === "count") {
-    const { portraits, counts } = countFit(champions.length);
+    if (champions.length === 0)
+      return (
+        <span role="group" className={cn("text-xs text-warn [overflow-wrap:anywhere]", className)} aria-label={label} data-testid={testId} data-pool-size={0}>
+          No champions yet
+        </span>
+      );
+    const { portraits, counts } = countFit(champions.length, size);
+    const xs = size === "xs";
     return (
-      <div className="@container/pool min-w-0">
-        <div className="flex min-h-9 min-w-0 items-center gap-1" aria-label={label} data-testid={testId}>
-          {champions.length === 0 ? <span className="text-xs text-warn">No champions yet</span> : null}
+      <div className={cn("@container/pool", className ?? "min-w-0")}>
+        <div role="group" className={cn("flex min-w-0 items-center gap-1", xs ? "min-h-7" : "min-h-9")} aria-label={label} data-testid={testId} data-pool-size={champions.length}>
           {portraits.map((hide, j) => (
-            <span key={champions[j]!.id} className={cn("shrink-0", hide)} data-testid="pool-portrait">
-              <ChampionPortrait champion={champions[j]} size="sm" />
+            <span key={champions[j]!.id} className={cn("shrink-0", hide)} data-testid="pool-portrait" data-champion={champions[j]!.id}>
+              <ChampionPortrait champion={champions[j]} size={size} />
             </span>
           ))}
           {counts.map(({ shown, className }) => (
-            <span key={shown} className={cn("hidden h-9 w-9 shrink-0 place-items-center rounded-md border border-border text-xs tabular-nums text-fg-muted", className)} title={`${champions.length - shown} more on the profile`} data-testid={`${testId}-more`}>
+            <span key={shown} className={cn("hidden shrink-0 place-items-center rounded-md border border-border tabular-nums text-fg-muted", xs ? "h-7 w-7 text-2xs" : "h-9 w-9 text-xs", className)} title={`${champions.length - shown} more on the profile`} data-testid={`${testId}-more`}>
               {`+${champions.length - shown}`}
               <span className="sr-only"> more champions</span>
             </span>
