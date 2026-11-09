@@ -393,9 +393,12 @@ test("Players: with a role chosen, every row shows that role's champions, and an
   const row = (name: string) => page.locator(`main [data-testid=player-card-item][data-player-name="${name}"]`);
   const top = row("Demo Top");
   await expect(top).toBeVisible();
-  // No role chosen: the main role's pool (Demo Top plays Top, and Mid as an off role).
+  // No role chosen: the main role's pool (Demo Top plays Top, and Mid as an off role), at its size as
+  // this run finds it (specs before this one share the demo database and may have added a champion).
   await expect(top.getByTestId("directory-pool")).toHaveAccessibleName("Top champions");
   await expect(top.getByTestId("roster-off-role")).toHaveCount(0);
+  const mainPool = (await top.getByTestId("directory-pool").getAttribute("data-pool-size"))!;
+  expect(Number(mainPool), "Demo Top's Top pool").toBeGreaterThan(0);
   // Phones choose the role in the filter sheet, wider screens in the toolbar (retried: a click before
   // the page is interactive does nothing).
   const folded = await openFilterBar(page.getByTestId("players-filters"));
@@ -407,7 +410,7 @@ test("Players: with a role chosen, every row shows that role's champions, and an
   // Listed for Mid as an off role: their Mid champions (Galio and Sylas), marked as an off role.
   const pool = top.getByTestId("directory-pool");
   await expect(pool).toHaveAccessibleName("Mid champions, off role");
-  await expect(pool).toHaveAttribute("data-pool-size", "2");
+  expect(Number(await pool.getAttribute("data-pool-size")), "their Mid pool, the demo's two at least").toBeGreaterThanOrEqual(2);
   await expect(pool.getByRole("img", { name: "Galio" })).toBeVisible();
   await expect(pool.getByRole("img", { name: "Sylas" })).toBeVisible();
   await expect(top.getByTestId("roster-off-role")).toHaveAttribute("data-role", "MID");
@@ -432,7 +435,7 @@ test("Players: with a role chosen, every row shows that role's champions, and an
   else await page.getByTestId("role-filter-ALL").click();
   await expect(page.getByTestId("players-scope")).toHaveText(/^\d+ players$/);
   await expect(top.getByTestId("directory-pool")).toHaveAccessibleName("Top champions");
-  await expect(top.getByTestId("directory-pool")).toHaveAttribute("data-pool-size", "6");
+  await expect(top.getByTestId("directory-pool")).toHaveAttribute("data-pool-size", mainPool);
 });
 
 test("Players in short narrow windows (a split screen, a small phone zoomed in): the search keeps its width beside Filters", async ({ page, baseURL }, info) => {
