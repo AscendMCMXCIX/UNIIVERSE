@@ -300,6 +300,7 @@ export function SeasonSummary({ data, basePath, championsById, status, refresh, 
             {scopeLabel(data, nameOf)}
           </p>
         }
+        statusAfterText
         status={status ? <DataStatusNote status={status} refresh={refresh} /> : null}
         refresh={status ? <RefreshButton status={status} refresh={refresh} /> : null}
         controls={<OverviewFilters basePath={basePath} filter={data.filter} seasons={data.seasons} currentSeason={data.currentSeason} champions={champions} accounts={data.accountOptions} modeCounts={data.modes.counts} refineScope={REFINE_SCOPE} />}

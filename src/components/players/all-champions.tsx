@@ -362,6 +362,7 @@ export function AllChampions({ data, basePath, championsById, playerId, look, de
             {f.role ? ` · as ${ROLE_LABELS[f.role]}` : ""}
           </p>
         }
+        statusAfterText
         status={status ? <DataStatusNote status={status} refresh={refresh} /> : null}
         refresh={status ? <RefreshButton status={status} refresh={refresh} /> : null}
         controls={<OverviewFilters basePath={basePath} filter={f} seasons={data.seasons} currentSeason={data.currentSeason} champions={[]} accounts={data.accountOptions} showChampions={false} modeCounts={data.modes.counts} testId="all-champions-filters" />}
