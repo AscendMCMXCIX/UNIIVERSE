@@ -374,12 +374,18 @@ test("on a phone no member's picture is asked for while the first card's art loa
     const mid = page.getByTestId("lineup-pager").getByRole("tab", { name: /^Mid/ });
     await expect(mid.locator("[data-avatar-frame]")).toHaveCount(1);
     await page.waitForTimeout(800);
-    expect(pictures, "no member's picture while the first card's art loads").toEqual([]);
+    // The Mid card's picture (the member's own, by its address): it is a later card's, so it waits.
+    // Only that one is counted: the viewer's own picture in the top bar, and the first card's, are
+    // not held back, and an earlier spec may have given the demo owner one (avatar-editor.spec).
+    const own = await page.getByTestId("lineup-row-MID").locator("[data-testid=card-identity] [data-avatar-frame] img").first().getAttribute("src");
+    expect(own, "the Mid card carries the member's picture").toMatch(/^\/api\/avatars\//);
+    const theirs = () => pictures.filter((u) => new URL(u).pathname === new URL(own!, baseURL).pathname);
+    expect(theirs(), "no picture of a later card's member while the first card's art loads").toEqual([]);
     await expect(mid.locator("img"), "the role bar shows the initial meanwhile").toHaveCount(0);
     answer();
     await expect(track).not.toHaveAttribute("data-art-wait", "true");
     await expect(mid.locator("img")).toHaveCount(1);
-    await expect.poll(() => pictures.length, "the picture once the art is in").toBeGreaterThan(0);
+    await expect.poll(() => theirs().length, "the picture once the art is in").toBeGreaterThan(0);
     await phone.close();
   } finally {
     if (before) await setStarter(admin, "MID", before);
