@@ -54,7 +54,7 @@ translucent status bar, so:
 A list opened inside a page (a table under a `<details>`, an event list) runs with the page on a
 touch screen: a box that scrolls inside a scrolling page catches the finger, and the page stops
 moving. With a mouse or trackpad (`pointer-fine:`) it may keep a height limit and scroll in its box
-(Match History's timeline tables do: `pointer-fine:max-h-64 pointer-fine:overflow-y-auto`, and
+(Match History's timeline tables and Ranked progress's readings do: `pointer-fine:max-h-64 pointer-fine:overflow-y-auto`, and
 their header sticks only there). Windows and dialogs keep their one scrolling body (above).
 
 ## Rows that scroll sideways

@@ -320,9 +320,10 @@ function ReadingsTable({ t }: { t: RankTimeline }) {
       <h3 className="mb-1.5 text-xs font-medium text-fg-subtle">
         Every reading{t.readings.length > TABLE_ROWS ? ` (newest ${TABLE_ROWS} of ${formatCount(t.readings.length)})` : ""}
       </h3>
-      {/* Its own scroll box only with a mouse: on a touch screen the rows run with the page (no scroll
-          inside a scroll, docs/RESPONSIVE.md, "Long lists inside a page"). */}
-      <div className="rounded-card border border-border pointer-fine:max-h-64 pointer-fine:overflow-auto" data-testid="ranked-table" tabIndex={0} role="region" aria-label="Rank readings, newest first">
+      {/* A height limit and its own scroll only with a mouse: on a touch screen the rows run with the
+          page (no scroll inside a scroll, docs/RESPONSIVE.md, "Long lists inside a page"); a row too
+          wide for a narrow phone still scrolls sideways inside the box, never the page. */}
+      <div className="overflow-x-auto rounded-card border border-border pointer-fine:max-h-64 pointer-fine:overflow-y-auto" data-testid="ranked-table" tabIndex={0} role="region" aria-label="Rank readings, newest first">
         <table className="w-full text-left text-xs tabular-nums">
           <caption className="sr-only">Rank readings, newest first</caption>
           <thead className="sticky top-0 bg-bg-elevated text-2xs text-fg-subtle">
