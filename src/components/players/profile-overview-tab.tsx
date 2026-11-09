@@ -102,12 +102,12 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
       Roles &amp; champion pools
     </h2>
   );
-  const poolsIntro = (
+  // One quiet line: what the figures count (the rows' numbers already give the order of preference).
+  const poolsIntro = showStats ? (
     <p className="text-xs text-fg-subtle">
-      {self ? "Your roles and champions, in your order of preference." : `${player.displayName}'s roles and champions, in their order of preference.`}
-      {showStats ? <span data-testid="pool-scope"> Figures: games in that role · {scope}</span> : null}
+      <span data-testid="pool-scope">Figures: games in that role · {scope}</span>
     </p>
-  );
+  ) : null;
   // The pools (the player's own choice of roles and champions, in order), with each champion's
   // figures in that role over the page's games; the owner and admins edit them in place.
   const pools = (

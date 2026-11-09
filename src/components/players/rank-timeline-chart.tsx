@@ -23,10 +23,20 @@ import { cn } from "@/lib/cn";
 */
 
 const MS_DAY = 86_400_000;
-const H = 120;
-const PAD_T = 10;
-const AXIS_H = 18;
-const PLOT_H = H - PAD_T - AXIS_H;
+
+/**
+ * The drawing's frame in user units, which are CSS pixels (the viewBox is as wide as the box). Its
+ * height is the box's (`h-30`, 7.5rem) and its gutters hold rem-sized labels, so all of them follow
+ * the root size, which grows above 1536px (globals.css): a frame fixed in px clipped the division
+ * names on the left above about 1700px and left the drawing short of its box. The server draws with
+ * 16px (120 tall, a 64px gutter), as before; the box's height is CSS, so nothing moves on hydrating.
+ */
+function chartFrame(rem: number, narrow: boolean) {
+  const H = Math.round(7.5 * rem);
+  const PAD_T = Math.round(0.625 * rem);
+  const AXIS_H = Math.round(1.125 * rem);
+  return { H, PAD_T, AXIS_H, PLOT_H: H - PAD_T - AXIS_H, pad: { l: Math.round((narrow ? 3 : 4) * rem), r: Math.round(0.5 * rem) } };
+}
 
 interface Hover {
   index: number;
@@ -37,21 +47,26 @@ export function RankTimelineChart({ t, label }: { t: RankTimeline; label: string
   const box = React.useRef<HTMLDivElement>(null);
   const uid = React.useId().replace(/[^a-zA-Z0-9]/g, "");
   const [width, setWidth] = React.useState(480);
+  const [rem, setRem] = React.useState(16);
   const [hover, setHover] = React.useState<Hover | null>(null);
   const [focusIndex, setFocusIndex] = React.useState<number | null>(null);
 
   React.useEffect(() => {
     const el = box.current;
     if (!el) return;
-    const measure = () => setWidth(Math.max(240, Math.round(el.getBoundingClientRect().width)));
+    const measure = () => {
+      setWidth(Math.max(240, Math.round(el.getBoundingClientRect().width)));
+      setRem(parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
+    };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
 
-  const narrow = width < 420;
-  const pad = { l: narrow ? 58 : 64, r: 8 };
+  // Narrow (a phone, a tablet's third): the divisions' short codes ("E2"), in a narrower gutter.
+  const narrow = width < 26.25 * rem;
+  const { H, PAD_T, PLOT_H, pad } = chartFrame(rem, narrow);
   const span = Math.max(1, t.to - t.from);
   const plotW = width - pad.l - pad.r;
   const x = (at: number) => pad.l + ((Math.min(Math.max(at, t.from), t.to) - t.from) / span) * plotW;

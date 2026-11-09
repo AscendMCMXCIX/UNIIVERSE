@@ -1,4 +1,4 @@
-import { ladderScore, rankLabel, TIERS, type RankSnapshot } from "./rank-progress";
+import { ladderScore, rankCode, rankLabel, TIERS, type RankSnapshot } from "./rank-progress";
 import { RANKED_SEASONS_2026, RANKED_YEAR, RANKED_YEAR_START, rankedSeasonAt, type RankedSeason } from "./ranked-year";
 import { isoDay, localPeriodStarts } from "@/lib/format";
 
@@ -273,13 +273,9 @@ export function rankedYearCoverage(t: Pick<RankTimeline, "trackingSince" | "read
   };
 }
 
-const SHORT_TIER: Record<string, string> = { PLATINUM: "Plat", EMERALD: "Emer", DIAMOND: "Dia", GRANDMASTER: "GM", CHALLENGER: "Chall" };
-
-/** "Gold II", or on a narrow chart "Plat II" / "Emer IV" / "Dia I". */
+/** "Gold II", or on a narrow chart the code match cards use: "G2", "E4", "D1", "M". */
 function gridLabel(tier: string, division: string | null, short: boolean): string {
-  const full = rankLabel(tier, division);
-  if (!short || !SHORT_TIER[tier]) return full;
-  return division ? `${SHORT_TIER[tier]} ${division}` : SHORT_TIER[tier]!;
+  return short ? rankCode(tier, division) : rankLabel(tier, division);
 }
 
 /** Division gridlines for a score range: each division where few, each tier's first division where more than `maxDivisions`. */

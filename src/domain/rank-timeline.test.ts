@@ -194,6 +194,6 @@ describe("ladderGrid", () => {
 
   it("names tiers alone sooner when asked, and shortens long names for a narrow chart", () => {
     expect(ladderGrid([1500, 2100], { maxDivisions: 4 }).map((g) => g.label)).toEqual(["Platinum", "Emerald"]);
-    expect(ladderGrid([1800, 2000], { short: true }).map((g) => g.label)).toEqual(["Plat II", "Plat I", "Emer IV"]);
+    expect(ladderGrid([1800, 2000], { short: true }).map((g) => g.label)).toEqual(["P2", "P1", "E4"]);
   });
 });

@@ -243,8 +243,12 @@ function PoolPreview({ ids, championsById, onInspect, inspectHref, testId }: { i
   );
 }
 
-/** The figures' columns of a pool's rows (three in a narrow list, four from 32rem), shared with the column names. */
-const STATS_COLUMNS = "grid w-[10.5rem] shrink-0 grid-cols-3 @lg:w-[17rem] @lg:grid-cols-4";
+/**
+ * The figures' columns of a pool's rows (three in a narrow list, four from 32rem), shared with the
+ * column names. They give way to the champion's name, which keeps at least 4rem (sortable-pool.tsx):
+ * at a fixed 10.5rem a 320px phone left the name no room at all.
+ */
+const STATS_COLUMNS = "grid w-[10.5rem] min-w-0 shrink grid-cols-3 @lg:w-[17rem] @lg:grid-cols-4";
 
 /**
  * The column names over a pool's rows, once (the rows carry each name for screen readers): the
@@ -253,9 +257,9 @@ const STATS_COLUMNS = "grid w-[10.5rem] shrink-0 grid-cols-3 @lg:w-[17rem] @lg:g
  */
 function PoolColumns({ role, editable, testId }: { role: Role; editable: boolean; testId: string }) {
   return (
-    <div aria-hidden className="flex items-center gap-2.5 pb-0.5 pl-2 pr-1.5 text-2xs font-semibold uppercase tracking-label text-fg-subtle @lg:gap-3 @lg:pl-2.5" data-testid={`${testId}-columns`}>
-      <span className="w-4 shrink-0" />
-      <span className="min-w-0 flex-1">Champion</span>
+    <div aria-hidden className="flex items-center gap-2 pb-0.5 pl-2 pr-1.5 text-2xs font-semibold uppercase tracking-label text-fg-subtle @2xs:gap-2.5 @lg:gap-3 @lg:pl-2.5" data-testid={`${testId}-columns`}>
+      <span className="w-3 shrink-0 @2xs:w-4" />
+      <span className="min-w-16 flex-1 truncate">Champion</span>
       <span className={cn(STATS_COLUMNS, "text-center")}>
         <span>Games</span>
         <span>
@@ -279,13 +283,15 @@ function PoolRowStats({ s, role }: { s: PoolChampionStats | undefined; role: Rol
   if (!s?.games)
     return (
       <span className={cn(STATS_COLUMNS, "items-center")} data-testid="pool-card-stats">
-        <span className="col-span-3 truncate text-center text-xs text-fg-subtle @lg:col-span-4">
-          No games this season{s?.mastery ? ` · ${formatCompactCount(s.mastery)} mastery` : ""}
+        {/* Wraps rather than ends cut short ("No games this season · 104K mas…" on every phone). */}
+        <span className="col-span-3 text-center text-xs leading-tight text-fg-subtle @lg:col-span-4">
+          No games<span className="hidden @lg:inline"> this season</span>
+          {s?.mastery ? ` · ${formatCompactCount(s.mastery)} mastery` : ""}
         </span>
       </span>
     );
   const cell = (label: string, value: React.ReactNode, extra?: { tone?: string; title?: string; testId?: string; className?: string }) => (
-    <span className={cn("min-w-0 truncate text-center text-sm font-semibold tabular-nums", extra?.tone ?? "text-fg", extra?.className)} title={extra?.title} data-testid={extra?.testId}>
+    <span className={cn("min-w-0 truncate text-center text-xs font-semibold tabular-nums @2xs:text-sm", extra?.tone ?? "text-fg", extra?.className)} title={extra?.title} data-testid={extra?.testId}>
       <span className="sr-only">{label}: </span>
       {value}
     </span>

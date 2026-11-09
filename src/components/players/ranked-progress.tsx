@@ -41,23 +41,26 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
   const hasLine = timeline.readings.some((r) => r.score !== null);
   return (
     <section id="ranked-progress" aria-labelledby="ranked-progress-title" className="@container/rank space-y-3 rounded-card border border-border bg-surface p-4 panel-depth" data-testid="ranked-progress">
-      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-        <div className="min-w-0">
-          <h2 id="ranked-progress-title" className="flex items-center gap-1.5 text-base font-semibold text-fg">
+      {/* The title and the queue switch share the first row at every width (the tracking line, which
+          wraps, sat in the title's block and pushed the switch to a row of its own on phones); the
+          tracking line takes the second; several accounts get a row of their own under it. */}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1">
+        <div className="contents">
+          <h2 id="ranked-progress-title" className="col-start-1 row-start-1 flex min-w-0 items-center gap-1.5 text-base font-semibold text-fg">
             Ranked progress
             <InfoTip
               label="About ranked progress"
               text={`Riot's API reports only an account's current rank, never past ones. So the chart starts at UNIIVERSE's first reading of this rank and nothing earlier is drawn or estimated. The line continues only across at most one game; a shaded band marks several games played between two readings. Wins and losses are Riot's own count for the ${RANKED_YEAR} ranked year (one ladder since 8 January: Seasons 1, 2 and 3 share it).`}
             />
           </h2>
-          <p className="text-xs text-fg-subtle wrap-anywhere" data-testid="ranked-tracking">
+          <p className="col-span-2 row-start-2 text-xs text-fg-subtle wrap-anywhere" data-testid="ranked-tracking">
             {account.riotId}
             {season ? ` · ${season}` : ""}
             {timeline.trackingSince ? ` · rank recorded since ${formatDate(timeline.trackingSince)}` : " · no rank recorded yet"}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <nav aria-label="Queue" className={segmentedGroupClass()}>
+        <div className="contents">
+          <nav aria-label="Queue" className={cn(segmentedGroupClass(), "col-start-2 row-start-1 justify-self-end")}>
             {(["solo", "flex"] as const).map((q) => (
               <Link key={q} href={href({ rq: q })} scroll={false} aria-current={q === queue ? "page" : undefined} className={segmentClass(q === queue)} data-testid={`ranked-queue-${q}`}>
                 {QUEUE_SHORT[q]}
@@ -67,7 +70,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
           {accounts.length > 1 ? (
             // Every account the same way: its in-game name (with the tagline only where two share a
             // name), the full Riot ID on hover, in the player's own order (the Main account first).
-            <nav aria-label="Account" className={segmentedGroupClass()}>
+            <nav aria-label="Account" className={cn(segmentedGroupClass(), "col-span-2 row-start-3 mt-1 justify-self-start")}>
               {accounts.map((a) => (
                 <Link key={a.id} href={href({ ra: a.id })} scroll={false} aria-current={a.id === account.id ? "page" : undefined} title={a.riotId} className={segmentClass(a.id === account.id, { className: "max-w-[10rem]" })} data-testid="ranked-account">
                   <span className="min-w-0 truncate">{names.get(a.id)}</span>
@@ -317,7 +320,9 @@ function ReadingsTable({ t }: { t: RankTimeline }) {
       <h3 className="mb-1.5 text-xs font-medium text-fg-subtle">
         Every reading{t.readings.length > TABLE_ROWS ? ` (newest ${TABLE_ROWS} of ${formatCount(t.readings.length)})` : ""}
       </h3>
-      <div className="max-h-64 overflow-auto rounded-card border border-border" data-testid="ranked-table" tabIndex={0} role="region" aria-label="Rank readings, newest first">
+      {/* Its own scroll box only with a mouse: on a touch screen the rows run with the page (no scroll
+          inside a scroll, docs/RESPONSIVE.md, "Long lists inside a page"). */}
+      <div className="rounded-card border border-border pointer-fine:max-h-64 pointer-fine:overflow-auto" data-testid="ranked-table" tabIndex={0} role="region" aria-label="Rank readings, newest first">
         <table className="w-full text-left text-xs tabular-nums">
           <caption className="sr-only">Rank readings, newest first</caption>
           <thead className="sticky top-0 bg-bg-elevated text-2xs text-fg-subtle">
@@ -339,7 +344,11 @@ function ReadingsTable({ t }: { t: RankTimeline }) {
           <tbody>
             {rows.map((r) => (
               <tr key={r.from} className="border-t border-border/60">
-                <td className="whitespace-nowrap px-2 py-1 text-fg-muted">{formatDateTime(r.from)}</td>
+                <td className="whitespace-nowrap px-2 py-1 text-fg-muted">
+                  {formatDateTime(r.from)}
+                  {/* Where the Last confirmed column does not fit: under the first reading. */}
+                  {r.to > r.from ? <span className="block text-2xs text-fg-subtle @min-[32rem]/rank:hidden">confirmed {formatDateTime(r.to)}</span> : null}
+                </td>
                 <td className="whitespace-nowrap px-2 py-1 font-medium text-fg">
                   {r.label}
                   {r.lp !== null ? ` · ${r.lp} LP` : ""}

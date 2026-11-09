@@ -44,13 +44,14 @@ function Headline({ label, value, sub, info, tone = "plain", testId, children }:
   return (
     <div className="min-w-0 px-3 py-3 @min-[34rem]/perf:px-5 @min-[34rem]/perf:py-4" data-testid={testId}>
       <div className="flex items-center gap-1 text-xs font-medium text-fg-muted">
-        <span className="min-w-0 truncate leading-tight">{label}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
+        <span className="min-w-0 leading-tight">{label}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
       </div>
       <div className={cn("mt-1.5 text-2xl font-semibold leading-none tracking-tight tabular-nums @min-[34rem]/perf:text-figure", TONE_CLASS[tone])} data-testid={`${testId}-value`}>
         {value}
       </div>
       {children}
-      {sub ? <div className="mt-1.5 truncate text-xs text-fg-subtle">{sub}</div> : null}
+      {/* Its context wraps rather than ends cut short ("4.0 / 4.0 / 4.0" on a 320px phone's third of the card). */}
+      {sub ? <div className="mt-1.5 text-xs leading-snug text-fg-subtle">{sub}</div> : null}
     </div>
   );
 }
@@ -60,7 +61,7 @@ function Supporting({ label, value, sub, info, muted, testId }: { label: string;
   return (
     <div className="min-w-0 px-3 py-2.5 @min-[34rem]/perf:px-5" data-testid={testId}>
       <div className="flex items-center gap-1 text-xs text-fg-muted">
-        <span className="min-w-0 truncate leading-tight">{label}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
+        <span className="min-w-0 leading-tight">{label}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
       </div>
       <div className="mt-1 flex min-w-0 items-baseline gap-2">
         <span className={cn("text-lg font-semibold leading-tight tabular-nums", muted ? "text-fg-subtle" : "text-fg")} data-testid={`${testId}-value`}>
@@ -94,12 +95,13 @@ function multikillRate(count: number, counted: number): string {
 /** One count in the kills row: its label, the number, how often (or its context). */
 function KillCount({ label, value, sub, muted, testId, className }: { label: string; value: React.ReactNode; sub: string; muted?: boolean; testId: string; className?: string }) {
   return (
-    <div className={cn("min-w-0 px-3 py-2.5", className)} data-testid={testId}>
-      <div className="truncate text-xs text-fg-muted">{label}</div>
+    <div className={cn("min-w-0 px-2.5 py-2.5 @min-[34rem]/perf:px-3", className)} data-testid={testId}>
+      <div className="text-xs leading-tight text-fg-muted @min-[34rem]/perf:truncate">{label}</div>
       <div className={cn("mt-0.5 text-lg font-semibold leading-tight tabular-nums", muted ? "text-fg-subtle" : "text-fg")} data-testid={`${testId}-value`}>
         {value}
       </div>
-      <div className="truncate text-2xs text-fg-subtle" title={sub}>
+      {/* Three across on a narrow card ("1 every 12 games" in a third of a phone): it wraps, never cut. */}
+      <div className="text-2xs leading-snug text-fg-subtle @min-[34rem]/perf:truncate" title={sub}>
         {sub}
       </div>
     </div>
@@ -113,7 +115,9 @@ function KillCount({ label, value, sub, muted, testId, className }: { label: str
  * the same games as the figures above; the multikills add up Riot's counts. Whether every game has
  * its counts is the page's status, beside the scope line under the title, never a mark here. A
  * count no game has yet is a dash, never 0. The champions behind them are one quiet link away, at
- * the row's end. Phones: Total kills across the top, then two by two.
+ * the row's end. On a card narrower than 34rem (phones): three by two, Total kills first and the link in
+ * the sixth cell, where it was a row of its own under Total kills across the top and two by two
+ * (245px on an iPhone 15).
  */
 function KillsBand({ perf, m, byChampionHref }: { perf: PerformanceSummary; m: MultikillSummary; byChampionHref: string }) {
   const unknown = m.counted === 0;
@@ -133,14 +137,14 @@ function KillsBand({ perf, m, byChampionHref }: { perf: PerformanceSummary; m: M
       <h3 id="multikills-heading" className="sr-only">
         Kills and multikills{notes.length ? ` (${notes.join("; ")})` : ""}
       </h3>
-      <div className="grid grid-cols-2 @min-[34rem]/perf:grid-cols-5 @min-[48rem]/perf:grid-cols-[repeat(5,minmax(0,1fr))_auto]" data-testid="multikill-tiles">
-        <KillCount label="Total kills" value={perf.totalKills === null ? notYet : formatCount(perf.totalKills)} muted={perf.totalKills === null} sub={perf.totalKills === null ? "Not counted yet" : `${fmt.one(perf.kills)} a game`} testId="stat-total-kills" className="col-span-2 @min-[34rem]/perf:col-span-1" />
+      <div className="grid grid-cols-3 @min-[34rem]/perf:grid-cols-5 @min-[48rem]/perf:grid-cols-[repeat(5,minmax(0,1fr))_auto]" data-testid="multikill-tiles">
+        <KillCount label="Total kills" value={perf.totalKills === null ? notYet : formatCount(perf.totalKills)} muted={perf.totalKills === null} sub={perf.totalKills === null ? "Not counted yet" : `${fmt.one(perf.kills)} a game`} testId="stat-total-kills" />
         {MULTIKILL_KINDS.map((k) => (
           <KillCount key={k.key} label={kinds[k.key]} value={unknown ? notYet : formatCount(m[k.key])} muted={unknown} sub={unknown ? "Not counted yet" : multikillRate(m[k.key], m.counted)} testId={`multikill-${k.key}`} className="@min-[34rem]/perf:border-l @min-[34rem]/perf:border-border/60" />
         ))}
-        <p className="col-span-2 flex items-center justify-end px-3 pb-2 @min-[34rem]/perf:col-span-5 @min-[34rem]/perf:-mt-1 @min-[48rem]/perf:col-span-1 @min-[48rem]/perf:mt-0 @min-[48rem]/perf:pb-0 @min-[48rem]/perf:pl-1 @min-[48rem]/perf:pr-4">
+        <p className="flex items-center justify-end px-2.5 text-right @min-[34rem]/perf:col-span-5 @min-[34rem]/perf:-mt-1 @min-[34rem]/perf:px-3 @min-[34rem]/perf:pb-2 @min-[48rem]/perf:col-span-1 @min-[48rem]/perf:mt-0 @min-[48rem]/perf:pb-0 @min-[48rem]/perf:pl-1 @min-[48rem]/perf:pr-4">
           {/* A small link with a finger-sized area on touch screens that takes no room of its own. */}
-          <Link href={byChampionHref} className="relative inline-flex min-h-6 items-center gap-0.5 whitespace-nowrap rounded-md text-xs font-medium text-fg-muted transition-colors hover:text-accent focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:after:absolute pointer-coarse:after:-inset-y-2.5 pointer-coarse:after:-left-3 pointer-coarse:after:right-0 pointer-coarse:after:content-['']" aria-label="Multikills by champion, in All Champions" data-testid="multikills-by-champion">
+          <Link href={byChampionHref} className="relative inline-flex min-h-6 items-center gap-0.5 rounded-md text-xs font-medium @min-[34rem]/perf:whitespace-nowrap text-fg-muted transition-colors hover:text-accent focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:after:absolute pointer-coarse:after:-inset-y-2.5 pointer-coarse:after:-left-3 pointer-coarse:after:right-0 pointer-coarse:after:content-['']" aria-label="Multikills by champion, in All Champions" data-testid="multikills-by-champion">
             By champion <ChevronRight className="h-3.5 w-3.5" aria-hidden />
           </Link>
         </p>

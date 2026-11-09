@@ -416,7 +416,7 @@ export function SortablePool({
                   else refs.current.delete(id);
                 }}
                 className={cn(
-                  "group relative isolate flex min-w-0 items-center gap-2.5 overflow-hidden rounded-panel border border-transparent py-1.5 pl-2 pr-1.5 transition-[background-color,border-color,box-shadow] duration-150 hover:border-border hover:bg-surface-2/70 @lg:gap-3 @lg:pl-2.5",
+                  "group relative isolate flex min-h-11 min-w-0 items-center gap-2 overflow-hidden rounded-panel border border-transparent py-1 pl-2 pr-1.5 transition-[background-color,border-color,box-shadow] duration-150 hover:border-border hover:bg-surface-2/70 @2xs:gap-2.5 @lg:gap-3 @lg:pl-2.5",
                   editable && "md:cursor-grab",
                   isDragged && "z-20 cursor-grabbing border-accent bg-surface-2 shadow-2xl shadow-black/50 will-change-transform",
                   isLifted && "z-10 border-accent bg-surface-2 ring-2 ring-accent/40",
@@ -436,12 +436,14 @@ export function SortablePool({
                   </picture>
                 </span>
                 {inspector}
-                <span className={cn("flex min-w-0 flex-1 items-center gap-2.5 @lg:gap-3", onInspect && "pointer-events-none relative z-[1] [&_button]:pointer-events-auto")}>
-                  <span className="w-4 shrink-0 text-right text-xs font-semibold tabular-nums text-fg-subtle" aria-hidden>
+                <span className={cn("flex min-w-0 flex-1 items-center gap-2 @2xs:gap-2.5 @lg:gap-3", onInspect && "pointer-events-none relative z-[1] [&_button]:pointer-events-auto")}>
+                  <span className="w-3 shrink-0 text-right text-xs font-semibold tabular-nums text-fg-subtle @2xs:w-4" aria-hidden>
                     {index + 1}
                   </span>
                   <ChampionPortrait champion={c ?? { id, name: id, portraitUrl: "" }} size="sm" className="rounded-lg shadow-md shadow-black/30" />
-                  <span className={cn("min-w-0 flex-1 select-none truncate text-sm font-semibold text-fg", onInspect && "group-hover:underline group-hover:decoration-fg-subtle group-hover:underline-offset-2")}>{c?.name ?? id}</span>
+                  {/* The name keeps at least 4rem and wraps rather than ends cut short (at 320px the
+                      figures beside it left it no room at all). */}
+                  <span className={cn("min-w-16 flex-1 select-none text-sm font-semibold leading-tight text-fg [overflow-wrap:anywhere]", onInspect && "group-hover:underline group-hover:decoration-fg-subtle group-hover:underline-offset-2")}>{c?.name ?? id}</span>
                   {renderMeta ? <span className="hidden shrink-0 @lg:block">{renderMeta(id)}</span> : null}
                   {renderStats ? renderStats(id) : null}
                 </span>
