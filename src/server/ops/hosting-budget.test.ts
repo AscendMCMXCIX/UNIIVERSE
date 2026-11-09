@@ -8,9 +8,10 @@ import path from "node:path";
   - Vercel builds production, and a preview only when one is asked for (each preview stores another
     full copy of the app's functions); production is not rebuilt for tests or tooling alone;
   - a build with a DATABASE_URL leaves PGlite (the demo database, about 19 MB per function) out.
+  (In src/, so pnpm verify and CI's unit job run it; in tests/ops only `pnpm test` ran it, never CI.)
 */
 
-const root = path.resolve(__dirname, "../..");
+const root = path.resolve(__dirname, "../../..");
 const ignore = (env: Record<string, string>) => spawnSync("bash", [path.join(root, "scripts/vercel-ignore-build.sh")], { cwd: root, env: { PATH: process.env.PATH ?? "", ...env } as unknown as NodeJS.ProcessEnv }).status;
 
 describe("Vercel ignored build step", () => {
@@ -45,7 +46,7 @@ describe("Next.js output tracing", () => {
     try {
       const { vi } = await import("vitest");
       vi.resetModules();
-      return (await import("../../next.config")).default;
+      return (await import("../../../next.config")).default;
     } finally {
       if (before === undefined) delete process.env.DATABASE_URL;
       else process.env.DATABASE_URL = before;
