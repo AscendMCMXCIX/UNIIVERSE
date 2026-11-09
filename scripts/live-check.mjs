@@ -38,6 +38,8 @@
   - frame (#178): the charcoal frame token; the sidebar, open and folded, with the gradient bar on
     the current page; the phone and tablet top bar, drawer and tab bar.
   - All Champions (#178): compact rows, sorted by games, no heading cut short.
+  - settings: the picture and display-name help name the public team page, and Settings never
+    mentions a Public profile switch (retired; true or false only).
   - games (#178): Team Matches opens a game under its card (no window), with ?match= in the address;
     a copied link opens it; Back returns to it; the keyboard toggles it; "Close this game" closes it
     and keeps the focus on the card. Match History opens games under their cards; its Encounters
@@ -232,6 +234,34 @@ const VIEWPORTS = {
 const proxy = !local && process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: "localhost,127.0.0.1" } : undefined;
 const executablePath = process.env.PW_CHROMIUM_PATH ?? (existsSync("/opt/pw-browsers/chromium") ? "/opt/pw-browsers/chromium" : undefined);
 
+/*
+  The check's browser contexts. Two things a member's browser does are left out, because each costs
+  the site's Vercel Active CPU on every run and checks nothing (docs/HOSTING_USAGE.md, "Vercel Active
+  CPU"; measured on a production-like build with the same checks passing: about 15 → 10–12.5
+  CPU-seconds and 852 → 253 function invocations a run):
+  - Viewport prefetch: Next's links prefetch every member page they can see, about 600 server
+    renders a run that the check never opens. Links are hidden from IntersectionObserver, which is
+    what Next's viewport prefetch watches; a hover, focus or tap still prefetches as for a member,
+    and every page the check opens is loaded and asserted in full.
+  - Page-speed beacons (/api/vitals): about 45 a run, all dropped by the server since #256 because
+    the verification account sends them. They are answered here with 204, so no request fails.
+*/
+async function checkContext(options) {
+  const context = await browser.newContext({ ...options, reducedMotion: "reduce" });
+  await context.addInitScript(() => {
+    const Observer = window.IntersectionObserver;
+    if (!Observer) return;
+    window.IntersectionObserver = class extends Observer {
+      observe(target) {
+        if (target instanceof Element && target.tagName === "A") return;
+        return super.observe(target);
+      }
+    };
+  });
+  await context.route((url) => url.href.startsWith(`${base}/api/vitals`), (route) => route.fulfill({ status: 204, body: "" }));
+  return context;
+}
+
 function instrument(page) {
   const log = { console: [], pageErrors: [], failed: [] };
   page.on("console", (m) => {
@@ -379,6 +409,21 @@ async function frameChecks(page, kind, context) {
   await page.waitForTimeout(400);
 }
 
+/**
+ * Settings says who sees a member's picture and display name: teammates, and the public team page
+ * while they are in the lineup or a substitute. The Public profile switch it once named is gone
+ * (19 Oct 2026; docs/UNIIVERSE_TECHNICAL_HANDOVER.md §C4). Only true or false is reported.
+ */
+async function settingsFacts(page, kind) {
+  const facts = await page.evaluate(() => ({
+    publicProfile: /public profile/i.test(document.querySelector("main")?.innerText ?? ""),
+    picture: /public team page/.test(document.querySelector("[data-testid=avatar-help]")?.textContent ?? ""),
+    displayName: /public team page/.test(document.getElementById("display-name-help")?.textContent ?? ""),
+  }));
+  pass("settings", `${kind}: Settings never mentions a Public profile switch`, !facts.publicProfile, { mentioned: facts.publicProfile });
+  pass("settings", `${kind}: the picture and display-name help name the public team page`, facts.picture && facts.displayName, { picture: facts.picture, displayName: facts.displayName });
+}
+
 async function allChampions(page, log, kind, playerId) {
   const path = playerId ? `/players/${playerId}/champions` : "/overview/champions";
   if (!(await visit(page, log, kind, "all-champions", path))) return;
@@ -406,6 +451,10 @@ async function allChampions(page, log, kind, playerId) {
   else {
     pass("all-champions", `${kind}: lists champions`, facts.rows > 0, facts.rows);
     if (kind !== "phone") pass("all-champions", `${kind}: rows are compact (at most 56 px)`, facts.heights.length > 0 && Math.max(...facts.heights) <= 56, facts.heights);
+    if (kind !== "phone") {
+      const roles = await everyRoleRow(page);
+      pass("all-champions", `${kind}: rows stay compact for every role beside "In pool" (at most 56 px)`, !!roles && Math.max(...Object.values(roles.heights)) <= 56, roles ?? "no row with a role line to measure");
+    }
     pass("all-champions", `${kind}: sorted by games by default`, /games/i.test(facts.sortedBy ?? ""), facts.sortedBy);
   }
   pass("all-champions", `${kind}: no heading cut short`, facts.cut.length === 0, facts.cut);
@@ -426,6 +475,43 @@ async function allChampions(page, log, kind, playerId) {
     const closed = await win.waitFor({ state: "hidden", timeout: 5_000 }).then(() => true, () => false);
     pass("games", `${kind}: the champion window opens and Escape closes it`, opened && closed, { opened, closed });
   }
+}
+
+/**
+ * A row's longest line is under the champion's name: the role with "In pool" beside it ("Support"
+ * and "Bottom" are the widest of ROLE_LABELS, src/domain/roles.ts). The lineup's first player is
+ * usually the Top laner, whose own rows carry only short roles, and opening another teammate's
+ * pages would refresh that teammate's Riot data when it is due (the profile's layout does), so the
+ * first row is copied instead: once per role, with that role's name and an "In pool" tag (a copy
+ * of one from the list, or drawn with the tag's classes from src/components/players/all-champions.tsx
+ * when no row has one). Each copy goes into the list beside the row, so it takes the rows' columns,
+ * and is removed in the same step, before anything is drawn. The copy's height for each role, or
+ * null without a row and its role line.
+ */
+async function everyRoleRow(page) {
+  return page.evaluate(async () => {
+    await document.fonts.ready;
+    const row = document.querySelector("[data-testid=top-champion]");
+    if (!row?.querySelector("[data-testid=champion-role-line] > :first-child")) return null;
+    const tag = document.querySelector("[data-testid=top-champion] [data-testid=in-pool]");
+    const heights = {};
+    for (const role of ["Top", "Jungle", "Mid", "Bottom", "Support"]) {
+      const copy = row.cloneNode(true);
+      const line = copy.querySelector("[data-testid=champion-role-line]");
+      // The role's name: the role tag's last part (its icon comes first).
+      const name = [...line.firstElementChild.childNodes].reverse().find((n) => (n.nodeType === Node.TEXT_NODE ? !!n.data.trim() : n.nodeType === Node.ELEMENT_NODE && !n.matches("[data-role-icon]")));
+      if (!name) return null;
+      name.textContent = role;
+      if (!line.querySelector("[data-testid=in-pool]")) line.append(tag ? tag.cloneNode(true) : Object.assign(document.createElement("span"), { className: "shrink-0 whitespace-nowrap rounded-full border border-border-strong px-1.5 text-2xs font-medium leading-4 text-fg-muted", textContent: "In pool" }));
+      row.after(copy);
+      try {
+        heights[role] = Math.round(copy.getBoundingClientRect().height);
+      } finally {
+        copy.remove();
+      }
+    }
+    return { heights, inPool: tag ? "copied from a row" : "drawn with the tag's classes" };
+  });
 }
 
 /**
@@ -655,11 +741,11 @@ if (!signedIn) check("setup", "signed-in checks", process.env.LIVE_REQUIRE_SIGN_
 if (!local) await deployment();
 const browser = await chromium.launch({ executablePath, proxy });
 let playerId = null;
-// The public pages, signed out, at every width: what anyone can open (the public team page and its
-// leaderboards only where the team turned them on).
+// The public pages, signed out, at every width: what anyone can open (sign-in, privacy, home and the
+// public team page, which has no switch).
 if (!local) {
   for (const [kind, options] of Object.entries(VIEWPORTS)) {
-    const context = await browser.newContext({ ...options, reducedMotion: "reduce" });
+    const context = await checkContext(options);
     const page = await context.newPage();
     const log = instrument(page);
     for (const [name, path] of [["sign-in", "/login"], ["privacy", "/privacy"], ["home", "/"], ["public-team", "/public"]]) {
@@ -673,7 +759,7 @@ if (!local) {
 }
 for (const [kind, options] of Object.entries(VIEWPORTS)) {
   if (!signedIn) break;
-  const context = await browser.newContext({ ...options, reducedMotion: "reduce" });
+  const context = await checkContext(options);
   await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: base }]);
   if (local) await context.addCookies([{ name: "uniiverse_view", value: "player", url: base }]);
   const page = await context.newPage();
@@ -708,7 +794,10 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
     if (await visit(page, log, kind, "leaderboards", "/leaderboards")) await axe(page, kind, "leaderboards");
   });
   await guarded(kind, "settings", async () => {
-    if (await visit(page, log, kind, "settings", "/settings")) await axe(page, kind, "settings");
+    if (await visit(page, log, kind, "settings", "/settings")) {
+      await settingsFacts(page, kind);
+      await axe(page, kind, "settings");
+    }
   });
   // Last in the desktop context, so a mode switch that went wrong cannot affect the other checks. Not
   // under LIVE_LOCAL: the demo build's visitor is the local owner, an administrator.

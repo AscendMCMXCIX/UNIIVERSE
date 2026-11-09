@@ -81,6 +81,7 @@ Where a member is listed without their card, the name still follows the look: th
   - The server checks the real type from the bytes (PNG, JPEG or WebP), the size (450 KB) and the dimensions (at least 320 px wide, landscape, at most 2000 px).
   - Banners are stored in the database like profile pictures.
   - They are served at `/api/card-banners/<player>?v=<version>` to signed-in members only, with `nosniff` and `Content-Security-Policy: default-src 'none'`.
+  - The public team page shows the cards of the lineup and the substitutes, banner included: `/api/public/card-banners/<player>` serves it to anyone for a player on that page, and nobody else's (docs/UNIIVERSE_TECHNICAL_HANDOVER.md §C4). The Studio's banner help says so.
   - Deleting a player deletes their banner.
 - **Permissions.** Style, banner upload and banner removal all go through `requirePlayerEditor`:
   - a player edits only their own card, and personal-use accounts can too;
