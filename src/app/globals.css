@@ -674,13 +674,107 @@ p a.text-accent {
   Reduced motion: no turn, the faces simply swap.
 */
 /* Team Overview on a phone, where the lineup is a track showing one card at a time: until the first
-   card's art has arrived, the other cards' art is not displayed, and a lazy image that is not
-   displayed is not fetched, so the first card's art has the connection to itself (team-roster.tsx,
-   docs/PERFORMANCE.md "Team Overview's first card"). From @xl the lineup is a grid and nothing waits. */
+   card's art has arrived, the other cards' art, champions and members' pictures are not displayed,
+   and a lazy image that is not displayed is not fetched, so the first card's art has the connection
+   to itself (team-roster.tsx, docs/PERFORMANCE.md "Team Overview's first card"; the role bar's
+   pictures wait in the markup). From @xl the lineup is a grid and nothing waits. */
 @container lineup (width < 36rem) {
   [data-art-wait] > [data-art-later] .card-art-img { display: none; }
   /* The later cards' pool portraits too: ~570 KB that would share the connection with the first card's art. */
   [data-art-wait] > [data-art-later] [data-card-pool] img { display: none; }
+  /* And their members' pictures (/api/avatars), each keeping its round place (a card's picture is 3.5rem). */
+  [data-art-wait] > [data-art-later] [data-testid=card-identity] [data-avatar-frame] { min-width: 3.5rem; min-height: 3.5rem; }
+  [data-art-wait] > [data-art-later] [data-testid=card-identity] [data-avatar-frame] img { display: none; }
+}
+/* Held sideways (a short window) the track shows two or three cards: the cards after the second wait
+   the same way, and so do the substitutes' pictures on the bench under the track (its chips show
+   them there; 1.5rem each). */
+@media (max-height: 480px) {
+  [data-art-wait] > [data-art-far] .card-art-img, [data-art-wait] > [data-art-far] [data-card-pool] img, [data-art-wait] > [data-art-far] [data-testid=card-identity] [data-avatar-frame] img { display: none; }
+  [data-art-wait] > [data-art-far] [data-testid=card-identity] [data-avatar-frame] { min-width: 3.5rem; min-height: 3.5rem; }
+  [data-art-wait] ~ [data-testid=lineup-bench] [data-avatar-frame] img { display: none; }
+  [data-art-wait] ~ [data-testid=lineup-bench] [data-avatar-frame] { min-width: 1.5rem; min-height: 1.5rem; }
+}
+/*
+  Team Overview's card artwork (team-roster.tsx), which carries the player's identity at its foot:
+  as tall as what it holds, from 10.5rem. Five across (a lineup of 58rem or more) the cards take
+  the height of the window that the page leaves them, so the lineup and its bench fill the first
+  screen without bands of empty page above or under them; the artwork grows into it, from 13rem up
+  to 1.9 times the card's width (cqw: the card is a container), so it stays a portrait, and 30rem.
+  What the page leaves is the window less everything else down the page, all in rem (the root size
+  grows on big screens, and the page with it):
+    --lineup-page     the page's own frame above and below the lineup: the app's section tabs and
+                      padding, or the public page's header and padding (set by each page);
+    --lineup-nudges   the account's own action cards above the section tabs, when it has any
+                      (app-shell.tsx, AccountNudges: set below from how many it shows);
+    --lineup-head     the team's header and the gap under it (set by the lineup);
+    --lineup-bench    the bench under the cards: its row, its one-line hint, or nothing (the lineup);
+    --lineup-figures  1 where a card shows this season's figures on either side, 0 where none does
+                      (the lineup);
+  and the card's own body: its season block (7.125rem with the gap under it; 8rem under 12.5rem,
+  where its two columns stand KDA over CS/min), its pool (3rem; 5.125rem under 16.5rem among cards side by side, where
+  the rest of the pool takes a row of its own), and its fixed parts: the pool's label, the padding and
+  the border, with a quarter rem to spare (3.1875rem), so the page never scrolls by a few pixels.
+  Edit lineup's bar is left out: entering it moves nothing on the cards, the page grows instead. A
+  short window (480px tall or less) shows a sideways track of the cards at their own height.
+*/
+@utility lineup-art-height {
+  --card-season: 7.125rem;
+  --card-pool: 3rem;
+  min-height: 10.5rem;
+  @container lineup (width >= 36rem) {
+    @container card (width < 16.5rem) {
+      --card-pool: 5.125rem;
+    }
+  }
+  @container card (width < 12.5rem) {
+    --card-season: 8rem;
+  }
+  @container lineup (width >= 58rem) {
+    min-height: clamp(13rem, min(calc(100dvh - var(--lineup-page, 6.5rem) - var(--lineup-nudges, 0rem) - var(--lineup-head, 4.75rem) - var(--lineup-bench, 0rem) - var(--lineup-figures, 1) * var(--card-season) - var(--card-pool) - 3.1875rem), 190cqw), 30rem);
+  }
+  @media (max-height: 480px) {
+    min-height: 10.5rem;
+  }
+}
+/* The account's action cards (app-shell.tsx, AccountNudges, main's first child): each a one-line card
+   2.875rem tall (its padding, its line and its border), 0.5rem between two and 1rem under them. From
+   lg the section tabs rise 0.5rem into main's padding only as its first child (section-tabs.tsx,
+   lg:first:-mt-2): after the cards they keep that half rem too. */
+main:has(> [data-account-nudges="1"]) { --lineup-nudges: 3.875rem; }
+main:has(> [data-account-nudges="2"]) { --lineup-nudges: 7.25rem; }
+@media (width >= 64rem) {
+  main:has(> [data-account-nudges="1"]) { --lineup-nudges: 4.375rem; }
+  main:has(> [data-account-nudges="2"]) { --lineup-nudges: 7.75rem; }
+}
+/*
+  Team Overview in a short window below lg (a phone held sideways): the lineup's sideways track runs
+  to the screen's edges while it scrolls, but its first card starts, and every card snaps, at the
+  page's gutter (the notch's inset where that is larger): the same gutter as main's (px-safe-4,
+  px-safe-6 from sm), taken back by the track's margins. From lg (a short desktop window) the track
+  stays inside the page: no margins, so it spans the content's width and scrolls within it (the
+  lineup's centring margins would let it grow as wide as its five cards, and the page scroll
+  sideways instead).
+*/
+@utility lineup-bleed {
+  @media (width < 64rem) {
+    --bleed-left: max(1rem, env(safe-area-inset-left));
+    --bleed-right: max(1rem, env(safe-area-inset-right));
+    @media (width >= 40rem) {
+      --bleed-left: max(1.5rem, env(safe-area-inset-left));
+      --bleed-right: max(1.5rem, env(safe-area-inset-right));
+    }
+    margin-left: calc(-1 * var(--bleed-left));
+    margin-right: calc(-1 * var(--bleed-right));
+    padding-left: var(--bleed-left);
+    padding-right: var(--bleed-right);
+    scroll-padding-left: var(--bleed-left);
+    scroll-padding-right: var(--bleed-right);
+  }
+  @media (width >= 64rem) {
+    margin-left: 0;
+    margin-right: 0;
+  }
 }
 .flip-card { perspective: 1800px; }
 .flip-card-inner { transform-style: preserve-3d; }

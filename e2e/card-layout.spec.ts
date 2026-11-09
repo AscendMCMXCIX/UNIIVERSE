@@ -18,9 +18,10 @@ import * as path from "node:path";
     turns the card nor opens it;
   - pointing at the turn control moves nothing (the substitute's side is already part of the card's
     height), and the turned card shows the substitute whole;
-  - cards side by side keep their pictures, names and labels level: a name on two lines or a
-    tagline that one player has never moves their card's parts off the others' (a name of three
-    lines, five across, moves its own card's parts by that third line only).
+  - cards side by side keep their pictures, names and labels level (names along their last line,
+    on their rank): a name on two lines or a tagline that one player has never moves their card's
+    parts off the others' (a name of three lines, five across, moves its own card's parts by that
+    third line only).
   Set CARD_SHOTS to a folder to also save each card and page there (before/after comparisons).
 */
 
@@ -166,8 +167,10 @@ function expectWhole(m: Awaited<ReturnType<typeof measure>>, who: Who, label: st
 }
 
 /**
- * Each row of cards side by side: the tops of their labels, and of their pictures and names for
- * every card whose name takes at most two lines (the room kept for the others' names).
+ * Each row of cards side by side: the tops of their labels and pictures, and the foot of their
+ * names, for every card whose name takes at most two lines (the room kept for the others' names).
+ * A shorter name sits at the foot of that room, on its rank (the room stays above it, in the art),
+ * so names line up along their last line.
  */
 async function levelRows(page: Page) {
   return page.locator("[data-testid^=lineup-row-]").evaluateAll((cards) => {
@@ -176,7 +179,7 @@ async function levelRows(page: Page) {
       const name = card.querySelector<HTMLElement>("[data-testid=card-name]")!;
       const line = parseFloat(getComputedStyle(name).lineHeight);
       const lines = Math.round(name.getBoundingClientRect().height / line);
-      return { role: card.getAttribute("data-testid"), row: Math.round(card.getBoundingClientRect().top), avatar: top("[data-avatar-frame]"), name: top("[data-testid=card-name]"), labels: top("[data-testid=card-fit]"), lines, extra: Math.max(0, lines - 2) * line };
+      return { role: card.getAttribute("data-testid"), row: Math.round(card.getBoundingClientRect().top), avatar: top("[data-avatar-frame]"), name: Math.round(name.getBoundingClientRect().bottom), labels: top("[data-testid=card-fit]"), lines, extra: Math.max(0, lines - 2) * line };
     });
     const spread = (values: number[]) => Math.max(...values) - Math.min(...values);
     return [...new Set(parts.map((p) => p.row))]

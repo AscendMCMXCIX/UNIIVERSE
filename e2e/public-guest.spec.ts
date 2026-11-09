@@ -65,6 +65,17 @@ test("a role's substitute is on the back of its card, for visitors too; turning 
   await expect(sub.getByTestId("start-substitute")).toHaveCount(0);
   await sub.getByTestId("flip-back").click();
   await expect(top.getByTestId("flip-to-substitute")).toBeVisible();
+  // The bench under the lineup names the substitutes for visitors too, and turns their cards the
+  // same way; nothing in it manages the lineup.
+  const bench = guest.getByTestId("lineup-bench");
+  await expect(bench.getByTestId("bench-TOP")).toContainText("Demo Sub (Top)");
+  await expect(bench.getByTestId("bench-MID")).toHaveCount(0);
+  await expect(guest.getByTestId("bench-none")).toHaveCount(0);
+  await bench.getByTestId("bench-TOP").scrollIntoViewIfNeeded();
+  await bench.getByTestId("bench-TOP").click();
+  await expect(guest.getByTestId("lineup-card-TOP")).toHaveAttribute("data-flipped", "true");
+  await bench.getByTestId("bench-TOP").click();
+  await expect(guest.getByTestId("lineup-card-TOP")).not.toHaveAttribute("data-flipped", "true");
   expect(posts).toEqual([]);
   await guest.context().close();
 });

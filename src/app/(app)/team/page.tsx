@@ -24,7 +24,10 @@ export default async function TeamPage() {
   // Card Studio (your own card's brush) chooses art from the full champion list; pools are edited on the profile.
   const champions = editablePlayerIds.length > 0 ? await loadPickerChampions(db) : (await listChampions(db)).map((c) => ({ id: c.id, name: c.name, portraitUrl: c.portraitUrl }));
   return (
-    <div className="mx-auto flex w-full max-w-[var(--content-wide)] flex-col lg:flex-1">
+    // --lineup-page: the app's own frame above and below the lineup, which the cards' art leaves out
+    // five across (globals.css, lineup-art-height): main's padding and the section tabs (with the
+    // tablet's top bar below lg).
+    <div className="mx-auto w-full max-w-[var(--content-wide)] [--lineup-page:10.3125rem] lg:[--lineup-page:6.5rem]">
       {/* New games, ranks and lineup changes appear without a reload. */}
       <FreshnessWatcher scope={{ kind: "team" }} version={version} />
       <TeamRoster team={{ name: branding.teamName, shortName: branding.shortName, logo: logoSrc(branding), logoStill: logoStillSrc(branding) }} slots={roster.slots} complete={roster.complete} champions={champions} canManageLineup={hasPermission(session, "manage-lineup")} canViewPlayers={hasPermission(session, "view-players")} editablePlayerIds={editablePlayerIds} viewerPlayerId={session.playerId} />

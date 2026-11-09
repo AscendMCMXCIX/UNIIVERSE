@@ -65,8 +65,10 @@ const SIZERS = "invisible hidden max-h-[2lh] overflow-hidden @xl/lineup:grid [&>
  * the cards stand side by side, each card's name and tagline take as much height as the tallest
  * of theirs (up to two lines each; drawn invisibly behind its own), so a name that wraps or a
  * tagline that one player has never lifts that card's picture, name and labels above the others'.
- * No room is kept that nobody needs: with every name on one line, names take one line. The tagline
- * comes last, so room kept for one sits at the block's foot, not between the name and its rank.
+ * No room is kept that nobody needs: with every name on one line, names take one line. A shorter
+ * name sits at the foot of the room kept for it, on its rank, so the room sits between it and the
+ * picture, in the art, never between the name and its rank. The tagline comes last, so room kept for
+ * one sits at the block's foot.
  *
  * `layout="side"` (the Team player window's header, not a card): the picture beside the same rows.
  * `layout="rows"` (the Players directory): the same four parts, each placed on its own row of a
@@ -109,7 +111,8 @@ export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isY
   const taglines = align?.some((m) => m.look.style.identity.tagline) ?? false;
   const nameSlot = align?.length ? (
     <span className={SLOT}>
-      {nameLine}
+      {/* At the foot of its room: the line kept for a longer name stays above it, in the art. */}
+      <span className="min-w-0 self-end">{nameLine}</span>
       <span aria-hidden className={cn(SIZERS, NAME_SIZE)}>
         {align.map((m, i) => (
           <CardName key={i} look={m.look} name={m.name} decorative />
@@ -286,6 +289,11 @@ export interface CardSeason extends SeasonFigures {
  * (average vision for Support). A player with no game in the role this season gets a short, plain
  * note instead of a row of dashes; nothing is estimated. `placeholder` (Card Studio, where the
  * opener did not load figures) keeps the shape with dashes.
+ *
+ * On a card narrower than 12.5rem (five across a 1280px laptop with the sidebar open) one row of
+ * three cannot hold the figures (its middle column shrank to a few pixels and drew "KDACS/MIN"):
+ * there the win rate keeps the left with its record, and KDA and CS/min (vision) stand one above
+ * the other on the right, each its label over its figure. Same figures, same order.
  */
 export function CardPerformance({ season, support, roleLabel, placeholder = false }: { season: CardSeason | null; support: boolean; roleLabel: string; placeholder?: boolean }) {
   const games = season?.games ?? 0;
@@ -306,31 +314,39 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
   const kdaLine = season && season.kills != null && season.deaths != null && season.assists != null ? `${per(season.kills)} / ${per(season.deaths)} / ${per(season.assists)}` : null;
   const label = "block whitespace-nowrap text-2xs font-medium uppercase tracking-label text-fg-subtle @max-[15rem]/card:tracking-[0.04em]";
   const sub = "block truncate text-2xs tabular-nums text-fg-subtle";
+  // KDA and CS/min (vision) on a narrow card: one above the other in the right-hand column, each its
+  // label over its figure, right-aligned (a label and figure side by side did not fit "VISION 79.3").
+  const pair = "min-w-0 @max-[12.5rem]/card:col-start-2 @max-[12.5rem]/card:text-right";
+  const figure = "text-lg font-semibold leading-tight tabular-nums text-fg @max-[12.5rem]/card:text-base";
+  const narrowHidden = "@max-[12.5rem]/card:hidden";
   return (
-    <div className="rounded-lg bg-bg/55 px-3 pb-2.5 pt-2 ring-1 ring-inset ring-white/[0.06]" data-testid="card-season">
+    <div className="rounded-lg bg-bg/55 px-3 pb-2.5 pt-2 ring-1 ring-inset ring-white/[0.06] @max-[12.5rem]/card:px-2.5" data-testid="card-season">
       {/* One row, read left to right: how often they win, how they fight, how they farm (vision for
-          Support). The outer figures take the room they need and KDA the rest, so nothing is cut off. */}
-      <dl className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-x-2.5">
-        <div className="min-w-0">
+          Support). The outer figures take the room they need and KDA the rest, so nothing is cut off.
+          A narrow card: the win rate on the left, KDA over CS/min (vision) on the right. */}
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-x-2.5 @max-[12.5rem]/card:grid-cols-[auto_minmax(0,1fr)] @max-[12.5rem]/card:items-center @max-[12.5rem]/card:gap-x-2 @max-[12.5rem]/card:gap-y-1">
+        <div className="min-w-0 @max-[12.5rem]/card:row-span-2">
           <dt className={label}>Win rate</dt>
           <dd className={cn("text-2xl font-bold leading-tight tabular-nums", wr === null ? "text-fg-muted" : tone)} title={winRateSampleNote(season?.winRate, games, WIN_RATE_MIN_GAMES.season) ?? undefined} data-testid="card-winrate">
             {wr === null ? dash : `${Math.round(wr * 100)}%`}
           </dd>
           <dd className={sub}>{!placeholder && wins !== null && losses !== null ? `${wins}W ${losses}L` : "\u00a0"}</dd>
         </div>
-        <div className="min-w-0">
+        <div className={pair}>
           <dt className={label}>KDA</dt>
-          <dd className="text-lg font-semibold leading-tight tabular-nums text-fg">{placeholder || season?.kda == null ? dash : season.kda.toFixed(2)}</dd>
-          {/* Kills / deaths / assists per game need about 4.5rem: on a card too narrow for them (five
-              across a laptop screen) they stay in the hover text, for screen readers and in the
-              player's window, instead of showing cut off. */}
-          <dd className={sub} title={kdaLine ? `Kills / deaths / assists per game: ${kdaLine}` : undefined}>
+          <dd className={figure}>{placeholder || season?.kda == null ? dash : season.kda.toFixed(2)}</dd>
+          {/* Kills / deaths / assists per game need about 4.5rem beside the other two figures, which
+              a card has from 16.5rem: on a narrower card among others side by side (five across a
+              desktop, three across a tablet) they stay in the hover text, for screen readers and in
+              the player's window, instead of showing cut off. A phone's single card (a lineup under
+              36rem, about 16.4rem wide on a 320px phone) always shows them, as it always has. */}
+          <dd className={cn(sub, narrowHidden)} title={kdaLine ? `Kills / deaths / assists per game: ${kdaLine}` : undefined}>
             {placeholder || !kdaLine ? (
               "\u00a0"
             ) : (
               <>
-                <span className="@max-[14.5rem]/card:sr-only">{kdaLine}</span>
-                <span aria-hidden className="hidden @max-[14.5rem]/card:inline">
+                <span className="@xl/lineup:@max-[16.5rem]/card:sr-only">{kdaLine}</span>
+                <span aria-hidden className="hidden @xl/lineup:@max-[16.5rem]/card:inline">
                   {"\u00a0"}
                 </span>
               </>
@@ -338,20 +354,20 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
           </dd>
         </div>
         {support ? (
-          <div className="min-w-0 text-right" title="Average vision score per game in Support games this season (per game, not per minute)">
+          <div className={cn(pair, "text-right")} title="Average vision score per game in Support games this season (per game, not per minute)">
             <dt className={label}>Vision</dt>
-            <dd className="text-lg font-semibold leading-tight tabular-nums text-fg" data-testid="card-vision">
+            <dd className={figure} data-testid="card-vision">
               {placeholder || season?.visionPerGame == null ? dash : season.visionPerGame.toFixed(1)}
             </dd>
-            <dd className={sub}>per game</dd>
+            <dd className={cn(sub, narrowHidden)}>per game</dd>
           </div>
         ) : (
-          <div className="min-w-0 text-right" title="Creep score per minute: lane minions plus monsters, over the games with both recorded">
+          <div className={cn(pair, "text-right")} title="Creep score per minute: lane minions plus monsters, over the games with both recorded">
             <dt className={label}>CS/min</dt>
-            <dd className="text-lg font-semibold leading-tight tabular-nums text-fg" data-testid="card-cs">
+            <dd className={figure} data-testid="card-cs">
               {placeholder || season?.csPerMinute == null ? dash : season.csPerMinute.toFixed(1)}
             </dd>
-            <dd className={sub}>&nbsp;</dd>
+            <dd className={cn(sub, narrowHidden)}>&nbsp;</dd>
           </div>
         )}
       </dl>
@@ -378,7 +394,10 @@ export interface CardPoolChampion extends PortraitChampion {
 /**
  * The card's champion pool for its role: the first choice featured (portrait, name and its season
  * in the role), then the rest of the pool in order, as many as fit, with the pool's size. A role
- * without champions says so plainly.
+ * without champions says so plainly. On a card narrower than 16.5rem among others side by side (a
+ * lineup of 36rem or more: five across a desktop up to about 2000px wide, three across a tablet) the
+ * rest of the pool takes a row of its own under the first choice, where five portraits fit, instead
+ * of the one or two that fitted beside it. A phone's single card keeps the pool on one row.
  */
 export function CardPool({ champions, roleLabel, showFigures = true, testId = "pool-preview" }: { champions: CardPoolChampion[]; roleLabel: string; showFigures?: boolean; testId?: string }) {
   const [first, ...rest] = champions;
@@ -391,8 +410,8 @@ export function CardPool({ champions, roleLabel, showFigures = true, testId = "p
   const games = first.games ?? 0;
   const firstLine = !showFigures ? "First choice" : games > 0 ? `${games} game${games === 1 ? "" : "s"}${first.winRate != null ? ` · ${Math.round(first.winRate * 100)}%` : ""}` : (first.tierLabel ?? "No games this season");
   return (
-    <div className="flex min-w-0 items-center gap-2.5" aria-label={`${roleLabel} champion pool, in order of preference`} data-testid={testId} data-card-pool>
-      <span className="flex min-w-0 shrink-0 items-center gap-2" data-testid="pool-first">
+    <div className="flex min-w-0 items-center gap-2.5 @xl/lineup:@max-[16.5rem]/card:flex-wrap @xl/lineup:@max-[16.5rem]/card:gap-y-1.5" aria-label={`${roleLabel} champion pool, in order of preference`} data-testid={testId} data-card-pool>
+      <span className="flex min-w-0 shrink-0 items-center gap-2 @xl/lineup:@max-[16.5rem]/card:shrink" data-testid="pool-first">
         <ChampionPortrait champion={first} size="md" className="ring-1 ring-[color:var(--card-accent)]/50" />
         <span className="min-w-0 max-w-[7.5rem]">
           <span className="block truncate text-sm font-semibold leading-tight text-fg">{first.name}</span>
@@ -400,7 +419,7 @@ export function CardPool({ champions, roleLabel, showFigures = true, testId = "p
         </span>
       </span>
       {rest.length ? (
-        <span className="@container ml-auto flex min-w-0 flex-1 justify-end">
+        <span className="@container ml-auto flex min-w-0 flex-1 justify-end @xl/lineup:@max-[16.5rem]/card:ml-0 @xl/lineup:@max-[16.5rem]/card:basis-full @xl/lineup:@max-[16.5rem]/card:justify-start" data-testid="pool-rest">
           <span className="flex min-w-0 items-center gap-1">
             {rest.slice(0, 5).map((c, i) => (
               <span key={c.id} className={cn("shrink-0", REST_HIDDEN[i])}>

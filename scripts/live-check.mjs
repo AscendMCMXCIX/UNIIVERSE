@@ -37,6 +37,11 @@
     page shows Riot's required notice.
   - frame (#178): the charcoal frame token; the sidebar, open and folded, with the gradient bar on
     the current page; the phone and tablet top bar, drawer and tab bar.
+  - Team Overview (November 2026), on whatever lineup production has: at 1440 the header at most
+    24px under the section tabs with the lineup and its bench inside the window; on the phone the
+    first lineup card above the tab bar; the bench listing exactly the roles that have a substitute.
+    A fact whose precondition does not hold (no lineup five across, no tab bar) passes as not
+    applicable, with the reason.
   - All Champions (#178): compact rows, sorted by games, no heading cut short.
   - settings: the picture and display-name help name the public team page, and Settings never
     mentions a Public profile switch (retired; true or false only).
@@ -403,6 +408,75 @@ async function frameChecks(page, kind, context) {
 }
 
 /**
+ * Team Overview's layout facts (docs/LIVE_VALIDATION.md, "What it checks"), robust to production's
+ * real lineup (an open role, no substitutes): a fact whose precondition does not hold passes as
+ * "not applicable", with the reason. Only positions, counts and role names are reported.
+ * - desktop (1440 × 900, the sidebar open): five across, the team's header sits at most 24px under
+ *   the section tabs, and the lineup with its bench ends inside the window (the cards take the
+ *   height the window leaves them, less the account's own action cards above the tabs);
+ * - phone (390 × 844): the first lineup card ends above the tab bar;
+ * - every width: the bench lists exactly the roles that have a substitute: a button for each role
+ *   whose card turns to one, an entry without a control only for a role nobody starts in, and
+ *   nothing for a role whose starter has none.
+ */
+async function teamFacts(page, kind) {
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(300);
+  const f = await page.evaluate(() => {
+    const q = (s) => document.querySelector(s);
+    const shown = (el) => !!el && getComputedStyle(el).display !== "none" && el.getBoundingClientRect().height > 0;
+    const cells = [...document.querySelectorAll("[data-testid=lineup-cell]")].map((c) => c.getBoundingClientRect());
+    const bench = q("[data-testid=lineup-bench]");
+    const tabs = q("[data-testid=team-tabs]");
+    const header = q("[data-testid=team-header]");
+    const nav = [...document.querySelectorAll("nav[aria-label=Primary]")].find(shown);
+    return {
+      scrollY: Math.round(scrollY),
+      window: innerHeight,
+      cells: cells.length,
+      rows: new Set(cells.map((c) => Math.round(c.top))).size,
+      lineupEnd: cells.length ? Math.round(Math.max(...cells.map((c) => c.bottom))) : null,
+      benchEnd: shown(bench) ? Math.round(bench.getBoundingClientRect().bottom) : null,
+      headerGap: shown(tabs) && header ? Math.round(header.getBoundingClientRect().top - tabs.getBoundingClientRect().bottom) : null,
+      firstCardEnd: cells[0] ? Math.round(cells[0].bottom) : null,
+      tabBarTop: nav ? Math.round(nav.getBoundingClientRect().top) : null,
+      faces: document.querySelectorAll("[data-testid^=lineup-sub-]").length,
+      bench: !!bench,
+      roles: ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"].map((role) => ({
+        role,
+        starter: !!q(`[data-testid=lineup-row-${role}][data-player-id]`),
+        turns: !!q(`[data-testid=lineup-sub-${role}]`),
+        entry: q(`[data-testid=lineup-bench] [data-testid=bench-${role}]`)?.tagName.toLowerCase() ?? null,
+      })),
+    };
+  });
+  if (kind === "desktop") {
+    const name = "1440: the Team header sits at most 24px under the section tabs and the lineup plus bench end inside the window";
+    if (f.cells !== 5 || f.rows !== 1) check("team", name, "PASS", `not applicable: the lineup is not five across here (${f.cells} cards in ${f.rows} rows)`);
+    else if (f.headerGap === null) check("team", name, "PASS", "not applicable: no section tabs above the header");
+    else {
+      const end = (f.benchEnd ?? f.lineupEnd) + f.scrollY;
+      pass("team", name, f.headerGap <= 24 && end <= f.window + 1, { headerGap: f.headerGap, end, window: f.window, bench: f.benchEnd !== null });
+    }
+  }
+  if (kind === "phone") {
+    const name = "390x844 (the live check's phone): the first lineup card ends above the tab bar";
+    if (f.tabBarTop === null || f.firstCardEnd === null) check("team", name, "PASS", `not applicable: ${f.tabBarTop === null ? "no tab bar shown" : "no lineup card"}`);
+    else pass("team", name, f.firstCardEnd + f.scrollY <= f.tabBarTop, { firstCardEnd: f.firstCardEnd + f.scrollY, tabBarTop: f.tabBarTop });
+  }
+  const name = `${kind}: the bench lists exactly the roles that have a substitute`;
+  if (!f.bench) {
+    if (f.faces === 0) check("team", name, "PASS", "not applicable: no role has a substitute, and no bench is drawn");
+    else pass("team", name, false, { faces: f.faces, bench: false });
+    return;
+  }
+  // A card that turns has a substitute: its entry is the button that turns it. A role nobody starts
+  // in may list its substitute without a control; a starter without a substitute has no entry.
+  const wrong = f.roles.filter((r) => (r.turns ? r.entry !== "button" : r.starter ? r.entry !== null : r.entry === "button")).map((r) => `${r.role}: ${r.turns ? "turns" : r.starter ? "no substitute" : "open"}, entry ${r.entry ?? "none"}`);
+  pass("team", name, wrong.length === 0, { listed: f.roles.filter((r) => r.entry).map((r) => r.role), wrong });
+}
+
+/**
  * Settings says who sees a member's picture and display name: teammates, and the public team page
  * while they are in the lineup or a substitute. The Public profile switch it once named is gone
  * (19 Oct 2026; docs/UNIIVERSE_TECHNICAL_HANDOVER.md §C4). Only true or false is reported.
@@ -646,6 +720,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
     if (await visit(page, log, kind, "team", "/team")) {
       playerId ??= await page.locator("[data-testid^=lineup-row-][data-player-id]").first().getAttribute("data-player-id").catch(() => null);
       await axe(page, kind, "team");
+      await teamFacts(page, kind);
     }
   });
   await guarded(kind, "players", async () => {
