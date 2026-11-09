@@ -151,10 +151,13 @@ test("each order follows the side in view: most games, the most recent, the high
   const rows = page.getByTestId("encounter-row");
   const choose = async (order: "games" | "recent" | "best" | "worst") => {
     if (await wide(page)) {
-      // The column names sort: the win rate's reverses on a second press.
-      if (order === "worst") {
+      // The column names sort: the win rate's reverses on a second press. From any other order the
+      // first press gives the highest first, so press it until the address says so (it already may,
+      // when the highest was the last order chosen), then once more for the lowest.
+      if (order === "worst" && !/[?&]sort=best\b/.test(page.url())) {
         await page.getByTestId("encounter-sort-best").click();
         await expect(page).toHaveURL(/sort=best/);
+        await expect(page.locator("[data-testid='encounters'] [aria-busy='true']")).toHaveCount(0);
       }
       await page.getByTestId(`encounter-sort-${order === "worst" ? "best" : order}`).click();
     } else await page.getByTestId("encounter-sort").selectOption(order);

@@ -4,8 +4,9 @@ import { expect, test, type Page } from "./test";
   A ranked game's LP on its card (demo roster; the rank readings are synthetic demo data, seeded in
   demo mode only, from the demo games): the figure the readings prove, in the gain or loss colour,
   or a quiet dash, each with its tooltip (what it rests on, or why there is none: on hover, or a
-  tap on a touch screen) and words for screen readers. On a wide card it closes the result column;
-  on a tablet's it ends the result line; on a phone's it sits under the KDA. Nothing crowds the card.
+  tap on a touch screen) and words for screen readers. On a wide card it follows when the game was
+  played, on that line of the result column (a promotion's longer mark takes the next line); on a
+  tablet's it ends the result line; on a phone's it sits under the KDA. Nothing crowds the card.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -72,8 +73,24 @@ test("the LP sits in the result column on a wide card and under the KDA on a nar
   const [c, l] = [(await card.boundingBox())!, (await lp.boundingBox())!];
   expect(l.x).toBeGreaterThanOrEqual(c.x);
   expect(l.x + l.width).toBeLessThanOrEqual(c.x + c.width + 0.5);
-  if (info.project.name === "desktop") expect(l.x - c.x, "in the result column, at the card's start").toBeLessThan(140);
-  else if (info.project.name === "tablet") {
+  if (info.project.name === "desktop") {
+    expect(l.x - c.x, "in the result column, at the card's start").toBeLessThan(140);
+    // On every card, a figure or a dash shares the line of when the game was played, after it.
+    const lines = await page.getByTestId("match-card").evaluateAll((els) =>
+      els.flatMap((card) => {
+        const mark = [...card.querySelectorAll('[data-testid="match-lp"]')].find((e) => e.getBoundingClientRect().width > 0);
+        const when = card.querySelector('[data-testid="match-when"]');
+        if (!mark || !when || mark.getAttribute("data-lp") === "promoted" || mark.getAttribute("data-lp") === "demoted") return [];
+        const [m, w] = [mark.getBoundingClientRect(), when.getBoundingClientRect()];
+        return [{ apart: Math.abs(m.top + m.height / 2 - (w.top + w.height / 2)), after: m.left - w.right }];
+      }),
+    );
+    expect(lines.length).toBeGreaterThan(0);
+    for (const [i, x] of lines.entries()) {
+      expect(x.apart, `card ${i}: on the time's line`).toBeLessThanOrEqual(3);
+      expect(x.after, `card ${i}: after the time`).toBeGreaterThanOrEqual(0);
+    }
+  } else if (info.project.name === "tablet") {
     // On the result line ("Defeat · Ranked Flex · 42h ago · −22 LP"), which has room at this width.
     const meta = (await card.getByTestId("match-card-meta").boundingBox())!;
     expect(l.y + l.height / 2, "on the result line").toBeGreaterThan(meta.y);
