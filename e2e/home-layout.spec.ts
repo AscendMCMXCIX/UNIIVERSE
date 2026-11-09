@@ -121,24 +121,37 @@ async function openTeammate(page: Page) {
   await expect(page.getByTestId("pool-editor")).toBeVisible();
 }
 
-test("profile Overview: a dashboard with the season, its multikills and recent form on the first screen, ranked progress across the width under them, then the pools; off roles open in place", async ({ page }, info) => {
+test("profile Overview: a 2×2 dashboard at 1440 (the season beside recent form, then the pools beside ranked progress), the earlier arrangement on smaller screens; off roles open in place", async ({ page }, info) => {
   await openTeammate(page);
   if (info.project.name === "desktop") {
-    // 1440 × 900: the season's card (with its multikills) and recent form side by side, level, both
-    // ending on the first screen; ranked progress starting there, across the whole width under
-    // them (a year on one time axis needs it); the pools straight after it, across the width too.
-    const scrollY = await page.evaluate(() => window.scrollY);
-    const [figures, form, ranked, pools] = await Promise.all([box(page.getByTestId("season-figures")), box(page.getByTestId("recent-form")), box(page.getByTestId("ranked-progress")), box(page.getByTestId("champion-pools"))]);
+    // 1440 × 900 (the owner's choice of 8 Nov 2026, from 1440 wide): the season's card (with its
+    // multikills) and recent form side by side, level, both ending on the first screen; under the
+    // season's card the pools, under recent form ranked progress, in the rail; all four starting on
+    // the first screen.
+    const four = () => Promise.all([box(page.getByTestId("season-figures")), box(page.getByTestId("recent-form")), box(page.getByTestId("ranked-progress")), box(page.getByTestId("champion-pools"))]);
+    let scrollY = await page.evaluate(() => window.scrollY);
+    let [figures, form, ranked, pools] = await four();
     expect(figures.y + figures.height + scrollY, "the season's card ends on the first screen").toBeLessThanOrEqual(900);
     expect(form.y + form.height + scrollY, "recent form ends on the first screen").toBeLessThanOrEqual(900);
-    expect(ranked.y + scrollY, "ranked progress starts on the first screen").toBeLessThan(900);
-    expect(form.x, "recent form in the column beside the season's card").toBeGreaterThan(figures.x + figures.width);
+    expect(form.x, "recent form in the rail beside the season's card").toBeGreaterThan(figures.x + figures.width);
     expect(Math.abs(form.y - figures.y), "level with it").toBeLessThanOrEqual(1);
+    expect(Math.abs(ranked.x - form.x), "ranked progress in the rail").toBeLessThanOrEqual(1);
+    expect(ranked.y - (form.y + form.height), "under recent form").toBeGreaterThanOrEqual(0);
+    expect(ranked.y - (form.y + form.height), "straight under it").toBeLessThanOrEqual(24);
+    expect(Math.abs(pools.x - figures.x), "the pools under the season's card").toBeLessThanOrEqual(1);
+    expect(pools.y - (figures.y + figures.height), "straight under it").toBeLessThanOrEqual(24);
+    for (const [name, b] of [["ranked progress", ranked], ["the pools", pools]] as const) expect(b.y + scrollY, `${name} starts on the first screen`).toBeLessThan(900);
+    // A smaller window (1280 × 800, the sidebar open) keeps the earlier arrangement: ranked progress
+    // across the whole width under the first row, then the pools across the width.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expect.poll(async () => Math.round((await box(page.getByTestId("ranked-progress"))).x - (await box(page.getByTestId("season-figures"))).x)).toBe(0);
+    scrollY = await page.evaluate(() => window.scrollY);
+    [figures, form, ranked, pools] = await four();
     expect(ranked.y, "ranked progress under both").toBeGreaterThanOrEqual(Math.max(figures.y + figures.height, form.y + form.height));
-    expect(Math.abs(ranked.x - figures.x), "from the left edge of the season's card").toBeLessThanOrEqual(1);
     expect(Math.abs(ranked.x + ranked.width - (form.x + form.width)), "to the right edge of recent form").toBeLessThanOrEqual(1);
     expect(pools.y - (ranked.y + ranked.height), "the pools follow straight after ranked progress").toBeLessThanOrEqual(24);
     expect(Math.abs(pools.x - figures.x), "across the width").toBeLessThanOrEqual(1);
+    await page.setViewportSize({ width: 1440, height: 900 });
   }
   // The pools: one row per champion under one row of column names; no Experience labels.
   const primary = page.getByTestId("primary-pool");

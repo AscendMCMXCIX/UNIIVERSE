@@ -139,3 +139,27 @@ test("the chart's box has its final height before the page is interactive, so no
   }
   expect(Math.abs(heights[0]! - heights[1]!), `before hydration ${heights[0]} px, interactive ${heights[1]} px`).toBeLessThanOrEqual(1);
 });
+
+test("on a large screen the chart's division names stay whole, and a narrow chart names them by code", async ({ page }, info) => {
+  // The root size grows above 1536px (globals.css), and the labels with it: the gutter follows
+  // (it was a fixed 64px, which cut "Platinum II" on the left above about 1700px).
+  test.skip(info.project.name !== "desktop", "a desktop window, then a phone-wide one");
+  await page.goto("/team");
+  const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
+  const labels = () =>
+    page.getByTestId("ranked-chart").evaluate((svg) =>
+      [...svg.querySelectorAll<SVGTextElement>("text[text-anchor=end]")].map((t) => ({ x: t.getBBox().x, text: t.textContent ?? "" })),
+    );
+  await page.setViewportSize({ width: 2560, height: 1440 });
+  await page.goto(`/players/${id}`);
+  await expect(page.getByTestId("ranked-chart")).toBeVisible();
+  // Measured: the drawing is as tall as its box (7.5rem) at this root size too.
+  await expect.poll(async () => Math.abs(Number((await page.getByTestId("ranked-chart").getAttribute("viewBox"))!.split(" ")[3]) - (await page.getByTestId("ranked-chart").boundingBox())!.height)).toBeLessThanOrEqual(1);
+  const wide = await labels();
+  expect(wide.length, "division names drawn").toBeGreaterThan(0);
+  for (const l of wide) expect(l.x, `"${l.text}" starts inside the drawing`).toBeGreaterThanOrEqual(0);
+  // A phone-wide window: the same divisions by code (E2, P1, M), still whole.
+  await page.setViewportSize({ width: 360, height: 800 });
+  await expect.poll(async () => (await labels()).every((l) => /^(I|B|S|G|P|E|D)[1-4]$|^(M|GM|C)$/.test(l.text))).toBe(true);
+  for (const l of await labels()) expect(l.x, `"${l.text}" starts inside the drawing`).toBeGreaterThanOrEqual(0);
+});

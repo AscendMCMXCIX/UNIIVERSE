@@ -48,7 +48,7 @@ marks the three seasons on the year's coverage strip. Games are placed by patch;
 
 ## What Ranked progress shows
 
-Compact, in Profile Overview under the season card and Recent form (`ranked-progress.tsx`):
+Compact, in Profile Overview (`ranked-progress.tsx`): under Recent form, in the right-hand rail, from a 1440px window; under the season card and Recent form, across the width, on smaller screens:
 
 - **Now:** the crest, the current rank and LP (with how far into the division), and Riot's wins and
   losses for the ranked year with the win rate.

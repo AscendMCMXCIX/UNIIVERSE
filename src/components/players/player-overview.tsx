@@ -195,32 +195,54 @@ function PerformanceCard({ data, basePath }: { data: PlayerOverviewData; basePat
 
 /*
   The Overview's dashboard, under Season performance's heading (whose filters and Refresh govern
-  the season's card, recent form and the pools). Its own width decides the arrangement (a
-  container query, so the sidebar is allowed for):
+  the season's card, recent form and the pools). The window and the dashboard's own width decide
+  the arrangement (a container query, so the sidebar is allowed for):
+    2×2 (a window 1440px or wider, and a dashboard of 68rem or more: 1440 with the sidebar open and
+                   wider; the owner's choice of 8 Nov 2026, never forced onto smaller screens)
+                   the season's card and recent form side by side, level; under them the champion
+                   pools beside ranked progress, each at the top of its cell, in a rail of 20–26rem
+                   (40% of the dashboard). Without recent form, ranked progress takes the whole rail
+                   beside the season's card and the pools; without ranked progress, the pools span
+                   the width as below;
     wide (58rem+)  the season's card and recent form side by side, level; under them ranked
                    progress across the whole width (a year on one time axis needs it), then the
                    champion pools across the whole width;
     narrower       one column in that same order.
+  The markup's order (a phone's, and a screen reader's) is always season, form, ranked, pools.
   A card without data is left out (fewer than five games: no recent form; no linked account: no
   ranked progress), and the others close up: nothing is padded out to keep a shape.
 */
+const GRID_2X2 = "min-[90rem]:@min-[68rem]/ov:grid-cols-[minmax(0,1fr)_clamp(20rem,40%,26rem)]";
 function OverviewDashboard({ perf, form, ranked, pools }: { perf: React.ReactNode; form?: React.ReactNode; ranked?: React.ReactNode; pools?: React.ReactNode }) {
   const wide = form ? "@min-[58rem]/ov:col-span-2" : undefined;
+  // 2×2: only with ranked progress (else the 58rem arrangement stays); the pools go under the
+  // season's card, ranked progress into the rail (under recent form, or its whole height without it).
+  // The classes are written out whole, for Tailwind to find them.
+  const two = !!ranked;
   return (
-    <div className="@container/ov" data-testid="overview-dashboard">
-      <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start gap-3 sm:gap-4", form && "@min-[58rem]/ov:grid-cols-[minmax(0,1fr)_minmax(18rem,21rem)]")}>
-        <div className="min-w-0 self-stretch">{perf}</div>
+    <div className="@container/ov" data-testid="overview-dashboard" data-layout-2x2={two || undefined}>
+      <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start gap-3 sm:gap-4", form && "@min-[58rem]/ov:grid-cols-[minmax(0,1fr)_minmax(18rem,21rem)]", two && GRID_2X2)}>
+        <div className={cn("min-w-0 self-stretch", two && "min-[90rem]:@min-[68rem]/ov:col-start-1 min-[90rem]:@min-[68rem]/ov:row-start-1")}>{perf}</div>
         {form ? (
-          <div className="min-w-0 self-stretch" data-testid="overview-form">
+          <div className={cn("min-w-0 self-stretch", two && "min-[90rem]:@min-[68rem]/ov:col-start-2 min-[90rem]:@min-[68rem]/ov:row-start-1")} data-testid="overview-form">
             {form}
           </div>
         ) : null}
         {ranked ? (
-          <div className={cn("min-w-0", wide)} data-testid="overview-ranked">
+          <div
+            className={cn(
+              "min-w-0",
+              wide,
+              form
+                ? "min-[90rem]:@min-[68rem]/ov:col-span-1 min-[90rem]:@min-[68rem]/ov:col-start-2 min-[90rem]:@min-[68rem]/ov:row-start-2 min-[90rem]:@min-[68rem]/ov:self-start"
+                : "min-[90rem]:@min-[68rem]/ov:col-start-2 min-[90rem]:@min-[68rem]/ov:row-span-2 min-[90rem]:@min-[68rem]/ov:row-start-1 min-[90rem]:@min-[68rem]/ov:self-start",
+            )}
+            data-testid="overview-ranked"
+          >
             {ranked}
           </div>
         ) : null}
-        {pools ? <div className={cn("min-w-0", wide)}>{pools}</div> : null}
+        {pools ? <div className={cn("min-w-0", wide, two && "min-[90rem]:@min-[68rem]/ov:col-span-1 min-[90rem]:@min-[68rem]/ov:col-start-1 min-[90rem]:@min-[68rem]/ov:row-start-2 min-[90rem]:@min-[68rem]/ov:self-start")} data-testid="overview-pools">{pools}</div> : null}
       </div>
     </div>
   );
