@@ -1,0 +1,6 @@
+# For the throw-away ios-sim/... branch only (.github/actionlint.yaml): GitHub-hosted runner labels
+# newer than the label list of actionlint 1.7.7 (January 2025), which the Workflow lint check pins.
+self-hosted-runner:
+  labels:
+    - macos-26
+    - xcode-27
