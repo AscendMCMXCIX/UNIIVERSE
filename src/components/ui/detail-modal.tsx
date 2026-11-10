@@ -261,12 +261,13 @@ function useSheetDrag(ref: React.RefObject<HTMLDialogElement | null>, enabled: b
 
 /**
  * Where a panel may reach (SIZE.panel, panel-place in globals.css), from what is visible rather than
- * from the page's viewport: the visual viewport's top (`--vv-top`, above 0 while the browser has
- * part of the page scrolled out of view, as on iOS after the keyboard) and the visible area's bottom
+ * from the page's viewport: where the visible area starts (`--vv-top`, the visual viewport's offset,
+ * above 0 while the browser has part of the page's viewport out of view: the page zoomed in, or iOS
+ * after the keyboard; the panel hangs below the status bar from there) and the visible area's bottom
  * edge (`--vv-bottom`, the lowest of the window's height, the root's and the visual viewport's, so a
  * viewport that reports more than is shown never lets the panel run past the screen). Set on the
  * dialog itself, which re-styles the dialog alone, before it is first shown, and again whenever the
- * visible area changes (the phone turning, browser toolbars, the keyboard).
+ * visible area changes or moves (the phone turning, browser toolbars, the keyboard, a zoom).
  */
 function usePanelRoom(ref: React.RefObject<HTMLDialogElement | null>, enabled: boolean) {
   React.useLayoutEffect(() => {
@@ -413,6 +414,28 @@ export function DetailModal({
    */
   const anchored = size === "panel";
   usePanelRoom(ref, open && anchored);
+  // The page behind keeps its place while a panel is open. Safari's engine scrolls the page to reveal
+  // the control a dialog focuses as it opens, even inside a fixed window, and counts the page's scroll
+  // padding (the top bar's height, useTopBarHeight) against a close button that sits under it: the page
+  // behind moved 57px when the account panel opened on a scrolled page (the WebKit run). The page's
+  // position is noted before the panel is shown (layout effects run before the effect that shows it)
+  // and put back whenever anything moves it while the panel is on the page; the page cannot be scrolled
+  // by hand meanwhile (the scroll lock below), so nothing a member did is undone.
+  React.useLayoutEffect(() => {
+    const d = ref.current;
+    if (!open || !anchored || !d) return;
+    const x = window.scrollX;
+    const y = window.scrollY;
+    const keep = () => {
+      if (d.isConnected && (window.scrollX !== x || window.scrollY !== y)) window.scrollTo({ left: x, top: y, behavior: "instant" });
+    };
+    window.addEventListener("scroll", keep);
+    const frame = requestAnimationFrame(keep);
+    return () => {
+      window.removeEventListener("scroll", keep);
+      cancelAnimationFrame(frame);
+    };
+  }, [open, anchored]);
   // The panel's opening motion is dropped once it has run, or after PANEL_ENTER_MS whatever happened
   // to it (onAnimationEnd below ends it sooner): a motion the browser left unfinished, or drew
   // part-way, can never hold the panel anywhere but where its styles put it. At once for reduced motion.

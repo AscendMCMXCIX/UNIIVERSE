@@ -201,3 +201,24 @@ test("the panel stays inside what is visible when that is less than the page's v
   await cdp.send("Emulation.setPageScaleFactor", { pageScaleFactor: 1 });
   await expect(async () => expect((await placement(page)).missed).toEqual([])).toPass();
 });
+
+test("the page behind is put back if anything scrolls it while the panel is open", async ({ page }) => {
+  // Safari's engine scrolled the page to reveal the close button the panel focuses as it opens (57px
+  // on a scrolled Players page, in the WebKit run). Chromium never does, so the page is scrolled here
+  // from script, the way that reveal did, while the panel is open.
+  await page.goto("/players");
+  await page.evaluate(() => window.scrollTo(0, 400));
+  const scrolled = await page.evaluate(() => scrollY);
+  expect(scrolled).toBeGreaterThan(300);
+  await openPanel(page);
+  for (const to of [0, scrolled - 57, scrolled + 120]) {
+    await page.evaluate((y) => window.scrollTo({ top: y, behavior: "instant" }), to);
+    await expect(async () => expect(await page.evaluate(() => scrollY)).toBe(scrolled)).toPass({ timeout: 2_000 });
+  }
+  // Once the panel has gone, the page scrolls as ever.
+  await page.getByTestId("account-sheet-close").tap();
+  await expect(page.getByTestId("account-sheet")).toHaveCount(0);
+  expect(await page.evaluate(() => scrollY)).toBe(scrolled);
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+  await expect(async () => expect(await page.evaluate(() => scrollY)).toBe(0)).toPass({ timeout: 2_000 });
+});

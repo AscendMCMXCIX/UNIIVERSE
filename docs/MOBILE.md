@@ -90,7 +90,11 @@ anywhere else:
      400ms whatever happened to it (`data-entered`), so the panel rests where its styles put it even
      if the browser never moves the motion on;
    - nothing to pull: no drag that moves it, and a touch that would move nothing inside it moves
-     nothing behind it either.
+     nothing behind it either;
+   - the page behind keeps its place: Safari's engine scrolls the page to reveal the close button the
+     panel focuses as it opens, even inside a fixed window, and counts the top bar's scroll padding
+     against it (the page moved 57px on a scrolled Players page in the WebKit run), so the page's
+     position is noted before the panel opens and put back if anything moves it while it is open.
 
 Tablets keep the menu drawer (a modal dialog), the account dropdown and the page tabs
 (`SectionTabs`, pinned at the top of the page once it scrolls, as a profile's sections are, so they
@@ -233,7 +237,8 @@ the one menu that hangs from the top instead (`size="panel"`, above). A sheet:
   bar, ends clear of the home indicator, every control in it is reached by a tap where it is drawn,
   its close button takes the avatar's corner, and the page never moves; no frame of its motion is
   off the screen; it comes to rest with every animation held at its first frame; with reduced motion
-  it is at rest at once; zoomed in three times it stays inside what is visible;
+  it is at rest at once; zoomed in three times it stays inside what is visible; a page scrolled from
+  script while it is open is put back;
   `e2e/sidebar-motion.spec.ts` the same early click on the desktop
   sidebar's collapse control and account tile; `e2e/responsive.spec.ts`,
   `e2e/mobile-landscape.spec.ts` and `e2e/quality.spec.ts` keep overflow, targets, short windows
