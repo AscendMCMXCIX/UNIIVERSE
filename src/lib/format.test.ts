@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import path from "node:path";
 import { ESLint } from "eslint";
-import { DISPLAY_TIME_ZONE, calendarDay, localPeriodStarts, formatCompactCount, formatCount, formatDate, formatDateTime, formatDayMonth, formatIsoDay, formatKilo, formatNumber, formatTimeOfDay, isoDay, timeAgo, formatLpChange } from "./format";
+import { DISPLAY_TIME_ZONE, calendarDay, localPeriodStarts, formatCompactCount, formatCount, formatDate, formatDateTime, formatDayMonth, formatIsoDay, formatKilo, formatNumber, formatOrdinal, formatTimeOfDay, isoDay, timeAgo, formatLpChange } from "./format";
 
 /*
   Every date on the site is written in the installation's time zone (Sydney unless
@@ -109,6 +109,12 @@ describe("numbers", () => {
     expect(formatKilo(7_504)).toBe("7.5k");
     expect(formatKilo(29_120)).toBe("29.1k");
     expect(formatKilo(950)).toBe("950");
+  });
+
+  it("write a place in words, the same everywhere: 1st, 2nd, 3rd, and th for the teens (11th, 112th)", () => {
+    const places = [1, 2, 3, 4, 11, 12, 13, 21, 22, 23, 101, 111, 112, 1001];
+    expect(places.map(formatOrdinal)).toEqual(["1st", "2nd", "3rd", "4th", "11th", "12th", "13th", "21st", "22nd", "23rd", "101st", "111th", "112th", "1,001st"]);
+    expect([formatOrdinal(0), formatOrdinal(10), formatOrdinal(4.4)]).toEqual(["0th", "10th", "4th"]);
   });
 
   it("write a game's LP change with its sign, a true minus for a loss", () => {

@@ -160,6 +160,14 @@ export function formatCount(value: number): string {
   return Math.round(value).toLocaleString("en");
 }
 
+/** "1st", "2nd", "3rd", "4th", "11th", "21st", "1,001st": a place in words ("Tied for 4th"), the same on the server and in every browser. */
+export function formatOrdinal(n: number): string {
+  const whole = Math.round(n);
+  const last2 = Math.abs(whole) % 100;
+  const suffix = last2 >= 11 && last2 <= 13 ? "th" : (["th", "st", "nd", "rd"][Math.abs(whole) % 10] ?? "th");
+  return `${formatCount(whole)}${suffix}`;
+}
+
 /** A number with exactly `digits` decimals and thousands separators ("1,234.5"). */
 export function formatNumber(value: number, digits: number): string {
   return value.toLocaleString("en", { minimumFractionDigits: digits, maximumFractionDigits: digits });
