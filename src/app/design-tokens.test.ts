@@ -12,7 +12,11 @@ import path from "node:path";
   - Tailwind's names for the project's panel and card radii (rounded-xl, rounded-2xl);
   - a colour written as a hex value in a class (bg-[#…]) instead of a named palette colour;
   - an easing curve that is not one of the --ease-* tokens, in a class, a style or a script;
-  - an uppercase label spaced other than tracking-label (a pill badge may use tracking-wide).
+  - an uppercase label spaced other than tracking-label (a pill badge may use tracking-wide);
+  - a size, weight, case or letter spacing beside label-caps, which sets all four (a colour may
+    replace its fg-subtle): Tailwind orders label-caps after a text size, so the size would be lost;
+  - the standing-alone measure written as a number (max-w-[72rem], max-w-6xl) instead of
+    max-w-[var(--measure)], so the boards that use it change together.
   Arbitrary values that match no token (a clamp(), a one-off width) stay allowed.
 */
 
@@ -49,6 +53,22 @@ function canonical(raw: string): string | null {
   if (curve) return `cubic-bezier(${curve[1]!.split(",").map((x) => Number(x.trim())).join(",")})`;
   return null;
 }
+
+/** A class without its variants ("@min-[36rem]/list:text-sm" → "text-sm"): what follows the last ":" outside brackets. */
+function withoutVariants(token: string): string {
+  let depth = 0;
+  let end = -1;
+  for (let i = 0; i < token.length; i++) {
+    const c = token[i];
+    if (c === "[" || c === "(") depth++;
+    else if (c === "]" || c === ")") depth--;
+    else if (c === ":" && depth === 0) end = i;
+  }
+  return token.slice(end + 1).replace(/^!|!$/g, "");
+}
+
+/** What label-caps sets, so a class string carries none of it beside label-caps. */
+const LABEL_CAPS_SETS = [/^(uppercase|lowercase|capitalize|normal-case)$/, /^tracking-/, /^font-(thin|extralight|light|normal|medium|semibold|bold|extrabold|black)$/, /^text-(4xs|2xs|xs|sm|md|base|lg|xl|\dxl|figure)(\/.+)?$/, /^text-\[(length:)?[\d.]+(px|rem|em)\]$/];
 
 /** What drifts from the tokens in one file's source, as "line: problem". */
 export function tokenProblems(source: string, tokens: Map<string, string>, options: { chartText?: boolean } = {}): string[] {
@@ -91,6 +111,18 @@ export function tokenProblems(source: string, tokens: Map<string, string>, optio
         if (/(^|:)tracking-(tighter|tight|normal|wide|wider|widest)$/.test(c)) problems.push(`${at}: ${c} on an uppercase label; use tracking-label`);
       }
     }
+    // label-caps sets a label's size, weight, case and letter spacing: none of them beside it.
+    for (const m of text.matchAll(/(["'`])([^"'`]*\blabel-caps\b[^"'`]*)\1/g)) {
+      const classes = m[2]!.split(/\s+/).filter(Boolean);
+      if (!classes.some((c) => withoutVariants(c) === "label-caps")) continue;
+      for (const c of classes) {
+        if (LABEL_CAPS_SETS.some((re) => re.test(withoutVariants(c)))) problems.push(`${at}: ${c} beside label-caps, which sets the label's size, weight, case and letter spacing`);
+      }
+    }
+    // The standing-alone measure is one token, so every board that uses it changes together.
+    for (const m of text.matchAll(/[^\s"'`{}]+/g)) {
+      if (/^max-w-(\[72rem\]|6xl)$/.test(withoutVariants(m[0]))) problems.push(`${at}: ${m[0]} is max-w-[var(--measure)]`);
+    }
   });
   return problems;
 }
@@ -132,6 +164,8 @@ describe("design tokens", () => {
       `<p className="bg-[#f5c451] hover:border-[#abc]/40 text-gold" />`,
       `el.animate(frames, { easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" }); const odd = "cubic-bezier(0.1, 0.7, 0.1, 1)"; const c = "ease-[cubic-bezier(0.2,_0.8,_0.2,_1)]";`,
       `<span className="text-2xs uppercase tracking-wide" /><span className="rounded-full uppercase tracking-wide" /><span className="uppercase tracking-label sm:tracking-wider" />`,
+      `<span className="label-caps text-xs" /><span className="label-caps tracking-wide" /><span className="label-caps uppercase font-medium" /><span className="label-caps text-fg-muted" />`,
+      `<div className="max-w-[72rem] lg:max-w-6xl max-w-[var(--measure)] max-w-[80rem]" />`,
     ].join("\n");
     expect(tokenProblems(source, tokens)).toEqual([
       "1: text-[11px] is text-2xs",
@@ -153,6 +187,12 @@ describe("design tokens", () => {
       "4: cubic-bezier(0.1, 0.7, 0.1, 1) is not an --ease token",
       "5: tracking-wide on an uppercase label; use tracking-label",
       "5: sm:tracking-wider on an uppercase label; use tracking-label",
+      "6: text-xs beside label-caps, which sets the label's size, weight, case and letter spacing",
+      "6: tracking-wide beside label-caps, which sets the label's size, weight, case and letter spacing",
+      "6: uppercase beside label-caps, which sets the label's size, weight, case and letter spacing",
+      "6: font-medium beside label-caps, which sets the label's size, weight, case and letter spacing",
+      "7: max-w-[72rem] is max-w-[var(--measure)]",
+      "7: lg:max-w-6xl is max-w-[var(--measure)]",
     ]);
   });
 });
