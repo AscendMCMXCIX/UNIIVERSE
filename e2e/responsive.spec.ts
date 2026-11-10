@@ -58,7 +58,7 @@ test("navigation is usable", async ({ page }) => {
     await tabs.filter({ hasText: "Matches" }).click();
     await expect(page).toHaveURL(/\/matches$/);
     await expect(tabs.filter({ hasText: "Matches" })).toHaveAttribute("aria-current", "page");
-    // The account sheet behind the avatar holds the rest; no menu drawer on a phone.
+    // The account panel behind the avatar holds the rest; no menu drawer on a phone.
     await expect(page.getByTestId("menu-button")).toBeHidden();
     await page.getByTestId("account-sheet-button").click();
     const sheet = page.getByTestId("account-sheet");

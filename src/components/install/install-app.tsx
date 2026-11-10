@@ -64,7 +64,7 @@ export function InstallAppEntry({ variant, beforeOpen, className }: { variant: "
     );
   }
   if (variant === "tile") {
-    // The phone account sheet: a tile among its pages (lib/sheet.ts).
+    // The phone account panel: a tile among its pages (lib/sheet.ts).
     return (
       <button type="button" onClick={onClick} aria-haspopup="dialog" className={cn(SHEET_TILE, SHEET_TILE_IDLE, hiddenWhenInstalled, className)} data-testid="install-app">
         <Download className={cn(SHEET_TILE_ICON, "text-fg-subtle")} aria-hidden />
@@ -126,9 +126,8 @@ function InstallWindow({ onClose }: { onClose: () => void }) {
       title={`Install ${name}`}
       description={description}
       testId="install-window"
-      // Phones: room between the last step and the buttons (the window's own bottom padding is
-      // only the safe area there).
-      bodyClassName="max-sm:pb-[max(1rem,env(safe-area-inset-bottom))]"
+      // Room between the last step and the buttons is the window's own (1rem): a centred card,
+      // whose footer keeps clear of the bottom edge and the home indicator (DetailModal).
       footer={
         offer ? (
           <>

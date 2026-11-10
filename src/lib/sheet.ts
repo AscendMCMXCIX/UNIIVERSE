@@ -1,5 +1,5 @@
 /*
-  The phone account sheet's tiles (components/mobile-nav.tsx, components/install/install-app.tsx):
+  The phone account panel's tiles (components/mobile-nav.tsx, components/install/install-app.tsx):
   a page or an action as its icon over its name, three to a row on an upright phone and more on one
   held sideways, each at least 64px tall. The sheet once listed these as full-width 48px rows, one
   under another, which in Admin Mode no longer fitted a small phone (its last rows, Sign out among

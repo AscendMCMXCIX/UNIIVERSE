@@ -167,6 +167,19 @@ p a.text-accent {
 }
 
 /*
+  A frame control tapped before the page's code has run (the avatar, the tablet's menu, the account
+  menu, the sidebar's collapse control): the inline script in the root layout keeps the tap and
+  marks the control aria-busy (src/components/early-taps.ts), and it shows pressed, the hover
+  surface inside an accent ring, until the page runs and opens what was asked for. Static: nothing
+  moves, so reduced motion has nothing to stop.
+*/
+[data-early][aria-busy="true"] {
+  background-color: var(--color-surface-2);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 60%, transparent);
+  cursor: progress;
+}
+
+/*
   Short windows: a phone held sideways, or any window 480px tall or shorter. The phone tab bar is
   hidden there, the top bar slides away while the page scrolls down, and detail windows, editors
   and pickers take the whole screen (see docs/RESPONSIVE.md).
@@ -192,6 +205,16 @@ p a.text-accent {
 @utility px-safe-* {
   padding-left: max(calc(var(--spacing) * --value(integer)), env(safe-area-inset-left));
   padding-right: max(calc(var(--spacing) * --value(integer)), env(safe-area-inset-right));
+}
+/* The same for the top and bottom edges: pb-safe-4 is 1rem, or the home indicator's inset where it
+   is larger; pt-safe-3 is 0.75rem, or the status bar's. Each is the element's only padding for that
+   edge: beside another one (py-4 pb-safe) Tailwind's stylesheet order decides which wins, not the
+   class list, and the bare inset won, 0px in a browser (#265). design-tokens.test.ts refuses that. */
+@utility pt-safe-* {
+  padding-top: max(calc(var(--spacing) * --value(integer)), env(safe-area-inset-top));
+}
+@utility pb-safe-* {
+  padding-bottom: max(calc(var(--spacing) * --value(integer)), env(safe-area-inset-bottom));
 }
 /* Small inline text links ("Switch to Admin Mode", a name in a list) keep
    their look but get a finger-sized hit area on touch screens: an invisible box around the text, at
@@ -530,6 +553,52 @@ p a.text-accent {
 }
 @utility sheet-out {
   animation: sheet-out 140ms ease-in forwards;
+}
+/*
+  The phone's account panel (DetailModal size "panel"): down a little from the top bar, from the
+  avatar's corner, and back up when it closes; the short rise every other window makes, mirrored.
+  Nothing starts off the screen: on whatever frame a motion rests, the panel is in view and in reach.
+  The sheet before it rose from below the bottom edge (sheet-in), and on an iPhone it was drawn part
+  of the way up, its header at the foot of the screen and the rest of it below (docs/MOBILE.md).
+*/
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes panel-out {
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+@utility panel-in {
+  animation: panel-in 180ms var(--ease-emphasized);
+}
+@utility panel-out {
+  animation: panel-out 140ms ease-in forwards;
+}
+/*
+  Where the account panel sits: from the top edge only, 0.5rem below the status bar (the notch, the
+  Dynamic Island) of what is visible: the visible area starts --vv-top below the page's viewport where
+  the browser has part of it out of view (the visual viewport's offset: the page zoomed in, or iOS
+  after the keyboard), and the status bar covers the top of that. No taller than what is visible
+  below it, 0.5rem clear of the bottom edge or the home indicator (--vv-bottom, the visible area's
+  bottom edge). DetailModal measures both from the visual viewport (usePanelRoom) and sets them on
+  the dialog; until it has, the page's viewport stands in (0 and 100dvh). Its height is its
+  content's, so on every phone at the usual text size it ends well above the bottom edge, and
+  nothing about where it sits depends on that edge (the home indicator, the keyboard, browser
+  toolbars, an installed app's viewport).
+*/
+@utility panel-place {
+  top: calc(var(--vv-top, 0px) + env(safe-area-inset-top) + 0.5rem);
+  bottom: auto;
+  max-height: calc(var(--vv-bottom, 100dvh) - var(--vv-top, 0px) - env(safe-area-inset-top) - 0.5rem - max(0.5rem, env(safe-area-inset-bottom)));
 }
 /* Player Card Studio: a section slides in a little from the side it was reached from. */
 @keyframes step-in-next {

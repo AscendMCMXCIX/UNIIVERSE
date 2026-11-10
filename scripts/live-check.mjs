@@ -36,7 +36,12 @@
     (/public/leaderboards is not found and the public team page shows no rank); the public team
     page shows Riot's required notice.
   - frame (#178): the charcoal frame token; the sidebar, open and folded, with the gradient bar on
-    the current page; the phone and tablet top bar, drawer and tab bar.
+    the current page; the phone and tablet top bar, drawer and tab bar. Phone: the avatar opens the
+    account panel on the first tap, made as soon as it is on screen; the panel hangs from the top
+    edge, comes to rest (its motion run and dropped) and is whole on the screen, every control in it
+    reached by a tap where it is drawn, Sign out in view without scrolling. Tablet and desktop: the
+    account menu opens on the first tap or click on its avatar or tile, made as soon as it is on
+    screen.
   - All Champions (#178): compact rows, sorted by games, no heading cut short.
   - settings: the picture and display-name help name the public team page, and Settings never
     mentions a Public profile switch (retired; true or false only).
@@ -379,16 +384,61 @@ async function frameChecks(page, kind, context) {
     pass("frame", "desktop: the folded sidebar keeps the frame", folded === "true", { collapsed: folded });
     await shot(page, "desktop-frame-folded");
     await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: base }]);
+    await accountMenuFirstTap(page, kind, page.getByTestId("sidebar").getByTestId("account-menu-button"));
     return;
   }
   pass("frame", `${kind}: the top bar is painted with the frame colour`, sameAsFrame(paint.top, paint.chrome), { topBar: paint.top, chrome: paint.chrome });
   if (kind === "phone") {
     pass("frame", "phone: the tab bar is painted with the frame colour", sameAsFrame(paint.tabs, paint.chrome), { tabBar: paint.tabs, chrome: paint.chrome });
-    // Phones have no drawer: the avatar opens the account sheet (docs/MOBILE.md, "The account sheet").
-    await page.getByTestId("account-sheet-button").click();
-    const sheet = await page.getByTestId("account-sheet").waitFor({ timeout: 5_000 }).then(() => true, () => false);
-    pass("frame", "phone: the avatar opens the account sheet", sheet);
-    if (sheet) await shot(page, "phone-account-sheet");
+    // Phones have no drawer: the avatar opens the account panel (docs/MOBILE.md, "The account panel").
+    // The first tap counts: a fresh load, one tap as soon as the avatar is on screen (before the
+    // page's code has run, on a slow load, it is kept and applied once it runs: early-taps.ts), and
+    // no second one.
+    await page.goto(`${base}/team`, { waitUntil: "commit" });
+    const avatar = page.getByTestId("account-sheet-button");
+    await avatar.waitFor({ timeout: 20_000 });
+    const tappedAt = Date.now();
+    await avatar.tap();
+    const panel = page.getByTestId("account-sheet");
+    const opened = await panel.waitFor({ timeout: 15_000 }).then(() => true, () => false);
+    pass("frame", "phone: the avatar opens the account panel on the first tap", opened, { openedAfterMs: opened ? Date.now() - tappedAt : null });
+    if (opened) {
+      // At rest: its opening motion run and dropped (data-entered), within a second.
+      const rested = await page.waitForFunction(() => {
+        const d = document.querySelector("[data-testid=account-sheet]");
+        return !!d && d.getAttribute("data-entered") === "true" && d.getAnimations().length === 0;
+      }, null, { timeout: 5_000 }).then(() => true, () => false);
+      // Where it rests: from the top edge (0.5rem down; this browser has no status bar), whole on the
+      // screen, every control on it reached by a tap where it is drawn, its body not scrolling, and
+      // Sign out (with an account) in view.
+      const fit = await panel.evaluate((d) => {
+        const box = d.getBoundingClientRect();
+        const body = d.querySelector("[data-sheet-scroll]");
+        const controls = [...d.querySelectorAll("[data-testid=account-sheet-close], nav a, nav button, [data-testid=mode-switch], [data-testid=sign-out]")];
+        const missed = controls.filter((el) => {
+          const r = el.getBoundingClientRect();
+          const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+          return !(r.top >= 0 && r.bottom <= innerHeight && at && (at === el || el.contains(at)));
+        }).length;
+        const signOut = d.querySelector("[data-testid=sign-out]");
+        const s = signOut?.getBoundingClientRect();
+        return {
+          top: Math.round(box.top),
+          bottom: Math.round(box.bottom),
+          height: innerHeight,
+          controls: controls.length,
+          missed,
+          bodyScrolls: !!body && body.scrollHeight > body.clientHeight + 1,
+          signOut: s ? { inView: s.top >= Math.max(0, box.top) - 1 && s.bottom <= Math.min(innerHeight, box.bottom) + 1 } : null,
+        };
+      });
+      pass("frame", "phone: the account panel comes to rest, hangs from the top edge and is whole on the screen", rested && Math.abs(fit.top - 8) <= 1 && fit.bottom <= fit.height && !fit.bodyScrolls, { rested, top: fit.top, bottom: fit.bottom, screen: fit.height, bodyScrolls: fit.bodyScrolls });
+      pass("frame", "phone: every control in the account panel is reached by a tap where it is drawn", fit.controls >= 3 && fit.missed === 0, { controls: fit.controls, missed: fit.missed });
+      if (fit.signOut) pass("frame", "phone: Sign out is in view without scrolling the panel", fit.signOut.inView, fit.signOut);
+      else if (local) warn("frame", "phone: Sign out not offered", { why: "LIVE_LOCAL=1: the demo build has no sign-in; the panel holds the mode switch" });
+      else pass("frame", "phone: Sign out is in view without scrolling the panel", false, { signOut: null });
+      await shot(page, "phone-account-panel");
+    }
     await page.keyboard.press("Escape");
     await page.waitForTimeout(400);
     return;
@@ -398,6 +448,24 @@ async function frameChecks(page, kind, context) {
   const drawer = await colours(page, { panel: "[data-testid=mobile-drawer-panel]" });
   pass("frame", `${kind}: the drawer is painted with the frame colour`, sameAsFrame(drawer.panel, drawer.chrome), { drawer: drawer.panel, chrome: drawer.chrome });
   await shot(page, `${kind}-frame-drawer`);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(400);
+  await accountMenuFirstTap(page, kind, page.getByTestId("mobile-topbar").getByTestId("account-menu-button"));
+}
+
+/**
+ * The account menu opens on the first tap or click, made on a fresh load as soon as its trigger is on
+ * screen (the tablet's avatar, the sidebar's tile): before the page's code has run, on a slow load,
+ * the tap is kept and applied once it runs (early-taps.ts); and no second one.
+ */
+async function accountMenuFirstTap(page, kind, trigger) {
+  await page.goto(`${base}/team`, { waitUntil: "commit" });
+  await trigger.waitFor({ timeout: 20_000 });
+  const tappedAt = Date.now();
+  if (kind === "tablet") await trigger.tap();
+  else await trigger.click();
+  const menu = await page.getByTestId("account-menu").waitFor({ timeout: 15_000 }).then(() => true, () => false);
+  pass("frame", `${kind}: the account menu opens on the first ${kind === "tablet" ? "tap" : "click"}`, menu, { openedAfterMs: menu ? Date.now() - tappedAt : null });
   await page.keyboard.press("Escape");
   await page.waitForTimeout(400);
 }

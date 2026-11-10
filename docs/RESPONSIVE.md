@@ -5,7 +5,7 @@ large monitors. One set of breakpoints (Tailwind's defaults) is used everywhere:
 
 | Range | Name | Shell | Layout rules |
 | --- | --- | --- | --- |
-| < 640px | small phone | top bar (Back or the team's mark, the page's title, the account sheet), bottom tab bar | one column, 44px targets, 16px inputs, full-screen pickers, lists as rows ([MOBILE.md](MOBILE.md)) |
+| < 640px | small phone | top bar (Back or the team's mark, the page's title, the account panel), bottom tab bar | one column, 44px targets, 16px inputs, full-screen pickers, lists as rows ([MOBILE.md](MOBILE.md)) |
 | 640–767px | large phone | same | one column; some header rows become two columns |
 | 768–1023px | tablet | top bar + drawer (no tab bar) | two columns where useful |
 | 1024–1279px | laptop | sidebar | desktop layout |
@@ -25,7 +25,8 @@ it (`globals.css`), and every pinned element follows these rules:
 | Top bar | sticky | slides away while the page scrolls down; back on any scroll up, at the top, and while it holds focus |
 | Tab bar | fixed at the bottom | a compact row that slides away with the top bar and comes back with it; `main` keeps room for it (`pb-tabbar`) |
 | Detail windows (`DetailModal`) | whole screen below `sm`, centred window above; one whose header would fill over 40% of a phone's screen (the Team player window on a small phone) scrolls as one, as in a short window | whole screen, scrolling as one: a large header scrolls away, its close and step buttons float at the top, a footer stays pinned |
-| Dialogs (`Dialog`) | bottom sheet, at most the screen minus a strip | centred card, at most the screen minus 1rem; title and actions stay, only the body scrolls |
+| The account panel (`DetailModal size="panel"`, behind the phone's avatar) | hangs from the top edge, 0.5rem below the status bar, across the phone (24rem at the right, under the avatar, from `sm`); as tall as its content, capped by what is visible (measured from the visual viewport); only its body scrolls, under its header | the same, up to 44rem wide at the right |
+| Sheets (`DetailModal size="sheet"`: `Dialog`'s confirmations and editors, the filter sheet, the lineup sheet) | docked to the bottom edge, as tall as its content up to the screen less 2.5rem (in `svh`); a taller wider screen gets a centred window | docked to the bottom edge too, up to 44rem wide and the screen less 0.5rem; in both, the header and footer stay and only the body scrolls, unless they would leave it less room than its tallest control needs (large text or a zoomed page, mostly on a phone held sideways): then the whole sheet scrolls as one, like a page (`data-flow`) |
 | Things pinned to the bottom (toasts, a save bar) | `bottom-tabbar`: above the tab bar | near the bottom edge |
 
 Turning the phone keeps state: windows, filters and tabs live in the address or in component
@@ -35,7 +36,8 @@ state, never in the orientation, so a window open in one orientation is open in 
 translucent status bar, so:
 - side gutters use `px-safe-4` / `px-safe-6` (the gutter, or the notch's inset where larger) for
   the top bar, `main`, the public page, toasts and whole-screen windows;
-- whole-screen windows pad the status bar (`max-sm:pt-safe`) and the home indicator (`pb-safe`); a window that scrolls as one on a phone keeps a bar over the status bar, so text never scrolls under the clock;
+- whole-screen windows pad the status bar (`max-sm:pt-safe`); a window's body keeps its last line 1rem from the bottom edge (1.25rem from `sm`), a sheet's footer its actions 1rem where the sheet is docked (0.75rem where it is a centred window), and other windows' footers 0.75rem, or the home indicator's inset where it is larger (`pb-safe-4`, `sm:pb-safe-5`, `pb-safe-3`); a window that scrolls as one on a phone keeps a bar over the status bar, so text never scrolls under the clock;
+- `pt-safe-N` and `pb-safe-N` (like `px-safe-N`) are N spacing steps or the inset, whichever is larger, and are an element's only padding for that edge: beside another one (`py-4 pb-safe`) Tailwind's own order decides which wins, and the bare inset did, 0px in a browser (#265). `src/app/design-tokens.test.ts` refuses that pairing, and an arbitrary `max(…, env(safe-area-inset-…))` padding a utility writes;
 - preview pages (Admin → Previews) leave room for their fixed "Preview" badge (`PREVIEW_PAD_TOP`);
 - the drawer, which opens from the left, pads the left-hand inset; the tab bar pads all three.
 
@@ -70,9 +72,9 @@ fit (iPhone 15 and wider) and scroll on narrower phones.
 - `src/components/mobile-nav.tsx` (the phone frame is described in full in [MOBILE.md](MOBILE.md)):
   - phones: a sticky top bar with Back (named after where it leads) or the team's mark, the page's
     title once its heading has scrolled up under the bar, and your avatar, which opens the account
-    sheet (as tiles: the pages without a tab, Settings and Install App; the mode switch beside Sign
-    out; one short screen, docked at the bottom edge sideways too); on a profile, its sections ride
-    under the bar;
+    panel (a card from the top edge, under the avatar: the pages without a tab, Settings and Install
+    App as tiles, the mode switch beside Sign out, then the patch and Riot's notice; as tall as its
+    content, held sideways too); on a profile, its sections ride under the bar;
   - phones: a bottom tab bar with Team, Players, Leaderboards, Matches and Profile (`PHONE_TABS`,
     at most five, those the account may open). A teammate's profile is under Players. The current
     tab's icon sits in an accent pill and its label is bright, so it does not rely on colour alone;
@@ -80,8 +82,15 @@ fit (iPhone 15 and wider) and scroll on narrower phones.
     side) with all links, status rows and sign-out, and the account menu behind the avatar. The
     drawer is a native `<dialog>`, like every sheet and window: focus stays inside, the page behind
     is inert, Escape or a tap beside the panel closes it, and focus returns to the menu button.
+    Its Sign out tells the browser's other tabs, as the sheet's and the account menu's do.
     In the installed app, which has no browser Back, the bar also shows Back on a page reached
     from another (a teammate's profile), named as on phones.
+  - Before the page's code has run: the avatar, the tablet's menu button, the account menu's
+    triggers (the tablet's avatar, the sidebar's tile) and the sidebar's collapse control are
+    buttons that code drives, and a tap on one is kept by an inline script in the root layout
+    (`src/components/early-taps.ts`, `data-early` on the button). The button shows pressed at once
+    (`[data-early][aria-busy]`, globals.css) and does what was asked once the code runs, exactly
+    once; Enter and Space go the same way. Once the page runs, the script does nothing.
   - Both bars pad for safe areas (`pt-safe`, `pb-safe`, `px-safe`); in short windows they slide
     away while reading (see above). On phones the top bar sets the page's `scroll-padding-top` to
     its measured height (and the stylesheet clears the tab bar); on tablets the stylesheet's value
@@ -169,8 +178,10 @@ Three levels, each saying what it proves:
 
 - **Chromium with iPhone sizes and user agents** (every pull request): the phone and landscape
   rules above, 16px fields, safe areas, and Install App's iPhone and iPad instructions
-  (`e2e/install-app.spec.ts`: Share → Add to Home Screen, in-app browsers). Layout and behaviour,
-  in Chromium.
+  (`e2e/install-app.spec.ts`: Share → Add to Home Screen, in-app browsers). Chrome can be told an
+  iPhone's safe areas (`Emulation.setSafeAreaInsetsOverride`), and `e2e/account-panel.spec.ts`
+  checks the account panel with them on seven phones (MOBILE.md, "The account panel"). Layout and
+  behaviour, in Chromium.
 - **Safari's engine** (by hand): `e2e/webkit.spec.ts`, in the `webkit` project that exists only
   with `E2E_WEBKIT=1`. Run it with the WebKit workflow (Actions → WebKit → Run workflow, about 8
   billed minutes), or locally after `pnpm exec playwright install webkit` with
@@ -180,6 +191,8 @@ Three levels, each saying what it proves:
   - Team's card track and role tabs, by tap;
   - a teammate's profile sections and a champion's window;
   - the Card Studio's section list, a palette and Cancel;
+  - the account panel: one tap opens it, from the top edge, whole on the screen at rest, every
+    control reached by a tap where it is drawn, the page left where it was (at the top and scrolled);
   - the Admin Mode switch;
   - fields at 16px or more (Safari zooms into smaller ones) and sign-in's password autofill attributes;
   - the pages held sideways;
@@ -210,6 +223,12 @@ Three levels, each saying what it proves:
      from there switches the section; a teammate's profile shows "‹ Players" in the top bar (the
      installed app has no browser Back) and it leads back; the menu drawer opens, the page behind it
      cannot be tapped, and closing it returns to the menu button.
+  9. In the installed app and in Safari, tap your avatar on Team, on Resources scrolled to its end,
+     and after typing in a field and closing the keyboard: the account panel drops from under the
+     status bar, whole on the screen, its tiles, the mode switch and Sign out each answering a tap;
+     ×, a tap below it and Back close it, and the page behind has not moved. (On 10 Nov the bottom
+     sheet it replaced showed only its header at the foot of the screen there; MOBILE.md, "Why the
+     account menu hangs from the top".)
 
 **Browser features against Safari 16.4** (reviewed 21 Oct 2026). Tailwind v4 and Next.js 16 need
 Safari 16.4 or later, so that is the floor. Nothing the app uses needs more:

@@ -227,9 +227,9 @@ Key single files:
   - The daily `integrity` job deletes sessions a week after they ended (`deleteEndedSessions`, at most 1,000 a run), failed sign-ins older than the 15-minute throttling window (`pruneAuthFailures`) and run records older than 60 days (`pruneJobRuns`, at most 5,000 a run); the privacy notice states all three.
 - **One account per browser** (`src/server/auth/account-jar.ts`, `browser-accounts.ts`, `session.ts`, `/api/auth/logout`):
   - The browser holds one session (`uniiverse_session`). Signing in ends any session it held before, on the server, then sets the new one. Signing in as someone else therefore means signing out first, or simply signing in again: there is no account switcher and no "Add another account".
-  - **Signing out** (account menu, mobile drawer or Settings) ends the session on the server, clears the cookies and returns to the site's address (the public team page, where Sign in opens its window).
+  - **Signing out** (account menu, the phone's account panel, the tablet's drawer or Settings) ends the session on the server, clears the cookies and returns to the site's address (the public team page, where Sign in opens its window).
   - **The old switcher's cookie.** Until October 2026 the account menu could keep up to three other accounts signed in (`uniiverse_accounts`). Nothing writes that cookie any more: signing in or out ends every session it still names and clears it.
-  - **Stale tabs.** `uniiverse_who` is a readable fingerprint of the active account (a hash, not a credential). `AccountGuard` compares it with the account a page was rendered for and reloads the tab before it sends a server action or page request, when it is shown or focused again, and when another tab announces a sign-out (BroadcastChannel). A tab rendered for one account therefore never acts as another, for example after signing out and in as someone else in another tab.
+  - **Stale tabs.** `uniiverse_who` is a readable fingerprint of the active account (a hash, not a credential). `AccountGuard` compares it with the account a page was rendered for and reloads the tab when they differ: before it sends a server action or page request, when it is shown or focused again, and when another tab announces an account change (BroadcastChannel; the account menu, the account panel and the drawer announce their Sign out). A fingerprint that is gone does not count as a different account (`stale()` requires one), and the announcement is sent as the sign-out form is submitted, before its answer clears the cookie, so after a plain sign-out the other tabs do not reload by themselves: their next request reaches the server without a session and lands on sign-in. A tab rendered for one account therefore never acts as another, for example after signing out and in as someone else in another tab.
   - **Unchanged:** the server authorises every request from its own session cookie, and server actions keep Next.js's origin check. Tests: `tests/db/single-sign-in.test.ts`.
 - **Throttling** (`src/server/auth/throttle.ts`, migration `0046_auth_failures`; audit decision 13):
   - Sign-in: 8 failures per 15 minutes per username + IP, and 8 per IP across usernames. The setup page and `/recover` have their own per-IP limit.
@@ -838,7 +838,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 | Matches | `/matches` | Played together (with bookmarks); `?view=encounters` opens your profile's Encounters | `view-matches` (+ `view-teammate-stats` for Played together); bookmark removal by its creator or `manage-matches` | |
 | Resources | `/resources` | The team's library of League of Legends sites in five sections (League of Legends, Summoner's Rift, ARAM, Arena, Esports): a panel per section of rows opening in a new tab, search, a section filter, favourites kept in the browser; no management controls on the page | every signed-in account; managed in Admin Mode → Platform Settings → Resources (`manage-branding`) | `docs/ARCHITECTURE.md` (Resources) |
 | Settings | `/settings` | Username, password, profile picture, sign out | self | Riot accounts moved to the profile |
-| Admin Mode | `/admin`, `/admin/people` (+ `/access`), `/admin/branding`, `/admin/previews`, `/admin/data`, `/admin/system`, `/admin/audit`, `/admin/settings` | Dashboard, Users & Permissions, Platform Settings, Data & Integrations, System Health, Audit Logs | administrators | "Switch to Admin Mode" in the sidebar, the tablet menu, the phone's account sheet or Settings (C2a) |
+| Admin Mode | `/admin`, `/admin/people` (+ `/access`), `/admin/branding`, `/admin/previews`, `/admin/data`, `/admin/system`, `/admin/audit`, `/admin/settings` | Dashboard, Users & Permissions, Platform Settings, Data & Integrations, System Health, Audit Logs | administrators | "Switch to Admin Mode" in the sidebar, the tablet menu, the phone's account panel or Settings (C2a) |
 | Auth | `/login`, `/setup`, `/recover`, `/welcome` | Sign-in, first-run Owner setup, Owner recovery, onboarding | — | |
 
 **Redirects kept for old links:**
@@ -857,7 +857,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 
 - **Breakpoints** (Tailwind defaults):
   - < 640 phone: top bar (the menu button at its left end) + a drawer from the left + a 3-tab bottom bar.
-    - The tabs are Team, Players, Leaderboards, Matches and Profile (`PHONE_TABS`); Resources, Settings, Install App, the mode switch and Sign out are in the account sheet behind the avatar (docs/MOBILE.md, November 2026).
+    - The tabs are Team, Players, Leaderboards, Matches and Profile (`PHONE_TABS`); Resources, Settings, Install App, the mode switch and Sign out are in the account panel behind the avatar (docs/MOBILE.md, November 2026).
     - Team stays marked on its own tabs: Players, Leaderboards and Matches.
   - 640–767 large phone.
   - 768–1023 tablet: top bar + drawer, no tab bar.
@@ -1221,7 +1221,7 @@ These are stable and working; extend them instead:
 8. **UI architecture.**
    - **Server components** with client islands (editors, menus, dialogs).
    - **Shell:** deep ink theme with a blue and violet identity; Inter; tokens in `src/app/globals.css`.
-   - **Navigation:** collapsible sidebar (My Profile, one Team entry, Resources); the sections of Team as tabs at the top of its pages (`SectionTabs`, `SECTION_HUBS`, `TEAM_SECTIONS`); account menu; phone tab bar (Team, Players, Leaderboards, Matches, Profile) and account sheet (docs/MOBILE.md).
+   - **Navigation:** collapsible sidebar (My Profile, one Team entry, Resources); the sections of Team as tabs at the top of its pages (`SectionTabs`, `SECTION_HUBS`, `TEAM_SECTIONS`); account menu; phone tab bar (Team, Players, Leaderboards, Matches, Profile) and account panel (docs/MOBILE.md).
    - **Shared primitives** in `src/components/ui` (Menu never clips, Dialog, Toast, InfoTip).
    - **One card identity** (featured champion art + skin + accent) across Team, Players and profiles.
 

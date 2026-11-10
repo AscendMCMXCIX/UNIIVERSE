@@ -165,7 +165,9 @@ frame cannot clip it.
 
 Two saved states, open (16rem) and collapsed to a 4.5rem rail. While collapsed, hover or keyboard
 focus opens a temporary preview over the page. The choice is remembered in a cookie, so the server
-renders the right width with no jump. Ctrl+\ toggles it. That behaviour is unchanged.
+renders the right width with no jump. Ctrl+\ toggles it. That behaviour is unchanged. A click on the
+collapse control before the page's code has run is kept and applied once it runs (see "The
+navigation contract").
 
 **Zones.** Three zones, top to bottom, each separated by a hairline (`RAIL_DIVIDER`):
 
@@ -220,9 +222,9 @@ reads as set into the frame rather than pasted on a flat block.
 ### Tablets and phones
 
 Tablets keep the top bar, the drawer (sharing `NavLinks`, so the same rows) and the section tabs.
-Phones keep the top bar, the five-tab bar and the account sheet (MOBILE.md). They pick up the new
-`chrome` ink automatically. Their mode switch keeps its bordered button: in the sheet it sits among
-large rows with nothing else to set it apart.
+Phones keep the top bar, the five-tab bar and the account panel (MOBILE.md). They pick up the new
+`chrome` ink automatically. Their mode switch keeps its bordered button: in the panel it sits beside
+Sign out, under the tiles, with nothing else to set it apart.
 
 With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shell):
 
@@ -264,8 +266,21 @@ test):
   account without a player profile never starts at, or goes Back to, an empty Profile: its home is
   its first other page.
 - **Overlays.** One sheet for every choice and editor (`DetailModal` `size="sheet"`, `Dialog` built
-  on it): Escape, the backdrop, Close and a pull down close the topmost one, focus returns to what
-  opened it without scrolling, and the page behind never moves (MOBILE.md, "Every sheet and window").
+  on it): its choices in the body and its actions in the footer, which stays in view while only the
+  body scrolls. Where the header and footer would leave the body too little room for its tallest
+  control (large text on a phone held sideways), the whole sheet scrolls as one instead, like a page,
+  so nothing is ever cut short in a strip. Escape, the backdrop, Close and a pull down close the
+  topmost one, focus returns to what opened it without scrolling, and the page behind never moves
+  (MOBILE.md, "Every sheet and window"). The phone's account menu is the one exception: a panel that
+  hangs from the top, under the avatar (`size="panel"`), placed from the top edge only and as tall as
+  its content, because an iPhone drew the bottom sheet it replaced below the screen (MOBILE.md, "Why
+  the account menu hangs from the top").
+- **Before the page's code has run.** Destinations are real links, and work at once. The frame's
+  controls that code drives (the phone's avatar, the tablet's menu button, the account menu's
+  triggers on tablets and in the sidebar, the sidebar's collapse control) keep a tap made before it
+  has run (`data-early`, `src/components/early-taps.ts`): they show pressed at once
+  (`[data-early][aria-busy]`: the hover surface in an accent ring) and act once the code runs,
+  exactly once. (`e2e/mobile-nav.spec.ts`, `e2e/sidebar-motion.spec.ts`)
 - **The keyboard.** "Skip to content" is the first stop on every page and moves focus to the page
   (`main#content`); every control has the shared focus ring.
 
