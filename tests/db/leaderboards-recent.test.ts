@@ -100,6 +100,13 @@ describe("Recent form on stored games", () => {
     expect(note("Bo")).toBe("Win your next game to draw level with Ash");
     expect(note("Cy")).toBe("2 wins behind Bo");
     expect(note("Ed")).toBe("Provisional · 14 of 20 games");
+    // The same notes in parts, for the board's short gap ("Next win: 1=", "2 wins behind", "14 of 20 games").
+    const gap = (name: string) => view.form!.rows.find((r) => r.playerId === id[name])!.gap;
+    expect(gap("Ash")).toBeNull();
+    expect(gap("Bo")).toEqual({ kind: "level", place: 1 });
+    expect(gap("Cy")).toEqual({ kind: "behind", wins: 2, place: 2 });
+    expect(gap("Di")).toEqual({ kind: "behind", wins: 2, place: 2 });
+    expect(gap("Ed")).toEqual({ kind: "provisional", games: 14 });
   });
 
   it("names each member's main role from their window, the record's dates, and marks the viewer", async () => {

@@ -1,6 +1,6 @@
 import { chooseSeason, seasonLabel } from "@/domain/season";
 import { LEADERBOARD_QUEUES } from "@/domain/leaderboards";
-import { mainRoleOf, rankRecentBoard, recentEntry, RECENT_PROVISIONAL_GAMES, RECENT_WINDOW_DAYS, RECENT_WINDOW_GAMES, shownValue } from "@/domain/leaderboard-recent";
+import { mainRoleOf, rankRecentBoard, recentEntry, RECENT_PROVISIONAL_GAMES, RECENT_WINDOW_DAYS, RECENT_WINDOW_GAMES, shownValue, type RecentGap } from "@/domain/leaderboard-recent";
 import { buildRecords, CHAMPION_GAME_MILESTONES, MASTERY_MILESTONES, shownRecordValue, type ChampionMilestone, type RecordMark, type SeasonRecordId } from "@/domain/leaderboard-records";
 import type { GameRole } from "@/domain/season-stats";
 import { formatCompactCount, formatCount, formatDate, formatDayMonth, formatNumber } from "@/lib/format";
@@ -45,12 +45,14 @@ export interface FormRow {
   role: { role: GameRole; games: number } | null;
   /** "1 win behind Ash", "Win your next game to draw level with Ash", "Provisional · 14 of 20 games". */
   note: string | null;
+  /** The note in parts for the board's short gap (D5); the sentence stays, read out and as the row's tooltip. */
+  gap: RecentGap | null;
   you: boolean;
 }
 
 export interface FormView {
   rows: FormRow[];
-  /** Fewer than 10 recent games: listed below the board with the games still needed. */
+  /** Fewer than 10 recent games: the board's last group, with the games still needed. */
   notEnough: Array<{ playerId: string; games: number; needed: number; lastGame: string | null }>;
   window: { games: number; provisionalFrom: number; days: number };
 }
@@ -180,9 +182,10 @@ export function buildRecentLeaderboardView(data: LeaderboardData, request: { tab
       dates: r.entry.from !== null && r.entry.to !== null ? `${formatDayMonth(r.entry.from)} – ${formatDayMonth(r.entry.to)}` : "",
       role: mainRoleOf(r.entry, primary.get(r.entry.playerId) ?? null),
       note: r.note,
+      gap: r.gap,
       you: r.entry.playerId === viewer,
     }));
-    // The last supported game of a member below the board, whenever it was (it may be older than 60 days).
+    // The last supported game of a member in the board's last group, whenever it was (it may be older than 60 days).
     const lastGame = (id: string) => byPlayer.get(id)!.reduce<number | null>((m, g) => (g.queueId !== null && SUPPORTED.has(g.queueId) && (m === null || g.gameCreation > m) ? g.gameCreation : m), null);
     const notEnough = board.notEnough
       .map(({ entry, needed }) => ({ playerId: entry.playerId, games: entry.games, needed, last: lastGame(entry.playerId) }))

@@ -170,6 +170,16 @@ export function mainRoleOf(entry: Pick<RecentEntry, "roles">, preferred: GameRol
   return best;
 }
 
+/**
+ * A row's note in parts, for a board that shows the gap short (Recent form, D5): "Next win: 3=",
+ * "1 win behind", "14 of 20 games". Display only: places, ties and the sentence never use it.
+ * - level: one win draws level with the place directly above (`place`, the place that win would share);
+ * - behind: `wins` wins behind the place directly above;
+ * - provisional: a window of `games` games, listed after every full one.
+ * Null for first place (a tied 1= included) and for gaps in another figure's unit ("0.5 CS/min behind").
+ */
+export type RecentGap = { kind: "level"; place: number } | { kind: "behind"; wins: number; place: number } | { kind: "provisional"; games: number };
+
 export interface RankedRecent {
   entry: RecentEntry;
   /** Place among established players ("2=" when tied); null for provisional players. */
@@ -177,6 +187,8 @@ export interface RankedRecent {
   tied: boolean;
   /** Plain words: the gap to the place above, or what the next game can do. */
   note: string | null;
+  /** The note's parts (RecentGap). */
+  gap: RecentGap | null;
 }
 
 export interface RecentBoardResult {
@@ -210,10 +222,13 @@ export function rankRecentBoard(entries: readonly RecentEntry[], board: RecentBo
     const tiedWithPrev = !!prev && shown(prev.entry) === shown(e);
     const rank = tiedWithPrev ? prev!.rank! : i + 1;
     if (tiedWithPrev) prev!.tied = true;
-    rows.push({ entry: e, rank, tied: tiedWithPrev, note: null });
+    rows.push({ entry: e, rank, tied: tiedWithPrev, note: null, gap: null });
   });
-  for (const r of rows) r.note = noteFor(r, rows, figure, names);
-  for (const e of provisional) rows.push({ entry: e, rank: null, tied: false, note: `Provisional · ${e.figures[figure]?.games ?? e.games} of ${RECENT_WINDOW_GAMES} games` });
+  for (const r of rows) Object.assign(r, noteFor(r, rows, figure, names));
+  for (const e of provisional) {
+    const games = e.figures[figure]?.games ?? e.games;
+    rows.push({ entry: e, rank: null, tied: false, note: `Provisional · ${games} of ${RECENT_WINDOW_GAMES} games`, gap: { kind: "provisional", games } });
+  }
   const placed = new Set(rows.map((r) => r.entry.playerId));
   const notEnough = entries.filter((e) => !placed.has(e.playerId)).map((e) => ({ entry: e, needed: Math.max(0, RECENT_PROVISIONAL_GAMES - (e.figures[figure]?.games ?? e.games)) }));
   return { board, figure, rows, notEnough };
@@ -236,24 +251,29 @@ const nameList = (list: readonly string[]) => (list.length > 3 ? `${list.length}
  * next game, because the next game replaces the window's oldest: with every established window at
  * 20 games, one win can at best draw level with the place above, and only when the oldest game in
  * the window was a loss. The note assumes the players above do not play in the meantime, which the
- * page says once, under the board.
+ * page says once, under the board. It also gives the note in parts (RecentGap), from the same
+ * arithmetic, for a board that shows the gap short: the sentence stays as it is.
  */
-function noteFor(row: RankedRecent, rows: readonly RankedRecent[], figure: RecentFigure, names: ReadonlyMap<string, string>): string | null {
-  if (row.rank === null || row.rank === 1) return null;
+function noteFor(row: RankedRecent, rows: readonly RankedRecent[], figure: RecentFigure, names: ReadonlyMap<string, string>): Pick<RankedRecent, "note" | "gap"> {
+  const none = { note: null, gap: null };
+  if (row.rank === null || row.rank === 1) return none;
   const shown = (e: RecentEntry) => shownValue(figure, e.figures[figure]?.value ?? 0);
   const mine = shown(row.entry);
   const higher = rows.filter((r) => r.rank !== null && shown(r.entry) > mine);
-  if (!higher.length) return null;
+  if (!higher.length) return none;
   const theirs = Math.min(...higher.map((r) => shown(r.entry)));
-  const who = nameList(higher.filter((r) => shown(r.entry) === theirs).map((r) => names.get(r.entry.playerId) ?? "the player above"));
+  const above = higher.filter((r) => shown(r.entry) === theirs);
+  // Every row at `theirs` shares one place (competition ranking): the place the gap is to.
+  const place = above[0]!.rank!;
+  const who = nameList(above.map((r) => names.get(r.entry.playerId) ?? "the player above"));
   if (figure === "winRate") {
     const afterWin = shownValue(figure, winRateAfterNextGame(row.entry, true));
-    if (afterWin === theirs) return `Win your next game to draw level with ${who}`;
+    if (afterWin === theirs) return { note: `Win your next game to draw level with ${who}`, gap: { kind: "level", place } };
     const winsBehind = Math.round(((theirs - mine) / 100) * row.entry.games);
-    return `${winsBehind} ${winsBehind === 1 ? "win" : "wins"} behind ${who}`;
+    return { note: `${winsBehind} ${winsBehind === 1 ? "win" : "wins"} behind ${who}`, gap: { kind: "behind", wins: winsBehind, place } };
   }
   const f = FIGURES[figure];
-  return `${(theirs - mine).toFixed(f.decimals)} ${f.unit} behind ${who}`;
+  return { note: `${(theirs - mine).toFixed(f.decimals)} ${f.unit} behind ${who}`, gap: null };
 }
 
 /** §6 of docs/LEADERBOARDS_MODEL.md: a board needs this many established members before the page switches to it. */
