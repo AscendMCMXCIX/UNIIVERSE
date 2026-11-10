@@ -154,7 +154,8 @@ The limit is now 60 minutes for the browser job only (unit and database stay at 
 Safari and iPhones, Safari 26). It is started by hand only, never by a push or a pull request, so it
 costs nothing until someone runs it.
 - **One run:** install, the WebKit download (cached after the first run), a build, a few minutes of
-  tests, then WebKit 26.0's download (not cached) and its check: about 11 minutes.
+  tests, then WebKit 26.0's download (not cached) and its check: about 8 minutes (7.4 on 10 Nov,
+  the Safari 26 step 1.6 of them).
 - **When to run it:** once before releasing a change that could behave differently in Safari
   (touch, dialogs, forms, the installed app), and after changing the spec.
 - Editing the workflow does not start CI (it is in `paths-ignore`).

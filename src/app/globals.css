@@ -557,8 +557,8 @@ p a.text-accent {
 /*
   A whole screen of its own (DetailModal size "screen": the phone's account menu): a short rise into
   place and a fade, the rise every other window makes; back down a little as it closes. No frame of
-  it is off the screen, and the screen drops it once it has run (data-entered), so it rests where its
-  styles put it whatever a browser does with the motion. The sheet before the account menu's first
+  it is more than 1rem from where it rests, and the screen drops it once it has run (data-entered),
+  so it rests where its styles put it whatever a browser does with the motion. The sheet before the account menu's first
   redesign rose from a whole sheet below the bottom edge (sheet-in).
 */
 @keyframes screen-in {

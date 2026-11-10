@@ -153,9 +153,7 @@ const AvatarCropper = React.forwardRef<CropperHandle, { source: Source }>(functi
   // eslint-disable-next-line @next/next/no-img-element -- a local, not-yet-uploaded picture
   const picture = (r: React.Ref<HTMLImageElement>, testId?: string) => <img ref={r} src={source.url} alt="" draggable={false} className="pointer-events-none absolute left-0 top-0 max-w-none origin-top-left select-none" data-testid={testId} />;
   return (
-    // A phone held sideways: the circle beside its controls, sized to the window's height. Never
-    // smaller than 12rem upright and 10rem sideways, so a viewport size reported short (iOS has
-    // reported dvh wrongly in installed apps, WebKit bug 301994) cannot make it vanish.
+    // A phone held sideways: the circle beside its controls, sized to the window's height.
     <div className="flex flex-col items-center gap-4 short:flex-row short:justify-center short:gap-6" data-testid="avatar-cropper">
       <div
         ref={frameRef}
@@ -170,7 +168,7 @@ const AvatarCropper = React.forwardRef<CropperHandle, { source: Source }>(functi
         onPointerCancel={endDrag}
         onLostPointerCapture={endDrag}
         onKeyDown={onKeyDown}
-        className={cn("relative aspect-square w-[min(16rem,max(12rem,68vw))] shrink-0 touch-none select-none short:w-[min(16rem,max(10rem,calc(100dvh-9.5rem)))] overflow-hidden rounded-full bg-surface-3 shadow-lg shadow-black/40 ring-2 ring-border-strong focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent", dragging ? "cursor-grabbing" : "cursor-grab")}
+        className={cn("relative aspect-square w-[min(16rem,68vw)] shrink-0 touch-none select-none short:w-[min(16rem,calc(100dvh-9.5rem))] overflow-hidden rounded-full bg-surface-3 shadow-lg shadow-black/40 ring-2 ring-border-strong focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent", dragging ? "cursor-grabbing" : "cursor-grab")}
         data-dragging={dragging || undefined}
         data-testid="avatar-crop-frame"
       >

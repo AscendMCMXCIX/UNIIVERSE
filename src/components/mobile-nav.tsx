@@ -202,16 +202,27 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
       {sheetOpen && user ? (
         // The account screen (its test ids keep the name of the sheet it replaced): the whole screen,
         // fixed to its edges (DetailModal size "screen"). Its header, with the close button, stays
-        // under the status bar; the rest is one region that scrolls only where it must (a small phone
-        // in Admin Mode, large text, a phone held sideways).
-        <DetailModal open onClose={() => setOpenedAt(null)} size="screen" title="Account" titleId={SHEET_TITLE_ID} header={<AccountScreenHeader />} headerClassName="border-transparent" className="bg-chrome" testId="account-sheet" closeTestId="account-sheet-close" bodyClassName="px-4 pt-1 sm:px-6">
+        // under the status bar; the rest is one region that scrolls only where it must (large text, a
+        // phone held sideways, an administrator's screen in Safari's tab on the smallest iPhone).
+        <DetailModal open onClose={() => setOpenedAt(null)} size="screen" title="Account" titleId={SHEET_TITLE_ID} header={<AccountScreenHeader />} headerClassName="border-transparent" className="bg-chrome" testId="account-sheet" closeTestId="account-sheet-close">
           <div className="mx-auto w-full max-w-md">
-            {/* Who is signed in: their picture, name and role (and username, where the name differs). */}
+            {/* Who is signed in: their picture, name and role, and their username on a line of its own
+                where it differs from the name (it tells apart accounts that share a name). Nothing is
+                cut short: a long name or username wraps (usernames run to 32 characters). */}
             <div className="flex min-w-0 items-center gap-4 pb-5" data-testid="account-identity">
               <Avatar name={user.name} src={user.avatarUrl} size="lg" />
               <div className="min-w-0">
-                <p className="truncate text-xl font-semibold leading-tight text-fg">{user.name}</p>
-                <p className="mt-1 truncate text-sm text-fg-muted">{[user.roleLabel, otherUsername(user) ? `Username: ${otherUsername(user)}` : null].filter(Boolean).join(" · ")}</p>
+                <p className="text-xl font-semibold leading-tight text-fg [overflow-wrap:anywhere]" data-testid="account-name">
+                  {user.name}
+                </p>
+                <p className="mt-1 text-sm text-fg-muted" data-testid="account-role">
+                  {user.roleLabel}
+                </p>
+                {otherUsername(user) ? (
+                  <p className="text-sm text-fg-muted [overflow-wrap:anywhere]" data-testid="account-username">
+                    Username: {otherUsername(user)}
+                  </p>
+                ) : null}
               </div>
             </div>
             {/* The pages the tab bar does not hold (Resources when it has no tab; in Admin Mode the
@@ -238,8 +249,16 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                 ) : null}
               </div>
             ) : null}
-            {/* The patch and Riot's notice: quiet lines at the foot. */}
-            <div className="mt-5 flex flex-wrap items-baseline justify-center gap-x-3 gap-y-1 text-center" data-testid="account-sheet-notes">
+            {/* The patch and Riot's notice: quiet lines at the foot. Following a link there (Riot's
+                notice leads to Settings) closes the screen first: on Settings itself only the address's
+                anchor changes, which would leave the screen open over the section it leads to. */}
+            <div
+              className="mt-5 flex flex-wrap items-baseline justify-center gap-x-3 gap-y-1 text-center"
+              onClickCapture={(e) => {
+                if ((e.target as Element | null)?.closest?.("a[href]")) setOpenedAt(null);
+              }}
+              data-testid="account-sheet-notes"
+            >
               {status}
               {legal}
             </div>
@@ -423,7 +442,7 @@ const SHEET_TITLE_ID = "account-sheet-title";
 
 /**
  * The account screen's header: its name, in a bar 52px tall under the status bar, beside the close
- * button (DetailModal places it at the bar's right end, centred in it).
+ * button (DetailModal places it at the bar's right end, centred in it: top-2 on a 36px button).
  */
 function AccountScreenHeader() {
   return (

@@ -333,7 +333,10 @@ test("the account screen in Safari's engine: one tap opens it, it fills the scre
         return !(r.top >= 0 && r.bottom <= box.bottom && !!at && (at === el || el.contains(at)));
       }).length;
       const shortest = Math.min(...controls.slice(1).map((el) => el.getBoundingClientRect().height));
-      return { box: [box.left, box.top, box.width, box.height], screen: [innerWidth, innerHeight], scrolls: body.scrollHeight > body.clientHeight + 1, missed, shortest, focus: document.activeElement === d };
+      // Full width: as wide as the column the rows sit in (the nav), less its border.
+      const narrowest = Math.min(...controls.slice(1).map((el) => el.getBoundingClientRect().width));
+      const column = d.querySelector("nav")!.getBoundingClientRect().width;
+      return { box: [box.left, box.top, box.width, box.height], screen: [innerWidth, innerHeight], scrolls: body.scrollHeight > body.clientHeight + 1, missed, shortest, narrowest, column, focus: document.activeElement === d };
     });
     // The whole screen, exactly; nothing scrolls; every control reached; rows at least 48px; the
     // screen itself has the focus (the close button is not lit up).
@@ -341,6 +344,7 @@ test("the account screen in Safari's engine: one tap opens it, it fills the scre
     expect(fit.scrolls, path).toBe(false);
     expect(fit.missed, path).toBe(0);
     expect(fit.shortest, path).toBeGreaterThanOrEqual(48);
+    expect(fit.narrowest, path).toBeGreaterThanOrEqual(fit.column - 2);
     expect(fit.focus, path).toBe(true);
     expect(await page.evaluate(() => scrollY), path).toBe(scrolled);
     await screen.getByTestId("account-sheet-close").tap();

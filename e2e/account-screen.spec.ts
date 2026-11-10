@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "./test";
+import { memberContext } from "./member-account";
 
 /*
   The phone's account screen (docs/MOBILE.md, "The account screen"): a screen of its own, fixed to
@@ -59,8 +60,11 @@ function layout(page: Page) {
       })
       .map((el) => el.getAttribute("data-testid") ?? el.textContent?.trim());
     const close = d.querySelector("[data-testid=account-sheet-close]")!.getBoundingClientRect();
+    // How far down the screen's content reaches: its controls and the notes at its foot.
+    const lowest = Math.max(...[...controls, d.querySelector("[data-testid=account-sheet-notes]")!].map((el) => el.getBoundingClientRect().bottom));
     return {
       box: { top: box.top, left: box.left, width: box.width, height: box.height },
+      lowest,
       bodyScrolls: body.scrollHeight > body.clientHeight + 1,
       column: column.width,
       rows,
@@ -97,6 +101,8 @@ for (const phone of PHONES) {
         const l = await layout(page);
         // The whole screen, exactly: fixed to its four edges.
         expect(l.box, where).toEqual({ top: 0, left: 0, width: phone.viewport.width, height: phone.viewport.height });
+        // Nothing in it ends in the home indicator's band.
+        expect(l.lowest, where).toBeLessThanOrEqual(phone.viewport.height - phone.bottom);
         // Everything at once on a normal phone: nothing scrolls, every control is on the screen and
         // reached by a tap where it is drawn.
         expect(l.bodyScrolls, where).toBe(false);
@@ -136,7 +142,8 @@ test("the close button's touch area reaches 44px around its 36px circle", async 
       const el = document.elementFromPoint(x, y + dy);
       return !!el && (el === button || button.contains(el));
     };
-    return { above: at(-(h / 2) - 3), below: at(h / 2 + 3) };
+    // 44px of touch around a 36px circle: 4px beyond it above and below (3.5 keeps clear of rounding).
+    return { above: at(-(h / 2) - 3.5), below: at(h / 2 + 3.5) };
   }, { x: box.x + box.width / 2, y: box.y + box.height / 2, h: box.height });
   expect(reached).toEqual({ above: true, below: true });
   await close.tap();
@@ -147,10 +154,14 @@ test("held sideways and with large text, the account screen scrolls as one regio
   // 200% text on an upright 320px phone is left out: there the page itself is wider than the phone
   // (the tab bar's labels, the top bar, some page buttons), so the browser widens the area every
   // fixed element is placed in, the tab bar and every window included. The large-text layout that
-  // keeps pages within the phone's width is its own piece of work (STATUS.md, follow-ups).
+  // keeps pages within the phone's width is its own piece of work (STATUS.md, Deferred).
   const cases = [
     { size: "sideways", viewport: { width: 734, height: 343 }, root: 100 },
+    { size: "sideways at 125% text", viewport: { width: 734, height: 343 }, root: 125 },
     { size: "sideways at 150% text", viewport: { width: 734, height: 343 }, root: 150 },
+    { size: "sideways at 200% text", viewport: { width: 734, height: 343 }, root: 200 },
+    // Safari's page zoom at 150% gives the page a smaller viewport in CSS px.
+    { size: "sideways, page zoomed to 150%", viewport: { width: 489, height: 229 }, root: 100 },
     { size: "150% text upright", viewport: { width: 393, height: 659 }, root: 150 },
   ];
   for (const { size, viewport, root } of cases) {
@@ -262,4 +273,102 @@ test("the page behind is put back if anything scrolls it while the account scree
   expect(await page.evaluate(() => scrollY)).toBe(scrolled);
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
   await expect(async () => expect(await page.evaluate(() => scrollY)).toBe(0)).toPass({ timeout: 2_000 });
+});
+
+test("who is signed in: the name, the role, and a username far longer than the name on a line of its own, whole on the narrowest phones", async ({ browser, page: admin }) => {
+  // A member whose username reads nothing like their display name: 16 characters, the most the
+  // helper allows (it doubles as the Riot ID's name). On one line after the role, as before, it was cut.
+  const { context, page, username } = await memberContext(browser, admin, undefined, { base: "lineupmanag" });
+  await page.goto("/settings");
+  const form = page.getByTestId("display-name-form");
+  await form.getByLabel("Display name").fill("Kai");
+  await form.getByRole("button", { name: "Save display name" }).click();
+  await expect(page.getByTestId("toast").filter({ hasText: "Display name changed." })).toBeVisible();
+  for (const width of [320, 375]) {
+    await page.setViewportSize({ width, height: 667 });
+    await page.goto("/team");
+    await page.getByTestId("account-sheet-button").click();
+    const screen = page.getByTestId("account-sheet");
+    await expect(screen).toHaveAttribute("data-entered", "true");
+    await expect(screen.getByTestId("account-name")).toHaveText("Kai");
+    await expect(screen.getByTestId("account-role")).toHaveText("Player");
+    const line = screen.getByTestId("account-username");
+    await expect(line).toHaveText(`Username: ${username}`);
+    // Whole: it wraps rather than being cut short, and stays inside the screen.
+    const fit = await line.evaluate((el) => ({ cut: el.scrollWidth > el.clientWidth + 1, right: el.getBoundingClientRect().right, width: innerWidth }));
+    expect(fit.cut, `${width}px`).toBe(false);
+    expect(fit.right, `${width}px`).toBeLessThanOrEqual(fit.width);
+    // A username of 32 characters, the longest allowed, wraps inside the screen too.
+    const longest = await line.evaluate((el) => {
+      el.textContent = `Username: ${"w".repeat(32)}`;
+      return { cut: el.scrollWidth > el.clientWidth + 1, right: el.getBoundingClientRect().right, width: innerWidth, lines: Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight)) };
+    });
+    expect(longest.cut, `${width}px, 32 characters`).toBe(false);
+    expect(longest.right, `${width}px, 32 characters`).toBeLessThanOrEqual(longest.width);
+    expect(longest.lines, `${width}px, 32 characters`).toBeGreaterThan(1);
+    await page.keyboard.press("Escape");
+    await expect(screen).toHaveCount(0);
+  }
+  await context.close();
+});
+
+test("on a page pinched to zoom, a finger's drag pans the zoomed view across the account screen", async ({ page }) => {
+  await page.setViewportSize({ width: 393, height: 852 });
+  await page.goto("/team");
+  await openScreen(page);
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setPageScaleFactor", { pageScaleFactor: 2 });
+  await expect.poll(() => page.evaluate(() => window.visualViewport!.scale)).toBe(2);
+  const before = await page.evaluate(() => window.visualViewport!.offsetTop);
+  // One finger drags up across the screen's rows (not a pull: nothing in the screen scrolls).
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 150, y: 600 }] });
+  for (let y = 590; y >= 300; y -= 10) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: 150, y }] });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  // The zoomed view moved down the screen, to the rows that were out of sight.
+  await expect.poll(() => page.evaluate(() => window.visualViewport!.offsetTop)).toBeGreaterThan(before + 100);
+  await cdp.send("Emulation.setPageScaleFactor", { pageScaleFactor: 1 });
+  await expect.poll(() => page.evaluate(() => window.visualViewport!.scale)).toBe(1);
+  expect((await layout(page)).missed).toEqual([]);
+});
+
+test("the account dropdown that a phone held sideways and a tablet get has 44px rows; under a mouse it keeps the desktop's 36px", async ({ browser, baseURL }) => {
+  // With viewport-fit=cover a phone held sideways is 812–956px wide: the tablet's top bar and its
+  // account dropdown, not the account screen.
+  const frames = [
+    { name: "a phone held sideways", options: { viewport: { width: 852, height: 393 }, hasTouch: true, isMobile: true }, touch: true },
+    { name: "a tablet", options: { viewport: { width: 768, height: 1024 }, hasTouch: true, isMobile: false }, touch: true },
+    { name: "a desktop", options: { viewport: { width: 1440, height: 900 }, hasTouch: false, isMobile: false }, touch: false },
+  ];
+  for (const frame of frames) {
+    const context = await browser.newContext(frame.options);
+    await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+    const page = await context.newPage();
+    await page.goto("/team");
+    // The frame is what it says: a coarse pointer for touch, a fine one under a mouse.
+    expect(await page.evaluate(() => matchMedia("(pointer: fine)").matches), frame.name).toBe(!frame.touch);
+    const button = page.getByTestId("account-menu-button").filter({ visible: true }).first();
+    if (frame.touch) await button.tap();
+    else await button.click();
+    const menu = page.getByTestId("account-menu");
+    await expect(menu).toBeVisible();
+    const heights = await menu.locator("[role=menuitem]").evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().height)));
+    expect(heights.length, frame.name).toBeGreaterThan(0);
+    for (const h of heights) {
+      if (frame.touch) expect(h, frame.name).toBeGreaterThanOrEqual(44);
+      else expect(h, frame.name).toBe(36);
+    }
+    await context.close();
+  }
+});
+
+test("the link in the account screen's notes closes it on the way, from Settings too, and lands on the section it names", async ({ page }) => {
+  await page.goto("/settings");
+  await openScreen(page);
+  const details = page.getByTestId("account-sheet-notes").getByRole("link", { name: "Details" });
+  // A finger-sized target around the small link (touch-target): 44px tall.
+  expect(await details.evaluate((el) => parseFloat(getComputedStyle(el, "::after").height))).toBe(44);
+  await details.tap();
+  await expect(page.getByTestId("account-sheet")).toHaveCount(0);
+  await expect(page).toHaveURL(/\/settings#compliance$/);
+  await expect(page.locator("#compliance")).toBeInViewport();
 });

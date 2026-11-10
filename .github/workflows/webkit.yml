@@ -4,7 +4,7 @@
 # windows that WebKit 27 draws whole. That is the engine, not Safari on an iPhone
 # (docs/RESPONSIVE.md → Safari and iPhones, Safari 26).
 # Started by hand only (Actions → WebKit → Run workflow, on main or a branch): before releasing a
-# change that could behave differently in Safari, and after changing the spec. About 11 minutes a
+# change that could behave differently in Safari, and after changing the spec. About 8 minutes a
 # run; it never runs on its own, so otherwise it costs nothing (docs/CI_USAGE.md).
 name: WebKit
 

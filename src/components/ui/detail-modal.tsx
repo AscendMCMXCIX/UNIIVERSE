@@ -34,9 +34,11 @@ export type ModalSize = "compact" | "standard" | "wide" | "full" | "sheet" | "fo
  * screens) as if such a body were empty, so the window collapses to its header, its paddings and
  * its footer. That is what the owner's iPhone showed on 10 Nov: the account menu a 95pt strip (its
  * border, 65pt header and 28pt of body padding, nothing else) and, before it, the account sheet a
- * 124pt strip at the foot of the screen, and every sheet and centred window collapsed the same way
- * there. WebKit 26.0 draws exactly that; WebKit 27 and Chromium draw both bodies alike, which is
- * why no test saw it (docs/RESPONSIVE.md, "Safari 26"). overlay-sizing.test.ts keeps it so.
+ * 124pt strip at the foot of the screen. WebKit 26.0 and the iOS 26 Simulator draw exactly that, and
+ * collapse most other sheets, the compact windows and the centred windows of wider screens the same
+ * way (a sheet with a tall control was sometimes saved by scrolling as one, SHEET_SPARE_REM). WebKit
+ * 27 and Chromium draw both bodies alike, which is why no test saw it (docs/RESPONSIVE.md, "Safari
+ * 26"). overlay-sizing.test.ts keeps it so.
  */
 const BODY_SCROLLS = "min-h-0 flex-auto overflow-y-auto overscroll-contain";
 
@@ -78,11 +80,12 @@ const SIZE: Record<ModalSize, string> = {
  * The motion of each size: a sheet slides up from the bottom edge on phones, a screen rises a little
  * into place, every window else rises into the centre. A screen drops its motion once it has run
  * (`data-entered`, see DetailModal), so whatever the browser does with an animation, the screen
- * rests where its styles put it; no frame of its motion is off the screen.
+ * rests where its styles put it; no frame of its motion is more than 1rem from there. Each fades its
+ * dimmed backdrop out as it closes, so the page is never left dimmed for a frame and then bright.
  */
 const MOTION: Partial<Record<ModalSize, string>> = {
   sheet: "motion-safe:sheet-in data-[closing=true]:sheet-out sm:motion-safe:modal-in sm:data-[closing=true]:modal-out short:motion-safe:sheet-in short:data-[closing=true]:sheet-out backdrop:transition-opacity backdrop:duration-150 data-[closing=true]:backdrop:opacity-0",
-  screen: "motion-safe:not-data-[entered=true]:screen-in data-[closing=true]:screen-out",
+  screen: "motion-safe:not-data-[entered=true]:screen-in data-[closing=true]:screen-out backdrop:transition-opacity backdrop:duration-150 data-[closing=true]:backdrop:opacity-0",
 };
 /**
  * How long a screen's opening motion may take before it is dropped regardless (screen-in runs
@@ -213,9 +216,12 @@ function useSheetDrag(ref: React.RefObject<HTMLDialogElement | null>, enabled: b
       d.style.removeProperty("transition");
     };
     const canScroll = (el: HTMLElement | null) => !!el && el.scrollHeight > el.clientHeight + 1;
+    // A page pinched to zoom: a finger pans the zoomed view to the part out of sight (the browser's
+    // own move), so nothing is pulled or held while it is zoomed in.
+    const zoomed = () => (window.visualViewport?.scale ?? 1) > 1.01;
     const onStart = (e: TouchEvent) => {
       const t = e.touches[0];
-      if ((pull && !docked.matches) || e.touches.length !== 1 || !t) {
+      if ((pull && !docked.matches) || e.touches.length !== 1 || !t || zoomed()) {
         mode = "pass";
         return;
       }
@@ -344,7 +350,9 @@ export function DetailModal({
   /**
    * The content scrolls itself (an editor with a fixed preview and toolbar): the body is a
    * fixed-height column that never scrolls, on every screen, short windows and phones included,
-   * and the content gives one area of its own `min-h-0 flex-1 overflow-y-auto`.
+   * and the content gives one area of its own `min-h-0 flex-1 overflow-y-auto`. Only with a size
+   * whose height is fixed (wide, full): in a window as tall as its content (compact, sheet, standard
+   * and form from sm) that area would grow from nothing, which Safari 26 draws empty (BODY_SCROLLS).
    */
   innerScroll?: boolean;
 }) {
@@ -681,9 +689,12 @@ export function DetailModal({
                   "flex items-center gap-1",
                   flow && !docked
                     ? "fixed right-[max(0.5rem,env(safe-area-inset-right))] top-[calc(env(safe-area-inset-top)+0.5rem)] z-20 rounded-lg bg-bg-elevated/85 shadow-lg backdrop-blur"
-                    : innerScroll || pinned || docked || screen
-                      ? "absolute right-2 top-2 sm:right-3 sm:top-3"
-                      : "absolute right-2 top-2 sm:right-3 sm:top-3 short:fixed short:right-[max(0.5rem,env(safe-area-inset-right))] short:top-2 short:z-20 short:rounded-lg short:bg-bg-elevated/85 short:shadow-lg short:backdrop-blur",
+                    : screen
+                      ? // Centred in the account screen's 52px bar at every width it opens at.
+                        "absolute right-2 top-2"
+                      : innerScroll || pinned || docked
+                        ? "absolute right-2 top-2 sm:right-3 sm:top-3"
+                        : "absolute right-2 top-2 sm:right-3 sm:top-3 short:fixed short:right-[max(0.5rem,env(safe-area-inset-right))] short:top-2 short:z-20 short:rounded-lg short:bg-bg-elevated/85 short:shadow-lg short:backdrop-blur",
                 )}
               >
                 {controls}

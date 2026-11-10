@@ -3,12 +3,11 @@
  * an invisible element fixed to the screen's four edges (`position: fixed; inset: 0`).
  *
  * Script that places something fixed (a menu below its button, a tip beside its icon, the edge a
- * drag scrolls at) measures the very box it places in, so the place and the measure always agree.
- * window.innerHeight and the visual viewport follow what is visible instead, which iOS has reported
- * wrongly in installed apps: short by a keyboard's height with nothing focused, or by a status bar,
- * after the keyboard, a resume or a rotation (WebKit bugs 322900, 323322, 322083; docs/RESPONSIVE.md,
- * "Safari 26"). Browser code only; the element is made on first use, after the page has hydrated,
- * and kept.
+ * drag scrolls at) measures the very box it places in, so the place and the measure always agree,
+ * whatever the browser's other readings say. In installed apps iOS has reported the visual viewport
+ * short after the keyboard or a resume, and the root's clientHeight short by the status bar (WebKit
+ * bugs 322900, 323322); fixed boxes then follow the shortened viewport too, and this box with them.
+ * Browser code only; the element is made on first use, after the page has hydrated, and kept.
  */
 let probe: HTMLDivElement | null = null;
 

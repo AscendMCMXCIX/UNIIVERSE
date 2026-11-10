@@ -72,8 +72,8 @@ export function Menu({ trigger, children, label, align = "end", side = "bottom",
     const m = menuRef.current;
     if (!t || !m) return;
     const r = t.getBoundingClientRect();
-    // The screen as fixed positioning sees it, the box the menu is placed in, rather than
-    // window.innerHeight, which iOS has reported wrongly in installed apps (lib/screen.ts).
+    // The screen as fixed positioning sees it, the box the menu is placed in (lib/screen.ts), so the
+    // room below its button and the place it opens at always agree.
     const { width: W, height: H } = screenBox();
     const width = m.offsetWidth;
     const height = m.scrollHeight;
@@ -195,7 +195,8 @@ export function Menu({ trigger, children, label, align = "end", side = "bottom",
 
 const itemClass = (tone: "default" | "danger", active?: boolean) =>
   cn(
-    "flex min-h-11 w-full items-center gap-2.5 rounded-md px-3 text-left text-sm outline-none transition-colors focus-visible:bg-surface-2 md:min-h-9",
+    // 44px rows on a touch screen at every width (a phone held sideways, a tablet), 36px under a mouse.
+    "flex min-h-11 w-full items-center gap-2.5 rounded-md px-3 text-left text-sm outline-none transition-colors focus-visible:bg-surface-2 md:pointer-fine:min-h-9",
     tone === "danger" ? "text-bad hover:bg-bad/10 focus-visible:bg-bad/10" : "text-fg hover:bg-surface-2",
     active && "bg-accent/10 font-medium text-fg",
   );

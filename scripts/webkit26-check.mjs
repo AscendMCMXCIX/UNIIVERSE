@@ -7,10 +7,11 @@
 
   Safari 26 and earlier (iOS, iPadOS and macOS 26) collapse a window that is as tall as its content
   (a dialog's fit-content height) to its header when the window's body grows from nothing
-  (`flex-1`): on the owner's iPhone the account menu was a 95pt strip and every sheet a sliver
-  (10 Nov). WebKit 27 fixed it, and the browser tests run Playwright's current WebKit (27), so they
-  cannot see it. This runs the same pages in Playwright 1.58.2's WebKit 26.0, the last build before
-  the fix, which draws the collapse exactly as the iPhone did (DetailModal's BODY_SCROLLS).
+  (`flex-1`): on the owner's iPhone the account menu was a 95pt strip (10 Nov), and most other
+  sheets and the centred windows collapsed the same way. WebKit 27 fixed it, and the browser tests
+  run Playwright's current WebKit (27), so they cannot see it. This runs the same pages in Playwright
+  1.58.2's WebKit 26.0, the last build before the fix, which draws the collapse exactly as the
+  iPhone did (DetailModal's BODY_SCROLLS).
 
   - PW26_CORE: the playwright-core 1.58.2 package folder (npm install --prefix <dir>
     playwright-core@1.58.2), and PLAYWRIGHT_BROWSERS_PATH where its WebKit was installed
@@ -250,32 +251,57 @@ function showsContent(m) {
   return m.shown + 1 < needed ? [`its body shows ${m.shown}px of ${m.content}px of content (the collapse)`] : [];
 }
 
+const PORT = 3198;
+const answers = (url) => fetch(url, { redirect: "manual" }).then((r) => r.status < 500, () => false);
+
+/**
+ * Starts the production build on the browser tests' demo settings, in a process group of its own so
+ * the whole of it (pnpm, next) stops with the check, interrupted or not.
+ */
 async function startServer() {
-  const port = 3198;
-  const server = spawn("pnpm", ["start", "-p", String(port)], {
+  const base = `http://127.0.0.1:${PORT}`;
+  // Something already answering there would be checked instead of this build.
+  if (await answers(`${base}/team`)) throw new Error(`port ${PORT} already answers: stop what serves it, or pass its address`);
+  const server = spawn("pnpm", ["start", "-p", String(PORT)], {
     detached: true,
     stdio: ["ignore", "ignore", "inherit"],
     env: { ...process.env, UNIIVERSE_DB_MODE: "memory", UNIIVERSE_SEED_DEMO: "true", UNIIVERSE_REQUIRE_AUTH: "false", UNIIVERSE_JOB_LOGS: "silent", NEXT_TELEMETRY_DISABLED: "1", DATABASE_URL: "", RIOT_API_KEY: "", UNIIVERSE_FAKE_RIOT_IDS: "1" },
   });
-  const base = `http://127.0.0.1:${port}`;
+  let exited = null;
+  server.on("exit", (code) => (exited = code ?? "a signal"));
+  const stop = () => {
+    try {
+      process.kill(-server.pid);
+    } catch {
+      // The group has already gone.
+    }
+  };
+  for (const signal of ["SIGINT", "SIGTERM"]) {
+    process.on(signal, () => {
+      stop();
+      process.exit(130);
+    });
+  }
   for (let i = 0; i < 120; i++) {
-    const up = await fetch(`${base}/team`, { redirect: "manual" }).then((r) => r.status < 500, () => false);
-    if (up) return { base, stop: () => process.kill(-server.pid) };
+    if (exited !== null) throw new Error(`the demo build stopped before it answered (exit ${exited}): run pnpm build first`);
+    if (await answers(`${base}/team`)) return { base, stop };
     await new Promise((r) => setTimeout(r, 1000));
   }
-  process.kill(-server.pid);
-  throw new Error("the demo build did not start (run pnpm build first)");
+  stop();
+  throw new Error("the demo build did not answer within 2 minutes (run pnpm build first)");
 }
 
 const server = process.argv[2] ? null : await startServer();
 const base = (process.argv[2] ?? server.base).replace(/\/$/, "");
-const browser = await webkit.launch();
-const version = browser.version();
-console.log(`WebKit ${version} on ${base}`);
 const failures = [];
 let checks = 0;
 let failed = 0;
+let browser = null;
+let version = "?";
 try {
+  browser = await webkit.launch();
+  version = browser.version();
+  console.log(`WebKit ${version} on ${base}`);
   if (!version.startsWith("26.")) failures.push(`WebKit ${version} is not Safari 26's engine: install playwright-core 1.58.2's WebKit (see the top of this file)`);
   for (const check of CHECKS) {
     for (const frame of check.frames) {
@@ -304,7 +330,7 @@ try {
     }
   }
 } finally {
-  await browser.close();
+  await browser?.close();
   server?.stop();
 }
 if (failures.length) {

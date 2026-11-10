@@ -578,13 +578,11 @@ function SectionBar({ steps, step, edited, open, onOpen, onStep }: { steps: read
       </div>
       {open ? (
         <>
-          {/* A tap anywhere else puts the list away. The list is at most 26rem or 60% of the screen's
-              height, and never less than 16rem, so a viewport height reported short (iOS has
-              reported dvh wrongly in installed apps, WebKit bug 301994) cannot leave it a sliver. */}
+          {/* A tap anywhere else puts the list away. */}
           <div className="fixed inset-0 z-20" onClick={() => onOpen(false)} aria-hidden />
           <nav
             aria-label="Studio sections"
-            className="absolute inset-x-2 top-full z-30 mt-1 max-h-[min(26rem,max(60dvh,16rem))] overflow-y-auto overscroll-contain rounded-panel border border-border-strong bg-bg-elevated p-1 shadow-2xl shadow-black/50 motion-safe:rise-in"
+            className="absolute inset-x-2 top-full z-30 mt-1 max-h-[min(26rem,60dvh)] overflow-y-auto overscroll-contain rounded-panel border border-border-strong bg-bg-elevated p-1 shadow-2xl shadow-black/50 motion-safe:rise-in"
             onKeyDown={(e) => {
               if (e.key !== "Escape") return;
               // Escape closes the list, not the Studio.

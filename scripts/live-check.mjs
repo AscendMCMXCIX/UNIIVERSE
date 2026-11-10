@@ -421,6 +421,8 @@ async function frameChecks(page, kind, context) {
           return !(r.top >= 0 && r.bottom <= box.bottom && at && (at === el || el.contains(at)));
         }).length;
         const rows = controls.slice(1).map((el) => el.getBoundingClientRect());
+        // Full width: as wide as the column the rows sit in (the nav), less its border.
+        const column = d.querySelector("nav")?.getBoundingClientRect().width ?? 0;
         const signOut = d.querySelector("[data-testid=sign-out]")?.getBoundingClientRect();
         return {
           box: [Math.round(box.left), Math.round(box.top), Math.round(box.width), Math.round(box.height)],
@@ -429,13 +431,15 @@ async function frameChecks(page, kind, context) {
           controls: controls.length,
           missed,
           shortest: rows.length ? Math.round(Math.min(...rows.map((r) => r.height))) : 0,
+          narrowest: rows.length ? Math.round(Math.min(...rows.map((r) => r.width))) : 0,
+          column: Math.round(column),
           focus: document.activeElement === d,
           signOut: signOut ? { inView: signOut.top >= 0 && signOut.bottom <= box.bottom } : null,
         };
       });
       const fills = fit.box[0] === 0 && fit.box[1] === 0 && fit.box[2] === fit.screen[0] && fit.box[3] === fit.screen[1];
       pass("frame", "phone: the account screen comes to rest filling the screen, nothing in it scrolling", rested && fills && !fit.bodyScrolls, { rested, box: fit.box, screen: fit.screen, bodyScrolls: fit.bodyScrolls });
-      pass("frame", "phone: every control in the account screen is a full-width target reached by a tap where it is drawn", fit.controls >= 3 && fit.missed === 0 && fit.shortest >= 48, { controls: fit.controls, missed: fit.missed, shortestRow: fit.shortest });
+      pass("frame", "phone: every control in the account screen is a full-width target reached by a tap where it is drawn", fit.controls >= 3 && fit.missed === 0 && fit.shortest >= 48 && fit.column > 0 && fit.narrowest >= fit.column - 2, { controls: fit.controls, missed: fit.missed, shortestRow: fit.shortest, narrowestRow: fit.narrowest, column: fit.column });
       pass("frame", "phone: the account screen takes the focus itself as it opens", fit.focus, { focus: fit.focus });
       if (fit.signOut) pass("frame", "phone: Sign out is in view without scrolling the account screen", fit.signOut.inView, fit.signOut);
       else if (local) warn("frame", "phone: Sign out not offered", { why: "LIVE_LOCAL=1: the demo build has no sign-in; the screen holds the mode switch" });

@@ -45,16 +45,20 @@ anywhere else:
    title once it has moved into the top bar (docs/DESIGN_SYSTEM.md, "The navigation contract").
 3. **The account screen** (from the avatar: a screen of its own that rises over the page,
    `DetailModal size="screen"`): a bar with "Account" and the close button at its right; who is
-   signed in (the picture, the name, the role and the username); one panel of full-width rows, 52px
-   tall, each an icon, a name and a chevron: the pages the tab bar does not hold (Resources when it
-   has no tab, as an account with the Team pages has five tabs already; in Admin Mode the admin pages
-   without a tab), Settings and Install App; a second panel with the switch between the modes and
-   Sign out; at the foot one quiet line with the patch and Riot's notice. It is fixed to the screen's
-   four edges, under the status bar and the Dynamic Island, clear of the notch sideways, and its
-   content keeps a readable column (28rem) in the middle of a wider screen. Everything is in view
-   without scrolling on every phone held upright at the usual text size, the 320×568 iPhone SE (1st
-   generation) included; with large text, or held sideways, only its body scrolls, as one region,
-   and the bar with the close button stays put. The close button is a quiet 36px circle whose touch
+   signed in (the picture, the name and the role, and the username on a line of its own where it
+   differs from the name; a long name or username wraps, never cut short); one panel of full-width
+   rows, 52px tall, each an icon and a name, with a chevron on each page's row: the pages the tab bar
+   does not hold (Resources when it has no tab, as an account with the Team pages has five tabs
+   already; in Admin Mode the admin pages without a tab), Settings and Install App; a second panel
+   with the switch between the modes above Sign out; at the foot one quiet line with the patch and
+   Riot's notice, whose link closes the screen as it goes. It is fixed to the screen's four edges,
+   under the status bar and the Dynamic Island, clear of the notch sideways, and its content keeps a
+   readable column (28rem) in the middle of a wider screen. At the usual text size everything is in
+   view without scrolling on every phone from 375pt wide held upright, installed or in Safari, and
+   on the 320×568 iPhone SE (1st generation) installed; in Safari's tab on that SE an
+   administrator's screen scrolls a little. With large text, or held sideways, only its body
+   scrolls, as one region, and the bar with the close button stays put. On a page pinched to zoom,
+   a finger pans the zoomed view across it. The close button is a quiet 36px circle whose touch
    area reaches 44px. The screen takes the focus itself as it opens (nothing lights up), Tab reaches
    the close button and the rows in order, Escape or the close button closes it and the focus goes
    back to the avatar, and the page behind never moves. It replaces both the menu drawer and the
@@ -74,12 +78,17 @@ anywhere else:
    26) work out that height as if such a body were empty, so the window collapses to its header and
    paddings. On the owner's iPhone the sheet was a 124pt strip at the foot of the screen and the
    panel a 95pt strip at the top: exactly their borders, headers and body paddings, with no body.
-   Most other sheets (filters, editors, confirmations) collapsed the same way on iPhones on iOS 26,
-   and on iPads and Macs on Safari 26 so did the centred windows (a player's window, signing in).
-   WebKit 27 draws it correctly (WebKit bugs 242837 and 289876, fixed in Safari 27), and the browser
-   tests ran Playwright's WebKit 27 and Chromium, so every test passed while iPhones on iOS 26 showed
-   strips. Playwright 1.58.2's WebKit 26.0 draws exactly what the owner saw: the panel 377×95 with
-   one of its six controls in reach. Two changes fix it:
+   Most other sheets (filters, editors, confirmations) collapsed the same way on iOS 26, unless a
+   tall control in them made the sheet scroll as one (`SHEET_SPARE_REM`), and on iPads and Macs on
+   Safari 26 so did the centred windows (a player's window, signing in). WebKit 27 draws it correctly
+   (WebKit bugs 242837 and 289876, fixed in Safari 27), and the browser tests ran Playwright's WebKit
+   27 and Chromium, so every test passed while iPhones on iOS 26 showed strips. Playwright 1.58.2's
+   WebKit 26.0 draws exactly what the owner saw: the panel 377×95 with one of its six controls in
+   reach. So does real iOS: in the iOS 26.5 and 26.2 Simulators (Mobile Safari and a Home Screen web
+   app, run once on GitHub's macOS runners on 10 Nov), main's panel was 95px tall with one of six
+   controls in reach, in Safari and installed, and the filter sheet 189px in Safari. Two changes fix
+   it, and the same Simulator run of them showed the account screen filling the screen (695px in
+   Safari, 793 and 812px installed) with every control in reach and the filter sheet whole (410px):
    - every window's body grows from its content (`flex-auto`, `BODY_SCROLLS` in detail-modal.tsx),
      which Safari 26 sizes correctly; `overlay-sizing.test.ts` forbids a body that grows from
      nothing, and `scripts/webkit26-check.mjs` opens every kind of window in WebKit 26.0 (the WebKit
@@ -91,8 +100,11 @@ anywhere else:
    early; the first version of this change blamed an installed app reporting its viewport far too
    small (196pt), a figure worked back from the screenshot, never measured. What that work changed
    stays, for its own reasons: overlays are placed and sized by the box they are fixed to (insets
-   and percentages), not by viewport units or by measuring the viewport from script, which iOS has
-   reported wrongly in installed apps (WebKit bugs 254868, 301994, 322900, 323322).
+   and percentages), not by viewport units or by measuring the viewport from script, readings of
+   the screen that iOS has got wrong in installed apps: svh and the visual viewport less the safe
+   areas (WebKit bug 254868), vh and lvh on iOS 26.1 (301994), the visual viewport short after the
+   keyboard or a resume (322900, 323322). Inside windows, the Card Studio's section list and the
+   picture cropper still follow the viewport, as before.
 
 Tablets keep the menu drawer (a modal dialog), the account dropdown and the page tabs
 (`SectionTabs`, pinned at the top of the page once it scrolls, as a profile's sections are, so they
@@ -234,10 +246,14 @@ account screen is a screen of its own instead (`size="screen"`, above). A sheet:
   an iPhone's insets), on five pages scrolled to the top, the middle and the end: it fills the
   screen exactly, nothing in it scrolls, every control is a full-width row at least 48px tall reached
   by a tap where it is drawn, the close button sits below the status bar at the top right, the
-  screen has the focus and the page never moves; its touch area of 44px; held sideways and at 150%
-  text one scroll region in which every control can be shown whole; no frame of its motion off the
-  screen, at rest with every animation held at its first frame, at once with reduced motion; a page
-  scrolled from script while it is open is put back; `e2e/sidebar-motion.spec.ts` the same early
+  screen has the focus and the page never moves, and nothing in it ends under the home indicator;
+  a username far longer than the name wraps on the narrowest phones; its close button's touch area
+  of 44px; held sideways at 100%, 125%, 150% and 200% text, upright at 150%, and in a page zoomed
+  to 150% sideways, one scroll region in which every control can be shown whole; on a page pinched
+  to zoom, a finger's drag pans the zoomed view; no frame of its motion more than 1rem from where it
+  rests, at rest with every animation held at its first frame, at once with reduced motion; a page
+  scrolled from script while it is open is put back; the account dropdown's rows 44px tall on a
+  touch screen (a phone held sideways, a tablet); its notes' link closing the screen; `e2e/sidebar-motion.spec.ts` the same early
   click on the desktop sidebar's collapse control and account tile; `e2e/responsive.spec.ts`,
   `e2e/mobile-landscape.spec.ts` and `e2e/quality.spec.ts` keep overflow, targets, short windows and
   axe in check at every width.

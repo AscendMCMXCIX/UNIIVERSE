@@ -223,8 +223,8 @@ reads as set into the frame rather than pasted on a flat block.
 
 Tablets keep the top bar, the drawer (sharing `NavLinks`, so the same rows) and the section tabs.
 Phones keep the top bar, the five-tab bar and the account screen (MOBILE.md). They pick up the new
-`chrome` ink automatically. On the account screen the mode switch is a row like the others, beside
-Sign out in their own panel, and it keeps the accent when it leads to Admin Mode.
+`chrome` ink automatically. On the account screen the mode switch is a row like the others, above
+Sign out in a panel of their own, and it keeps the accent when it leads to Admin Mode.
 
 With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shell):
 

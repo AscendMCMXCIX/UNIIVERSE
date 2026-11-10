@@ -25,7 +25,7 @@ it (`globals.css`), and every pinned element follows these rules:
 | Top bar | sticky | slides away while the page scrolls down; back on any scroll up, at the top, and while it holds focus |
 | Tab bar | fixed at the bottom | a compact row that slides away with the top bar and comes back with it; `main` keeps room for it (`pb-tabbar`) |
 | Detail windows (`DetailModal`) | whole screen below `sm`, centred window above; one whose header would fill over 40% of a phone's screen (the Team player window on a small phone) scrolls as one, as in a short window | whole screen, scrolling as one: a large header scrolls away, its close and step buttons float at the top, a footer stays pinned |
-| The account screen (`DetailModal size="screen"`, behind the phone's avatar) | the whole screen, fixed to its four edges, under the status bar; its rows in a readable column (28rem); nothing scrolls at the usual text size | the whole screen too; only its body scrolls, as one region, under its bar with the close button |
+| The account screen (`DetailModal size="screen"`, behind the phone's avatar) | the whole screen, fixed to its four edges, under the status bar; its rows in a readable column (28rem); at the usual text size nothing scrolls on phones from 375pt wide (an administrator's screen scrolls a little in Safari's tab on the 320×568 iPhone SE) | the whole screen too; only its body scrolls, as one region, under its bar with the close button |
 | Sheets (`DetailModal size="sheet"`: `Dialog`'s confirmations and editors, the filter sheet, the lineup sheet) | docked to the bottom edge, as tall as its content up to the screen less 2.5rem and the status bar (a share of the screen it is fixed to); a taller wider screen gets a centred window | docked to the bottom edge too, up to 44rem wide and the screen less 0.5rem; in both, the header and footer stay and only the body scrolls, unless they would leave it less room than its tallest control needs (large text or a zoomed page, mostly on a phone held sideways): then the whole sheet scrolls as one, like a page (`data-flow`) |
 | Things pinned to the bottom (toasts, a save bar) | `bottom-tabbar`: above the tab bar | near the bottom edge |
 
@@ -183,7 +183,7 @@ Three levels, each saying what it proves:
   checks the account screen with them on seven phones (MOBILE.md, "The account screen"). Layout and
   behaviour, in Chromium.
 - **Safari's engine** (by hand): `e2e/webkit.spec.ts`, in the `webkit` project that exists only
-  with `E2E_WEBKIT=1`. Run it with the WebKit workflow (Actions → WebKit → Run workflow, about 11
+  with `E2E_WEBKIT=1`. Run it with the WebKit workflow (Actions → WebKit → Run workflow, about 8
   minutes with the Safari 26 check below), or locally after `pnpm exec playwright install webkit` with
   `pnpm build && E2E_WEBKIT=1 pnpm exec playwright test --project=webkit`. On an iPhone-sized,
   touch WebKit it checks:
@@ -207,6 +207,9 @@ Three levels, each saying what it proves:
 
   This is WebKit as Playwright builds it for Linux, the current one (WebKit 27): Safari's engine, not
   Safari on an iPhone, and not Safari 26 (next).
+  **Status, 10 Nov 2026:** the WebKit workflow passes on #280's branch: the 18 tests of this spec and
+  the 26 checks of the next step (run 42800009253). On 7 Nov it passed 17 of 17 on `main` (run
+  42373258830) and on #262's branch (run 42401195789).
 - **Safari 26's engine** (by hand, the same WebKit workflow, after the step above):
   `scripts/webkit26-check.mjs` in Playwright 1.58.2's WebKit 26.0, the last build before WebKit 27.
   Safari 26 and earlier (iOS, iPadOS and macOS 26) collapse a window that is as tall as its content
@@ -222,7 +225,7 @@ Three levels, each saying what it proves:
   on a phone leaves the bottom edge. Run on main's code from before the fix, 14 of its 26 checks fail,
   the account panel exactly as the owner saw it (377×95, one of six controls in reach); with the
   fix, all 26 pass. Playwright 1.58.2 builds WebKit for Ubuntu up to 24.04 (not 26.04), so the
-  workflow runs on `ubuntu-24.04`, as this machine does. Locally:
+  workflow runs on `ubuntu-24.04`; locally, the same commands work on Ubuntu 24.04:
 
   ```bash
   npm install --prefix /tmp/pw26 playwright-core@1.58.2
@@ -239,8 +242,15 @@ Three levels, each saying what it proves:
   A window built on `DetailModal` gets this for free; anything else as tall as its content (a
   `<dialog>`, a popover) needs its scrolling part to grow from its content too (`flex-auto`), and
   `src/components/ui/overlay-sizing.test.ts` checks the overlays it lists.
-  **Status, 7 Nov 2026:** the WebKit workflow passes: 17 of 17 on `main` (run 42373258830) and on
-  #262's branch (run 42401195789).
+- **The iOS Simulator** (once, 10 Nov 2026; not a workflow in this repository): Mobile Safari and a
+  Home Screen web app in the iOS 26.5 and 26.2 Simulators on GitHub's macOS runners, against a demo
+  build, with real touches (the throw-away branches `ios-sim/account-menu-baseline` and
+  `ios-sim/account-menu-fix`, runs 42802301642 and 42802307377). On main's code the account panel
+  was 95px tall with one of six controls in reach, in Safari and installed, and the filter sheet
+  189px in Safari; on #280's code the account screen filled the screen (695px in Safari, 793 and
+  812px installed) with every control in reach, and the filter sheet was whole (410px). It is iOS's
+  own WebKit, but a simulator: the Home Screen app was set up by the run, not by Share → Add to
+  Home Screen.
 - **A real iPhone** (by a person; nothing above covers it):
   1. Add to Home Screen from Safari's Share menu: the icon and name come from Branding, and the app
      opens full screen with its content clear of the notch and the home indicator.
@@ -261,8 +271,8 @@ Three levels, each saying what it proves:
      and after typing in a field and closing the keyboard: the account screen fills the screen under
      the status bar, your picture, name and role at its top, every row, the mode switch and Sign out
      in view and each answering a tap; × closes it, and the page behind has not moved. Then open
-     Filters on a Match History and a confirmation (removing a bookmark, say): each sheet shows its
-     choices, not just its title. (On 10 Nov the account panel was a 95pt strip at the top and the
+     Filters on a Match History, and on Team Edit lineup, a role's Change (then Cancel, so nothing is
+     saved): each sheet shows its choices, not just its title. (On 10 Nov the account panel was a 95pt strip at the top and the
      sheet before it a strip at the foot of the screen; MOBILE.md, "Why the account menu was a strip
      on iPhones".) Settings → General → About gives the iOS version: 26 or earlier is the engine that
      collapsed them.

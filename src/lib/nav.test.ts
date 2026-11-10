@@ -57,7 +57,7 @@ describe("phone tab bar", () => {
   const personal = phoneTabs(["/overview", "/resources", "/settings"]);
   const hrefs = (tabs: typeof member) => tabs.map((t) => t.href);
 
-  it("a team member's bar: Team, Players, Leaderboards, Matches and Profile, one tap each; Resources moves to the account panel", () => {
+  it("a team member's bar: Team, Players, Leaderboards, Matches and Profile, one tap each; Resources moves to the account screen", () => {
     expect(hrefs(member)).toEqual(["/team", "/players", "/leaderboards", "/matches", "/overview"]);
     expect(member).toHaveLength(PHONE_TAB_LIMIT);
     expect(hrefs(personal)).toEqual(["/overview", "/resources"]);
