@@ -64,8 +64,8 @@ export function RankTimelineChart({ t, label }: { t: RankTimeline; label: string
     return () => ro.disconnect();
   }, []);
 
-  // Narrow (a phone, a tablet's third): the divisions' short codes ("E2"), in a narrower gutter.
-  const narrow = width < 26.25 * rem;
+  // Narrow (a phone, a tablet's third, under 25.5rem): the divisions' short codes ("E2"), in a narrower gutter.
+  const narrow = width < 25.5 * rem;
   const { H, PAD_T, PLOT_H, pad } = chartFrame(rem, narrow);
   const span = Math.max(1, t.to - t.from);
   const plotW = width - pad.l - pad.r;

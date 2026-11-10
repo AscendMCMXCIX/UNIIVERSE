@@ -70,7 +70,7 @@ function Supporting({ label, value, sub, info, muted, testId }: { label: string;
         <span className={cn("text-lg font-semibold leading-tight tabular-nums", muted ? "text-fg-subtle" : "text-fg")} data-testid={`${testId}-value`}>
           {value}
         </span>
-        {sub ? <span className="hidden min-w-0 truncate text-xs text-fg-subtle @min-[44rem]/perf:inline">{sub}</span> : null}
+        {sub ? <span className="hidden min-w-0 truncate text-xs text-fg-subtle @min-[40rem]/perf:inline">{sub}</span> : null}
       </div>
     </div>
   );
@@ -203,8 +203,8 @@ function PerformanceCard({ data, basePath }: { data: PlayerOverviewData; basePat
     2×2 (a window 1440px or wider, and a dashboard of 68rem or more: 1440 with the sidebar open and
                    wider; the owner's choice of 8 Nov 2026, never forced onto smaller screens)
                    the season's card and recent form side by side, level; under them the champion
-                   pools beside ranked progress, each at the top of its cell, in a rail of 20–26rem
-                   (40% of the dashboard). Without recent form, ranked progress takes the whole rail
+                   pools beside ranked progress, each at the top of its cell, in a rail of 20–30rem
+                   (40% of the dashboard: from 28rem ranked progress draws its chart in full). Without recent form, ranked progress takes the whole rail
                    beside the season's card and the pools; without ranked progress, the pools span
                    the width as below;
     wide (58rem+)  the season's card and recent form side by side, level; under them ranked
@@ -215,7 +215,7 @@ function PerformanceCard({ data, basePath }: { data: PlayerOverviewData; basePat
   A card without data is left out (fewer than five games: no recent form; no linked account: no
   ranked progress), and the others close up: nothing is padded out to keep a shape.
 */
-const GRID_2X2 = "min-[90rem]:@min-[68rem]/ov:grid-cols-[minmax(0,1fr)_clamp(20rem,40%,26rem)]";
+const GRID_2X2 = "min-[90rem]:@min-[68rem]/ov:grid-cols-[minmax(0,1fr)_clamp(20rem,40%,30rem)]";
 function OverviewDashboard({ perf, form, ranked, pools }: { perf: React.ReactNode; form?: React.ReactNode; ranked?: React.ReactNode; pools?: React.ReactNode }) {
   const wide = form ? "@min-[58rem]/ov:col-span-2" : undefined;
   // 2×2: only with ranked progress (else the 58rem arrangement stays); the pools go under the
