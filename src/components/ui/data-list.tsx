@@ -59,8 +59,8 @@ const SURFACE = {
 } as const;
 
 /**
- * The board. `columns` sets --dl-cols for each tier ("[--dl-cols:…] @min-[36rem]/list:[--dl-cols:…]"),
- * a literal: a container query cannot style its own container, so the template goes on the body,
+ * The board. `columns` sets the --dl-cols template for each tier, as literal classes (Recent form's
+ * FORM_COLS): a container query cannot style its own container, so the template goes on the body,
  * and the headings and every row inherit it. Headings, groups and captions are the body's direct
  * children, so one divide-y draws every line between them and a missing group never doubles one.
  */
