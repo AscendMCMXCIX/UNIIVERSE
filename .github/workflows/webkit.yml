@@ -21,7 +21,9 @@ permissions:
 jobs:
   webkit:
     name: Safari's engine (WebKit) on the priority pages
-    runs-on: ubuntu-latest
+    # Ubuntu 24.04, not ubuntu-latest (26.04): Playwright 1.58.2, whose WebKit 26.0 the Safari 26
+    # step needs, has no WebKit for 26.04; the current Playwright supports both.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
@@ -41,7 +43,7 @@ jobs:
         id: browsers
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-webkit
+          key: playwright-${{ runner.os }}-ubuntu-24.04-${{ steps.playwright.outputs.version }}-webkit
       - if: steps.browsers.outputs.cache-hit != 'true'
         run: pnpm exec playwright install --with-deps webkit
       - if: steps.browsers.outputs.cache-hit == 'true'

@@ -221,8 +221,8 @@ Three levels, each saying what it proves:
   does not fill the screen with every control in reach and the page behind unmoved, or if a sheet
   on a phone leaves the bottom edge. Run on main's code from before the fix, 14 of its 26 checks fail,
   the account panel exactly as the owner saw it (377×95, one of six controls in reach); with the
-  fix, all 26 pass.
-  Locally:
+  fix, all 26 pass. Playwright 1.58.2 builds WebKit for Ubuntu up to 24.04 (not 26.04), so the
+  workflow runs on `ubuntu-24.04`, as this machine does. Locally:
 
   ```bash
   npm install --prefix /tmp/pw26 playwright-core@1.58.2

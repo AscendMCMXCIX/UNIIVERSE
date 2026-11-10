@@ -14,7 +14,8 @@
 
   - PW26_CORE: the playwright-core 1.58.2 package folder (npm install --prefix <dir>
     playwright-core@1.58.2), and PLAYWRIGHT_BROWSERS_PATH where its WebKit was installed
-    (node <PW26_CORE>/cli.js install --with-deps webkit). The WebKit workflow does both.
+    (node <PW26_CORE>/cli.js install --with-deps webkit). The WebKit workflow does both, on Ubuntu
+    24.04: Playwright 1.58.2 has no WebKit for newer Ubuntu releases.
   - base url: a running demo build. Without one, the production build (pnpm build first) is started
     on the browser tests' demo settings at port 3198 and stopped afterwards.
   - WEBKIT26_SHOTS=<folder>: a screenshot of every window.
