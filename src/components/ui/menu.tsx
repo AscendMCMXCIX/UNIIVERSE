@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { screenBox, screenHeight } from "@/lib/screen";
 
 /*
   A small actions menu (⋯ menus, the account menu, "Change player"…).
@@ -71,8 +72,9 @@ export function Menu({ trigger, children, label, align = "end", side = "bottom",
     const m = menuRef.current;
     if (!t || !m) return;
     const r = t.getBoundingClientRect();
-    const W = document.documentElement.clientWidth;
-    const H = window.innerHeight;
+    // The screen as fixed positioning sees it, the box the menu is placed in, rather than
+    // window.innerHeight, which iOS has reported wrongly in installed apps (lib/screen.ts).
+    const { width: W, height: H } = screenBox();
     const width = m.offsetWidth;
     const height = m.scrollHeight;
     const below = H - r.bottom - GAP - MARGIN;
@@ -108,7 +110,7 @@ export function Menu({ trigger, children, label, align = "end", side = "bottom",
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         const r = anchor?.getBoundingClientRect();
-        if (!r || r.bottom < 0 || r.top > window.innerHeight) close();
+        if (!r || r.bottom < 0 || r.top > screenHeight()) close();
         else place();
       });
     };

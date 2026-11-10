@@ -6,6 +6,7 @@ import type { MatchDetailResult } from "@/server/players/match-history";
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { MatchDetailCacheContext } from "./match-detail-cache";
 import { MatchBreakdown } from "./match-breakdown";
+import { screenHeight } from "@/lib/screen";
 
 /*
   A game opened under its card: the one way a list of games opens a game (a player's Match History
@@ -32,7 +33,7 @@ export function revealIfAbove(el: HTMLElement | null) {
 export function revealOpened(el: HTMLElement | null) {
   if (!el) return;
   const top = el.getBoundingClientRect().top;
-  if (top < pinnedAbove() || top > window.innerHeight * 0.55) el.scrollIntoView({ block: "start", behavior: reduced() ? "auto" : "smooth" });
+  if (top < pinnedAbove() || top > screenHeight() * 0.55) el.scrollIntoView({ block: "start", behavior: reduced() ? "auto" : "smooth" });
 }
 
 /**

@@ -37,11 +37,11 @@
     page shows Riot's required notice.
   - frame (#178): the charcoal frame token; the sidebar, open and folded, with the gradient bar on
     the current page; the phone and tablet top bar, drawer and tab bar. Phone: the avatar opens the
-    account panel on the first tap, made as soon as it is on screen; the panel hangs from the top
-    edge, comes to rest (its motion run and dropped) and is whole on the screen, every control in it
-    reached by a tap where it is drawn, Sign out in view without scrolling. Tablet and desktop: the
-    account menu opens on the first tap or click on its avatar or tile, made as soon as it is on
-    screen.
+    account screen on the first tap, made as soon as it is on screen; the screen comes to rest (its
+    motion run and dropped) filling the screen exactly, nothing in it scrolls, every control in it is
+    a full-width target at least 48px tall reached by a tap where it is drawn, the screen itself has
+    the focus, and Sign out is in view. Tablet and desktop: the account menu opens on the first tap or
+    click on its avatar or tile, made as soon as it is on screen.
   - All Champions (#178): compact rows, sorted by games, no heading cut short.
   - settings: the picture and display-name help name the public team page, and Settings never
     mentions a Public profile switch (retired; true or false only).
@@ -390,7 +390,7 @@ async function frameChecks(page, kind, context) {
   pass("frame", `${kind}: the top bar is painted with the frame colour`, sameAsFrame(paint.top, paint.chrome), { topBar: paint.top, chrome: paint.chrome });
   if (kind === "phone") {
     pass("frame", "phone: the tab bar is painted with the frame colour", sameAsFrame(paint.tabs, paint.chrome), { tabBar: paint.tabs, chrome: paint.chrome });
-    // Phones have no drawer: the avatar opens the account panel (docs/MOBILE.md, "The account panel").
+    // Phones have no drawer: the avatar opens the account screen (docs/MOBILE.md, "The account screen").
     // The first tap counts: a fresh load, one tap as soon as the avatar is on screen (before the
     // page's code has run, on a slow load, it is kept and applied once it runs: early-taps.ts), and
     // no second one.
@@ -399,45 +399,48 @@ async function frameChecks(page, kind, context) {
     await avatar.waitFor({ timeout: 20_000 });
     const tappedAt = Date.now();
     await avatar.tap();
-    const panel = page.getByTestId("account-sheet");
-    const opened = await panel.waitFor({ timeout: 15_000 }).then(() => true, () => false);
-    pass("frame", "phone: the avatar opens the account panel on the first tap", opened, { openedAfterMs: opened ? Date.now() - tappedAt : null });
+    const screen = page.getByTestId("account-sheet");
+    const opened = await screen.waitFor({ timeout: 15_000 }).then(() => true, () => false);
+    pass("frame", "phone: the avatar opens the account screen on the first tap", opened, { openedAfterMs: opened ? Date.now() - tappedAt : null });
     if (opened) {
-      // At rest: its opening motion run and dropped (data-entered), within a second.
+      // At rest: its opening motion run and dropped (data-entered), within a few seconds.
       const rested = await page.waitForFunction(() => {
         const d = document.querySelector("[data-testid=account-sheet]");
         return !!d && d.getAttribute("data-entered") === "true" && d.getAnimations().length === 0;
       }, null, { timeout: 5_000 }).then(() => true, () => false);
-      // Where it rests: from the top edge (0.5rem down; this browser has no status bar), whole on the
-      // screen, every control on it reached by a tap where it is drawn, its body not scrolling, and
-      // Sign out (with an account) in view.
-      const fit = await panel.evaluate((d) => {
+      // Where it rests: the whole screen, exactly; nothing scrolls; every control a full-width target
+      // at least 48px tall, reached by a tap where it is drawn; the screen itself has the focus (the
+      // close button is not lit up); Sign out (with an account) in view.
+      const fit = await screen.evaluate((d) => {
         const box = d.getBoundingClientRect();
         const body = d.querySelector("[data-sheet-scroll]");
         const controls = [...d.querySelectorAll("[data-testid=account-sheet-close], nav a, nav button, [data-testid=mode-switch], [data-testid=sign-out]")];
         const missed = controls.filter((el) => {
           const r = el.getBoundingClientRect();
           const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-          return !(r.top >= 0 && r.bottom <= innerHeight && at && (at === el || el.contains(at)));
+          return !(r.top >= 0 && r.bottom <= box.bottom && at && (at === el || el.contains(at)));
         }).length;
-        const signOut = d.querySelector("[data-testid=sign-out]");
-        const s = signOut?.getBoundingClientRect();
+        const rows = controls.slice(1).map((el) => el.getBoundingClientRect());
+        const signOut = d.querySelector("[data-testid=sign-out]")?.getBoundingClientRect();
         return {
-          top: Math.round(box.top),
-          bottom: Math.round(box.bottom),
-          height: innerHeight,
+          box: [Math.round(box.left), Math.round(box.top), Math.round(box.width), Math.round(box.height)],
+          screen: [innerWidth, innerHeight],
+          bodyScrolls: !!body && body.scrollHeight > body.clientHeight + 1,
           controls: controls.length,
           missed,
-          bodyScrolls: !!body && body.scrollHeight > body.clientHeight + 1,
-          signOut: s ? { inView: s.top >= Math.max(0, box.top) - 1 && s.bottom <= Math.min(innerHeight, box.bottom) + 1 } : null,
+          shortest: rows.length ? Math.round(Math.min(...rows.map((r) => r.height))) : 0,
+          focus: document.activeElement === d,
+          signOut: signOut ? { inView: signOut.top >= 0 && signOut.bottom <= box.bottom } : null,
         };
       });
-      pass("frame", "phone: the account panel comes to rest, hangs from the top edge and is whole on the screen", rested && Math.abs(fit.top - 8) <= 1 && fit.bottom <= fit.height && !fit.bodyScrolls, { rested, top: fit.top, bottom: fit.bottom, screen: fit.height, bodyScrolls: fit.bodyScrolls });
-      pass("frame", "phone: every control in the account panel is reached by a tap where it is drawn", fit.controls >= 3 && fit.missed === 0, { controls: fit.controls, missed: fit.missed });
-      if (fit.signOut) pass("frame", "phone: Sign out is in view without scrolling the panel", fit.signOut.inView, fit.signOut);
-      else if (local) warn("frame", "phone: Sign out not offered", { why: "LIVE_LOCAL=1: the demo build has no sign-in; the panel holds the mode switch" });
-      else pass("frame", "phone: Sign out is in view without scrolling the panel", false, { signOut: null });
-      await shot(page, "phone-account-panel");
+      const fills = fit.box[0] === 0 && fit.box[1] === 0 && fit.box[2] === fit.screen[0] && fit.box[3] === fit.screen[1];
+      pass("frame", "phone: the account screen comes to rest filling the screen, nothing in it scrolling", rested && fills && !fit.bodyScrolls, { rested, box: fit.box, screen: fit.screen, bodyScrolls: fit.bodyScrolls });
+      pass("frame", "phone: every control in the account screen is a full-width target reached by a tap where it is drawn", fit.controls >= 3 && fit.missed === 0 && fit.shortest >= 48, { controls: fit.controls, missed: fit.missed, shortestRow: fit.shortest });
+      pass("frame", "phone: the account screen takes the focus itself as it opens", fit.focus, { focus: fit.focus });
+      if (fit.signOut) pass("frame", "phone: Sign out is in view without scrolling the account screen", fit.signOut.inView, fit.signOut);
+      else if (local) warn("frame", "phone: Sign out not offered", { why: "LIVE_LOCAL=1: the demo build has no sign-in; the screen holds the mode switch" });
+      else pass("frame", "phone: Sign out is in view without scrolling the account screen", false, { signOut: null });
+      await shot(page, "phone-account-screen");
     }
     await page.keyboard.press("Escape");
     await page.waitForTimeout(400);

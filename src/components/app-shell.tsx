@@ -155,7 +155,7 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
             showSignOut={showSignOut}
             allowed={allowed}
             adminMode={adminMode}
-            modeSwitch={status.isAdmin ? <ModeSwitch mode={adminMode ? "admin" : "player"} variant="drawer" /> : null}
+            modeSwitch={status.isAdmin ? (adminMode ? "admin" : "player") : null}
             status={<DataLine status={status} />}
             legal={
               <p className="text-xs leading-snug text-fg-subtle" title={riotLegal(b.productName)}>

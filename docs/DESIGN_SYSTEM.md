@@ -222,9 +222,9 @@ reads as set into the frame rather than pasted on a flat block.
 ### Tablets and phones
 
 Tablets keep the top bar, the drawer (sharing `NavLinks`, so the same rows) and the section tabs.
-Phones keep the top bar, the five-tab bar and the account panel (MOBILE.md). They pick up the new
-`chrome` ink automatically. Their mode switch keeps its bordered button: in the panel it sits beside
-Sign out, under the tiles, with nothing else to set it apart.
+Phones keep the top bar, the five-tab bar and the account screen (MOBILE.md). They pick up the new
+`chrome` ink automatically. On the account screen the mode switch is a row like the others, beside
+Sign out in their own panel, and it keeps the accent when it leads to Admin Mode.
 
 With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shell):
 
@@ -271,10 +271,11 @@ test):
   control (large text on a phone held sideways), the whole sheet scrolls as one instead, like a page,
   so nothing is ever cut short in a strip. Escape, the backdrop, Close and a pull down close the
   topmost one, focus returns to what opened it without scrolling, and the page behind never moves
-  (MOBILE.md, "Every sheet and window"). The phone's account menu is the one exception: a panel that
-  hangs from the top, under the avatar (`size="panel"`), placed from the top edge only and as tall as
-  its content, because an iPhone drew the bottom sheet it replaced below the screen (MOBILE.md, "Why
-  the account menu hangs from the top").
+  (MOBILE.md, "Every sheet and window"). Every window's body grows from its content (`flex-auto`,
+  never `flex-1`): Safari 26 collapses a window as tall as its content to its header otherwise, and
+  did to the account menu and most sheets on iPhones (MOBILE.md, "Why the account menu was a strip on
+  iPhones"). The phone's account menu is a screen of its own instead of a sheet (`size="screen"`):
+  full-width rows of at least 48px on a screen fixed to the phone's four edges.
 - **Before the page's code has run.** Destinations are real links, and work at once. The frame's
   controls that code drives (the phone's avatar, the tablet's menu button, the account menu's
   triggers on tablets and in the sidebar, the sidebar's collapse control) keep a tap made before it

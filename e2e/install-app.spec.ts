@@ -48,13 +48,13 @@ async function offerInstall(page: Page, outcome: "accepted" | "dismissed") {
   }, outcome);
 }
 
-/** Phones: the account panel behind the avatar (docs/MOBILE.md); tablets: the menu drawer. */
+/** Phones: the account screen behind the avatar (docs/MOBILE.md); tablets: the menu drawer. */
 const phoneWidth = (page: Page) => (page.viewportSize()?.width ?? 1440) < 768;
 const menuOf = (page: Page) => page.locator(phoneWidth(page) ? "[data-testid=account-sheet]" : "#mobile-drawer");
 /** The button that opens it, where focus returns once Install App's window closes. */
 const menuButton = (page: Page) => (phoneWidth(page) ? page.getByTestId("account-sheet-button") : page.getByRole("button", { name: "Open menu" }));
 
-/** The entry in the phone's account panel or the tablet menu (the sidebar is not shown below desktop width). */
+/** The entry in the phone's account screen or the tablet menu (the sidebar is not shown below desktop width). */
 async function drawerEntry(page: Page) {
   await expect(async () => {
     if (!(await menuOf(page).isVisible())) await menuButton(page).click({ timeout: 2_000 });
@@ -167,7 +167,7 @@ test("inside the installed app there is nothing to install: no entry, before or 
   await ios.context.close();
 });
 
-test("iPhone, Safari: Install App in the account panel closes it and shows Share → Add to Home Screen, no Install button", async ({ browser, baseURL }) => {
+test("iPhone, Safari: Install App in the account screen closes it and shows Share → Add to Home Screen, no Install button", async ({ browser, baseURL }) => {
   for (const [label, options, webApp] of [
     ["iOS 17", { ...devices["iPhone 15"], userAgent: UA.iphone17 }, false],
     ["iOS 26", { ...devices["iPhone 15"], userAgent: UA.iphone26 }, true],

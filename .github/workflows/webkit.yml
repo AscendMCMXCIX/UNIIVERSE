@@ -1,9 +1,11 @@
 # Safari's engine: e2e/webkit.spec.ts in WebKit (as Playwright builds it for Linux) on an
-# iPhone-sized touch screen, against a production build on the in-memory demo database. That is the
-# engine, not Safari on an iPhone (docs/RESPONSIVE.md → Safari and iPhones).
+# iPhone-sized touch screen, against a production build on the in-memory demo database; then every
+# kind of window in Safari 26's engine (WebKit 26.0, scripts/webkit26-check.mjs), which collapsed
+# windows that WebKit 27 draws whole. That is the engine, not Safari on an iPhone
+# (docs/RESPONSIVE.md → Safari and iPhones, Safari 26).
 # Started by hand only (Actions → WebKit → Run workflow, on main or a branch): before releasing a
-# change that could behave differently in Safari, and after changing the spec. About 8 billed
-# minutes a run; it never runs on its own, so otherwise it costs nothing (docs/CI_USAGE.md).
+# change that could behave differently in Safari, and after changing the spec. About 11 minutes a
+# run; it never runs on its own, so otherwise it costs nothing (docs/CI_USAGE.md).
 name: WebKit
 
 on:
@@ -20,7 +22,7 @@ jobs:
   webkit:
     name: Safari's engine (WebKit) on the priority pages
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with:
@@ -44,13 +46,27 @@ jobs:
         run: pnpm exec playwright install --with-deps webkit
       - if: steps.browsers.outputs.cache-hit == 'true'
         run: pnpm exec playwright install-deps webkit
-      - run: pnpm build
+      - id: build
+        run: pnpm build
         env:
           NEXT_TELEMETRY_DISABLED: "1"
       - run: pnpm exec playwright test --project=webkit
         env:
           CI: "true"
           E2E_WEBKIT: "1"
+      # Safari 26 (iOS, iPadOS and macOS 26): Playwright 1.58.2's WebKit 26.0, the last build before
+      # WebKit 27 fixed the collapse of a window as tall as its content to its header. It runs even
+      # when the step above failed, so both engines report.
+      - name: Safari 26's engine (WebKit 26.0) on every kind of window
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/pw26/browsers
+          PW26_CORE: ${{ runner.temp }}/pw26/node_modules/playwright-core
+          WEBKIT26_SHOTS: test-results/webkit26
+        run: |
+          npm install --prefix "$RUNNER_TEMP/pw26" --no-audit --no-fund playwright-core@1.58.2
+          node "$PW26_CORE/cli.js" install --with-deps webkit
+          node scripts/webkit26-check.mjs
       - uses: actions/upload-artifact@v7
         if: failure()
         with:

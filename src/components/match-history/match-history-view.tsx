@@ -34,6 +34,7 @@ import { DataStatusNote, RefreshButton, type DataRefreshTarget } from "@/compone
 import { useNow } from "@/components/ui/relative-time";
 import { fmtDuration, fmtInt, fmtNum } from "./match-format";
 import { isPhone, usePhone } from "@/components/ui/use-phone";
+import { screenHeight } from "@/lib/screen";
 
 /** A card's rendered height in rem (about 6.4rem with both teams' five rows) plus the gap between cards; pixels follow the root size,
     so the page size is chosen for whole cards to fill the screen. */
@@ -392,7 +393,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
     const el = listRef.current;
     if (!el) return;
     const phone = window.innerWidth < 768;
-    const room = window.innerHeight - el.getBoundingClientRect().top - 56;
+    const room = screenHeight() - el.getBoundingClientRect().top - 56;
     const rowPx = ROW_REM * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
     const fits = phone ? PHONE_PER : Math.max(10, Math.min(25, Math.floor(room / rowPx)));
     if (fits !== data.per && data.total > 0) {
