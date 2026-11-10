@@ -186,7 +186,7 @@ export function PoolSection({
           controls={controls}
           testId={`${testId}-list`}
           variant={stats ? "rows" : "cards"}
-          renderStats={stats ? (id) => <PoolRowStats s={stats[id]} role={role} /> : undefined}
+          renderStats={stats ? (id) => <PoolRowStats s={stats[id]} role={role} editing={editable} /> : undefined}
           onInspect={onInspect}
           inspectHref={inspectHref}
           // With statistics (the profile), adding is a small button by the heading, so the collection
@@ -244,11 +244,15 @@ function PoolPreview({ ids, championsById, onInspect, inspectHref, testId }: { i
 }
 
 /**
- * The figures' columns of a pool's rows (three in a narrow list, four from 32rem), shared with the
- * column names. They give way to the champion's name, which keeps at least 4rem (sortable-pool.tsx):
- * at a fixed 10.5rem a 320px phone left the name no room at all.
+ * The figures' columns of a pool's rows, shared with the column names so the two always line up:
+ * three in a narrow list, four from 32rem. A fixed width per list width, never shrinking (figures
+ * shrunk to a few pixels read as one wrong number): 7.5rem on a phone's list (under 24rem: the
+ * champion's name keeps its 4rem beside them from 320px), 10.5rem from 24rem, 17rem from 32rem.
+ * Where a row cannot hold them beside the name (larger text) they wrap under it, at its end.
  */
-const STATS_COLUMNS = "grid w-[10.5rem] min-w-0 shrink grid-cols-3 @lg:w-[17rem] @lg:grid-cols-4";
+const STATS_COLUMNS = "ml-auto grid w-[7.5rem] shrink-0 grid-cols-[2.75rem_2.375rem_2.375rem] @sm:w-[10.5rem] @sm:grid-cols-3 @lg:w-[17rem] @lg:grid-cols-4";
+/** While editing, a phone's list keeps its room for the grip and ×: the figures come back on Done. */
+const STATS_HIDDEN_WHILE_EDITING = "@max-sm:hidden";
 
 /**
  * The column names over a pool's rows, once (the rows carry each name for screen readers): the
@@ -257,10 +261,11 @@ const STATS_COLUMNS = "grid w-[10.5rem] min-w-0 shrink grid-cols-3 @lg:w-[17rem]
  */
 function PoolColumns({ role, editable, testId }: { role: Role; editable: boolean; testId: string }) {
   return (
-    <div aria-hidden className="flex items-center gap-2 pb-0.5 pl-2 pr-1.5 text-2xs font-semibold uppercase tracking-label text-fg-subtle @2xs:gap-2.5 @lg:gap-3 @lg:pl-2.5" data-testid={`${testId}-columns`}>
-      <span className="w-3 shrink-0 @2xs:w-4" />
-      <span className="min-w-16 flex-1 truncate">Champion</span>
-      <span className={cn(STATS_COLUMNS, "text-center")}>
+    // A row's frame (its 1px transparent border too), so the columns sit over the row's figures.
+    <div aria-hidden className="flex items-center gap-2 border-x border-transparent pb-0.5 pl-2 pr-1.5 text-2xs font-semibold uppercase tracking-label text-fg-subtle @sm:gap-2.5 @lg:gap-3 @lg:pl-2.5" data-testid={`${testId}-columns`}>
+      <span className="w-3 shrink-0 @sm:w-4" />
+      <span className="min-w-0 flex-1 truncate">Champion</span>
+      <span className={cn(STATS_COLUMNS, "text-center", editable && STATS_HIDDEN_WHILE_EDITING)}>
         <span>Games</span>
         <span>
           <span className="@lg:hidden">Win %</span>
@@ -279,10 +284,11 @@ function PoolColumns({ role, editable, testId }: { role: Role; editable: boolean
  * (coloured only on enough games), KDA, and CS/min or vision. A champion without games this season
  * says so in words across the columns, with its mastery when there is some.
  */
-function PoolRowStats({ s, role }: { s: PoolChampionStats | undefined; role: Role }) {
+function PoolRowStats({ s, role, editing }: { s: PoolChampionStats | undefined; role: Role; editing: boolean }) {
+  const hidden = editing && STATS_HIDDEN_WHILE_EDITING;
   if (!s?.games)
     return (
-      <span className={cn(STATS_COLUMNS, "items-center")} data-testid="pool-card-stats">
+      <span className={cn(STATS_COLUMNS, "items-center", hidden)} data-testid="pool-card-stats">
         {/* Wraps rather than ends cut short ("No games this season · 104K mas…" on every phone). */}
         <span className="col-span-3 text-center text-xs leading-tight text-fg-subtle @lg:col-span-4">
           No games<span className="hidden @lg:inline"> this season</span>
@@ -291,16 +297,17 @@ function PoolRowStats({ s, role }: { s: PoolChampionStats | undefined; role: Rol
       </span>
     );
   const cell = (label: string, value: React.ReactNode, extra?: { tone?: string; title?: string; testId?: string; className?: string }) => (
-    <span className={cn("min-w-0 truncate text-center text-xs font-semibold tabular-nums @2xs:text-sm", extra?.tone ?? "text-fg", extra?.className)} title={extra?.title} data-testid={extra?.testId}>
+    <span className={cn("min-w-0 truncate text-center text-xs font-semibold tabular-nums @sm:text-sm", extra?.tone ?? "text-fg", extra?.className)} title={extra?.title} data-testid={extra?.testId}>
       <span className="sr-only">{label}: </span>
       {value}
     </span>
   );
   return (
-    <span className={STATS_COLUMNS} data-testid="pool-card-stats">
+    <span className={cn(STATS_COLUMNS, hidden)} data-testid="pool-card-stats">
       {cell(s.games === 1 ? "Game" : "Games", s.games)}
       {cell("Win rate", s.winRate === null ? "—" : `${Math.round(s.winRate * 100)}%`, { tone: WIN_RATE_TONE_CLASS[winRateTone(s.winRate, s.games, WIN_RATE_MIN_GAMES.champion)] })}
-      {cell("KDA", s.perfectKda ? "Perfect" : s.kdaRatio === null ? "—" : s.kdaRatio.toFixed(2))}
+      {/* "Perfect" a size smaller in a phone's narrower column, so it stays whole. */}
+      {cell("KDA", s.perfectKda ? "Perfect" : s.kdaRatio === null ? "—" : s.kdaRatio.toFixed(2), s.perfectKda ? { className: "@max-sm:text-2xs" } : undefined)}
       {role === "SUPPORT"
         ? cell("Vision", s.visionPerGame === null ? "—" : s.visionPerGame.toFixed(1), { title: s.visionPerGame === null ? "Vision score is not available: these games' details were not collected" : "Average vision score per game (Support is judged on vision rather than farm)", testId: "pool-card-vision", className: "hidden @lg:block" })
         : cell("CS/min", s.csPerMinute === null ? "—" : s.csPerMinute.toFixed(1), { title: s.csPerMinute === null ? "CS/min is not available: these games' details were not collected" : "Creep score per minute (minions and monsters)", className: "hidden @lg:block" })}

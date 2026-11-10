@@ -189,7 +189,7 @@ export function RankTimelineChart({ t, label }: { t: RankTimeline; label: string
         {grid.map((g) => (
           <g key={g.score}>
             <line x1={pad.l} x2={width - pad.r} y1={y(g.score)} y2={y(g.score)} className="stroke-border" strokeWidth={1} strokeDasharray="3 4" />
-            <text x={pad.l - 6} y={y(g.score) + 4} textAnchor="end" className="fill-fg-subtle text-2xs">
+            <text x={pad.l - 6} y={y(g.score) + 4} textAnchor="end" className="fill-fg-subtle text-2xs" data-division="">
               {g.label}
             </text>
           </g>

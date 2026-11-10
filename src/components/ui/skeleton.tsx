@@ -51,13 +51,15 @@ function SkeletonCard({ className, testId }: { className?: string; testId?: stri
 export function OverviewSkeleton() {
   return (
     <div className="space-y-4" role="status" aria-live="polite" aria-label="Loading" data-testid="overview-skeleton">
+      {/* The heading: the title, the scope line, and below xl the toolbar's row (Filters and Refresh). */}
       <div className="space-y-2">
         <Skeleton className="h-6 w-56" />
         <Skeleton className="h-4 w-80 max-w-full" />
+        <Skeleton className="h-9 w-full max-w-md xl:hidden" />
       </div>
       <div className="@container/ov">
         <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:gap-4 @min-[58rem]/ov:grid-cols-[minmax(0,1fr)_minmax(18rem,21rem)] min-[90rem]:@min-[68rem]/ov:grid-cols-[minmax(0,1fr)_clamp(20rem,40%,26rem)]">
-          <SkeletonCard className="h-[26rem] @min-[34rem]/ov:h-80" />
+          <SkeletonCard className="h-80 @min-[34rem]/ov:h-72" />
           <SkeletonCard className="h-64 @min-[58rem]/ov:h-auto" />
           <SkeletonCard className="h-72 @min-[58rem]/ov:col-span-2 min-[90rem]:@min-[68rem]/ov:col-span-1 min-[90rem]:@min-[68rem]/ov:col-start-2 min-[90rem]:@min-[68rem]/ov:row-start-2" />
           <SkeletonCard className="h-96 @min-[58rem]/ov:col-span-2 min-[90rem]:@min-[68rem]/ov:col-span-1 min-[90rem]:@min-[68rem]/ov:col-start-1 min-[90rem]:@min-[68rem]/ov:row-start-2" />

@@ -50,7 +50,7 @@ export function SectionHeader({ id, title, nav, aside, description, status, stat
           statusAfterText ? (
             // The data status at the end of the scope's text, in its flow (on a phone a long scope
             // used to leave the status's ⓘ alone on a line of its own).
-            <div className="mt-1 min-w-0 [&>p]:inline" data-testid="section-scope">
+            <div className="mt-1 min-w-0 text-sm leading-5 [&>p]:inline" data-testid="section-scope">
               {description}
               {status ? (
                 <>

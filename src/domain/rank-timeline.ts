@@ -273,9 +273,16 @@ export function rankedYearCoverage(t: Pick<RankTimeline, "trackingSince" | "read
   };
 }
 
-/** "Gold II", or on a narrow chart the code match cards use: "G2", "E4", "D1", "M". */
+const SHORT_TIER: Record<string, string> = { PLATINUM: "Plat", EMERALD: "Emer", DIAMOND: "Dia" };
+
+/**
+ * "Gold II", or on a narrow chart the code match cards use for a division ("G2", "E4", "D1"); a
+ * line for a whole tier (a range too wide for every division) keeps a short name ("Gold", "Plat",
+ * "Emer"), since a bare letter would say little.
+ */
 function gridLabel(tier: string, division: string | null, short: boolean): string {
-  return short ? rankCode(tier, division) : rankLabel(tier, division);
+  if (!short) return rankLabel(tier, division);
+  return division ? rankCode(tier, division) : (SHORT_TIER[tier] ?? rankLabel(tier, null));
 }
 
 /** Division gridlines for a score range: each division where few, each tier's first division where more than `maxDivisions`. */
@@ -286,7 +293,7 @@ export function ladderGrid(range: [number, number], opts: { maxDivisions?: numbe
   for (let s = Math.ceil(lo / 100) * 100; s <= hi; s += 100) {
     const apex = s >= APEX_FROM * 400;
     if (apex) {
-      if (s === APEX_FROM * 400) out.push({ score: s, label: "Master" });
+      if (s === APEX_FROM * 400) out.push({ score: s, label: opts.short ? "M" : "Master" });
       continue;
     }
     const tier = TIERS[Math.floor(s / 400)]!;

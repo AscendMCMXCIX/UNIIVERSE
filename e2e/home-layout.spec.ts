@@ -203,3 +203,42 @@ test("profile Overview: a 2×2 dashboard at 1440 (the season beside recent form,
   await expect(off.getByTestId("secondary-pool-list")).toBeHidden();
   expect(await overflow(page)).toBeLessThanOrEqual(1);
 });
+
+// A pool's figures never shrink below their text (shrunk to a few pixels they read as one wrong
+// number) and stay under their column names; while editing, a phone's list gives their room to the
+// grip and ×; with larger text they wrap under the name rather than squeeze.
+test("profile pools on a phone: every figure whole and under its column, editing and larger text included", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "phone widths, set below");
+  await openTeammate(page);
+  const pool = page.getByTestId("primary-pool");
+  const facts = () =>
+    pool.evaluate((el) => {
+      const shown = (e: Element) => getComputedStyle(e).display !== "none" && (e as HTMLElement).offsetParent !== null;
+      const cut = [...el.querySelectorAll<HTMLElement>("[data-testid=pool-card-stats] > span, [data-testid=pool-item] span")].filter((e) => shown(e) && e.clientWidth > 1 && e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent?.trim() ?? "");
+      const centres = (box: Element | null) => (box && shown(box) ? [...box.children].filter(shown).map((c) => Math.round(c.getBoundingClientRect().left + c.getBoundingClientRect().width / 2)) : []);
+      // The column names' figures part: the header's span that holds three or more names.
+      const headStats = [...el.querySelectorAll("[data-testid$=-columns] > span")].find((s) => s.children.length >= 3) ?? null;
+      const rowStats = el.querySelector("[data-testid=pool-item] [data-testid=pool-card-stats]");
+      return { cut, head: centres(headStats), row: rowStats && rowStats.children.length >= 3 ? centres(rowStats) : [], overflow: document.documentElement.scrollWidth - innerWidth };
+    });
+  for (const width of [320, 360, 390]) {
+    await page.setViewportSize({ width, height: 800 });
+    await expect.poll(async () => (await facts()).cut, `${width}: nothing cut`).toEqual([]);
+    const f = await facts();
+    expect(f.overflow, `${width}: no sideways page scroll`).toBeLessThanOrEqual(1);
+    if (f.row.length) f.row.forEach((x, i) => expect(Math.abs(x - f.head[i]!), `${width}: figure ${i + 1} under its column name`).toBeLessThanOrEqual(3));
+  }
+  // Larger text (125% at 360): still nothing cut and no sideways scroll.
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.evaluate(() => { document.documentElement.style.fontSize = "125%"; });
+  await expect.poll(async () => (await facts()).cut, "125% text: nothing cut").toEqual([]);
+  expect((await facts()).overflow, "125% text: no sideways page scroll").toBeLessThanOrEqual(1);
+  await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
+  // Editing at 390 (nothing is saved): the figures step aside for the grip and ×, nothing cut.
+  await page.setViewportSize({ width: 390, height: 800 });
+  await expect(async () => {
+    await page.getByTestId("pools-edit").click();
+    await expect(pool.getByTestId("pool-item").first().getByRole("button").first()).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 15_000 });
+  await expect.poll(async () => (await facts()).cut, "editing: nothing cut").toEqual([]);
+});
