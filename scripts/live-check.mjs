@@ -230,6 +230,34 @@ const VIEWPORTS = {
 const proxy = !local && process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: "localhost,127.0.0.1" } : undefined;
 const executablePath = process.env.PW_CHROMIUM_PATH ?? (existsSync("/opt/pw-browsers/chromium") ? "/opt/pw-browsers/chromium" : undefined);
 
+/*
+  The check's browser contexts. Two things a member's browser does are left out, because each costs
+  the site's Vercel Active CPU on every run and checks nothing (docs/HOSTING_USAGE.md, "Vercel Active
+  CPU"; measured on a production-like build with the same checks passing: about 15 → 10–12.5
+  CPU-seconds and 852 → 253 function invocations a run):
+  - Viewport prefetch: Next's links prefetch every member page they can see, about 600 server
+    renders a run that the check never opens. Links are hidden from IntersectionObserver, which is
+    what Next's viewport prefetch watches; a hover, focus or tap still prefetches as for a member,
+    and every page the check opens is loaded and asserted in full.
+  - Page-speed beacons (/api/vitals): about 45 a run, all dropped by the server since #256 because
+    the verification account sends them. They are answered here with 204, so no request fails.
+*/
+async function checkContext(options) {
+  const context = await browser.newContext({ ...options, reducedMotion: "reduce" });
+  await context.addInitScript(() => {
+    const Observer = window.IntersectionObserver;
+    if (!Observer) return;
+    window.IntersectionObserver = class extends Observer {
+      observe(target) {
+        if (target instanceof Element && target.tagName === "A") return;
+        return super.observe(target);
+      }
+    };
+  });
+  await context.route((url) => url.href.startsWith(`${base}/api/vitals`), (route) => route.fulfill({ status: 204, body: "" }));
+  return context;
+}
+
 function instrument(page) {
   const log = { console: [], pageErrors: [], failed: [] };
   page.on("console", (m) => {
@@ -638,7 +666,7 @@ let playerId = null;
 // public team page, which has no switch).
 if (!local) {
   for (const [kind, options] of Object.entries(VIEWPORTS)) {
-    const context = await browser.newContext({ ...options, reducedMotion: "reduce" });
+    const context = await checkContext(options);
     const page = await context.newPage();
     const log = instrument(page);
     for (const [name, path] of [["sign-in", "/login"], ["privacy", "/privacy"], ["home", "/"], ["public-team", "/public"]]) {
@@ -652,7 +680,7 @@ if (!local) {
 }
 for (const [kind, options] of Object.entries(VIEWPORTS)) {
   if (!signedIn) break;
-  const context = await browser.newContext({ ...options, reducedMotion: "reduce" });
+  const context = await checkContext(options);
   await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: base }]);
   if (local) await context.addCookies([{ name: "uniiverse_view", value: "player", url: base }]);
   const page = await context.newPage();
