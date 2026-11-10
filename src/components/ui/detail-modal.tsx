@@ -35,11 +35,12 @@ export type ModalSize = "compact" | "standard" | "wide" | "full" | "sheet" | "fo
  * screens) as if such a body were empty, so the window collapses to its header, its paddings and
  * its footer. That is what the owner's iPhone showed on 10 Nov: the account menu a 95pt strip (its
  * border, 65pt header and 28pt of body padding, nothing else) and, before it, the account sheet a
- * 124pt strip at the foot of the screen. WebKit 26.0 and the iOS 26 Simulator draw exactly that, and
- * collapse most other sheets, the compact windows and the centred windows of wider screens the same
- * way (a sheet with a tall control was sometimes saved by scrolling as one, SHEET_SPARE_REM). WebKit
- * 27 and Chromium draw both bodies alike, which is why no test saw it (docs/RESPONSIVE.md, "Safari
- * 26"). overlay-sizing.test.ts keeps it so.
+ * 124pt strip at the foot of the screen. WebKit 26.0 draws exactly that, and collapses most other
+ * sheets, the compact windows and the centred windows of wider screens the same way (the
+ * scroll-as-one fallback, SHEET_SPARE_REM, sometimes redrew a collapsed sheet whole); the iOS 26
+ * Simulator showed the panel at 95px and the filter sheet at 189px in Safari's tab. WebKit 27 and
+ * Chromium draw both bodies alike, which is why no test saw it (docs/RESPONSIVE.md, "Safari 26").
+ * overlay-sizing.test.ts keeps it so.
  */
 const BODY_SCROLLS = "min-h-0 flex-auto overflow-y-auto overscroll-contain";
 
@@ -410,7 +411,7 @@ export function DetailModal({
   const docked = size === "sheet";
   /**
    * A screen fills the screen it is fixed to (SIZE.screen), its header in place under the status bar
-   * and only its body scrolling when it must (large text, a phone held sideways, a 320pt phone), so
+   * and only its body scrolling when it must (large text, a phone held sideways, a 320pt screen), so
    * the close button never scrolls away. Nothing to pull: a touch that would move nothing inside it
    * moves nothing behind it (useSheetDrag without `pull`).
    */

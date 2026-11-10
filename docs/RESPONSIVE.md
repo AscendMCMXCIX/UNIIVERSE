@@ -25,7 +25,7 @@ it (`globals.css`), and every pinned element follows these rules:
 | Top bar | sticky | slides away while the page scrolls down; back on any scroll up, at the top, and while it holds focus |
 | Tab bar | fixed at the bottom | a compact row that slides away with the top bar and comes back with it; `main` keeps room for it (`pb-tabbar`) |
 | Detail windows (`DetailModal`) | whole screen below `sm`, centred window above; one whose header would fill over 40% of a phone's screen (the Team player window on a small phone) scrolls as one, as in a short window | whole screen, scrolling as one: a large header scrolls away, its close and step buttons float at the top, a footer stays pinned |
-| The account screen (`DetailModal size="screen"`, behind the phone's avatar) | the whole screen, fixed to its four edges, under the status bar; its rows in a readable column (28rem); at the usual text size nothing scrolls on phones from 375pt wide (an administrator's screen scrolls a little in Safari's tab on the 320×568 iPhone SE) | the whole screen too; only its body scrolls, as one region, under its bar with the close button |
+| The account screen (`DetailModal size="screen"`, behind the phone's avatar) | the whole screen, fixed to its four edges, under the status bar; its rows in a readable column (28rem); at the usual text size nothing scrolls on phones from 375pt wide (a few points for an administrator in Admin Mode in Safari's tab on a 375pt iPhone SE; a little on a 320pt screen in Safari's tab) | the whole screen too; only its body scrolls, as one region, under its bar with the close button |
 | Sheets (`DetailModal size="sheet"`: `Dialog`'s confirmations and editors, the filter sheet, the lineup sheet) | docked to the bottom edge, as tall as its content up to the screen less 2.5rem and the status bar (a share of the screen it is fixed to); a taller wider screen gets a centred window | docked to the bottom edge too, up to 44rem wide and the screen less 0.5rem; in both, the header and footer stay and only the body scrolls, unless they would leave it less room than its tallest control needs (large text or a zoomed page, mostly on a phone held sideways): then the whole sheet scrolls as one, like a page (`data-flow`) |
 | Things pinned to the bottom (toasts, a save bar) | `bottom-tabbar`: above the tab bar | near the bottom edge |
 
@@ -183,8 +183,8 @@ Three levels, each saying what it proves:
   checks the account screen with them on seven phones (MOBILE.md, "The account screen"). Layout and
   behaviour, in Chromium.
 - **Safari's engine** (by hand): `e2e/webkit.spec.ts`, in the `webkit` project that exists only
-  with `E2E_WEBKIT=1`. Run it with the WebKit workflow (Actions → WebKit → Run workflow, about 8
-  minutes with the Safari 26 check below), or locally after `pnpm exec playwright install webkit` with
+  with `E2E_WEBKIT=1`. Run it with the WebKit workflow (Actions → WebKit → Run workflow, 8 to 14
+  minutes with the Safari 26 check below, most of it installing system libraries), or locally after `pnpm exec playwright install webkit` with
   `pnpm build && E2E_WEBKIT=1 pnpm exec playwright test --project=webkit`. On an iPhone-sized,
   touch WebKit it checks:
   - the priority pages load with no page error (hydration included) and no sideways scrolling;
@@ -207,16 +207,17 @@ Three levels, each saying what it proves:
 
   This is WebKit as Playwright builds it for Linux, the current one (WebKit 27): Safari's engine, not
   Safari on an iPhone, and not Safari 26 (next).
-  **Status, 10 Nov 2026:** the WebKit workflow passes on #280's branch: the 18 tests of this spec and
-  the 26 checks of the next step (run 42800009253). On 7 Nov it passed 17 of 17 on `main` (run
-  42373258830) and on #262's branch (run 42401195789).
+  **Status, 10 Nov 2026:** the WebKit workflow passes on #280's branch at 747edc01, its last change
+  to the app and the spec: the 18 tests of this spec (the Match History Timeline tap passed on its
+  retry) and the 26 checks of the next step (run 42819925844). On 7 Nov it passed 17 of 17 on `main`
+  (run 42373258830) and on #262's branch (run 42401195789).
 - **Safari 26's engine** (by hand, the same WebKit workflow, after the step above):
   `scripts/webkit26-check.mjs` in Playwright 1.58.2's WebKit 26.0, the last build before WebKit 27.
   Safari 26 and earlier (iOS, iPadOS and macOS 26) collapse a window that is as tall as its content
   to its header when its body grows from nothing (`flex-1`); WebKit 27 and Chromium draw it whole,
-  so the tests above passed while the account menu was a 95pt strip on the owner's iPhone on 10 Nov,
-  and most sheets and the centred windows collapsed the same way (MOBILE.md, "Why the account menu
-  was a strip on iPhones"; DetailModal's `BODY_SCROLLS`). The check opens the account screen, the
+  so the tests above passed while the account menu was a 95pt strip on the owner's iPhone on 10 Nov;
+  in WebKit 26.0 most sheets, the compact windows and the centred windows collapse the same way
+  (MOBILE.md, "Why the account menu was a strip on iPhones"; DetailModal's `BODY_SCROLLS`). The check opens the account screen, the
   install window, the filter sheet, the lineup editor, a player's window, a game, the Card Studio,
   the sign-in window, the tablet's menu and the account dropdown on four phones (an installed app's
   whole screen, Safari's tab, the smallest iPhone, held sideways), an iPad and a Mac, and fails if a
@@ -242,15 +243,16 @@ Three levels, each saying what it proves:
   A window built on `DetailModal` gets this for free; anything else as tall as its content (a
   `<dialog>`, a popover) needs its scrolling part to grow from its content too (`flex-auto`), and
   `src/components/ui/overlay-sizing.test.ts` checks the overlays it lists.
-- **The iOS Simulator** (once, 10 Nov 2026; not a workflow in this repository): Mobile Safari and a
-  Home Screen web app in the iOS 26.5 and 26.2 Simulators on GitHub's macOS runners, against a demo
-  build, with real touches (the throw-away branches `ios-sim/account-menu-baseline` and
-  `ios-sim/account-menu-fix`, runs 42802301642 and 42802307377). On main's code the account panel
-  was 95px tall with one of six controls in reach, in Safari and installed, and the filter sheet
-  189px in Safari; on #280's code the account screen filled the screen (695px in Safari, 793 and
-  812px installed) with every control in reach, and the filter sheet was whole (410px). It is iOS's
-  own WebKit, but a simulator: the Home Screen app was set up by the run, not by Share → Add to
-  Home Screen.
+- **The iOS Simulator** (10 Nov 2026; a workflow kept on two throw-away branches, never on `main`,
+  to be deleted unless the owner wants it kept): Mobile Safari on iOS 26.5 and 26.2 and a Home Screen
+  web app on iOS 26.5, in the Simulator on GitHub's macOS runners, against a demo build, with real
+  touches (branches `ios-sim/account-menu-baseline` and `ios-sim/account-menu-fix`, runs 42802301642
+  and 42802307377). On main's code the account panel was 95px tall with one of six controls in reach
+  in Safari (one of five installed, where Install App is hidden), and the filter sheet 189px in
+  Safari's tab (whole when installed); on #280's code the account screen filled the screen (695px in
+  Safari, 793 and 812px installed) with every control in reach, and the filter sheet was whole
+  (410px). It is iOS's own WebKit, but a simulator: the Home Screen app was set up by the run, not by
+  Share → Add to Home Screen.
 - **A real iPhone** (by a person; nothing above covers it):
   1. Add to Home Screen from Safari's Share menu: the icon and name come from Branding, and the app
      opens full screen with its content clear of the notch and the home indicator.

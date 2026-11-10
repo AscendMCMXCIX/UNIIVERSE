@@ -54,10 +54,11 @@ anywhere else:
    Riot's notice, whose link closes the screen as it goes. It is fixed to the screen's four edges,
    under the status bar and the Dynamic Island, clear of the notch sideways, and its content keeps a
    readable column (28rem) in the middle of a wider screen. At the usual text size everything is in
-   view without scrolling on every phone from 375pt wide held upright, installed or in Safari, and
-   on the 320×568 iPhone SE (1st generation) installed; in Safari's tab on that SE an
-   administrator's screen scrolls a little. With large text, or held sideways, only its body
-   scrolls, as one region, and the bar with the close button stays put. On a page pinched to zoom,
+   view without scrolling on every phone from 375pt wide held upright, installed or in Safari (in
+   Safari's tab on a 375pt iPhone SE, an administrator in Admin Mode whose username shows may scroll
+   a few points), measured with Sign out and a username line counted in. A 320pt-wide screen (an
+   iPhone SE with Display Zoom) scrolls a little in Safari's tab. With large text, or held sideways,
+   only its body scrolls, as one region, and the bar with the close button stays put. On a page pinched to zoom,
    a finger pans the zoomed view across it. The close button is a quiet 36px circle whose touch
    area reaches 44px. The screen takes the focus itself as it opens (nothing lights up), Tab reaches
    the close button and the rows in order, Escape or the close button closes it and the focus goes
@@ -78,17 +79,19 @@ anywhere else:
    26) work out that height as if such a body were empty, so the window collapses to its header and
    paddings. On the owner's iPhone the sheet was a 124pt strip at the foot of the screen and the
    panel a 95pt strip at the top: exactly their borders, headers and body paddings, with no body.
-   Most other sheets (filters, editors, confirmations) collapsed the same way on iOS 26, unless a
-   tall control in them made the sheet scroll as one (`SHEET_SPARE_REM`), and on iPads and Macs on
-   Safari 26 so did the centred windows (a player's window, signing in). WebKit 27 draws it correctly
+   In WebKit 26.0 most other sheets (filters, editors, confirmations) collapse the same way, and so
+   do the compact windows and, on iPads and Macs, the centred windows (a player's window, signing
+   in); the scroll-as-one fallback (`SHEET_SPARE_REM`) sometimes redrew a collapsed sheet whole (the
+   filter sheet in an installed app's frame, not in Safari's tab). WebKit 27 draws it correctly
    (WebKit bugs 242837 and 289876, fixed in Safari 27), and the browser tests ran Playwright's WebKit
    27 and Chromium, so every test passed while iPhones on iOS 26 showed strips. Playwright 1.58.2's
    WebKit 26.0 draws exactly what the owner saw: the panel 377×95 with one of its six controls in
-   reach. So does real iOS: in the iOS 26.5 and 26.2 Simulators (Mobile Safari and a Home Screen web
-   app, run once on GitHub's macOS runners on 10 Nov), main's panel was 95px tall with one of six
-   controls in reach, in Safari and installed, and the filter sheet 189px in Safari. Two changes fix
-   it, and the same Simulator run of them showed the account screen filling the screen (695px in
-   Safari, 793 and 812px installed) with every control in reach and the filter sheet whole (410px):
+   reach. So does real iOS: in the iOS Simulator (Mobile Safari on iOS 26.5 and 26.2, a Home Screen
+   web app on 26.5, run once on GitHub's macOS runners on 10 Nov), main's panel was 95px tall with
+   one of six controls in reach in Safari (one of five installed, where Install App is hidden), and
+   the filter sheet 189px in Safari's tab (whole when installed). Two changes fix it, and the same
+   Simulator run of them showed the account screen filling the screen (695px in Safari, 793 and
+   812px installed) with every control in reach and the filter sheet whole (410px):
    - every window's body grows from its content (`flex-auto`, `BODY_SCROLLS` in detail-modal.tsx),
      which Safari 26 sizes correctly; `overlay-sizing.test.ts` forbids a body that grows from
      nothing, and `scripts/webkit26-check.mjs` opens every kind of window in WebKit 26.0 (the WebKit

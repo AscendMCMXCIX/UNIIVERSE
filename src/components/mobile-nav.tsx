@@ -203,7 +203,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
         // The account screen (its test ids keep the name of the sheet it replaced): the whole screen,
         // fixed to its edges (DetailModal size "screen"). Its header, with the close button, stays
         // under the status bar; the rest is one region that scrolls only where it must (large text, a
-        // phone held sideways, an administrator's screen in Safari's tab on the smallest iPhone).
+        // phone held sideways, a 320pt screen in Safari's tab).
         <DetailModal open onClose={() => setOpenedAt(null)} size="screen" title="Account" titleId={SHEET_TITLE_ID} header={<AccountScreenHeader />} headerClassName="border-transparent" className="bg-chrome" testId="account-sheet" closeTestId="account-sheet-close">
           <div className="mx-auto w-full max-w-md">
             {/* Who is signed in: their picture, name and role, and their username on a line of its own

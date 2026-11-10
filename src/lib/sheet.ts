@@ -2,8 +2,8 @@
   The phone's account screen (components/mobile-nav.tsx, components/install/install-app.tsx,
   components/mode-switch.tsx): full-width rows, 52px tall, an icon, a name and (for a page) a chevron,
   in groups on panels with hairlines between them. At the usual text size the screen holds them all
-  at once on phones from 375pt wide (an administrator's scrolls a little in Safari's tab on a 320pt
-  one); it scrolls as one region below its header where it must.
+  at once on phones from 375pt wide (docs/MOBILE.md has the few exceptions measured); it scrolls as
+  one region below its header where it must.
 */
 
 /** A group of rows: one panel, hairlines between its rows. */

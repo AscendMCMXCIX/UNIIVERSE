@@ -272,9 +272,9 @@ test):
   so nothing is ever cut short in a strip. Escape, the backdrop, Close and a pull down close the
   topmost one, focus returns to what opened it without scrolling, and the page behind never moves
   (MOBILE.md, "Every sheet and window"). Every window's body grows from its content (`flex-auto`,
-  never `flex-1`): Safari 26 collapses a window as tall as its content to its header otherwise, and
-  did to the account menu and most sheets on iPhones (MOBILE.md, "Why the account menu was a strip on
-  iPhones"). The phone's account menu is a screen of its own instead of a sheet (`size="screen"`):
+  never `flex-1`): Safari 26 collapses a window as tall as its content to its header otherwise, as it
+  did to the account menu on the owner's iPhone, and as WebKit 26.0 does to most sheets and to the
+  compact and centred windows (MOBILE.md, "Why the account menu was a strip on iPhones"). The phone's account menu is a screen of its own instead of a sheet (`size="screen"`):
   full-width rows of at least 48px on a screen fixed to the phone's four edges.
 - **Before the page's code has run.** Destinations are real links, and work at once. The frame's
   controls that code drives (the phone's avatar, the tablet's menu button, the account menu's

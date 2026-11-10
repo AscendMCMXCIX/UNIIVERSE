@@ -8,9 +8,9 @@ import { describe, expect, it } from "vitest";
   A window's body grows from its content, never from nothing: `flex-auto`, not `flex-1`. Safari 26
   and earlier collapse a window that is as tall as its content (a dialog's fit-content height) to
   its header when its body has a zero flex basis. On the owner's iPhone that made the account menu a
-  95pt strip (10 Nov); in WebKit 26.0 and the iOS 26 Simulator most sheets, the compact windows and
-  the centred windows of wider screens collapsed the same way. WebKit 27 and Chromium draw both
-  alike, so only WebKit 26 shows it (DetailModal's BODY_SCROLLS; scripts/webkit26-check.mjs runs
+  95pt strip (10 Nov), as the iOS 26 Simulator also showed; in WebKit 26.0 most sheets, the compact
+  windows and the centred windows of wider screens collapsed the same way. WebKit 27 and Chromium
+  draw both alike, so only WebKit 26 shows it (DetailModal's BODY_SCROLLS; scripts/webkit26-check.mjs runs
   every kind of window there).
 
   Overlays are placed and sized by the box they are fixed to: insets, percentages of their
