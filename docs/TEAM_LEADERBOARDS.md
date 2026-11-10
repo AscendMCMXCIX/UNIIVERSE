@@ -8,11 +8,12 @@ The views are secondary tabs under the Team tabs, like Match History's Games and
 
 - **Recent form** (the default, `/leaderboards`): one board.
   - **The window:** each member's latest 20 Summoner's Rift games from the last 60 days, 5 minutes or longer, from every linked account (a match seen from two accounts counts once). Ranked by win rate.
-  - **Places:** equal win rates share a place ("3=").
-  - **Each row says what counts:** the record ("13W 7L"), the win rate, the dates the 20 games cover, the main role in those games, and the gap to the place above in wins ("1 win behind Ash", or "Win your next game to draw level with Ash").
-  - **Fewer games:** members with 10 to 19 recent games are provisional, listed after every full window. Members with fewer are listed under the board with the games they still need and the date of their last game.
-  - **Under the board:** 20 games is a short sample, places within 2 wins are close, and the notes assume the players above don't play in the meantime.
-  - **Styling:** neutral. No red for a cold streak; only first place's crown and your own row are marked.
+  - **Places:** equal win rates share a place: "3=", titled and read out "Tied for 3rd", with a bracket joining the tied rows in the place column.
+  - **Each row says what counts:** the record ("13W 7L") and the same record as a bar of 20 segments (wins first, a count, not the order of the games; a provisional window's missing games outlined), the win rate, the dates the 20 games cover, the main role in those games, and the gap to the place above, short: "1 win behind", or "Next win: 3=" (the place one win would share). The full sentence ("1 win behind Ash", "Win your next game to draw level with Ash") is read out by screen readers and shown on hover (on touch screens only screen readers have it).
+  - **Fewer games:** members with 10 to 19 recent games are provisional, listed after every full window ("14 of 20 games"). Members with fewer are the board's last group (rows on phones, chips on wider boards), each with the games they still need and the date of their last game, linked to their profile.
+  - **Under the board:** 20 games is a short sample, places within 2 wins are close, the gaps assume the players above don't play in the meantime, and each bar counts the window's games, wins first.
+  - **Layout:** the board follows its own width: one line per member from a 58rem board (1280×800 with the sidebar open), the name over the dates from 36rem, two lines on phones (the role as a badge on the picture, the bar as a line at the row's foot). It is at most 72rem wide (`--measure`), at the page's left edge. The whole row opens the member's profile.
+  - **Styling:** neutral. No red for a cold streak, and the bar is in the text's own grey; only first place's crown and your own row are marked.
 - **Records & achievements** (`/leaderboards?view=records`, with `&season=` for an earlier season): it says first that these reward playing more.
   - **Seven season records:** most kills and most assists; damage, CS and vision per minute (from games of 15 minutes or more); best KDA (from games with 10 or more takedowns); the longest win streak. Each shows its holder, champion, role and date, and the viewer's own best. A tie goes to whoever set it first. A record opens its game in the holder's Match History.
   - **Multikills this season,** rarest first, with a note when not every game carries Riot's multikill figures.
@@ -24,8 +25,9 @@ Older addresses (today's `?category=`, `?metric=`, `?queue=`, `?role=` and `?lin
 ## Who can see it, who is on it
 
 - **Open to:** team members with the *view teammate stats* ability. The page checks this on the server (`requirePageAccess("view-teammate-stats")`); the navigation link uses the same check. Personal-use accounts have neither.
-- **On the board:** every active team member with a finished account and a player profile. This is the same list as the Players page:
-  - archived profiles, unfinished accounts (setup not completed) and personal-use profiles are left out;
+- **On the board:** every active team member with a player profile, the same list as the Players page:
+  - members still finishing their account setup are listed too (usually under "Not enough recent games", until their games arrive);
+  - archived profiles and personal-use profiles are left out;
   - the Owner's admin identity has no player profile, so it never appears.
 - **Membership changes:** take effect on the next page load (see *Updates and caching*).
 
@@ -55,11 +57,14 @@ Older addresses (today's `?category=`, `?metric=`, `?queue=`, `?role=` and `?lin
 
 ## Tests
 
-- `src/domain/leaderboard-recent.test.ts` and `src/domain/leaderboard-records.test.ts`: the window, places, gaps, provisional and not-enough members, main role, records and their tie rule, multikills and milestones.
+- `src/domain/leaderboard-recent.test.ts` and `src/domain/leaderboard-records.test.ts`: the window, places, gaps (and the gap's parts, which always say what the sentence says), provisional and not-enough members, main role, records and their tie rule, multikills and milestones.
+- `src/components/leaderboards/recent-leaderboards.test.ts`: Recent form's board as markup, for what the demo never shows (a provisional window, your own row, a shared place's words and bracket, the last group, the public board linking nowhere, the empty board).
+- `src/components/ui/data-list.test.ts` and `src/components/ui/quiet-bar.test.ts`: the rows' pieces (tie runs, places, reading order, states) and the bar's counts.
 - `src/domain/leaderboards.test.ts`: the win streak's order, and who can open Leaderboards.
 - `src/server/leaderboards/recent-view.test.ts`: the addresses of the two views.
 - `tests/db/leaderboards.test.ts`: eligibility, linked-account de-duplication, match-detail extraction, K/D/A that Riot reported as unavailable, cache invalidation and the probe steps.
 - `tests/db/leaderboards-recent.test.ts`: both views on stored games, and the public boards linking nowhere.
 - `tests/db/leaderboards-equivalence.test.ts`: the compact data answer gives the same boards as one row per game.
 - `tests/db/public-access.test.ts`: who is on the public boards, and what the page sends.
-- `e2e/leaderboards-recent.spec.ts` (phone, tablet, desktop): the default view, order, shared places and gap notes, each row's record, dates and role, records opening their game, multikills rarest first, axe (WCAG 2.1 AA) on both views, no sideways scroll.
+- `e2e/leaderboards-recent.spec.ts` (phone, tablet, desktop): the default view, order, shared places (titled, joined) and gaps (the short form against the win rates and the sentence), each row's record, dates, role and bar once each, the layout by the board's own width (either side of 36rem and 58rem, 1280×800, the measure at 2560 and 3440), the last group, the data status on the scope line, records opening their game, multikills rarest first, axe (WCAG 2.1 AA) on both views, no sideways scroll.
+- `e2e/mobile-nav.spec.ts`: a phone row is 64px and one link covers it; the live check (`scripts/live-check.mjs`) measures the rows on production.

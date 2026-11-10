@@ -59,9 +59,12 @@ from each section; this page does not repeat them.
 All values live in `@theme` in [src/app/globals.css](../src/app/globals.css); components use the
 Tailwind classes they generate. `src/app/design-tokens.test.ts` refuses font sizes in px,
 arbitrary values that equal a token (`text-[0.6875rem]` is `text-2xs`), Tailwind's names for the
-panel and card radii, colours written as hex in a class, easing curves that are not tokens, and
-uppercase labels spaced other than `tracking-label`. SVG charts drawn 1:1 in px keep their text in
-px, so it fits the chart's fixed gutters; the test lists them.
+panel and card radii, colours written as hex in a class, easing curves that are not tokens,
+uppercase labels spaced other than `tracking-label`, a size, weight, case or letter spacing beside
+`label-caps` (which sets all four; Tailwind would drop the size silently), and the standing-alone
+measure written as a number (`max-w-[72rem]`, `max-w-6xl`) instead of `max-w-[var(--measure)]`.
+SVG charts drawn 1:1 in px keep their text in px, so it fits the chart's fixed gutters; the test
+lists them.
 
 **Colour** (semantic, never raw values). The ground is a deep ink with a faint indigo undertone,
 each surface one visible step lighter than the one below it. The identity is a pair: the brand
@@ -99,7 +102,9 @@ figure, then a supporting figure a step smaller; a label in `fg-muted`, its meta
 timestamps in `fg-subtle` at `text-xs`. Statistics a reader compares (a scoreboard's KDA, damage,
 gold, CS and vision) are `text-xs` or larger. Sizes are rem, so they follow the reader's browser text size; the root size grows gently above
 1536px wide (globals.css). Uppercase labels, eyebrows and section headings use `tracking-label`; a
-small pill badge (`rounded-full`, such as "You") may stay at `tracking-wide`. The team's name as a
+small pill badge (`rounded-full`, such as "You") may stay at `tracking-wide`. Column headings and
+small labels are `label-caps` (globals.css: the 11px semibold uppercase label in `tracking-label`
+and fg-subtle; a colour may replace the grey, nothing else). The team's name as a
 wordmark uses `tracking-wordmark`, and the Team page's backdrop name `tracking-tagline`. Numbers
 that line up use `tabular-nums`.
 
@@ -107,7 +112,8 @@ that line up use `tabular-nums`.
 `rounded-md` 6px (buttons, inputs), `rounded-lg` 10px (menus, chips), `rounded-panel` (panels),
 `rounded-card` (cards, page sections, dialogs); not Tailwind's `rounded-xl` and `rounded-2xl`,
 which are the same sizes under other names. Page widths: `--content-max` (text and card pages),
-`--content-wide` (Team, statistics and data pages).
+`--content-wide` (Team, statistics and data pages), and `--measure` (72rem: a board or table that
+stands alone, as `max-w-[var(--measure)]`).
 
 **Layers.** Inside a component: `z-0` to `z-10`. Pinned section tabs (`sticky-tabs`): `z-30`. Sticky bars (top bar, sidebar): `z-40`. Drawers,
 pickers and popovers: `z-50`. Menus and toasts: `z-[60]`. Tooltips: `z-[100]`. Detail windows and
@@ -116,7 +122,9 @@ dialogs are native `<dialog>` elements in the browser's top layer, above everyth
 **Elevation.** Panels and cards sit slightly raised from the page: an opaque surface, a hairline
 border and `panel-depth` (globals.css: a faint sheen along the top, a hairline of light on the top
 edge, a soft shadow; `Panel` has it). The card a page leads with may use `panel-featured` instead
-(the same depth with a faint wash of the violet light in its corner). A card that opens something
+(the same depth with a faint wash of the violet light in its corner), or `surface-lead`, the one
+card a page leads with (at most one a page: `panel-featured` plus the brand's line along its top
+edge; Recent form's board). A card that opens something
 can add `panel-lift` (it rises a pixel and its edge brightens while pointed at; no movement with
 reduced motion). The frame has its own two: `chrome-light` (the sidebar's light) and `brand-plate`
 (the logo set into it); see [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md). None of them makes a stacking context, so tooltips and menus inside keep their layer. What floats above
@@ -131,8 +139,10 @@ roomy. Empty or thin data shrinks a card rather than leaving a frame to fill.
 
 **Page layout.** One frame for every page, so pages differ by their content, not their scaffolding:
 - **Width:** `--content-max` for profiles, lists of cards, documents and forms; `--content-wide` for
-  the grids that gain from more columns (Team Overview's lineup, Leaderboards). The page's padding
-  comes from the app shell; a page adds none of its own.
+  the grids that gain from more columns (Team Overview's lineup, Leaderboards). A board or table
+  that stands alone on such a page (Recent form) stops at `--measure` (`max-w-[var(--measure)]`,
+  72rem), left-aligned: one left edge with the header, never centred in the space. The page's
+  padding comes from the app shell; a page adds none of its own.
 - **Headings, in three tiers:**
   - a team or admin page opens with `PageHeader` (one `h1`, `text-2xl`, then its scope line);
   - a profile's `h1` is the player's name in its banner, and each section of it opens with
@@ -153,16 +163,17 @@ roomy. Empty or thin data shrinks a card rather than leaving a frame to fill.
   - a dashboard's cards are as large as their content.
 
 **Tables and rankings.** Columns of figures are right-aligned in `tabular-nums` under headings
-that never wrap (`whitespace-nowrap`; the sort arrow sits outside the heading's text, so a
-heading keeps its place when it is sorted). The sorted column is marked by its arrow and by its
-figures in the main text weight; no gradient, glow or bar behind a figure unless the bar is the
-comparison itself (a leaderboard's gap to the leader, one quiet line). Win rates take their colour
-only from `winRateTone` (`src/domain/stats/win-rate.ts`); below the minimum games they stay grey
-and say "small sample", and a sort by win rate ranks established records before small samples. A
-ranking gives equal values the same place, written "2=" (titled "Tied for 2nd"), and never repeats
-who is already shown large: the podium (tablets up) or the leader's spotlight (phones) is followed
-by the rest. On phones a table becomes compact rows: the one or two figures that matter most at the
-right, the others as labelled pairs underneath (`dl`), every figure still there.
+that never wrap (`label-caps`, `whitespace-nowrap`; the sort arrow sits outside the heading's
+text, so a heading keeps its place when it is sorted). The sorted column is marked by its arrow and
+by its figures in the main text weight; no gradient, glow or bar behind a figure unless the bar is
+the figure itself: Recent form's record as 20 neutral segments, wins first (`QuietBar`), in the
+text's own grey, never a state colour. Win rates take their colour only from `winRateTone`
+(`src/domain/stats/win-rate.ts`), except on Recent form, which stays neutral; below the minimum
+games they stay grey and say "small sample", and a sort by win rate ranks established records
+before small samples. A ranking gives equal values the same place, written "2=" (titled and read
+out "Tied for 2nd"), and the tied rows are joined by a bracket in the place column. On phones a
+table becomes compact rows: the one or two figures that matter most at the right, the others as
+labelled pairs underneath (`dl`) or one line under the name, every figure still there.
 
 **Windows.** A detail window (`DetailModal`) is as tall as its content, up to the screen: no
 empty band under a short window. Its header holds who or what it is about and the actions that
@@ -192,13 +203,13 @@ Use the shared component before writing a new one (`src/components/ui`):
 | A page's sections (primary) | `TabBar`: a profile's Overview, All Champions, Match History and Riot Accounts; Team's sections. On tablets and desktops the bar stays pinned at the top of the page once it scrolls (`sticky`; [RESPONSIVE.md](RESPONSIVE.md) → Shell). On phones Team's sections are the bottom tab bar and a profile's ride in the top bar (`ProfileTabs variant="chrome"`) |
 | Equal views of one section, or related pages (secondary) | `SubTabs` (`ui/sub-tabs.tsx`): links with `aria-current`, directly under the primary tabs, in the section title's place (`SectionHeader`'s `nav`): Match History's Games and Encounters. `SubNav` when the path decides the current one (Admin's Users & Permissions) |
 | Views inside one panel (a game's Scoreboard, Analysis, Timeline and Build; a champion's views) | `role="tablist"` buttons with `tabIndicatorClass` |
-| Tabs that filter one list | `TabLinks`, only where it is today (Leaderboards' categories, Admin's audit categories), until those pages are redesigned |
+| Tabs that filter one list | `TabLinks`, only where it is today (Admin's audit categories), until that page is redesigned |
 | Buttons and links that look like buttons | `Button`, `buttonClass` (links never wrap buttons) |
 | Fields | `Input`, `Textarea`, `Select`, `Label`, `Switch` |
 | A section that opens and closes | `Disclosure` |
 | A table that can be wider than the screen | `ScrollRegion` with a `label`: the keyboard can focus and scroll it, and screen readers name it |
 | A status or a tag | `Badge` |
-| Nothing to show | `EmptyState` |
+| Nothing to show | `EmptyState`: the default `block` (a dashed panel of its own, `compact` for less padding), `variant="row"` in place of a group of rows inside a `DataList`, `variant="inline"` as one line of running text (a `<p>`: phrasing content only) |
 | Loading | `Skeleton`, `PageSkeleton` (route `loading.tsx`) |
 | Saving | `SaveStatusIndicator`, `toast` |
 | Images from Riot or another host | `RemoteImage`, `useImageFailure`, `ChampionPortrait`, `Avatar` |
@@ -209,6 +220,11 @@ Use the shared component before writing a new one (`src/components/ui`):
 | A player's identity on a card (picture and links, name, rank and labels, tagline) | `CardIdentity` (`players/player-card.tsx`) inside a `@container/card`; on Players, `layout="rows"` on the directory card's grid (`DirectoryCardLayout`) |
 | A member's name in a list row (Players on phones, Leaderboards) | `CardAvatar` and `CardName` (`players/card-look.tsx`) under the card's colour variables (`cardColourVars` on the row), so the saved name style, emblem and avatar frame follow the member off their card; `CardTagline lines={1}` where a row has room for the tagline. No art, frame or effect on a row |
 | A champion pool's rows (first choice marked, win rate, games, KDA, CS) | `PoolChampionTile` under `PoolColumnNames` (`players/player-card.tsx`) |
+| A ranked list or board of rows (Recent form) | `DataList` (`ui/data-list.tsx`): one surface (`surface="lead"` for the card a page leads with), the column template per tier as `--dl-cols`, headings (`DataHead`, aria-hidden) and groups (`DataGroup`, with a caption) split by one hairline each. The board's own width picks each row's layout (`@container/list`: under 36rem, from 36rem, from 58rem), so a fact is one element placed per tier, never a phone copy and a column copy |
+| One row of a `DataList` | `DataRow`: its cells in reading order (place, link, member, figures), its height per tier (`density`: 48, 52 or 64px), your own row's wash and bar, and the hover and pressed states only when it links. One `RowLink` per row covers it (a whole-row target at every width, named by the member's name); a control that must keep its own press sits above it with `ROW_CONTROL`. The row's explanations go in its own `title` (no cell's title shows under the link) |
+| A place in a ranking | `Place`: "4=" said and titled "Tied for 4th", with a bracket segment per row (`tieRuns` from the ranking's places); the crown on first place; "–" said "Provisional" without a place |
+| A figure in a row, and a member in a row | `FigureCell` (tabular, never cut, its own words for screen readers: "13 wins, 7 losses"); `MemberCell` (`CardAvatar` and `CardName` in the member's colours, "You"; the name hidden from screen readers when the row's link says it) |
+| A bar that is the figure itself (Recent form's record) | `QuietBar` (`ui/quiet-bar.tsx`): a count in segments (wins first; a window's missing games outlined) or a continuous share, in neutral `fg` overlays; the inset 2px line at a row's foot on narrow boards; no motion on first paint |
 | Both teams of a game | `TeamComposition` (`match-history/team-composition.tsx`); `keepNames` where the line-ups are what the card is for (Team → Matches), so phones keep the names too |
 | Two players' relationship in recorded games (against, alongside) | `RelationTag` (`match-history/encounters-view.tsx`): the word with the side's colour |
 | Bookmarking a game from a dense card | `BookmarkButton` with `iconOnly` (a 44px target on touch screens, its label kept for screen readers) |
@@ -217,8 +233,9 @@ Use the shared component before writing a new one (`src/components/ui`):
 
 Write them only through [src/lib/format.ts](../src/lib/format.ts): one form ("21 Oct 2026, 9:30
 am") in the installation's time zone (`NEXT_PUBLIC_UNIIVERSE_TIME_ZONE`, Sydney by default), the
-same on the server and in every browser. Counts use `formatCount`, decimals `formatNumber`, and a
-count in a tight space `formatCompactCount` ("45K"). A relative time in a client component uses
+same on the server and in every browser. Counts use `formatCount`, decimals `formatNumber`, a
+count in a tight space `formatCompactCount` ("45K"), and a place in words `formatOrdinal` ("4th",
+"Tied for 11th"). A relative time in a client component uses
 `RelativeTime`, which updates after hydration. An ESLint rule refuses `toLocaleString`,
 `toLocaleDateString`, `toLocaleTimeString` and the `Intl` formatters in pages and components;
 `src/lib/format.test.ts` proves it fires.

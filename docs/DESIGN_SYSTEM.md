@@ -65,7 +65,7 @@ Each surface is a step from the ground up. Lighter means closer to the reader.
 |---|---|---|
 | 0 | `bg` + `--ambient-light` | the page ground, with violet light at the top edge and a low horizon |
 | 0.5 | `chrome` (+ `chrome-light` on the sidebar) | the app's frame: sidebar, top bar, drawer, tab bar |
-| 1 | `surface` + `panel-depth` | panels and cards; `panel-featured` for the one card a page leads with |
+| 1 | `surface` + `panel-depth` | panels and cards; `panel-featured` or `surface-lead` for the one card a page leads with |
 | 2 | `surface-2` | rows and tiles inside panels, hovered rows on panels |
 | 3 | `surface-3` | selected or pressed rows on panels |
 | float | `bg-elevated` + border + `shadow-2xl` | menus, popovers, pickers, a dragged card |
@@ -86,6 +86,7 @@ ink is darker than every panel, so panels still lift off it. Text contrast on it
 |---|---|---|
 | `panel-depth` | sheen from the top, hairline of light on the top edge, soft shadow | every panel and card (`Panel` has it) |
 | `panel-featured` | `panel-depth` plus a faint violet wash in the top corner | the one card a page leads with |
+| `surface-lead` | `panel-featured` plus the brand's line along the top edge (accent to accent-2, fading out), drawn above the card's first row | the one card a page leads with, at most one a page (Recent form's board; the profile's season card next) |
 | `panel-lift` | rises 1px with a brighter edge on hover; none with reduced motion | cards that open something |
 | `chrome-light` | sheen from the top and a faint violet glow behind the logo, on the sidebar's still layer | the desktop sidebar only |
 | `brand-plate` | hairline of light around the logo (brighter on top) and a soft shadow under it | the team's logo set into the frame |
@@ -120,6 +121,10 @@ It should not appear:
 Violet (`accent-2`) carries the light: the ambient glow, `panel-featured`, `chrome-light`, the
 gradient's second stop and emphasis that is not a control.
 
+Bars that are figures (Recent form's 20-game record, `QuietBar`) are neutral overlays of `fg`
+(filled, empty and outlined segments), never the accent or a state colour, so they keep their
+contrast on any surface and any Branding. Gold appears only on the first place's crown.
+
 ## 5. Interaction states
 
 There are two families, by what the control sits on.
@@ -131,6 +136,10 @@ There are two families, by what the control sits on.
 
 Overlays of `fg` keep their contrast on any custom Branding colour, which is why the frame uses
 them. Panels keep the surface steps.
+
+**List rows** (`DataRow`, Players' rows): hover `surface-2`, pressed `surface-3`, and pressed
+`surface-2` on phones (MOBILE.md, owner-checked). Your own row is `accent/5` with a 2px accent bar
+at its left edge. Only a row that is a link takes these states; its one link covers the whole row.
 
 **Text and icons.** Idle text is `fg-muted` and idle icons `fg-subtle`. On hover both step up
 (`fg`, `fg-muted`). The current item is `fg` with its icon in `accent`.
@@ -157,7 +166,9 @@ frame cannot clip it.
   hairlines shrink with `scale-x`, not width or margin.
 - `prefers-reduced-motion: reduce` makes every animation and transition instant (globals.css);
   decorative effects (card shimmer and drift) stop entirely.
-- Nothing animates on a page's first paint except entrances of things the reader opened.
+- Nothing animates on a page's first paint except entrances of things the reader opened. A
+  `QuietBar` moves only when its value changes (a continuous share slides 200ms with
+  `--ease-emphasized`); its segments never animate.
 
 ## 7. The app's frame: navigation
 
@@ -290,7 +301,7 @@ deliberately. Each needs its own small PR. Check STATUS.md for the Actions-minut
 
 | Area | Finding | Direction |
 |---|---|---|
-| Hover on panels | About 50 controls use `hover:bg-surface-2`, a few `hover:bg-surface-2/70` or `bg-fg/5` | Converge on §5: surface steps on panels, fg overlays on the frame |
+| Hover on panels | About 50 controls use `hover:bg-surface-2`, a few `hover:bg-surface-2/70` or `bg-fg/5` | Converge on §5: surface steps on panels, fg overlays on the frame. `DataList` rows follow §5 already (`ROW_STATES`) |
 | Page headers | Players, Matches and Resources open with `PageHeader`. Leaderboards opens with its sub-tabs in the title's place; Settings centres a narrower column with its own heading | Intended by STANDARDS.md's three tiers. Leaderboards could take a `PageHeader` when its page is next redesigned |
 | Eyebrows | `PageHeader`'s eyebrow is `accent`; `SectionLabel` is `fg-subtle` | Both are valid. Keep `accent` eyebrows to the two landing heroes and admin pages |
 | Team hero logo | `shadow-accent/15`: a blue glow under the team's logo (`team-roster.tsx`) | A neutral `shadow-black/40`, or `brand-plate`; left to the session that owns Team's cards |
