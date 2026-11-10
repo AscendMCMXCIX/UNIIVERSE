@@ -203,9 +203,9 @@ test("the panel stays inside what is visible when that is less than the page's v
 });
 
 test("the page behind is put back if anything scrolls it while the panel is open", async ({ page }) => {
-  // Safari's engine scrolled the page to reveal the close button the panel focuses as it opens (57px
-  // on a scrolled Players page, in the WebKit run). Chromium never does, so the page is scrolled here
-  // from script, the way that reveal did, while the panel is open.
+  // No browser here moves the page as the panel opens; the panel keeps it in place whatever does (a
+  // browser revealing the focused close button, a viewport that settles). Scrolled from script here,
+  // while the panel is open.
   await page.goto("/players");
   await page.evaluate(() => window.scrollTo(0, 400));
   const scrolled = await page.evaluate(() => scrollY);

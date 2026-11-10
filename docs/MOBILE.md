@@ -91,10 +91,9 @@ anywhere else:
      if the browser never moves the motion on;
    - nothing to pull: no drag that moves it, and a touch that would move nothing inside it moves
      nothing behind it either;
-   - the page behind keeps its place: Safari's engine scrolls the page to reveal the close button the
-     panel focuses as it opens, even inside a fixed window, and counts the top bar's scroll padding
-     against it (the page moved 57px on a scrolled Players page in the WebKit run), so the page's
-     position is noted before the panel opens and put back if anything moves it while it is open.
+   - the page behind keeps its place: its position is noted before the panel opens and put back if
+     anything moves it while the panel is open, so that holds whatever a browser does as the panel
+     opens (no browser run moved it).
 
 Tablets keep the menu drawer (a modal dialog), the account dropdown and the page tabs
 (`SectionTabs`, pinned at the top of the page once it scrolls, as a profile's sections are, so they

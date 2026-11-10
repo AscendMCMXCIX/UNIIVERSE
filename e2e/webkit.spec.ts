@@ -315,8 +315,12 @@ test("the account panel in Safari's engine: one tap opens it, from the top edge,
     await page.evaluate((y) => window.scrollTo(0, y), scroll);
     const scrolled = await page.evaluate(() => scrollY);
     // One tap, whenever it lands: before the page's code has run it is kept and applied once the code
-    // runs (src/components/early-taps.ts), so no retry is needed.
-    await page.getByTestId("account-sheet-button").tap();
+    // runs (src/components/early-taps.ts), so no retry is needed. A finger's tap where the avatar is
+    // drawn (page.touchscreen): locator.tap() first scrolls its target into view, and this engine
+    // counts the page's scroll padding (the top bar's height) against a control inside the bar, so it
+    // moved a scrolled page 57px before the tap, which no finger does.
+    const avatar = (await page.getByTestId("account-sheet-button").boundingBox())!;
+    await page.touchscreen.tap(avatar.x + avatar.width / 2, avatar.y + avatar.height / 2);
     await expect(panel).toBeVisible();
     // At rest: its motion run and dropped, nothing animating, nothing moved or faded.
     await expect(panel).toHaveAttribute("data-entered", "true");

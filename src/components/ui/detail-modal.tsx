@@ -414,12 +414,12 @@ export function DetailModal({
    */
   const anchored = size === "panel";
   usePanelRoom(ref, open && anchored);
-  // The page behind keeps its place while a panel is open. Safari's engine scrolls the page to reveal
-  // the control a dialog focuses as it opens, even inside a fixed window, and counts the page's scroll
-  // padding (the top bar's height, useTopBarHeight) against a close button that sits under it: the page
-  // behind moved 57px when the account panel opened on a scrolled page (the WebKit run). The page's
-  // position is noted before the panel is shown (layout effects run before the effect that shows it)
-  // and put back whenever anything moves it while the panel is on the page; the page cannot be scrolled
+  // The page behind keeps its place while a panel is open, whatever a browser does as the panel opens
+  // or while it is open (revealing the control it focuses, a viewport that settles): the page's position
+  // is noted before the panel is shown (layout effects run before the effect that shows it) and put
+  // back whenever anything moves it while the panel is on the page. No browser run here moved it (in
+  // Chromium and in Safari's engine, a tap that opens the panel leaves the page where it was); this
+  // makes "the page never moves" a guarantee rather than an observation. The page cannot be scrolled
   // by hand meanwhile (the scroll lock below), so nothing a member did is undone.
   React.useLayoutEffect(() => {
     const d = ref.current;
