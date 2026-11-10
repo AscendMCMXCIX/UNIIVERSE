@@ -38,6 +38,11 @@
   - frame (#178): the charcoal frame token; the sidebar, open and folded, with the gradient bar on
     the current page; the phone and tablet top bar, drawer and tab bar.
   - All Champions (#178): compact rows, sorted by games, no heading cut short.
+  - leaderboards (PR 5a): Recent form's rows of two lines are at most 72px on the phone, 64px on the
+    tablet and 56px at 1440 (rows of more lines, a long name or a wrapped second line, are counted,
+    not failed); a shared place is titled "Tied for Nth" and no other place claims it; every row's bar
+    has 20 segments, as many filled as the row's wins and as many missing as its window lacks. Counts,
+    heights and true/false only: the rows carry names.
   - settings: the picture and display-name help name the public team page, and Settings never
     mentions a Public profile switch (retired; true or false only).
   - games (#178): Team Matches opens a game under its card (no window), with ?match= in the address;
@@ -403,6 +408,63 @@ async function frameChecks(page, kind, context) {
 }
 
 /**
+ * Recent form's board (PR 5a), as counts, heights and true/false only (the rows and the gap
+ * sentences carry names, which redact() keeps): how tall its rows of two lines are, whether shared
+ * places say so ("Tied for 4th") and only they, and whether each bar counts its row's games (20
+ * segments, filled = wins, missing = the games a provisional window lacks). The desktop run is at
+ * 1440 (the fluid root makes rows taller from 1536px); the verification account has no profile, so
+ * there is never a You row.
+ */
+async function leaderboardsFacts(page, kind) {
+  const f = await page.evaluate(() => {
+    const board = document.querySelector("[data-testid=form-board]");
+    if (!board) return null;
+    const box = (el) => el.getBoundingClientRect();
+    const ordinal = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th")}`;
+    const rows = [...board.querySelectorAll("[data-testid=form-row]")];
+    // The name's lines, plus the second line's lines below 58rem (where the dates sit under the name).
+    const lines = (row) => {
+      const name = row.querySelector("[data-testid=card-name]");
+      const meta = row.querySelector("[data-testid=form-meta]");
+      if (!name || !meta) return null;
+      const n = Math.round(box(name).height / parseFloat(getComputedStyle(name).lineHeight));
+      if (getComputedStyle(meta).display === "contents") {
+        const dates = row.querySelector("[data-testid=form-dates]");
+        return n + (dates && box(dates).top > box(name).bottom - 2 ? 1 : 0);
+      }
+      const mids = [...meta.children].filter((c) => box(c).width > 0).map((c) => box(c).top + box(c).height / 2).sort((a, b) => a - b);
+      return n + mids.filter((m, i) => i === 0 || m - mids[i - 1] > 6).length;
+    };
+    const measured = rows.map((r) => ({ h: Math.round(box(r).height * 10) / 10, lines: lines(r) }));
+    const tied = rows.filter((r) => r.hasAttribute("data-tied"));
+    const titled = (r) => r.querySelector("[data-testid=form-place]")?.getAttribute("title") === `Tied for ${ordinal(Number(r.dataset.place))}`;
+    const barOk = (r) => {
+      const b = r.querySelector("[data-testid=form-bar]");
+      const games = Number(r.dataset.games);
+      return !!b && b.children.length === 20 && b.dataset.segments === "20" && Number(b.dataset.filled) === Number(r.dataset.wins) && Number(b.dataset.known) === games && b.querySelectorAll("[data-state=missing]").length === 20 - games;
+    };
+    return {
+      rows: rows.length,
+      twoLine: measured.filter((m) => m.lines !== null && m.lines <= 2).map((m) => m.h),
+      longer: measured.filter((m) => m.lines === null || !(m.lines <= 2)).length,
+      tied: tied.length,
+      tiedTitled: tied.filter(titled).length,
+      untiedClaims: rows.filter((r) => !r.hasAttribute("data-tied") && /^Tied/.test(r.querySelector("[data-testid=form-place]")?.getAttribute("title") ?? "")).length,
+      bars: rows.filter(barOk).length,
+    };
+  });
+  if (!f) return pass("leaderboards", `${kind}: Recent form's board is on the page`, false, "no form-board");
+  const limit = { phone: 72, tablet: 64, desktop: 56 }[kind];
+  const name = `${kind}: every Recent form row of two lines is at most ${limit}px`;
+  if (!f.twoLine.length) check("leaderboards", name, "PASS", `not applicable: ${f.longer} rows of more lines`);
+  else pass("leaderboards", name, Math.max(...f.twoLine) <= limit, { twoLine: f.twoLine.length, tallest: Math.max(...f.twoLine), longerByDesign: f.longer });
+  if (!f.tied) check("leaderboards", `${kind}: tied places are titled "Tied for Nth"`, "PASS", "not applicable: no shared place");
+  else pass("leaderboards", `${kind}: tied places are titled "Tied for Nth"`, f.tiedTitled === f.tied && f.untiedClaims === 0, { tied: f.tied, titled: f.tiedTitled, untiedClaims: f.untiedClaims });
+  if (!f.rows) check("leaderboards", `${kind}: every row's bar has 20 segments, filled = wins`, "PASS", "not applicable: no ranked or provisional row");
+  else pass("leaderboards", `${kind}: every row's bar has 20 segments, filled = wins`, f.bars === f.rows, { rows: f.rows, matching: f.bars });
+}
+
+/**
  * Settings says who sees a member's picture and display name: teammates, and the public team page
  * while they are in the lineup or a substitute. The Public profile switch it once named is gone
  * (19 Oct 2026; docs/UNIIVERSE_TECHNICAL_HANDOVER.md §C4). Only true or false is reported.
@@ -660,7 +722,10 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
   await guarded("games", `${kind}: Team Matches`, () => teamMatches(page, log, kind, context));
   await guarded("games", `${kind}: Match History`, () => matchHistory(page, log, kind, playerId));
   await guarded(kind, "leaderboards", async () => {
-    if (await visit(page, log, kind, "leaderboards", "/leaderboards")) await axe(page, kind, "leaderboards");
+    if (await visit(page, log, kind, "leaderboards", "/leaderboards")) {
+      await leaderboardsFacts(page, kind);
+      await axe(page, kind, "leaderboards");
+    }
   });
   await guarded(kind, "settings", async () => {
     if (await visit(page, log, kind, "settings", "/settings")) {

@@ -291,15 +291,18 @@ test("Players and Leaderboards read as lists on a phone: a row per player, a row
   await expect(rows.first()).toBeVisible();
   await expect(page.getByTestId("players-directory")).toBeHidden();
   for (const h of await rows.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) expect(h).toBeGreaterThanOrEqual(44);
-  // Recent form: a row per member, the role, record and dates under the name; a tap anywhere on the
-  // row (not only on the name) opens the member's profile.
+  // Recent form: a row per member, two lines of 64px (the record, dates and gap under the name, the
+  // role on the picture); one link covers the whole row, so a tap anywhere on it (not only on the
+  // name) opens the member's profile.
   await page.goto("/leaderboards");
   await expect(page.getByTestId("leaderboards")).toHaveAttribute("data-ready", "true");
   const row = page.getByTestId("form-row").first();
   await expect(row.getByTestId("form-meta")).toBeVisible();
   await expect(page.getByTestId("form-heads")).toBeHidden();
   const box = (await row.boundingBox())!;
-  expect(box.height).toBeGreaterThanOrEqual(44);
+  expect(box.height).toBeGreaterThanOrEqual(64);
+  const link = (await row.locator("a[data-row-link]").boundingBox())!;
+  expect(link.height, "the row's link covers the row").toBeGreaterThanOrEqual(box.height - 2);
   const id = await row.getAttribute("data-player-id");
   // The win rate at the row's right end: no link drawn there, but the row's link covers it.
   await page.touchscreen.tap(box.x + box.width - 12, box.y + box.height / 2);
