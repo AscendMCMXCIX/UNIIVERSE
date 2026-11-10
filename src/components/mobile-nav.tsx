@@ -28,9 +28,9 @@ export interface MobileNavProps {
   tagline: string;
   home: string;
   user: { name: string; username?: string | null; avatarUrl: string | null; roleLabel: string } | null;
-  /** A quiet data-freshness line at the foot of the drawer and the account panel. */
+  /** A quiet data-freshness line at the foot of the drawer and the account screen. */
   status: React.ReactNode;
-  /** Riot's notice, at the foot of the account panel. */
+  /** Riot's notice, at the foot of the account screen. */
   legal?: React.ReactNode;
   showSignOut: boolean;
   /** Paths this account may open in the current mode (the server decides). */
@@ -79,7 +79,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   const pathname = usePathname();
   const tabs: PhoneTab[] = adminMode ? ADMIN_TABS.filter((t) => allowed.includes(t.href)) : phoneTabs(allowed);
   const activeTab = currentTab(pathname, tabs.map((t) => t.href));
-  // The drawer (tablets) and the account panel (phones) remember the path they were opened on, so any
+  // The drawer (tablets) and the account screen (phones) remember the path they were opened on, so any
   // navigation closes them without an effect.
   const [openedAt, setOpenedAt] = React.useState<{ what: "drawer" | "sheet"; path: string } | null>(null);
   // Forgotten once the page has changed, so coming back to that page (Forward) opens nothing unasked.
@@ -122,7 +122,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
     return () => document.documentElement.removeAttribute("data-tabbar-hidden");
   }, [tabsHidden]);
 
-  // The panel holds what the tab bar does not: in Player Mode Resources (when it has no tab) and My
+  // The account screen holds what the tab bar does not: in Player Mode Resources (when it has no tab) and My
   // Profile (likewise), in Admin Mode the admin pages without a tab; then the account's own pages.
   const tabHrefs = tabs.map((t) => t.href);
   const sheetLinks: NavLink[] = [
@@ -283,7 +283,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                   returns it when it closes. */}
               <InstallAppEntry variant="drawer" beforeOpen={() => setOpen(false)} />
               {showSignOut ? (
-                // The same Sign out as the panel's and the account menu's: the browser's other tabs are told.
+                // The same Sign out as the account screen's and the account menu's: the browser's other tabs are told.
                 <form action="/api/auth/logout" method="post" onSubmit={onSignOut}>
                   <button className="flex min-h-12 w-full items-center gap-3 rounded-lg pl-[0.9375rem] pr-3 text-left text-sm text-fg-muted hover:bg-surface-2 hover:text-fg" type="submit">
                     <LogOut className="h-[1.125rem] w-[1.125rem] text-fg-subtle" /> Sign out
@@ -336,7 +336,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
 }
 
 /**
- * Sign out (a plain form post, from the panel or the drawer, as from the account menu): this tab's
+ * Sign out (a plain form post, from the account screen or the drawer, as from the account menu): this tab's
  * account guard stands aside while it leaves, and the browser's other tabs are told (account-guard.tsx).
  */
 function onSignOut() {
