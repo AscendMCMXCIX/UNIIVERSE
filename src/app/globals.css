@@ -554,6 +554,50 @@ p a.text-accent {
 @utility sheet-out {
   animation: sheet-out 140ms ease-in forwards;
 }
+/*
+  The phone's account panel (DetailModal size "panel"): down a little from the top bar, from the
+  avatar's corner, and back up when it closes; the short rise every other window makes, mirrored.
+  Nothing starts off the screen: on whatever frame a motion rests, the panel is in view and in reach.
+  The sheet before it rose from below the bottom edge (sheet-in), and on an iPhone it was drawn part
+  of the way up, its header at the foot of the screen and the rest of it below (docs/MOBILE.md).
+*/
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes panel-out {
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+@utility panel-in {
+  animation: panel-in 180ms var(--ease-emphasized);
+}
+@utility panel-out {
+  animation: panel-out 140ms ease-in forwards;
+}
+/*
+  Where the account panel sits: from the top edge only, 0.5rem below the status bar (the notch, the
+  Dynamic Island) or below the top of what is visible where the browser has scrolled part of the
+  page out of view (--vv-top), and no taller than what is visible below that, 0.5rem clear of the
+  bottom edge or the home indicator (--vv-bottom, the visible area's bottom edge). DetailModal
+  measures both from the visual viewport (usePanelRoom) and sets them on the dialog; until it has,
+  the top edge and the dynamic viewport stand in. Its height is its content's, so on every phone at
+  the usual text size it ends well above the bottom edge, and nothing about where it sits depends on
+  that edge (the home indicator, the keyboard, browser toolbars, an installed app's viewport).
+*/
+@utility panel-place {
+  top: calc(max(env(safe-area-inset-top), var(--vv-top, 0px)) + 0.5rem);
+  bottom: auto;
+  max-height: calc(var(--vv-bottom, 100dvh) - max(env(safe-area-inset-top), var(--vv-top, 0px)) - 0.5rem - max(0.5rem, env(safe-area-inset-bottom)));
+}
 /* Player Card Studio: a section slides in a little from the side it was reached from. */
 @keyframes step-in-next {
   from {

@@ -727,7 +727,7 @@ React and Next.js are the same on every page and not counted):
   page that can open the window (a champion's matchups on the Overview and All Champions) carried the
   whole Match History page. The formatters now live in `match-history/match-format.ts`: 15–16 KB less
   on those two pages.
-- The phone frame (the account sheet, the profile's sections in the top bar) adds 2.3–3.9 KB to
+- The phone frame (the account panel, the profile's sections in the top bar) adds 2.3–3.9 KB to
   every page. Team Matches loads the match window only when a phone opens a game (fetched ahead once a
   phone shows the list), so tablets and desktops do not download it.
 

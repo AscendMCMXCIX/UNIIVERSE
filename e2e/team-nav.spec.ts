@@ -106,7 +106,7 @@ test("Clash Scout is gone: no entry, tab or link in any navigation, the phone ba
     await expect(aside).toHaveAttribute("data-collapsed", "false");
   } else {
     if (isPhone(page)) {
-      // The bar shares its width between the five destinations, with Team lit; the account sheet holds the rest.
+      // The bar shares its width between the five destinations, with Team lit; the account panel holds the rest.
       const bar = page.locator("nav[aria-label='Primary']");
       await expect(bar.locator("a")).toHaveText(["Team", "Players", "Leaderboards", "Matches", "Profile"]);
       await expect(bar.locator("a[aria-current=page]")).toHaveText("Team");

@@ -27,9 +27,9 @@ export interface MobileNavProps {
   tagline: string;
   home: string;
   user: { name: string; username?: string | null; avatarUrl: string | null; roleLabel: string } | null;
-  /** A quiet data-freshness line at the foot of the drawer and the account sheet. */
+  /** A quiet data-freshness line at the foot of the drawer and the account panel. */
   status: React.ReactNode;
-  /** Riot's notice, at the foot of the account sheet. */
+  /** Riot's notice, at the foot of the account panel. */
   legal?: React.ReactNode;
   showSignOut: boolean;
   /** Paths this account may open in the current mode (the server decides). */
@@ -49,14 +49,18 @@ export interface MobileNavProps {
     - the top bar says where you are: the team's mark on a tab's own pages, or Back on a page you
       reached from one (a teammate's profile, Settings), labelled with where it leads; the page's
       title joins it once the page's own heading has scrolled up under it; your avatar at its right
-      end opens the account sheet. On a profile the profile's sections ride under it, so they stay
+      end opens the account panel. On a profile the profile's sections ride under it, so they stay
       in reach however far the page scrolls;
     - the bottom tab bar holds the five places a member goes to most (PHONE_TABS), one tap each,
       within reach of the thumb;
-    - the account sheet (a sheet from the bottom edge) holds the rest, in one short screen: tiles
-      for the pages the tab bar does not hold (Resources when it has no tab; in Admin Mode the admin
-      pages without a tab), Settings and Install App, then the patch and Riot's notice; the switch
-      between the modes and Sign out sit in its footer, always in view (only the body scrolls).
+    - the account panel holds the rest, in one short card that drops from the avatar over the top
+      bar (DetailModal size "panel"): who is signed in beside the close button, where the avatar
+      was; tiles for the pages the tab bar does not hold (Resources when it has no tab; in Admin
+      Mode the admin pages without a tab), Settings and Install App; the switch between the modes
+      beside Sign out; the patch and Riot's notice. It is placed from the top edge only and is as
+      tall as its content, so on an iPhone, in Safari or installed, it is whole on the screen: the
+      bottom sheet it replaces was docked to the bottom edge and rose from below it, and an iPhone
+      drew it with only its header on the screen (docs/MOBILE.md).
   Tablets keep the top bar with the menu at its left end and the drawer with every page, and the
   page tabs (Team's sections) in the page, pinned at its top once it scrolls. Installed as an app, a
   tablet has no browser Back, so the bar offers Back there too, on a page reached from another.
@@ -75,7 +79,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   const pathname = usePathname();
   const tabs: PhoneTab[] = adminMode ? ADMIN_TABS.filter((t) => allowed.includes(t.href)) : phoneTabs(allowed);
   const activeTab = currentTab(pathname, tabs.map((t) => t.href));
-  // The drawer (tablets) and the account sheet (phones) remember the path they were opened on, so any
+  // The drawer (tablets) and the account panel (phones) remember the path they were opened on, so any
   // navigation closes them without an effect.
   const [openedAt, setOpenedAt] = React.useState<{ what: "drawer" | "sheet"; path: string } | null>(null);
   // Forgotten once the page has changed, so coming back to that page (Forward) opens nothing unasked.
@@ -118,7 +122,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
     return () => document.documentElement.removeAttribute("data-tabbar-hidden");
   }, [tabsHidden]);
 
-  // The sheet holds what the tab bar does not: in Player Mode Resources (when it has no tab) and My
+  // The panel holds what the tab bar does not: in Player Mode Resources (when it has no tab) and My
   // Profile (likewise), in Admin Mode the admin pages without a tab; then the account's own pages.
   const tabHrefs = tabs.map((t) => t.href);
   const sheetLinks: NavLink[] = [
@@ -196,35 +200,11 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
       </header>
 
       {sheetOpen && user ? (
-        <DetailModal
-          open
-          onClose={() => setOpenedAt(null)}
-          size="sheet"
-          title={user.name}
-          titleId={SHEET_TITLE_ID}
-          header={<AccountHeader user={user} />}
-          testId="account-sheet"
-          closeTestId="account-sheet-close"
-          bodyClassName="pt-3 sm:pt-4"
-          footer={
-            modeSwitch || showSignOut ? (
-              // The way between the modes and Sign out, in the sheet's footer: always in view, since
-              // only the body scrolls (at a large text size it must), side by side where the screen
-              // allows (both 48px tall).
-              <div className={cn("grid w-full gap-2", modeSwitch && showSignOut && "min-[22.5rem]:grid-cols-2")} data-testid="account-sheet-actions">
-                {modeSwitch}
-                {showSignOut ? (
-                  <form action="/api/auth/logout" method="post" onSubmit={onSignOut}>
-                    <button className="flex min-h-12 w-full items-center gap-3 rounded-lg border border-border bg-surface/60 pl-[0.875rem] pr-3 text-left text-sm font-medium text-fg-muted transition-colors duration-150 hover:border-border-strong hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent" type="submit" data-testid="sign-out">
-                      <LogOut className="h-[1.125rem] w-[1.125rem] shrink-0 text-fg-subtle" aria-hidden /> Sign out
-                    </button>
-                  </form>
-                ) : null}
-              </div>
-            ) : undefined
-          }
-        >
-          {/* Everything as tiles in one short screen: the pages the tab bar does not hold, Settings and
+        // The account panel (its test ids keep the name of the sheet it replaced). Only its body
+        // scrolls, and only when it must (large text, a phone held sideways): the header, with the
+        // close button, stays put.
+        <DetailModal open onClose={() => setOpenedAt(null)} size="panel" title={user.name} titleId={SHEET_TITLE_ID} header={<AccountHeader user={user} />} testId="account-sheet" closeTestId="account-sheet-close" bodyClassName="pt-3 sm:pt-4">
+          {/* Everything as tiles in one short card: the pages the tab bar does not hold, Settings and
               Install App (lib/sheet.ts), three to a row upright and up to six sideways. */}
           <nav aria-label={adminMode ? "More admin pages and your account" : "More pages and your account"} className="grid grid-cols-3 gap-2 short:grid-cols-6">
             {sheetLinks.map(({ href, label, icon }) => (
@@ -232,11 +212,25 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                 {label}
               </SheetTile>
             ))}
-            {/* The install window opens over the page: the sheet closes first. */}
+            {/* The install window opens over the page: the panel closes first. */}
             <InstallAppEntry variant="tile" beforeOpen={() => setOpenedAt(null)} />
           </nav>
-          {/* The patch and Riot's notice: one quiet line (two on a narrow screen), the body's last. */}
-          <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1" data-testid="account-sheet-notes">
+          {modeSwitch || showSignOut ? (
+            // The way between the modes and Sign out, under the tiles, side by side where the screen
+            // allows (both 48px tall).
+            <div className={cn("mt-2 grid gap-2", modeSwitch && showSignOut && "min-[22.5rem]:grid-cols-2")} data-testid="account-sheet-actions">
+              {modeSwitch}
+              {showSignOut ? (
+                <form action="/api/auth/logout" method="post" onSubmit={onSignOut}>
+                  <button className="flex min-h-12 w-full items-center gap-3 rounded-lg border border-border bg-surface/60 pl-[0.875rem] pr-3 text-left text-sm font-medium text-fg-muted transition-colors duration-150 hover:border-border-strong hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent" type="submit" data-testid="sign-out">
+                    <LogOut className="h-[1.125rem] w-[1.125rem] shrink-0 text-fg-subtle" aria-hidden /> Sign out
+                  </button>
+                </form>
+              ) : null}
+            </div>
+          ) : null}
+          {/* The patch and Riot's notice: one quiet line (two on a narrow screen), the panel's last. */}
+          <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border pt-2.5" data-testid="account-sheet-notes">
             {status}
             {legal}
           </div>
@@ -275,7 +269,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                   returns it when it closes. */}
               <InstallAppEntry variant="drawer" beforeOpen={() => setOpen(false)} />
               {showSignOut ? (
-                // The same Sign out as the sheet's and the account menu's: the browser's other tabs are told.
+                // The same Sign out as the panel's and the account menu's: the browser's other tabs are told.
                 <form action="/api/auth/logout" method="post" onSubmit={onSignOut}>
                   <button className="flex min-h-12 w-full items-center gap-3 rounded-lg pl-[0.9375rem] pr-3 text-left text-sm text-fg-muted hover:bg-surface-2 hover:text-fg" type="submit">
                     <LogOut className="h-[1.125rem] w-[1.125rem] text-fg-subtle" /> Sign out
@@ -328,7 +322,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
 }
 
 /**
- * Sign out (a plain form post, from the sheet or the drawer, as from the account menu): this tab's
+ * Sign out (a plain form post, from the panel or the drawer, as from the account menu): this tab's
  * account guard stands aside while it leaves, and the browser's other tabs are told (account-guard.tsx).
  */
 function onSignOut() {
@@ -407,10 +401,10 @@ function Drawer({ onClose, initialFocus, children }: { onClose: () => void; /** 
   );
 }
 
-/** The account sheet's title (its custom header names the dialog). */
+/** The account panel's title (its custom header names the dialog). */
 const SHEET_TITLE_ID = "account-sheet-title";
 
-/** The account sheet's header: who is signed in, with their picture, beside the close button. */
+/** The account panel's header: who is signed in, with their picture, beside the close button. */
 function AccountHeader({ user }: { user: NonNullable<MobileNavProps["user"]> }) {
   const other = otherUsername(user);
   return (
@@ -426,7 +420,7 @@ function AccountHeader({ user }: { user: NonNullable<MobileNavProps["user"]> }) 
   );
 }
 
-/** A page in the account sheet: its icon over its name (lib/sheet.ts). */
+/** A page in the account panel: its icon over its name (lib/sheet.ts). */
 function SheetTile({ href, icon: Icon, active, onNavigate, children }: { href: string; icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>; active: boolean; onNavigate: () => void; children: React.ReactNode }) {
   return (
     <Link href={href} onClick={onNavigate} aria-current={active ? "page" : undefined} className={cn(SHEET_TILE, active ? SHEET_TILE_CURRENT : SHEET_TILE_IDLE)}>

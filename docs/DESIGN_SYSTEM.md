@@ -222,9 +222,9 @@ reads as set into the frame rather than pasted on a flat block.
 ### Tablets and phones
 
 Tablets keep the top bar, the drawer (sharing `NavLinks`, so the same rows) and the section tabs.
-Phones keep the top bar, the five-tab bar and the account sheet (MOBILE.md). They pick up the new
-`chrome` ink automatically. Their mode switch keeps its bordered button: in the sheet it sits in the
-footer beside Sign out, under the tiles, with nothing else to set it apart.
+Phones keep the top bar, the five-tab bar and the account panel (MOBILE.md). They pick up the new
+`chrome` ink automatically. Their mode switch keeps its bordered button: in the panel it sits beside
+Sign out, under the tiles, with nothing else to set it apart.
 
 With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shell):
 
@@ -267,11 +267,14 @@ test):
   its first other page.
 - **Overlays.** One sheet for every choice and editor (`DetailModal` `size="sheet"`, `Dialog` built
   on it): its choices in the body and its actions in the footer, which stays in view while only the
-  body scrolls (the account sheet's mode switch and Sign out too). Where the header and footer would
-  leave the body too little room for its tallest control (large text on a phone held sideways), the
-  whole sheet scrolls as one instead, like a page, so nothing is ever cut short in a strip. Escape,
-  the backdrop, Close and a pull down close the topmost one, focus returns to what opened it without
-  scrolling, and the page behind never moves (MOBILE.md, "Every sheet and window").
+  body scrolls. Where the header and footer would leave the body too little room for its tallest
+  control (large text on a phone held sideways), the whole sheet scrolls as one instead, like a page,
+  so nothing is ever cut short in a strip. Escape, the backdrop, Close and a pull down close the
+  topmost one, focus returns to what opened it without scrolling, and the page behind never moves
+  (MOBILE.md, "Every sheet and window"). The phone's account menu is the one exception: a panel that
+  hangs from the top, under the avatar (`size="panel"`), placed from the top edge only and as tall as
+  its content, because an iPhone drew the bottom sheet it replaced below the screen (MOBILE.md, "Why
+  the account menu hangs from the top").
 - **Before the page's code has run.** Destinations are real links, and work at once. The frame's
   controls that code drives (the phone's avatar, the tablet's menu button, the account menu's
   triggers on tablets and in the sidebar, the sidebar's collapse control) keep a tap made before it

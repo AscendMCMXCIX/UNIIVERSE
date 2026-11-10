@@ -267,7 +267,7 @@ export const ADMIN_TABS: Array<{ href: string; label: string; icon: LucideIcon }
 ];
 
 /**
- * Admin Mode's pages in the phone account sheet: one link per entry, as the drawer lists them (a
+ * Admin Mode's pages in the phone account panel: one link per entry, as the drawer lists them (a
  * hub's link opens its first section this account may open, under the hub's name), less the pages
  * the tab bar already holds, so the sheet repeats nothing that is one tap away (as Player Mode's
  * sheet holds Resources only when it has no tab).

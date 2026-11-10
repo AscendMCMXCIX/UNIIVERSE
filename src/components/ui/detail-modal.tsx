@@ -12,9 +12,13 @@ import { cn } from "@/lib/cn";
  * get a compact centred window. `form` is a few fields to type in (signing in): the whole screen on
  * phones, upright or sideways, with its header pinned and the rest scrolling under it, so the
  * on-screen keyboard (see useKeyboardFit) never leaves a field or the button out of reach; wider
- * screens get a compact centred window.
+ * screens get a compact centred window. `panel` is a menu dropped from the top bar by the control
+ * that opens it (the phone's account panel, behind the avatar): placed from the top edge only, as
+ * tall as its content up to what is visible (see usePanelRoom), so nothing about where it sits
+ * depends on the bottom edge (the home indicator, the keyboard, browser toolbars, an installed
+ * app's viewport).
  */
-export type ModalSize = "compact" | "standard" | "wide" | "full" | "sheet" | "form";
+export type ModalSize = "compact" | "standard" | "wide" | "full" | "sheet" | "form" | "panel";
 
 /** The whole screen: phones, and any short window (a phone held sideways), where a centred window would leave its content a strip. */
 const WHOLE_SCREEN = "short:h-dvh short:w-full short:max-h-none short:rounded-none short:border-0";
@@ -39,12 +43,27 @@ const SIZE: Record<ModalSize, string> = {
   // As tall as its fields on wider screens (fit-content, the browser's own size for a dialog:
   // `auto` would stretch it between the dialog's top and bottom insets).
   form: `h-dvh w-full max-h-none rounded-none border-0 max-sm:pt-safe sm:h-fit sm:max-h-[min(88dvh,44rem)] sm:w-[min(28rem,calc(100vw-2rem))] sm:rounded-card sm:border ${WHOLE_SCREEN} short:pt-safe`,
+  // From the top edge (panel-place in globals.css: below the status bar, as tall as its content up
+  // to what is visible), 0.5rem in from the sides and the notch: the phone's whole width upright;
+  // wider, 24rem (44rem in a short window, for its six tiles a row) at the right, under the avatar.
+  panel: "w-auto left-[max(0.5rem,env(safe-area-inset-left))] right-[max(0.5rem,env(safe-area-inset-right))] rounded-card panel-place sm:left-auto sm:w-[min(24rem,calc(100vw-1rem))] short:left-auto short:w-[min(44rem,calc(100vw-1rem))]",
 };
 
-/** The motion of each size: a sheet slides up from the bottom edge on phones, every window else rises into the centre. */
+/**
+ * The motion of each size: a sheet slides up from the bottom edge on phones, a panel comes down a
+ * little from the top bar, every window else rises into the centre. A panel drops its motion once
+ * it has run (`data-entered`, see DetailModal), so whatever the browser does with an animation, the
+ * panel rests where its styles put it.
+ */
 const MOTION: Partial<Record<ModalSize, string>> = {
   sheet: "motion-safe:sheet-in data-[closing=true]:sheet-out sm:motion-safe:modal-in sm:data-[closing=true]:modal-out short:motion-safe:sheet-in short:data-[closing=true]:sheet-out backdrop:transition-opacity backdrop:duration-150 data-[closing=true]:backdrop:opacity-0",
+  panel: "origin-top-right motion-safe:not-data-[entered=true]:panel-in data-[closing=true]:panel-out backdrop:transition-opacity backdrop:duration-150 data-[closing=true]:backdrop:opacity-0",
 };
+/**
+ * How long a panel's opening motion may take before it is dropped regardless (panel-in runs 180 ms):
+ * the panel is then at rest even if the browser never reported the motion's end.
+ */
+const PANEL_ENTER_MS = 400;
 
 /**
  * On a phone those windows take the whole screen. One whose own header would fill more than this
@@ -145,8 +164,11 @@ const VELOCITY_WINDOW = 100;
  * on content that does not scroll, on the dimmed page around it) are kept from moving the page
  * behind: no rubber band, no browser toolbars sliding, which on iOS also resized the sheet. Taps are
  * untouched, so a tap on the dimmed page still closes the sheet and every link still works.
+ *
+ * Without `pull` (a panel from the top bar, which has nothing to pull) only that last part stays, at
+ * every width: a touch scrolls the panel's body where the body scrolls, and moves nothing anywhere else.
  */
-function useSheetDrag(ref: React.RefObject<HTMLDialogElement | null>, enabled: boolean, onDismiss: () => void) {
+function useSheetDrag(ref: React.RefObject<HTMLDialogElement | null>, enabled: boolean, onDismiss: () => void, pull = true) {
   React.useEffect(() => {
     const d = ref.current;
     if (!enabled || !d) return;
@@ -168,7 +190,7 @@ function useSheetDrag(ref: React.RefObject<HTMLDialogElement | null>, enabled: b
     const canScroll = (el: HTMLElement | null) => !!el && el.scrollHeight > el.clientHeight + 1;
     const onStart = (e: TouchEvent) => {
       const t = e.touches[0];
-      if (!docked.matches || e.touches.length !== 1 || !t) {
+      if ((pull && !docked.matches) || e.touches.length !== 1 || !t) {
         mode = "pass";
         return;
       }
@@ -190,7 +212,7 @@ function useSheetDrag(ref: React.RefObject<HTMLDialogElement | null>, enabled: b
         if (Math.abs(moveX) < DRAG_SLOP && Math.abs(moveY) < DRAG_SLOP) return;
         const scrollable = canScroll(scroller);
         const onBackdrop = e.target === d;
-        if (!onBackdrop && moveY > 0 && Math.abs(moveY) > Math.abs(moveX) && !(scrollable && scroller!.scrollTop > 0)) {
+        if (pull && !onBackdrop && moveY > 0 && Math.abs(moveY) > Math.abs(moveX) && !(scrollable && scroller!.scrollTop > 0)) {
           mode = "drag";
           d.style.transition = "none";
         } else {
@@ -234,7 +256,39 @@ function useSheetDrag(ref: React.RefObject<HTMLDialogElement | null>, enabled: b
       d.removeEventListener("touchcancel", onEnd);
       reset();
     };
-  }, [ref, enabled, onDismiss]);
+  }, [ref, enabled, onDismiss, pull]);
+}
+
+/**
+ * Where a panel may reach (SIZE.panel, panel-place in globals.css), from what is visible rather than
+ * from the page's viewport: the visual viewport's top (`--vv-top`, above 0 while the browser has
+ * part of the page scrolled out of view, as on iOS after the keyboard) and the visible area's bottom
+ * edge (`--vv-bottom`, the lowest of the window's height, the root's and the visual viewport's, so a
+ * viewport that reports more than is shown never lets the panel run past the screen). Set on the
+ * dialog itself, which re-styles the dialog alone, before it is first shown, and again whenever the
+ * visible area changes (the phone turning, browser toolbars, the keyboard).
+ */
+function usePanelRoom(ref: React.RefObject<HTMLDialogElement | null>, enabled: boolean) {
+  React.useLayoutEffect(() => {
+    const d = ref.current;
+    if (!enabled || !d) return;
+    const vv = window.visualViewport;
+    const place = () => {
+      const top = vv ? Math.max(0, vv.offsetTop) : 0;
+      const bottom = Math.min(window.innerHeight, document.documentElement.clientHeight || Infinity, vv ? vv.offsetTop + vv.height : Infinity);
+      d.style.setProperty("--vv-top", `${Math.round(top)}px`);
+      d.style.setProperty("--vv-bottom", `${Math.floor(bottom)}px`);
+    };
+    place();
+    vv?.addEventListener("resize", place);
+    vv?.addEventListener("scroll", place);
+    window.addEventListener("resize", place);
+    return () => {
+      vv?.removeEventListener("resize", place);
+      vv?.removeEventListener("scroll", place);
+      window.removeEventListener("resize", place);
+    };
+  }, [ref, enabled]);
 }
 
 /**
@@ -317,11 +371,14 @@ export function DetailModal({
   // Scroll as one on a phone (see FLOW_SHARE), or a docked sheet with too little room for its body
   // (SHEET_SPARE_REM); measured once the window is on the page.
   const [flow, setFlow] = React.useState(false);
+  // A panel's opening motion has run (or been given up on): its styles drop the motion (MOTION.panel).
+  const [entered, setEntered] = React.useState(false);
   if (wasOpen !== open) {
     setWasOpen(open);
     if (!open) {
       setSettled(false);
       setFlow(false);
+      setEntered(false);
     }
   }
   const latest = React.useRef({ onClose, canClose, onSettled });
@@ -349,6 +406,22 @@ export function DetailModal({
    * its body too little room (SHEET_SPARE_REM), the whole sheet is the one scroll area instead.
    */
   const docked = size === "sheet";
+  /**
+   * A panel hangs from the top edge on every screen (SIZE.panel), its header in place and only its
+   * body scrolling when it must (large text, a phone held sideways), so the close button never
+   * scrolls away. Nothing to pull: a touch moves nothing behind it (useSheetDrag without `pull`).
+   */
+  const anchored = size === "panel";
+  usePanelRoom(ref, open && anchored);
+  // The panel's opening motion is dropped once it has run, or after PANEL_ENTER_MS whatever happened
+  // to it (onAnimationEnd below ends it sooner): a motion the browser left unfinished, or drew
+  // part-way, can never hold the panel anywhere but where its styles put it. At once for reduced motion.
+  React.useEffect(() => {
+    if (!open || !anchored) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const t = window.setTimeout(() => setEntered(true), reduce ? 0 : PANEL_ENTER_MS);
+    return () => window.clearTimeout(t);
+  }, [open, anchored]);
   // How much room the corner controls take, for CLEAR_OF_CONTROLS and BELOW_CONTROLS: measured
   // before the window is first drawn, because the close button is larger on touch screens and a
   // Back label varies. Layout sizes, not on-screen boxes, so the opening motion's scale is no matter.
@@ -382,7 +455,7 @@ export function DetailModal({
   React.useLayoutEffect(() => {
     const d = ref.current;
     const h = headerRef.current;
-    if (!open || !custom || innerScroll || pinned || docked || size === "compact" || !d || !h) return;
+    if (!open || !custom || innerScroll || pinned || docked || anchored || size === "compact" || !d || !h) return;
     const phone = window.matchMedia(PHONE_QUERY);
     // A ResizeObserver reports the first sizes before the window is first drawn, then every change
     // (content arriving in the header, the phone turning).
@@ -395,7 +468,7 @@ export function DetailModal({
       observer.disconnect();
       phone.removeEventListener("change", check);
     };
-  }, [open, custom, innerScroll, pinned, docked, size]);
+  }, [open, custom, innerScroll, pinned, docked, anchored, size]);
   // A docked sheet whose header and footer would leave its body less room than the body's tallest
   // control needs, with SHEET_SPARE_REM to spare, scrolls as one. The room is the sheet less its
   // handle, header and footer, which is the same whichever way it scrolls, so the choice holds once
@@ -484,7 +557,7 @@ export function DetailModal({
       latest.current.onClose();
     }, EXIT_MS);
   }, []);
-  useSheetDrag(ref, open && docked, requestClose);
+  useSheetDrag(ref, open && (docked || anchored), requestClose, docked);
 
   // The close button alone in the top-right corner: the window's own navigation sits left of it,
   // past a divider, and nothing in the header comes within CLEARANCE_PX of either.
@@ -517,14 +590,21 @@ export function DetailModal({
         if (e.target === ref.current) requestClose();
       }}
       onAnimationEnd={(e) => {
-        if (e.target === ref.current && (e.animationName === "modal-in" || e.animationName === "sheet-in")) settle();
+        if (e.target !== ref.current) return;
+        if (e.animationName === "modal-in" || e.animationName === "sheet-in" || e.animationName === "panel-in") settle();
+        if (e.animationName === "panel-in") setEntered(true);
       }}
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
       data-closing={closing || undefined}
+      // Closing ends the opening motion too, so the closing one is the only one left to run.
+      data-entered={anchored && (entered || closing) ? "true" : undefined}
       className={cn(
-        "m-auto max-w-none border border-border-strong bg-bg-elevated p-0 px-safe text-fg shadow-2xl shadow-black/50 open:flex open:flex-col",
-        !innerScroll && !pinned && !docked && "short:overflow-y-auto short:overscroll-contain",
+        "max-w-none border border-border-strong bg-bg-elevated p-0 text-fg shadow-2xl shadow-black/50 open:flex open:flex-col",
+        // A panel is placed by its own insets (SIZE.panel), clear of the notch by them: no auto
+        // margins, no safe-area padding inside it.
+        anchored ? "m-0" : "m-auto px-safe",
+        !innerScroll && !pinned && !docked && !anchored && "short:overflow-y-auto short:overscroll-contain",
         flow ? "overflow-y-auto overscroll-contain" : "overflow-hidden",
         MODAL_BACKDROP,
         MOTION[size] ?? MODAL_MOTION,
@@ -566,7 +646,7 @@ export function DetailModal({
                   "flex items-center gap-1",
                   flow && !docked
                     ? "fixed right-[max(0.5rem,env(safe-area-inset-right))] top-[calc(env(safe-area-inset-top)+0.5rem)] z-20 rounded-lg bg-bg-elevated/85 shadow-lg backdrop-blur"
-                    : innerScroll || pinned || docked
+                    : innerScroll || pinned || docked || anchored
                       ? "absolute right-2 top-2 sm:right-3 sm:top-3"
                       : "absolute right-2 top-2 sm:right-3 sm:top-3 short:fixed short:right-[max(0.5rem,env(safe-area-inset-right))] short:top-2 short:z-20 short:rounded-lg short:bg-bg-elevated/85 short:shadow-lg short:backdrop-blur",
                 )}
@@ -602,14 +682,16 @@ export function DetailModal({
                     // there is one (pb-safe-N: N steps, or the inset where larger; pb-safe alone was
                     // 0 px in a browser, with the text on the edge). With a footer, the footer keeps
                     // that clearance instead. A safe padding is the only one for its edge
-                    // (globals.css), so the top is padded on its own beside it.
-                    footer ? "py-4 sm:py-5" : "pt-4 pb-safe-4 sm:pt-5 sm:pb-safe-5",
-                    flow ? "flex-none" : pinned || docked ? "min-h-0 flex-1 overflow-y-auto overscroll-contain" : "min-h-0 flex-1 overflow-y-auto overscroll-contain short:flex-none short:overflow-y-visible",
+                    // (globals.css), so the top is padded on its own beside it. A panel ends above
+                    // the bottom edge (panel-place keeps it clear of the home indicator), so its
+                    // last line needs no more than any other.
+                    footer || anchored ? "py-4 sm:py-5" : "pt-4 pb-safe-4 sm:pt-5 sm:pb-safe-5",
+                    flow ? "flex-none" : pinned || docked || anchored ? "min-h-0 flex-1 overflow-y-auto overscroll-contain" : "min-h-0 flex-1 overflow-y-auto overscroll-contain short:flex-none short:overflow-y-visible",
                   ],
               bodyClassName,
             )}
             data-testid={bodyTestId}
-            data-sheet-scroll={docked && !flow ? "" : undefined}
+            data-sheet-scroll={(docked || anchored) && !flow ? "" : undefined}
           >
             <SettledContext.Provider value={settled}>{children}</SettledContext.Provider>
           </div>

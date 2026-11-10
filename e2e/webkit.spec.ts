@@ -308,32 +308,42 @@ test("Player Customisation: the Studio opens, its sections switch from the secti
   await expect(page.getByTestId("profile-header")).toHaveAttribute("data-frame", frame ?? "none");
 });
 
-test("the account sheet in Safari's engine: one tap opens it, docked at the bottom edge, everything in one screen, its actions clear of the edge", async ({ page }) => {
-  const sheet = page.getByTestId("account-sheet");
-  await page.goto("/team");
-  // One tap, whenever it lands: before the page's code has run it is kept and applied once the code
-  // runs (src/components/early-taps.ts), so no retry is needed.
-  await page.getByTestId("account-sheet-button").tap();
-  await expect(sheet).toBeVisible();
-  // Past the opening motion.
-  await expect(async () => expect(await sheet.evaluate((d) => getComputedStyle(d).transform)).toBe("none")).toPass();
-  const fit = await sheet.evaluate((d) => {
-    const body = d.querySelector<HTMLElement>("[data-sheet-scroll]")!;
-    const box = d.getBoundingClientRect();
-    const actions = d.querySelector("[data-testid=account-sheet-actions]")!.getBoundingClientRect();
-    return { scrolls: body.scrollHeight > body.clientHeight + 1, docked: Math.abs(box.bottom - innerHeight) <= 1, top: box.top, actionsUnderBody: actions.top >= body.getBoundingClientRect().bottom - 1, clearance: box.bottom - actions.bottom };
-  });
-  expect(fit.docked).toBe(true);
-  expect(fit.scrolls).toBe(false);
-  expect(fit.top).toBeGreaterThan(40);
-  // The mode switch (and Sign out, with accounts) sit in the footer, at least 1rem from the edge.
-  expect(fit.actionsUnderBody).toBe(true);
-  expect(fit.clearance).toBeGreaterThanOrEqual(16);
-  await sheet.getByTestId("account-sheet-close").tap();
-  await expect(sheet).toHaveCount(0);
+test("the account panel in Safari's engine: one tap opens it, from the top edge, whole on the screen at rest, every control reached where it is drawn, the page left where it was", async ({ page }) => {
+  const panel = page.getByTestId("account-sheet");
+  for (const [path, scroll] of [["/team", 0], ["/players", 400]] as const) {
+    await page.goto(path);
+    await page.evaluate((y) => window.scrollTo(0, y), scroll);
+    const scrolled = await page.evaluate(() => scrollY);
+    // One tap, whenever it lands: before the page's code has run it is kept and applied once the code
+    // runs (src/components/early-taps.ts), so no retry is needed.
+    await page.getByTestId("account-sheet-button").tap();
+    await expect(panel).toBeVisible();
+    // At rest: its motion run and dropped, nothing animating, nothing moved or faded.
+    await expect(panel).toHaveAttribute("data-entered", "true");
+    expect(await panel.evaluate((d) => ({ animations: d.getAnimations().length, transform: getComputedStyle(d).transform, opacity: getComputedStyle(d).opacity }))).toEqual({ animations: 0, transform: "none", opacity: "1" });
+    const fit = await panel.evaluate((d) => {
+      const body = d.querySelector<HTMLElement>("[data-sheet-scroll]")!;
+      const box = d.getBoundingClientRect();
+      const missed = [...d.querySelectorAll<HTMLElement>("[data-testid=account-sheet-close], nav a, nav button, [data-testid=mode-switch], [data-testid=sign-out]")].filter((el) => {
+        const r = el.getBoundingClientRect();
+        const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return !(r.top >= 0 && r.bottom <= innerHeight && !!at && (at === el || el.contains(at)));
+      }).length;
+      return { top: box.top, bottom: box.bottom, height: innerHeight, scrolls: body.scrollHeight > body.clientHeight + 1, missed };
+    });
+    // From the top edge (0.5rem down; this engine has no status bar), ending well above the bottom edge.
+    expect(Math.abs(fit.top - 8), path).toBeLessThanOrEqual(1);
+    expect(fit.bottom, path).toBeLessThan(fit.height * 0.75);
+    expect(fit.scrolls, path).toBe(false);
+    expect(fit.missed, path).toBe(0);
+    expect(await page.evaluate(() => scrollY), path).toBe(scrolled);
+    await panel.getByTestId("account-sheet-close").tap();
+    await expect(panel).toHaveCount(0);
+    expect(await page.evaluate(() => scrollY), path).toBe(scrolled);
+  }
 });
 
-test("Admin Mode: the account sheet's switch moves between Admin Mode and Player Mode, each with its own tab bar", async ({ page }) => {
+test("Admin Mode: the account panel's switch moves between Admin Mode and Player Mode, each with its own tab bar", async ({ page }) => {
   const tabs = page.getByRole("navigation", { name: "Primary" }).getByRole("link");
   const sheet = page.getByTestId("account-sheet");
   await page.goto("/admin");

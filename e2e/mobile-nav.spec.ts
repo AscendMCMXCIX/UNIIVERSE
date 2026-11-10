@@ -4,7 +4,7 @@ import { memberContext } from "./member-account";
 /*
   The phone frame (docs/MOBILE.md): five destinations in the bottom tab bar, a top bar that says where
   you are (the team's mark, or Back named after where it leads, and the page's title once its heading
-  has scrolled away), a profile's sections under it, the account sheet behind the avatar (which
+  has scrolled away), a profile's sections under it, the account panel behind the avatar (which
   answers a tap made before the page's code has run), filters in a sheet with chips for what is
   narrowed, and a game opened as a whole screen that Back closes. Phones only, except the tests
   tagged @tablet (the tablet's menu drawer); in-memory demo roster.
@@ -124,144 +124,149 @@ test("a profile's sections stay under the top bar, and the bar shows the player'
   await expect(page).toHaveURL(/\/players$/);
 });
 
-test("the avatar opens the account sheet: Resources, Settings, Install App and Sign out live there", async ({ page }) => {
+test("the avatar opens the account panel: Resources, Settings, Install App and Sign out live there", async ({ page }) => {
   await page.goto("/team");
   // No menu drawer on a phone: the tablet's menu button is not shown.
   await expect(page.getByTestId("menu-button")).toBeHidden();
   await page.getByTestId("account-sheet-button").click();
-  const sheet = page.getByTestId("account-sheet");
-  await expect(sheet).toBeVisible();
-  await expect(sheet.getByRole("link", { name: "Resources" })).toBeVisible();
-  await expect(sheet.getByRole("link", { name: "Settings" })).toBeVisible();
-  await expect(sheet.getByText("Not endorsed by Riot Games.")).toBeVisible();
-  // The sheet's rows are finger-sized.
-  expect((await sheet.getByRole("link", { name: "Settings" }).boundingBox())!.height).toBeGreaterThanOrEqual(44);
-  await sheet.getByRole("link", { name: "Resources" }).click();
+  const panel = page.getByTestId("account-sheet");
+  await expect(panel).toBeVisible();
+  await expect(panel).toHaveAttribute("data-size", "panel");
+  await expect(panel.getByRole("link", { name: "Resources" })).toBeVisible();
+  await expect(panel.getByRole("link", { name: "Settings" })).toBeVisible();
+  await expect(panel.getByText("Not endorsed by Riot Games.")).toBeVisible();
+  // The panel's tiles are finger-sized.
+  expect((await panel.getByRole("link", { name: "Settings" }).boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await panel.getByRole("link", { name: "Resources" }).click();
   await expect(page).toHaveURL(/\/resources$/);
-  await expect(sheet).toHaveCount(0);
+  await expect(panel).toHaveCount(0);
   // Resources has no tab here, so it is a page reached from another: Back.
   await expect(page.getByTestId("mobile-back")).toBeVisible();
 });
 
 /**
- * How the open account sheet sits: whether its body scrolls, whether the whole sheet scrolls as one
- * instead (large text), whether it is docked to the bottom edge, its top, whether the patch and
- * Riot's notice end the body whole, and the clearance of the footer's actions (the mode switch,
- * Sign out) from the sheet's bottom edge.
+ * How the open account panel sits once its opening motion is over: its edges, whether its body
+ * scrolls, whether the patch and Riot's notice end it, and whether every control in it (the close
+ * button, the tiles, the mode switch, Sign out) is on screen and answers a tap where it is drawn.
  */
-async function sheetFit(page: Page) {
-  const sheet = page.getByTestId("account-sheet");
-  await expect(sheet).toBeVisible();
-  // Past the opening motion (220ms), so the box is where it rests.
-  await expect(async () => expect(await sheet.evaluate((d) => getComputedStyle(d).transform)).toBe("none")).toPass();
-  return sheet.evaluate((d) => {
+async function panelFit(page: Page) {
+  const panel = page.getByTestId("account-sheet");
+  await expect(panel).toBeVisible();
+  // At rest: the opening motion has run and been dropped (data-entered), and nothing animates.
+  await expect(panel).toHaveAttribute("data-entered", "true");
+  await expect(async () => expect(await panel.evaluate((d) => d.getAnimations().length)).toBe(0)).toPass();
+  return panel.evaluate((d) => {
     const body = d.querySelector<HTMLElement>("[data-sheet-scroll]")!;
     const box = d.getBoundingClientRect();
-    const inner = body.getBoundingClientRect();
     const notes = d.querySelector("[data-testid=account-sheet-notes]")!.getBoundingClientRect();
-    const actions = d.querySelector("[data-testid=account-sheet-actions]")!.getBoundingClientRect();
+    const controls = [...d.querySelectorAll<HTMLElement>("[data-testid=account-sheet-close], nav a, nav button, [data-testid=mode-switch], [data-testid=sign-out]")];
+    const reachable = controls.every((el) => {
+      const r = el.getBoundingClientRect();
+      const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return r.top >= 0 && r.bottom <= innerHeight && !!at && (at === el || el.contains(at));
+    });
     return {
-      scrolls: body.scrollHeight > body.clientHeight + 1,
-      asOne: d.hasAttribute("data-flow"),
-      docked: Math.abs(box.bottom - innerHeight) <= 1,
       top: box.top,
+      bottom: box.bottom,
       width: box.width,
-      notesEndBody: notes.top >= inner.top - 1 && notes.bottom <= inner.bottom + 1,
-      actionsUnderBody: actions.top >= inner.bottom - 1,
-      clearance: box.bottom - actions.bottom,
+      right: innerWidth - box.right,
+      onScreen: box.top >= 0 && box.bottom <= innerHeight,
+      scrolls: body.scrollHeight > body.clientHeight + 1,
+      notesLast: notes.top >= box.top && notes.bottom <= box.bottom && notes.bottom >= body.getBoundingClientRect().bottom - 32,
+      reachable,
     };
   });
 }
 
-test("the account sheet fits a small phone in one screen, in Player Mode and Admin Mode: nothing scrolls, nothing is cut off", async ({ page, context, baseURL }) => {
+test("the account panel hangs from the top on a small phone, in Player Mode and Admin Mode: whole, nothing scrolls, every control in reach", async ({ page, context, baseURL }) => {
   await page.setViewportSize({ width: 320, height: 568 });
   for (const path of ["/team", "/admin"]) {
     if (path === "/admin") await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
     await page.goto(path);
     await page.getByTestId("account-sheet-button").click();
-    const sheet = page.getByTestId("account-sheet");
-    const fit = await sheetFit(page);
+    const panel = page.getByTestId("account-sheet");
+    const fit = await panelFit(page);
+    // From the top edge, 0.5rem down (this browser has no status bar), and well clear of the bottom
+    // edge: nothing about it reaches down there.
+    expect(Math.abs(fit.top - 8)).toBeLessThanOrEqual(1);
+    expect(fit.bottom).toBeLessThan(568 - 80);
+    expect(fit.onScreen).toBe(true);
     expect(fit.scrolls).toBe(false);
-    expect(fit.asOne).toBe(false);
-    expect(fit.docked).toBe(true);
-    // A strip of the page stays above it, to tap away.
-    expect(fit.top).toBeGreaterThan(40);
-    // The patch and Riot's notice end the body; the actions sit in the footer under it, at least
-    // 1rem from the bottom edge, as a body's last line (the last line once sat on it in a browser).
-    expect(fit.notesEndBody).toBe(true);
-    expect(fit.actionsUnderBody).toBe(true);
-    expect(fit.clearance).toBeGreaterThanOrEqual(16);
+    expect(fit.notesLast).toBe(true);
+    expect(fit.reachable).toBe(true);
     if (path === "/admin") {
       // Admin Mode: the admin pages the tab bar does not hold, and nothing the tab bar repeats.
-      await expect(sheet.getByRole("link", { name: "Audit Logs" })).toBeVisible();
-      await expect(sheet.getByRole("link", { name: "Dashboard" })).toHaveCount(0);
-      await expect(sheet.getByTestId("mode-switch")).toBeInViewport();
+      await expect(panel.getByRole("link", { name: "Audit Logs" })).toBeVisible();
+      await expect(panel.getByRole("link", { name: "Dashboard" })).toHaveCount(0);
+      await expect(panel.getByTestId("mode-switch")).toBeInViewport();
     } else {
-      await expect(sheet.getByRole("link", { name: "Resources" })).toBeInViewport();
+      await expect(panel.getByRole("link", { name: "Resources" })).toBeInViewport();
     }
-    await expect(sheet.getByText("Not endorsed by Riot Games.")).toBeInViewport();
+    await expect(panel.getByText("Not endorsed by Riot Games.")).toBeInViewport();
     await page.keyboard.press("Escape");
-    await expect(sheet).toHaveCount(0);
+    await expect(panel).toHaveCount(0);
     await expect(page.getByTestId("account-sheet-button")).toBeFocused();
   }
 });
 
-test("held sideways, the account sheet stays docked at the bottom edge, fits, and a tap above it closes it", async ({ page }) => {
+test("held sideways, the account panel hangs from the top under the avatar, fits, and a tap below it closes it", async ({ page }) => {
   await page.setViewportSize({ width: 734, height: 343 });
   await page.goto("/team");
   await page.getByTestId("account-sheet-button").click();
-  const sheet = page.getByTestId("account-sheet");
-  const fit = await sheetFit(page);
-  // It used to become a centred window as tall as the screen, scrolling as a whole.
-  expect(fit.docked).toBe(true);
+  const panel = page.getByTestId("account-sheet");
+  const fit = await panelFit(page);
+  expect(Math.abs(fit.top - 8)).toBeLessThanOrEqual(1);
+  expect(fit.onScreen).toBe(true);
   expect(fit.scrolls).toBe(false);
-  expect(fit.asOne).toBe(false);
-  expect(fit.clearance).toBeGreaterThanOrEqual(16);
-  expect(fit.top).toBeGreaterThan(24);
+  expect(fit.reachable).toBe(true);
+  // At the right, under the avatar, up to 44rem wide (six tiles a row).
+  expect(Math.abs(fit.right - 8)).toBeLessThanOrEqual(1);
   expect(fit.width).toBeLessThanOrEqual(704);
-  await page.mouse.click(367, Math.round(fit.top / 2));
-  await expect(sheet).toHaveCount(0);
+  // The dimmed page below it: a tap there closes it.
+  await page.mouse.click(367, Math.round((fit.bottom + 343) / 2));
+  await expect(panel).toHaveCount(0);
 });
 
-test("the account sheet can be pulled down to close; a short pull settles back, and the page behind never moves", async ({ page, context }) => {
+test("touches on the account panel and around it never move the page behind; there is nothing to pull", async ({ page, context }) => {
   await page.goto("/players");
   await page.evaluate(() => window.scrollTo(0, 300));
   const scrolled = await page.evaluate(() => scrollY);
-  const sheet = page.getByTestId("account-sheet");
+  const panel = page.getByTestId("account-sheet");
   const cdp = await context.newCDPSession(page);
   const touch = (type: "touchStart" | "touchMove" | "touchEnd", x: number, y: number) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x, y }] });
-  async function pull(x: number, from: number, to: number) {
+  async function drag(x: number, from: number, to: number) {
     await touch("touchStart", x, from);
     for (let i = 1; i <= 8; i++) {
       await touch("touchMove", x, from + ((to - from) * i) / 8);
       await page.waitForTimeout(25);
     }
-    await page.waitForTimeout(150); // a pause before letting go: no flick
     await touch("touchEnd", x, to);
   }
   await page.getByTestId("account-sheet-button").click();
-  await sheetFit(page);
-  const box = (await sheet.boundingBox())!;
-  // A short pull on the handle: the sheet settles back where it was.
-  await pull(box.x + box.width / 2, box.y + 8, box.y + 48);
-  await expect(async () => expect(Math.abs((await sheet.boundingBox())!.y - box.y)).toBeLessThan(2)).toPass();
-  // Drags on the dimmed page above it move nothing behind it.
-  await pull(box.width / 2, 40, 160);
-  await pull(box.width / 2, 160, 40);
-  await expect(sheet).toBeVisible();
+  await panelFit(page);
+  const box = (await panel.boundingBox())!;
+  // Pulled down by its header, pushed up from its tiles: it stays where it is (it has no handle)...
+  await drag(box.x + box.width / 2, box.y + 30, box.y + 230);
+  await drag(box.x + box.width / 2, box.y + 150, box.y + 20);
+  await expect(panel).toBeVisible();
+  expect(Math.abs((await panel.boundingBox())!.y - box.y)).toBeLessThan(1);
+  // ...and drags on the dimmed page below it move nothing behind it.
+  const below = Math.round((box.y + box.height + page.viewportSize()!.height) / 2);
+  await drag(box.width / 2, below, below - 150);
+  await drag(box.width / 2, below - 150, below);
+  await expect(panel).toBeVisible();
   expect(await page.evaluate(() => scrollY)).toBe(scrolled);
-  // A long pull on its header closes it; the page is where it was.
-  await pull(box.x + box.width / 2, box.y + 40, box.y + 40 + Math.min(220, box.height));
-  await expect(sheet).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
   expect(await page.evaluate(() => scrollY)).toBe(scrolled);
 });
 
-test("a tap on the avatar before the page's code has run is kept: the avatar shows pressed, and the sheet opens once the code runs, exactly once", async ({ page }) => {
+test("a tap on the avatar before the page's code has run is kept: the avatar shows pressed, and the panel opens once the code runs, exactly once", async ({ page }) => {
   await page.addInitScript(COUNT_OPENINGS);
   const scripts = await holdScripts(page);
   await page.goto("/team", { waitUntil: "domcontentloaded" });
   const avatar = page.getByTestId("account-sheet-button");
-  const sheet = page.getByTestId("account-sheet");
+  const panel = page.getByTestId("account-sheet");
   // The server's page, drawn, with none of the app's code: the tap is kept, and a second one too
   // queues nothing more.
   await avatar.tap();
@@ -269,38 +274,37 @@ test("a tap on the avatar before the page's code has run is kept: the avatar sho
   await expect(avatar).toHaveAttribute("aria-busy", "true");
   expect(await page.evaluate(() => window.__earlyTaps)).toEqual(["sheet"]);
   await page.waitForTimeout(300);
-  await expect(sheet).toHaveCount(0);
+  await expect(panel).toHaveCount(0);
   scripts.release();
-  await expect(sheet).toBeVisible();
+  await expect(panel).toBeVisible();
   await expect(avatar).not.toHaveAttribute("aria-busy");
   // Exactly once: one opening, and still open a moment later.
   await page.waitForTimeout(600);
-  await expect(sheet).toBeVisible();
+  await expect(panel).toBeVisible();
   expect(await openings(page)).toEqual({ "account-sheet": 1 });
   // From then on the script stands aside, and the avatar works as ever.
   await page.keyboard.press("Escape");
-  await expect(sheet).toHaveCount(0);
+  await expect(panel).toHaveCount(0);
   await avatar.tap();
-  await expect(sheet).toBeVisible();
+  await expect(panel).toBeVisible();
   expect(await openings(page)).toEqual({ "account-sheet": 2 });
 });
 
-test("at a 200% text size the account sheet keeps its header and Sign out in view, and only its body scrolls", async ({ page, browser }) => {
+test("at a 200% text size the account panel stays on the screen with its header and close button in view, and only its body scrolls, down to Sign out", async ({ page, browser }) => {
   // A member's account: Sign out is offered only with accounts (the demo's local owner has none).
-  // The smallest phone, where large text leaves the sheet's body least room.
+  // The smallest phone, where large text leaves the panel least room.
   const member = await memberContext(browser, page, { width: 320, height: 568 }, { base: "Large" });
   const phone = member.page;
   await phone.goto("/team");
   await phone.addStyleTag({ content: "html { font-size: 200% !important; }" });
   // From the keyboard: at this size the top bar is wider than the phone and the avatar sits past its
-  // right edge (the bar's own text scaling, apart from the sheet's).
+  // right edge (the bar's own text scaling, apart from the panel's).
   await phone.getByTestId("account-sheet-button").focus();
   await phone.keyboard.press("Enter");
-  const sheet = phone.getByTestId("account-sheet");
-  await expect(sheet).toBeVisible();
-  await expect(async () => expect(await sheet.evaluate((d) => getComputedStyle(d).transform)).toBe("none")).toPass();
+  const panel = phone.getByTestId("account-sheet");
+  await expect(panel).toHaveAttribute("data-entered", "true");
   const fit = () =>
-    sheet.evaluate((d) => {
+    panel.evaluate((d) => {
       const body = d.querySelector<HTMLElement>("[data-sheet-scroll]")!;
       const box = d.getBoundingClientRect();
       const shown = (selector: string) => {
@@ -309,62 +313,54 @@ test("at a 200% text size the account sheet keeps its header and Sign out in vie
       };
       return {
         onScreen: box.top >= 0 && box.bottom <= innerHeight + 1,
-        sheetScrolls: d.scrollHeight > d.clientHeight + 1,
+        panelScrolls: d.scrollHeight > d.clientHeight + 1,
         bodyScrolls: body.scrollHeight > body.clientHeight + 1,
         title: shown("#account-sheet-title"),
         close: shown("[data-testid=account-sheet-close]"),
-        signOut: shown("[data-testid=sign-out]"),
-        signOutInBody: body.contains(d.querySelector("[data-testid=sign-out]")),
       };
     });
-  expect(await fit()).toEqual({ onScreen: true, sheetScrolls: false, bodyScrolls: true, title: true, close: true, signOut: true, signOutInBody: false });
-  // The body scrolls to its last line; the header and Sign out stay where they are.
-  const signOut = (await sheet.getByTestId("sign-out").boundingBox())!;
-  await sheet.locator("[data-sheet-scroll]").evaluate((b) => b.scrollTo(0, b.scrollHeight));
-  await expect(sheet.getByText("Not endorsed by Riot Games.")).toBeInViewport();
-  expect((await sheet.getByTestId("sign-out").boundingBox())!.y).toBe(signOut.y);
-  expect(await fit()).toMatchObject({ title: true, close: true, signOut: true });
+  expect(await fit()).toEqual({ onScreen: true, panelScrolls: false, bodyScrolls: true, title: true, close: true });
+  // The body scrolls to Sign out and Riot's notice; the header stays where it is.
+  const close = (await panel.getByTestId("account-sheet-close").boundingBox())!;
+  await panel.locator("[data-sheet-scroll]").evaluate((b) => b.scrollTo(0, b.scrollHeight));
+  await expect(panel.getByTestId("sign-out")).toBeInViewport({ ratio: 1 });
+  await expect(panel.getByText("Not endorsed by Riot Games.")).toBeInViewport();
+  expect((await panel.getByTestId("account-sheet-close").boundingBox())!.y).toBe(close.y);
+  expect(await fit()).toMatchObject({ onScreen: true, title: true, close: true });
   await member.context.close();
 });
 
 /**
- * Each tile of the open account sheet, brought to the top of whatever scrolls (its body, or the whole
- * sheet while it scrolls as one), between there and the footer when the footer is in the way: is it
- * whole on screen?
+ * Each control in the open account panel's body (its tiles, the mode switch, Sign out), brought to
+ * the top of the body: is it whole on screen?
  */
-async function tilesShownWhole(page: Page): Promise<boolean[]> {
+async function controlsShownWhole(page: Page): Promise<boolean[]> {
   return page.getByTestId("account-sheet").evaluate((d) => {
-    const scroller = d.matches("[data-sheet-scroll]") ? (d as HTMLElement) : d.querySelector<HTMLElement>("[data-sheet-scroll]")!;
-    const footer = d.querySelector("[data-testid=account-sheet-actions]")!.parentElement!;
+    const body = d.querySelector<HTMLElement>("[data-sheet-scroll]")!;
     const band = () => {
-      const s = scroller.getBoundingClientRect();
-      const f = footer.getBoundingClientRect();
-      const bottom = Math.min(innerHeight, s.bottom);
-      return { top: Math.max(0, s.top), bottom: f.top < bottom && f.bottom > s.top ? Math.min(bottom, f.top) : bottom };
+      const s = body.getBoundingClientRect();
+      return { top: Math.max(0, s.top), bottom: Math.min(innerHeight, s.bottom) };
     };
-    const whole = [...d.querySelectorAll<HTMLElement>("nav a, nav button")].map((tile) => {
-      scroller.scrollTop += tile.getBoundingClientRect().top - band().top - 1;
-      const r = tile.getBoundingClientRect();
+    const whole = [...body.querySelectorAll<HTMLElement>("nav a, nav button, [data-testid=mode-switch], [data-testid=sign-out]")].map((control) => {
+      body.scrollTop += control.getBoundingClientRect().top - band().top - 1;
+      const r = control.getBoundingClientRect();
       const b = band();
       return r.top >= b.top - 1 && r.bottom <= b.bottom + 1;
     });
-    scroller.scrollTop = 0;
+    body.scrollTop = 0;
     return whole;
   });
 }
 
-test("with large text on a phone held sideways, the account sheet scrolls as one where its header and footer would leave the body a strip: every tile can be shown whole", async ({ page, context, baseURL }) => {
+test("with large text on a phone held sideways, the account panel's body scrolls under its header and every control in it can be shown whole", async ({ page, context, baseURL }) => {
   const cases = [
-    // 125%: the body keeps room for a tile, so it scrolls alone between the header and the footer.
-    { size: "125% text", viewport: { width: 734, height: 343 }, root: 125, asOne: false },
-    // The header and footer took 63% of the sheet at 150% and 84% at 200%, and no tile could be
-    // shown whole in the strip between them.
-    { size: "150% text", viewport: { width: 734, height: 343 }, root: 150, asOne: true },
-    { size: "200% text", viewport: { width: 734, height: 343 }, root: 200, asOne: true },
+    { size: "125% text", viewport: { width: 734, height: 343 }, root: 125 },
+    { size: "150% text", viewport: { width: 734, height: 343 }, root: 150 },
+    { size: "200% text", viewport: { width: 734, height: 343 }, root: 200 },
     // Safari's page zoom at 150% on an iPhone 15 held sideways: the page sees a smaller screen.
-    { size: "page zoom 150%", viewport: { width: 489, height: 229 }, root: 100, asOne: true },
+    { size: "page zoom 150%", viewport: { width: 489, height: 229 }, root: 100 },
   ];
-  for (const { size, viewport, root, asOne } of cases) {
+  for (const { size, viewport, root } of cases) {
     await page.setViewportSize(viewport);
     for (const mode of ["player", "admin"] as const) {
       const where = `${size}, ${mode === "admin" ? "Admin Mode" : "Player Mode"}`;
@@ -373,27 +369,28 @@ test("with large text on a phone held sideways, the account sheet scrolls as one
       if (root !== 100) await page.addStyleTag({ content: `html { font-size: ${root}% !important; }` });
       await page.getByTestId("account-sheet-button").focus();
       await page.keyboard.press("Enter");
-      const sheet = page.getByTestId("account-sheet");
-      await expect(sheet).toBeVisible();
-      await expect(async () => expect(await sheet.evaluate((d) => getComputedStyle(d).transform)).toBe("none")).toPass();
-      if (asOne) await expect(sheet, where).toHaveAttribute("data-flow", "true");
-      else await expect(sheet, where).not.toHaveAttribute("data-flow");
-      // Docked at the bottom edge, its header at the top of the first screen.
-      const box = (await sheet.boundingBox())!;
-      expect(Math.abs(box.y + box.height - viewport.height), where).toBeLessThanOrEqual(1);
-      await expect(sheet.locator("#account-sheet-title")).toBeInViewport();
-      expect(await tilesShownWhole(page), where).not.toContain(false);
-      // At the end of what scrolls: the patch, Riot's notice and the actions, clear of the edge.
-      await (asOne ? sheet : sheet.locator("[data-sheet-scroll]")).evaluate((el) => el.scrollTo(0, el.scrollHeight));
-      await expect(sheet.getByText("Not endorsed by Riot Games.")).toBeInViewport();
-      await expect(sheet.getByTestId("mode-switch")).toBeInViewport({ ratio: 1 });
-      const actions = (await sheet.getByTestId("account-sheet-actions").boundingBox())!;
-      expect(box.y + box.height - (actions.y + actions.height), where).toBeGreaterThanOrEqual(16);
-      // One scroll area, never one inside another: while the sheet scrolls as one, its body does not.
-      const scrollers = await sheet.evaluate((d) => [d, ...d.querySelectorAll<HTMLElement>("*")].filter((el) => el.scrollHeight > el.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(el).overflowY)).length);
-      expect(scrollers, where).toBe(1);
+      const panel = page.getByTestId("account-sheet");
+      await expect(panel).toHaveAttribute("data-entered", "true");
+      // From the top edge (0.5rem down, at this text size), whole on the screen, its header and
+      // close button in view.
+      const box = (await panel.boundingBox())!;
+      const rem = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
+      expect(Math.abs(box.y - rem / 2), where).toBeLessThanOrEqual(1);
+      expect(box.y + box.height, where).toBeLessThanOrEqual(viewport.height);
+      await expect(panel.locator("#account-sheet-title"), where).toBeInViewport();
+      await expect(panel.getByTestId("account-sheet-close"), where).toBeInViewport({ ratio: 1 });
+      const whole = await controlsShownWhole(page);
+      expect(whole.length, where).toBeGreaterThanOrEqual(3);
+      expect(whole, where).not.toContain(false);
+      // At the end of the body: Riot's notice, the close button still in view.
+      await panel.locator("[data-sheet-scroll]").evaluate((el) => el.scrollTo(0, el.scrollHeight));
+      await expect(panel.getByText("Not endorsed by Riot Games."), where).toBeInViewport();
+      await expect(panel.getByTestId("account-sheet-close"), where).toBeInViewport({ ratio: 1 });
+      // One scroll area at most, never one inside another.
+      const scrollers = await panel.evaluate((d) => [d, ...d.querySelectorAll<HTMLElement>("*")].filter((el) => el.scrollHeight > el.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(el).overflowY)).length);
+      expect(scrollers, where).toBeLessThanOrEqual(1);
       await page.keyboard.press("Escape");
-      await expect(sheet).toHaveCount(0);
+      await expect(panel).toHaveCount(0);
     }
   }
 });

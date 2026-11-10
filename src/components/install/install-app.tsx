@@ -64,7 +64,7 @@ export function InstallAppEntry({ variant, beforeOpen, className }: { variant: "
     );
   }
   if (variant === "tile") {
-    // The phone account sheet: a tile among its pages (lib/sheet.ts).
+    // The phone account panel: a tile among its pages (lib/sheet.ts).
     return (
       <button type="button" onClick={onClick} aria-haspopup="dialog" className={cn(SHEET_TILE, SHEET_TILE_IDLE, hiddenWhenInstalled, className)} data-testid="install-app">
         <Download className={cn(SHEET_TILE_ICON, "text-fg-subtle")} aria-hidden />
