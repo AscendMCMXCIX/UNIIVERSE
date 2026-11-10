@@ -1,6 +1,6 @@
 /*
   Taps on the frame's script-driven controls before the page's code has run. The avatar (the
-  phone's account panel), the tablet's menu, the account menu's avatar (tablets) and tile (the
+  phone's account screen), the tablet's menu, the account menu's avatar (tablets) and tile (the
   desktop sidebar) and the sidebar's collapse control are buttons with a React click handler only.
   On a slow network the page is drawn, and those buttons can be pressed, seconds before that
   handler exists: a tap then did nothing, and one while React was starting waited for it (0.3 to

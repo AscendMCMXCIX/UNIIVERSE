@@ -267,10 +267,10 @@ export const ADMIN_TABS: Array<{ href: string; label: string; icon: LucideIcon }
 ];
 
 /**
- * Admin Mode's pages in the phone account panel: one link per entry, as the drawer lists them (a
+ * Admin Mode's pages on the phone's account screen: one link per entry, as the drawer lists them (a
  * hub's link opens its first section this account may open, under the hub's name), less the pages
- * the tab bar already holds, so the sheet repeats nothing that is one tap away (as Player Mode's
- * sheet holds Resources only when it has no tab).
+ * the tab bar already holds, so the screen repeats nothing that is one tap away (as Player Mode's
+ * account screen holds Resources only when it has no tab).
  */
 export function adminSheetLinks(allowed: readonly string[], tabHrefs: readonly string[]): NavLink[] {
   return ADMIN_ENTRIES.flatMap((entry): NavLink[] => {

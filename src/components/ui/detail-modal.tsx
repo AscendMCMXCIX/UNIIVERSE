@@ -12,58 +12,88 @@ import { cn } from "@/lib/cn";
  * get a compact centred window. `form` is a few fields to type in (signing in): the whole screen on
  * phones, upright or sideways, with its header pinned and the rest scrolling under it, so the
  * on-screen keyboard (see useKeyboardFit) never leaves a field or the button out of reach; wider
- * screens get a compact centred window. `panel` is a menu dropped from the top bar by the control
- * that opens it (the phone's account panel, behind the avatar): placed from the top edge only, as
- * tall as its content up to what is visible (see usePanelRoom), so nothing about where it sits
- * depends on the bottom edge (the home indicator, the keyboard, browser toolbars, an installed
- * app's viewport).
+ * screens get a compact centred window. `screen` is a whole screen of its own wherever it is used
+ * (the phone's account menu): fixed to the screen's four edges, its header in place under the
+ * status bar and only its body scrolling, when it must.
+ *
+ * Every size is placed and sized by the screen it is fixed to (its containing block: insets, and
+ * percentages of it), not by viewport units (vh, svh, dvh, lvh, vw) or by measuring the viewport
+ * from script, so a window's size and its place come from the same box and can never disagree. The
+ * one exception is useKeyboardFit: while a field in the window is typed in, it fits the window above
+ * the on-screen keyboard from the visual viewport. overlay-sizing.test.ts keeps it so. A window's body grows from its content, never from nothing:
+ * see BODY_SCROLLS, the reason the account menu was a strip on the owner's iPhone.
  */
-export type ModalSize = "compact" | "standard" | "wide" | "full" | "sheet" | "form" | "panel";
+export type ModalSize = "compact" | "standard" | "wide" | "full" | "sheet" | "form" | "screen";
 
-/** The whole screen: phones, and any short window (a phone held sideways), where a centred window would leave its content a strip. */
-const WHOLE_SCREEN = "short:h-dvh short:w-full short:max-h-none short:rounded-none short:border-0";
+/**
+ * A window's body: as tall as its content, growing into whatever room the window has to spare, and
+ * shrinking to scroll once the window is as tall as it may be (flex: 1 1 auto, with min-height 0).
+ *
+ * Never `flex-1`, a body that grows from nothing (a zero flex basis). Safari 26 and earlier (iOS,
+ * iPadOS and macOS 26) work out the height of a window that is as tall as its content (a dialog's
+ * own fit-content height: every sheet, the compact windows, and the centred windows of wider
+ * screens) as if such a body were empty, so the window collapses to its header, its paddings and
+ * its footer. That is what the owner's iPhone showed on 10 Nov: the account menu a 95pt strip (its
+ * border, 65pt header and 28pt of body padding, nothing else) and, before it, the account sheet a
+ * 124pt strip at the foot of the screen. WebKit 26.0 draws exactly that, and collapses most other
+ * sheets, the compact windows and the centred windows of wider screens the same way (the
+ * scroll-as-one fallback, SHEET_SPARE_REM, sometimes redrew a collapsed sheet whole); the iOS 26
+ * Simulator showed the panel at 95px and the filter sheet at 189px in Safari's tab. WebKit 27 and
+ * Chromium draw both bodies alike, which is why no test saw it (docs/RESPONSIVE.md, "Safari 26").
+ * overlay-sizing.test.ts keeps it so.
+ */
+const BODY_SCROLLS = "min-h-0 flex-auto overflow-y-auto overscroll-contain";
+
+/**
+ * The whole screen: phones, and any short window (a phone held sideways), where a centred window
+ * would leave its content a strip. Stretched between the dialog's own top and bottom insets (the
+ * browser's `inset-block: 0` for a modal dialog), so the screen it is fixed to gives its height.
+ */
+const WHOLE_SCREEN = "short:h-auto short:w-full short:max-h-none short:rounded-none short:border-0";
 
 const SIZE: Record<ModalSize, string> = {
-  // Phones: a centred card with a margin (short content).
-  compact: "w-[calc(100vw-1.5rem)] max-h-[85dvh] rounded-card sm:w-[min(28rem,calc(100vw-2rem))] short:max-h-[calc(100dvh-1rem)]",
-  // Phones: the whole screen (a small window would be hard to use); wider screens: a centred window
-  // as tall as its content (fit-content: `auto` would stretch a dialog between its top and bottom
-  // insets, leaving a short window mostly empty), up to most of the screen, then the body scrolls.
-  standard: `h-dvh w-full max-h-none rounded-none max-sm:pt-safe sm:h-fit sm:max-h-[min(88dvh,56rem)] sm:w-[min(42rem,calc(100vw-3rem))] sm:rounded-card ${WHOLE_SCREEN}`,
+  // Phones: a centred card with a margin (short content), at most 85% of the screen's height.
+  compact: "w-[calc(100%-1.5rem)] max-h-[85%] rounded-card sm:w-[min(28rem,calc(100%-2rem))] short:max-h-[calc(100%-1rem)]",
+  // Phones: the whole screen (a small window would be hard to use), stretched between the dialog's
+  // top and bottom insets; wider screens: a centred window as tall as its content (fit-content:
+  // `auto` would stretch it there too, leaving a short window mostly empty), up to most of the
+  // screen, then the body scrolls.
+  standard: `h-auto w-full max-h-none rounded-none max-sm:pt-safe sm:h-fit sm:max-h-[min(88%,56rem)] sm:w-[min(42rem,calc(100%-3rem))] sm:rounded-card ${WHOLE_SCREEN}`,
   // A fixed height on wide screens, so switching tabs inside never makes the window jump.
-  wide: `h-dvh w-full max-h-none rounded-none max-sm:pt-safe sm:h-[min(90dvh,58rem)] sm:w-[min(76rem,calc(100vw-3rem))] sm:rounded-card ${WHOLE_SCREEN}`,
-  full: `h-dvh w-full max-h-none rounded-none max-sm:pt-safe sm:h-[calc(100dvh-3rem)] sm:w-[calc(100vw-3rem)] sm:rounded-card ${WHOLE_SCREEN}`,
+  wide: `h-auto w-full max-h-none rounded-none max-sm:pt-safe sm:h-[min(90%,58rem)] sm:w-[min(76rem,calc(100%-3rem))] sm:rounded-card ${WHOLE_SCREEN}`,
+  full: `h-auto w-full max-h-none rounded-none max-sm:pt-safe sm:h-[calc(100%-3rem)] sm:w-[calc(100%-3rem)] sm:rounded-card ${WHOLE_SCREEN}`,
   // Phones, and any short window (a phone held sideways): docked to the bottom edge, as tall as its
-  // content up to the screen's height less a strip of the page above it (to tap away). The cap is in
-  // small-viewport units: Safari's toolbars sliding in and out change dvh, and a sheet capped in dvh
-  // grew and shrank under the finger; svh is the height with the toolbars shown, so the sheet always
-  // fits what is visible and never moves. Sideways it spans up to 44rem, centred. Taller wider
-  // screens: a compact centred window.
-  sheet: "w-full max-h-[calc(100svh-env(safe-area-inset-top)-2.5rem)] rounded-t-[1.25rem] border-b-0 max-sm:mb-0 max-sm:mt-auto sm:w-[min(30rem,calc(100vw-2rem))] sm:max-h-[min(88svh,52rem)] sm:rounded-card sm:border-b short:mb-0 short:mt-auto short:w-[min(44rem,100vw)] short:max-h-[calc(100svh-0.5rem)] short:rounded-b-none short:border-b-0",
+  // content up to the screen's height less a strip of the page above it (to tap away). The cap is a
+  // share of the screen the sheet is fixed to, which does not move while a sheet is open (the page
+  // behind cannot scroll), rather than svh, which iOS has reported less the safe areas in installed
+  // apps (WebKit bug 254868). Sideways it spans up to 44rem, centred. Taller wider screens: a compact
+  // centred window.
+  sheet: "w-full max-h-[calc(100%-env(safe-area-inset-top)-2.5rem)] rounded-t-[1.25rem] border-b-0 max-sm:mb-0 max-sm:mt-auto sm:w-[min(30rem,calc(100%-2rem))] sm:max-h-[min(88%,52rem)] sm:rounded-card sm:border-b short:mb-0 short:mt-auto short:w-[min(44rem,100%)] short:max-h-[calc(100%-0.5rem)] short:rounded-b-none short:border-b-0",
   // As tall as its fields on wider screens (fit-content, the browser's own size for a dialog:
   // `auto` would stretch it between the dialog's top and bottom insets).
-  form: `h-dvh w-full max-h-none rounded-none border-0 max-sm:pt-safe sm:h-fit sm:max-h-[min(88dvh,44rem)] sm:w-[min(28rem,calc(100vw-2rem))] sm:rounded-card sm:border ${WHOLE_SCREEN} short:pt-safe`,
-  // From the top edge (panel-place in globals.css: below the status bar, as tall as its content up
-  // to what is visible), 0.5rem in from the sides and the notch: the phone's whole width upright;
-  // wider, 24rem (44rem in a short window, for its six tiles a row) at the right, under the avatar.
-  panel: "w-auto left-[max(0.5rem,env(safe-area-inset-left))] right-[max(0.5rem,env(safe-area-inset-right))] rounded-card panel-place sm:left-auto sm:w-[min(24rem,calc(100vw-1rem))] short:left-auto short:w-[min(44rem,calc(100vw-1rem))]",
+  form: `h-auto w-full max-h-none rounded-none border-0 max-sm:pt-safe sm:h-fit sm:max-h-[min(88%,44rem)] sm:w-[min(28rem,calc(100%-2rem))] sm:rounded-card sm:border ${WHOLE_SCREEN} short:pt-safe`,
+  // The whole screen at every width it is used at: fixed to its four edges (inset 0, no height of
+  // its own, nothing measured), under the status bar and the Dynamic Island (pt-safe), clear of the
+  // notch sideways (the dialog's px-safe). Its content keeps a readable width (mobile-nav.tsx).
+  screen: "inset-0 h-auto w-auto max-h-none rounded-none border-0 pt-safe",
 };
 
 /**
- * The motion of each size: a sheet slides up from the bottom edge on phones, a panel comes down a
- * little from the top bar, every window else rises into the centre. A panel drops its motion once
- * it has run (`data-entered`, see DetailModal), so whatever the browser does with an animation, the
- * panel rests where its styles put it.
+ * The motion of each size: a sheet slides up from the bottom edge on phones, a screen rises a little
+ * into place, every window else rises into the centre. A screen drops its motion once it has run
+ * (`data-entered`, see DetailModal), so whatever the browser does with an animation, the screen
+ * rests where its styles put it; no frame of its motion is more than 1rem from there. Each fades its
+ * dimmed backdrop out as it closes, so the page is never left dimmed for a frame and then bright.
  */
 const MOTION: Partial<Record<ModalSize, string>> = {
   sheet: "motion-safe:sheet-in data-[closing=true]:sheet-out sm:motion-safe:modal-in sm:data-[closing=true]:modal-out short:motion-safe:sheet-in short:data-[closing=true]:sheet-out backdrop:transition-opacity backdrop:duration-150 data-[closing=true]:backdrop:opacity-0",
-  panel: "origin-top-right motion-safe:not-data-[entered=true]:panel-in data-[closing=true]:panel-out backdrop:transition-opacity backdrop:duration-150 data-[closing=true]:backdrop:opacity-0",
+  screen: "motion-safe:not-data-[entered=true]:screen-in data-[closing=true]:screen-out backdrop:transition-opacity backdrop:duration-150 data-[closing=true]:backdrop:opacity-0",
 };
 /**
- * How long a panel's opening motion may take before it is dropped regardless (panel-in runs 180 ms):
- * the panel is then at rest even if the browser never reported the motion's end.
+ * How long a screen's opening motion may take before it is dropped regardless (screen-in runs
+ * 200 ms): the screen is then at rest even if the browser never reported the motion's end.
  */
-const PANEL_ENTER_MS = 400;
+const SCREEN_ENTER_MS = 400;
 
 /**
  * On a phone those windows take the whole screen. One whose own header would fill more than this
@@ -165,8 +195,8 @@ const VELOCITY_WINDOW = 100;
  * behind: no rubber band, no browser toolbars sliding, which on iOS also resized the sheet. Taps are
  * untouched, so a tap on the dimmed page still closes the sheet and every link still works.
  *
- * Without `pull` (a panel from the top bar, which has nothing to pull) only that last part stays, at
- * every width: a touch scrolls the panel's body where the body scrolls, and moves nothing anywhere else.
+ * Without `pull` (a screen, which has nothing to pull) only that last part stays, at every width: a
+ * touch scrolls the screen's body where the body scrolls, and moves nothing anywhere else.
  */
 function useSheetDrag(ref: React.RefObject<HTMLDialogElement | null>, enabled: boolean, onDismiss: () => void, pull = true) {
   React.useEffect(() => {
@@ -188,9 +218,12 @@ function useSheetDrag(ref: React.RefObject<HTMLDialogElement | null>, enabled: b
       d.style.removeProperty("transition");
     };
     const canScroll = (el: HTMLElement | null) => !!el && el.scrollHeight > el.clientHeight + 1;
+    // A page pinched to zoom: a finger pans the zoomed view to the part out of sight (the browser's
+    // own move), so nothing is pulled or held while it is zoomed in.
+    const zoomed = () => (window.visualViewport?.scale ?? 1) > 1.01;
     const onStart = (e: TouchEvent) => {
       const t = e.touches[0];
-      if ((pull && !docked.matches) || e.touches.length !== 1 || !t) {
+      if ((pull && !docked.matches) || e.touches.length !== 1 || !t || zoomed()) {
         mode = "pass";
         return;
       }
@@ -260,39 +293,6 @@ function useSheetDrag(ref: React.RefObject<HTMLDialogElement | null>, enabled: b
 }
 
 /**
- * Where a panel may reach (SIZE.panel, panel-place in globals.css), from what is visible rather than
- * from the page's viewport: where the visible area starts (`--vv-top`, the visual viewport's offset,
- * above 0 while the browser has part of the page's viewport out of view: the page zoomed in, or iOS
- * after the keyboard; the panel hangs below the status bar from there) and the visible area's bottom
- * edge (`--vv-bottom`, the lowest of the window's height, the root's and the visual viewport's, so a
- * viewport that reports more than is shown never lets the panel run past the screen). Set on the
- * dialog itself, which re-styles the dialog alone, before it is first shown, and again whenever the
- * visible area changes or moves (the phone turning, browser toolbars, the keyboard, a zoom).
- */
-function usePanelRoom(ref: React.RefObject<HTMLDialogElement | null>, enabled: boolean) {
-  React.useLayoutEffect(() => {
-    const d = ref.current;
-    if (!enabled || !d) return;
-    const vv = window.visualViewport;
-    const place = () => {
-      const top = vv ? Math.max(0, vv.offsetTop) : 0;
-      const bottom = Math.min(window.innerHeight, document.documentElement.clientHeight || Infinity, vv ? vv.offsetTop + vv.height : Infinity);
-      d.style.setProperty("--vv-top", `${Math.round(top)}px`);
-      d.style.setProperty("--vv-bottom", `${Math.floor(bottom)}px`);
-    };
-    place();
-    vv?.addEventListener("resize", place);
-    vv?.addEventListener("scroll", place);
-    window.addEventListener("resize", place);
-    return () => {
-      vv?.removeEventListener("resize", place);
-      vv?.removeEventListener("scroll", place);
-      window.removeEventListener("resize", place);
-    };
-  }, [ref, enabled]);
-}
-
-/**
  * The site's one window for contextual details (a player, a match, an analysis): it rises into
  * the centre of the screen over a dimmed page, which stays where it was underneath. Built on the
  * native <dialog>, so focus is trapped and the rest of the page is inert. Escape, the close button
@@ -352,7 +352,9 @@ export function DetailModal({
   /**
    * The content scrolls itself (an editor with a fixed preview and toolbar): the body is a
    * fixed-height column that never scrolls, on every screen, short windows and phones included,
-   * and the content gives one area of its own `min-h-0 flex-1 overflow-y-auto`.
+   * and the content gives one area of its own `min-h-0 flex-1 overflow-y-auto`. Only with a size
+   * whose height is fixed (wide, full): in a window as tall as its content (compact, sheet, standard
+   * and form from sm) that area would grow from nothing, which Safari 26 draws empty (BODY_SCROLLS).
    */
   innerScroll?: boolean;
 }) {
@@ -372,7 +374,7 @@ export function DetailModal({
   // Scroll as one on a phone (see FLOW_SHARE), or a docked sheet with too little room for its body
   // (SHEET_SPARE_REM); measured once the window is on the page.
   const [flow, setFlow] = React.useState(false);
-  // A panel's opening motion has run (or been given up on): its styles drop the motion (MOTION.panel).
+  // A screen's opening motion has run (or been given up on): its styles drop the motion (MOTION.screen).
   const [entered, setEntered] = React.useState(false);
   if (wasOpen !== open) {
     setWasOpen(open);
@@ -408,22 +410,21 @@ export function DetailModal({
    */
   const docked = size === "sheet";
   /**
-   * A panel hangs from the top edge on every screen (SIZE.panel), its header in place and only its
-   * body scrolling when it must (large text, a phone held sideways), so the close button never
-   * scrolls away. Nothing to pull: a touch moves nothing behind it (useSheetDrag without `pull`).
+   * A screen fills the screen it is fixed to (SIZE.screen), its header in place under the status bar
+   * and only its body scrolling when it must (large text, a phone held sideways, a 320pt screen), so
+   * the close button never scrolls away. Nothing to pull: a touch that would move nothing inside it
+   * moves nothing behind it (useSheetDrag without `pull`).
    */
-  const anchored = size === "panel";
-  usePanelRoom(ref, open && anchored);
-  // The page behind keeps its place while a panel is open, whatever a browser does as the panel opens
-  // or while it is open (revealing the control it focuses, a viewport that settles): the page's position
-  // is noted before the panel is shown (layout effects run before the effect that shows it) and put
-  // back whenever anything moves it while the panel is on the page. No browser run here moved it (in
-  // Chromium and in Safari's engine, a tap that opens the panel leaves the page where it was); this
-  // makes "the page never moves" a guarantee rather than an observation. The page cannot be scrolled
-  // by hand meanwhile (the scroll lock below), so nothing a member did is undone.
+  const screen = size === "screen";
+  // The page behind keeps its place while a screen is open, whatever a browser does as the screen
+  // opens or while it is open (revealing the control it focuses, a viewport that settles): the page's
+  // position is noted before the screen is shown (layout effects run before the effect that shows
+  // it) and put back whenever anything moves it while the screen is on the page. No browser run here
+  // moved it; this makes "the page never moves" a guarantee rather than an observation. The page
+  // cannot be scrolled by hand meanwhile (the scroll lock below), so nothing a member did is undone.
   React.useLayoutEffect(() => {
     const d = ref.current;
-    if (!open || !anchored || !d) return;
+    if (!open || !screen || !d) return;
     const x = window.scrollX;
     const y = window.scrollY;
     const keep = () => {
@@ -435,16 +436,16 @@ export function DetailModal({
       window.removeEventListener("scroll", keep);
       cancelAnimationFrame(frame);
     };
-  }, [open, anchored]);
-  // The panel's opening motion is dropped once it has run, or after PANEL_ENTER_MS whatever happened
+  }, [open, screen]);
+  // The screen's opening motion is dropped once it has run, or after SCREEN_ENTER_MS whatever happened
   // to it (onAnimationEnd below ends it sooner): a motion the browser left unfinished, or drew
-  // part-way, can never hold the panel anywhere but where its styles put it. At once for reduced motion.
+  // part-way, can never hold the screen anywhere but where its styles put it. At once for reduced motion.
   React.useEffect(() => {
-    if (!open || !anchored) return;
+    if (!open || !screen) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const t = window.setTimeout(() => setEntered(true), reduce ? 0 : PANEL_ENTER_MS);
+    const t = window.setTimeout(() => setEntered(true), reduce ? 0 : SCREEN_ENTER_MS);
     return () => window.clearTimeout(t);
-  }, [open, anchored]);
+  }, [open, screen]);
   // How much room the corner controls take, for CLEAR_OF_CONTROLS and BELOW_CONTROLS: measured
   // before the window is first drawn, because the close button is larger on touch screens and a
   // Back label varies. Layout sizes, not on-screen boxes, so the opening motion's scale is no matter.
@@ -478,7 +479,7 @@ export function DetailModal({
   React.useLayoutEffect(() => {
     const d = ref.current;
     const h = headerRef.current;
-    if (!open || !custom || innerScroll || pinned || docked || anchored || size === "compact" || !d || !h) return;
+    if (!open || !custom || innerScroll || pinned || docked || screen || size === "compact" || !d || !h) return;
     const phone = window.matchMedia(PHONE_QUERY);
     // A ResizeObserver reports the first sizes before the window is first drawn, then every change
     // (content arriving in the header, the phone turning).
@@ -491,7 +492,7 @@ export function DetailModal({
       observer.disconnect();
       phone.removeEventListener("change", check);
     };
-  }, [open, custom, innerScroll, pinned, docked, anchored, size]);
+  }, [open, custom, innerScroll, pinned, docked, screen, size]);
   // A docked sheet whose header and footer would leave its body less room than the body's tallest
   // control needs, with SHEET_SPARE_REM to spare, scrolls as one. The room is the sheet less its
   // handle, header and footer, which is the same whichever way it scrolls, so the choice holds once
@@ -526,6 +527,9 @@ export function DetailModal({
       const active = document.activeElement;
       opener.current = active instanceof HTMLElement && active !== document.body ? active : handedOver;
       d.showModal();
+      // A screen takes the focus itself (tabIndex -1, no ring), so nothing on it is lit up as it
+      // opens; Tab then reaches its close button and its rows in order.
+      if (screen) d.focus({ preventScroll: true });
     }
     if (!open && d.open) {
       selfClosing.current = true;
@@ -535,9 +539,12 @@ export function DetailModal({
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const settleTimer = window.setTimeout(settle, reduce ? 0 : SETTLE_MS);
     // The page behind stays exactly where it is: no scrolling, and no shift when the scrollbar goes.
+    // The scrollbar's width is the window's less the root's, believed only up to a scrollbar's width
+    // (24px): a phone has none, and a browser that reports the window's size wrongly cannot push the
+    // page sideways.
     const root = document.documentElement;
     const body = document.body;
-    const gap = window.innerWidth - root.clientWidth;
+    const gap = Math.min(24, window.innerWidth - root.clientWidth);
     const prev = { overflow: root.style.overflow, overscroll: root.style.overscrollBehavior, padding: body.style.paddingRight };
     root.style.overflow = "hidden";
     // No rubber band or pull-to-refresh on the page either (iOS and Android browsers).
@@ -557,7 +564,7 @@ export function DetailModal({
         if (back?.isConnected) back.focus({ preventScroll: true });
       });
     };
-  }, [open, settle]);
+  }, [open, settle, screen]);
 
   React.useEffect(
     () => () => {
@@ -580,7 +587,7 @@ export function DetailModal({
       latest.current.onClose();
     }, EXIT_MS);
   }, []);
-  useSheetDrag(ref, open && (docked || anchored), requestClose, docked);
+  useSheetDrag(ref, open && (docked || screen), requestClose, docked);
 
   // The close button alone in the top-right corner: the window's own navigation sits left of it,
   // past a divider, and nothing in the header comes within CLEARANCE_PX of either.
@@ -588,8 +595,22 @@ export function DetailModal({
     <>
       {headerExtra}
       {headerExtra ? <span aria-hidden className="mx-1.5 h-5 w-px shrink-0 bg-border-strong" data-testid="modal-controls-divider" /> : null}
-      <button type="button" onClick={requestClose} autoFocus aria-keyshortcuts="Escape" className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-fg-subtle transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:h-11 pointer-coarse:w-11" aria-label="Close" data-testid={closeTestId}>
-        <X className="h-4 w-4" />
+      {/* A screen's close button is a quiet 36px circle whose touch area reaches 44px (touch-target),
+          and it is not focused as the screen opens (the screen itself is): it once sat in a 48px
+          ring of accent at the top of the account menu, the loudest thing on it. */}
+      <button
+        type="button"
+        onClick={requestClose}
+        autoFocus={!screen}
+        aria-keyshortcuts="Escape"
+        className={cn(
+          "grid shrink-0 place-items-center transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent",
+          screen ? "touch-target h-9 w-9 rounded-full bg-surface-2/70 text-fg-muted hover:bg-surface-2" : "h-9 w-9 rounded-md text-fg-subtle hover:bg-surface-2 pointer-coarse:h-11 pointer-coarse:w-11",
+        )}
+        aria-label="Close"
+        data-testid={closeTestId}
+      >
+        <X className={screen ? "h-[1.125rem] w-[1.125rem]" : "h-4 w-4"} />
       </button>
     </>
   );
@@ -614,28 +635,29 @@ export function DetailModal({
       }}
       onAnimationEnd={(e) => {
         if (e.target !== ref.current) return;
-        if (e.animationName === "modal-in" || e.animationName === "sheet-in" || e.animationName === "panel-in") settle();
-        if (e.animationName === "panel-in") setEntered(true);
+        if (e.animationName === "modal-in" || e.animationName === "sheet-in" || e.animationName === "screen-in") settle();
+        if (e.animationName === "screen-in") setEntered(true);
       }}
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
       data-closing={closing || undefined}
       // Closing ends the opening motion too, so the closing one is the only one left to run.
-      data-entered={anchored && (entered || closing) ? "true" : undefined}
+      data-entered={screen && (entered || closing) ? "true" : undefined}
       className={cn(
         "max-w-none border border-border-strong bg-bg-elevated p-0 text-fg shadow-2xl shadow-black/50 open:flex open:flex-col",
-        // A panel is placed by its own insets (SIZE.panel), clear of the notch by them: no auto
-        // margins, no safe-area padding inside it.
-        anchored ? "m-0" : "m-auto px-safe",
-        !innerScroll && !pinned && !docked && !anchored && "short:overflow-y-auto short:overscroll-contain",
+        // A screen is fixed to the screen's edges (SIZE.screen): no auto margins. Its own focus (it
+        // takes the focus as it opens, see below) draws no ring: the close button is not lit up.
+        screen ? "m-0 px-safe outline-none" : "m-auto px-safe",
+        !innerScroll && !pinned && !docked && !screen && "short:overflow-y-auto short:overscroll-contain",
         flow ? "overflow-y-auto overscroll-contain" : "overflow-hidden",
         MODAL_BACKDROP,
         MOTION[size] ?? MODAL_MOTION,
-        size === "sheet" && sheetWidth === "wide" ? SIZE.sheet.replace("sm:w-[min(30rem,calc(100vw-2rem))]", "sm:w-[min(48rem,calc(100vw-2rem))]") : SIZE[size],
+        size === "sheet" && sheetWidth === "wide" ? SIZE.sheet.replace("sm:w-[min(30rem,calc(100%-2rem))]", "sm:w-[min(48rem,calc(100%-2rem))]") : SIZE[size],
         className,
       )}
       data-testid={testId}
       data-size={size}
+      tabIndex={screen ? -1 : undefined}
       data-flow={flow || undefined}
       // What a pull on a docked sheet scrolls before it drags the sheet (useSheetDrag): the body, or
       // the whole sheet while it scrolls as one.
@@ -669,9 +691,12 @@ export function DetailModal({
                   "flex items-center gap-1",
                   flow && !docked
                     ? "fixed right-[max(0.5rem,env(safe-area-inset-right))] top-[calc(env(safe-area-inset-top)+0.5rem)] z-20 rounded-lg bg-bg-elevated/85 shadow-lg backdrop-blur"
-                    : innerScroll || pinned || docked || anchored
-                      ? "absolute right-2 top-2 sm:right-3 sm:top-3"
-                      : "absolute right-2 top-2 sm:right-3 sm:top-3 short:fixed short:right-[max(0.5rem,env(safe-area-inset-right))] short:top-2 short:z-20 short:rounded-lg short:bg-bg-elevated/85 short:shadow-lg short:backdrop-blur",
+                    : screen
+                      ? // Centred in the account screen's 52px bar at every width it opens at.
+                        "absolute right-2 top-2"
+                      : innerScroll || pinned || docked
+                        ? "absolute right-2 top-2 sm:right-3 sm:top-3"
+                        : "absolute right-2 top-2 sm:right-3 sm:top-3 short:fixed short:right-[max(0.5rem,env(safe-area-inset-right))] short:top-2 short:z-20 short:rounded-lg short:bg-bg-elevated/85 short:shadow-lg short:backdrop-blur",
                 )}
               >
                 {controls}
@@ -698,23 +723,21 @@ export function DetailModal({
             ref={bodyRef}
             className={cn(
               innerScroll
-                ? "flex min-h-0 flex-1 flex-col overflow-hidden"
+                ? "flex min-h-0 flex-auto flex-col overflow-hidden"
                 : [
                     "px-4 sm:px-6",
                     // The last line keeps clear of the bottom edge, and of the home indicator where
                     // there is one (pb-safe-N: N steps, or the inset where larger; pb-safe alone was
                     // 0 px in a browser, with the text on the edge). With a footer, the footer keeps
                     // that clearance instead. A safe padding is the only one for its edge
-                    // (globals.css), so the top is padded on its own beside it. A panel ends above
-                    // the bottom edge (panel-place keeps it clear of the home indicator), so its
-                    // last line needs no more than any other.
-                    footer || anchored ? "py-4 sm:py-5" : "pt-4 pb-safe-4 sm:pt-5 sm:pb-safe-5",
-                    flow ? "flex-none" : pinned || docked || anchored ? "min-h-0 flex-1 overflow-y-auto overscroll-contain" : "min-h-0 flex-1 overflow-y-auto overscroll-contain short:flex-none short:overflow-y-visible",
+                    // (globals.css), so the top is padded on its own beside it.
+                    footer ? "py-4 sm:py-5" : "pt-4 pb-safe-4 sm:pt-5 sm:pb-safe-5",
+                    flow ? "flex-none" : pinned || docked || screen ? BODY_SCROLLS : `${BODY_SCROLLS} short:flex-none short:overflow-y-visible`,
                   ],
               bodyClassName,
             )}
             data-testid={bodyTestId}
-            data-sheet-scroll={(docked || anchored) && !flow ? "" : undefined}
+            data-sheet-scroll={(docked || screen) && !flow ? "" : undefined}
           >
             <SettledContext.Provider value={settled}>{children}</SettledContext.Provider>
           </div>

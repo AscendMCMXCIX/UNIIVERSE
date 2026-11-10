@@ -92,7 +92,7 @@ test("an administrator moves between Player Mode and Admin Mode; each keeps its 
   await expect(page).toHaveURL(/\/admin$/);
 });
 
-test("on a phone the switch is in the account panel, and each mode has its own tab bar and panel", async ({ browser }) => {
+test("on a phone the switch is in the account screen, and each mode has its own tab bar and account screen", async ({ browser }) => {
   const { defaultBrowserType: _, ...iphone } = devices["iPhone 15"];
   const context = await browser.newContext(iphone);
   const page = await context.newPage();

@@ -3,11 +3,12 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronLeft, LogOut, Menu, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, LogOut, Menu, X } from "lucide-react";
 import { BrandMark } from "./brand-mark";
 import { NavLinks } from "./nav-links";
 import { Avatar } from "./ui/avatar";
-import { CLEAR_OF_CONTROLS, DetailModal } from "./ui/detail-modal";
+import { DetailModal } from "./ui/detail-modal";
+import { ModeSwitch } from "./mode-switch";
 import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, ADMIN_TABS, PROFILE_SECTIONS, RESOURCES, adminSheetLinks, currentTab, isActivePath, phoneParent, phoneTabs, profileBase, type NavLink, type PhoneTab } from "@/lib/nav";
 import { AccountMenu, otherUsername } from "./account-menu";
 import { announceAccountChange, markAccountChange } from "./account-guard";
@@ -17,7 +18,7 @@ import { ProfileTabs } from "./players/profile-tabs";
 import { PHONE_QUERY } from "./ui/use-phone";
 import { releaseEarlyTaps } from "./early-taps";
 import { cn } from "@/lib/cn";
-import { SHEET_TILE, SHEET_TILE_CURRENT, SHEET_TILE_ICON, SHEET_TILE_IDLE } from "@/lib/sheet";
+import { ACCOUNT_GROUP, ACCOUNT_ROW, ACCOUNT_ROW_CHEVRON, ACCOUNT_ROW_CURRENT, ACCOUNT_ROW_ICON, ACCOUNT_ROW_IDLE } from "@/lib/sheet";
 
 export interface MobileNavProps {
   logoSrc: string | null;
@@ -27,9 +28,9 @@ export interface MobileNavProps {
   tagline: string;
   home: string;
   user: { name: string; username?: string | null; avatarUrl: string | null; roleLabel: string } | null;
-  /** A quiet data-freshness line at the foot of the drawer and the account panel. */
+  /** A quiet data-freshness line at the foot of the drawer and the account screen. */
   status: React.ReactNode;
-  /** Riot's notice, at the foot of the account panel. */
+  /** Riot's notice, at the foot of the account screen. */
   legal?: React.ReactNode;
   showSignOut: boolean;
   /** Paths this account may open in the current mode (the server decides). */
@@ -38,8 +39,8 @@ export interface MobileNavProps {
   adminMode?: boolean;
   /** The account has a player profile (the drawer's header then opens it). */
   hasPlayer?: boolean;
-  /** The switch between Player Mode and Admin Mode (administrators only), placed apart from the pages. */
-  modeSwitch?: React.ReactNode;
+  /** The mode this administrator is in, for the switch between Player Mode and Admin Mode (administrators only, placed apart from the pages); null for everyone else. */
+  modeSwitch?: "player" | "admin" | null;
 }
 
 /*
@@ -49,18 +50,17 @@ export interface MobileNavProps {
     - the top bar says where you are: the team's mark on a tab's own pages, or Back on a page you
       reached from one (a teammate's profile, Settings), labelled with where it leads; the page's
       title joins it once the page's own heading has scrolled up under it; your avatar at its right
-      end opens the account panel. On a profile the profile's sections ride under it, so they stay
+      end opens the account screen. On a profile the profile's sections ride under it, so they stay
       in reach however far the page scrolls;
     - the bottom tab bar holds the five places a member goes to most (PHONE_TABS), one tap each,
       within reach of the thumb;
-    - the account panel holds the rest, in one short card that drops from the avatar over the top
-      bar (DetailModal size "panel"): who is signed in beside the close button, where the avatar
-      was; tiles for the pages the tab bar does not hold (Resources when it has no tab; in Admin
-      Mode the admin pages without a tab), Settings and Install App; the switch between the modes
-      beside Sign out; the patch and Riot's notice. It is placed from the top edge only and is as
-      tall as its content, so on an iPhone, in Safari or installed, it is whole on the screen: the
-      bottom sheet it replaces was docked to the bottom edge and rose from below it, and an iPhone
-      drew it with only its header on the screen (docs/MOBILE.md).
+    - the account screen holds the rest, on a screen of its own (DetailModal size "screen"): who is
+      signed in; full-width rows for the pages the tab bar does not hold (Resources when it has no
+      tab; in Admin Mode the admin pages without a tab), Settings and Install App; the switch
+      between the modes and Sign out; the patch and Riot's notice. It is fixed to the screen's four
+      edges, so its height is the screen's: the sheet and the panel before it were as tall as their
+      content, which Safari 26 worked out as a header alone, and the owner's iPhone showed each as a
+      strip (DetailModal's BODY_SCROLLS, docs/MOBILE.md).
   Tablets keep the top bar with the menu at its left end and the drawer with every page, and the
   page tabs (Team's sections) in the page, pinned at its top once it scrolls. Installed as an app, a
   tablet has no browser Back, so the bar offers Back there too, on a page reached from another.
@@ -79,7 +79,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   const pathname = usePathname();
   const tabs: PhoneTab[] = adminMode ? ADMIN_TABS.filter((t) => allowed.includes(t.href)) : phoneTabs(allowed);
   const activeTab = currentTab(pathname, tabs.map((t) => t.href));
-  // The drawer (tablets) and the account panel (phones) remember the path they were opened on, so any
+  // The drawer (tablets) and the account screen (phones) remember the path they were opened on, so any
   // navigation closes them without an effect.
   const [openedAt, setOpenedAt] = React.useState<{ what: "drawer" | "sheet"; path: string } | null>(null);
   // Forgotten once the page has changed, so coming back to that page (Forward) opens nothing unasked.
@@ -122,7 +122,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
     return () => document.documentElement.removeAttribute("data-tabbar-hidden");
   }, [tabsHidden]);
 
-  // The panel holds what the tab bar does not: in Player Mode Resources (when it has no tab) and My
+  // The account screen holds what the tab bar does not: in Player Mode Resources (when it has no tab) and My
   // Profile (likewise), in Admin Mode the admin pages without a tab; then the account's own pages.
   const tabHrefs = tabs.map((t) => t.href);
   const sheetLinks: NavLink[] = [
@@ -200,39 +200,71 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
       </header>
 
       {sheetOpen && user ? (
-        // The account panel (its test ids keep the name of the sheet it replaced). Only its body
-        // scrolls, and only when it must (large text, a phone held sideways): the header, with the
-        // close button, stays put.
-        <DetailModal open onClose={() => setOpenedAt(null)} size="panel" title={user.name} titleId={SHEET_TITLE_ID} header={<AccountHeader user={user} />} testId="account-sheet" closeTestId="account-sheet-close" bodyClassName="pt-3 sm:pt-4">
-          {/* Everything as tiles in one short card: the pages the tab bar does not hold, Settings and
-              Install App (lib/sheet.ts), three to a row upright and up to six sideways. */}
-          <nav aria-label={adminMode ? "More admin pages and your account" : "More pages and your account"} className="grid grid-cols-3 gap-2 short:grid-cols-6">
-            {sheetLinks.map(({ href, label, icon }) => (
-              <SheetTile key={href} href={href} icon={icon} active={isActivePath(pathname, href)} onNavigate={() => setOpenedAt(null)}>
-                {label}
-              </SheetTile>
-            ))}
-            {/* The install window opens over the page: the panel closes first. */}
-            <InstallAppEntry variant="tile" beforeOpen={() => setOpenedAt(null)} />
-          </nav>
-          {modeSwitch || showSignOut ? (
-            // The way between the modes and Sign out, under the tiles, side by side where the screen
-            // allows (both 48px tall).
-            <div className={cn("mt-2 grid gap-2", modeSwitch && showSignOut && "min-[22.5rem]:grid-cols-2")} data-testid="account-sheet-actions">
-              {modeSwitch}
-              {showSignOut ? (
-                <form action="/api/auth/logout" method="post" onSubmit={onSignOut}>
-                  <button className="flex min-h-12 w-full items-center gap-3 rounded-lg border border-border bg-surface/60 pl-[0.875rem] pr-3 text-left text-sm font-medium text-fg-muted transition-colors duration-150 hover:border-border-strong hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent" type="submit" data-testid="sign-out">
-                    <LogOut className="h-[1.125rem] w-[1.125rem] shrink-0 text-fg-subtle" aria-hidden /> Sign out
-                  </button>
-                </form>
-              ) : null}
+        // The account screen (its test ids keep the name of the sheet it replaced): the whole screen,
+        // fixed to its edges (DetailModal size "screen"). Its header, with the close button, stays
+        // under the status bar; the rest is one region that scrolls only where it must (large text, a
+        // phone held sideways, a 320pt screen in Safari's tab).
+        <DetailModal open onClose={() => setOpenedAt(null)} size="screen" title="Account" titleId={SHEET_TITLE_ID} header={<AccountScreenHeader />} headerClassName="border-transparent" className="bg-chrome" testId="account-sheet" closeTestId="account-sheet-close">
+          <div className="mx-auto w-full max-w-md">
+            {/* Who is signed in: their picture, name and role, and their username on a line of its own
+                where it differs from the name (it tells apart accounts that share a name). Nothing is
+                cut short: a long name or username wraps (usernames run to 32 characters). */}
+            <div className="flex min-w-0 items-center gap-4 pb-5" data-testid="account-identity">
+              <Avatar name={user.name} src={user.avatarUrl} size="lg" />
+              <div className="min-w-0">
+                <p className="text-xl font-semibold leading-tight text-fg [overflow-wrap:anywhere]" data-testid="account-name">
+                  {user.name}
+                </p>
+                <p className="mt-1 text-sm text-fg-muted" data-testid="account-role">
+                  {user.roleLabel}
+                </p>
+                {otherUsername(user) ? (
+                  <p className="text-sm text-fg-muted [overflow-wrap:anywhere]" data-testid="account-username">
+                    Username: {otherUsername(user)}
+                  </p>
+                ) : null}
+              </div>
             </div>
-          ) : null}
-          {/* The patch and Riot's notice: one quiet line (two on a narrow screen), the panel's last. */}
-          <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border pt-2.5" data-testid="account-sheet-notes">
-            {status}
-            {legal}
+            {/* The pages the tab bar does not hold (Resources when it has no tab; in Admin Mode the
+                admin pages without one), Settings and Install App, one full-width row each (lib/sheet.ts). */}
+            <nav aria-label={adminMode ? "More admin pages and your account" : "More pages and your account"} className={ACCOUNT_GROUP}>
+              {sheetLinks.map(({ href, label, icon }) => (
+                <AccountRow key={href} href={href} icon={icon} active={isActivePath(pathname, href)} onNavigate={() => setOpenedAt(null)}>
+                  {label}
+                </AccountRow>
+              ))}
+              {/* The install window opens over the page: the screen closes first. */}
+              <InstallAppEntry variant="row" beforeOpen={() => setOpenedAt(null)} />
+            </nav>
+            {modeSwitch || showSignOut ? (
+              // The way between the modes, and Sign out: a group of their own, under the pages.
+              <div className={cn(ACCOUNT_GROUP, "mt-4")} data-testid="account-sheet-actions">
+                {modeSwitch ? <ModeSwitch mode={modeSwitch} variant="row" /> : null}
+                {showSignOut ? (
+                  <form action="/api/auth/logout" method="post" onSubmit={onSignOut}>
+                    <button className={cn(ACCOUNT_ROW, "text-bad")} type="submit" data-testid="sign-out">
+                      <LogOut className={ACCOUNT_ROW_ICON} aria-hidden /> Sign out
+                    </button>
+                  </form>
+                ) : null}
+              </div>
+            ) : null}
+            {/* The patch and Riot's notice: quiet lines at the foot. Following a link there (Riot's
+                notice leads to Settings) closes the screen first: on Settings itself only the address's
+                anchor changes, which would leave the screen open over the section it leads to. */}
+            <div
+              className="mt-5 flex flex-wrap items-baseline justify-center gap-x-3 gap-y-1 text-center"
+              onClickCapture={(e) => {
+                // Only a plain click follows the link here: a modified one opens it elsewhere (a new
+                // tab or window), and this page, with its screen, stays as it was.
+                if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                if ((e.target as Element | null)?.closest?.("a[href]")) setOpenedAt(null);
+              }}
+              data-testid="account-sheet-notes"
+            >
+              {status}
+              {legal}
+            </div>
           </div>
         </DetailModal>
       ) : null}
@@ -257,7 +289,11 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
               </button>
             </div>
             <NavLinks allowed={allowed} admin={adminMode} large onNavigate={() => setOpen(false)} />
-            {modeSwitch ? <div className="mx-3 mt-3">{modeSwitch}</div> : null}
+            {modeSwitch ? (
+              <div className="mx-3 mt-3">
+                <ModeSwitch mode={modeSwitch} variant="drawer" />
+              </div>
+            ) : null}
             <div className="mx-3 mt-3 flex flex-col gap-1 border-t border-border pt-3">
               {accountLinks.map(({ href, label, icon: Icon }) => (
                 <SheetLink key={href} href={href} icon={Icon} active={isActivePath(pathname, href)} onNavigate={() => setOpen(false)}>
@@ -269,7 +305,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                   returns it when it closes. */}
               <InstallAppEntry variant="drawer" beforeOpen={() => setOpen(false)} />
               {showSignOut ? (
-                // The same Sign out as the panel's and the account menu's: the browser's other tabs are told.
+                // The same Sign out as the account screen's and the account menu's: the browser's other tabs are told.
                 <form action="/api/auth/logout" method="post" onSubmit={onSignOut}>
                   <button className="flex min-h-12 w-full items-center gap-3 rounded-lg pl-[0.9375rem] pr-3 text-left text-sm text-fg-muted hover:bg-surface-2 hover:text-fg" type="submit">
                     <LogOut className="h-[1.125rem] w-[1.125rem] text-fg-subtle" /> Sign out
@@ -322,7 +358,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
 }
 
 /**
- * Sign out (a plain form post, from the panel or the drawer, as from the account menu): this tab's
+ * Sign out (a plain form post, from the account screen or the drawer, as from the account menu): this tab's
  * account guard stands aside while it leaves, and the browser's other tabs are told (account-guard.tsx).
  */
 function onSignOut() {
@@ -393,7 +429,10 @@ function Drawer({ onClose, initialFocus, children }: { onClose: () => void; /** 
         if (e.target === ref.current) latest.current();
       }}
       // overflow-visible: the panel scrolls itself, and its shadow falls over the backdrop (a dialog clips its contents by default).
-      className="m-0 h-dvh max-h-none w-[min(calc(20rem+env(safe-area-inset-left)),86vw)] max-w-none overflow-visible border-0 bg-transparent p-0 text-fg backdrop:bg-black/60 backdrop:backdrop-blur-sm open:flex motion-safe:backdrop:fade-in"
+      // Full height by the screen it is fixed to (stretched between the dialog's own top and bottom
+      // insets), not by viewport units, so its size and its place come from the same box
+      // (DetailModal); its width a share of that screen too.
+      className="m-0 h-auto max-h-none w-[min(calc(20rem+env(safe-area-inset-left)),86%)] max-w-none overflow-visible border-0 bg-transparent p-0 text-fg backdrop:bg-black/60 backdrop:backdrop-blur-sm open:flex motion-safe:backdrop:fade-in"
       data-testid="mobile-drawer"
     >
       {children}
@@ -401,31 +440,33 @@ function Drawer({ onClose, initialFocus, children }: { onClose: () => void; /** 
   );
 }
 
-/** The account panel's title (its custom header names the dialog). */
+/** The account screen's title (its custom header names the dialog). */
 const SHEET_TITLE_ID = "account-sheet-title";
 
-/** The account panel's header: who is signed in, with their picture, beside the close button. */
-function AccountHeader({ user }: { user: NonNullable<MobileNavProps["user"]> }) {
-  const other = otherUsername(user);
+/**
+ * The account screen's header: its name, in a bar 52px tall under the status bar, beside the close
+ * button (DetailModal places it at the bar's right end, centred in it: top-2 on a 36px button).
+ */
+function AccountScreenHeader() {
   return (
-    <div className={cn("flex min-w-0 items-center gap-3 py-3 pl-4", CLEAR_OF_CONTROLS)}>
-      <Avatar name={user.name} src={user.avatarUrl} size="md" />
-      <div className="min-w-0">
-        <h2 id={SHEET_TITLE_ID} className="truncate text-base font-semibold leading-tight">
-          {user.name}
+    // The title lines up with the column the screen's content keeps (max-w-md, centred).
+    <div className="px-4 sm:px-6">
+      <div className="mx-auto flex h-13 w-full max-w-md items-center pr-12">
+        <h2 id={SHEET_TITLE_ID} className="text-base font-semibold leading-tight text-fg">
+          Account
         </h2>
-        <p className="mt-0.5 truncate text-xs text-fg-subtle">{[other ? `Username: ${other}` : null, user.roleLabel].filter(Boolean).join(" · ")}</p>
       </div>
     </div>
   );
 }
 
-/** A page in the account panel: its icon over its name (lib/sheet.ts). */
-function SheetTile({ href, icon: Icon, active, onNavigate, children }: { href: string; icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>; active: boolean; onNavigate: () => void; children: React.ReactNode }) {
+/** A page in the account screen: its icon, its name and a chevron, the whole width (lib/sheet.ts). */
+function AccountRow({ href, icon: Icon, active, onNavigate, children }: { href: string; icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>; active: boolean; onNavigate: () => void; children: React.ReactNode }) {
   return (
-    <Link href={href} onClick={onNavigate} aria-current={active ? "page" : undefined} className={cn(SHEET_TILE, active ? SHEET_TILE_CURRENT : SHEET_TILE_IDLE)}>
-      <Icon className={cn(SHEET_TILE_ICON, active ? "text-accent" : "text-fg-subtle")} aria-hidden />
-      {children}
+    <Link href={href} onClick={onNavigate} aria-current={active ? "page" : undefined} className={cn(ACCOUNT_ROW, active ? ACCOUNT_ROW_CURRENT : ACCOUNT_ROW_IDLE)}>
+      <Icon className={cn(ACCOUNT_ROW_ICON, active ? "text-accent" : "text-fg-subtle")} aria-hidden />
+      <span className="min-w-0 flex-1 truncate">{children}</span>
+      <ChevronRight className={ACCOUNT_ROW_CHEVRON} aria-hidden />
     </Link>
   );
 }

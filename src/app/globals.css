@@ -555,50 +555,33 @@ p a.text-accent {
   animation: sheet-out 140ms ease-in forwards;
 }
 /*
-  The phone's account panel (DetailModal size "panel"): down a little from the top bar, from the
-  avatar's corner, and back up when it closes; the short rise every other window makes, mirrored.
-  Nothing starts off the screen: on whatever frame a motion rests, the panel is in view and in reach.
-  The sheet before it rose from below the bottom edge (sheet-in), and on an iPhone it was drawn part
-  of the way up, its header at the foot of the screen and the rest of it below (docs/MOBILE.md).
+  A whole screen of its own (DetailModal size "screen": the phone's account menu): a short rise into
+  place and a fade, the rise every other window makes; back down a little as it closes. No frame of
+  it is more than 1rem from where it rests, and the screen drops it once it has run (data-entered),
+  so it rests where its styles put it whatever a browser does with the motion. The sheet before the account menu's first
+  redesign rose from a whole sheet below the bottom edge (sheet-in).
 */
-@keyframes panel-in {
+@keyframes screen-in {
   from {
     opacity: 0;
-    transform: translateY(-8px) scale(0.97);
+    transform: translateY(1rem);
   }
   to {
     opacity: 1;
     transform: none;
   }
 }
-@keyframes panel-out {
+@keyframes screen-out {
   to {
     opacity: 0;
-    transform: translateY(-4px) scale(0.98);
+    transform: translateY(0.5rem);
   }
 }
-@utility panel-in {
-  animation: panel-in 180ms var(--ease-emphasized);
+@utility screen-in {
+  animation: screen-in 200ms var(--ease-emphasized);
 }
-@utility panel-out {
-  animation: panel-out 140ms ease-in forwards;
-}
-/*
-  Where the account panel sits: from the top edge only, 0.5rem below the status bar (the notch, the
-  Dynamic Island) of what is visible: the visible area starts --vv-top below the page's viewport where
-  the browser has part of it out of view (the visual viewport's offset: the page zoomed in, or iOS
-  after the keyboard), and the status bar covers the top of that. No taller than what is visible
-  below it, 0.5rem clear of the bottom edge or the home indicator (--vv-bottom, the visible area's
-  bottom edge). DetailModal measures both from the visual viewport (usePanelRoom) and sets them on
-  the dialog; until it has, the page's viewport stands in (0 and 100dvh). Its height is its
-  content's, so on every phone at the usual text size it ends well above the bottom edge, and
-  nothing about where it sits depends on that edge (the home indicator, the keyboard, browser
-  toolbars, an installed app's viewport).
-*/
-@utility panel-place {
-  top: calc(var(--vv-top, 0px) + env(safe-area-inset-top) + 0.5rem);
-  bottom: auto;
-  max-height: calc(var(--vv-bottom, 100dvh) - var(--vv-top, 0px) - env(safe-area-inset-top) - 0.5rem - max(0.5rem, env(safe-area-inset-bottom)));
+@utility screen-out {
+  animation: screen-out 140ms ease-in forwards;
 }
 /* Player Card Studio: a section slides in a little from the side it was reached from. */
 @keyframes step-in-next {

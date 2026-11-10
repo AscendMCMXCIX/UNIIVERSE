@@ -3,6 +3,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
+import { screenBox } from "@/lib/screen";
 
 const MARGIN = 8;
 const GAP = 6;
@@ -40,7 +41,8 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
     const a = trigger.current?.getBoundingClientRect();
     const b = bubble.current?.getBoundingClientRect();
     if (!a || !b) return;
-    const p = placeTip(a, b, { width: document.documentElement.clientWidth, height: window.innerHeight });
+    // The screen as fixed positioning sees it, the box the tip is placed in (lib/screen.ts).
+    const p = placeTip(a, b, screenBox());
     setPos({ left: p.left, top: p.top });
   }, []);
 
@@ -134,7 +136,7 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
               role="tooltip"
               aria-hidden
               style={{ left: pos?.left ?? 0, top: pos?.top ?? 0, visibility: pos ? "visible" : "hidden" }}
-              className="pointer-events-none fixed z-[100] block w-max max-w-[min(18rem,calc(100vw-16px))] rounded-md border border-border-strong bg-bg-elevated px-2.5 py-1.5 text-left text-xs font-normal normal-case leading-snug tracking-normal text-fg shadow-lg motion-safe:animate-[fade-in_100ms_ease-out]"
+              className="pointer-events-none fixed z-[100] block w-max max-w-[min(18rem,calc(100%-16px))] rounded-md border border-border-strong bg-bg-elevated px-2.5 py-1.5 text-left text-xs font-normal normal-case leading-snug tracking-normal text-fg shadow-lg motion-safe:animate-[fade-in_100ms_ease-out]"
               data-testid={`${testId}-bubble`}
             >
               {text}
