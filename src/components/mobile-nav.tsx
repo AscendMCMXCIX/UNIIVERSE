@@ -255,6 +255,9 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
             <div
               className="mt-5 flex flex-wrap items-baseline justify-center gap-x-3 gap-y-1 text-center"
               onClickCapture={(e) => {
+                // Only a plain click follows the link here: a modified one opens it elsewhere (a new
+                // tab or window), and this page, with its screen, stays as it was.
+                if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
                 if ((e.target as Element | null)?.closest?.("a[href]")) setOpenedAt(null);
               }}
               data-testid="account-sheet-notes"

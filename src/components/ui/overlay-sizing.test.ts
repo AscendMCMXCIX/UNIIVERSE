@@ -57,10 +57,12 @@ const OVERLAYS = [
 /** A viewport unit in a value (12dvh, 100vw, calc(100svh-...)) or a Tailwind size named after one (h-dvh, h-screen). */
 const VIEWPORT_UNIT = /(?<![\w-])\d*\.?\d+(?:d|s|l)?(?:vh|vw|vmin|vmax|vb|vi)\b|(?<![\w-])(?:min-|max-)?[hw]-(?:dvh|svh|lvh|screen|dvw|svw|lvw)\b|(?<![\w-])size-screen\b/g;
 /**
- * Script reading the viewport's size: the window's, the root's (however the root is named) or the
- * visual viewport's. The visual viewport's scale (is the page pinched to zoom?) is not a size.
+ * Script reading the viewport's size: the window's; the root's, through documentElement or the
+ * names this code gives it (root, html, docEl), with or without `?.`, or taken apart from
+ * documentElement; or the visual viewport's. The visual viewport's scale (is the page pinched to
+ * zoom?) is not a size.
  */
-const VIEWPORT_JS = /\binnerHeight\b|\binnerWidth\b|\b(?:documentElement|root|html)\.client(?:Height|Width)\b|\bvisualViewport\b(?!\??\.scale\b)/g;
+const VIEWPORT_JS = /\binnerHeight\b|\binnerWidth\b|\b(?:documentElement|root|html|docEl)\??\.client(?:Height|Width)\b|\{[^}]*\bclient(?:Height|Width)\b[^}]*\}\s*=\s*(?:document\.)?documentElement\b|\bvisualViewport\b(?!\??\.scale\b)/g;
 
 /** What a file may still read of the viewport from script, and why. */
 const VIEWPORT_JS_ALLOWED: Record<string, { reads: string[]; why: string }> = {
@@ -74,8 +76,37 @@ const VIEWPORT_JS_ALLOWED: Record<string, { reads: string[]; why: string }> = {
   },
 };
 
-/** A flex item that grows from nothing: flex-1 (1 1 0%), a zero basis, or an arbitrary flex value with one. */
-const ZERO_BASIS = /(?<![\w-])(?:flex-1|basis-0|basis-\[0(?:%|px|rem)?\]|flex-\[\d+(?:_\d+)?(?:_0(?:%|px|rem)?)?\])(?![\w-])/g;
+/**
+ * A flex item that grows from nothing: flex-N (Tailwind writes flex: N, which is N 1 0%), a zero
+ * basis, or an arbitrary flex value or property without a basis of its own.
+ */
+const ZERO_BASIS_SOURCE = String.raw`(?<![\w-])(?:flex-\d+|basis-0|basis-\[0(?:%|px|rem)?\]|flex-\[\d+(?:_\d+)?(?:_0(?:%|px|rem)?)?\]|\[flex:\d+(?:_\d+)?(?:_0(?:%|px|rem)?)?\]|\[flex-basis:0(?:%|px|rem)?\])(?![\w-])`;
+const ZERO_BASIS = new RegExp(ZERO_BASIS_SOURCE, "g");
+/** In one class string: a zero-basis item that would have to scroll (overflow-y auto or scroll). */
+const ZERO_BASIS_SCROLLER = new RegExp(String.raw`(?:${ZERO_BASIS_SOURCE})[^"\x60]*overflow-y-(?:auto|scroll)|overflow-y-(?:auto|scroll)[^"\x60]*(?:${ZERO_BASIS_SOURCE})`, "g");
+
+/**
+ * The values of a JSX attribute in a source: a string, or an expression in braces read to its
+ * matching brace (template literals and calls included). A value kept in a named constant is read as
+ * that name only.
+ */
+function attributeValues(source: string, name: string): string[] {
+  const values: string[] = [];
+  for (let i = source.indexOf(`${name}=`); i !== -1; i = source.indexOf(`${name}=`, i + 1)) {
+    const start = i + name.length + 1;
+    if (source[start] === '"') values.push(source.slice(start + 1, source.indexOf('"', start + 1)));
+    else if (source[start] === "{") {
+      let depth = 0;
+      let end = start;
+      for (; end < source.length; end++) {
+        if (source[end] === "{") depth++;
+        else if (source[end] === "}" && --depth === 0) break;
+      }
+      values.push(source.slice(start + 1, end));
+    }
+  }
+  return values;
+}
 
 describe("a window's body grows from its content", () => {
   it("every DetailModal body is flex-auto, and nothing in the window grows from nothing", () => {
@@ -86,26 +117,37 @@ describe("a window's body grows from its content", () => {
     expect(modal.match(ZERO_BASIS) ?? []).toEqual([]);
   });
 
-  it("the zero-basis pattern catches every spelling of a body that grows from nothing", () => {
-    for (const cls of ["flex-1", "basis-0", "basis-[0%]", "basis-[0px]", "flex-[1]", "flex-[1_1]", "flex-[1_1_0%]", "flex-[2_1_0px]"]) expect(` ${cls} `.match(ZERO_BASIS), cls).not.toBeNull();
-    for (const cls of ["flex-auto", "flex-none", "flex-[1_1_auto]", "basis-auto", "flex-10", "basis-1/2"]) expect(` ${cls} `.match(ZERO_BASIS), cls).toBeNull();
+  it("the zero-basis pattern catches the spellings of a body that grows from nothing", () => {
+    for (const cls of ["flex-1", "flex-2", "flex-10", "md:flex-1", "basis-0", "basis-[0%]", "basis-[0px]", "flex-[1]", "flex-[1_1]", "flex-[1_1_0%]", "flex-[2_1_0px]", "[flex:1]", "[flex:1_1_0%]", "[flex-basis:0]"]) expect(` ${cls} `.match(ZERO_BASIS), cls).not.toBeNull();
+    for (const cls of ["flex-auto", "flex-none", "flex-initial", "flex-wrap", "flex-col", "flex-[1_1_auto]", "[flex:1_1_auto]", "basis-auto", "basis-1/2"]) expect(` ${cls} `.match(ZERO_BASIS), cls).toBeNull();
+    expect("min-h-0 flex-2 overflow-y-auto".match(ZERO_BASIS_SCROLLER)).not.toBeNull();
+    expect("min-h-0 flex-auto overflow-y-auto".match(ZERO_BASIS_SCROLLER)).toBeNull();
   });
 
   it.each(OVERLAYS)("%s gives no window column a zero-basis item that would have to scroll", (file) => {
     // A scrolling area that grows from nothing (flex-1 with overflow-y-auto) collapses in Safari 26
     // inside a window as tall as its content.
-    expect(code(read(file)).match(/(?<![\w-])flex-1(?![\w-])[^"`]*overflow-y-(?:auto|scroll)|overflow-y-(?:auto|scroll)[^"`]*(?<![\w-])flex-1(?![\w-])/g) ?? []).toEqual([]);
+    expect(code(read(file)).match(ZERO_BASIS_SCROLLER) ?? []).toEqual([]);
   });
 
   it("no window is given a body that grows from nothing by its caller (bodyClassName)", () => {
     // bodyClassName is joined to the body's own classes by plain clsx, so a caller's flex-1 would sit
     // beside flex-auto and the stylesheet's order, not the class list, would decide.
+    const callers = new Set<string>();
     const found = tsxFiles().flatMap((file) => {
       const source = code(read(file));
       if (!/<(?:DetailModal|Dialog)\b/.test(source)) return [];
-      return [...source.matchAll(/bodyClassName=(?:"([^"]*)"|\{([^}]*)\})/g)].flatMap((m) => ((m[1] ?? m[2] ?? "").match(ZERO_BASIS) ?? []).map((cls) => `${file}: ${cls}`));
+      return attributeValues(source, "bodyClassName").flatMap((value) => {
+        callers.add(file);
+        return (value.match(ZERO_BASIS) ?? []).map((cls) => `${file}: ${cls}`);
+      });
     });
     expect(found).toEqual([]);
+    // The scan read the callers there are (it would pass on reading nothing).
+    for (const file of ["src/components/ui/dialog.tsx", "src/components/public/sign-in.tsx", "src/components/players/champion-detail.tsx"]) expect([...callers]).toContain(file);
+    // And it reads a template literal or a call to its end.
+    expect(attributeValues('<DetailModal bodyClassName={`${phone ? "px-0" : "px-4"} flex-1 overflow-y-auto`} />', "bodyClassName").join(" ").match(ZERO_BASIS)).not.toBeNull();
+    expect(attributeValues('<DetailModal bodyClassName={cn("transition-opacity", busy && "flex-[1]")} />', "bodyClassName").join(" ").match(ZERO_BASIS)).not.toBeNull();
   });
 });
 
@@ -120,9 +162,9 @@ describe("overlays are sized by the box they are fixed to", () => {
     expect(reads).toEqual([]);
   });
 
-  it("the viewport pattern catches the root's size however the root is named, and lets the zoom's scale through", () => {
-    for (const read of ["window.innerHeight", "document.documentElement.clientHeight", "root.clientHeight", "html.clientWidth", "window.visualViewport.height", "vv = window.visualViewport"]) expect(read.match(VIEWPORT_JS), read).not.toBeNull();
-    for (const read of ["window.visualViewport?.scale", "visualViewport.scale", "el.clientHeight", "probe.offsetHeight"]) expect(read.match(VIEWPORT_JS), read).toBeNull();
+  it("the viewport pattern catches the root's size through documentElement, root, html or docEl (with ?. or taken apart), and lets the zoom's scale through", () => {
+    for (const read of ["window.innerHeight", "document.documentElement.clientHeight", "document.documentElement?.clientHeight", "root.clientHeight", "root?.clientHeight", "html.clientWidth", "docEl.clientHeight", "const { clientHeight } = document.documentElement", "window.visualViewport.height", "vv = window.visualViewport"]) expect(read.match(VIEWPORT_JS), read).not.toBeNull();
+    for (const read of ["window.visualViewport?.scale", "visualViewport.scale", "el.clientHeight", "probe.offsetHeight", "const { clientHeight } = el"]) expect(read.match(VIEWPORT_JS), read).toBeNull();
   });
 
   it("the modal believes a scrollbar of at most 24px", () => {

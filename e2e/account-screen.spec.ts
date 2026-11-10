@@ -63,6 +63,9 @@ function layout(page: Page) {
     // How far down the screen's content reaches: its controls and the notes at its foot.
     const lowest = Math.max(...[...controls, d.querySelector("[data-testid=account-sheet-notes]")!].map((el) => el.getBoundingClientRect().bottom));
     return {
+      // The body's padding at its foot: what keeps its last line clear of the home indicator once
+      // it scrolls to its end (pb-safe-4: 1rem, or the inset where larger).
+      padBottom: parseFloat(getComputedStyle(body).paddingBottom),
       box: { top: box.top, left: box.left, width: box.width, height: box.height },
       lowest,
       bodyScrolls: body.scrollHeight > body.clientHeight + 1,
@@ -101,8 +104,9 @@ for (const phone of PHONES) {
         const l = await layout(page);
         // The whole screen, exactly: fixed to its four edges.
         expect(l.box, where).toEqual({ top: 0, left: 0, width: phone.viewport.width, height: phone.viewport.height });
-        // Nothing in it ends in the home indicator's band.
+        // Nothing in it ends in the home indicator's band, now or with its body scrolled to its end.
         expect(l.lowest, where).toBeLessThanOrEqual(phone.viewport.height - phone.bottom);
+        expect(l.padBottom, where).toBeGreaterThanOrEqual(Math.max(16, phone.bottom) - 0.5);
         // Everything at once on a normal phone: nothing scrolls, every control is on the screen and
         // reached by a tap where it is drawn.
         expect(l.bodyScrolls, where).toBe(false);

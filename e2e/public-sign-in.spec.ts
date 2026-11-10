@@ -199,6 +199,12 @@ test("the window fits above the keyboard only once a field is typed in: a visibl
   await keyboard(guest, 0);
   await expect(dialog.locator("[data-keyboard=true]")).toHaveCount(0);
   await expect.poll(() => frame(dialog)).toEqual([0, 0, viewport.width, viewport.height]);
+  // Once the visible part has been whole again, a later shrink with nothing typed in is not
+  // believed either (iOS has carried such a shrink into the next page, WebKit bug 323322).
+  await keyboard(guest, 290);
+  await guest.waitForTimeout(300);
+  await expect(dialog.locator("[data-keyboard=true]")).toHaveCount(0);
+  await expect.poll(() => frame(dialog)).toEqual([0, 0, viewport.width, viewport.height]);
   await guest.context().close();
 });
 

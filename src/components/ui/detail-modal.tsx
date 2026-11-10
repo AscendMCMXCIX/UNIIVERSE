@@ -18,8 +18,9 @@ import { cn } from "@/lib/cn";
  *
  * Every size is placed and sized by the screen it is fixed to (its containing block: insets, and
  * percentages of it), not by viewport units (vh, svh, dvh, lvh, vw) or by measuring the viewport
- * from script, so a window's size and its place come from the same box and can never disagree.
- * overlay-sizing.test.ts keeps it so. A window's body grows from its content, never from nothing:
+ * from script, so a window's size and its place come from the same box and can never disagree. The
+ * one exception is useKeyboardFit: while a field in the window is typed in, it fits the window above
+ * the on-screen keyboard from the visual viewport. overlay-sizing.test.ts keeps it so. A window's body grows from its content, never from nothing:
  * see BODY_SCROLLS, the reason the account menu was a strip on the owner's iPhone.
  */
 export type ModalSize = "compact" | "standard" | "wide" | "full" | "sheet" | "form" | "screen";
@@ -409,7 +410,7 @@ export function DetailModal({
   const docked = size === "sheet";
   /**
    * A screen fills the screen it is fixed to (SIZE.screen), its header in place under the status bar
-   * and only its body scrolling when it must (large text, a phone held sideways, a small phone), so
+   * and only its body scrolling when it must (large text, a phone held sideways, a 320pt phone), so
    * the close button never scrolls away. Nothing to pull: a touch that would move nothing inside it
    * moves nothing behind it (useSheetDrag without `pull`).
    */

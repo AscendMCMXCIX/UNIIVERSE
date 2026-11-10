@@ -336,13 +336,16 @@ test("the account screen in Safari's engine: one tap opens it, it fills the scre
       // Full width: as wide as the column the rows sit in (the nav), less its border.
       const narrowest = Math.min(...controls.slice(1).map((el) => el.getBoundingClientRect().width));
       const column = d.querySelector("nav")!.getBoundingClientRect().width;
-      return { box: [box.left, box.top, box.width, box.height], screen: [innerWidth, innerHeight], scrolls: body.scrollHeight > body.clientHeight + 1, missed, shortest, narrowest, column, focus: document.activeElement === d };
+      return { box: [box.left, box.top, box.width, box.height], screen: [innerWidth, innerHeight], scrolls: body.scrollHeight > body.clientHeight + 1, missed, rows: controls.length - 1, shortest, narrowest, column, focus: document.activeElement === d };
     });
     // The whole screen, exactly; nothing scrolls; every control reached; rows at least 48px; the
     // screen itself has the focus (the close button is not lit up).
     expect(fit.box, path).toEqual([0, 0, ...fit.screen]);
     expect(fit.scrolls, path).toBe(false);
     expect(fit.missed, path).toBe(0);
+    // Rows measured (the demo has Settings, Resources, Install App and the mode switch), each 48px or
+    // taller and as wide as the column.
+    expect(fit.rows, path).toBeGreaterThanOrEqual(2);
     expect(fit.shortest, path).toBeGreaterThanOrEqual(48);
     expect(fit.narrowest, path).toBeGreaterThanOrEqual(fit.column - 2);
     expect(fit.focus, path).toBe(true);

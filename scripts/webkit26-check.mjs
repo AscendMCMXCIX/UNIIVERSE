@@ -7,8 +7,9 @@
 
   Safari 26 and earlier (iOS, iPadOS and macOS 26) collapse a window that is as tall as its content
   (a dialog's fit-content height) to its header when the window's body grows from nothing
-  (`flex-1`): on the owner's iPhone the account menu was a 95pt strip (10 Nov), and most other
-  sheets and the centred windows collapsed the same way. WebKit 27 fixed it, and the browser tests
+  (`flex-1`): on the owner's iPhone the account menu was a 95pt strip (10 Nov), and in WebKit 26.0
+  and the iOS 26 Simulator most other sheets, the compact windows and the centred windows of wider
+  screens collapsed the same way. WebKit 27 fixed it, and the browser tests
   run Playwright's current WebKit (27), so they cannot see it. This runs the same pages in Playwright
   1.58.2's WebKit 26.0, the last build before the fix, which draws the collapse exactly as the
   iPhone did (DetailModal's BODY_SCROLLS).
