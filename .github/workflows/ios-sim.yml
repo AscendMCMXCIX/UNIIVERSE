@@ -1,0 +1,186 @@
+# DRAFT (not in the repository; adding it needs the owner's approval, CLAUDE.md §6).
+# Real iOS WebKit, free: Mobile Safari and a Home Screen web app in the iOS Simulator on GitHub's
+# macOS runners (standard runners are free and unlimited on public repositories), against a
+# production build on the in-memory demo database, as the WebKit workflow serves it. It measures the
+# phone account menu where the simulator draws it and taps it on the simulator's screen (AXe: HID
+# touches), and uploads screenshots, a video, accessibility trees and a metrics JSON (demo data
+# only: never production, whose pages hold members' names).
+#
+# Started only by a push to a branch named ios-sim/... (e.g. git push origin HEAD:ios-sim/menu-check),
+# so it runs from a throw-away branch and never touches main: CI runs only on pull requests and main,
+# and Vercel skips previews of branches not named preview/... (scripts/vercel-ignore-build.sh). The
+# workflow and the driver live on that branch only:
+#   .github/workflows/ios-sim.yml   this file
+#   .github/ios-sim/driver.mjs      the driver (proxy, simulators, taps, scenarios, summary)
+#   .github/ios-sim/agent.js        what the proxy adds to each demo page (measurements, commands)
+#   .github/actionlint.yaml         the runner labels actionlint 1.7.7 does not know (macos-26, xcode-27)
+# Two jobs in parallel: iOS 26 on the macos-26 image (the WebKit the owner's iPhone most likely runs;
+# safaridriver works there) and iOS 27 on the xcode-27 image (a control; optional, never fails the run).
+# Read the job summary, then the artifact ios-sim-<job>-<attempt>.
+name: iOS Simulator
+
+on:
+  push:
+    branches: ["ios-sim/**"]
+
+concurrency:
+  group: ios-sim-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  simulator:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    continue-on-error: ${{ matrix.optional }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS 26 image: Xcode 26.6 (default; switching Xcode broke safaridriver in another
+          # project's run), iOS runtimes 26.2, 26.4 and 26.5 (actions/runner-images, macos-26-arm64).
+          # First the owner's screen size (393 x 852 pt) on the newest and the oldest iOS 26, then
+          # the newest Pro, then a small phone.
+          - label: "iOS 26: Safari, Home Screen app, safaridriver"
+            key: ios26
+            runner: macos-26
+            optional: false
+            device_hub: false
+            plan: >-
+              [{"runtime":"newest","device":"iPhone 16|iPhone 15 Pro|iPhone 15|iPhone 17"},
+               {"runtime":"oldest","device":"iPhone 16|iPhone 15 Pro|iPhone 15|iPhone 17","modes":"safari,standalone","scenarios":"team-top,resources-end,team-scrolled,settings-keyboard"},
+               {"runtime":"newest","device":"newest-pro","modes":"safari,standalone","scenarios":"team-top,resources-end"},
+               {"runtime":"newest","device":"iPhone SE (3rd generation)|iPhone 17e|iPhone 16e","modes":"safari,standalone","scenarios":"team-top,resources-end"}]
+          # Xcode 27 image (GA 15 Oct 2026, macOS 27): Xcode 27.1 default, iOS 27.0 to 27.2. Xcode
+          # 27 drives simulators through Device Hub (no Simulator.app); safaridriver found no
+          # simulator session there in other projects' runs, so it is tried once only.
+          - label: "iOS 27 (control): Safari, Home Screen app"
+            key: ios27
+            runner: xcode-27
+            optional: true
+            device_hub: true
+            plan: >-
+              [{"runtime":"newest","device":"iPhone 16|iPhone 15 Pro|iPhone 17"},
+               {"runtime":"newest","device":"newest-pro","modes":"safari,standalone","scenarios":"team-top,resources-end"}]
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      OUT: ${{ github.workspace }}/ios-sim-out
+      APP_PORT: "3000"
+      PROXY_PORT: "3080"
+      SIM_PLAN: ${{ matrix.plan }}
+      SIM_MODES: "safari,standalone,webdriver"
+      DRIVER_BUDGET_MIN: "52"
+      # AXe: simulator taps, swipes and the accessibility tree (Xcode 26 and 27). Pinned release,
+      # checked against its SHA-256.
+      AXE_VERSION: "1.8.0"
+      AXE_SHA256: "7b76340b72e90d0f211bc7c4636f15009076eff07acef2f2b632b175debd8834"
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        timeout-minutes: 10
+      - name: Production build
+        run: pnpm build
+        timeout-minutes: 20
+
+      - name: What this image has (Xcode, iOS runtimes, device types)
+        timeout-minutes: 5
+        run: |
+          mkdir -p "$OUT"
+          { sw_vers; echo; xcodebuild -version; echo; xcode-select -p; echo; ls -d /Applications/Xcode*.app; echo; safaridriver --version || true; } 2>&1 | tee "$OUT/image.txt"
+          xcrun simctl list runtimes -j > "$OUT/runtimes.json"
+          xcrun simctl list devicetypes -j > "$OUT/devicetypes.json"
+          xcrun simctl list runtimes
+
+      - name: AXe ${{ env.AXE_VERSION }}
+        timeout-minutes: 5
+        run: |
+          dir="$RUNNER_TEMP/axe"
+          rm -rf "$dir" && mkdir -p "$dir"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/axe.tar.gz" "https://github.com/cameroncooke/AXe/releases/download/v${AXE_VERSION}/AXe-macOS-v${AXE_VERSION}-universal.tar.gz"
+          echo "${AXE_SHA256}  $RUNNER_TEMP/axe.tar.gz" | shasum -a 256 -c -
+          tar -xzf "$RUNNER_TEMP/axe.tar.gz" -C "$dir"
+          if ! "$dir/axe" --version; then
+            # As the Homebrew formula does: an ad-hoc signature on the binary and its frameworks.
+            for f in "$dir"/Frameworks/*.framework; do codesign --force --sign - --timestamp=none "$f"; done
+            codesign --force --sign - --timestamp=none "$dir/axe"
+            "$dir/axe" --version
+          fi
+          echo "AXE_BIN=$dir/axe" >> "$GITHUB_ENV"
+
+      - name: Device Hub (Xcode 27 drives simulators through it)
+        if: matrix.device_hub
+        timeout-minutes: 3
+        run: |
+          app="$(xcode-select -p)"
+          app="${app%/Contents/Developer}/Contents/Applications/DeviceHub.app"
+          if [ ! -d "$app" ]; then echo "::warning::No Device Hub at $app"; exit 0; fi
+          pkill -x Simulator || true
+          open -g "$app"
+          for _ in $(seq 1 30); do
+            if pgrep -f "$app/Contents/MacOS/DeviceHub" >/dev/null; then echo "Device Hub is running"; exit 0; fi
+            sleep 1
+          done
+          echo "::warning::Device Hub did not start"
+
+      - name: safaridriver --enable (for the cross-check)
+        continue-on-error: true
+        timeout-minutes: 2
+        run: sudo safaridriver --enable
+
+      - name: Start the app on the in-memory demo database
+        timeout-minutes: 4
+        env:
+          UNIIVERSE_DB_MODE: memory
+          UNIIVERSE_SEED_DEMO: "true"
+          UNIIVERSE_REQUIRE_AUTH: "false"
+          UNIIVERSE_JOB_LOGS: silent
+          DATABASE_URL: ""
+          RIOT_API_KEY: ""
+          UNIIVERSE_FAKE_RIOT_IDS: "1"
+        run: |
+          nohup pnpm start -p "$APP_PORT" > "$RUNNER_TEMP/app.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/app.pid"
+          for _ in $(seq 1 90); do
+            if curl -fsS -o /dev/null "http://127.0.0.1:$APP_PORT/api/health"; then echo "The app answers"; exit 0; fi
+            sleep 2
+          done
+          tail -n 40 "$RUNNER_TEMP/app.log"
+          exit 1
+
+      - name: Drive the simulators
+        timeout-minutes: 58
+        run: node .github/ios-sim/driver.mjs
+
+      - name: Summary
+        if: always()
+        run: |
+          if [ -f "$OUT/summary.md" ]; then cat "$OUT/summary.md" >> "$GITHUB_STEP_SUMMARY"; else echo "No summary: read driver.log in the artifact." >> "$GITHUB_STEP_SUMMARY"; fi
+
+      - name: Stop the simulators and the app; keep their logs
+        if: always()
+        timeout-minutes: 5
+        run: |
+          xcrun simctl shutdown all || true
+          if [ -f "$RUNNER_TEMP/app.pid" ]; then kill "$(cat "$RUNNER_TEMP/app.pid")" 2>/dev/null || true; fi
+          mkdir -p "$OUT"
+          tail -n 300 "$RUNNER_TEMP/app.log" > "$OUT/app-log-tail.txt" 2>/dev/null || true
+          if [ -d "$HOME/Library/Logs/com.apple.WebDriver" ]; then cp -R "$HOME/Library/Logs/com.apple.WebDriver" "$OUT/webdriver-logs" || true; fi
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: ios-sim-${{ matrix.key }}-${{ github.run_attempt }}
+          path: ios-sim-out
+          retention-days: 7
+          if-no-files-found: warn
