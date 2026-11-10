@@ -291,9 +291,9 @@ test("Players and Leaderboards read as lists on a phone: a row per player, a row
   await expect(rows.first()).toBeVisible();
   await expect(page.getByTestId("players-directory")).toBeHidden();
   for (const h of await rows.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) expect(h).toBeGreaterThanOrEqual(44);
-  // Recent form: a row per member, two lines of 64px (the record, dates and gap under the name, the
-  // role on the picture); one link covers the whole row, so a tap anywhere on it (not only on the
-  // name) opens the member's profile.
+  // Recent form: a row per member, at least 64px (two lines, three when the gap takes its own line):
+  // the record, dates and gap under the name, the role on the picture. One link covers the whole
+  // row, so a tap anywhere on it (not only on the name) opens the member's profile.
   await page.goto("/leaderboards");
   await expect(page.getByTestId("leaderboards")).toHaveAttribute("data-ready", "true");
   const row = page.getByTestId("form-row").first();

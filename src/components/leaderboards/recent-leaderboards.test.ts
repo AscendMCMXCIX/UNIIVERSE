@@ -68,9 +68,19 @@ describe("Recent form's rows", () => {
       expect(rows[id]).toMatch(/pointer-events-none absolute col-\[1\/2\] -right-1/);
       expect(rows[id]).toContain("data-tied");
     }
-    // The row's hint names the tie first, then the gap's sentence and the role's games.
-    expect(rows.bo).toContain('title="Tied for 2nd. Win your next game to draw level with Ash. Mid: 14 of 20 games"');
+    // The row's tooltip names the tie first, then the gap's sentence and the role's games, from the
+    // aria-hidden layer inside the row's link (RowLink's hint).
+    expect(rows.bo).toContain('<span aria-hidden="true" title="Tied for 2nd. Win your next game to draw level with Ash. Mid: 14 of 20 games" class="absolute inset-0 rounded-[inherit]"></span></a>');
     expect(rows.di).not.toMatch(/data-tie=|Tied for/);
+  });
+
+  it("names no list item: no row's li has a title, on the members' board or the public one", () => {
+    const publicRows = rowsOf(render({}, false));
+    expect(Object.keys(publicRows)).toEqual(["ash", "bo", "cy", "di", "ed"]);
+    for (const [id, r] of [...Object.entries(rows), ...Object.entries(publicRows)]) expect(r, id).not.toMatch(/<li[^>]* title=/);
+    // The public board has no link, so no row tooltip: the gap's sentence is its own cell's title.
+    expect(publicRows.bo).not.toContain("absolute inset-0 rounded-[inherit]");
+    expect(publicRows.bo).toMatch(/<span aria-hidden="true" data-testid="form-gap" title="Win your next game to draw level with Ash"/);
   });
 
   it("shows the gap short and keeps the sentence for screen readers: Next win: 2=, 1 win behind", () => {
@@ -104,8 +114,8 @@ describe("Recent form's rows", () => {
     expect(rows.ash).toContain('<span aria-hidden="true">13W 7L</span><span class="sr-only">13 wins, 7 losses</span>');
     expect(rows.ash).toContain('<span class="sr-only">Games from </span>7 Oct – 6 Nov');
     expect(rows.ash).toContain("Support</span><span class=\"sr-only\"> main role (14 of 20 games)</span>");
-    // The link says the member's name, so the visible one is not read twice.
-    expect(rows.ash).toContain('<span class="sr-only">Ash</span></a>');
+    // The link says the member's name (its tooltip layer after it is aria-hidden), so the visible one is not read twice.
+    expect(rows.ash).toContain('data-row-link="" href="/players/ash"><span class="sr-only">Ash</span><span aria-hidden="true" title=');
     expect(rows.ash).toContain('<span class="min-w-0 text-fg" aria-hidden="true">');
   });
 });

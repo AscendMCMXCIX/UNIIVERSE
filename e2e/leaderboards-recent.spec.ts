@@ -133,6 +133,11 @@ test("Recent form ranks every full 20-game window by win rate, shared places and
   }
   expect([...groups.values()].some((g) => g.length >= 2), "the demo shows a shared place").toBe(true);
   for (const g of groups.values()) expect(g).toEqual(["start", ...Array(g.length - 2).fill("mid"), "end"]);
+  // The row's tooltip (the tie, the gap's sentence, the role's games) is an aria-hidden layer inside
+  // its link: no list item takes its name from it, and the link is named by the member alone, with no description.
+  await expect(page.getByTestId("form-rows").getByRole("listitem", { name: /\S/ })).toHaveCount(0);
+  await expect(page.getByTestId("form-row").first().locator("[data-row-link]")).toHaveAccessibleDescription("");
+  await expect(page.getByTestId("form-row").nth(3).locator("[data-row-link] > [title]")).toHaveAttribute("title", /^Tied for 4th\. /);
   // Each row's bar counts its 20 games, wins first, and is hidden from screen readers (the record says it).
   for (const r of ranked) {
     expect(r.bars).toBe(1);
@@ -180,14 +185,57 @@ test("each row says what counts: the record, the dates, the main role and the ba
   if (info.project.name === "desktop") await expect(page.getByTestId("form-heads")).toContainText("Win rate");
 });
 
+test("a phone row's second line never ends with a dangling ·: the gap sits at its right end, or on a line of its own", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "the narrow widths are the phone's");
+  await open(page, BOARDS);
+  for (const [width, height] of [
+    [320, 568],
+    [360, 740],
+    [375, 667],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    const lines = await page.getByTestId("form-meta").evaluateAll((metas) =>
+      metas.map((meta) => {
+        // The line's visible parts in order (the leader's hidden gap has no box); parts on one line share their middle (items-center).
+        const parts = [...meta.children].map((c) => ({ dot: c.textContent?.trim() === "·", box: c.getBoundingClientRect() })).filter((p) => p.box.width > 0);
+        const mid = (b: DOMRect) => b.top + b.height / 2;
+        const gap = meta.querySelector("[data-testid=form-gap]")?.parentElement;
+        const gapBox = gap && gap.getBoundingClientRect().width > 0 ? gap.getBoundingClientRect() : null;
+        return {
+          dots: parts.filter((p) => p.dot).length,
+          dangling: parts.filter((p, i) => p.dot && !(parts[i + 1] && Math.abs(mid(parts[i + 1]!.box) - mid(p.box)) <= 4)).length,
+          gap: !!gapBox,
+          gapAtEnd: gapBox ? Math.abs(gapBox.right - meta.getBoundingClientRect().right) <= 1 : true,
+        };
+      }),
+    );
+    expect(lines.length).toBeGreaterThan(0);
+    // One "·", between the record and the dates; the gap follows them without one.
+    expect(lines.map((l) => l.dots), `${width}px: one · per second line`).toEqual(lines.map(() => 1));
+    expect(lines.filter((l) => l.gap).length, `${width}px: rows with a gap`).toBeGreaterThan(0);
+    expect(lines.filter((l) => l.dangling).length, `${width}px: second lines ending with ·`).toBe(0);
+    expect(lines.filter((l) => !l.gapAtEnd).length, `${width}px: gaps not at the line's right end`).toBe(0);
+  }
+});
+
 test("the board's layout follows its own width: four, six or eight columns, never cut or wider than the page", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "explicit window sizes, either side of each tier");
   test.setTimeout(120_000);
   await open(page, BOARDS);
+  // The main role's name before the dates on a 40–58rem board (the badge alone is too small to tell
+  // Top from Bottom); below 40rem the badge alone, from 58rem the role's own column.
+  const roleWord = page.locator("[data-testid=form-row][data-status=established]").first().getByTestId("form-dates").locator("span[aria-hidden]");
+  const ROLE_WORD = /^(Top|Jungle|Mid|Bottom|Support) ·\s*$/;
   // 608–612px: a phone-width board either side of 36rem; 1248–1252px: either side of 58rem beside the open sidebar.
   for (const width of [608, 610, 612, 1248, 1250, 1252, 1280, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    if (width === 1248) {
+      await expect(roleWord, `${width}px: the role's name before the dates`).toBeVisible();
+      await expect(roleWord).toHaveText(ROLE_WORD);
+    }
+    if (width === 610 || width === 1440) await expect(roleWord, `${width}px: no role's name before the dates`).toBeHidden();
     const f = await page.evaluate(() => {
       const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
       const rows = [...document.querySelectorAll<HTMLElement>("[data-testid=form-row]")];
@@ -202,6 +250,11 @@ test("the board's layout follows its own width: four, six or eight columns, neve
     expect(f.wider, `${width}px: rows wider than the board`).toBe(0);
     expect(f.page, `${width}px: page wider than the window`).toBeLessThanOrEqual(1);
   }
+  // A portrait iPad's width: the medium layout, the role's name before the dates.
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  await expect(roleWord, "768px: the role's name before the dates").toBeVisible();
+  await expect(roleWord).toHaveText(ROLE_WORD);
   // 1280×800 with the sidebar open keeps the one-line rows, the role named in its column.
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));

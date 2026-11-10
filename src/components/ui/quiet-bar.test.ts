@@ -9,6 +9,8 @@ import { QuietBar } from "./quiet-bar";
 */
 
 const render = (props: Parameters<typeof QuietBar>[0]) => renderToStaticMarkup(createElement(QuietBar, props));
+/** The markup with the attribute escapes React writes undone ("[&amp;&gt;…]" is the class "[&>…]"). */
+const decoded = (html: string) => html.replace(/&gt;/g, ">").replace(/&amp;/g, "&");
 const states = (html: string) => [...html.matchAll(/data-state="(\w+)"/g)].map((m) => m[1]);
 const count = (html: string, state: string) => states(html).filter((s) => s === state).length;
 
@@ -23,7 +25,10 @@ describe("QuietBar", () => {
     const html = render({ value: 9, segments: 20, known: 14 });
     expect([count(html, "filled"), count(html, "empty"), count(html, "missing")]).toEqual([9, 5, 6]);
     expect(html).toContain('data-known="14"');
-    expect(html).toContain("ring-inset ring-fg/25");
+    expect(decoded(html)).toContain("[&>[data-state=missing]]:ring-fg/25");
+    // The look is set once, on the frame: each segment is a bare span with its state.
+    expect(html).toContain('<span data-state="missing"></span>');
+    expect(html).not.toMatch(/<span data-state="\w+" class=/);
   });
 
   it("clamps what it is given: no more filled than played, no more played than segments, nothing below zero", () => {

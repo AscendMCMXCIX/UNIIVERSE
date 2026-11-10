@@ -80,13 +80,21 @@ describe("DataRow", () => {
     expect(plain).not.toContain("<a ");
   });
 
-  it("marks your own row with the accent wash and its bar, and passes the row's data and hint", () => {
-    const own = row({ own: true, children: "x", title: "Tied for 4th. 1 win behind Ash", "data-place": 4, "data-you": true });
+  it("marks your own row with the accent wash and its bar, and passes the row's data, never a title", () => {
+    const own = row({ own: true, children: "x", "data-place": 4, "data-you": true });
     expect(own).toContain("bg-accent/5");
     expect(own).toContain('<span aria-hidden="true" class="pointer-events-none absolute inset-y-0 left-0 w-0.5 bg-accent"></span>');
-    expect(own).toContain('title="Tied for 4th. 1 win behind Ash"');
     expect(own).toMatch(/data-place="4" data-you="true"/);
+    // A title on the li would become the list item's accessible name.
+    expect(own).not.toMatch(/<li[^>]* title=/);
     expect(row({ children: "x" })).not.toContain("bg-accent");
+  });
+
+  it("shows the row's hint from an aria-hidden layer inside its link: not the link's name or description, not the li's name", () => {
+    const hinted = row({ link: h(RowLink, { href: "/players/p1", hint: "Tied for 4th. 1 win behind Ash", children: "Ash" }), children: "x" });
+    expect(hinted).toContain('<span class="sr-only">Ash</span><span aria-hidden="true" title="Tied for 4th. 1 win behind Ash" class="absolute inset-0 rounded-[inherit]"></span></a>');
+    expect(hinted).not.toMatch(/<a [^>]*title=/);
+    expect(hinted).not.toMatch(/<li[^>]* title=/);
   });
 
   it("sets its height per tier of the board's width, as literal classes Tailwind can see", () => {

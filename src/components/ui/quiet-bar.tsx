@@ -31,15 +31,18 @@ const FRAME: Record<Variant, string> = {
   row: "pointer-events-none absolute inset-x-0 bottom-0 flex h-0.5 gap-px @min-[36rem]/list:static @min-[36rem]/list:h-1.5 @min-[36rem]/list:overflow-hidden @min-[36rem]/list:rounded-full",
 };
 
-/** filled ≈7:1 on the surface inline (≈5.5:1 as the thinner inset line); empty a faint track; missing outlined (inline) or absent (inset). */
-const SEGMENT: Record<Variant, Record<SegmentState, string>> = {
-  inline: { filled: "bg-fg/65", empty: "bg-fg/12", missing: "ring-1 ring-inset ring-fg/25" },
-  inset: { filled: "bg-fg/55", empty: "bg-fg/15", missing: "" },
-  row: {
-    filled: "bg-fg/55 @min-[36rem]/list:bg-fg/65",
-    empty: "bg-fg/15 @min-[36rem]/list:bg-fg/12",
-    missing: "@min-[36rem]/list:ring-1 @min-[36rem]/list:ring-inset @min-[36rem]/list:ring-fg/25",
-  },
+/** A segmented bar's children: each takes an equal share of the frame, its full height. */
+const SEGMENTS = "[&>*]:h-full [&>*]:min-w-0 [&>*]:flex-1";
+
+/**
+ * The segments' look by their data-state, set once on the frame (not repeated on 20 segments a row):
+ * filled ≈7:1 on the surface inline (≈5.5:1 as the thinner inset line); empty a faint track; missing
+ * outlined (inline) or absent (inset).
+ */
+const SEGMENT: Record<Variant, string> = {
+  inline: "[&>[data-state=filled]]:bg-fg/65 [&>[data-state=empty]]:bg-fg/12 [&>[data-state=missing]]:ring-1 [&>[data-state=missing]]:ring-inset [&>[data-state=missing]]:ring-fg/25",
+  inset: "[&>[data-state=filled]]:bg-fg/55 [&>[data-state=empty]]:bg-fg/15",
+  row: "[&>[data-state=filled]]:bg-fg/55 @min-[36rem]/list:[&>[data-state=filled]]:bg-fg/65 [&>[data-state=empty]]:bg-fg/15 @min-[36rem]/list:[&>[data-state=empty]]:bg-fg/12 @min-[36rem]/list:[&>[data-state=missing]]:ring-1 @min-[36rem]/list:[&>[data-state=missing]]:ring-inset @min-[36rem]/list:[&>[data-state=missing]]:ring-fg/25",
 };
 
 const whole = (n: number | undefined, fallback: number) => (n !== undefined && Number.isFinite(n) ? Math.round(n) : fallback);
@@ -80,9 +83,9 @@ export function QuietBar({
   }
   const bar = barSegments(value, segments, known);
   return (
-    <span aria-hidden data-testid={testId} data-segments={bar.states.length} data-filled={bar.filled} data-known={bar.known} className={cn(FRAME[variant], className)}>
+    <span aria-hidden data-testid={testId} data-segments={bar.states.length} data-filled={bar.filled} data-known={bar.known} className={cn(FRAME[variant], SEGMENTS, SEGMENT[variant], className)}>
       {bar.states.map((state, i) => (
-        <span key={i} data-state={state} className={cn("h-full min-w-0 flex-1", SEGMENT[variant][state])} />
+        <span key={i} data-state={state} />
       ))}
     </span>
   );

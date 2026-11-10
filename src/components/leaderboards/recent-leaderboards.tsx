@@ -124,8 +124,11 @@ function Who({ p, you = false, size = "md", sub, className, nameClassName }: { p
   starts: the tracks' minimums, the gaps and the padding come to 35.25rem against 36, 56.75rem
   against 58.
     narrow  place · picture · name · win rate, then the second line under the name and rate:
-            record · dates · gap; the bar is the 2px line along the row's foot.
-    medium  place · picture · name over the dates · bar and win rate · record · gap.
+            record · dates, and the gap at the line's right end, under the win rate (on a line of
+            its own, still at the right, when it does not fit); the bar is the 2px line along the
+            row's foot.
+    medium  place · picture · name over the dates (from 40rem the main role's name before them)
+            · bar and win rate · record · gap.
     wide    place · picture · name · bar and win rate · record · gap · main role · dates. The name
             stops at 18rem; the bar takes the rest.
 */
@@ -144,8 +147,9 @@ const HEADS = (
     <DataHead className="col-span-2">Member</DataHead>
     <DataHead>Win rate</DataHead>
     <DataHead align="end">Record</DataHead>
-    {/* "To the place above" needs 9.1rem in label-caps: the medium gap column has 6.5rem. */}
-    <DataHead>
+    {/* "To the place above" needs 9.1rem in label-caps: the medium gap column has 6.5rem. The
+        padding sets the gap apart from the record before it (20px on a medium board, 16px on a wide one). */}
+    <DataHead className="@min-[36rem]/list:pl-2 @min-[58rem]/list:pl-1">
       <span className="@min-[58rem]/list:hidden">Gap</span>
       <span className="hidden @min-[58rem]/list:inline">To the place above</span>
     </DataHead>
@@ -260,8 +264,6 @@ function FormRowItem({ r, p, tie, window }: { r: FormRow; p: BoardPlayer; tie: T
       data-wins={r.wins}
       data-you={r.you || undefined}
       data-tied={r.tied || undefined}
-      // The row's hint, shown anywhere on it (under the link no cell's own title shows): the tie, the gap's sentence, the role's games.
-      title={[tieWords, r.note, roleTitle].filter(Boolean).join(". ")}
       own={r.you}
       density={{ narrow: "two-line", medium: "regular", wide: "dense" }}
       lead={
@@ -270,30 +272,44 @@ function FormRowItem({ r, p, tie, window }: { r: FormRow; p: BoardPlayer; tie: T
           <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="md" className={cn("col-[2/3] justify-self-start", BOTH_LINES)} />
         </>
       }
-      link={p.profileHref ? <RowLink href={p.profileHref}>{p.name}</RowLink> : null}
+      // The row's tooltip, shown anywhere on it (under the link no cell's own title shows): the tie, the gap's sentence, the role's games.
+      // The public board has no link, so no row tooltip: its cells keep their own titles.
+      link={
+        p.profileHref ? (
+          <RowLink href={p.profileHref} hint={[tieWords, r.note, roleTitle].filter(Boolean).join(". ")}>
+            {p.name}
+          </RowLink>
+        ) : null
+      }
       figures={
         <>
           <QuietBar value={r.wins} segments={window.games} known={r.games} variant="row" testId="form-bar" className="col-[3/-1] @min-[36rem]/list:col-[4/5] @min-[36rem]/list:row-[1/span_2] @min-[36rem]/list:mr-12 @min-[36rem]/list:self-center @min-[58rem]/list:row-[1/2]" />
           <FigureCell testId="form-win-rate" size="lg" emphasis="strong" label=" win rate" className="col-[4/5] row-[1/2] @min-[36rem]/list:row-[1/span_2] @min-[36rem]/list:min-w-10 @min-[36rem]/list:self-center @min-[36rem]/list:justify-self-end @min-[36rem]/list:text-base @min-[58rem]/list:row-[1/2]">
             {r.winRate}%
           </FigureCell>
-          {/* The second line under 36rem; from 36rem its cells are the row's own (display: contents), still in its small muted text. */}
+          {/* The second line under 36rem; from 36rem its cells are the row's own (display: contents), still in its small muted text.
+              Under 36rem its parts may wrap inside (only one wider than the whole line does, with large text), so none runs past the board's edge. */}
           <span data-testid="form-meta" className="col-[3/-1] row-[2/3] flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5 text-xs tabular-nums text-fg-muted @min-[36rem]/list:contents">
-            <FigureCell testId="form-record" spoken={`${r.wins} wins, ${r.losses} losses`} size={null} align="start" className="whitespace-nowrap @min-[36rem]/list:col-[5/6] @min-[36rem]/list:row-[1/span_2] @min-[36rem]/list:self-center @min-[36rem]/list:text-right @min-[36rem]/list:text-sm @min-[58rem]/list:row-[1/2]">
+            <FigureCell testId="form-record" spoken={`${r.wins} wins, ${r.losses} losses`} size={null} align="start" className="@min-[36rem]/list:col-[5/6] @min-[36rem]/list:row-[1/span_2] @min-[36rem]/list:self-center @min-[36rem]/list:whitespace-nowrap @min-[36rem]/list:text-right @min-[36rem]/list:text-sm @min-[58rem]/list:row-[1/2]">
               {r.wins}W {r.losses}L
             </FigureCell>
             <span aria-hidden className="@min-[36rem]/list:hidden">
               ·
             </span>
-            <span data-testid="form-dates" className="whitespace-nowrap @min-[36rem]/list:col-[3/4] @min-[36rem]/list:row-[2/3] @min-[36rem]/list:self-start @min-[58rem]/list:col-[8/9] @min-[58rem]/list:row-[1/2] @min-[58rem]/list:self-center @min-[58rem]/list:text-right @min-[58rem]/list:text-sm">
+            <span data-testid="form-dates" className="@min-[36rem]/list:col-[3/4] @min-[36rem]/list:row-[2/3] @min-[36rem]/list:self-start @min-[36rem]/list:whitespace-nowrap @min-[58rem]/list:col-[8/9] @min-[58rem]/list:row-[1/2] @min-[58rem]/list:self-center @min-[58rem]/list:text-right @min-[58rem]/list:text-sm">
+              {/* The main role's name before the dates on a 40–58rem board, where the badge alone was the only sign of it; read once, from form-role. */}
+              {r.role ? (
+                <span aria-hidden className="hidden @min-[40rem]/list:inline @min-[58rem]/list:hidden">
+                  {ROLE_LABELS[r.role.role]}
+                  {" · "}
+                </span>
+              ) : null}
               <span className="sr-only">Games from </span>
               {r.dates}
             </span>
-            <span aria-hidden className={leader ? "hidden" : "@min-[36rem]/list:hidden"}>
-              ·
-            </span>
-            <span title={r.note ?? undefined} className={cn("whitespace-nowrap @min-[36rem]/list:col-[6/7] @min-[36rem]/list:row-[1/span_2] @min-[36rem]/list:self-center @min-[36rem]/list:whitespace-normal @min-[36rem]/list:text-sm @min-[58rem]/list:row-[1/2]", leader && "@max-[36rem]/list:hidden")}>
-              <span aria-hidden data-testid="form-gap" className={r.gap?.kind === "level" ? "font-medium text-fg" : !r.gap ? "text-fg-subtle" : undefined}>
+            {/* The gap at the line's right end, under the win rate: when it does not fit, it takes a line of its own, still at the right, never after a dangling "·". */}
+            <span className={cn("@max-[36rem]/list:ml-auto @min-[36rem]/list:col-[6/7] @min-[36rem]/list:row-[1/span_2] @min-[36rem]/list:self-center @min-[36rem]/list:pl-2 @min-[36rem]/list:text-sm @min-[58rem]/list:row-[1/2] @min-[58rem]/list:pl-1", leader && "@max-[36rem]/list:hidden")}>
+              <span aria-hidden data-testid="form-gap" title={r.note ?? undefined} className={r.gap?.kind === "level" ? "font-medium text-fg" : !r.gap ? "text-fg-subtle" : undefined}>
                 {gapToken(r.gap, window)}
               </span>
               {r.note ? (
@@ -351,7 +367,8 @@ function NotEnoughMember({ n, p, you }: { n: FormView["notEnough"][number]; p: B
       data-player-id={n.playerId}
       className={cn(
         "relative isolate grid grid-cols-(--dl-cols) items-center gap-x-2.5 min-h-16 px-3 py-2",
-        "@min-[36rem]/list:flex @min-[36rem]/list:min-h-10 @min-[36rem]/list:gap-x-2 @min-[36rem]/list:overflow-clip @min-[36rem]/list:rounded-lg @min-[36rem]/list:border @min-[36rem]/list:border-border @min-[36rem]/list:py-1 @min-[36rem]/list:pl-1 @min-[36rem]/list:pr-3 pointer-coarse:@min-[36rem]/list:min-h-11",
+        // The chip's edge is an inset ring, not a border, so the overlay link covers the whole chip: 40px, 44px on touch screens.
+        "@min-[36rem]/list:flex @min-[36rem]/list:min-h-10 @min-[36rem]/list:gap-x-2 @min-[36rem]/list:overflow-clip @min-[36rem]/list:rounded-lg @min-[36rem]/list:ring-1 @min-[36rem]/list:ring-inset @min-[36rem]/list:ring-border @min-[36rem]/list:py-1 @min-[36rem]/list:pl-1 @min-[36rem]/list:pr-3 pointer-coarse:@min-[36rem]/list:min-h-11",
         you && "bg-accent/5",
         p.profileHref ? ROW_STATES : null,
       )}

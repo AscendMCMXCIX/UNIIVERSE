@@ -20,8 +20,8 @@ import { formatOrdinal } from "@/lib/format";
                  children, figures, trail), its height by the board's width (density), your own
                  row's wash and bar, and the hover and pressed states when it is a link;
     RowLink      the row's one link, laid over the whole row (a whole-row target on every device)
-                 and named by the member's name; a control that must stay pressable sits above it
-                 (ROW_CONTROL);
+                 and named by the member's name, its `hint` the row's tooltip; a control that must
+                 stay pressable sits above it (ROW_CONTROL);
     Place        the place: "4=" for a shared place, said "Tied for 4th", with the bracket joining
                  the tied rows; the crown on first place; "–" (Provisional) without one;
     FigureCell   a figure, right-aligned, tabular, never cut, with its own words for screen readers;
@@ -119,11 +119,10 @@ export function densityClasses(density: DensityByWidth): string {
  * One row of a DataList, a grid on the board's columns (--dl-cols). Its cells render in this order,
  * which is also the reading order: your own row's bar, `lead` (the place, the picture), `link` (the
  * row's RowLink, a direct child so it covers the row), `children` (the member), `figures`, `trail`.
- * Cells place themselves on the columns per tier. `title` (through the data attributes) is the
- * row's hint: under the overlay link no cell's own title shows, and a tooltip comes from the
- * nearest ancestor with one, the row.
+ * Cells place themselves on the columns per tier. The row takes no title: under the overlay link no
+ * cell's own title shows, so the row's explanations go in its RowLink's `hint`.
  */
-export function DataRow({ lead, link, children, figures, trail, own = false, density = "regular", align = "center", className, testId, ...rest }: { lead?: React.ReactNode; link?: React.ReactNode; children?: React.ReactNode; figures?: React.ReactNode; trail?: React.ReactNode; /** Your own row: the accent wash and the 2px bar at its left edge. */ own?: boolean; density?: DensityByWidth; align?: "center" | "start"; className?: string; testId?: string; title?: string } & DataAttrs) {
+export function DataRow({ lead, link, children, figures, trail, own = false, density = "regular", align = "center", className, testId, ...rest }: { lead?: React.ReactNode; link?: React.ReactNode; children?: React.ReactNode; figures?: React.ReactNode; trail?: React.ReactNode; /** Your own row: the accent wash and the 2px bar at its left edge. */ own?: boolean; density?: DensityByWidth; align?: "center" | "start"; className?: string; testId?: string } & DataAttrs) {
   return (
     <li className={cn("group/row relative isolate grid grid-cols-(--dl-cols) gap-y-0.5", ROW_GAP_X, ROW_PAD_X, align === "center" ? "items-center content-center" : "items-start content-start", densityClasses(density), own && "bg-accent/5", link ? ROW_STATES : null, className)} data-testid={testId} {...rest}>
       {own ? <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 w-0.5 bg-accent" /> : null}
@@ -139,13 +138,18 @@ export function DataRow({ lead, link, children, figures, trail, own = false, den
 /**
  * The row's one link, over the whole row (RosterRow's): named by its sr-only text (the member's
  * name, so speech control finds it by the visible name), the shared 2px accent ring drawn inside
- * the row, its radius the row's (a chip's). No title: the row carries the hint. It must be a
- * direct child of the row, never inside a positioned cell, or it covers only that cell.
+ * the row, its radius the row's (a chip's). It must be a direct child of the row, never inside a
+ * positioned cell, or it covers only that cell.
+ * `hint` is the row's tooltip (the tie, the gap's sentence, the role's games): an aria-hidden layer
+ * over the link carries it as its title, so it shows anywhere on the row and adds nothing to the
+ * link's name or description. Never put a title on the link itself (it becomes the link's
+ * description, read on Tab) or on the li (it becomes the list item's accessible name).
  */
-export function RowLink({ href, children, prefetch, scroll, className, testId, ...data }: { href: string; children: React.ReactNode; prefetch?: boolean | null; scroll?: boolean; className?: string; testId?: string } & DataAttrs) {
+export function RowLink({ href, children, prefetch, scroll, className, testId, hint, ...data }: { href: string; children: React.ReactNode; prefetch?: boolean | null; scroll?: boolean; className?: string; testId?: string; /** The row's tooltip, shown on hover, never read out (each cell says its own words). */ hint?: string } & DataAttrs) {
   return (
     <Link href={href} prefetch={prefetch} scroll={scroll} className={cn("absolute inset-0 z-[1] rounded-[inherit] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent", className)} data-row-link="" data-testid={testId} {...data}>
       <span className="sr-only">{children}</span>
+      {hint ? <span aria-hidden title={hint} className="absolute inset-0 rounded-[inherit]" /> : null}
     </Link>
   );
 }
@@ -170,7 +174,7 @@ const BRACKET: Record<TiePosition, string> = {
   mid: "top-0 -bottom-px border-r-2 before:absolute before:right-0 before:top-1/2 before:h-0.5 before:w-full before:-translate-y-1/2 before:bg-fg-subtle/55",
   end: "top-0 bottom-[calc(50%-1px)] rounded-br-xs border-b-2 border-r-2",
 };
-const PLACE = "flex min-w-0 items-center justify-end gap-0.5 pr-1 text-sm font-bold tabular-nums";
+const PLACE = "flex min-w-0 items-center justify-end gap-0.5 text-sm font-bold tabular-nums";
 
 /**
  * A row's place, as two direct children of the row (the bracket is positioned on the row's first
@@ -178,12 +182,14 @@ const PLACE = "flex min-w-0 items-center justify-end gap-0.5 pr-1 text-sm font-b
  * for 4th", with its bracket segment; the gold crown on first place (every 1= row has one; on a
  * narrow board a shared first place stacks the crown under "1=", which with the crown is wider than
  * the column); "–" said `unplaced` for a row without a place. The bracket needs a column gap of at
- * least 10px; it takes 4px of it.
+ * least 10px; it takes 4px of it. A tied place's "=" ends 6px from the column's edge (4px from the
+ * bracket's arm, not 2px, so it never reads "4=–"); a shared 1= keeps 4px, since there the crown,
+ * not the "=", meets the bracket, and more would push "1=" and the crown out of a 2.5rem column.
  */
 export function Place({ place, tie = null, crown = false, unplaced = "Provisional", className, testId }: { place: number | null; tie?: TiePosition | null; crown?: boolean; unplaced?: string; className?: string; testId?: string }) {
   if (place === null) {
     return (
-      <span className={cn(PLACE, "text-fg-subtle", className)} data-testid={testId} title={unplaced}>
+      <span className={cn(PLACE, "pr-1 text-fg-subtle", className)} data-testid={testId} title={unplaced}>
         <span aria-hidden>–</span>
         <span className="sr-only">{unplaced}</span>
       </span>
@@ -192,7 +198,7 @@ export function Place({ place, tie = null, crown = false, unplaced = "Provisiona
   const words = tie ? `Tied for ${formatOrdinal(place)}` : null;
   return (
     <>
-      <span className={cn(PLACE, "text-fg", tie && crown && "@max-[36rem]/list:flex-col @max-[36rem]/list:items-end @max-[36rem]/list:justify-center @max-[36rem]/list:gap-0", className)} data-testid={testId} data-tie={tie ?? undefined} title={words ?? undefined}>
+      <span className={cn(PLACE, tie && !crown ? "pr-1.5" : "pr-1", "text-fg", tie && crown && "@max-[36rem]/list:flex-col @max-[36rem]/list:items-end @max-[36rem]/list:justify-center @max-[36rem]/list:gap-0", className)} data-testid={testId} data-tie={tie ?? undefined} title={words ?? undefined}>
         {tie ? (
           <>
             <span aria-hidden>{place}=</span>
@@ -270,15 +276,16 @@ export function DataListSkeleton({ rows = 7, heads = true, surface = "panel", de
     <div aria-hidden>
       <DataList
         surface={surface}
-        columns="[--dl-cols:2rem_2.5rem_minmax(0,1fr)_3rem] @min-[36rem]/list:[--dl-cols:2.5rem_2.5rem_minmax(0,1fr)_minmax(0,1fr)_4rem]"
+        columns="[--dl-cols:2rem_2.5rem_minmax(0,1fr)_3rem] @min-[36rem]/list:[--dl-cols:2.5rem_2.5rem_minmax(0,1fr)_minmax(0,1fr)_4rem] @min-[58rem]/list:[--dl-cols:3rem_2.5rem_minmax(0,1fr)_minmax(0,1fr)_4rem]"
         headsClassName="hidden @min-[36rem]/list:grid"
         heads={
           heads ? (
+            // Each block takes the whole line of the label-caps headings it stands for (1lh), so the headings row is the board's height.
             <>
-              <Skeleton className="h-2.5 w-3 justify-self-end" />
-              <Skeleton className="col-span-2 h-2.5 w-14" />
-              <Skeleton className="h-2.5 w-12" />
-              <Skeleton className="h-2.5 w-10 justify-self-end" />
+              <Skeleton className="my-[calc((1lh_-_0.625rem)/2)] h-2.5 w-3 justify-self-end" />
+              <Skeleton className="col-span-2 my-[calc((1lh_-_0.625rem)/2)] h-2.5 w-14" />
+              <Skeleton className="my-[calc((1lh_-_0.625rem)/2)] h-2.5 w-12" />
+              <Skeleton className="my-[calc((1lh_-_0.625rem)/2)] h-2.5 w-10 justify-self-end" />
             </>
           ) : undefined
         }
@@ -287,7 +294,8 @@ export function DataListSkeleton({ rows = 7, heads = true, surface = "panel", de
           {Array.from({ length: rows }, (_, i) => (
             <DataRow key={i} density={density}>
               <Skeleton className="col-[1/2] row-[1/span_2] h-4 w-4 self-center justify-self-end @min-[58rem]/list:row-[1/2]" />
-              <Skeleton className="col-[2/3] row-[1/span_2] size-10 self-center rounded-full @min-[58rem]/list:row-[1/2]" />
+              {/* rounded-full! over Skeleton's own rounded-md (cn joins classes, it does not merge them). */}
+              <Skeleton className="col-[2/3] row-[1/span_2] size-10 self-center rounded-full! @min-[58rem]/list:row-[1/2]" />
               <Skeleton className="col-[3/4] row-[1/2] h-4 w-[min(8rem,100%)]" />
               <Skeleton className="col-[3/-1] row-[2/3] h-3 w-[min(10rem,100%)] @min-[36rem]/list:col-[3/4] @min-[58rem]/list:hidden" />
               <Skeleton className="col-[4/5] row-[1/2] hidden h-1.5 w-full self-center @min-[36rem]/list:row-[1/span_2] @min-[36rem]/list:block @min-[58rem]/list:row-[1/2]" />
