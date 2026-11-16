@@ -55,6 +55,8 @@ export const UNKNOWN_WORDS: Record<UnknownCooldownReason, string> = {
   "two-abilities-in-ddragon": "Two abilities share this slot in Riot's data",
   "ranks-mismatch-in-ddragon": "Riot's data doesn't give one number per rank",
   "known-wrong-in-ddragon": "Riot's number for this ability is known to be wrong",
+  "several-abilities-in-ddragon": "Several abilities share this slot in Riot's data",
+  "picked-up-spell-in-ddragon": "This slot casts spells picked up in a game",
   unreadable: "Riot's cooldown data can't be read",
   "no-data": "No cooldown data held yet",
 };

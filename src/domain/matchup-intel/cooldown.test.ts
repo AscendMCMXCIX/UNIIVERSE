@@ -112,6 +112,21 @@ describe("the decision table, row by row", () => {
     expect(cooldownDisplay(ability({ id: "RengarQ", cooldown: [6, 5.5, 5, 4.5, 4], charges: null }), undefined)).toEqual({ kind: "per-rank", seconds: [6, 5.5, 5, 4.5, 4], starts: null, from: "ddragon" });
   });
 
+  it("8. no notes, a slot Riot's own words describe as something no one number fits: charges, several abilities, picked-up spells", () => {
+    // Taric's Q stores charges by Riot's own tooltip ("Max Charges"), though maxammo is -1: its 3 s is not the wait for one.
+    expect(cooldownDisplay(ability({ id: "TaricQ", name: "Starlight's Touch", cooldown: [3, 3, 3, 3, 3] }), undefined)).toEqual({ kind: "unknown", reason: "charges-in-ddragon" });
+    // Aphelios's Q is one slot for five weapon abilities: its 9 s at six ranks is no one of them's.
+    expect(cooldownDisplay(ability({ id: "ApheliosQ_ClientTooltipWrapper", name: "Weapon Abilites", maxRank: 6, cooldown: [9, 9, 9, 9, 9, 9] }), undefined)).toEqual({ kind: "unknown", reason: "several-abilities-in-ddragon" });
+    // Zoe's W casts the spells she picks up: its 0.25 s is not their cooldown.
+    expect(cooldownDisplay(ability({ slot: "W", id: "ZoeW", name: "Spell Thief", cooldown: [0.25, 0.25, 0.25, 0.25, 0.25] }), undefined)).toEqual({ kind: "unknown", reason: "picked-up-spell-in-ddragon" });
+    // Each pinned to the array checked: a different one is new data, which the other rules judge.
+    expect(cooldownDisplay(ability({ id: "TaricQ", cooldown: [4, 4, 4, 4, 4] }), undefined)).toEqual({ kind: "per-rank", seconds: [4, 4, 4, 4, 4], starts: null, from: "ddragon" });
+    expect(cooldownDisplay(ability({ id: "ApheliosQ_ClientTooltipWrapper", maxRank: 6, cooldown: [8, 8, 8, 8, 8, 8] }), undefined)).toEqual({ kind: "per-rank", seconds: [8, 8, 8, 8, 8, 8], starts: null, from: "ddragon" });
+    expect(cooldownDisplay(ability({ slot: "W", id: "ZoeW", cooldown: [0.5, 0.5, 0.5, 0.5, 0.5] }), undefined)).toMatchObject({ kind: "per-rank", from: "ddragon" });
+    // Kled's Q stays Riot's own: its leveltip calls the array its cooldown, and Data Dragon holds only the ability it names.
+    expect(cooldownDisplay(ability({ id: "KledQ", name: "Bear Trap on a Rope", cooldown: [11, 10, 9, 8, 7] }), undefined)).toEqual({ kind: "per-rank", seconds: [11, 10, 9, 8, 7], starts: null, from: "ddragon" });
+  });
+
   it("9. no notes, everything else: Riot's array per rank, with no claim about when it starts", () => {
     expect(cooldownDisplay(ability({}), undefined)).toEqual({ kind: "per-rank", seconds: [8, 7, 6, 5, 4], starts: null, from: "ddragon" });
     // maxammo "0" is stored as no charges, and the array is the cooldown (Qiyana, Xerath, Malzahar W, Nidalee W, Yuumi E).

@@ -412,6 +412,13 @@ export type UnknownCooldownReason =
   | "ranks-mismatch-in-ddragon"
   /** The evidence shows Data Dragon's number is not this ability's cooldown (the exception list in cooldown.ts). */
   | "known-wrong-in-ddragon"
+  /**
+   * One slot for several abilities, which Riot's own description lists (Aphelios's Q: one ability
+   * for each of his five weapons), so its one array is no single ability's (the exception list).
+   */
+  | "several-abilities-in-ddragon"
+  /** The slot casts spells picked up in a game (Zoe's W, by Riot's own tooltip), so its array is not their cooldown (the exception list). */
+  | "picked-up-spell-in-ddragon"
   /** A value that is not a number of seconds. */
   | "unreadable"
   /** No record of the ability is held. */

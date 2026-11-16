@@ -15,7 +15,9 @@ import type { AbilityChange, AbilityModifiers, AbilityNotes, CooldownDisplay, Co
     transforms ("To the Skies! / Shock Blast"), or the two parts of an ability cast again
     ("Cunning Sweep / Sundering Slam"), which Data Dragon does not tell apart;
   - an array without one number per rank belongs to no rank;
-  - a few arrays are known to be wrong (NOT_THE_COOLDOWN, each with its evidence).
+  - a few arrays the evidence shows are not the cooldown a player waits for (NOT_THE_COOLDOWN, each
+    with its evidence): known to be wrong, the wait between casts of an ability that holds charges,
+    one slot for several abilities, or a slot that casts spells picked up in a game.
   Curated notes, checked by a person against the wiki, say what the array cannot, for as long as
   Riot's record still matches the one they were checked against. Once it moves, the line shows only
   what Riot's data supports, and the notes are shown as checked, flagged. A number is never
@@ -55,6 +57,21 @@ const NOT_THE_COOLDOWN: ReadonlyMap<string, { cooldown: readonly number[]; reaso
   // Gangplank's E (Powder Keg): 0 at every rank; it holds charges, regained every 17 to 13 s, with
   // a static 0.5 s between kegs (Template:Data Gangplank/Powder Keg, revision 4091400).
   ["GangplankE", { cooldown: [0, 0, 0, 0, 0], reason: "charges-in-ddragon" }],
+  // Taric's Q (Starlight's Touch): 3 s at every rank, with maxammo -1, yet it stores charges: Riot's
+  // own tooltip in Data Dragon 16.22.1 says it gains a stack (up to {{ maxcharges }}) every
+  // {{ stackcooldown }} seconds and its active consumes them all, and its leveltip's first label is
+  // "Max Charges". The time to regain one is a placeholder, so it is not in Riot's data.
+  ["TaricQ", { cooldown: [3, 3, 3, 3, 3], reason: "charges-in-ddragon" }],
+  // Aphelios's Q ("Weapon Abilites", id ApheliosQ_ClientTooltipWrapper): 9 s at each of its 6 ranks
+  // for one slot that holds five abilities. Riot's own description in Data Dragon 16.22.1: "Aphelios
+  // has 5 different activated abilities, based on his main-hand weapon"; its tooltip holds only a
+  // placeholder and its leveltip nothing. The 9 s is no one of them's.
+  ["ApheliosQ_ClientTooltipWrapper", { cooldown: [9, 9, 9, 9, 9, 9], reason: "several-abilities-in-ddragon" }],
+  // Zoe's W (Spell Thief): 0.25 s at every rank for a slot whose active casts what she picks up.
+  // Riot's own tooltip in Data Dragon 16.22.1: enemies drop spell shards, and "Zoe can pick up this
+  // shard to cast that ability once"; its description says she casts them "once herself". The 0.25 s
+  // is not the cooldown of the spells it casts.
+  ["ZoeW", { cooldown: [0.25, 0.25, 0.25, 0.25, 0.25], reason: "picked-up-spell-in-ddragon" }],
 ]);
 
 /**

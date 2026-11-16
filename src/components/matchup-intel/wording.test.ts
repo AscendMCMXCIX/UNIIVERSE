@@ -78,7 +78,7 @@ describe("the cooldown line", () => {
   });
 
   it("says plainly why there is no number, for every reason, never a guess", () => {
-    const reasons: UnknownCooldownReason[] = ["passive-not-in-ddragon", "charges-in-ddragon", "no-number-in-ddragon", "two-abilities-in-ddragon", "ranks-mismatch-in-ddragon", "known-wrong-in-ddragon", "unreadable", "no-data"];
+    const reasons: UnknownCooldownReason[] = ["passive-not-in-ddragon", "charges-in-ddragon", "no-number-in-ddragon", "two-abilities-in-ddragon", "ranks-mismatch-in-ddragon", "known-wrong-in-ddragon", "several-abilities-in-ddragon", "picked-up-spell-in-ddragon", "unreadable", "no-data"];
     for (const reason of reasons) {
       const w = cooldownWords({ kind: "unknown", reason });
       expect(w.known, reason).toBe(false);
@@ -92,6 +92,8 @@ describe("the cooldown line", () => {
       "two-abilities-in-ddragon": "Two abilities share this slot in Riot's data",
       "ranks-mismatch-in-ddragon": "Riot's data doesn't give one number per rank",
       "known-wrong-in-ddragon": "Riot's number for this ability is known to be wrong",
+      "several-abilities-in-ddragon": "Several abilities share this slot in Riot's data",
+      "picked-up-spell-in-ddragon": "This slot casts spells picked up in a game",
       unreadable: "Riot's cooldown data can't be read",
       "no-data": "No cooldown data held yet",
     });
