@@ -337,6 +337,13 @@ ones lazily, and keep uploaded brand images small ([HOSTING_USAGE.md](HOSTING_US
     the same at today's date as well: a few tests fail under any faked clock, because rows written
     a moment apart get the same time.
   - What stays tied to the date is the app's ranked year (`src/domain/ranked-year.ts`, 2026 only
-    until Riot publishes 2027's dates): Ranked progress names a season, and draws readings, only
-    inside a ranked year the app knows. `e2e/progress.spec.ts` takes that year from `RANKED_YEAR`,
-    so it follows the 2027 change instead of naming a year, and passes in 2027 only with it.
+    until Riot publishes 2027's dates). Ranked progress names a season, and draws readings, only
+    inside a ranked year the app knows: from 1 January 2027 it names none. Match History's LP
+    marks are worked out only for games on a patch of a ranked year the app knows (16.x,
+    `rankedSeasonOfPatch`), and the demo's games are on its season's patches: from the demo's
+    Season 2027 (Riot's first 2027 patch in CI, 1 January on the offline fixture) no card has one.
+    So these browser tests pass in 2027 only with the 2027 change, which has to know 2027's dates
+    and its 17.x patches: `e2e/progress.spec.ts` (it takes the year from `RANKED_YEAR` instead of
+    naming one), the three tests of `e2e/match-lp.spec.ts` and `e2e/webkit.spec.ts`'s LP dash test
+    (the WebKit workflow, run by hand). None names a year, so none changes now; the 2027 change
+    runs them again.
