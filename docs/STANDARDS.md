@@ -61,10 +61,12 @@ Tailwind classes they generate. `src/app/design-tokens.test.ts` refuses font siz
 arbitrary values that equal a token (`text-[0.6875rem]` is `text-2xs`), Tailwind's names for the
 panel and card radii, colours written as hex in a class, easing curves that are not tokens,
 uppercase labels spaced other than `tracking-label`, a safe-area padding (`pb-safe`, `pt-safe` and
-their `-N` forms) beside another padding for the same edge, and an arbitrary
+their `-N` forms) beside another padding for the same edge, an arbitrary
 `max(…, env(safe-area-inset-…))` top or bottom padding that `pt-safe-N` or `pb-safe-N` writes
-(RESPONSIVE.md → Safe areas). SVG charts drawn 1:1 in px keep their text in px, so it fits the
-chart's fixed gutters; the test lists them.
+(RESPONSIVE.md → Safe areas), and the brand blue as a glow or shadow colour (`shadow-accent`, a
+shadow made of `var(--color-accent)` or `shadow-(color:--color-accent)`: shadows are neutral and
+violet carries the light, DESIGN_SYSTEM.md §4). SVG charts drawn 1:1 in px keep their text in px,
+so it fits the chart's fixed gutters; the test lists them.
 
 **Colour** (semantic, never raw values). The ground is a deep ink with a faint indigo undertone,
 each surface one visible step lighter than the one below it. The identity is a pair: the brand
@@ -230,8 +232,10 @@ count in a tight space `formatCompactCount` ("45K"). A relative time in a client
 
 Every image from another host has a designed stand-in (initials, a tier dot, a plain tile) and
 never shows a broken-image glyph: use `RemoteImage` or `useImageFailure`, which also catch images
-that fail before the page is interactive. Give images their width and height, load below-the-fold
-ones lazily, and keep uploaded brand images small ([HOSTING_USAGE.md](HOSTING_USAGE.md)).
+that fail before the page is interactive. A missing picture and a failed one never look alike: a
+Riot item, spell or rune icon (`IconImg`) is a plain tile where the slot is empty and the icon's
+initials, named in its title, where its image failed. Give images their width and height, load
+below-the-fold ones lazily, and keep uploaded brand images small ([HOSTING_USAGE.md](HOSTING_USAGE.md)).
 
 ## Responsive and accessible
 

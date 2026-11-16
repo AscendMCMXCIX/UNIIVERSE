@@ -42,13 +42,20 @@
     a full-width target at least 48px tall reached by a tap where it is drawn, the screen itself has
     the focus, and Sign out is in view. Tablet and desktop: the account menu opens on the first tap or
     click on its avatar or tile, made as soon as it is on screen.
+  - Team Overview (November 2026), on whatever lineup production has: at 1440 the header at most
+    24px under the section tabs with the lineup and its bench inside the window; on the phone the
+    first lineup card above the tab bar; the bench listing exactly the roles that have a substitute.
+    A fact whose precondition does not hold (no lineup five across, no tab bar) passes as not
+    applicable, with the reason.
   - All Champions (#178): compact rows, sorted by games, no heading cut short.
   - settings: the picture and display-name help name the public team page, and Settings never
     mentions a Public profile switch (retired; true or false only).
   - games (#178): Team Matches opens a game under its card (no window), with ?match= in the address;
     a copied link opens it; Back returns to it; the keyboard toggles it; "Close this game" closes it
-    and keeps the focus on the card. Match History opens games under their cards; its Encounters
-    view and the champion window still open.
+    and keeps the focus on the card. Match History opens games under their cards; at 1440 the
+    first three cards' CS totals and damage shares end before the next column (the build or the
+    teams), and a copy of a card with the widest K/D/A and the longest champion names stays level
+    with it and keeps the names whole; its Encounters view and the champion window still open.
   - accessibility (#173): axe (WCAG 2.1 A and AA, plus label-content-name-mismatch) on the main pages
     at every width, with a game open, and in the champion window: no serious or critical violation.
   - every page at every width: it loads signed in, no sideways scroll, no page error, no app console
@@ -478,6 +485,75 @@ async function accountMenuFirstTap(page, kind, trigger) {
 }
 
 /**
+ * Team Overview's layout facts (docs/LIVE_VALIDATION.md, "What it checks"), robust to production's
+ * real lineup (an open role, no substitutes): a fact whose precondition does not hold passes as
+ * "not applicable", with the reason. Only positions, counts and role names are reported.
+ * - desktop (1440 × 900, the sidebar open): five across, the team's header sits at most 24px under
+ *   the section tabs, and the lineup with its bench ends inside the window (the cards take the
+ *   height the window leaves them, less the account's own action cards above the tabs);
+ * - phone (390 × 844): the first lineup card ends above the tab bar;
+ * - every width: the bench lists exactly the roles that have a substitute: a button for each role
+ *   whose card turns to one, an entry without a control only for a role nobody starts in, and
+ *   nothing for a role whose starter has none.
+ */
+async function teamFacts(page, kind) {
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(300);
+  const f = await page.evaluate(() => {
+    const q = (s) => document.querySelector(s);
+    const shown = (el) => !!el && getComputedStyle(el).display !== "none" && el.getBoundingClientRect().height > 0;
+    const cells = [...document.querySelectorAll("[data-testid=lineup-cell]")].map((c) => c.getBoundingClientRect());
+    const bench = q("[data-testid=lineup-bench]");
+    const tabs = q("[data-testid=team-tabs]");
+    const header = q("[data-testid=team-header]");
+    const nav = [...document.querySelectorAll("nav[aria-label=Primary]")].find(shown);
+    return {
+      scrollY: Math.round(scrollY),
+      window: innerHeight,
+      cells: cells.length,
+      rows: new Set(cells.map((c) => Math.round(c.top))).size,
+      lineupEnd: cells.length ? Math.round(Math.max(...cells.map((c) => c.bottom))) : null,
+      benchEnd: shown(bench) ? Math.round(bench.getBoundingClientRect().bottom) : null,
+      headerGap: shown(tabs) && header ? Math.round(header.getBoundingClientRect().top - tabs.getBoundingClientRect().bottom) : null,
+      firstCardEnd: cells[0] ? Math.round(cells[0].bottom) : null,
+      tabBarTop: nav ? Math.round(nav.getBoundingClientRect().top) : null,
+      faces: document.querySelectorAll("[data-testid^=lineup-sub-]").length,
+      bench: !!bench,
+      roles: ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"].map((role) => ({
+        role,
+        starter: !!q(`[data-testid=lineup-row-${role}][data-player-id]`),
+        turns: !!q(`[data-testid=lineup-sub-${role}]`),
+        entry: q(`[data-testid=lineup-bench] [data-testid=bench-${role}]`)?.tagName.toLowerCase() ?? null,
+      })),
+    };
+  });
+  if (kind === "desktop") {
+    const name = "1440: the Team header sits at most 24px under the section tabs and the lineup plus bench end inside the window";
+    if (f.cells !== 5 || f.rows !== 1) check("team", name, "PASS", `not applicable: the lineup is not five across here (${f.cells} cards in ${f.rows} rows)`);
+    else if (f.headerGap === null) check("team", name, "PASS", "not applicable: no section tabs above the header");
+    else {
+      const end = (f.benchEnd ?? f.lineupEnd) + f.scrollY;
+      pass("team", name, f.headerGap <= 24 && end <= f.window + 1, { headerGap: f.headerGap, end, window: f.window, bench: f.benchEnd !== null });
+    }
+  }
+  if (kind === "phone") {
+    const name = "390x844 (the live check's phone): the first lineup card ends above the tab bar";
+    if (f.tabBarTop === null || f.firstCardEnd === null) check("team", name, "PASS", `not applicable: ${f.tabBarTop === null ? "no tab bar shown" : "no lineup card"}`);
+    else pass("team", name, f.firstCardEnd + f.scrollY <= f.tabBarTop, { firstCardEnd: f.firstCardEnd + f.scrollY, tabBarTop: f.tabBarTop });
+  }
+  const name = `${kind}: the bench lists exactly the roles that have a substitute`;
+  if (!f.bench) {
+    if (f.faces === 0) check("team", name, "PASS", "not applicable: no role has a substitute, and no bench is drawn");
+    else pass("team", name, false, { faces: f.faces, bench: false });
+    return;
+  }
+  // A card that turns has a substitute: its entry is the button that turns it. A role nobody starts
+  // in may list its substitute without a control; a starter without a substitute has no entry.
+  const wrong = f.roles.filter((r) => (r.turns ? r.entry !== "button" : r.starter ? r.entry !== null : r.entry === "button")).map((r) => `${r.role}: ${r.turns ? "turns" : r.starter ? "no substitute" : "open"}, entry ${r.entry ?? "none"}`);
+  pass("team", name, wrong.length === 0, { listed: f.roles.filter((r) => r.entry).map((r) => r.role), wrong });
+}
+
+/**
  * Settings says who sees a member's picture and display name: teammates, and the public team page
  * while they are in the lineup or a substitute. The Public profile switch it once named is gone
  * (19 Oct 2026; docs/UNIIVERSE_TECHNICAL_HANDOVER.md §C4). Only true or false is reported.
@@ -667,6 +743,61 @@ async function matchHistory(page, log, kind, playerId) {
   if (!(await visit(page, log, kind, "match-history", path, { fullPage: false }))) return;
   const card = page.getByTestId("match-card").first();
   if (!(await card.waitFor({ timeout: 20_000 }).then(() => true, () => false))) return warn("games", `${kind}: Match History lists no games`, path);
+  if (kind === "desktop") {
+    // A wide card's figures never run under the next column (the build, or the teams where the
+    // list has no room for the build): how far each total or share ends before it, in px (negative is clear).
+    const overruns = await page.evaluate(() =>
+      [...document.querySelectorAll("[data-testid=match-card]")].slice(0, 3).map((c) => {
+        const end = (e) => {
+          const range = document.createRange();
+          range.selectNodeContents(e);
+          return range.getBoundingClientRect().right;
+        };
+        const cs = c.querySelector("[data-testid=match-cs]");
+        const damage = c.querySelector("[data-testid=match-damage]");
+        if (!cs || !damage) return null;
+        // The next column: past what takes no room in the row, hidden or out of flow (a build that
+        // was not recorded leaves only its screen-reader note, a 1px box at the row's start).
+        const inRow = (e) => e.getBoundingClientRect().width >= 0.5 && !["absolute", "fixed"].includes(getComputedStyle(e).position);
+        let next = cs.parentElement.nextElementSibling;
+        while (next && !inRow(next)) next = next.nextElementSibling;
+        return next ? Math.round(Math.max(end(cs), end(damage)) - next.getBoundingClientRect().left) : null;
+      }),
+    );
+    const measured = overruns.filter((x) => x !== null);
+    pass("games", "1440: on the first three cards the CS total and the damage share end before the next column", measured.length > 0 && measured.every((x) => x <= 0), overruns);
+    // Real games go further than most pages show: the widest K/D/A ("10 / 10 / 10", every K/D/A
+    // of three two-digit numbers, digits being tabular) and the longest champion names ("Nunu &
+    // Willump" on two lines, the one-word "Heimerdinger" on one). The first card with both teams
+    // is copied with them, the copy going into the list beside it so it takes the cards' columns,
+    // and removed in the same step, before anything is drawn: how far the copy's teams start from
+    // the card's, in px, and whether each name is cut. Null without a card that shows its teams.
+    const extremes = await page.evaluate(async () => {
+      await document.fonts.ready;
+      const item = [...document.querySelectorAll("[data-testid=match-item]")].find((li) => li.querySelector("[data-testid=match-teams]") && li.querySelector("[data-testid=match-kda]") && li.querySelector("[data-testid=match-champion]"));
+      if (!item) return null;
+      const teams = (li) => li.querySelector("[data-testid=match-teams]").getBoundingClientRect().left;
+      const out = { shift: [], cut: [] };
+      for (const name of ["Nunu & Willump", "Heimerdinger"]) {
+        const copy = item.cloneNode(true);
+        copy.removeAttribute("id");
+        copy.querySelector("[data-testid=match-kda]").textContent = "10 / 10 / 10";
+        const champion = copy.querySelector("[data-testid=match-champion]");
+        champion.textContent = name;
+        item.after(copy);
+        try {
+          out.shift.push(Math.round(Math.abs(teams(copy) - teams(item))));
+          // scrollWidth and scrollHeight are whole pixels: a cut name overflows by far more than one.
+          out.cut.push(champion.scrollWidth > champion.clientWidth + 1 || champion.scrollHeight > champion.clientHeight + 1);
+        } finally {
+          copy.remove();
+        }
+      }
+      return out;
+    });
+    if (!extremes) warn("games", "1440: no card on the first page shows its teams, so the widest K/D/A and the longest names were not tried", path);
+    else pass("games", "1440: a card with the widest K/D/A and the longest champion names stays level with the others and keeps the names whole", extremes.shift.every((x) => x <= 1) && extremes.cut.every((x) => !x), extremes);
+  }
   if (kind === "phone") await phoneGame(page, kind, "Match History", "match-history", () => card.click({ position: { x: 24, y: 16 } }));
   else {
     await card.click({ position: { x: 24, y: 16 } });
@@ -721,6 +852,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
     if (await visit(page, log, kind, "team", "/team")) {
       playerId ??= await page.locator("[data-testid^=lineup-row-][data-player-id]").first().getAttribute("data-player-id").catch(() => null);
       await axe(page, kind, "team");
+      await teamFacts(page, kind);
     }
   });
   await guarded(kind, "players", async () => {
