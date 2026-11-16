@@ -86,10 +86,18 @@ function PickerBody({ slot, champions, selected, recent, curated, curatedTitle, 
   return (
     <div className="space-y-4">
       {/* The search stays at the top of the window while the roster scrolls under it (not in a
-          short window, which scrolls as one under its own pinned title). The clear button sits
-          beside the label, not in it, so the field's name stays its own once something is typed;
-          it covers the field's right end, 44px square like the field is tall. */}
-      <div className="sticky top-0 z-10 -mx-4 bg-bg-elevated px-4 py-1 sm:-mx-6 sm:px-6 short:static">
+          short window, which scrolls as one under its own pinned title). Its band covers the
+          window body's top padding too (pulled up over it, and pinned at the body's edge), so no
+          strip of portraits shows above it while the roster scrolls. The clear button sits beside
+          the label, not in it, so the field's name stays its own once something is typed; it covers
+          the field's right end, 44px square like the field is tall.
+
+          Not the shared SearchInput, on purpose: this field is 16px at every width (a tablet's
+          Safari zooms into a smaller one too, and this window opens on touch screens of any size),
+          its clear button is 44px with a mouse as well and gives the focus back to the field, and
+          Escape clears what was typed before it closes the window. SearchInput is 14px and 36px
+          from md with a mouse, as the app's other lists are. */}
+      <div className="sticky -top-4 z-10 -mx-4 -mt-4 bg-bg-elevated px-4 pb-1 pt-5 sm:-top-5 sm:-mx-6 sm:-mt-5 sm:px-6 sm:pt-6 short:static">
         <div className="relative">
           <label className="block">
             <span className="sr-only">{slot === "you" ? "Search for your champion by name" : "Search for the enemy by name"}</span>
@@ -142,12 +150,15 @@ function PickerBody({ slot, champions, selected, recent, curated, curatedTitle, 
           ) : null}
         </div>
       </div>
+      {/* What a search found, said as it is typed. The live region is there from the window's
+          opening, empty until something is typed: one created with its first words is often not
+          read. */}
+      <p className={typed ? "text-sm text-fg-muted" : "sr-only"} aria-live="polite" data-testid="matchup-picker-count">
+        {typed ? (results.length ? `${results.length} ${results.length === 1 ? "champion" : "champions"} found` : `No champion matches “${query.trim()}”.`) : ""}
+      </p>
       <AfterOpen fallback={<GridSkeleton />}>
         {typed ? (
           <section aria-label="Search results" className="space-y-2">
-            <p className="text-sm text-fg-muted" aria-live="polite" data-testid="matchup-picker-count">
-              {results.length ? `${results.length} ${results.length === 1 ? "champion" : "champions"} found` : `No champion matches “${query.trim()}”.`}
-            </p>
             {results.length ? grid(found) : null}
           </section>
         ) : (
