@@ -137,7 +137,10 @@ them. Panels keep the surface steps.
 
 **Focus.** Every focusable element shows the same 2px accent outline (`:focus-visible`,
 globals.css). Rows inside the sidebar draw it inside their edge (`-outline-offset-2`), where the
-frame cannot clip it.
+frame cannot clip it. A window opened by a tap or a click takes the focus itself, without a ring,
+so nothing in it is lit up as it opens (Safari ringed the close button, the loudest thing in the
+window); opened from the keyboard, its close button has the focus, ringed, so a keyboard user sees
+where they are (`DetailModal`, the tablet's menu; `src/components/ui/input-kind.ts`).
 
 **Targets.** At least 24px everywhere and 44px on touch screens (STANDARDS.md).
 
@@ -237,7 +240,9 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
   - Anything pinned under it (All Champions' column headings) offsets by `--tabs-top`.
   - Nothing is pinned in a window under 481px tall.
 - **Tablet drawer.** It is a native `<dialog>`: it keeps focus inside, the page behind it cannot
-  be used, and closing it returns focus to the menu button.
+  be used and is locked as behind a window (no scrolling, no rubber band), the focus starts as in a
+  window (on the menu itself after a tap, on its close button from the keyboard), and closing it
+  returns focus to the menu button.
 - **The installed app on a tablet.** It shows Back in the top bar, as phones do, because the
   installed app has no browser Back.
 
@@ -275,7 +280,15 @@ test):
   never `flex-1`): Safari 26 collapses a window as tall as its content to its header otherwise, as it
   did to the account menu on the owner's iPhone, and as WebKit 26.0 does to most sheets and to the
   compact and centred windows (MOBILE.md, "Why the account menu was a strip on iPhones"). The phone's account menu is a screen of its own instead of a sheet (`size="screen"`):
-  full-width rows of at least 48px on a screen fixed to the phone's four edges.
+  full-width rows of at least 48px on a screen fixed to the phone's four edges. A window is in the
+  browser's top layer, above the page and every z-index on it, with the rest of the page inert, so
+  what must show over a window is drawn inside it (`src/components/ui/top-layer.ts`): an ⓘ's bubble
+  inside the window its trigger sits in, where its trigger puts it; the toasts inside the topmost
+  window, in their usual place, where their buttons can be pressed. Escape on an open bubble closes
+  the bubble alone, never the window. A picker's list inside a window (the Filters sheet's member and
+  champion pickers, the champion window's opponent picker) opens in the flow of the window's body,
+  which stays its one scroller: no list scrolling inside it, nothing cut off at its edge.
+  (`e2e/popups.spec.ts`)
 - **Before the page's code has run.** Destinations are real links, and work at once. The frame's
   controls that code drives (the phone's avatar, the tablet's menu button, the account menu's
   triggers on tablets and in the sidebar, the sidebar's collapse control) keep a tap made before it

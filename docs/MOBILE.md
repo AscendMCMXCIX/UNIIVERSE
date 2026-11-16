@@ -60,8 +60,8 @@ anywhere else:
    iPhone SE with Display Zoom) scrolls a little in Safari's tab. With large text, or held sideways,
    only its body scrolls, as one region, and the bar with the close button stays put. On a page pinched to zoom,
    a finger pans the zoomed view across it. The close button is a quiet 36px circle whose touch
-   area reaches 44px. The screen takes the focus itself as it opens (nothing lights up), Tab reaches
-   the close button and the rows in order, Escape or the close button closes it and the focus goes
+   area reaches 44px. The screen takes the focus itself as it opens (nothing lights up; every
+   window opened by a tap does the same, below), Tab reaches the close button and the rows in order, Escape or the close button closes it and the focus goes
    back to the avatar, and the page behind never moves. It replaces both the menu drawer and the
    account dropdown on phones. See "Why the account menu was a strip on iPhones" below.
 
@@ -177,7 +177,7 @@ text below 12px; 11px (`text-2xs`) only for badges and labels.
 
 | Need | Phone pattern | Why |
 |---|---|---|
-| Narrow a list | **Filters** opens a sheet from the bottom edge with every filter, each with its label, and Reset and Done at its foot (`FilterBar`). Beside the button, what is narrowed shows as chips that remove themselves with a tap. A search box shares the row with Filters. Choices apply at once, as on desktop. | The scope stays visible without opening anything; the sheet is within reach of the thumb and never pushes the page around. |
+| Narrow a list | **Filters** opens a sheet from the bottom edge with every filter, each with its label, and Reset and Done at its foot (`FilterBar`). Beside the button, what is narrowed shows as chips that remove themselves with a tap. A search box shares the row with Filters. Choices apply at once, as on desktop. A picker in the sheet (Played with, Champions) opens its list in the sheet's body, as tall as its options, and the body scrolls it into view. | The scope stays visible without opening anything; the sheet is within reach of the thumb and never pushes the page around. One scroller: a list scrolling inside the sheet's scrolling body was cut off at its edge. |
 | Open a game | The game takes the whole screen (the match window), as a new entry in the browser's history, so Back (the button, the edge swipe, Android's key) closes it and returns to the list exactly as it was. Its scoreboard keeps the marks for players met in other games; following one closes the game, and Back returns to it. | A scoreboard inside a list is a detour on a narrow screen. Desktop keeps the game under its card. |
 | A champion, a player from Team | The existing detail windows, which already take the whole screen on phones. | |
 | Account, Settings, Sign out | The account screen, from the avatar. | One menu, not two, every entry a full-width row in reach of the thumb. |
@@ -187,7 +187,14 @@ Every sheet and window shares `DetailModal`: native `<dialog>` (focus kept insid
 inert), Escape and the backdrop close it, focus returns to what opened it, a sheet slides up in
 220ms with `--ease-emphasized` and out in 140ms (instant with reduced motion). Every window's body
 grows from its content (`flex-auto`, never `flex-1`: Safari 26 collapses the other, above). The
-account screen is a screen of its own instead (`size="screen"`, above). A sheet:
+account screen is a screen of its own instead (`size="screen"`, above). A window opened by a tap
+takes the focus itself, so nothing in it is ringed as it opens (Safari drew its focus ring around the
+close button, the loudest thing in the window); opened from the keyboard, its close button has the
+focus, ringed; sign-in goes straight to its username. A window is in the browser's top layer, above
+the page, so what must show over it is drawn inside it: an ⓘ's bubble beside its ⓘ (Escape closes
+the bubble, not the window), and the toasts in their usual place above the tab bar, where their
+buttons answer a tap. In a window, a picker's list (the champion window's opponent picker too)
+opens in the window's body, never as a list scrolling inside it. A sheet:
 - is docked to the bottom edge on phones and in short windows (a phone held sideways, where it
   spans up to 44rem), and is a compact centred window on taller wider screens;
 - is as tall as its content, up to the screen less a strip of the page above it, a share of the
@@ -229,10 +236,10 @@ account screen is a screen of its own instead (`size="screen"`, above). A sheet:
 | Frame | Top bar 52px plus the status bar's inset (a profile adds its 44px sections row); tab bar 56px plus the home indicator's inset; the top bar sets the page's `scroll-padding-top` to its measured height and `scroll-padding-bottom` clears the tab bar, so whatever scrolls into view (anchors, the keyboard's focus) stays clear of both bars (WCAG 2.4.11). |
 | Gutters and spacing | 16px gutters (`px-safe-4`), 12–16px between sections; rows 12–14px horizontal padding, at least 64px tall when they carry two lines and a picture. |
 | Surfaces | One panel per list, hairline dividers inside; cards for objects that open (games); no frame around a single group that already has one. Colour and gradient are kept for meaning (a game's result, a selected tab). |
-| Touch targets | 44px for everything a finger presses (tabs, rows, chips through `touch-target`, sheet rows 48px). |
+| Touch targets | 44px for everything a finger presses (tabs, rows, chips through `touch-target`, sheet rows 48px, a toast's dismiss button). |
 | Titles | One `h1` per page; on phones the page tabs and the bar's title say where you are, so instructions under a title are left out (`PageHeader guide`), while a scope line ("Season 2026 · 6 games") always shows. |
 | Interactive states | Pressed rows darken to `surface-2` (`active:`); the current tab, section or view is marked twice (colour and a pill, bar or weight); narrowed filters are accent chips; focus keeps the accent ring everywhere. The avatar tapped before the page's code has run shows pressed (`[data-early][aria-busy]`: `surface-2` in a ring of accent) until it opens the account screen. |
-| Loading, empty, errors | Unchanged components: `Skeleton`, `EmptyState`, `PageError`; the match window shows its skeleton until the game has loaded. Results of actions are toasts, which sit above the tab bar (`bottom-tabbar`) and follow it down when it slides away. |
+| Loading, empty, errors | Unchanged components: `Skeleton`, `EmptyState`, `PageError`; the match window shows its skeleton until the game has loaded. Results of actions are toasts, which sit above the tab bar (`bottom-tabbar`) and follow it down when it slides away; over an open window or sheet they are drawn inside it, in the same place. |
 | Motion | Bars slide 200ms ease-out in short windows; sheets as above; the account screen rises 1rem into place in 200ms and fades out in 140ms; the title fades in 150ms. Everything respects reduced motion. |
 
 ## 6. Verifying
@@ -257,7 +264,11 @@ account screen is a screen of its own instead (`size="screen"`, above). A sheet:
   rests, at rest with every animation held at its first frame, at once with reduced motion; a page
   scrolled from script while it is open is put back; the account dropdown's rows 44px tall on a
   touch screen (a phone held sideways, a tablet); its notes' link closing the screen; `e2e/sidebar-motion.spec.ts` the same early
-  click on the desktop sidebar's collapse control and account tile; `e2e/responsive.spec.ts`,
+  click on the desktop sidebar's collapse control and account tile; `e2e/popups.spec.ts` the
+  popups over windows (an ⓘ's bubble and a toast drawn inside the window, the focus a window takes
+  as it opens) and, on a phone, the Filters sheet's pickers and the opponent picker opening their
+  list in the window's body, the opponent search at 16px and the add-champion list above the tab
+  bar; `e2e/responsive.spec.ts`,
   `e2e/mobile-landscape.spec.ts` and `e2e/quality.spec.ts` keep overflow, targets, short windows and
   axe in check at every width.
 - Safari 26's engine: `scripts/webkit26-check.mjs` (RESPONSIVE.md → Safari 26) opens every kind of
