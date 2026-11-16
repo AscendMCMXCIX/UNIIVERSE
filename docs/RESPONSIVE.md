@@ -179,11 +179,13 @@ scaled, and once a motion of the window's own is over), Escape closing the bubbl
 raised over a window drawn in it, heard once, its 44px dismiss button (measured once the toast's
 entrance has run) pressed where it is drawn; a toast never drawn in a window while the window moves
 in, and leaving it as its closing motion starts; a toast raised in the moment its window closes
-heard once, on the page; a window opened by a tap holding the focus itself until it is pressed
-(Page Down then scrolls its body) and one opened from the keyboard its close button (the tablet's
-menu the same, and its page lock); and on a phone, the Filters sheet's pickers and the opponent
-picker opening their list in the window's body, a tap under an open list reaching what was tapped,
-the opponent search at 16px, and the add-champion list ending above the tab bar.
+heard once, on the page (a toast counts as heard each time a frame draws it with its live role:
+one added and taken away before the next frame never reaches a screen reader); a window opened by
+a tap holding the focus itself until it is pressed (after a click on a desktop or a tap on a tablet,
+and at every press, Page Down then scrolls its body) and one opened from the keyboard its close
+button (the tablet's menu the same, and its page lock); and on a phone, the Filters sheet's pickers
+and the opponent picker opening their list in the window's body, a tap under an open list reaching
+what was tapped, the opponent search at 16px, and the add-champion list ending above the tab bar.
 In this repository's sandbox set `PW_CHROMIUM_PATH` to the Chromium binary.
 
 The wider audit script that produced the before/after numbers (eight viewports × twelve routes,

@@ -150,17 +150,28 @@ test("a toast raised while a window is open is drawn in the window, heard once, 
 
 test("a toast raised in the moment its window closes (a save: the toast, then close) is heard once, on the page, not lost with the window", async ({ page }) => {
   const win = await openPictureEditor(page);
+  // The toasts' region is in the window, and has been for a moment: a toast raised now is drawn in
+  // the window with its live role (toast.tsx, SETTLE_MS), then the window closes at once.
+  await expect.poll(() => win.evaluate((d) => !!d.querySelector("[data-testid=toaster]"))).toBe(true);
+  await page.waitForTimeout(400);
   const heard = await win.evaluate(async (d) => {
-    // Every toast added with its live role is a toast a screen reader speaks: where it was added.
-    const added: string[] = [];
-    const watch = new MutationObserver((records) => {
-      for (const r of records)
-        for (const n of r.addedNodes) {
-          if (!(n instanceof Element)) continue;
-          for (const t of [n, ...n.querySelectorAll("[data-testid=toast]")]) if (t.matches("[data-testid=toast][role]")) added.push(t.closest("dialog") ? "window" : "page");
-        }
-    });
-    watch.observe(document.body, { childList: true, subtree: true });
+    // A screen reader hears what the browser draws: a toast each time it is drawn with its live role
+    // (where it is then), sampled at every frame. A toast added and taken away again before the next
+    // frame (here, in the window's region, which leaves with the window in the same moment) is never
+    // drawn, and never reaches a screen reader. (Counted as it was added, it was taken for a second
+    // toast on the page: the region had left the window by the time its addition was read.)
+    const heard: string[] = [];
+    const live = new WeakMap<Element, boolean>();
+    let sampling = true;
+    const sample = () => {
+      for (const t of document.querySelectorAll("[data-testid=toast]")) {
+        const now = t.hasAttribute("role");
+        if (now && !live.get(t)) heard.push(t.closest("dialog") ? "window" : "page");
+        live.set(t, now);
+      }
+      if (sampling) requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
     // In one moment: a file that is not a picture (an error toast), then the window's close button.
     const input = document.querySelector<HTMLInputElement>("[data-testid=avatar-file]")!;
     const files = new DataTransfer();
@@ -168,11 +179,11 @@ test("a toast raised in the moment its window closes (a save: the toast, then cl
     input.files = files.files;
     input.dispatchEvent(new Event("change", { bubbles: true }));
     d.querySelector<HTMLElement>("[data-testid=dialog-close]")!.click();
-    // Until the window has gone and the toast has been added where it settles, and a moment more.
-    for (let i = 0; i < 150 && ((d as HTMLDialogElement).open || added.length === 0); i++) await new Promise((r) => setTimeout(r, 20));
+    // Until the window has gone and the toast has been drawn where it settles, and a moment more.
+    for (let i = 0; i < 150 && ((d as HTMLDialogElement).open || heard.length === 0); i++) await new Promise((r) => setTimeout(r, 20));
     await new Promise((r) => setTimeout(r, 400));
-    watch.disconnect();
-    return added;
+    sampling = false;
+    return heard;
   });
   expect(heard).toEqual(["page"]);
   const toast = page.getByTestId("toast").filter({ hasText: NOT_A_PICTURE_ERROR });
