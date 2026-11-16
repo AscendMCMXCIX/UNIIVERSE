@@ -7,7 +7,8 @@ import { ChevronLeft, ChevronRight, LogOut, Menu, X } from "lucide-react";
 import { BrandMark } from "./brand-mark";
 import { NavLinks } from "./nav-links";
 import { Avatar } from "./ui/avatar";
-import { DetailModal } from "./ui/detail-modal";
+import { DetailModal, lockPage } from "./ui/detail-modal";
+import { lastInput, opensFocusingItself } from "./ui/input-kind";
 import { noteModalClosed, noteModalOpened } from "./ui/top-layer";
 import { ModeSwitch } from "./mode-switch";
 import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, ADMIN_TABS, PROFILE_SECTIONS, RESOURCES, adminSheetLinks, currentTab, isActivePath, phoneParent, phoneTabs, profileBase, type NavLink, type PhoneTab } from "@/lib/nav";
@@ -385,12 +386,15 @@ const BACK_TABLET = "md:hidden md:standalone:flex";
 
 /**
  * The tablet's menu: a modal dialog (the native <dialog>, as every sheet and window), so focus stays
- * inside, the page behind is inert and never scrolls, and Escape or a tap beside the panel closes
- * it. The panel is docked to the left edge, the sidebar's side. Closed, or removed while open (a
- * navigation, the window grown to the sidebar's widths), it gives focus back where it came from.
- * Toasts raised meanwhile are drawn in it (top-layer.ts).
+ * inside, the page behind is inert and locked as behind every window (DetailModal's lockPage: no
+ * scrolling, no rubber band, no shift as the scrollbar goes), and Escape or a tap beside the panel
+ * closes it. The panel is docked to the left edge, the sidebar's side. The focus starts as in every
+ * window: on the menu itself after a tap or a click (no ring), on its close button from the keyboard
+ * (input-kind.ts). Closed, or removed while open (a navigation, the window grown to the sidebar's
+ * widths), it gives focus back where it came from. Toasts raised meanwhile are drawn in it
+ * (top-layer.ts).
  */
-function Drawer({ onClose, initialFocus, children }: { onClose: () => void; /** What takes focus when it opens (the close button). */ initialFocus: React.RefObject<HTMLElement | null>; children: React.ReactNode }) {
+function Drawer({ onClose, initialFocus, children }: { onClose: () => void; /** What takes focus when it opens from the keyboard (the close button). */ initialFocus: React.RefObject<HTMLElement | null>; children: React.ReactNode }) {
   const ref = React.useRef<HTMLDialogElement>(null);
   const latest = React.useRef(onClose);
   React.useLayoutEffect(() => {
@@ -403,18 +407,17 @@ function Drawer({ onClose, initialFocus, children }: { onClose: () => void; /** 
     if (!d) return;
     if (!d.open) d.showModal();
     noteModalOpened(d);
-    initialFocus.current?.focus({ preventScroll: true });
+    if (opensFocusingItself(lastInput())) d.focus({ preventScroll: true });
+    else initialFocus.current?.focus({ preventScroll: true });
     // The page behind stays where it is.
-    const root = document.documentElement;
-    const previous = root.style.overflow;
-    root.style.overflow = "hidden";
+    const unlock = lockPage();
     // The sidebar takes over from lg: a menu left open across that width would keep the page inert.
     const wide = window.matchMedia("(min-width: 64rem)");
     const onWide = () => wide.matches && latest.current();
     wide.addEventListener("change", onWide);
     return () => {
       wide.removeEventListener("change", onWide);
-      root.style.overflow = previous;
+      unlock();
       if (d.open) d.close();
       noteModalClosed(d);
     };
@@ -435,8 +438,9 @@ function Drawer({ onClose, initialFocus, children }: { onClose: () => void; /** 
       // overflow-visible: the panel scrolls itself, and its shadow falls over the backdrop (a dialog clips its contents by default).
       // Full height by the screen it is fixed to (stretched between the dialog's own top and bottom
       // insets), not by viewport units, so its size and its place come from the same box
-      // (DetailModal); its width a share of that screen too.
-      className="m-0 h-auto max-h-none w-[min(calc(20rem+env(safe-area-inset-left)),86%)] max-w-none overflow-visible border-0 bg-transparent p-0 text-fg backdrop:bg-black/60 backdrop:backdrop-blur-sm open:flex motion-safe:backdrop:fade-in"
+      // (DetailModal); its width a share of that screen too. Its own focus (after a tap) draws no ring.
+      className="m-0 h-auto max-h-none w-[min(calc(20rem+env(safe-area-inset-left)),86%)] max-w-none overflow-visible border-0 bg-transparent p-0 text-fg outline-none backdrop:bg-black/60 backdrop:backdrop-blur-sm open:flex motion-safe:backdrop:fade-in"
+      tabIndex={-1}
       data-testid="mobile-drawer"
     >
       {children}
