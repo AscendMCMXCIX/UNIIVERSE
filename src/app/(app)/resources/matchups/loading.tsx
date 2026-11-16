@@ -7,10 +7,10 @@ export default function Loading() {
         <div className={`${block} h-8 w-44 rounded-md`} />
         <div className={`${block} h-4 w-[32rem] max-w-full rounded-md max-md:hidden`} />
       </div>
-      <div className="space-y-1.5">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-3">
+      <div className="@container/pickers space-y-1.5">
+        <div className="grid grid-cols-1 items-center gap-2 @min-[14rem]/pickers:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-3">
           <div className={`${block} h-32 rounded-panel sm:h-24`} />
-          <div className={`${block} h-11 w-11 rounded-full`} />
+          <div className={`${block} h-11 w-11 justify-self-center rounded-full`} />
           <div className={`${block} h-32 rounded-panel sm:h-24`} />
         </div>
         <div className="flex min-h-11 items-center">

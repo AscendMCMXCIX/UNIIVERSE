@@ -229,19 +229,22 @@ export function MatchupFrame({ you, enemy, champions, curated, children }: { you
   return (
     <PickerContext.Provider value={openPicker}>
       <div className="space-y-5">
-        <section aria-label="Champions" className="space-y-1.5">
-          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-3" data-testid="matchup-pickers">
+        <section aria-label="Champions" className="@container/pickers space-y-1.5">
+          {/* Side by side, or one above the other with the swap between them where the row is under
+              14rem: a phone at a large text size (200%; 150% up to 375px wide), where side by side
+              each slot would be narrower than its portrait and its label. */}
+          <div className="grid grid-cols-1 items-center gap-2 @min-[14rem]/pickers:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-3" data-testid="matchup-pickers">
             <SlotButton slot="you" champion={yourChoice} onOpen={() => openPicker("you")} buttonRef={youSlot} />
             <button
               type="button"
               onClick={() => go({ you: shown.enemy, enemy: shown.you })}
               disabled={!shown.you && !shown.enemy}
-              className="grid h-11 w-11 place-items-center rounded-full border border-border-control bg-bg-elevated text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
+              className="grid h-11 w-11 place-items-center justify-self-center rounded-full border border-border-control bg-bg-elevated text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
               aria-label="Swap your champion and the enemy"
               title="Swap"
               data-testid="matchup-swap"
             >
-              <ArrowLeftRight className="h-5 w-5" aria-hidden />
+              <ArrowLeftRight className="h-5 w-5 @max-[14rem]/pickers:rotate-90" aria-hidden />
             </button>
             <SlotButton slot="enemy" champion={choice(shown.enemy)} onOpen={() => openPicker("enemy")} buttonRef={enemySlot} />
           </div>
