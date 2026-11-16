@@ -223,6 +223,52 @@ function winLossOutside(table: Locator) {
   });
 }
 
+/**
+ * The "confirmed …" line under each first reading (where the Last confirmed column does not fit),
+ * with the two instants as the table writes them in full: the first reading, and the Last confirmed
+ * cell, which stays in the markup while hidden. Each of the line's parts (its child elements: the
+ * day, the time) with the number of line boxes it takes.
+ */
+function confirmedLines(table: Locator) {
+  return table.evaluate((box) =>
+    [...box.querySelectorAll("tbody tr")].flatMap((tr) => {
+      const first = tr.querySelector("td:first-child")!;
+      const line = first.querySelector<HTMLElement>(":scope > span");
+      if (!line) return [];
+      return [
+        {
+          firstRead: [...first.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent).join("").trim(),
+          lastConfirmed: tr.querySelector("td:nth-child(4)")!.textContent!.trim(),
+          line: line.innerText.replace(/\s+/g, " ").trim(),
+          parts: [...line.children].map((part) => ({ text: part.textContent!.trim(), lines: part.getClientRects().length })),
+        },
+      ];
+    }),
+  );
+}
+
+/**
+ * Every confirmed line says only what it does not share with the first reading above it: the
+ * time alone on the same day ("confirmed 3:04 pm"), the day and the time in the same year
+ * ("confirmed 21 Oct, 3:04 pm"), the full date only in another year; and its day and its time each
+ * stay on one line (never "pm" alone).
+ */
+async function expectConfirmedShort(table: Locator, at: string) {
+  const rows = await confirmedLines(table);
+  expect(rows.length, `${at}: readings confirmed later than first read`).toBeGreaterThan(0);
+  const full = /^(\d{1,2} [A-Z][a-z]{2}) (\d{4}), (\d{1,2}:\d{2} [ap]m)$/;
+  for (const r of rows) {
+    const reading = `${at}, first read ${r.firstRead}, last confirmed ${r.lastConfirmed}`;
+    const [, fromDay, fromYear] = full.exec(r.firstRead) ?? [];
+    const [, day, year, time] = full.exec(r.lastConfirmed) ?? [];
+    expect(fromDay && day, `${reading}: both written in full`).toBeTruthy();
+    const said = fromYear !== year ? `${day} ${year}, ${time}` : fromDay !== day ? `${day}, ${time}` : time;
+    expect(r.line, reading).toBe(`confirmed ${said}`);
+    expect(r.parts.at(-1)?.text, `${reading}: the time a part of its own`).toBe(time);
+    expect(r.parts.filter((p) => p.lines !== 1), `${reading}: each part on one line`).toEqual([]);
+  }
+}
+
 test("on a phone Ranked progress's header never lets the queue switch cover the title or its ⓘ, and the readings keep W–L in their box", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "phone widths, set below");
   await page.goto(await profileOf(page, "Demo Top"));
@@ -256,14 +302,12 @@ test("on a phone Ranked progress's header never lets the queue switch cover the 
   await openDetails();
   expect(await table.locator("tbody tr").count(), "Demo Top: readings listed").toBeGreaterThan(3);
   expect(await winLossOutside(table), "Demo Top at 375: W–L inside the box").toEqual([]);
+  await expectConfirmedShort(table, "Demo Top at 375");
   await page.setViewportSize({ width: 393, height: 852 });
   await page.goto(await profileOf(page, "Demo Mid"));
   await expect(page.getByTestId("ranked-progress")).toBeVisible();
   await openDetails();
   expect(await table.locator("tbody tr").count(), "Demo Mid: readings listed").toBeGreaterThan(3);
   expect(await winLossOutside(table), "Demo Mid at 393: W–L inside the box").toEqual([]);
-  // The confirmed line leaves out the year it shares with the first reading ("confirmed 21 Oct, 3:04 pm").
-  const confirmed = await table.locator("tbody td:first-child > span").allInnerTexts();
-  expect(confirmed.length, "a reading confirmed later than first read").toBeGreaterThan(0);
-  for (const line of confirmed) expect(line.replace(/\s+/g, " ").trim()).toMatch(/^confirmed (\d{1,2} [A-Z][a-z]{2}( \d{4})?, )?\d{1,2}:\d{2} (am|pm)$/);
+  await expectConfirmedShort(table, "Demo Mid at 393");
 });
