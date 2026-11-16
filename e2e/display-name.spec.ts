@@ -6,7 +6,9 @@ import { NEUTRAL_NAME } from "../src/domain/branding";
   Usernames and display names are separate. A new player chooses the display name teammates see
   (prefilled with their username) in the required setup, moves back and forth without losing
   anything, then may personalise their card with the real Card Studio. Later, Settings changes the
-  display name everywhere it shows, and never the username.
+  display name everywhere it shows, and never the username. Settings says who sees the picture and
+  the display name: teammates, and the public team page while the member is in the lineup or a
+  substitute; never a Public profile switch, which is gone.
 */
 
 const noSideScroll = (page: import("@playwright/test").Page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
@@ -109,6 +111,20 @@ test("a new player picks a display name apart from their username, goes back wit
   await expect(page.getByLabel("Display name")).toHaveValue(display);
   await expect(page.getByLabel("Username")).toHaveValue(username);
   await context.close();
+});
+
+test("Settings says who sees the picture and the display name: teammates, and the public team page while in the lineup or a substitute", async ({ page }, info) => {
+  test.skip(info.project.name === "tablet", "runs on phone and desktop");
+  await page.goto("/settings");
+  // The public team page's rule (server/public/team.ts): no switch, no opt-in, the lineup and each role's substitute.
+  for (const help of [page.getByTestId("avatar-help"), page.locator("#display-name-help")]) {
+    await expect(help).toBeVisible();
+    await expect(help).toContainText("Shown to teammates");
+    await expect(help).toContainText("on the public team page while you're in the lineup or a substitute");
+  }
+  // The Public profile switch was retired with the opt-in (19 Oct 2026): Settings names it nowhere.
+  await expect(page.locator("main")).not.toContainText(/public profile/i);
+  await expect(page.getByTestId("public-profile-panel")).toHaveCount(0);
 });
 
 test("Settings changes the display name everywhere it shows and never the username", async ({ browser, page: admin }) => {

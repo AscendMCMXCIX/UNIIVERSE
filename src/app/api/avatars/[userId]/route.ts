@@ -8,10 +8,11 @@ import { mayOpenProfile } from "@/server/auth/profile-access";
 export const dynamic = "force-dynamic";
 
 /**
- * A member's profile picture. Members only (pictures are not public), and the picture of a
- * personal-use player's account only for that account and administrators (mayOpenProfile on its
- * player: "not found" to anyone else, as their profile is); the URL carries a version, so the
- * browser may keep it for a year and a new upload simply changes the URL.
+ * A member's profile picture. Members only (the public pages serve their players' pictures from
+ * /api/public/avatars, by player id), and the picture of a personal-use player's account only for
+ * that account and administrators (mayOpenProfile on its player: "not found" to anyone else, as
+ * their profile is); the URL carries a version, so the browser may keep it for a year and a new
+ * upload simply changes the URL.
  */
 export async function GET(request: Request, { params }: { params: Promise<{ userId: string }> }) {
   const { userId } = await params;

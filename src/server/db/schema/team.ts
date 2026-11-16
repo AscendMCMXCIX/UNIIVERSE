@@ -44,14 +44,18 @@ export const players = pgTable(
      */
     teamMember: boolean("team_member").notNull().default(true),
     /**
-     * The member's own consent to a public profile (Public / Guest View): false until they turn it
-     * on in Settings. Only they can change it; an admin enabling the public site never does. Separate
-     * from team membership: a member who has not opted in stays fully visible to signed-in members
-     * and appears to visitors only as an anonymous role placeholder.
+     * Retired on 19 Oct 2026: the old per-member opt-in to the public pages (migration
+     * 0040_public_profiles). Nothing reads or sets it and no control changes it. The public team page
+     * has no switch and no opt-in: it shows the players holding a lineup role and each role's
+     * substitute, under their display name (server/public/team.ts). Left in place, unused; no
+     * destructive migration.
      */
-    /** The member's own choice to appear on the public pages (Settings → Public profile); only they change it. */
     publicProfile: boolean("public_profile").notNull().default(false),
-    /** The name shown on the public pages, chosen by the member (never their sign-in username unless they type it). */
+    /**
+     * Retired with publicProfile: a name once chosen for the public pages, which now show the display
+     * name. Nothing shows it; a permanent removal still collects it (privacy/erasure.ts), as an old
+     * row may hold one.
+     */
     publicName: text("public_name"),
     /**
      * Optional YouTube, Twitch and Discord (domain/social-links), each `{ value, public }` with its

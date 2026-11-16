@@ -115,7 +115,7 @@ Key single files:
   - `.github/workflows/data-jobs.yml`: hourly at minute 17, best-effort; also runs one job or several (space-separated, in one run) by hand.
   - `vercel.json`: a daily cron at 04:00 UTC to `/api/jobs/tick`.
   - Site visits: a background tick when none ran for 30 minutes.
-  - Optional Supabase `pg_cron` every 10 minutes (`docs/DEPLOYMENT.md` §4c). Whether it is configured is **UNKNOWN**; the evidence suggests not, because there were no `http`-triggered ticks between 07:15 and 11:00 UTC on 14 Oct.
+  - Supabase `pg_cron` (since 7 Nov 2026, read with Data jobs `rank-schedule-status`): `uniiverse-tick` every 10 minutes (`docs/DEPLOYMENT.md` §4c; its calls were refused until the Vault secret existed, 7 Nov 08:05 UTC) and `uniiverse-rank-watch` every 5 minutes (installed by the app, `docs/RANKED_PROGRESS.md`). Both read the cron secret from Supabase Vault.
 - **Other workflows:**
   - `smoke.yml`: public pages, sign-in redirects and `/api/health` with the deployed commit.
   - `probe.yml`: HTTP timing of public paths.
@@ -227,9 +227,9 @@ Key single files:
   - The daily `integrity` job deletes sessions a week after they ended (`deleteEndedSessions`, at most 1,000 a run), failed sign-ins older than the 15-minute throttling window (`pruneAuthFailures`) and run records older than 60 days (`pruneJobRuns`, at most 5,000 a run); the privacy notice states all three.
 - **One account per browser** (`src/server/auth/account-jar.ts`, `browser-accounts.ts`, `session.ts`, `/api/auth/logout`):
   - The browser holds one session (`uniiverse_session`). Signing in ends any session it held before, on the server, then sets the new one. Signing in as someone else therefore means signing out first, or simply signing in again: there is no account switcher and no "Add another account".
-  - **Signing out** (account menu, mobile drawer or Settings) ends the session on the server, clears the cookies and returns to the site's address (the public team page, where Sign in opens its window).
+  - **Signing out** (account menu, the phone's account screen, the tablet's drawer or Settings) ends the session on the server, clears the cookies and returns to the site's address (the public team page, where Sign in opens its window).
   - **The old switcher's cookie.** Until October 2026 the account menu could keep up to three other accounts signed in (`uniiverse_accounts`). Nothing writes that cookie any more: signing in or out ends every session it still names and clears it.
-  - **Stale tabs.** `uniiverse_who` is a readable fingerprint of the active account (a hash, not a credential). `AccountGuard` compares it with the account a page was rendered for and reloads the tab before it sends a server action or page request, when it is shown or focused again, and when another tab announces a sign-out (BroadcastChannel). A tab rendered for one account therefore never acts as another, for example after signing out and in as someone else in another tab.
+  - **Stale tabs.** `uniiverse_who` is a readable fingerprint of the active account (a hash, not a credential). `AccountGuard` compares it with the account a page was rendered for and reloads the tab when they differ: before it sends a server action or page request, when it is shown or focused again, and when another tab announces an account change (BroadcastChannel; the account menu, the account screen and the drawer announce their Sign out). A fingerprint that is gone does not count as a different account (`stale()` requires one), and the announcement is sent as the sign-out form is submitted, before its answer clears the cookie, so after a plain sign-out the other tabs do not reload by themselves: their next request reaches the server without a session and lands on sign-in. A tab rendered for one account therefore never acts as another, for example after signing out and in as someone else in another tab.
   - **Unchanged:** the server authorises every request from its own session cookie, and server actions keep Next.js's origin check. Tests: `tests/db/single-sign-in.test.ts`.
 - **Throttling** (`src/server/auth/throttle.ts`, migration `0046_auth_failures`; audit decision 13):
   - Sign-in: 8 failures per 15 minutes per username + IP, and 8 per IP across usernames. The setup page and `/recover` have their own per-IP limit.
@@ -361,6 +361,8 @@ Key single files:
   - The old Settings → Public profile panel is gone.
   - The old data is left in place, unused: `app_settings` key `public_access`, and `players.public_profile` / `players.public_name` (migration `0040_public_profiles`). No destructive migration.
 - **Who appears:** the players holding a lineup role and each role's designated substitute (`lineup_substitutes`), under their **display name**, while on the team, not archived and, with a sign-in account, active. Anyone else holding a role is a nameless placeholder. Nobody else on the team is named or sent.
+  - A role whose starter is missing or may not appear shows no substitute either (`toPublicSlot`), although that substitute stays among the players whose picture and banner the public routes serve.
+  - Members are told where they choose what shows: Settings' picture and display-name help and the Card Studio's banner help say teammates see them, and the public team page while the member is in the lineup or a substitute (`ON_THE_PUBLIC_PAGE` in `src/domain/privacy.ts`; Nov 2026, replacing a Settings sentence that still pointed at the Public profile switch and a banner help that said only members see it). For the substitute of a role shown without its starter, the words say more than the page shows, never less. Change them with this rule. `e2e/display-name.spec.ts`, `e2e/card-studio.spec.ts` and the live check's Settings facts assert them.
 - **Data boundary:** `loadPublicTeam` / `toPublicSlot` build each public card field by field, from an allowlist with no spreading: picture, card look, artwork, roles, the role's champion pool, and only the social links the player switched on (Show publicly) (G1).
   - Never computed: rank, statistics, Riot IDs, usernames, lineup-management lists or suggestions. `getTeamRoster` runs with `statsFor: () => false`.
   - A DB test pins the allowlist's keys.
@@ -466,7 +468,7 @@ Riot ID typed (account creation, or an Alt added on the profile)
   | integrity | 24 h |
 
   - `static-sync` (forced) and the diagnostic jobs run on demand only. Diagnostic jobs: `auth-audit`, `data-audit`, `perf-probe`, `riot-check`, `skin-audit`, `proficiency-audit`.
-- **Triggers:** GitHub hourly (best-effort; often skipped), Vercel daily 04:00 UTC, visits (every 30 min while people use the site), optional `pg_cron`.
+- **Triggers:** GitHub hourly (best-effort; often skipped), Vercel daily 04:00 UTC, visits (every 30 min while people use the site), and since 7 Nov 2026 `pg_cron`: the tick every 10 minutes and the rank watch every 5.
 - **Retry / back-off:**
   - Accounts: 5 min after the first failure, doubling up to 6 h.
   - Interrupted runs count as failed runs: the job's next start (after 15 min) or `integrity` records each one and closes its `job_runs` row.
@@ -656,7 +658,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
   - **Timeline:** the gold difference between the teams per minute, only when the timeline holds all ten players; the largest lead and deficit, the end, and when a lead of 1,000 gold or more changed sides, described without causes. Fetched from Riot once per game when Timeline, Build or (with a lane opponent) Analysis is first opened, and stored; Riot's 429 is reported as such.
   - **Kills and objectives** (migration `0060`): each team's kills as ticks on the chart (only when all ten players' kills are kept), the objectives each team took under it, the player's own kills and deaths, and the three largest swings of about three minutes with the kills and objectives of the same minutes (side by side, never as a cause). Kill times live in each player's timeline entry (erasure drops the whole entry); objectives are team facts in `match_timelines.events`. Timelines stored before are fetched once more when opened (`events` null), and a 404 is recorded (`events.missing`). A refetch completes the stored row and never replaces it (`completedTimeline`: stored purchases, skills and frames stay).
   - **Cards:** the champion's level, stored ranks for everyone but the player, the damage share, and at most one "Best <figure> in N" (higher than each of at least 20 earlier comparable games).
-  - **Summary above the list:** the newest 20 games the filters list (the Overview's Recent form rules): results, record, KDA, CS/min (vision for supports), kill participation, the streak, the champions played most, a trend when Recent form names one, and the ladder change over 30 days from stored rank readings (current season, Solo/Duo or Flex as the list, the filtered or Main account).
+  - **Summary above the list:** the newest 20 games the filters list (the Overview's Recent form rules): results, record, KDA, CS/min (vision for supports), kill participation, the streak, the champions played most, a trend when Recent form names one, and the ladder change over 30 days from stored rank readings by Ranked progress's rule ("since <date>" when the rank at the window's start was not read; nothing when it did not change or no second reading lies inside the window; across a year's turn until Riot's reset; Solo/Duo or Flex as the list, the filtered or Main account).
   - **Riot use:** no new endpoint: Match-V5's timeline was already used (Build, Matchups' backfill). Opening a game asks for it only when its sections need it and it is not stored, or was stored before the kills and objectives were (then once more).
   - **Refine** (`src/domain/history-refine.ts`, `history-refine-fields.tsx`, `src/server/players/history-members.ts`): Match History adds its own fields to the profile's Refine panel: wins or losses, a patch (with counts), the days played (calendar days in the installation's time zone), a team member played with or against (or any member), and highlights (a multikill of at least a size, from the stored counts, or a personal best). Each is an address parameter (`result`, `patch`, `from`, `to`, `with`/`against`, `hl`); unreadable ones are ignored. They narrow the games before paging, so the summary and the pages follow. Members are matched as Team → Matches → Played together matches them: a current member was in a game when one of their verified linked accounts stored it, on the player's side when that stored game's side (`account_matches.team_id`) is the player's; never by name, and an unknown member id narrows nothing. The counts beside each member are one aggregated query over `account_matches` (no record JSON read; about 6 ms locally at production volume); a member's games are read only while one is chosen. `perf-probe` step `profile.historyMembers` times it in production (counts only). No Riot request.
   - **Playing sessions** (Refine → Show the games → By playing session, `?group=sessions`): games less than 45 minutes apart (one's end to the next one's start) are one sitting, found from every stored game whatever the filters; each sitting's header gives the start and end times, record, KDA, CS/min and time played over the games the filters list.
@@ -836,7 +838,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 | Matches | `/matches` | Played together (with bookmarks); `?view=encounters` opens your profile's Encounters | `view-matches` (+ `view-teammate-stats` for Played together); bookmark removal by its creator or `manage-matches` | |
 | Resources | `/resources` | The team's library of League of Legends sites in five sections (League of Legends, Summoner's Rift, ARAM, Arena, Esports): a panel per section of rows opening in a new tab, search, a section filter, favourites kept in the browser; no management controls on the page | every signed-in account; managed in Admin Mode → Platform Settings → Resources (`manage-branding`) | `docs/ARCHITECTURE.md` (Resources) |
 | Settings | `/settings` | Username, password, profile picture, sign out | self | Riot accounts moved to the profile |
-| Admin Mode | `/admin`, `/admin/people` (+ `/access`), `/admin/branding`, `/admin/previews`, `/admin/data`, `/admin/system`, `/admin/audit`, `/admin/settings` | Dashboard, Users & Permissions, Platform Settings, Data & Integrations, System Health, Audit Logs | administrators | "Switch to Admin Mode" in the sidebar, the tablet menu, the phone's account sheet or Settings (C2a) |
+| Admin Mode | `/admin`, `/admin/people` (+ `/access`), `/admin/branding`, `/admin/previews`, `/admin/data`, `/admin/system`, `/admin/audit`, `/admin/settings` | Dashboard, Users & Permissions, Platform Settings, Data & Integrations, System Health, Audit Logs | administrators | "Switch to Admin Mode" in the sidebar, the tablet menu, the phone's account screen or Settings (C2a) |
 | Auth | `/login`, `/setup`, `/recover`, `/welcome` | Sign-in, first-run Owner setup, Owner recovery, onboarding | — | |
 
 **Redirects kept for old links:**
@@ -855,7 +857,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 
 - **Breakpoints** (Tailwind defaults):
   - < 640 phone: top bar (the menu button at its left end) + a drawer from the left + a 3-tab bottom bar.
-    - The tabs are Team, Players, Leaderboards, Matches and Profile (`PHONE_TABS`); Resources, Settings, Install App, the mode switch and Sign out are in the account sheet behind the avatar (docs/MOBILE.md, November 2026).
+    - The tabs are Team, Players, Leaderboards, Matches and Profile (`PHONE_TABS`); Resources, Settings, Install App, the mode switch and Sign out are on the account screen behind the avatar (docs/MOBILE.md, November 2026).
     - Team stays marked on its own tabs: Players, Leaderboards and Matches.
   - 640–767 large phone.
   - 768–1023 tablet: top bar + drawer, no tab bar.
@@ -1026,7 +1028,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 |---|---|---|---|---|---|---|---|---|
 | 1 | Global ranked collection stalled for ~4 h | Data pipeline | **High** | Statistics stop growing; Trends go stale | 2,321 games at 08:00 and 11:11 UTC; discovery visit runs averaged 39.3 s against a 40 s cap; ~253 players ever scanned | Ladder refreshes used the whole discovery budget | Fixed in `562fe24` (refresh share capped at 50 %) | Closed (Oct 2026): the global collection was removed with Meta & Trends |
 | 2 | Dead platforms PH2 / TH2 are retried first every run | Data pipeline | Medium | Wasted time each discovery run | `ph2`/`th2` "fetch failed" in every run; never refreshed, so always "stalest" | Riot merged them into SG2; the registry still lists them under `RIOT_PLATFORMS=all` | Remove `ph2`/`th2` from the platform registry, or back off platforms that keep failing | Closed (Oct 2026): only the removed ladder discovery visited every platform |
-| 3 | GitHub hourly schedule unreliable | Automation | Medium | Data refreshes depend on visits | No `http` ticks 07:15–11:00 UTC on 14 Oct; earlier audit showed irregular delivery | GitHub cron is best-effort | Set up Supabase `pg_cron` every 10 min (`docs/DEPLOYMENT.md` §4c; one secret typed into Supabase's SQL editor) | **Open (user action)**; whether done: UNKNOWN |
+| 3 | GitHub hourly schedule unreliable | Automation | Medium | Data refreshes depend on visits | No `http` ticks 07:15–11:00 UTC on 14 Oct; earlier audit showed irregular delivery | GitHub cron is best-effort | Set up Supabase `pg_cron` every 10 min (`docs/DEPLOYMENT.md` §4c) | **Done** (7 Nov 2026): `uniiverse-tick` every 10 minutes and `uniiverse-rank-watch` every 5, both reading the secret from Vault |
 | 5 | Region skew (OCE 66 %), Emerald under-sampled | Data | Low–Medium | Mostly OCE-flavoured meta | data-audit | Early OCE-only collection; SEA host carries only OCE | Fair-share rules exist; volume will dilute | Closed (Oct 2026): removed with Meta & Trends |
 | 6 | No Support player in the lineup | Team setup | Medium | The Support card is empty | Team card empty | Roster | Owner assigns a Support player on Team | **Open (user action)** |
 | 7 | 4 accounts with setup pending | Accounts | Low | Those players have no full profile yet | auth-audit | Players have not signed in | Remind players | Open (user action) |
@@ -1083,7 +1085,7 @@ Nothing is modelled or estimated in these figures; they are plain counts of stor
 | Solo Queue Blocks redesign | **Removed** (29 Oct 2026, at the user's request, with Ranked Development, which it had become) |
 | Sidebar collapsing | **Implemented** |
 | Draft (and with it unfinished drafts, Fearless, opponent rosters) | **Removed** (Oct 2026, at the user's request) |
-| Reliable 10-minute scheduling (`pg_cron`) | **Requested / recommended; not confirmed set up** (user action) |
+| Reliable 10-minute scheduling (`pg_cron`) | **Done** (7 Nov 2026; read with Data jobs `rank-schedule-status`) |
 | Remove dead platforms PH2/TH2 from collection | **Not started** (recommended) |
 | Data-staleness warning in health | **Not started** (recommended) |
 | Higher Emerald share (15–20 %) | **Dropped** (Meta & Trends removed, Oct 2026) |
@@ -1219,7 +1221,7 @@ These are stable and working; extend them instead:
 8. **UI architecture.**
    - **Server components** with client islands (editors, menus, dialogs).
    - **Shell:** deep ink theme with a blue and violet identity; Inter; tokens in `src/app/globals.css`.
-   - **Navigation:** collapsible sidebar (My Profile, one Team entry, Resources); the sections of Team as tabs at the top of its pages (`SectionTabs`, `SECTION_HUBS`, `TEAM_SECTIONS`); account menu; phone tab bar (Team, Players, Leaderboards, Matches, Profile) and account sheet (docs/MOBILE.md).
+   - **Navigation:** collapsible sidebar (My Profile, one Team entry, Resources); the sections of Team as tabs at the top of its pages (`SectionTabs`, `SECTION_HUBS`, `TEAM_SECTIONS`); account menu; phone tab bar (Team, Players, Leaderboards, Matches, Profile) and account screen (docs/MOBILE.md).
    - **Shared primitives** in `src/components/ui` (Menu never clips, Dialog, Toast, InfoTip).
    - **One card identity** (featured champion art + skin + accent) across Team, Players and profiles.
 

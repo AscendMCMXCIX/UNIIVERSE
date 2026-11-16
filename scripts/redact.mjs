@@ -10,7 +10,7 @@ export function redact(text) {
     .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "<id>")
     .replace(/[A-Za-z0-9_-]{40,}/g, "<token>")
     .replace(/[\p{L}\p{N}._][\p{L}\p{N} ._]{2,15}#[\p{L}\p{N}]{2,5}\b/gu, "<riot-id>")
-    // Riot match ids (OC1_714675070): with any Riot API key, MATCH-V5 turns one into every
+    // Riot match ids (OC1_1234567890, a made-up example): with any Riot API key, MATCH-V5 turns one into every
     // participant's Riot ID and PUUID, so they are personal data here. Anywhere: an address, JSON,
     // a DOM id quoted by an axe selector (match-<id>, together-<id>-100). Then any ?match= value.
     .replace(/\b[A-Z][A-Z0-9]{1,4}_\d{6,}\b/g, "<match>")

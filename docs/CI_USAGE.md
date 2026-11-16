@@ -65,7 +65,7 @@ No check was removed: typecheck, lint, unit tests, database tests on PostgreSQL,
 - Job names are validated.
 - The timeout is 3 minutes for scheduled runs (they only start the tick) and 20 minutes for manual runs.
 - The hourly schedule is unchanged. GitHub delivers it 4–6 times a day, about 5 minutes a day (audit below).
-- `smoke` is accepted as a job name (the same public requests as `smoke.yml`, sent without the secret), so a post-deploy check is one run: `job: "smoke"`, or `"smoke perf-probe"` when the change touched data loading. It fails the run when health is not ok or a page errors.
+- `smoke` is accepted as a job name (the same public requests as `smoke.yml`, sent without the secret): a quick check by hand. It fails the run when health is not ok or a page errors. After a deploy, the Production check runs by itself instead (CLAUDE.md §5).
 
 **`smoke.yml` / `probe.yml`:** 5- and 10-minute timeouts.
 
@@ -149,11 +149,13 @@ The limit is now 60 minutes for the browser job only (unit and database stay at 
 
 ## The WebKit workflow (21 Oct 2026)
 
-`.github/workflows/webkit.yml` runs `e2e/webkit.spec.ts` in Safari's engine (docs/RESPONSIVE.md →
-Safari and iPhones). It is started by hand only, never by a push or a pull request, so it costs
-nothing until someone runs it.
-- **One run:** install, the WebKit download (cached after the first run), a build and a few minutes
-  of tests, about 8 billed minutes.
+`.github/workflows/webkit.yml` runs `e2e/webkit.spec.ts` in Safari's engine, then
+`scripts/webkit26-check.mjs` in Safari 26's (WebKit 26.0, since 10 Nov 2026; docs/RESPONSIVE.md →
+Safari and iPhones, Safari 26). It is started by hand only, never by a push or a pull request, so it
+costs nothing until someone runs it.
+- **One run:** install, the WebKit download (cached after the first run), a build, a few minutes of
+  tests, then WebKit 26.0's download (not cached) and its check: 8 to 14 minutes (7.4 and 13.4 on
+  10 Nov; the Safari 26 step 1.3 to 1.6 of them, the system libraries up to 9.5).
 - **When to run it:** once before releasing a change that could behave differently in Safari
   (touch, dialogs, forms, the installed app), and after changing the spec.
 - Editing the workflow does not start CI (it is in `paths-ignore`).
@@ -204,7 +206,7 @@ The day-to-day rules are in `CLAUDE.md`. In short:
 - Work on a feature branch, validate locally (`pnpm verify`, then the database and browser suites as needed) and push finished work.
 - Open the PR when the work is complete, or as a draft and mark it ready when done.
 - Merge with the "Create a merge commit" method once CI is green and the PR is up to date with `main`, so the push to `main` reuses the result.
-- After a deploy that changes app behaviour, run one `Data jobs` run (`smoke`; add `perf-probe` when data loading changed, since each probe reads about 6 MB of the daily egress budget).
+- After a deploy, read the Production check, which runs by itself (CLAUDE.md §5); add `perf-probe` (Production check → Run workflow → perf) when data loading changed, since each probe reads about 6 MB of the daily egress budget.
 - **Re-running a job** costs as much as the first run. Do it only when the failure was clearly not caused by the code.
 
 ## 3 Nov 2026: the Production check and the workflow lint

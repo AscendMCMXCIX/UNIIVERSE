@@ -48,6 +48,7 @@ sizes, row heights and where the columns fall.
 | The `chrome` token, and the sidebar's current-page treatment | Same layout and motion; the sidebar tests pass unchanged. |
 | All Champions rows | 57 → 51px on a laptop, 74 → 51px on a tablet; the list for 8 champions is 618 → 566px tall on a laptop and 814 → 628px on a tablet. |
 | All Champions columns | On a laptop the figures span x = 755–1391 instead of 540–1391; on a 1920px screen, 808–1788 instead of 778–1788. |
+| All Champions rows for every role (8 Nov 2026) | The tablet's 51px above held for Top and Mid players only. Bottom, Support and Jungle players' rows were still 68–69px on tablets 752–891px wide and on computers 1024–1162px wide with the sidebar open: the champion column kept its 9rem minimum while the figure columns grew, so "Support" and "In pool" took two lines. The 44rem layout now gives the champion column 11.75rem first (figure minimums are their headings plus the sort arrow's room, 0.5rem gaps, 0.75rem padding): 51px for every role from 752px, unchanged from 76rem. |
 | Team → Matches opens games under their cards | The same `MatchExpansion` as Match History (`match-history/inline-match.tsx`), `?match=` links, one game at a time, keyboard toggle, "Close this game" returning focus to the card. |
 
 ## 4. Not changed, and why

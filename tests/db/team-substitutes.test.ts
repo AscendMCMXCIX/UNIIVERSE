@@ -11,7 +11,7 @@ import type { Session } from "@/server/auth/permissions";
     statistics rule as starters; no substitute, no back.
   - Start on the back swaps them: the substitute starts, the former starter becomes the substitute.
     Refused when the lineup changed since the page loaded.
-  - The public page shows the substitute only for a consenting member.
+  - The public page shows each role's substitute by display name, with no figure and no opt-in.
 */
 
 const state = vi.hoisted(() => ({ db: null as unknown, session: null as Session | null }));

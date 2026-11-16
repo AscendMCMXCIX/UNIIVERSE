@@ -100,8 +100,8 @@ test("a plain dialog keeps 12 px between its title and the close button", async 
     await expect(dialog).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
   await untilStill(page);
-  // The close button's negative margin (it lines its icon up with the padding) still leaves the space.
-  const room = await dialog.getByTestId("dialog-close").evaluate((b) => parseFloat(getComputedStyle(b.parentElement!).columnGap) + parseFloat(getComputedStyle(b).marginLeft));
+  // Measured on screen: from the title's block (it takes all the width the header leaves it) to the close button.
+  const room = await dialog.evaluate((d) => d.querySelector("[data-testid=dialog-close]")!.getBoundingClientRect().left - d.querySelector("#dialog-title")!.parentElement!.getBoundingClientRect().right);
   expect(room).toBeGreaterThanOrEqual(CLEARANCE);
   if (await page.evaluate(() => matchMedia("(pointer: coarse)").matches)) {
     const close = (await dialog.getByTestId("dialog-close").boundingBox())!;

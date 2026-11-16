@@ -27,7 +27,7 @@ import { cn } from "@/lib/cn";
 import { assignmentStatus } from "@/domain/roster";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
 import { CardSocialIcons, SocialLinks } from "@/components/players/social-links";
-import { formatCount } from "@/lib/format";
+import { formatCount, formatDayMonth } from "@/lib/format";
 
 type ChampionsById = Map<string, { id: string; name: string; portraitUrl: string }>;
 const lookup = (championsById: ChampionsById, id: string) => championsById.get(id) ?? { id, name: id, portraitUrl: "" };
@@ -619,7 +619,7 @@ function PlayerDetailPanel({ slot, championsById, canEdit, canViewProfile, profi
                     {p.rankChange.points > 0 ? "+" : ""}
                     {p.rankChange.points} ladder points
                   </span>{" "}
-                  in {p.rankChange.days} days ({p.rankChange.from} → {p.rankChange.to})
+                  {p.rankChange.since === null ? `in ${p.rankChange.days} days` : `since ${formatDayMonth(p.rankChange.since)}`} ({p.rankChange.from} → {p.rankChange.to})
                 </Link>
               ) : null}
             </p>

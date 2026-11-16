@@ -6,12 +6,16 @@ import { requiresAccounts, missingProductionSetup } from "@/server/auth/mode";
 import { patches, dataRefreshStatus, riotAccounts } from "@/server/db/schema";
 import { RETIRED_JOB_KEYS, failuresInARow } from "@/server/ops/refresh-status";
 import { getRiotCredentialStatus } from "@/server/riot/credential";
+import { lastRankScheduleCall } from "@/server/ops/rank-schedule-calls";
 import { log } from "@/server/observability/log";
 
 export const dynamic = "force-dynamic";
 
 /** What a failed database check tells the public; the driver's own message is logged instead. */
 const PUBLIC_DB_ERROR = "The database did not answer (details in the server log).";
+
+/** How long the installed five-minute rank schedule may go without calling the app: four calls. */
+const RANK_SCHEDULE_SILENT_MS = 20 * 60_000;
 
 /**
  * Cheap health check for uptime monitors: the app answers, the database answers (and how fast),
@@ -36,6 +40,18 @@ export async function GET() {
     // since (also while it is being run again, which is when a scheduled check reads this).
     const now = Date.now();
     const failing = jobs.filter((j) => failuresInARow(j, now) > 0).map((j) => j.key);
+    // The five-minute rank schedule (pg_cron and pg_net in the database, docs/RANKED_PROGRESS.md) is
+    // installed while the rank-schedule job's last success is later than rank-schedule-off's, and it
+    // then calls /api/jobs/rank-watch every five minutes, each call recorded as it arrives
+    // (server/ops/rank-schedule-calls.ts). A call the app refuses (401: CRON_SECRET changed and
+    // rank-schedule not run again) or never gets (pg_cron stopped, the job removed or made inactive by
+    // hand, a restore into a new project) records nothing, so its silence is the only sign. The calls
+    // are counted, not the rank watch's successes: ticks (the ten-minute pg_cron tick, GitHub's runs,
+    // visits) run the rank watch too, and would hide a silent schedule. Only the installed state
+    // costs a read (one row); this public endpoint never reads pg_cron or Vault.
+    const successAt = (key: string) => jobs.find((j) => j.key === key)?.lastSuccessAt?.getTime() ?? 0;
+    const installedAt = successAt("rank-schedule");
+    if (installedAt > successAt("rank-schedule-off") && !failing.includes("rank-schedule") && now - Math.max(installedAt, await lastRankScheduleCall(handle.db)) > RANK_SCHEDULE_SILENT_MS) failing.push("rank-schedule");
     // While Riot rejects the key (expired or revoked), every linked account waits, backing off
     // for hours, and the account sync finds nothing due and reports success. So the key itself
     // is listed as failing, which fails the scheduled Data jobs run (the owner's email).

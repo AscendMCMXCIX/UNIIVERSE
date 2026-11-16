@@ -102,11 +102,12 @@ export function RoleIcon({ role, className, title, decorative = false }: { role:
   );
 }
 
+/** The role's icon and name. In a row too narrow for it (with `min-w-0`), the name ends in an ellipsis rather than spilling out. */
 export function RoleTag({ role, className, short = false }: { role: Role; className?: string; short?: boolean }) {
   return (
     <span className={cn("inline-flex items-center gap-1 text-xs font-medium text-fg-muted", className)}>
       <RoleIcon role={role} className="h-3.5 w-3.5" />
-      {short ? role : ROLE_LABELS[role]}
+      <span className="truncate">{short ? role : ROLE_LABELS[role]}</span>
     </span>
   );
 }

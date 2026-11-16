@@ -13,7 +13,8 @@ import { defineJob } from "./registry";
   types or sees the secret, and then reports how the schedule is doing (counts only). Running it
   again changes nothing but the Vault copy of the secret if CRON_SECRET has changed. Only on the
   production deployment (VERCEL_ENV=production): a preview must never schedule calls of its own.
-  `rank-schedule-off` removes the schedule and the Vault copy.
+  `rank-schedule-off` removes the schedule, and the Vault copy unless another pg_cron job reads it
+  (production's ten-minute `uniiverse-tick` does: docs/DEPLOYMENT.md).
 */
 
 export const RANK_SCHEDULE_JOB = "uniiverse-rank-watch";
@@ -111,23 +112,30 @@ export async function installRankSchedule(db: Db, env: Record<string, string | u
   return { ok: true, summary: { installed: true, steps, host, ...(await rankScheduleStatus(db)) } };
 }
 
-/** Removes the schedule and the Vault copy of the secret. */
+/**
+ * Removes the schedule, and the Vault copy of the secret unless another pg_cron job (active or not)
+ * still reads it: deleting it would leave that job's calls refused, with nothing to say so.
+ */
 export async function removeRankSchedule(db: Db): Promise<Record<string, unknown>> {
   const ext = rowsOf(await db.execute(sql`select extname from pg_extension where extname in ('pg_cron', 'supabase_vault')`)).map((r) => String(r.extname));
   let unscheduled = false;
   let secretRemoved = false;
+  let secretStillUsedBy = 0;
   if (ext.includes("pg_cron")) {
     const [job] = rowsOf(await db.execute(sql`select jobid from cron.job where jobname = ${RANK_SCHEDULE_JOB}`));
     if (job) {
       await db.execute(sql`select cron.unschedule(${RANK_SCHEDULE_JOB})`);
       unscheduled = true;
     }
+    // A count only: never the other jobs' names or command text.
+    const [others] = rowsOf(await db.execute(sql`select count(*)::int as n from cron.job where jobname is distinct from ${RANK_SCHEDULE_JOB} and strpos(command, ${RANK_SCHEDULE_SECRET}) > 0`));
+    secretStillUsedBy = Number(others?.n ?? 0);
   }
-  if (ext.includes("supabase_vault")) {
+  if (ext.includes("supabase_vault") && secretStillUsedBy === 0) {
     const removed = rowsOf(await db.execute(sql`delete from vault.secrets where name = ${RANK_SCHEDULE_SECRET} returning id`));
     secretRemoved = removed.length > 0;
   }
-  return { unscheduled, secretRemoved };
+  return { unscheduled, secretRemoved, secretStillUsedBy };
 }
 
 defineJob({
@@ -143,7 +151,7 @@ defineJob({
 
 defineJob({
   key: "rank-schedule-off",
-  description: "Removes the five-minute rank schedule (cron.unschedule) and its Vault copy of the cron secret. The rank watch then runs only on ticks, visits and the daily cron again.",
+  description: "Removes the five-minute rank schedule (cron.unschedule), and its Vault copy of the cron secret unless another pg_cron job still reads it (it then says how many, a count only). The rank watch then runs only on ticks, visits and the daily cron again.",
   defaultIntervalMinutes: null,
   run: async (ctx) => ({ ok: true, summary: await removeRankSchedule(ctx.db) }),
 });

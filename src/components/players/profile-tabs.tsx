@@ -71,30 +71,36 @@ const READER_INPUT = ["wheel", "touchstart", "pointerdown", "keydown"] as const;
  * route commits with the section's loading state, shorter than the content (the browser clamps the
  * scroll offset to it), and the content then replaces it (scroll anchoring can move the page to
  * keep a piece of the loading state in view): so the place is set again on each change to the page
- * until the loading state has gone, or for ten seconds at most on a slow connection. The reader
- * takes over with any input, or with a scroll of their own (one that moved the page while its
- * height stayed the same: a clamp or an anchoring adjustment comes with a change of height).
- * Returns the cleanup.
+ * until the loading state has gone and the top has been reached, or for ten seconds at most on a
+ * slow connection. The route can also commit for a moment with neither the loading state nor the
+ * content, no taller than the screen: the offset is clamped to 0 then, and only a later change to
+ * the page brings the top within reach. The reader takes over with any input, or with a scroll of
+ * their own (one that moved the page while its height stayed the same: a clamp or an anchoring
+ * adjustment comes with a change of height). Returns the cleanup.
  */
 function settleSectionTop(): () => void {
   const main = document.querySelector("main");
   let expected = -1;
   let height = 0;
   let timer = 0;
+  let target: number | null = null;
   const loading = () => !!main?.querySelector('[role="status"][aria-label="Loading"]');
   const place = () => {
     const top = sectionTop();
     if (top === null) return;
+    target = top;
     // Instant: a smooth scroll would still be under way when the next change to the page arrives.
     window.scrollTo({ top, behavior: "instant" });
-    // Where the page is now: a loading state too short for the top clamps it, and that is still
-    // this settle's own doing (the next change to the page brings the top within reach).
+    // Where the page is now: a page too short for the top clamps it, and that is still this
+    // settle's own doing (the next change to the page brings the top within reach).
     expected = window.scrollY;
     height = document.documentElement.scrollHeight;
   };
+  // Done once the content is on the page and the page is at the section's top.
+  const settled = () => !loading() && target !== null && Math.abs(window.scrollY - target) <= 1;
   const observer = new MutationObserver(() => {
     place();
-    if (!loading()) stop();
+    if (settled()) stop();
   });
   const stop = () => {
     observer.disconnect();
@@ -106,7 +112,7 @@ function settleSectionTop(): () => void {
     if (Math.abs(window.scrollY - expected) > 1 && document.documentElement.scrollHeight === height) stop();
   };
   place();
-  if (!main || !loading()) return () => undefined;
+  if (!main || settled()) return () => undefined;
   observer.observe(main, { childList: true, subtree: true });
   window.addEventListener("scroll", onScroll, { passive: true });
   for (const type of READER_INPUT) window.addEventListener(type, stop, { passive: true });
@@ -137,6 +143,8 @@ function ChromeTabs({ items, current }: { items: Array<{ key: string; href: stri
                 href={t.href}
                 replace
                 scroll={false}
+                // Lands at the section's own top (settleSectionTop), never at the page's (ScrollOnNavigate).
+                data-keep-scroll=""
                 aria-current={on ? "page" : undefined}
                 onClick={() => {
                   pending.current = !on && cardScrolledPast() ? t.key : null;

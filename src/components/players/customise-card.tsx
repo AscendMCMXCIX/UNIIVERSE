@@ -31,6 +31,7 @@ import {
 import { cardPreviewFiguresAction, listChampionSkinsAction, removeCardBannerAction, setCardStyleAction, uploadCardBannerAction } from "@/server/actions/players";
 import { ownSocialLinksAction, saveSocialLinksAction } from "@/server/actions/account";
 import { visibleSocialLinks, type SocialKind } from "@/domain/social-links";
+import { ON_THE_PUBLIC_PAGE } from "@/domain/privacy";
 import { SocialLinksFields, socialDraftChanged, socialDraftLinks, socialDraftOf, socialDraftProblems, type SocialDraft } from "@/components/settings/social-links-editor";
 import type { PickerChampion } from "@/components/champions/types";
 import { ChampionGrid } from "@/components/champions/champion-grid";
@@ -932,7 +933,7 @@ function BackgroundPanel({ style, set, bannerUrl, onBanner, hasSavedBanner }: { 
       </Field>
       {art.source === "banner" ? (
         <div className="space-y-2 rounded-panel border border-border bg-surface p-3" data-testid="banner-panel">
-          <p className="text-xs text-fg-muted">A landscape picture of your own (PNG, JPEG or WebP). It is resized in your browser before upload and only members can see it. If it cannot be shown, your champion art is used.</p>
+          <p className="text-xs text-fg-muted">{`A landscape picture of your own (PNG, JPEG or WebP), resized in your browser before upload. Shown to teammates, and ${ON_THE_PUBLIC_PAGE}. If it cannot be shown, your champion art is used.`}</p>
           <div className="flex flex-wrap gap-2">
             <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(e) => void pickFile(e.target.files?.[0] ?? null)} data-testid="banner-file" />
             <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={preparing}>

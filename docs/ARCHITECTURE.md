@@ -219,7 +219,7 @@ UNIIVERSE installs to a phone's home screen or a desktop as an app; no app store
     - It turns on navigation preload, so pages load as fast as without it.
     - `/sw.js` is sent with `Cache-Control: no-cache`, and a new version takes over at once.
 - `e2e/pwa.spec.ts` checks the manifest, the icons and the worker, then goes offline and back online and checks the cache holds only the offline page.
-- **Install App** (`src/components/install/`, `src/domain/install-guide.ts`): an entry beside Settings, in the sidebar (just above the account menu, which holds Settings), in the tablet menu and in the phone's account sheet. It opens one small window (`DetailModal`, compact) named after the app (`productName`).
+- **Install App** (`src/components/install/`, `src/domain/install-guide.ts`): an entry beside Settings, in the sidebar (just above the account menu, which holds Settings), in the tablet menu and on the phone's account screen. It opens one small window (`DetailModal`, compact) named after the app (`productName`).
     - A script at the top of every page (`capture-script.ts`, inlined by the root layout) keeps Chromium's install offer (`beforeinstallprompt`, which can arrive before the app's code has loaded) and notes `appinstalled`. `install-state.ts` reads both, with the display mode, through `useSyncExternalStore`.
     - With the offer (Chrome, Edge and other Chromium browsers on Windows, Android, macOS, Linux and ChromeOS), the window's **Install** button calls the offer's `prompt()` from the click. Accepted: the entry goes. Dismissed, or no offer: the window shows the steps for this browser instead (`installGuideFor`, from the user agent and touch points). Never a button that does nothing.
     - The steps: Share → Add to Home Screen on iPhone and iPad, in Safari or the browser in use (with Open as Web App from iOS 26; no browser there can install from a page, so nothing is attempted); the menu's own words on Android (Chrome, Samsung Internet, Edge, Firefox); the address-bar icon or the menu in Chrome and Edge on a computer; File → Add to Dock in Safari on a Mac. Firefox on a computer and in-app browsers (Instagram, Facebook, TikTok…) cannot install: they get an alternative (another browser, with a link to copy), and a bookmark is never called an installed app.
@@ -464,9 +464,12 @@ request is a game's match timeline, once per game, when a section that needs it 
   team kills, from `account_matches.team_kills`, one narrow query), the streak, the three champions
   played most, a trend only by Recent form's rule, and the ladder change of the last 30 days
   (`ladderChange` in `src/server/accounts/rank-history.ts`: the readings in the window plus the last
-  one before it, two indexed queries, the same arithmetic as the Overview's `rankProgress`; LP with
-  100 for a division; Flex when the list is Flex, otherwise Solo/Duo; the account filtered on, else
-  the Main account; current season only).
+  one before it, two indexed queries, with their confirmations; Ranked progress's rule, `rankMovement`
+  in `src/domain/rank-timeline.ts`: from the reading in effect when the window began, otherwise from
+  the first reading inside it, labelled "since <date>" instead of "30 days"; LP with 100 for a
+  division; Flex when the list is Flex, otherwise Solo/Duo; the account filtered on, else the Main
+  account; every year's readings, so January's still count until Riot's reset ends the ladder). Team's detail panel (`rankChangesFor`) gives the same figure for
+  each player's Main account.
 - **Refine** (`src/domain/history-refine.ts`, `history-refine-fields.tsx`,
   `src/server/players/history-members.ts`): Match History's own fields at the end of the profile's
   shared Refine panel (`OverviewFilters`' `extraFields`; their chips join the shared ones): the

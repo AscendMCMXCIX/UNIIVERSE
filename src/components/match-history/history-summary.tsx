@@ -4,7 +4,7 @@ import type { FormMetric } from "@/domain/recent-form";
 import type { MatchHistoryPage } from "@/server/players/match-history";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { InfoTip } from "@/components/ui/info-tip";
-import { formatCount } from "@/lib/format";
+import { formatCount, formatDayMonth } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
 /*
@@ -76,7 +76,7 @@ export function HistorySummaryStrip({ summary, ladder, championsById }: { summar
                 {formatCount(Math.abs(ladder.points))}
               </span>
             }
-            label={`${ladder.queue === "flex" ? "Flex" : "Solo/Duo"} points, ${ladder.days} days`}
+            label={`${ladder.queue === "flex" ? "Flex" : "Solo/Duo"} points, ${ladder.since === null ? `${ladder.days} days` : `since ${formatDayMonth(ladder.since)}`}`}
             title={`${ladder.from} → ${ladder.to}${ladder.riotId ? ` on ${ladder.riotId}` : ""}. Ladder points: LP, with 100 for each division gained or lost. From stored rank readings, not per game.`}
             testId="history-summary-ladder"
           />

@@ -59,9 +59,12 @@ from each section; this page does not repeat them.
 All values live in `@theme` in [src/app/globals.css](../src/app/globals.css); components use the
 Tailwind classes they generate. `src/app/design-tokens.test.ts` refuses font sizes in px,
 arbitrary values that equal a token (`text-[0.6875rem]` is `text-2xs`), Tailwind's names for the
-panel and card radii, colours written as hex in a class, easing curves that are not tokens, and
-uppercase labels spaced other than `tracking-label`. SVG charts drawn 1:1 in px keep their text in
-px, so it fits the chart's fixed gutters; the test lists them.
+panel and card radii, colours written as hex in a class, easing curves that are not tokens,
+uppercase labels spaced other than `tracking-label`, a safe-area padding (`pb-safe`, `pt-safe` and
+their `-N` forms) beside another padding for the same edge, and an arbitrary
+`max(…, env(safe-area-inset-…))` top or bottom padding that `pt-safe-N` or `pb-safe-N` writes
+(RESPONSIVE.md → Safe areas). SVG charts drawn 1:1 in px keep their text in px, so it fits the
+chart's fixed gutters; the test lists them.
 
 **Colour** (semantic, never raw values). The ground is a deep ink with a faint indigo undertone,
 each surface one visible step lighter than the one below it. The identity is a pair: the brand
@@ -144,8 +147,11 @@ roomy. Empty or thin data shrinks a card rather than leaving a frame to fill.
   section's moves beside its title from `xl` (`SectionHeader`).
 - **Density, by what the page is for:**
   - an analytical table has 2rem portraits and rows of about 48px wherever it is a table. Its
-    figure columns are as wide as their heading needs and a little more, and the name column takes
-    the rest, so figures stay together on a wide screen. On phones the rows become compact pairs;
+    figure columns are as wide as their heading needs and a little more (at least room for the sort
+    arrow beside the heading, clear of the heading before it), and the name column takes the rest,
+    so figures stay together on a wide screen. The name column never gets less than the name and the
+    line under it need, each on one line (a role and "In pool"), so every row keeps one height at
+    the table's narrowest. On phones the rows become compact pairs;
   - a list of games is one card per game, and a game opens under its card;
   - a dashboard's cards are as large as their content.
 

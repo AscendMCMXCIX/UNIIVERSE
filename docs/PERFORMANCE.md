@@ -28,7 +28,9 @@ Playwright script against a PostgreSQL database seeded with 3,000 ranked games
   ([MONITORING.md](MONITORING.md)). Those are real loads on real devices and networks; every other
   figure on this page is a lab measurement on one emulated device or a server timing. The two are
   reported apart and never averaged together. The Production check's verification account is not
-  counted (its beacons are dropped; [LIVE_VALIDATION.md](LIVE_VALIDATION.md)).
+  counted since 7 Nov 2026, about 18:27 UTC (#256: its beacons are dropped;
+  [LIVE_VALIDATION.md](LIVE_VALIDATION.md)). Its loads from that day's earlier signed-in runs stay
+  in the 28-day figures until 4 Dec; `last7` is clean from 15 Nov.
 - **Health**: `/api/health` answers in about 10 ms of server time with database round trip,
   auth mode, patch, data freshness and failing jobs; it never touches statistics or providers.
 
@@ -725,7 +727,7 @@ React and Next.js are the same on every page and not counted):
   page that can open the window (a champion's matchups on the Overview and All Champions) carried the
   whole Match History page. The formatters now live in `match-history/match-format.ts`: 15–16 KB less
   on those two pages.
-- The phone frame (the account sheet, the profile's sections in the top bar) adds 2.3–3.9 KB to
+- The phone frame (the account menu, the profile's sections in the top bar) adds 2.3–3.9 KB to
   every page. Team Matches loads the match window only when a phone opens a game (fetched ahead once a
   phone shows the list), so tablets and desktops do not download it.
 

@@ -13,6 +13,7 @@ import { recordRiotOutcome } from "@/server/riot/credential";
 import { invalidateCache } from "@/server/observability/cache";
 import { runJob } from "@/server/jobs";
 import { GET as health } from "@/app/api/health/route";
+import { markRankScheduleCall, RANK_SCHEDULE_CALL_KEY } from "@/server/ops/rank-schedule-calls";
 
 /*
   What the owner is told about the data jobs: /api/health (read by every scheduled Data jobs run,
@@ -98,6 +99,48 @@ describe("/api/health", () => {
     expect(body.failingJobs.filter((k) => k.startsWith("h-")).sort()).toEqual(["h-dead", "h-failed", "h-retrying"]);
     expect(body.jobs.map((j) => j.key)).toEqual(expect.arrayContaining(rows.map((r) => r.key)));
     await db.delete(dataRefreshStatus).where(inArray(dataRefreshStatus.key, rows.map((r) => r.key)));
+  });
+
+  it("lists the five-minute rank schedule while it is installed and has not called for 20 minutes, whatever runs the rank watch", async () => {
+    const db = handle.db;
+    const KEYS = ["rank-schedule", "rank-schedule-off", "rank-watch"];
+    /** Status rows as these jobs leave them (each succeeded the given minutes ago), and the schedule's last call. */
+    const set = async (rows: Array<[string, number]>, lastCallMinutesAgo: number | null) => {
+      await db.delete(dataRefreshStatus).where(inArray(dataRefreshStatus.key, KEYS));
+      await db.delete(appSettings).where(eq(appSettings.key, RANK_SCHEDULE_CALL_KEY));
+      const now = Date.now();
+      for (const [key, minutesAgo] of rows) {
+        const at = new Date(now - minutesAgo * 60_000);
+        await db.insert(dataRefreshStatus).values({ key, status: "ok", lastStartedAt: at, lastSuccessAt: at, updatedAt: at, consecutiveFailures: 0 });
+      }
+      if (lastCallMinutesAgo !== null) await markRankScheduleCall(db, new Date(now - lastCallMinutesAgo * 60_000));
+    };
+    const listed = async () => (await readHealth()).body.failingJobs.includes("rank-schedule");
+    // Installed, and no call for 21 minutes (calls refused or never sent): listed, so the scheduled run fails.
+    await set([["rank-schedule", 120], ["rank-watch", 21]], 21);
+    const { body } = await readHealth();
+    expect(body.ok).toBe(true);
+    expect(body.failingJobs).toContain("rank-schedule");
+    // The ten-minute tick (or a visit, or GitHub's run) still runs the rank watch: that does not hide a silent schedule.
+    await set([["rank-schedule", 120], ["rank-watch", 2]], 25);
+    expect(await listed()).toBe(true);
+    // Installed again after an off, then silent: listed.
+    await set([["rank-schedule-off", 600], ["rank-schedule", 500], ["rank-watch", 30]], 400);
+    expect(await listed()).toBe(true);
+    // Healthy: the schedule called within 20 minutes.
+    await set([["rank-schedule", 120], ["rank-watch", 4]], 4);
+    expect(await listed()).toBe(false);
+    await set([["rank-schedule", 120], ["rank-watch", 19]], 19);
+    expect(await listed()).toBe(false);
+    // Removed on purpose (rank-schedule-off after the install), never installed, or installed minutes ago (never called yet): not listed.
+    await set([["rank-schedule", 120], ["rank-schedule-off", 60], ["rank-watch", 300]], 300);
+    expect(await listed()).toBe(false);
+    await set([["rank-watch", 300]], null);
+    expect(await listed()).toBe(false);
+    await set([["rank-schedule", 3], ["rank-watch", 300]], null);
+    expect(await listed()).toBe(false);
+    await db.delete(dataRefreshStatus).where(inArray(dataRefreshStatus.key, KEYS));
+    await db.delete(appSettings).where(eq(appSettings.key, RANK_SCHEDULE_CALL_KEY));
   });
 });
 

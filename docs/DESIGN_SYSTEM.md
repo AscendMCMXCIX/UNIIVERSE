@@ -165,7 +165,9 @@ frame cannot clip it.
 
 Two saved states, open (16rem) and collapsed to a 4.5rem rail. While collapsed, hover or keyboard
 focus opens a temporary preview over the page. The choice is remembered in a cookie, so the server
-renders the right width with no jump. Ctrl+\ toggles it. That behaviour is unchanged.
+renders the right width with no jump. Ctrl+\ toggles it. That behaviour is unchanged. A click on the
+collapse control before the page's code has run is kept and applied once it runs (see "The
+navigation contract").
 
 **Zones.** Three zones, top to bottom, each separated by a hairline (`RAIL_DIVIDER`):
 
@@ -220,9 +222,9 @@ reads as set into the frame rather than pasted on a flat block.
 ### Tablets and phones
 
 Tablets keep the top bar, the drawer (sharing `NavLinks`, so the same rows) and the section tabs.
-Phones keep the top bar, the five-tab bar and the account sheet (MOBILE.md). They pick up the new
-`chrome` ink automatically. Their mode switch keeps its bordered button: in the sheet it sits among
-large rows with nothing else to set it apart.
+Phones keep the top bar, the five-tab bar and the account screen (MOBILE.md). They pick up the new
+`chrome` ink automatically. On the account screen the mode switch is a row like the others, above
+Sign out in a panel of their own, and it keeps the accent when it leads to Admin Mode.
 
 With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shell):
 
@@ -238,6 +240,50 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
   be used, and closing it returns focus to the menu button.
 - **The installed app on a tablet.** It shows Back in the top bar, as phones do, because the
   installed app has no browser Back.
+
+### The navigation contract
+
+Every page follows the same rules, so moving around never needs thought (#266; each rule names its
+test):
+
+- **Three levels, each always in the same place.** Destinations: the sidebar (desktop), the drawer
+  (tablet), the five-tab bar (phone). Sections: the section tabs, pinned once the page scrolls past
+  them (tablet, desktop), the top bar's second row on a phone profile (Team's sections are the phone
+  tab bar itself). A page's own views and scope (its view switch, filters, search): in its header.
+- **Where a page starts.** A page opened by a link or by code starts at its top
+  (`ScrollOnNavigate`); Back and Forward restore the exact place (the browser and Next, untouched);
+  a link to a `#fragment` lands on its target. A link that changes the address but keeps the place
+  is marked `data-keep-scroll` (a profile's sections, which land at their own top themselves:
+  `settleSectionTop`). A change of the query alone (a filter, a view) keeps the place: it is the same
+  page. The next page of a list starts with its first item under the bars (Match History's pager).
+  (`e2e/navigation-landings.spec.ts`)
+- **Back to the top.** On a phone, tapping the current tab on its own page goes back to the top
+  (smooth; at once with reduced motion), and so does tapping the page's title once it has moved into
+  the top bar. A page under a tab (a teammate's profile under Players) still goes to the tab's page.
+- **Back.** Phones and the installed app show their own Back, named after where it leads: the
+  previous page when it is ours, else the page above (`phoneParent`). A full-screen game is a history
+  entry (Back closes it); a profile's sections replace the entry (Back leaves the profile). An
+  account without a player profile never starts at, or goes Back to, an empty Profile: its home is
+  its first other page.
+- **Overlays.** One sheet for every choice and editor (`DetailModal` `size="sheet"`, `Dialog` built
+  on it): its choices in the body and its actions in the footer, which stays in view while only the
+  body scrolls. Where the header and footer would leave the body too little room for its tallest
+  control (large text on a phone held sideways), the whole sheet scrolls as one instead, like a page,
+  so nothing is ever cut short in a strip. Escape, the backdrop, Close and a pull down close the
+  topmost one, focus returns to what opened it without scrolling, and the page behind never moves
+  (MOBILE.md, "Every sheet and window"). Every window's body grows from its content (`flex-auto`,
+  never `flex-1`): Safari 26 collapses a window as tall as its content to its header otherwise, as it
+  did to the account menu on the owner's iPhone, and as WebKit 26.0 does to most sheets and to the
+  compact and centred windows (MOBILE.md, "Why the account menu was a strip on iPhones"). The phone's account menu is a screen of its own instead of a sheet (`size="screen"`):
+  full-width rows of at least 48px on a screen fixed to the phone's four edges.
+- **Before the page's code has run.** Destinations are real links, and work at once. The frame's
+  controls that code drives (the phone's avatar, the tablet's menu button, the account menu's
+  triggers on tablets and in the sidebar, the sidebar's collapse control) keep a tap made before it
+  has run (`data-early`, `src/components/early-taps.ts`): they show pressed at once
+  (`[data-early][aria-busy]`: the hover surface in an accent ring) and act once the code runs,
+  exactly once. (`e2e/mobile-nav.spec.ts`, `e2e/sidebar-motion.spec.ts`)
+- **The keyboard.** "Skip to content" is the first stop on every page and moves focus to the page
+  (`main#content`); every control has the shared focus ring.
 
 ## 8. Brand assets (white label)
 

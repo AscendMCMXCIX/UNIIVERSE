@@ -92,6 +92,8 @@ export function TabBar({ label, items, current, keepScroll = false, dense = fals
                 href={s.href}
                 aria-current={on ? "page" : undefined}
                 scroll={!keepScroll}
+                // The page keeps its place (ScrollOnNavigate leaves these links to the page).
+                data-keep-scroll={keepScroll ? "" : undefined}
                 className={cn("inline-flex min-h-11 items-center gap-2 whitespace-nowrap px-3 text-sm font-medium transition-colors duration-150 max-sm:w-full max-sm:justify-center max-sm:px-2", dense && "lg:min-h-10", tabIndicatorClass(on))}
                 data-testid={s.testId}
               >

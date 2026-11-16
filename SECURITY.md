@@ -31,7 +31,10 @@ person's data.
   `pull_request_target`. Each workflow states the smallest `permissions` it needs, and third-party
   actions are pinned to a commit.
 - **A secret that was published is compromised**, even if the commit is deleted at once: revoke and
-  rotate it at its source first, then clean up.
+  rotate it at its source first, then clean up. `CRON_SECRET` also has a copy in Supabase Vault,
+  which the database's schedules send: after rotating it, run Data jobs `rank-schedule`
+  (`docs/TRANSFER.md`, step 5). Whoever holds `CRON_SECRET` can also open the Production check's
+  member session (`docs/LIVE_VALIDATION.md`), so a leak of it is rotated at once.
 
 ## Where things are documented
 

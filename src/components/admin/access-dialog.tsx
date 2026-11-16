@@ -98,7 +98,7 @@ export function AccessDialog({ account, presets, lineupRole = null, onClose }: {
       onClose={onClose}
       title={`Access for ${account.username}`}
       description="Team membership, a base level, any additional groups, and administrator access to Admin Mode."
-      className="sm:max-w-3xl"
+      width="wide"
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={busy}>

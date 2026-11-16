@@ -18,6 +18,7 @@ import { cn } from "@/lib/cn";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
 import { moveRolePatch, roleOrder, useProfileAutosave, type ProfileState } from "./use-profile-autosave";
 import { formatCompactCount } from "@/lib/format";
+import { screenHeight } from "@/lib/screen";
 
 /** Role choice as a row of icon chips; the current choice is highlighted, changes save at once. */
 export function RolePicker({
@@ -670,7 +671,7 @@ function useRoleDrag(count: number, onMove: (from: number, to: number) => void, 
       const dy = e.clientY - st.y + (window.scrollY - st.scroll);
       setState({ ...s, dy, to: targetFor(e.clientY + window.scrollY, s.from) });
       if (e.clientY < 56) window.scrollBy(0, -12);
-      else if (e.clientY > window.innerHeight - 56) window.scrollBy(0, 12);
+      else if (e.clientY > screenHeight() - 56) window.scrollBy(0, 12);
     };
     const up = () => {
       const s = live.current;

@@ -40,15 +40,18 @@ Most of the testing happens here, not on GitHub. Run what the change touches:
 - **Up to date first:** the PR should be up to date with `main`. If `main` moved, merge `origin/main` into the branch, re-validate locally, then push once.
   - An up-to-date PR lets the push to `main` reuse the PR's CI result (about 1 minute instead of 16).
 - **How:** merge with the "merge" method and `expectedHeadSha`, and only when the user has asked or approved merging.
-- **Deployment:** Vercel deploys `main` to production on its own. There is no manual deploy step. Docs- or tooling-only merges are skipped by `scripts/vercel-ignore-build.sh`.
+- **Deployment:** Vercel deploys `main` to production on its own. There is no manual deploy step. Merges that change only docs, tests (`e2e/`, `tests/`, `*.test.ts`), the test runners' configuration, `scripts/` or repository settings are skipped by `scripts/vercel-ignore-build.sh`.
+- **Deploy budget (Vercel Active CPU):** the Hobby plan allows 4 hours of Active CPU in 30 days, about 480 CPU-seconds a day for everything, and it ran out on 8 Nov 2026 (docs/HOSTING_USAGE.md, "Vercel Active CPU"). Every production deploy costs part of that: every function starts cold, and the signed-in Production check runs against it.
+  - Batch merges: at most about 3 production deploys a day.
+  - Merge a set of ready PRs one after another rather than spread across the day.
 
 ## 5. After a production deploy
 
 - **The Production check runs by itself** after every successful production deployment (`.github/workflows/production-check.yml`, Vercel's deployment status): it waits for production to answer from the deployed commit, then checks health, the signed-out and forged-session security, the headers, and the pages at three widths with axe. Read its result (Actions → Production check); a failure also opens a `production-check` issue. If it did not run, start it by hand (Run workflow) rather than Data jobs `smoke`.
 - **After a migration** also run one `Data jobs` run with `job: "auth-audit"`. **Add `perf-probe`** (Production check → Run workflow → perf) when the change touches data loading, queries or caching; it also runs every Monday. One probe reads about 6 MB from the production database, against an egress budget of 120 MB a day (`docs/HOSTING_USAGE.md`).
-- **Visible changes:** production-verified means the Production check passed on the deployed commit *with* the member pages. It signs in as the verification account: a member with no player profile, kept by Data jobs `verify-account`, its password worked out from `CRON_SECRET` (docs/LIVE_VALIDATION.md). If its summary says the member pages are pending, they were not checked, and changes to member pages stay "deployed", not "production-verified".
+- **Visible changes:** production-verified means the Production check passed on the deployed commit *with* the member pages, and the check exercises the change: docs/LIVE_VALIDATION.md, "What it checks", lists what it asserts on each page. A change it only renders is "deployed, its pages load cleanly on production"; CI checks its behaviour on demo data. The check signs in as the verification account: a member with no player profile, kept by Data jobs `verify-account`, its password worked out from `CRON_SECRET` (docs/LIVE_VALIDATION.md). If its summary says the member pages are pending, they were not checked, and changes to member pages stay "deployed", not "production-verified".
 - **Docs- or tooling-only merges:** skip the check.
-- **Don't loop manual runs.** Each run bills at least 1 minute.
+- **Don't loop manual runs.** Each run bills at least 1 minute of Actions and wakes production's functions (Vercel Active CPU). Put several jobs in one Data jobs run, and run `perf-probe` and `smoke` only when a change needs them.
 
 ## 6. Actions hygiene
 
