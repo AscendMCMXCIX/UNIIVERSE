@@ -24,8 +24,9 @@ import { curatedEnemiesFor, getChampionNotes, getMatchupNotes } from "./index";
   - every fact, level note and interaction cites one of its notes' sources, and every source is an
     https page on wiki.leagueoflegends.com (CC BY-SA 3.0, with the revision read and when it was
     saved, a time in UTC no later than the day the notes were checked), developer.riotgames.com or
-    ddragon.leagueoflegends.com (Riot Games, with no revision), and its kind fits its page;
-  - a matchup's source is the page and revision the champion notes cite under the same id;
+    ddragon.leagueoflegends.com (Riot Games, with no revision); its kind fits its page, and a wiki
+    page's title is in the house style ("League of Legends Wiki: Ruthless Predator (Renekton)");
+  - a matchup's source is the champion notes' source of the same id, in every field;
   - every ability a briefing point or an interaction rests on belongs to one of the two champions
     and has notes of its own;
   - every text is plain and short: no wiki markup ("{{"), no "<" or ">", no control characters, at
@@ -151,6 +152,33 @@ export function verificationProblems(verified: Verification | undefined): string
   return out;
 }
 
+/**
+ * The title a wiki page's source carries, from its address: "League of Legends Wiki: <Ability>
+ * (<Champion>)" for an ability's data page, "League of Legends Wiki: <Page>" for any other (a
+ * reference page may add a few words in brackets). Null for a page that is not the wiki's.
+ */
+export function wikiTitle(url: URL): string | null {
+  if (url.hostname !== "wiki.leagueoflegends.com") return null;
+  let path = url.pathname;
+  try {
+    path = decodeURIComponent(url.pathname);
+  } catch {
+    // An address that does not decode is judged as written.
+  }
+  const page = path.replace(/^\/en-us\//, "").replace(/_/g, " ");
+  const ability = /^Template:Data ([^/]+)\/(.+)$/.exec(page);
+  return ability ? `League of Legends Wiki: ${ability[2]} (${ability[1]})` : `League of Legends Wiki: ${page}`;
+}
+
+/** Why a source's title is not the house style for its page, or null. */
+function titleProblem(source: Source, url: URL): string | null {
+  const expected = wikiTitle(url);
+  if (expected === null) return null;
+  const title = typeof source.title === "string" ? source.title : "";
+  const fits = title === expected || (source.kind === "wiki-reference" && title.startsWith(`${expected} (`) && title.endsWith(")"));
+  return fits ? null : `source "${source.id}" is titled ${JSON.stringify(title)}, not ${JSON.stringify(expected)}`;
+}
+
 /** Why a source's kind does not fit its page, or null. */
 function kindProblem(source: Source, url: URL): string | null {
   let path = url.pathname;
@@ -205,6 +233,8 @@ export function sourceProblems(sources: readonly Source[], checkedOn?: string): 
     if (source.kind === undefined) out.push(`source "${source.id}" gives no kind (wiki-ability, wiki-champion, wiki-reference, ddragon or riot-docs)`);
     const kind = kindProblem(source, url);
     if (kind) out.push(`source "${source.id}" is of kind "${source.kind}", which is ${kind}, but its address is ${source.url}`);
+    const title = titleProblem(source, url);
+    if (title) out.push(title);
     if (source.revisionTime !== undefined) {
       const time = typeof source.revisionTime === "string" && REVISION_TIME.test(source.revisionTime) ? Date.parse(source.revisionTime) : Number.NaN;
       if (Number.isNaN(time)) out.push(`source "${source.id}" revisionTime ${JSON.stringify(source.revisionTime)} is not a time in UTC such as "2026-09-23T19:37:45Z"`);
@@ -324,10 +354,12 @@ export function matchupProblems(notes: MatchupNotes, rules: Rules, championNotes
   }
   verificationProblems(notes.verified).forEach(say);
   sourceProblems(notes.sources, notes.verified?.checkedOn).forEach(say);
+  const SOURCE_FIELDS = ["title", "url", "kind", "revision", "revisionTime", "licence"] as const;
   for (const source of notes.sources) {
     for (const id of new Set(pair)) {
       const theirs = championNotes(id)?.sources.find((s) => s.id === source.id);
-      if (theirs && (theirs.url !== source.url || theirs.revision !== source.revision || theirs.licence !== source.licence)) say(`source "${source.id}" is not the page and revision ${id}'s notes cite under that id`);
+      const differ = theirs ? SOURCE_FIELDS.filter((field) => theirs[field] !== source[field]) : [];
+      if (differ.length) say(`source "${source.id}" is not the source ${id}'s notes cite under that id: its ${differ.join(", ")} differ`);
     }
   }
   const cited = new Set(notes.sources.map((s) => s.id));
@@ -579,7 +611,14 @@ describe("the checks fire", () => {
     expect(championProblems(twice, RULES)).toEqual(['Renekton: source "renekton-p" is listed twice']);
     const otherRevision = matchup();
     otherRevision.sources.find((s) => s.id === "renekton-w")!.revision = 1;
-    expect(matchupProblems(otherRevision, RULES, getChampionNotes)).toEqual(["Ambessa vs Renekton: source \"renekton-w\" is not the page and revision Renekton's notes cite under that id"]);
+    expect(matchupProblems(otherRevision, RULES, getChampionNotes)).toEqual(["Ambessa vs Renekton: source \"renekton-w\" is not the source Renekton's notes cite under that id: its revision differ"]);
+    const otherTitle = matchup();
+    const w = otherTitle.sources.find((s) => s.id === "renekton-w")!;
+    Object.assign(w, { title: "League of Legends Wiki: W (Renekton)", revisionTime: "2026-09-24T00:00:00Z" });
+    expect(matchupProblems(otherTitle, RULES, getChampionNotes)).toEqual([
+      "Ambessa vs Renekton: source \"renekton-w\" is titled \"League of Legends Wiki: W (Renekton)\", not \"League of Legends Wiki: Ruthless Predator (Renekton)\"",
+      "Ambessa vs Renekton: source \"renekton-w\" is not the source Renekton's notes cite under that id: its title, revisionTime differ",
+    ]);
   });
 
   it("on an ability reference that is not one of the two champions' abilities with notes", () => {
@@ -744,6 +783,25 @@ describe("the checks fire", () => {
     const noTime = renekton();
     delete noTime.sources[2]!.revisionTime;
     expect(championProblems(noTime, RULES)).toEqual(["Renekton: source \"renekton-w\" gives no revisionTime: when the revision read was saved, from the page's history"]);
+  });
+
+  it("on a wiki source whose title is not the house style: \"League of Legends Wiki: <Ability> (<Champion>)\", or the page's own title", () => {
+    const withTitle = (index: number, title: string) => {
+      const notes = renekton();
+      notes.sources[index] = { ...notes.sources[index]!, title };
+      return championProblems(notes, RULES);
+    };
+    expect(withTitle(2, "League of Legends Wiki: Template:Data Renekton/Ruthless Predator")).toEqual(['Renekton: source "renekton-w" is titled "League of Legends Wiki: Template:Data Renekton/Ruthless Predator", not "League of Legends Wiki: Ruthless Predator (Renekton)"']);
+    expect(withTitle(2, "Ruthless Predator (Renekton)")).toEqual([problem(/is titled "Ruthless Predator \(Renekton\)", not "League of Legends Wiki: Ruthless Predator \(Renekton\)"/)]);
+    // A reference page may say in brackets what it is for; an ability's page may not.
+    const reference = renekton().sources.findIndex((x) => x.id === "ability-data");
+    expect(withTitle(reference, "League of Legends Wiki: Template:Ability data")).toEqual([]);
+    expect(withTitle(reference, "League of Legends Wiki: Template:Ability data (field meanings)")).toEqual([]);
+    expect(withTitle(2, "League of Legends Wiki: Ruthless Predator (Renekton) (W)")).toEqual([problem(/is titled/)]);
+    expect(matchupProblems(matchup(), RULES, getChampionNotes)).toEqual([]);
+    const page = matchup();
+    page.sources.find((x) => x.id === "renekton-page")!.title = "Renekton (League of Legends Wiki)";
+    expect(matchupProblems(page, RULES, getChampionNotes)).toEqual(['Ambessa vs Renekton: source "renekton-page" is titled "Renekton (League of Legends Wiki)", not "League of Legends Wiki: Renekton"']);
   });
 
 });
