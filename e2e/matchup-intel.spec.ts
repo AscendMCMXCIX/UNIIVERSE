@@ -175,6 +175,9 @@ test("the picker's search: 16px, as you type, by name with case, accents and spa
   await expect.poll(() => rosterIds(win)).toEqual(["JarvanIV"]);
   await search.fill("kha");
   await expect.poll(() => rosterIds(win)).toEqual(["Khazix"]);
+  // Each button is named once, by the name under its portrait: the portrait is hidden from
+  // assistive technology ("Kha'Zix", not "Kha'Zix Kha'Zix").
+  await expect(win.getByTestId("matchup-picker-grid").locator('button[data-champion="Khazix"]')).toHaveAccessibleName("Kha'Zix");
   // The field keeps its own name once something is typed (the clear button is beside its label, not
   // in it), and the clear button is a 44px target, measured once the window's opening motion (which
   // scales it from 97%) is over: typed into at once, it is still moving.
