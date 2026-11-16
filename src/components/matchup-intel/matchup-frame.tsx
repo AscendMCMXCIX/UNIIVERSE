@@ -28,7 +28,11 @@ const useOnClient = () => React.useSyncExternalStore(subscribeNothing, () => tru
 
 const PickerContext = React.createContext<(slot: PickerSlot) => void>(() => undefined);
 
-/** A button that opens a side's picker, for the page's own prompts ("Choose the enemy"). */
+/**
+ * A button that opens a side's picker, for the page's own prompts ("Choose the enemy"). The picker
+ * opens from that side's slot (MatchupFrame's openPicker), so focus goes back to the slot when it
+ * closes: the prompt itself is gone by then, replaced by the page for the choice.
+ */
 export function OpenPickerButton({ slot, children, testId }: { slot: PickerSlot; children: React.ReactNode; testId?: string }) {
   const open = React.useContext(PickerContext);
   return (
@@ -45,10 +49,11 @@ const portraitOf = (c: ChampionChoice) => ({ id: c.id, name: c.name, portraitUrl
  * Stacked and centred on a phone; from sm the two sides mirror each other, each portrait beside the
  * swap between them, as the two sides of a lane.
  */
-function SlotButton({ slot, champion, onOpen }: { slot: PickerSlot; champion: ChampionChoice | null; onOpen: () => void }) {
+function SlotButton({ slot, champion, onOpen, buttonRef }: { slot: PickerSlot; champion: ChampionChoice | null; onOpen: () => void; buttonRef: React.Ref<HTMLButtonElement> }) {
   const you = slot === "you";
   return (
     <button
+      ref={buttonRef}
       type="button"
       onClick={onOpen}
       aria-haspopup="dialog"
@@ -81,74 +86,106 @@ function SlotButton({ slot, champion, onOpen }: { slot: PickerSlot; champion: Ch
   );
 }
 
+/** Words a phone leaves out of sight to keep the line on one row; screen readers still read them (and the button names keep their visible words first). */
+const WIDER = "max-sm:sr-only";
+
 /**
  * What this device remembers as your champion, said where it matters: with no champion of yours in
  * the address, the remembered one is offered (Use, or Forget); with one, whether it is the one
  * remembered, and a way to remember it instead. Before the page has read this device's storage
  * (the server's copy, and while it hydrates) the line keeps its height and says nothing, so it never
  * shows a state this device does not have.
+ *
+ * Every state is one row of 44px from 320px wide (for most names; a long one may wrap), the height
+ * kept while the storage is unknown, so nothing under the line moves once it is read: the picture
+ * or check and the words are one item, and only the buttons may go to a row of their own. Focus
+ * never falls off the page: Forget and Remember are one button whose words change, and where the
+ * focused control goes with what it did (Use, and Forget on the offer), focus moves to the You slot.
  */
-function RememberedLine({ you, remembered, onUse, onRemember }: { you: ChampionChoice | null; remembered: ChampionChoice | null; onUse: (id: string) => void; onRemember: (id: string | null) => void }) {
+function RememberedLine({ you, remembered, onUse, onRemember, focusYourSlot }: { you: ChampionChoice | null; remembered: ChampionChoice | null; onUse: (id: string) => void; onRemember: (id: string | null) => void; focusYourSlot: () => void }) {
   const onClient = useOnClient();
-  let content: React.ReactNode;
+  let info: React.ReactNode = null;
+  let actions: React.ReactNode = null;
   let state: string;
   if (!onClient) {
     // Until this device's storage has been read, the line keeps its place and claims nothing.
     state = "loading";
-    content = null;
   } else if (!you && remembered) {
     state = "offer";
-    content = (
+    info = (
       <>
         <span aria-hidden className="shrink-0">
           <ChampionPortrait champion={portraitOf(remembered)} size="xs" className="ring-1 ring-blue/60" />
         </span>
-        <span>
-          Remembered on this device: <span className="font-semibold text-fg">{remembered.name}</span>
+        <span className="min-w-0">
+          Remembered<span className={WIDER}> on this device</span>: <span className="font-semibold text-fg">{remembered.name}</span>
         </span>
-        <Button size="sm" variant="secondary" onClick={() => onUse(remembered.id)} data-testid="matchup-use-remembered">
-          Use {remembered.name}
+      </>
+    );
+    actions = (
+      <>
+        <Button
+          key="use"
+          size="sm"
+          variant="secondary"
+          onClick={() => {
+            focusYourSlot();
+            onUse(remembered.id);
+          }}
+          data-testid="matchup-use-remembered"
+        >
+          Use<span className={WIDER}> {remembered.name}</span>
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => onRemember(null)} data-testid="matchup-forget">
+        <Button
+          key="toggle"
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            focusYourSlot();
+            onRemember(null);
+          }}
+          data-testid="matchup-forget"
+        >
           Forget
         </Button>
       </>
     );
   } else if (!you) {
     state = "none";
-    content = <span>The champion you choose as yours is remembered on this device, to offer next time.</span>;
+    info = <span className="min-w-0">The champion you play is remembered on this device, to offer next time.</span>;
   } else if (remembered?.id === you.id) {
     state = "remembered";
-    content = (
+    info = (
       <>
         <Check className="h-4 w-4 shrink-0 text-good" aria-hidden />
-        <span>
-          <span className="font-semibold text-fg">{you.name}</span> is remembered on this device as your champion.
+        <span className="min-w-0">
+          <span className="font-semibold text-fg">{you.name}</span> is remembered<span className={WIDER}> on this device</span> as your champion.
         </span>
-        <Button size="sm" variant="ghost" onClick={() => onRemember(null)} data-testid="matchup-forget">
-          Forget
-        </Button>
       </>
+    );
+    actions = (
+      <Button key="toggle" size="sm" variant="ghost" onClick={() => onRemember(null)} data-testid="matchup-forget">
+        Forget
+      </Button>
     );
   } else {
     state = "other";
-    content = (
-      <>
-        {remembered ? (
-          <span>
-            <span className="font-semibold text-fg">{remembered.name}</span> is remembered on this device.
-          </span>
-        ) : null}
-        <Button size="sm" variant="ghost" onClick={() => onRemember(you.id)} data-testid="matchup-remember">
-          Remember {you.name}
-          {remembered ? " instead" : " on this device"}
-        </Button>
-      </>
+    info = remembered ? (
+      <span className="min-w-0">
+        <span className="font-semibold text-fg">{remembered.name}</span> is remembered<span className={WIDER}> on this device</span>.
+      </span>
+    ) : null;
+    actions = (
+      <Button key="toggle" size="sm" variant="ghost" onClick={() => onRemember(you.id)} data-testid="matchup-remember">
+        Remember {you.name}
+        <span className={WIDER}>{remembered ? " instead" : " on this device"}</span>
+      </Button>
     );
   }
   return (
-    <div className="flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-fg-muted" data-testid="matchup-remembered" data-state={state}>
-      {content}
+    <div className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg-muted" data-testid="matchup-remembered" data-state={state}>
+      {info ? <span className="flex min-w-0 grow basis-24 items-center gap-2">{info}</span> : null}
+      {actions ? <span className="flex shrink-0 items-center gap-2">{actions}</span> : null}
     </div>
   );
 }
@@ -159,6 +196,18 @@ export function MatchupFrame({ you, enemy, champions, curated, children }: { you
   // The choice on its way: shown in the slots until the server's page for it arrives.
   const [target, setTarget] = React.useState<Pair | null>(null);
   const [picking, setPicking] = React.useState<PickerSlot | null>(null);
+  const youSlot = React.useRef<HTMLButtonElement>(null);
+  const enemySlot = React.useRef<HTMLButtonElement>(null);
+  /**
+   * Opens a side's picker from its slot: the slot takes the focus first, so the picker (which hands
+   * focus back to what had it when it opened) returns it to the slot, which stays on the page. A
+   * prompt that asked for the picker is gone by then, and Safari never focuses a clicked button.
+   */
+  const openPicker = React.useCallback((slot: PickerSlot) => {
+    (slot === "you" ? youSlot : enemySlot).current?.focus({ preventScroll: true });
+    setPicking(slot);
+  }, []);
+  const focusYourSlot = React.useCallback(() => youSlot.current?.focus({ preventScroll: true }), []);
   const { prefs, choose, remember } = useMatchupPreferences();
   const byId = React.useMemo(() => new Map(champions.map((c) => [c.id, c])), [champions]);
   const choice = (id: string | null) => (id ? (byId.get(id) ?? null) : null);
@@ -178,11 +227,11 @@ export function MatchupFrame({ you, enemy, champions, curated, children }: { you
   const yourChoice = choice(shown.you);
 
   return (
-    <PickerContext.Provider value={setPicking}>
+    <PickerContext.Provider value={openPicker}>
       <div className="space-y-5">
         <section aria-label="Champions" className="space-y-1.5">
           <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-3" data-testid="matchup-pickers">
-            <SlotButton slot="you" champion={yourChoice} onOpen={() => setPicking("you")} />
+            <SlotButton slot="you" champion={yourChoice} onOpen={() => openPicker("you")} buttonRef={youSlot} />
             <button
               type="button"
               onClick={() => go({ you: shown.enemy, enemy: shown.you })}
@@ -194,9 +243,9 @@ export function MatchupFrame({ you, enemy, champions, curated, children }: { you
             >
               <ArrowLeftRight className="h-5 w-5" aria-hidden />
             </button>
-            <SlotButton slot="enemy" champion={choice(shown.enemy)} onOpen={() => setPicking("enemy")} />
+            <SlotButton slot="enemy" champion={choice(shown.enemy)} onOpen={() => openPicker("enemy")} buttonRef={enemySlot} />
           </div>
-          <RememberedLine you={yourChoice} remembered={choice(prefs.you)} onUse={(id) => go({ ...shown, you: id })} onRemember={remember} />
+          <RememberedLine you={yourChoice} remembered={choice(prefs.you)} onUse={(id) => go({ ...shown, you: id })} onRemember={remember} focusYourSlot={focusYourSlot} />
         </section>
         <div className={cn("transition-opacity duration-150 motion-reduce:transition-none", pending && "opacity-60")} aria-busy={pending || undefined} data-testid="matchup-intel-content">
           {children}
