@@ -264,6 +264,9 @@ test("with reduced motion the account screen is at rest as soon as it opens", as
 test("the page behind is put back if anything scrolls it while the account screen is open", async ({ page }) => {
   // No browser here moves the page as the screen opens; the screen keeps it in place whatever does.
   await page.goto("/players");
+  // The player list streams in after the load event: until it has, the page may be too short to
+  // scroll 400px (measured on a fresh server: 162px, then 543px once the rows arrived).
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight - innerHeight)).toBeGreaterThan(400);
   await page.evaluate(() => window.scrollTo(0, 400));
   const scrolled = await page.evaluate(() => scrollY);
   expect(scrolled).toBeGreaterThan(300);
