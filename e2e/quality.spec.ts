@@ -13,7 +13,7 @@ test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
 });
 
-const PLAYER_ROUTES = ["/team", "/players", "/leaderboards", "/matches", "/overview", "/overview/champions", "/overview/matches", "/resources", "/settings"];
+const PLAYER_ROUTES = ["/team", "/players", "/leaderboards", "/matches", "/overview", "/overview/champions", "/overview/matches", "/resources", "/resources/matchups", "/resources/matchups?champion=Riven&vs=Mordekaiser", "/settings"];
 const ADMIN_ROUTES = ["/admin", "/admin/people", "/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/data", "/admin/system", "/admin/audit", "/admin/settings"];
 const SIZES: Array<[number, number]> = [
   [320, 640],
@@ -41,7 +41,7 @@ test.describe("layout across screen sizes", () => {
   test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "runs once with explicit viewports"));
 
   test("player pages fit every width", async ({ page }) => {
-    test.setTimeout(240_000);
+    test.setTimeout(300_000);
     for (const [width, height] of SIZES) {
       await page.setViewportSize({ width, height });
       for (const route of PLAYER_ROUTES) {
