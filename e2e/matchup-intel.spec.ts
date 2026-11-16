@@ -102,9 +102,27 @@ test("a pair without a curated briefing (Garen vs Darius) says so calmly, then t
   await expect(page.getByTestId("matchup-briefing")).toHaveCount(0);
   await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Darius");
   await expect(enemyAbilities(page)).toHaveCount(5);
+  // Nobody has checked Darius: every line says it is Riot's data, not reviewed.
+  for (const r of await enemyAbilities(page).all()) await expect(r.getByTestId("ability-cooldown-source")).toHaveText(/^(Riot's data, not reviewed|Not reviewed)$/);
   // For a champion with curated matchups, the fallback links to them.
   await openMatchupIntel(page, "Riven", "Garen");
   await expect(page.getByTestId("matchup-no-briefing").getByTestId("matchup-curated-link")).toHaveText(["Riven vs Mordekaiser"]);
+});
+
+test("no number where Riot's data cannot give one: charges, and two abilities in one slot", async ({ page }) => {
+  // Riot's data alone, with nothing curated. CI's demo may read Data Dragon's current version, so
+  // only abilities whose shape is their kit's are used: Powder Keg and Missile Barrage hold charges,
+  // Jayce's Q is two abilities. Numbers known to be wrong (Rengar's) are the unit tests' to check.
+  const cases: Array<[string, string, RegExp]> = [
+    ["Gangplank", "E", /^Riot's data lists charges but not their recharge$/],
+    ["Corki", "R", /^Riot's data lists charges but not their recharge$/],
+    ["Jayce", "Q", /^Two abilities share this slot in Riot's data$/],
+  ];
+  for (const [champion, slot, words] of cases) {
+    await openMatchupIntel(page, undefined, champion);
+    await expect(row(page, slot).getByTestId("ability-cooldown-value"), `${champion} ${slot}`).toHaveText(words);
+    await expect(row(page, slot).getByTestId("ability-cooldown-source"), `${champion} ${slot}`).toHaveText("Not reviewed");
+  }
 });
 
 test("the picker's search: 16px, as you type, by name with case, accents and spaces ignored", async ({ page }) => {
