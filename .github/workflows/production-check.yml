@@ -86,10 +86,12 @@ jobs:
           # The member pages are opened as the verification account (docs/LIVE_VALIDATION.md): a member
           # with no player profile, kept by Data jobs `verify-account`. Its password is worked out from
           # CRON_SECRET exactly as the app does (src/server/jobs/verify-account.ts) and masked at once;
-          # it is never stored. Explicit UNIIVERSE_VERIFY_* secrets take precedence. The repository
-          # variable SIGNED_IN_CHECKS=false leaves the member pages unopened.
+          # it is never stored. Explicit UNIIVERSE_VERIFY_* secrets take precedence. A sign-in that is
+          # lost fails the check (LIVE_REQUIRE_SIGN_IN), except by the owner's two off switches: the
+          # repository variable SIGNED_IN_CHECKS=false, or the account deactivated in Admin.
+          export LIVE_REQUIRE_SIGN_IN=1
           if [ "$SIGNED_IN_CHECKS" = "false" ]; then
-            unset UNIIVERSE_VERIFY_USER UNIIVERSE_VERIFY_PASSWORD
+            unset UNIIVERSE_VERIFY_USER UNIIVERSE_VERIFY_PASSWORD LIVE_REQUIRE_SIGN_IN
           elif [ -z "$UNIIVERSE_VERIFY_USER" ] && [ -n "$CRON_SECRET" ]; then
             # The app keeps the account first (created once, then a no-op; it follows a CRON_SECRET
             # change by itself). Its answer is the account's state only.
@@ -100,13 +102,21 @@ jobs:
                 UNIIVERSE_VERIFY_PASSWORD="$(node -e 'process.stdout.write(require("node:crypto").createHmac("sha256", process.env.CRON_SECRET).update("uniiverse:production-verification-account:v1", "utf8").digest("base64url"))')"
                 echo "::add-mask::$UNIIVERSE_VERIFY_PASSWORD"
                 export UNIIVERSE_VERIFY_USER=verify UNIIVERSE_VERIFY_PASSWORD ;;
-              *) echo "::warning::The verification account is not available (${state:-no answer}), so the member pages stay pending (docs/LIVE_VALIDATION.md)." ;;
+              deactivated)
+                unset LIVE_REQUIRE_SIGN_IN
+                echo "::warning::The verification account is deactivated (the owner's off switch), so the member pages stay pending (docs/LIVE_VALIDATION.md)." ;;
+              *)
+                # Withdrawn (its access, profile or name changed), conflict, or no answer.
+                echo "::error::The verification account is not available (${state:-no answer}), so the member pages could not be opened (docs/LIVE_VALIDATION.md)."
+                echo "- FAIL: the verification account answered \"${state:-no answer}\" (docs/LIVE_VALIDATION.md)." > verify-account.md
+                status=1 ;;
             esac
           fi
           unset CRON_SECRET
           if [ -n "${UNIIVERSE_VERIFY_USER:-}" ]; then echo "signed_in=true" >> "$GITHUB_OUTPUT"; else echo "signed_in=false" >> "$GITHUB_OUTPUT"; fi
           node scripts/live-check.mjs "$APP_URL" live-check || status=$?
           if [ -f live-check/summary.md ]; then cat live-check/summary.md >> "$GITHUB_STEP_SUMMARY"; fi
+          if [ -f verify-account.md ]; then cat verify-account.md >> "$GITHUB_STEP_SUMMARY"; fi
           exit $status
 
       - name: Backups and database size
@@ -220,6 +230,7 @@ jobs:
               echo "Most failures need an engineering fix, not you: the next engineering session starts here. If the site is down for the team, the run's first failure says so."
               echo
               if [ -f live-check/summary.md ]; then sed -n '/^## Failures/,/^## Warnings/p' live-check/summary.md | sed '$d'; fi
+              if [ -f verify-account.md ]; then cat verify-account.md; fi
               if [ -f data-check.md ]; then grep -E '^- (FAIL|warning)' data-check.md || true; fi
               echo
               echo "Screenshots and the full report: the run's production-check artifact."
