@@ -179,7 +179,8 @@ Decimals are written as the numbers have them, up to two ("0.25 s").
   - the footer credits each page with its title, the licence and the day it was checked;
   - the app never calls the wiki: its pages are links only, and the browser specs check that the
     page requests nothing from `wiki.leagueoflegends.com`.
-- **Riot's notice** is in the page's footer, in the app's own words for it.
+- **Riot's notice**: the page's footer carries the same required notice as the rest of the app
+  (`riotLegal`, with the name the installation gives itself).
 - **The owner's step**: update the product's description in Riot's Developer Portal to mention
   Matchup Intel ([RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md), item 9).
 
