@@ -19,14 +19,14 @@ const notes: MatchupNotes = {
   vsId: "Ornn",
   verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-16" },
   sources: [
-    { id: "gwen-p", title: "League of Legends Wiki: Template:Data Gwen/A Thousand Cuts", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Gwen/A_Thousand_Cuts", revision: 4081720, licence: "CC BY-SA 3.0" },
-    { id: "gwen-q", title: "League of Legends Wiki: Template:Data Gwen/Snip Snip!", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Gwen/Snip_Snip!", revision: 4026398, licence: "CC BY-SA 3.0" },
-    { id: "gwen-w", title: "League of Legends Wiki: Template:Data Gwen/Hallowed Mist", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Gwen/Hallowed_Mist", revision: 3973613, licence: "CC BY-SA 3.0" },
-    { id: "ornn-p", title: "League of Legends Wiki: Template:Data Ornn/Living Forge", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ornn/Living_Forge", revision: 4089066, licence: "CC BY-SA 3.0" },
-    { id: "ornn-q", title: "League of Legends Wiki: Template:Data Ornn/Volcanic Rupture", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ornn/Volcanic_Rupture", revision: 3998234, licence: "CC BY-SA 3.0" },
-    { id: "ornn-w", title: "League of Legends Wiki: Template:Data Ornn/Bellows Breath", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ornn/Bellows_Breath", revision: 4011962, licence: "CC BY-SA 3.0" },
-    { id: "ornn-e", title: "League of Legends Wiki: Template:Data Ornn/Searing Charge", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ornn/Searing_Charge", revision: 4007982, licence: "CC BY-SA 3.0" },
-    { id: "ornn-r", title: "League of Legends Wiki: Template:Data Ornn/Call of the Forge God", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ornn/Call_of_the_Forge_God", revision: 4007985, licence: "CC BY-SA 3.0" },
+    { id: "gwen-p", title: "League of Legends Wiki: A Thousand Cuts (Gwen)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Gwen/A_Thousand_Cuts", kind: "wiki-ability", revision: 4081720, revisionTime: "2026-10-09T12:23:52Z", licence: "CC BY-SA 3.0" },
+    { id: "gwen-q", title: "League of Legends Wiki: Snip Snip! (Gwen)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Gwen/Snip_Snip!", kind: "wiki-ability", revision: 4026398, revisionTime: "2026-06-09T21:51:08Z", licence: "CC BY-SA 3.0" },
+    { id: "gwen-w", title: "League of Legends Wiki: Hallowed Mist (Gwen)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Gwen/Hallowed_Mist", kind: "wiki-ability", revision: 3973613, revisionTime: "2025-12-11T11:22:05Z", licence: "CC BY-SA 3.0" },
+    { id: "ornn-p", title: "League of Legends Wiki: Living Forge (Ornn)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ornn/Living_Forge", kind: "wiki-ability", revision: 4089066, revisionTime: "2026-10-22T20:31:26Z", licence: "CC BY-SA 3.0" },
+    { id: "ornn-q", title: "League of Legends Wiki: Volcanic Rupture (Ornn)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ornn/Volcanic_Rupture", kind: "wiki-ability", revision: 3998234, revisionTime: "2026-03-10T20:08:53Z", licence: "CC BY-SA 3.0" },
+    { id: "ornn-w", title: "League of Legends Wiki: Bellows Breath (Ornn)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ornn/Bellows_Breath", kind: "wiki-ability", revision: 4011962, revisionTime: "2026-04-24T08:40:56Z", licence: "CC BY-SA 3.0" },
+    { id: "ornn-e", title: "League of Legends Wiki: Searing Charge (Ornn)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ornn/Searing_Charge", kind: "wiki-ability", revision: 4007982, revisionTime: "2026-04-13T02:25:31Z", licence: "CC BY-SA 3.0" },
+    { id: "ornn-r", title: "League of Legends Wiki: Call of the Forge God (Ornn)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ornn/Call_of_the_Forge_God", kind: "wiki-ability", revision: 4007985, revisionTime: "2026-04-13T02:32:34Z", licence: "CC BY-SA 3.0" },
   ],
   briefing: {
     threat: {

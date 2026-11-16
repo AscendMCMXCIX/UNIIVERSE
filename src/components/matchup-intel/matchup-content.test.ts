@@ -33,17 +33,17 @@ const renekton: ChampionNotes = {
   championId: "Renekton",
   verified,
   sources: [
-    { id: "wiki", title: "Renekton", url: "https://wiki.leagueoflegends.com/en-us/Renekton", licence: "CC BY-SA 3.0" },
-    { id: "bad", title: "Elsewhere", url: "https://example.com/x", licence: "CC BY-SA 3.0" },
+    { id: "wiki", title: "Renekton", url: "https://wiki.leagueoflegends.com/en-us/Renekton", kind: "wiki-champion", licence: "CC BY-SA 3.0" },
+    { id: "bad", title: "Elsewhere", url: "https://example.com/x", kind: "wiki-champion", licence: "CC BY-SA 3.0" },
   ],
-  abilities: { W: { ddragonCooldown: [18, 17, 16, 15, 14], cooldown: { kind: "per-rank", seconds: [18, 17, 16, 15, 14], starts: "on-cast" }, facts: [{ kind: "crowd-control", label: "Stun", detail: "On the third hit.", source: "wiki" }, { kind: "interaction", label: "Fury", source: "bad" }], details: ["Empowered, it stuns longer."] } },
+  abilities: { W: { ddragonCooldown: [18, 17, 16, 15, 14], ddragonIdentity: { id: "W", name: "Renekton W", maxRank: 5, charges: null }, cooldown: { kind: "per-rank", seconds: [18, 17, 16, 15, 14], starts: "on-cast" }, facts: [{ kind: "crowd-control", label: "Stun", detail: "On the third hit.", appliesTo: "target", source: "wiki" }, { kind: "interaction", label: "Fury", appliesTo: "self", source: "bad" }], details: ["Empowered, it stuns longer."] } },
   levelNotes: [{ level: 6, text: "Dominus.", source: "wiki" }],
 };
 const ambessaVsRenekton: MatchupNotes = {
   championId: "Ambessa",
   vsId: "Renekton",
   verified,
-  sources: [{ id: "wiki", title: "Renekton", url: "https://wiki.leagueoflegends.com/en-us/Renekton", licence: "CC BY-SA 3.0" }],
+  sources: [{ id: "wiki", title: "Renekton", url: "https://wiki.leagueoflegends.com/en-us/Renekton", kind: "wiki-champion", licence: "CC BY-SA 3.0" }],
   briefing: { threat: { text: "The empowered stun.", basedOn: ["Renekton.W"] }, opportunity: { text: "Low Fury.", basedOn: ["Ambessa.Q"] }, lane: [{ text: "Level 2.", basedOn: ["Renekton.W"] }] },
   interactions: [{ text: "Unstoppable answers it.", abilities: ["Ambessa.E"], source: "wiki" }],
 };
@@ -182,11 +182,12 @@ describe("the cooldown decision table, as the page says it", () => {
         ability(championId, { slot: "R", cooldown: [0.25, 0.25, 0.25], charges: 3 }),
       ],
     });
-    const at = (a: Partial<AbilityNotes> & Pick<AbilityNotes, "ddragonCooldown">): AbilityNotes => ({ facts: [], ...a });
+    // No ddragonIdentity: these abilities' ids and names are the fixture's own, so only their arrays are compared.
+    const at = (a: Partial<AbilityNotes> & Pick<AbilityNotes, "ddragonCooldown">): AbilityNotes => ({ facts: [], ...a }) as AbilityNotes;
     const notes: ChampionNotes = {
       championId: "Renekton",
       verified,
-      sources: [{ id: "wiki", title: "A page", url: "https://wiki.leagueoflegends.com/en-us/Renekton", revision: 1, revisionTime: "2026-06-05T15:05:11Z", licence: "CC BY-SA 3.0" }],
+      sources: [{ id: "wiki", title: "A page", url: "https://wiki.leagueoflegends.com/en-us/Renekton", kind: "wiki-champion", revision: 1, revisionTime: "2026-06-05T15:05:11Z", licence: "CC BY-SA 3.0" }],
       abilities: {
         P: at({ ddragonCooldown: [], cooldown: { kind: "passive", seconds: [10], scalesWith: "none", perTarget: true, static: true }, facts: [{ kind: "empowerment", label: "Bonus AD for 15 s", appliesTo: "self", source: "wiki" }] }),
         Q: at({ ddragonCooldown: [16, 14, 12, 10, 8, 6], cooldown: { kind: "forms", forms: [{ name: "Hammer", spec: { kind: "per-rank", seconds: [16, 14, 12, 10, 8, 6], starts: null } }, { name: "Cannon", spec: { kind: "per-rank", seconds: [8, 8, 8, 8, 8, 8], starts: "after-effect-ends" } }] } }),

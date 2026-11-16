@@ -36,22 +36,23 @@ const notes: ChampionNotes = {
   championId: "Mordekaiser",
   verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-16" },
   sources: [
-    { id: "mordekaiser-p", title: "League of Legends Wiki: Template:Data Mordekaiser/Darkness Rise", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Mordekaiser/Darkness_Rise", revision: 4070051, licence: "CC BY-SA 3.0" },
-    { id: "mordekaiser-q", title: "League of Legends Wiki: Template:Data Mordekaiser/Obliterate", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Mordekaiser/Obliterate", revision: 4078264, licence: "CC BY-SA 3.0" },
-    { id: "mordekaiser-w", title: "League of Legends Wiki: Template:Data Mordekaiser/Indestructible", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Mordekaiser/Indestructible", revision: 4016354, licence: "CC BY-SA 3.0" },
-    { id: "mordekaiser-e", title: "League of Legends Wiki: Template:Data Mordekaiser/Death's Grasp", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Mordekaiser/Death's_Grasp", revision: 4070332, licence: "CC BY-SA 3.0" },
-    { id: "mordekaiser-r", title: "League of Legends Wiki: Template:Data Mordekaiser/Realm of Death", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Mordekaiser/Realm_of_Death", revision: 4093177, licence: "CC BY-SA 3.0" },
-    { id: "ability-data", title: "League of Legends Wiki: Template:Ability data (what each field means)", url: "https://wiki.leagueoflegends.com/en-us/Template:Ability_data", revision: 4084623, licence: "CC BY-SA 3.0" },
-    { id: "ddragon", title: "Data Dragon 16.22.1: Mordekaiser", url: "https://ddragon.leagueoflegends.com/cdn/16.22.1/data/en_US/champion/Mordekaiser.json", licence: "Riot Games" },
+    { id: "mordekaiser-p", title: "League of Legends Wiki: Darkness Rise (Mordekaiser)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Mordekaiser/Darkness_Rise", kind: "wiki-ability", revision: 4070051, revisionTime: "2026-09-29T15:58:08Z", licence: "CC BY-SA 3.0" },
+    { id: "mordekaiser-q", title: "League of Legends Wiki: Obliterate (Mordekaiser)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Mordekaiser/Obliterate", kind: "wiki-ability", revision: 4078264, revisionTime: "2026-10-06T20:47:39Z", licence: "CC BY-SA 3.0" },
+    { id: "mordekaiser-w", title: "League of Legends Wiki: Indestructible (Mordekaiser)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Mordekaiser/Indestructible", kind: "wiki-ability", revision: 4016354, revisionTime: "2026-05-10T19:48:19Z", licence: "CC BY-SA 3.0" },
+    { id: "mordekaiser-e", title: "League of Legends Wiki: Death's Grasp (Mordekaiser)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Mordekaiser/Death's_Grasp", kind: "wiki-ability", revision: 4070332, revisionTime: "2026-09-29T18:36:13Z", licence: "CC BY-SA 3.0" },
+    { id: "mordekaiser-r", title: "League of Legends Wiki: Realm of Death (Mordekaiser)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Mordekaiser/Realm_of_Death", kind: "wiki-ability", revision: 4093177, revisionTime: "2026-11-08T17:57:11Z", licence: "CC BY-SA 3.0" },
+    { id: "ability-data", title: "League of Legends Wiki: Template:Ability data (what each field means)", url: "https://wiki.leagueoflegends.com/en-us/Template:Ability_data", kind: "wiki-reference", revision: 4084623, revisionTime: "2026-10-13T17:49:21Z", licence: "CC BY-SA 3.0" },
+    { id: "ddragon", title: "Data Dragon 16.22.1: Mordekaiser", url: "https://ddragon.leagueoflegends.com/cdn/16.22.1/data/en_US/champion/Mordekaiser.json", kind: "ddragon", licence: "Riot Games" },
   ],
   abilities: {
     P: {
       ddragonCooldown: [],
+      ddragonIdentity: { id: null, name: "Darkness Rise", maxRank: 1, charges: null },
       facts: [
-        { kind: "exception", label: "Three hits to activate", detail: "Hits on enemy champions and large monsters, by his attacks or basic abilities, give a stack each; stacks last 4 seconds, renewed by every new one, and 3 turn Darkness Rise on.", source: "mordekaiser-p" },
-        { kind: "damage", label: "% max health aura", detail: "While it is on, enemies within 375 units take magic damage every second: 5 (+30% AP) plus 1–5% of their maximum health, rising with his level.", source: "mordekaiser-p" },
-        { kind: "exception", label: "Stacks hidden from enemies", detail: "Other champions cannot see how many stacks he has.", source: "mordekaiser-p" },
-        { kind: "interaction", label: "Blocked abilities still stack", detail: "A basic ability gives a stack even when a spell shield or invulnerability stops its damage. An attack gives none if it is dodged, blocked, missed through blindness or meets invulnerability.", source: "mordekaiser-p" },
+        { kind: "exception", label: "Three hits to activate", detail: "Hits on enemy champions and large monsters, by his attacks or basic abilities, give a stack each; stacks last 4 seconds, renewed by every new one, and 3 turn Darkness Rise on.", appliesTo: "self", source: "mordekaiser-p" },
+        { kind: "damage", label: "% max health aura", detail: "While it is on, enemies within 375 units take magic damage every second: 5 (+30% AP) plus 1–5% of their maximum health, rising with his level.", appliesTo: "area", tags: ["max-health-damage"], source: "mordekaiser-p" },
+        { kind: "exception", label: "Stacks hidden from enemies", detail: "Other champions cannot see how many stacks he has.", appliesTo: "self", source: "mordekaiser-p" },
+        { kind: "interaction", label: "Blocked abilities still stack", detail: "A basic ability gives a stack even when a spell shield or invulnerability stops its damage. An attack gives none if it is dodged, blocked, missed through blindness or meets invulnerability.", appliesTo: "self", tags: ["spell-shield"], source: "mordekaiser-p" },
       ],
       details: [
         "His basic attacks deal bonus magic damage of 40% AP on hit, except against structures.",
@@ -62,12 +63,13 @@ const notes: ChampionNotes = {
     },
     Q: {
       ddragonCooldown: [8, 7, 6, 5, 4],
+      ddragonIdentity: { id: "MordekaiserQ", name: "Obliterate", maxRank: 5, charges: null },
       // The wiki gives no cooldown start: on-cast, the ordinary case.
       cooldown: { kind: "per-rank", seconds: [8, 7, 6, 5, 4], starts: "on-cast" },
       facts: [
-        { kind: "damage", label: "More on a lone target", detail: "30% more damage at rank 1, up to 50% at rank 5, when it hits only one enemy.", source: "mordekaiser-q" },
-        { kind: "exception", label: "0.5-second windup", detail: "It strikes at the end of its 0.5-second cast time, towards where his cursor was when the cast began.", source: "mordekaiser-q" },
-        { kind: "interaction", label: "Blockable", detail: "A spell shield blocks it.", source: "mordekaiser-q" },
+        { kind: "damage", label: "More on a lone target", detail: "30% more damage at rank 1, up to 50% at rank 5, when it hits only one enemy.", appliesTo: "target", source: "mordekaiser-q" },
+        { kind: "exception", label: "0.5-second windup", detail: "It strikes at the end of its 0.5-second cast time, towards where his cursor was when the cast began.", appliesTo: "self", source: "mordekaiser-q" },
+        { kind: "interaction", label: "Blockable", detail: "A spell shield blocks it.", appliesTo: "target", tags: ["spell-shield"], source: "mordekaiser-q" },
       ],
       details: [
         "Magic damage: 80 to 220 (+120% bonus AD) (+70% AP) by rank, plus 7 at level 10, rising by 7 a level to 63 at level 18.",
@@ -76,14 +78,15 @@ const notes: ChampionNotes = {
     },
     W: {
       ddragonCooldown: [12, 11, 10, 9, 8],
+      ddragonIdentity: { id: "MordekaiserW", name: "Indestructible", maxRank: 5, charges: null },
       // Wiki cooldown-start field: post-effect.
       cooldown: { kind: "per-rank", seconds: [12, 11, 10, 9, 8], starts: "after-effect-ends" },
       cooldownNote: "Starts after the effect, not on cast: the shield lasts 4 seconds, and the recast consumes what is left of it.",
       recast: { count: 1, note: "From 0.5 seconds after the cast, while the shield lasts: he consumes what is left of it and heals for 35 to 45% of that amount (by rank)." },
       facts: [
-        { kind: "defence", label: "Shield", detail: "Turns his stored Potential Shield into a shield for 4 seconds, which decays over that time.", source: "mordekaiser-w" },
-        { kind: "sustain", label: "Heal on recast", detail: "35 to 45% (by rank) of the shield left: at least 1.75 to 2.25% and at most 10.5 to 13.5% of his maximum health.", source: "mordekaiser-w" },
-        { kind: "exception", label: "Stored from damage", detail: "45% of the damage he deals (after mitigation) and 7.5% of the damage he takes (before mitigation) go into his store, capped at 30% of his maximum health.", source: "mordekaiser-w" },
+        { kind: "defence", label: "Shield", detail: "Turns his stored Potential Shield into a shield for 4 seconds, which decays over that time.", appliesTo: "self", tags: ["shield"], source: "mordekaiser-w" },
+        { kind: "sustain", label: "Heal on recast", detail: "35 to 45% (by rank) of the shield left: at least 1.75 to 2.25% and at most 10.5 to 13.5% of his maximum health.", appliesTo: "self", tags: ["heal"], source: "mordekaiser-w" },
+        { kind: "exception", label: "Stored from damage", detail: "45% of the damage he deals (after mitigation) and 7.5% of the damage he takes (before mitigation) go into his store, capped at 30% of his maximum health.", appliesTo: "self", tags: ["shield"], source: "mordekaiser-w" },
       ],
       details: [
         "Damage dealt to or taken from non-champions stores 75% less.",
@@ -94,12 +97,13 @@ const notes: ChampionNotes = {
     },
     E: {
       ddragonCooldown: [16, 14, 12, 10, 8],
+      ddragonIdentity: { id: "MordekaiserE", name: "Death's Grasp", maxRank: 5, charges: null },
       // The wiki gives no cooldown start: on-cast, the ordinary case.
       cooldown: { kind: "per-rank", seconds: [16, 14, 12, 10, 8], starts: "on-cast" },
       facts: [
-        { kind: "crowd-control", label: "Pull", detail: "0.5 seconds after he summons the claw, it damages enemies in its area and pulls them 250 units.", source: "mordekaiser-e" },
-        { kind: "exception", label: "Seen late", detail: "Enemies see the claw only once it is at least 300 units inside their vision.", source: "mordekaiser-e" },
-        { kind: "interaction", label: "Blockable", detail: "A spell shield blocks it.", source: "mordekaiser-e" },
+        { kind: "crowd-control", label: "Pull", detail: "0.5 seconds after he summons the claw, it damages enemies in its area and pulls them 250 units.", appliesTo: "target", tags: ["pull"], source: "mordekaiser-e" },
+        { kind: "exception", label: "Seen late", detail: "Enemies see the claw only once it is at least 300 units inside their vision.", appliesTo: "self", source: "mordekaiser-e" },
+        { kind: "interaction", label: "Blockable", detail: "A spell shield blocks it.", appliesTo: "target", tags: ["spell-shield"], source: "mordekaiser-e" },
       ],
       details: [
         "Magic damage: 60 to 140 (+45% AP) by rank.",
@@ -110,15 +114,16 @@ const notes: ChampionNotes = {
     },
     R: {
       ddragonCooldown: [120, 110, 100],
+      ddragonIdentity: { id: "MordekaiserR", name: "Realm of Death", maxRank: 3, charges: null },
       // Wiki cooldown-start field: on-cast.
       cooldown: { kind: "per-rank", seconds: [120, 110, 100], starts: "on-cast" },
       facts: [
-        { kind: "crowd-control", label: "Slow, 75%", detail: "During the 0.5-second cast the target champion is slowed by 75% and revealed. A spell shield does not stop the slow.", source: "mordekaiser-r" },
-        { kind: "exception", label: "Death Realm, 7 s", detail: "After the cast, he and the target alone go to the Death Realm for 7 seconds. Units outside see only where they are and cannot affect them, and the reverse.", source: "mordekaiser-r" },
-        { kind: "exception", label: "Steals 10% of stats", detail: "For the 7 seconds he takes 10% of the target's AP, attack speed, maximum health, armour and magic resistance, and base AD equal to 10% of their AD. If they die inside, he keeps the stats until they respawn.", source: "mordekaiser-r" },
-        { kind: "sustain", label: "Heal", detail: "He heals for 10% of the target's maximum health; healing modifiers apply.", source: "mordekaiser-r" },
-        { kind: "interaction", label: "Health loss ignores shields", detail: "The maximum health it takes ignores shields, resistances and invulnerability, and never takes the target below 1 health.", source: "mordekaiser-r" },
-        { kind: "interaction", label: "Fails on spell shields", detail: "A spell shield, crowd-control immunity or displacement immunity on the target when the cast ends makes it fail and go on cooldown; any gained after the banish does nothing.", source: "mordekaiser-r" },
+        { kind: "crowd-control", label: "Slow, 75%", detail: "During the 0.5-second cast the target champion is slowed by 75% and revealed. A spell shield does not stop the slow.", appliesTo: "target", tags: ["slow"], source: "mordekaiser-r" },
+        { kind: "exception", label: "Death Realm, 7 s", detail: "After the cast, he and the target alone go to the Death Realm for 7 seconds. Units outside see only where they are and cannot affect them, and the reverse.", appliesTo: "target", source: "mordekaiser-r" },
+        { kind: "exception", label: "Steals 10% of stats", detail: "For the 7 seconds he takes 10% of the target's AP, attack speed, maximum health, armour and magic resistance, and base AD equal to 10% of their AD. If they die inside, he keeps the stats until they respawn.", appliesTo: "self", source: "mordekaiser-r" },
+        { kind: "sustain", label: "Heal", detail: "He heals for 10% of the target's maximum health; healing modifiers apply.", appliesTo: "self", tags: ["heal"], source: "mordekaiser-r" },
+        { kind: "interaction", label: "Health loss ignores shields", detail: "The maximum health it takes ignores shields, resistances and invulnerability, and never takes the target below 1 health.", appliesTo: "target", tags: ["max-health-damage"], source: "mordekaiser-r" },
+        { kind: "interaction", label: "Fails on spell shields", detail: "A spell shield, crowd-control immunity or displacement immunity on the target when the cast ends makes it fail and go on cooldown; any gained after the banish does nothing.", appliesTo: "target", tags: ["spell-shield", "cc-immune", "displacement-immune"], source: "mordekaiser-r" },
       ],
       details: [
         "Range 650 units. The realm is an arena of radius 1,200 that keeps the map's walls and brush. Its edge holds them in, and dashes, blinks and displacements stop at it.",

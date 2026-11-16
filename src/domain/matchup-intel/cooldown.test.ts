@@ -9,7 +9,9 @@ import type { AbilityNotes, CooldownSpec, DdragonAbility, PerRankCooldown } from
 */
 
 const ability = (over: Partial<DdragonAbility>): DdragonAbility => ({ slot: "Q", id: "SomeQ", name: "Some Q", icon: "SomeQ.png", maxRank: 5, cooldown: [8, 7, 6, 5, 4], charges: null, description: "", ...over });
-const notes = (over: Partial<AbilityNotes>): AbilityNotes => ({ ddragonCooldown: [8, 7, 6, 5, 4], facts: [], ...over });
+// Without `ddragonIdentity` unless a case gives one: the type requires it of curated notes, and the
+// rules read notes that lack it (older or malformed ones) by their cooldown array alone.
+const notes = (over: Partial<AbilityNotes>): AbilityNotes => ({ ddragonCooldown: [8, 7, 6, 5, 4], facts: [], ...over }) as AbilityNotes;
 const perRank = (seconds: number[], starts: PerRankCooldown["starts"] = null): PerRankCooldown => ({ kind: "per-rank", seconds, starts });
 const identity = { id: "SomeQ", name: "Some Q", maxRank: 5, charges: null };
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { AbilityView, ChampionChoice, ChampionNotes, DdragonAbility, DdragonChampionAbilities, MatchupNotes, MatchupPageView } from "@/domain/matchup-intel/types";
+import type { AbilityView, ChampionChoice, ChampionNotes, DdragonAbility, DdragonChampionAbilities, Fact, MatchupNotes, MatchupPageView } from "@/domain/matchup-intel/types";
 import { abilityIconUrl, buildMatchupPageView, championResolver, curatedIndex, safeSourceUrl, type MatchupViewDeps } from "./view";
 
 /*
@@ -35,7 +35,7 @@ const renektonNotes = (over: Partial<ChampionNotes> = {}): ChampionNotes => ({
   verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-16" },
   sources: [
     { id: "wiki", title: "Renekton (League of Legends Wiki)", url: WIKI, revision: 1, revisionTime: "2026-09-23T19:37:45Z", kind: "wiki-champion", licence: "CC BY-SA 3.0" },
-    { id: "elsewhere", title: "A guide elsewhere", url: "https://example.com/renekton", licence: "CC BY-SA 3.0" },
+    { id: "elsewhere", title: "A guide elsewhere", url: "https://example.com/renekton", kind: "wiki-champion", licence: "CC BY-SA 3.0" },
   ],
   abilities: {
     W: {
@@ -46,7 +46,8 @@ const renektonNotes = (over: Partial<ChampionNotes> = {}): ChampionNotes => ({
       cooldownNote: "Held for up to 7 seconds.",
       facts: [
         { kind: "crowd-control", label: "Stun", detail: "Stuns on the third hit.", appliesTo: "target", tags: ["stun", "stun", "teleport" as "stun"], source: "wiki" },
-        { kind: "interaction", label: "Empowered with Fury", source: "elsewhere" },
+        // No appliesTo, as malformed notes may come: the page then says nothing of who has it.
+        { kind: "interaction", label: "Empowered with Fury", source: "elsewhere" } as Fact,
       ],
       details: ["Empowered, it stuns for longer."],
     },
@@ -62,7 +63,7 @@ const ambessaVsRenekton = (over: Partial<MatchupNotes> = {}): MatchupNotes => ({
   championId: "Ambessa",
   vsId: "Renekton",
   verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-16" },
-  sources: [{ id: "wiki", title: "Renekton (League of Legends Wiki)", url: WIKI, licence: "CC BY-SA 3.0" }],
+  sources: [{ id: "wiki", title: "Renekton (League of Legends Wiki)", url: WIKI, kind: "wiki-champion", licence: "CC BY-SA 3.0" }],
   briefing: {
     threat: { text: "His empowered stun.", basedOn: ["Renekton.W"] },
     opportunity: { text: "Trade when Fury is low.", basedOn: ["Renekton.P", "Ambessa.Q"] },

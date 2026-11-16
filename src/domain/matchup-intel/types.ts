@@ -78,14 +78,13 @@ export interface Source {
   title: string;
   /** An https URL on wiki.leagueoflegends.com or developer.riotgames.com / ddragon.leagueoflegends.com. */
   url: string;
-  /** What kind of page it is. Optional while the curated files are filled in; then every source gives it. */
-  kind?: SourceKind;
-  /** The wiki page's revision id when it was read, so a later change can be told apart. */
+  /** What kind of page it is. */
+  kind: SourceKind;
+  /** The wiki page's revision id when it was read, so a later change can be told apart. Every wiki source gives it; a Riot page has none. */
   revision?: number;
   /**
    * When that revision was saved, as the page's history gives it: an ISO time in UTC
-   * ("2026-09-23T19:37:45Z"). Wiki sources only. Optional while the curated files are filled in;
-   * then every wiki source gives it.
+   * ("2026-09-23T19:37:45Z"). Every wiki source gives it (curated.test.ts); a Riot page has none.
    */
   revisionTime?: string;
   /** "CC BY-SA 3.0" for the League of Legends Wiki; Riot's own terms for Data Dragon. */
@@ -103,8 +102,10 @@ export interface Verification {
 }
 
 /**
- * When an ability's cooldown starts, as its source states it. "on-cast" is the ordinary case;
- * the others are why a bare number can mislead.
+ * When an ability's cooldown starts, as its source states it: "on-cast" where it says so (the page
+ * says nothing more), the others because a bare number would mislead. "after-first-cast" is an
+ * ability cast again whose cooldown runs from its first cast (on-cast, on such an ability, names
+ * that cast). Where the source states no start, a per-rank cooldown's `starts` is null.
  */
 export type CooldownStart = "on-cast" | "after-first-cast" | "after-last-recast" | "after-effect-ends" | "after-channel";
 
@@ -194,7 +195,11 @@ export interface AbilityModifiers {
   resetsAttack?: true;
   /** The cooldown itself is static: ability haste does not shorten it (for charges, the recharge). */
   static?: true;
-  /** The shortest wait between two casts (a recast, or another charge), in seconds; `static` when ability haste does not shorten it. */
+  /**
+   * A cooldown between two casts (of a recast, or of another charge), in seconds, where the source
+   * states one (Riven's Q: 0.3125 s); `static` when ability haste does not shorten it. A delay
+   * before a recast opens ("can be recast after 0.5 seconds") is said in the recast's note instead.
+   */
   lockout?: { seconds: number; static?: true };
 }
 
@@ -293,11 +298,8 @@ export interface Fact {
   label: string;
   /** One sentence, in UNIIVERSE's own words, when the badge needs it. */
   detail?: string;
-  /**
-   * Who has the effect: the champion, the target, allies, or everyone in an area. Optional while
-   * the curated files are filled in; then every fact gives it.
-   */
-  appliesTo?: FactSubject;
+  /** Who has the effect: the champion, the target, allies, or everyone in an area. */
+  appliesTo: FactSubject;
   /** The mechanics it is about, from FACT_TAGS (none where no tag fits). */
   tags?: FactTag[];
   /** The Source.id this rests on. */
@@ -312,11 +314,11 @@ export interface AbilityNotes {
    */
   ddragonCooldown: number[];
   /**
-   * Data Dragon's id, name, ranks and charges for this ability at the verified version, exactly.
-   * A later record that differs marks these notes "changed-since". Optional while the curated
-   * files are filled in; then every ability gives it.
+   * Data Dragon's id, name, ranks and charges for this ability at the verified version, exactly
+   * (ddragon-<version>.identity.json beside the curated notes). A later record that differs marks
+   * these notes "changed-since".
    */
-  ddragonIdentity?: DdragonIdentity;
+  ddragonIdentity: DdragonIdentity;
   cooldown?: CooldownSpec;
   /** Refunds, attack resets, static cooldowns and waits between casts, as the source states them. */
   modifiers?: AbilityModifiers;

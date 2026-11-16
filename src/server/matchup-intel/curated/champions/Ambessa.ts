@@ -23,21 +23,22 @@ const notes: ChampionNotes = {
   championId: "Ambessa",
   verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-16" },
   sources: [
-    { id: "ambessa-p", title: "League of Legends Wiki: Drakehound's Step (Ambessa)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ambessa/Drakehound's_Step", revision: 4078254, licence: "CC BY-SA 3.0" },
-    { id: "ambessa-q1", title: "League of Legends Wiki: Cunning Sweep (Ambessa)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ambessa/Cunning_Sweep", revision: 4077875, licence: "CC BY-SA 3.0" },
-    { id: "ambessa-q2", title: "League of Legends Wiki: Sundering Slam (Ambessa)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ambessa/Sundering_Slam", revision: 4077904, licence: "CC BY-SA 3.0" },
-    { id: "ambessa-w", title: "League of Legends Wiki: Repudiation (Ambessa)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ambessa/Repudiation", revision: 4085581, licence: "CC BY-SA 3.0" },
-    { id: "ambessa-e", title: "League of Legends Wiki: Lacerate (Ambessa)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ambessa/Lacerate", revision: 4077910, licence: "CC BY-SA 3.0" },
-    { id: "ambessa-r", title: "League of Legends Wiki: Public Execution (Ambessa)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ambessa/Public_Execution", revision: 4077930, licence: "CC BY-SA 3.0" },
-    { id: "ddragon", title: "Data Dragon 16.22.1: Ambessa", url: "https://ddragon.leagueoflegends.com/cdn/16.22.1/data/en_US/champion/Ambessa.json", licence: "Riot Games" },
+    { id: "ambessa-p", title: "League of Legends Wiki: Drakehound's Step (Ambessa)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ambessa/Drakehound's_Step", kind: "wiki-ability", revision: 4078254, revisionTime: "2026-10-06T20:43:13Z", licence: "CC BY-SA 3.0" },
+    { id: "ambessa-q1", title: "League of Legends Wiki: Cunning Sweep (Ambessa)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ambessa/Cunning_Sweep", kind: "wiki-ability", revision: 4077875, revisionTime: "2026-10-06T14:46:36Z", licence: "CC BY-SA 3.0" },
+    { id: "ambessa-q2", title: "League of Legends Wiki: Sundering Slam (Ambessa)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ambessa/Sundering_Slam", kind: "wiki-ability", revision: 4077904, revisionTime: "2026-10-06T15:04:20Z", licence: "CC BY-SA 3.0" },
+    { id: "ambessa-w", title: "League of Legends Wiki: Repudiation (Ambessa)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ambessa/Repudiation", kind: "wiki-ability", revision: 4085581, revisionTime: "2026-10-15T15:27:13Z", licence: "CC BY-SA 3.0" },
+    { id: "ambessa-e", title: "League of Legends Wiki: Lacerate (Ambessa)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ambessa/Lacerate", kind: "wiki-ability", revision: 4077910, revisionTime: "2026-10-06T15:09:13Z", licence: "CC BY-SA 3.0" },
+    { id: "ambessa-r", title: "League of Legends Wiki: Public Execution (Ambessa)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ambessa/Public_Execution", kind: "wiki-ability", revision: 4077930, revisionTime: "2026-10-06T15:21:06Z", licence: "CC BY-SA 3.0" },
+    { id: "ddragon", title: "Data Dragon 16.22.1: Ambessa", url: "https://ddragon.leagueoflegends.com/cdn/16.22.1/data/en_US/champion/Ambessa.json", kind: "ddragon", licence: "Riot Games" },
   ],
   abilities: {
     P: {
       ddragonCooldown: [],
+      ddragonIdentity: { id: null, name: "Drakehound's Step", maxRank: 1, charges: null },
       facts: [
-        { kind: "mobility", label: "Dash", detail: "During any ability's lockout, a move or attack command queues a dash of 175 to 350 units, taken when the lockout ends. It cannot cross terrain.", source: "ambessa-p" },
-        { kind: "interaction", label: "Immobilising or grounding stops it", detail: "She cannot dash while immobilised or grounded, and either one during a lockout cancels the dash she queued. Knock-downs and displacements interrupt the dash itself.", source: "ambessa-p" },
-        { kind: "exception", label: "Uncancellable empowered attacks", detail: "Attacks empowered by Medarda Maxim, one stack per ability cast, have an uncancellable windup.", source: "ambessa-p" },
+        { kind: "mobility", label: "Dash", detail: "During any ability's lockout, a move or attack command queues a dash of 175 to 350 units, taken when the lockout ends. It cannot cross terrain.", appliesTo: "self", tags: ["dash"], source: "ambessa-p" },
+        { kind: "interaction", label: "Immobilising or grounding stops it", detail: "She cannot dash while immobilised or grounded, and either one during a lockout cancels the dash she queued. Knock-downs and displacements interrupt the dash itself.", appliesTo: "self", tags: ["ground", "interrupt"], source: "ambessa-p" },
+        { kind: "exception", label: "Uncancellable empowered attacks", detail: "Attacks empowered by Medarda Maxim, one stack per ability cast, have an uncancellable windup.", appliesTo: "self", source: "ambessa-p" },
       ],
       details: [
         "Each ability cast adds a Medarda Maxim stack once its lockout ends: up to 3, lasting 4 seconds, refreshed by later casts.",
@@ -48,13 +49,14 @@ const notes: ChampionNotes = {
     },
     Q: {
       ddragonCooldown: [14, 13, 12, 11, 10],
+      ddragonIdentity: { id: "AmbessaQ", name: "Cunning Sweep / Sundering Slam", maxRank: 5, charges: null },
       // Wiki cooldown-start field (Cunning Sweep): on-cast.
       cooldown: { kind: "per-rank", seconds: [14, 13, 12, 11, 10], starts: "on-cast" },
       cooldownNote: "Starts when Cunning Sweep is cast.",
       recast: { count: 1, windowSeconds: 4, note: "Sundering Slam, only after Cunning Sweep hits at least one enemy." },
       facts: [
-        { kind: "damage", label: "Max-health damage", detail: "Cunning Sweep deals a share of the target's maximum health, doubled at the outer edge of the sweep.", source: "ambessa-q1" },
-        { kind: "damage", label: "Doubled on first enemy", detail: "Sundering Slam also deals a share of maximum health, doubled on the first enemy in its line.", source: "ambessa-q2" },
+        { kind: "damage", label: "Max-health damage", detail: "Cunning Sweep deals a share of the target's maximum health, doubled at the outer edge of the sweep.", appliesTo: "target", tags: ["max-health-damage"], source: "ambessa-q1" },
+        { kind: "damage", label: "Doubled on first enemy", detail: "Sundering Slam also deals a share of maximum health, doubled on the first enemy in its line.", appliesTo: "target", tags: ["max-health-damage"], source: "ambessa-q2" },
       ],
       details: [
         "Cunning Sweep is a 180° sweep reaching 400 units; Sundering Slam is a 650-unit line, 80 units wide.",
@@ -64,11 +66,12 @@ const notes: ChampionNotes = {
     },
     W: {
       ddragonCooldown: [18, 17, 16, 15, 14],
+      ddragonIdentity: { id: "AmbessaW", name: "Repudiation", maxRank: 5, charges: null },
       // The wiki gives no cooldown start: on-cast, the ordinary case.
       cooldown: { kind: "per-rank", seconds: [18, 17, 16, 15, 14], starts: "on-cast" },
       facts: [
-        { kind: "defence", label: "Shield", detail: "On cast: 50 to 320 (by level) + 150% bonus AD, for 1.5 seconds.", source: "ambessa-w" },
-        { kind: "interaction", label: "Stronger if the shield absorbs", detail: "The smash deals 50% more if, before it lands, the shield has taken damage from a champion, a large monster or a turret.", source: "ambessa-w" },
+        { kind: "defence", label: "Shield", detail: "On cast: 50 to 320 (by level) + 150% bonus AD, for 1.5 seconds.", appliesTo: "self", tags: ["shield"], source: "ambessa-w" },
+        { kind: "interaction", label: "Stronger if the shield absorbs", detail: "The smash deals 50% more if, before it lands, the shield has taken damage from a champion, a large monster or a turret.", appliesTo: "self", tags: ["shield"], source: "ambessa-w" },
       ],
       details: [
         "She braces for up to 0.5 seconds, unable to act for the first 0.225, then smashes the ground around her (325 units).",
@@ -78,26 +81,28 @@ const notes: ChampionNotes = {
     },
     E: {
       ddragonCooldown: [13, 12, 11, 10, 9],
+      ddragonIdentity: { id: "AmbessaE", name: "Lacerate", maxRank: 5, charges: null },
       // The wiki gives no cooldown start: on-cast, the ordinary case.
       cooldown: { kind: "per-rank", seconds: [13, 12, 11, 10, 9], starts: "on-cast" },
       facts: [
-        { kind: "crowd-control", label: "Slow", detail: "99%, fading over 1 second.", source: "ambessa-e" },
-        { kind: "exception", label: "Spins again after a dash", detail: "A dash queued during the lockout, or started within 0.275 seconds after it, repeats the spin where the dash ends, at no extra cost, even if the dash is interrupted.", source: "ambessa-e" },
+        { kind: "crowd-control", label: "Slow", detail: "99%, fading over 1 second.", appliesTo: "target", tags: ["slow"], source: "ambessa-e" },
+        { kind: "exception", label: "Spins again after a dash", detail: "A dash queued during the lockout, or started within 0.275 seconds after it, repeats the spin where the dash ends, at no extra cost, even if the dash is interrupted.", appliesTo: "self", tags: ["dash"], source: "ambessa-e" },
       ],
       details: ["The spin hits enemies around her (325 units) and comes with a 0.225-second lockout."],
     },
     R: {
       ddragonCooldown: [130, 115, 100],
+      ddragonIdentity: { id: "AmbessaR", name: "Public Execution", maxRank: 3, charges: null },
       // The wiki gives no cooldown start: on-cast, the ordinary case.
       cooldown: { kind: "per-rank", seconds: [130, 115, 100], starts: "on-cast" },
       facts: [
-        { kind: "mobility", label: "Blink", detail: "After a 0.7-second cast time, she blinks behind the farthest enemy champion in a 1250-unit line.", source: "ambessa-r" },
-        { kind: "crowd-control", label: "Suppression", detail: "0.75 seconds; the target is revealed.", source: "ambessa-r" },
-        { kind: "crowd-control", label: "Stun", detail: "0.4 seconds, with the slam's damage, once she crashes the target down.", source: "ambessa-r" },
-        { kind: "defence", label: "Displacement immune", detail: "Through the cast time and the target's suppression; polymorphs do not affect her then either.", source: "ambessa-r" },
-        { kind: "interaction", label: "Removing the suppression ends it", detail: "A target that clears the suppression, with a cleanse for example, breaks free at once: no slam damage or stun, and her lockout and displacement immunity end early.", source: "ambessa-r" },
-        { kind: "interaction", label: "Resisted by crowd-control immunity", detail: "A target immune to crowd control or displacement, or behind a spell shield, is not seized: she still blinks, with no damage and no stun.", source: "ambessa-r" },
-        { kind: "sustain", label: "Heals from ability damage", detail: "Passive: 15 to 20% (by rank) of the damage her active abilities deal after mitigation, plus half her life steal; 25% as effective against minions and monsters.", source: "ambessa-r" },
+        { kind: "mobility", label: "Blink", detail: "After a 0.7-second cast time, she blinks behind the farthest enemy champion in a 1250-unit line.", appliesTo: "self", tags: ["blink"], source: "ambessa-r" },
+        { kind: "crowd-control", label: "Suppression", detail: "0.75 seconds; the target is revealed.", appliesTo: "target", tags: ["suppression"], source: "ambessa-r" },
+        { kind: "crowd-control", label: "Stun", detail: "0.4 seconds, with the slam's damage, once she crashes the target down.", appliesTo: "target", tags: ["stun"], source: "ambessa-r" },
+        { kind: "defence", label: "Displacement immune", detail: "Through the cast time and the target's suppression; polymorphs do not affect her then either.", appliesTo: "self", tags: ["displacement-immune"], source: "ambessa-r" },
+        { kind: "interaction", label: "Removing the suppression ends it", detail: "A target that clears the suppression, with a cleanse for example, breaks free at once: no slam damage or stun, and her lockout and displacement immunity end early.", appliesTo: "target", tags: ["suppression"], source: "ambessa-r" },
+        { kind: "interaction", label: "Resisted by crowd-control immunity", detail: "A target immune to crowd control or displacement, or behind a spell shield, is not seized: she still blinks, with no damage and no stun.", appliesTo: "target", tags: ["cc-immune", "displacement-immune", "spell-shield"], source: "ambessa-r" },
+        { kind: "sustain", label: "Heals from ability damage", detail: "Passive: 15 to 20% (by rank) of the damage her active abilities deal after mitigation, plus half her life steal; 25% as effective against minions and monsters.", appliesTo: "self", tags: ["heal"], source: "ambessa-r" },
       ],
       details: [
         "Passive: 10 to 30% armour penetration (by rank).",

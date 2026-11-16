@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { FACT_TAGS, SLOTS, type AbilityModifiers, type AbilityNotes, type AbilityRef, type BriefingPoint, type ChampionNotes, type CooldownSpec, type DdragonIdentity, type MatchupNotes, type Slot, type Source, type Verification } from "@/domain/matchup-intel/types";
+import { FACT_TAGS, SLOTS, type AbilityModifiers, type AbilityNotes, type AbilityRef, type BriefingPoint, type ChampionNotes, type CooldownSpec, type DdragonIdentity, type Fact, type MatchupNotes, type Slot, type Source, type Verification } from "@/domain/matchup-intel/types";
 import { curatedCooldownDisplay, modifiersView } from "@/domain/matchup-intel/cooldown";
 import { patchFromVersion, publicPatchName } from "@/domain/patch";
 import abilityFixture from "@/server/riot/fixtures/champion-abilities.fixture.json";
@@ -20,11 +20,12 @@ import { curatedEnemiesFor, getChampionNotes, getMatchupNotes } from "./index";
   - every cooldown spec and every modifier is one the page can show as written (cooldownDisplay's
     own rules): numbers of seconds, whole charge counts, one value or one per rank, levels paired
     with their values, two or more forms with names of their own, a refund's share at most 100%;
-  - a fact's tags come from FACT_TAGS, each once;
+  - every fact says who has the effect (appliesTo), and its tags come from FACT_TAGS, each once;
   - every fact, level note and interaction cites one of its notes' sources, and every source is an
-    https page on wiki.leagueoflegends.com (with its revision, CC BY-SA 3.0), developer.riotgames.com
-    or ddragon.leagueoflegends.com (Riot Games); a source's kind, where given, fits its page, and its
-    revision time, where given, is a time in UTC no later than the day the notes were checked;
+    https page on wiki.leagueoflegends.com (CC BY-SA 3.0, with the revision read and when it was
+    saved, a time in UTC no later than the day the notes were checked), developer.riotgames.com or
+    ddragon.leagueoflegends.com (Riot Games, with no revision), and its kind fits its page;
+  - a matchup's source is the page and revision the champion notes cite under the same id;
   - every ability a briefing point or an interaction rests on belongs to one of the two champions
     and has notes of its own;
   - every text is plain and short: no wiki markup ("{{"), no "<" or ">", no control characters, at
@@ -43,8 +44,8 @@ import { curatedEnemiesFor, getChampionNotes, getMatchupNotes } from "./index";
   committed offline fixture (src/server/riot/fixtures/champion-abilities.fixture.json) is of the
   same version, both files must agree with it.
 
-  ddragonIdentity, a fact's appliesTo, and a source's kind and revisionTime are optional while the
-  curated files are filled in: each is checked where it is given.
+  The types require ddragonIdentity, a fact's appliesTo and a source's kind; the checks below refuse
+  notes without them as well, for notes that reach them some other way.
 */
 
 const DIR = __dirname;
@@ -195,13 +196,18 @@ export function sourceProblems(sources: readonly Source[], checkedOn?: string): 
       continue;
     }
     if (source.licence !== licence) out.push(`source "${source.id}" is on ${url.hostname}, whose licence is ${licence}, not ${source.licence}`);
-    if (licence === "CC BY-SA 3.0" && !(Number.isInteger(source.revision) && source.revision! > 0)) out.push(`source "${source.id}" gives no revision of the wiki page`);
+    if (licence === "CC BY-SA 3.0") {
+      if (!(Number.isInteger(source.revision) && source.revision! > 0)) out.push(`source "${source.id}" gives no revision of the wiki page`);
+      if (source.revisionTime === undefined) out.push(`source "${source.id}" gives no revisionTime: when the revision read was saved, from the page's history`);
+    } else if (source.revision !== undefined || source.revisionTime !== undefined) {
+      out.push(`source "${source.id}" is one of Riot's pages, which have no wiki revision, but gives a revision or a revisionTime`);
+    }
+    if (source.kind === undefined) out.push(`source "${source.id}" gives no kind (wiki-ability, wiki-champion, wiki-reference, ddragon or riot-docs)`);
     const kind = kindProblem(source, url);
     if (kind) out.push(`source "${source.id}" is of kind "${source.kind}", which is ${kind}, but its address is ${source.url}`);
     if (source.revisionTime !== undefined) {
       const time = typeof source.revisionTime === "string" && REVISION_TIME.test(source.revisionTime) ? Date.parse(source.revisionTime) : Number.NaN;
       if (Number.isNaN(time)) out.push(`source "${source.id}" revisionTime ${JSON.stringify(source.revisionTime)} is not a time in UTC such as "2026-09-23T19:37:45Z"`);
-      else if (source.revision === undefined) out.push(`source "${source.id}" gives a revisionTime but no revision`);
       else if (checkedOn && isIsoDay(checkedOn) && source.revisionTime.slice(0, 10) > checkedOn) out.push(`source "${source.id}" revisionTime ${source.revisionTime} is after the day the notes were checked (${checkedOn})`);
     }
   }
@@ -258,6 +264,8 @@ export function championProblems(notes: ChampionNotes, rules: Rules): string[] {
   else if (!arrays) say(`is not in ddragon-${version}.cooldowns.json`);
   const identities = rules.identity.get(version);
   const identity = identities?.[notes.championId];
+  if (!identities) say(`no committed Data Dragon identity for ${version} (ddragon-${version}.identity.json)`);
+  else if (!identity) say(`is not in ddragon-${version}.identity.json`);
 
   for (const slot of Object.keys(notes.abilities)) if (!isSlot(slot)) say(`"${slot}" is not an ability slot (P, Q, W, E or R)`);
   for (const slot of SLOTS) {
@@ -268,15 +276,12 @@ export function championProblems(notes: ChampionNotes, rules: Rules): string[] {
     }
     const expected = arrays?.[slot];
     if (expected && !sameNumbers(ability.ddragonCooldown, expected)) say(`${slot}.ddragonCooldown ${show(ability.ddragonCooldown)} is not Data Dragon ${version}'s ${show(expected)}`);
-    const was = ability.ddragonIdentity;
-    if (was !== undefined) {
-      const riotsOwn = identity?.[slot];
-      if (!identities) say(`${slot}.ddragonIdentity: no committed Data Dragon identity for ${version} (ddragon-${version}.identity.json)`);
-      else if (!riotsOwn) say(`${slot}.ddragonIdentity: ${notes.championId} is not in ddragon-${version}.identity.json`);
-      else {
-        for (const field of ["id", "name", "maxRank", "charges"] as const) {
-          if (was?.[field] !== riotsOwn[field]) say(`${slot}.ddragonIdentity.${field} ${JSON.stringify(was?.[field])} is not Data Dragon ${version}'s ${JSON.stringify(riotsOwn[field])}`);
-        }
+    const was: Partial<DdragonIdentity> | undefined = ability.ddragonIdentity;
+    const riotsOwn = identity?.[slot];
+    if (!was || typeof was !== "object") say(`${slot} has no ddragonIdentity: copy Data Dragon ${version}'s id, name, ranks and charges from ddragon-${version}.identity.json`);
+    else if (riotsOwn) {
+      for (const field of ["id", "name", "maxRank", "charges"] as const) {
+        if (was[field] !== riotsOwn[field]) say(`${slot}.ddragonIdentity.${field} ${JSON.stringify(was[field])} is not Data Dragon ${version}'s ${JSON.stringify(riotsOwn[field])}`);
       }
     }
     const ranks = ranksOf(slot, ability, identity);
@@ -288,7 +293,8 @@ export function championProblems(notes: ChampionNotes, rules: Rules): string[] {
     if (ability.recast && !(Number.isInteger(ability.recast.count) && ability.recast.count >= 1)) say(`${slot}.recast.count ${ability.recast.count} is not a number of casts`);
     ability.facts.forEach((fact, i) => {
       if (!cited.has(fact.source)) say(`${slot}.facts[${i}] cites "${fact.source}", which is not one of its sources`);
-      if (fact.appliesTo !== undefined && !SUBJECTS.has(fact.appliesTo)) say(`${slot}.facts[${i}].appliesTo ${JSON.stringify(fact.appliesTo)} is not self, target, allies or area`);
+      if (fact.appliesTo === undefined) say(`${slot}.facts[${i}] gives no appliesTo: who has the effect (self, target, allies or area)`);
+      else if (!SUBJECTS.has(fact.appliesTo)) say(`${slot}.facts[${i}].appliesTo ${JSON.stringify(fact.appliesTo)} is not self, target, allies or area`);
       if (fact.tags !== undefined) {
         const tags: unknown[] = Array.isArray(fact.tags) ? fact.tags : [];
         if (!Array.isArray(fact.tags)) say(`${slot}.facts[${i}].tags is not a list`);
@@ -540,7 +546,7 @@ describe("the checks fire", () => {
   it("on notes checked against a Data Dragon version with no committed arrays", () => {
     const earlier = renekton();
     earlier.verified = { patch: "26.21", ddragonVersion: "16.21.1", checkedOn: "2026-11-02" };
-    expect(championProblems(earlier, RULES)).toEqual(["Renekton: no committed Data Dragon cooldowns for 16.21.1 (ddragon-16.21.1.cooldowns.json)"]);
+    expect(championProblems(earlier, RULES)).toEqual(["Renekton: no committed Data Dragon cooldowns for 16.21.1 (ddragon-16.21.1.cooldowns.json)", "Renekton: no committed Data Dragon identity for 16.21.1 (ddragon-16.21.1.identity.json)"]);
   });
 
   it("on a fact, a level note or an interaction citing a source the notes do not list", () => {
@@ -655,7 +661,7 @@ describe("the checks fire", () => {
     const earlier = renekton();
     earlier.verified = { patch: "26.21", ddragonVersion: "16.21.1", checkedOn: "2026-11-02" };
     earlier.abilities.W!.ddragonIdentity = right.abilities.W!.ddragonIdentity;
-    expect(championProblems(earlier, RULES)).toContainEqual("Renekton: W.ddragonIdentity: no committed Data Dragon identity for 16.21.1 (ddragon-16.21.1.identity.json)");
+    expect(championProblems(earlier, RULES)).toContainEqual("Renekton: no committed Data Dragon identity for 16.21.1 (ddragon-16.21.1.identity.json)");
   });
 
   it("on a cooldown spec or a modifier the page cannot show as written", () => {
@@ -711,7 +717,8 @@ describe("the checks fire", () => {
     const ddragon = renekton().sources.findIndex((x) => x.id === "ddragon");
     expect(withSource({ kind: "ddragon" }, ddragon)).toEqual([]);
     expect(withSource({ kind: "riot-docs" }, ddragon)).toEqual([problem(/is of kind "riot-docs", which is a page on developer\.riotgames\.com/)]);
-    expect(withSource({ revisionTime: "2026-11-03T22:24:22Z" }, ddragon)).toEqual(['Renekton: source "ddragon" gives a revisionTime but no revision']);
+    expect(withSource({ revisionTime: "2026-11-03T22:24:22Z" }, ddragon)).toEqual(["Renekton: source \"ddragon\" is one of Riot's pages, which have no wiki revision, but gives a revision or a revisionTime"]);
+    expect(withSource({ revision: 1 }, ddragon)).toEqual(["Renekton: source \"ddragon\" is one of Riot's pages, which have no wiki revision, but gives a revision or a revisionTime"]);
   });
 
   it("on a matchup whose champion has no notes, or a level note off the level range", () => {
@@ -723,4 +730,20 @@ describe("the checks fire", () => {
     recast.abilities.E!.recast = { ...recast.abilities.E!.recast!, count: 0 };
     expect(championProblems(recast, RULES)).toEqual(["Renekton: E.recast.count 0 is not a number of casts"]);
   });
+
+  it("on an ability without its ddragonIdentity, a fact that does not say who has the effect, or a source without its kind or revision time", () => {
+    const noIdentity = renekton();
+    delete (noIdentity.abilities.W as Partial<AbilityNotes>).ddragonIdentity;
+    expect(championProblems(noIdentity, RULES)).toEqual(["Renekton: W has no ddragonIdentity: copy Data Dragon 16.22.1's id, name, ranks and charges from ddragon-16.22.1.identity.json"]);
+    const noSubject = renekton();
+    delete (noSubject.abilities.W!.facts[0] as Partial<Fact>).appliesTo;
+    expect(championProblems(noSubject, RULES)).toEqual(["Renekton: W.facts[0] gives no appliesTo: who has the effect (self, target, allies or area)"]);
+    const noKind = renekton();
+    delete (noKind.sources[2] as Partial<Source>).kind;
+    expect(championProblems(noKind, RULES)).toEqual(['Renekton: source "renekton-w" gives no kind (wiki-ability, wiki-champion, wiki-reference, ddragon or riot-docs)']);
+    const noTime = renekton();
+    delete noTime.sources[2]!.revisionTime;
+    expect(championProblems(noTime, RULES)).toEqual(["Renekton: source \"renekton-w\" gives no revisionTime: when the revision read was saved, from the page's history"]);
+  });
+
 });
