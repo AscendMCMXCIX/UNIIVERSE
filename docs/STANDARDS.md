@@ -320,3 +320,23 @@ ones lazily, and keep uploaded brand images small ([HOSTING_USAGE.md](HOSTING_US
   `e2e/cross-device.spec.ts` covers another time zone and language, unreachable image hosts,
   invalid nesting, cut-off figures and target sizes; `e2e/quality.spec.ts` runs axe.
 - A fix comes with the test that would have caught it.
+- A test passes in any year (16 Nov 2026). It fixes its own dates and passes them as `now`, and
+  where the code it calls reads the clock itself it pins it (`vi.useFakeTimers({ toFake: ["Date"] })`
+  and `vi.setSystemTime`), or it works out the dates it expects.
+  - Seasons: on the offline fixture's static data the current season is the calendar year's, so a
+    database test whose games are Season 2026's makes a Season 2026 patch current
+    (`makeSeason2026Current`, `tests/db/helpers.ts`).
+  - Browser tests: the demo is seeded in the current season, dated back from when it starts, so a
+    test takes the season from `/api/health` (`e2e/demo-season.ts`) and checks a date against the
+    demo's own dates, never against a year.
+  - To check, move `Date` for a whole run with a temporary setup file that calls
+    `vi.useFakeTimers({ toFake: ["Date"] })` and `vi.setSystemTime`, never the machine's clock.
+    Vitest 4 has no `--setupFiles` flag: a temporary config that adds `setupFiles` to
+    `vitest.config.mts` goes in `--config`. Use PGlite for the database suite (no
+    `TEST_DATABASE_URL`): its `now()` follows the faked clock, while PostgreSQL's stays on today. Run
+    the same at today's date as well: a few tests fail under any faked clock, because rows written
+    a moment apart get the same time.
+  - What stays tied to the date is the app's ranked year (`src/domain/ranked-year.ts`, 2026 only
+    until Riot publishes 2027's dates): Ranked progress names a season, and draws readings, only
+    inside a ranked year the app knows. `e2e/progress.spec.ts` takes that year from `RANKED_YEAR`,
+    so it follows the 2027 change instead of naming a year, and passes in 2027 only with it.
