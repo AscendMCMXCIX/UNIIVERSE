@@ -219,8 +219,10 @@ function PerformanceCard({ data, basePath }: { data: PlayerOverviewData; basePat
     2×2 (a window 1440px or wider, and a dashboard of 68rem or more: 1440 with the sidebar open and
                    wider; the owner's choice of 8 Nov 2026, never forced onto smaller screens)
                    the season's card and recent form side by side, level; under them the champion
-                   pools beside ranked progress, each at the top of its cell, in a rail of 20–30rem
-                   (40% of the dashboard: from 28rem ranked progress draws its chart in full). Without recent form, ranked progress takes the whole rail
+                   pools beside ranked progress, each at the top of its cell, in a rail of 40% of
+                   the dashboard within 20–30rem: 28rem at 1440 with the sidebar open, 30rem wider
+                   (the floor never applies, the 2×2 needing 68rem), where ranked progress draws
+                   its chart in full. Without recent form, ranked progress takes the whole rail
                    beside the season's card and the pools; without ranked progress, the pools span
                    the width as below;
     wide (58rem+)  the season's card and recent form side by side, level; under them ranked
