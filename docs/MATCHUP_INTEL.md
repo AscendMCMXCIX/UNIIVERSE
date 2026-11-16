@@ -542,8 +542,49 @@ Re-checking is a person's work, in one pull request per pass:
 4. Re-read every matchup that rests on the champion, update or remove the points that rest on a
    changed ability (`basedOn`), and move its `verified` to the same version: the test refuses a
    matchup checked on another version than the notes it rests on.
+5. Move the browser tests' pin (`E2E_DDRAGON_VERSION` in `e2e/ddragon-version.ts`) to the newest
+   version the notes are now checked against: `curated.test.ts` refuses any other (What the browser
+   tests pin, below). Their server then reads that version's data, so update a browser test that
+   reads a number the new version changed ("13 s at every rank" for Riven's Q, in
+   `e2e/matchup-intel.spec.ts`), and run the browser tests with the new pin before the pull request
+   is ready.
 
 Until that merges, the labels say what is known. Nothing is estimated.
+
+### What the browser tests pin
+
+The browser tests run against the in-memory demo, which stores Riot's Data Dragon at its first
+start. Their server reads one version: `DDRAGON_VERSION`, set by `playwright.config.ts` to
+`E2E_DDRAGON_VERSION` (`e2e/ddragon-version.ts`), 16.22.1, the version the curated notes were
+checked on. CI's browser job and the WebKit workflow both start that server through the config, so
+both read it; production never sets it.
+
+- **Why.** Unpinned, a fresh demo stored Riot's newest version, so the specs read whatever Riot had
+  shipped: once its numbering was more than two patches past the check (16.25, or 17.3 if 16.24 is
+  the year's last patch), `MAX_PATCHES_UNCHECKED` hid every briefing, and the specs that read one
+  (the threat, the opportunity and their chips, the threat on a phone's first screen, the
+  announcement, and the WebKit spec's chip) failed on every pull request until the notes were
+  re-checked; a cooldown Riot changed (Riven's Q, "13 s at every rank") failed at once. Pinned, the
+  specs read the same data whatever Riot ships: the briefings as checked ("Checked on patch 26.22",
+  with no "Not re-checked"), Riot's numbers as checked, and the footer's "Riot Data Dragon 16.22.1
+  (patch 26.22)", which the spec asserts word for word.
+- **How.** The live provider (`DataDragonProvider`, `src/server/riot/static/ddragon.ts`) returns
+  only the pinned version once Data Dragon's own list of versions confirms it has it (Data Dragon
+  keeps every version it has published), and the version check reads exactly that version's
+  champions, abilities and item names. A pin that is not a version, or one Data Dragon does not list,
+  fails the way an unreachable Data Dragon does: on a first start the offline copy, labelled as one
+  (the footer's assertion then fails), otherwise the stored data kept and the run degraded with the
+  reason; never another version instead. The version check's log says when it is pinned.
+- **Kept honest.** `curated.test.ts` refuses a pin that is not the newest version the notes are
+  checked against, or one without its `ddragon-<version>.cooldowns.json` and identity file, so a
+  re-check on a newer version moves the pin in the same pull request (When a patch changes them,
+  step 5), and the specs read the data the newest notes were checked on.
+- **Not covered by them.** The page on later patches (the "Not re-checked for 26.23" labels, a
+  briefing hidden for its age, a point hidden because Riot changed an ability, Riot's data newer
+  than the notes) is the unit tests' (`view.test.ts`, `matchup-content.test.ts`,
+  `src/domain/patch.test.ts`), with the patches and records injected. A server started by hand for
+  the specs (`E2E_PORT`) needs the variable too, `DDRAGON_VERSION=16.22.1 pnpm start`: outside CI,
+  Playwright uses a server already on the port and does not pass it its environment.
 
 ### What the test checks
 
@@ -596,7 +637,10 @@ Until that merges, the labels say what is known. Nothing is estimated.
 - a text the page shows, in champion notes or a matchup, that gives a value as an estimate
   ("estimated", "estimate", "estimates", "approximately", "approximate" or "roughly", as whole
   words): a value the wiki marks as estimated is left out (Rules);
-- a missing validation matchup.
+- a missing validation matchup;
+- a browser tests' pin (`E2E_DDRAGON_VERSION`) that is not the newest Data Dragon version the notes
+  are checked against, or has no committed cooldowns and identity, or that `playwright.config.ts`
+  does not pass to their server as `DDRAGON_VERSION` (What the browser tests pin).
 
 Three corrections from the review of 16 Nov 2026 are pinned too, so that they stay made: Riven's Q
 gives no one window for its two recasts, Ornn's W no speed below which he does not lunge, and Gwen

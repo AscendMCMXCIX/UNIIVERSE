@@ -2,10 +2,11 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { FACT_TAGS, SLOTS, type AbilityModifiers, type AbilityNotes, type AbilityRef, type BriefingPoint, type ChampionNotes, type CooldownSpec, type DdragonIdentity, type Fact, type MatchupNotes, type Slot, type Source, type Verification } from "@/domain/matchup-intel/types";
-import { curatedCooldownDisplay, modifiersView } from "@/domain/matchup-intel/cooldown";
+import { compareDdragonVersions, curatedCooldownDisplay, modifiersView } from "@/domain/matchup-intel/cooldown";
 import { patchFromVersion, publicPatchName } from "@/domain/patch";
 import abilityFixture from "@/server/riot/fixtures/champion-abilities.fixture.json";
 import championList from "@/server/riot/fixtures/champions.fixture.json";
+import { E2E_DDRAGON_VERSION } from "../../../../e2e/ddragon-version";
 import { curatedEnemiesFor, getChampionNotes, getMatchupNotes } from "./index";
 
 /*
@@ -42,7 +43,11 @@ import { curatedEnemiesFor, getChampionNotes, getMatchupNotes } from "./index";
   - every level note names the abilities of its champion it rests on (basedOn), each with notes;
   - `verified` is a patch, a Data Dragon version and a day, in those shapes;
   - a matchup has a threat, an opportunity and one to four lane points;
-  - the three validation matchups exist.
+  - the three validation matchups exist;
+  - the Data Dragon version the browser tests pin (e2e/ddragon-version.ts, passed to their server
+    by playwright.config.ts) is the newest version the notes are checked against, with both its
+    files: re-checking the notes on a newer version moves the pin in the same pull request, so
+    the browser tests read the data the notes were checked on.
 
   Data Dragon's arrays come from ddragon-<version>.cooldowns.json beside this file, and its ids,
   names, ranks and charges from ddragon-<version>.identity.json. The ones for 16.22.1 were generated
@@ -539,6 +544,20 @@ export function matchupProblems(notes: MatchupNotes, rules: Rules, championNotes
   return out;
 }
 
+/**
+ * What is wrong with the browser tests' pinned Data Dragon version (e2e/ddragon-version.ts), given
+ * the versions the curated notes are checked against: it must be the newest of them, and have its
+ * committed cooldowns and identity, so the specs read the data the newest notes were checked on.
+ */
+export function pinProblems(pin: string, checked: readonly string[], rules: Pick<Rules, "ddragon" | "identity">): string[] {
+  const out: string[] = [];
+  const newest = [...checked].sort((a, b) => compareDdragonVersions(a, b) ?? 0).at(-1);
+  if (pin !== newest) out.push(`the browser tests pin Data Dragon ${pin} (e2e/ddragon-version.ts), not ${newest ?? "a version"}, the newest version the curated notes are checked against: move the pin with the re-check`);
+  if (!rules.ddragon.has(pin)) out.push(`no committed Data Dragon cooldowns for the pinned ${pin} (ddragon-${pin}.cooldowns.json)`);
+  if (!rules.identity.has(pin)) out.push(`no committed Data Dragon identity for the pinned ${pin} (ddragon-${pin}.identity.json)`);
+  return out;
+}
+
 /* ---------- The committed files ---------- */
 
 async function load<T>(kind: "champions" | "matchups"): Promise<Array<{ file: string; notes: T }>> {
@@ -667,6 +686,19 @@ describe("Data Dragon's committed cooldown arrays", () => {
     }
     expect(OFFLINE.version).toBe("16.22.1");
     expect(problems).toEqual([]);
+  });
+});
+
+describe("the Data Dragon version the browser tests pin", () => {
+  it("is the newest version the notes are checked against, with its committed cooldowns and identity", () => {
+    const checked = [...new Set([...championFiles, ...matchupFiles].map(({ notes }) => notes.verified.ddragonVersion))];
+    expect(pinProblems(E2E_DDRAGON_VERSION, checked, RULES)).toEqual([]);
+  });
+
+  it("reaches their server: playwright.config.ts passes it as DDRAGON_VERSION", () => {
+    const config = readFileSync(join(DIR, "../../../../playwright.config.ts"), "utf8");
+    expect(config).toContain('import { E2E_DDRAGON_VERSION } from "./e2e/ddragon-version";');
+    expect(config).toMatch(/^\s+DDRAGON_VERSION: E2E_DDRAGON_VERSION,$/m);
   });
 });
 
@@ -1059,6 +1091,24 @@ describe("the checks fire", () => {
     expect(withLane("The knock-back lasts roughly 0.4 s.")).toEqual([problem(/^Ambessa vs Renekton: briefing\.lane\[0\]\.text uses "roughly": a value the wiki marks as estimated is left out$/)]);
     // Whole words only.
     expect(withLane("An underestimated range, and an estimation-free page.")).toEqual([]);
+  });
+});
+
+describe("the pin check fires", () => {
+  it("on a pin that is not the newest version the notes are checked against, or one without its committed files", () => {
+    expect(pinProblems("16.22.1", ["16.22.1"], RULES)).toEqual([]);
+    // The notes re-checked on a newer version, the pin left behind.
+    expect(pinProblems("16.22.1", ["16.22.1", "16.24.1"], { ddragon: new Map([...RULES.ddragon, ["16.24.1", {}]]), identity: new Map([...RULES.identity, ["16.24.1", {}]]) })).toEqual([
+      "the browser tests pin Data Dragon 16.22.1 (e2e/ddragon-version.ts), not 16.24.1, the newest version the curated notes are checked against: move the pin with the re-check",
+    ]);
+    // A pin on a version no notes are checked against, with no files of its own.
+    expect(pinProblems("16.21.1", ["16.22.1"], RULES)).toEqual([
+      "the browser tests pin Data Dragon 16.21.1 (e2e/ddragon-version.ts), not 16.22.1, the newest version the curated notes are checked against: move the pin with the re-check",
+      "no committed Data Dragon cooldowns for the pinned 16.21.1 (ddragon-16.21.1.cooldowns.json)",
+      "no committed Data Dragon identity for the pinned 16.21.1 (ddragon-16.21.1.identity.json)",
+    ]);
+    // Versions compared as numbers, not text: 16.9.1 is older than 16.10.1.
+    expect(pinProblems("16.10.1", ["16.9.1", "16.10.1"], { ddragon: new Map([["16.10.1", {}]]), identity: new Map([["16.10.1", {}]]) })).toEqual([]);
   });
 });
 

@@ -19,6 +19,9 @@ const ABILITY_SYNC_MS = 30_000;
  */
 async function run(ctx: Pick<JobContext, "db" | "log" | "startedAt" | "budgetMs">, force: boolean) {
   const provider = new DataDragonProvider();
+  // The browser tests' server reads one Data Dragon version (DDRAGON_VERSION); a run says so, as the
+  // champions, patch, abilities and item names below all come from that version.
+  if (provider.pinnedVersion) ctx.log(`Data Dragon pinned to ${provider.pinnedVersion} (DDRAGON_VERSION): no newer version is read.`);
   const result = await syncStaticData(ctx.db, provider, { force, fixture: new FixtureStaticProvider(), log: ctx.log });
   if (result.changed) {
     invalidateChampionMap();

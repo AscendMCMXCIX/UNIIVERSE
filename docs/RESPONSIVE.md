@@ -192,8 +192,12 @@ gold, CS and vision columns from 60rem; its four section tabs share a phone's wi
 ## Tests
 
 `pnpm build && pnpm test:e2e` runs `e2e/responsive.spec.ts` on phone (375), tablet (768) and
-desktop (1440) against a production build on an in-memory database with the demo roster. It
-checks: no horizontal overflow on every page, navigation (tab bar, drawer, sidebar), 44px targets
+desktop (1440) against a production build on an in-memory database with the demo roster, which
+reads Riot's Data Dragon at the version the curated Matchup Intel notes were checked on
+(`DDRAGON_VERSION`, set by `playwright.config.ts` from `e2e/ddragon-version.ts`;
+MATCHUP_INTEL.md, "What the browser tests pin"). A demo server started by hand for the specs
+(`E2E_PORT`) needs the same environment, `DDRAGON_VERSION=16.22.1` included: outside CI
+Playwright uses a server already on the port as it is. It checks: no horizontal overflow on every page, navigation (tab bar, drawer, sidebar), 44px targets
 and 16px inputs on phones, and the champion picker on the player profile.
 `e2e/navigation-reach.spec.ts` keeps where you are in reach: on a phone a profile section chosen
 far down the page starts at its top once its content has arrived (tapped in place, without

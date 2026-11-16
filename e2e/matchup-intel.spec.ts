@@ -1,21 +1,27 @@
 import { expect, test, type Page } from "./test";
 import { choiceIds, choose, cutOrSpilled, enemyAbilities, hydrated, localPictures, openMatchupIntel, openPicker, overflow, pickerCuts, pickerSpill, rosterIds } from "./matchup-intel";
 import { untilStill } from "./modal-corner";
+import { E2E_DDRAGON_VERSION } from "./ddragon-version";
+import { patchFromVersion, publicPatchName } from "../src/domain/patch";
 
 /*
   RESOURCES → MATCHUP INTEL (docs/MATCHUP_INTEL.md) on the in-memory demo, which stores Data
-  Dragon's abilities for every champion (16.22.1) and curated notes for Ambessa vs Renekton, Gwen vs
-  Ornn and Riven vs Mordekaiser. Pick your champion and the enemy (each in a picker window with a
-  search), read the briefing where one exists, or the enemy's general reference where none does,
-  then the enemy's five abilities with their base cooldowns. The choice lives in the address; your
-  own champion is remembered on this device and offered, never assumed. A static reference: its
-  sources are links only, and nothing is requested from the League of Legends Wiki. Runs on the
-  phone, tablet and desktop projects.
+  Dragon's abilities for every champion at the pinned version (E2E_DDRAGON_VERSION, 16.22.1, the one
+  the curated notes were checked on: playwright.config.ts) and curated notes for Ambessa vs
+  Renekton, Gwen vs Ornn and Riven vs Mordekaiser. Pick your champion and the enemy (each in a
+  picker window with a search), read the briefing where one exists, or the enemy's general
+  reference where none does, then the enemy's five abilities with their base cooldowns. The choice
+  lives in the address; your own champion is remembered on this device and offered, never assumed.
+  A static reference: its sources are links only, and nothing is requested from the League of
+  Legends Wiki. Runs on the phone, tablet and desktop projects.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
 });
+
+/** The public name of the patch the demo's Data Dragon version belongs to ("26.22" for 16.22.1). */
+const PINNED_PATCH = publicPatchName(patchFromVersion(E2E_DDRAGON_VERSION)!);
 
 /** The pairs the demo has curated notes for. */
 const CURATED: Array<[string, string]> = [
@@ -80,7 +86,8 @@ test("Ambessa vs Renekton: the ten-second briefing, its chips jumping to the abi
   await expect(page.locator(`#${anchor}`)).toBeFocused();
   // The footer says where everything comes from, and what this is.
   const footer = page.getByTestId("matchup-footer");
-  await expect(footer.getByTestId("matchup-footer-ddragon")).toHaveText(/^Ability names, icons and base cooldowns: Riot Data Dragon \d+\.\d+\.\d+ \(patch \d+\.\d+\)\.$/);
+  // The pinned version, read from Data Dragon: not the newest, and not the committed offline copy.
+  await expect(footer.getByTestId("matchup-footer-ddragon")).toHaveText(`Ability names, icons and base cooldowns: Riot Data Dragon ${E2E_DDRAGON_VERSION} (patch ${PINNED_PATCH}).`);
   await expect(footer.getByTestId("matchup-footer-checked")).toContainText(/checked on \d{1,2} [A-Z][a-z]{2} \d{4}/);
   // The wiki's credit: how its pages were used, who wrote them, the licence, and no endorsement.
   const wiki = footer.getByTestId("matchup-footer-wiki");
@@ -127,9 +134,9 @@ test("a pair without a curated briefing (Garen vs Darius) says so calmly, then t
 });
 
 test("no number where Riot's data cannot give one: charges, and two abilities in one slot", async ({ page }) => {
-  // Riot's data alone, with nothing curated. CI's demo may read Data Dragon's current version, so
-  // only abilities whose shape is their kit's are used: Powder Keg and Missile Barrage hold charges,
-  // Jayce's Q is two abilities. Numbers known to be wrong (Rengar's) are the unit tests' to check.
+  // Riot's data alone, with nothing curated, at the pinned version (E2E_DDRAGON_VERSION). Abilities
+  // whose shape is their kit's, so they hold on any version: Powder Keg and Missile Barrage hold
+  // charges, Jayce's Q is two abilities. Numbers known to be wrong (Rengar's) are the unit tests' to check.
   const cases: Array<[string, string, RegExp]> = [
     ["Gangplank", "E", /^Riot's data lists charges but not their recharge$/],
     ["Corki", "R", /^Riot's data lists charges but not their recharge$/],
