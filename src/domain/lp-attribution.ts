@@ -8,14 +8,20 @@ import { rankLabel, TIERS } from "./rank-progress";
   can only be the difference between two readings of the account's rank in the game's queue, and
   only when those two readings enclose that game and nothing else:
 
-  1. Which game. Riot's wins + losses count the queue's games of the ranked season, so between two
+  1. Which game. Riot's wins + losses count the queue's games of the ranked year, so between two
      readings exactly as many games ended as that count rose. The stored games are matched to the
      count in the order they ended: the readings' count less the stored games Riot must already
      have counted (ended more than UPDATE_ALLOWANCE_MS before the reading) is the same "offset" at
-     every reading while the stored games are complete; a game missing from the store (not
-     collected yet, or Riot never served it) or a stored game Riot did not count changes the
-     offset, and every game between those readings is left unattributed. A game Riot does not
-     count (a remake: under five minutes) never takes part.
+     every reading while the stored games are complete. A game missing from the store (not
+     collected yet, Riot never served it, or stored without a length, which leaves it out of the
+     count: "unknown-length") or a stored game Riot did not count changes the offset, and every
+     game between those readings is left unattributed, provided a reading sees the missing game
+     counted before the next stored game can have ended. When none does (Riot counting it 20 or
+     more minutes late, or no reading in between), the offset does not move, and the next stored
+     game of the same result is matched to the missing game's change; a next game of the other
+     result is left "inconsistent" by rule 3. The rule assumes Riot counts each game within
+     UPDATE_ALLOWANCE_MS (ten minutes) of its end. A game Riot does not count (a remake: under
+     five minutes) never takes part.
   2. Nothing else in between. The earlier reading must still have held when the game began:
      confirmed during the game or in the BEFORE_MARGIN_MS before it was created. The only other LP
      change a player makes, a queue dodge, happens in champion select and is followed by a
