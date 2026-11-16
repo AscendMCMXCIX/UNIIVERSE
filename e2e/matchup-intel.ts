@@ -27,13 +27,34 @@ export async function openPicker(page: Page, slot: "you" | "enemy"): Promise<Loc
 /** The champions a picker window's roster shows, in order (by Data Dragon id). */
 export const rosterIds = (win: Locator) => win.getByTestId("matchup-picker-grid").locator("button[data-champion]").evaluateAll((els) => els.map((e) => e.getAttribute("data-champion")));
 
-/** Chooses a champion on one side: types `search` in its picker window and takes `id` from the results. */
+/**
+ * The champions a picker's short row offers (Recent, the curated matchups), by id: each button also
+ * holds the portrait, whose two letters stand in where it cannot load, so its text is not the name.
+ */
+export const choiceIds = (row: Locator) => row.locator("button[data-champion]").evaluateAll((els) => els.map((e) => e.getAttribute("data-champion")));
+
+/**
+ * Chooses a champion on one side: types `search` in its picker window and takes `id` from the
+ * results; done once the address has it. The slot shows the choice at once, before the server's
+ * page for it arrives and the router writes the address, so a reload straight after the slot
+ * changed could still load the address before.
+ */
 export async function choose(page: Page, slot: "you" | "enemy", search: string, id: string) {
   const win = await openPicker(page, slot);
   await win.getByTestId("matchup-picker-search").fill(search);
   await win.getByTestId("matchup-picker-grid").locator(`button[data-champion="${id}"]`).click();
   await expect(win).toHaveCount(0);
   await expect(page.getByTestId(`matchup-pick-${slot}`)).toHaveAttribute("data-champion", id);
+  await expect(page).toHaveURL(new RegExp(`[?&]${slot === "you" ? "champion" : "vs"}=${id}(&|#|$)`));
+}
+
+/** How far anything in a picker window reaches past its right edge, in px, once its content (not the loading tiles) is there. */
+export async function pickerSpill(win: Locator): Promise<number> {
+  await expect(win.getByTestId("matchup-picker-grid").locator("button[data-champion]").first()).toBeVisible();
+  return win.evaluate((d) => {
+    const box = d.getBoundingClientRect();
+    return Math.max(0, ...[...d.querySelectorAll("*")].map((e) => e.getBoundingClientRect().right - box.right));
+  });
 }
 
 /** The enemy's ability rows, P Q W E R. */

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "./test";
-import { choose, enemyAbilities, openMatchupIntel, openPicker, overflow, rosterIds } from "./matchup-intel";
+import { choiceIds, choose, enemyAbilities, openMatchupIntel, openPicker, overflow, pickerSpill, rosterIds } from "./matchup-intel";
 
 /*
   RESOURCES → MATCHUP INTEL (docs/MATCHUP_INTEL.md) on the in-memory demo, which stores Data
@@ -75,6 +75,8 @@ test("Ambessa vs Renekton: the ten-second briefing, its chips jumping to the abi
   await chip.click();
   await expect(page).toHaveURL(new RegExp(`#${anchor}$`));
   await expect(page.locator(`#${anchor}`)).toBeInViewport();
+  // The row has the focus, so a screen reader lands there too.
+  await expect(page.locator(`#${anchor}`)).toBeFocused();
   // The footer says where everything comes from, and what this is.
   const footer = page.getByTestId("matchup-footer");
   await expect(footer.getByTestId("matchup-footer-ddragon")).toHaveText(/^Ability names, icons and base cooldowns: Riot Data Dragon \d+\.\d+\.\d+ \(patch \d+\.\d+\)\.$/);
@@ -82,6 +84,14 @@ test("Ambessa vs Renekton: the ten-second briefing, its chips jumping to the abi
   await expect(footer).toContainText("League of Legends Wiki, CC BY-SA 3.0");
   await expect(footer.getByTestId("matchup-footer-static")).toContainText("A static reference for preparation: no live tracking");
   await expect(footer).toContainText("isn't endorsed by Riot Games");
+
+  // The jump is an entry the router can restore: after another choice, Back shows this pair again,
+  // never the later pair under this one's address.
+  await choose(page, "enemy", "darius", "Darius");
+  await page.goBack();
+  await expect(page).toHaveURL(new RegExp(`\\?champion=Ambessa&vs=Renekton#${anchor}$`));
+  await expect(page.getByTestId("matchup-pick-enemy")).toHaveAttribute("data-champion", "Renekton");
+  await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Renekton");
 });
 
 test("a pair without a curated briefing (Garen vs Darius) says so calmly, then the enemy's general reference", async ({ page }) => {
@@ -105,6 +115,16 @@ test("the picker's search: 16px, as you type, by name with case, accents and spa
   expect(await search.evaluate((el) => getComputedStyle(el).fontSize)).toBe("16px");
   await search.fill("kha");
   await expect.poll(() => rosterIds(win)).toEqual(["Khazix"]);
+  // The field keeps its own name once something is typed (the clear button is beside its label, not
+  // in it), and the clear button is a 44px target.
+  await expect(search).toHaveAccessibleName("Search for the enemy by name");
+  const clear = (await win.getByTestId("matchup-picker-clear").boundingBox())!;
+  expect(Math.min(clear.width, clear.height)).toBeGreaterThanOrEqual(44);
+  // ArrowDown goes to the portraits, ArrowUp from the first of them back to the search.
+  await search.press("ArrowDown");
+  await expect(win.getByTestId("matchup-picker-grid").locator('button[data-champion="Khazix"]')).toBeFocused();
+  await page.keyboard.press("ArrowUp");
+  await expect(search).toBeFocused();
   await search.fill("wu");
   await expect.poll(async () => (await rosterIds(win))[0]).toBe("MonkeyKing");
   await search.fill("dr m");
@@ -127,17 +147,22 @@ test("choosing both champions puts them in the address; the swap trades sides", 
   await choose(page, "you", "riven", "Riven");
   await expect(page).toHaveURL(/\/resources\/matchups\?champion=Riven$/);
   await expect(page.getByTestId("matchup-need-enemy")).toBeVisible();
-  // The enemy's picker offers the curated matchups that exist for your champion.
-  const win = await openPicker(page, "enemy");
-  await expect(win.getByTestId("matchup-picker-curated").locator("button[data-champion]")).toHaveText(["Mordekaiser"]);
+  // The page's prompt opens the enemy's picker, which offers the curated matchups that exist for
+  // your champion.
+  await page.getByTestId("matchup-choose-enemy").click();
+  const win = page.getByTestId("matchup-picker");
+  await expect(win).toBeVisible();
+  await expect.poll(() => choiceIds(win.getByTestId("matchup-picker-curated"))).toEqual(["Mordekaiser"]);
   await win.getByTestId("matchup-picker-curated").getByRole("button", { name: "Mordekaiser" }).click();
   await expect(win).toHaveCount(0);
   await expect(page).toHaveURL(/\/resources\/matchups\?champion=Riven&vs=Mordekaiser$/);
   await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Mordekaiser");
   await expect(page.getByTestId("matchup-briefing")).toBeVisible();
+  // The prompt went with the choice: focus is back on the enemy's slot, not lost to the page.
+  await expect(page.getByTestId("matchup-pick-enemy")).toBeFocused();
   // Recent: what was chosen on that side lately.
   const again = await openPicker(page, "enemy");
-  await expect(again.getByTestId("matchup-picker-recent").locator("button[data-champion]")).toHaveText(["Mordekaiser"]);
+  await expect.poll(() => choiceIds(again.getByTestId("matchup-picker-recent"))).toEqual(["Mordekaiser"]);
   await again.getByTestId("matchup-picker-close").click();
   await expect(again).toHaveCount(0);
 
@@ -167,6 +192,8 @@ test("your champion is remembered on this device and offered after a reload, nev
   await expect(page.getByTestId("matchup-pick-you")).not.toHaveAttribute("data-champion", /./);
   await line.getByTestId("matchup-use-remembered").click();
   await expect(page).toHaveURL(/\?champion=Riven$/);
+  // Use went with the offer: focus moved to the slot it filled, not off the page.
+  await expect(page.getByTestId("matchup-pick-you")).toBeFocused();
 
   // Changed: another champion chosen as yours is remembered instead.
   await choose(page, "you", "garen", "Garen");
@@ -177,13 +204,58 @@ test("your champion is remembered on this device and offered after a reload, nev
   // Forgotten: nothing is offered, now or after a reload.
   await line.getByTestId("matchup-forget").click();
   await expect(line).toHaveAttribute("data-state", "none");
+  await expect(page.getByTestId("matchup-pick-you")).toBeFocused();
   await page.reload();
   await expect(line).toHaveAttribute("data-state", "none");
-  // A champion that came from a link is not remembered until asked.
+  // A champion that came from a link is not remembered until asked. Remember and Forget are one
+  // button whose words change, so focus stays on it.
   await openMatchupIntel(page, "Ambessa", "Renekton");
   await expect(line).toHaveAttribute("data-state", "other");
   await line.getByTestId("matchup-remember").click();
   await expect(line).toHaveAttribute("data-state", "remembered");
+  await expect(line.getByTestId("matchup-forget")).toBeFocused();
+  await line.getByTestId("matchup-forget").click();
+  await expect(line).toHaveAttribute("data-state", "other");
+  await expect(line.getByTestId("matchup-remember")).toBeFocused();
+});
+
+test("phone: the remembered line is one row in every state, the height it keeps before the page reads this device", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone's widths");
+  const line = page.getByTestId("matchup-remembered");
+  for (const width of [320, 375]) {
+    await page.setViewportSize({ width, height: 700 });
+    await openMatchupIntel(page);
+    await page.evaluate(() => window.localStorage.removeItem("uniiverse.matchup-intel.v1"));
+    await page.reload();
+    const steps: Array<[string, () => Promise<void>]> = [
+      ["none", async () => undefined],
+      ["remembered", () => choose(page, "you", "riven", "Riven")],
+      ["offer", () => openMatchupIntel(page)],
+      ["other", () => openMatchupIntel(page, "Ambessa", "Renekton")],
+    ];
+    for (const [state, step] of steps) {
+      await step();
+      await expect(line).toHaveAttribute("data-state", state);
+      // The server's copy holds one 44px row while this device's storage is unknown: no state grows
+      // past it, so nothing under the line moves once the storage has been read.
+      expect(await line.evaluate((e) => e.getBoundingClientRect().height), `${state} at ${width}`).toBeLessThanOrEqual(45);
+    }
+  }
+});
+
+test("phone: Back in the top bar leads to Resources, as it is named, past the pairs chosen here", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1000) >= 768, "the phone's top bar");
+  // A member's phone has no Resources tab: Resources, then its Matchup Intel tab.
+  await page.goto("/resources");
+  await page.getByTestId("resources-tab-matchups").click();
+  await expect(page.getByRole("heading", { level: 1, name: "Matchup Intel" })).toBeVisible();
+  await choose(page, "you", "riven", "Riven");
+  await choose(page, "enemy", "morde", "Mordekaiser");
+  const back = page.getByTestId("mobile-back");
+  await expect(back).toContainText("Resources");
+  await back.click();
+  await expect(page).toHaveURL(/\/resources$/);
+  // The browser's own Back still steps through the pairs (the swap test above).
 });
 
 test("the champion window links to Matchup Intel with its champion chosen", async ({ page }) => {
@@ -250,15 +322,18 @@ test("no sideways scrolling at 320, 375 and 768 wide, the picker window included
       await openMatchupIntel(page, you, enemy);
       expect(await overflow(page), `${you ?? "nothing"} vs ${enemy ?? "nothing"} at ${width}`).toBeLessThanOrEqual(1);
     }
+    // The window's own content, measured once it is there (its loading tiles come first): with
+    // nothing typed (the Recent row too, from the width before), then with results.
     const win = await openPicker(page, "you");
+    if (width !== 320) await expect(win.getByTestId("matchup-picker-recent")).toBeVisible();
+    expect(await pickerSpill(win), `the picker window at ${width}, nothing typed`).toBeLessThanOrEqual(1);
     await win.getByTestId("matchup-picker-search").fill("a");
-    const spill = await win.evaluate((d) => {
-      const box = d.getBoundingClientRect();
-      return Math.max(0, ...[...d.querySelectorAll("*")].map((e) => e.getBoundingClientRect().right - box.right));
-    });
-    expect(spill, `the picker window at ${width}`).toBeLessThanOrEqual(1);
-    await win.getByTestId("matchup-picker-close").click();
+    await expect(win.getByTestId("matchup-picker-count")).toBeVisible();
+    expect(await pickerSpill(win), `the picker window at ${width}, with results`).toBeLessThanOrEqual(1);
+    // A choice, so the next width's window has a Recent row.
+    await win.getByTestId("matchup-picker-grid").locator("button[data-champion]").first().click();
     await expect(win).toHaveCount(0);
+    await expect(page).toHaveURL(/[?&]champion=/);
   }
 });
 
