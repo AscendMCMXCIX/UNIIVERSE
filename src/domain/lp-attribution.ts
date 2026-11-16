@@ -15,13 +15,19 @@ import { rankLabel, TIERS } from "./rank-progress";
      every reading while the stored games are complete. A game missing from the store (not
      collected yet, Riot never served it, or stored without a length, which leaves it out of the
      count: "unknown-length") or a stored game Riot did not count changes the offset, and every
-     game between those readings is left unattributed, provided a reading sees the missing game
-     counted before the next stored game can have ended. When none does (Riot counting it 20 or
-     more minutes late, or no reading in between), the offset does not move, and the next stored
-     game of the same result is matched to the missing game's change; a next game of the other
-     result is left "inconsistent" by rule 3. The rule assumes Riot counts each game within
-     UPDATE_ALLOWANCE_MS (ten minutes) of its end. A game Riot does not count (a remake: under
-     five minutes) never takes part.
+     game between those readings is left unattributed. The change shows at the first reading that
+     counts the missing game if that reading was taken before the next stored game can have ended,
+     or counts that game too. If it was taken later and does not count the next game yet, the
+     offset holds there and the next game is matched to the missing game's change. Rule 3 then
+     leaves a next game of the other result "inconsistent", and rule 2 leaves one of the same result
+     "readings-too-far" when the earlier reading was last seen more than BEFORE_MARGIN_MS before
+     it began, as after a gap in the readings that started before the missing game. A next game
+     of the same result that passes rule 2 takes the missing game's change as its figure, and no
+     reading can tell the two apart: the earlier reading fell in the missing game's last minutes,
+     or after its end before Riot counted it, and none counted the missing game until the next
+     one had ended (Riot counting it late, or no reading in between). The rule assumes Riot counts
+     each game within UPDATE_ALLOWANCE_MS (ten minutes) of its end. A game Riot does not count (a
+     remake: under five minutes) never takes part.
   2. Nothing else in between. The earlier reading must still have held when the game began:
      confirmed during the game or in the BEFORE_MARGIN_MS before it was created. The only other LP
      change a player makes, a queue dodge, happens in champion select and is followed by a

@@ -83,11 +83,16 @@ only when those two readings enclose that game and nothing else (`attributeLp`):
    readings exactly as many games ended as that count rose. The stored games are matched to the
    count in the order they ended. If a game is missing from the store (not collected yet, Riot
    never served it, or stored without a length), or a stored game was not counted, the match breaks
-   and nothing in that stretch is attributed, provided a reading sees the missing game counted
-   before the next stored game can have ended. When none does (Riot counting it 20 or more minutes
-   late, or no reading in between), the next stored game of the same result is matched to the
-   missing game's change. The rule assumes Riot counts each game within about ten minutes of its
-   end. Remakes (under five minutes) are not counted by Riot and never take part.
+   and nothing in that stretch is attributed. The break shows at the first reading that counts the
+   missing game if it was taken before the next stored game can have ended, or counts that game
+   too. If it was taken later and does not count the next game yet, the next game is matched to the
+   missing game's change instead. A next game of the other result is then left without a figure
+   (the count and the games disagree), and so is one of the same result whose earlier reading is
+   more than five minutes older than its start (rule 2: too far), as after a gap in the readings
+   that started before the missing game. A next game of the same result whose readings pass rule 2
+   is given the missing game's change ("What the readings cannot rule out", below). The rule
+   assumes Riot counts each game within about ten minutes of its end. Remakes (under five minutes)
+   are not counted by Riot and never take part.
 2. **Nothing else in between.** The earlier reading must still have held when the game began:
    confirmed while it was played, or in the five minutes before it was created. A queue dodge, the
    only other LP change a player makes, happens in champion select and is followed by a six-minute
@@ -111,9 +116,11 @@ next reading would be counted with that game: Riot reports no dodges, so no trac
 them. The same holds for decay (Diamond and above, after weeks without a game) in the last minutes
 of a game, after its last reading during play; decay earlier in the game shows in that reading,
 apart from the game. The rank watch keeps both windows to a few minutes. Nor can a game Riot
-counted but did not list, or listed late, be told from the next game of the same result when no
-reading falls between them (rule 1). Every figure's tooltip names the two readings it rests on,
-with their times, so it can be checked.
+counted that the store lacks (rule 1) be told from the next game of the same result when the last
+reading without it was taken in the five minutes before that game began or during it (the missing
+game still being played, or not counted yet), and no reading counted it until that game had ended
+(Riot counting it late, or no reading in between). Every figure's tooltip names the two readings it
+rests on, with their times, so it can be checked.
 
 ## Readings: when ranks are read
 
