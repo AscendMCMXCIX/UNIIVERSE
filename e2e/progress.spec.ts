@@ -71,12 +71,13 @@ test("a profile shows recent form and ranked progress per queue", async ({ page 
   await expect(page.getByTestId("ranked-peak-stat")).toContainText(/LP/);
   await expect(page.getByTestId("ranked-change")).toHaveText(/^([+\u2212]\d+ (LP|divisions?)|No change)$/);
   await expect(page.getByTestId("ranked-lp-bar")).toBeVisible();
-  // Compact: under 520 px on a phone; on a 1440 desktop, in the 2×2's rail (28rem wide with the
+  // Compact: under 520 px on a phone; on a tablet, which keeps the arrangement without the 2×2,
+  // well under half its screen (320 px); on a 1440 desktop, in the 2×2's rail (28rem wide with the
   // sidebar open, 30rem wider; the rail's 20rem floor never applies, since the 2×2 needs a 68rem
   // dashboard) where its parts stand one above the other, under 480 px, so it ends with the pools
   // beside it.
   const height = (await ranked.boundingBox())!.height;
-  expect(height, "Ranked progress's height").toBeLessThan(info.project.name === "phone" ? 520 : 480);
+  expect(height, "Ranked progress's height").toBeLessThan(info.project.name === "phone" ? 520 : info.project.name === "tablet" ? 320 : 480);
   // The header shows the same current rank as Ranked progress.
   const current = (await page.getByTestId("ranked-current").innerText()).split("·")[0]!.trim();
   await expect(page.getByTestId("profile-rank")).toContainText(current);
