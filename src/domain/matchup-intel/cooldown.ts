@@ -11,7 +11,9 @@ import type { AbilityChange, AbilityModifiers, AbilityNotes, CooldownDisplay, Co
     E list 1), so neither a number nor a count is shown;
   - an empty or all-zero array is a placeholder, not "no cooldown" (Gangplank's E shows 0, the wiki
     17 → 13 s);
-  - a slot whose name holds two forms ("To the Skies! / Shock Blast") has one array for both;
+  - a slot whose name holds two abilities has one array for both: the two forms of a champion who
+    transforms ("To the Skies! / Shock Blast"), or the two parts of an ability cast again
+    ("Cunning Sweep / Sundering Slam"), which Data Dragon does not tell apart;
   - an array without one number per rank belongs to no rank;
   - a few arrays are known to be wrong (NOT_THE_COOLDOWN, each with its evidence).
   Curated notes, checked by a person against the wiki, say what the array cannot, for as long as
@@ -57,9 +59,11 @@ const NOT_THE_COOLDOWN: ReadonlyMap<string, { cooldown: readonly number[]; reaso
 
 /**
  * What Riot's data alone supports for an ability (docs/MATCHUP_INTEL.md, "Cooldowns"): its array
- * per rank, with no claim about when it starts, or why there is no number. Never throws.
+ * per rank, with no claim about when it starts, or why there is no number. `oneCooldown`: a person
+ * checked that this ability's one array is its cooldown (curated notes with a per-rank spec), so a
+ * name with two parts is read as one ability cast again, not two forms. Never throws.
  */
-export function ddragonCooldownDisplay(ability: DdragonAbility | null | undefined): CooldownDisplay {
+export function ddragonCooldownDisplay(ability: DdragonAbility | null | undefined, options: { oneCooldown?: boolean } = {}): CooldownDisplay {
   if (!ability || typeof ability !== "object") return unknown("no-data");
   if (ability.slot === "P") return unknown("passive-not-in-ddragon");
   const current: unknown = ability.cooldown;
@@ -67,7 +71,7 @@ export function ddragonCooldownDisplay(ability: DdragonAbility | null | undefine
   if (listed && sameNumbers(current, listed.cooldown)) return unknown(listed.reason);
   if (typeof ability.charges === "number" && ability.charges > 0) return unknown("charges-in-ddragon");
   if (!Array.isArray(current) || !current.every(isSeconds)) return unknown("unreadable");
-  if (typeof ability.name === "string" && ability.name.includes(" / ")) return unknown("two-forms-in-ddragon");
+  if (!options.oneCooldown && typeof ability.name === "string" && ability.name.includes(" / ")) return unknown("two-abilities-in-ddragon");
   if (current.length === 0 || current.every((x) => x === 0)) return unknown("no-number-in-ddragon");
   if (current.length !== ability.maxRank) return unknown("ranks-mismatch-in-ddragon");
   return { kind: "per-rank", seconds: [...current], starts: null, from: "ddragon" };
@@ -161,7 +165,10 @@ export function cooldownDisplay(ability: DdragonAbility | null, notes: AbilityNo
     const curated = changed ? null : curatedCooldownDisplay(notes.cooldown, ability && Number.isInteger(ability.maxRank) ? ability.maxRank : null);
     if (curated) return curated;
   }
-  return ddragonCooldownDisplay(ability);
+  // Notes that checked one array per rank for this slot (not forms) say how to read a later one,
+  // while Riot still names the same ability, with the same ranks.
+  const oneCooldown = notes?.cooldown?.kind === "per-rank" && !!ability && !abilityChanges(ability, notes).some((c) => c === "id" || c === "name" || c === "ranks");
+  return ddragonCooldownDisplay(ability, { oneCooldown });
 }
 
 /** Where a cooldown line comes from: checked notes, Riot's data, or neither (no number). */

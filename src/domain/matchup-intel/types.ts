@@ -400,8 +400,12 @@ export type UnknownCooldownReason =
   | "charges-in-ddragon"
   /** An empty or all-zero array: a placeholder, not "no cooldown". */
   | "no-number-in-ddragon"
-  /** The slot's name holds two forms ("To the Skies! / Shock Blast"), and one array stands for both. */
-  | "two-forms-in-ddragon"
+  /**
+   * The slot's name holds two abilities ("To the Skies! / Shock Blast", "Cunning Sweep / Sundering
+   * Slam"), and one array stands for both: two forms of a champion who transforms, or the two parts
+   * of an ability cast again, which Data Dragon does not tell apart.
+   */
+  | "two-abilities-in-ddragon"
   /** The array does not hold one number per rank. */
   | "ranks-mismatch-in-ddragon"
   /** The evidence shows Data Dragon's number is not this ability's cooldown (the exception list in cooldown.ts). */

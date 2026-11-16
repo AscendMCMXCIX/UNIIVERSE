@@ -72,11 +72,23 @@ describe("the decision table, row by row", () => {
     expect(cooldownDisplay(ability({ cooldown: [] }), undefined)).toEqual({ kind: "unknown", reason: "no-number-in-ddragon" });
   });
 
-  it("7. no notes, a name with two forms: no number", () => {
-    expect(cooldownDisplay(ability({ id: "JayceToTheSkies", name: "To the Skies! / Shock Blast", maxRank: 6, cooldown: [16, 14, 12, 10, 8, 6] }), undefined)).toEqual({ kind: "unknown", reason: "two-forms-in-ddragon" });
-    expect(cooldownDisplay(ability({ id: "Bushwhack", name: "Bushwhack / Pounce", cooldown: [13, 12, 11, 10, 9] }), undefined)).toEqual({ kind: "unknown", reason: "two-forms-in-ddragon" });
+  it("7. no notes, a name with two abilities: no number, for two forms and for an ability cast again alike", () => {
+    expect(cooldownDisplay(ability({ id: "JayceToTheSkies", name: "To the Skies! / Shock Blast", maxRank: 6, cooldown: [16, 14, 12, 10, 8, 6] }), undefined)).toEqual({ kind: "unknown", reason: "two-abilities-in-ddragon" });
+    expect(cooldownDisplay(ability({ id: "Bushwhack", name: "Bushwhack / Pounce", cooldown: [13, 12, 11, 10, 9] }), undefined)).toEqual({ kind: "unknown", reason: "two-abilities-in-ddragon" });
+    expect(cooldownDisplay(ability({ id: "LeeSinQOne", name: "Sonic Wave / Resonating Strike", cooldown: [10, 9, 8, 7, 6] }), undefined)).toEqual({ kind: "unknown", reason: "two-abilities-in-ddragon" });
     // A slash without the spaces is part of a name, not two forms.
     expect(cooldownDisplay(ability({ name: "Q/E" }), undefined)).toMatchObject({ kind: "per-rank", from: "ddragon" });
+  });
+
+  it("2 and 7. a two-part name checked as one cooldown: Riot's later array for it is Riot's numbers, while it names the same ability", () => {
+    const ambessaQ = (over: Partial<DdragonAbility> = {}) => ability({ id: "AmbessaQ", name: "Cunning Sweep / Sundering Slam", cooldown: [15, 14, 13, 12, 11], ...over });
+    const checked = notes({ ddragonCooldown: [14, 13, 12, 11, 10], ddragonIdentity: { id: "AmbessaQ", name: "Cunning Sweep / Sundering Slam", maxRank: 5, charges: null }, cooldown: perRank([14, 13, 12, 11, 10], "on-cast") });
+    expect(cooldownDisplay(ambessaQ(), checked)).toEqual({ kind: "per-rank", seconds: [15, 14, 13, 12, 11], starts: null, from: "ddragon" });
+    // Renamed, the slot may be something else now: Data Dragon's rule applies again.
+    expect(cooldownDisplay(ambessaQ({ name: "Cunning Sweep / Sundering Slam / Third" }), checked)).toEqual({ kind: "unknown", reason: "two-abilities-in-ddragon" });
+    // Checked as forms, the array is one form's: no number from it alone.
+    const forms = notes({ ddragonCooldown: [14, 13, 12, 11, 10], cooldown: { kind: "forms", forms: [{ name: "A", spec: perRank([14, 13, 12, 11, 10]) }, { name: "B", spec: { kind: "none" } }] } });
+    expect(cooldownDisplay(ambessaQ(), forms)).toEqual({ kind: "unknown", reason: "two-abilities-in-ddragon" });
   });
 
   it("8. no notes, an array without one number per rank: no number", () => {

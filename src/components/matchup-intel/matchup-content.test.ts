@@ -164,7 +164,7 @@ describe("the cooldown decision table, as the page says it", () => {
     expect(rowText(html, "Darius", "P")).toContain("Cooldown not in Riot's data Not reviewed");
     expect(rowText(html, "Darius", "Q")).toContain("Riot's number for this ability is known to be wrong Not reviewed");
     expect(rowText(html, "Darius", "W")).toContain("Riot's data lists charges but not their recharge Not reviewed");
-    expect(rowText(html, "Darius", "E")).toContain("Two forms share this slot in Riot's data Not reviewed");
+    expect(rowText(html, "Darius", "E")).toContain("Two abilities share this slot in Riot's data Not reviewed");
     expect(rowText(html, "Darius", "R")).toContain("Riot's data doesn't give one number per rank Not reviewed");
     // No number anywhere on those lines, and no count of charges.
     for (const slot of ["Q", "W", "E", "R"]) expect(rowText(html, "Darius", slot).split("Not reviewed")[0], slot).not.toMatch(/\d/);

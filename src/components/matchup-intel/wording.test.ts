@@ -78,7 +78,7 @@ describe("the cooldown line", () => {
   });
 
   it("says plainly why there is no number, for every reason, never a guess", () => {
-    const reasons: UnknownCooldownReason[] = ["passive-not-in-ddragon", "charges-in-ddragon", "no-number-in-ddragon", "two-forms-in-ddragon", "ranks-mismatch-in-ddragon", "known-wrong-in-ddragon", "unreadable", "no-data"];
+    const reasons: UnknownCooldownReason[] = ["passive-not-in-ddragon", "charges-in-ddragon", "no-number-in-ddragon", "two-abilities-in-ddragon", "ranks-mismatch-in-ddragon", "known-wrong-in-ddragon", "unreadable", "no-data"];
     for (const reason of reasons) {
       const w = cooldownWords({ kind: "unknown", reason });
       expect(w.known, reason).toBe(false);
@@ -89,7 +89,7 @@ describe("the cooldown line", () => {
       "passive-not-in-ddragon": "Cooldown not in Riot's data",
       "charges-in-ddragon": "Riot's data lists charges but not their recharge",
       "no-number-in-ddragon": "No cooldown number in Riot's data",
-      "two-forms-in-ddragon": "Two forms share this slot in Riot's data",
+      "two-abilities-in-ddragon": "Two abilities share this slot in Riot's data",
       "ranks-mismatch-in-ddragon": "Riot's data doesn't give one number per rank",
       "known-wrong-in-ddragon": "Riot's number for this ability is known to be wrong",
       unreadable: "Riot's cooldown data can't be read",
@@ -119,7 +119,7 @@ describe("where a line comes from", () => {
   it("says 'not reviewed' under a line without a number where nobody has checked it, and nothing where nothing is held", () => {
     expect(cooldownSourceWords({ kind: "unknown", reason: "charges-in-ddragon" }, at(null))).toBe("Not reviewed");
     expect(cooldownSourceWords({ kind: "unknown", reason: "passive-not-in-ddragon" }, at("current"))).toBeNull();
-    expect(cooldownSourceWords({ kind: "unknown", reason: "two-forms-in-ddragon" }, at("changed-since"))).toBe("Not re-checked");
+    expect(cooldownSourceWords({ kind: "unknown", reason: "two-abilities-in-ddragon" }, at("changed-since"))).toBe("Not re-checked");
     expect(cooldownSourceWords({ kind: "unknown", reason: "no-data" }, at(null))).toBeNull();
   });
 });
