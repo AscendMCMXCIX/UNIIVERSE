@@ -324,3 +324,30 @@ below-the-fold ones lazily, and keep uploaded brand images small ([HOSTING_USAGE
   `e2e/cross-device.spec.ts` covers another time zone and language, unreachable image hosts,
   invalid nesting, cut-off figures and target sizes; `e2e/quality.spec.ts` runs axe.
 - A fix comes with the test that would have caught it.
+- A test passes in any year (16 Nov 2026). It fixes its own dates and passes them as `now`, and
+  where the code it calls reads the clock itself it pins it (`vi.useFakeTimers({ toFake: ["Date"] })`
+  and `vi.setSystemTime`), or it works out the dates it expects.
+  - Seasons: on the offline fixture's static data the current season is the calendar year's, so a
+    database test whose games are Season 2026's makes a Season 2026 patch current
+    (`makeSeason2026Current`, `tests/db/helpers.ts`).
+  - Browser tests: the demo is seeded in the current season, dated back from when it starts, so a
+    test takes the season from `/api/health` (`e2e/demo-season.ts`) and checks a date against the
+    demo's own dates, never against a year.
+  - To check, move `Date` for a whole run with a temporary setup file that calls
+    `vi.useFakeTimers({ toFake: ["Date"] })` and `vi.setSystemTime`, never the machine's clock.
+    Vitest 4 has no `--setupFiles` flag: a temporary config that adds `setupFiles` to
+    `vitest.config.mts` goes in `--config`. Use PGlite for the database suite (no
+    `TEST_DATABASE_URL`): its `now()` follows the faked clock, while PostgreSQL's stays on today. Run
+    the same at today's date as well: a few tests fail under any faked clock, because rows written
+    a moment apart get the same time.
+  - What stays tied to the date is the app's ranked year (`src/domain/ranked-year.ts`, 2026 only
+    until Riot publishes 2027's dates). Ranked progress names a season, and draws readings, only
+    inside a ranked year the app knows: from 1 January 2027 it names none. Match History's LP
+    marks are worked out only for games on a patch of a ranked year the app knows (16.x,
+    `rankedSeasonOfPatch`), and the demo's games are on its season's patches: from the demo's
+    Season 2027 (Riot's first 2027 patch in CI, 1 January on the offline fixture) no card has one.
+    So these browser tests pass in 2027 only with the 2027 change, which has to know 2027's dates
+    and its 17.x patches: `e2e/progress.spec.ts` (it takes the year from `RANKED_YEAR` instead of
+    naming one), the three tests of `e2e/match-lp.spec.ts` and `e2e/webkit.spec.ts`'s LP dash test
+    (the WebKit workflow, run by hand). None names a year, so none changes now; the 2027 change
+    runs them again.

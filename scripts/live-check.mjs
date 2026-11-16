@@ -34,7 +34,8 @@
   - riot (docs/RIOT_COMPLIANCE.md), signed out: /riot.txt, the code Riot's Developer Portal fetches,
     is served as plain text; public Riot data is off, as a Personal key requires
     (/public/leaderboards is not found and the public team page shows no rank); the public team
-    page shows Riot's required notice.
+    page shows Riot's required notice, and neither its HTML nor the RSC payload in it has a
+    puuid, gameName, tagLine or riotId key (scripts/riot-keys.mjs; counts only).
   - frame (#178): the charcoal frame token; the sidebar, open and folded, with the gradient bar on
     the current page; the phone and tablet top bar, drawer and tab bar. Phone: the avatar opens the
     account screen on the first tap, made as soon as it is on screen; the screen comes to rest (its
@@ -64,6 +65,7 @@
 import { chromium } from "@playwright/test";
 import { AxeBuilder } from "@axe-core/playwright";
 import { redact } from "./redact.mjs";
+import { riotKeysOnPage } from "./riot-keys.mjs";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 
@@ -206,6 +208,10 @@ function riotCompliance() {
   const ranks = [...new Set(team.text.match(RANK) ?? [])].slice(0, 3);
   pass("riot", "the public team page shows no rank (no Riot API data)", ranks.length === 0, ranks);
   pass("riot", "the public team page shows Riot's required notice", /endorsed by Riot Games/.test(team.text));
+  // No Riot account key in anything the page carries, its RSC payload included (scripts/riot-keys.mjs):
+  // CI pins the public card's fields, this reads the page production serves. Counts only.
+  const riotKeys = riotKeysOnPage(team.text);
+  pass("riot", "the public team page's HTML and RSC payload carry no puuid, gameName, tagLine or riotId key", riotKeys.total === 0 && riotKeys.chunks > 0 && riotKeys.unreadable === 0, { ...riotKeys.keys, payloadChunks: riotKeys.chunks, unreadableChunks: riotKeys.unreadable });
 }
 
 /**
