@@ -120,20 +120,27 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
       <CardFrame look={p.look} />
       {/* Customise: a labelled overlay from sm, a round icon chip on phones (its word read out). */}
       {editable ? <div className="absolute right-2.5 top-2.5 z-10 sm:right-3 sm:top-3">{customise("overlay", true)}</div> : null}
-      {/* Phones: the picture beside the name, then roles, rank and links across the full width (a
-          narrow column beside the picture would break the rank over three lines). From sm up: the
-          picture at the left, everything else beside it. A phone held sideways has little height:
-          the header keeps to what it shows (no art band above it) and leaves the room on the right
-          for Customise, so the tabs and the page start within the first screen. On a phone held
-          upright the art shows behind the header with no band of its own above the name (204px
-          tall, it left the first screen no figure on an SE): the season starts higher. */}
-      <div className={cn("relative grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 p-4 sm:flex sm:min-h-40 sm:items-end sm:gap-4 sm:p-5 sm:pt-12 lg:min-h-32 lg:pt-9 short:min-h-0 short:py-3", editable && "short:pr-32")}>
-        <CardAvatar look={p.look} name={p.displayName} src={p.avatarUrl}>
+      {/* Phones under 375px: the picture beside the name, then roles, rank and links across the full
+          width (a narrow column beside the picture would break the rank over three lines). From
+          375px to sm the picture spans two rows, the name and then the roles, rank and links beside
+          it, a little tighter (the visible "(off)" had cost a line: 146 to 172px for Demo Top on an
+          iPhone 15, whose first screen then showed 3 of the season's 6 figures; 142px this way).
+          Those widths are rem media queries, so a larger browser text size keeps the full-width line.
+          Under a 17.5rem window (larger text only: 320px at 125%, every phone at 200%) the name takes
+          the full width under the picture, which would squeeze it to a letter a line beside the
+          picture and Customise. From sm up: the picture at the left, everything else beside it. A
+          phone held sideways has little height: the header keeps to what it shows (no art band above
+          it) and leaves the room on the right for Customise, so the tabs and the page start within
+          the first screen. On a phone held upright the art shows behind the header with no band of
+          its own above the name (204px tall, it left the first screen no figure on an SE). */}
+      <div className={cn("relative grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 p-4 min-[23.4375rem]:max-sm:gap-y-1.5 min-[23.4375rem]:max-sm:p-3.5 sm:flex sm:min-h-40 sm:items-end sm:gap-4 sm:p-5 sm:pt-12 lg:min-h-32 lg:pt-9 short:min-h-0 short:py-3", editable && "short:pr-32")}>
+        <CardAvatar look={p.look} name={p.displayName} src={p.avatarUrl} className="min-[23.4375rem]:max-sm:row-span-2 min-[23.4375rem]:max-sm:self-start">
           {self ? <ProfileAvatarEditable name={p.displayName} src={p.avatarUrl} /> : <Avatar name={p.displayName} src={p.avatarUrl} size="hero" />}
         </CardAvatar>
         <div className="contents sm:block sm:min-w-0 sm:flex-1 sm:pb-0.5">
-          {/* On a phone the Customise chip sits at the name's row end: the name keeps clear of it. */}
-          <div className={cn("min-w-0", editable && "max-sm:pr-10")}>
+          {/* On a phone the Customise chip sits at the name's row end: the name keeps clear of it
+              (under the picture, below a 17.5rem window, it has the chip's row to itself). */}
+          <div className={cn("min-w-0 max-[17.5rem]:col-span-2", editable && "max-sm:pr-10 max-[17.5rem]:pr-0")}>
             <CardTagline look={p.look} className="text-sm drop-shadow" />
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="min-w-0 max-w-full text-2xl tracking-tight text-fg drop-shadow sm:text-3xl">
@@ -144,7 +151,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
               {p.setupPending ? <SetupIncompleteBadge /> : null}
             </div>
           </div>
-          <div className="col-span-2 min-w-0">
+          <div className="col-span-2 min-w-0 min-[23.4375rem]:max-sm:col-span-1 min-[23.4375rem]:max-sm:col-start-2">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-fg-muted sm:mt-1.5">
               {p.primaryRole ? (
                 <span className="inline-flex items-center gap-1.5 text-fg">
