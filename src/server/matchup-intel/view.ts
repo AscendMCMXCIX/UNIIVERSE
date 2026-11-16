@@ -1,5 +1,5 @@
 import type { Db } from "@/server/db/types";
-import { FACT_TAGS, SLOTS, type AbilityRef, type AbilityView, type ChampionChoice, type ChampionIntelView, type ChampionNotes, type DdragonChampionAbilities, type Fact, type FactSubject, type FactTag, type FactView, type Freshness, type MatchupIntelView, type MatchupNotes, type MatchupPageView, type Slot, type Source, type SourceLinkView } from "@/domain/matchup-intel/types";
+import { FACT_TAGS, SLOTS, type AbilityRef, type AbilityView, type BriefingPoint, type BriefingPointView, type ChampionChoice, type ChampionIntelView, type ChampionNotes, type DdragonChampionAbilities, type Fact, type FactSubject, type FactTag, type FactView, type Freshness, type InteractionView, type MatchupIntelView, type MatchupNotes, type MatchupPageView, type Slot, type Source, type SourceLinkView } from "@/domain/matchup-intel/types";
 import { abilityChanges, abilityFreshness, compareDdragonVersions, cooldownDisplay, curatedCooldownDisplay, modifiersView, weakestFreshness } from "@/domain/matchup-intel/cooldown";
 import { patchFromVersion, publicPatchName } from "@/domain/patch";
 import { getCurrentPatch, listChampions, type ChampionSummary } from "@/server/repositories/champions";
@@ -223,21 +223,40 @@ function matchupAbilityFreshness(checked: string, data: DdragonChampionAbilities
  * The curated matchup, ready to show: its briefing and interactions resting only on the two
  * champions' abilities, its sources' links checked, and how fresh it is against Riot's current
  * data for the abilities it rests on (matchupAbilityFreshness).
+ *
+ * A point, the threat, the opportunity or an interaction that rests on an ability Riot changed
+ * after the matchup was checked ("changed-since") is hidden: its text stays on the server, and the
+ * page says in its place which abilities changed. The rest keep their "Checked on patch N", and the
+ * matchup's freshness is that of what it shows.
  */
 function matchupIntel(notes: MatchupNotes, ids: ReadonlySet<string>, data: Record<string, DdragonChampionAbilities | null>, championNotes: Record<string, ChampionNotes | null>): MatchupIntelView {
-  const keep = (refs: readonly AbilityRef[]) => refs.filter((r) => refOf(r, ids) !== null);
-  const briefing: MatchupNotes["briefing"] = {
-    threat: { text: notes.briefing.threat.text, basedOn: keep(notes.briefing.threat.basedOn) },
-    opportunity: { text: notes.briefing.opportunity.text, basedOn: keep(notes.briefing.opportunity.basedOn) },
-    lane: notes.briefing.lane.map((p) => ({ text: p.text, basedOn: keep(p.basedOn) })),
-  };
-  const interactions = notes.interactions.map((i) => ({ text: i.text, abilities: keep(i.abilities), source: i.source }));
-  const refs = [...briefing.threat.basedOn, ...briefing.opportunity.basedOn, ...briefing.lane.flatMap((p) => p.basedOn), ...interactions.flatMap((i) => i.abilities)];
   const verified = notes.verified.ddragonVersion;
-  const values = refs.map((r): Freshness => {
-    const { championId, slot } = refOf(r, ids)!;
-    return matchupAbilityFreshness(verified, data[championId] ?? null, slot, championNotes[championId] ?? null);
+  const keep = (refs: readonly AbilityRef[]) => refs.filter((r) => refOf(r, ids) !== null);
+  const freshness = new Map<AbilityRef, Freshness>();
+  const freshnessOfRef = (r: AbilityRef): Freshness => {
+    let f = freshness.get(r);
+    if (!f) {
+      const { championId, slot } = refOf(r, ids)!;
+      f = matchupAbilityFreshness(verified, data[championId] ?? null, slot, championNotes[championId] ?? null);
+      freshness.set(r, f);
+    }
+    return f;
+  };
+  /** The abilities among `refs` that Riot changed after the check, each once. */
+  const changedOf = (refs: readonly AbilityRef[]) => refs.filter((r, i) => refs.indexOf(r) === i && freshnessOfRef(r) === "changed-since");
+  const point = (p: BriefingPoint): BriefingPointView => {
+    const basedOn = keep(p.basedOn);
+    const changed = changedOf(basedOn);
+    return changed.length ? { kind: "hidden", changed } : { kind: "point", text: p.text, basedOn };
+  };
+  const briefing = { threat: point(notes.briefing.threat), opportunity: point(notes.briefing.opportunity), lane: notes.briefing.lane.map(point) };
+  const interactions = notes.interactions.map((i): InteractionView => {
+    const abilities = keep(i.abilities);
+    const changed = changedOf(abilities);
+    return changed.length ? { kind: "hidden", changed } : { kind: "interaction", text: i.text, abilities, source: i.source };
   });
+  const shown = [briefing.threat, briefing.opportunity, ...briefing.lane].flatMap((p) => (p.kind === "point" ? p.basedOn : []));
+  const values = [...shown, ...interactions.flatMap((i) => (i.kind === "interaction" ? i.abilities : []))].map(freshnessOfRef);
   const dataVersions = [...ids].map((id) => data[id]?.version ?? null);
   const dataVersion = dataVersions.every((v) => v !== null && v === dataVersions[0]) ? dataVersions[0]! : null;
   return { verified: { ...notes.verified }, freshness: freshnessOf(values, verified, dataVersion), briefing, interactions, sources: safeSources(notes.sources) };

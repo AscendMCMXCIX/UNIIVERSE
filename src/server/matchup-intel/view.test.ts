@@ -92,7 +92,7 @@ describe("a curated matchup (Ambessa vs Renekton)", () => {
     const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps());
     expect(v.you?.id).toBe("Ambessa");
     expect(v.enemy?.id).toBe("Renekton");
-    expect(v.matchup?.briefing.threat).toEqual({ text: "His empowered stun.", basedOn: ["Renekton.W"] });
+    expect(v.matchup?.briefing.threat).toEqual({ kind: "point", text: "His empowered stun.", basedOn: ["Renekton.W"] });
     expect(v.matchup?.freshness).toBe("current");
     expect(v.matchup?.verified.patch).toBe("26.22");
     expect(v.patch).toEqual({ current: "26.22", data: "26.22" });
@@ -126,9 +126,9 @@ describe("a curated matchup (Ambessa vs Renekton)", () => {
 
   it("keeps the briefing to the two champions' abilities", async () => {
     const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps());
-    expect(v.matchup!.briefing.lane[0]).toEqual({ text: "Respect level 2.", basedOn: ["Renekton.W"] });
-    expect(v.matchup!.briefing.opportunity).toEqual({ text: "Trade when Fury is low.", basedOn: ["Renekton.P", "Ambessa.Q"] });
-    expect(v.matchup!.interactions[0]).toEqual({ text: "Unstoppable answers the stun.", abilities: ["Ambessa.E", "Renekton.W"], source: "wiki" });
+    expect(v.matchup!.briefing.lane[0]).toEqual({ kind: "point", text: "Respect level 2.", basedOn: ["Renekton.W"] });
+    expect(v.matchup!.briefing.opportunity).toEqual({ kind: "point", text: "Trade when Fury is low.", basedOn: ["Renekton.P", "Ambessa.Q"] });
+    expect(v.matchup!.interactions[0]).toEqual({ kind: "interaction", text: "Unstoppable answers the stun.", abilities: ["Ambessa.E", "Renekton.W"], source: "wiki" });
   });
 
   it("is for this direction only", async () => {
@@ -194,9 +194,18 @@ describe("Riot's data changed after the check", () => {
     expect(v.patch).toEqual({ current: "26.23", data: "26.23" });
   });
 
-  it("marks the matchup as possibly out of date when an ability it rests on changed", async () => {
+  it("hides every briefing point and interaction that rests on the changed ability, saying which, and keeps the rest", async () => {
     const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps({ loadAbilities: storedAs(changedW) }));
-    expect(v.matchup!.freshness).toBe("changed-since");
+    const m = v.matchup!;
+    // The threat rests on Renekton W: hidden, with the ability named in its place; its words stay on the server.
+    expect(m.briefing.threat).toEqual({ kind: "hidden", changed: ["Renekton.W"] });
+    expect(JSON.stringify(m)).not.toContain("His empowered stun.");
+    // The opportunity rests on abilities that did not change: shown, as checked.
+    expect(m.briefing.opportunity).toEqual({ kind: "point", text: "Trade when Fury is low.", basedOn: ["Renekton.P", "Ambessa.Q"] });
+    expect(m.briefing.lane).toEqual([{ kind: "hidden", changed: ["Renekton.W"] }]);
+    expect(m.interactions).toEqual([{ kind: "hidden", changed: ["Renekton.W"] }]);
+    // What is shown is as fresh as its own abilities: checked on 26.22, nothing changed since.
+    expect(m.freshness).toBe("unchanged-since");
   });
 
   it("treats a rework that keeps its cooldowns as a change: the name, the id, the ranks or the charges", async () => {
@@ -209,8 +218,21 @@ describe("Riot's data changed after the check", () => {
       expect(w.changes, JSON.stringify(over)).toEqual([Object.keys(over)[0] === "charges" ? "charges" : Object.keys(over)[0]!]);
       // Same numbers, but Riot's now: a charge count from Data Dragon alone is no number at all.
       expect(w.cooldown, JSON.stringify(over)).toEqual(over.charges ? { kind: "unknown", reason: "charges-in-ddragon" } : { kind: "per-rank", seconds: [18, 17, 16, 15, 14], starts: null, from: "ddragon" });
-      expect(v.matchup!.freshness, JSON.stringify(over)).toBe("changed-since");
+      expect(v.matchup!.briefing.threat, JSON.stringify(over)).toEqual({ kind: "hidden", changed: ["Renekton.W"] });
     }
+  });
+
+  it("hides the whole briefing when every part rests on a changed ability, naming each", async () => {
+    const v = await buildMatchupPageView(
+      { champion: "Ambessa", vs: "Renekton" },
+      deps({
+        loadAbilities: storedAs(changedW),
+        matchupNotes: () => ambessaVsRenekton({ briefing: { threat: { text: "A.", basedOn: ["Renekton.W"] }, opportunity: { text: "B.", basedOn: ["Renekton.W", "Ambessa.Q"] }, lane: [{ text: "C.", basedOn: ["Renekton.W"] }] } }),
+      }),
+    );
+    const { threat, opportunity, lane } = v.matchup!.briefing;
+    expect([threat, opportunity, ...lane].every((p) => p.kind === "hidden")).toBe(true);
+    expect(opportunity).toEqual({ kind: "hidden", changed: ["Renekton.W"] });
   });
 
   it("says only 'checked on' a patch when the record held but the patch moved on", async () => {
@@ -218,15 +240,16 @@ describe("Riot's data changed after the check", () => {
     expect(v.enemyIntel!.curated!.freshness).toBe("unchanged-since");
     expect(slotOf(v, "W").cooldown).toMatchObject({ from: "curated", starts: "after-effect-ends" });
     expect(v.matchup!.freshness).toBe("unchanged-since");
+    expect(v.matchup!.briefing.threat.kind).toBe("point");
   });
 
-  it("claims no change by Riot when the data held is older than the check: the notes stay the line", async () => {
+  it("claims no change by Riot when the data held is older than the check: the notes stay the line, and nothing is hidden", async () => {
     const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps({ loadAbilities: storedAs({ Ambessa: kit("Ambessa", "16.21.1"), Renekton: kit("Renekton", "16.21.1", [20, 19, 18, 17, 16]) }) }));
     const w = slotOf(v, "W");
     expect(w.freshness).toBe("unchanged-since");
     expect(w.cooldown).toMatchObject({ from: "curated", seconds: [18, 17, 16, 15, 14] });
     expect(w.checkedCooldown).toBeNull();
-    expect(v.matchup!.freshness).toBe("unchanged-since");
+    expect(v.matchup!.briefing.threat.kind).toBe("point");
     expect(v.patch.data).toBe("26.21");
   });
 });
@@ -262,20 +285,22 @@ describe("a matchup checked on another version than the champion notes it rests 
     expect(v.matchup!.freshness).toBe("unchanged-since");
   });
 
-  it("warns when Riot's numbers moved after champion notes taken on a later version than its check (versions compared by number)", async () => {
+  it("hides what rests on an ability whose numbers moved after champion notes taken on a later version than its check (versions compared by number)", async () => {
     const v = await view({
       loadAbilities: storedAt("16.11.1", [14, 13, 12, 11, 10]),
       championNotes: (id) => (id === "Renekton" ? renektonAt("16.10.1", "26.10", [16, 15, 14, 13, 12]) : null),
       matchupNotes: () => ambessaVsRenekton({ verified: at("16.9.1", "26.9") }),
     });
     // 16.9.1 (the matchup) before 16.10.1 (the notes) before 16.11.1 (the data): the change came after the matchup's check.
-    expect(v.matchup!.freshness).toBe("changed-since");
+    expect(v.matchup!.briefing.threat).toEqual({ kind: "hidden", changed: ["Renekton.W"] });
+    expect(v.matchup!.briefing.opportunity.kind).toBe("point");
   });
 
-  it("with champion notes older than its check, a change in Riot's numbers may predate the check: no warning for the matchup", async () => {
+  it("with champion notes older than its check, a change in Riot's numbers may predate the check: nothing is hidden", async () => {
     const v = await view({ loadAbilities: storedAt("16.24.1", [20, 19, 18, 17, 16]), matchupNotes: () => ambessaVsRenekton({ verified: at("16.23.1", "26.23") }) });
     expect(v.enemyIntel!.curated!.freshness).toBe("changed-since");
     expect(v.matchup!.freshness).toBe("unchanged-since");
+    expect(v.matchup!.briefing.threat.kind).toBe("point");
   });
 });
 

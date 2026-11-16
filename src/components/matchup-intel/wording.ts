@@ -4,8 +4,8 @@ import type { AbilityChange, AbilityModifiers, CooldownDisplay, CooldownStart, F
 
 /*
   Matchup Intel's fixed words (docs/MATCHUP_INTEL.md, "Cooldowns"): how a cooldown, its modifiers,
-  a recast, a fact's kind and subject, where a line comes from and a set of notes' freshness are
-  said on the page. A number is written only when the data holds it; what
+  a recast, a fact's kind and subject, where a line comes from, a set of notes' freshness and a
+  hidden briefing point are said on the page. A number is written only when the data holds it; what
   is not known is said as not known, never estimated.
 */
 
@@ -231,4 +231,26 @@ export function freshnessWords(f: Freshness, patch: string): { checked: string; 
 /** A champion's notes once Riot changed some of its abilities after the check: "Riot changed two abilities after the check: their notes are flagged". */
 export function changedAbilitiesWords(count: number): string {
   return count === 1 ? "Riot changed one ability after the check: its notes are flagged" : `Riot changed ${countWord(count).toLowerCase()} abilities after the check: their notes are flagged`;
+}
+
+const changedNames = (names: readonly string[]) => (names.length ? listWords(names) : "an ability it rests on");
+
+/** In place of a hidden threat or opportunity: "Hidden: Riot changed Renekton W after this briefing was checked." */
+export function hiddenPartWords(changed: readonly string[]): string {
+  return `Hidden: Riot changed ${changedNames(changed)} after this briefing was checked.`;
+}
+
+/** After the lane points shown: "One point is hidden: Riot changed Renekton W after this briefing was checked." */
+export function hiddenPointsWords(count: number, changed: readonly string[]): string {
+  return `${countWord(count)} ${count === 1 ? "point is" : "points are"} hidden: Riot changed ${changedNames(changed)} after this briefing was checked.`;
+}
+
+/** In place of a briefing with nothing left to show: "This briefing is hidden: Riot changed Renekton W after it was checked." */
+export function hiddenBriefingWords(changed: readonly string[]): string {
+  return `This briefing is hidden: Riot changed ${changedNames(changed)} after it was checked.`;
+}
+
+/** After the matchup's interactions shown: "One interaction is hidden: Riot changed Renekton W after it was checked." */
+export function hiddenInteractionsWords(count: number, changed: readonly string[]): string {
+  return `${countWord(count)} ${count === 1 ? "interaction is" : "interactions are"} hidden: Riot changed ${changedNames(changed)} after ${count === 1 ? "it was" : "they were"} checked.`;
 }

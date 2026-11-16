@@ -232,6 +232,34 @@ describe("Riot's data moved after the check", () => {
     // The champion's line says how many abilities changed.
     expect(text(html)).toContain("Riot changed one ability after the check: its notes are flagged");
   });
+
+  it("the briefing: what rests on the changed ability is hidden, and says so in its place; the rest keeps its check", async () => {
+    const t = text(await render({ champion: "Ambessa", vs: "Renekton" }, changed));
+    expect(t).toContain("Checked on patch 26.22");
+    expect(t).not.toContain("The empowered stun.");
+    expect(t).toContain("Threat Hidden: Riot changed Renekton W after this briefing was checked.");
+    expect(t).toContain("Opportunity Low Fury.");
+    expect(t).toContain("One point is hidden: Riot changed Renekton W after this briefing was checked.");
+    // No warning is left on the header: what it shows did not change.
+    expect(t).not.toContain("may be out of date Threat");
+  });
+
+  it("the briefing with nothing left to show: one line naming what changed", async () => {
+    const allOnW: MatchupNotes = { ...ambessaVsRenekton, briefing: { threat: { text: "A.", basedOn: ["Renekton.W"] }, opportunity: { text: "B.", basedOn: ["Renekton.W"] }, lane: [{ text: "C.", basedOn: ["Renekton.W"] }] } };
+    const t = text(await render({ champion: "Ambessa", vs: "Renekton" }, { ...changed, matchupNotes: (a, b) => (a === "Ambessa" && b === "Renekton" ? allOnW : null) }));
+    expect(t).toContain("This briefing is hidden: Riot changed Renekton W after it was checked.");
+    expect(t).not.toContain("Threat");
+  });
+
+  it("the interactions: a matchup's interaction on the changed ability is hidden and said, the enemy's fact flagged", async () => {
+    const onW: MatchupNotes = { ...ambessaVsRenekton, interactions: [{ text: "Unstoppable answers it.", abilities: ["Renekton.W"], source: "wiki" }] };
+    const html = await render({ champion: "Ambessa", vs: "Renekton" }, { ...changed, matchupNotes: (a, b) => (a === "Ambessa" && b === "Renekton" ? onW : null) });
+    const t = text(html);
+    expect(t).not.toContain("Unstoppable answers it.");
+    expect(t).toContain("One interaction is hidden: Riot changed Renekton W after it was checked.");
+    const panel = text(html.slice(html.indexOf('data-testid="matchup-interactions"')));
+    expect(panel).toContain("Renekton W Interaction: Fury Changed since the check");
+  });
 });
 
 describe("the page's structure", () => {

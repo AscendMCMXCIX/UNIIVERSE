@@ -1,23 +1,45 @@
 import Link from "next/link";
-import { Crosshair, TriangleAlert, Waypoints } from "lucide-react";
-import type { AbilityRef, ChampionChoice, MatchupIntelView, Slot } from "@/domain/matchup-intel/types";
+import { Crosshair, History, TriangleAlert, Waypoints } from "lucide-react";
+import type { AbilityRef, BriefingPointView, ChampionChoice, MatchupIntelView, Slot } from "@/domain/matchup-intel/types";
 import { Badge } from "@/components/ui/badge";
 import { Panel, PanelHeader } from "@/components/ui/panel";
 import { cn } from "@/lib/cn";
 import { matchupHref } from "./address";
 import { AbilityRefLink } from "./ability-ref-link";
-import { abilityAnchor, abilityName, freshnessWords } from "./wording";
+import { abilityAnchor, abilityName, freshnessWords, hiddenBriefingWords, hiddenPartWords, hiddenPointsWords } from "./wording";
 
 /*
   The matchup's curated layer (docs/MATCHUP_INTEL.md): the ten-second briefing, for your champion
   against this enemy only. A threat, an opportunity and a few points about the lane, each with the
-  abilities it rests on as chips that jump to their rows; when it was checked, and a warning when
-  Riot's numbers for those abilities moved after the check. A briefing points at what matters and
+  abilities it rests on as chips that jump to their rows, and when it was checked. A point that
+  rests on an ability Riot changed after the check is hidden, and the page says so where it was,
+  naming the ability (view.ts decides): never silently. A briefing points at what matters and
   leaves the decisions to the player. Where none exists, a calm line says so, and what follows is
   the enemy's general reference.
 */
 
 const REF = /^([A-Za-z0-9]{1,40})\.(P|Q|W|E|R)$/;
+
+/** The names of the abilities `refs` point to ("Renekton W"), of the two champions only. */
+export function abilityNames(refs: readonly AbilityRef[], names: ReadonlyMap<string, string>): string[] {
+  return refs.flatMap((r) => {
+    const m = REF.exec(r);
+    return m && names.has(m[1]!) ? [abilityName(names.get(m[1]!)!, m[2] as Slot)] : [];
+  });
+}
+
+/** Why a part is hidden, in its place: the words, and the changed abilities as chips to their rows. */
+export function HiddenNote({ words, changed, names, testId }: { words: string; changed: readonly AbilityRef[]; names: ReadonlyMap<string, string>; testId: string }) {
+  return (
+    <div className="space-y-1.5" data-testid={testId}>
+      <p className="flex items-start gap-1.5 text-sm text-fg-muted">
+        <History className="mt-0.5 h-4 w-4 shrink-0 text-warn" aria-hidden />
+        <span>{words}</span>
+      </p>
+      <AbilityChips refs={changed} names={names} label="Changed since the check" />
+    </div>
+  );
+}
 
 /** The chips under a point: one per ability it rests on, named "<Champion> <key>". */
 export function AbilityChips({ refs, names, label }: { refs: readonly AbilityRef[]; names: ReadonlyMap<string, string>; label: string }) {
@@ -37,19 +59,32 @@ export function AbilityChips({ refs, names, label }: { refs: readonly AbilityRef
   );
 }
 
-function Point({ kind, text, refs, names }: { kind: "threat" | "opportunity"; text: string; refs: readonly AbilityRef[]; names: ReadonlyMap<string, string> }) {
+function Point({ kind, point, names }: { kind: "threat" | "opportunity"; point: BriefingPointView; names: ReadonlyMap<string, string> }) {
   const threat = kind === "threat";
   const Icon = threat ? TriangleAlert : Crosshair;
   return (
-    <div className="min-w-0 space-y-2 px-3 py-3 sm:px-4" data-testid={`briefing-${kind}`}>
+    <div className="min-w-0 space-y-2 px-3 py-3 sm:px-4" data-testid={`briefing-${kind}`} data-hidden={point.kind === "hidden" ? "" : undefined}>
       <h3 className={threat ? "flex items-center gap-1.5 text-xs font-semibold uppercase tracking-label text-warn" : "flex items-center gap-1.5 text-xs font-semibold uppercase tracking-label text-good"}>
         <Icon className="h-4 w-4 shrink-0" aria-hidden />
         {threat ? "Threat" : "Opportunity"}
       </h3>
-      <p className="text-md leading-snug text-fg">{text}</p>
-      <AbilityChips refs={refs} names={names} label={threat ? "The threat rests on" : "The opportunity rests on"} />
+      {point.kind === "point" ? (
+        <>
+          <p className="text-md leading-snug text-fg">{point.text}</p>
+          <AbilityChips refs={point.basedOn} names={names} label={threat ? "The threat rests on" : "The opportunity rests on"} />
+        </>
+      ) : (
+        <HiddenNote words={hiddenPartWords(abilityNames(point.changed, names))} changed={point.changed} names={names} testId={`briefing-${kind}-hidden`} />
+      )}
     </div>
   );
+}
+
+/** Every changed ability of the hidden points, each once, in the order they appear. */
+export function changedOf(points: readonly BriefingPointView[]): AbilityRef[] {
+  const out: AbilityRef[] = [];
+  for (const p of points) if (p.kind === "hidden") for (const r of p.changed) if (!out.includes(r)) out.push(r);
+  return out;
 }
 
 /** The ten-second briefing for your champion against the enemy. */
@@ -60,6 +95,10 @@ export function Briefing({ matchup, you, enemy }: { matchup: MatchupIntelView; y
   ]);
   const f = freshnessWords(matchup.freshness, matchup.verified.patch);
   const { threat, opportunity, lane } = matchup.briefing;
+  const shownLane = lane.filter((p): p is Extract<BriefingPointView, { kind: "point" }> => p.kind === "point");
+  const hiddenLane = lane.filter((p) => p.kind === "hidden");
+  const all = [threat, opportunity, ...lane];
+  const nothingShown = all.every((p) => p.kind === "hidden");
   return (
     <Panel className="overflow-hidden" data-testid="matchup-briefing">
       <PanelHeader
@@ -76,28 +115,42 @@ export function Briefing({ matchup, you, enemy }: { matchup: MatchupIntelView; y
           </span>
         }
       />
-      <div className="@container/brief">
-        <div className="grid divide-y divide-border @min-[40rem]/brief:grid-cols-2 @min-[40rem]/brief:divide-x @min-[40rem]/brief:divide-y-0">
-          <Point kind="threat" text={threat.text} refs={threat.basedOn} names={names} />
-          <Point kind="opportunity" text={opportunity.text} refs={opportunity.basedOn} names={names} />
+      {nothingShown ? (
+        // Every part rests on something Riot changed since: one line says so, with the abilities.
+        <div className="px-3 py-3 sm:px-4">
+          <HiddenNote words={hiddenBriefingWords(abilityNames(changedOf(all), names))} changed={changedOf(all)} names={names} testId="briefing-hidden" />
         </div>
-        {lane.length ? (
-          <section className="border-t border-border px-3 py-3 sm:px-4" aria-labelledby="briefing-lane-title" data-testid="briefing-lane">
-            <h3 id="briefing-lane-title" className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-label text-fg-subtle">
-              <Waypoints className="h-4 w-4 shrink-0" aria-hidden />
-              In lane
-            </h3>
-            <ul className="mt-2 grid gap-x-6 gap-y-3 @min-[40rem]/brief:grid-cols-2">
-              {lane.map((p, i) => (
-                <li key={i} className="min-w-0 space-y-1.5 border-l-2 border-border pl-3">
-                  <p className="text-sm leading-relaxed text-fg">{p.text}</p>
-                  <AbilityChips refs={p.basedOn} names={names} label="This point rests on" />
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
-      </div>
+      ) : (
+        <div className="@container/brief">
+          <div className="grid divide-y divide-border @min-[40rem]/brief:grid-cols-2 @min-[40rem]/brief:divide-x @min-[40rem]/brief:divide-y-0">
+            <Point kind="threat" point={threat} names={names} />
+            <Point kind="opportunity" point={opportunity} names={names} />
+          </div>
+          {lane.length ? (
+            <section className="border-t border-border px-3 py-3 sm:px-4" aria-labelledby="briefing-lane-title" data-testid="briefing-lane">
+              <h3 id="briefing-lane-title" className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-label text-fg-subtle">
+                <Waypoints className="h-4 w-4 shrink-0" aria-hidden />
+                In lane
+              </h3>
+              {shownLane.length ? (
+                <ul className="mt-2 grid gap-x-6 gap-y-3 @min-[40rem]/brief:grid-cols-2">
+                  {shownLane.map((p, i) => (
+                    <li key={i} className="min-w-0 space-y-1.5 border-l-2 border-border pl-3">
+                      <p className="text-sm leading-relaxed text-fg">{p.text}</p>
+                      <AbilityChips refs={p.basedOn} names={names} label="This point rests on" />
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {hiddenLane.length ? (
+                <div className={shownLane.length ? "mt-3" : "mt-2"}>
+                  <HiddenNote words={hiddenPointsWords(hiddenLane.length, abilityNames(changedOf(hiddenLane), names))} changed={changedOf(hiddenLane)} names={names} testId="briefing-lane-hidden" />
+                </div>
+              ) : null}
+            </section>
+          ) : null}
+        </div>
+      )}
     </Panel>
   );
 }

@@ -490,12 +490,22 @@ export interface ChampionIntelView {
   sources: Source[];
 }
 
+/**
+ * A briefing point as the page shows it: its text, or, when Riot changed an ability it rests on
+ * after the briefing was checked, which abilities changed, in its place. Never left out silently.
+ */
+export type BriefingPointView = { kind: "point"; text: string; basedOn: AbilityRef[] } | { kind: "hidden"; changed: AbilityRef[] };
+
+/** One of the matchup's interactions as the page shows it: hidden, as a briefing point is, once an ability it rests on changed. */
+export type InteractionView = { kind: "interaction"; text: string; abilities: AbilityRef[]; source: string } | { kind: "hidden"; changed: AbilityRef[] };
+
 /** The matchup's curated layer, ready to show (one direction: your champion against the enemy). */
 export interface MatchupIntelView {
   verified: Verification;
+  /** How fresh what it shows is: the hidden points and interactions are not counted. */
   freshness: Freshness;
-  briefing: MatchupNotes["briefing"];
-  interactions: MatchupNotes["interactions"];
+  briefing: { threat: BriefingPointView; opportunity: BriefingPointView; lane: BriefingPointView[] };
+  interactions: InteractionView[];
   sources: Source[];
 }
 

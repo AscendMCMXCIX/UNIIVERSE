@@ -10,6 +10,10 @@ import {
   cooldownWords,
   flaggedNotesWords,
   freshnessWords,
+  hiddenBriefingWords,
+  hiddenInteractionsWords,
+  hiddenPartWords,
+  hiddenPointsWords,
   listWords,
   modifierWords,
   recastWords,
@@ -120,7 +124,7 @@ describe("where a line comes from", () => {
   });
 });
 
-describe("modifiers and flags", () => {
+describe("modifiers, flags and hidden points", () => {
   it("writes the wait between casts, refunds and attack resets, each on a line", () => {
     expect(modifierWords({ lockout: { seconds: 0.3125, static: true }, resetsAttack: true })).toEqual(["0.3125 s between casts, unaffected by ability haste", "Resets the basic-attack timer"]);
     expect(modifierWords({ refund: { unit: "percent", amount: [25, 35, 45, 55, 65], when: "her first attack within 4 seconds" } })).toEqual(["Refunds 25 / 35 / 45 / 55 / 65% of the cooldown: her first attack within 4 seconds"]);
@@ -134,9 +138,19 @@ describe("modifiers and flags", () => {
     expect(flaggedNotesWords("26.22", ["cooldown"])).toBe("Notes from patch 26.22 · may be out of date: Riot changed its cooldown since");
     expect(flaggedNotesWords("26.22", ["id", "name", "cooldown"])).toBe("Notes from patch 26.22 · may be out of date: Riot changed its spell id, name and cooldown since");
     expect(flaggedNotesWords(null, [])).toBe("These notes · may be out of date");
-    expect(listWords([])).toBe("");
     expect(changedAbilitiesWords(1)).toBe("Riot changed one ability after the check: its notes are flagged");
     expect(changedAbilitiesWords(3)).toBe("Riot changed three abilities after the check: their notes are flagged");
+  });
+
+  it("names what a hidden point rests on, never hiding it silently", () => {
+    expect(hiddenPointsWords(1, ["Renekton W"])).toBe("One point is hidden: Riot changed Renekton W after this briefing was checked.");
+    expect(hiddenPointsWords(2, ["Renekton W", "Renekton E"])).toBe("Two points are hidden: Riot changed Renekton W and Renekton E after this briefing was checked.");
+    expect(hiddenPartWords(["Renekton W"])).toBe("Hidden: Riot changed Renekton W after this briefing was checked.");
+    expect(hiddenBriefingWords(["Renekton passive", "Renekton W", "Ambessa R"])).toBe("This briefing is hidden: Riot changed Renekton passive, Renekton W and Ambessa R after it was checked.");
+    expect(hiddenInteractionsWords(1, ["Renekton W"])).toBe("One interaction is hidden: Riot changed Renekton W after it was checked.");
+    expect(hiddenInteractionsWords(12, ["Renekton W"])).toBe("12 interactions are hidden: Riot changed Renekton W after they were checked.");
+    expect(hiddenPartWords([])).toBe("Hidden: Riot changed an ability it rests on after this briefing was checked.");
+    expect(listWords([])).toBe("");
   });
 });
 
