@@ -18,10 +18,12 @@ const QUOTE = String.raw`(?:\\*"|&quot;|&#0*34;|&#[xX]0*22;)`;
 /** One of the keys: its name in quotes, then a colon. A JSON string that is a value is never followed by a colon. */
 const KEY = new RegExp(`${QUOTE}(${RIOT_KEYS.join("|")})${QUOTE}\\s*:`, "g");
 /**
- * One of Next.js's inline RSC scripts, `self.__next_f.push([kind, data])` (next/dist/server/app-render/
- * use-flight-response.js). Kind 1 is text, kind 3 bytes in base64. The first script,
- * `(self.__next_f=self.__next_f||[]).push([0])`, carries no data and is not matched. A script's
- * data has every "<" escaped, so its first ")</script>" is its end.
+ * One of Next.js's inline RSC scripts, `self.__next_f.push([kind, data])`, as its Node.js writer
+ * writes production's pages (next/dist/server/app-render/stream-ops.node.js) and its web writer the
+ * edge runtime's (use-flight-response.js). Kind 1 is text, kind 3 bytes in base64: the Node.js
+ * writer uses it for any piece that is not whole UTF-8 by itself, one cut inside a character
+ * included. The first script, `(self.__next_f=self.__next_f||[]).push([0])`, carries no data and is
+ * not matched. A script's data has every "<" escaped, so its first ")</script>" is its end.
  */
 const FLIGHT = /<script\b[^>]*>\s*self\.__next_f\.push\(([\s\S]*?)\)\s*;?\s*<\/script>/g;
 
