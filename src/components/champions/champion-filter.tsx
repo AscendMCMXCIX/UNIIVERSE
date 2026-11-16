@@ -153,25 +153,29 @@ export function ChampionFilter({
   return (
     <div ref={wrapRef} className={cn("relative min-w-0", className)} data-testid={testId}>
       {name ? <input type="hidden" name={name} value={hiddenValue} /> : null}
-      <button
-        ref={buttonRef}
-        type="button"
-        onClick={() => (open ? hide() : show())}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-label={`${label}: ${buttonText}`}
-        className="flex h-11 w-full min-w-0 items-center gap-2 rounded-md border border-border bg-bg-elevated px-2.5 text-left text-sm text-fg hover:border-border-strong md:pointer-fine:h-9"
-        data-testid={`${testId}-button`}
-      >
-        {selected?.portraitUrl ? <RemoteImage src={selected.portraitUrl} alt="" width={20} height={20} className="h-5 w-5 shrink-0 rounded object-cover" /> : null}
-        <span className="min-w-0 flex-1 truncate">{buttonText}</span>
-        <ChevronDown className={cn("h-4 w-4 shrink-0 text-fg-subtle", current.scope !== "all" && !name && "invisible")} aria-hidden />
-      </button>
-      {current.scope !== "all" && !name ? (
-        <button type="button" onClick={() => choose({ scope: "all" })} aria-label="Show all champions" className="absolute right-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded text-fg-subtle hover:bg-surface-2 hover:text-fg" data-testid={`${testId}-clear`}>
-          <X className="h-3.5 w-3.5" aria-hidden />
+      {/* The button and its clear mark share a box of their own: the mark stays centred on the
+          button while the panel, opened in the flow below it, makes the whole picker taller. */}
+      <div className="relative">
+        <button
+          ref={buttonRef}
+          type="button"
+          onClick={() => (open ? hide() : show())}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-label={`${label}: ${buttonText}`}
+          className="flex h-11 w-full min-w-0 items-center gap-2 rounded-md border border-border bg-bg-elevated px-2.5 text-left text-sm text-fg hover:border-border-strong md:pointer-fine:h-9"
+          data-testid={`${testId}-button`}
+        >
+          {selected?.portraitUrl ? <RemoteImage src={selected.portraitUrl} alt="" width={20} height={20} className="h-5 w-5 shrink-0 rounded object-cover" /> : null}
+          <span className="min-w-0 flex-1 truncate">{buttonText}</span>
+          <ChevronDown className={cn("h-4 w-4 shrink-0 text-fg-subtle", current.scope !== "all" && !name && "invisible")} aria-hidden />
         </button>
-      ) : null}
+        {current.scope !== "all" && !name ? (
+          <button type="button" onClick={() => choose({ scope: "all" })} aria-label="Show all champions" className="absolute right-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded text-fg-subtle hover:bg-surface-2 hover:text-fg" data-testid={`${testId}-clear`}>
+            <X className="h-3.5 w-3.5" aria-hidden />
+          </button>
+        ) : null}
+      </div>
       {open ? (
         <div ref={panelRef} className={cn("rise-in mt-1.5 overflow-hidden rounded-panel border border-border bg-bg-elevated", inFlow ? "w-full" : cn("absolute top-full z-50 w-80 shadow-2xl shadow-black/40", alignEnd ? "right-0" : "left-0"))} data-testid={`${testId}-panel`} data-flow={inFlow || undefined}>
           <div className="flex items-center gap-2 border-b border-border px-3">
