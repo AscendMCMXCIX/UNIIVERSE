@@ -48,7 +48,7 @@ export default async function PublicLayout({ children }: { children: React.React
         <SignInProvider brand={{ logo: logoSrc(branding), logoStill: logoStillSrc(branding), shortName: branding.shortName }}>
           <div className="flex min-h-dvh flex-col">
             <SiteBackdrop branding={branding} />
-            <header className="relative mx-auto flex w-full max-w-[var(--content-wide)] items-center justify-between gap-3 px-safe-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-safe-6" data-testid="public-header">
+            <header className="relative mx-auto flex w-full max-w-[var(--content-wide)] items-center justify-between gap-3 px-safe-4 pb-3 pt-safe-3 sm:px-safe-6" data-testid="public-header">
               <Link href="/public" className="flex min-w-0 items-center gap-3 rounded-lg">
                 <BrandMark src={logoSrc(branding)} still={logoStillSrc(branding)} name={branding.shortName} className="h-9 w-9 text-base" />
                 {/* With a second page in the header, phones keep the mark alone: the page's own header names the team. */}
@@ -76,7 +76,7 @@ export default async function PublicLayout({ children }: { children: React.React
               </nav>
             </header>
             <main className="relative mx-auto flex w-full max-w-[var(--content-wide)] flex-1 flex-col px-safe-4 pb-8 pt-2 sm:px-safe-6 lg:pt-4">{children}</main>
-            <footer className="relative mx-auto w-full max-w-[var(--content-wide)] px-safe-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-safe-6">
+            <footer className="relative mx-auto w-full max-w-[var(--content-wide)] px-safe-4 pb-safe-6 sm:px-safe-6">
               <Link href="/privacy" className="inline-flex min-h-8 items-center text-xs text-fg-muted underline-offset-2 hover:text-fg hover:underline pointer-coarse:min-h-11" data-testid="public-privacy-link">
                 Privacy
               </Link>

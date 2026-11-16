@@ -78,8 +78,10 @@ function SignInWindow({ brand, onClose }: { brand: SignInBrand; onClose: () => v
       titleId="sign-in-title"
       testId="sign-in-window"
       bodyTestId="sign-in-body"
-      // Phones: room under the last line (the window's own bottom padding is only the safe area there).
-      bodyClassName="max-sm:pb-[max(1rem,env(safe-area-inset-bottom))] short:pb-[max(1rem,env(safe-area-inset-bottom))]"
+      // The window keeps 1rem under the last line on a phone, or the home indicator's inset where it
+      // is larger (DetailModal's own body padding); held sideways too, rather than the wider screens'
+      // 1.25rem, so the form keeps its few lines.
+      bodyClassName="short:pb-safe-4"
       header={
         // The brand as in the public page's header; it stays at the top, with the close button,
         // while the rest scrolls on a short screen.
