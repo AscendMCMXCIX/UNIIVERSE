@@ -34,15 +34,21 @@ const KIND_LOOK: Record<FactKind, { icon: LucideIcon; tone: BadgeTone }> = {
   exception: { icon: TriangleAlert, tone: "neutral" },
 };
 
-/** A fact's badge: its kind's icon, the kind for screen readers, the fact's own word, and who has the effect where its kind would not say. */
+/**
+ * A fact's badge: its kind's icon, the kind for screen readers, the fact's own word, and who has the
+ * effect where its kind would not say. The word and who has it are one run of text, so where the
+ * badge is narrow (a large text size) they wrap as one, never held side by side past its edge.
+ */
 export function FactBadge({ kind, label, subject = null }: { kind: FactKind; label: string; subject?: string | null }) {
   const { icon: Icon, tone } = KIND_LOOK[kind];
   return (
     <Badge tone={tone} className="py-1">
       <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
       <span className="sr-only">{FACT_KINDS[kind]}: </span>
-      {label}
-      {subject ? <span className="font-normal">· {subject}</span> : null}
+      <span>
+        {label}
+        {subject ? <span className="font-normal"> · {subject}</span> : null}
+      </span>
     </Badge>
   );
 }
@@ -159,7 +165,10 @@ function AbilityRow({ champion, ability: a, checkedPatch, dataPatch }: { champio
     // A chip's jump lands here and gives the row the focus until it moves on (jumpToAnchor,
     // ability-ref-link.tsx); the row is lit while it holds it.
     <li id={abilityAnchor(champion.id, a.slot)} className="scroll-mt-4 px-3 py-3.5 transition-colors focus:bg-accent/5 focus-visible:-outline-offset-2 sm:px-4" data-testid="ability-row" data-slot={a.slot} data-freshness={a.freshness ?? undefined}>
-      <div className="flex gap-3 @min-[46rem]/abilities:gap-4">
+      {/* The icon beside the words, or above them where the list is under 16rem: a phone at a large
+          text size (from 150%; 125% on a 320px phone), where beside them it would leave the words a
+          column a word wide and the longest cut off at the panel's edge. */}
+      <div className="flex flex-col gap-3 @min-[16rem]/abilities:flex-row @min-[46rem]/abilities:gap-4">
         <AbilityIcon src={a.icon} slot={a.slot} />
         <div className="min-w-0 flex-1 @min-[46rem]/abilities:grid @min-[46rem]/abilities:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] @min-[46rem]/abilities:gap-x-6">
           <div className="min-w-0 space-y-1.5">
