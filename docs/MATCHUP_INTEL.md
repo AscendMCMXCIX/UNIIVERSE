@@ -584,8 +584,9 @@ Matchup Intel page added to it would need `DDRAGON_VERSION` passed as well.
   Riot had shipped: once its numbering ran more than two patches past the check (16.25, or 17.3 if
   16.24 is the year's last patch), `MAX_PATCHES_UNCHECKED` would hide every briefing, and the specs
   that read one (the threat, the opportunity and their chips, the threat on a phone's first screen,
-  the announcement, and the WebKit spec's chip) would fail on every pull request until the notes
-  were re-checked; a cooldown Riot changed (Riven's Q, "13 s at every rank") would fail at once.
+  the announcement, and the WebKit spec's chip) would fail until the notes were re-checked: in CI on
+  every pull request, and the WebKit spec in every run of the WebKit workflow, which is started by
+  hand; a cooldown Riot changed (Riven's Q, "13 s at every rank") would fail at once.
   Pinned, the specs read the same data whatever Riot ships: the briefings as checked ("Checked on patch 26.22",
   with no "Not re-checked"), Riot's numbers as checked, and the footer's "Riot Data Dragon 16.22.1
   (patch 26.22)", which the spec asserts word for word.
@@ -845,17 +846,25 @@ pages were read on 16 Nov 2026: the League of Legends documentation
   license as the text." (Meta:Copyrights) No image on Matchup Intel comes from the wiki.
 - **No automated use.** Weird Gloop's Terms of Use (https://weirdgloop.org/terms, updated 31
   January 2025) do not allow "Attempting to use our Sites in an automated fashion without prior
-  consent from the Company", and the wiki's robots.txt disallows `/*api.php` and `/*?action=` for
-  every crawler. From now on, curators read the wiki in a browser (Curated notes, Rules). No
-  script, job or test of the app reads the wiki's pages, and Matchup Intel loads nothing from it:
-  the page only links to it, and the browser spec checks, with Playwright's request events and with
-  the page's own resource timing, that it loads nothing from `wiki.leagueoflegends.com`. One request
-  does go there, from another part of the app: the Library (Resources → Library) draws each link
-  with its site's icon, and one of its default links is the League of Legends Wiki
+  consent from the Company, or other users on our platform where applicable", and the wiki's
+  robots.txt disallows `/*api.php` and `/*?action=` for every crawler. From now on, curators read
+  the wiki in a browser (Curated notes, Rules). No script, job or test of the app reads the wiki's
+  pages, and Matchup Intel loads nothing from it: the page only links to it. The browser spec checks
+  that it names and loads nothing from `wiki.leagueoflegends.com`, with Playwright's request events,
+  the browser's own record of every request it starts (Chromium's DevTools protocol, which also sees
+  the favicons Playwright never reports, and each redirect hop), the page's resource timing, and the
+  page's markup.
+  One request does go there, from another part of the app: the Library (Resources → Library) draws
+  each link with its site's icon, and one of its default links is the League of Legends Wiki
   (`src/domain/resources.ts`), so a visitor's browser loads `wiki.leagueoflegends.com/favicon.ico`,
-  as it loads every linked site's icon. The browser specs that open the Library without blocking
-  icons (`account-screen`, `quality` and `webkit`) can load it too, in CI: a small automated request
-  (Open compliance questions, "Scripted reads of the wiki").
+  as it loads every linked site's icon. The browser tests that open the Library without blocking
+  icons can load it too, once in each: 15 in CI's browser job (`account-screen` 8, `quality` 4, and
+  `cross-device`, `matchup-intel` and `mobile-nav` one each, counted from the specs on 16 Nov 2026)
+  and 2 in the WebKit workflow (`webkit`). It is a small automated request, repeated in every run
+  that can reach the internet, in CI and on developers' machines. The agents who built this feature
+  loaded it too: their probes of the Library on 16 Nov 2026 (19:36 to 19:39 UTC, while checking this
+  very question) loaded it at least four times, and the same tests ran in their local browser runs
+  and in two WebKit workflow runs (Open compliance questions, "Scripted reads of the wiki").
 
 ## Open compliance questions
 
@@ -865,9 +874,9 @@ Each has a default that the code follows today. Only the owner changes one.
 | --- | --- | --- |
 | **The Developer Portal description.** Riot audits every new feature through the product's registered description (above). | The description in [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md) ("Description for the registration") includes Matchup Intel. The registered one must say the same before the page reaches production, so the merge, which deploys, waits for it. | The owner (For the owner, step 1) |
 | **A licence header on the curated files.** The repository is public and has no licence of its own. | Our own words, credited, not relicensed: each file's header says its texts are UNIIVERSE's own summaries, its sources list each page with its revision, and the footer credits them. No file declares a licence for itself. A scan of the notes against the pages they cite finds no copied sentence, only runs of numbers and game terms (six to ten words), so the risk that a passage counts as adapted is small, but not none. The recommended choice is a conditional header in each file ("Any material in this file adapted from the League of Legends Wiki is available under CC BY-SA 3.0"), which would cover any such passage without saying anything was adapted; it is not added, because a licence grant is the copyright holder's act. | The owner |
-| **Scripted reads of the wiki** (for example drafts of changes on patch day). | None of its pages. Weird Gloop's prior consent would be needed first (its Terms of Use, above). If it were given, a script would only draft changes for a person to review in a pull request, never publish them. One small automated request exists today, outside Matchup Intel: the browser specs that open the Library can load the wiki's favicon in CI (No automated use, above). Blocking that request in those specs, or a built-in icon for the Library's link to the wiki, would end it. | The owner, after asking Weird Gloop |
+| **Scripted reads of the wiki** (for example drafts of changes on patch day). | None of its pages. Weird Gloop's prior consent would be needed first (its Terms of Use, above). If it were given, a script would only draft changes for a person to review in a pull request, never publish them. One kind of small automated request exists today, outside Matchup Intel: the browser tests that open the Library can load the wiki's favicon, once in each, in CI and in the WebKit workflow (No automated use, above). Blocking that request in those tests, or a built-in icon for the Library's link to the wiki, would end it. | The owner, after asking Weird Gloop |
 | **Who curates, and who approves briefings.** The owner's rule is a briefing only where a person wrote and checked it. | Notes change only through pull requests, reviewed there: the page generates nothing, and nothing is published by itself. The first notes (16 Nov 2026) were drafted and cross-checked by AI agents, for a person's review in this feature's pull request: until the owner names the people, the owner's reading there is the only check by a person, and the merge waits for it (For the owner, step 2). | The owner |
-| **How the first notes were researched.** On 16 Nov 2026, between 06:13 and 06:43 UTC, while researching the first batch, AI agents made 35 scripted requests to wiki.leagueoflegends.com and 7 to Weird Gloop's own sites. The wiki's: its robots.txt first, which disallows `/*api.php` and `/*?action=` for every crawler; then 33 to its API, all at `/en-us/api.php?action=…`; and one page. Weird Gloop's: the robots.txt of meta.weirdgloop.org and of weirdgloop.org, Meta:Copyrights twice, and its Terms of Use three times (one a redirect). They saved copies of the pages the notes cite and of others they consulted (other champions' ability data, the six champions' patch histories and main pages, the wiki's modules and policy pages), and drafted and cross-checked the notes from those copies, which were never committed; all 34 cited revisions come from them. The Terms of Use (above) do not allow automated use without prior consent. | Disclosed in this feature's pull request, and here. Nothing in the app, its jobs or its tests reads the wiki's pages (the one request they make there is the Library's favicon: No automated use, above), and curators read it in a browser from now on. The remedy is not chosen: a person re-reads each cited revision in a browser and records it in the pull request, or Weird Gloop is asked for consent after the fact, or both. | The owner |
+| **How the first notes were researched.** On 16 Nov 2026, between 05:51 and 06:43 UTC, while researching the first batch, AI agents made 40 scripted requests to wiki.leagueoflegends.com and 8 to Weird Gloop's own sites. The wiki's: a first probe at 05:51 (one API request, the Ambessa page, then its robots.txt, which disallows `/*api.php` and `/*?action=` for every crawler), two API requests at 06:01 and 06:07, and from 06:13 the robots.txt again, 33 API requests and the Renekton page: 36 to its API in all, every one at `/en-us/api.php?action=…`, two pages and the robots.txt twice. Weird Gloop's: the robots.txt of meta.weirdgloop.org and of weirdgloop.org, Meta:Copyrights twice, and its Terms of Use four times (weirdgloop.org/terms twice, each answered with a redirect to /terms/, and /terms/ twice). They saved copies of the pages the notes cite and of others they consulted (other champions' ability data, the six champions' patch histories and main pages, the wiki's modules and policy pages), and drafted and cross-checked the notes from those copies, which were never committed; all 34 cited revisions come from them. The Terms of Use (above) do not allow automated use without prior consent. | Disclosed in this feature's pull request, and here. Nothing in the app, its jobs or its tests reads the wiki's pages (the one request they make there is the Library's favicon: No automated use, above), and curators read it in a browser from now on. The remedy is not chosen: a person re-reads each cited revision in a browser and records it in the pull request, or Weird Gloop is asked for consent after the fact, or both. | The owner |
 | **Riot's "Legal Jibber Jabber" sentence**: "[The title of your Project] was created under Riot Games' "Legal Jibber Jabber" policy using assets owned by Riot Games. Riot Games does not endorse or sponsor this project." (https://www.riotgames.com/en/legal) | Not shown. The app shows the Developer Portal's notice word for word, which the General Policies require. | The owner |
 
 ## Not built
