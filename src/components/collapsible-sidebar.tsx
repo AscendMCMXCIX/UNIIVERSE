@@ -4,6 +4,7 @@ import * as React from "react";
 import { PanelLeftClose, PanelLeftOpen, Pin } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { RAIL_DIVIDER, RAIL_FADE, RAIL_HIGHLIGHT, RAIL_HOVER, RAIL_ICON, RAIL_ICON_IDLE, RAIL_ROW, SIDEBAR_COOKIE, SIDEBAR_RAIL } from "@/lib/sidebar";
+import { releaseEarlyTaps } from "./early-taps";
 
 /** Delays that keep the hover preview calm: no flicker when the pointer only grazes the edge. */
 export const PEEK_OPEN_DELAY_MS = 90;
@@ -73,6 +74,11 @@ export function CollapsibleSidebar({ initialCollapsed, brand, children, footer }
       return next;
     });
   }, []);
+
+  // The page's code runs now: a click on the collapse control made before it (early-taps.ts) is
+  // passed on to the control, once however often it was clicked (a toggle applied twice would undo
+  // itself).
+  React.useEffect(() => releaseEarlyTaps("sidebar"), []);
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -179,7 +185,9 @@ export function CollapsibleSidebar({ initialCollapsed, brand, children, footer }
                   speech user can say it. The shortcut hint is not part of the name; screen readers
                   get it from aria-keyshortcuts and the tooltip. It is a quieter row than the pages
                   (lighter text, no weight); its shortcut appears over the row's end while it is pointed
-                  at or focused, taking no room from the label. */}
+                  at or focused, taking no room from the label. A click before the page's code has run
+                  is kept (data-early; suppressHydrationWarning: the script may have marked it
+                  aria-busy, which React leaves alone). */}
               <button
                 type="button"
                 onClick={toggle}
@@ -187,6 +195,8 @@ export function CollapsibleSidebar({ initialCollapsed, brand, children, footer }
                 aria-keyshortcuts="Control+Backslash Meta+Backslash"
                 title={`${label} (Ctrl+\\)`}
                 className={cn(RAIL_ROW, "min-h-9 py-1.5 font-normal text-fg-subtle hover:text-fg")}
+                data-early="sidebar"
+                suppressHydrationWarning
                 data-testid="sidebar-toggle"
               >
                 <span className={cn(RAIL_HIGHLIGHT, RAIL_HOVER)} aria-hidden />

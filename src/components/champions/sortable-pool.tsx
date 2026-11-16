@@ -7,6 +7,7 @@ import { ChampionPortrait } from "@/components/champion-portrait";
 import { cn } from "@/lib/cn";
 import { championArtUrl } from "@/domain/player-card";
 import { RemoteImage } from "@/components/ui/remote-image";
+import { screenHeight } from "@/lib/screen";
 
 /** Moves one item to a new index (pure; used by drag, keyboard and tests). */
 export function moveItem<T>(list: readonly T[], from: number, to: number): T[] {
@@ -259,7 +260,7 @@ export function SortablePool({
       else placeDragged(next);
       // Large pools: scroll when the pointer nears the top or bottom of the window.
       if (e.clientY < EDGE_SCROLL_PX) window.scrollBy(0, -12);
-      else if (e.clientY > window.innerHeight - EDGE_SCROLL_PX) window.scrollBy(0, 12);
+      else if (e.clientY > screenHeight() - EDGE_SCROLL_PX) window.scrollBy(0, 12);
     };
     const onUp = () => finish(true);
     const onCancel = () => finish(false);

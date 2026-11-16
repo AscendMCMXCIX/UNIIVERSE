@@ -12,7 +12,11 @@ import path from "node:path";
   - Tailwind's names for the project's panel and card radii (rounded-xl, rounded-2xl);
   - a colour written as a hex value in a class (bg-[#…]) instead of a named palette colour;
   - an easing curve that is not one of the --ease-* tokens, in a class, a style or a script;
-  - an uppercase label spaced other than tracking-label (a pill badge may use tracking-wide).
+  - an uppercase label spaced other than tracking-label (a pill badge may use tracking-wide);
+  - a safe-area padding (pb-safe, pb-safe-N; pt-safe, pt-safe-N) beside another padding for the same
+    edge in one class list: Tailwind's stylesheet order then decides which wins, not the class
+    list, and `py-4 pb-safe` gave the bare inset, 0px in a browser (#265);
+  - an arbitrary max(gutter, inset) top or bottom padding that pt-safe-N or pb-safe-N writes.
   Arbitrary values that match no token (a clamp(), a one-off width) stay allowed.
 */
 
@@ -49,6 +53,25 @@ function canonical(raw: string): string | null {
   if (curve) return `cubic-bezier(${curve[1]!.split(",").map((x) => Number(x.trim())).join(",")})`;
   return null;
 }
+
+/** A class without its variants and important mark ("max-sm:pb-safe-4" → "pb-safe-4"): what follows the last ":" outside brackets. */
+function utilityOf(token: string): string {
+  let depth = 0;
+  let end = -1;
+  for (let i = 0; i < token.length; i++) {
+    const c = token[i];
+    if (c === "[" || c === "(") depth++;
+    else if (c === "]" || c === ")") depth--;
+    else if (c === ":" && depth === 0) end = i;
+  }
+  return token.slice(end + 1).replace(/^!|!$/g, "");
+}
+
+/** Per edge: its safe-area paddings, and every other padding that sets that edge. */
+const SAFE_EDGES = [
+  { edge: "pb-safe", safe: /^pb-safe(-\d+)?$/, other: /^-?(p|py|pb)-/ },
+  { edge: "pt-safe", safe: /^pt-safe(-\d+)?$/, other: /^-?(p|py|pt)-/ },
+];
 
 /** What drifts from the tokens in one file's source, as "line: problem". */
 export function tokenProblems(source: string, tokens: Map<string, string>, options: { chartText?: boolean } = {}): string[] {
@@ -91,6 +114,24 @@ export function tokenProblems(source: string, tokens: Map<string, string>, optio
         if (/(^|:)tracking-(tighter|tight|normal|wide|wider|widest)$/.test(c)) problems.push(`${at}: ${c} on an uppercase label; use tracking-label`);
       }
     }
+    // A safe-area padding is its element's only padding for that edge (globals.css): beside another
+    // one, whichever Tailwind writes later wins, at every width the classes share.
+    for (const m of text.matchAll(/(["'`])([^"'`]*\bp[bt]-safe\b[^"'`]*)\1/g)) {
+      const classes = m[2]!.split(/\s+/).filter(Boolean);
+      for (const { edge, safe, other } of SAFE_EDGES) {
+        if (!classes.some((c) => safe.test(utilityOf(c)))) continue;
+        for (const c of classes) {
+          const u = utilityOf(c);
+          if (other.test(u) && !safe.test(u)) problems.push(`${at}: ${c} beside ${edge}; pad that edge once (${edge}-N is N steps, or the inset where larger)`);
+        }
+      }
+    }
+    // An arbitrary max(gutter, inset) padding for the top or bottom edge that a safe-area utility writes.
+    for (const m of text.matchAll(/(?<![\w-])(pt|pb)-\[max\(([^,\]]+),env\(safe-area-inset-(top|bottom)\)\)\]/g)) {
+      const value = canonical(m[2]!);
+      const steps = value?.endsWith("rem") ? Number(value.slice(0, -3)) * 4 : NaN;
+      if ((m[1] === "pt") === (m[3] === "top") && Number.isInteger(steps)) problems.push(`${at}: ${m[0]} is ${m[1]}-safe-${steps}`);
+    }
   });
   return problems;
 }
@@ -132,6 +173,8 @@ describe("design tokens", () => {
       `<p className="bg-[#f5c451] hover:border-[#abc]/40 text-gold" />`,
       `el.animate(frames, { easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" }); const odd = "cubic-bezier(0.1, 0.7, 0.1, 1)"; const c = "ease-[cubic-bezier(0.2,_0.8,_0.2,_1)]";`,
       `<span className="text-2xs uppercase tracking-wide" /><span className="rounded-full uppercase tracking-wide" /><span className="uppercase tracking-label sm:tracking-wider" />`,
+      `<div className="px-4 py-4 pb-safe sm:py-5" /><div className="pt-3 pb-safe-3" /><div className="p-2 pt-safe-2" /><div className="pb-safe-4 sm:pb-safe-5 short:pb-safe-4 pt-4" /><div className="max-sm:pb-safe-4 pb-tabbar" />`,
+      `<div className="pb-[max(1rem,env(safe-area-inset-bottom))] max-sm:pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-top))] pb-[max(0.6rem,env(safe-area-inset-bottom))] pb-[calc(1rem+env(safe-area-inset-bottom))]" />`,
     ].join("\n");
     expect(tokenProblems(source, tokens)).toEqual([
       "1: text-[11px] is text-2xs",
@@ -153,6 +196,12 @@ describe("design tokens", () => {
       "4: cubic-bezier(0.1, 0.7, 0.1, 1) is not an --ease token",
       "5: tracking-wide on an uppercase label; use tracking-label",
       "5: sm:tracking-wider on an uppercase label; use tracking-label",
+      "6: py-4 beside pb-safe; pad that edge once (pb-safe-N is N steps, or the inset where larger)",
+      "6: sm:py-5 beside pb-safe; pad that edge once (pb-safe-N is N steps, or the inset where larger)",
+      "6: p-2 beside pt-safe; pad that edge once (pt-safe-N is N steps, or the inset where larger)",
+      "6: pb-tabbar beside pb-safe; pad that edge once (pb-safe-N is N steps, or the inset where larger)",
+      "7: pb-[max(1rem,env(safe-area-inset-bottom))] is pb-safe-4",
+      "7: pt-[max(0.75rem,env(safe-area-inset-top))] is pt-safe-3",
     ]);
   });
 });
