@@ -143,10 +143,12 @@ test("the chart's box has its final height before the page is interactive, so no
 
 test("on a large screen the chart's division names stay whole, and a narrow chart names them by code", async ({ page }, info) => {
   // The root size grows above 1536px (globals.css), and the labels with it: the gutter follows
-  // (it was a fixed 64px, which cut "Platinum II" on the left above about 1700px).
+  // (it was a fixed 64px, which cut "Platinum II" on the left above about 1700px). Demo Mid, whose
+  // readings are Platinum IV to II, the longest names a division line carries (Demo Top's Silver
+  // ones fit even the old gutter).
   test.skip(info.project.name !== "desktop", "a desktop window, then a phone-wide one");
   await page.goto("/team");
-  const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
+  const id = (await page.getByTestId("lineup-row-MID").getAttribute("data-player-id"))!;
   const labels = () =>
     page.getByTestId("ranked-chart").evaluate((svg) =>
       [...svg.querySelectorAll<SVGTextElement>("text[data-division]")].map((t) => ({ x: t.getBBox().x, text: t.textContent ?? "" })),
@@ -162,9 +164,10 @@ test("on a large screen the chart's division names stay whole, and a narrow char
   // The longest names the wide chart writes ("Platinum II", "Emerald III", "Diamond IV") are what
   // the gutter must hold; at 2560 the root is about 22px.
   expect(wide.some((l) => / I{1,3}V?$|IV$/.test(l.text)), "the wide chart names divisions in full").toBe(true);
-  // A phone-wide window: divisions by code (E2, P1), a whole tier by a short name, the apex "M", whole.
+  // A phone-wide window: every line by its code, as match cards write a rank (P2, a tier's line by
+  // its first division, E4; the apex M), never a bare letter or a short word beside codes; whole.
   await page.setViewportSize({ width: 360, height: 800 });
-  await expect.poll(async () => (await labels()).every((l) => /^(I|B|S|G|P|E|D)[1-4]$|^(Iron|Bronze|Silver|Gold|Plat|Emer|Dia|M|GM|C)$/.test(l.text))).toBe(true);
+  await expect.poll(async () => (await labels()).every((l) => /^(I|B|S|G|P|E|D)[1-4]$|^(M|GM|C)$/.test(l.text))).toBe(true);
   for (const l of await labels()) expect(l.x, `"${l.text}" starts inside the drawing`).toBeGreaterThanOrEqual(0);
 });
 
