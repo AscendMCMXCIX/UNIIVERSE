@@ -27,10 +27,12 @@ import { describe, expect, it } from "vitest";
   What must show over a window is drawn inside it. Every window is a modal <dialog> in the browser's
   top layer, above the whole page and its z-indexes, with the rest of the page inert: an ⓘ's bubble
   or a toast left on the page was drawn under the window, out of sight, and a toast's buttons could
-  not be pressed. Windows note themselves in the top layer (top-layer.ts) as they open and close; a
-  tip's bubble goes into the window its trigger sits in, the toasts into the topmost window. A
-  picker's list inside a window opens in the flow of the window's body (picker-flow.ts), which is
-  then its one scroller, instead of a list scrolling inside it that the body cut off.
+  not be pressed. Windows note themselves in the top layer (top-layer.ts) as they open, come to rest
+  and close; a tip's bubble goes into the window its trigger sits in, the toasts into the topmost
+  window at rest (a moving window carries what is fixed inside it). A window takes the focus itself
+  only through focusWindow, focusable only while it holds it. A picker's list inside a window opens
+  in the flow of the window's body (picker-flow.ts), which is then its one scroller, instead of a
+  list scrolling inside it that the body cut off; there it closes on a press's click.
 */
 
 const root = join(__dirname, "..", "..", "..");

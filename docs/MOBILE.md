@@ -177,7 +177,7 @@ text below 12px; 11px (`text-2xs`) only for badges and labels.
 
 | Need | Phone pattern | Why |
 |---|---|---|
-| Narrow a list | **Filters** opens a sheet from the bottom edge with every filter, each with its label, and Reset and Done at its foot (`FilterBar`). Beside the button, what is narrowed shows as chips that remove themselves with a tap. A search box shares the row with Filters. Choices apply at once, as on desktop. A picker in the sheet (Played with, Champions) opens its list in the sheet's body, as tall as its options, and the body scrolls it into view. | The scope stays visible without opening anything; the sheet is within reach of the thumb and never pushes the page around. One scroller: a list scrolling inside the sheet's scrolling body was cut off at its edge. |
+| Narrow a list | **Filters** opens a sheet from the bottom edge with every filter, each with its label, and Reset and Done at its foot (`FilterBar`). Beside the button, what is narrowed shows as chips that remove themselves with a tap. A search box shares the row with Filters. Choices apply at once, as on desktop. A picker in the sheet (Played with, Champions) opens its list in the sheet's body, as tall as its options, and the body scrolls it into view; a tap below the open list closes it and reaches what was tapped. | The scope stays visible without opening anything; the sheet is within reach of the thumb and never pushes the page around. One scroller: a list scrolling inside the sheet's scrolling body was cut off at its edge. Closed as a tap started, the list moved the fields below it up before the tap landed. |
 | Open a game | The game takes the whole screen (the match window), as a new entry in the browser's history, so Back (the button, the edge swipe, Android's key) closes it and returns to the list exactly as it was. Its scoreboard keeps the marks for players met in other games; following one closes the game, and Back returns to it. | A scoreboard inside a list is a detour on a narrow screen. Desktop keeps the game under its card. |
 | A champion, a player from Team | The existing detail windows, which already take the whole screen on phones. | |
 | Account, Settings, Sign out | The account screen, from the avatar. | One menu, not two, every entry a full-width row in reach of the thumb. |
@@ -189,12 +189,17 @@ inert), Escape and the backdrop close it, focus returns to what opened it, a she
 grows from its content (`flex-auto`, never `flex-1`: Safari 26 collapses the other, above). The
 account screen is a screen of its own instead (`size="screen"`, above). A window opened by a tap
 takes the focus itself, so nothing in it is ringed as it opens (Safari drew its focus ring around the
-close button, the loudest thing in the window); opened from the keyboard, its close button has the
-focus, ringed; sign-in goes straight to its username. A window is in the browser's top layer, above
-the page, so what must show over it is drawn inside it: an ⓘ's bubble beside its ⓘ (Escape closes
-the bubble, not the window), and the toasts in their usual place above the tab bar, where their
-buttons answer a tap. In a window, a picker's list (the champion window's opponent picker too)
-opens in the window's body, never as a list scrolling inside it. A sheet:
+close button, the loudest thing in the window), and holds it only until it is tapped or the focus
+moves on, so a tap on its text never takes the focus from a field; opened from the keyboard, its
+close button has the focus, ringed; sign-in goes straight to its username. A window is in the
+browser's top layer, above the page, so what must show over it is drawn inside it: an ⓘ's bubble
+beside its ⓘ (Escape closes the bubble, not the window), and the toasts in their usual place above
+the tab bar, where their buttons answer a tap. The toasts go into a window once it has risen into
+place and leave it as it starts to close, so they never slide with a sheet; a toast raised as its
+window closes (Save, then the window goes) is announced on the page. In a window, a picker's list
+(the champion window's opponent picker too) opens in the window's body, never as a list scrolling
+inside it, and a tap below the open list reaches what was tapped (the list closes on the tap's
+click, so nothing moves under the finger first). A sheet:
 - is docked to the bottom edge on phones and in short windows (a phone held sideways, where it
   spans up to 44rem), and is a compact centred window on taller wider screens;
 - is as tall as its content, up to the screen less a strip of the page above it, a share of the
@@ -265,10 +270,12 @@ opens in the window's body, never as a list scrolling inside it. A sheet:
   scrolled from script while it is open is put back; the account dropdown's rows 44px tall on a
   touch screen (a phone held sideways, a tablet); its notes' link closing the screen; `e2e/sidebar-motion.spec.ts` the same early
   click on the desktop sidebar's collapse control and account tile; `e2e/popups.spec.ts` the
-  popups over windows (an ⓘ's bubble and a toast drawn inside the window, the focus a window takes
-  as it opens) and, on a phone, the Filters sheet's pickers and the opponent picker opening their
-  list in the window's body, the opponent search at 16px and the add-champion list above the tab
-  bar; `e2e/responsive.spec.ts`,
+  popups over windows (an ⓘ's bubble and a toast drawn inside the window, a toast never riding a
+  window's motion and heard once, the focus a window takes as it opens and lets go when pressed)
+  and, on a phone, the Filters sheet's pickers and the opponent picker opening their list in the
+  window's body, a tap under an open list reaching what was tapped, the opponent search at 16px
+  and the add-champion list above the tab bar (the WebKit workflow checks the tap-opened window's
+  focus, the bubble and the toast in Safari's engine); `e2e/responsive.spec.ts`,
   `e2e/mobile-landscape.spec.ts` and `e2e/quality.spec.ts` keep overflow, targets, short windows and
   axe in check at every width.
 - Safari 26's engine: `scripts/webkit26-check.mjs` (RESPONSIVE.md → Safari 26) opens every kind of

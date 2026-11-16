@@ -346,8 +346,8 @@ export function lockPage(): () => void {
  * focusable, it took the focus back at every such click, and the keys then scrolled nothing.
  *
  * Whatever must show over the window is drawn inside it, the dialog being in the browser's top
- * layer: an ⓘ's bubble (InfoTip) and the toasts (Toaster), which follow the window as it opens and
- * closes (top-layer.ts).
+ * layer: an ⓘ's bubble (InfoTip), and the toasts (Toaster), which come in once the window is at rest
+ * and leave as its closing motion starts: its motion would carry them along (top-layer.ts).
  */
 export function DetailModal({
   open,

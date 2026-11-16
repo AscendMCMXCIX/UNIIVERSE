@@ -140,7 +140,9 @@ globals.css). Rows inside the sidebar draw it inside their edge (`-outline-offse
 frame cannot clip it. A window opened by a tap or a click takes the focus itself, without a ring,
 so nothing in it is lit up as it opens (Safari ringed the close button, the loudest thing in the
 window); opened from the keyboard, its close button has the focus, ringed, so a keyboard user sees
-where they are (`DetailModal`, the tablet's menu; `src/components/ui/input-kind.ts`).
+where they are (`DetailModal`, the tablet's menu; `src/components/ui/input-kind.ts`). The window is
+focusable only while it holds that focus: pressed inside, or left by the focus, it lets go, so a
+click on its text leaves the focus as a page does and the keys still scroll its body (`focusWindow`).
 
 **Targets.** At least 24px everywhere and 44px on touch screens (STANDARDS.md).
 
@@ -283,12 +285,16 @@ test):
   full-width rows of at least 48px on a screen fixed to the phone's four edges. A window is in the
   browser's top layer, above the page and every z-index on it, with the rest of the page inert, so
   what must show over a window is drawn inside it (`src/components/ui/top-layer.ts`): an ⓘ's bubble
-  inside the window its trigger sits in, where its trigger puts it; the toasts inside the topmost
-  window, in their usual place, where their buttons can be pressed. Escape on an open bubble closes
-  the bubble alone, never the window. A picker's list inside a window (the Filters sheet's member and
-  champion pickers, the champion window's opponent picker) opens in the flow of the window's body,
-  which stays its one scroller: no list scrolling inside it, nothing cut off at its edge.
-  (`e2e/popups.spec.ts`)
+  inside the window its trigger sits in, where its trigger puts it, following the window while it
+  moves; the toasts inside the topmost window at rest, in their usual place, where their buttons can
+  be pressed (a moving window carries what is fixed inside it, so they go in once it has finished
+  moving in and leave as it starts to close), each heard once by a screen reader. Escape on an open
+  bubble closes the bubble alone, never the window. A picker's list inside a window (the Filters
+  sheet's member and champion pickers, the champion window's opponent picker) opens in the flow of
+  the window's body, which stays its one scroller: no list scrolling inside it, nothing cut off at
+  its edge; it fades in where it rests, and a press below it closes it on the press's click, so
+  nothing moves under the finger first. (`e2e/popups.spec.ts`; Safari's engine in
+  `e2e/webkit.spec.ts`)
 - **Before the page's code has run.** Destinations are real links, and work at once. The frame's
   controls that code drives (the phone's avatar, the tablet's menu button, the account menu's
   triggers on tablets and in the sidebar, the sidebar's collapse control) keep a tap made before it

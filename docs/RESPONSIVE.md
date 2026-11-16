@@ -27,7 +27,7 @@ it (`globals.css`), and every pinned element follows these rules:
 | Detail windows (`DetailModal`) | whole screen below `sm`, centred window above; one whose header would fill over 40% of a phone's screen (the Team player window on a small phone) scrolls as one, as in a short window | whole screen, scrolling as one: a large header scrolls away, its close and step buttons float at the top, a footer stays pinned |
 | The account screen (`DetailModal size="screen"`, behind the phone's avatar) | the whole screen, fixed to its four edges, under the status bar; its rows in a readable column (28rem); at the usual text size nothing scrolls on phones from 375pt wide (a few points for an administrator in Admin Mode in Safari's tab on a 375pt iPhone SE; a little on a 320pt screen in Safari's tab) | the whole screen too; only its body scrolls, as one region, under its bar with the close button |
 | Sheets (`DetailModal size="sheet"`: `Dialog`'s confirmations and editors, the filter sheet, the lineup sheet) | docked to the bottom edge, as tall as its content up to the screen less 2.5rem and the status bar (a share of the screen it is fixed to); a taller wider screen gets a centred window | docked to the bottom edge too, up to 44rem wide and the screen less 0.5rem; in both, the header and footer stay and only the body scrolls, unless they would leave it less room than its tallest control needs (large text or a zoomed page, mostly on a phone held sideways): then the whole sheet scrolls as one, like a page (`data-flow`) |
-| Things pinned to the bottom (toasts, a save bar) | `bottom-tabbar`: above the tab bar; over an open window or sheet the toasts are drawn inside it, in the same place | near the bottom edge |
+| Things pinned to the bottom (toasts, a save bar) | `bottom-tabbar`: above the tab bar; over an open window or sheet the toasts are drawn inside it, in the same place, once it has finished moving in (they leave it as it starts to close) | near the bottom edge |
 
 Turning the phone keeps state: windows, filters and tabs live in the address or in component
 state, never in the orientation, so a window open in one orientation is open in the other.
@@ -67,11 +67,19 @@ the window's body, as tall as its options, at every width inside a window and an
 (`src/components/ui/picker-flow.ts`): the body is the one thing that scrolls, and it brings the list
 into view as it opens (`scrollIntoView`, block `nearest`; the page behind is put back if a browser
 moves it too). Floating under its button with a height of its own, the list was a scroll inside the
-body's scroll, and the body cut it off at its edge. On a page from `sm` up the list still floats,
-18 to 20rem wide. The add-champion search opens on the page: its list goes above its field where the
-room below, down to the tab bar's top, is too small and the room above is larger, and is never
-taller than the room on its side (the page's scroll padding marks the bars, `clearArea` in
-`src/lib/screen.ts`).
+body's scroll, and the body cut it off at its edge. A list in the flow fades in where it rests (a
+rise would move it while it is brought into view, and leave it a rise's height under the window's
+header), and a press outside closes it on the press's click, not as the press starts: closing it
+moves everything below it up by its height, so closed at the press's start, the click reached
+whatever had moved under the finger. On a page from `sm` up the list still floats, 18 to 20rem
+wide, and closes as a press starts. The add-champion search opens on the page: its list goes above
+its field where the room below, down to the tab bar's top, is too small and the room above is
+larger, and is never taller than the room on its side (the page's scroll padding marks the bars,
+`clearArea` in `src/lib/screen.ts`). On a touch screen its field takes the focus as it opens, so the
+on-screen keyboard rises over the bottom of the screen, the tab bar with it: while it is up the
+room ends at the keyboard's top instead (`aboveKeyboard`, beside `useKeyboardFit` in
+`src/components/ui/keyboard-fit.ts`), measured again as the keyboard rises and as Safari moves the
+page to bring the field above it.
 
 ## Rows that scroll sideways
 
@@ -131,9 +139,11 @@ fit (iPhone 15 and wider) and scroll on narrower phones.
 
 - `Button`: desktop heights unchanged; `max-md:min-h-11` and `pointer-coarse:min-h-11`.
 - `Input`, `Select`, `Textarea`: 44px and 16px text on phones (iOS does not zoom a 16px field),
-  36px / 14px from `md`. A field of a component's own follows the same rule: the pickers' search
-  boxes are 16px on phones (the opponent search in the champion window was 14px, and iOS zoomed the
-  page into it as it was focused).
+  36px / 14px from `md`. The pickers' search boxes (member, champion, opponent) and the add-champion
+  field are 16px on touch screens at every width, 14px only with a mouse (`pointer-fine:text-sm`):
+  every iPhone held sideways is `sm` or wider and most are `md`, and iOS zoomed the page into the
+  opponent search at 14px. The shared fields above still turn 14px from `md` on a touch screen too
+  (a large iPhone held sideways); that is their own change to make, with a run of the browser tests.
 - `ToggleChip` (`ui/toggle.tsx`): every selectable chip (roles, modes, filters).
 - A section that folds on phones: `Disclosure` (`ui/disclosure.tsx`, a native `<details>`) or a CSS
   breakpoint. The former `MobileSection` was removed.
@@ -165,11 +175,15 @@ installed app's Back on a tablet (the display mode stood in for, as Chromium can
 the filter sheet's Done leaves with its motion; Admin Mode's Settings has its title.
 `e2e/popups.spec.ts` keeps what shows over a window inside it: an ⓘ's bubble in a window drawn
 inside the window and above it where its trigger puts it (also while the window is moved and
-scaled), Escape closing the bubble alone; a toast raised over a window drawn in it, heard once, its
-44px dismiss button pressed where it is drawn; a window opened by a tap holding the focus itself and
-one opened from the keyboard its close button (the tablet's menu the same, and its page lock); and
-on a phone, the Filters sheet's pickers and the opponent picker opening their list in the window's
-body, the opponent search at 16px, and the add-champion list ending above the tab bar.
+scaled, and once a motion of the window's own is over), Escape closing the bubble alone; a toast
+raised over a window drawn in it, heard once, its 44px dismiss button (measured once the toast's
+entrance has run) pressed where it is drawn; a toast never drawn in a window while the window moves
+in, and leaving it as its closing motion starts; a toast raised in the moment its window closes
+heard once, on the page; a window opened by a tap holding the focus itself until it is pressed
+(Page Down then scrolls its body) and one opened from the keyboard its close button (the tablet's
+menu the same, and its page lock); and on a phone, the Filters sheet's pickers and the opponent
+picker opening their list in the window's body, a tap under an open list reaching what was tapped,
+the opponent search at 16px, and the add-champion list ending above the tab bar.
 In this repository's sandbox set `PW_CHROMIUM_PATH` to the Chromium binary.
 
 The wider audit script that produced the before/after numbers (eight viewports × twelve routes,
@@ -221,6 +235,10 @@ Three levels, each saying what it proves:
     holding the focus, the page left where it was (at the top and scrolled);
   - the Admin Mode switch;
   - fields at 16px or more (Safari zooms into smaller ones) and sign-in's password autofill attributes;
+  - popups over windows, where Safari differs: a window opened by a tap holds the focus itself with
+    nothing in it ringed, a tapped ⓘ in a game's window is drawn inside it and the first Escape
+    closes the bubble alone, and an error toast over the picture editor is drawn in it, its dismiss
+    button answering a tap where it is drawn;
   - the pages held sideways;
   - the Home Screen metadata: `apple-mobile-web-app-*`, the touch icon, the manifest and `viewport-fit=cover`.
 
@@ -306,9 +324,12 @@ Three levels, each saying what it proves:
   10. Popups over windows: open a game and tap an ⓘ in it (the ranks under the scoreboard): its
       bubble shows over the window, beside the ⓘ. Tap a player on Team: the window opens with no
       ring around its ×. On Team → Matches, Filters, tap Played with: the list opens inside the
-      sheet, which scrolls as one, and nothing in it is cut off. In a champion's window, Matchups,
-      tap the opponent: the list opens in the window and the search does not zoom the page. (A
-      toast raised over a window, drawn in it, is checked by `e2e/popups.spec.ts`.)
+      sheet's body, which scrolls (the sheet's header and footer stay), and nothing in it is cut
+      off; with the list open, tap Team members in the game below it: that field answers. In a
+      champion's window, Matchups, tap the opponent: the list opens in the window and the search
+      does not zoom the page, upright or sideways. On your profile, Edit pools, tap Add champion in
+      a cell halfway down the screen: the list stays above the keyboard. (A toast raised over a
+      window, drawn in it, is checked by `e2e/popups.spec.ts` and the WebKit workflow.)
 
 **Browser features against Safari 16.4** (reviewed 21 Oct 2026). Tailwind v4 and Next.js 16 need
 Safari 16.4 or later, so that is the floor. Nothing the app uses needs more:
