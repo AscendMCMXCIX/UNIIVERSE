@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { NO_PREFERENCES, PREFERENCES_KEY, RECENT_MAX, parsePreferences, preferenceStore, withChoice, withRemembered } from "./preferences";
+import { NO_PREFERENCES, PREFERENCES_KEY, RECENT_MAX, parsePreferences, preferenceStore, storageKey, withChoice, withRemembered } from "./preferences";
 
 /** A browser window with a localStorage and its storage event, in Node. */
 function fakeWindow({ failGet = false, failSet = false }: { failGet?: boolean; failSet?: boolean } = {}) {
@@ -89,5 +89,41 @@ describe("the store", () => {
     preferenceStore.write(NO_PREFERENCES);
     expect(preferenceStore.read().you).toBeNull();
     expect(w.data.has(PREFERENCES_KEY)).toBe(true);
+  });
+});
+
+describe("for each account", () => {
+  const signedIn = (who: string | null) => vi.stubGlobal("document", { cookie: who === null ? "uniiverse_view=player" : `uniiverse_view=player; uniiverse_who=${who}` });
+
+  it("keeps each account's memory apart in one browser, under the base key when no account is signed in", () => {
+    const w = fakeWindow();
+    signedIn("a1b2c3d4e5f60718");
+    expect(storageKey()).toBe(`${PREFERENCES_KEY}:a1b2c3d4e5f60718`);
+    preferenceStore.write(withChoice(NO_PREFERENCES, "you", "Riven"));
+    expect(JSON.parse(w.data.get(`${PREFERENCES_KEY}:a1b2c3d4e5f60718`)!)).toMatchObject({ you: "Riven" });
+    // Another account signs in on this browser: nothing of the first one's is offered, and its Forget forgets only its own.
+    signedIn("ffffeeeeddddcccc");
+    expect(preferenceStore.read()).toEqual(NO_PREFERENCES);
+    preferenceStore.write(withRemembered(preferenceStore.read(), null));
+    signedIn("a1b2c3d4e5f60718");
+    expect(preferenceStore.read().you).toBe("Riven");
+    // No marker, or one that is not a marker: the base key.
+    signedIn(null);
+    expect(storageKey()).toBe(PREFERENCES_KEY);
+    signedIn("<b>");
+    expect(storageKey()).toBe(PREFERENCES_KEY);
+  });
+
+  it("follows another tab's change to this account's memory only", () => {
+    const w = fakeWindow();
+    signedIn("a1b2c3d4e5f60718");
+    const seen = vi.fn();
+    const stop = preferenceStore.subscribe(seen);
+    w.storageEvent(`${PREFERENCES_KEY}:ffffeeeeddddcccc`);
+    w.storageEvent(PREFERENCES_KEY);
+    expect(seen).not.toHaveBeenCalled();
+    w.storageEvent(`${PREFERENCES_KEY}:a1b2c3d4e5f60718`);
+    expect(seen).toHaveBeenCalledTimes(1);
+    stop();
   });
 });

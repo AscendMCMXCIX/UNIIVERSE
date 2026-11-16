@@ -2,16 +2,23 @@
 
 import * as React from "react";
 
+import { perAccountKey } from "@/components/account-storage";
+
 /*
   Matchup Intel's memory on this device (localStorage), champion ids only, never sent to the
   server: the champion you play, so the page can offer it next time (never assume it), and the
   champions chosen lately on each side, for the pickers' Recent rows. Empty on the server and until
   the page has loaded, then what is stored; other tabs follow through the storage event. Built like
   the Resources favourites (resources/favourites.ts): a versioned key, a cap, every storage call
-  guarded, so a private window or a full storage only means nothing is remembered.
+  guarded, so a private window or a full storage only means nothing is remembered. Kept for each
+  account, like a picker's recent champions: the key carries the signed-in account's marker
+  (perAccountKey), so two people who use one browser in turn never see or forget each other's.
 */
 
+/** The key's base; the key itself adds the account's marker where there is one (storageKey). */
 export const PREFERENCES_KEY = "uniiverse.matchup-intel.v1";
+/** This account's key, read afresh each time: another account may have signed in since. */
+export const storageKey = () => perAccountKey(PREFERENCES_KEY);
 /** The most champions a Recent row keeps, per side. */
 export const RECENT_MAX = 8;
 
@@ -67,7 +74,7 @@ function read(): MatchupPreferences {
   if (unsaved) return unsaved;
   let raw: string | null;
   try {
-    raw = window.localStorage.getItem(PREFERENCES_KEY);
+    raw = window.localStorage.getItem(storageKey());
   } catch {
     return NO_PREFERENCES;
   }
@@ -77,7 +84,7 @@ function read(): MatchupPreferences {
 
 function write(prefs: MatchupPreferences) {
   try {
-    window.localStorage.setItem(PREFERENCES_KEY, JSON.stringify(prefs));
+    window.localStorage.setItem(storageKey(), JSON.stringify(prefs));
     unsaved = null;
   } catch {
     unsaved = prefs;
@@ -88,8 +95,8 @@ function write(prefs: MatchupPreferences) {
 function subscribe(onChange: () => void): () => void {
   listeners.add(onChange);
   const onStorage = (e: StorageEvent) => {
-    // Another tab changed it, or cleared the storage (key null).
-    if (e.key === PREFERENCES_KEY || e.key === null) onChange();
+    // Another tab changed this account's, or cleared the storage (key null).
+    if (e.key === storageKey() || e.key === null) onChange();
   };
   window.addEventListener("storage", onStorage);
   return () => {

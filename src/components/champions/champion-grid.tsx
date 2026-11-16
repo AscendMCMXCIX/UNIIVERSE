@@ -4,6 +4,7 @@ import * as React from "react";
 import { Check, Search, X } from "lucide-react";
 import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
 import { normalise, type PickerChampion } from "./types";
+import { perAccountKey } from "@/components/account-storage";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
 import { cn } from "@/lib/cn";
@@ -81,11 +82,8 @@ export interface ChampionGridProps {
 
 const noopSubscribe = () => () => {};
 const RECENT_MAX = 12;
-/** Per account: a browser signed in to several accounts keeps each one's recent picks apart. */
-function recentKey(): string {
-  const who = document.cookie.split(/;\s*/).find((c) => c.startsWith("uniiverse_who="))?.slice("uniiverse_who=".length);
-  return who ? `uniiverse_recent_champions:${who}` : "uniiverse_recent_champions";
-}
+/** Per account: people who use one browser one after the other keep their recent picks apart. */
+const recentKey = () => perAccountKey("uniiverse_recent_champions");
 /** Champions recently chosen in any picker on this device by this account (a convenience; empty when storage is unavailable). */
 function readRecent(): string[] {
   try {
