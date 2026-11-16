@@ -35,6 +35,7 @@ import { useNow } from "@/components/ui/relative-time";
 import { fmtDuration, fmtInt, fmtNum } from "./match-format";
 import { isPhone, usePhone } from "@/components/ui/use-phone";
 import { pagerFold, pagerItems } from "./pager";
+import { screenHeight } from "@/lib/screen";
 
 /**
  * The gap between cards in rem, and ROW_REM, a wide card's height plus that gap (6.375rem: the
@@ -440,7 +441,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
     const el = listRef.current;
     if (!el) return;
     const phone = window.innerWidth < 768;
-    const room = window.innerHeight - el.getBoundingClientRect().top - 56;
+    const room = screenHeight() - el.getBoundingClientRect().top - 56;
     const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
     const card = el.querySelector("[data-testid=match-card]");
     const rowPx = card ? card.getBoundingClientRect().height + GAP_REM * rem : ROW_REM * rem;

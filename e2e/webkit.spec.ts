@@ -308,39 +308,63 @@ test("Player Customisation: the Studio opens, its sections switch from the secti
   await expect(page.getByTestId("profile-header")).toHaveAttribute("data-frame", frame ?? "none");
 });
 
-test("the account sheet in Safari's engine: docked at the bottom edge, everything in one screen, its last line clear of the edge", async ({ page }) => {
-  const sheet = page.getByTestId("account-sheet");
-  await page.goto("/team");
-  await expect(async () => {
-    if (!(await sheet.isVisible())) await page.getByTestId("account-sheet-button").tap({ timeout: 2_000 });
-    await expect(sheet).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 15_000 });
-  // Past the opening motion.
-  await expect(async () => expect(await sheet.evaluate((d) => getComputedStyle(d).transform)).toBe("none")).toPass();
-  const fit = await sheet.evaluate((d) => {
-    const body = d.querySelector<HTMLElement>("[data-sheet-scroll]")!;
-    const box = d.getBoundingClientRect();
-    const last = [...d.querySelectorAll("a, button, p")].filter((el) => (el as HTMLElement).offsetParent !== null).pop()!.getBoundingClientRect();
-    return { scrolls: body.scrollHeight > body.clientHeight + 1, docked: Math.abs(box.bottom - innerHeight) <= 1, top: box.top, clearance: box.bottom - last.bottom };
-  });
-  expect(fit.docked).toBe(true);
-  expect(fit.scrolls).toBe(false);
-  expect(fit.top).toBeGreaterThan(40);
-  expect(fit.clearance).toBeGreaterThanOrEqual(16);
-  await sheet.getByTestId("account-sheet-close").tap();
-  await expect(sheet).toHaveCount(0);
+test("the account screen in Safari's engine: one tap opens it, it fills the screen at rest, every control a full-width target reached where it is drawn, the page left where it was", async ({ page }) => {
+  const screen = page.getByTestId("account-sheet");
+  for (const [path, scroll] of [["/team", 0], ["/players", 400]] as const) {
+    await page.goto(path);
+    await page.evaluate((y) => window.scrollTo(0, y), scroll);
+    const scrolled = await page.evaluate(() => scrollY);
+    // One tap where the avatar is drawn (page.touchscreen): kept if it lands before the page's code
+    // has run (src/components/early-taps.ts). locator.tap() would first scroll the avatar into view,
+    // and this engine counts the top bar's scroll padding against a control inside the bar.
+    const avatar = (await page.getByTestId("account-sheet-button").boundingBox())!;
+    await page.touchscreen.tap(avatar.x + avatar.width / 2, avatar.y + avatar.height / 2);
+    await expect(screen).toBeVisible();
+    // At rest: its motion run and dropped, nothing animating, nothing moved or faded.
+    await expect(screen).toHaveAttribute("data-entered", "true");
+    expect(await screen.evaluate((d) => ({ animations: d.getAnimations().length, transform: getComputedStyle(d).transform, opacity: getComputedStyle(d).opacity }))).toEqual({ animations: 0, transform: "none", opacity: "1" });
+    const fit = await screen.evaluate((d) => {
+      const box = d.getBoundingClientRect();
+      const body = d.querySelector<HTMLElement>("[data-sheet-scroll]")!;
+      const controls = [...d.querySelectorAll<HTMLElement>("[data-testid=account-sheet-close], nav a, nav button, [data-testid=mode-switch], [data-testid=sign-out]")];
+      const missed = controls.filter((el) => {
+        const r = el.getBoundingClientRect();
+        const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return !(r.top >= 0 && r.bottom <= box.bottom && !!at && (at === el || el.contains(at)));
+      }).length;
+      const shortest = Math.min(...controls.slice(1).map((el) => el.getBoundingClientRect().height));
+      // Full width: as wide as the column the rows sit in (the nav), less its border.
+      const narrowest = Math.min(...controls.slice(1).map((el) => el.getBoundingClientRect().width));
+      const column = d.querySelector("nav")!.getBoundingClientRect().width;
+      return { box: [box.left, box.top, box.width, box.height], screen: [innerWidth, innerHeight], scrolls: body.scrollHeight > body.clientHeight + 1, missed, rows: controls.length - 1, shortest, narrowest, column, focus: document.activeElement === d };
+    });
+    // The whole screen, exactly; nothing scrolls; every control reached; rows at least 48px; the
+    // screen itself has the focus (the close button is not lit up).
+    expect(fit.box, path).toEqual([0, 0, ...fit.screen]);
+    expect(fit.scrolls, path).toBe(false);
+    expect(fit.missed, path).toBe(0);
+    // Rows measured (the demo has Settings, Resources, Install App and the mode switch), each 48px or
+    // taller and as wide as the column.
+    expect(fit.rows, path).toBeGreaterThanOrEqual(2);
+    expect(fit.shortest, path).toBeGreaterThanOrEqual(48);
+    expect(fit.narrowest, path).toBeGreaterThanOrEqual(fit.column - 2);
+    expect(fit.focus, path).toBe(true);
+    expect(await page.evaluate(() => scrollY), path).toBe(scrolled);
+    await screen.getByTestId("account-sheet-close").tap();
+    await expect(screen).toHaveCount(0);
+    expect(await page.evaluate(() => scrollY), path).toBe(scrolled);
+  }
 });
 
-test("Admin Mode: the account sheet's switch moves between Admin Mode and Player Mode, each with its own tab bar", async ({ page }) => {
+test("Admin Mode: the account screen's switch moves between Admin Mode and Player Mode, each with its own tab bar", async ({ page }) => {
   const tabs = page.getByRole("navigation", { name: "Primary" }).getByRole("link");
   const sheet = page.getByTestId("account-sheet");
   await page.goto("/admin");
   await expect(page.getByTestId("mobile-topbar")).toContainText("Admin mode");
   await expect(tabs).toHaveText(["Dashboard", "Users", "Settings", "Health"]);
-  await expect(async () => {
-    if (!(await sheet.isVisible())) await page.getByTestId("account-sheet-button").tap({ timeout: 2_000 });
-    await expect(sheet).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 15_000 });
+  // One tap: kept if it lands before the page's code has run (early-taps.ts).
+  await page.getByTestId("account-sheet-button").tap();
+  await expect(sheet).toBeVisible();
   await sheet.getByTestId("mode-switch").tap();
   await expect(page).toHaveURL(/\/team$/);
   await expect(tabs).toHaveText(["Team", "Players", "Leaderboards", "Matches", "Profile"]);

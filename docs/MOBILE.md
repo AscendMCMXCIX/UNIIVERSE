@@ -35,7 +35,7 @@ anywhere else:
    reached from one (a teammate's profile, Settings), labelled with where it leads ("‹ Players",
    "‹ Team Leaderboards"). Once the page's own heading has scrolled up under the bar, the bar shows
    its words (the player's name, "Team Leaderboards"), so the title is in view however far down you
-   are (the iOS large-title pattern). At its right end, your avatar opens the account sheet.
+   are (the iOS large-title pattern). At its right end, your avatar opens the account screen.
 2. **The bottom tab bar** (fixed, within reach of the thumb): **Team, Players, Leaderboards,
    Matches, Profile**, each one tap from anywhere (`PHONE_TABS` in `src/lib/nav.ts`, at most five,
    those the account may open). The current tab's icon sits in an accent pill and its label is
@@ -43,20 +43,81 @@ anywhere else:
    one. A teammate's profile belongs to Players; your own profile's sections to Profile.
    Tapping the current tab on its own page goes back to the top, and so does tapping the page's
    title once it has moved into the top bar (docs/DESIGN_SYSTEM.md, "The navigation contract").
-3. **The account sheet** (from the avatar, a sheet from the bottom edge): who is signed in, then
-   tiles, an icon over a name, three to a row (up to six on a phone held sideways): the pages the tab
-   bar does not hold (Resources when it has no tab, as an account with the Team pages has five tabs
-   already; in Admin Mode the admin pages without a tab), Settings and Install App; then the switch
-   between the modes beside Sign out, and one quiet line with the patch and Riot's notice. It
-   replaces both the menu drawer and the account dropdown on phones, and fits one short screen
-   (about 270px, 350px in Admin Mode, on a 320 × 568 phone too): it once listed everything as
-   full-width rows, which in Admin Mode ran below the sheet's own scroll on small phones and made a
-   phone held sideways a scrolling window (#265).
+3. **The account screen** (from the avatar: a screen of its own that rises over the page,
+   `DetailModal size="screen"`): a bar with "Account" and the close button at its right; who is
+   signed in (the picture, the name and the role, and the username on a line of its own where it
+   differs from the name; a long name or username wraps, never cut short); one panel of full-width
+   rows, 52px tall, each an icon and a name, with a chevron on each page's row: the pages the tab bar
+   does not hold (Resources when it has no tab, as an account with the Team pages has five tabs
+   already; in Admin Mode the admin pages without a tab), Settings and Install App; a second panel
+   with the switch between the modes above Sign out; at the foot one quiet line with the patch and
+   Riot's notice, whose link closes the screen as it goes. It is fixed to the screen's four edges,
+   under the status bar and the Dynamic Island, clear of the notch sideways, and its content keeps a
+   readable column (28rem) in the middle of a wider screen. At the usual text size everything is in
+   view without scrolling on every phone from 375pt wide held upright, installed or in Safari (in
+   Safari's tab on a 375pt iPhone SE, an administrator in Admin Mode whose username shows may scroll
+   a few points), measured with Sign out and a username line counted in. A 320pt-wide screen (an
+   iPhone SE with Display Zoom) scrolls a little in Safari's tab. With large text, or held sideways,
+   only its body scrolls, as one region, and the bar with the close button stays put. On a page pinched to zoom,
+   a finger pans the zoomed view across it. The close button is a quiet 36px circle whose touch
+   area reaches 44px. The screen takes the focus itself as it opens (nothing lights up), Tab reaches
+   the close button and the rows in order, Escape or the close button closes it and the focus goes
+   back to the avatar, and the page behind never moves. It replaces both the menu drawer and the
+   account dropdown on phones. See "Why the account menu was a strip on iPhones" below.
+
+   **The first tap counts.** The avatar is a button the page's code drives, and on a slow network
+   the page is drawn, and the avatar pressable, seconds before that code has run: a tap then did
+   nothing. An inline script in the root layout keeps such a tap (`src/components/early-taps.ts`):
+   the avatar shows pressed at once (an accent ring on the hover surface), and the account screen opens
+   as soon as the code runs, exactly once, however often it was tapped. Enter or Space on the focused
+   avatar goes the same way. Links need none of this: they work before the code has run.
+
+   **Why the account menu was a strip on iPhones (10 Nov).** The account sheet (#265) and then the
+   account panel (#278) were windows as tall as their content: a native dialog's own fit-content
+   height, holding a header and a body that grows into the window's room and scrolls once the window
+   is full (`flex-1`, a body that grows from nothing). Safari 26 and earlier (iOS, iPadOS and macOS
+   26) work out that height as if such a body were empty, so the window collapses to its header and
+   paddings. On the owner's iPhone the sheet was a 124pt strip at the foot of the screen and the
+   panel a 95pt strip at the top: exactly their borders, headers and body paddings, with no body.
+   In WebKit 26.0 most other sheets (filters, editors, confirmations) collapse the same way, and so
+   do the compact windows and, on iPads and Macs, the centred windows (a player's window, signing
+   in); the scroll-as-one fallback (`SHEET_SPARE_REM`) sometimes redrew a collapsed sheet whole (the
+   filter sheet in an installed app's frame, not in Safari's tab). WebKit 27 draws it correctly
+   (WebKit bugs 242837 and 289876, fixed in Safari 27), and the browser tests ran Playwright's WebKit
+   27 and Chromium, so every test passed while iPhones on iOS 26 showed strips. Playwright 1.58.2's
+   WebKit 26.0 draws exactly what the owner saw: the panel 377×95 with one of its six controls in
+   reach. So does real iOS: in the iOS Simulator (Mobile Safari on iOS 26.5 and 26.2, a Home Screen
+   web app on 26.5, run once on GitHub's macOS runners on 10 Nov), main's panel was 95px tall with
+   one of six controls in reach in Safari (one of five installed, where Install App is hidden), and
+   the filter sheet 189px in Safari's tab (whole when installed). Two changes fix it, and the same
+   Simulator run of them showed the account screen filling the screen (695px in Safari, 793 and
+   812px installed) with every control in reach and the filter sheet whole (410px):
+   - every window's body grows from its content (`flex-auto`, `BODY_SCROLLS` in detail-modal.tsx),
+     which Safari 26 sizes correctly; `overlay-sizing.test.ts` forbids a body that grows from
+     nothing, and `scripts/webkit26-check.mjs` opens every kind of window in WebKit 26.0 (the WebKit
+     workflow runs it, RESPONSIVE.md → Safari 26);
+   - the account menu is a screen of its own, fixed to the screen's four edges: its height is the
+     screen's, with nothing to work out from its content.
+
+   The diagnoses before this one were wrong. #278 blamed the sheet's motion, drawn as if stopped
+   early; the first version of this change blamed an installed app reporting its viewport far too
+   small (196pt), a figure worked back from the screenshot, never measured. What that work changed
+   stays, for its own reasons: overlays are placed and sized by the box they are fixed to (insets
+   and percentages), not by viewport units or by measuring the viewport from script, readings of
+   the screen that iOS has got wrong in installed apps: svh and the visual viewport less the safe
+   areas (WebKit bug 254868), vh and lvh on iOS 26.1 (301994), the visual viewport short after the
+   keyboard or a resume (322900, 323322). Inside windows, the Card Studio's section list and the
+   picture cropper still follow the viewport, as before.
 
 Tablets keep the menu drawer (a modal dialog), the account dropdown and the page tabs
 (`SectionTabs`, pinned at the top of the page once it scrolls, as a profile's sections are, so they
-stay in reach as on a phone); the bottom bar and the account sheet are phones only. The installed
-app on a tablet, which has no browser Back, gets the same Back in its top bar as a phone.
+stay in reach as on a phone); the bottom bar and the account screen are phones only. The menu button
+and the avatar that opens the account dropdown keep an early tap as the phone's avatar does (so does
+the account tile in the desktop sidebar), and the drawer's Sign out tells the browser's other tabs, as
+the account screen's and the account menu's do (`AccountGuard` checks each of them then; a tab left on a
+member's page goes to sign-in at its next page, since the server answers every request from its own
+session cookie). The installed app on a tablet, which has no browser Back, gets the same Back in its
+top bar as a phone.
 
 ### Back
 
@@ -119,19 +180,28 @@ text below 12px; 11px (`text-2xs`) only for badges and labels.
 | Narrow a list | **Filters** opens a sheet from the bottom edge with every filter, each with its label, and Reset and Done at its foot (`FilterBar`). Beside the button, what is narrowed shows as chips that remove themselves with a tap. A search box shares the row with Filters. Choices apply at once, as on desktop. | The scope stays visible without opening anything; the sheet is within reach of the thumb and never pushes the page around. |
 | Open a game | The game takes the whole screen (the match window), as a new entry in the browser's history, so Back (the button, the edge swipe, Android's key) closes it and returns to the list exactly as it was. Its scoreboard keeps the marks for players met in other games; following one closes the game, and Back returns to it. | A scoreboard inside a list is a detour on a narrow screen. Desktop keeps the game under its card. |
 | A champion, a player from Team | The existing detail windows, which already take the whole screen on phones. | |
-| Account, Settings, Sign out | The account sheet. | One menu, not two. |
+| Account, Settings, Sign out | The account screen, from the avatar. | One menu, not two, every entry a full-width row in reach of the thumb. |
 | A short question or form | `Dialog`: the same sheet as every other (built on `DetailModal`). | One sheet: one look, one motion, one height rule. |
 
 Every sheet and window shares `DetailModal`: native `<dialog>` (focus kept inside, the page behind
 inert), Escape and the backdrop close it, focus returns to what opened it, a sheet slides up in
-220ms with `--ease-emphasized` and out in 140ms (instant with reduced motion). A sheet:
+220ms with `--ease-emphasized` and out in 140ms (instant with reduced motion). Every window's body
+grows from its content (`flex-auto`, never `flex-1`: Safari 26 collapses the other, above). The
+account screen is a screen of its own instead (`size="screen"`, above). A sheet:
 - is docked to the bottom edge on phones and in short windows (a phone held sideways, where it
   spans up to 44rem), and is a compact centred window on taller wider screens;
-- is as tall as its content, up to the screen less a strip of the page above it, measured in small
-  viewport units (`svh`), so Safari's toolbars sliding in and out never resize it under the finger;
-- keeps its header and footer in place, and only its body scrolls when it must (never the whole
-  sheet, never a scroll inside a scroll);
-- keeps its last line at least 1rem from the bottom edge, more where a home indicator is;
+- is as tall as its content, up to the screen less a strip of the page above it, a share of the
+  screen it is fixed to (not viewport units), which does not move while the sheet is open;
+- keeps its header and footer in place, and only its body scrolls when it must (never a scroll
+  inside a scroll); its choices go in the body and its actions in the footer;
+- scrolls as one instead, like a page, its header and footer included, only where they would leave
+  its body less room than the tallest control in it needs (large text, or a page zoomed in, on a
+  phone held sideways: the account sheet's header and footer once took 63% of it at 150% and 84% at
+  200%, and no tile could ever be shown whole between them). `DetailModal` measures this on every
+  change of size (`SHEET_SPARE_REM`), and the sheet carries `data-flow` while it does;
+- keeps its last line at least 1rem from the bottom edge, its footer's actions included, more where
+  a home indicator is (`pb-safe-4`: the padding, or the inset where it is larger); a sheet that is a
+  centred window keeps its footer 0.75rem from its own edge;
 - can be pulled down by its handle or header to close (a long pull or a flick; a short pull settles
   back), and a touch that would move nothing inside it never moves the page behind (no rubber band,
   no toolbar sliding).
@@ -161,18 +231,38 @@ inert), Escape and the backdrop close it, focus returns to what opened it, a she
 | Surfaces | One panel per list, hairline dividers inside; cards for objects that open (games); no frame around a single group that already has one. Colour and gradient are kept for meaning (a game's result, a selected tab). |
 | Touch targets | 44px for everything a finger presses (tabs, rows, chips through `touch-target`, sheet rows 48px). |
 | Titles | One `h1` per page; on phones the page tabs and the bar's title say where you are, so instructions under a title are left out (`PageHeader guide`), while a scope line ("Season 2026 · 6 games") always shows. |
-| Interactive states | Pressed rows darken to `surface-2` (`active:`); the current tab, section or view is marked twice (colour and a pill, bar or weight); narrowed filters are accent chips; focus keeps the accent ring everywhere. |
+| Interactive states | Pressed rows darken to `surface-2` (`active:`); the current tab, section or view is marked twice (colour and a pill, bar or weight); narrowed filters are accent chips; focus keeps the accent ring everywhere. The avatar tapped before the page's code has run shows pressed (`[data-early][aria-busy]`: `surface-2` in a ring of accent) until it opens the account screen. |
 | Loading, empty, errors | Unchanged components: `Skeleton`, `EmptyState`, `PageError`; the match window shows its skeleton until the game has loaded. Results of actions are toasts, which sit above the tab bar (`bottom-tabbar`) and follow it down when it slides away. |
-| Motion | Bars slide 200ms ease-out in short windows; sheets as above; the title fades in 150ms. Everything respects reduced motion. |
+| Motion | Bars slide 200ms ease-out in short windows; sheets as above; the account screen rises 1rem into place in 200ms and fades out in 140ms; the title fades in 150ms. Everything respects reduced motion. |
 
 ## 6. Verifying
 
 - `pnpm verify` (unit tests include the phone tab bar, `currentTab`, `profileBase` and `phoneParent`
   in `src/lib/nav.test.ts`).
 - `pnpm build && pnpm test:e2e`: `e2e/mobile-nav.spec.ts` checks the frame on a phone (the five
-  tabs, Back and its label, the title, the profile's sections, the account sheet, the filter sheet
-  and chips, a game opening full screen and Back closing it, the Players and Recent form rows); `e2e/responsive.spec.ts`,
-  `e2e/mobile-landscape.spec.ts` and `e2e/quality.spec.ts` keep overflow, targets, short windows
-  and axe in check at every width.
+  tabs, Back and its label, the title, the profile's sections, the account screen, including a tap
+  made while the page's code is held back, the screen filling the smallest iPhone in both modes and
+  at 150% text, touches that never move the page, the filter sheet and chips, a game opening full
+  screen and Back closing it, the Players and Recent form rows) and, on a tablet, an early tap on
+  the menu button and on the avatar, and that the drawer's Sign out reaches the browser's other tabs;
+  `e2e/account-screen.spec.ts` the account screen on seven phones with their safe areas (Chrome told
+  an iPhone's insets), on five pages scrolled to the top, the middle and the end: it fills the
+  screen exactly, nothing in it scrolls, every control is a full-width row at least 48px tall reached
+  by a tap where it is drawn, the close button sits below the status bar at the top right, the
+  screen has the focus and the page never moves, and nothing in it ends under the home indicator;
+  a username far longer than the name wraps on the narrowest phones; its close button's touch area
+  of 44px; held sideways at 100%, 125%, 150% and 200% text, upright at 150%, and in a page zoomed
+  to 150% sideways, one scroll region in which every control can be shown whole; on a page pinched
+  to zoom, a finger's drag pans the zoomed view; no frame of its motion more than 1rem from where it
+  rests, at rest with every animation held at its first frame, at once with reduced motion; a page
+  scrolled from script while it is open is put back; the account dropdown's rows 44px tall on a
+  touch screen (a phone held sideways, a tablet); its notes' link closing the screen; `e2e/sidebar-motion.spec.ts` the same early
+  click on the desktop sidebar's collapse control and account tile; `e2e/responsive.spec.ts`,
+  `e2e/mobile-landscape.spec.ts` and `e2e/quality.spec.ts` keep overflow, targets, short windows and
+  axe in check at every width.
+- Safari 26's engine: `scripts/webkit26-check.mjs` (RESPONSIVE.md → Safari 26) opens every kind of
+  window in WebKit 26.0, the engine that collapsed them, on four phones, an iPad and a Mac.
 - Real devices: see RESPONSIVE.md → Safari and iPhones. Emulated phones prove layout and behaviour
-  in Chromium, not Safari's own toolbars or gestures.
+  in an engine, not Safari's own toolbars or gestures on an iPhone. The account screen on a real
+  iPhone, installed and in Safari, is the owner's check.
+

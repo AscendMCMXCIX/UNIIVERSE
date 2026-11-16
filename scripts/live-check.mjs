@@ -36,7 +36,12 @@
     (/public/leaderboards is not found and the public team page shows no rank); the public team
     page shows Riot's required notice.
   - frame (#178): the charcoal frame token; the sidebar, open and folded, with the gradient bar on
-    the current page; the phone and tablet top bar, drawer and tab bar.
+    the current page; the phone and tablet top bar, drawer and tab bar. Phone: the avatar opens the
+    account screen on the first tap, made as soon as it is on screen; the screen comes to rest (its
+    motion run and dropped) filling the screen exactly, nothing in it scrolls, every control in it is
+    a full-width target at least 48px tall reached by a tap where it is drawn, the screen itself has
+    the focus, and Sign out is in view. Tablet and desktop: the account menu opens on the first tap or
+    click on its avatar or tile, made as soon as it is on screen.
   - All Champions (#178): compact rows, sorted by games, no heading cut short.
   - settings: the picture and display-name help name the public team page, and Settings never
     mentions a Public profile switch (retired; true or false only).
@@ -381,16 +386,68 @@ async function frameChecks(page, kind, context) {
     pass("frame", "desktop: the folded sidebar keeps the frame", folded === "true", { collapsed: folded });
     await shot(page, "desktop-frame-folded");
     await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: base }]);
+    await accountMenuFirstTap(page, kind, page.getByTestId("sidebar").getByTestId("account-menu-button"));
     return;
   }
   pass("frame", `${kind}: the top bar is painted with the frame colour`, sameAsFrame(paint.top, paint.chrome), { topBar: paint.top, chrome: paint.chrome });
   if (kind === "phone") {
     pass("frame", "phone: the tab bar is painted with the frame colour", sameAsFrame(paint.tabs, paint.chrome), { tabBar: paint.tabs, chrome: paint.chrome });
-    // Phones have no drawer: the avatar opens the account sheet (docs/MOBILE.md, "The account sheet").
-    await page.getByTestId("account-sheet-button").click();
-    const sheet = await page.getByTestId("account-sheet").waitFor({ timeout: 5_000 }).then(() => true, () => false);
-    pass("frame", "phone: the avatar opens the account sheet", sheet);
-    if (sheet) await shot(page, "phone-account-sheet");
+    // Phones have no drawer: the avatar opens the account screen (docs/MOBILE.md, "The account screen").
+    // The first tap counts: a fresh load, one tap as soon as the avatar is on screen (before the
+    // page's code has run, on a slow load, it is kept and applied once it runs: early-taps.ts), and
+    // no second one.
+    await page.goto(`${base}/team`, { waitUntil: "commit" });
+    const avatar = page.getByTestId("account-sheet-button");
+    await avatar.waitFor({ timeout: 20_000 });
+    const tappedAt = Date.now();
+    await avatar.tap();
+    const screen = page.getByTestId("account-sheet");
+    const opened = await screen.waitFor({ timeout: 15_000 }).then(() => true, () => false);
+    pass("frame", "phone: the avatar opens the account screen on the first tap", opened, { openedAfterMs: opened ? Date.now() - tappedAt : null });
+    if (opened) {
+      // At rest: its opening motion run and dropped (data-entered), within a few seconds.
+      const rested = await page.waitForFunction(() => {
+        const d = document.querySelector("[data-testid=account-sheet]");
+        return !!d && d.getAttribute("data-entered") === "true" && d.getAnimations().length === 0;
+      }, null, { timeout: 5_000 }).then(() => true, () => false);
+      // Where it rests: the whole screen, exactly; nothing scrolls; every control a full-width target
+      // at least 48px tall, reached by a tap where it is drawn; the screen itself has the focus (the
+      // close button is not lit up); Sign out (with an account) in view.
+      const fit = await screen.evaluate((d) => {
+        const box = d.getBoundingClientRect();
+        const body = d.querySelector("[data-sheet-scroll]");
+        const controls = [...d.querySelectorAll("[data-testid=account-sheet-close], nav a, nav button, [data-testid=mode-switch], [data-testid=sign-out]")];
+        const missed = controls.filter((el) => {
+          const r = el.getBoundingClientRect();
+          const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+          return !(r.top >= 0 && r.bottom <= box.bottom && at && (at === el || el.contains(at)));
+        }).length;
+        const rows = controls.slice(1).map((el) => el.getBoundingClientRect());
+        // Full width: as wide as the column the rows sit in (the nav), less its border.
+        const column = d.querySelector("nav")?.getBoundingClientRect().width ?? 0;
+        const signOut = d.querySelector("[data-testid=sign-out]")?.getBoundingClientRect();
+        return {
+          box: [Math.round(box.left), Math.round(box.top), Math.round(box.width), Math.round(box.height)],
+          screen: [innerWidth, innerHeight],
+          bodyScrolls: !!body && body.scrollHeight > body.clientHeight + 1,
+          controls: controls.length,
+          missed,
+          shortest: rows.length ? Math.round(Math.min(...rows.map((r) => r.height))) : 0,
+          narrowest: rows.length ? Math.round(Math.min(...rows.map((r) => r.width))) : 0,
+          column: Math.round(column),
+          focus: document.activeElement === d,
+          signOut: signOut ? { inView: signOut.top >= 0 && signOut.bottom <= box.bottom } : null,
+        };
+      });
+      const fills = fit.box[0] === 0 && fit.box[1] === 0 && fit.box[2] === fit.screen[0] && fit.box[3] === fit.screen[1];
+      pass("frame", "phone: the account screen comes to rest filling the screen, nothing in it scrolling", rested && fills && !fit.bodyScrolls, { rested, box: fit.box, screen: fit.screen, bodyScrolls: fit.bodyScrolls });
+      pass("frame", "phone: every control in the account screen is a full-width target reached by a tap where it is drawn", fit.controls >= 3 && fit.missed === 0 && fit.shortest >= 48 && fit.column > 0 && fit.narrowest >= fit.column - 2, { controls: fit.controls, missed: fit.missed, shortestRow: fit.shortest, narrowestRow: fit.narrowest, column: fit.column });
+      pass("frame", "phone: the account screen takes the focus itself as it opens", fit.focus, { focus: fit.focus });
+      if (fit.signOut) pass("frame", "phone: Sign out is in view without scrolling the account screen", fit.signOut.inView, fit.signOut);
+      else if (local) warn("frame", "phone: Sign out not offered", { why: "LIVE_LOCAL=1: the demo build has no sign-in; the screen holds the mode switch" });
+      else pass("frame", "phone: Sign out is in view without scrolling the account screen", false, { signOut: null });
+      await shot(page, "phone-account-screen");
+    }
     await page.keyboard.press("Escape");
     await page.waitForTimeout(400);
     return;
@@ -400,6 +457,24 @@ async function frameChecks(page, kind, context) {
   const drawer = await colours(page, { panel: "[data-testid=mobile-drawer-panel]" });
   pass("frame", `${kind}: the drawer is painted with the frame colour`, sameAsFrame(drawer.panel, drawer.chrome), { drawer: drawer.panel, chrome: drawer.chrome });
   await shot(page, `${kind}-frame-drawer`);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(400);
+  await accountMenuFirstTap(page, kind, page.getByTestId("mobile-topbar").getByTestId("account-menu-button"));
+}
+
+/**
+ * The account menu opens on the first tap or click, made on a fresh load as soon as its trigger is on
+ * screen (the tablet's avatar, the sidebar's tile): before the page's code has run, on a slow load,
+ * the tap is kept and applied once it runs (early-taps.ts); and no second one.
+ */
+async function accountMenuFirstTap(page, kind, trigger) {
+  await page.goto(`${base}/team`, { waitUntil: "commit" });
+  await trigger.waitFor({ timeout: 20_000 });
+  const tappedAt = Date.now();
+  if (kind === "tablet") await trigger.tap();
+  else await trigger.click();
+  const menu = await page.getByTestId("account-menu").waitFor({ timeout: 15_000 }).then(() => true, () => false);
+  pass("frame", `${kind}: the account menu opens on the first ${kind === "tablet" ? "tap" : "click"}`, menu, { openedAfterMs: menu ? Date.now() - tappedAt : null });
   await page.keyboard.press("Escape");
   await page.waitForTimeout(400);
 }

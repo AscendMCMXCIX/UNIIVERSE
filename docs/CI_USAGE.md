@@ -149,11 +149,13 @@ The limit is now 60 minutes for the browser job only (unit and database stay at 
 
 ## The WebKit workflow (21 Oct 2026)
 
-`.github/workflows/webkit.yml` runs `e2e/webkit.spec.ts` in Safari's engine (docs/RESPONSIVE.md →
-Safari and iPhones). It is started by hand only, never by a push or a pull request, so it costs
-nothing until someone runs it.
-- **One run:** install, the WebKit download (cached after the first run), a build and a few minutes
-  of tests, about 8 billed minutes.
+`.github/workflows/webkit.yml` runs `e2e/webkit.spec.ts` in Safari's engine, then
+`scripts/webkit26-check.mjs` in Safari 26's (WebKit 26.0, since 10 Nov 2026; docs/RESPONSIVE.md →
+Safari and iPhones, Safari 26). It is started by hand only, never by a push or a pull request, so it
+costs nothing until someone runs it.
+- **One run:** install, the WebKit download (cached after the first run), a build, a few minutes of
+  tests, then WebKit 26.0's download (not cached) and its check: 8 to 14 minutes (7.4 and 13.4 on
+  10 Nov; the Safari 26 step 1.3 to 1.6 of them, the system libraries up to 9.5).
 - **When to run it:** once before releasing a change that could behave differently in Safari
   (touch, dialogs, forms, the installed app), and after changing the spec.
 - Editing the workflow does not start CI (it is in `paths-ignore`).
