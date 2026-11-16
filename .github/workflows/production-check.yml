@@ -93,11 +93,17 @@ jobs:
           # is lost fails the check (LIVE_REQUIRE_SIGN_IN), except by the owner's two off switches: the
           # repository variable SIGNED_IN_CHECKS=false, or the account deactivated in Admin.
           export LIVE_REQUIRE_SIGN_IN=1
+          signin=verify
           if [ "$SIGNED_IN_CHECKS" = "false" ]; then
+            signin=off
             unset UNIIVERSE_VERIFY_USER UNIIVERSE_VERIFY_PASSWORD LIVE_REQUIRE_SIGN_IN
-          elif [ -z "$UNIIVERSE_VERIFY_USER" ] && [ -n "$CRON_SECRET" ]; then
-            # The app keeps the account first (created once, then a no-op; it follows a change of its
-            # key by itself). Its answer is the account's state and the key's name, never a value.
+          elif [ -n "$UNIIVERSE_VERIFY_USER" ]; then
+            signin=explicit
+          fi
+          if [ -n "$CRON_SECRET" ]; then
+            # The app keeps the account on every run, whoever signs in, so its password follows a
+            # change of its key even while the off switch or explicit secrets are in use (created
+            # once, then a no-op). Its answer is the account's state and the key's name, never a value.
             answer="$(curl --silent --max-time 60 -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/jobs/verify-account" || true)"
             state="$(jq -r '.summary.state // "no answer"' <<<"$answer" 2>/dev/null || true)"
             # An app from before the key's name was answered derives from CRON_SECRET.
@@ -109,34 +115,49 @@ jobs:
             case "$problem" in "VERIFY_ACCOUNT_SECRET "*|"CRON_SECRET "*) ;; *) problem="" ;; esac
             unset answer
             echo "verification account: ${state:-no answer}"
-            case "$state" in
-              created|unchanged|password-updated)
-                if [ "$key" = "VERIFY_ACCOUNT_SECRET" ]; then VERIFY_KEY="$VERIFY_ACCOUNT_SECRET"; else key=CRON_SECRET VERIFY_KEY="$CRON_SECRET"; fi
-                echo "verification account key: $key"
-                # The app refuses a padded VERIFY_ACCOUNT_SECRET of its own; the repository's copy is
-                # held to the same rule, by the same trim().
-                if [ "$key" = "VERIFY_ACCOUNT_SECRET" ] && ! VERIFY_KEY="$VERIFY_KEY" node -e 'const k = process.env.VERIFY_KEY || ""; process.exit(k !== "" && k.trim() === k ? 0 : 1)'; then
-                  # The app uses VERIFY_ACCOUNT_SECRET, and this repository's copy is missing or has a
-                  # space or line break at an end.
-                  echo "::error::The app works the verification account's password out from VERIFY_ACCOUNT_SECRET, and this repository's VERIFY_ACCOUNT_SECRET secret is not set, or starts or ends with a space or line break (docs/LIVE_VALIDATION.md)."
-                  echo "- FAIL: the repository secret VERIFY_ACCOUNT_SECRET, which the app uses for the verification account, is missing or has a space or line break at an end (docs/LIVE_VALIDATION.md)." > verify-account.md
-                  status=1
-                else
-                  UNIIVERSE_VERIFY_PASSWORD="$(VERIFY_KEY="$VERIFY_KEY" node -e 'process.stdout.write(require("node:crypto").createHmac("sha256", process.env.VERIFY_KEY).update("uniiverse:production-verification-account:v1", "utf8").digest("base64url"))')"
-                  echo "::add-mask::$UNIIVERSE_VERIFY_PASSWORD"
-                  export UNIIVERSE_VERIFY_USER=verify UNIIVERSE_VERIFY_PASSWORD
-                fi
-                unset VERIFY_KEY ;;
-              deactivated)
-                unset LIVE_REQUIRE_SIGN_IN
-                echo "::warning::The verification account is deactivated (the owner's off switch), so the member pages stay pending (docs/LIVE_VALIDATION.md)." ;;
-              *)
-                # Withdrawn (its access, profile or name changed), conflict, a key the server cannot
-                # use, or no answer.
-                echo "::error::The verification account is not available (${state:-no answer}${problem:+: $problem}), so the member pages could not be opened (docs/LIVE_VALIDATION.md)."
-                echo "- FAIL: the verification account answered \"${state:-no answer}\"${problem:+ ($problem)} (docs/LIVE_VALIDATION.md)." > verify-account.md
-                status=1 ;;
-            esac
+            if [ "$signin" != verify ]; then
+              # Not signed in as `verify` this run: a key the server cannot use still fails the
+              # check; any other answer is said, as a warning.
+              if [ -n "$problem" ]; then
+                echo "::error::The verification account's key cannot be used: $problem (docs/LIVE_VALIDATION.md)."
+                echo "- FAIL: the verification account answered \"${state:-no answer}\" ($problem) (docs/LIVE_VALIDATION.md)." > verify-account.md
+                status=1
+              else
+                case "$state" in
+                  created|unchanged|password-updated|deactivated) ;;
+                  *) echo "::warning::The verification account answered \"${state:-no answer}\"; this run does not sign in as it (docs/LIVE_VALIDATION.md)." ;;
+                esac
+              fi
+            else
+              case "$state" in
+                created|unchanged|password-updated)
+                  if [ "$key" = "VERIFY_ACCOUNT_SECRET" ]; then VERIFY_KEY="$VERIFY_ACCOUNT_SECRET"; else key=CRON_SECRET VERIFY_KEY="$CRON_SECRET"; fi
+                  echo "verification account key: $key"
+                  # The app refuses a padded VERIFY_ACCOUNT_SECRET of its own; the repository's copy is
+                  # held to the same rule, by the same trim().
+                  if [ "$key" = "VERIFY_ACCOUNT_SECRET" ] && ! VERIFY_KEY="$VERIFY_KEY" node -e 'const k = process.env.VERIFY_KEY || ""; process.exit(k !== "" && k.trim() === k ? 0 : 1)'; then
+                    # The app uses VERIFY_ACCOUNT_SECRET, and this repository's copy is missing or has a
+                    # space or line break at an end.
+                    echo "::error::The app works the verification account's password out from VERIFY_ACCOUNT_SECRET, and this repository's VERIFY_ACCOUNT_SECRET secret is not set, or starts or ends with a space or line break (docs/LIVE_VALIDATION.md)."
+                    echo "- FAIL: the repository secret VERIFY_ACCOUNT_SECRET, which the app uses for the verification account, is missing or has a space or line break at an end (docs/LIVE_VALIDATION.md)." > verify-account.md
+                    status=1
+                  else
+                    UNIIVERSE_VERIFY_PASSWORD="$(VERIFY_KEY="$VERIFY_KEY" node -e 'process.stdout.write(require("node:crypto").createHmac("sha256", process.env.VERIFY_KEY).update("uniiverse:production-verification-account:v1", "utf8").digest("base64url"))')"
+                    echo "::add-mask::$UNIIVERSE_VERIFY_PASSWORD"
+                    export UNIIVERSE_VERIFY_USER=verify UNIIVERSE_VERIFY_PASSWORD
+                  fi
+                  unset VERIFY_KEY ;;
+                deactivated)
+                  unset LIVE_REQUIRE_SIGN_IN
+                  echo "::warning::The verification account is deactivated (the owner's off switch), so the member pages stay pending (docs/LIVE_VALIDATION.md)." ;;
+                *)
+                  # Withdrawn (its access, profile or name changed), conflict, a key the server cannot
+                  # use, or no answer.
+                  echo "::error::The verification account is not available (${state:-no answer}${problem:+: $problem}), so the member pages could not be opened (docs/LIVE_VALIDATION.md)."
+                  echo "- FAIL: the verification account answered \"${state:-no answer}\"${problem:+ ($problem)} (docs/LIVE_VALIDATION.md)." > verify-account.md
+                  status=1 ;;
+              esac
+            fi
           fi
           unset CRON_SECRET VERIFY_ACCOUNT_SECRET
           if [ -n "${UNIIVERSE_VERIFY_USER:-}" ]; then echo "signed_in=true" >> "$GITHUB_OUTPUT"; else echo "signed_in=false" >> "$GITHUB_OUTPUT"; fi

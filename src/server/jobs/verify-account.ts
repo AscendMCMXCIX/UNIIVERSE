@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, lte } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { auditEvents, users } from "@/server/db/schema";
+import { auditEvents, sessions, users } from "@/server/db/schema";
 import { defineJob } from "./registry";
 import { createUser, findUserByUsername, setPassword } from "@/server/repositories/users";
 import { verifyPassword } from "@/server/auth/password";
@@ -145,7 +145,10 @@ async function keepAccount(db: Db, password: string, before: string | null): Pro
     return { ok: true, summary: { username: VERIFY_USERNAME, state: "deactivated" } };
   }
   if (!plain) return { ok: false, error: `An account named "${VERIFY_USERNAME}" exists that is not the plain member this job keeps, and its password is not the derived one; nothing was changed.`, summary: { username: VERIFY_USERNAME, state: "conflict" } };
-  if (derived) return { ok: true, summary: { username: VERIFY_USERNAME, state: "unchanged" } };
+  if (derived) {
+    await endRacedSessions(db, existing.id);
+    return { ok: true, summary: { username: VERIFY_USERNAME, state: "unchanged" } };
+  }
   // The key changed (VERIFY_ACCOUNT_SECRET set, or the key in use replaced): the new password, and
   // every session opened with the old one ends (setPassword signs the account out everywhere).
   await setPassword(db, existing.id, password);
@@ -163,6 +166,26 @@ async function withdrawCronPassword(db: Db, cron: string): Promise<void> {
     await revokeAllSessions(tx, existing.id);
   });
   await recordAudit(db, JOB, { action: "account.password-withdrawn", target: { type: "user", id: existing.id, name: VERIFY_USERNAME }, details: { purpose: "production verification", reason: "VERIFY_ACCOUNT_SECRET cannot be used" } });
+}
+
+/** How long after this job changed the password a sign-in that checked the old one could still be creating its session. */
+const SETTLE_MS = 60_000;
+
+/**
+ * A sign-in that checked the old password just before this job changed it can create its session
+ * just after the change, which ended every session then open. So each later run ends the account's
+ * sessions begun before SETTLE_MS after the job's last change of the password: such a session
+ * lasts until the next run at most. The Production check signs in afresh on every run.
+ */
+async function endRacedSessions(db: Db, userId: string): Promise<void> {
+  const [last] = await db
+    .select({ at: auditEvents.at })
+    .from(auditEvents)
+    .where(and(eq(auditEvents.action, "account.password-reset"), eq(auditEvents.targetId, userId), eq(auditEvents.actorName, JOB.username)))
+    .orderBy(desc(auditEvents.at))
+    .limit(1);
+  if (!last) return;
+  await db.delete(sessions).where(and(eq(sessions.userId, userId), lte(sessions.createdAt, new Date(last.at.getTime() + SETTLE_MS))));
 }
 
 /** This job withdrew this account's password before (Admin → Audit Logs). */

@@ -5,7 +5,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
   its job makes, through the real entry points a browser reaches (loginAction, the server actions,
   the /me page), as tests/db/auth-actions.test.ts drives them:
   - the job withdraws the derived password, and ends the account's sessions, once its own account
-    was given more access, a level, a profile or another name, so CRON_SECRET no longer opens it;
+    was given more access, a level, a profile or another name, so its key no longer opens it;
   - the account cannot change its own username, display name or password in Settings;
   - it cannot give itself a player profile (only the Owner completes one), so it never joins the
     players or starts Riot collection.
@@ -37,7 +37,7 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/server/accounts/kickoff", async (orig) => ({ ...(await orig<object>()), kickoffAccountSync: async () => undefined }));
 
-import { eq, sql } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { auditEvents, sessions as sessionsTable, users as usersTable } from "@/server/db/schema";
@@ -310,6 +310,25 @@ describe("VERIFY_ACCOUNT_SECRET, the account's own key, once the owner sets it",
     await setAccessGroups(handle.db, null, id, []);
     expect((await ensureVerificationAccount(handle.db, WITH_OWN)).summary.state).toBe("password-updated");
     expect(await opens(VERIFY_USERNAME, OWN_DERIVED)).toBe(true);
+  });
+
+  it("ends, on the next run, a session that raced the change of the key, and keeps one begun after it", async () => {
+    const id = await verifyId();
+    expect((await ensureVerificationAccount(handle.db, WITH_OWN)).summary.state).toBe("password-updated");
+    const [change] = await handle.db.select({ at: auditEvents.at }).from(auditEvents).where(eq(auditEvents.action, "account.password-reset")).orderBy(desc(auditEvents.at)).limit(1);
+    const ids = async () => (await handle.db.select({ id: sessionsTable.id }).from(sessionsTable).where(eq(sessionsTable.userId, id))).map((r) => r.id);
+    // A sign-in that checked CRON_SECRET's password just before the change, and created its session just after it.
+    await createSession(handle.db, id);
+    const raced = await ids();
+    expect(raced).toHaveLength(1);
+    // An ordinary sign-in two minutes later.
+    expect(await login(VERIFY_USERNAME, OWN_DERIVED)).toBe("/team");
+    const later = (await ids()).filter((sid) => !raced.includes(sid));
+    expect(later).toHaveLength(1);
+    await handle.db.update(sessionsTable).set({ createdAt: new Date(change!.at.getTime() + 120_000) }).where(eq(sessionsTable.id, later[0]!));
+    expect(await sessionCount(id)).toBe(2);
+    expect((await ensureVerificationAccount(handle.db, WITH_OWN)).summary.state).toBe("unchanged");
+    expect(await ids()).toEqual(later);
   });
 
   it("moves a deactivated account to the new key too, so reactivating it never reopens it to CRON_SECRET's password", async () => {

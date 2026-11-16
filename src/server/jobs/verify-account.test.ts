@@ -214,8 +214,38 @@ describe("the Live check step signs in with the key the app names", () => {
     expect(off.seen).toMatchObject({ user: null, password: null, required: null });
     const switchedOff = runStep(answer({ state: "unchanged" }), { CRON_SECRET: CRON, SIGNED_IN_CHECKS: "false" });
     expect(switchedOff.status).toBe(0);
-    expect(switchedOff.curlCalled).toBe(false);
     expect(switchedOff.seen).toMatchObject({ user: null, password: null, required: null });
+  });
+
+  it("keeps the account on every run, whoever signs in, so a change of its key is followed with the checks switched off or explicit secrets set", () => {
+    // Switched off: the job is still asked (its password follows the key), nothing signs in.
+    const switchedOff = runStep(answer({ state: "password-updated", key: "VERIFY_ACCOUNT_SECRET" }), { CRON_SECRET: CRON, VERIFY_ACCOUNT_SECRET: OWN, SIGNED_IN_CHECKS: "false" });
+    expect(switchedOff.curlCalled).toBe(true);
+    expect(switchedOff.curlArgs).toContain("https://app.invalid/api/jobs/verify-account");
+    expect(switchedOff.status, switchedOff.out).toBe(0);
+    expect(switchedOff.seen).toMatchObject({ user: null, password: null, required: null });
+    expect(switchedOff.out).toContain("verification account: password-updated");
+    // Explicit secrets: the job is asked, and the explicit account signs in as before.
+    const explicit = runStep(answer({ state: "unchanged", key: "CRON_SECRET" }), { CRON_SECRET: CRON, UNIIVERSE_VERIFY_USER: "someone-else", UNIIVERSE_VERIFY_PASSWORD: "their-own-password-123" });
+    expect(explicit.curlCalled).toBe(true);
+    expect(explicit.status, explicit.out).toBe(0);
+    expect(explicit.seen).toEqual({ user: "someone-else", password: "their-own-password-123", required: "1", cron: null, own: null });
+  });
+
+  it("with the checks switched off or explicit secrets set, still fails on a key the server cannot use, and only warns on another answer", () => {
+    const switches: Array<Record<string, string>> = [{ SIGNED_IN_CHECKS: "false" }, { UNIIVERSE_VERIFY_USER: "someone-else", UNIIVERSE_VERIFY_PASSWORD: "their-own-password-123" }];
+    for (const secrets of switches) {
+      const bad = runStep(JSON.stringify({ ok: false, error: VERIFY_SECRET_UNUSABLE, summary: { username: "verify" } }), { CRON_SECRET: CRON, ...secrets });
+      expect(bad.status, JSON.stringify(secrets)).toBe(1);
+      expect(bad.out).toContain(`::error::The verification account's key cannot be used: ${VERIFY_SECRET_UNUSABLE}`);
+      expect(bad.summary).toContain(VERIFY_SECRET_UNUSABLE);
+      for (const reply of [JSON.stringify({ ok: false, error: "The account \"verify\" no longer has only the default member access", summary: { username: "verify", state: "withdrawn" } }), null]) {
+        const other = runStep(reply, { CRON_SECRET: CRON, ...secrets });
+        expect(other.status, other.out).toBe(0);
+        expect(other.out).toMatch(/::warning::The verification account answered "(withdrawn|no answer)"; this run does not sign in as it/);
+        expect(other.out + other.summary).not.toContain("no longer has only");
+      }
+    }
   });
 
   it("fails without CRON_SECRET (the sign-in is required and nothing provides it)", () => {
