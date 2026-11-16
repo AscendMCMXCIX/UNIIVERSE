@@ -7,6 +7,10 @@ import { syncRiotAssets } from "@/server/riot/static/assets";
 import { invalidateChampionMap } from "@/server/champions/map";
 import { invalidateChampionCaches } from "@/server/repositories/champions";
 import { invalidateCache } from "@/server/observability/cache";
+import { seedChampionAbilitiesFromFixture, syncChampionAbilities, type AbilitySyncResult } from "@/server/matchup-intel/abilities";
+
+/** The longest the champion abilities may take inside a run (their files are requested only on a new version or a first fill). */
+const ABILITY_SYNC_MS = 30_000;
 
 /**
  * Version check + champion sync. Cheap when nothing changed (one request). When a new version
@@ -20,6 +24,20 @@ async function run(ctx: Pick<JobContext, "db" | "log" | "startedAt" | "budgetMs"
     invalidateChampionMap();
     invalidateChampionCaches();
     invalidateCache("shell-facts");
+  }
+  // Matchup Intel: each champion's abilities from Data Dragon, once per game version, from the
+  // detail files the champion sync just read (the missing ones are requested); the committed
+  // offline copy when the champions came from the offline fixture. When nothing changed it is one
+  // statement, which reads the stored abilities once. Its own failure never stops the rest of the run.
+  let abilities: AbilitySyncResult | null = null;
+  try {
+    if (result.usedFixture) abilities = await seedChampionAbilitiesFromFixture(ctx.db, { log: ctx.log });
+    else if (result.ok && !result.degraded && result.version) {
+      const deadline = Math.min(ctx.startedAt + ctx.budgetMs, Date.now() + ABILITY_SYNC_MS);
+      abilities = await syncChampionAbilities(ctx.db, result.version, { provider, details: result.championDetails, force, deadline, log: ctx.log });
+    }
+  } catch (err) {
+    ctx.log(`Champion abilities not refreshed: ${(err as Error).message}`);
   }
   // Card artwork: check splash images of real skins (bounded per run, and none started after the
   // job's budget) and move saved choices off chromas, duplicate images and missing art. Skipped
@@ -56,9 +74,22 @@ async function run(ctx: Pick<JobContext, "db" | "log" | "startedAt" | "budgetMs"
     skinsUpserted: result.skinsUpserted ?? 0,
     skinArt,
     assetsUpdated,
+    // Counts only: no champion is named in a job's output.
+    abilities: abilities && {
+      version: abilities.version,
+      source: abilities.source,
+      stored: abilities.stored,
+      refreshed: abilities.refreshed,
+      kept: abilities.kept,
+      failed: abilities.failed,
+      deferred: abilities.deferred,
+      fetched: abilities.fetched,
+      degraded: abilities.degraded,
+    },
   };
   if (!result.ok) return { ok: false, error: result.error, summary };
-  return { ok: true, degraded: result.degraded, error: result.error, summary };
+  const error = [result.error, abilities?.error].filter(Boolean).join(" ") || undefined;
+  return { ok: true, degraded: result.degraded || Boolean(abilities?.degraded), error, summary };
 }
 
 defineJob({
