@@ -425,9 +425,10 @@ request is a game's match timeline, once per game, when a section that needs it 
   and runes from 54rem and the compact build from 61rem (narrower lists leave them to the
   breakdown). The KDA and figure tracks are sized by their text (`minmax(auto, …)`), with floors
   that the widest real values fit, so a total or share never runs under the build or the teams and
-  the columns stay level from card to card: the K/D/A's 6.5rem fits "10 / 10 / 10" (digits are
-  tabular, so every K/D/A of three two-digit numbers is that wide; between 50 and 54rem, where the
-  row has no width to spare, the K/D/A keeps the narrow card's size, which 5.75rem fits), and the
+  the columns stay level from card to card: the K/D/A's floor of 6.25em fits "10 / 10 / 10" with
+  about 9% to spare (digits are tabular, so every K/D/A of three two-digit numbers is that wide;
+  Inter sets it at 5.71em, and browser builds differ by a pixel or two; in em the floor follows the
+  K/D/A's own size, the narrow card's between 50 and 54rem and larger from 54rem), and the
   figures' 8.125rem fits "1,234 dmg/min (45%)". The champion's name has 6rem (6.25rem from 54rem,
   which the longest one-word name, "Heimerdinger", fits) and takes a second line rather than lose
   its end ("Nunu &" / "Willump"), with the whole name as its hover text; the teams keep at least

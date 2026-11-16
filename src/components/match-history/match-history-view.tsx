@@ -217,11 +217,13 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
           {/* KDA: the primary performance figure. On a wide card its track is at least as wide as
               "10 / 10 / 10", the widest K/D/A a real game gives (digits are tabular, so every line
               of three two-digit numbers is that wide), and as wide as its text whenever that is
-              wider: the floor keeps the columns level from card to card. Between 50 and 54rem,
-              where the row has no width to spare, the K/D/A keeps the narrow card's size, which
-              that floor fits (5.75rem); from 54rem it is larger, with a floor to match (6.5rem). */}
+              wider: the floor keeps the columns level from card to card. The floor is in em, so it
+              follows the text's size (the narrow card's size between 50 and 54rem, larger from
+              54rem) and the reader's text size, with room to spare: Inter sets "10 / 10 / 10" at
+              5.71em, and browser builds differ by a pixel or two (CI's measured 1.5px more than a
+              local one against a floor of 5.78em). 6.25em leaves about 9%. */}
           <span className="text-right leading-snug @min-[50rem]/mh:text-left">
-            <span className="block whitespace-nowrap text-base font-semibold tabular-nums leading-snug text-fg @min-[50rem]/mh:min-w-[5.75rem] @min-[54rem]/mh:min-w-[6.5rem] @min-[54rem]/mh:text-lg" data-testid="match-kda">
+            <span className="block whitespace-nowrap text-base font-semibold tabular-nums leading-snug text-fg @min-[50rem]/mh:min-w-[6.25em] @min-[54rem]/mh:text-lg" data-testid="match-kda">
               {kda}
             </span>
             <span className={cn("block text-xs tabular-nums", row.perfect ? "text-good" : (row.kda ?? 0) >= 3 ? "text-fg-muted" : "text-fg-subtle")}>{ratio}</span>
