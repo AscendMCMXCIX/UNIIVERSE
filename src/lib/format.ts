@@ -210,3 +210,19 @@ export function formatPerRank(values: readonly number[], unit: "s" | "%" | "", p
 export function formatCooldowns(values: readonly number[], per: "rank" | "level" = "rank"): string {
   return formatPerRank(values, "s", per);
 }
+
+/**
+ * A number followed by the space and unit a curated note writes after it: time, distance,
+ * resources, stats and counts ("1.625 s", "4 seconds", "300 units", "50 Fury", "7% AP", "3 charges").
+ * The unit is a whole word, so "1 stun" or "2 seconds" read as written.
+ */
+const UNIT_AFTER_NUMBER = /(\d%?) (?=(?:s|seconds?|units?|charges?|stacks?|Fury|energy|mana|health|range|AP|AD)(?![\p{L}\p{N}]))/gu;
+
+/**
+ * Curated text as Matchup Intel draws it: each number and the unit after it ("1.625 s", "4 seconds",
+ * "300 units", "50 Fury", "7% AP") joined by a no-break space, so a line never ends between them,
+ * leaving "s" alone at the start of the next. Nothing else in the text changes.
+ */
+export function keepUnitsWithNumbers(text: string): string {
+  return text.replace(UNIT_AFTER_NUMBER, "$1\u00a0");
+}

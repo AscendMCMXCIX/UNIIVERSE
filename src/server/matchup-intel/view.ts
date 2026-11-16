@@ -2,6 +2,7 @@ import type { Db } from "@/server/db/types";
 import { FACT_TAGS, SLOTS, type AbilityRef, type AbilityView, type BriefingPoint, type BriefingPointView, type ChampionChoice, type ChampionIntelView, type ChampionNotes, type DdragonChampionAbilities, type Fact, type FactSubject, type FactTag, type FactView, type Freshness, type InteractionView, type MatchupIntelView, type MatchupNotes, type MatchupPageView, type Recheck, type Slot, type Source, type SourceLinkView } from "@/domain/matchup-intel/types";
 import { abilityChanges, abilityFreshness, compareDdragonVersions, cooldownDisplay, curatedCooldownDisplay, modifiersView, weakestFreshness } from "@/domain/matchup-intel/cooldown";
 import { patchFromVersion, patchesAfter, publicPatchName } from "@/domain/patch";
+import { keepUnitsWithNumbers } from "@/lib/format";
 import { cachedFor } from "@/server/observability/cache";
 import { getCurrentPatch, listChampions, listPatchesDesc, type ChampionSummary } from "@/server/repositories/champions";
 import { loadChampionAbilities } from "./abilities";
@@ -110,6 +111,15 @@ export function championResolver(champions: readonly ChampionChoice[]): (raw: un
 /** A revision time as a source may give it: an ISO time in UTC ("2026-09-23T19:37:45Z"). */
 const REVISION_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?Z$/;
 
+/**
+ * A curated text as the page draws it: each number held to its unit by a no-break space ("1.625 s"),
+ * so a line never ends between them. Every curated text reaches the page through here; anything that
+ * is not a string is passed on as it is (the notes' own checks refuse it).
+ */
+function drawn<T>(text: T): T {
+  return (typeof text === "string" ? keepUnitsWithNumbers(text) : text) as T;
+}
+
 /** A fact's or a note's source, as the page links it: its title, its address when it is an allowed one ("" otherwise), and when the page read was saved. */
 function sourceLink(sources: readonly Source[], id: string): SourceLinkView {
   const s = sources.find((x) => x.id === id);
@@ -122,7 +132,7 @@ const TAGS: ReadonlySet<string> = new Set<string>(FACT_TAGS);
 /** A fact as the page shows it: who has the effect when the notes say, its tags from the vocabulary only (each once), and its source's link. */
 function factView(f: Fact, sources: readonly Source[]): FactView {
   const tags = Array.isArray(f.tags) ? f.tags.filter((t, i, all): t is FactTag => typeof t === "string" && TAGS.has(t) && all.indexOf(t) === i) : [];
-  return { kind: f.kind, label: f.label, detail: f.detail ?? null, appliesTo: typeof f.appliesTo === "string" && SUBJECTS.has(f.appliesTo) ? f.appliesTo : null, tags, source: sourceLink(sources, f.source) };
+  return { kind: f.kind, label: drawn(f.label), detail: drawn(f.detail ?? null), appliesTo: typeof f.appliesTo === "string" && SUBJECTS.has(f.appliesTo) ? f.appliesTo : null, tags, source: sourceLink(sources, f.source) };
 }
 
 /** Copies of the sources, each address kept only when it is an allowed one. */
@@ -185,16 +195,21 @@ function abilityViews(data: DdragonChampionAbilities | null, notes: ChampionNote
         cooldown: cooldownDisplay(a, n, freshness),
         checkedCooldown: freshness === "changed-since" && n?.cooldown ? curatedCooldownDisplay(n.cooldown, checkedRanks) : null,
         changes: changed,
-        cooldownNote: n?.cooldownNote ?? null,
-        modifiers: modifiersView(n?.modifiers, freshness === "changed-since" ? checkedRanks : a.maxRank),
-        recast: n?.recast ? { ...n.recast } : null,
+        cooldownNote: drawn(n?.cooldownNote ?? null),
+        modifiers: drawnModifiers(modifiersView(n?.modifiers, freshness === "changed-since" ? checkedRanks : a.maxRank)),
+        recast: n?.recast ? { ...n.recast, note: drawn(n.recast.note) } : null,
         facts: n && notes ? n.facts.map((f) => factView(f, notes.sources)) : [],
         description: a.description,
-        details: n?.details ? [...n.details] : [],
+        details: n?.details ? n.details.map(drawn) : [],
         freshness,
       },
     ];
   });
+}
+
+/** The modifiers as the page draws them: what gives a refund back is curated text. */
+function drawnModifiers(m: ReturnType<typeof modifiersView>): ReturnType<typeof modifiersView> {
+  return m?.refund ? { ...m, refund: { ...m.refund, when: drawn(m.refund.when) } } : m;
 }
 
 /** What a champion's intel is read with beyond its record and notes. */
@@ -239,7 +254,7 @@ function championIntel(champion: ChampionChoice, data: DdragonChampionAbilities 
     levelNotes: notes
       ? [...(notes.levelNotes ?? [])]
           .sort((a, b) => a.level - b.level)
-          .map((l) => ({ level: l.level, text: l.text, source: sourceLink(notes.sources, l.source), changed: Array.isArray(l.basedOn) && l.basedOn.some(changedSlot) }))
+          .map((l) => ({ level: l.level, text: drawn(l.text), source: sourceLink(notes.sources, l.source), changed: Array.isArray(l.basedOn) && l.basedOn.some(changedSlot) }))
       : [],
     sources: notes ? safeSources(notes.sources) : [],
   };
@@ -317,13 +332,13 @@ function matchupIntel(notes: MatchupNotes, ids: ReadonlySet<string>, data: Recor
   const point = (p: BriefingPoint): BriefingPointView => {
     const basedOn = keep(p.basedOn);
     const changed = changedOf(basedOn);
-    return changed.length ? { kind: "hidden", changed } : { kind: "point", text: p.text, basedOn };
+    return changed.length ? { kind: "hidden", changed } : { kind: "point", text: drawn(p.text), basedOn };
   };
   const briefing = { threat: point(notes.briefing.threat), opportunity: point(notes.briefing.opportunity), lane: notes.briefing.lane.map(point) };
   const interactions = notes.interactions.map((i): InteractionView => {
     const abilities = keep(i.abilities);
     const changed = changedOf(abilities);
-    return changed.length ? { kind: "hidden", changed } : { kind: "interaction", text: i.text, abilities, source: i.source };
+    return changed.length ? { kind: "hidden", changed } : { kind: "interaction", text: drawn(i.text), abilities, source: i.source };
   });
   const shown = [briefing.threat, briefing.opportunity, ...briefing.lane].flatMap((p) => (p.kind === "point" ? p.basedOn : []));
   const values = [...shown, ...interactions.flatMap((i) => (i.kind === "interaction" ? i.abilities : []))].map(freshnessOfRef);

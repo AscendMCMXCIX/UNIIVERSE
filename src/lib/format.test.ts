@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import path from "node:path";
 import { ESLint } from "eslint";
-import { DISPLAY_TIME_ZONE, calendarDay, localPeriodStarts, formatCompactCount, formatCooldowns, formatCount, formatDate, formatDateTime, formatDayMonth, formatIsoDay, formatKilo, formatNumber, formatPerRank, formatSeconds, formatTimeOfDay, isoDay, timeAgo, formatLpChange } from "./format";
+import { DISPLAY_TIME_ZONE, calendarDay, localPeriodStarts, formatCompactCount, formatCooldowns, formatCount, formatDate, formatDateTime, formatDayMonth, formatIsoDay, formatKilo, formatNumber, formatPerRank, formatSeconds, formatTimeOfDay, isoDay, keepUnitsWithNumbers, timeAgo, formatLpChange } from "./format";
 
 /*
   Every date on the site is written in the installation's time zone (Sydney unless
@@ -155,6 +155,23 @@ describe("cooldowns (Matchup Intel)", () => {
     expect(formatCooldowns([8, Number.POSITIVE_INFINITY])).toBe("—");
     expect(formatPerRank(["8"] as unknown as number[], "s")).toBe("—");
     expect(formatPerRank(null as unknown as number[], "%")).toBe("—");
+  });
+});
+
+describe("numbers and their units in curated text (Matchup Intel)", () => {
+  const NBSP = "\u00a0";
+  it("joins a number and the unit after it with a no-break space, so a line never ends between them", () => {
+    expect(keepUnitsWithNumbers("with no tenacity the stun lasts 1.625 s or 1.3 s, and she takes")).toBe(`with no tenacity the stun lasts 1.625${NBSP}s or 1.3${NBSP}s, and she takes`);
+    expect(keepUnitsWithNumbers("For 4 seconds, within 300 units; at 50 Fury, 3 charges, 1 health, 600 range, 55 energy.")).toBe(`For 4${NBSP}seconds, within 300${NBSP}units; at 50${NBSP}Fury, 3${NBSP}charges, 1${NBSP}health, 600${NBSP}range, 55${NBSP}energy.`);
+    expect(keepUnitsWithNumbers("5 (+30% AP) plus 1 second and 2 stacks (Ornn's 4 s forge)")).toBe(`5 (+30%${NBSP}AP) plus 1${NBSP}second and 2${NBSP}stacks (Ornn's 4${NBSP}s forge)`);
+  });
+
+  it("changes nothing else: words that only start like a unit, numbers before other words, and a unit with no number before it", () => {
+    for (const text of ["2 stuns and 3 seconds2", "Can be cast 2 more times", "at levels 6, 11 and 16", "75 bonus range, 20% bonus AD", "R's second pass", "the s and the units", "1 sec", ""]) {
+      expect(keepUnitsWithNumbers(text), text).toBe(text);
+    }
+    // A unit ends at the end of its word, whatever follows it.
+    expect(keepUnitsWithNumbers("a 3 seconds-long window")).toBe(`a 3${NBSP}seconds-long window`);
   });
 });
 

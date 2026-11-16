@@ -106,7 +106,8 @@ describe("a curated matchup (Ambessa vs Renekton)", () => {
     expect(w.checkedCooldown).toBeNull();
     expect(w.changes).toEqual([]);
     expect(w.modifiers).toEqual({ resetsAttack: true, lockout: { seconds: 0.5 } });
-    expect(w.cooldownNote).toBe("Held for up to 7 seconds.");
+    // Curated text as the page draws it: the number held to its unit (the next describe).
+    expect(w.cooldownNote).toBe("Held for up to 7\u00a0seconds.");
     // Who has the effect, the tags from the vocabulary only and each once, and when the page read was saved.
     expect(w.facts[0]).toEqual({ kind: "crowd-control", label: "Stun", detail: "Stuns on the third hit.", appliesTo: "target", tags: ["stun"], source: { title: "Renekton (League of Legends Wiki)", url: WIKI, revisionTime: "2026-09-23T19:37:45Z" } });
     expect(w.facts[1]).toMatchObject({ appliesTo: null, tags: [], source: { title: "A guide elsewhere", url: "", revisionTime: null } });
@@ -138,6 +139,43 @@ describe("a curated matchup (Ambessa vs Renekton)", () => {
     // Notes handed back for another pair are never shown as this one's.
     const wrong = await buildMatchupPageView({ champion: "Garen", vs: "Darius" }, deps({ matchupNotes: () => ambessaVsRenekton() }));
     expect(wrong.matchup).toBeNull();
+  });
+});
+
+describe("curated text as the page draws it", () => {
+  it("holds every number to its unit with a no-break space, in every curated text the page shows, and changes nothing else", async () => {
+    const units = renektonNotes({
+      abilities: {
+        W: {
+          ...renektonNotes().abilities.W!,
+          modifiers: { refund: { unit: "percent", amount: [25, 35, 45, 55, 65], when: "her first attack within 4 seconds" } },
+          recast: { count: 1, note: "Open for 0.5 s after the dash." },
+          facts: [{ kind: "crowd-control", label: "Stun for 1.5 s", detail: "Within 300 units, 50 Fury makes it 1.625 s.", appliesTo: "target", source: "wiki" }],
+          details: ["Lasts 4 s, then 2 charges."],
+        },
+      },
+      levelNotes: [{ level: 6, text: "At 50 Fury for 2 seconds.", source: "wiki", basedOn: ["W"] }],
+    });
+    const matchup = ambessaVsRenekton({
+      briefing: { threat: { text: "The stun lasts 1.625 s or 1.3 s.", basedOn: ["Renekton.W"] }, opportunity: { text: "Trade within 4 seconds.", basedOn: ["Renekton.W"] }, lane: [{ text: "Can be cast 2 more times.", basedOn: ["Renekton.W"] }] },
+      interactions: [{ text: "Unstoppable for 1 s answers it.", abilities: ["Renekton.W"], source: "wiki" }],
+    });
+    const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps({ championNotes: (id) => (id === "Renekton" ? units : null), matchupNotes: () => matchup }));
+    const NBSP = "\u00a0";
+    const b = v.matchup!.briefing!;
+    expect([b.threat, b.opportunity, ...b.lane].map((p) => (p.kind === "point" ? p.text : null))).toEqual([`The stun lasts 1.625${NBSP}s or 1.3${NBSP}s.`, `Trade within 4${NBSP}seconds.`, "Can be cast 2 more times."]);
+    expect(v.matchup!.interactions.map((i) => (i.kind === "interaction" ? i.text : null))).toEqual([`Unstoppable for 1${NBSP}s answers it.`]);
+    const w = slotOf(v, "W");
+    expect(w.facts.map((f) => [f.label, f.detail])).toEqual([[`Stun for 1.5${NBSP}s`, `Within 300${NBSP}units, 50${NBSP}Fury makes it 1.625${NBSP}s.`]]);
+    expect(w.details).toEqual([`Lasts 4${NBSP}s, then 2${NBSP}charges.`]);
+    expect(w.cooldownNote).toBe(`Held for up to 7${NBSP}seconds.`);
+    expect(w.recast).toEqual({ count: 1, note: `Open for 0.5${NBSP}s after the dash.` });
+    expect(w.modifiers?.refund).toEqual({ unit: "percent", amount: [25, 35, 45, 55, 65], when: `her first attack within 4${NBSP}seconds` });
+    expect(v.enemyIntel!.levelNotes.map((n) => n.text)).toEqual([`At 50${NBSP}Fury for 2${NBSP}seconds.`]);
+    // Read with the no-break spaces as spaces, every text is the notes' own, word for word.
+    const plain = (t: string | null) => t?.replace(/\u00a0/g, " ");
+    expect(plain(w.facts[0]!.detail)).toBe(units.abilities.W!.facts[0]!.detail);
+    expect(plain(b.threat.kind === "point" ? b.threat.text : null)).toBe(matchup.briefing.threat.text);
   });
 });
 
