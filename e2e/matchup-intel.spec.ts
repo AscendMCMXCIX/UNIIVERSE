@@ -444,7 +444,15 @@ test("sources are links that open in a new tab, cut off from the page; details e
     await expect(a).toContainText("(opens in a new tab)");
   }
   await page.waitForLoadState("networkidle");
-  expect([...hosts].filter((h) => h === "wiki.leagueoflegends.com" || h.endsWith(".wiki.leagueoflegends.com"))).toEqual([]);
+  const isWiki = (h: string) => h === "wiki.leagueoflegends.com" || h.endsWith(".wiki.leagueoflegends.com");
+  expect([...hosts].filter(isWiki)).toEqual([]);
+  // The page's own resource timing too: Playwright's request events do not report every load. On
+  // 16 Nov 2026 they left out the Library's favicons (/favicon.ico, which Playwright treats apart:
+  // resources.spec.ts), though the page had loaded them and its resource timing listed them. The
+  // page's own scripts are in that list, so an empty one would mean it was not read.
+  const loaded = await page.evaluate(() => performance.getEntriesByType("resource").map((e) => new URL(e.name).hostname));
+  expect(loaded.length, "the page's resource timing lists its loads").toBeGreaterThan(0);
+  expect(loaded.filter(isWiki)).toEqual([]);
 });
 
 test("no sideways scrolling at 320, 375, 430 (a large phone) and 768 wide, the picker window included", async ({ page }) => {

@@ -85,7 +85,7 @@ function lineWords(d: Exclude<CooldownDisplay, { kind: "forms" }>, isStatic: boo
       const counts = formatPerRank(d.charges, "", null);
       const recharge = formatPerRank(d.recharge, "s", null);
       const one = d.charges.length > 0 && d.charges.every((n) => n === 1);
-      return { value: counts === "—" ? "—" : `${counts} charge${one ? "" : "s"}`, notes: [...(recharge === "—" ? [] : [`one back every ${recharge}`]), ...haste], known: counts !== "—" };
+      return { value: counts === "—" ? "—" : `${counts}\u00a0charge${one ? "" : "s"}`, notes: [...(recharge === "—" ? [] : [`one back every ${recharge}`]), ...haste], known: counts !== "—" };
     }
     case "passive": {
       const extra = [...(d.perTarget ? ["per target"] : []), ...(d.static || isStatic ? [STATIC] : []), ...(d.starts ? [PASSIVE_STARTS[d.starts]] : [])];

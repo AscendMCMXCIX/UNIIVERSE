@@ -170,6 +170,8 @@ describe("numbers and their units in curated text (Matchup Intel)", () => {
     expect(keepUnitsWithNumbers("75 bonus range, 20% bonus AD; Can be cast 2 more times, at levels 6, 11 and 16")).toBe(`75${NBSP}bonus range, 20%${NBSP}bonus AD; Can be cast 2${NBSP}more times, at levels 6, 11${NBSP}and 16`);
     // A word ends where its letters do, whatever follows it.
     expect(keepUnitsWithNumbers("a 3 seconds-long window")).toBe(`a 3${NBSP}seconds-long window`);
+    // Any letter, not only ASCII; and a digit that ends a word ("Q2") holds the next word too.
+    expect(keepUnitsWithNumbers("5 Éclat, then Q2 cast")).toBe(`5${NBSP}Éclat, then Q2${NBSP}cast`);
   });
 
   it("changes nothing else: a number before anything but a word, a word with no number before it, a space already joined", () => {

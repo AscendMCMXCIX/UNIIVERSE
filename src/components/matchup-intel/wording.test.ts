@@ -50,10 +50,10 @@ describe("the cooldown line", () => {
   });
 
   it("gives charges, one count or one per rank, with their recharge", () => {
-    expect(cooldownWords({ kind: "charges", charges: [3, 4, 5], recharge: [35, 30, 25] })).toEqual({ value: "3 / 4 / 5 charges", notes: ["one back every 35 / 30 / 25\u00a0s"], known: true });
-    expect(cooldownWords({ kind: "charges", charges: [2], recharge: [20] })).toEqual({ value: "2 charges", notes: ["one back every 20\u00a0s"], known: true });
-    expect(cooldownWords({ kind: "charges", charges: [1], recharge: [12, 12, 12] }).value).toBe("1 charge");
-    expect(cooldownWords({ kind: "charges", charges: [3, 3, 3, 3, 3], recharge: [17, 16, 15, 14, 13] })).toEqual({ value: "3 charges", notes: ["one back every 17 / 16 / 15 / 14 / 13\u00a0s"], known: true });
+    expect(cooldownWords({ kind: "charges", charges: [3, 4, 5], recharge: [35, 30, 25] })).toEqual({ value: "3 / 4 / 5\u00a0charges", notes: ["one back every 35 / 30 / 25\u00a0s"], known: true });
+    expect(cooldownWords({ kind: "charges", charges: [2], recharge: [20] })).toEqual({ value: "2\u00a0charges", notes: ["one back every 20\u00a0s"], known: true });
+    expect(cooldownWords({ kind: "charges", charges: [1], recharge: [12, 12, 12] }).value).toBe("1\u00a0charge");
+    expect(cooldownWords({ kind: "charges", charges: [3, 3, 3, 3, 3], recharge: [17, 16, 15, 14, 13] })).toEqual({ value: "3\u00a0charges", notes: ["one back every 17 / 16 / 15 / 14 / 13\u00a0s"], known: true });
   });
 
   it("gives a passive's own cooldown by level or rank, per target, static, with its start", () => {
@@ -82,7 +82,7 @@ describe("the cooldown line", () => {
       { form: "Mercury Cannon", value: "8\u00a0s at every rank", notes: ["starts when the effect ends"], known: true },
       { form: "Transform", value: "No cooldown", notes: [], known: true },
     ]);
-    expect(cooldownWords({ kind: "forms", forms: [{ name: "Hammer", cooldown: { kind: "none" } }, { name: "Cannon", cooldown: { kind: "charges", charges: [2], recharge: [8] } }] })).toEqual({ value: "Hammer: No cooldown; Cannon: 2 charges · one back every 8\u00a0s", notes: [], known: true });
+    expect(cooldownWords({ kind: "forms", forms: [{ name: "Hammer", cooldown: { kind: "none" } }, { name: "Cannon", cooldown: { kind: "charges", charges: [2], recharge: [8] } }] })).toEqual({ value: "Hammer: No cooldown; Cannon: 2\u00a0charges · one back every 8\u00a0s", notes: [], known: true });
     expect(cooldownLines({ kind: "none" })).toEqual([{ form: null, value: "No cooldown", notes: [], known: true }]);
   });
 

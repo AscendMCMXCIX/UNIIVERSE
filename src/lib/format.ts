@@ -221,8 +221,9 @@ const WORD_AFTER_NUMBER = /(\d[%\u00b0]?) (?=\p{L})/gu;
 
 /**
  * Curated text as Matchup Intel draws it: each number joined to the word after it by a no-break
- * space, so a line never ends on a number and never starts with its unit ("1.625 s", not "s" alone
- * on the next line). A unit of several words can still wrap after its first word ("80% bonus" | "AD").
+ * space, so a line never ends between a number and the word after it, and never starts with a unit
+ * ("1.625 s", not "s" alone on the next line). A unit of several words can still wrap after its
+ * first word ("80% bonus" | "AD").
  * A number before anything but a word ("6, 11", "8 / 7", "320 (by level)") keeps its ordinary space,
  * and nothing else in the text changes.
  */
