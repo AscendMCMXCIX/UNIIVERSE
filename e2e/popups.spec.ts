@@ -93,6 +93,10 @@ function placedRight(f: Awaited<ReturnType<typeof bubbleFacts>>): boolean {
 test("an ⓘ in a window: its bubble is drawn inside the window, above it, where its trigger puts it, also while the window moves; Escape closes the bubble only", async ({ page }) => {
   const win = await openMatchWindow(page);
   await untilStill(page);
+  // The notes under the scoreboard settle first (a rank check or the possible groups arriving
+  // redraws the lines above the ⓘ, which would move it under an open bubble).
+  await expect(win.getByTestId("ranks-note")).not.toHaveAttribute("data-state", "checking", { timeout: 15_000 });
+  await expect(win.getByTestId("possible-groups-note")).not.toHaveAttribute("data-state", "loading", { timeout: 15_000 });
   const tip = win.getByTestId("ranks-info");
   await tip.scrollIntoViewIfNeeded();
   const bubble = page.getByTestId("ranks-info-bubble");
