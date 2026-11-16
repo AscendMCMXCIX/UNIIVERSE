@@ -109,7 +109,7 @@ export function MatchupContent({ view, champions, curated, legal }: { view: Matc
         </p>
       ) : null}
 
-      {you && enemy ? matchup ? <Briefing matchup={matchup} you={you} enemy={enemy} rows={rows} /> : <NoBriefing you={you} enemy={enemy} curatedForYou={curatedForYou} /> : null}
+      {you && enemy ? matchup ? <Briefing matchup={matchup} you={you} enemy={enemy} rows={rows} /> : <NoBriefing you={you} enemy={enemy} curatedForYou={curatedForYou} reference={{ abilities: !!enemyIntel?.abilities, notes: !!enemyIntel?.curated }} /> : null}
 
       {enemyIntel ? <AbilitiesPanel intel={enemyIntel} title={mirror ? `${enemyIntel.champion.name}'s abilities (both sides)` : `${enemyIntel.champion.name}'s abilities`} testId="matchup-enemy-abilities" /> : null}
 

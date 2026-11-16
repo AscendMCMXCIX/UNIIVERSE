@@ -15,6 +15,7 @@ import {
   expiredNotesWords,
   flaggedNotesWords,
   freshnessWords,
+  generalReferenceWords,
   hiddenBriefingWords,
   hiddenInteractionsWords,
   hiddenPartWords,
@@ -228,6 +229,15 @@ describe("a check a patch or more behind, and data that is old, an offline copy 
     expect(dataSourceWords("16.22.1", true, true)).toBe("Offline copy of Riot Data Dragon 16.22.1");
     expect(missingAbilitiesWords("Riven", false)).toEqual({ title: "Ability details aren't stored yet", body: "Riven's abilities are read from Riot's Data Dragon once per game version, and none are stored yet." });
     expect(missingAbilitiesWords("Riven", true).title).toBe("Riot's ability data for Riven could not be read");
+  });
+
+  it("names only what the general reference holds where no briefing exists: checked notes only where there are some", () => {
+    expect(generalReferenceWords("Renekton", { abilities: true, notes: true })).toBe("What follows is the general reference for Renekton: abilities, base cooldowns and checked notes.");
+    expect(generalReferenceWords("Darius", { abilities: true, notes: false })).toBe("What follows is the general reference for Darius: abilities and base cooldowns from Riot's data.");
+    // No abilities stored (or none readable): the panel below says why, and this claims none.
+    expect(generalReferenceWords("Darius", { abilities: false, notes: false })).toBe("What follows is the general reference for Darius.");
+    expect(generalReferenceWords("Renekton", { abilities: false, notes: true })).toBe("What follows is the general reference for Renekton.");
+    for (const abilities of [true, false]) expect(generalReferenceWords("Darius", { abilities, notes: false })).not.toMatch(/notes/);
   });
 
   it("tells a screen reader what arrived after a choice", () => {

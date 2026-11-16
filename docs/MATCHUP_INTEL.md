@@ -27,8 +27,10 @@ the most important part first; side by side where a desktop has the room):
    Renekton W after this briefing was checked."; Data, "Hidden points"). More than two patches
    after its check the whole briefing is hidden, and says why (Data, "Freshness"). Where no briefing
    exists, one calm line says so ("No curated briefing for Garen vs Darius yet") and that what
-   follows is the enemy's general reference. It also links the curated matchups that do exist for
-   your champion.
+   follows is the enemy's general reference, naming only what it holds: "abilities and base
+   cooldowns from Riot's data" for an enemy with no curated notes (Darius), "abilities, base
+   cooldowns and checked notes" for one with notes, and nothing more where no abilities are stored
+   (`generalReferenceWords`). It also links the curated matchups that do exist for your champion.
 2. **The enemy's abilities**, one row each for P, Q, W, E and R (on a phone the icon sits beside the
    key, the name and the cooldown, and the rest takes the row's whole width under them):
    - the icon, the key and the name;

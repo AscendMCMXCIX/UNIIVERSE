@@ -109,9 +109,17 @@ describe("the page body", () => {
   it("an uncurated pair: says so calmly, then the enemy's general reference", async () => {
     const t = text(await render({ champion: "Garen", vs: "Darius" }));
     expect(t).toContain("No curated briefing for Garen vs Darius yet.");
-    expect(t).toContain("What follows is the general reference for Darius");
+    // Darius has no curated notes: the line claims none.
+    expect(t).toContain("What follows is the general reference for Darius: abilities and base cooldowns from Riot's data.");
+    expect(t).not.toContain("checked notes");
     expect(t).toContain("Darius's abilities");
     expect(t).not.toContain("the ten-second briefing");
+    // An enemy with curated notes and no briefing for this pair: the notes are named.
+    expect(text(await render({ champion: "Garen", vs: "Renekton" }))).toContain("What follows is the general reference for Renekton: abilities, base cooldowns and checked notes.");
+    // No abilities stored: the panel says so, and the line names nothing it does not hold.
+    const none = text(await render({ champion: "Garen", vs: "Darius" }, { loadAbilities: async (ids) => ({ version: null, champions: Object.fromEntries(ids.map((id) => [id, null])) }) }));
+    expect(none).toContain("What follows is the general reference for Darius. ");
+    expect(none).toContain("Ability details aren't stored yet");
   });
 
   it("nothing chosen, one side chosen, and no ability data stored yet", async () => {

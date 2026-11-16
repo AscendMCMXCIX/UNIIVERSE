@@ -278,6 +278,17 @@ export function dataSourceWords(version: string, offlineCopy: boolean, label = f
   return offlineCopy ? `${label ? "Offline" : "an offline"} copy of Riot Data Dragon ${version}` : `Riot Data Dragon ${version}`;
 }
 
+/**
+ * Where no curated briefing exists, what the enemy's general reference below it holds, and no more:
+ * checked notes only for a champion that has them, abilities only where they are stored and can be
+ * read ("What follows is the general reference for Darius: abilities and base cooldowns from Riot's
+ * data.").
+ */
+export function generalReferenceWords(name: string, has: { abilities: boolean; notes: boolean }): string {
+  const holds = !has.abilities ? null : has.notes ? "abilities, base cooldowns and checked notes" : "abilities and base cooldowns from Riot's data";
+  return `What follows is the general reference for ${name}${holds ? `: ${holds}` : ""}.`;
+}
+
 /** No abilities to show for a champion: none stored yet, or a record stored that cannot be read. */
 export function missingAbilitiesWords(name: string, unreadable: boolean): { title: string; body: string } {
   return unreadable

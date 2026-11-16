@@ -122,7 +122,8 @@ test("a pair without a curated briefing (Garen vs Darius) says so calmly, then t
   await expect(none).toContainText("No curated briefing for Garen vs Darius yet.");
   // The page's description promises nothing about the lane (it shows from md up).
   await expect(page.locator('[data-testid="matchup-intel"] > header h1 + p')).toHaveText("Garen vs Darius: the enemy's abilities and base cooldowns; no curated briefing yet.");
-  await expect(none).toContainText("the general reference for Darius");
+  // Darius has no curated notes: the line names what follows, and claims no notes.
+  await expect(none.getByTestId("matchup-general-reference")).toHaveText("What follows is the general reference for Darius: abilities and base cooldowns from Riot's data.");
   await expect(page.getByTestId("matchup-briefing")).toHaveCount(0);
   await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Darius");
   await expect(enemyAbilities(page)).toHaveCount(5);

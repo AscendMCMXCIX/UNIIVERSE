@@ -5,7 +5,7 @@ import { Panel, PanelHeader } from "@/components/ui/panel";
 import { cn } from "@/lib/cn";
 import { AbilityRefLink } from "./ability-ref-link";
 import { PairLink } from "./matchup-frame";
-import { abilityAnchor, abilityName, expiredBriefingWords, freshnessWords, hiddenBriefingWords, hiddenPartWords, hiddenPointsWords, notRecheckedWords } from "./wording";
+import { abilityAnchor, abilityName, expiredBriefingWords, freshnessWords, generalReferenceWords, hiddenBriefingWords, hiddenPartWords, hiddenPointsWords, notRecheckedWords } from "./wording";
 
 /*
   The matchup's curated layer (docs/MATCHUP_INTEL.md): the ten-second briefing, for your champion
@@ -231,14 +231,19 @@ export function CuratedLinks({ you, enemies, current, label, centered = false }:
   );
 }
 
-/** No curated briefing for this pair: said once, calmly, and what follows is the enemy's general reference. */
-export function NoBriefing({ you, enemy, curatedForYou }: { you: ChampionChoice; enemy: ChampionChoice; curatedForYou: readonly ChampionChoice[] }) {
+/**
+ * No curated briefing for this pair: said once, calmly, and what follows is the enemy's general
+ * reference, naming only what it holds (`reference`: abilities stored, checked notes written).
+ */
+export function NoBriefing({ you, enemy, curatedForYou, reference }: { you: ChampionChoice; enemy: ChampionChoice; curatedForYou: readonly ChampionChoice[]; reference: { abilities: boolean; notes: boolean } }) {
   return (
     <div className="space-y-2 rounded-panel border border-border bg-surface/60 px-4 py-3" data-testid="matchup-no-briefing">
       <p className="text-sm font-medium text-fg">
         No curated briefing for {you.name} vs {enemy.name} yet.
       </p>
-      <p className="text-sm text-fg-muted">What follows is the general reference for {enemy.name}: abilities, base cooldowns and the checked notes that exist.</p>
+      <p className="text-sm text-fg-muted" data-testid="matchup-general-reference">
+        {generalReferenceWords(enemy.name, reference)}
+      </p>
       <CuratedLinks you={you} enemies={curatedForYou} label={`Curated for ${you.name}:`} />
     </div>
   );
