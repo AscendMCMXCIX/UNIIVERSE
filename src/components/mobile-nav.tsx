@@ -8,6 +8,7 @@ import { BrandMark } from "./brand-mark";
 import { NavLinks } from "./nav-links";
 import { Avatar } from "./ui/avatar";
 import { DetailModal } from "./ui/detail-modal";
+import { noteModalClosed, noteModalOpened } from "./ui/top-layer";
 import { ModeSwitch } from "./mode-switch";
 import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, ADMIN_TABS, PROFILE_SECTIONS, RESOURCES, adminSheetLinks, currentTab, isActivePath, phoneParent, phoneTabs, profileBase, type NavLink, type PhoneTab } from "@/lib/nav";
 import { AccountMenu, otherUsername } from "./account-menu";
@@ -387,6 +388,7 @@ const BACK_TABLET = "md:hidden md:standalone:flex";
  * inside, the page behind is inert and never scrolls, and Escape or a tap beside the panel closes
  * it. The panel is docked to the left edge, the sidebar's side. Closed, or removed while open (a
  * navigation, the window grown to the sidebar's widths), it gives focus back where it came from.
+ * Toasts raised meanwhile are drawn in it (top-layer.ts).
  */
 function Drawer({ onClose, initialFocus, children }: { onClose: () => void; /** What takes focus when it opens (the close button). */ initialFocus: React.RefObject<HTMLElement | null>; children: React.ReactNode }) {
   const ref = React.useRef<HTMLDialogElement>(null);
@@ -400,6 +402,7 @@ function Drawer({ onClose, initialFocus, children }: { onClose: () => void; /** 
     const d = ref.current;
     if (!d) return;
     if (!d.open) d.showModal();
+    noteModalOpened(d);
     initialFocus.current?.focus({ preventScroll: true });
     // The page behind stays where it is.
     const root = document.documentElement;
@@ -413,6 +416,7 @@ function Drawer({ onClose, initialFocus, children }: { onClose: () => void; /** 
       wide.removeEventListener("change", onWide);
       root.style.overflow = previous;
       if (d.open) d.close();
+      noteModalClosed(d);
     };
   }, [initialFocus]);
   return (

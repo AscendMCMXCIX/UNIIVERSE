@@ -3,6 +3,7 @@
 import * as React from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { noteModalClosed, noteModalOpened } from "./top-layer";
 
 /**
  * How much room a detail needs: compact for a short note, standard for a player or a champion,
@@ -223,7 +224,9 @@ function useSheetDrag(ref: React.RefObject<HTMLDialogElement | null>, enabled: b
     const zoomed = () => (window.visualViewport?.scale ?? 1) > 1.01;
     const onStart = (e: TouchEvent) => {
       const t = e.touches[0];
-      if ((pull && !docked.matches) || e.touches.length !== 1 || !t || zoomed()) {
+      // What floats over the window without being part of it (the toasts, data-floating) is not the
+      // sheet: a finger on it pulls nothing.
+      if ((pull && !docked.matches) || e.touches.length !== 1 || !t || zoomed() || (e.target as Element | null)?.closest?.("[data-floating]")) {
         mode = "pass";
         return;
       }
@@ -299,6 +302,10 @@ function useSheetDrag(ref: React.RefObject<HTMLDialogElement | null>, enabled: b
  * and a click on the backdrop close it with a short fade (instant for reduced motion); focus then
  * returns to whatever opened it, and the page behind never scrolls or shifts while it is open.
  * `canClose` lets a window with unsaved edits ask first.
+ *
+ * Whatever must show over the window is drawn inside it, the dialog being in the browser's top
+ * layer: an ⓘ's bubble (InfoTip) and the toasts (Toaster), which follow the window as it opens and
+ * closes (top-layer.ts).
  */
 export function DetailModal({
   open,
@@ -520,6 +527,15 @@ export function DetailModal({
     };
   }, [open, docked, innerScroll]);
 
+  // The window is out of the top layer as it closes or leaves the page, said while it is still on
+  // the page (a layout effect's cleanup), so the toasts drawn in it are back in place before the
+  // next frame (top-layer.ts). It says it is open once shown, in the effect below.
+  React.useLayoutEffect(() => {
+    const d = ref.current;
+    if (!open || !d) return;
+    return () => noteModalClosed(d);
+  }, [open]);
+
   React.useEffect(() => {
     const d = ref.current;
     if (!d) return;
@@ -536,6 +552,7 @@ export function DetailModal({
       d.close();
     }
     if (!open) return;
+    noteModalOpened(d);
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const settleTimer = window.setTimeout(settle, reduce ? 0 : SETTLE_MS);
     // The page behind stays exactly where it is: no scrolling, and no shift when the scrollbar goes.
