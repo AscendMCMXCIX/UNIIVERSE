@@ -3,7 +3,7 @@
 import * as React from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { focusWindow, lastInput, opensFocusingItself } from "./input-kind";
+import { focusWindow, lastInput, letGoWhenPressed, opensFocusingItself } from "./input-kind";
 import { noteModalAtRest, noteModalClosed, noteModalOpened } from "./top-layer";
 
 /**
@@ -340,10 +340,11 @@ export function lockPage(): () => void {
  * nothing the reader did: a link to a game), its close button has the focus, ringed, so a keyboard
  * user sees where they are (input-kind.ts). Tab then reaches the window's controls in order. A
  * window that then focuses a field of its own (sign-in's username, from the effect of the component
- * that renders the window, which runs after this one's) keeps it. The window is focusable only while
- * it holds that focus (focusWindow): pressed inside, or left by the focus, it lets go, so a click on
- * its text leaves the focus where a page leaves it and the keys scroll its body, as before. Always
- * focusable, it took the focus back at every such click, and the keys then scrolled nothing.
+ * that renders the window, which runs after this one's) keeps it. The window holds that focus only
+ * until it is pressed or the focus moves on (focusWindow), and a press inside it on nothing
+ * focusable, whenever it comes, leaves nothing focused (letGoWhenPressed): a click on its text
+ * leaves the focus where a page leaves it, and the keys scroll its body. The browser focuses a
+ * dialog itself at such a press, tabindex or not, and the keys then scrolled nothing.
  *
  * Whatever must show over the window is drawn inside it, the dialog being in the browser's top
  * layer: an ⓘ's bubble (InfoTip), and the toasts (Toaster), which come in once the window is at rest
@@ -605,6 +606,8 @@ export function DetailModal({
     }
     if (!open) return;
     noteModalOpened(d);
+    // A press on nothing focusable in it leaves nothing focused, as on a page (see above).
+    const presses = letGoWhenPressed(d);
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const settleTimer = window.setTimeout(settle, reduce ? 0 : SETTLE_MS);
     // At rest once its opening motion has ended (onAnimationEnd), at once without one, and after
@@ -617,6 +620,7 @@ export function DetailModal({
       window.clearTimeout(settleTimer);
       window.clearTimeout(restTimer);
       unlock();
+      presses();
       letGo();
       // Back to what opened the window, whether it was closed or removed from the page (or to the
       // window replacing it, see handedOver).

@@ -30,9 +30,10 @@ import { describe, expect, it } from "vitest";
   not be pressed. Windows note themselves in the top layer (top-layer.ts) as they open, come to rest
   and close; a tip's bubble goes into the window its trigger sits in, the toasts into the topmost
   window at rest (a moving window carries what is fixed inside it). A window takes the focus itself
-  only through focusWindow, focusable only while it holds it. A picker's list inside a window opens
-  in the flow of the window's body (picker-flow.ts), which is then its one scroller, instead of a
-  list scrolling inside it that the body cut off; there it closes on a press's click.
+  only through focusWindow, holding it until it is pressed, and a press on nothing focusable in it
+  leaves nothing focused (letGoWhenPressed). A picker's list inside a window opens in the flow of
+  the window's body (picker-flow.ts), which is then its one scroller, instead of a list scrolling
+  inside it that the body cut off; there it closes on a press's click.
 */
 
 const root = join(__dirname, "..", "..", "..");
@@ -256,7 +257,7 @@ describe("what shows over a window is drawn inside it", () => {
     expect(code(read("src/components/ui/detail-modal.tsx"))).toContain('closest?.("[data-floating]")');
   });
 
-  it("a window takes the focus itself through focusWindow alone, focusable only while it holds it", () => {
+  it("a window takes the focus itself through focusWindow alone, holds it only until pressed, and a press on nothing focusable leaves nothing focused", () => {
     const modal = code(read("src/components/ui/detail-modal.tsx"));
     const nav = code(read("src/components/mobile-nav.tsx"));
     const drawer = nav.slice(nav.indexOf("function Drawer("), nav.indexOf("\nfunction ", nav.indexOf("function Drawer(") + 1));
@@ -265,8 +266,12 @@ describe("what shows over a window is drawn inside it", () => {
       expect(source, name).toMatch(/letGo\(\);/);
       expect(source, name).not.toMatch(/\bd\.focus\(/);
       // No tabindex of its own: a window focusable for good took the focus back at every click on
-      // its text, and the keys then scrolled nothing (its body, which scrolls, is inside it).
+      // its text. Nor is dropping it enough: Chromium and WebKit focus a dialog itself at such a
+      // click, tabindex or not, and the keys then scrolled nothing (its body, which scrolls, is
+      // inside it). Every press is let go once the browser has handed the focus out.
       expect(source, name).not.toMatch(/tabIndex=/);
+      expect(source, name).toMatch(/const presses = letGoWhenPressed\(d\);/);
+      expect(source, name).toMatch(/presses\(\);/);
     }
   });
 

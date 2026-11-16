@@ -6,8 +6,9 @@
   after a tap that lit up the close button, the loudest thing in the window; a keyboard user needs
   the ring to see where they are. A window opened by neither (a link to a game, opened as the page
   loads) gives the focus to its close button, as every window did before. A window holds the focus
-  it took only until it is pressed or the focus moves on (focusWindow): a press inside it then lets
-  the focus go as a page does, so the keys still scroll its body.
+  it took only until it is pressed or the focus moves on (focusWindow), and a press inside any window
+  on nothing focusable leaves nothing focused, as a press on a page's text does (letGoWhenPressed),
+  so the keys still scroll its body.
 
   The root layout inlines INPUT_KIND_SCRIPT at the top of <head>, beside the early-tap script
   (early-taps.ts), so every input counts from the start, even a tap made before the page's code has
@@ -45,15 +46,14 @@ export function opensFocusingItself(last: InputKind | null): boolean {
 }
 
 /**
- * A window takes the focus itself (its <dialog>, drawn without a ring), focusable only while it
- * holds that focus: tabindex -1 until the focus moves on (Tab, a field of the window's own) or a
- * pointer presses inside it. A press then finds nothing focusable around what it lands on, as on a
- * page: the focus is let go, the keys scroll whatever holds the press (the window's body; a focused
- * window that does not scroll itself held them, and nothing moved), and a tap on text never moves
- * the focus off a field onto the window. The press is heard on its way down, before the browser
- * gives the focus to what it lands on. The focus leaving with the page itself (another tab or app in
- * front) is not the focus moving on: the window has it back when the reader returns. Returns the way
- * to let go, for a window that closes first.
+ * A window takes the focus itself (its <dialog>, drawn without a ring), and holds it only until the
+ * focus moves on (Tab, a field of the window's own) or a pointer presses inside it: its tabindex -1
+ * goes then, heard on the press's way down, before the browser gives the focus to what it lands on.
+ * The press itself leaves the focus as on a page through letGoWhenPressed, which every window has:
+ * Chromium and WebKit focus a <dialog> with or without a tabindex, so dropping the tabindex alone
+ * left the focus on the window, and the keys scrolled nothing. The focus leaving with the page
+ * itself (another tab or app in front) is not the focus moving on: the window has it back when the
+ * reader returns. Returns the way to let go, for a window that closes first.
  */
 export function focusWindow(dialog: HTMLElement): () => void {
   const letGo = () => {
@@ -69,4 +69,31 @@ export function focusWindow(dialog: HTMLElement): () => void {
   dialog.addEventListener("focusout", onOut);
   dialog.focus({ preventScroll: true });
   return letGo;
+}
+
+/**
+ * A press inside a window leaves the focus where a press on a page leaves it: on what it lands on
+ * when that takes the focus (a field, a link), else on nothing. Chromium and WebKit focus a modal
+ * <dialog> itself, with or without a tabindex (the dialog focusing steps make it focusable), when a
+ * press inside it lands on nothing focusable: its text, a card, a button in Safari, which does not
+ * focus buttons. The keys scroll from the focused element up; a window does not scroll itself (its
+ * body inside it does) and the page behind is locked, so Space, Page Down and the arrows then
+ * scrolled nothing. So once the press has handed the focus out (the task of its mousedown, which a
+ * tap sends too, as it ends), a window holding the focus itself lets it go: nothing has the focus,
+ * and the keys scroll what was pressed, as on a page. Returns the way to stop, for a window that
+ * closes.
+ */
+export function letGoWhenPressed(dialog: HTMLElement): () => void {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const onPress = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      if (dialog.ownerDocument.activeElement === dialog) dialog.blur();
+    });
+  };
+  dialog.addEventListener("mousedown", onPress, true);
+  return () => {
+    clearTimeout(timer);
+    dialog.removeEventListener("mousedown", onPress, true);
+  };
 }

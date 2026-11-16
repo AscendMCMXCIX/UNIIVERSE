@@ -249,7 +249,7 @@ test("a window opened by a tap or a click takes the focus itself, without a ring
 });
 
 test("a window that took the focus as it opened lets it go when pressed inside: the keys then scroll its body", async ({ page }, info) => {
-  test.skip(info.project.name !== "desktop", "a desktop keyboard's Page Down");
+  test.skip(info.project.name === "phone", "a keyboard's Page Down: a desktop's after a click, a tablet's after a tap");
   // A window shorter than its content (above 480px tall, where a window scrolls as one).
   await page.setViewportSize({ width: 1440, height: 540 });
   const profile = await teammateProfile(page);
@@ -257,22 +257,33 @@ test("a window that took the focus as it opened lets it go when pressed inside: 
   const open = page.getByTestId("top-champion").first().getByTestId("open-champion");
   const win = page.getByTestId("champion-detail");
   await expect(async () => {
-    if (!(await win.isVisible())) await open.click({ timeout: 2_000 });
+    if (!(await win.isVisible())) await press(page, open, { timeout: 2_000 });
     await expect(win).toBeVisible({ timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
   await untilStill(page);
-  // Opened by a click: the window holds the focus itself.
+  // Opened by a tap or a click: the window holds the focus itself.
   await expect(win).toBeFocused();
   const body = win.getByTestId("champion-detail-body");
   await expect(body).toHaveCSS("opacity", "1", { timeout: 15_000 });
   expect(await body.evaluate((el) => el.scrollHeight - el.clientHeight), "the window's body scrolls").toBeGreaterThan(40);
   expect(await body.evaluate((el) => el.scrollTop)).toBe(0);
-  // A click on the body's own padding, on nothing focusable: the window lets the focus go, as a
-  // page does (focusable for good, it kept it, and the keys then scrolled nothing).
-  const b = (await body.boundingBox())!;
-  await page.mouse.click(b.x + 4, b.y + b.height / 2);
+  // A tap or a click on the body's own padding, on nothing focusable: the window lets the focus go,
+  // as a page does. The browser focuses a dialog itself at such a press, with or without a
+  // tabindex; held there, the keys scrolled nothing. And so at every press, not only the first.
+  const tap = await touches(page);
+  const pressBody = async () => {
+    const b = (await body.boundingBox())!;
+    if (tap) await page.touchscreen.tap(b.x + 4, b.y + b.height / 2);
+    else await page.mouse.click(b.x + 4, b.y + b.height / 2);
+  };
+  await pressBody();
   await expect(win).not.toBeFocused();
   expect(await win.evaluate((d) => d.hasAttribute("tabindex"))).toBe(false);
+  await page.keyboard.press("PageDown");
+  await expect.poll(() => body.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+  await body.evaluate((el) => el.scrollTo({ top: 0, behavior: "instant" }));
+  await pressBody();
+  await expect(win).not.toBeFocused();
   await page.keyboard.press("PageDown");
   await expect.poll(() => body.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
   await expect(win).toBeVisible();

@@ -1,11 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { INPUT_KIND_SCRIPT, focusWindow, opensFocusingItself } from "./input-kind";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { INPUT_KIND_SCRIPT, focusWindow, letGoWhenPressed, opensFocusingItself } from "./input-kind";
 
 /*
   The script the root layout inlines at the top of <head>: each pointer press and each key press
   notes its kind on window.__lastInput, heard on window in the capture phase (before anything on the
   page can stop it). A window opened by a pointer takes the focus itself; from the keyboard, or by
-  nothing the reader did, its close button does. In a browser: e2e/popups.spec.ts.
+  nothing the reader did, its close button does. A press inside a window on nothing focusable leaves
+  nothing focused, as on a page. In a browser: e2e/popups.spec.ts.
 */
 
 /** The script run against a stand-in window, which records its listeners. */
@@ -58,14 +59,16 @@ describe("where a window puts the focus as it opens", () => {
 });
 
 /**
- * A stand-in for a window's <dialog>: its tabindex, what focused it, the listeners it holds, and
- * whether the page itself has the focus.
+ * A stand-in for a window's <dialog>: its tabindex, what focused it, the listeners it holds, whether
+ * the page itself has the focus, what has the focus in it (`page.active`) and how often the window
+ * let the focus go (`blurred`).
  */
 function windowElement() {
   const attributes = new Map<string, string>();
   const listeners: Array<{ type: string; listener: (e: { target: unknown }) => void; capture: boolean }> = [];
-  const page = { focused: true };
+  const page: { focused: boolean; active: unknown } = { focused: true, active: null };
   const focused: unknown[] = [];
+  let blurred = 0;
   const el = {
     get tabIndex() {
       return Number(attributes.get("tabindex") ?? 0);
@@ -75,8 +78,20 @@ function windowElement() {
     },
     removeAttribute: (name: string) => attributes.delete(name),
     hasAttribute: (name: string) => attributes.has(name),
-    focus: (options: unknown) => focused.push(options),
-    ownerDocument: { hasFocus: () => page.focused },
+    focus: (options: unknown) => {
+      focused.push(options);
+      page.active = el;
+    },
+    blur: () => {
+      blurred++;
+      if (page.active === el) page.active = null;
+    },
+    ownerDocument: {
+      hasFocus: () => page.focused,
+      get activeElement() {
+        return page.active;
+      },
+    },
     addEventListener: (type: string, listener: (e: { target: unknown }) => void, capture?: boolean) => listeners.push({ type, listener, capture: !!capture }),
     removeEventListener: (type: string, listener: (e: { target: unknown }) => void, capture?: boolean) => {
       const i = listeners.findIndex((l) => l.type === type && l.listener === listener && l.capture === !!capture);
@@ -86,7 +101,7 @@ function windowElement() {
   const fire = (type: string, target: unknown = el) => {
     for (const l of listeners.filter((x) => x.type === type)) l.listener({ target });
   };
-  return { el, attributes, listeners, focused, page, fire, dialog: el as unknown as HTMLElement };
+  return { el, attributes, listeners, focused, page, fire, blurred: () => blurred, dialog: el as unknown as HTMLElement };
 }
 
 describe("a window holds the focus it takes only until it is pressed or the focus moves on", () => {
@@ -136,6 +151,78 @@ describe("a window holds the focus it takes only until it is pressed or the focu
     const letGo = focusWindow(w.dialog);
     letGo();
     expect(w.el.hasAttribute("tabindex")).toBe(false);
+    expect(w.listeners).toEqual([]);
+  });
+});
+
+describe("a press inside a window on nothing focusable leaves nothing focused, as on a page", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("listens for the press's mousedown (a tap sends one too), on its way down", () => {
+    const w = windowElement();
+    letGoWhenPressed(w.dialog);
+    expect(w.listeners.map((l) => [l.type, l.capture])).toEqual([["mousedown", true]]);
+  });
+
+  it("the browser focusing the window itself at the press (its text, a card): once the press is over, the window lets the focus go", () => {
+    const w = windowElement();
+    letGoWhenPressed(w.dialog);
+    w.fire("mousedown", "text in the body");
+    // The browser gives the focus out as the press's own task ends: here, to the window itself.
+    w.page.active = w.el;
+    expect(w.blurred()).toBe(0);
+    vi.runAllTimers();
+    expect(w.blurred()).toBe(1);
+    expect(w.page.active).toBe(null);
+  });
+
+  it("a press that gives the focus to what it lands on (a field, a link) leaves it there", () => {
+    const w = windowElement();
+    letGoWhenPressed(w.dialog);
+    w.fire("mousedown", "a field");
+    w.page.active = "a field";
+    vi.runAllTimers();
+    expect(w.blurred()).toBe(0);
+    expect(w.page.active).toBe("a field");
+  });
+
+  it("every press, not only the first", () => {
+    const w = windowElement();
+    letGoWhenPressed(w.dialog);
+    for (let i = 1; i <= 3; i++) {
+      w.fire("mousedown");
+      w.page.active = w.el;
+      vi.runAllTimers();
+      expect(w.blurred()).toBe(i);
+      expect(w.page.active).toBe(null);
+    }
+  });
+
+  it("a window that took the focus as it opened, pressed on its text: its tabindex goes, and nothing has the focus once the press is over (the browser keeps it on a dialog without one)", () => {
+    const w = windowElement();
+    letGoWhenPressed(w.dialog);
+    focusWindow(w.dialog);
+    expect(w.page.active).toBe(w.el);
+    w.fire("pointerdown", "text in the body");
+    w.fire("mousedown", "text in the body");
+    expect(w.el.hasAttribute("tabindex")).toBe(false);
+    vi.runAllTimers();
+    expect(w.page.active).toBe(null);
+  });
+
+  it("a window that closes stops: a press just before it closed lets nothing go after", () => {
+    const w = windowElement();
+    const stop = letGoWhenPressed(w.dialog);
+    w.fire("mousedown");
+    w.page.active = w.el;
+    stop();
+    vi.runAllTimers();
+    expect(w.blurred()).toBe(0);
     expect(w.listeners).toEqual([]);
   });
 });

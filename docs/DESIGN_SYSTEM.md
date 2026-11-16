@@ -140,9 +140,11 @@ globals.css). Rows inside the sidebar draw it inside their edge (`-outline-offse
 frame cannot clip it. A window opened by a tap or a click takes the focus itself, without a ring,
 so nothing in it is lit up as it opens (Safari ringed the close button, the loudest thing in the
 window); opened from the keyboard, its close button has the focus, ringed, so a keyboard user sees
-where they are (`DetailModal`, the tablet's menu; `src/components/ui/input-kind.ts`). The window is
-focusable only while it holds that focus: pressed inside, or left by the focus, it lets go, so a
-click on its text leaves the focus as a page does and the keys still scroll its body (`focusWindow`).
+where they are (`DetailModal`, the tablet's menu; `src/components/ui/input-kind.ts`). The window
+holds that focus only until it is pressed or the focus moves on (`focusWindow`), and a press inside
+any window on nothing focusable leaves nothing focused, so a click on its text leaves the focus as a
+page does and the keys still scroll its body (`letGoWhenPressed`): Chromium and WebKit focus a
+dialog itself at such a press, with or without a tabindex, and the keys then scrolled nothing.
 
 **Targets.** At least 24px everywhere and 44px on touch screens (STANDARDS.md).
 

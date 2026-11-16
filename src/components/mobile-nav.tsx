@@ -8,7 +8,7 @@ import { BrandMark } from "./brand-mark";
 import { NavLinks } from "./nav-links";
 import { Avatar } from "./ui/avatar";
 import { DetailModal, lockPage } from "./ui/detail-modal";
-import { focusWindow, lastInput, opensFocusingItself } from "./ui/input-kind";
+import { focusWindow, lastInput, letGoWhenPressed, opensFocusingItself } from "./ui/input-kind";
 import { noteModalAtRest, noteModalClosed, noteModalOpened } from "./ui/top-layer";
 import { ModeSwitch } from "./mode-switch";
 import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, ADMIN_TABS, PROFILE_SECTIONS, RESOURCES, adminSheetLinks, currentTab, isActivePath, phoneParent, phoneTabs, profileBase, type NavLink, type PhoneTab } from "@/lib/nav";
@@ -390,7 +390,8 @@ const BACK_TABLET = "md:hidden md:standalone:flex";
  * scrolling, no rubber band, no shift as the scrollbar goes), and Escape or a tap beside the panel
  * closes it. The panel is docked to the left edge, the sidebar's side. The focus starts as in every
  * window: on the menu itself after a tap or a click (no ring, and only until it is pressed or the
- * focus moves on), on its close button from the keyboard (input-kind.ts). Closed, or removed while
+ * focus moves on), on its close button from the keyboard (input-kind.ts); a press on nothing
+ * focusable in it leaves nothing focused, as on a page (letGoWhenPressed). Closed, or removed while
  * open (a navigation, the window grown to the sidebar's widths), it gives focus back where it came
  * from. Toasts raised meanwhile are drawn in it (top-layer.ts).
  */
@@ -414,6 +415,7 @@ function Drawer({ onClose, initialFocus, children }: { onClose: () => void; /** 
     let letGo: () => void = () => undefined;
     if (opensFocusingItself(lastInput())) letGo = focusWindow(d);
     else initialFocus.current?.focus({ preventScroll: true });
+    const presses = letGoWhenPressed(d);
     // The page behind stays where it is.
     const unlock = lockPage();
     // The sidebar takes over from lg: a menu left open across that width would keep the page inert.
@@ -423,6 +425,7 @@ function Drawer({ onClose, initialFocus, children }: { onClose: () => void; /** 
     return () => {
       wide.removeEventListener("change", onWide);
       unlock();
+      presses();
       letGo();
       if (d.open) d.close();
       noteModalClosed(d);
