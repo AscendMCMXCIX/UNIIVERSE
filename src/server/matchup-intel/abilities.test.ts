@@ -59,8 +59,9 @@ describe("compactChampionAbilities: what is taken from a champion's Data Dragon 
     expect((sample.data.Xerath.spells[0] as { maxammo: string }).maxammo).toBe("0");
     expect(ability(compactChampionAbilities(entry("Xerath"), V), "Q")).toMatchObject({ charges: null });
     expect(ability(compactChampionAbilities(entry("Riven"), V), "R")).toMatchObject({ charges: null });
-    // With charges, Data Dragon's array is the time between casts, never shown as the recharge.
-    expect(cooldownDisplay(ability(gangplank, "E")!, undefined)).toEqual({ kind: "charges", charges: 3, recharge: null, betweenCasts: null, from: "ddragon" });
+    // With charges, Data Dragon's array is the time between casts: neither a number nor a count is shown from it.
+    expect(cooldownDisplay(ability(gangplank, "E")!, undefined)).toEqual({ kind: "unknown", reason: "charges-in-ddragon" });
+    expect(cooldownDisplay(ability(compactChampionAbilities(entry("Rengar"), V), "Q")!, undefined)).toEqual({ kind: "unknown", reason: "known-wrong-in-ddragon" });
   });
 
   it("keeps ranks as Data Dragon has them (6-rank abilities, a 1-rank ultimate)", () => {

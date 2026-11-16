@@ -1,16 +1,18 @@
 import type { ChampionChoice, ChampionIntelView, MatchupIntelView } from "@/domain/matchup-intel/types";
+import { Badge } from "@/components/ui/badge";
 import { Panel, PanelHeader } from "@/components/ui/panel";
 import { FactBadge } from "./ability-list";
 import { AbilityRefLink } from "./ability-ref-link";
 import { AbilityChips } from "./briefing";
 import { SourceLink } from "./source-link";
-import { abilityAnchor, abilityName } from "./wording";
+import { abilityAnchor, abilityName, subjectWords } from "./wording";
 
 /*
   The notes around the abilities (docs/MATCHUP_INTEL.md): how abilities meet (the matchup's
   interactions first, then the enemy's interaction and exception facts), and the levels at which
   something notable becomes possible. Each says what it rests on; neither appears when there is
-  nothing checked to say.
+  nothing checked to say. An enemy fact from an ability Riot changed after the check is flagged, as
+  its row is.
 */
 
 const NO_SOURCE = { title: "", url: "" };
@@ -21,7 +23,7 @@ export function InteractionsPanel({ matchup, enemyIntel, you }: { matchup: Match
   const names = new Map<string, string>([[enemy.id, enemy.name]]);
   if (you) names.set(you.id, you.name);
   const fromMatchup = matchup?.interactions ?? [];
-  const facts = (enemyIntel.abilities ?? []).flatMap((a) => a.facts.filter((f) => f.kind === "interaction" || f.kind === "exception").map((f, i) => ({ key: `${a.slot}-${i}`, slot: a.slot, fact: f })));
+  const facts = (enemyIntel.abilities ?? []).flatMap((a) => a.facts.filter((f) => f.kind === "interaction" || f.kind === "exception").map((f, i) => ({ key: `${a.slot}-${i}`, slot: a.slot, fact: f, flagged: a.freshness === "changed-since" })));
   if (!fromMatchup.length && !facts.length) return null;
   const sourceOf = (id: string) => {
     const s = matchup?.sources.find((x) => x.id === id);
@@ -44,11 +46,16 @@ export function InteractionsPanel({ matchup, enemyIntel, you }: { matchup: Match
             </div>
           </li>
         ))}
-        {facts.map(({ key, slot, fact }) => (
+        {facts.map(({ key, slot, fact, flagged }) => (
           <li key={key} className="space-y-1.5 px-3 py-3 sm:px-4" data-testid="enemy-interaction">
             <p className="flex flex-wrap items-center gap-2">
               <AbilityRefLink anchor={abilityAnchor(enemy.id, slot)}>{abilityName(enemy.name, slot)}</AbilityRefLink>
-              <FactBadge kind={fact.kind} label={fact.label} />
+              <FactBadge kind={fact.kind} label={fact.label} subject={subjectWords(fact.kind, fact.appliesTo, enemy.name)} />
+              {flagged ? (
+                <Badge tone="warn" title="Riot's data for this ability changed after the curated notes were checked: they may be out of date">
+                  Changed since the check
+                </Badge>
+              ) : null}
             </p>
             {fact.detail ? <p className="text-sm leading-relaxed text-fg-muted">{fact.detail}</p> : null}
             {fact.source.title ? (

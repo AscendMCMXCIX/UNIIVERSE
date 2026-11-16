@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ChampionChoice, ChampionNotes, DdragonAbility, DdragonChampionAbilities, MatchupNotes } from "@/domain/matchup-intel/types";
+import type { AbilityView, ChampionChoice, ChampionNotes, DdragonAbility, DdragonChampionAbilities, MatchupNotes, MatchupPageView } from "@/domain/matchup-intel/types";
 import { abilityIconUrl, buildMatchupPageView, championResolver, curatedIndex, safeSourceUrl, type MatchupViewDeps } from "./view";
 
 /*
@@ -34,15 +34,18 @@ const renektonNotes = (over: Partial<ChampionNotes> = {}): ChampionNotes => ({
   championId: "Renekton",
   verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-16" },
   sources: [
-    { id: "wiki", title: "Renekton (League of Legends Wiki)", url: WIKI, revision: 1, licence: "CC BY-SA 3.0" },
+    { id: "wiki", title: "Renekton (League of Legends Wiki)", url: WIKI, revision: 1, revisionTime: "2026-09-23T19:37:45Z", kind: "wiki-champion", licence: "CC BY-SA 3.0" },
     { id: "elsewhere", title: "A guide elsewhere", url: "https://example.com/renekton", licence: "CC BY-SA 3.0" },
   ],
   abilities: {
     W: {
       ddragonCooldown: [18, 17, 16, 15, 14],
-      cooldown: { kind: "per-rank", seconds: [18, 17, 16, 15, 14], starts: "on-cast" },
+      ddragonIdentity: { id: "XW", name: "W ability", maxRank: 5, charges: null },
+      cooldown: { kind: "per-rank", seconds: [18, 17, 16, 15, 14], starts: "after-effect-ends" },
+      modifiers: { resetsAttack: true, lockout: { seconds: 0.5 } },
+      cooldownNote: "Held for up to 7 seconds.",
       facts: [
-        { kind: "crowd-control", label: "Stun", detail: "Stuns on the third hit.", source: "wiki" },
+        { kind: "crowd-control", label: "Stun", detail: "Stuns on the third hit.", appliesTo: "target", tags: ["stun", "stun", "teleport" as "stun"], source: "wiki" },
         { kind: "interaction", label: "Empowered with Fury", source: "elsewhere" },
       ],
       details: ["Empowered, it stuns for longer."],
@@ -82,6 +85,8 @@ function deps(over: Partial<MatchupViewDeps> = {}): MatchupViewDeps & { loadAbil
   } as MatchupViewDeps & { loadAbilities: ReturnType<typeof vi.fn> };
 }
 
+const slotOf = (v: MatchupPageView, slot: string): AbilityView => v.enemyIntel!.abilities!.find((a) => a.slot === slot)!;
+
 describe("a curated matchup (Ambessa vs Renekton)", () => {
   it("brings the briefing, the enemy's five abilities with cooldowns and checked facts, and both patches", async () => {
     const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps());
@@ -94,26 +99,35 @@ describe("a curated matchup (Ambessa vs Renekton)", () => {
 
     const abilities = v.enemyIntel!.abilities!;
     expect(abilities.map((a) => a.slot)).toEqual(["P", "Q", "W", "E", "R"]);
-    const w = abilities.find((a) => a.slot === "W")!;
-    expect(w.cooldown).toEqual({ kind: "per-rank", seconds: [18, 17, 16, 15, 14], starts: "on-cast", from: "curated" });
-    expect(w.facts[0]).toEqual({ kind: "crowd-control", label: "Stun", detail: "Stuns on the third hit.", source: { title: "Renekton (League of Legends Wiki)", url: WIKI } });
+    const w = slotOf(v, "W");
+    // The checked notes are the line, with their start and modifiers; nothing as-checked beside them.
+    expect(w.cooldown).toEqual({ kind: "per-rank", seconds: [18, 17, 16, 15, 14], starts: "after-effect-ends", from: "curated" });
+    expect(w.checkedCooldown).toBeNull();
+    expect(w.changes).toEqual([]);
+    expect(w.modifiers).toEqual({ resetsAttack: true, lockout: { seconds: 0.5 } });
+    expect(w.cooldownNote).toBe("Held for up to 7 seconds.");
+    // Who has the effect, the tags from the vocabulary only and each once, and when the page read was saved.
+    expect(w.facts[0]).toEqual({ kind: "crowd-control", label: "Stun", detail: "Stuns on the third hit.", appliesTo: "target", tags: ["stun"], source: { title: "Renekton (League of Legends Wiki)", url: WIKI, revisionTime: "2026-09-23T19:37:45Z" } });
+    expect(w.facts[1]).toMatchObject({ appliesTo: null, tags: [], source: { title: "A guide elsewhere", url: "", revisionTime: null } });
     expect(w.details).toEqual(["Empowered, it stuns for longer."]);
     expect(w.freshness).toBe("current");
     expect(w.description).toBe("What W does.");
     // Data Dragon only where nothing is curated: the passive's cooldown is not Riot's to give.
-    expect(abilities.find((a) => a.slot === "P")!.cooldown).toEqual({ kind: "unknown", reason: "passive-not-in-ddragon" });
-    expect(abilities.find((a) => a.slot === "Q")!).toMatchObject({ cooldown: { kind: "per-rank", seconds: [8, 7, 6, 5, 4], starts: null, from: "ddragon" }, facts: [], freshness: null });
+    expect(slotOf(v, "P").cooldown).toEqual({ kind: "unknown", reason: "passive-not-in-ddragon" });
+    expect(slotOf(v, "Q")).toMatchObject({ cooldown: { kind: "per-rank", seconds: [8, 7, 6, 5, 4], starts: null, from: "ddragon" }, checkedCooldown: null, modifiers: null, facts: [], freshness: null });
 
     expect(v.enemyIntel!.curated).toEqual({ verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-16" }, freshness: "current" });
     // Level notes in level order, each with its source.
     expect(v.enemyIntel!.levelNotes.map((l) => l.level)).toEqual([2, 6]);
-    expect(v.enemyIntel!.levelNotes[0]!.source).toEqual({ title: "Renekton (League of Legends Wiki)", url: WIKI });
+    expect(v.enemyIntel!.levelNotes[0]!.source).toEqual({ title: "Renekton (League of Legends Wiki)", url: WIKI, revisionTime: "2026-09-23T19:37:45Z" });
+    // Sources keep their kind and revision time for the footer.
+    expect(v.enemyIntel!.sources[0]).toMatchObject({ kind: "wiki-champion", revisionTime: "2026-09-23T19:37:45Z" });
   });
 
   it("keeps the briefing to the two champions' abilities", async () => {
     const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps());
-    expect(v.matchup!.briefing.lane[0]!.basedOn).toEqual(["Renekton.W"]);
-    expect(v.matchup!.briefing.opportunity.basedOn).toEqual(["Renekton.P", "Ambessa.Q"]);
+    expect(v.matchup!.briefing.lane[0]).toEqual({ text: "Respect level 2.", basedOn: ["Renekton.W"] });
+    expect(v.matchup!.briefing.opportunity).toEqual({ text: "Trade when Fury is low.", basedOn: ["Renekton.P", "Ambessa.Q"] });
     expect(v.matchup!.interactions[0]).toEqual({ text: "Unstoppable answers the stun.", abilities: ["Ambessa.E", "Renekton.W"], source: "wiki" });
   });
 
@@ -157,23 +171,63 @@ describe("no curated matchup (Garen vs Darius)", () => {
   });
 });
 
-describe("Riot's numbers changed after the check", () => {
-  it("shows Riot's current numbers and marks the ability, the champion and the matchup as possibly out of date", async () => {
-    const stored = { Ambessa: kit("Ambessa", "16.23.1"), Renekton: kit("Renekton", "16.23.1", [20, 19, 18, 17, 16]) };
-    const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps({ currentPatch: { patch: "16.23", ddragonVersion: "16.23.1" }, loadAbilities: async (ids) => ({ version: "16.23.1", champions: Object.fromEntries(ids.map((id) => [id, stored[id as keyof typeof stored] ?? null])) }) }));
-    const w = v.enemyIntel!.abilities!.find((a) => a.slot === "W")!;
-    expect(w.cooldown).toMatchObject({ kind: "per-rank", seconds: [20, 19, 18, 17, 16] });
+/** Both champions stored as given (keyed by id), at the version each record carries. */
+const storedAs =
+  (stored: Record<string, DdragonChampionAbilities>): MatchupViewDeps["loadAbilities"] =>
+  async (ids) => ({ version: null, champions: Object.fromEntries(ids.map((id) => [id, stored[id] ?? null])) });
+
+describe("Riot's data changed after the check", () => {
+  const changedW = { Ambessa: kit("Ambessa", "16.23.1"), Renekton: kit("Renekton", "16.23.1", [20, 19, 18, 17, 16]) };
+
+  it("shows Riot's current numbers as Riot's, keeps the notes' cooldown as checked beside them, and flags the ability and the champion", async () => {
+    const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps({ currentPatch: { patch: "16.23", ddragonVersion: "16.23.1" }, loadAbilities: storedAs(changedW) }));
+    const w = slotOf(v, "W");
+    // Riot's numbers, never labelled checked, with no start: the checked timing goes with the notes.
+    expect(w.cooldown).toEqual({ kind: "per-rank", seconds: [20, 19, 18, 17, 16], starts: null, from: "ddragon" });
+    expect(w.checkedCooldown).toEqual({ kind: "per-rank", seconds: [18, 17, 16, 15, 14], starts: "after-effect-ends", from: "curated" });
+    expect(w.changes).toEqual(["cooldown"]);
     expect(w.freshness).toBe("changed-since");
+    // The notes are still there, to be shown flagged.
+    expect(w.modifiers).toEqual({ resetsAttack: true, lockout: { seconds: 0.5 } });
+    expect(w.facts.map((f) => f.label)).toEqual(["Stun", "Empowered with Fury"]);
     expect(v.enemyIntel!.curated!.freshness).toBe("changed-since");
-    expect(v.matchup!.freshness).toBe("changed-since");
     expect(v.patch).toEqual({ current: "26.23", data: "26.23" });
   });
 
-  it("says only 'checked on' a patch when the numbers held but the patch moved on", async () => {
-    const stored = { Ambessa: kit("Ambessa", "16.23.1"), Renekton: kit("Renekton", "16.23.1") };
-    const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps({ loadAbilities: async (ids) => ({ version: "16.23.1", champions: Object.fromEntries(ids.map((id) => [id, stored[id as keyof typeof stored] ?? null])) }) }));
+  it("marks the matchup as possibly out of date when an ability it rests on changed", async () => {
+    const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps({ loadAbilities: storedAs(changedW) }));
+    expect(v.matchup!.freshness).toBe("changed-since");
+  });
+
+  it("treats a rework that keeps its cooldowns as a change: the name, the id, the ranks or the charges", async () => {
+    for (const over of [{ name: "Renamed W" }, { id: "XW2" }, { charges: 2 }] as Array<Partial<DdragonAbility>>) {
+      const renekton = kit("Renekton", "16.23.1");
+      renekton.abilities = renekton.abilities.map((a) => (a.slot === "W" ? { ...a, ...over } : a));
+      const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps({ loadAbilities: storedAs({ Ambessa: kit("Ambessa", "16.23.1"), Renekton: renekton }) }));
+      const w = slotOf(v, "W");
+      expect(w.freshness, JSON.stringify(over)).toBe("changed-since");
+      expect(w.changes, JSON.stringify(over)).toEqual([Object.keys(over)[0] === "charges" ? "charges" : Object.keys(over)[0]!]);
+      // Same numbers, but Riot's now: a charge count from Data Dragon alone is no number at all.
+      expect(w.cooldown, JSON.stringify(over)).toEqual(over.charges ? { kind: "unknown", reason: "charges-in-ddragon" } : { kind: "per-rank", seconds: [18, 17, 16, 15, 14], starts: null, from: "ddragon" });
+      expect(v.matchup!.freshness, JSON.stringify(over)).toBe("changed-since");
+    }
+  });
+
+  it("says only 'checked on' a patch when the record held but the patch moved on", async () => {
+    const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps({ loadAbilities: storedAs({ Ambessa: kit("Ambessa", "16.23.1"), Renekton: kit("Renekton", "16.23.1") }) }));
     expect(v.enemyIntel!.curated!.freshness).toBe("unchanged-since");
+    expect(slotOf(v, "W").cooldown).toMatchObject({ from: "curated", starts: "after-effect-ends" });
     expect(v.matchup!.freshness).toBe("unchanged-since");
+  });
+
+  it("claims no change by Riot when the data held is older than the check: the notes stay the line", async () => {
+    const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps({ loadAbilities: storedAs({ Ambessa: kit("Ambessa", "16.21.1"), Renekton: kit("Renekton", "16.21.1", [20, 19, 18, 17, 16]) }) }));
+    const w = slotOf(v, "W");
+    expect(w.freshness).toBe("unchanged-since");
+    expect(w.cooldown).toMatchObject({ from: "curated", seconds: [18, 17, 16, 15, 14] });
+    expect(w.checkedCooldown).toBeNull();
+    expect(v.matchup!.freshness).toBe("unchanged-since");
+    expect(v.patch.data).toBe("26.21");
   });
 });
 
@@ -222,6 +276,34 @@ describe("a matchup checked on another version than the champion notes it rests 
     const v = await view({ loadAbilities: storedAt("16.24.1", [20, 19, 18, 17, 16]), matchupNotes: () => ambessaVsRenekton({ verified: at("16.23.1", "26.23") }) });
     expect(v.enemyIntel!.curated!.freshness).toBe("changed-since");
     expect(v.matchup!.freshness).toBe("unchanged-since");
+  });
+});
+
+describe("stored records that are not what they should be", () => {
+  it("never throw, and never become a number: the line says it cannot read them", async () => {
+    const odd = kit("Renekton");
+    odd.abilities = odd.abilities.map((a) => (a.slot === "E" ? { ...a, cooldown: [16, Number.NaN, 14, 13, 12] } : a.slot === "R" ? { ...a, cooldown: undefined as unknown as number[] } : a));
+    const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps({ loadAbilities: storedAs({ Ambessa: kit("Ambessa"), Renekton: odd }) }));
+    expect(slotOf(v, "E").cooldown).toEqual({ kind: "unknown", reason: "unreadable" });
+    expect(slotOf(v, "R").cooldown).toEqual({ kind: "unknown", reason: "unreadable" });
+  });
+
+  it("keep the notes' numbers off the line when they cannot be read, and Riot's own on it", async () => {
+    const notes = renektonNotes();
+    notes.abilities.W = { ...notes.abilities.W!, cooldown: { kind: "per-rank", seconds: [18, 17, 16], starts: "on-cast" }, modifiers: { refund: { unit: "percent", amount: [200], when: "never" } } };
+    const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps({ championNotes: (id) => (id === "Renekton" ? notes : null) }));
+    expect(slotOf(v, "W").cooldown).toEqual({ kind: "per-rank", seconds: [18, 17, 16, 15, 14], starts: null, from: "ddragon" });
+    expect(slotOf(v, "W").modifiers).toBeNull();
+  });
+
+  it("show a checked cooldown against the ranks it was checked with, once the ranks moved", async () => {
+    const renekton = kit("Renekton", "16.23.1", [18, 17, 16, 15, 14, 13]);
+    renekton.abilities = renekton.abilities.map((a) => (a.slot === "W" ? { ...a, maxRank: 6 } : a));
+    const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps({ loadAbilities: storedAs({ Ambessa: kit("Ambessa", "16.23.1"), Renekton: renekton }) }));
+    const w = slotOf(v, "W");
+    expect(w.changes).toEqual(["cooldown", "ranks"]);
+    expect(w.cooldown).toEqual({ kind: "per-rank", seconds: [18, 17, 16, 15, 14, 13], starts: null, from: "ddragon" });
+    expect(w.checkedCooldown).toEqual({ kind: "per-rank", seconds: [18, 17, 16, 15, 14], starts: "after-effect-ends", from: "curated" });
   });
 });
 
@@ -290,7 +372,7 @@ describe("links", () => {
   it("drop a fact's link to another host but keep its title, and do the same in the sources", async () => {
     const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps());
     const w = v.enemyIntel!.abilities!.find((a) => a.slot === "W")!;
-    expect(w.facts[1]!.source).toEqual({ title: "A guide elsewhere", url: "" });
+    expect(w.facts[1]!.source).toEqual({ title: "A guide elsewhere", url: "", revisionTime: null });
     expect(v.enemyIntel!.sources.map((s) => s.url)).toEqual([WIKI, ""]);
   });
 

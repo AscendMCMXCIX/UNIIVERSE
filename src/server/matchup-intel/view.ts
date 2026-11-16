@@ -1,6 +1,6 @@
 import type { Db } from "@/server/db/types";
-import { SLOTS, type AbilityRef, type AbilityView, type ChampionChoice, type ChampionIntelView, type ChampionNotes, type DdragonChampionAbilities, type Freshness, type MatchupIntelView, type MatchupNotes, type MatchupPageView, type Slot, type Source } from "@/domain/matchup-intel/types";
-import { abilityFreshness, cooldownDisplay, weakestFreshness } from "@/domain/matchup-intel/cooldown";
+import { FACT_TAGS, SLOTS, type AbilityRef, type AbilityView, type ChampionChoice, type ChampionIntelView, type ChampionNotes, type DdragonChampionAbilities, type Fact, type FactSubject, type FactTag, type FactView, type Freshness, type MatchupIntelView, type MatchupNotes, type MatchupPageView, type Slot, type Source, type SourceLinkView } from "@/domain/matchup-intel/types";
+import { abilityChanges, abilityFreshness, compareDdragonVersions, cooldownDisplay, curatedCooldownDisplay, modifiersView, weakestFreshness } from "@/domain/matchup-intel/cooldown";
 import { patchFromVersion, publicPatchName } from "@/domain/patch";
 import { getCurrentPatch, listChampions, type ChampionSummary } from "@/server/repositories/champions";
 import { loadChampionAbilities } from "./abilities";
@@ -48,17 +48,6 @@ export function safeSourceUrl(url: string): string | null {
 /** A Data Dragon version as stored ("16.22.1"). */
 const VERSION = /^\d{1,3}(\.\d{1,4}){1,3}$/;
 
-/** Two Data Dragon versions in order, by number ("16.9.1" before "16.10.1"); null when either is not a version. */
-function compareVersions(a: string, b: string): number | null {
-  if (!VERSION.test(a) || !VERSION.test(b)) return null;
-  const x = a.split(".").map(Number);
-  const y = b.split(".").map(Number);
-  for (let i = 0; i < Math.max(x.length, y.length); i++) {
-    const d = (x[i] ?? 0) - (y[i] ?? 0);
-    if (d !== 0) return d;
-  }
-  return 0;
-}
 /** A Data Dragon image file name ("RivenTriCleave.png", "Renekton_Predator.png"). */
 const ICON_FILE = /^[\w.\- ]{1,100}\.(png|jpe?g|webp)$/i;
 
@@ -102,10 +91,22 @@ export function championResolver(champions: readonly ChampionChoice[]): (raw: un
   };
 }
 
-/** A fact's or a note's source, as the page links it: its title, and its address when it is an allowed one ("" otherwise). */
-function sourceLink(sources: readonly Source[], id: string): { title: string; url: string } {
+/** A revision time as a source may give it: an ISO time in UTC ("2026-09-23T19:37:45Z"). */
+const REVISION_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?Z$/;
+
+/** A fact's or a note's source, as the page links it: its title, its address when it is an allowed one ("" otherwise), and when the page read was saved. */
+function sourceLink(sources: readonly Source[], id: string): SourceLinkView {
   const s = sources.find((x) => x.id === id);
-  return { title: s?.title ?? "", url: s ? (safeSourceUrl(s.url) ?? "") : "" };
+  return { title: s?.title ?? "", url: s ? (safeSourceUrl(s.url) ?? "") : "", revisionTime: s && typeof s.revisionTime === "string" && REVISION_TIME.test(s.revisionTime) ? s.revisionTime : null };
+}
+
+const SUBJECTS: ReadonlySet<string> = new Set<FactSubject>(["self", "target", "allies", "area"]);
+const TAGS: ReadonlySet<string> = new Set<string>(FACT_TAGS);
+
+/** A fact as the page shows it: who has the effect when the notes say, its tags from the vocabulary only (each once), and its source's link. */
+function factView(f: Fact, sources: readonly Source[]): FactView {
+  const tags = Array.isArray(f.tags) ? f.tags.filter((t, i, all): t is FactTag => typeof t === "string" && TAGS.has(t) && all.indexOf(t) === i) : [];
+  return { kind: f.kind, label: f.label, detail: f.detail ?? null, appliesTo: typeof f.appliesTo === "string" && SUBJECTS.has(f.appliesTo) ? f.appliesTo : null, tags, source: sourceLink(sources, f.source) };
 }
 
 /** Copies of the sources, each address kept only when it is an allowed one. */
@@ -119,27 +120,40 @@ function freshnessOf(values: readonly Freshness[], verifiedVersion: string, data
   return dataVersion !== null && dataVersion === verifiedVersion ? "current" : "unchanged-since";
 }
 
-/** One champion's abilities in slot order, with its curated notes where they exist; null when none are stored yet. */
+/**
+ * One champion's abilities in slot order, with its curated notes where they exist; null when none
+ * are stored yet. Each ability's freshness comes first, because it decides the line: while the
+ * notes still describe Riot's record, their cooldown is the line; once Riot's record moved after
+ * the check, the line is what Riot's data alone supports, and the notes' cooldown is kept as it was
+ * checked (`checkedCooldown`), to be shown with the notes, flagged.
+ */
 function abilityViews(data: DdragonChampionAbilities | null, notes: ChampionNotes | null): AbilityView[] | null {
   if (!data) return null;
   const bySlot = new Map(data.abilities.map((a) => [a.slot, a]));
   return SLOTS.flatMap((slot): AbilityView[] => {
     const a = bySlot.get(slot);
     if (!a) return [];
-    const n = notes?.abilities[slot];
+    const n = notes ? notes.abilities[slot] : undefined;
+    const freshness = n && notes ? abilityFreshness(a, n, notes.verified.ddragonVersion, data.version) : null;
+    const changed = freshness === "changed-since" && n ? abilityChanges(a, n) : [];
+    // The notes' spec as checked: against the ranks Riot gave then, where the notes say them.
+    const checkedRanks = n?.ddragonIdentity && Number.isInteger(n.ddragonIdentity.maxRank) ? n.ddragonIdentity.maxRank : null;
     return [
       {
         slot,
         name: a.name,
         icon: abilityIconUrl(data.version, slot, a.icon),
         maxRank: a.maxRank,
-        cooldown: cooldownDisplay(a, n),
+        cooldown: cooldownDisplay(a, n, freshness),
+        checkedCooldown: freshness === "changed-since" && n?.cooldown ? curatedCooldownDisplay(n.cooldown, checkedRanks) : null,
+        changes: changed,
         cooldownNote: n?.cooldownNote ?? null,
+        modifiers: modifiersView(n?.modifiers, freshness === "changed-since" ? checkedRanks : a.maxRank),
         recast: n?.recast ? { ...n.recast } : null,
-        facts: n && notes ? n.facts.map((f) => ({ kind: f.kind, label: f.label, detail: f.detail ?? null, source: sourceLink(notes.sources, f.source) })) : [],
+        facts: n && notes ? n.facts.map((f) => factView(f, notes.sources)) : [],
         description: a.description,
         details: n?.details ? [...n.details] : [],
-        freshness: n && notes ? abilityFreshness(a, n, notes.verified.ddragonVersion, data.version) : null,
+        freshness,
       },
     ];
   });
@@ -198,8 +212,8 @@ function matchupAbilityFreshness(checked: string, data: DdragonChampionAbilities
   const own = notes?.abilities[slot];
   if (!data || !notes || !own) return "unchanged-since";
   const taken = notes.verified.ddragonVersion;
-  const takenSinceCheck = compareVersions(taken, checked);
-  const dataSinceTaken = compareVersions(data.version, taken);
+  const takenSinceCheck = compareDdragonVersions(taken, checked);
+  const dataSinceTaken = compareDdragonVersions(data.version, taken);
   if (takenSinceCheck === null || dataSinceTaken === null || takenSinceCheck < 0 || dataSinceTaken < 0) return "unchanged-since";
   const ability = data.abilities.find((a) => a.slot === slot) ?? null;
   return abilityFreshness(ability, own, taken, data.version) === "changed-since" ? "changed-since" : "unchanged-since";
@@ -208,7 +222,7 @@ function matchupAbilityFreshness(checked: string, data: DdragonChampionAbilities
 /**
  * The curated matchup, ready to show: its briefing and interactions resting only on the two
  * champions' abilities, its sources' links checked, and how fresh it is against Riot's current
- * numbers for the abilities it rests on (matchupAbilityFreshness).
+ * data for the abilities it rests on (matchupAbilityFreshness).
  */
 function matchupIntel(notes: MatchupNotes, ids: ReadonlySet<string>, data: Record<string, DdragonChampionAbilities | null>, championNotes: Record<string, ChampionNotes | null>): MatchupIntelView {
   const keep = (refs: readonly AbilityRef[]) => refs.filter((r) => refOf(r, ids) !== null);
