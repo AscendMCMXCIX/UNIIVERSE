@@ -1,28 +1,34 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import type { Db } from "@/server/db/types";
+import type { DdragonChampionAbilities } from "@/domain/matchup-intel/types";
 import { StaticDataError, type DdragonChampion, type DdragonChampionDetail, type StaticDataProvider } from "@/server/riot/static/provider";
+import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
+import { listChampions } from "@/server/repositories/champions";
 import { loadChampionAbilities, seedChampionAbilitiesFromFixture, syncChampionAbilities } from "@/server/matchup-intel/abilities";
+import { abilityFixture } from "@/server/matchup-intel/ability-fixture";
 import { runJob } from "@/server/jobs";
 
 /*
   Matchup Intel's champion abilities in the database (app_settings "champion_abilities"): stored
   by the version-check job once per game version, from the detail files the champion sync already
   read; read per champion by the page, only the champions it shows. What must hold: an unchanged
-  version reads no file again; a champion that cannot be read keeps its earlier record; more than
-  10% failing writes nothing (last known good); offline, the committed fixture is stored; a
-  malformed id never reaches a query.
+  version reads no file again, and its check reads the stored document once; a champion that
+  cannot be read keeps its earlier record, also after a change of rules; more than 10% failing
+  writes nothing (last known good) and stops the requests; offline, the committed fixture is
+  stored; a malformed id never reaches a query.
 */
 
 const rowsOf = <T,>(result: unknown): T[] => ((result as { rows?: T[] }).rows ?? (result as T[])) as T[];
 const parsed = (value: unknown) => (typeof value === "string" ? JSON.parse(value) : value);
 
-/** The database with every statement counted and each raw answer kept (to see what a read sent back). */
+/** The database with every statement counted, and each raw statement and answer kept (to see what a read asked and sent back). */
 function watched(db: Db) {
   const answers: unknown[] = [];
+  const queries: SQL[] = [];
   let statements = 0;
   const proxy = new Proxy(db, {
     get(target, prop, receiver) {
@@ -32,6 +38,7 @@ function watched(db: Db) {
         statements += 1;
         const out = (value as (...a: unknown[]) => unknown).apply(target, args);
         if (prop !== "execute") return out;
+        queries.push(args[0] as SQL);
         // Drizzle runs a query on every then(): settle it once, and hand the caller that promise.
         const once = Promise.resolve(out);
         once.then((r) => answers.push(r), () => undefined);
@@ -39,10 +46,17 @@ function watched(db: Db) {
       };
     },
   });
-  return { db: proxy as Db, statements: () => statements, answers };
+  return { db: proxy as Db, statements: () => statements, answers, queries };
 }
 
-const ROSTER = ["Aatrox", "Ahri", "Akali", "Alistar", "Amumu", "Anivia", "Annie", "Ashe", "Azir", "Bard"];
+/** The shared buffers (8 KB pages) PostgreSQL touched running a statement, from EXPLAIN (ANALYZE, BUFFERS). */
+async function buffersOf(db: Db, query: SQL): Promise<number> {
+  const [row] = rowsOf<Record<string, unknown>>(await db.execute(sql`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${query}`));
+  const [plan] = parsed(Object.values(row!)[0]) as Array<{ Plan: Record<string, unknown> }>;
+  return Number(plan!.Plan["Shared Hit Blocks"] ?? 0) + Number(plan!.Plan["Shared Read Blocks"] ?? 0);
+}
+
+const ROSTER =["Aatrox", "Ahri", "Akali", "Alistar", "Amumu", "Anivia", "Annie", "Ashe", "Azir", "Bard"];
 
 function champ(id: string, key: number): DdragonChampion {
   return { id, key: String(key), name: id, title: "", tags: ["Fighter"], partype: "Mana", info: { attack: 5, defense: 5, magic: 5, difficulty: 5 }, stats: { attackrange: 125 }, image: { full: `${id}.png` } };
@@ -91,7 +105,17 @@ class FakeDdragon implements StaticDataProvider {
 
 async function storedIndex(db: Db) {
   const [row] = rowsOf<{ value: unknown }>(await db.execute(sql`SELECT value FROM app_settings WHERE key = 'champion_abilities'`));
-  return (row ? parsed(row.value) : null) as { format: number; version: string; updatedAt: string; source?: string; champions: Record<string, { version: string; abilities: Array<{ slot: string; cooldown: number[] }> }> } | null;
+  return (row ? parsed(row.value) : null) as { format: number; version: string; updatedAt: string; source?: string; champions: Record<string, { version: string; format?: number; abilities: Array<{ slot: string; cooldown: number[] }> }> } | null;
+}
+
+/** A Data Dragon-shaped detail file made back from a record: its names, descriptions, icons and numbers, so a sync stores records of Data Dragon's own size. */
+function detailFromRecord(record: DdragonChampionAbilities): unknown {
+  const [passive, ...spells] = record.abilities;
+  return {
+    id: record.championId,
+    passive: { name: passive!.name, description: passive!.description, image: { full: passive!.icon } },
+    spells: spells.map((a) => ({ id: a.id, name: a.name, description: a.description, maxrank: a.maxRank, cooldown: a.cooldown, maxammo: a.charges === null ? "-1" : String(a.charges), image: { full: a.icon } })),
+  };
 }
 
 const qCooldown = (record: { abilities: Array<{ slot: string; cooldown: number[] }> } | null | undefined) => record?.abilities.find((a) => a.slot === "Q")?.cooldown;
@@ -125,29 +149,35 @@ describe("champion abilities: sync and read", () => {
     expect(Number.isNaN(Date.parse(index!.updatedAt))).toBe(false);
 
     const w = watched(db);
+    // The roster is the cached champion list the page shows anyway; read it first, then count.
+    await listChampions(w.db);
+    const before = w.statements();
     const loaded = await loadChampionAbilities(w.db, ["Ahri", "Akali", "Zed"]);
     expect(loaded.version).toBe("16.21.1");
     expect(Object.keys(loaded.champions)).toEqual(["Ahri", "Akali", "Zed"]);
     expect(loaded.champions.Zed).toBeNull();
     const ahri = loaded.champions.Ahri!;
     expect(ahri).toMatchObject({ championId: "Ahri", version: "16.21.1" });
+    // The contract's fields only: the rules' revision stays in the store.
+    expect(Object.keys(ahri)).toEqual(["championId", "version", "abilities"]);
+    expect(index!.champions.Ahri).toMatchObject({ version: "16.21.1", format: 1 });
     expect(ahri.abilities.map((a) => a.slot)).toEqual(["P", "Q", "W", "E", "R"]);
     expect(ahri.abilities[0]).toEqual({ slot: "P", id: null, name: "Ahri Passive", icon: "Ahri_P.png", maxRank: 1, cooldown: [], charges: null, description: "Ahri's passive marks. Then it fades." });
     expect(ahri.abilities[1]).toMatchObject({ slot: "Q", id: "AhriQ", maxRank: 5, cooldown: [21, 21, 21, 21, 21], charges: null, description: "The Q of Ahri deals damage." });
     expect(ahri.abilities[3]).toMatchObject({ slot: "E", charges: 2 });
     expect(ahri.abilities[4]).toMatchObject({ slot: "R", maxRank: 3, cooldown: [100, 90, 80] });
-    // One statement, and the database sent back only the two champions it holds of the three asked for.
-    expect(w.statements()).toBe(1);
-    const [answer] = rowsOf<{ version: string; champions: unknown }>(w.answers[0]);
+    // One statement, and the database sent back only the two champions asked for.
+    expect(w.statements() - before).toBe(1);
+    const [answer] = rowsOf<{ champions: unknown }>(w.answers[0]);
     expect(Object.keys(parsed(answer!.champions) as object).sort()).toEqual(["Ahri", "Akali"]);
     expect(JSON.stringify(answer).length).toBeLessThan(3_000);
 
     // Cached per champion: the same champions again cost nothing; a new one is read alone.
     loaded.champions.Ahri!.abilities.length = 0; // a caller changing its copy changes nothing stored
     expect((await loadChampionAbilities(w.db, ["Akali", "Ahri"])).champions.Ahri!.abilities).toHaveLength(5);
-    expect(w.statements()).toBe(1);
+    expect(w.statements() - before).toBe(1);
     await loadChampionAbilities(w.db, ["Ahri", "Bard"]);
-    expect(w.statements()).toBe(2);
+    expect(w.statements() - before).toBe(2);
   });
 
   it("does nothing more while the version stays: no file is read, one small read", async () => {
@@ -213,10 +243,95 @@ describe("champion abilities: sync and read", () => {
     expect(loaded).toEqual({ version: null, champions: Object.fromEntries(bad.map((id) => [id, null])) });
     expect(w.statements()).toBe(0);
     // Mixed with valid ones: those are read, the malformed ones stay null and never reach the statement.
+    await listChampions(w.db);
+    const before = w.statements();
     const mixed = await loadChampionAbilities(w.db, ["Riv en", "Annie"]);
     expect(mixed.champions["Riv en"]).toBeNull();
     expect(mixed.champions.Annie).toMatchObject({ championId: "Annie", version: "16.23.1" });
+    expect(w.statements() - before).toBe(1);
+  });
+
+  it("after a change of rules, a champion that cannot be read keeps its record, and only it is read on the next run", async () => {
+    const db = handle.db;
+    // The stored index as an earlier revision of the rules wrote it: it, and each record, say format 0.
+    await db.execute(sql`UPDATE app_settings SET value = value || jsonb_build_object('format', 0, 'champions', (SELECT jsonb_object_agg(e.key, e.value || '{"format": 0}'::jsonb) FROM jsonb_each(value->'champions') AS e)) WHERE key = 'champion_abilities'`);
+    provider.failing = new Set(["Akali"]);
+    const before = provider.requests.length;
+    const result = await syncChampionAbilities(db, "16.23.1", { provider });
+    provider.failing = new Set();
+    // The version did not change, so every file is requested; Akali's failure takes nothing away.
+    expect(result).toMatchObject({ version: "16.23.1", changed: true, degraded: false, refreshed: 9, kept: 1, failed: 1, fetched: 10, stored: 10 });
+    expect(provider.requests.length - before).toBe(10);
+    const index = await storedIndex(db);
+    expect(index!.format).toBe(1);
+    expect(index!.champions.Akali).toMatchObject({ version: "16.23.1", format: 0 });
+    expect(Object.values(index!.champions).filter((c) => c.format === 1)).toHaveLength(9);
+    expect((await loadChampionAbilities(db, ["Akali"])).champions.Akali).toMatchObject({ championId: "Akali", version: "16.23.1" });
+
+    const next = provider.requests.length;
+    expect(await syncChampionAbilities(db, "16.23.1", { provider })).toMatchObject({ changed: true, refreshed: 1, kept: 0, failed: 0, fetched: 1, stored: 10 });
+    expect(provider.requests.slice(next)).toEqual(["Akali"]);
+    expect((await storedIndex(db))!.champions.Akali).toMatchObject({ format: 1 });
+    expect(await syncChampionAbilities(db, "16.23.1", { provider })).toMatchObject({ changed: false, fetched: 0 });
+  });
+
+  it("stops requesting files once more than 10% have failed: the run writes nothing, so the rest would be wasted", async () => {
+    const db = handle.db;
+    const before = await storedIndex(db);
+    provider.failing = new Set(ROSTER);
+    try {
+      // One at a time: the second failure is more than 10% of 10, and the other 8 are never requested.
+      let start = provider.requests.length;
+      expect(await syncChampionAbilities(db, "16.24.1", { provider, concurrency: 1 })).toMatchObject({ changed: false, degraded: true, failed: 2, deferred: 8, fetched: 2, kept: 10, stored: 10 });
+      expect(provider.requests.length - start).toBe(2);
+      // Six at a time (the job's): only the six already asked for.
+      start = provider.requests.length;
+      expect(await syncChampionAbilities(db, "16.24.1", { provider })).toMatchObject({ degraded: true, failed: 6, deferred: 4, fetched: 6 });
+      expect(provider.requests.length - start).toBe(6);
+    } finally {
+      provider.failing = new Set();
+    }
+    expect(await storedIndex(db)).toEqual(before);
+  });
+});
+
+/*
+  The hourly check's cost with Data Dragon's whole roster stored: 173 champions whose records have
+  Data Dragon's own size (the committed copy's, made back into detail files and stored by a sync),
+  as production holds them: about 117 KB compressed, kept out of line in TOAST.
+*/
+describe("champion abilities: the hourly check with the whole roster stored", () => {
+  let full: DbHandle;
+  beforeAll(async () => {
+    full = await testDb();
+  }, 60_000);
+  afterAll(async () => {
+    await full.close();
+  });
+
+  it("reads the stored document once, not again for each champion", async () => {
+    const db = full.db;
+    await syncStaticData(db, new FixtureStaticProvider());
+    const { champions } = abilityFixture();
+    const details = new Map(Object.values(champions).map((record) => [record.championId, detailFromRecord(record)]));
+    expect(await syncChampionAbilities(db, "16.22.1", { details })).toMatchObject({ changed: true, roster: 173, refreshed: 173, stored: 173, fetched: 0 });
+
+    const w = watched(db);
+    expect(await syncChampionAbilities(w.db, "16.22.1", {})).toMatchObject({ changed: false, degraded: false, roster: 173, stored: 173, refreshed: 0, fetched: 0 });
     expect(w.statements()).toBe(1);
+    expect(JSON.stringify(rowsOf(w.answers[0])).length).toBeLessThan(300);
+    // Read once, the statement touches about a hundred 8 KB pages. Read again in the check of
+    // each champion, it touched about 11,000 (half a second of database time every hour).
+    expect(await buffersOf(db, w.queries[0]!)).toBeLessThan(1_000);
+
+    // The page's read: one statement, the document read once too, only the two records sent back.
+    await listChampions(w.db);
+    const before = w.statements();
+    const loaded = await loadChampionAbilities(w.db, ["Riven", "Renekton"]);
+    expect(loaded).toMatchObject({ version: "16.22.1", champions: { Riven: { championId: "Riven" }, Renekton: { championId: "Renekton" } } });
+    expect(w.statements() - before).toBe(1);
+    expect(JSON.stringify(rowsOf(w.answers.at(-1))).length).toBeLessThan(5_000);
+    expect(await buffersOf(db, w.queries.at(-1)!)).toBeLessThan(300);
   });
 });
 

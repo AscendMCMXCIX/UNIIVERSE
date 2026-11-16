@@ -33,8 +33,9 @@ import { mapWithConcurrency } from "@/server/riot/static/sync";
 
 const KEY = "champion_abilities";
 /**
- * The rules' revision. A stored index made under another one is made again from Data Dragon on
- * the next run (and the fixture must be rebuilt: abilities.test.ts fails until it is).
+ * The rules' revision. Each stored record carries the one it was made under, and a record made
+ * under another is read again from Data Dragon on the next run (the fixture must be rebuilt too:
+ * abilities.test.ts fails until it is).
  */
 export const ABILITY_RULES_FORMAT = 1;
 /** The Data Dragon version the committed fixture was built from. */
@@ -48,8 +49,16 @@ const MAX_FAILED_SHARE = 0.1;
 /** The longest description kept, in characters; a longer one is cut at a word and ends in "…". */
 export const DESCRIPTION_MAX = 400;
 
+/**
+ * A champion's record as the sync stores it: the contract's fields and `format`, the rules'
+ * revision that made it. The page reads it back without `format`. The offline fixture's records
+ * have none: that index is replaced whole.
+ */
+export type StoredChampionAbilities = DdragonChampionAbilities & { format?: number };
+
 /** What app_settings "champion_abilities" holds. */
 export interface ChampionAbilitiesIndex {
+  /** The rules' revision of the last write. */
   format: number;
   /** The game version the index was last synced for. Each champion carries its own (an earlier one when that champion could not be read since). */
   version: string;
@@ -57,7 +66,7 @@ export interface ChampionAbilitiesIndex {
   updatedAt: string;
   /** "fixture": the committed offline copy, seeded when the champions came from the offline fixture. */
   source?: "fixture";
-  champions: Record<string, DdragonChampionAbilities>;
+  champions: Record<string, StoredChampionAbilities>;
 }
 
 /* ---------- The rules (mirrored in scripts/matchup-intel/build-ability-fixture.mjs) ---------- */
@@ -184,20 +193,30 @@ interface StoredState {
 }
 
 async function readState(db: Db, version: string, mode: "due" | "all" | "none"): Promise<StoredState> {
+  // Due: the index is the offline fixture, or the champion's record is missing, from another
+  // version, or made under other rules (a record without `format` counts as other rules).
   const dueRule =
     mode === "none"
       ? sql`FALSE`
       : mode === "all"
         ? sql`TRUE`
-        : sql`(s.value IS NULL OR s.value->>'version' IS DISTINCT FROM ${version} OR s.value->>'source' IS NOT NULL OR s.value->>'format' IS DISTINCT FROM ${String(ABILITY_RULES_FORMAT)} OR (s.value->'champions'->c.id->>'version') IS DISTINCT FROM ${version})`;
+        : sql`(s.source IS NOT NULL OR (s.champions->c.id->>'version') IS DISTINCT FROM ${version} OR (s.champions->c.id->>'format') IS DISTINCT FROM ${String(ABILITY_RULES_FORMAT)})`;
+  // The stored document (117 KB compressed, kept out of line in TOAST; about 290 KB of JSON) is
+  // read once, by the materialised CTE, and each champion's check is then a lookup in memory.
+  // Referred to inside the per-champion filter, it is fetched and decompressed again for each
+  // field of each champion: about 0.5 s of database time for 173 champions, against about 5 ms
+  // (docs/HOSTING_USAGE.md). Each field is taken by its own operator, which works on any stored
+  // JSON (`value - 'champions'`, one read fewer, fails on a scalar).
   const result = await db.execute(sql`
-    SELECT s.key IS NOT NULL AS present,
-      s.value->>'version' AS version, s.value->>'source' AS source, s.value->>'format' AS format,
-      CASE WHEN jsonb_typeof(s.value->'champions') = 'object' THEN (SELECT count(*) FROM jsonb_object_keys(s.value->'champions'))::int ELSE 0 END AS stored,
+    WITH s AS MATERIALIZED (
+      SELECT TRUE AS present, value->>'version' AS version, value->>'source' AS source, value->>'format' AS format, value->'champions' AS champions
+        FROM app_settings WHERE key = ${KEY})
+    SELECT s.present IS NOT NULL AS present, s.version, s.source, s.format,
+      CASE WHEN jsonb_typeof(s.champions) = 'object' THEN (SELECT count(*) FROM jsonb_object_keys(s.champions))::int ELSE 0 END AS stored,
       (SELECT count(*)::int FROM champions c WHERE c.is_active) AS roster,
-      (SELECT coalesce(json_agg(json_build_array(c.id, (s.value->'champions'->c.id) IS NOT NULL) ORDER BY c.id), '[]'::json)
+      (SELECT coalesce(json_agg(json_build_array(c.id, (s.champions->c.id) IS NOT NULL) ORDER BY c.id), '[]'::json)
          FROM champions c WHERE c.is_active AND ${dueRule}) AS due
-    FROM (SELECT 1) AS one LEFT JOIN app_settings s ON s.key = ${KEY}`);
+    FROM (SELECT 1) AS one LEFT JOIN s ON TRUE`);
   const row = rowsOf<{ present: boolean; version: string | null; source: string | null; format: string | null; stored: number | string; roster: number | string; due: unknown }>(result)[0];
   const due = (parsedJson(row?.due) ?? []) as Array<[string, boolean]>;
   return {
@@ -266,19 +285,22 @@ export interface AbilitySyncResult {
   kept: number;
   /** Champions whose file could not be read or was not in the expected shape. */
   failed: number;
-  /** Champions not tried: the deadline came first (the next run tries them). */
+  /** Champions not tried: the deadline came first, or too many had already failed (the next run tries them). */
   deferred: number;
   /** Files this sync requested itself (the rest came from the champion sync). */
   fetched: number;
 }
 
 /**
- * Brings the stored abilities to `version`. Cheap when nothing changed: one small read. It reads
- * a champion again when the stored index is for another version, was made under other rules or is
- * the offline fixture, or that champion's own record is missing or older. Files the champion sync
- * already read are used as they are; the rest are requested from the provider (6 at a time, none
- * after the deadline). A champion that cannot be read keeps its earlier record; when more than
- * 10% of the roster cannot be read, nothing is written and the run is degraded (last known good).
+ * Brings the stored abilities to `version`. Cheap when nothing changed: one statement that reads
+ * the stored document once and sends back a few hundred bytes. It reads a champion again when the
+ * stored index is the offline fixture, or that champion's record is missing, from another version
+ * or made under other rules. Files the champion sync already read are used as they are; the rest
+ * are requested from the provider (6 at a time, none after the deadline). A champion that cannot
+ * be read keeps its earlier record. When more than 10% of the roster cannot be read, nothing is
+ * written and the run is degraded (last known good), and no more files are requested in that run:
+ * a lasting failure costs each run the files it takes to pass 10% (and those already in flight),
+ * not the whole roster.
  */
 export async function syncChampionAbilities(db: Db, version: string, options: AbilitySyncOptions = {}): Promise<AbilitySyncResult> {
   const blank: AbilitySyncResult = { version, source: "ddragon", changed: false, degraded: false, roster: 0, stored: 0, refreshed: 0, kept: 0, failed: 0, deferred: 0, fetched: 0 };
@@ -287,7 +309,8 @@ export async function syncChampionAbilities(db: Db, version: string, options: Ab
   const base: AbilitySyncResult = { ...blank, roster: state.roster, stored: state.stored };
   if (state.due.length === 0) return base;
 
-  const records: Record<string, DdragonChampionAbilities> = {};
+  const tooMany = state.roster * MAX_FAILED_SHARE;
+  const records: Record<string, StoredChampionAbilities> = {};
   const failures = new Map<string, number>();
   let failed = 0;
   let deferred = 0;
@@ -298,7 +321,7 @@ export async function syncChampionAbilities(db: Db, version: string, options: Ab
   };
   const take = (id: string, detail: unknown) => {
     const record = detail == null ? null : compactChampionAbilities(detail, version);
-    if (record && record.championId === id) records[id] = record;
+    if (record && record.championId === id) records[id] = { ...record, format: ABILITY_RULES_FORMAT };
     else fail(detail == null ? "missing" : "unreadable");
   };
 
@@ -312,7 +335,8 @@ export async function syncChampionAbilities(db: Db, version: string, options: Ab
   if (toFetch.length && !provider?.fetchChampionDetail) deferred += toFetch.length;
   else if (toFetch.length) {
     await mapWithConcurrency(toFetch, options.concurrency ?? 6, async (id) => {
-      if (options.deadline !== undefined && Date.now() >= options.deadline) {
+      // Once too many have failed, this run writes nothing, so the rest are not requested.
+      if (failed > tooMany || (options.deadline !== undefined && Date.now() >= options.deadline)) {
         deferred += 1;
         return;
       }
@@ -332,7 +356,7 @@ export async function syncChampionAbilities(db: Db, version: string, options: Ab
   const withRecord = (d: { id: string; has: boolean }) => d.has;
   const why = [...failures].map(([kind, n]) => `${kind} ${n}`).join(", ");
   const counts = `${failed} failed${why ? ` (${why})` : ""}${deferred ? `, ${deferred} left for the next run` : ""}`;
-  if (failed > state.roster * MAX_FAILED_SHARE) {
+  if (failed > tooMany) {
     const error = `Champion abilities not refreshed: ${failed} of ${state.roster} champions could not be read for ${version}; the stored abilities are kept.`;
     options.log?.(`${error} (${counts}, ${fetched} files requested)`);
     return { ...base, degraded: true, error, kept: state.due.filter(withRecord).length, failed, deferred, fetched };
@@ -341,8 +365,11 @@ export async function syncChampionAbilities(db: Db, version: string, options: Ab
     options.log?.(`Champion abilities ${version}: nothing new (${counts}, ${fetched} files requested).`);
     return { ...base, kept: state.due.filter(withRecord).length, failed, deferred, fetched };
   }
-  // An index from the fixture or from other rules is replaced whole: what could not be read again is left out, never mixed in.
-  const replace = !state.exists || state.source !== null || state.format !== ABILITY_RULES_FORMAT;
+  // The offline fixture is replaced whole, so its label never covers records read from Data
+  // Dragon (a champion that could not be read is left out until the next run). Otherwise the run
+  // merges: a champion that could not be read keeps its record, even one made under other rules,
+  // which its `format` marks as due on the next run.
+  const replace = !state.exists || state.source !== null;
   const now = (options.now ?? (() => new Date()))();
   const stored = (await writeIndex(db, { format: ABILITY_RULES_FORMAT, version, updatedAt: now.toISOString(), champions: records }, replace ? "replace" : "merge")) ?? state.stored;
   const kept = replace ? 0 : state.due.filter((d) => d.has && !(d.id in records)).length;

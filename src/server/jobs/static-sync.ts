@@ -27,8 +27,8 @@ async function run(ctx: Pick<JobContext, "db" | "log" | "startedAt" | "budgetMs"
   }
   // Matchup Intel: each champion's abilities from Data Dragon, once per game version, from the
   // detail files the champion sync just read (the missing ones are requested); the committed
-  // offline copy when the champions came from the offline fixture. One small read when nothing
-  // changed. Its own failure never stops the rest of the run.
+  // offline copy when the champions came from the offline fixture. When nothing changed it is one
+  // statement, which reads the stored abilities once. Its own failure never stops the rest of the run.
   let abilities: AbilitySyncResult | null = null;
   try {
     if (result.usedFixture) abilities = await seedChampionAbilitiesFromFixture(ctx.db, { log: ctx.log });
