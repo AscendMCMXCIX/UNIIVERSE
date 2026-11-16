@@ -10,12 +10,12 @@ import type * as React from "react";
  * focus until it moves on (tabIndex -1 meanwhile, so a click inside a row never focuses it), so a
  * screen reader lands there too. The browser's own jump to an anchor makes an entry without that
  * state, which the router does not restore: after a later choice of champions, Back would show that
- * choice under this pair's address. False when the row is not on the page (the link is then left to
- * the browser).
+ * choice under this pair's address. With no such row on the page (abilities not stored yet) there
+ * is nothing to jump to, and the address is left as it is.
  */
-export function jumpToAnchor(anchor: string): boolean {
+export function jumpToAnchor(anchor: string): void {
   const row = document.getElementById(anchor);
-  if (!row) return false;
+  if (!row) return;
   for (let d = row.parentElement?.closest("details:not([open])"); d; d = d.parentElement?.closest("details:not([open])")) (d as HTMLDetailsElement).open = true;
   const hash = `#${anchor}`;
   if (window.location.hash !== hash) window.history.pushState(null, "", hash);
@@ -25,7 +25,6 @@ export function jumpToAnchor(anchor: string): boolean {
     row.addEventListener("blur", () => row.removeAttribute("tabindex"), { once: true });
   }
   row.focus({ preventScroll: true });
-  return true;
 }
 
 /**
@@ -40,7 +39,8 @@ export function AbilityRefLink({ anchor, children }: { anchor: string; children:
       onClick={(e) => {
         // A click that asks for another tab or window is the browser's.
         if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-        if (jumpToAnchor(anchor)) e.preventDefault();
+        e.preventDefault();
+        jumpToAnchor(anchor);
       }}
       className="touch-target inline-flex min-h-7 items-center rounded-full border border-border-strong bg-surface-2 px-2.5 text-xs font-medium text-fg-muted transition-colors hover:border-accent/60 hover:text-fg"
       data-testid="briefing-ability"
