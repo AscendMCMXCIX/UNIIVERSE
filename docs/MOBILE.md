@@ -127,7 +127,9 @@ in this tab since the app opened and names Back after the previous page's headin
 A page opened directly (a link from elsewhere, a reload, the installed app's start) has no page
 before it, so Back leads to the page above it instead (`phoneParent`: a teammate's profile → Players,
 Matchup Intel → Resources, Settings → home). A destination's own pages have no Back: they are where
-you start.
+you start. A page that adds history entries of its own address (Matchup Intel's pairs) is still one
+page for Back: named after the page before, it goes there, past those entries, where the browser's
+Navigation API shows them (`backSteps`); the browser's own Back steps through them.
 
 ### Sections of a page
 

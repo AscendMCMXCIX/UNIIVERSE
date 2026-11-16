@@ -253,6 +253,38 @@ export function pageName(path: string, tabs: readonly PhoneTab[]): string {
   return "Back";
 }
 
+/** Two paths that are one place for a phone's Back: the same page, or two sections of one profile (which share a visit). */
+function samePlace(a: string, b: string): boolean {
+  if (a === b) return true;
+  const base = profileBase(a);
+  return base !== null && base === profileBase(b);
+}
+
+/**
+ * How far back, in this tab's history, the page a phone's Back is named after lies: the steps to
+ * give history.go (negative), past the entries the current page made of itself (Matchup Intel's
+ * pairs, each a new entry of its own address, so the browser's Back steps through them). Null when
+ * the history does not show that page there: the entry before those is another page, or an entry's
+ * address is not known. `entries` are the tab's history in order (the Navigation API's), `index`
+ * the current one's place in them.
+ */
+export function backSteps(entries: ReadonlyArray<{ url: string | null }>, index: number, path: string, target: string): number | null {
+  if (index < 1 || index >= entries.length) return null;
+  for (let i = index - 1; i >= 0; i--) {
+    const url = entries[i]!.url;
+    if (!url) return null;
+    let at: string;
+    try {
+      at = new URL(url).pathname;
+    } catch {
+      return null;
+    }
+    if (samePlace(at, path)) continue;
+    return at === target ? i - index : null;
+  }
+  return null;
+}
+
 /** Admin Mode's start page (its dashboard). It is current only on itself, not on the pages beneath it. */
 export const ADMIN_HOME = "/admin";
 

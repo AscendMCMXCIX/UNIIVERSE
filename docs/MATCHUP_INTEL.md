@@ -68,7 +68,9 @@ Nothing is generated: what no person has checked is shown as Data Dragon gives i
   sections, **Library** (`/resources`, the team's sites) and **Matchup Intel**. They are the tabs
   at the top of both pages, on phones too. A member's phone reaches Resources from the account
   screen, and Back from Matchup Intel leads to Resources, never to Team (`phoneParent` and
-  `pageName`, `src/lib/nav.ts`).
+  `pageName`, `src/lib/nav.ts`). Each pair chosen is an entry in the browser's history, so the
+  browser's Back steps through them; the top bar's Back, named after Resources, goes past them to
+  Resources (`backSteps`).
 - **The address** carries the choice: `?champion=<id>&vs=<id>`, Data Dragon ids, the same names as
   the champion window's. Each id is checked against the roster on the server. An id that is not on
   it is dropped. The id may also be written as a name, in any case, with accents or punctuation

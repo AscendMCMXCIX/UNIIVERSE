@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, ADMIN_TABS, NAV_ENTRIES, NAV_LINKS, PHONE_TABS, PHONE_TAB_LIMIT, RESOURCES, RESOURCES_SECTIONS, SECTION_HUBS, TEAM_SECTIONS, activeHref, canOpen, currentTab, encountersRedirect, entryLinks, isActivePath, pageName, phoneParent, phoneTabs, profileBase } from "./nav";
+import { ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, ADMIN_TABS, NAV_ENTRIES, NAV_LINKS, PHONE_TABS, PHONE_TAB_LIMIT, RESOURCES, RESOURCES_SECTIONS, SECTION_HUBS, TEAM_SECTIONS, activeHref, backSteps, canOpen, currentTab, encountersRedirect, entryLinks, isActivePath, pageName, phoneParent, phoneTabs, profileBase } from "./nav";
 import type { Session } from "@/server/auth/permissions";
 
 const entryId = (e: (typeof NAV_ENTRIES)[number]) => ("key" in e ? e.key : e.href);
@@ -166,6 +166,25 @@ describe("phone top bar", () => {
     expect(pageName("/somewhere", member)).toBe("Back");
     // Where Resources is a tab, Matchup Intel keeps its own name.
     expect(pageName("/resources/matchups", phoneTabs(["/overview", "/resources", "/resources/matchups"]))).toBe("Matchup Intel");
+  });
+
+  it("Back named after the page before goes there, past the entries the current page made of itself", () => {
+    const at = (...paths: string[]) => paths.map((p) => ({ url: `https://team.example${p}` }));
+    // Resources, then Matchup Intel and two pairs chosen there: three steps back to Resources, not one pair.
+    const pairs = at("/team", "/resources", "/resources/matchups", "/resources/matchups?champion=Riven", "/resources/matchups?champion=Riven&vs=Mordekaiser");
+    expect(backSteps(pairs, 4, "/resources/matchups", "/resources")).toBe(-3);
+    // Straight from the page before: one step, as before.
+    expect(backSteps(pairs, 2, "/resources/matchups", "/resources")).toBe(-1);
+    // A profile's sections are one visit.
+    expect(backSteps(at("/players", "/players/abc", "/players/abc/matches"), 2, "/players/abc/matches", "/players")).toBe(-2);
+    // The history does not show that page there (the visits list and the history disagree): not known.
+    expect(backSteps(pairs, 4, "/resources/matchups", "/leaderboards")).toBeNull();
+    // An address that is not shown, an entry that is not one, or nothing before: not known.
+    expect(backSteps([{ url: null }, ...at("/resources/matchups")], 1, "/resources/matchups", "/resources")).toBeNull();
+    expect(backSteps([{ url: "not a url" }, ...at("/resources/matchups")], 1, "/resources/matchups", "/resources")).toBeNull();
+    expect(backSteps(at("/resources/matchups", "/resources/matchups?vs=Riven"), 1, "/resources/matchups", "/resources")).toBeNull();
+    expect(backSteps(pairs, 0, "/team", "/resources")).toBeNull();
+    expect(backSteps(pairs, 9, "/resources/matchups", "/resources")).toBeNull();
   });
 
   it("Admin Mode: pages outside its tabs lead back to the Dashboard", () => {
