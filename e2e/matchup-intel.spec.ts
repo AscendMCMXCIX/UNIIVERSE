@@ -627,3 +627,55 @@ test("a tap on a side's slot before the page's code has run opens its picker onc
   await page.waitForTimeout(500);
   await expect(page.getByTestId("matchup-picker")).toBeVisible();
 });
+
+test("phone: an ability row's icon stands beside its name and cooldown only; its badges, description and details take the row's width", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
+  for (const width of [375, 320]) {
+    await page.setViewportSize({ width, height: 740 });
+    await openMatchupIntel(page, "Ambessa", "Renekton");
+    for (const slot of ["Q", "W", "E"]) {
+      const r = row(page, slot);
+      await r.getByTestId("ability-details").locator("summary").click();
+      const m = await r.evaluate((li) => {
+        const grid = li.firstElementChild as HTMLElement;
+        const box = (id: string) => li.querySelector(`[data-testid="${id}"]`)?.getBoundingClientRect() ?? null;
+        return {
+          left: grid.getBoundingClientRect().left,
+          iconRight: (grid.firstElementChild as HTMLElement).getBoundingClientRect().right,
+          name: box("ability-name")!.left,
+          parts: { facts: box("ability-facts")?.left ?? null, description: box("ability-description")?.left ?? null, details: box("ability-details-body")?.left ?? null },
+        };
+      });
+      const at = `Renekton ${slot} at ${width}`;
+      expect(m.name, `${at}: the name beside the icon`).toBeGreaterThan(m.iconRight);
+      expect(m.parts.description, `${at}: a description`).not.toBeNull();
+      expect(m.parts.details, `${at}: details`).not.toBeNull();
+      for (const [part, left] of Object.entries(m.parts)) if (left !== null) expect(Math.abs(left - m.left), `${at}: the ${part} from the row's left edge`).toBeLessThanOrEqual(1);
+    }
+  }
+});
+
+test("on a wide screen, the interactions and the level notes stand one under the other, each the column's width", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 0) < 1024, "a wide screen");
+  await openMatchupIntel(page, "Ambessa", "Renekton");
+  const box = async (id: string) => (await page.getByTestId(id).boundingBox())!;
+  const interactions = await box("matchup-interactions");
+  const levels = await box("matchup-level-notes");
+  expect(levels.y).toBeGreaterThanOrEqual(interactions.y + interactions.height);
+  expect(Math.abs(levels.x - interactions.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(levels.width - interactions.width)).toBeLessThanOrEqual(1);
+});
+
+test("Interactions: the matchup's own in full; the enemy's, already on its ability rows, folded and counted, one tap away", async ({ page }) => {
+  await openMatchupIntel(page, "Ambessa", "Renekton");
+  const panel = page.getByTestId("matchup-interactions");
+  await expect(panel.getByTestId("matchup-interaction").first()).toBeVisible();
+  const fold = panel.getByTestId("enemy-interactions");
+  expect(await fold.evaluate((d) => (d as HTMLDetailsElement).open)).toBe(false);
+  const count = Number(/^Renekton's interactions and exceptions · (\d+)/.exec((await fold.locator("summary").innerText()).replace(/\s+/g, " ").trim())?.[1]);
+  expect(count).toBeGreaterThan(0);
+  await expect(fold.getByTestId("enemy-interaction")).toHaveCount(count);
+  await expect(fold.getByTestId("enemy-interaction").first()).toBeHidden();
+  await fold.locator("summary").click();
+  await expect(fold.getByTestId("enemy-interaction").first()).toBeVisible();
+});
