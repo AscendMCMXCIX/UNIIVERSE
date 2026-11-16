@@ -19,7 +19,7 @@ import { runJob } from "@/server/jobs";
   version reads no file again, and its check reads the stored document once; a champion that
   cannot be read keeps its earlier record, also after a change of rules; more than 10% failing
   writes nothing (last known good) and stops the requests; offline, the committed fixture is
-  stored; a malformed id never reaches a query.
+  stored; a malformed id never reaches a query, and an id off the roster is neither read nor cached.
 */
 
 const rowsOf = <T,>(result: unknown): T[] => ((result as { rows?: T[] }).rows ?? (result as T[])) as T[];
@@ -56,7 +56,10 @@ async function buffersOf(db: Db, query: SQL): Promise<number> {
   return Number(plan!.Plan["Shared Hit Blocks"] ?? 0) + Number(plan!.Plan["Shared Read Blocks"] ?? 0);
 }
 
-const ROSTER =["Aatrox", "Ahri", "Akali", "Alistar", "Amumu", "Anivia", "Annie", "Ashe", "Azir", "Bard"];
+/** The cache entries of this process for a champion's abilities (src/server/observability/cache.ts). */
+const cachedAbilityKeys = (id: string) => [...(globalThis.__uniiverseCache?.keys() ?? [])].filter((key) => key.endsWith(`champion_abilities:${id}`));
+
+const ROSTER = ["Aatrox", "Ahri", "Akali", "Alistar", "Amumu", "Anivia", "Annie", "Ashe", "Azir", "Bard"];
 
 function champ(id: string, key: number): DdragonChampion {
   return { id, key: String(key), name: id, title: "", tags: ["Fighter"], partype: "Mana", info: { attack: 5, defense: 5, magic: 5, difficulty: 5 }, stats: { attackrange: 125 }, image: { full: `${id}.png` } };
@@ -155,6 +158,7 @@ describe("champion abilities: sync and read", () => {
     const loaded = await loadChampionAbilities(w.db, ["Ahri", "Akali", "Zed"]);
     expect(loaded.version).toBe("16.21.1");
     expect(Object.keys(loaded.champions)).toEqual(["Ahri", "Akali", "Zed"]);
+    // Zed is not on this roster: null, and never read.
     expect(loaded.champions.Zed).toBeNull();
     const ahri = loaded.champions.Ahri!;
     expect(ahri).toMatchObject({ championId: "Ahri", version: "16.21.1" });
@@ -199,11 +203,15 @@ describe("champion abilities: sync and read", () => {
     expect(provider.requests.length - before).toBe(10);
 
     const loaded = await loadChampionAbilities(db, ["Akali", "Ahri"]);
-    expect(loaded.version).toBe("16.22.1");
+    // Each record carries its own version (the one for its labels, icons and freshness). Akali's
+    // is still 16.21.1, so no version is shared and none is given for the two together.
     expect(loaded.champions.Akali).toMatchObject({ version: "16.21.1" });
     expect(qCooldown(loaded.champions.Akali)).toEqual([21, 21, 21, 21, 21]);
     expect(loaded.champions.Ahri).toMatchObject({ version: "16.22.1" });
     expect(qCooldown(loaded.champions.Ahri)).toEqual([22, 22, 22, 22, 22]);
+    expect(loaded.version).toBeNull();
+    expect((await loadChampionAbilities(db, ["Ahri", "Annie"])).version).toBe("16.22.1");
+    expect((await loadChampionAbilities(db, ["Akali"])).version).toBe("16.21.1");
 
     provider.failing = new Set();
     const next = provider.requests.length;
@@ -249,6 +257,24 @@ describe("champion abilities: sync and read", () => {
     expect(mixed.champions["Riv en"]).toBeNull();
     expect(mixed.champions.Annie).toMatchObject({ championId: "Annie", version: "16.23.1" });
     expect(w.statements() - before).toBe(1);
+  });
+
+  it("reads and caches only champions on the roster: an id that names none costs no query and leaves nothing cached", async () => {
+    const w = watched(handle.db);
+    await listChampions(w.db);
+    const before = w.statements();
+    // Well-formed ids, as a page could take them from its URL, none of them a champion.
+    const strangers = Array.from({ length: 50 }, (_, i) => `NotAChampion${i}`);
+    expect(await loadChampionAbilities(w.db, strangers)).toEqual({ version: null, champions: Object.fromEntries(strangers.map((id) => [id, null])) });
+    expect(w.statements()).toBe(before);
+    expect(strangers.flatMap(cachedAbilityKeys)).toEqual([]);
+    // Beside a champion: only the champion is read and cached.
+    const mixed = await loadChampionAbilities(w.db, ["NotAChampion7", "Bard"]);
+    expect(mixed.champions.NotAChampion7).toBeNull();
+    expect(mixed.champions.Bard).toMatchObject({ championId: "Bard", version: "16.23.1" });
+    expect(w.statements() - before).toBe(1);
+    expect(cachedAbilityKeys("NotAChampion7")).toEqual([]);
+    expect(cachedAbilityKeys("Bard").length).toBeGreaterThan(0);
   });
 
   it("after a change of rules, a champion that cannot be read keeps its record, and only it is read on the next run", async () => {

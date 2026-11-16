@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Db } from "@/server/db/types";
 import { SLOTS, type DdragonAbility, type DdragonChampionAbilities } from "@/domain/matchup-intel/types";
 import { cachedFor, invalidateCache } from "@/server/observability/cache";
+import { listChampions } from "@/server/repositories/champions";
 import { StaticDataError, type StaticDataProvider } from "@/server/riot/static/provider";
 import { mapWithConcurrency } from "@/server/riot/static/sync";
 
@@ -410,70 +411,62 @@ const storedAbility = z.object({
 });
 const storedChampion = z.object({ championId: z.string(), version: z.string(), abilities: z.array(storedAbility).length(SLOTS.length) });
 
-/** A stored record as the contract types it, or null when it is not one (or not this champion's). */
+/** A stored record as the contract types it (the rules' `format` left out), or null when it is not one (or not this champion's). */
 function storedRecord(value: unknown, id: string): DdragonChampionAbilities | null {
   const parsed = storedChampion.safeParse(value);
   if (!parsed.success || parsed.data.championId !== id || parsed.data.abilities.some((a, i) => a.slot !== SLOTS[i])) return null;
   return parsed.data;
 }
 
-interface Entry {
-  /** The stored index's version when this champion was read; null when nothing is stored. */
-  version: string | null;
-  champion: DdragonChampionAbilities | null;
-}
-
-/** One statement for the champions given: the index's version and only their records (a few KB, not the whole index). */
-async function readChampions(db: Db, ids: readonly string[]): Promise<Map<string, Entry>> {
+/** One statement for the champions given: only their records (a few KB, not the whole index), the stored document read once. */
+async function readChampions(db: Db, ids: readonly string[]): Promise<Map<string, DdragonChampionAbilities | null>> {
   const result = await db.execute(sql`
-    SELECT s.value->>'version' AS version,
-      (SELECT coalesce(jsonb_object_agg(k.id, s.value->'champions'->k.id), '{}'::jsonb)
-         FROM jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb) AS k(id)
-        WHERE (s.value->'champions'->k.id) IS NOT NULL) AS champions
-    FROM app_settings s WHERE s.key = ${KEY}`);
-  const row = rowsOf<{ version: string | null; champions: unknown }>(result)[0];
+    WITH s AS MATERIALIZED (SELECT value->'champions' AS champions FROM app_settings WHERE key = ${KEY})
+    SELECT coalesce(jsonb_object_agg(k.id, s.champions->k.id), '{}'::jsonb) AS champions
+      FROM s, jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb) AS k(id)
+     WHERE (s.champions->k.id) IS NOT NULL`);
+  const row = rowsOf<{ champions: unknown }>(result)[0];
   const found = (parsedJson(row?.champions) ?? {}) as Record<string, unknown>;
-  const version = typeof row?.version === "string" ? row.version : null;
-  return new Map(ids.map((id) => [id, { version, champion: storedRecord(found[id], id) }]));
-}
-
-function compareVersions(a: string, b: string): number {
-  const x = a.split(".").map(Number);
-  const y = b.split(".").map(Number);
-  for (let i = 0; i < Math.max(x.length, y.length); i += 1) {
-    const d = (x[i] ?? 0) - (y[i] ?? 0);
-    if (d) return d;
-  }
-  return 0;
+  return new Map(ids.map((id) => [id, Object.hasOwn(found, id) ? storedRecord(found[id], id) : null]));
 }
 
 /**
- * The stored abilities of the given champions; a champion with none stored yet maps to null, as
- * does an id that is not a Data Dragon champion id (never used in a query). Each champion is kept
- * in this instance's cache for 10 minutes (cleared by a sync that writes); the ones not cached are
- * read together in one statement. `version` is the stored index's game version (the newest seen
- * among the champions asked for), or null when nothing is stored or no valid id was given. Reads
- * the database only: never Riot.
+ * The stored abilities of the given champions. A champion with none stored yet maps to null, as
+ * does an id that is not an active champion's: a malformed one never reaches a query, and a
+ * well-formed one off the roster (the cached champion list) is neither read nor cached. Each
+ * champion is kept in this instance's cache for 10 minutes (cleared by a sync that writes); the
+ * ones not cached are read together in one statement. Reads the database only: never Riot.
+ *
+ * Each record carries its own Data Dragon version, and that is the one to use for its labels, its
+ * icon URLs (/cdn/<version>/img/…) and its freshness: a champion whose file could not be read
+ * keeps an older record, so two champions can differ. `version` is the version every returned
+ * record shares, or null when they differ or none is returned. A record older than curated notes'
+ * `verified.ddragonVersion` is stale data, not a change by Riot.
  */
 export async function loadChampionAbilities(db: Db, championIds: readonly string[]): Promise<{ version: string | null; champions: Record<string, DdragonChampionAbilities | null> }> {
   const champions: Record<string, DdragonChampionAbilities | null> = Object.fromEntries(championIds.map((id) => [id, null]));
-  const ids = [...new Set(championIds.filter((id) => typeof id === "string" && CHAMPION_ID.test(id)))];
+  const wellFormed = [...new Set(championIds.filter((id) => typeof id === "string" && CHAMPION_ID.test(id)))];
+  if (wellFormed.length === 0) return { version: null, champions };
+  // Only champions on the roster are read and cached: ids taken from a URL cannot fill this
+  // instance's cache (which never drops an entry by itself) or cost a query each.
+  const roster = new Set((await listChampions(db)).map((c) => c.id));
+  const ids = wellFormed.filter((id) => roster.has(id));
   if (ids.length === 0) return { version: null, champions };
   // Every champion not in the cache joins one statement: cachedFor calls its loader at once, so
   // the loaders of this call have all asked before the statement starts.
   const wanted: string[] = [];
-  let batch: Promise<Map<string, Entry>> | null = null;
-  const read = (id: string): Promise<Entry> => {
+  let batch: Promise<Map<string, DdragonChampionAbilities | null>> | null = null;
+  const read = (id: string): Promise<DdragonChampionAbilities | null> => {
     wanted.push(id);
     batch ??= Promise.resolve().then(() => readChampions(db, wanted));
-    return batch.then((found) => found.get(id) ?? { version: null, champion: null });
+    return batch.then((found) => found.get(id) ?? null);
   };
-  const entries = await Promise.all(ids.map((id) => cachedFor(`${KEY}:${id}`, CACHE_MS, () => read(id), db)));
-  let version: string | null = null;
+  const records = await Promise.all(ids.map((id) => cachedFor(`${KEY}:${id}`, CACHE_MS, () => read(id), db)));
+  const versions = new Set<string>();
   ids.forEach((id, i) => {
-    const entry = entries[i]!;
-    champions[id] = entry.champion ? structuredClone(entry.champion) : null;
-    if (entry.version && (version === null || compareVersions(entry.version, version) > 0)) version = entry.version;
+    const record = records[i];
+    champions[id] = record ? structuredClone(record) : null;
+    if (record) versions.add(record.version);
   });
-  return { version, champions };
+  return { version: versions.size === 1 ? [...versions][0]! : null, champions };
 }
