@@ -44,8 +44,11 @@ test("a link to a pair opens it: both champions in their slots, the enemy's five
   // Your own champion's abilities are there too, folded away until asked for.
   const yours = page.getByTestId("matchup-your-abilities");
   await expect(yours).not.toHaveAttribute("open", "");
-  await yours.locator("summary").click();
+  await expect(yours.getByTestId("ability-row").first()).toBeHidden();
+  await yours.locator(":scope > summary").click();
+  await expect(yours).toHaveAttribute("open", "");
   await expect(yours.getByTestId("ability-row")).toHaveCount(5);
+  await expect(yours.getByTestId("ability-row").first()).toBeVisible();
 
   // Cooldowns as Data Dragon gives them: one value at every rank said once, the others per rank.
   await openMatchupIntel(page, undefined, "Riven");
@@ -209,19 +212,21 @@ test("the champion window links to Matchup Intel with its champion chosen", asyn
 test("sources are links that open in a new tab, cut off from the page; details expand; nothing is requested from the wiki", async ({ page }) => {
   const hosts = new Set<string>();
   page.on("request", (r) => hosts.add(new URL(r.url()).hostname));
+  // A curated champion's ability with details, in the enemy's list (either side of a curated pair).
+  const enemyDetails = page.getByTestId("matchup-enemy-abilities").getByTestId("ability-details");
   let found = false;
-  for (const [you, enemy] of CURATED) {
+  for (const [you, enemy] of CURATED.flatMap(([a, b]) => [[a, b], [b, a]])) {
     await openMatchupIntel(page, you, enemy);
-    if ((await page.getByTestId("ability-details").count()) > 0) {
+    if ((await enemyDetails.count()) > 0) {
       found = true;
       break;
     }
   }
-  expect(found, "a curated pair has an ability with details").toBe(true);
-  const details = page.getByTestId("ability-details").first();
+  expect(found, "a curated champion has an ability with details").toBe(true);
+  const details = enemyDetails.first();
   await details.scrollIntoViewIfNeeded();
   await expect(details.getByTestId("ability-details-body")).toBeHidden();
-  await details.locator("summary").click();
+  await details.locator(":scope > summary").click();
   await expect(details).toHaveAttribute("open", "");
   await expect(details.getByTestId("ability-details-body")).toBeVisible();
 
