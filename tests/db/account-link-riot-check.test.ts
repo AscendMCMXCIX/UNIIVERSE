@@ -1,3 +1,4 @@
+import { format } from "node:util";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { testDb } from "./helpers";
@@ -16,7 +17,9 @@ import type { DbHandle } from "@/server/db/create";
 
   Through the real action, signed in with a real session cookie (Next.js plumbing replaced by
   small fakes, as in auth-actions). Riot is a stand-in for its HTTP API, so the real client and its
-  handling of each answer run. Nothing is printed with a Riot ID or a PUUID.
+  handling of each answer run. Nothing is printed with a Riot ID or a PUUID: every console line is
+  recorded as the console prints it (an error's message and cause included) and searched for each
+  test identity as written and URL-encoded, as a request's path carries it.
 */
 
 const state = vi.hoisted(() => ({ db: null as unknown, cookies: new Map<string, string>() }));
@@ -38,6 +41,7 @@ import { riotAccounts, users } from "@/server/db/schema";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { PUUID_KEPT_ON_SERVER } from "@/server/accounts/repository";
 import { addPlayerAccountAction } from "@/server/actions/accounts";
+import { RiotApiError } from "@/server/riot/api/client";
 
 /**
  * The Riot accounts the stand-in knows, by Riot ID as typed (any case). "Renamed One" is the
@@ -53,6 +57,11 @@ const KNOWN: Record<string, { puuid: string; gameName: string; tagLine: string }
 };
 /** What must never reach a log line: every Riot ID and PUUID the tests use. */
 const IDENTITIES = ["known one", "asked later", "renamed one", "linked before", "nobody here", "after rename", "before rename", "mine already", "puuid-"];
+/** How many of them the printed lines name, as written or URL-encoded (a Riot ID in a request's path). */
+const named = (lines: string[]) => {
+  const text = lines.join("\n").toLowerCase();
+  return IDENTITIES.filter((identity) => text.includes(identity) || text.includes(encodeURIComponent(identity).toLowerCase())).length;
+};
 
 /** How the stand-in answers Riot ID lookups: as Riot would, with an HTTP status, or not at all. */
 type Answer = "riot" | 401 | 403 | 429 | 503 | "unreachable";
@@ -130,14 +139,26 @@ beforeEach(async () => {
   riot.answer = "riot";
   riot.calls.length = 0;
   printed.length = 0;
-  for (const method of ["log", "info", "warn", "error", "debug"] as const) vi.spyOn(console, method).mockImplementation((...args: unknown[]) => void printed.push(args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ")));
+  // Each line as the console would print it (node's own formatting, which JSON.stringify is not:
+  // it drops an error's message and cause).
+  for (const method of ["log", "info", "warn", "error", "debug"] as const) vi.spyOn(console, method).mockImplementation((...args: unknown[]) => void printed.push(format(...args)));
   await signInAs("member");
 });
 afterEach(() => {
   // Whatever happened, no log line names a Riot account (counted here, so a failure prints none).
-  const lines = printed.join("\n").toLowerCase();
-  expect(IDENTITIES.filter((identity) => lines.includes(identity)).length, "log lines naming a Riot account").toBe(0);
+  expect(named(printed), "log lines naming a Riot account").toBe(0);
   vi.restoreAllMocks();
+});
+
+describe("the log check", () => {
+  it("finds a Riot ID in an error, in an error's cause and in a request's path", () => {
+    console.error(new RiotApiError("Riot has no account named Nobody Here#OCE", 404, false));
+    console.warn("lookup failed", new Error("wrapped", { cause: new Error("Asked Later#OCE") }));
+    console.log(`GET /riot/account/v1/accounts/by-riot-id/${encodeURIComponent("Known One")}/OCE`);
+    expect(named(printed)).toBe(3);
+    // Printed by this test on purpose: cleared, so the check after it passes.
+    printed.length = 0;
+  });
 });
 
 describe("linking a Riot ID asks Riot first", () => {
