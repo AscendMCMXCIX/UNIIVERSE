@@ -13,23 +13,29 @@ one's code lives under `matchup-intel`.
 You pick your champion and the enemy. The page then shows, in this order (one column on a phone,
 the most important part first; side by side where a desktop has the room):
 
-1. **The ten-second briefing**, where a person has written and checked one for this pair, in this
-   direction: the threat, the opportunity and a few points about the lane. Each point has chips
-   naming the abilities it rests on ("Renekton W"), which jump to that ability's row and give it
-   the focus. The jump goes into the address through the router's own history, so Back after a
-   later choice shows the pair it was made on (a browser's own jump to an anchor leaves an entry
-   the router does not restore). The briefing says which patch it was checked on ("Checked on
-   patch 26.22"). A point that rests on an ability Riot changed after the check is hidden, and the
-   page says so in its place, naming the ability ("Hidden: Riot changed Renekton W after this
-   briefing was checked."; Data, "Hidden points"). Where no briefing
+1. **The ten-second briefing**, where a curated one exists for this pair, in this direction: the
+   threat, the opportunity and a few points about the lane. Its title is "The ten-second briefing":
+   the slots above it show the pair (a screen reader hears the pair in the heading). Each point has
+   chips naming the abilities it rests on ("Renekton W"), which jump to that ability's row and give
+   it the focus; a champion with no ability rows on the page (none stored yet) gets plain labels,
+   never links that lead nowhere. The jump goes into the address through the router's own
+   history, so Back after a later choice shows the pair it was made on (a browser's own jump to an
+   anchor leaves an entry the router does not restore). The briefing says which patch it was
+   checked on ("Checked on patch 26.22"), and once a later patch is out, that nobody has checked it
+   again for it ("Not re-checked for 26.23"). A point that rests on an ability Riot changed after
+   the check is hidden, and the page says so in its place, naming the ability ("Hidden: Riot changed
+   Renekton W after this briefing was checked."; Data, "Hidden points"). More than two patches
+   after its check the whole briefing is hidden, and says why (Data, "Freshness"). Where no briefing
    exists, one calm line says so ("No curated briefing for Garen vs Darius yet") and that what
    follows is the enemy's general reference. It also links the curated matchups that do exist for
    your champion.
-2. **The enemy's abilities**, one row each for P, Q, W, E and R:
+2. **The enemy's abilities**, one row each for P, Q, W, E and R (on a phone the icon sits beside the
+   key, the name and the cooldown, and the rest takes the row's whole width under them):
    - the icon, the key and the name;
    - the base cooldown at each rank (one line per form for a champion who transforms), or why
-     there is no number, and under it where it comes from: "Checked on patch 26.22", or "Riot's
-     data, not reviewed" (see Cooldowns);
+     there is no number, and under it where it comes from: "Checked on patch 26.22" ("· not
+     re-checked for 26.23" once a later patch is out), or "Riot's data, not reviewed" (see
+     Cooldowns);
    - the wait between casts, refunds and attack resets; recasts;
    - the checked facts as badges (crowd control, mobility, defence, sustain, damage, empowerment,
      interaction, exception), each with an icon and a word, never colour alone, and who has the
@@ -38,12 +44,20 @@ the most important part first; side by side where a desktop has the room):
      says they may be out of date, their cooldown as checked included;
    - Riot's short description;
    - a details part (the native `details` element) with the longer notes and each fact's source.
-3. **Interactions**: the matchup's first, then the enemy's interaction and exception facts. A
-   matchup interaction on an ability Riot changed since is hidden and said, as a briefing point is.
-4. **Level notes**: the levels at which something notable becomes possible, for both champions.
+3. **Interactions**: the matchup's first, then the enemy's interaction and exception facts, folded
+   under one line ("Renekton's interactions and exceptions · 7") until opened: each is also on its
+   ability's row, as a badge with its sentence and source in the row's details. The line carries a
+   flag when any of them is from an ability Riot changed since the check. A matchup interaction on
+   an ability Riot changed since is hidden and said, as a briefing point is, and all of them are
+   once the briefing is too old to show.
+4. **Level notes**: the levels at which something notable becomes possible, for both champions,
+   each flagged ("Changed since the check") once Riot changes the ability it rests on.
 5. **Your own champion's abilities**, collapsed until asked for.
 6. **A quiet footer** (`matchup-footer.tsx`):
-   - "Ability names, icons and base cooldowns: Riot Data Dragon 16.22.1 (patch 26.22)";
+   - "Ability names, icons and base cooldowns: Riot Data Dragon 16.22.1 (patch 26.22)"; each
+     champion's own version when the two differ ("… 16.23.1 (patch 26.23) for Mordekaiser; Riot Data
+     Dragon 16.22.1 (patch 26.22) for Riven"), and "an offline copy of Riot Data Dragon 16.22.1
+     (patch 26.22); the game's current patch is not known" for the copy committed with the app;
    - the day and patch the curated notes on the page were checked, once when they share them;
    - the wiki's credit (Compliance): the pages the notes are written from, each once by its title
      and linked, folded into one line until opened; their authors; the licence; and that the
@@ -51,23 +65,44 @@ the most important part first; side by side where a desktop has the room):
    - "A static reference for preparation: no live tracking";
    - Riot's notice, the same words as the rest of the app (`riotLegal`).
 
-Its sizes are rem, so they follow the reader's text size. On a phone at a large text size, where
-side by side would leave a column a word wide, the two pickers stand one above the other with the
-swap between them (under 14rem: 200%, or 150% up to 375px wide), and an ability row puts its icon
-above its words and a level note its level above it (under 16rem: from 150%, or 125% on a 320px
-phone). At 200% on a 390px phone nothing on the page is cut or reaches past its box
-(`e2e/matchup-intel.spec.ts`).
+Its sizes are rem, so they follow the reader's text size. On a phone the two sides are compact, so
+the briefing's threat starts on the first screen (whole at 390 by 664, its first line at 320 by
+568, above the tab bar: `e2e/matchup-intel.spec.ts`): a small portrait above the label and the name
+on a 320 or 375px phone, beside them from a row of 22rem (a 384px phone), the two sides mirrored
+around the swap and as tall as each other. On a phone at a large text size, where side by side
+would leave a column a word wide, the two pickers stand one above the other with the swap between
+them (under 14rem: 200%, or 150% up to 375px wide), and an ability row puts its icon above its
+words and a level note its level above it (under 16rem: from 150%, or 125% on a 320px phone). The
+picker's roster has columns in rem as well, so its portraits and names grow with the text, and a
+name takes two lines rather than being cut. At 200% on a 390px phone nothing on the page is cut or
+reaches past its box, in every state and in the picker window (`e2e/matchup-intel.spec.ts`).
 
 The page also has a state for each of these:
 
 - **Nothing chosen**: what to do, and links to the curated briefings so far.
 - **One side chosen**: with only the enemy, its general reference and a way to choose your champion;
   with only yours, a prompt to choose the enemy and the curated matchups for your champion.
-- **No ability data stored yet** for a champion: "Ability details arrive with the next game-data
-  update".
-- **Ability data older than the current patch**: said once, above the abilities.
+- **No ability data stored yet** for a champion: "Ability details aren't stored yet", and that they
+  are read from Riot's Data Dragon once per game version.
+- **A stored record that cannot be read** (not in the shape the page reads): said as that ("Riot's
+  ability data for Riven could not be read"), never as missing.
+- **Ability data older than the current patch**: said once, above the abilities, naming whose it is
+  when only one champion's is ("Riven's ability data is from patch 26.22; the game is on patch
+  26.23."): a champion whose file could not be read keeps its older record beside the other's
+  current one.
+- **The offline copy** (stored when Riot's servers could not be reached on a first start): the
+  panel says "Offline copy of Riot Data Dragon 16.22.1", and the footer that the game's current
+  patch is not known.
+- **A choice on its way**: the slots show it at once, a line under them says what is loading
+  ("Loading Riven vs Mordekaiser…"), and the page under them dims and is out of reach (`inert`)
+  until the server's page arrives. A curated pair's link does the same. A screen reader then hears
+  what came ("Riven vs Mordekaiser: curated briefing, checked on patch 26.22. Mordekaiser's
+  abilities follow."), from a live region that is always there.
+- **The page failed** (the roster or the abilities could not be read, with nothing cached to stand
+  in): "Matchup Intel could not load", with Try again (the page read afresh) and Start again (no
+  champions chosen), inside the Resources tabs (`error.tsx` beside the page).
 - **A champion the roster does not know** in the address: it is left out and the page says so,
-  never repeating what the address said.
+  never repeating what the address said. A repeated parameter (`?vs=a&vs=b`) reads its first value.
 
 The data comes in two layers, kept apart so each can improve without the other
 (`src/domain/matchup-intel/types.ts`):
@@ -77,7 +112,11 @@ The data comes in two layers, kept apart so each can improve without the other
 - **Matchup intelligence**: curated notes for your champion against one enemy, in that direction
   only.
 
-Nothing is generated: what no person has checked is shown as Data Dragon gives it, or not at all.
+The page generates nothing: it shows Riot's Data Dragon data, labelled "not reviewed" where nobody
+has checked it, and the curated notes committed with the code. The notes go through a pull
+request, where a person checks them before they ship. The first batch (16 Nov 2026) was drafted and
+cross-checked by AI agents: the owner's review in this feature's pull request is its check by a
+person (For the owner, step 2).
 
 ## Where it is
 
@@ -96,21 +135,33 @@ Nothing is generated: what no person has checked is shown as Data Dragon gives i
   in its scope row opens the page with that champion as yours. While Matchups is open with a lane
   opponent, the link carries the opponent too.
 - **The pickers**: your champion and the enemy side by side, with the swap between them. Each slot
-  opens a picker window (`DetailModal` "standard", the whole screen on a phone) with:
+  opens a picker window (`DetailModal` "standard", the whole screen on a phone); a tap on a slot,
+  or on the page's prompt for it, before the page's code has run is kept and opens it once the
+  code runs (`data-early`, `src/components/early-taps.ts`). The window has:
   - a 16px search that filters as you type, by name, ignoring case, accents, spaces and
-    punctuation ("kha" finds Kha'Zix, "wu" Wukong, "dr m" Dr. Mundo);
+    punctuation ("kha" finds Kha'Zix, "wu" Wukong, "dr m" Dr. Mundo), then by a name's initials
+    ("tf" Twisted Fate, "mf" Miss Fortune, "lb" LeBlanc) and a short reviewed list of nicknames
+    ("j4", "asol", "ww", "gp": `NICKNAMES` in `search.ts`), after every name match. The count of
+    what it found is said to screen readers as it changes. Its band stays pinned at the window's
+    top, over the body's padding, so no portraits show above it. It is not the shared
+    `SearchInput`, on purpose: 16px at every width (a tablet's Safari zooms into smaller text), a
+    44px clear button with a mouse too, which hands the focus back to the field, and Escape that
+    clears before it closes;
   - with nothing typed, the champions chosen lately on that side (Recent);
   - for the enemy, the curated matchups that exist for your champion;
   - then the whole roster (`ChampionGrid` without its own toolbar).
 
   Enter takes the first match. Escape clears the search, then closes the window. A choice goes into
   the address at once (`router.push`): the slots show it while the page under them dims until the
-  server's page arrives.
-- **Remembered on this device**: the champion you choose as yours, and the last eight champions on
-  each side. They live in `localStorage` under `uniiverse.matchup-intel.v1`, champion ids only, and
-  are never sent anywhere. With no champion of yours in the address, the page offers the remembered
-  one (Use or Forget) and never assumes it. While it is shown, the page says it is remembered. A
-  champion that came from a link can be remembered with one tap.
+  server's page arrives (a curated pair's link goes the same way, `PairLink`).
+- **Remembered on this device, for this account**: the champion you choose as yours, and the last
+  eight champions on each side. They live in `localStorage` under `uniiverse.matchup-intel.v1`
+  followed by the signed-in account's marker (`perAccountKey`, `src/components/account-storage.ts`,
+  as a picker's recent champions are), so two people who use one browser in turn never see or
+  forget each other's; champion ids only, never sent anywhere. With no champion of yours in the
+  address, the page offers the remembered one (Use or Forget) and never assumes it. While it is
+  shown, the page says it is remembered. A champion that came from a link can be remembered with
+  one tap (a button that looks like one, with a bookmark icon).
 
 **The code:**
 
@@ -125,7 +176,8 @@ Nothing is generated: what no person has checked is shown as Data Dragon gives i
 
 - The page is rendered on each request. It reads:
   - the session (its own `requirePageAccess`);
-  - the cached roster and current patch;
+  - the cached roster, current patch and list of patches (a few dozen short rows, cached for a
+    minute, to count the patches since a check);
   - the stored abilities of at most the two champions chosen;
   - Branding's names, from the cache the app's frame has just filled.
 - The curated notes are committed with the code, so reading them costs no request.
@@ -160,8 +212,12 @@ Nothing is generated: what no person has checked is shown as Data Dragon gives i
   is about. The page carries them as data (`data-tags` beside each badge), not as words: the
   badge's own label says the same.
 - **The patch**: the game's current patch by its public name (26.22 for Data Dragon 16.22.1),
-  unknown while the game data is the offline fixture. Ability data older than the current patch is
-  said once above the abilities.
+  unknown while the game data is the offline fixture. It comes from Data Dragon's own list of
+  versions, through the version check, so it is never ahead of Data Dragon. Each champion's ability
+  data is judged by its own version (a champion whose file could not be read keeps an older record
+  beside the other's current one): data older than the current patch is said once above the
+  abilities, naming whose it is when only one champion's is, and the footer gives each champion's
+  version when they differ. Records from the committed offline copy are said to be that.
 - **Freshness** of curated notes, against Riot's record of each ability they cover (`abilityChanges`,
   `abilityFreshness` and `weakestFreshness`, `src/domain/matchup-intel/cooldown.ts`). What is
   compared is the cooldown array (`ddragonCooldown`) and, where the notes record them, the spell
@@ -199,6 +255,28 @@ Nothing is generated: what no person has checked is shown as Data Dragon gives i
   cases for notes on another version only keep notes from anywhere else from claiming more than is
   known.
 
+  Riot's record cannot show most changes (a crowd-control duration or a range sits behind its
+  tooltips' placeholders), so a check also ages by patch, whatever Riot's records say (`recheckOf`
+  and `MAX_PATCHES_UNCHECKED`, `view.ts`). The newest patch the page knows is the later of the data's
+  (both champions', for a matchup) and the game's current one; the patches since the check are
+  counted by the patches the app has stored (`listPatchesDesc`), never fewer than the numbering
+  shows (16.22 to 16.25 is 3; across a season, 16.22 to 17.2 is at least 2), so a new season never
+  reads as hundreds of patches. With the game's patch not known (the offline fixture) nothing is
+  counted. Then:
+  - one or two patches since: everything shows, and each label says nobody has checked it again
+    for that patch: "Not re-checked for 26.23" beside the briefing's and the notes' "Checked on
+    patch 26.22", and "Checked on patch 26.22 · not re-checked for 26.23" under each checked
+    cooldown;
+  - more than two (the default the code follows; the owner may change it, For the owner): the
+    briefing is hidden whole, its words kept on the server ("This briefing is hidden: it was
+    checked on patch 26.22, three patches ago, and not since. It shows again once a person checks
+    it."), and its interactions with it ("One interaction is hidden: …"); the champion notes still
+    show, flagged ("Checked three patches ago: may be out of date"), on their panel's line and on
+    the level notes'.
+
+  A level note names the abilities it rests on (`basedOn`), and once Riot changes one of them after
+  the check, it is flagged as that ability's notes are ("Changed since the check").
+
 - **Hidden points.** A briefing point, the threat, the opportunity or one of the matchup's
   interactions that rests on an ability "changed since" its check is hidden (`matchupIntel`,
   `view.ts`): its words stay on the server, and the page says in their place what changed, with
@@ -214,14 +292,19 @@ Nothing is generated: what no person has checked is shown as Data Dragon gives i
 
   The points that rest on nothing that changed keep "Checked on patch N", and the briefing's
   freshness is that of what it shows. The enemy's facts from a changed ability keep their row's
-  "Changed since the check" in the Interactions panel. Nothing is hidden silently.
+  "Changed since the check" in the Interactions panel (and on its folded line). A briefing hidden
+  for its age is said the same way (Freshness, above), and the footer then neither dates nor
+  credits it. Nothing is hidden silently.
 
 ## Curated notes
 
 Riot's Data Dragon gives every champion's ability names, icons, ranks and base cooldown arrays. It
 does not say when a cooldown starts, what a recast needs, what crowd control an ability carries or
-what cancels it. The curated notes add that, in two layers. A person writes each file from cited
-sources, and it is reviewed in a pull request. Nothing in them is generated.
+what cancels it. The curated notes add that, in two layers. Each file is written from cited
+sources, in our own words, and a person checks it in a pull request before it ships. The first
+batch (16 Nov 2026) was drafted and cross-checked by AI agents, so the owner's reading of it in
+this feature's pull request is its check by a person (For the owner, step 2); from then on a person
+writes or checks each file, under the rules below.
 
 | Layer | Files | What it holds |
 |---|---|---|
@@ -268,8 +351,8 @@ review checks the rest.
 - A badge read from a page's field (`spellshield`, `parry`, `grounded`, `knockdown`) uses the
   meaning `Template:Ability data` gives it ("Spell shield nullifies."; "Movement is interrupted and
   overridden by enemy knockdown or displacement."), so that page is one of the file's sources.
-- The wiki is read by hand, in a browser. Its Terms of Use forbid automated use without consent,
-  so no script, job or page requests it.
+- From now on the wiki is read by hand, in a browser: its Terms of Use forbid automated use without
+  consent, so no script, job, test or page requests it (Compliance, "No automated use").
 
 **Claims**
 - Never invent a number, an interaction or a matchup claim. What no source states is left out.
@@ -362,6 +445,8 @@ page carries them as data, not words.
 
 **Level notes**
 - Only what a source states, such as an unlock or a step at a stated level.
+- Each names the abilities of its champion it rests on (`basedOn: ["Q"]`; a passive's step,
+  `["P"]`), each with notes in the file, so the note is flagged once Riot changes one of them.
 - No power-spike rankings, and no "ultimate at 6, 11 and 16" unless a source states it for that
   champion. A level note does not add up two facts (Ornn's stat bonus at level 13).
 
@@ -377,8 +462,12 @@ page carries them as data, not words.
   that are important and give multiple choices", and will not approve "Apps that dictate player
   decisions". No win rates, tiers, counter lists or guesses. The test refuses the words that
   dictate or claim too much (`REFUSED_WORDS`: always, never, must, should, you, easy, free win,
-  can't lose, best, counters, punish and others) in every point and interaction. A factual sentence
-  that genuinely needs one goes in `ALLOWED_WORDS` with its place and reason.
+  can't lose, best, counters, punish and others) in every point and interaction, and the words
+  that instruct the player or give a verdict (must, should, you, avoid, best, counters, punish,
+  all-in and others: not always and never, since a mechanic may never do something) in every text
+  of the champion notes the page shows: facts, details, cooldown and recast notes, refunds and level
+  notes. A factual sentence that genuinely needs one goes in `ALLOWED_WORDS` with its file, place and
+  reason.
 - A matchup is checked against the same Data Dragon version as the champion notes it rests on. It
   holds no numbers of its own, so the page judges its freshness by those notes (Data, Freshness).
 - Its sources are the champion notes' sources of the same ids, copied whole.
@@ -492,12 +581,18 @@ Until that merges, the labels say what is known. Nothing is estimated.
   champions;
 - a matchup checked against another Data Dragon version than the notes of a champion it rests on;
 - a word from `REFUSED_WORDS` in a briefing point or an interaction, unless `ALLOWED_WORDS` lists
-  it there with its reason; an allowed word its text no longer uses;
+  it there (by file and place) with its reason; an allowed word its text no longer uses, in a
+  matchup's file or a champion's;
 - any text that contains `{{`, `<`, `>` or a control character, is empty, or is over 300
   characters;
 - `verified` fields of the wrong shape, or a patch that is not the Data Dragon version's;
 - a matchup without a threat, an opportunity and at least one lane point, or with more than four;
-- a level note outside levels 1 to 18, or a recast count below 1;
+- a level note outside levels 1 to 18, or one that names no ability it rests on (`basedOn`), a slot
+  that is not one, a slot twice, or a slot with no notes in the file; a recast count below 1;
+- a word that instructs the player or gives a verdict (the second and third groups of
+  `REFUSED_WORDS`) in a text of the champion notes the page shows (a fact's label or detail, a
+  detail, a cooldown or recast note, a refund, a level note), unless `ALLOWED_WORDS` lists it there
+  with its reason;
 - a missing validation matchup.
 
 Each rule on the notes has a case that proves it fires. What no test can check is the review's:
@@ -524,6 +619,19 @@ claim about when it starts. Riot's array passes only these rules, in this order:
      issue 787, closed 26 Apr 2025, still 0.25 in 16.22.1);
    - Corki's R (2 s), Teemo's R (0.25 s) and Gangplank's E (0): the wait between casts of an
      ability that holds charges, whose recharge the wiki gives (20 s; 35 to 25 s; 17 to 13 s);
+   - Taric's Q (3 s): it stores charges by Riot's own tooltip in 16.22.1 (a stack every
+     `{{ stackcooldown }}` seconds, consumed by the active; its leveltip's "Max Charges"), though its
+     `maxammo` is -1, so the time to regain one is not in Riot's data;
+   - Aphelios's Q (9 s at six ranks): one slot for five weapon abilities, as Riot's own description
+     says ("Aphelios has 5 different activated abilities, based on his main-hand weapon"), so its one
+     array is no one ability's ("Several abilities share this slot in Riot's data");
+   - Zoe's W (0.25 s): its active casts the spells she picks up (Riot's own tooltip), so the number
+     is not their cooldown ("This slot casts spells picked up in a game").
+
+   Riot's number is shown as it is where its own text names the ability it belongs to: Kled's Q
+   (11 to 7 s, the mounted Bear Trap on a Rope, whose leveltip calls the array its cooldown), Hwei's
+   subjects (one leveltip cooldown each) and Yasuo's E (its own cooldown; the limit per target is a
+   separate number its description mentions).
 3. `maxammo` above 0: with charges the array is the wait between casts, and the count is not
    reliable alone (Rengar's Q, W and E list 1; whether Warwick's W and LeBlanc's R, which list 2,
    hold charges is not verified), so neither a number nor a count is shown;
@@ -541,7 +649,7 @@ claim about when it starts. Riot's array passes only these rules, in this order:
 
 | Case | The line | Under it |
 | --- | --- | --- |
-| Curated per rank, Riot's record unchanged | "16 / 14 / 12 / 10 / 8 s"; the same value at every rank "13 s at every rank" | "Checked on patch 26.22" ("Checked" where the patch is not known) |
+| Curated per rank, Riot's record unchanged | "16 / 14 / 12 / 10 / 8 s"; the same value at every rank "13 s at every rank" | "Checked on patch 26.22" ("Checked" where the patch is not known), with "· not re-checked for 26.23" once a later patch is out |
 | When it starts, where the source states it (on cast, or no start stated, goes without saying) | "· starts after the first cast", "· starts after the last recast", "· starts when the effect ends", "· starts after the channel" | |
 | A static cooldown (`modifiers.static`) | "· unaffected by ability haste" | |
 | Curated charges, one count or one per rank | "3 / 4 / 5 charges · one back every 35 / 30 / 25 s"; "2 charges · one back every 20 s"; "1 charge" | "Checked on patch 26.22" |
@@ -551,13 +659,15 @@ claim about when it starts. Riot's array passes only these rules, in this order:
 | Riot's record changed after the check | Riot's own line (the rows below), never the notes' start; the row's name has "Changed since the check" | "Riot's data for patch 26.23, not re-checked" ("Riot's data, not re-checked" where the data's patch is not known; "Not re-checked" under a line without a number); then the notes, under "Notes from patch 26.22 · may be out of date: Riot changed its cooldown since" (its cooldown, spell id, name, ranks or charges), with "As checked: …" |
 | Riot's data, a number | "18 / 17 / 16 / 15 / 14 s" | "Riot's data, not reviewed" |
 | Riot's data, the passive | "Cooldown not in Riot's data", never "none" | "Not reviewed" |
-| Riot's data, charges (rule 3, and Corki's R, Teemo's R, Gangplank's E) | "Riot's data lists charges but not their recharge" | "Not reviewed" |
+| Riot's data, charges (rule 3, and Corki's R, Teemo's R, Gangplank's E, Taric's Q) | "Riot's data lists charges but not their recharge" | "Not reviewed" |
 | Riot's data, known to be wrong (Rengar's Q, W, E) | "Riot's number for this ability is known to be wrong" | "Not reviewed" |
 | Riot's data, a value that is not seconds | "Riot's cooldown data can't be read" | "Not reviewed" |
 | Riot's data, two abilities in one slot | "Two abilities share this slot in Riot's data" | "Not reviewed" |
+| Riot's data, several abilities in one slot (Aphelios's Q) | "Several abilities share this slot in Riot's data" | "Not reviewed" |
+| Riot's data, a slot that casts picked-up spells (Zoe's W) | "This slot casts spells picked up in a game" | "Not reviewed" |
 | Riot's data, an empty or all-zero array | "No cooldown number in Riot's data" | "Not reviewed" |
 | Riot's data, not one number per rank | "Riot's data doesn't give one number per rank" | "Not reviewed" |
-| No record of the ability | "No cooldown data held yet" (a champion with no abilities stored shows "Ability details arrive with the next game-data update" instead of rows) | |
+| No record of the ability | "No cooldown data held yet" (a champion with no abilities stored shows "Ability details aren't stored yet" instead of rows, and one whose stored copy cannot be read "Riot's ability data for … could not be read") | |
 
 A line without a number has nothing under it where the ability has curated notes that are not
 flagged: they are the place that says more (a passive whose wiki page gives no cooldown, for
@@ -619,10 +729,12 @@ pages were read on 16 Nov 2026: the League of Legends documentation
 
 - **Data.** Read by the version-check job once per game version, never while a page renders.
   Riot warns that Data Dragon "is not always updated immediately after a patch" (League docs), so
-  the page names the version and patch it shows ("Riot Data Dragon 16.22.1 (patch 26.22)") and
-  says so when the game's patch is newer. The fields read, and those never read (tooltips, ranges,
-  costs and their placeholders), are in [DATA_PIPELINES.md](DATA_PIPELINES.md), "Champion abilities
-  (Matchup Intel)".
+  the page names the version and patch it shows ("Riot Data Dragon 16.22.1 (patch 26.22)"), each
+  champion's own when they differ, and says so when Data Dragon already has a newer version than the
+  abilities stored. It cannot tell when Data Dragon itself lags the game: the game's patch it knows
+  comes from Data Dragon's own list of versions. The fields read, and those never read (tooltips,
+  ranges, costs and their placeholders), are in [DATA_PIPELINES.md](DATA_PIPELINES.md), "Champion
+  abilities (Matchup Intel)".
 - **Icons.** Each ability's and passive's icon is linked from Riot's CDN
   (`ddragon.leagueoflegends.com/cdn/<version>/img/spell/` and `img/passive/`), never copied or
   hosted by the app.
@@ -660,20 +772,20 @@ pages were read on 16 Nov 2026: the League of Legends documentation
 - **No automated use.** Weird Gloop's Terms of Use (https://weirdgloop.org/terms, updated 31
   January 2025) do not allow "Attempting to use our Sites in an automated fashion without prior
   consent from the Company", and the wiki's robots.txt disallows `/*api.php` and `/*?action=` for
-  every crawler. Curators read the wiki in a browser (Curated notes, Rules). No script, job, test
-  or page of the app requests it: the page only links to it, and the browser spec checks that it requests nothing from
-  `wiki.leagueoflegends.com`.
+  every crawler. From now on, curators read the wiki in a browser (Curated notes, Rules). No
+  script, job, test or page of the app requests it: the page only links to it, and the browser spec
+  checks that it requests nothing from `wiki.leagueoflegends.com`.
 
 ## Open compliance questions
 
-Each has a safe default that the code follows today. Only the owner changes one.
+Each has a default that the code follows today. Only the owner changes one.
 
 | Question | The default the code follows now | Who decides |
 | --- | --- | --- |
 | **The Developer Portal description.** Riot audits every new feature through the product's registered description (above). | The description in [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md) ("Description for the registration") includes Matchup Intel. The registered one must say the same before the page reaches production, so the merge, which deploys, waits for it. | The owner (For the owner, step 1) |
-| **A licence header on the curated files.** The repository is public and has no licence of its own. | Our own words, credited, not relicensed: each file's header says its texts are UNIIVERSE's own summaries, its sources list each page with its revision, and the footer credits them. No file declares CC BY-SA 3.0 for itself. That header would be needed only for text adapted from the wiki; adding it would be safe either way. | The owner |
+| **A licence header on the curated files.** The repository is public and has no licence of its own. | Our own words, credited, not relicensed: each file's header says its texts are UNIIVERSE's own summaries, its sources list each page with its revision, and the footer credits them. No file declares a licence for itself. A scan of the notes against the pages they cite finds no copied sentence, only runs of numbers and game terms (six to ten words), so the risk that a passage counts as adapted is small, but not none. The recommended choice is a conditional header in each file ("Any material in this file adapted from the League of Legends Wiki is available under CC BY-SA 3.0"), which would cover any such passage without saying anything was adapted; it is not added, because a licence grant is the copyright holder's act. | The owner |
 | **Scripted reads of the wiki** (for example drafts of changes on patch day). | None. Weird Gloop's prior consent would be needed first (its Terms of Use, above). If it were given, a script would only draft changes for a person to review in a pull request, never publish them. | The owner, after asking Weird Gloop |
-| **Who curates, and who approves briefings.** The owner's rule is a briefing only where a person wrote and checked it. | Notes change only through pull requests, reviewed there: the page generates nothing, and nothing is published by itself. The first notes (16 Nov 2026) were drafted for review in this feature's pull request. Until the owner names the people, the owner reads each briefing there before approving the merge. | The owner |
+| **Who curates, and who approves briefings.** The owner's rule is a briefing only where a person wrote and checked it. | Notes change only through pull requests, reviewed there: the page generates nothing, and nothing is published by itself. The first notes (16 Nov 2026) were drafted and cross-checked by AI agents, for a person's review in this feature's pull request: until the owner names the people, the owner's reading there is the only check by a person, and the merge waits for it (For the owner, step 2). | The owner |
 | **Riot's "Legal Jibber Jabber" sentence**: "[The title of your Project] was created under Riot Games' "Legal Jibber Jabber" policy using assets owned by Riot Games. Riot Games does not endorse or sponsor this project." (https://www.riotgames.com/en/legal) | Not shown. The app shows the Developer Portal's notice word for word, which the General Policies require. | The owner |
 
 ## Not built
@@ -796,10 +908,16 @@ merge deploys.
    the same):
 
    > Matchup Intel, for signed-in accounts, is a static reference for two champions chosen by hand: each ability's base cooldowns per rank from Data Dragon, and notes written from the League of Legends Wiki (cited, with the patch), with briefings for selected matchups. It makes no Riot API request and has no timers or tracking.
-2. **Say who curates the notes, and who approves briefings.** Until then, read the three briefings
-   (Ambessa vs Renekton, Gwen vs Ornn, Riven vs Mordekaiser) and the six champions' notes in the
-   pull request before approving it: the owner's rule is a briefing only where a person wrote
-   and checked it.
+2. **Say who curates the notes, and who approves briefings.** The first batch was drafted and
+   cross-checked by AI agents, so until the owner names the people, the owner's reading is its only
+   check by a person: read the three briefings (Ambessa vs Renekton, Gwen vs Ornn, Riven vs
+   Mordekaiser) and the six champions' notes in the pull request, and record the sign-off there (a
+   review comment for each file, or the name of the person who checked them), before approving it.
+   If that check is on another day than 16 Nov 2026, each file's `verified.checkedOn` moves to it.
+   Three readings to confirm with the rest: Ambessa's Q, Renekton's E and Gwen's R say "starts after
+   the first cast", read from their pages' on-cast and Riven's page, which gives both (Cooldowns,
+   `"after-first-cast"`); their own pages say only on-cast. The owner's rule is a briefing only where
+   a person wrote and checked it.
 3. **Approve the Resources navigation change**: Resources becomes one sidebar entry for two
    sections, Library and Matchup Intel, with their tabs at the top of both pages, phones included
    (Where it is). If not, the fallback leaves the sidebar as it was and links the two pages from
@@ -813,5 +931,19 @@ merge deploys.
    run, after each deploy and daily: a member page took 37–105 ms of server CPU in the local
    measurements (HOSTING_USAGE.md), and this one is not measured. Until then a change to the page
    is "deployed", not production-verified (CLAUDE.md §5).
+
+6. **Decide whether Riot's own numbers show where nobody has checked them** (the design's D7).
+   Today they do, on every champion without curated notes, only where they pass the guard
+   (Cooldowns) and labelled "Riot's data, not reviewed": 600 of the 865 abilities in Data Dragon
+   16.22.1. The other choice is curated numbers only, which needs a code change: no switch exists.
+7. **Decide how long a check holds.** Today a briefing is hidden, and champion notes are flagged,
+   once more than two patches have come since their check (`MAX_PATCHES_UNCHECKED`, Data,
+   "Freshness"), the design's default; one or two patches on, they show with "Not re-checked for
+   26.23".
+8. **Decide how long a briefing may be.** The ten-second briefing reads in about 45 to 60 seconds
+   today (177 to 247 words; up to 300 characters a text and four lane points, `curated.test.ts`).
+   Options: a one-line headline for the threat and the opportunity, shorter texts and fewer points
+   (with the test's limits tightened to match), lane points folded on a phone, or a title without
+   "ten-second" until the texts are that short.
 
 The open compliance questions above keep their defaults unless the owner decides otherwise.
