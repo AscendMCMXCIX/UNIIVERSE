@@ -3,6 +3,7 @@ import { openFilterBar } from "./filters";
 import { openMatchWindow } from "./match-history";
 import { untilStill } from "./modal-corner";
 import { playerEntry } from "./players";
+import { bubbleFacts, NOT_A_PICTURE, NOT_A_PICTURE_ERROR, openPictureEditor, picture, placedRight, press, toastFacts, touches, untilAtRest } from "./popups";
 
 /*
   Popups over and inside windows. Every window is a modal <dialog> in the browser's top layer
@@ -12,29 +13,25 @@ import { playerEntry } from "./players";
       also while the window is moved and scaled (its opening motion); Escape closes the bubble and
       leaves the window open;
     - a toast raised while a window is open is drawn inside it, above it, heard once (one live
-      region, its role), and its dismiss button is a 44px target pressed where it is drawn; when the
-      window closes the toast comes back in place, not heard again;
-    - a window opened by a tap or a click takes the focus itself, without a ring; opened from the
-      keyboard its close button has the focus, ringed; the tablet's menu the same, with the page
-      behind locked as behind a window;
+      region, its role), and its dismiss button is a 44px target pressed where it is drawn; a
+      window moving (opening, closing) never carries a toast with it: the toast goes into it once
+      it is at rest and leaves it as its closing motion starts, back in place, not heard again; a
+      toast raised as its window closes is heard on the page instead of lost with the window;
+    - a window opened by a tap or a click takes the focus itself, without a ring, until it is
+      pressed (the keys then scroll its body); opened from the keyboard its close button has the
+      focus, ringed; the tablet's menu the same, with the page behind locked as behind a window;
     - phones: the member and champion pickers in the Filters sheet and the champion window's
       opponent picker open their list in the window's body (no scroller of their own, nothing cut
-      off, the page behind unmoved), the opponent search is 16px (iOS zooms into a smaller field),
-      and the add-champion list ends above the tab bar, opening above its field near it.
-  Each test opens its own page; nothing depends on another test. Demo roster, in-memory only.
+      off, the page behind unmoved), a tap below an open list reaches what was tapped, the opponent
+      search is 16px (iOS zooms into a smaller field), and the add-champion list ends above the tab
+      bar, opening above its field near it.
+  Each test opens its own page; nothing depends on another test. Demo roster, in-memory only. Some
+  of this runs in Safari's engine too (e2e/webkit.spec.ts).
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
 });
-
-const touches = (page: Page) => page.evaluate(() => matchMedia("(pointer: coarse)").matches);
-
-/** A tap on a touch screen, a click with a mouse. */
-async function press(page: Page, target: Locator, options: { timeout?: number } = {}) {
-  if (await touches(page)) await target.tap(options);
-  else await target.click(options);
-}
 
 /** A teammate's profile, by the Players directory (the demo's local owner may edit any profile). */
 async function teammateProfile(page: Page): Promise<string> {
@@ -42,52 +39,6 @@ async function teammateProfile(page: Page): Promise<string> {
   await playerEntry(page, "Demo Top").click();
   await page.waitForURL(/\/players\/[0-9a-f-]{36}$/);
   return new URL(page.url()).pathname;
-}
-
-/** A picture made in the page (left half red, right half blue), as a PNG file to choose. */
-async function picture(page: Page) {
-  const data = await page.evaluate(() => {
-    const c = document.createElement("canvas");
-    c.width = 320;
-    c.height = 240;
-    const ctx = c.getContext("2d")!;
-    ctx.fillStyle = "#e02020";
-    ctx.fillRect(0, 0, 160, 240);
-    ctx.fillStyle = "#2040e0";
-    ctx.fillRect(160, 0, 160, 240);
-    return c.toDataURL("image/png");
-  });
-  return { name: "picture.png", mimeType: "image/png", buffer: Buffer.from(data.split(",")[1]!, "base64") };
-}
-const NOT_A_PICTURE = { name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("not a picture") };
-
-/**
- * An open bubble and its trigger, measured on screen: which window holds it, whether it is what is
- * drawn at its centre (its pointer-events lifted for the moment), and both boxes.
- */
-function bubbleFacts(bubble: Locator, triggerTestId: string) {
-  return bubble.evaluate((el, id) => {
-    const trigger = document.querySelector(`dialog[open] [data-testid="${id}"]`)!.getBoundingClientRect();
-    const b = el.getBoundingClientRect();
-    (el as HTMLElement).style.pointerEvents = "auto";
-    const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
-    (el as HTMLElement).style.pointerEvents = "";
-    return {
-      window: el.closest("dialog[open]")?.getAttribute("data-testid") ?? null,
-      onTop: !!hit && el.contains(hit),
-      bubble: { left: b.left, top: b.top, right: b.right, bottom: b.bottom, width: b.width },
-      trigger: { left: trigger.left, top: trigger.top, bottom: trigger.bottom, width: trigger.width },
-      screen: { width: innerWidth, height: innerHeight },
-    };
-  }, triggerTestId);
-}
-
-/** Where placeTip puts a bubble: centred on its trigger (held 8px inside the screen), 6px above it, or below it. */
-function placedRight(f: Awaited<ReturnType<typeof bubbleFacts>>): boolean {
-  const left = Math.min(Math.max(8, f.trigger.left + f.trigger.width / 2 - f.bubble.width / 2), Math.max(8, f.screen.width - 8 - f.bubble.width));
-  const above = Math.abs(f.bubble.bottom - (f.trigger.top - 6)) <= 1 || Math.abs(f.bubble.top - 8) <= 1;
-  const below = Math.abs(f.bubble.top - (f.trigger.bottom + 6)) <= 1;
-  return Math.abs(f.bubble.left - left) <= 1 && (above || below);
 }
 
 test("an ⓘ in a window: its bubble is drawn inside the window, above it, where its trigger puts it, also while the window moves; Escape closes the bubble only", async ({ page }) => {
@@ -100,8 +51,13 @@ test("an ⓘ in a window: its bubble is drawn inside the window, above it, where
   const tip = win.getByTestId("ranks-info");
   await tip.scrollIntoViewIfNeeded();
   const bubble = page.getByTestId("ranks-info-bubble");
+  // A tap; with a mouse, the keyboard's focus (a hovered bubble closes as the pointer leaves its ⓘ,
+  // and the window is moved under the pointer below).
   if (await touches(page)) await tip.tap();
-  else await tip.hover();
+  else {
+    await page.mouse.move(0, 0);
+    await tip.focus();
+  }
   await expect(bubble).toBeVisible();
   const facts = await bubbleFacts(bubble, "ranks-info");
   // Inside the window (the top layer), not on the page under it, and what is drawn at its centre.
@@ -122,6 +78,23 @@ test("an ⓘ in a window: its bubble is drawn inside the window, above it, where
     window.dispatchEvent(new Event("resize"));
   });
   await expect.poll(async () => placedRight(await bubbleFacts(bubble, "ranks-info"))).toBe(true);
+  // A motion of the window's own (an animation, as its opening motion is), with the bubble placed
+  // again in the middle of it (a resize, as a scroll would): once the motion is over, with no event
+  // to say so, the bubble is still where its trigger puts it (it follows the window at every frame,
+  // and once more as it stops; placed once against the moving window, it was left off its ⓘ).
+  await win.evaluate(async (d) => {
+    const style = document.createElement("style");
+    style.textContent = "@keyframes popups-move { from { transform: translate(40px, 30px) scale(0.95); } to { transform: none; } }";
+    document.head.append(style);
+    const ended = new Promise((r) => d.addEventListener("animationend", (e) => (e as AnimationEvent).animationName === "popups-move" && r(null)));
+    (d as HTMLElement).style.animation = "popups-move 600ms linear";
+    await new Promise((r) => setTimeout(r, 250));
+    window.dispatchEvent(new Event("resize"));
+    await ended;
+    (d as HTMLElement).style.removeProperty("animation");
+    style.remove();
+  });
+  await expect.poll(async () => placedRight(await bubbleFacts(bubble, "ranks-info"))).toBe(true);
   // Escape closes the bubble, and only the bubble; a second one closes the window.
   await page.keyboard.press("Escape");
   await expect(bubble).toHaveCount(0);
@@ -131,55 +104,123 @@ test("an ⓘ in a window: its bubble is drawn inside the window, above it, where
   await expect(win).toBeHidden();
 });
 
-test("a toast raised while a window is open is drawn in the window, heard once, and its 44px dismiss button answers where it is drawn; closing the window brings it back in place, not heard again", async ({ page }) => {
-  await page.goto("/settings");
-  const win = page.getByRole("dialog", { name: "Position your picture" });
-  const file = await picture(page);
-  // A file chosen before the page is interactive is ignored: choose it again until the editor opens.
-  await expect(async () => {
-    await page.getByTestId("avatar-file").setInputFiles(file);
-    await expect(win).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 20_000 });
-  await untilStill(page);
+test("a toast raised while a window is open is drawn in the window, heard once, and its 44px dismiss button answers where it is drawn; the window closing with its motion sends it back in place at once, not heard again", async ({ page }) => {
+  const win = await openPictureEditor(page);
   // A file that is not a picture, chosen while the window is open: an error toast.
   await page.getByTestId("avatar-file").setInputFiles(NOT_A_PICTURE);
-  const toast = page.getByTestId("toast").filter({ hasText: "Use a PNG, JPEG or WebP picture." });
+  const toast = page.getByTestId("toast").filter({ hasText: NOT_A_PICTURE_ERROR });
   await expect(toast).toBeVisible();
   await expect(toast).toHaveCount(1);
   await expect(toast).toHaveAttribute("role", "alert");
-  const drawn = await toast.evaluate((el) => {
-    const t = el.getBoundingClientRect();
-    const hit = document.elementFromPoint(t.left + 24, t.top + t.height / 2);
-    let live = 0;
-    for (let e: Element | null = el; e; e = e.parentElement) if (e.hasAttribute("aria-live")) live++;
-    return { inWindow: !!el.closest("dialog[open]"), onTop: !!hit && el.contains(hit), live };
-  });
-  expect(drawn).toEqual({ inWindow: true, onTop: true, live: 1 });
+  // Measured once its entrance motion (a slight scale) has run.
+  const f = await toastFacts(toast);
+  expect({ inWindow: f.inWindow, live: f.live, onTop: f.onTop }).toEqual({ inWindow: true, live: 1, onTop: true });
   // The dismiss button: 44px, inside the toast's own box, and what a finger finds at its centre.
-  const dismiss = toast.getByRole("button", { name: "Dismiss notification" });
-  const b = (await dismiss.boundingBox())!;
-  const t = (await toast.boundingBox())!;
-  expect(b.width).toBeGreaterThanOrEqual(44);
-  expect(b.height).toBeGreaterThanOrEqual(44);
-  expect(b.x).toBeGreaterThanOrEqual(t.x - 0.5);
-  expect(b.y).toBeGreaterThanOrEqual(t.y - 0.5);
-  expect(b.x + b.width).toBeLessThanOrEqual(t.x + t.width + 0.5);
-  expect(b.y + b.height).toBeLessThanOrEqual(t.y + t.height + 0.5);
-  expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest("button")?.getAttribute("aria-label") ?? null, { x: b.x + b.width / 2, y: b.y + b.height / 2 })).toBe("Dismiss notification");
-  await press(page, dismiss);
+  expect(f.dismiss.width).toBeGreaterThanOrEqual(44);
+  expect(f.dismiss.height).toBeGreaterThanOrEqual(44);
+  expect(f.dismiss.box.right - f.dismiss.box.left).toBeGreaterThanOrEqual(44 - 0.5);
+  expect(f.dismiss.box.bottom - f.dismiss.box.top).toBeGreaterThanOrEqual(44 - 0.5);
+  expect(f.dismiss.box.left).toBeGreaterThanOrEqual(f.toast.left - 0.5);
+  expect(f.dismiss.box.top).toBeGreaterThanOrEqual(f.toast.top - 0.5);
+  expect(f.dismiss.box.right).toBeLessThanOrEqual(f.toast.right + 0.5);
+  expect(f.dismiss.box.bottom).toBeLessThanOrEqual(f.toast.bottom + 0.5);
+  expect(f.dismiss.reached).toBe(true);
+  await press(page, toast.getByRole("button", { name: "Dismiss notification" }));
   await expect(toast).toHaveCount(0);
   await expect(win).toBeVisible();
-  // Another, then the window closes: the toast is back on the page, once, without its live role
-  // (it was heard in the window).
+  // Another, heard in the window (live there for a moment). Then the window closes with its motion
+  // (its close button): the toast leaves it as the motion starts, so it never rides the window off
+  // the screen, and is back on the page, once, without its live role.
   await page.getByTestId("avatar-file").setInputFiles(NOT_A_PICTURE);
-  await expect(toast).toBeVisible();
   await expect(toast).toHaveAttribute("role", "alert");
-  await press(page, win.getByTestId("avatar-cancel"));
+  await page.waitForTimeout(500);
+  const closing = await win.evaluate(async (d) => {
+    d.querySelector<HTMLElement>("[data-testid=dialog-close]")!.click();
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    const t = document.querySelector("[data-testid=toast]");
+    return { closing: (d as HTMLDialogElement).open && d.getAttribute("data-closing") === "true", toastInWindow: !!t && d.contains(t) };
+  });
+  expect(closing).toEqual({ closing: true, toastInWindow: false });
   await expect(win).toBeHidden();
   await expect(toast).toHaveCount(1);
   await expect(toast).toBeVisible();
   expect(await toast.evaluate((el) => el.closest("dialog") === null)).toBe(true);
   await expect(toast).not.toHaveAttribute("role");
+});
+
+test("a toast raised in the moment its window closes (a save: the toast, then close) is heard once, on the page, not lost with the window", async ({ page }) => {
+  const win = await openPictureEditor(page);
+  const heard = await win.evaluate(async (d) => {
+    // Every toast added with its live role is a toast a screen reader speaks: where it was added.
+    const added: string[] = [];
+    const watch = new MutationObserver((records) => {
+      for (const r of records)
+        for (const n of r.addedNodes) {
+          if (!(n instanceof Element)) continue;
+          for (const t of [n, ...n.querySelectorAll("[data-testid=toast]")]) if (t.matches("[data-testid=toast][role]")) added.push(t.closest("dialog") ? "window" : "page");
+        }
+    });
+    watch.observe(document.body, { childList: true, subtree: true });
+    // In one moment: a file that is not a picture (an error toast), then the window's close button.
+    const input = document.querySelector<HTMLInputElement>("[data-testid=avatar-file]")!;
+    const files = new DataTransfer();
+    files.items.add(new File(["not a picture"], "notes.txt", { type: "text/plain" }));
+    input.files = files.files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    d.querySelector<HTMLElement>("[data-testid=dialog-close]")!.click();
+    // Until the window has gone and the toast has been added where it settles, and a moment more.
+    for (let i = 0; i < 150 && ((d as HTMLDialogElement).open || added.length === 0); i++) await new Promise((r) => setTimeout(r, 20));
+    await new Promise((r) => setTimeout(r, 400));
+    watch.disconnect();
+    return added;
+  });
+  expect(heard).toEqual(["page"]);
+  const toast = page.getByTestId("toast").filter({ hasText: NOT_A_PICTURE_ERROR });
+  await expect(toast).toHaveCount(1);
+  await expect(toast).toHaveAttribute("role", "alert");
+  const f = await toastFacts(toast);
+  expect({ inWindow: f.inWindow, live: f.live, onTop: f.onTop }).toEqual({ inWindow: false, live: 1, onTop: true });
+});
+
+test("a toast showing as a window opens stays where it is while the window moves in, then is drawn in the window at rest, in the same place", async ({ page }) => {
+  await page.goto("/settings");
+  const file = await picture(page);
+  const toast = page.getByTestId("toast").filter({ hasText: NOT_A_PICTURE_ERROR });
+  // A toast on the page (an error stays 8 seconds): a file that is not a picture, no window open.
+  // A file chosen before the page is interactive is ignored: chosen again until the toast shows.
+  await expect(async () => {
+    await page.getByTestId("avatar-file").setInputFiles(NOT_A_PICTURE);
+    await expect(toast).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  const before = await toastFacts(toast);
+  expect(before.inWindow).toBe(false);
+  // Heard on the page (live there for a moment): it then stays drawn while a window moves in over it.
+  await page.waitForTimeout(400);
+  // From now, at every frame: whether the window is moving, and whether the toast is drawn in it.
+  await page.evaluate(() => {
+    const samples: Array<{ moving: boolean; inWindow: boolean }> = [];
+    (window as unknown as { __toastSamples: typeof samples }).__toastSamples = samples;
+    const sample = () => {
+      const d = document.querySelector("dialog[open]");
+      const t = document.querySelector("[data-testid=toast]");
+      if (d && t) samples.push({ moving: d.getAnimations().some((a) => a.playState === "running"), inWindow: d.contains(t) });
+      if (samples.length < 2000) requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  });
+  await page.getByTestId("avatar-file").setInputFiles(file);
+  const win = page.getByRole("dialog", { name: "Position your picture" });
+  await expect(win).toBeVisible();
+  await untilAtRest(win);
+  await expect.poll(() => toast.evaluate((el) => !!el.closest("dialog[open]"))).toBe(true);
+  const samples = await page.evaluate(() => (window as unknown as { __toastSamples: Array<{ moving: boolean; inWindow: boolean }> }).__toastSamples);
+  expect(samples.some((s) => s.moving), "frames of the window's opening motion were sampled").toBe(true);
+  expect(samples.filter((s) => s.moving && s.inWindow), "never drawn in the window while it moves").toEqual([]);
+  // In the window, where it was on the page, and pressed there.
+  const after = await toastFacts(toast);
+  expect(after.inWindow).toBe(true);
+  for (const side of ["left", "top", "right", "bottom"] as const) expect(Math.abs(after.toast[side] - before.toast[side]), side).toBeLessThanOrEqual(1);
+  expect(after.dismiss.reached).toBe(true);
 });
 
 test("a window opened by a tap or a click takes the focus itself, without a ring; opened from the keyboard, its close button has the focus, ringed", async ({ page }) => {
@@ -205,6 +246,36 @@ test("a window opened by a tap or a click takes the focus itself, without a ring
   await page.keyboard.press("Escape");
   await expect(win).toBeHidden();
   await expect(open).toBeFocused();
+});
+
+test("a window that took the focus as it opened lets it go when pressed inside: the keys then scroll its body", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "a desktop keyboard's Page Down");
+  // A window shorter than its content (above 480px tall, where a window scrolls as one).
+  await page.setViewportSize({ width: 1440, height: 540 });
+  const profile = await teammateProfile(page);
+  await page.goto(`${profile}/champions`);
+  const open = page.getByTestId("top-champion").first().getByTestId("open-champion");
+  const win = page.getByTestId("champion-detail");
+  await expect(async () => {
+    if (!(await win.isVisible())) await open.click({ timeout: 2_000 });
+    await expect(win).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  await untilStill(page);
+  // Opened by a click: the window holds the focus itself.
+  await expect(win).toBeFocused();
+  const body = win.getByTestId("champion-detail-body");
+  await expect(body).toHaveCSS("opacity", "1", { timeout: 15_000 });
+  expect(await body.evaluate((el) => el.scrollHeight - el.clientHeight), "the window's body scrolls").toBeGreaterThan(40);
+  expect(await body.evaluate((el) => el.scrollTop)).toBe(0);
+  // A click on the body's own padding, on nothing focusable: the window lets the focus go, as a
+  // page does (focusable for good, it kept it, and the keys then scrolled nothing).
+  const b = (await body.boundingBox())!;
+  await page.mouse.click(b.x + 4, b.y + b.height / 2);
+  await expect(win).not.toBeFocused();
+  expect(await win.evaluate((d) => d.hasAttribute("tabindex"))).toBe(false);
+  await page.keyboard.press("PageDown");
+  await expect.poll(() => body.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+  await expect(win).toBeVisible();
 });
 
 test("the tablet's menu takes the focus itself when tapped open, gives it to its close button from the keyboard, and locks the page behind as a window does", async ({ page }, info) => {
@@ -236,8 +307,10 @@ test("the tablet's menu takes the focus itself when tapped open, gives it to its
  * An open picker's list is part of the window's body: nothing in it scrolls, the body (or the
  * window, where it scrolls as one) is the one scroller, the list was brought into view in it as it
  * opened, and its first and last options are each drawn where a finger finds them once scrolled to.
+ * Measured once the list's entrance (a fade) has run.
  */
 async function expectInWindowBody(page: Page, panel: Locator) {
+  await untilAtRest(panel);
   const facts = await panel.evaluate((el) => {
     const scrolls = (e: Element) => /(auto|scroll)/.test(getComputedStyle(e).overflowY);
     const dialog = el.closest("dialog")!;
@@ -247,6 +320,7 @@ async function expectInWindowBody(page: Page, panel: Locator) {
     const s = (scroller ?? dialog).getBoundingClientRect();
     return {
       position: getComputedStyle(el).position,
+      transform: getComputedStyle(el).transform,
       ownScrollers: [el, ...el.querySelectorAll("*")].filter(scrolls).length,
       listMaxHeight: getComputedStyle(el.querySelector("[role=listbox]")!).maxHeight,
       scroller: scroller === null ? "none" : scroller === dialog ? "window" : scroller.parentElement === dialog ? "body" : `other: ${scroller.className}`,
@@ -254,6 +328,7 @@ async function expectInWindowBody(page: Page, panel: Locator) {
     };
   });
   expect(facts.position).toBe("static");
+  expect(facts.transform, "no rise moves it after it was brought into view").toBe("none");
   expect(facts.ownScrollers).toBe(0);
   expect(facts.listMaxHeight).toBe("none");
   expect(["body", "window", "none"]).toContain(facts.scroller);
@@ -285,6 +360,25 @@ test.describe("phones", () => {
     await expect(panel).toHaveAttribute("data-flow", "true");
     await expectInWindowBody(page, panel);
     expect(await pageScroll(page)).toBe(before);
+  });
+
+  test("a tap below an open list in the sheet reaches what was tapped: the list closes on the tap's click, so nothing moves under the finger before it", async ({ page }) => {
+    await page.goto("/matches");
+    await openFilterBar(page.getByTestId("together-filters"), "together-filters-toggle");
+    const sheet = page.getByTestId("together-filters-sheet");
+    await expect(sheet).toBeVisible();
+    await untilStill(page);
+    await sheet.getByTestId("together-with-button").tap();
+    const panel = sheet.getByTestId("together-with-panel");
+    await expect(panel).toHaveAttribute("data-flow", "true");
+    await untilAtRest(panel);
+    // The field under the list ("Team members in the game"), pushed down by it.
+    const below = sheet.locator("#together-min");
+    expect(await below.evaluate((el, p) => el.getBoundingClientRect().top >= p!.getBoundingClientRect().bottom - 1, await panel.elementHandle())).toBe(true);
+    await below.tap();
+    await expect(panel).toHaveCount(0);
+    await expect(below).toBeFocused();
+    await expect(sheet).toBeVisible();
   });
 
   test("the Filters sheet's champion picker opens its list in the sheet's body: no scroller of its own, nothing cut off", async ({ page }) => {
@@ -343,6 +437,7 @@ test.describe("phones", () => {
     await toggle.tap();
     const results = page.getByTestId("primary-pool-results");
     await expect(results).toBeVisible();
+    await untilAtRest(results);
     const room = await results.evaluate((el) => ({
       list: el.getBoundingClientRect().toJSON() as DOMRect,
       field: el.parentElement!.getBoundingClientRect().toJSON() as DOMRect,
