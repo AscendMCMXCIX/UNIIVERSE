@@ -44,8 +44,6 @@ export interface ShellStatus {
   user: { name: string; username?: string | null; avatarUrl: string | null; roleLabel: string } | null;
   /** The active account's fingerprint (see AccountGuard); null when there is no account. */
   identity: string | null;
-  /** Account from before automatic profiles: asks for Riot ID and role once (see /me). */
-  needsProfile: boolean;
   /** Account created without a password: can only use this session until one is set. */
   needsPassword: boolean;
   /** Admin-created account that has not chosen roles, pools and a password yet. */
@@ -60,14 +58,18 @@ function DataLine({ status }: { status: ShellStatus }) {
   return <p className="truncate text-xs text-fg-subtle">Patch {status.patch ?? "—"}</p>;
 }
 
-/** Things only this person can fix about their own account: an action card at the top of the page, not a header error. */
+/**
+ * Things only this person can fix about their own account: an action card at the top of the page, not
+ * a header error. `data-account-nudges` says how many: Team Overview's lineup, which fills the window
+ * five across, leaves their height out of it (globals.css, --lineup-nudges, which assumes each card
+ * keeps to one line, as it does at the widths where the lineup fills the window).
+ */
 function AccountNudges({ status }: { status: ShellStatus }) {
   const items: Array<{ href: string; text: string }> = [];
-  if (status.needsProfile) items.push({ href: "/me", text: "Complete your player profile: add your Riot ID and main role." });
   if (status.needsPassword) items.push({ href: "/settings#password", text: "Your account has no password yet. Set one so you can sign in again." });
   if (items.length === 0) return null;
   return (
-    <div className="mb-4 space-y-2">
+    <div className="mb-4 space-y-2" data-account-nudges={items.length}>
       {items.map((i) => (
         <Link key={i.href} href={i.href} className="flex items-center justify-between gap-3 rounded-lg border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-fg hover:bg-warn/15">
           <span>{i.text}</span>
@@ -155,22 +157,20 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
             showSignOut={showSignOut}
             allowed={allowed}
             adminMode={adminMode}
-            modeSwitch={status.isAdmin ? <ModeSwitch mode={adminMode ? "admin" : "player"} variant="drawer" /> : null}
+            modeSwitch={status.isAdmin ? (adminMode ? "admin" : "player") : null}
             status={<DataLine status={status} />}
             legal={
               <p className="text-xs leading-snug text-fg-subtle" title={riotLegal(b.productName)}>
                 Not endorsed by Riot Games.{" "}
-                <Link href={`${adminMode ? "/admin" : ""}/settings#compliance`} className="underline underline-offset-2">
+                <Link href={`${adminMode ? "/admin" : ""}/settings#compliance`} className="touch-target underline underline-offset-2">
                   Details
                 </Link>
               </p>
             }
           />
           <div className="relative flex min-w-0 flex-1 flex-col">
-            {/* Team Overview's lineup is centred in the height left under the section tabs: on that page
-                only, main is a column its content can grow into (every other page is unchanged). */}
             {/* id and tabIndex: the skip link's target (focused without an outline: it is not a control). */}
-            <main id="content" tabIndex={-1} className="min-w-0 flex-1 px-safe-4 py-5 pb-tabbar outline-none sm:px-safe-6 md:pb-6 lg:px-8 lg:py-7 lg:has-[[data-testid=lineup-frame]]:flex lg:has-[[data-testid=lineup-frame]]:flex-col">
+            <main id="content" tabIndex={-1} className="min-w-0 flex-1 px-safe-4 py-5 pb-tabbar outline-none sm:px-safe-6 md:pb-6 lg:px-8 lg:py-7">
               <AccountNudges status={status} />
               <SectionTabs allowed={allowed} team={{ name: b.teamName, logo: logoSrc(b), logoStill: logoStillSrc(b) }} />
               {children}

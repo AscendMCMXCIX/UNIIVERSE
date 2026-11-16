@@ -5,7 +5,7 @@ large monitors. One set of breakpoints (Tailwind's defaults) is used everywhere:
 
 | Range | Name | Shell | Layout rules |
 | --- | --- | --- | --- |
-| < 640px | small phone | top bar (Back or the team's mark, the page's title, the account sheet), bottom tab bar | one column, 44px targets, 16px inputs, full-screen pickers, lists as rows ([MOBILE.md](MOBILE.md)) |
+| < 640px | small phone | top bar (Back or the team's mark, the page's title, the avatar for the account screen), bottom tab bar | one column, 44px targets, 16px inputs, full-screen pickers, lists as rows ([MOBILE.md](MOBILE.md)) |
 | 640–767px | large phone | same | one column; some header rows become two columns |
 | 768–1023px | tablet | top bar + drawer (no tab bar) | two columns where useful |
 | 1024–1279px | laptop | sidebar | desktop layout |
@@ -25,7 +25,9 @@ it (`globals.css`), and every pinned element follows these rules:
 | Top bar | sticky | slides away while the page scrolls down; back on any scroll up, at the top, and while it holds focus |
 | Tab bar | fixed at the bottom | a compact row that slides away with the top bar and comes back with it; `main` keeps room for it (`pb-tabbar`) |
 | Detail windows (`DetailModal`) | whole screen below `sm`, centred window above; one whose header would fill over 40% of a phone's screen (the Team player window on a small phone) scrolls as one, as in a short window | whole screen, scrolling as one: a large header scrolls away, its close and step buttons float at the top, a footer stays pinned |
-| Dialogs (`Dialog`) | bottom sheet, at most the screen minus a strip | centred card, at most the screen minus 1rem; title and actions stay, only the body scrolls |
+| Team Overview's lineup | a swipe track, a card at a time, under the role bar | a sideways track of 19rem cards, two in view, from the page's gutter to the screen's edges (`lineup-bleed`), no role bar (below) |
+| The account screen (`DetailModal size="screen"`, behind the phone's avatar) | the whole screen, fixed to its four edges, under the status bar; its rows in a readable column (28rem); at the usual text size nothing scrolls on phones from 375pt wide (a few points for an administrator in Admin Mode in Safari's tab on a 375pt iPhone SE; a little on a 320pt screen in Safari's tab) | the whole screen too; only its body scrolls, as one region, under its bar with the close button |
+| Sheets (`DetailModal size="sheet"`: `Dialog`'s confirmations and editors, the filter sheet, the lineup sheet) | docked to the bottom edge, as tall as its content up to the screen less 2.5rem and the status bar (a share of the screen it is fixed to); a taller wider screen gets a centred window | docked to the bottom edge too, up to 44rem wide and the screen less 0.5rem; in both, the header and footer stay and only the body scrolls, unless they would leave it less room than its tallest control needs (large text or a zoomed page, mostly on a phone held sideways): then the whole sheet scrolls as one, like a page (`data-flow`) |
 | Things pinned to the bottom (toasts, a save bar) | `bottom-tabbar`: above the tab bar | near the bottom edge |
 
 Turning the phone keeps state: windows, filters and tabs live in the address or in component
@@ -35,7 +37,8 @@ state, never in the orientation, so a window open in one orientation is open in 
 translucent status bar, so:
 - side gutters use `px-safe-4` / `px-safe-6` (the gutter, or the notch's inset where larger) for
   the top bar, `main`, the public page, toasts and whole-screen windows;
-- whole-screen windows pad the status bar (`max-sm:pt-safe`) and the home indicator (`pb-safe`); a window that scrolls as one on a phone keeps a bar over the status bar, so text never scrolls under the clock;
+- whole-screen windows pad the status bar (`max-sm:pt-safe`); a window's body keeps its last line 1rem from the bottom edge (1.25rem from `sm`), a sheet's footer its actions 1rem where the sheet is docked (0.75rem where it is a centred window), and other windows' footers 0.75rem, or the home indicator's inset where it is larger (`pb-safe-4`, `sm:pb-safe-5`, `pb-safe-3`); a window that scrolls as one on a phone keeps a bar over the status bar, so text never scrolls under the clock;
+- `pt-safe-N` and `pb-safe-N` (like `px-safe-N`) are N spacing steps or the inset, whichever is larger, and are an element's only padding for that edge: beside another one (`py-4 pb-safe`) Tailwind's own order decides which wins, and the bare inset did, 0px in a browser (#265). `src/app/design-tokens.test.ts` refuses that pairing, and an arbitrary `max(…, env(safe-area-inset-…))` padding a utility writes;
 - preview pages (Admin → Previews) leave room for their fixed "Preview" badge (`PREVIEW_PAD_TOP`);
 - the drawer, which opens from the left, pads the left-hand inset; the tab bar pads all three.
 
@@ -64,15 +67,71 @@ Tabs and chip rows that do not fit scroll sideways inside themselves (never the 
 more is hidden, and the current item is kept in view. The Team tabs share the width when they
 fit (iPhone 15 and wider) and scroll on narrower phones.
 
+## Team Overview's lineup
+
+The lineup (`team-roster.tsx`) is laid out by its own width (the `lineup` container), so the same
+rules hold beside an open or a collapsed sidebar, and by the window's height:
+
+| Lineup | Layout |
+| --- | --- |
+| under 36rem (phones upright) | one swipe track, a card at a time, under the role bar (each tab the player's picture and the role) |
+| 36–42rem | 2 + 2 + 1 |
+| 42–58rem (upright tablets, a 1024px laptop) | 3 + 2: an upright iPad (810 × 1080) shows both rows whole on the first screen, the bench's chips just under it (1.05 screens) |
+| 58rem and up (a 1280px laptop with the sidebar open) | five across, capped at 84rem, at 100rem from a 90rem lineup (2560px and up) |
+| a short window, any width | one sideways track, two or three cards in view, no role bar; from lg (a short desktop window: devtools docked under it, a split screen) the track stays inside the content and scrolls within it, never as wide as its five cards |
+
+- **The header** is one row everywhere: the logo (56px on desktops, 48px on tablets, 44px held
+  sideways, none on a phone held upright, where the top bar shows it), the team's name over one
+  line of the lineup's context and state, and Edit lineup. A long name wraps whole, never cut. The
+  state: a quiet "Lineup complete", or for a lineup with a role open a pill from `sm`; on a phone
+  a warn token on the same line instead ("● 4/5 roles", the sentence read out and in its title;
+  where a lineup manager's Edit takes the room, "● 4/5" on a 360px phone and the dot alone at
+  320px), so the header keeps its one 48px row either way.
+- **Five across, the cards fill the window:** the page starts under the section tabs (no centring),
+  and the cards' art takes the height the window leaves: everything else down the page is known in
+  rem (the page's frame, the header, the card's body, the bench), so `lineup-art-height` in
+  globals.css sizes the art from `100dvh` less that, from 13rem up to 1.9 times the card's width
+  and 30rem. The account's own action cards above the section tabs (`AccountNudges`: complete your
+  profile, set a password) are counted too (`--lineup-nudges`, from how many it shows). Edit
+  lineup's bar is left out of the sum, so entering it moves nothing on the cards (the page grows
+  instead).
+  - **Measured (demo lineup, sidebar open):** windows of 1280 × 800, 1366 × 768, 1440 × 900,
+    1536 × 864 and 1920 × 1080 end with the bench on the first screen and nothing to scroll; on
+    2560px screens and wider the art reaches its largest size and the page ends above the window's
+    foot (271px at 2560 × 1440).
+  - **In a real browser** the window is shorter than the screen by its toolbars (and the taskbar):
+    1440 × 789 and 1920 × 950 still fit, but a 1366 × 768 laptop gives about 1366 × 657, where the
+    cards stay whole with their art at its 13rem floor and the bench sits at the fold (1.11 screens;
+    1.14–1.15 at 641–633px), and a 1280 × 800 laptop about 1280 × 690 (1.08 screens, the bench two
+    thirds in view). The cards fitted there before at 1.02–1.06 screens without a bench: the bench
+    is the extra height, as on upright phones.
+- **The bench** follows the cards: five across, a cell under each card, of one height along the
+  row (the substitute, "No substitute", or nothing under an open role: on the public page a role
+  whose player is not shown keeps its substitute private too); otherwise a row of chips for the
+  roles that have one, two to a row on a phone held upright (a lone last chip takes the row; at a
+  large text size, where two would leave a name less than about 4rem, one to a row), their names
+  wrapping inside the chip.
+- **Narrow cards** (five across a laptop): a card under 12.5rem shows its season as two columns (the
+  win rate; KDA over CS/min) and steps its sides in by 2px and its link icons 2px closer, so three
+  links still share the picture's row and the pictures stay level along the row; under 16.5rem
+  among cards side by side (five across up to about 2000px wide, three across a tablet) the rest of
+  the pool gets a row of its own, so all five of its other champions show, and kills / deaths /
+  assists per game show from 16.5rem, where they fit uncut. A phone's single card (about 16.4rem
+  on a 320px phone) is the phone card as it was: its pool on one row, its kills / deaths / assists
+  shown. In Edit lineup a card under 14.25rem stands its two controls one above the other, so both
+  labels stay whole.
+- **Identity rows** stay level side by side (`CardIdentity align`): a shorter name sits at the foot
+  of the room kept for a longer one, on its rank, so the room stays above it in the art.
+
 ## Shell
 
 - `src/components/app-shell.tsx`: sidebar from `lg`; `MobileNav` below.
 - `src/components/mobile-nav.tsx` (the phone frame is described in full in [MOBILE.md](MOBILE.md)):
   - phones: a sticky top bar with Back (named after where it leads) or the team's mark, the page's
     title once its heading has scrolled up under the bar, and your avatar, which opens the account
-    sheet (as tiles: the pages without a tab, Settings and Install App; the mode switch beside Sign
-    out; one short screen, docked at the bottom edge sideways too); on a profile, its sections ride
-    under the bar;
+    screen (a screen of its own: who is signed in, then full-width rows for the pages without a tab,
+    Settings and Install App, the mode switch and Sign out, then the patch and Riot's notice); on a
+    profile, its sections ride under the bar;
   - phones: a bottom tab bar with Team, Players, Leaderboards, Matches and Profile (`PHONE_TABS`,
     at most five, those the account may open). A teammate's profile is under Players. The current
     tab's icon sits in an accent pill and its label is bright, so it does not rely on colour alone;
@@ -80,8 +139,15 @@ fit (iPhone 15 and wider) and scroll on narrower phones.
     side) with all links, status rows and sign-out, and the account menu behind the avatar. The
     drawer is a native `<dialog>`, like every sheet and window: focus stays inside, the page behind
     is inert, Escape or a tap beside the panel closes it, and focus returns to the menu button.
+    Its Sign out tells the browser's other tabs, as the account screen's and the account menu's do.
     In the installed app, which has no browser Back, the bar also shows Back on a page reached
     from another (a teammate's profile), named as on phones.
+  - Before the page's code has run: the avatar, the tablet's menu button, the account menu's
+    triggers (the tablet's avatar, the sidebar's tile) and the sidebar's collapse control are
+    buttons that code drives, and a tap on one is kept by an inline script in the root layout
+    (`src/components/early-taps.ts`, `data-early` on the button). The button shows pressed at once
+    (`[data-early][aria-busy]`, globals.css) and does what was asked once the code runs, exactly
+    once; Enter and Space go the same way. Once the page runs, the script does nothing.
   - Both bars pad for safe areas (`pt-safe`, `pb-safe`, `px-safe`); in short windows they slide
     away while reading (see above). On phones the top bar sets the page's `scroll-padding-top` to
     its measured height (and the stylesheet clears the tab bar); on tablets the stylesheet's value
@@ -136,6 +202,12 @@ as a long page scrolls, All Champions' column headings pin under them, and nothi
 short window; the tablet's menu keeps focus inside and gives it back to the menu button; the
 installed app's Back on a tablet (the display mode stood in for, as Chromium cannot emulate it);
 the filter sheet's Done leaves with its motion; Admin Mode's Settings has its title.
+Team Overview's lineup: `e2e/home-layout.spec.ts` (five across from 1280 × 800 to 2560 × 1440,
+anchored under the tabs, nothing to scroll, the bench under the cards; a 1280 × 450 window's track
+inside the page), `e2e/team-layout.spec.ts` (the one-row header, 3 + 2 on a tablet, the phone's
+track, role bar and two chips to a row, the header and first card with a role open, no member's
+picture asked for while the first card's art loads), `e2e/card-layout.spec.ts` (identity rows
+level) and `e2e/mobile-landscape.spec.ts` (the sideways track held sideways, clear of the notch).
 In this repository's sandbox set `PW_CHROMIUM_PATH` to the Chromium binary.
 
 The wider audit script that produced the before/after numbers (eight viewports × twelve routes,
@@ -169,17 +241,22 @@ Three levels, each saying what it proves:
 
 - **Chromium with iPhone sizes and user agents** (every pull request): the phone and landscape
   rules above, 16px fields, safe areas, and Install App's iPhone and iPad instructions
-  (`e2e/install-app.spec.ts`: Share → Add to Home Screen, in-app browsers). Layout and behaviour,
-  in Chromium.
+  (`e2e/install-app.spec.ts`: Share → Add to Home Screen, in-app browsers). Chrome can be told an
+  iPhone's safe areas (`Emulation.setSafeAreaInsetsOverride`), and `e2e/account-screen.spec.ts`
+  checks the account screen with them on seven phones (MOBILE.md, "The account screen"). Layout and
+  behaviour, in Chromium.
 - **Safari's engine** (by hand): `e2e/webkit.spec.ts`, in the `webkit` project that exists only
-  with `E2E_WEBKIT=1`. Run it with the WebKit workflow (Actions → WebKit → Run workflow, about 8
-  billed minutes), or locally after `pnpm exec playwright install webkit` with
+  with `E2E_WEBKIT=1`. Run it with the WebKit workflow (Actions → WebKit → Run workflow, 8 to 14
+  minutes with the Safari 26 check below, most of it installing system libraries), or locally after `pnpm exec playwright install webkit` with
   `pnpm build && E2E_WEBKIT=1 pnpm exec playwright test --project=webkit`. On an iPhone-sized,
   touch WebKit it checks:
   - the priority pages load with no page error (hydration included) and no sideways scrolling;
   - Team's card track and role tabs, by tap;
   - a teammate's profile sections and a champion's window;
   - the Card Studio's section list, a palette and Cancel;
+  - the account screen: one tap opens it, at rest it fills the screen exactly with nothing in it
+    scrolling, every control a row at least 48px tall reached by a tap where it is drawn, the screen
+    holding the focus, the page left where it was (at the top and scrolled);
   - the Admin Mode switch;
   - fields at 16px or more (Safari zooms into smaller ones) and sign-in's password autofill attributes;
   - the pages held sideways;
@@ -191,9 +268,54 @@ Three levels, each saying what it proves:
   `Secure` and blocked the service worker so every request was routed (commits `e87dd15` to
   `985c65a`; removed with that feature).
 
-  This is WebKit as Playwright builds it for Linux: Safari's engine, not Safari on an iPhone.
-  **Status, 7 Nov 2026:** the WebKit workflow passes: 17 of 17 on `main` (run 42373258830) and on
-  #262's branch (run 42401195789).
+  This is WebKit as Playwright builds it for Linux, the current one (WebKit 27): Safari's engine, not
+  Safari on an iPhone, and not Safari 26 (next).
+  **Status, 10 Nov 2026:** the WebKit workflow passes on #280's branch at 747edc01, its last change
+  to the app and the spec: the 18 tests of this spec (the Match History Timeline tap passed on its
+  retry) and the 26 checks of the next step (run 42819925844). On 7 Nov it passed 17 of 17 on `main`
+  (run 42373258830) and on #262's branch (run 42401195789).
+- **Safari 26's engine** (by hand, the same WebKit workflow, after the step above):
+  `scripts/webkit26-check.mjs` in Playwright 1.58.2's WebKit 26.0, the last build before WebKit 27.
+  Safari 26 and earlier (iOS, iPadOS and macOS 26) collapse a window that is as tall as its content
+  to its header when its body grows from nothing (`flex-1`); WebKit 27 and Chromium draw it whole,
+  so the tests above passed while the account menu was a 95pt strip on the owner's iPhone on 10 Nov;
+  in WebKit 26.0 most sheets, the compact windows and the centred windows collapse the same way
+  (MOBILE.md, "Why the account menu was a strip on iPhones"; DetailModal's `BODY_SCROLLS`). The check opens the account screen, the
+  install window, the filter sheet, the lineup editor, a player's window, a game, the Card Studio,
+  the sign-in window, the tablet's menu and the account dropdown on four phones (an installed app's
+  whole screen, Safari's tab, the smallest iPhone, held sideways), an iPad and a Mac, and fails if a
+  window's body shows less than its content (or 160px of it where it scrolls), if the account screen
+  does not fill the screen with every control in reach and the page behind unmoved, or if a sheet
+  on a phone leaves the bottom edge. Run on main's code from before the fix, 14 of its 26 checks fail,
+  the account panel exactly as the owner saw it (377×95, one of six controls in reach); with the
+  fix, all 26 pass. Playwright 1.58.2 builds WebKit for Ubuntu up to 24.04 (not 26.04), so the
+  workflow runs on `ubuntu-24.04`; locally, the same commands work on Ubuntu 24.04:
+
+  ```bash
+  npm install --prefix /tmp/pw26 playwright-core@1.58.2
+  ```
+
+  ```bash
+  PLAYWRIGHT_BROWSERS_PATH=/tmp/pw26/browsers node /tmp/pw26/node_modules/playwright-core/cli.js install --with-deps webkit
+  ```
+
+  ```bash
+  pnpm build && PW26_CORE=/tmp/pw26/node_modules/playwright-core PLAYWRIGHT_BROWSERS_PATH=/tmp/pw26/browsers node scripts/webkit26-check.mjs
+  ```
+
+  A window built on `DetailModal` gets this for free; anything else as tall as its content (a
+  `<dialog>`, a popover) needs its scrolling part to grow from its content too (`flex-auto`), and
+  `src/components/ui/overlay-sizing.test.ts` checks the overlays it lists.
+- **The iOS Simulator** (10 Nov 2026; a workflow kept on two throw-away branches, never on `main`,
+  to be deleted unless the owner wants it kept): Mobile Safari on iOS 26.5 and 26.2 and a Home Screen
+  web app on iOS 26.5, in the Simulator on GitHub's macOS runners, against a demo build, with real
+  touches (branches `ios-sim/account-menu-baseline` and `ios-sim/account-menu-fix`, runs 42802301642
+  and 42802307377). On main's code the account panel was 95px tall with one of six controls in reach
+  in Safari (one of five installed, where Install App is hidden), and the filter sheet 189px in
+  Safari's tab (whole when installed); on #280's code the account screen filled the screen (695px in
+  Safari, 793 and 812px installed) with every control in reach, and the filter sheet was whole
+  (410px). It is iOS's own WebKit, but a simulator: the Home Screen app was set up by the run, not by
+  Share → Add to Home Screen.
 - **A real iPhone** (by a person; nothing above covers it):
   1. Add to Home Screen from Safari's Share menu: the icon and name come from Branding, and the app
      opens full screen with its content clear of the notch and the home indicator.
@@ -210,6 +332,15 @@ Three levels, each saying what it proves:
      from there switches the section; a teammate's profile shows "‹ Players" in the top bar (the
      installed app has no browser Back) and it leads back; the menu drawer opens, the page behind it
      cannot be tapped, and closing it returns to the menu button.
+  9. In the installed app and in Safari, tap your avatar on Team, on Resources scrolled to its end,
+     and after typing in a field and closing the keyboard: the account screen fills the screen under
+     the status bar, your picture, name and role at its top, every row, the mode switch and Sign out
+     in view and each answering a tap; × closes it, and the page behind has not moved. Then open
+     Filters on a Match History, and on Team Edit lineup, a role's Change (then Cancel, so nothing is
+     saved): each sheet shows its choices, not just its title. (On 10 Nov the account panel was a 95pt strip at the top and the
+     sheet before it a strip at the foot of the screen; MOBILE.md, "Why the account menu was a strip
+     on iPhones".) Settings → General → About gives the iOS version: 26 or earlier is the engine that
+     collapsed them.
 
 **Browser features against Safari 16.4** (reviewed 21 Oct 2026). Tailwind v4 and Next.js 16 need
 Safari 16.4 or later, so that is the floor. Nothing the app uses needs more:

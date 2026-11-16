@@ -69,8 +69,6 @@ export async function getShellStatus(db: Db, auth: AuthState, mode: "player" | "
     authMode: auth.mode,
     role: session?.role ?? null,
     playerId: session?.playerId ?? null,
-    // Admin accounts may be admin-only (no player profile); only a player without one is nudged.
-    needsProfile: auth.mode === "accounts" && !!session?.userId && session.role !== "owner" && !session.playerId,
     needsPassword: auth.mode === "accounts" && !!session?.userId && !session.hasPassword,
     needsSetup: auth.mode === "accounts" && !!session?.userId && !session.setupComplete,
     branding,

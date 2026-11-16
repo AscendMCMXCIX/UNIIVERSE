@@ -16,7 +16,15 @@ import path from "node:path";
   - a size, weight, case or letter spacing beside label-caps, which sets all four (a colour may
     replace its fg-subtle): Tailwind orders label-caps after a text size, so the size would be lost;
   - the standing-alone measure written as a number (max-w-[72rem], max-w-6xl) instead of
-    max-w-[var(--measure)], so the boards that use it change together.
+    max-w-[var(--measure)], so the boards that use it change together;
+  - a safe-area padding (pb-safe, pb-safe-N; pt-safe, pt-safe-N) beside another padding for the same
+    edge in one class list: Tailwind's stylesheet order then decides which wins, not the class
+    list, and `py-4 pb-safe` gave the bare inset, 0px in a browser (#265);
+  - an arbitrary max(gutter, inset) top or bottom padding that pt-safe-N or pb-safe-N writes.
+  - the brand blue as a glow or shadow colour (shadow-accent at any opacity or variant, an
+    arbitrary shadow made of var(--color-accent), or the shorthand shadow-(color:--color-accent)):
+    shadows are neutral and violet (accent-2) carries the light; a selected item's blue edge is a
+    ring (DESIGN_SYSTEM.md §4).
   Arbitrary values that match no token (a clamp(), a one-off width) stay allowed.
 */
 
@@ -54,8 +62,8 @@ function canonical(raw: string): string | null {
   return null;
 }
 
-/** A class without its variants ("@min-[36rem]/list:text-sm" → "text-sm"): what follows the last ":" outside brackets. */
-function withoutVariants(token: string): string {
+/** A class without its variants and important mark ("max-sm:pb-safe-4" → "pb-safe-4"): what follows the last ":" outside brackets. */
+function utilityOf(token: string): string {
   let depth = 0;
   let end = -1;
   for (let i = 0; i < token.length; i++) {
@@ -69,6 +77,12 @@ function withoutVariants(token: string): string {
 
 /** What label-caps sets, so a class string carries none of it beside label-caps. */
 const LABEL_CAPS_SETS = [/^(uppercase|lowercase|capitalize|normal-case)$/, /^tracking-/, /^font-(thin|extralight|light|normal|medium|semibold|bold|extrabold|black)$/, /^text-(4xs|2xs|xs|sm|md|base|lg|xl|\dxl|figure)(\/.+)?$/, /^text-\[(length:)?[\d.]+(px|rem|em)\]$/];
+
+/** Per edge: its safe-area paddings, and every other padding that sets that edge. */
+const SAFE_EDGES = [
+  { edge: "pb-safe", safe: /^pb-safe(-\d+)?$/, other: /^-?(p|py|pb)-/ },
+  { edge: "pt-safe", safe: /^pt-safe(-\d+)?$/, other: /^-?(p|py|pt)-/ },
+];
 
 /** What drifts from the tokens in one file's source, as "line: problem". */
 export function tokenProblems(source: string, tokens: Map<string, string>, options: { chartText?: boolean } = {}): string[] {
@@ -103,6 +117,8 @@ export function tokenProblems(source: string, tokens: Map<string, string>, optio
     for (const m of text.matchAll(/cubic-bezier\([^)]*\)/g)) {
       if (!named("ease", m[0])) problems.push(`${at}: ${m[0]} is not an --ease token`);
     }
+    // The brand blue is never a glow or shadow (shadow-accent-2, violet, is the light and stays allowed).
+    for (const m of text.matchAll(/(?<![\w-])(?:drop-|inset-|text-)?shadow-(?:accent(?:-strong)?(?![\w-])(?:\/[\w.]+)?|\[[^\]\s]*var\(--color-accent(?:-strong)?\)[^\]\s]*\]|\((?:color:)?--color-accent(?:-strong)?\)(?:\/[\w.]+)?)/g)) problems.push(`${at}: ${m[0]} is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light`);
     // Uppercase labels share one letter spacing; a pill badge (rounded-full) may stay tighter.
     for (const m of text.matchAll(/(["'`])([^"'`]*\buppercase\b[^"'`]*)\1/g)) {
       const classes = m[2]!.split(/\s+/);
@@ -114,14 +130,32 @@ export function tokenProblems(source: string, tokens: Map<string, string>, optio
     // label-caps sets a label's size, weight, case and letter spacing: none of them beside it.
     for (const m of text.matchAll(/(["'`])([^"'`]*\blabel-caps\b[^"'`]*)\1/g)) {
       const classes = m[2]!.split(/\s+/).filter(Boolean);
-      if (!classes.some((c) => withoutVariants(c) === "label-caps")) continue;
+      if (!classes.some((c) => utilityOf(c) === "label-caps")) continue;
       for (const c of classes) {
-        if (LABEL_CAPS_SETS.some((re) => re.test(withoutVariants(c)))) problems.push(`${at}: ${c} beside label-caps, which sets the label's size, weight, case and letter spacing`);
+        if (LABEL_CAPS_SETS.some((re) => re.test(utilityOf(c)))) problems.push(`${at}: ${c} beside label-caps, which sets the label's size, weight, case and letter spacing`);
       }
     }
     // The standing-alone measure is one token, so every board that uses it changes together.
     for (const m of text.matchAll(/[^\s"'`{}]+/g)) {
-      if (/^max-w-(\[72rem\]|6xl)$/.test(withoutVariants(m[0]))) problems.push(`${at}: ${m[0]} is max-w-[var(--measure)]`);
+      if (/^max-w-(\[72rem\]|6xl)$/.test(utilityOf(m[0]))) problems.push(`${at}: ${m[0]} is max-w-[var(--measure)]`);
+    }
+    // A safe-area padding is its element's only padding for that edge (globals.css): beside another
+    // one, whichever Tailwind writes later wins, at every width the classes share.
+    for (const m of text.matchAll(/(["'`])([^"'`]*\bp[bt]-safe\b[^"'`]*)\1/g)) {
+      const classes = m[2]!.split(/\s+/).filter(Boolean);
+      for (const { edge, safe, other } of SAFE_EDGES) {
+        if (!classes.some((c) => safe.test(utilityOf(c)))) continue;
+        for (const c of classes) {
+          const u = utilityOf(c);
+          if (other.test(u) && !safe.test(u)) problems.push(`${at}: ${c} beside ${edge}; pad that edge once (${edge}-N is N steps, or the inset where larger)`);
+        }
+      }
+    }
+    // An arbitrary max(gutter, inset) padding for the top or bottom edge that a safe-area utility writes.
+    for (const m of text.matchAll(/(?<![\w-])(pt|pb)-\[max\(([^,\]]+),env\(safe-area-inset-(top|bottom)\)\)\]/g)) {
+      const value = canonical(m[2]!);
+      const steps = value?.endsWith("rem") ? Number(value.slice(0, -3)) * 4 : NaN;
+      if ((m[1] === "pt") === (m[3] === "top") && Number.isInteger(steps)) problems.push(`${at}: ${m[0]} is ${m[1]}-safe-${steps}`);
     }
   });
   return problems;
@@ -166,6 +200,10 @@ describe("design tokens", () => {
       `<span className="text-2xs uppercase tracking-wide" /><span className="rounded-full uppercase tracking-wide" /><span className="uppercase tracking-label sm:tracking-wider" />`,
       `<span className="label-caps text-xs" /><span className="label-caps tracking-wide" /><span className="label-caps uppercase font-medium" /><span className="label-caps text-fg-muted" />`,
       `<div className="max-w-[72rem] lg:max-w-6xl max-w-[var(--measure)] max-w-[80rem]" />`,
+      `<div className="px-4 py-4 pb-safe sm:py-5" /><div className="pt-3 pb-safe-3" /><div className="p-2 pt-safe-2" /><div className="pb-safe-4 sm:pb-safe-5 short:pb-safe-4 pt-4" /><div className="max-sm:pb-safe-4 pb-tabbar" />`,
+      `<div className="pb-[max(1rem,env(safe-area-inset-bottom))] max-sm:pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-top))] pb-[max(0.6rem,env(safe-area-inset-bottom))] pb-[calc(1rem+env(safe-area-inset-bottom))]" />`,
+      `<p className="shadow-accent/15 hover:shadow-accent drop-shadow-accent shadow-accent-strong shadow-[0_0_60px_-20px_var(--color-accent)] shadow-accent-2 shadow-black/40 shadow-[0_0_60px_-20px_var(--color-accent-2)] ring-1 ring-inset ring-accent/40" />`,
+      `<p className="shadow-(color:--color-accent) inset-shadow-(color:--color-accent-strong)/30 drop-shadow-(--color-accent) shadow-(color:--color-accent-2) shadow-(--my-shadow)" />`,
     ].join("\n");
     expect(tokenProblems(source, tokens)).toEqual([
       "1: text-[11px] is text-2xs",
@@ -193,6 +231,20 @@ describe("design tokens", () => {
       "6: font-medium beside label-caps, which sets the label's size, weight, case and letter spacing",
       "7: max-w-[72rem] is max-w-[var(--measure)]",
       "7: lg:max-w-6xl is max-w-[var(--measure)]",
+      "8: py-4 beside pb-safe; pad that edge once (pb-safe-N is N steps, or the inset where larger)",
+      "8: sm:py-5 beside pb-safe; pad that edge once (pb-safe-N is N steps, or the inset where larger)",
+      "8: p-2 beside pt-safe; pad that edge once (pt-safe-N is N steps, or the inset where larger)",
+      "8: pb-tabbar beside pb-safe; pad that edge once (pb-safe-N is N steps, or the inset where larger)",
+      "9: pb-[max(1rem,env(safe-area-inset-bottom))] is pb-safe-4",
+      "9: pt-[max(0.75rem,env(safe-area-inset-top))] is pt-safe-3",
+      "10: shadow-accent/15 is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "10: shadow-accent is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "10: drop-shadow-accent is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "10: shadow-accent-strong is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "10: shadow-[0_0_60px_-20px_var(--color-accent)] is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "11: shadow-(color:--color-accent) is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "11: inset-shadow-(color:--color-accent-strong)/30 is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "11: drop-shadow-(--color-accent) is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
     ]);
   });
 });

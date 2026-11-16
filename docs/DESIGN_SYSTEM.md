@@ -34,7 +34,8 @@ decorative chrome.
 
 - **Profile Overview** (`/overview`, `/players/[id]`) and **Team Overview** (`/team`) are the
   reference pages. A new page should look like it belongs beside them. They have:
-  - an expressive banner or hero;
+  - an expressive banner or hero (Team Overview's is its five splash-art player cards under a
+    one-row team header, filling the first screen with the bench of substitutes under them);
   - a compact first screen of opaque panels in a clear order of importance;
   - a single `panel-featured` lead card;
   - quiet labels and strong figures.
@@ -112,9 +113,14 @@ It should not appear:
 
 - as a **fill or border on idle controls**. The sidebar's old "Switch to Admin Mode" box was one;
   it is now a neutral row whose shield turns blue while pointed at.
-- as a **glow or shadow colour**. The Team hero's logo still has `shadow-accent/15`
-  (`team-roster.tsx`, owned by the personalization session); it should become a neutral
-  `shadow-black/40` (§9).
+- as a **glow or shadow colour**. Team Overview's selected card had `shadow-accent/15` and its
+  lineup stood on a floor lit in the brand blue (a radial glow, a hairline and the team's name as a
+  watermark); the card's shadow is now a neutral `shadow-black/40`, and the floor gave way to the
+  bench of substitutes (November 2026). The sign-in and setup frame's card (`BrandFrame`) glowed in
+  the brand blue too; it is lit in violet now, like the page's ambient light, and the role bar's
+  selected tab draws its blue edge as a ring, not a shadow. `design-tokens.test.ts` refuses
+  `shadow-accent` (any opacity or variant), an arbitrary shadow made of `var(--color-accent)` and
+  the shorthand `shadow-(color:--color-accent)`; `shadow-accent-2`, violet, stays allowed.
 - as the **colour of the logo's stand-in** (`BrandMark` without an upload). That is now a neutral
   tile lit faintly in violet, with the letter in `fg`.
 
@@ -176,7 +182,9 @@ frame cannot clip it.
 
 Two saved states, open (16rem) and collapsed to a 4.5rem rail. While collapsed, hover or keyboard
 focus opens a temporary preview over the page. The choice is remembered in a cookie, so the server
-renders the right width with no jump. Ctrl+\ toggles it. That behaviour is unchanged.
+renders the right width with no jump. Ctrl+\ toggles it. That behaviour is unchanged. A click on the
+collapse control before the page's code has run is kept and applied once it runs (see "The
+navigation contract").
 
 **Zones.** Three zones, top to bottom, each separated by a hairline (`RAIL_DIVIDER`):
 
@@ -231,9 +239,9 @@ reads as set into the frame rather than pasted on a flat block.
 ### Tablets and phones
 
 Tablets keep the top bar, the drawer (sharing `NavLinks`, so the same rows) and the section tabs.
-Phones keep the top bar, the five-tab bar and the account sheet (MOBILE.md). They pick up the new
-`chrome` ink automatically. Their mode switch keeps its bordered button: in the sheet it sits among
-large rows with nothing else to set it apart.
+Phones keep the top bar, the five-tab bar and the account screen (MOBILE.md). They pick up the new
+`chrome` ink automatically. On the account screen the mode switch is a row like the others, above
+Sign out in a panel of their own, and it keeps the accent when it leads to Admin Mode.
 
 With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shell):
 
@@ -275,8 +283,22 @@ test):
   account without a player profile never starts at, or goes Back to, an empty Profile: its home is
   its first other page.
 - **Overlays.** One sheet for every choice and editor (`DetailModal` `size="sheet"`, `Dialog` built
-  on it): Escape, the backdrop, Close and a pull down close the topmost one, focus returns to what
-  opened it without scrolling, and the page behind never moves (MOBILE.md, "Every sheet and window").
+  on it): its choices in the body and its actions in the footer, which stays in view while only the
+  body scrolls. Where the header and footer would leave the body too little room for its tallest
+  control (large text on a phone held sideways), the whole sheet scrolls as one instead, like a page,
+  so nothing is ever cut short in a strip. Escape, the backdrop, Close and a pull down close the
+  topmost one, focus returns to what opened it without scrolling, and the page behind never moves
+  (MOBILE.md, "Every sheet and window"). Every window's body grows from its content (`flex-auto`,
+  never `flex-1`): Safari 26 collapses a window as tall as its content to its header otherwise, as it
+  did to the account menu on the owner's iPhone, and as WebKit 26.0 does to most sheets and to the
+  compact and centred windows (MOBILE.md, "Why the account menu was a strip on iPhones"). The phone's account menu is a screen of its own instead of a sheet (`size="screen"`):
+  full-width rows of at least 48px on a screen fixed to the phone's four edges.
+- **Before the page's code has run.** Destinations are real links, and work at once. The frame's
+  controls that code drives (the phone's avatar, the tablet's menu button, the account menu's
+  triggers on tablets and in the sidebar, the sidebar's collapse control) keep a tap made before it
+  has run (`data-early`, `src/components/early-taps.ts`): they show pressed at once
+  (`[data-early][aria-busy]`: the hover surface in an accent ring) and act once the code runs,
+  exactly once. (`e2e/mobile-nav.spec.ts`, `e2e/sidebar-motion.spec.ts`)
 - **The keyboard.** "Skip to content" is the first stop on every page and moves focus to the page
   (`main#content`); every control has the shared focus ring.
 
@@ -303,8 +325,7 @@ deliberately. Each needs its own small PR. Check STATUS.md for the Actions-minut
 |---|---|---|
 | Hover on panels | About 50 controls use `hover:bg-surface-2`, a few `hover:bg-surface-2/70` or `bg-fg/5` | Converge on §5: surface steps on panels, fg overlays on the frame. `DataList` rows follow §5 already (`ROW_STATES`) |
 | Page headers | Players, Matches and Resources open with `PageHeader`. Leaderboards opens with its sub-tabs in the title's place; Settings centres a narrower column with its own heading | Intended by STANDARDS.md's three tiers. Leaderboards could take a `PageHeader` when its page is next redesigned |
-| Eyebrows | `PageHeader`'s eyebrow is `accent`; `SectionLabel` is `fg-subtle` | Both are valid. Keep `accent` eyebrows to the two landing heroes and admin pages |
-| Team hero logo | `shadow-accent/15`: a blue glow under the team's logo (`team-roster.tsx`) | A neutral `shadow-black/40`, or `brand-plate`; left to the session that owns Team's cards |
+| Eyebrows | `PageHeader`'s eyebrow is `accent`; `SectionLabel` is `fg-subtle` | Both are valid. Keep `accent` eyebrows to admin pages (`PageHeader`) and the sign-in frames (`BrandFrame`); Team Overview's one-row header leaves its eyebrow to screen readers, since the selected tab right above says it |
 | Tablet and phone mode switch | A bordered accent button in the drawer and sheet, a quiet row in the sidebar | Deliberate (§7). Revisit only with the owner, since phones were verified |
 
 ## 10. Working on the design
@@ -313,6 +334,13 @@ deliberately. Each needs its own small PR. Check STATUS.md for the Actions-minut
   frame components (`app-shell.tsx`, `collapsible-sidebar.tsx`, `nav-links.tsx`, `mode-switch.tsx`,
   `account-menu.tsx`, `brand-mark.tsx`) belong to the design system. A session changing them
   updates this page in the same PR.
+  - `main` (`app-shell.tsx`) is the same block on every page: Team Overview no longer turns it
+    into a flex column, since its lineup starts under the section tabs instead of being centred in
+    the window (November 2026). The lineup's own rules in `globals.css` (`lineup-art-height`,
+    `lineup-bleed`, the art-wait rules) are described in RESPONSIVE.md → Team Overview's lineup.
+    The account's action cards at the top of `main` (`AccountNudges`) say how many they show
+    (`data-account-nudges`), which the lineup's art leaves out of the window: a change to their
+    size changes `--lineup-nudges` beside `lineup-art-height`.
 - **Validation:** `pnpm verify`, then `pnpm build && pnpm test:e2e`. The sidebar's geometry and
   motion are in `e2e/sidebar-motion.spec.ts` and `e2e/quality.spec.ts`; axe runs at three widths
   in `e2e/quality.spec.ts`.

@@ -61,10 +61,14 @@ Tailwind classes they generate. `src/app/design-tokens.test.ts` refuses font siz
 arbitrary values that equal a token (`text-[0.6875rem]` is `text-2xs`), Tailwind's names for the
 panel and card radii, colours written as hex in a class, easing curves that are not tokens,
 uppercase labels spaced other than `tracking-label`, a size, weight, case or letter spacing beside
-`label-caps` (which sets all four; Tailwind would drop the size silently), and the standing-alone
-measure written as a number (`max-w-[72rem]`, `max-w-6xl`) instead of `max-w-[var(--measure)]`.
-SVG charts drawn 1:1 in px keep their text in px, so it fits the chart's fixed gutters; the test
-lists them.
+`label-caps` (which sets all four; Tailwind would drop the size silently), the standing-alone measure
+written as a number (`max-w-[72rem]`, `max-w-6xl`) instead of `max-w-[var(--measure)]`, a safe-area
+padding (`pb-safe`, `pt-safe` and their `-N` forms) beside another padding for the same edge, an
+arbitrary `max(…, env(safe-area-inset-…))` top or bottom padding that `pt-safe-N` or `pb-safe-N`
+writes (RESPONSIVE.md → Safe areas), and the brand blue as a glow or shadow colour (`shadow-accent`,
+a shadow made of `var(--color-accent)` or `shadow-(color:--color-accent)`: shadows are neutral and
+violet carries the light, DESIGN_SYSTEM.md §4). SVG charts drawn 1:1 in px keep their text in px,
+so it fits the chart's fixed gutters; the test lists them.
 
 **Colour** (semantic, never raw values). The ground is a deep ink with a faint indigo undertone,
 each surface one visible step lighter than the one below it. The identity is a pair: the brand
@@ -244,8 +248,10 @@ count in a tight space `formatCompactCount` ("45K"), and a place in words `forma
 
 Every image from another host has a designed stand-in (initials, a tier dot, a plain tile) and
 never shows a broken-image glyph: use `RemoteImage` or `useImageFailure`, which also catch images
-that fail before the page is interactive. Give images their width and height, load below-the-fold
-ones lazily, and keep uploaded brand images small ([HOSTING_USAGE.md](HOSTING_USAGE.md)).
+that fail before the page is interactive. A missing picture and a failed one never look alike: a
+Riot item, spell or rune icon (`IconImg`) is a plain tile where the slot is empty and the icon's
+initials, named in its title, where its image failed. Give images their width and height, load
+below-the-fold ones lazily, and keep uploaded brand images small ([HOSTING_USAGE.md](HOSTING_USAGE.md)).
 
 ## Responsive and accessible
 
@@ -334,3 +340,30 @@ ones lazily, and keep uploaded brand images small ([HOSTING_USAGE.md](HOSTING_US
   `e2e/cross-device.spec.ts` covers another time zone and language, unreachable image hosts,
   invalid nesting, cut-off figures and target sizes; `e2e/quality.spec.ts` runs axe.
 - A fix comes with the test that would have caught it.
+- A test passes in any year (16 Nov 2026). It fixes its own dates and passes them as `now`, and
+  where the code it calls reads the clock itself it pins it (`vi.useFakeTimers({ toFake: ["Date"] })`
+  and `vi.setSystemTime`), or it works out the dates it expects.
+  - Seasons: on the offline fixture's static data the current season is the calendar year's, so a
+    database test whose games are Season 2026's makes a Season 2026 patch current
+    (`makeSeason2026Current`, `tests/db/helpers.ts`).
+  - Browser tests: the demo is seeded in the current season, dated back from when it starts, so a
+    test takes the season from `/api/health` (`e2e/demo-season.ts`) and checks a date against the
+    demo's own dates, never against a year.
+  - To check, move `Date` for a whole run with a temporary setup file that calls
+    `vi.useFakeTimers({ toFake: ["Date"] })` and `vi.setSystemTime`, never the machine's clock.
+    Vitest 4 has no `--setupFiles` flag: a temporary config that adds `setupFiles` to
+    `vitest.config.mts` goes in `--config`. Use PGlite for the database suite (no
+    `TEST_DATABASE_URL`): its `now()` follows the faked clock, while PostgreSQL's stays on today. Run
+    the same at today's date as well: a few tests fail under any faked clock, because rows written
+    a moment apart get the same time.
+  - What stays tied to the date is the app's ranked year (`src/domain/ranked-year.ts`, 2026 only
+    until Riot publishes 2027's dates). Ranked progress names a season, and draws readings, only
+    inside a ranked year the app knows: from 1 January 2027 it names none. Match History's LP
+    marks are worked out only for games on a patch of a ranked year the app knows (16.x,
+    `rankedSeasonOfPatch`), and the demo's games are on its season's patches: from the demo's
+    Season 2027 (Riot's first 2027 patch in CI, 1 January on the offline fixture) no card has one.
+    So these browser tests pass in 2027 only with the 2027 change, which has to know 2027's dates
+    and its 17.x patches: `e2e/progress.spec.ts` (it takes the year from `RANKED_YEAR` instead of
+    naming one), the three tests of `e2e/match-lp.spec.ts` and `e2e/webkit.spec.ts`'s LP dash test
+    (the WebKit workflow, run by hand). None names a year, so none changes now; the 2027 change
+    runs them again.

@@ -651,6 +651,7 @@ The server's part was small: TTFB 0.13 s here. The redirect from `/` added about
 - **On a phone, the other cards' art waits** while the lineup is a track (under `@xl` of the lineup container). It waits until the first card's art has loaded or failed, or until the member touches the track or moves to another card.
   - A lazy image that is not displayed is not fetched.
   - Wider screens show all five cards and never wait.
+  - Since November 2026 the role bar above the track shows each player's picture: the pictures get their address only once the wait is over (initials until then), so they never share the connection with the first card's art. The later cards' own member pictures are not displayed until then either (their round place kept), nor, held sideways, the substitutes' pictures on the bench under the track; wider screens show all five cards and the bench at once and never wait. Held sideways the track shows two cards: the cards after the second wait the same way (`data-art-far`). No request to `/api/avatars` starts while `data-art-wait` is set (`e2e/team-layout.spec.ts`).
 - **Member and public pages preconnect to Data Dragon.** Next sends the hint as a `Link` response header (checked on a local production build). The layout sends it, so it does not wait for the page's data: the connection can open while the server is still building the roster.
 
 `e2e/team-layout.spec.ts` checks the order on all three viewports.
@@ -727,7 +728,7 @@ React and Next.js are the same on every page and not counted):
   page that can open the window (a champion's matchups on the Overview and All Champions) carried the
   whole Match History page. The formatters now live in `match-history/match-format.ts`: 15–16 KB less
   on those two pages.
-- The phone frame (the account sheet, the profile's sections in the top bar) adds 2.3–3.9 KB to
+- The phone frame (the account menu, the profile's sections in the top bar) adds 2.3–3.9 KB to
   every page. Team Matches loads the match window only when a phone opens a game (fetched ahead once a
   phone shows the list), so tablets and desktops do not download it.
 
