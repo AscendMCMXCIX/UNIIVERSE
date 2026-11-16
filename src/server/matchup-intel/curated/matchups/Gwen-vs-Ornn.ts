@@ -9,9 +9,11 @@ import type { MatchupNotes } from "@/domain/matchup-intel/types";
   their champion notes, CC BY-SA 3.0) and names the abilities it rests on. A point may apply what a
   page states of a whole class to a member that a page names as one: that a stun spends Brittle
   rests on Living Forge's page (immobilising effects spend it; Riot's tooltip says the same of
-  immobilising effects) and on the wiki's definition of a stun as an immobilising effect (saved
-  from the Renekton page, revision 4028014). The points are considerations: no win rates, tiers,
-  guesses or instructions on how to play.
+  immobilising effects) and on the wiki's definition of a stun as an immobilising effect, shown on
+  the Renekton page (revision 4028014), which is therefore one of the sources below, as it is for
+  Ambessa vs Renekton. Ornn's own pages give the lengthened stuns (1.625 s and 1.3 s) but call a stun
+  an immobilising effect only through that definition. The points are considerations: no win
+  rates, tiers, guesses or instructions on how to play.
 
   Changed or left out on the re-check of 16 Nov 2026, and why:
   - "the mist lasts 4 s, longer than the 3 s of Brittle": a comparison of two numbers that no page
@@ -42,6 +44,7 @@ const notes: MatchupNotes = {
     { id: "ornn-w", title: "League of Legends Wiki: Bellows Breath (Ornn)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ornn/Bellows_Breath", kind: "wiki-ability", revision: 4011962, revisionTime: "2026-04-24T08:40:56Z", licence: "CC BY-SA 3.0" },
     { id: "ornn-e", title: "League of Legends Wiki: Searing Charge (Ornn)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ornn/Searing_Charge", kind: "wiki-ability", revision: 4007982, revisionTime: "2026-04-13T02:25:31Z", licence: "CC BY-SA 3.0" },
     { id: "ornn-r", title: "League of Legends Wiki: Call of the Forge God (Ornn)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ornn/Call_of_the_Forge_God", kind: "wiki-ability", revision: 4007985, revisionTime: "2026-04-13T02:32:34Z", licence: "CC BY-SA 3.0" },
+    { id: "renekton-page", title: "League of Legends Wiki: Renekton", url: "https://wiki.leagueoflegends.com/en-us/Renekton", kind: "wiki-champion", revision: 4028014, revisionTime: "2026-06-13T11:56:18Z", licence: "CC BY-SA 3.0" },
   ],
   briefing: {
     threat: {

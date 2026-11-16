@@ -35,7 +35,8 @@ import type { ChampionNotes } from "@/domain/matchup-intel/types";
   - a recast window in seconds for Call of the Forge God: the page says the recast is available
     while the elemental is active, with no number;
   - a cooldown for Brittle or Master Craftsman: the page gives the passive only the forge's timer;
-  - the knock-back's 0.4 seconds: the page marks it as estimated;
+  - the knock-back's 0.4 seconds, and the movement speed at or below which Bellows Breath does not
+    lunge at all: the pages mark both as estimated;
   - the levels at which the ultimate gains ranks: no saved page states them.
 */
 
@@ -97,7 +98,7 @@ const notes: ChampionNotes = {
         { kind: "exception", label: "Locked while marching", detail: "During the march he cannot attack, use items or cast his other abilities.", appliesTo: "self", source: "ornn-w" },
       ],
       details: [
-        "He lunges as far as 35% of his total movement speed, taken when he casts it, would carry him in 0.75 s; at an estimated 190 movement speed or less he does not lunge at all.",
+        "He lunges as far as 35% of his total movement speed, taken when he casts it, would carry him in 0.75 s.",
         "A spell shield cancels the final burst's damage, and the target does not turn Brittle.",
       ],
     },

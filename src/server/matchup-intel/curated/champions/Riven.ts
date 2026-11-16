@@ -33,6 +33,9 @@ import type { ChampionNotes } from "@/domain/matchup-intel/types";
   - level notes: no saved page states when her abilities unlock or when her ultimate gains ranks;
   - a recast window in seconds for Wind Slash: the page allows it from 0.5 seconds into Blade of
     the Exile until the 15 seconds end, which the recast note says in words;
+  - one recast window for Broken Wings: each recast is open for 4 seconds after the cast before it
+    ("within 4 seconds of the previous cast"), not both within 4 seconds, so its recast note says it
+    in words;
   - that each Broken Wings cast gives a Runic Blade charge: Runic Blade's page says ability casts
     give charges and Broken Wings' page that each cast counts for on-cast effects, but neither
     names the other;
@@ -72,7 +75,8 @@ const notes: ChampionNotes = {
       ddragonIdentity: { id: "RivenTriCleave", name: "Broken Wings", maxRank: 5, charges: null },
       cooldown: { kind: "per-rank", seconds: [13, 13, 13, 13, 13], starts: "after-first-cast" },
       modifiers: { lockout: { seconds: 0.3125, static: true }, resetsAttack: true },
-      recast: { count: 2, windowSeconds: 4, note: "Each recast is open for 4 seconds after the cast before it; otherwise the ability goes on cooldown. The third hits a wider area and knocks enemies back." },
+      // No one window for both recasts: each is open for 4 seconds after the cast before it, as the note says.
+      recast: { count: 2, note: "Each recast is open for 4 seconds after the cast before it; otherwise the ability goes on cooldown. The third hits a wider area and knocks enemies back." },
       facts: [
         { kind: "mobility", label: "Three dashes", detail: "Each cast dashes 225 units the way she faces, or up to 225 units towards a targeted enemy. Only the third can cross terrain.", appliesTo: "self", tags: ["dash"], source: "riven-q" },
         { kind: "crowd-control", label: "Knock-back", detail: "The third cast knocks enemies hit back 75 units.", appliesTo: "target", tags: ["knock-back"], source: "riven-q" },
