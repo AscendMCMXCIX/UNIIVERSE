@@ -60,8 +60,46 @@ export async function pickerSpill(win: Locator): Promise<number> {
 /** The enemy's ability rows, P Q W E R. */
 export const enemyAbilities = (page: Page) => page.getByTestId("matchup-enemy-abilities").getByTestId("ability-row");
 
-/** No page wider than the screen. */
-export const overflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+/**
+ * How far the page reaches past the screen's width: against the layout viewport (clientWidth), not
+ * innerWidth, which a phone's browser widens to whatever overflows (as it zooms out to show it).
+ */
+export const overflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+
+/** Once the page's code runs (what this device remembers has been read): a click before then does nothing for most controls. */
+export async function hydrated(page: Page) {
+  await expect(page.getByTestId("matchup-remembered")).not.toHaveAttribute("data-state", "loading");
+}
+
+/** Champion portraits and ability icons from Riot's CDN answered with a small local picture, so a measurement sees pictures drawn, not their stand-ins (and nothing leaves the machine). */
+export async function localPictures(page: Page) {
+  const { png } = await import("./png");
+  const picture = png(64, 64);
+  await page.route(/^https:\/\/ddragon\.leagueoflegends\.com\/cdn\/.*\.(png|jpe?g|webp)$/, (route) => route.fulfill({ body: picture, contentType: "image/png" }));
+}
+
+/**
+ * What a picker window clips or spills, once its content (not its loading tiles) is there: a
+ * portrait wider than its column, a name cut (clamped or truncated), or anything past the window's
+ * right edge. The window's body scrolls, so its height is not judged.
+ */
+export async function pickerCuts(win: Locator): Promise<string[]> {
+  await expect(win.getByTestId("matchup-picker-grid").locator("button[data-champion]").first()).toBeVisible();
+  return win.evaluate((d) => {
+    const out: string[] = [];
+    const right = d.getBoundingClientRect().right;
+    for (const b of d.querySelectorAll<HTMLElement>('[data-testid="matchup-picker-grid"] button[data-champion]')) {
+      const id = b.dataset.champion;
+      const col = b.getBoundingClientRect();
+      const portrait = b.querySelector("img, [role=img]")?.getBoundingClientRect();
+      if (portrait && (portrait.width > col.width + 0.5 || portrait.right > col.right + 0.5)) out.push(`${id}: its portrait (${portrait.width.toFixed(0)}px) is wider than its column (${col.width.toFixed(0)}px)`);
+      const name = b.querySelector<HTMLElement>(":scope > span:last-child");
+      if (name && (name.scrollWidth > name.clientWidth + 1 || name.scrollHeight > name.clientHeight + 1)) out.push(`${id}: its name is cut`);
+      if (col.right > right + 1) out.push(`${id}: past the window's edge`);
+    }
+    return out;
+  });
+}
 
 /**
  * What is cut or spills sideways in a part of the page, one line each (none when everything fits):

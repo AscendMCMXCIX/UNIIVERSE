@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "./test";
-import { choiceIds, choose, cutOrSpilled, enemyAbilities, openMatchupIntel, openPicker, overflow, pickerSpill, rosterIds } from "./matchup-intel";
+import { choiceIds, choose, cutOrSpilled, enemyAbilities, hydrated, localPictures, openMatchupIntel, openPicker, overflow, pickerCuts, pickerSpill, rosterIds } from "./matchup-intel";
 import { untilStill } from "./modal-corner";
 
 /*
@@ -113,6 +113,8 @@ test("a pair without a curated briefing (Garen vs Darius) says so calmly, then t
   await openMatchupIntel(page, "Garen", "Darius");
   const none = page.getByTestId("matchup-no-briefing");
   await expect(none).toContainText("No curated briefing for Garen vs Darius yet.");
+  // The page's description promises nothing about the lane (it shows from md up).
+  await expect(page.locator('[data-testid="matchup-intel"] > header h1 + p')).toHaveText("Garen vs Darius: the enemy's abilities and base cooldowns; no curated briefing yet.");
   await expect(none).toContainText("the general reference for Darius");
   await expect(page.getByTestId("matchup-briefing")).toHaveCount(0);
   await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Darius");
@@ -146,6 +148,31 @@ test("the picker's search: 16px, as you type, by name with case, accents and spa
   const search = win.getByTestId("matchup-picker-search");
   // 16px: a phone never zooms into it.
   expect(await search.evaluate((el) => getComputedStyle(el).fontSize)).toBe("16px");
+  // The count's live region is there before anything is typed, so its first words are read.
+  await expect(win.getByTestId("matchup-picker-count")).toHaveCount(1);
+  await expect(win.getByTestId("matchup-picker-count")).toHaveAttribute("aria-live", "polite");
+  await expect(win.getByTestId("matchup-picker-count")).toHaveText("");
+  // The search band stays pinned at the window body's top edge, over its padding: no strip of
+  // portraits shows above it while the roster scrolls.
+  await expect(win.getByTestId("matchup-picker-grid").locator("button[data-champion]").first()).toBeVisible();
+  const above = await win.evaluate(async (d) => {
+    const band = d.querySelector('[data-testid="matchup-picker-search"]')!.closest(".sticky")!;
+    let scroller = band.parentElement;
+    while (scroller && !(scroller.scrollHeight > scroller.clientHeight + 5 && /(auto|scroll)/.test(getComputedStyle(scroller).overflowY))) scroller = scroller.parentElement;
+    if (!scroller) return null;
+    scroller.scrollTop = 600;
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const gap = band.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+    scroller.scrollTop = 0;
+    return gap;
+  });
+  expect(above, "the band's distance from the window body's top edge, scrolled").not.toBeNull();
+  expect(Math.abs(above!)).toBeLessThanOrEqual(1);
+  // Players' initials and nicknames find a champion, after every name match.
+  await search.fill("tf");
+  await expect.poll(async () => (await rosterIds(win))[0]).toBe("TwistedFate");
+  await search.fill("j4");
+  await expect.poll(() => rosterIds(win)).toEqual(["JarvanIV"]);
   await search.fill("kha");
   await expect.poll(() => rosterIds(win)).toEqual(["Khazix"]);
   // The field keeps its own name once something is typed (the clear button is beside its label, not
@@ -223,6 +250,11 @@ test("your champion is remembered on this device and offered after a reload, nev
   await page.goto("/resources/matchups");
   await expect(line).toHaveAttribute("data-state", "offer");
   await expect(line).toContainText("Remembered on this device: Riven");
+  // From sm the buttons follow the words, not the far end of the line.
+  if ((page.viewportSize()?.width ?? 0) >= 640) {
+    const gap = await line.evaluate((l) => l.querySelector("button")!.getBoundingClientRect().left - l.querySelector(":scope > span")!.getBoundingClientRect().right);
+    expect(gap).toBeLessThanOrEqual(24);
+  }
   await expect(page.getByTestId("matchup-pick-you-name")).toHaveText("Choose your champion");
   await expect(page.getByTestId("matchup-pick-you")).not.toHaveAttribute("data-champion", /./);
   await line.getByTestId("matchup-use-remembered").click();
@@ -246,6 +278,8 @@ test("your champion is remembered on this device and offered after a reload, nev
   // button whose words change, so focus stays on it.
   await openMatchupIntel(page, "Ambessa", "Renekton");
   await expect(line).toHaveAttribute("data-state", "other");
+  // A button that looks like one: its own border, on a phone too.
+  expect(await line.getByTestId("matchup-remember").evaluate((b) => getComputedStyle(b).borderTopWidth)).toBe("1px");
   await line.getByTestId("matchup-remember").click();
   await expect(line).toHaveAttribute("data-state", "remembered");
   await expect(line.getByTestId("matchup-forget")).toBeFocused();
@@ -260,7 +294,8 @@ test("phone: the remembered line is one row in every state, the height it keeps 
   for (const width of [320, 375]) {
     await page.setViewportSize({ width, height: 700 });
     await openMatchupIntel(page);
-    await page.evaluate(() => window.localStorage.removeItem("uniiverse.matchup-intel.v1"));
+    // This device's memory, under whichever account's key (uniiverse.matchup-intel.v1, then the account's marker).
+    await page.evaluate(() => Object.keys(window.localStorage).filter((k) => k.startsWith("uniiverse.matchup-intel.v1")).forEach((k) => window.localStorage.removeItem(k)));
     await page.reload();
     const steps: Array<[string, () => Promise<void>]> = [
       ["none", async () => undefined],
@@ -381,7 +416,9 @@ test("phone at 200% text: nothing is cut or spills sideways in the pickers, the 
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
   // A 390px phone with its text at 200%, as the other large-text tests set it (html's font size: the
   // page's sizes are in rem, so everything but the screen grows). The three validation pairs: the
-  // most a page holds, with a briefing, two curated champions and their level notes.
+  // most a page holds, with a briefing, two curated champions and their level notes. Pictures drawn,
+  // not their stand-ins.
+  await localPictures(page);
   await page.setViewportSize({ width: 390, height: 844 });
   for (const [you, enemy] of CURATED) {
     await openMatchupIntel(page, you, enemy);
@@ -411,4 +448,171 @@ test("a champion the roster does not know is left out of the page, said so and n
   // Not in the page's words, and not in any link or attribute it draws.
   await expect(page.locator("main")).not.toContainText("Zzyzx");
   expect(await page.locator("main").evaluate((m) => [...m.querySelectorAll("*")].flatMap((el) => [...el.attributes].map((a) => a.value)).filter((v) => v.includes("Zzyzx")))).toEqual([]);
+});
+
+test("phone at 200% and 150% text: the states with one side or none chosen, and the picker window, are cut nowhere", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
+  await localPictures(page);
+  const states: Array<[string, string, string]> = [
+    ["nothing chosen", "", "matchup-empty"],
+    ["only the enemy", "?vs=Mordekaiser", "matchup-need-you"],
+    ["only yours", "?champion=Riven", "matchup-need-enemy"],
+    ["an unknown champion", "?champion=Zzyzx&vs=Mordekaiser", "matchup-need-you"],
+  ];
+  for (const [width, percent] of [
+    [390, 200],
+    [320, 200],
+    [320, 150],
+  ] as const) {
+    await page.setViewportSize({ width, height: 844 });
+    for (const [name, query, part] of states) {
+      await page.goto(`/resources/matchups${query}`);
+      await expect(page.getByTestId(part)).toBeVisible();
+      await page.addStyleTag({ content: `html { font-size: ${percent}% !important; }` });
+      await page.evaluate(() => document.fonts.ready);
+      const at = `${name} at ${width}px, ${percent}%`;
+      expect(await overflow(page), `${at}: the page`).toBeLessThanOrEqual(1);
+      for (const p of ["matchup-pickers", part]) expect.soft(await cutOrSpilled(page.getByTestId(p)), `${at}: ${p}`).toEqual([]);
+    }
+    // The picker window, with nothing typed and with results: whole portraits, whole names.
+    const win = await openPicker(page, "you");
+    await untilStill(page);
+    expect(await pickerCuts(win), `the picker at ${width}px, ${percent}%, nothing typed`).toEqual([]);
+    expect(await pickerSpill(win)).toBeLessThanOrEqual(1);
+    await win.getByTestId("matchup-picker-search").fill("a");
+    await expect(win.getByTestId("matchup-picker-count")).toBeVisible();
+    expect(await pickerCuts(win), `the picker at ${width}px, ${percent}%, with results`).toEqual([]);
+    await win.getByTestId("matchup-picker-close").click();
+    await expect(win).toHaveCount(0);
+  }
+});
+
+test("phone: the briefing's threat is on the first screen, above the tab bar: whole at 390 by 664, its first line at 320 by 568", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
+  for (const [width, height, whole] of [
+    [390, 664, true],
+    [320, 568, false],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    for (const [you, enemy] of CURATED) {
+      await openMatchupIntel(page, you, enemy);
+      await hydrated(page);
+      const m = await page.evaluate(() => {
+        const bar = document.querySelector('[data-testid="phone-tabbar"]')!.getBoundingClientRect().top;
+        const threat = document.querySelector('[data-testid="briefing-threat"] p')!;
+        const range = document.createRange();
+        range.selectNodeContents(threat);
+        const lines = [...range.getClientRects()];
+        const height = (side: string) => document.querySelector(`[data-testid="matchup-pick-${side}"]`)!.getBoundingClientRect().height;
+        return { bar, scrollY: window.scrollY, firstLine: lines[0]!.bottom, last: threat.getBoundingClientRect().bottom, you: height("you"), enemy: height("enemy") };
+      });
+      const at = `${you} vs ${enemy} at ${width} by ${height}`;
+      expect(m.scrollY, at).toBe(0);
+      if (whole) expect(m.last, `${at}: the whole threat`).toBeLessThanOrEqual(m.bar);
+      expect(m.firstLine, `${at}: the threat's first line`).toBeLessThanOrEqual(m.bar);
+      // The two sides are as tall as each other, whichever name wraps.
+      expect(Math.abs(m.you - m.enemy), `${at}: the sides' heights`).toBeLessThanOrEqual(1);
+    }
+  }
+});
+
+test("phone: a cooldown's dot and a source's comma never start a line, and a link's icon stays with its last word", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
+  for (const width of [320, 393]) {
+    await page.setViewportSize({ width, height: 800 });
+    for (const [you, enemy] of CURATED) {
+      await openMatchupIntel(page, you, enemy);
+      const problems = await page.getByTestId("matchup-intel").evaluate((root) => {
+        for (const d of root.querySelectorAll("details")) d.open = true;
+        const out: string[] = [];
+        const charRect = (node: Node, i: number) => {
+          const r = document.createRange();
+          r.setStart(node, i);
+          r.setEnd(node, i + 1);
+          return r.getClientRects()[0] ?? r.getBoundingClientRect();
+        };
+        const lastText = (el: Element) => {
+          let last: Text | null = null;
+          const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+          for (let t = walk.nextNode(); t; t = walk.nextNode()) if (t.textContent!.trim()) last = t as Text;
+          return last;
+        };
+        for (const a of root.querySelectorAll('a[data-testid="matchup-source-link"]')) {
+          const svg = a.querySelector("svg")!.getBoundingClientRect();
+          const word = lastText(a.querySelector(".whitespace-nowrap")!);
+          const end = word ? charRect(word, word.textContent!.trimEnd().length - 1) : null;
+          if (!end || Math.abs(svg.top + svg.height / 2 - (end.top + end.height / 2)) > end.height / 2 || svg.left - end.right > 8) out.push(`the icon apart from "${a.textContent!.slice(0, 30)}"`);
+          const next = a.nextSibling;
+          if (next?.nodeType === Node.TEXT_NODE && /^\u2060?,/.test(next.textContent!) && charRect(next, next.textContent!.indexOf(",")).top > svg.bottom) out.push(`a comma starts a line after "${a.textContent!.slice(0, 30)}"`);
+        }
+        for (const p of root.querySelectorAll('[data-testid="ability-cooldown"], [data-testid="ability-checked-cooldown"]')) {
+          let prev: Text | null = null;
+          const walk = document.createTreeWalker(p, NodeFilter.SHOW_TEXT);
+          for (let t = walk.nextNode() as Text | null; t; t = walk.nextNode() as Text | null) {
+            const at = t.textContent!.indexOf("\u00a0·");
+            if (at >= 0 && prev && charRect(t, at + 1).top > charRect(prev, prev.textContent!.trimEnd().length - 1).bottom - 2) out.push(`a dot starts a line in "${p.textContent!.slice(0, 40)}"`);
+            if (t.textContent!.trim()) prev = t;
+          }
+        }
+        return out;
+      });
+      expect(problems, `${you} vs ${enemy} at ${width}`).toEqual([]);
+    }
+  }
+});
+
+test("while a choice loads, the slots show it, a line says what is loading, the page under them is out of reach; then what came is announced", async ({ page }) => {
+  await openMatchupIntel(page, "Riven", "Garen");
+  await hydrated(page);
+  // Hold the server's page for the next pair, as a slow connection or a cold start would.
+  let release!: () => void;
+  const held = new Promise<void>((r) => (release = r));
+  await page.route(
+    (url) => url.pathname === "/resources/matchups" && url.searchParams.get("vs") === "Mordekaiser",
+    async (route) => {
+      await held;
+      await route.continue();
+    },
+  );
+  // A curated pair's link goes through the pickers' frame, as a pick does.
+  await page.getByTestId("matchup-no-briefing").getByTestId("matchup-curated-link").click();
+  await expect(page.getByTestId("matchup-pick-enemy")).toHaveAttribute("data-champion", "Mordekaiser");
+  await expect(page.getByTestId("matchup-loading")).toHaveText("Loading Riven vs Mordekaiser…");
+  await expect(page.getByTestId("matchup-status")).toHaveText("Loading Riven vs Mordekaiser…");
+  const content = page.getByTestId("matchup-intel-content");
+  await expect(content).toHaveAttribute("aria-busy", "true");
+  expect(await content.evaluate((e) => (e as HTMLElement).inert)).toBe(true);
+  // The focus is on the enemy's slot, out of the page that dims.
+  await expect(page.getByTestId("matchup-pick-enemy")).toBeFocused();
+  release();
+  await expect(page).toHaveURL(/\?champion=Riven&vs=Mordekaiser$/);
+  await expect(page.getByTestId("matchup-briefing")).toBeVisible();
+  await expect(page.getByTestId("matchup-status")).toHaveText(/^Riven vs Mordekaiser: curated briefing, checked on patch \d+\.\d+\. Mordekaiser's abilities follow\.$/);
+  expect(await content.evaluate((e) => (e as HTMLElement).inert)).toBe(false);
+  await expect(page.getByTestId("matchup-loading")).toHaveCount(0);
+  // A pick says what came the same way.
+  await choose(page, "enemy", "darius", "Darius");
+  await expect(page.getByTestId("matchup-status")).toHaveText("No curated briefing for Riven vs Darius yet. Darius's abilities follow.");
+});
+
+test("a tap on a side's slot before the page's code has run opens its picker once the code runs", async ({ page }) => {
+  // The page's code held back: the page is drawn and can be tapped before it runs.
+  let release!: () => void;
+  const held = new Promise<void>((r) => (release = r));
+  await page.route(/\/_next\/static\/chunks\/.*\.js(\?|$)/, async (route) => {
+    await held;
+    await route.continue();
+  });
+  await page.goto("/resources/matchups?champion=Riven", { waitUntil: "domcontentloaded" });
+  const slot = page.getByTestId("matchup-pick-enemy");
+  await slot.click();
+  // Kept, and shown pressed, while the code is not there.
+  await expect(slot).toHaveAttribute("aria-busy", "true");
+  await expect(page.getByTestId("matchup-picker")).toHaveCount(0);
+  release();
+  await expect(page.getByTestId("matchup-picker")).toBeVisible();
+  await expect(slot).not.toHaveAttribute("aria-busy", "true");
+  // Once: it stays open.
+  await page.waitForTimeout(500);
+  await expect(page.getByTestId("matchup-picker")).toBeVisible();
 });
