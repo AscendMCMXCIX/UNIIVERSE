@@ -146,9 +146,9 @@ const notes: ChampionNotes = {
     },
   },
   levelNotes: [
-    { level: 6, text: "Darkness Rise's bonus movement speed rises from 3% to 6%.", source: "mordekaiser-p" },
-    { level: 10, text: "Obliterate starts gaining damage with his level: 7 at level 10, then 7 more each level, to 63 at level 18.", source: "mordekaiser-q" },
-    { level: 11, text: "Darkness Rise's bonus movement speed rises to 9%.", source: "mordekaiser-p" },
+    { level: 6, text: "Darkness Rise's bonus movement speed rises from 3% to 6%.", source: "mordekaiser-p", basedOn: ["P"] },
+    { level: 10, text: "Obliterate starts gaining damage with his level: 7 at level 10, then 7 more each level, to 63 at level 18.", source: "mordekaiser-q", basedOn: ["Q"] },
+    { level: 11, text: "Darkness Rise's bonus movement speed rises to 9%.", source: "mordekaiser-p", basedOn: ["P"] },
   ],
 };
 

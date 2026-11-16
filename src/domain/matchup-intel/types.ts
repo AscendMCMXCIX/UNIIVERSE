@@ -335,6 +335,11 @@ export interface LevelNote {
   level: number;
   text: string;
   source: string;
+  /**
+   * The abilities of this champion the note rests on, by slot (Obliterate's damage from level 10:
+   * ["Q"]). Once Riot changes one after the check, the note is flagged, as that ability's notes are.
+   */
+  basedOn: Slot[];
 }
 
 /** Curated champion intelligence: Layer 1's checked notes for one champion. */

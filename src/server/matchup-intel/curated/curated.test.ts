@@ -32,8 +32,12 @@ import { curatedEnemiesFor, getChampionNotes, getMatchupNotes } from "./index";
     matchup holds no numbers of its own, so its freshness is those notes';
   - every text is plain and short: no wiki markup ("{{"), no "<" or ">", no control characters, at
     most 300 characters;
-  - no briefing point or interaction uses a word that dictates play or claims too much (REFUSED_WORDS):
-    Riot lets a product highlight decisions, never dictate them;
+  - no briefing point or interaction uses a word that dictates play or claims too much (REFUSED_WORDS),
+    and no text of the champion notes the page shows (a fact, a detail, a cooldown or recast note, a
+    refund, a level note) a word that instructs the player or gives a verdict: Riot lets a product
+    highlight decisions, never dictate them. Champion notes describe mechanics, so they may say what
+    an ability always or never does;
+  - every level note names the abilities of its champion it rests on (basedOn), each with notes;
   - `verified` is a patch, a Data Dragon version and a day, in those shapes;
   - a matchup has a threat, an opportunity and one to four lane points;
   - the three validation matchups exist.
@@ -120,11 +124,15 @@ export const REFUSED_WORDS: ReadonlyArray<{ why: string; words: readonly string[
   },
 ];
 
+/** The groups of REFUSED_WORDS a champion's notes are held to: they describe mechanics, so an absolute claim ("never refunds the cooldown") is theirs to make. */
+const CHAMPION_REFUSED: ReadonlySet<string> = new Set(["an instruction to the player", "a verdict on the matchup"]);
+
 /**
- * A refused word that a factual sentence genuinely needs: the matchup ("Ambessa-vs-Renekton"), the
- * text's place ("briefing.lane[1].text"), the word, and why the sentence needs it. None so far.
+ * A refused word that a factual sentence genuinely needs: the file ("matchups/Ambessa-vs-Renekton.ts"
+ * or "champions/Riven.ts"), the text's place ("briefing.lane[1].text", "abilities.P.facts[1].detail"),
+ * the word, and why the sentence needs it. None so far.
  */
-const ALLOWED_WORDS: ReadonlyArray<{ matchup: string; at: string; word: string; reason: string }> = [];
+const ALLOWED_WORDS: ReadonlyArray<{ file: string; at: string; word: string; reason: string }> = [];
 
 /** What may stand next to a refused word inside a longer one: a letter, a digit, "_", an apostrophe or a hyphen. */
 const WORD_CHAR = "[\\p{L}\\p{N}_'’-]";
@@ -141,6 +149,25 @@ const REFUSED: ReadonlyArray<{ word: string; why: string; pattern: RegExp }> = R
 /** The refused words a text uses (REFUSED_WORDS), each with why it is refused. */
 export function refusedWords(text: string): Array<{ word: string; why: string }> {
   return REFUSED.filter((r) => r.pattern.test(text)).map(({ word, why }) => ({ word, why }));
+}
+
+/**
+ * The texts of a champion's notes the page shows in its own words, with where each is: each
+ * ability's facts (label and detail), details, cooldown note, recast note and refund, and the level
+ * notes. Not the sources, nor Data Dragon's names (an ability may be called "Counter Strike").
+ */
+function championTexts(notes: ChampionNotes): Array<[string, unknown]> {
+  const out: Array<[string, unknown]> = [];
+  for (const slot of SLOTS) {
+    const a = notes.abilities?.[slot];
+    if (!a) continue;
+    const at = `abilities.${slot}`;
+    (a.facts ?? []).forEach((f, i) => out.push([`${at}.facts[${i}].label`, f.label], [`${at}.facts[${i}].detail`, f.detail]));
+    (a.details ?? []).forEach((d, i) => out.push([`${at}.details[${i}]`, d]));
+    out.push([`${at}.cooldownNote`, a.cooldownNote], [`${at}.recast.note`, a.recast?.note], [`${at}.modifiers.refund.when`, a.modifiers?.refund?.when]);
+  }
+  (notes.levelNotes ?? []).forEach((n, i) => out.push([`levelNotes[${i}].text`, n.text]));
+  return out;
 }
 
 const isSlot = (value: string): value is Slot => (SLOTS as readonly string[]).includes(value);
@@ -382,7 +409,26 @@ export function championProblems(notes: ChampionNotes, rules: Rules): string[] {
   (notes.levelNotes ?? []).forEach((note, i) => {
     if (!cited.has(note.source)) say(`levelNotes[${i}] cites "${note.source}", which is not one of its sources`);
     if (!Number.isInteger(note.level) || note.level < 1 || note.level > 18) say(`levelNotes[${i}] is at level ${note.level}, not a level from 1 to 18`);
+    // What it rests on, so it is flagged once Riot changes that ability (view.ts).
+    const basedOn: unknown = note.basedOn;
+    if (!Array.isArray(basedOn) || basedOn.length === 0) say(`levelNotes[${i}] names no ability it rests on (basedOn: the slots of ${notes.championId}'s abilities, such as ["Q"])`);
+    else {
+      for (const slot of basedOn) {
+        if (typeof slot !== "string" || !isSlot(slot)) say(`levelNotes[${i}].basedOn has ${JSON.stringify(slot)}, which is not an ability slot (P, Q, W, E or R)`);
+        else if (!notes.abilities[slot]) say(`levelNotes[${i}].basedOn names ${slot}, which has no notes here`);
+      }
+      if (new Set(basedOn).size !== basedOn.length) say(`levelNotes[${i}].basedOn names a slot twice`);
+    }
   });
+  // Mechanics in our own words: never an instruction to the player or a verdict (REFUSED_WORDS).
+  const file = `champions/${notes.championId}.ts`;
+  for (const [at, text] of championTexts(notes)) {
+    if (typeof text !== "string") continue;
+    for (const { word, why } of refusedWords(text)) {
+      if (!CHAMPION_REFUSED.has(why) || ALLOWED_WORDS.some((a) => a.file === file && a.at === at && a.word === word)) continue;
+      say(`${at} uses "${word}", ${why}: champion notes state what an ability does and leave the decision to the player`);
+    }
+  }
   for (const [at, text] of strings(notes, "")) {
     const problem = textProblem(text);
     if (problem) say(`${at} ${problem}`);
@@ -455,7 +501,7 @@ export function matchupProblems(notes: MatchupNotes, rules: Rules, championNotes
   }
 
   // Considerations, never instructions or verdicts (REFUSED_WORDS).
-  const key = `${notes.championId}-vs-${notes.vsId}`;
+  const file = `matchups/${notes.championId}-vs-${notes.vsId}.ts`;
   const texts: Array<[string, unknown]> = [
     ...points.map(([at, point]): [string, unknown] => [`${at}.text`, point?.text]),
     ...(notes.interactions ?? []).map((interaction, i): [string, unknown] => [`interactions[${i}].text`, interaction.text]),
@@ -463,7 +509,7 @@ export function matchupProblems(notes: MatchupNotes, rules: Rules, championNotes
   for (const [at, text] of texts) {
     if (typeof text !== "string") continue;
     for (const { word, why } of refusedWords(text)) {
-      if (ALLOWED_WORDS.some((a) => a.matchup === key && a.at === at && a.word === word)) continue;
+      if (ALLOWED_WORDS.some((a) => a.file === file && a.at === at && a.word === word)) continue;
       say(`${at} uses "${word}", ${why}: a point states what the two kits do and leaves the decision to the player`);
     }
   }
@@ -616,7 +662,7 @@ describe("the curated notes keep the rules", () => {
 
   it("allows a refused word only where a factual sentence still uses it, with its reason", () => {
     const stale = ALLOWED_WORDS.filter((a) => {
-      const notes = matchupFiles.find(({ file }) => file === `matchups/${a.matchup}.ts`)?.notes;
+      const notes: unknown = [...matchupFiles, ...championFiles].find(({ file }) => file === a.file)?.notes;
       const text = notes ? strings(notes, "").find(([at]) => at === a.at)?.[1] : undefined;
       return !text || !refusedWords(text).some((r) => r.word === a.word) || a.reason.trim() === "";
     });
@@ -667,7 +713,7 @@ describe("the checks fire", () => {
     fact.abilities.E!.facts[0]!.source = "renekton-e2";
     expect(championProblems(fact, RULES)).toEqual(['Renekton: E.facts[0] cites "renekton-e2", which is not one of its sources']);
     const level = renekton();
-    level.levelNotes = [{ level: 6, text: "Something stated.", source: "nowhere" }];
+    level.levelNotes = [{ level: 6, text: "Something stated.", source: "nowhere", basedOn: ["R"] }];
     expect(championProblems(level, RULES)).toEqual(['Renekton: levelNotes[0] cites "nowhere", which is not one of its sources']);
     const interaction = matchup();
     interaction.interactions[0]!.source = "renekton-x";
@@ -844,7 +890,7 @@ describe("the checks fire", () => {
   it("on a matchup whose champion has no notes, or a level note off the level range", () => {
     expect(matchupProblems(matchup(), RULES, (id) => (id === "Renekton" ? null : getChampionNotes(id)))).toContainEqual(problem(/Renekton has no champion notes/));
     const level = renekton();
-    level.levelNotes = [{ level: 0, text: "Something stated.", source: "renekton-p" }];
+    level.levelNotes = [{ level: 0, text: "Something stated.", source: "renekton-p", basedOn: ["P"] }];
     expect(championProblems(level, RULES)).toEqual(["Renekton: levelNotes[0] is at level 0, not a level from 1 to 18"]);
     const recast = renekton();
     recast.abilities.E!.recast = { ...recast.abilities.E!.recast!, count: 0 };
@@ -933,5 +979,49 @@ describe("the checks fire", () => {
     const notes = renekton();
     notes.abilities.R!.details = ["Dying during the cast time never refunds the cooldown."];
     expect(championProblems(notes, RULES)).toEqual([]);
+  });
+
+  it("on a word in champion notes that instructs the player or gives a verdict, wherever the page shows it", () => {
+    const said = (edit: (notes: ChampionNotes) => void) => {
+      const notes = renekton();
+      edit(notes);
+      return championProblems(notes, RULES);
+    };
+    expect(
+      said((n) => {
+        n.levelNotes = [{ level: 6, text: "At level 6 Renekton should go all-in.", source: "renekton-r", basedOn: ["R"] }];
+      }),
+    ).toEqual([
+      'Renekton: levelNotes[0].text uses "should", an instruction to the player: champion notes state what an ability does and leave the decision to the player',
+      'Renekton: levelNotes[0].text uses "all-in", a verdict on the matchup: champion notes state what an ability does and leave the decision to the player',
+    ]);
+    expect(said((n) => (n.abilities.W!.details = ["Avoid trading while he has 50 Fury."]))).toEqual([problem(/^Renekton: abilities\.W\.details\[0\] uses "avoid", an instruction to the player/)]);
+    expect(said((n) => (n.abilities.W!.facts[0] = { ...n.abilities.W!.facts[0]!, label: "You must dodge it", detail: "Punish him when it is down." }))).toEqual([
+      problem(/abilities\.W\.facts\[0\]\.label uses "must"/),
+      problem(/abilities\.W\.facts\[0\]\.label uses "you"/),
+      problem(/abilities\.W\.facts\[0\]\.detail uses "punish"/),
+    ]);
+    expect(said((n) => (n.abilities.W!.cooldownNote = "Your window is 7 seconds."))).toEqual([problem(/abilities\.W\.cooldownNote uses "your"/)]);
+    expect(said((n) => (n.abilities.E!.recast = { ...n.abilities.E!.recast!, note: "Dice: the best follow-up." }))).toEqual([problem(/abilities\.E\.recast\.note uses "best"/)]);
+    expect(said((n) => (n.abilities.E!.modifiers = { refund: { unit: "seconds", amount: [2], when: "a hit you land" } }))).toEqual([problem(/abilities\.E\.modifiers\.refund\.when uses "you"/)]);
+    // Data Dragon's names and the sources are Riot's and the wiki's words, not the notes': an ability may be called "Counter Strike".
+    expect(said((n) => (n.abilities.W!.ddragonIdentity = { ...n.abilities.W!.ddragonIdentity, name: "Counter Strike" }))).toEqual([problem(/W\.ddragonIdentity\.name "Counter Strike" is not Data Dragon/)]);
+  });
+
+  it("on a level note that names no ability it rests on, or one that is not a slot with notes", () => {
+    const withLevel = (basedOn: unknown) => {
+      const notes = renekton();
+      notes.levelNotes = [{ level: 6, text: "Something stated.", source: "renekton-r", basedOn: basedOn as Slot[] }];
+      return championProblems(notes, RULES);
+    };
+    expect(withLevel(["R"])).toEqual([]);
+    expect(withLevel([])).toEqual(['Renekton: levelNotes[0] names no ability it rests on (basedOn: the slots of Renekton\'s abilities, such as ["Q"])']);
+    expect(withLevel(undefined)).toEqual(['Renekton: levelNotes[0] names no ability it rests on (basedOn: the slots of Renekton\'s abilities, such as ["Q"])']);
+    expect(withLevel(["X"])).toEqual(['Renekton: levelNotes[0].basedOn has "X", which is not an ability slot (P, Q, W, E or R)']);
+    expect(withLevel(["R", "R"])).toEqual(["Renekton: levelNotes[0].basedOn names a slot twice"]);
+    const withoutR = renekton();
+    delete withoutR.abilities.R;
+    withoutR.levelNotes = [{ level: 6, text: "Something stated.", source: "renekton-r", basedOn: ["R"] }];
+    expect(championProblems(withoutR, RULES)).toContainEqual("Renekton: levelNotes[0].basedOn names R, which has no notes here");
   });
 });

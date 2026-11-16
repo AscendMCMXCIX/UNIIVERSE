@@ -37,7 +37,7 @@ const renekton: ChampionNotes = {
     { id: "bad", title: "Elsewhere", url: "https://example.com/x", kind: "wiki-champion", licence: "CC BY-SA 3.0" },
   ],
   abilities: { W: { ddragonCooldown: [18, 17, 16, 15, 14], ddragonIdentity: { id: "W", name: "Renekton W", maxRank: 5, charges: null }, cooldown: { kind: "per-rank", seconds: [18, 17, 16, 15, 14], starts: "on-cast" }, facts: [{ kind: "crowd-control", label: "Stun", detail: "On the third hit.", appliesTo: "target", source: "wiki" }, { kind: "interaction", label: "Fury", appliesTo: "self", source: "bad" }], details: ["Empowered, it stuns longer."] } },
-  levelNotes: [{ level: 6, text: "Dominus.", source: "wiki" }],
+  levelNotes: [{ level: 6, text: "Dominus.", source: "wiki", basedOn: ["W"] }],
 };
 const ambessaVsRenekton: MatchupNotes = {
   championId: "Ambessa",

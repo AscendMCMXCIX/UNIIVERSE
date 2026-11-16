@@ -61,7 +61,7 @@ const notes: ChampionNotes = {
       ddragonIdentity: { id: null, name: "Runic Blade", maxRank: 1, charges: null },
       facts: [
         { kind: "empowerment", label: "Charged attacks", detail: "Each ability cast stores a charge for 6 seconds, up to 3, and each basic attack spends one for bonus physical damage.", appliesTo: "self", source: "riven-p" },
-        { kind: "exception", label: "Charges hidden from enemies", detail: "Only Riven's player sees how many charges she holds, on a counter under her health bar.", appliesTo: "self", source: "riven-p" },
+        { kind: "exception", label: "Charges hidden from enemies", detail: "Only Riven's player sees how many charges she holds: they show under her health bar.", appliesTo: "self", source: "riven-p" },
       ],
       details: [
         "Bonus damage per charge: 30% of her AD at level 1, rising evenly to 45% at level 18. Half as much against structures; 50 more against monsters.",

@@ -140,8 +140,8 @@ const notes: ChampionNotes = {
     },
   },
   levelNotes: [
-    { level: 13, text: "Master Craftsman: the first eligible Legendary item in his inventory becomes a Masterwork item on its own.", source: "ornn-p" },
-    { level: 14, text: "At each level from 14 to 17 he can upgrade one ally's first eligible Legendary item, once per ally, with a forge channel within 600 range.", source: "ornn-p" },
+    { level: 13, text: "Master Craftsman: the first eligible Legendary item in his inventory becomes a Masterwork item on its own.", source: "ornn-p", basedOn: ["P"] },
+    { level: 14, text: "At each level from 14 to 17 he can upgrade one ally's first eligible Legendary item, once per ally, with a forge channel within 600 range.", source: "ornn-p", basedOn: ["P"] },
   ],
 };
 

@@ -123,8 +123,8 @@ const notes: ChampionNotes = {
     },
   },
   levelNotes: [
-    { level: 7, text: "Medarda Maxim attacks restore 55 energy, up from 40.", source: "ambessa-p" },
-    { level: 13, text: "Medarda Maxim attacks restore 70 energy.", source: "ambessa-p" },
+    { level: 7, text: "Medarda Maxim attacks restore 55 energy, up from 40.", source: "ambessa-p", basedOn: ["P"] },
+    { level: 13, text: "Medarda Maxim attacks restore 70 energy.", source: "ambessa-p", basedOn: ["P"] },
   ],
 };
 

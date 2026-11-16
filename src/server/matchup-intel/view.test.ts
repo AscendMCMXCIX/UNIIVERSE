@@ -53,8 +53,8 @@ const renektonNotes = (over: Partial<ChampionNotes> = {}): ChampionNotes => ({
     },
   },
   levelNotes: [
-    { level: 6, text: "Dominus is available.", source: "wiki" },
-    { level: 2, text: "Two abilities.", source: "wiki" },
+    { level: 6, text: "Dominus is available.", source: "wiki", basedOn: ["R"] },
+    { level: 2, text: "Two abilities.", source: "wiki", basedOn: ["W"] },
   ],
   ...over,
 });
