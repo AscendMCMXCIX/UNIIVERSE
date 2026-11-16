@@ -6,7 +6,7 @@ import { cn } from "@/lib/cn";
 import { screenBox } from "@/lib/screen";
 import { normalise } from "./types";
 import { RemoteImage } from "@/components/ui/remote-image";
-import { bringIntoView, opensInFlow } from "@/components/ui/picker-flow";
+import { bringIntoView, closeOnPressOutside, opensInFlow } from "@/components/ui/picker-flow";
 
 export interface FilterChampion {
   id: string;
@@ -28,8 +28,9 @@ const MAX_RESULTS = 40;
  * champions; typing finds any champion by name (beginning of the name first). Arrow keys move,
  * Enter chooses, Escape closes. In a plain GET form, pass `name` and the choice is submitted as a
  * hidden field. In a window (the Filters sheet) and on a phone the panel opens in the flow of the
- * window's body, which is then the one thing that scrolls, and is brought into view; on a page from
- * sm up it floats under the button (picker-flow.ts).
+ * window's body, which is then the one thing that scrolls, and is brought into view; it fades in
+ * where it rests, and a press outside closes it on its click, so what was tapped below it is what the
+ * tap reaches. On a page from sm up it floats under the button (picker-flow.ts).
  */
 export function ChampionFilter({
   value,
@@ -118,14 +119,14 @@ export function ChampionFilter({
     if (open && inFlow) bringIntoView(panelRef.current);
   }, [open, inFlow]);
   React.useEffect(() => {
-    if (!open) return;
-    inputRef.current?.focus();
-    const onDown = (e: PointerEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) hide();
-    };
-    document.addEventListener("pointerdown", onDown);
-    return () => document.removeEventListener("pointerdown", onDown);
+    if (open) inputRef.current?.focus();
   }, [open]);
+  // A press outside closes the panel: as it starts while the panel floats, on its click while the
+  // panel is in the flow (what is below it moves up as it goes).
+  React.useEffect(() => {
+    if (!open) return;
+    return closeOnPressOutside(document, (node) => !!wrapRef.current?.contains(node), inFlow, () => setOpen(false));
+  }, [open, inFlow]);
   // The option the arrow keys reach stays in view: in the list's own scroller, or in the window's body.
   React.useEffect(() => {
     bringIntoView(document.getElementById(`${listId}-${active}`));
@@ -177,7 +178,8 @@ export function ChampionFilter({
         ) : null}
       </div>
       {open ? (
-        <div ref={panelRef} className={cn("rise-in mt-1.5 overflow-hidden rounded-panel border border-border bg-bg-elevated", inFlow ? "w-full" : cn("absolute top-full z-50 w-80 shadow-2xl shadow-black/40", alignEnd ? "right-0" : "left-0"))} data-testid={`${testId}-panel`} data-flow={inFlow || undefined}>
+        // In the flow it fades in where it rests: a rise would move it while it is brought into view.
+        <div ref={panelRef} className={cn("mt-1.5 overflow-hidden rounded-panel border border-border bg-bg-elevated", inFlow ? "fade-in w-full" : cn("rise-in absolute top-full z-50 w-80 shadow-2xl shadow-black/40", alignEnd ? "right-0" : "left-0"))} data-testid={`${testId}-panel`} data-flow={inFlow || undefined}>
           <div className="flex items-center gap-2 border-b border-border px-3">
             <Search className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />
             <input
@@ -195,7 +197,9 @@ export function ChampionFilter({
               aria-expanded
               aria-controls={listId}
               aria-activedescendant={options[active] ? `${listId}-${active}` : undefined}
-              className="h-11 min-w-0 flex-1 bg-transparent text-base text-fg outline-none placeholder:text-fg-subtle md:h-10 md:text-sm"
+              // 16px on touch screens at every width (iOS zooms into a smaller field, on a phone held
+              // sideways too); 14px from md with a mouse.
+              className="h-11 min-w-0 flex-1 bg-transparent text-base text-fg outline-none placeholder:text-fg-subtle md:h-10 md:pointer-fine:text-sm"
               data-testid={`${testId}-search`}
             />
           </div>

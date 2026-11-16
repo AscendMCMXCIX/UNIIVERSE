@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Check, ChevronDown, Search, X } from "lucide-react";
 import { Select } from "@/components/ui/input";
 import { CardAvatar } from "@/components/players/card-look";
-import { bringIntoView, opensInFlow } from "@/components/ui/picker-flow";
+import { bringIntoView, closeOnPressOutside, opensInFlow } from "@/components/ui/picker-flow";
 import type { CardLook } from "@/domain/card-style";
 import { cn } from "@/lib/cn";
 import { screenBox } from "@/lib/screen";
@@ -79,7 +79,9 @@ export interface MemberOption {
  * otherwise one member or everyone. Arrow keys move, Enter chooses, Escape closes; a click outside
  * closes too. The first entry clears the choice. In a window (the Filters sheet) and on a phone the
  * list opens in the flow of the window's body, which is then the one thing that scrolls, and is
- * brought into view; on a page from sm up it floats under the button (picker-flow.ts).
+ * brought into view; it fades in where it rests, and a press outside closes it on its click, so the
+ * field below it that was tapped is the one the tap reaches. On a page from sm up it floats under the
+ * button (picker-flow.ts).
  */
 export function MemberPicker({ label, emptyLabel, members, clearHref, multiple = false, testId = "member-picker" }: { label: string; emptyLabel: string; members: MemberOption[]; clearHref: string; multiple?: boolean; testId?: string }) {
   const { go, pending } = useGo();
@@ -118,22 +120,21 @@ export function MemberPicker({ label, emptyLabel, members, clearHref, multiple =
   React.useEffect(() => {
     if (!open) return;
     inputRef.current?.focus();
-    const onDown = (e: PointerEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
-    };
     // Escape closes the list wherever the focus is (after a click on a member it may not be in the search box).
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       setOpen(false);
       buttonRef.current?.focus();
     };
-    document.addEventListener("pointerdown", onDown);
     document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
+    return () => document.removeEventListener("keydown", onKey);
   }, [open]);
+  // A press outside closes the list: as it starts while the list floats, on its click while the list
+  // is in the flow (what is below it moves up as it goes).
+  React.useEffect(() => {
+    if (!open) return;
+    return closeOnPressOutside(document, (node) => !!wrapRef.current?.contains(node), inFlow, () => setOpen(false));
+  }, [open, inFlow]);
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
@@ -189,7 +190,8 @@ export function MemberPicker({ label, emptyLabel, members, clearHref, multiple =
         <ChevronDown className={cn("h-4 w-4 shrink-0 text-fg-subtle transition-transform motion-reduce:transition-none", open && "rotate-180")} aria-hidden />
       </button>
       {open ? (
-        <div ref={panelRef} className={cn("rise-in mt-1.5 overflow-hidden rounded-panel border border-border bg-bg-elevated", inFlow ? "w-full" : cn("absolute top-full z-50 w-72 shadow-2xl shadow-black/40", alignEnd ? "right-0" : "left-0"))} data-testid={`${testId}-panel`} data-flow={inFlow || undefined}>
+        // In the flow it fades in where it rests: a rise would move it while it is brought into view.
+        <div ref={panelRef} className={cn("mt-1.5 overflow-hidden rounded-panel border border-border bg-bg-elevated", inFlow ? "fade-in w-full" : cn("rise-in absolute top-full z-50 w-72 shadow-2xl shadow-black/40", alignEnd ? "right-0" : "left-0"))} data-testid={`${testId}-panel`} data-flow={inFlow || undefined}>
           <div className="flex items-center gap-2 border-b border-border px-3">
             <Search className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />
             <input
@@ -207,7 +209,9 @@ export function MemberPicker({ label, emptyLabel, members, clearHref, multiple =
               aria-expanded
               aria-controls={listId}
               aria-activedescendant={options[active] ? `${listId}-${active}` : undefined}
-              className="h-11 min-w-0 flex-1 bg-transparent text-base text-fg outline-none placeholder:text-fg-subtle md:h-10 md:text-sm"
+              // 16px on touch screens at every width (iOS zooms into a smaller field, on a phone held
+              // sideways too); 14px from md with a mouse.
+              className="h-11 min-w-0 flex-1 bg-transparent text-base text-fg outline-none placeholder:text-fg-subtle md:h-10 md:pointer-fine:text-sm"
               data-testid={`${testId}-search`}
             />
           </div>

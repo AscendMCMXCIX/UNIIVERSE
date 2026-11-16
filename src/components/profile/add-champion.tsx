@@ -7,7 +7,8 @@ import type { PickerChampion } from "@/components/champions/types";
 import { normalise } from "@/components/champions/types";
 import { cn } from "@/lib/cn";
 import { clearArea } from "@/lib/screen";
-import { placeList } from "@/components/ui/picker-flow";
+import { aboveKeyboard, watchVisiblePart } from "@/components/ui/keyboard-fit";
+import { placeList, visibleArea } from "@/components/ui/picker-flow";
 import { RemoteImage } from "@/components/ui/remote-image";
 
 const SHOWN = 8;
@@ -24,7 +25,10 @@ const LIST_GAP = 6;
  * closes it. Champions already in the pool are left out (a pool never holds one twice). The list
  * opens above the box instead where the room below it, down to the tab bar's top on a phone, is too
  * small for it and the room above is larger, and is never taller than the room on its side, so it
- * never ends under the bars (placeList, clearArea).
+ * never ends under the bars (placeList, clearArea). On a touch screen the box takes the focus as it
+ * opens, so the on-screen keyboard rises over the bottom of the screen: while it is up the room ends
+ * at its top instead (aboveKeyboard), measured again as the keyboard rises and as the page or the
+ * visible part of it moves (iOS fires no resize for the keyboard).
  */
 export function AddChampion({ role, champions, exclude, onAdd, testId, compact = false }: { role: Role; champions: PickerChampion[]; exclude: ReadonlySet<string>; onAdd: (id: string) => void; testId: string; /** A small button beside the section heading (the search opens under it) instead of a grid cell. */ compact?: boolean }) {
   const [open, setOpen] = React.useState(false);
@@ -47,19 +51,26 @@ export function AddChampion({ role, champions, exclude, onAdd, testId, compact =
 
   // Chosen for the list at its tallest, so it keeps its side while the search narrows it: before the
   // list is first drawn, again once the box has the focus (focusing it can scroll the page to it),
-  // and when the screen changes size (a phone turned).
+  // when the screen changes size (a phone turned), while the on-screen keyboard rises or goes, and
+  // as the page or its visible part moves (Safari brings the box above the keyboard).
   const measure = React.useCallback(() => {
     const field = wrapRef.current?.getBoundingClientRect();
     if (!field) return;
     const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-    const next = placeList(field, LIST_REM * rem, clearArea(), LIST_GAP, LEAST_REM * rem);
+    const next = placeList(field, LIST_REM * rem, visibleArea(clearArea(), aboveKeyboard(inputRef.current)), LIST_GAP, LEAST_REM * rem);
     setPlace((cur) => (cur && cur.side === next.side && cur.maxHeight === next.maxHeight ? cur : next));
   }, []);
   React.useLayoutEffect(() => {
     if (!open) return;
     measure();
     window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
+    window.addEventListener("scroll", measure, { passive: true });
+    const unwatch = watchVisiblePart(measure);
+    return () => {
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("scroll", measure);
+      unwatch();
+    };
   }, [open, measure]);
   React.useEffect(() => {
     if (!open) return;
@@ -134,7 +145,9 @@ export function AddChampion({ role, champions, exclude, onAdd, testId, compact =
           aria-controls={listId}
           aria-activedescendant={results[active] ? `${listId}-${active}` : undefined}
           autoComplete="off"
-          className="h-10 min-w-0 flex-1 bg-transparent text-base text-fg outline-none placeholder:text-fg-subtle md:text-sm"
+          // 16px on touch screens at every width (iOS zooms into a smaller field, on a phone held
+          // sideways too); 14px from md with a mouse.
+          className="h-10 min-w-0 flex-1 bg-transparent text-base text-fg outline-none placeholder:text-fg-subtle md:pointer-fine:text-sm"
           data-testid={`${testId}-search`}
         />
       </label>

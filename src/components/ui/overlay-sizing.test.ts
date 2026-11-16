@@ -86,7 +86,7 @@ const VIEWPORT_JS = /\binnerHeight\b|\binnerWidth\b|\b(?:documentElement|root|ht
 const VIEWPORT_JS_ALLOWED: Record<string, { reads: string[]; why: string }> = {
   "src/components/ui/keyboard-fit.ts": {
     reads: ["visualViewport"],
-    why: "the on-screen keyboard is only visible as the visual viewport shrinking; it is believed only once a field in the window is typed in, against the fixed box's height, and only a plausible keyboard",
+    why: "the on-screen keyboard is only visible as the visual viewport shrinking; it is believed only once a field in the window is typed in (or, for the add-champion list kept above it, while its field has the focus), against the fixed box's height, and only a plausible keyboard",
   },
   "src/components/ui/detail-modal.tsx": {
     reads: ["innerWidth", "root.clientWidth"],
@@ -254,5 +254,20 @@ describe("what shows over a window is drawn inside it", () => {
     // The list's own height and scroller only while it floats.
     expect(source).toMatch(/!inFlow && "max-h-72 overflow-y-auto/);
     expect(source).not.toMatch(/className="max-h-72 overflow-y-auto/);
+    // In the flow it closes on the click of a press outside (closed as the press started, it moved
+    // what is below it under the finger before the click), and no rise moves it as it is brought
+    // into view (it would rest a rise's height off).
+    expect(source).toMatch(/closeOnPressOutside\(document, \(node\) => !!(?:wrapRef|wrap)\.current\?\.contains\(node\), inFlow, /);
+    expect(source).not.toMatch(/addEventListener\("pointerdown"/);
+    expect(source).not.toMatch(/"rise-in[^"]*", inFlow \?/);
+    expect(source).not.toMatch(/inFlow \? "[^"]*rise-in/);
+  });
+
+  it("the pickers' searches are 16px on touch screens at every width: iOS zooms into a smaller field, on a phone held sideways too", () => {
+    for (const file of [...PICKERS, "src/components/profile/add-champion.tsx"]) {
+      const source = code(read(file));
+      expect(source, file).toMatch(/text-base[^"]*(?:sm|md):pointer-fine:text-sm/);
+      expect(source, file).not.toMatch(/\b(?:sm|md):text-sm\b/);
+    }
   });
 });

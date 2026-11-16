@@ -4,7 +4,7 @@ import * as React from "react";
 import { ChevronDown, Search } from "lucide-react";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { normalise } from "@/components/champions/types";
-import { bringIntoView, opensInFlow } from "@/components/ui/picker-flow";
+import { bringIntoView, closeOnPressOutside, opensInFlow } from "@/components/ui/picker-flow";
 import { cn } from "@/lib/cn";
 
 export interface OpponentOption {
@@ -19,8 +19,9 @@ export interface OpponentOption {
  * Enter to choose, Escape to close the list without closing the window). Each option shows its
  * games and record, so a one-game opponent never looks like a pattern. It sits in the champion
  * window, so the list opens in the flow of the window's body, which is then the one thing that
- * scrolls, and is brought into view (picker-flow.ts). The search is 16px on phones: iOS zooms the
- * page into a smaller field as it is focused.
+ * scrolls, and is brought into view (picker-flow.ts); a press outside closes it on its click, so a
+ * game tapped below it is the game that opens. The search is 16px on touch screens at every width,
+ * a phone held sideways included: iOS zooms the page into a smaller field as it is focused.
  */
 export function OpponentPicker({ me, options, current, champ, onChoose, testId = "opponent-picker" }: { me: PortraitChampion; options: OpponentOption[]; current: string | null; champ: (id: string) => PortraitChampion; onChoose: (id: string) => void; testId?: string }) {
   const [open, setOpen] = React.useState(false);
@@ -37,14 +38,12 @@ export function OpponentPicker({ me, options, current, champ, onChoose, testId =
   const shown = q ? options.filter((o) => normalise(champ(o.championId).name).includes(q)) : options;
   const cur = options.find((o) => o.championId === current) ?? null;
 
+  // A press outside closes the list: as it starts while the list floats, on its click while the list
+  // is in the flow (what is below it moves up as it goes).
   React.useEffect(() => {
     if (!open) return;
-    const away = (e: PointerEvent) => {
-      if (!wrap.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("pointerdown", away);
-    return () => document.removeEventListener("pointerdown", away);
-  }, [open]);
+    return closeOnPressOutside(document, (node) => !!wrap.current?.contains(node), inFlow, () => setOpen(false));
+  }, [open, inFlow]);
   // Opened in the flow, the list is brought into view in the body that holds it, before it is drawn.
   React.useLayoutEffect(() => {
     if (open && inFlow) bringIntoView(popover.current);
@@ -125,7 +124,9 @@ export function OpponentPicker({ me, options, current, champ, onChoose, testId =
                   button.current?.focus();
                 } else if (e.key === "Tab") setOpen(false);
               }}
-              className="h-11 min-w-0 flex-1 bg-transparent text-base text-fg outline-none placeholder:text-fg-subtle sm:text-sm"
+              // 16px on touch screens at every width (every iPhone held sideways is sm or wider);
+              // 14px from sm with a mouse.
+              className="h-11 min-w-0 flex-1 bg-transparent text-base text-fg outline-none placeholder:text-fg-subtle sm:pointer-fine:text-sm"
               data-testid={`${testId}-search`}
             />
           </div>
