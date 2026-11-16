@@ -1,17 +1,32 @@
 import type { MatchupNotes } from "@/domain/matchup-intel/types";
 
 /*
-  Gwen against Ornn (this direction only): curated matchup notes (Layer 2), checked on 16 Nov 2026
-  against patch 26.22. Every point rests on mechanics the two champions' wiki ability pages state
-  (the same revisions as their champion notes, CC BY-SA 3.0) and names the abilities it rests on.
-  None is a win rate, a tier, a guess or an instruction on how to play.
+  Gwen (you) against Ornn (the enemy): curated matchup notes (Layer 2, this direction only), checked
+  on 16 Nov 2026 against patch 26.22 and Data Dragon 16.22.1, the same version as both champions'
+  notes.
+
+  Every point rests on mechanics the two champions' wiki ability pages state (the same revisions as
+  their champion notes, CC BY-SA 3.0) and names the abilities it rests on. A point may apply what a
+  page states of a whole class to a member that a page names as one: that a stun spends Brittle
+  rests on Living Forge's page (immobilising effects spend it; Riot's tooltip says the same of
+  immobilising effects) and on the wiki's definition of a stun as an immobilising effect (saved
+  from the Renekton page, revision 4028014). The points are considerations: no win rates, tiers,
+  guesses or instructions on how to play.
+
+  Changed or left out on the re-check of 16 Nov 2026, and why:
+  - "the mist lasts 4 s, longer than the 3 s of Brittle": a comparison of two numbers that no page
+    makes, so the opportunity no longer draws it;
+  - that slows on a Brittle Gwen last longer without spending it: the wiki says so, but Riot's
+    tooltip names only immobilising effects, so it is disputed (Ornn's champion notes);
+  - that Ornn's attack on a Brittle Gwen deals no bonus damage: disputed the same way.
 
   Left out because no saved page states it:
   - whether Hallowed Mist keeps out Ornn's ultimate elemental when Ornn is outside the mist (the
     page covers enemies and their pets, and does not say which the elemental counts as);
   - whether slowing Ornn with Needlework can stop Bellows Breath's lunge (that would rest on
     arithmetic and an estimated movement-speed threshold, not a stated interaction);
-  - how Ornn's knock-ups meet Gwen's E dash (only implied by a field on her page).
+  - how Ornn's knock-ups meet Gwen's E dash: her page's knockdown field says an enemy displacement
+    interrupts it, but Ornn's pages do not call their knock-ups displacements in words.
 */
 
 const notes: MatchupNotes = {
@@ -34,8 +49,8 @@ const notes: MatchupNotes = {
       basedOn: ["Ornn.W", "Ornn.P", "Ornn.E", "Ornn.R"],
     },
     opportunity: {
-      text: "While Gwen is inside Hallowed Mist, Ornn cannot target her from outside it. The mist lasts 4 s, longer than the 3 s of Brittle from his W or R.",
-      basedOn: ["Gwen.W", "Ornn.W", "Ornn.R"],
+      text: "While Gwen is inside Hallowed Mist, Ornn cannot target her from outside it. The mist lasts 4 s, and Hallowed Mist's cooldown starts only when it ends.",
+      basedOn: ["Gwen.W"],
     },
     lane: [
       {
@@ -53,8 +68,7 @@ const notes: MatchupNotes = {
     ],
   },
   interactions: [
-    { text: "While Gwen is Brittle, slows on her, such as Ornn's Q, also last longer, and they do not spend Brittle.", abilities: ["Ornn.P", "Ornn.Q"], source: "ornn-p" },
-    { text: "Ornn's attack on a Brittle Gwen knocks her back a short way and ends Brittle, without its bonus damage.", abilities: ["Ornn.P"], source: "ornn-p" },
+    { text: "Ornn's attack on a Brittle Gwen knocks her back a short way and ends Brittle.", abilities: ["Ornn.P"], source: "ornn-p" },
     { text: "Damage from Gwen interrupts Ornn's 4 s forge channel, which lets him buy items away from the shop.", abilities: ["Ornn.P"], source: "ornn-p" },
   ],
 };

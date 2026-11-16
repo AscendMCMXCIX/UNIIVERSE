@@ -2,15 +2,23 @@ import type { MatchupNotes } from "@/domain/matchup-intel/types";
 
 /*
   Riven (you) against Mordekaiser (the enemy): curated matchup notes (Layer 2, this direction
-  only), checked on 16 Nov 2026 against patch 26.22 and Data Dragon 16.22.1.
+  only), checked on 16 Nov 2026 against patch 26.22 and Data Dragon 16.22.1, the same version as
+  both champions' notes.
 
   Every point rests on mechanics the League of Legends Wiki's ability data pages state (the same
   revisions as the two champions' notes, CC BY-SA 3.0) and names the abilities it rests on, all
-  present in those notes. That Death's Grasp's pull counts as a displacement is the wiki's own
-  linking: its page ties "pulls" to the same airborne tip the Realm of Death page uses for
-  "displacements". Broken Wings' and Valor's pages set the knockdown field, which Template:Ability
-  data defines as movement interrupted and overridden by an enemy knock-down or displacement. No
-  win rates, tiers, guesses or instructions on how to play.
+  present in those notes. A point may apply what a page states of a whole class to a member that a
+  page names as one: Realm of Death's page says dashes and other forms of movement stop at the
+  realm's edge and that its health loss ignores shields, and Riven's pages call Broken Wings and
+  Valor dashes, the third cast's knock-back a movement, and Valor's a shield. The points are
+  considerations: no win rates, tiers, guesses or instructions on how to play.
+
+  Changed or left out on the re-check of 16 Nov 2026, and why:
+  - that Death's Grasp's pull interrupts a Broken Wings or Valor dash (in the opportunity and two
+    interactions): their pages' knockdown field says an enemy displacement interrupts and overrides
+    the dash, and Death's Grasp's page marks its pull with the wiki's airborne term, which Realm of
+    Death's page shows as "displacements", but no page says it of this pull in words. A person who
+    confirms that the wiki's airborne entry counts a pull as a displacement can add it back.
 
   Left out because no saved page states it:
   - whether Ki Burst's stun or Broken Wings' knock-back interrupts the cast time of Obliterate,
@@ -33,7 +41,6 @@ const notes: MatchupNotes = {
     { id: "mordekaiser-w", title: "League of Legends Wiki: Indestructible (Mordekaiser)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Mordekaiser/Indestructible", kind: "wiki-ability", revision: 4016354, revisionTime: "2026-05-10T19:48:19Z", licence: "CC BY-SA 3.0" },
     { id: "mordekaiser-e", title: "League of Legends Wiki: Death's Grasp (Mordekaiser)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Mordekaiser/Death's_Grasp", kind: "wiki-ability", revision: 4070332, revisionTime: "2026-09-29T18:36:13Z", licence: "CC BY-SA 3.0" },
     { id: "mordekaiser-r", title: "League of Legends Wiki: Realm of Death (Mordekaiser)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Mordekaiser/Realm_of_Death", kind: "wiki-ability", revision: 4093177, revisionTime: "2026-11-08T17:57:11Z", licence: "CC BY-SA 3.0" },
-    { id: "ability-data", title: "League of Legends Wiki: Template:Ability data (what each field means)", url: "https://wiki.leagueoflegends.com/en-us/Template:Ability_data", kind: "wiki-reference", revision: 4084623, revisionTime: "2026-10-13T17:49:21Z", licence: "CC BY-SA 3.0" },
   ],
   briefing: {
     threat: {
@@ -41,8 +48,8 @@ const notes: MatchupNotes = {
       basedOn: ["Mordekaiser.R", "Riven.E"],
     },
     opportunity: {
-      text: "Death's Grasp's cooldown is 16 seconds at rank 1 and 8 at rank 5, before ability haste. While it is on cooldown, he cannot use its pull, which interrupts a Broken Wings or Valor dash that it catches.",
-      basedOn: ["Mordekaiser.E", "Riven.Q", "Riven.E"],
+      text: "Death's Grasp pulls 0.5 seconds after Mordekaiser summons the claw, and its cooldown is 16 seconds at rank 1 and 8 at rank 5, before ability haste: until it is ready again, he has no pull.",
+      basedOn: ["Mordekaiser.E"],
     },
     lane: [
       {
@@ -50,7 +57,7 @@ const notes: MatchupNotes = {
         basedOn: ["Mordekaiser.P"],
       },
       {
-        text: "Only Mordekaiser sees his Darkness Rise stack count, as only Riven sees her Runic Blade charges.",
+        text: "Neither sees the other's count: other champions cannot see Mordekaiser's Darkness Rise stacks, and Riven's Runic Blade charges show only to her player.",
         basedOn: ["Mordekaiser.P", "Riven.P"],
       },
       {
@@ -64,8 +71,6 @@ const notes: MatchupNotes = {
     ],
   },
   interactions: [
-    { text: "Death's Grasp's pull is a displacement, and an enemy displacement interrupts and overrides Valor's dash.", abilities: ["Mordekaiser.E", "Riven.E"], source: "riven-e" },
-    { text: "A displacement such as Death's Grasp's pull also interrupts and overrides a Broken Wings dash.", abilities: ["Mordekaiser.E", "Riven.Q"], source: "riven-q" },
     { text: "In the Death Realm, Riven's dashes and Broken Wings' knock-back stop at the arena's edge.", abilities: ["Mordekaiser.R", "Riven.Q", "Riven.E"], source: "mordekaiser-r" },
     { text: "The realm change does not affect turrets: they behave as if Riven and Mordekaiser were both still in the normal realm.", abilities: ["Mordekaiser.R"], source: "mordekaiser-r" },
   ],

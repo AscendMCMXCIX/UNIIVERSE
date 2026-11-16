@@ -2,14 +2,19 @@ import type { MatchupNotes } from "@/domain/matchup-intel/types";
 
 /*
   Ambessa (you) against Renekton (the enemy): curated matchup notes (Layer 2, this direction only),
-  checked on patch 26.22 against Data Dragon 16.22.1.
+  checked on 16 Nov 2026 against patch 26.22 and Data Dragon 16.22.1, the same version as both
+  champions' notes.
 
   Every point rests on mechanics the League of Legends Wiki states (CC BY-SA 3.0) for the abilities
-  it names, all present in the two champions' notes. The Renekton champion page is cited for the
-  wiki's own definition of a stun, shown on that page: an immobilising effect that interrupts
-  attack windups except uncancellable ones. No win rates, tiers or advice on what to do.
-  Left out: whether Ruthless Predator's stun stops Public Execution's cast time. No saved source
-  says (see the note in Ambessa's champion notes).
+  it names, all present in the two champions' notes, at the same revisions. A point may apply what a
+  page states of a whole class (damage shields, immobilising effects) to a member that a page names
+  as one. The Renekton champion page is cited for the wiki's own definition of a stun, shown on that
+  page: an immobilising effect that interrupts attack windups except uncancellable ones. The points
+  are considerations: no win rates, tiers or advice on what to do.
+
+  Left out, and why:
+  - whether Ruthless Predator's stun stops Public Execution's cast time: no saved source says (see
+    the note in Ambessa's champion notes).
 */
 
 const notes: MatchupNotes = {

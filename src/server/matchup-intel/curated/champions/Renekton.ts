@@ -1,17 +1,35 @@
 import type { ChampionNotes } from "@/domain/matchup-intel/types";
 
 /*
-  Renekton: curated champion notes (Layer 1), checked on patch 26.22 against Data Dragon 16.22.1.
+  Renekton: curated champion notes (Layer 1), checked on 16 Nov 2026 against patch 26.22 and Data
+  Dragon 16.22.1.
 
-  Sources: the League of Legends Wiki's ability data templates at the revisions below (CC BY-SA 3.0)
-  and Data Dragon 16.22.1 for the cooldown arrays. Every text is UNIIVERSE's own summary.
+  Sources: the League of Legends Wiki's ability data pages (Template:Data Renekton/<ability>, read at
+  the revisions below, CC BY-SA 3.0) and Data Dragon 16.22.1. Each ability's ddragonCooldown and
+  ddragonIdentity are Data Dragon's cooldown array, spell id, name, ranks and charges, copied exactly
+  (the passive has no cooldown or id in Data Dragon); the wiki's cooldown for every ability matches.
+  Numbers are base values per rank, without ability haste. Every text is UNIIVERSE's own summary of
+  what the page states. Badges read from a page's fields use the meanings Template:Ability data
+  gives them: spellshield (a spell shield nullifies it), parry (blind, block or dodge prevents it),
+  grounded (grounding disables it) and knockdown (an enemy knock-down or displacement interrupts and
+  overrides its movement).
 
-  Cooldown starts:
-  - W: "after-effect-ends", from the wiki's cooldown-start field ("post-effect").
-  - E, R: "on-cast", from the wiki's cooldown-start field.
-  - Q: "on-cast" as the ordinary case: the wiki gives no special start.
-  - P: no cooldown recorded. The wiki gives none for Reign of Anger and Data Dragon never does.
-  No level notes: the saved sources state no level rule for Renekton.
+  Cooldown starts, from the page's cooldown-start field (cdstart), and null where it gives none:
+  - W: "after-effect-ends" (post-effect).
+  - E: "after-first-cast". The field says on-cast, which, on an ability cast again, names its first
+    cast, Slice: Riven's Broken Wings page gives both, on-cast and "Starts after first cast".
+  - R: "on-cast".
+  - Q: null: no cdstart.
+  - P: no cooldown spec: the page gives none, and Data Dragon never gives a passive one.
+  Modifiers: W resets his basic-attack timer, as its page says.
+
+  Left out, and why:
+  - level notes: no saved page states a level rule for Renekton;
+  - Ruthless Predator's 0.2-second attack cast time: the page marks it as estimated;
+  - an exact figure for the lockout after Ruthless Predator's attack: the page gives 0.525 seconds
+    rounded up to the next game tick (shown as 0.528 on the champion page), so the text says "just
+    over half a second";
+  - "per cast" for Cull the Meek's healing cap: the page says "up to a cap", not per what.
 */
 
 const notes: ChampionNotes = {
@@ -23,6 +41,7 @@ const notes: ChampionNotes = {
     { id: "renekton-w", title: "League of Legends Wiki: Ruthless Predator (Renekton)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Renekton/Ruthless_Predator", kind: "wiki-ability", revision: 4065616, revisionTime: "2026-09-23T19:37:45Z", licence: "CC BY-SA 3.0" },
     { id: "renekton-e", title: "League of Legends Wiki: Slice and Dice (Renekton)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Renekton/Slice_and_Dice", kind: "wiki-ability", revision: 3943397, revisionTime: "2025-08-08T18:04:56Z", licence: "CC BY-SA 3.0" },
     { id: "renekton-r", title: "League of Legends Wiki: Dominus (Renekton)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Renekton/Dominus", kind: "wiki-ability", revision: 3963895, revisionTime: "2025-11-07T10:15:32Z", licence: "CC BY-SA 3.0" },
+    { id: "ability-data", title: "League of Legends Wiki: Template:Ability data (what each field means)", url: "https://wiki.leagueoflegends.com/en-us/Template:Ability_data", kind: "wiki-reference", revision: 4084623, revisionTime: "2026-10-13T17:49:21Z", licence: "CC BY-SA 3.0" },
     { id: "ddragon", title: "Data Dragon 16.22.1: Renekton", url: "https://ddragon.leagueoflegends.com/cdn/16.22.1/data/en_US/champion/Renekton.json", kind: "ddragon", licence: "Riot Games" },
   ],
   abilities: {
@@ -30,9 +49,9 @@ const notes: ChampionNotes = {
       ddragonCooldown: [],
       ddragonIdentity: { id: null, name: "Reign of Anger", maxRank: 1, charges: null },
       facts: [
-        { kind: "exception", label: "Empowered at 50 Fury", detail: "At 50 Fury or more, his next Q, W or Dice (never Slice) spends 50 Fury for a stronger version, which generates no Fury.", appliesTo: "self", source: "renekton-p" },
+        { kind: "empowerment", label: "Empowered at 50 Fury", detail: "At 50 Fury or more, his next Q, W or Dice (not Slice) spends 50 Fury for a stronger version, which generates no Fury.", appliesTo: "self", source: "renekton-p" },
         { kind: "exception", label: "More Fury below half health", detail: "Below 50% of his maximum health he gains 50% more Fury from every source.", appliesTo: "self", source: "renekton-p" },
-        { kind: "exception", label: "Fury fades out of combat", detail: "After 12 seconds out of combat without attacking, he loses 1 Fury every 0.25 seconds. Dominus stops the loss while it lasts.", appliesTo: "self", source: "renekton-p" },
+        { kind: "exception", label: "Fury fades out of combat", detail: "After 12 seconds out of combat without attacking, he loses 1 Fury every 0.25 seconds. While Dominus lasts, the 12 seconds keep restarting.", appliesTo: "self", source: "renekton-p" },
       ],
       details: [
         "Each basic attack gives 5 Fury on hit, against anything but structures; his abilities also give Fury (see each).",
@@ -42,10 +61,9 @@ const notes: ChampionNotes = {
     Q: {
       ddragonCooldown: [7, 7, 7, 7, 7],
       ddragonIdentity: { id: "RenektonCleave", name: "Cull the Meek", maxRank: 5, charges: null },
-      // The wiki gives no cooldown start: on-cast, the ordinary case.
-      cooldown: { kind: "per-rank", seconds: [7, 7, 7, 7, 7], starts: "on-cast" },
+      cooldown: { kind: "per-rank", seconds: [7, 7, 7, 7, 7], starts: null },
       facts: [
-        { kind: "sustain", label: "Heals per enemy hit", detail: "More per champion than per other unit, capped at 50 to 150 a cast. With 50 Fury the healing triples and the cap is 200 to 600.", appliesTo: "self", tags: ["heal"], source: "renekton-q" },
+        { kind: "sustain", label: "Heals per enemy hit", detail: "More per champion than per other unit, up to a cap of 50 to 150 (by rank). With 50 Fury the healing triples and the cap is 200 to 600.", appliesTo: "self", tags: ["heal"], source: "renekton-q" },
         { kind: "interaction", label: "Wounds apply after the cap", detail: "Grievous Wounds, and boosts such as Spirit Visage, change the healing after the cap.", appliesTo: "self", tags: ["heal"], source: "renekton-q" },
       ],
       details: [
@@ -58,9 +76,9 @@ const notes: ChampionNotes = {
     W: {
       ddragonCooldown: [16, 14, 12, 10, 8],
       ddragonIdentity: { id: "RenektonPreExecute", name: "Ruthless Predator", maxRank: 5, charges: null },
-      // Wiki cooldown-start field: post-effect.
       cooldown: { kind: "per-rank", seconds: [16, 14, 12, 10, 8], starts: "after-effect-ends" },
-      cooldownNote: "Starts when the effect ends, not on pressing W: the empowered attack is held for up to 7 seconds.",
+      modifiers: { resetsAttack: true },
+      cooldownNote: "The empowered attack is held for up to 7 seconds.",
       facts: [
         { kind: "crowd-control", label: "Stun", detail: "0.75 seconds; 1.5 seconds with 50 Fury.", appliesTo: "target", tags: ["stun"], source: "renekton-w" },
         { kind: "interaction", label: "Breaks shields", detail: "With 50 Fury, the first strike destroys the target's damage shields before any damage, even when a spell shield blocks the attack. Monsters keep theirs.", appliesTo: "target", tags: ["shield-break"], source: "renekton-w" },
@@ -68,21 +86,19 @@ const notes: ChampionNotes = {
       ],
       details: [
         "His next attack within 7 seconds has 175 range and strikes twice, three times with 50 Fury. Each strike applies on-hit effects and gives Fury; hitting a champion gives 10 more.",
-        "It resets his attack timer. After the attack's cast time he cannot move or cast Q or E for just over half a second; casting Dominus ends this early.",
+        "After the attack's cast time he cannot move or cast Q or E for just over half a second; casting Dominus ends this early.",
         "The empowerment is kept when the attack is cancelled because its target died or turned untargetable during the cast time.",
       ],
     },
     E: {
       ddragonCooldown: [16, 14.5, 13, 11.5, 10],
       ddragonIdentity: { id: "RenektonSliceAndDice", name: "Slice and Dice", maxRank: 5, charges: null },
-      // Wiki cooldown-start field: on-cast.
-      cooldown: { kind: "per-rank", seconds: [16, 14.5, 13, 11.5, 10], starts: "on-cast" },
-      cooldownNote: "Starts when Slice is cast.",
+      cooldown: { kind: "per-rank", seconds: [16, 14.5, 13, 11.5, 10], starts: "after-first-cast" },
       recast: { count: 1, windowSeconds: 4, note: "Dice, only after Slice hits an enemy: the same dash and damage again." },
       facts: [
         { kind: "mobility", label: "Dash", detail: "Slice dashes a fixed distance (range 450), damaging enemies in its path.", appliesTo: "self", tags: ["dash"], source: "renekton-e" },
         { kind: "damage", label: "Armour reduction", detail: "With 50 Fury, Dice deals bonus damage and reduces the armour of enemies hit by 25 to 35% (by rank) for 4 seconds.", appliesTo: "target", source: "renekton-e" },
-        { kind: "interaction", label: "Grounding disables it", detail: "Grounding disables Slice and Dice, and knock-downs or displacements interrupt its dash.", appliesTo: "self", tags: ["ground", "interrupt"], source: "renekton-e" },
+        { kind: "interaction", label: "Interruptible dash", detail: "Grounding disables Slice and Dice, and an enemy knock-down or displacement interrupts and overrides its dash.", appliesTo: "self", tags: ["ground", "interrupt"], source: "renekton-e" },
       ],
       details: [
         "Dash speed: 760 plus his movement speed.",
@@ -92,10 +108,9 @@ const notes: ChampionNotes = {
     R: {
       ddragonCooldown: [120, 100, 80],
       ddragonIdentity: { id: "RenektonReignOfTheTyrant", name: "Dominus", maxRank: 3, charges: null },
-      // Wiki cooldown-start field: on-cast.
       cooldown: { kind: "per-rank", seconds: [120, 100, 80], starts: "on-cast" },
       facts: [
-        { kind: "defence", label: "Bonus health", detail: "300 to 700 (by rank) for 15 seconds. When it ends his health drops only if it is above his normal maximum.", appliesTo: "self", source: "renekton-r" },
+        { kind: "defence", label: "Bonus health", detail: "300 to 700 (by rank) for 15 seconds. When it ends he keeps the health it gave, if he is not over his normal maximum.", appliesTo: "self", source: "renekton-r" },
         { kind: "interaction", label: "Unaffected by Grievous Wounds", detail: "The bonus health is not reduced by Grievous Wounds or raised by Spirit Visage.", appliesTo: "self", source: "renekton-r" },
       ],
       details: [

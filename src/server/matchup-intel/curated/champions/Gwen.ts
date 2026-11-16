@@ -1,21 +1,39 @@
 import type { ChampionNotes } from "@/domain/matchup-intel/types";
 
 /*
-  Gwen: curated champion notes (Layer 1), checked on 16 Nov 2026 against patch 26.22.
+  Gwen: curated champion notes (Layer 1), checked on 16 Nov 2026 against patch 26.22 and Data
+  Dragon 16.22.1.
 
   Sources: the League of Legends Wiki's ability data pages (Template:Data Gwen/<ability>, read at the
-  revisions below, CC BY-SA 3.0) and Data Dragon 16.22.1. Each ddragonCooldown is that spell's
-  "cooldown" array copied exactly (the passive's is []); the wiki's cooldown for every ability
-  matches it. Numbers are base values per rank, without ability haste. Every text is UNIIVERSE's
-  own summary of what the page states.
+  revisions below, CC BY-SA 3.0) and Data Dragon 16.22.1. Each ability's ddragonCooldown and
+  ddragonIdentity are Data Dragon's cooldown array, spell id, name, ranks and charges, copied exactly
+  (the passive has no cooldown or id in Data Dragon); the wiki's cooldown for every ability matches.
+  Numbers are base values per rank, without ability haste. Every text is UNIIVERSE's own summary of
+  what the page states. Badges read from a page's fields use the meanings Template:Ability data
+  gives them: grounded (grounding disables it) and knockdown (an enemy knock-down or displacement
+  interrupts and overrides its movement).
 
-  Left out for want of a stated source:
-  - the passive's cooldown: the wiki's cooldown field for A Thousand Cuts is empty and Data Dragon
-    has none for passives, so the page says it is not in Riot's data rather than "none";
-  - a recast count for Hallowed Mist: the current page says it can be recast (from 0.5 s) but not
-    how many times, so it is described in the details, not as a Recast;
-  - level notes: no saved page states an unlock or a level for Gwen's abilities (her passive's
-    heal cap and minion damage only scale smoothly with level).
+  Cooldown starts, from the page's cooldown-start field (cdstart), and null where it gives none:
+  - W: "after-effect-ends" (post-effect).
+  - R: "after-first-cast". The field says on-cast, which, on an ability cast again, names its first
+    cast: Riven's Broken Wings page gives both, on-cast and "Starts after first cast".
+  - Q, E: null: no cdstart.
+  - P: no cooldown spec: the page's cooldown field is empty and Data Dragon has none for passives,
+    so the page says it is not in Riot's data rather than "none".
+  Modifiers, as the pages state them: E refunds 25 / 35 / 45 / 55 / 65% of its cooldown on her first
+  basic attack within its 4 seconds, and resets her attack timer; R has a 1-second static cooldown
+  between casts.
+
+  Disputed, so left off the page until a person resolves it:
+  - Needlework's recast window: the wiki says twice more within 8 seconds of the activation, each
+    cast refreshing it; Riot's tooltip says up to 2 more times within 6 seconds. Both say two more
+    casts, which the recast gives.
+
+  Left out, and why:
+  - a recast count for Hallowed Mist: the page says it can be recast after 0.5 s but not how many
+    times, so it is described in the details, not as a Recast;
+  - level notes: no saved page states an unlock or a level for Gwen's abilities (her passive's heal
+    cap and minion damage only scale smoothly with level).
 */
 
 const notes: ChampionNotes = {
@@ -27,6 +45,7 @@ const notes: ChampionNotes = {
     { id: "gwen-w", title: "League of Legends Wiki: Hallowed Mist (Gwen)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Gwen/Hallowed_Mist", kind: "wiki-ability", revision: 3973613, revisionTime: "2025-12-11T11:22:05Z", licence: "CC BY-SA 3.0" },
     { id: "gwen-e", title: "League of Legends Wiki: Skip 'n Slash (Gwen)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Gwen/Skip_'n_Slash", kind: "wiki-ability", revision: 4026400, revisionTime: "2026-06-09T21:51:27Z", licence: "CC BY-SA 3.0" },
     { id: "gwen-r", title: "League of Legends Wiki: Needlework (Gwen)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Gwen/Needlework", kind: "wiki-ability", revision: 4085130, revisionTime: "2026-10-14T00:57:19Z", licence: "CC BY-SA 3.0" },
+    { id: "ability-data", title: "League of Legends Wiki: Template:Ability data (what each field means)", url: "https://wiki.leagueoflegends.com/en-us/Template:Ability_data", kind: "wiki-reference", revision: 4084623, revisionTime: "2026-10-13T17:49:21Z", licence: "CC BY-SA 3.0" },
     { id: "ddragon", title: "Data Dragon 16.22.1: Gwen", url: "https://ddragon.leagueoflegends.com/cdn/16.22.1/data/en_US/champion/Gwen.json", kind: "ddragon", licence: "Riot Games" },
   ],
   abilities: {
@@ -46,8 +65,7 @@ const notes: ChampionNotes = {
     Q: {
       ddragonCooldown: [6.5, 5.75, 5, 4.25, 3.5],
       ddragonIdentity: { id: "GwenQ", name: "Snip Snip!", maxRank: 5, charges: null },
-      // "on-cast": the wiki gives no special start (the page has no cdstart field).
-      cooldown: { kind: "per-rank", seconds: [6.5, 5.75, 5, 4.25, 3.5], starts: "on-cast" },
+      cooldown: { kind: "per-rank", seconds: [6.5, 5.75, 5, 4.25, 3.5], starts: null },
       facts: [
         { kind: "damage", label: "True damage centre", detail: "Half the damage at the centre of each snip is true damage, and the centre applies her passive.", appliesTo: "target", tags: ["true-damage"], source: "gwen-q" },
         { kind: "exception", label: "Up to 6 snips", detail: "Each attack that lands gives a stack for 6 s (up to 4), and each stack adds a snip to her next Q.", appliesTo: "self", source: "gwen-q" },
@@ -61,13 +79,12 @@ const notes: ChampionNotes = {
     W: {
       ddragonCooldown: [22, 21, 20, 19, 18],
       ddragonIdentity: { id: "GwenW", name: "Hallowed Mist", maxRank: 5, charges: null },
-      // "after-effect-ends": the wiki's cdstart field says post-effect.
       cooldown: { kind: "per-rank", seconds: [22, 21, 20, 19, 18], starts: "after-effect-ends" },
-      cooldownNote: "Counts from when the mist ends; the mist lasts 4 s.",
+      cooldownNote: "The mist lasts 4 s.",
       facts: [
         { kind: "defence", label: "Untargetable from outside", detail: "While she is inside the mist, enemies outside it cannot target her; turrets and monsters still can.", appliesTo: "self", tags: ["untargetable"], source: "gwen-w" },
         { kind: "defence", label: "Armour and magic resistance", detail: "Inside the mist she gains 22–30 (by rank, +7% AP) bonus armour and magic resistance.", appliesTo: "self", source: "gwen-w" },
-        { kind: "interaction", label: "Stops targeted shots", detail: "Enemy champions' targeted projectiles fired from outside the mist are destroyed on reaching it.", appliesTo: "self", source: "gwen-w" },
+        { kind: "interaction", label: "Stops targeted shots", detail: "Projectiles that enemy champions outside the mist aim at her are destroyed on reaching it.", appliesTo: "self", source: "gwen-w" },
       ],
       details: [
         "She is ghosted while inside the mist.",
@@ -79,12 +96,12 @@ const notes: ChampionNotes = {
     E: {
       ddragonCooldown: [13, 12.5, 12, 11.5, 11],
       ddragonIdentity: { id: "GwenE", name: "Skip 'n Slash", maxRank: 5, charges: null },
-      // "on-cast": the wiki gives no special start (the page has no cdstart field).
-      cooldown: { kind: "per-rank", seconds: [13, 12.5, 12, 11.5, 11], starts: "on-cast" },
-      cooldownNote: "Her first attack within the next 4 s refunds 25–65% of it (by rank).",
+      cooldown: { kind: "per-rank", seconds: [13, 12.5, 12, 11.5, 11], starts: null },
+      modifiers: { refund: { unit: "percent", amount: [25, 35, 45, 55, 65], when: "her first basic attack within the 4 seconds after the dash" }, resetsAttack: true },
       facts: [
         { kind: "mobility", label: "Dash", detail: "Dashes to the target spot: 350 units, or up to 450 across terrain.", appliesTo: "self", tags: ["dash"], source: "gwen-e" },
-        { kind: "exception", label: "Attack reset", detail: "Resets her attack timer, and she can cast it during her other abilities, and them during it.", appliesTo: "self", tags: ["attack-reset"], source: "gwen-e" },
+        { kind: "exception", label: "Cast during other abilities", detail: "She can cast it during any of her other abilities, and them during it.", appliesTo: "self", source: "gwen-e" },
+        { kind: "interaction", label: "Interruptible dash", detail: "Grounding disables it, and an enemy knock-down or displacement interrupts and overrides the dash.", appliesTo: "self", tags: ["ground", "interrupt"], source: "gwen-e" },
       ],
       details: [
         "For 4 s after the dash her attacks gain 30–80% attack speed (by rank), 75 range and 15 (+20% AP) magic damage on-hit.",
@@ -94,10 +111,10 @@ const notes: ChampionNotes = {
     R: {
       ddragonCooldown: [120, 100, 80],
       ddragonIdentity: { id: "GwenR", name: "Needlework", maxRank: 3, charges: null },
-      // "on-cast": the wiki's cdstart field says on-cast.
-      cooldown: { kind: "per-rank", seconds: [120, 100, 80], starts: "on-cast" },
-      cooldownNote: "The casts are 1 s apart at least, a static cooldown that ability haste does not shorten.",
-      recast: { count: 2, windowSeconds: 8, note: "The free recasts throw 3, then 5 needles; each cast restarts the 8 s window." },
+      cooldown: { kind: "per-rank", seconds: [120, 100, 80], starts: "after-first-cast" },
+      modifiers: { lockout: { seconds: 1, static: true } },
+      // Two more casts, as both the wiki and Riot's tooltip say; their window is disputed (see the header).
+      recast: { count: 2, note: "The recasts cost nothing more and throw 3 needles, then 5." },
       facts: [
         { kind: "crowd-control", label: "Slow", detail: "The first needle to hit a target slows it 40–60% for 1.5 s; each later hit slows it 15–25% (by rank).", appliesTo: "target", tags: ["slow"], source: "gwen-r" },
         { kind: "damage", label: "Passive on every needle", detail: "Each needle applies her passive's maximum-health damage, up to 9 needles over the three casts.", appliesTo: "target", tags: ["max-health-damage"], source: "gwen-r" },
@@ -105,7 +122,7 @@ const notes: ChampionNotes = {
         { kind: "interaction", label: "Spell shield: one needle", detail: "A spell shield stops one needle, not the rest.", appliesTo: "target", tags: ["spell-shield"], source: "gwen-r" },
       ],
       details: [
-        "The needles start 100 units behind her and fly 1350 units.",
+        "The needles start 100 units behind her and fly 1,350 units.",
         "If she dies during a cast, that cast's remaining needles are not thrown.",
       ],
     },
