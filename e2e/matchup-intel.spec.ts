@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "./test";
-import { choiceIds, choose, enemyAbilities, openMatchupIntel, openPicker, overflow, pickerSpill, rosterIds } from "./matchup-intel";
+import { choiceIds, choose, cutOrSpilled, enemyAbilities, openMatchupIntel, openPicker, overflow, pickerSpill, rosterIds } from "./matchup-intel";
 import { untilStill } from "./modal-corner";
 
 /*
@@ -350,9 +350,14 @@ test("sources are links that open in a new tab, cut off from the page; details e
   expect([...hosts].filter((h) => h === "wiki.leagueoflegends.com" || h.endsWith(".wiki.leagueoflegends.com"))).toEqual([]);
 });
 
-test("no sideways scrolling at 320, 375 and 768 wide, the picker window included", async ({ page }) => {
-  for (const width of [320, 375, 768]) {
-    await page.setViewportSize({ width, height: 800 });
+test("no sideways scrolling at 320, 375, 430 (a large phone) and 768 wide, the picker window included", async ({ page }) => {
+  for (const [width, height] of [
+    [320, 640],
+    [375, 667],
+    [430, 932],
+    [768, 1024],
+  ] as const) {
+    await page.setViewportSize({ width, height });
     for (const [you, enemy] of [["Ambessa", "Renekton"], ["Garen", "Darius"], [undefined, undefined]] as const) {
       await openMatchupIntel(page, you, enemy);
       expect(await overflow(page), `${you ?? "nothing"} vs ${enemy ?? "nothing"} at ${width}`).toBeLessThanOrEqual(1);
@@ -369,6 +374,32 @@ test("no sideways scrolling at 320, 375 and 768 wide, the picker window included
     await win.getByTestId("matchup-picker-grid").locator("button[data-champion]").first().click();
     await expect(win).toHaveCount(0);
     await expect(page).toHaveURL(/[?&]champion=/);
+  }
+});
+
+test("phone at 200% text: nothing is cut or spills sideways in the pickers, the briefing, the ability lists (every details part open) or the notes", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
+  // A 390px phone with its text at 200%, as the other large-text tests set it (html's font size: the
+  // page's sizes are in rem, so everything but the screen grows). The three validation pairs: the
+  // most a page holds, with a briefing, two curated champions and their level notes.
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const [you, enemy] of CURATED) {
+    await openMatchupIntel(page, you, enemy);
+    await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).fontSize)).toBe("32px");
+    // Every details part open (your champion's abilities, each ability's notes and sources), and
+    // measured at rest: a chevron turns as its details opens, and a turning square is wider.
+    await page.getByTestId("matchup-intel").evaluate(async (m) => {
+      for (const d of m.querySelectorAll("details")) d.open = true;
+      await document.fonts.ready;
+      const finite = document.getAnimations().filter((a) => a.effect?.getComputedTiming().endTime !== Infinity);
+      await Promise.all(finite.map((a) => a.finished.catch(() => undefined)));
+    });
+    expect(await overflow(page), `${you} vs ${enemy}: the page`).toBeLessThanOrEqual(1);
+    for (const part of ["matchup-pickers", "matchup-briefing", "matchup-enemy-abilities", "matchup-your-abilities", "matchup-interactions", "matchup-level-notes"]) {
+      await expect(page.getByTestId(part), `${you} vs ${enemy}: ${part}`).toBeVisible();
+      expect.soft(await cutOrSpilled(page.getByTestId(part)), `${you} vs ${enemy}: ${part}`).toEqual([]);
+    }
   }
 });
 
