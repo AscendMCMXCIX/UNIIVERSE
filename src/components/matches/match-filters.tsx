@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import { Check, ChevronDown, Search, X } from "lucide-react";
 import { Select } from "@/components/ui/input";
 import { CardAvatar } from "@/components/players/card-look";
+import { bringIntoView, opensInFlow } from "@/components/ui/picker-flow";
 import type { CardLook } from "@/domain/card-style";
 import { cn } from "@/lib/cn";
+import { screenBox } from "@/lib/screen";
 
 /*
   The filter controls of Team → Matches (both tabs). Every choice is a link the server prepared,
@@ -75,7 +77,9 @@ export interface MemberOption {
  * Team members as one compact button that opens a small searchable list, instead of a chip per
  * member. `multiple`: several members can be chosen (games where all of them played together);
  * otherwise one member or everyone. Arrow keys move, Enter chooses, Escape closes; a click outside
- * closes too. The first entry clears the choice.
+ * closes too. The first entry clears the choice. In a window (the Filters sheet) and on a phone the
+ * list opens in the flow of the window's body, which is then the one thing that scrolls, and is
+ * brought into view; on a page from sm up it floats under the button (picker-flow.ts).
  */
 export function MemberPicker({ label, emptyLabel, members, clearHref, multiple = false, testId = "member-picker" }: { label: string; emptyLabel: string; members: MemberOption[]; clearHref: string; multiple?: boolean; testId?: string }) {
   const { go, pending } = useGo();
@@ -83,9 +87,12 @@ export function MemberPicker({ label, emptyLabel, members, clearHref, multiple =
   const [query, setQuery] = React.useState("");
   const [active, setActive] = React.useState(0);
   const [alignEnd, setAlignEnd] = React.useState(false);
+  // The list is part of what holds it (a window's body, a phone's page), decided as it opens.
+  const [inFlow, setInFlow] = React.useState(false);
   const wrapRef = React.useRef<HTMLDivElement>(null);
   const buttonRef = React.useRef<HTMLButtonElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const panelRef = React.useRef<HTMLDivElement>(null);
   const listId = React.useId();
   const chosen = members.filter((m) => m.selected);
   const buttonText = chosen.length === 0 ? emptyLabel : chosen.length <= 2 ? chosen.map((m) => m.name).join(", ") : `${chosen.length} members`;
@@ -104,6 +111,10 @@ export function MemberPicker({ label, emptyLabel, members, clearHref, multiple =
     else hide(true);
     go(href);
   };
+  // Opened in the flow, the list is brought into view in the body that holds it, before it is drawn.
+  React.useLayoutEffect(() => {
+    if (open && inFlow) bringIntoView(panelRef.current);
+  }, [open, inFlow]);
   React.useEffect(() => {
     if (!open) return;
     inputRef.current?.focus();
@@ -148,8 +159,11 @@ export function MemberPicker({ label, emptyLabel, members, clearHref, multiple =
         type="button"
         onClick={() => {
           if (open) return hide();
+          const flow = opensInFlow(wrapRef.current);
           const r = buttonRef.current?.getBoundingClientRect();
-          setAlignEnd(!!r && r.left + 288 > document.documentElement.clientWidth - 8);
+          setInFlow(flow);
+          // A floating list lines up with the button's end where it would leave the screen (the box fixed positioning sees, lib/screen.ts).
+          setAlignEnd(!flow && !!r && r.left + 288 > screenBox().width - 8);
           setQuery("");
           setActive(0);
           setOpen(true);
@@ -175,7 +189,7 @@ export function MemberPicker({ label, emptyLabel, members, clearHref, multiple =
         <ChevronDown className={cn("h-4 w-4 shrink-0 text-fg-subtle transition-transform motion-reduce:transition-none", open && "rotate-180")} aria-hidden />
       </button>
       {open ? (
-        <div className={cn("rise-in absolute top-full z-50 mt-1.5 w-[min(18rem,calc(100vw-2rem))] overflow-hidden rounded-panel border border-border bg-bg-elevated shadow-2xl shadow-black/40", alignEnd ? "right-0" : "left-0")} data-testid={`${testId}-panel`}>
+        <div ref={panelRef} className={cn("rise-in mt-1.5 overflow-hidden rounded-panel border border-border bg-bg-elevated", inFlow ? "w-full" : cn("absolute top-full z-50 w-72 shadow-2xl shadow-black/40", alignEnd ? "right-0" : "left-0"))} data-testid={`${testId}-panel`} data-flow={inFlow || undefined}>
           <div className="flex items-center gap-2 border-b border-border px-3">
             <Search className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />
             <input
@@ -197,7 +211,8 @@ export function MemberPicker({ label, emptyLabel, members, clearHref, multiple =
               data-testid={`${testId}-search`}
             />
           </div>
-          <ul id={listId} role="listbox" aria-label={label} aria-multiselectable={multiple || undefined} className="max-h-72 overflow-y-auto p-1.5">
+          {/* In the flow, as tall as its members: the body holding it scrolls. Floating, a height of its own. */}
+          <ul id={listId} role="listbox" aria-label={label} aria-multiselectable={multiple || undefined} className={cn("p-1.5", !inFlow && "max-h-72 overflow-y-auto")}>
             {options.length === 0 ? <li className="px-3 py-4 text-center text-sm text-fg-subtle">No team member matches “{query}”.</li> : null}
             {options.map((o, i) => (
                 <li

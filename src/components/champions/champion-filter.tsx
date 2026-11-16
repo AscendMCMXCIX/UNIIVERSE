@@ -3,8 +3,10 @@
 import * as React from "react";
 import { Check, ChevronDown, Search, X } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { screenBox } from "@/lib/screen";
 import { normalise } from "./types";
 import { RemoteImage } from "@/components/ui/remote-image";
+import { bringIntoView, opensInFlow } from "@/components/ui/picker-flow";
 
 export interface FilterChampion {
   id: string;
@@ -25,7 +27,9 @@ const MAX_RESULTS = 40;
  * offers "All champions", the configured pools (where that applies) and the most played
  * champions; typing finds any champion by name (beginning of the name first). Arrow keys move,
  * Enter chooses, Escape closes. In a plain GET form, pass `name` and the choice is submitted as a
- * hidden field.
+ * hidden field. In a window (the Filters sheet) and on a phone the panel opens in the flow of the
+ * window's body, which is then the one thing that scrolls, and is brought into view; on a page from
+ * sm up it floats under the button (picker-flow.ts).
  */
 export function ChampionFilter({
   value,
@@ -59,9 +63,12 @@ export function ChampionFilter({
   const [query, setQuery] = React.useState("");
   const [active, setActive] = React.useState(0);
   const [alignEnd, setAlignEnd] = React.useState(false);
+  // The panel is part of what holds it (a window's body, a phone's page), decided as it opens.
+  const [inFlow, setInFlow] = React.useState(false);
   const wrapRef = React.useRef<HTMLDivElement>(null);
   const buttonRef = React.useRef<HTMLButtonElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const panelRef = React.useRef<HTMLDivElement>(null);
   const listId = React.useId();
 
   const byId = React.useMemo(() => new Map(champions.map((c) => [c.id, c])), [champions]);
@@ -87,8 +94,11 @@ export function ChampionFilter({
   const isChosen = (o: Option) => (o.value.scope === "champion" ? current.scope === "champion" && current.championId === o.value.championId : current.scope === o.value.scope);
 
   const show = () => {
+    const flow = opensInFlow(wrapRef.current);
     const r = buttonRef.current?.getBoundingClientRect();
-    setAlignEnd(!!r && r.left + 320 > document.documentElement.clientWidth - 8);
+    setInFlow(flow);
+    // A floating panel lines up with the button's end where it would leave the screen (the box fixed positioning sees, lib/screen.ts).
+    setAlignEnd(!flow && !!r && r.left + 320 > screenBox().width - 8);
     setQuery("");
     setActive(0);
     setOpen(true);
@@ -103,6 +113,10 @@ export function ChampionFilter({
     onChange?.(v);
   };
 
+  // Opened in the flow, the panel is brought into view in the body that holds it, before it is drawn.
+  React.useLayoutEffect(() => {
+    if (open && inFlow) bringIntoView(panelRef.current);
+  }, [open, inFlow]);
   React.useEffect(() => {
     if (!open) return;
     inputRef.current?.focus();
@@ -112,8 +126,9 @@ export function ChampionFilter({
     document.addEventListener("pointerdown", onDown);
     return () => document.removeEventListener("pointerdown", onDown);
   }, [open]);
+  // The option the arrow keys reach stays in view: in the list's own scroller, or in the window's body.
   React.useEffect(() => {
-    document.getElementById(`${listId}-${active}`)?.scrollIntoView({ block: "nearest" });
+    bringIntoView(document.getElementById(`${listId}-${active}`));
   }, [active, listId]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -158,7 +173,7 @@ export function ChampionFilter({
         </button>
       ) : null}
       {open ? (
-        <div className={cn("rise-in absolute top-full z-50 mt-1.5 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-panel border border-border bg-bg-elevated shadow-2xl shadow-black/40", alignEnd ? "right-0" : "left-0")} data-testid={`${testId}-panel`}>
+        <div ref={panelRef} className={cn("rise-in mt-1.5 overflow-hidden rounded-panel border border-border bg-bg-elevated", inFlow ? "w-full" : cn("absolute top-full z-50 w-80 shadow-2xl shadow-black/40", alignEnd ? "right-0" : "left-0"))} data-testid={`${testId}-panel`} data-flow={inFlow || undefined}>
           <div className="flex items-center gap-2 border-b border-border px-3">
             <Search className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />
             <input
@@ -180,7 +195,8 @@ export function ChampionFilter({
               data-testid={`${testId}-search`}
             />
           </div>
-          <ul id={listId} role="listbox" aria-label={label} className="max-h-72 overflow-y-auto p-1.5">
+          {/* In the flow, as tall as its options: the body holding it scrolls. Floating, a height of its own. */}
+          <ul id={listId} role="listbox" aria-label={label} className={cn("p-1.5", !inFlow && "max-h-72 overflow-y-auto")}>
             {options.length === 0 ? <li className="px-3 py-4 text-center text-sm text-fg-subtle">No champion matches “{query}”.</li> : null}
             {options.map((o, i) => (
               <React.Fragment key={o.key}>
