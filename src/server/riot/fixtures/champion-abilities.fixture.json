@@ -1,5 +1,5 @@
 {
-  "_note": "OFFLINE FIXTURE (Matchup Intel). Every champion's abilities from Riot's Data Dragon, built by scripts/matchup-intel/build-ability-fixture.mjs with the rules of src/server/matchup-intel/abilities.ts. Stored only when the champions come from the offline fixture (demo, browser tests); the version-check job replaces it with Data Dragon's current files.",
+  "_note": "OFFLINE FIXTURE (Matchup Intel). Every champion's abilities from Riot's Data Dragon, built by scripts/matchup-intel/build-ability-fixture.mjs with the rules of src/server/matchup-intel/abilities.ts. Stored only where the server cannot reach Data Dragon: when the champions come from the offline fixture, or by the demo's bootstrap when no abilities are stored. Never over abilities read from Data Dragon; the first sync that reads Data Dragon's files replaces it.",
   "format": 1,
   "version": "16.22.1",
   "source": "fixture",

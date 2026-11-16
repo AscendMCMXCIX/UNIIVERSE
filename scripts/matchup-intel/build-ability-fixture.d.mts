@@ -13,3 +13,11 @@ export interface AbilityFixture {
 }
 export function buildFixture(full: unknown): AbilityFixture;
 export function serialiseFixture(fixture: AbilityFixture): string;
+/** Each spell as Data Dragon gives it: [id, maxrank, cooldown, maxammo]. */
+export type DigestSpell = [string | null, number | null, number[] | null, string | number | null];
+export interface AbilityDigest {
+  version: string;
+  champions: Record<string, DigestSpell[]>;
+}
+export function buildDigest(full: unknown): AbilityDigest;
+export function serialiseDigest(digest: AbilityDigest): string;

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import * as script from "../../../scripts/matchup-intel/build-ability-fixture.mjs";
 import sample from "../../../tests/fixtures/ddragon-16.22.1-sample.json";
+import digestFile from "../../../tests/fixtures/ddragon-16.22.1-ability-digest.json";
 import fixtureFile from "@/server/riot/fixtures/champion-abilities.fixture.json";
 import championsFixture from "@/server/riot/fixtures/champions.fixture.json";
 import { SLOTS, type DdragonChampionAbilities } from "@/domain/matchup-intel/types";
@@ -13,8 +14,11 @@ import { abilityFixture } from "./ability-fixture";
   Matchup Intel's Data Dragon abilities: what the rules take from a champion's file, the committed
   offline copy, and the build script (plain Node, scripts/matchup-intel/build-ability-fixture.mjs)
   giving the same results as the app's rules. The sample (tests/fixtures/ddragon-16.22.1-sample.json)
-  is Data Dragon's own entries for seven champions, untouched. With CHAMPION_FULL_JSON pointing at
-  Data Dragon 16.22.1's championFull.json, every champion is checked as well:
+  is Data Dragon's own entries for seven champions, untouched; the digest
+  (tests/fixtures/ddragon-16.22.1-ability-digest.json) is Data Dragon's own numbers for every
+  champion, so CI checks all 173 without championFull.json. With CHAMPION_FULL_JSON pointing at
+  Data Dragon 16.22.1's championFull.json, every champion goes through the rules as well, and both
+  committed files are checked byte for byte:
     CHAMPION_FULL_JSON=path/to/championFull.json pnpm vitest run src/server/matchup-intel
 */
 
@@ -170,11 +174,27 @@ describe("the committed offline copy (champion-abilities.fixture.json)", () => {
         if (a.slot !== "P") expect(a.maxRank, `${id} ${a.slot}`).toBeGreaterThanOrEqual(1);
       }
     }
-    // Data Dragon 16.22.1: 34 spells hold charges, 20 have all-zero arrays (research, 16 Nov 2026).
+    // Data Dragon 16.22.1: 24 spells hold charges (maxammo above 0; 34 have a maxammo other than
+    // "-1", but 10 of those are "0", which is none) and 20 have all-zero arrays.
     const spells = Object.values(fixture.champions).flatMap((r) => r.abilities.filter((a) => a.slot !== "P"));
     expect(spells).toHaveLength(692);
-    expect(spells.filter((a) => a.charges !== null)).toHaveLength(24); // maxammo above 0 (34 have a maxammo other than -1; 10 of those are "0")
+    expect(spells.filter((a) => a.charges !== null)).toHaveLength(24);
     expect(spells.filter((a) => a.cooldown.every((n) => n === 0))).toHaveLength(20);
+  });
+
+  it("has Data Dragon's own numbers for every champion: spell ids, ranks, cooldowns and charges (the digest, in CI)", () => {
+    const digest = digestFile as unknown as script.AbilityDigest;
+    expect(digest.version).toBe(ABILITY_FIXTURE_VERSION);
+    expect(Object.keys(digest.champions).sort()).toEqual(Object.keys(fixture.champions).sort());
+    // Charges written out here, apart from the rules: maxammo above 0, a whole number; "0", "-1" and none are none.
+    const charges = (maxammo: unknown) => (Number.isInteger(Number(maxammo)) && Number(maxammo) > 0 ? Number(maxammo) : null);
+    let compared = 0;
+    for (const [id, digestSpells] of Object.entries(digest.champions)) {
+      const spells = fixture.champions[id]!.abilities.filter((a) => a.slot !== "P");
+      expect(spells.map((a) => [a.id, a.maxRank, a.cooldown, a.charges]), id).toEqual(digestSpells.map(([spellId, maxrank, cooldown, maxammo]) => [spellId, maxrank, cooldown, charges(maxammo)]));
+      compared += spells.length;
+    }
+    expect(compared).toBe(692);
   });
 
   it("is what the rules make of Data Dragon's own files (the sample), in the app and in the build script", () => {
@@ -194,8 +214,9 @@ describe("the committed offline copy (champion-abilities.fixture.json)", () => {
       expect(fromApp, id).toEqual(fixture.champions[id]);
       expect(script.compactChampionAbilities(detail, full.version), id).toEqual(fromApp);
     }
-    // Byte for byte: the committed file is the script's output for this championFull.json.
+    // Byte for byte: the committed files are the script's output for this championFull.json.
     expect(script.serialiseFixture(script.buildFixture(full))).toBe(readFileSync(new URL("../riot/fixtures/champion-abilities.fixture.json", import.meta.url), "utf8"));
+    expect(script.serialiseDigest(script.buildDigest(full))).toBe(readFileSync(new URL("../../../tests/fixtures/ddragon-16.22.1-ability-digest.json", import.meta.url), "utf8"));
   });
 });
 
@@ -233,5 +254,16 @@ describe("the build script (plain Node) and the app give the same results", () =
     const built = script.buildFixture({ version: V, data: { Xerath: sample.data.Xerath, Riven: sample.data.Riven } });
     expect(Object.keys(built.champions)).toEqual(["Riven", "Xerath"]);
     expect(JSON.parse(script.serialiseFixture(built))).toMatchObject({ format: ABILITY_RULES_FORMAT, version: V, source: "fixture", champions: built.champions });
+  });
+
+  it("writes the digest as Data Dragon gives the numbers: the committed one, for the seven champions of the untouched sample", () => {
+    const fromSample = script.buildDigest(sample);
+    const committed = (digestFile as unknown as script.AbilityDigest).champions;
+    expect(Object.keys(fromSample.champions)).toHaveLength(7);
+    for (const [id, spells] of Object.entries(fromSample.champions)) expect(committed[id], id).toEqual(spells);
+    expect(fromSample.champions.Gangplank![2]).toEqual(["GangplankE", 5, [0, 0, 0, 0, 0], "3"]);
+    expect(JSON.parse(script.serialiseDigest(fromSample))).toMatchObject({ version: V, champions: fromSample.champions });
+    expect(() => script.buildDigest({ version: V, data: { Riven: { spells: [] } } })).toThrow(/1 champions have no four spells: Riven/);
+    expect(() => script.buildDigest({ version: "latest", data: {} })).toThrow(/no usable version/);
   });
 });

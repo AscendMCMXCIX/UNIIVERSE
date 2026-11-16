@@ -1,11 +1,13 @@
 /**
  * Builds the offline copy of every champion's abilities (Matchup Intel) from Data Dragon's
- * championFull.json, for the demo and the browser tests, which run without Data Dragon:
- * src/server/riot/fixtures/champion-abilities.fixture.json.
+ * championFull.json, stored where the server cannot reach Data Dragon (the offline champion
+ * fixture, a demo without network): src/server/riot/fixtures/champion-abilities.fixture.json.
+ * Also writes Data Dragon's own numbers for every champion, which abilities.test.ts holds the copy
+ * to without championFull.json: tests/fixtures/ddragon-<version>-ability-digest.json.
  *
  *   node scripts/matchup-intel/build-ability-fixture.mjs --from path/to/championFull.json
  *   node scripts/matchup-intel/build-ability-fixture.mjs --version 16.22.1      (downloads it)
- *   add --check to compare with the committed fixture instead of writing it (exit 1 if it differs)
+ *   add --check to compare with the committed files instead of writing them (exit 1 if one differs)
  *
  * Plain Node, no TypeScript step: the rules below are the same as compactChampionAbilities and
  * cleanDescription in src/server/matchup-intel/abilities.ts (which the app cannot import from
@@ -117,7 +119,7 @@ export function compactChampionAbilities(detail, version) {
 /* ---------- The fixture ---------- */
 
 const NOTE =
-  "OFFLINE FIXTURE (Matchup Intel). Every champion's abilities from Riot's Data Dragon, built by scripts/matchup-intel/build-ability-fixture.mjs with the rules of src/server/matchup-intel/abilities.ts. Stored only when the champions come from the offline fixture (demo, browser tests); the version-check job replaces it with Data Dragon's current files.";
+  "OFFLINE FIXTURE (Matchup Intel). Every champion's abilities from Riot's Data Dragon, built by scripts/matchup-intel/build-ability-fixture.mjs with the rules of src/server/matchup-intel/abilities.ts. Stored only where the server cannot reach Data Dragon: when the champions come from the offline fixture, or by the demo's bootstrap when no abilities are stored. Never over abilities read from Data Dragon; the first sync that reads Data Dragon's files replaces it.";
 
 /** The fixture's content from a parsed championFull.json. Throws when any champion cannot be read: the copy is all or nothing. */
 export function buildFixture(full) {
@@ -150,6 +152,37 @@ export function serialiseFixture(fixture) {
   return lines.join("\n");
 }
 
+/* ---------- The digest: Data Dragon's own numbers, which CI checks the fixture against ---------- */
+
+const DIGEST_NOTE =
+  "Data Dragon's own numbers for every champion (championFull.json, en_US), copied as Riot gives them with no rule applied: each spell as [id, maxrank, cooldown, maxammo] (maxammo null when absent). Written with the offline fixture by scripts/matchup-intel/build-ability-fixture.mjs; src/server/matchup-intel/abilities.test.ts holds every champion of the fixture to it, so CI needs no championFull.json.";
+
+/** Each champion's four spells as Data Dragon gives them, [id, maxrank, cooldown, maxammo]. Throws when a champion has no four spells. */
+export function buildDigest(full) {
+  const version = full?.version;
+  if (typeof version !== "string" || !VERSION.test(version)) throw new Error(`championFull.json has no usable version (${JSON.stringify(version)})`);
+  const data = full?.data;
+  if (!data || typeof data !== "object") throw new Error("championFull.json has no data");
+  const champions = {};
+  const unreadable = [];
+  for (const id of Object.keys(data).sort()) {
+    const spells = data[id]?.spells;
+    if (!Array.isArray(spells) || spells.length < 4) unreadable.push(id);
+    else champions[id] = spells.slice(0, 4).map((s) => [s?.id ?? null, s?.maxrank ?? null, s?.cooldown ?? null, s?.maxammo ?? null]);
+  }
+  if (unreadable.length) throw new Error(`${unreadable.length} champions have no four spells: ${unreadable.join(", ")}`);
+  return { version, champions };
+}
+
+/** The digest as committed: one champion per line. */
+export function serialiseDigest(digest) {
+  const ids = Object.keys(digest.champions);
+  const lines = ["{", `  "_note": ${JSON.stringify(DIGEST_NOTE)},`, `  "version": ${JSON.stringify(digest.version)},`, `  "champions": {`];
+  ids.forEach((id, i) => lines.push(`    ${JSON.stringify(id)}: ${JSON.stringify(digest.champions[id])}${i < ids.length - 1 ? "," : ""}`));
+  lines.push("  }", "}", "");
+  return lines.join("\n");
+}
+
 async function readChampionFull(args) {
   const from = args.get("--from");
   if (from) return JSON.parse(await readFile(resolve(from), "utf8"));
@@ -169,21 +202,30 @@ async function main(argv) {
   }
   const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
   const out = resolve(args.get("--out") ?? join(root, "src/server/riot/fixtures/champion-abilities.fixture.json"));
-  const fixture = buildFixture(await readChampionFull(args));
+  const full = await readChampionFull(args);
+  const fixture = buildFixture(full);
   const text = serialiseFixture(fixture);
   if (JSON.stringify(JSON.parse(text).champions) !== JSON.stringify(fixture.champions)) throw new Error("The serialised fixture does not read back as built");
+  const digestOut = resolve(args.get("--digest-out") ?? join(root, `tests/fixtures/ddragon-${fixture.version}-ability-digest.json`));
+  const digestText = serialiseDigest(buildDigest(full));
   const count = Object.keys(fixture.champions).length;
   if (args.has("--check")) {
-    const current = await readFile(out, "utf8").catch(() => "");
-    if (current !== text) {
-      console.error(`${out} differs from Data Dragon ${fixture.version} through the current rules (${count} champions). Run without --check to rebuild it.`);
-      process.exit(1);
+    let same = true;
+    for (const [path, wanted, what] of [[out, text, "through the current rules"], [digestOut, digestText, "(its own numbers)"]]) {
+      const current = await readFile(path, "utf8").catch(() => "");
+      if (current === wanted) console.log(`${path} matches Data Dragon ${fixture.version} ${what} (${count} champions).`);
+      else {
+        console.error(`${path} differs from Data Dragon ${fixture.version} ${what} (${count} champions). Run without --check to rebuild it.`);
+        same = false;
+      }
     }
-    console.log(`${out} matches Data Dragon ${fixture.version} through the current rules (${count} champions).`);
+    if (!same) process.exit(1);
     return;
   }
   await writeFile(out, text);
+  await writeFile(digestOut, digestText);
   console.log(`Wrote ${out}: Data Dragon ${fixture.version}, ${count} champions, ${Buffer.byteLength(text)} bytes.`);
+  console.log(`Wrote ${digestOut}: Data Dragon ${fixture.version}'s own numbers, ${count} champions, ${Buffer.byteLength(digestText)} bytes.`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
