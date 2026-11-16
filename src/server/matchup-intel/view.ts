@@ -113,10 +113,10 @@ const REVISION_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?Z$/;
 
 /**
  * A curated text, or Riot's short description, as the page draws it: each number held to the word
- * after it, its unit most often, by a no-break space ("1.625 s"), so a line never ends between a
- * number and the word after it (`keepUnitsWithNumbers`). Every curated text reaches the
- * page through here; anything that is not a string is passed on as it is (the notes' own checks
- * refuse it).
+ * after it, its unit most often, by a no-break space where one space separates them ("1.625 s"), so
+ * a line never ends between a number and the word after it (`keepUnitsWithNumbers`). Every curated
+ * text reaches the page through here; anything that is not a string is passed on as it is (the
+ * notes' own checks refuse it).
  */
 function drawn<T>(text: T): T {
   return (typeof text === "string" ? keepUnitsWithNumbers(text) : text) as T;

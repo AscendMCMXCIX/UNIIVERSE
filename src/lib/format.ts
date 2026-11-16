@@ -213,7 +213,7 @@ export function formatCooldowns(values: readonly number[], per: "rank" | "level"
 }
 
 /**
- * A number, with its "%" or "°" if it has one, followed by a space and a word: whatever the word is,
+ * A number, with its "%" or "°" if it has one, followed by one space and a word: whatever the word is,
  * a unit or a count ("1.625 s", "50 Fury", "7% AP", "360 radius", "6 snips", "180° sweep") or any
  * other ("2 more times"). No list of units to keep up to date: a curator's new unit is covered too.
  */
@@ -221,7 +221,8 @@ const WORD_AFTER_NUMBER = /(\d[%\u00b0]?) (?=\p{L})/gu;
 
 /**
  * Curated text as Matchup Intel draws it: each number joined to the word after it by a no-break
- * space, so a line never ends between a number and the word after it, and never starts with a unit
+ * space where one space separates them (the notes write no other: no tab, no double space), so a
+ * line never ends between a number and the word after it, and never starts with a unit
  * ("1.625 s", not "s" alone on the next line). A unit of several words can still wrap after its
  * first word ("80% bonus" | "AD").
  * A number before anything but a word ("6, 11", "8 / 7", "320 (by level)") keeps its ordinary space,
