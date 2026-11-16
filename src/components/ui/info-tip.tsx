@@ -4,6 +4,7 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 import { screenBox } from "@/lib/screen";
+import { topModal } from "./top-layer";
 
 const MARGIN = 8;
 const GAP = 6;
@@ -21,16 +22,43 @@ export function placeTip(anchor: { left: number; top: number; bottom: number; wi
 }
 
 /**
+ * The style position (left, top) that lands the bubble's box at `target` on screen. A fixed bubble
+ * is placed relative to the screen, unless what holds it is a containing block for fixed boxes: a
+ * window during its opening motion, whose transform moves and scales the bubble with it. Where the
+ * bubble landed (`landed`, its box on screen) for the style position it had (`style`), and its size
+ * before any transform (`size`, offsetWidth and offsetHeight), give that offset and scale, and so the
+ * position that puts it at `target`: the same as `target` when nothing moves it.
+ */
+export function landAt(target: { left: number; top: number }, style: { left: number; top: number }, landed: { left: number; top: number; width: number; height: number }, size: { width: number; height: number }): { left: number; top: number } {
+  const scaleX = size.width > 0 && landed.width > 0 ? landed.width / size.width : 1;
+  const scaleY = size.height > 0 && landed.height > 0 ? landed.height / size.height : 1;
+  return { left: style.left + (target.left - landed.left) / scaleX, top: style.top + (target.top - landed.top) / scaleY };
+}
+
+/**
+ * What an open bubble is drawn in: the open window its trigger sits in, else the topmost open window,
+ * else the page. A window is a modal dialog in the browser's top layer, drawn above the whole page:
+ * a bubble left on the page would be drawn under it, out of sight (top-layer.ts).
+ */
+export function tipHost(trigger: Element | null): HTMLElement {
+  return trigger?.closest<HTMLElement>("dialog[open]") ?? topModal() ?? document.body;
+}
+
+/**
  * The one tooltip of the app: explanatory text for whatever it wraps (by default a small ⓘ).
  * Mouse: opens while pointed at, closes when the pointer leaves. Keyboard: opens on focus, closes
- * on blur or Escape. Touch: a tap opens it, another tap (on it or anywhere else) closes it. The
- * bubble is drawn in a layer above the page, so it is never cut off by the card it sits in. The
- * text is also the trigger's accessible description, so screen readers read it without opening it.
+ * on blur or Escape. Touch: a tap opens it, another tap (on it or anywhere else) closes it. Escape
+ * closes the bubble alone, never the window or the list it sits in. The bubble is drawn in a layer
+ * above the page, so the card it sits in never cuts it off: on the page, or inside the window the
+ * tip sits in (tipHost), placed where placeTip says however that window is moving (landAt). The text
+ * is also the trigger's accessible description, so screen readers read it without opening it.
  * Interactive menus are not tooltips: they stay click-to-open popovers.
  */
 export function InfoTip({ text, className, label, children, testId = "info-tip", tabIndex }: { text: React.ReactNode; className?: string; label?: string; children?: React.ReactNode; testId?: string; /** -1 leaves it out of the tab order where what it sits on is already the one stop (a match card); pointers, taps and screen readers still reach it. */ tabIndex?: number }) {
   const [open, setOpen] = React.useState(false);
   const [pos, setPos] = React.useState<{ left: number; top: number } | null>(null);
+  // Where the open bubble is drawn, chosen as it opens (tipHost).
+  const [host, setHost] = React.useState<HTMLElement | null>(null);
   const trigger = React.useRef<HTMLButtonElement>(null);
   const bubble = React.useRef<HTMLSpanElement>(null);
   // The pointer that pressed the trigger, so a tap does not count as keyboard focus.
@@ -38,12 +66,14 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
   const id = React.useId();
 
   const place = React.useCallback(() => {
-    const a = trigger.current?.getBoundingClientRect();
-    const b = bubble.current?.getBoundingClientRect();
-    if (!a || !b) return;
+    const t = trigger.current;
+    const b = bubble.current;
+    if (!t || !b) return;
+    const landed = b.getBoundingClientRect();
     // The screen as fixed positioning sees it, the box the tip is placed in (lib/screen.ts).
-    const p = placeTip(a, b, screenBox());
-    setPos({ left: p.left, top: p.top });
+    const target = placeTip(t.getBoundingClientRect(), landed, screenBox());
+    const at = landAt(target, { left: parseFloat(b.style.left) || 0, top: parseFloat(b.style.top) || 0 }, landed, { width: b.offsetWidth, height: b.offsetHeight });
+    setPos((cur) => (cur && Math.abs(cur.left - at.left) < 0.5 && Math.abs(cur.top - at.top) < 0.5 ? cur : at));
   }, []);
 
   React.useLayoutEffect(() => {
@@ -55,20 +85,22 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
     const onDown = (e: PointerEvent) => {
       if (!trigger.current?.contains(e.target as Node)) setOpen(false);
     };
+    // Escape closes the bubble, and only the bubble: heard first (on the window, as it is captured)
+    // and kept from everything else, the window it sits in included, whose close request is the
+    // key's own default action (stopping the key alone left it to close the window).
     const onKey = (e: KeyboardEvent) => {
-      // Escape closes the bubble first (and only the bubble, not the window it sits in).
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        setOpen(false);
-      }
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      setOpen(false);
     };
     document.addEventListener("pointerdown", onDown);
-    document.addEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
     window.addEventListener("scroll", place, true);
     window.addEventListener("resize", place);
     return () => {
       document.removeEventListener("pointerdown", onDown);
-      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("keydown", onKey, true);
       window.removeEventListener("scroll", place, true);
       window.removeEventListener("resize", place);
     };
@@ -77,6 +109,7 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
   const show = () => {
     if (open) return;
     setPos(null);
+    setHost(tipHost(trigger.current));
     setOpen(true);
   };
 
@@ -129,7 +162,7 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
       <span id={id} className="sr-only">
         {text}
       </span>
-      {open
+      {open && host
         ? createPortal(
             <span
               ref={bubble}
@@ -141,7 +174,7 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
             >
               {text}
             </span>,
-            document.body,
+            host,
           )
         : null}
     </span>
