@@ -567,13 +567,13 @@ start. Their server reads one version: `DDRAGON_VERSION`, set by `playwright.con
 checked on. CI's browser job and the WebKit workflow both start that server through the config, so
 both read it; production never sets it.
 
-- **Why.** Unpinned, a fresh demo stored Riot's newest version, so the specs read whatever Riot had
-  shipped: once its numbering was more than two patches past the check (16.25, or 17.3 if 16.24 is
-  the year's last patch), `MAX_PATCHES_UNCHECKED` hid every briefing, and the specs that read one
-  (the threat, the opportunity and their chips, the threat on a phone's first screen, the
-  announcement, and the WebKit spec's chip) failed on every pull request until the notes were
-  re-checked; a cooldown Riot changed (Riven's Q, "13 s at every rank") failed at once. Pinned, the
-  specs read the same data whatever Riot ships: the briefings as checked ("Checked on patch 26.22",
+- **Why.** Unpinned, a fresh demo stores Riot's newest version, so the specs would read whatever
+  Riot had shipped: once its numbering ran more than two patches past the check (16.25, or 17.3 if
+  16.24 is the year's last patch), `MAX_PATCHES_UNCHECKED` would hide every briefing, and the specs
+  that read one (the threat, the opportunity and their chips, the threat on a phone's first screen,
+  the announcement, and the WebKit spec's chip) would fail on every pull request until the notes
+  were re-checked; a cooldown Riot changed (Riven's Q, "13 s at every rank") would fail at once.
+  Pinned, the specs read the same data whatever Riot ships: the briefings as checked ("Checked on patch 26.22",
   with no "Not re-checked"), Riot's numbers as checked, and the footer's "Riot Data Dragon 16.22.1
   (patch 26.22)", which the spec asserts word for word.
 - **How.** The live provider (`DataDragonProvider`, `src/server/riot/static/ddragon.ts`) returns
