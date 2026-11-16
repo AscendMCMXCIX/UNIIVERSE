@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
@@ -92,8 +92,11 @@ describe("folding a member's missing places from the stored records", () => {
     expect(await foldMissingPresences(db, { now: NOW, limit: 1 })).toEqual({ accounts: 2, candidates: 1, folded: 1, skipped: 0, later: 0, held: false, kinds: { thisSeason: 1, earlierSeasons: 0, teamMembers: 1, personalUse: 0 } });
     expect((await beaRows()).map((r) => r.matchId)).toEqual(["OC1_1", "OC1_2", "OC1_5"]);
     // The housekeeping job holds the fold (FOLD_MISSING_PRESENCES): it reports the candidate, and
-    // writes nothing.
-    const result = await runJob(db, "integrity", "test");
+    // writes nothing. It reads the clock itself, and counts this calendar year's games as this
+    // season's, so the clock is set to NOW for it: these games stay this season's in any year.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+    const result = await runJob(db, "integrity", "test").finally(() => vi.useRealTimers());
     expect(result.ok).toBe(true);
     expect((result.summary as { missingPresences: unknown }).missingPresences).toEqual({ accounts: 2, candidates: 1, folded: 0, skipped: 0, later: 0, held: true, kinds: { thisSeason: 1, earlierSeasons: 0, teamMembers: 1, personalUse: 0 } });
     expect((await beaRows()).map((r) => r.matchId)).toEqual(["OC1_1", "OC1_2", "OC1_5"]);

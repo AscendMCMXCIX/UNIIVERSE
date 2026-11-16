@@ -17,6 +17,10 @@ import path from "node:path";
     edge in one class list: Tailwind's stylesheet order then decides which wins, not the class
     list, and `py-4 pb-safe` gave the bare inset, 0px in a browser (#265);
   - an arbitrary max(gutter, inset) top or bottom padding that pt-safe-N or pb-safe-N writes.
+  - the brand blue as a glow or shadow colour (shadow-accent at any opacity or variant, an
+    arbitrary shadow made of var(--color-accent), or the shorthand shadow-(color:--color-accent)):
+    shadows are neutral and violet (accent-2) carries the light; a selected item's blue edge is a
+    ring (DESIGN_SYSTEM.md §4).
   Arbitrary values that match no token (a clamp(), a one-off width) stay allowed.
 */
 
@@ -106,6 +110,8 @@ export function tokenProblems(source: string, tokens: Map<string, string>, optio
     for (const m of text.matchAll(/cubic-bezier\([^)]*\)/g)) {
       if (!named("ease", m[0])) problems.push(`${at}: ${m[0]} is not an --ease token`);
     }
+    // The brand blue is never a glow or shadow (shadow-accent-2, violet, is the light and stays allowed).
+    for (const m of text.matchAll(/(?<![\w-])(?:drop-|inset-|text-)?shadow-(?:accent(?:-strong)?(?![\w-])(?:\/[\w.]+)?|\[[^\]\s]*var\(--color-accent(?:-strong)?\)[^\]\s]*\]|\((?:color:)?--color-accent(?:-strong)?\)(?:\/[\w.]+)?)/g)) problems.push(`${at}: ${m[0]} is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light`);
     // Uppercase labels share one letter spacing; a pill badge (rounded-full) may stay tighter.
     for (const m of text.matchAll(/(["'`])([^"'`]*\buppercase\b[^"'`]*)\1/g)) {
       const classes = m[2]!.split(/\s+/);
@@ -175,6 +181,8 @@ describe("design tokens", () => {
       `<span className="text-2xs uppercase tracking-wide" /><span className="rounded-full uppercase tracking-wide" /><span className="uppercase tracking-label sm:tracking-wider" />`,
       `<div className="px-4 py-4 pb-safe sm:py-5" /><div className="pt-3 pb-safe-3" /><div className="p-2 pt-safe-2" /><div className="pb-safe-4 sm:pb-safe-5 short:pb-safe-4 pt-4" /><div className="max-sm:pb-safe-4 pb-tabbar" />`,
       `<div className="pb-[max(1rem,env(safe-area-inset-bottom))] max-sm:pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-top))] pb-[max(0.6rem,env(safe-area-inset-bottom))] pb-[calc(1rem+env(safe-area-inset-bottom))]" />`,
+      `<p className="shadow-accent/15 hover:shadow-accent drop-shadow-accent shadow-accent-strong shadow-[0_0_60px_-20px_var(--color-accent)] shadow-accent-2 shadow-black/40 shadow-[0_0_60px_-20px_var(--color-accent-2)] ring-1 ring-inset ring-accent/40" />`,
+      `<p className="shadow-(color:--color-accent) inset-shadow-(color:--color-accent-strong)/30 drop-shadow-(--color-accent) shadow-(color:--color-accent-2) shadow-(--my-shadow)" />`,
     ].join("\n");
     expect(tokenProblems(source, tokens)).toEqual([
       "1: text-[11px] is text-2xs",
@@ -202,6 +210,14 @@ describe("design tokens", () => {
       "6: pb-tabbar beside pb-safe; pad that edge once (pb-safe-N is N steps, or the inset where larger)",
       "7: pb-[max(1rem,env(safe-area-inset-bottom))] is pb-safe-4",
       "7: pt-[max(0.75rem,env(safe-area-inset-top))] is pt-safe-3",
+      "8: shadow-accent/15 is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "8: shadow-accent is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "8: drop-shadow-accent is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "8: shadow-accent-strong is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "8: shadow-[0_0_60px_-20px_var(--color-accent)] is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "9: shadow-(color:--color-accent) is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "9: inset-shadow-(color:--color-accent-strong)/30 is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "9: drop-shadow-(--color-accent) is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
     ]);
   });
 });
