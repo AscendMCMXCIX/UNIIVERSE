@@ -4,7 +4,37 @@ UNIIVERSE collects two kinds of data: Riot's static game data (champions, skins,
 
 ## Riot static data (Data Dragon)
 
-`version-check` (hourly) fetches `versions.json`. When the newest version differs from the stored current patch it downloads `champion.json` and the per-champion files, upserts champions (new ones get `firstSeenVersion`) and their skins, opens the new patch as *current* and clears caches; item, summoner spell and rune names for the match history follow once per game version. If Data Dragon is unreachable and the database is empty, an offline fixture seeds the roster so development can continue; it is replaced by the first successful sync.
+`version-check` (hourly) fetches `versions.json`. When the newest version differs from the stored current patch it downloads `champion.json` and the per-champion files, upserts champions (new ones get `firstSeenVersion`) and their skins, opens the new patch as *current* and clears caches; item, summoner spell and rune names for the match history follow once per game version, and so do the champions' abilities (next section). If Data Dragon is unreachable and the database is empty, an offline fixture seeds the roster so development can continue; it is replaced by the first successful sync.
+
+## Champion abilities (Matchup Intel)
+
+Resources → Matchup Intel shows each champion's abilities with their base cooldowns (`src/domain/matchup-intel/`). The roster-wide part comes from Data Dragon, which is static data Riot publishes before any game; nothing is read from a game in progress.
+
+**Source.** Each champion's Data Dragon file (`champion/<id>.json`), the same files the version check reads for skins (`src/server/matchup-intel/abilities.ts`, `compactChampionAbilities`):
+- The passive becomes P and the four spells Q, W, E, R. For each: the name, the icon (`image.full`), the ranks (`maxrank`; 1 for the passive), the base cooldown array as Riot gives it, and Riot's short description with its markup removed (never a source of numbers).
+- A passive has no cooldown in Data Dragon (an empty array: "not in Riot's data", never "no cooldown"). An all-zero array is a placeholder (20 spells at 16.22.1).
+- `maxammo` above 0 means charges (24 spells at 16.22.1; 10 more have `"0"`, which is none). The array is then the time between casts, not the recharge.
+- Never read: `tooltip`, `leveltip`, `effect`/`effectBurn`, `vars`, `datavalues`, `range`/`rangeBurn`, `costType`/`resource`, nor `maxammo` as a recharge time.
+
+**Stored** in `app_settings` "champion_abilities": `{ format, version, updatedAt, champions: { <id>: { championId, version, abilities } } }`. Each champion keeps its own version: an earlier one when it could not be read since. `format` is the rules' revision (`ABILITY_RULES_FORMAT`): an index made under other rules is made again.
+
+**When it refreshes.** In `version-check`, after the champion sync, in its own `try` (a failure is logged and the rest of the run goes on):
+- On a new version it uses the detail files the champion sync has just read: no extra request.
+- Otherwise it reads only the champions that are missing, are older than the index, or were made under other rules (the first run after this was deployed reads all 173 once). Those files are requested 6 at a time with the provider's 15-second timeout, and none after the job's deadline or 30 seconds; the rest wait for the next run.
+- With the version unchanged and nothing missing it is one small read (a few hundred bytes).
+- `static-sync` (forced) reads every champion again.
+- The job's summary has an `abilities` entry with counts only, never a champion's name: version, source, stored, refreshed, kept from earlier, failed, deferred, files requested, degraded.
+
+**On failure.** A champion whose file cannot be read, or is not in the expected shape, keeps its earlier record and is tried again on the next run. When more than 10% of the roster cannot be read, nothing is written: the stored abilities stay (last known good), and the run is degraded with a counts-only message, which Data health shows as a warning.
+
+**Reading.** `loadChampionAbilities` reads only the champions asked for: the record at `value->'champions'->'<id>'`, plus the index's version. Those not cached go in one statement, and each is kept 10 minutes per instance (cleared by a sync that writes). An id is checked against `^[A-Za-z0-9]{1,40}$` before it reaches a query. A champion with nothing stored is null. A page never asks Riot.
+
+**Offline.** The demo and the browser tests run without Data Dragon. `src/server/riot/fixtures/champion-abilities.fixture.json` holds every champion's abilities at Data Dragon 16.22.1 (173 champions):
+- It is built by `scripts/matchup-intel/build-ability-fixture.mjs` (`--from championFull.json` or `--version 16.22.1`, `--check` to compare) with the same rules in plain Node. `src/server/matchup-intel/abilities.test.ts` holds the script and the app to the same results; with `CHAMPION_FULL_JSON` set it checks all 173 champions and the committed file byte for byte.
+- It is stored, labelled `source: "fixture"` (each champion keeps version 16.22.1), when the champions come from the offline fixture, and by the demo's bootstrap when no abilities are stored.
+- It never replaces abilities read from Data Dragon. The first real sync replaces it whole: a champion that cannot be read is left out until the next run, never mixed in.
+
+**Cost.** One write of about 270 KB per game version (117 KB on disk). Reads of 1.2–2.6 KB per champion shown, cached. The first fill requests about 2.3 MB from Data Dragon once, and compacting the roster takes about 6 ms of CPU. Measured figures are in `docs/HOSTING_USAGE.md`.
 
 ## Riot requests
 
