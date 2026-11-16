@@ -11,7 +11,8 @@ import type { DbHandle } from "@/server/db/create";
   about right now (no key, a refused key, a rate limit, Riot down or unreachable), with a message
   to try again. Nothing is linked unchecked. The guards before it are unchanged and refuse
   without asking Riot (who may link for whom, the Riot ID's format and server, the Riot ID
-  already linked); the same Riot account under another name is refused once Riot has named it.
+  already linked); the same Riot account under another name is refused once Riot has named it,
+  in words that name nobody, unless it is the profile's own account: then the refusal names it.
 
   Through the real action, signed in with a real session cookie (Next.js plumbing replaced by
   small fakes, as in auth-actions). Riot is a stand-in for its HTTP API, so the real client and its
@@ -41,14 +42,17 @@ import { addPlayerAccountAction } from "@/server/actions/accounts";
 /**
  * The Riot accounts the stand-in knows, by Riot ID as typed (any case). "Renamed One" is the
  * teammate's linked account (stored as "Linked Before") under a newer name: the same PUUID.
+ * "After Rename" is the member's own account (stored as "Before Rename") under a newer name.
  */
 const KNOWN: Record<string, { puuid: string; gameName: string; tagLine: string }> = {
   "known one#oce": { puuid: "puuid-known-one", gameName: "Known One", tagLine: "OCE" },
   "asked later#oce": { puuid: "puuid-asked-later", gameName: "Asked Later", tagLine: "OCE" },
   "renamed one#oce": { puuid: "puuid-linked-before", gameName: "Renamed One", tagLine: "OCE" },
+  "after rename#oce": { puuid: "puuid-member-renamed", gameName: "After Rename", tagLine: "OCE" },
+  "mine already#oce": { puuid: "puuid-mine-already", gameName: "Mine Already", tagLine: "OCE" },
 };
 /** What must never reach a log line: every Riot ID and PUUID the tests use. */
-const IDENTITIES = ["known one", "asked later", "renamed one", "linked before", "nobody here", "puuid-"];
+const IDENTITIES = ["known one", "asked later", "renamed one", "linked before", "nobody here", "after rename", "before rename", "mine already", "puuid-"];
 
 /** How the stand-in answers Riot ID lookups: as Riot would, with an HTTP status, or not at all. */
 type Answer = "riot" | 401 | 403 | 429 | 503 | "unreachable";
@@ -210,5 +214,26 @@ describe("the guards before Riot stay as they were", () => {
     expect(riotIdLookups()).toBe(1);
     expect(await linkedTo(memberProfile)).toBe(before);
     expect(await linkedTo(teammateProfile)).toBe(1);
+  });
+
+  it("says when the Riot account is already the profile's own, renamed in Riot, naming only that account", async () => {
+    // The member's account, stored before its rename in Riot: the stored name follows at its next
+    // Riot ID check (sync.ts, every 20 hours), so for a while the new name is not stored anywhere.
+    const [mine] = await handle.db.insert(riotAccounts).values({ ownerType: "player", playerId: memberProfile, gameName: "Before Rename", tagLine: "OCE", platform: "oc1", puuid: "puuid-member-renamed", label: "alt", syncStatus: "ok", riotIdCheckedAt: new Date() }).returning({ id: riotAccounts.id });
+    const before = await linkedTo(memberProfile);
+    expect(await addPlayerAccountAction(memberProfile, { riotId: "After Rename#OCE" })).toEqual({ ok: false, error: "After Rename#OCE is your linked account Before Rename#OCE, renamed in Riot. Its name here updates on its own, or now with Change Riot ID in its menu." });
+    expect(riotIdLookups()).toBe(1);
+    expect(await linkedTo(memberProfile)).toBe(before);
+    await handle.db.delete(riotAccounts).where(eq(riotAccounts.id, mine!.id));
+  });
+
+  it("says when the Riot account is already the profile's own under the same name, typed in another case", async () => {
+    // The checks before Riot compare the name as typed, so only Riot's answer finds this one.
+    const [mine] = await handle.db.insert(riotAccounts).values({ ownerType: "player", playerId: memberProfile, gameName: "Mine Already", tagLine: "OCE", platform: "oc1", puuid: "puuid-mine-already", label: "alt", syncStatus: "ok", riotIdCheckedAt: new Date() }).returning({ id: riotAccounts.id });
+    const before = await linkedTo(memberProfile);
+    expect(await addPlayerAccountAction(memberProfile, { riotId: "mine already#oce" })).toEqual({ ok: false, error: "Mine Already#OCE is already one of your linked accounts." });
+    expect(riotIdLookups()).toBe(1);
+    expect(await linkedTo(memberProfile)).toBe(before);
+    await handle.db.delete(riotAccounts).where(eq(riotAccounts.id, mine!.id));
   });
 });
