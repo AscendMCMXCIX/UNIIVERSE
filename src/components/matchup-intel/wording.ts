@@ -1,4 +1,4 @@
-import { formatCooldowns, formatCount, formatIsoDay, formatPerRank, formatSeconds } from "@/lib/format";
+import { formatCooldowns, formatCount, formatIsoDay, formatPerRank, formatSeconds, keepUnitsWithNumbers } from "@/lib/format";
 import { cooldownFrom } from "@/domain/matchup-intel/cooldown";
 import type { AbilityChange, AbilityModifiers, CooldownDisplay, CooldownStart, FactKind, FactSubject, Freshness, MatchupPageView, PassiveStart, Recast, Slot, UnknownCooldownReason } from "@/domain/matchup-intel/types";
 
@@ -133,7 +133,8 @@ export function modifierWords(m: AbilityModifiers | null | undefined): string[] 
   if (!m) return [];
   const out: string[] = [];
   if (m.lockout) out.push(`${formatSeconds(m.lockout.seconds)}\u00a0s between casts${m.lockout.static ? `, ${STATIC}` : ""}`);
-  if (m.refund) out.push(`Refunds ${formatPerRank(m.refund.amount, m.refund.unit === "percent" ? "%" : "s", null)} of the cooldown: ${m.refund.when}`);
+  // "65%" is held to "of", as a number is in every curated text; "2 s" already holds its "s".
+  if (m.refund) out.push(`${keepUnitsWithNumbers(`Refunds ${formatPerRank(m.refund.amount, m.refund.unit === "percent" ? "%" : "s", null)} of the cooldown`)}: ${m.refund.when}`);
   if (m.resetsAttack) out.push("Resets the basic-attack timer");
   return out;
 }
@@ -166,7 +167,7 @@ export function flaggedNotesWords(checkedPatch: string | null, changes: readonly
 
 /** "Can be cast 2 more times within 4 s" (the recast's own note follows it). */
 export function recastWords(r: Recast): string {
-  const more = r.count === 1 ? "again" : `${formatCount(r.count)} more times`;
+  const more = r.count === 1 ? "again" : `${formatCount(r.count)}\u00a0more times`;
   return `Can be cast ${more}${r.windowSeconds !== undefined ? ` within ${formatSeconds(r.windowSeconds)}\u00a0s` : ""}`;
 }
 

@@ -213,17 +213,19 @@ export function formatCooldowns(values: readonly number[], per: "rank" | "level"
 }
 
 /**
- * A number followed by the space and unit a curated note writes after it: time, distance,
- * resources, stats and counts ("1.625 s", "4 seconds", "300 units", "50 Fury", "7% AP", "3 charges").
- * The unit is a whole word, so "1 stun" or "2 seconds" read as written.
+ * A number, with its "%" or "°" if it has one, followed by a space and a word: whatever the word is,
+ * a unit or a count ("1.625 s", "50 Fury", "7% AP", "360 radius", "6 snips", "180° sweep") or any
+ * other ("2 more times"). No list of units to keep up to date: a curator's new unit is covered too.
  */
-const UNIT_AFTER_NUMBER = /(\d%?) (?=(?:s|seconds?|units?|charges?|stacks?|Fury|energy|mana|health|range|AP|AD)(?![\p{L}\p{N}]))/gu;
+const WORD_AFTER_NUMBER = /(\d[%\u00b0]?) (?=\p{L})/gu;
 
 /**
- * Curated text as Matchup Intel draws it: each number and the unit after it ("1.625 s", "4 seconds",
- * "300 units", "50 Fury", "7% AP") joined by a no-break space, so a line never ends between them,
- * leaving "s" alone at the start of the next. Nothing else in the text changes.
+ * Curated text as Matchup Intel draws it: each number joined to the word after it by a no-break
+ * space, so a line never ends on a number and never starts with its unit ("1.625 s", not "s" alone
+ * on the next line). A unit of several words can still wrap after its first word ("80% bonus" | "AD").
+ * A number before anything but a word ("6, 11", "8 / 7", "320 (by level)") keeps its ordinary space,
+ * and nothing else in the text changes.
  */
 export function keepUnitsWithNumbers(text: string): string {
-  return text.replace(UNIT_AFTER_NUMBER, "$1\u00a0");
+  return text.replace(WORD_AFTER_NUMBER, "$1\u00a0");
 }

@@ -166,7 +166,7 @@ describe("curated text as the page draws it", () => {
     const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps({ championNotes: (id) => (id === "Renekton" ? units : null), matchupNotes: () => matchup, loadAbilities }));
     const NBSP = "\u00a0";
     const b = v.matchup!.briefing!;
-    expect([b.threat, b.opportunity, ...b.lane].map((p) => (p.kind === "point" ? p.text : null))).toEqual([`The stun lasts 1.625${NBSP}s or 1.3${NBSP}s.`, `Trade within 4${NBSP}seconds.`, "Can be cast 2 more times."]);
+    expect([b.threat, b.opportunity, ...b.lane].map((p) => (p.kind === "point" ? p.text : null))).toEqual([`The stun lasts 1.625${NBSP}s or 1.3${NBSP}s.`, `Trade within 4${NBSP}seconds.`, `Can be cast 2${NBSP}more times.`]);
     expect(v.matchup!.interactions.map((i) => (i.kind === "interaction" ? i.text : null))).toEqual([`Unstoppable for 1${NBSP}s answers it.`]);
     const w = slotOf(v, "W");
     expect(w.facts.map((f) => [f.label, f.detail])).toEqual([[`Stun for 1.5${NBSP}s`, `Within 300${NBSP}units, 50${NBSP}Fury makes it 1.625${NBSP}s.`]]);

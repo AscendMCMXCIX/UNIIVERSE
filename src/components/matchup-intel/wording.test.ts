@@ -138,7 +138,7 @@ describe("where a line comes from", () => {
 describe("modifiers, flags and hidden points", () => {
   it("writes the wait between casts, refunds and attack resets, each on a line", () => {
     expect(modifierWords({ lockout: { seconds: 0.3125, static: true }, resetsAttack: true })).toEqual(["0.3125\u00a0s between casts, unaffected by ability haste", "Resets the basic-attack timer"]);
-    expect(modifierWords({ refund: { unit: "percent", amount: [25, 35, 45, 55, 65], when: "her first attack within 4 seconds" } })).toEqual(["Refunds 25 / 35 / 45 / 55 / 65% of the cooldown: her first attack within 4 seconds"]);
+    expect(modifierWords({ refund: { unit: "percent", amount: [25, 35, 45, 55, 65], when: "her first attack within 4 seconds" } })).toEqual(["Refunds 25 / 35 / 45 / 55 / 65%\u00a0of the cooldown: her first attack within 4 seconds"]);
     expect(modifierWords({ refund: { unit: "seconds", amount: [2], when: "each hit on a champion" }, lockout: { seconds: 0.5 } })).toEqual(["0.5\u00a0s between casts", "Refunds 2\u00a0s of the cooldown: each hit on a champion"]);
     // A static cooldown is said on the line itself, not here.
     expect(modifierWords({ static: true })).toEqual([]);
@@ -167,7 +167,7 @@ describe("modifiers, flags and hidden points", () => {
 
 describe("the rest of the page's words", () => {
   it("names recasts, abilities and their rows", () => {
-    expect(recastWords({ count: 2, windowSeconds: 4, note: "" })).toBe("Can be cast 2 more times within 4\u00a0s");
+    expect(recastWords({ count: 2, windowSeconds: 4, note: "" })).toBe("Can be cast 2\u00a0more times within 4\u00a0s");
     expect(recastWords({ count: 1, note: "" })).toBe("Can be cast again");
     expect(abilityName("Renekton", "W")).toBe("Renekton W");
     expect(abilityName("Riven", "P")).toBe("Riven passive");

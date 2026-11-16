@@ -160,18 +160,24 @@ describe("cooldowns (Matchup Intel)", () => {
 
 describe("numbers and their units in curated text (Matchup Intel)", () => {
   const NBSP = "\u00a0";
-  it("joins a number and the unit after it with a no-break space, so a line never ends between them", () => {
-    expect(keepUnitsWithNumbers("with no tenacity the stun lasts 1.625\u00a0s or 1.3\u00a0s, and she takes")).toBe(`with no tenacity the stun lasts 1.625${NBSP}s or 1.3${NBSP}s, and she takes`);
+  it("joins a number and the word after it with a no-break space, so a line never ends between them", () => {
+    expect(keepUnitsWithNumbers("with no tenacity the stun lasts 1.625 s or 1.3 s, and she takes")).toBe(`with no tenacity the stun lasts 1.625${NBSP}s or 1.3${NBSP}s, and she takes`);
     expect(keepUnitsWithNumbers("For 4 seconds, within 300 units; at 50 Fury, 3 charges, 1 health, 600 range, 55 energy.")).toBe(`For 4${NBSP}seconds, within 300${NBSP}units; at 50${NBSP}Fury, 3${NBSP}charges, 1${NBSP}health, 600${NBSP}range, 55${NBSP}energy.`);
-    expect(keepUnitsWithNumbers("5 (+30% AP) plus 1 second and 2 stacks (Ornn's 4\u00a0s forge)")).toBe(`5 (+30%${NBSP}AP) plus 1${NBSP}second and 2${NBSP}stacks (Ornn's 4${NBSP}s forge)`);
+    expect(keepUnitsWithNumbers("5 (+30% AP) plus 1 second and 2 stacks (Ornn's 4 s forge)")).toBe(`5 (+30%${NBSP}AP) plus 1${NBSP}second and 2${NBSP}stacks (Ornn's 4${NBSP}s forge)`);
+    // Units no list named before: distances, speeds, stats, counts and angles.
+    expect(keepUnitsWithNumbers("The shockwave (360 radius) at 770 speed; 30% armour, 6 snips, 9 needles, a 180\u00b0 sweep.")).toBe(`The shockwave (360${NBSP}radius) at 770${NBSP}speed; 30%${NBSP}armour, 6${NBSP}snips, 9${NBSP}needles, a 180\u00b0${NBSP}sweep.`);
+    // Any word: the number never ends a line. A unit of several words keeps only its first word.
+    expect(keepUnitsWithNumbers("75 bonus range, 20% bonus AD; Can be cast 2 more times, at levels 6, 11 and 16")).toBe(`75${NBSP}bonus range, 20%${NBSP}bonus AD; Can be cast 2${NBSP}more times, at levels 6, 11${NBSP}and 16`);
+    // A word ends where its letters do, whatever follows it.
+    expect(keepUnitsWithNumbers("a 3 seconds-long window")).toBe(`a 3${NBSP}seconds-long window`);
   });
 
-  it("changes nothing else: words that only start like a unit, numbers before other words, and a unit with no number before it", () => {
-    for (const text of ["2 stuns and 3 seconds2", "Can be cast 2 more times", "at levels 6, 11 and 16", "75 bonus range, 20% bonus AD", "R's second pass", "the s and the units", "1 sec", ""]) {
+  it("changes nothing else: a number before anything but a word, a word with no number before it, a space already joined", () => {
+    for (const text of ["8 / 7 / 6 / 5 / 4", "at levels 6, 11", "320 (by level)", "Q2: 40 + 10", "lasts 4. Then", "R's second pass", "the s and the units", "ends with 16", ""]) {
       expect(keepUnitsWithNumbers(text), text).toBe(text);
     }
-    // A unit ends at the end of its word, whatever follows it.
-    expect(keepUnitsWithNumbers("a 3 seconds-long window")).toBe(`a 3${NBSP}seconds-long window`);
+    const joined = `already 1.625${NBSP}s`;
+    expect(keepUnitsWithNumbers(joined)).toBe(joined);
   });
 });
 
