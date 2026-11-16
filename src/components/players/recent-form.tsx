@@ -22,8 +22,8 @@ export function RecentFormStrip({ form, championsById, historyHref, narrowed = n
   const champ = (id: string) => championsById[id] ?? { id, name: id, portraitUrl: "" };
   return (
     <section aria-labelledby="recent-form-title" className="@container flex h-full flex-col gap-3 rounded-card border border-border bg-surface p-4 panel-depth" data-testid="recent-form">
-      {/* The verdict on the title's row (it was a footer row of its own: an empty band under the
-          figures on a desktop, a row more on a phone), what the bars show on the line under it. */}
+      {/* The verdict on the title's row (it was a footer row of its own, a row more on a phone),
+          what the bars show on the line under it. */}
       <div className="space-y-0.5">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
           <h2 id="recent-form-title" className="text-base font-semibold text-fg">
@@ -62,7 +62,10 @@ export function RecentFormStrip({ form, championsById, historyHref, narrowed = n
           </span>
         ))}
       </Link>
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm @lg:grid-cols-4" data-testid="recent-form-rates">
+      {/* Stretched to the season card's height beside it (from 58rem), the figures sit on the card's
+          bottom line: the spare height falls between the bars and them, not in a blank strip under
+          them (32-60px from 1280 to 3440). Unstretched (phones) nothing moves. */}
+      <dl className="mt-auto grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm @lg:grid-cols-4" data-testid="recent-form-rates">
         <div>
           <dt className="text-xs text-fg-subtle">Last {form.recent.games}</dt>
           <dd className="text-lg font-semibold tabular-nums text-fg">

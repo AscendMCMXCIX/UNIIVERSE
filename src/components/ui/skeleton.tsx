@@ -51,11 +51,14 @@ function SkeletonCard({ className, testId }: { className?: string; testId?: stri
 export function OverviewSkeleton() {
   return (
     <div className="space-y-4" role="status" aria-live="polite" aria-label="Loading" data-testid="overview-skeleton">
-      {/* The heading: the title, the scope line, and below xl the toolbar's row (Filters and Refresh). */}
+      {/* The heading as tall as the real one, so nothing jumps as it arrives: the title (28px), the
+          scope line (two lines on a phone), and below xl the toolbar's row (Filters and Refresh, 44px
+          to a finger). */}
       <div className="space-y-2">
-        <Skeleton className="h-6 w-56" />
+        <Skeleton className="h-7 w-56" />
         <Skeleton className="h-4 w-80 max-w-full" />
-        <Skeleton className="h-9 w-full max-w-md xl:hidden" />
+        <Skeleton className="h-4 w-48 max-w-full sm:hidden" />
+        <Skeleton className="h-9 w-full max-w-md pointer-coarse:h-11 xl:hidden" />
       </div>
       <div className="@container/ov">
         <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:gap-4 @min-[58rem]/ov:grid-cols-[minmax(0,1fr)_minmax(18rem,21rem)] min-[90rem]:@min-[68rem]/ov:grid-cols-[minmax(0,1fr)_clamp(20rem,40%,30rem)]">
