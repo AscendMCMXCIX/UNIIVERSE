@@ -1,8 +1,10 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { SLOTS, type AbilityNotes, type AbilityRef, type BriefingPoint, type ChampionNotes, type MatchupNotes, type Slot, type Source, type Verification } from "@/domain/matchup-intel/types";
+import { FACT_TAGS, SLOTS, type AbilityModifiers, type AbilityNotes, type AbilityRef, type BriefingPoint, type ChampionNotes, type CooldownSpec, type DdragonIdentity, type MatchupNotes, type Slot, type Source, type Verification } from "@/domain/matchup-intel/types";
+import { curatedCooldownDisplay, modifiersView } from "@/domain/matchup-intel/cooldown";
 import { patchFromVersion, publicPatchName } from "@/domain/patch";
+import abilityFixture from "@/server/riot/fixtures/champion-abilities.fixture.json";
 import championList from "@/server/riot/fixtures/champions.fixture.json";
 import { curatedEnemiesFor, getChampionNotes, getMatchupNotes } from "./index";
 
@@ -13,10 +15,16 @@ import { curatedEnemiesFor, getChampionNotes, getMatchupNotes } from "./index";
   - every id is a champion in Riot's list (src/server/riot/fixtures/champions.fixture.json), and a
     champion's notes cover the slots P, Q, W, E and R, and no others;
   - each ability's ddragonCooldown is Data Dragon's array for the version the notes were checked
-    against, and a per-rank cooldown repeats it;
+    against, and a per-rank cooldown repeats it; its ddragonIdentity, where given, is Data Dragon's
+    id, name, ranks and charges for that version;
+  - every cooldown spec and every modifier is one the page can show as written (cooldownDisplay's
+    own rules): numbers of seconds, whole charge counts, one value or one per rank, levels paired
+    with their values, two or more forms with names of their own, a refund's share at most 100%;
+  - a fact's tags come from FACT_TAGS, each once;
   - every fact, level note and interaction cites one of its notes' sources, and every source is an
     https page on wiki.leagueoflegends.com (with its revision, CC BY-SA 3.0), developer.riotgames.com
-    or ddragon.leagueoflegends.com (Riot Games);
+    or ddragon.leagueoflegends.com (Riot Games); a source's kind, where given, fits its page, and its
+    revision time, where given, is a time in UTC no later than the day the notes were checked;
   - every ability a briefing point or an interaction rests on belongs to one of the two champions
     and has notes of its own;
   - every text is plain and short: no wiki markup ("{{"), no "<" or ">", no control characters, at
@@ -25,11 +33,18 @@ import { curatedEnemiesFor, getChampionNotes, getMatchupNotes } from "./index";
   - a matchup has a threat, an opportunity and one to four lane points;
   - the three validation matchups exist.
 
-  Data Dragon's arrays come from ddragon-<version>.cooldowns.json beside this file. The one for
-  16.22.1 was generated on 16 Nov 2026 from Riot's champion files,
+  Data Dragon's arrays come from ddragon-<version>.cooldowns.json beside this file, and its ids,
+  names, ranks and charges from ddragon-<version>.identity.json. The ones for 16.22.1 were generated
+  on 16 Nov 2026 from Riot's champion files,
   https://ddragon.leagueoflegends.com/cdn/16.22.1/data/en_US/champion/<Champion>.json: each spell's
   "cooldown" array in Riot's order (Q, W, E, R), and [] for the passive, which has no cooldown in
-  Data Dragon. Notes checked against another version need that version's file.
+  Data Dragon; each spell's id, name, maxrank and maxammo (as charges above 0, else null), and the
+  passive's name. Notes checked against another version need that version's files. Where the
+  committed offline fixture (src/server/riot/fixtures/champion-abilities.fixture.json) is of the
+  same version, both files must agree with it.
+
+  ddragonIdentity, a fact's appliesTo, and a source's kind and revisionTime are optional while the
+  curated files are filled in: each is checked where it is given.
 */
 
 const DIR = __dirname;
@@ -61,12 +76,24 @@ const CONTROL_RANGES: ReadonlyArray<readonly [number, number]> = [
 
 /** Data Dragon's cooldown arrays: version, then champion, then slot. */
 type DdragonCooldowns = ReadonlyMap<string, Readonly<Record<string, Record<Slot, number[]>>>>;
+/** Data Dragon's ids, names, ranks and charges: version, then champion, then slot. */
+type DdragonIdentities = ReadonlyMap<string, Readonly<Record<string, Record<Slot, DdragonIdentity>>>>;
 
 export interface Rules {
   /** Riot's champion ids. */
   champions: ReadonlySet<string>;
   ddragon: DdragonCooldowns;
+  identity: DdragonIdentities;
 }
+
+const START_VALUES: ReadonlySet<string> = new Set(["on-cast", "after-first-cast", "after-last-recast", "after-effect-ends", "after-channel"]);
+const PASSIVE_START_VALUES: ReadonlySet<string> = new Set(["on-trigger", "after-effect-ends"]);
+const SUBJECTS: ReadonlySet<string> = new Set(["self", "target", "allies", "area"]);
+const TAGS: ReadonlySet<string> = new Set(FACT_TAGS);
+const REVISION_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
+/** A wiki ability's data page, and a champion's own page (one title, no namespace). */
+const WIKI_ABILITY_PATH = /^\/en-us\/Template:Data_[^/]+\/[^/]+$/;
+const WIKI_CHAMPION_PATH = /^\/en-us\/[^/:]+$/;
 
 const isSlot = (value: string): value is Slot => (SLOTS as readonly string[]).includes(value);
 const sameNumbers = (a: readonly number[], b: readonly number[]) => a.length === b.length && a.every((x, i) => x === b[i]);
@@ -123,7 +150,34 @@ export function verificationProblems(verified: Verification | undefined): string
   return out;
 }
 
-export function sourceProblems(sources: readonly Source[]): string[] {
+/** Why a source's kind does not fit its page, or null. */
+function kindProblem(source: Source, url: URL): string | null {
+  let path = url.pathname;
+  try {
+    path = decodeURIComponent(url.pathname);
+  } catch {
+    // An address that does not decode is judged as written.
+  }
+  const onWiki = url.hostname === "wiki.leagueoflegends.com";
+  switch (source.kind) {
+    case undefined:
+      return null;
+    case "wiki-ability":
+      return onWiki && WIKI_ABILITY_PATH.test(path) ? null : "an ability data page (wiki.leagueoflegends.com/en-us/Template:Data_<Champion>/<Ability>)";
+    case "wiki-champion":
+      return onWiki && WIKI_CHAMPION_PATH.test(path) ? null : "a champion's page (wiki.leagueoflegends.com/en-us/<Champion>)";
+    case "wiki-reference":
+      return onWiki && !WIKI_ABILITY_PATH.test(path) && !WIKI_CHAMPION_PATH.test(path) ? null : "another wiki page (not an ability data page or a champion's page)";
+    case "ddragon":
+      return url.hostname === "ddragon.leagueoflegends.com" ? null : "a page on ddragon.leagueoflegends.com";
+    case "riot-docs":
+      return url.hostname === "developer.riotgames.com" ? null : "a page on developer.riotgames.com";
+    default:
+      return "one of the kinds a source can be";
+  }
+}
+
+export function sourceProblems(sources: readonly Source[], checkedOn?: string): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
   for (const source of sources) {
@@ -142,7 +196,50 @@ export function sourceProblems(sources: readonly Source[]): string[] {
     }
     if (source.licence !== licence) out.push(`source "${source.id}" is on ${url.hostname}, whose licence is ${licence}, not ${source.licence}`);
     if (licence === "CC BY-SA 3.0" && !(Number.isInteger(source.revision) && source.revision! > 0)) out.push(`source "${source.id}" gives no revision of the wiki page`);
+    const kind = kindProblem(source, url);
+    if (kind) out.push(`source "${source.id}" is of kind "${source.kind}", which is ${kind}, but its address is ${source.url}`);
+    if (source.revisionTime !== undefined) {
+      const time = typeof source.revisionTime === "string" && REVISION_TIME.test(source.revisionTime) ? Date.parse(source.revisionTime) : Number.NaN;
+      if (Number.isNaN(time)) out.push(`source "${source.id}" revisionTime ${JSON.stringify(source.revisionTime)} is not a time in UTC such as "2026-09-23T19:37:45Z"`);
+      else if (source.revision === undefined) out.push(`source "${source.id}" gives a revisionTime but no revision`);
+      else if (checkedOn && isIsoDay(checkedOn) && source.revisionTime.slice(0, 10) > checkedOn) out.push(`source "${source.id}" revisionTime ${source.revisionTime} is after the day the notes were checked (${checkedOn})`);
+    }
   }
+  return out;
+}
+
+/** The ranks an ability had at the version checked: Data Dragon's maxrank where the committed identity file has it, else its array's length (1 for the passive). */
+function ranksOf(slot: Slot, ability: AbilityNotes, identity: Record<Slot, DdragonIdentity> | undefined): number | null {
+  if (slot === "P") return 1;
+  const fromFile = identity?.[slot]?.maxRank;
+  if (Number.isInteger(fromFile)) return fromFile!;
+  return Array.isArray(ability.ddragonCooldown) && ability.ddragonCooldown.length > 0 ? ability.ddragonCooldown.length : null;
+}
+
+/** Why a cooldown spec breaks a rule a test can check, beyond being readable (each per-rank start, a passive's start, the forms' names). */
+function specProblems(spec: CooldownSpec): string[] {
+  const out: string[] = [];
+  const startOk = (s: unknown) => s === null || (typeof s === "string" && START_VALUES.has(s));
+  if (spec.kind === "per-rank" && !startOk(spec.starts)) out.push(`its start ${JSON.stringify(spec.starts)} is not a start such as "on-cast", or null where the source states none`);
+  if (spec.kind === "passive" && spec.starts !== undefined && !PASSIVE_START_VALUES.has(spec.starts)) out.push(`its start ${JSON.stringify(spec.starts)} is not "on-trigger" or "after-effect-ends"`);
+  if (spec.kind === "forms" && Array.isArray(spec.forms)) {
+    const names = spec.forms.map((f) => (typeof f?.name === "string" ? f.name.trim() : ""));
+    if (new Set(names).size !== names.length) out.push("two of its forms have the same name");
+    spec.forms.forEach((f, i) => {
+      if (f?.spec?.kind === "per-rank" && !startOk(f.spec.starts)) out.push(`forms[${i}]'s start ${JSON.stringify(f.spec.starts)} is not a start such as "on-cast", or null`);
+    });
+  }
+  return out;
+}
+
+/** What of the modifiers the page would leave out, as written. */
+function modifierProblems(m: AbilityModifiers, ranks: number | null): string[] {
+  const shown = modifiersView(m, ranks) ?? {};
+  const out: string[] = [];
+  if (m.refund && !shown.refund) out.push("modifiers.refund cannot be shown: its amount must be one value, or one per rank, of seconds or a share of at most 100%, and its `when` must say what gives it");
+  if (m.lockout && !shown.lockout) out.push("modifiers.lockout cannot be shown: its seconds must be a number above 0");
+  if (m.resetsAttack !== undefined && m.resetsAttack !== true) out.push("modifiers.resetsAttack is given but not true");
+  if (m.static !== undefined && m.static !== true) out.push("modifiers.static is given but not true");
   return out;
 }
 
@@ -151,7 +248,7 @@ export function championProblems(notes: ChampionNotes, rules: Rules): string[] {
   const say = (what: string) => out.push(`${notes.championId}: ${what}`);
   if (!rules.champions.has(notes.championId)) say("is not a champion id in Riot's list (src/server/riot/fixtures/champions.fixture.json)");
   verificationProblems(notes.verified).forEach(say);
-  sourceProblems(notes.sources).forEach(say);
+  sourceProblems(notes.sources, notes.verified?.checkedOn).forEach(say);
   const cited = new Set(notes.sources.map((s) => s.id));
 
   const version = notes.verified?.ddragonVersion;
@@ -159,6 +256,8 @@ export function championProblems(notes: ChampionNotes, rules: Rules): string[] {
   const arrays = riot?.[notes.championId];
   if (!riot) say(`no committed Data Dragon cooldowns for ${version} (ddragon-${version}.cooldowns.json)`);
   else if (!arrays) say(`is not in ddragon-${version}.cooldowns.json`);
+  const identities = rules.identity.get(version);
+  const identity = identities?.[notes.championId];
 
   for (const slot of Object.keys(notes.abilities)) if (!isSlot(slot)) say(`"${slot}" is not an ability slot (P, Q, W, E or R)`);
   for (const slot of SLOTS) {
@@ -169,11 +268,33 @@ export function championProblems(notes: ChampionNotes, rules: Rules): string[] {
     }
     const expected = arrays?.[slot];
     if (expected && !sameNumbers(ability.ddragonCooldown, expected)) say(`${slot}.ddragonCooldown ${show(ability.ddragonCooldown)} is not Data Dragon ${version}'s ${show(expected)}`);
+    const was = ability.ddragonIdentity;
+    if (was !== undefined) {
+      const riotsOwn = identity?.[slot];
+      if (!identities) say(`${slot}.ddragonIdentity: no committed Data Dragon identity for ${version} (ddragon-${version}.identity.json)`);
+      else if (!riotsOwn) say(`${slot}.ddragonIdentity: ${notes.championId} is not in ddragon-${version}.identity.json`);
+      else {
+        for (const field of ["id", "name", "maxRank", "charges"] as const) {
+          if (was?.[field] !== riotsOwn[field]) say(`${slot}.ddragonIdentity.${field} ${JSON.stringify(was?.[field])} is not Data Dragon ${version}'s ${JSON.stringify(riotsOwn[field])}`);
+        }
+      }
+    }
+    const ranks = ranksOf(slot, ability, identity);
     const spec = ability.cooldown;
     if (spec?.kind === "per-rank" && !sameNumbers(spec.seconds, ability.ddragonCooldown)) say(`${slot}: the per-rank cooldown ${show(spec.seconds)} is not ddragonCooldown ${show(ability.ddragonCooldown)}`);
+    if (spec && curatedCooldownDisplay(spec, ranks) === null) say(`${slot}.cooldown cannot be shown as written: it needs numbers of seconds, whole charge counts above 0, one value or one per rank (${ranks ?? "unknown"}), levels from 1 to 18 paired with its values, or two or more forms`);
+    if (spec) specProblems(spec).forEach((p) => say(`${slot}.cooldown: ${p}`));
+    if (ability.modifiers) modifierProblems(ability.modifiers, ranks).forEach((p) => say(`${slot}.${p}`));
     if (ability.recast && !(Number.isInteger(ability.recast.count) && ability.recast.count >= 1)) say(`${slot}.recast.count ${ability.recast.count} is not a number of casts`);
     ability.facts.forEach((fact, i) => {
       if (!cited.has(fact.source)) say(`${slot}.facts[${i}] cites "${fact.source}", which is not one of its sources`);
+      if (fact.appliesTo !== undefined && !SUBJECTS.has(fact.appliesTo)) say(`${slot}.facts[${i}].appliesTo ${JSON.stringify(fact.appliesTo)} is not self, target, allies or area`);
+      if (fact.tags !== undefined) {
+        const tags: unknown[] = Array.isArray(fact.tags) ? fact.tags : [];
+        if (!Array.isArray(fact.tags)) say(`${slot}.facts[${i}].tags is not a list`);
+        for (const tag of tags) if (typeof tag !== "string" || !TAGS.has(tag)) say(`${slot}.facts[${i}].tags has ${JSON.stringify(tag)}, which is not in FACT_TAGS`);
+        if (new Set(tags).size !== tags.length) say(`${slot}.facts[${i}].tags names a tag twice`);
+      }
     });
   }
   (notes.levelNotes ?? []).forEach((note, i) => {
@@ -196,7 +317,7 @@ export function matchupProblems(notes: MatchupNotes, rules: Rules, championNotes
     else if (!championNotes(id)) say(`${id} has no champion notes, so the abilities named here cannot be checked`);
   }
   verificationProblems(notes.verified).forEach(say);
-  sourceProblems(notes.sources).forEach(say);
+  sourceProblems(notes.sources, notes.verified?.checkedOn).forEach(say);
   for (const source of notes.sources) {
     for (const id of new Set(pair)) {
       const theirs = championNotes(id)?.sources.find((s) => s.id === source.id);
@@ -256,16 +377,25 @@ async function load<T>(kind: "champions" | "matchups"): Promise<Array<{ file: st
 const championFiles = await load<ChampionNotes>("champions");
 const matchupFiles = await load<MatchupNotes>("matchups");
 
-const FIXTURE_NAME = /^ddragon-(\d+\.\d+\.\d+)\.cooldowns\.json$/;
-const fixtures = readdirSync(DIR).flatMap((file) => {
-  const m = FIXTURE_NAME.exec(file);
-  return m ? [{ file, version: m[1]!, json: JSON.parse(readFileSync(join(DIR, file), "utf8")) as { version?: unknown; champions?: Record<string, Record<string, unknown>> } }] : [];
-});
+/** The committed Data Dragon files beside this one, of one kind: "cooldowns" or "identity". */
+function savedFiles(kind: "cooldowns" | "identity") {
+  const name = new RegExp(`^ddragon-(\\d+\\.\\d+\\.\\d+)\\.${kind}\\.json$`);
+  return readdirSync(DIR).flatMap((file) => {
+    const m = name.exec(file);
+    return m ? [{ file, version: m[1]!, json: JSON.parse(readFileSync(join(DIR, file), "utf8")) as { _note?: unknown; version?: unknown; champions?: Record<string, Record<string, unknown>> } }] : [];
+  });
+}
+const fixtures = savedFiles("cooldowns");
+const identityFiles = savedFiles("identity");
 
 const RULES: Rules = {
   champions: RIOT_IDS,
   ddragon: new Map(fixtures.map(({ version, json }) => [version, (json.champions ?? {}) as Record<string, Record<Slot, number[]>>])),
+  identity: new Map(identityFiles.map(({ version, json }) => [version, (json.champions ?? {}) as Record<string, Record<Slot, DdragonIdentity>>])),
 };
+
+/** The committed offline fixture's records, by champion: Data Dragon's own data for its version, as the index keeps it. */
+const OFFLINE = abilityFixture as { version: string; champions: Record<string, { abilities: Array<{ slot: Slot; id: string | null; name: string; maxRank: number; cooldown: number[]; charges: number | null }> }> };
 
 describe("the curated registry", () => {
   it("finds the curated files", () => {
@@ -318,6 +448,49 @@ describe("Data Dragon's committed cooldown arrays", () => {
       return out;
     });
     expect(fixtures.map(({ file }) => file)).toContain("ddragon-16.22.1.cooldowns.json");
+    expect(problems).toEqual([]);
+  });
+
+  it("and the identities are well formed: the passive with no id, one rank and no charges; each spell with its id, name, ranks and charges", () => {
+    const problems = identityFiles.flatMap(({ file, version, json }) => {
+      const out: string[] = [];
+      if (json.version !== version) out.push(`${file}: "version" is not ${version}`);
+      if (typeof json._note !== "string" || !json._note.includes(`cdn/${version}/`)) out.push(`${file}: its _note does not say which of Riot's files it came from`);
+      for (const [id, slots] of Object.entries(json.champions ?? {})) {
+        if (!RIOT_IDS.has(id)) out.push(`${file}: ${id} is not a champion in Riot's list`);
+        if (Object.keys(slots).join() !== SLOTS.join()) out.push(`${file}: ${id} has ${Object.keys(slots).join(", ")}, not P, Q, W, E, R`);
+        for (const slot of SLOTS) {
+          const a = slots[slot] as Partial<DdragonIdentity> | undefined;
+          const shaped = !!a && Object.keys(a).sort().join() === "charges,id,maxRank,name" && typeof a.name === "string" && a.name.trim() !== "" && Number.isInteger(a.maxRank) && a.maxRank! >= 1 && (a.charges === null || (Number.isInteger(a.charges) && a.charges! > 0));
+          const passive = slot === "P" ? a?.id === null && a?.maxRank === 1 && a?.charges === null : typeof a?.id === "string" && a.id !== "";
+          if (!shaped || !passive) out.push(`${file}: ${id}.${slot} is not an id, a name, ranks and charges as Data Dragon gives them`);
+        }
+      }
+      return out;
+    });
+    expect(identityFiles.map(({ file }) => file)).toContain("ddragon-16.22.1.identity.json");
+    expect(problems).toEqual([]);
+  });
+
+  it("agree with the committed offline fixture where it is of the same version", () => {
+    const problems: string[] = [];
+    for (const { file, version, json } of [...fixtures, ...identityFiles]) {
+      if (version !== OFFLINE.version) continue;
+      for (const [id, slots] of Object.entries(json.champions ?? {})) {
+        const record = OFFLINE.champions[id];
+        if (!record) {
+          problems.push(`${file}: ${id} is not in the offline fixture`);
+          continue;
+        }
+        for (const slot of SLOTS) {
+          const own = record.abilities.find((a) => a.slot === slot);
+          const saved = slots[slot];
+          const same = file.endsWith(".cooldowns.json") ? Array.isArray(saved) && !!own && sameNumbers(saved as number[], own.cooldown) : JSON.stringify(saved) === JSON.stringify(own ? { id: own.id, name: own.name, maxRank: own.maxRank, charges: own.charges } : null);
+          if (!same) problems.push(`${file}: ${id}.${slot} differs from the offline fixture's record`);
+        }
+      }
+    }
+    expect(OFFLINE.version).toBe("16.22.1");
     expect(problems).toEqual([]);
   });
 });
@@ -469,6 +642,76 @@ describe("the checks fire", () => {
     const fiveLanes = matchup();
     fiveLanes.briefing.lane = [...fiveLanes.briefing.lane, ...fiveLanes.briefing.lane].slice(0, 5);
     expect(matchupProblems(fiveLanes, RULES, getChampionNotes)).toEqual(["Ambessa vs Renekton: has 5 lane points, more than 4"]);
+  });
+
+  it("on a ddragonIdentity that is not Data Dragon's id, name, ranks and charges for the version checked", () => {
+    const right = renekton();
+    right.abilities.W!.ddragonIdentity = { id: "RenektonPreExecute", name: "Ruthless Predator", maxRank: 5, charges: null };
+    right.abilities.P!.ddragonIdentity = { id: null, name: "Reign of Anger", maxRank: 1, charges: null };
+    expect(championProblems(right, RULES)).toEqual([]);
+    const wrong = renekton();
+    wrong.abilities.W!.ddragonIdentity = { id: "RenektonW", name: "Ruthless Predator", maxRank: 5, charges: 2 };
+    expect(championProblems(wrong, RULES)).toEqual(['Renekton: W.ddragonIdentity.id "RenektonW" is not Data Dragon 16.22.1\'s "RenektonPreExecute"', "Renekton: W.ddragonIdentity.charges 2 is not Data Dragon 16.22.1's null"]);
+    const earlier = renekton();
+    earlier.verified = { patch: "26.21", ddragonVersion: "16.21.1", checkedOn: "2026-11-02" };
+    earlier.abilities.W!.ddragonIdentity = right.abilities.W!.ddragonIdentity;
+    expect(championProblems(earlier, RULES)).toContainEqual("Renekton: W.ddragonIdentity: no committed Data Dragon identity for 16.21.1 (ddragon-16.21.1.identity.json)");
+  });
+
+  it("on a cooldown spec or a modifier the page cannot show as written", () => {
+    const withSpec = (slot: "W" | "R", spec: CooldownSpec) => {
+      const notes = renekton();
+      notes.abilities[slot]!.cooldown = spec;
+      return championProblems(notes, RULES);
+    };
+    expect(withSpec("R", { kind: "charges", charges: [3, 4], recharge: [30] })).toContainEqual(problem(/R\.cooldown cannot be shown as written: .*one value or one per rank \(3\)/));
+    expect(withSpec("R", { kind: "charges", charges: [3, 4, 5], recharge: [35, 30, 25] })).toEqual([]);
+    expect(withSpec("W", { kind: "forms", forms: [{ name: "Only", spec: { kind: "none" } }] })).toContainEqual(problem(/W\.cooldown cannot be shown as written/));
+    expect(withSpec("W", { kind: "forms", forms: [{ name: "Same", spec: { kind: "none" } }, { name: "Same", spec: { kind: "none" } }] })).toEqual(["Renekton: W.cooldown: two of its forms have the same name"]);
+    expect(withSpec("W", { kind: "per-rank", seconds: [16, 14, 12, 10, 8], starts: "sometime" as "on-cast" })).toEqual(['Renekton: W.cooldown: its start "sometime" is not a start such as "on-cast", or null where the source states none']);
+    expect(withSpec("W", { kind: "per-rank", seconds: [16, 14, 12, 10, 8], starts: null })).toEqual([]);
+    const passive = renekton();
+    passive.abilities.P!.cooldown = { kind: "passive", seconds: [12, 9], scalesWith: "level", levels: [1, 7], starts: "on-hit" as "on-trigger" };
+    expect(championProblems(passive, RULES)).toEqual(['Renekton: P.cooldown: its start "on-hit" is not "on-trigger" or "after-effect-ends"']);
+
+    const withModifiers = (modifiers: AbilityModifiers) => {
+      const notes = renekton();
+      notes.abilities.E!.modifiers = modifiers;
+      return championProblems(notes, RULES);
+    };
+    expect(withModifiers({ refund: { unit: "percent", amount: [25, 35, 45, 55, 65], when: "his first attack within 4 seconds" }, resetsAttack: true, lockout: { seconds: 0.5, static: true }, static: true })).toEqual([]);
+    expect(withModifiers({ refund: { unit: "percent", amount: [140], when: "a hit" } })).toEqual([problem(/^Renekton: E\.modifiers\.refund cannot be shown/)]);
+    expect(withModifiers({ refund: { unit: "seconds", amount: [2, 3], when: "a hit" } })).toEqual([problem(/^Renekton: E\.modifiers\.refund cannot be shown/)]);
+    expect(withModifiers({ lockout: { seconds: 0 } })).toEqual(["Renekton: E.modifiers.lockout cannot be shown: its seconds must be a number above 0"]);
+  });
+
+  it("on a fact's tag outside the vocabulary or named twice, or a subject that is not one", () => {
+    const withFact = (over: Record<string, unknown>) => {
+      const notes = renekton();
+      notes.abilities.W!.facts[0] = { ...notes.abilities.W!.facts[0]!, ...over };
+      return championProblems(notes, RULES);
+    };
+    expect(withFact({ appliesTo: "target", tags: ["stun", "shield-break"] })).toEqual([]);
+    expect(withFact({ tags: ["stun", "teleport"] })).toEqual(['Renekton: W.facts[0].tags has "teleport", which is not in FACT_TAGS']);
+    expect(withFact({ tags: ["stun", "stun"] })).toEqual(["Renekton: W.facts[0].tags names a tag twice"]);
+    expect(withFact({ appliesTo: "enemy" })).toEqual(['Renekton: W.facts[0].appliesTo "enemy" is not self, target, allies or area']);
+  });
+
+  it("on a source whose kind does not fit its page, or whose revision time is not a time, has no revision, or comes after the check", () => {
+    const withSource = (over: Partial<Source>, index = 2) => {
+      const notes = renekton();
+      notes.sources[index] = { ...notes.sources[index]!, ...over };
+      return championProblems(notes, RULES);
+    };
+    expect(withSource({ kind: "wiki-ability", revisionTime: "2026-09-23T19:37:45Z" })).toEqual([]);
+    expect(withSource({ kind: "wiki-champion" })).toEqual([problem(/source "renekton-w" is of kind "wiki-champion", which is a champion's page/)]);
+    expect(withSource({ kind: "ddragon" })).toEqual([problem(/source "renekton-w" is of kind "ddragon", which is a page on ddragon\.leagueoflegends\.com/)]);
+    expect(withSource({ revisionTime: "23 Sep 2026" })).toEqual(['Renekton: source "renekton-w" revisionTime "23 Sep 2026" is not a time in UTC such as "2026-09-23T19:37:45Z"']);
+    expect(withSource({ revisionTime: "2026-11-17T08:00:00Z" })).toEqual(['Renekton: source "renekton-w" revisionTime 2026-11-17T08:00:00Z is after the day the notes were checked (2026-11-16)']);
+    const ddragon = renekton().sources.findIndex((x) => x.id === "ddragon");
+    expect(withSource({ kind: "ddragon" }, ddragon)).toEqual([]);
+    expect(withSource({ kind: "riot-docs" }, ddragon)).toEqual([problem(/is of kind "riot-docs", which is a page on developer\.riotgames\.com/)]);
+    expect(withSource({ revisionTime: "2026-11-03T22:24:22Z" }, ddragon)).toEqual(['Renekton: source "ddragon" gives a revisionTime but no revision']);
   });
 
   it("on a matchup whose champion has no notes, or a level note off the level range", () => {

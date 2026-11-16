@@ -1,0 +1,48 @@
+{
+  "_note": "Data Dragon 16.22.1: what each curated champion's abilities were, beyond the cooldown arrays (ddragon-16.22.1.cooldowns.json): the spell id, name, ranks and charges, the fields the page compares with ddragonIdentity. Generated on 16 Nov 2026 from saved copies of Riot's champion files https://ddragon.leagueoflegends.com/cdn/16.22.1/data/en_US/champion/<Champion>.json, with the rules of src/server/matchup-intel/abilities.ts: P is the passive (no id, 1 rank, no charges); Q, W, E and R are data.<Champion>.spells[0] to [3], with their id, name and maxrank, and charges as maxammo above 0, else null. Read by src/server/matchup-intel/curated/curated.test.ts. Copy values only from Riot's files for this version.",
+  "version": "16.22.1",
+  "champions": {
+    "Ambessa": {
+      "P": {"id": null, "name": "Drakehound's Step", "maxRank": 1, "charges": null},
+      "Q": {"id": "AmbessaQ", "name": "Cunning Sweep / Sundering Slam", "maxRank": 5, "charges": null},
+      "W": {"id": "AmbessaW", "name": "Repudiation", "maxRank": 5, "charges": null},
+      "E": {"id": "AmbessaE", "name": "Lacerate", "maxRank": 5, "charges": null},
+      "R": {"id": "AmbessaR", "name": "Public Execution", "maxRank": 3, "charges": null}
+    },
+    "Gwen": {
+      "P": {"id": null, "name": "A Thousand Cuts", "maxRank": 1, "charges": null},
+      "Q": {"id": "GwenQ", "name": "Snip Snip!", "maxRank": 5, "charges": null},
+      "W": {"id": "GwenW", "name": "Hallowed Mist", "maxRank": 5, "charges": null},
+      "E": {"id": "GwenE", "name": "Skip 'n Slash", "maxRank": 5, "charges": null},
+      "R": {"id": "GwenR", "name": "Needlework", "maxRank": 3, "charges": null}
+    },
+    "Mordekaiser": {
+      "P": {"id": null, "name": "Darkness Rise", "maxRank": 1, "charges": null},
+      "Q": {"id": "MordekaiserQ", "name": "Obliterate", "maxRank": 5, "charges": null},
+      "W": {"id": "MordekaiserW", "name": "Indestructible", "maxRank": 5, "charges": null},
+      "E": {"id": "MordekaiserE", "name": "Death's Grasp", "maxRank": 5, "charges": null},
+      "R": {"id": "MordekaiserR", "name": "Realm of Death", "maxRank": 3, "charges": null}
+    },
+    "Ornn": {
+      "P": {"id": null, "name": "Living Forge", "maxRank": 1, "charges": null},
+      "Q": {"id": "OrnnQ", "name": "Volcanic Rupture", "maxRank": 5, "charges": null},
+      "W": {"id": "OrnnW", "name": "Bellows Breath", "maxRank": 5, "charges": null},
+      "E": {"id": "OrnnE", "name": "Searing Charge", "maxRank": 5, "charges": null},
+      "R": {"id": "OrnnR", "name": "Call of the Forge God", "maxRank": 3, "charges": null}
+    },
+    "Renekton": {
+      "P": {"id": null, "name": "Reign of Anger", "maxRank": 1, "charges": null},
+      "Q": {"id": "RenektonCleave", "name": "Cull the Meek", "maxRank": 5, "charges": null},
+      "W": {"id": "RenektonPreExecute", "name": "Ruthless Predator", "maxRank": 5, "charges": null},
+      "E": {"id": "RenektonSliceAndDice", "name": "Slice and Dice", "maxRank": 5, "charges": null},
+      "R": {"id": "RenektonReignOfTheTyrant", "name": "Dominus", "maxRank": 3, "charges": null}
+    },
+    "Riven": {
+      "P": {"id": null, "name": "Runic Blade", "maxRank": 1, "charges": null},
+      "Q": {"id": "RivenTriCleave", "name": "Broken Wings", "maxRank": 5, "charges": null},
+      "W": {"id": "RivenMartyr", "name": "Ki Burst", "maxRank": 5, "charges": null},
+      "E": {"id": "RivenFeint", "name": "Valor", "maxRank": 5, "charges": null},
+      "R": {"id": "RivenFengShuiEngine", "name": "Blade of the Exile", "maxRank": 3, "charges": null}
+    }
+  }
+}
