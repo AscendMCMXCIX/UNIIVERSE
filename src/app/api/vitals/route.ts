@@ -1,7 +1,7 @@
 import { after } from "next/server";
 import { getAppDb } from "@/server/bootstrap";
 import { getSession } from "@/server/auth/session";
-import { isVerificationSession } from "@/server/auth/verification-account";
+import { isVerificationAccount } from "@/server/auth/verification-account";
 import { parseVitalsBeacon } from "@/domain/web-vitals";
 import { fieldMetricsEnabled, recordVitals } from "@/server/observability/web-vitals";
 
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   if (now - minute.start >= 60_000) minute = { start: now, used: 0 };
   if (++minute.used > PER_MINUTE) return done();
   const session = await getSession();
-  if (!session || isVerificationSession(session)) return done();
+  if (!session || isVerificationAccount(session)) return done();
   const counted = beacon;
   after(async () => {
     try {
