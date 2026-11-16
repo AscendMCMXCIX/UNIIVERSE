@@ -4,7 +4,7 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, CheckCircle2, Info, X, XCircle } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { subscribeModals, topModal } from "./top-layer";
+import { noTopLayer, subscribeModals, topLayer } from "./top-layer";
 
 /*
   Toast notifications: short-lived messages for things that just happened (saved, failed, signed
@@ -14,7 +14,11 @@ import { subscribeModals, topModal } from "./top-layer";
   While a window is open the toasts are drawn inside it (the topmost one, top-layer.ts): a window is
   in the browser's top layer, above the page and its z-indexes, and everything outside it is inert,
   so a toast left on the page was out of sight and its buttons could not be pressed (an editor's
-  error never showed). They keep their place on the screen either way.
+  error never showed). They keep their place on the screen either way: they go into a window once
+  its opening motion is over and leave it as its closing motion starts, because a moving window
+  carries what is fixed inside it along (they once jumped into the window's corner and slid away
+  with a closing sheet). A screen reader hears each toast once: one raised as its window closed
+  (`toast.success(...); onClose()`) is heard on the page, not lost with the window.
 */
 
 export type ToastTone = "success" | "info" | "warning" | "error";
@@ -79,20 +83,61 @@ const serverSnapshot = (): ToastItem[] => NO_TOASTS;
 const ICONS = { success: CheckCircle2, info: Info, warning: AlertTriangle, error: XCircle } as const;
 const TONES: Record<ToastTone, string> = { success: "text-good", info: "text-accent", warning: "text-warn", error: "text-bad" };
 
-/** No window open: the toasts are drawn in place (the server's answer, and the first render's). */
-const noWindow = (): HTMLDialogElement | null => null;
 const NO_IDS: ReadonlySet<number> = new Set();
 
 /**
- * Toasts a screen reader has heard: drawn with their live role in a live region that was already on
- * the page. Each is heard once, however often the toasts move.
- */
-const heard = new Set<number>();
-/**
- * How long the toasts' region is in a new place before a new toast is added to it: a live region
- * speaks what is added to it, not what it holds as it appears.
+ * A moment, in two uses. How long a toast is live (drawn with its live role, in a region in place)
+ * before it counts as heard: a screen reader speaks what a live region gains within a moment, and a
+ * toast gone sooner (raised as its window closed: `toast.success(...); onClose()`) was likely never
+ * spoken. And how long the region is in a new place before a toast is added to it there: a live
+ * region speaks what is added to it, not what it holds as it appears. Longer than a window's closing
+ * motion (DetailModal's EXIT_MS, 140 ms), so a toast raised as a window starts to close is added
+ * once the page under it is in reach again.
  */
 const SETTLE_MS = 200;
+
+/**
+ * Which toasts a screen reader has heard. A toast drawn live (`live`) counts as heard once it has been
+ * so for `ms` where the region is. The region leaving its place first, or a window moving in over it
+ * (`moved`), stops the clocks of the toasts not yet heard: they are heard where the region settles
+ * instead. Each is heard once, however often the toasts move.
+ */
+export function hearing(ms: number) {
+  const heard = new Set<number>();
+  const clocks = new Map<number, ReturnType<typeof setTimeout>>();
+  return {
+    has: (id: number) => heard.has(id),
+    /** These toasts are drawn live now: each one's clock runs from the first time it is. */
+    live(ids: readonly number[]) {
+      for (const id of ids) {
+        if (heard.has(id) || clocks.has(id)) continue;
+        clocks.set(
+          id,
+          setTimeout(() => {
+            clocks.delete(id);
+            heard.add(id);
+          }, ms),
+        );
+      }
+    },
+    /** The region left its place, or a window moving in covers it. */
+    moved() {
+      for (const clock of clocks.values()) clearTimeout(clock);
+      clocks.clear();
+    },
+    /** Only these toasts are shown: the others are forgotten. */
+    keep(ids: ReadonlySet<number>) {
+      for (const id of heard) if (!ids.has(id)) heard.delete(id);
+      for (const [id, clock] of clocks) {
+        if (ids.has(id)) continue;
+        clearTimeout(clock);
+        clocks.delete(id);
+      }
+    },
+  };
+}
+/** The Toaster's (there is one, in the root layout). */
+const heard = hearing(SETTLE_MS);
 
 /**
  * Which toasts the region draws, and which carry their live role (heard as they are added): those
@@ -106,24 +151,35 @@ export function drawnToasts<T extends { id: number }>(list: readonly T[], moved:
 /**
  * Renders the toasts: bottom-right on desktop, above the tab bar on phones (near the bottom edge when
  * a phone is held sideways); announced politely to screen readers, an error at once. In place on the
- * page, or inside the topmost open window while one is open, following windows as they open and
- * close. Moving draws the region again in its new place: the toasts already heard come along without
- * their live role, and one raised as a window opens or closes waits a moment (SETTLE_MS) for the
- * region to be in place, so that every toast is heard once, never twice.
+ * page, or inside the topmost open window at rest (top-layer.ts), following windows as they open and
+ * close: into a window once its opening motion is over, out of it as its closing motion starts, so
+ * the toasts never ride a window's motion. While a window moves in over them they stay where they
+ * were, under it, and wait. Moving draws the region again in its new place: the toasts already heard
+ * come along without their live role, and the others (new ones, and one gone with its window before
+ * it could be heard) wait a moment (SETTLE_MS) for the region to be in place, so that every toast is
+ * heard once, never twice.
  */
 export function Toaster() {
   const list = React.useSyncExternalStore(subscribe, snapshot, serverSnapshot);
-  const host = React.useSyncExternalStore(subscribeModals, topModal, noWindow);
-  const [place, setPlace] = React.useState<{ host: HTMLDialogElement | null; moved: ReadonlySet<number>; ready: boolean }>({ host: null, moved: NO_IDS, ready: true });
-  if (place.host !== host) setPlace({ host, moved: new Set(list.filter((t) => heard.has(t.id)).map((t) => t.id)), ready: false });
+  const layer = React.useSyncExternalStore(subscribeModals, topLayer, noTopLayer);
+  const [place, setPlace] = React.useState<{ host: HTMLDialogElement | null; opening: boolean; moved: ReadonlySet<number>; ready: boolean }>({ host: null, opening: false, moved: NO_IDS, ready: true });
+  if (place.host !== layer.host || place.opening !== layer.opening) {
+    // The region leaves its place, or a window moving in covers it: what was heard there stays heard
+    // (drawn on without its role), and the rest waits to be heard where the region comes to rest.
+    setPlace({ host: layer.host, opening: layer.opening, moved: new Set(list.filter((t) => heard.has(t.id)).map((t) => t.id)), ready: false });
+  }
+  const host = layer.host;
   React.useEffect(() => {
-    if (place.ready) return;
-    const timer = window.setTimeout(() => setPlace((p) => (p.host === host ? { ...p, ready: true } : p)), SETTLE_MS);
+    if (place.ready || place.opening) return;
+    const timer = window.setTimeout(() => setPlace((p) => (p.host === host && !p.opening ? { ...p, ready: true } : p)), SETTLE_MS);
     return () => window.clearTimeout(timer);
-  }, [place.ready, host]);
+  }, [place.ready, place.opening, host]);
+  // The toasts not yet heard where the region was are heard where it goes.
+  React.useEffect(() => () => heard.moved(), [place.host, place.opening]);
   const drawn = drawnToasts(list, place.moved, place.ready);
   React.useEffect(() => {
-    for (const { toast, live } of drawn) if (live) heard.add(toast.id);
+    heard.live(drawn.filter((d) => d.live).map((d) => d.toast.id));
+    heard.keep(new Set(list.map((t) => t.id)));
   });
   const region = (
     // data-floating: drawn over a window without being part of it, so a finger on a toast never

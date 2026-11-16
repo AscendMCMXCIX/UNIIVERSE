@@ -216,10 +216,17 @@ describe("what shows over a window is drawn inside it", () => {
     for (const file of shown) {
       const source = code(read(file));
       expect(source, file).toMatch(/noteModalOpened\(d\)/);
+      expect(source, file).toMatch(/noteModalAtRest\(/);
       expect(source, file).toMatch(/noteModalClosed\(d\)/);
     }
-    // DetailModal says it is closing from a layout effect's cleanup, while it is still on the page.
-    expect(code(read("src/components/ui/detail-modal.tsx"))).toMatch(/useLayoutEffect\(\(\) => \{\s*const d = ref\.current;\s*if \(!open \|\| !d\) return;\s*return \(\) => noteModalClosed\(d\);/);
+    // DetailModal says it is closing from a layout effect's cleanup, while it is still on the page,
+    // and as its closing motion starts; it is at rest once its opening motion has ended (or after
+    // REST_MS): a moving window carries what is fixed in it (the toasts) along with its motion.
+    const modal = code(read("src/components/ui/detail-modal.tsx"));
+    expect(modal).toMatch(/useLayoutEffect\(\(\) => \{\s*const d = ref\.current;\s*if \(!open \|\| !d\) return;\s*return \(\) => noteModalClosed\(d\);/);
+    expect(modal).toMatch(/setClosing\(true\);\s*if \(ref\.current\) noteModalClosed\(ref\.current\);/);
+    expect(modal).toMatch(/if \(OPENING_MOTIONS\.has\(e\.animationName\)\) \{\s*settle\(\);\s*noteModalAtRest\(e\.currentTarget\);/);
+    expect(modal).toContain("restTimer = window.setTimeout(() => noteModalAtRest(d), REST_MS)");
   });
 
   it("a tip's bubble is drawn in the window its trigger sits in, and Escape on it is kept from that window", () => {
@@ -232,10 +239,13 @@ describe("what shows over a window is drawn inside it", () => {
     expect(tip).toMatch(/if \(e\.key !== "Escape"\) return;\s*e\.preventDefault\(\);\s*e\.stopPropagation\(\);/);
   });
 
-  it("the toasts are drawn in the topmost window while one is open, and in place otherwise", () => {
+  it("the toasts are drawn in the topmost window at rest while one is open, and in place otherwise", () => {
     const toast = code(read("src/components/ui/toast.tsx"));
-    expect(toast).toContain("React.useSyncExternalStore(subscribeModals, topModal, noWindow)");
+    expect(toast).toContain("React.useSyncExternalStore(subscribeModals, topLayer, noTopLayer)");
     expect(toast).toContain("return host ? createPortal(region, host) : region;");
+    // Covered by a window moving in, they wait; a toast is heard once it has been live in place.
+    expect(toast).toMatch(/if \(place\.ready \|\| place\.opening\) return;/);
+    expect(toast).toContain("React.useEffect(() => () => heard.moved(), [place.host, place.opening]);");
     // Over a sheet, a finger on a toast pulls nothing.
     expect(toast).toContain('data-floating=""');
     expect(code(read("src/components/ui/detail-modal.tsx"))).toContain('closest?.("[data-floating]")');

@@ -4,7 +4,7 @@ import * as React from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { focusWindow, lastInput, opensFocusingItself } from "./input-kind";
-import { noteModalClosed, noteModalOpened } from "./top-layer";
+import { noteModalAtRest, noteModalClosed, noteModalOpened } from "./top-layer";
 
 /**
  * How much room a detail needs: compact for a short note, standard for a player or a champion,
@@ -138,6 +138,14 @@ export const BELOW_CONTROLS_ON_PHONES = "max-sm:pr-4 max-sm:pt-[var(--modal-clea
 
 /** How long the closing motion runs before the window is removed (matches modal-out). */
 const EXIT_MS = 140;
+/**
+ * How long a window's opening motion may take before it counts as at rest regardless (sheet-in, the
+ * longest, runs 220 ms): what waits for it (the toasts, top-layer.ts) never waits for a motion the
+ * browser did not report the end of.
+ */
+const REST_MS = 400;
+/** The opening motions a window's own animationend reports (MOTION, MODAL_MOTION). */
+const OPENING_MOTIONS = new Set(["modal-in", "sheet-in", "screen-in"]);
 /**
  * When the window counts as open for its content (see AfterOpen): modal-in runs 180 ms on an
  * ease-out curve, which is over 90% of the way by 120 ms; the rest is a barely visible settle.
@@ -425,6 +433,10 @@ export function DetailModal({
       setFlow(false);
       setEntered(false);
     }
+    // A window kept on the page and opened again starts afresh: its last closing motion (held at its
+    // end, out of sight, until the window was removed) is over. Left set, it ran again at once and
+    // held the window out of sight while the page behind was inert.
+    else setClosing(false);
   }
   const latest = React.useRef({ onClose, canClose, onSettled });
   React.useLayoutEffect(() => {
@@ -564,7 +576,9 @@ export function DetailModal({
 
   // The window is out of the top layer as it closes or leaves the page, said while it is still on
   // the page (a layout effect's cleanup), so the toasts drawn in it are back in place before the
-  // next frame (top-layer.ts). It says it is open once shown, in the effect below.
+  // next frame (top-layer.ts); a window that closes with its motion says so as the motion starts
+  // (requestClose), so they never ride it out. It says it is open once shown, and at rest once its
+  // opening motion is over, in the effect below and onAnimationEnd.
   React.useLayoutEffect(() => {
     const d = ref.current;
     if (!open || !d) return;
@@ -593,9 +607,15 @@ export function DetailModal({
     noteModalOpened(d);
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const settleTimer = window.setTimeout(settle, reduce ? 0 : SETTLE_MS);
+    // At rest once its opening motion has ended (onAnimationEnd), at once without one, and after
+    // REST_MS whatever the browser reported: what is fixed inside it (the toasts) waits until then.
+    let restTimer = 0;
+    if (reduce) noteModalAtRest(d);
+    else restTimer = window.setTimeout(() => noteModalAtRest(d), REST_MS);
     const unlock = lockPage();
     return () => {
       window.clearTimeout(settleTimer);
+      window.clearTimeout(restTimer);
       unlock();
       letGo();
       // Back to what opened the window, whether it was closed or removed from the page (or to the
@@ -625,6 +645,9 @@ export function DetailModal({
       return;
     }
     setClosing(true);
+    // Out of the top layer from now: the toasts drawn in it go back in place as its closing motion
+    // starts, rather than riding it out of the screen (top-layer.ts).
+    if (ref.current) noteModalClosed(ref.current);
     timer.current = window.setTimeout(() => {
       timer.current = null;
       latest.current.onClose();
@@ -679,7 +702,12 @@ export function DetailModal({
       }}
       onAnimationEnd={(e) => {
         if (e.target !== ref.current) return;
-        if (e.animationName === "modal-in" || e.animationName === "sheet-in" || e.animationName === "screen-in") settle();
+        // The opening motion is over: the content may render, and the window is at rest (the toasts
+        // come into it, top-layer.ts).
+        if (OPENING_MOTIONS.has(e.animationName)) {
+          settle();
+          noteModalAtRest(e.currentTarget);
+        }
         if (e.animationName === "screen-in") setEntered(true);
       }}
       aria-labelledby={titleId}

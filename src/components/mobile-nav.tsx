@@ -9,7 +9,7 @@ import { NavLinks } from "./nav-links";
 import { Avatar } from "./ui/avatar";
 import { DetailModal, lockPage } from "./ui/detail-modal";
 import { focusWindow, lastInput, opensFocusingItself } from "./ui/input-kind";
-import { noteModalClosed, noteModalOpened } from "./ui/top-layer";
+import { noteModalAtRest, noteModalClosed, noteModalOpened } from "./ui/top-layer";
 import { ModeSwitch } from "./mode-switch";
 import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, ADMIN_TABS, PROFILE_SECTIONS, RESOURCES, adminSheetLinks, currentTab, isActivePath, phoneParent, phoneTabs, profileBase, type NavLink, type PhoneTab } from "@/lib/nav";
 import { AccountMenu, otherUsername } from "./account-menu";
@@ -407,6 +407,8 @@ function Drawer({ onClose, initialFocus, children }: { onClose: () => void; /** 
     if (!d) return;
     if (!d.open) d.showModal();
     noteModalOpened(d);
+    // At rest at once: its panel slides in, the dialog itself never moves (top-layer.ts).
+    noteModalAtRest(d);
     // The focus starts on the menu itself after a tap or a click (until it is pressed or the focus
     // moves on, as in every window: focusWindow), on its close button from the keyboard.
     let letGo: () => void = () => undefined;
