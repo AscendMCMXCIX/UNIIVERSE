@@ -135,7 +135,20 @@ Nothing is generated: what no person has checked is shown as Data Dragon gives i
   - checked earlier, with the numbers unchanged since: said only as "Checked on patch N";
   - the numbers changed after the check: flagged as possibly out of date.
 
-  A briefing's freshness comes from the abilities it rests on.
+  A briefing's freshness comes from the abilities it rests on, judged against the matchup's own
+  check (`matchupAbilityFreshness`, `src/server/matchup-intel/view.ts`). A matchup holds no numbers
+  of its own, only the Data Dragon version it was checked on; the numbers a person took are the
+  champion notes', on their own version. So, for each ability:
+  - the data shown is the matchup's version: "current", whichever version the champion's notes
+    were checked on;
+  - the champion's notes took their numbers on the matchup's version or later, and Riot's numbers
+    moved since them: the change came after the matchup's check, so the briefing is flagged;
+  - anything else (notes checked before the matchup, data older than the notes, no notes) is not
+    known, and is said only as "Checked on patch N".
+
+  So a matchup re-checked on a new patch is current even where a champion's older notes are
+  flagged, and numbers that moved between a matchup's check and a later check of the champion's
+  notes go unflagged: telling those apart needs the matchup's own numbers, which it does not hold.
 
 <!-- "## Curated notes" (how the notes are written, checked and kept fresh) is added with the curated notes themselves (src/server/matchup-intel/curated/). -->
 

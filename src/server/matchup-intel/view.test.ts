@@ -177,6 +177,54 @@ describe("Riot's numbers changed after the check", () => {
   });
 });
 
+describe("a matchup checked on another version than the champion notes it rests on", () => {
+  const at = (ddragonVersion: string, patch: string) => ({ patch, ddragonVersion, checkedOn: "2026-11-16" });
+  /** Both champions' abilities stored at one version, Renekton's W as given. */
+  const storedAt =
+    (version: string, w?: number[]): MatchupViewDeps["loadAbilities"] =>
+    async (ids) => ({ version, champions: Object.fromEntries(ids.map((id) => [id, id === "Renekton" ? kit(id, version, w) : kit(id, version)])) });
+  /** Renekton's notes checked on `version`, with W's numbers as Riot gave them then. */
+  const renektonAt = (version: string, patch: string, w: number[]): ChampionNotes => {
+    const base = renektonNotes();
+    return { ...base, verified: at(version, patch), abilities: { W: { ...base.abilities.W!, ddragonCooldown: w, cooldown: { kind: "per-rank", seconds: w, starts: "on-cast" } } } };
+  };
+  const view = (over: Partial<MatchupViewDeps>) => buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps(over));
+
+  it("re-checked on the data's own version after Riot changed W, it is current, while the champion's older notes are flagged", async () => {
+    const v = await view({ currentPatch: { patch: "16.23", ddragonVersion: "16.23.1" }, loadAbilities: storedAt("16.23.1", [16, 15, 14, 13, 12]), matchupNotes: () => ambessaVsRenekton({ verified: at("16.23.1", "26.23") }) });
+    // The briefing was checked against exactly the numbers shown: no warning beside "Checked on patch 26.23".
+    expect(v.matchup!.freshness).toBe("current");
+    expect(v.matchup!.verified.patch).toBe("26.23");
+    // Renekton's own notes took W's numbers on 16.22.1: they, and the row, may be out of date.
+    expect(v.enemyIntel!.curated!.freshness).toBe("changed-since");
+    expect(v.enemyIntel!.abilities!.find((a) => a.slot === "W")!.freshness).toBe("changed-since");
+  });
+
+  it("checked before the champion's notes were refreshed, it claims only its patch: whether W moved in between is not known", async () => {
+    const w = [16, 15, 14, 13, 12];
+    const v = await view({ loadAbilities: storedAt("16.23.1", w), championNotes: (id) => (id === "Renekton" ? renektonAt("16.23.1", "26.23", w) : null) });
+    expect(v.enemyIntel!.curated!.freshness).toBe("current");
+    // Not "current" (it was checked on 16.22.1), and no warning drawn from numbers taken after its check.
+    expect(v.matchup!.freshness).toBe("unchanged-since");
+  });
+
+  it("warns when Riot's numbers moved after champion notes taken on a later version than its check (versions compared by number)", async () => {
+    const v = await view({
+      loadAbilities: storedAt("16.11.1", [14, 13, 12, 11, 10]),
+      championNotes: (id) => (id === "Renekton" ? renektonAt("16.10.1", "26.10", [16, 15, 14, 13, 12]) : null),
+      matchupNotes: () => ambessaVsRenekton({ verified: at("16.9.1", "26.9") }),
+    });
+    // 16.9.1 (the matchup) before 16.10.1 (the notes) before 16.11.1 (the data): the change came after the matchup's check.
+    expect(v.matchup!.freshness).toBe("changed-since");
+  });
+
+  it("with champion notes older than its check, a change in Riot's numbers may predate the check: no warning for the matchup", async () => {
+    const v = await view({ loadAbilities: storedAt("16.24.1", [20, 19, 18, 17, 16]), matchupNotes: () => ambessaVsRenekton({ verified: at("16.23.1", "26.23") }) });
+    expect(v.enemyIntel!.curated!.freshness).toBe("changed-since");
+    expect(v.matchup!.freshness).toBe("unchanged-since");
+  });
+});
+
 describe("no ability data stored yet", () => {
   it("says so (null), keeps the curated layer it has, and never claims it current", async () => {
     const v = await buildMatchupPageView({ champion: "Riven", vs: "Renekton" }, deps({ loadAbilities: async (ids) => ({ version: null, champions: Object.fromEntries(ids.map((id) => [id, null])) }) }));

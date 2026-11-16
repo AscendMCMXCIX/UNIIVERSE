@@ -47,6 +47,18 @@ export function safeSourceUrl(url: string): string | null {
 
 /** A Data Dragon version as stored ("16.22.1"). */
 const VERSION = /^\d{1,3}(\.\d{1,4}){1,3}$/;
+
+/** Two Data Dragon versions in order, by number ("16.9.1" before "16.10.1"); null when either is not a version. */
+function compareVersions(a: string, b: string): number | null {
+  if (!VERSION.test(a) || !VERSION.test(b)) return null;
+  const x = a.split(".").map(Number);
+  const y = b.split(".").map(Number);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    const d = (x[i] ?? 0) - (y[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}
 /** A Data Dragon image file name ("RivenTriCleave.png", "Renekton_Predator.png"). */
 const ICON_FILE = /^[\w.\- ]{1,100}\.(png|jpe?g|webp)$/i;
 
@@ -169,10 +181,34 @@ function refOf(ref: string, ids: ReadonlySet<string>): { championId: string; slo
 }
 
 /**
+ * How fresh a matchup is for one ability it rests on. A matchup holds no numbers of its own, only
+ * the Data Dragon version it was checked against (`checked`); the numbers a person took are the
+ * champion's notes', on the version those were checked on. So:
+ *   - the data shown is the matchup's own version: it was checked against exactly this ("current");
+ *   - the champion's notes took their numbers on that version or later, and the data shown is at
+ *     least as new as them: numbers that moved since moved after the matchup's check too
+ *     ("changed-since", as abilityFreshness compares them);
+ *   - anything else is not known (numbers taken before the matchup's check, data older than them,
+ *     no notes): "unchanged-since", which the page says only as "Checked on patch N".
+ * Comparing with numbers taken on another version than the matchup's would warn about a change the
+ * matchup's check already saw, or stay quiet about one it did not.
+ */
+function matchupAbilityFreshness(checked: string, data: DdragonChampionAbilities | null, slot: Slot, notes: ChampionNotes | null): Freshness {
+  if (data && data.version === checked) return "current";
+  const own = notes?.abilities[slot];
+  if (!data || !notes || !own) return "unchanged-since";
+  const taken = notes.verified.ddragonVersion;
+  const takenSinceCheck = compareVersions(taken, checked);
+  const dataSinceTaken = compareVersions(data.version, taken);
+  if (takenSinceCheck === null || dataSinceTaken === null || takenSinceCheck < 0 || dataSinceTaken < 0) return "unchanged-since";
+  const ability = data.abilities.find((a) => a.slot === slot) ?? null;
+  return abilityFreshness(ability, own, taken, data.version) === "changed-since" ? "changed-since" : "unchanged-since";
+}
+
+/**
  * The curated matchup, ready to show: its briefing and interactions resting only on the two
  * champions' abilities, its sources' links checked, and how fresh it is against Riot's current
- * numbers for the abilities it rests on (through the champions' own notes, which hold the numbers a
- * person checked).
+ * numbers for the abilities it rests on (matchupAbilityFreshness).
  */
 function matchupIntel(notes: MatchupNotes, ids: ReadonlySet<string>, data: Record<string, DdragonChampionAbilities | null>, championNotes: Record<string, ChampionNotes | null>): MatchupIntelView {
   const keep = (refs: readonly AbilityRef[]) => refs.filter((r) => refOf(r, ids) !== null);
@@ -186,12 +222,7 @@ function matchupIntel(notes: MatchupNotes, ids: ReadonlySet<string>, data: Recor
   const verified = notes.verified.ddragonVersion;
   const values = refs.map((r): Freshness => {
     const { championId, slot } = refOf(r, ids)!;
-    const stored = data[championId] ?? null;
-    const ability = stored?.abilities.find((a) => a.slot === slot) ?? null;
-    const own = championNotes[championId]?.abilities[slot];
-    if (own) return abilityFreshness(ability, own, verified, stored?.version ?? null);
-    // No checked numbers to compare: only the version can say it is current.
-    return stored && stored.version === verified ? "current" : "unchanged-since";
+    return matchupAbilityFreshness(verified, data[championId] ?? null, slot, championNotes[championId] ?? null);
   });
   const dataVersions = [...ids].map((id) => data[id]?.version ?? null);
   const dataVersion = dataVersions.every((v) => v !== null && v === dataVersions[0]) ? dataVersions[0]! : null;
