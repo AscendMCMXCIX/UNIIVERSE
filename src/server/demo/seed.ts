@@ -280,6 +280,17 @@ async function seedDemoTogether(db: Db, teamId: string) {
       parts.push({ puuid: `demo-together-${i}-${n}`, name: demoOtherName(teamId === 100, n), teamId, championId: demoOther(i, n, taken), championKey: 0, champLevel: 14, position: null, win: teamId === 100 ? g.win : !g.win, kills: 3, deaths: 4, assists: 5, cs: 140, gold: 8000, damage: 11000, damageTaken: 14000, vision: 15, wardsPlaced: 8, items: null, spells: null, runes: null });
     }
     balanceTogetherGame(parts, duration / 60, i);
+    // Everyone's build, summoner spells and runes (these games have no timeline: a sequence of the
+    // game's own). The members play their roles; the others take their side's open roles in order.
+    const ownRnd = demoGameRnd(matchId);
+    for (const team of [100, 200]) {
+      const side = parts.filter((x) => x.teamId === team);
+      const open = (["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"] as Role[]).filter((r) => !side.some((x) => x.position === r));
+      for (const x of side) {
+        const role = (x.position as Role | null) ?? open.shift() ?? "MID";
+        giveDemoLoadout(x, role, demoBuild(ownRnd, duration, role).purchases, duration);
+      }
+    }
     details.push({ matchId, platform: "euw1", queueId: g.queueId, gameCreation, gameDuration: duration, gameVersion: `${season}.20.1`, teams: [{ teamId: 100, win: g.win, bans: [], objectives: {} }, { teamId: 200, win: !g.win, bans: [], objectives: {} }], participants: parts });
   });
   if (games.length) await db.insert(accountMatches).values(games).onConflictDoNothing();
@@ -440,6 +451,58 @@ const DEMO_CORE: Record<Role, number[]> = {
   ADC: [1036, 3006, 1037, 6672, 1038, 3031, 3036],
   SUPPORT: [2055, 1028, 3158, 3190, 2055, 3107, 3109],
 };
+
+/** The components on DEMO_CORE's paths: each is built into the next finished item bought after it. */
+const DEMO_COMPONENTS = new Set([1026, 1028, 1029, 1036, 1037, 1038, 1052, 1058]);
+/** The starting items players keep (a Doran's item, a jungle pet, the support item), listed after the finished items. */
+const DEMO_KEPT_STARTS = new Set([1054, 1055, 1056, 1102, 3865, 3869]);
+/** Each role's trinket: Stealth Ward, or Oracle Lens for junglers and supports. */
+const DEMO_TRINKET: Record<Role, number> = { TOP: 3340, JUNGLE: 3364, MID: 3340, ADC: 3340, SUPPORT: 3364 };
+/** Each role's summoner spells (Data Dragon keys): Flash with Teleport, Smite, Ignite, Heal and Ignite. */
+const DEMO_SPELLS: Record<Role, number[]> = { TOP: [4, 12], JUNGLE: [4, 11], MID: [4, 14], ADC: [4, 7], SUPPORT: [4, 14] };
+/** Each role's rune page (Data Dragon ids): the keystone and trees, with every rune chosen. */
+const DEMO_RUNES: Record<Role, NonNullable<MatchParticipantDetail["runes"]>> = {
+  TOP: { keystone: 8010, primary: 8000, secondary: 8400, primaryPerks: [8010, 9111, 9104, 8299], secondaryPerks: [8444, 8451] },
+  JUNGLE: { keystone: 8128, primary: 8100, secondary: 8000, primaryPerks: [8128, 8143, 8140, 8105], secondaryPerks: [9111, 9104] },
+  MID: { keystone: 8229, primary: 8200, secondary: 8300, primaryPerks: [8229, 8226, 8210, 8237], secondaryPerks: [8304, 8347] },
+  ADC: { keystone: 8008, primary: 8000, secondary: 8100, primaryPerks: [8008, 9111, 9104, 8014], secondaryPerks: [8139, 8135] },
+  SUPPORT: { keystone: 8439, primary: 8400, secondary: 8300, primaryPerks: [8439, 8463, 8473, 8242], secondaryPerks: [8304, 8347] },
+};
+
+/**
+ * What a demo player ends the game holding (demo mode only), as Riot's record lists it (item0 to
+ * item5, 0 for an empty slot, then the trinket): their purchases (demoBuild), each component built
+ * into the next finished item bought after it, potions drunk, one Control Ward kept, and the
+ * support item upgraded to its last form after 15 minutes, as the game does. Never real data.
+ */
+function demoFinalItems(purchases: ReadonlyArray<readonly [number, number]>, role: Role, durationSeconds: number): number[] {
+  const finished: number[] = [];
+  const parts: number[] = [];
+  for (const [, bought] of purchases) {
+    const id = bought === 3865 && durationSeconds >= 900 ? 3869 : bought;
+    if (id === 2003) continue;
+    if (DEMO_COMPONENTS.has(id)) parts.push(id);
+    else {
+      if (id !== 2055) parts.pop();
+      if (id !== 2055 || !finished.includes(2055)) finished.push(id);
+    }
+  }
+  const six = [...finished.filter((id) => !DEMO_KEPT_STARTS.has(id)), ...finished.filter((id) => DEMO_KEPT_STARTS.has(id)), ...parts].slice(0, 6);
+  return [...six, ...Array.from({ length: 6 - six.length }, () => 0), DEMO_TRINKET[role]];
+}
+
+/** A demo player's build, summoner spells and runes for the stored record (demo mode only), from their purchases. */
+function giveDemoLoadout(x: MatchParticipantDetail, role: Role, purchases: ReadonlyArray<readonly [number, number]>, durationSeconds: number) {
+  x.items = demoFinalItems(purchases, role, durationSeconds);
+  x.spells = [...DEMO_SPELLS[role]];
+  x.runes = { ...DEMO_RUNES[role], primaryPerks: [...DEMO_RUNES[role].primaryPerks!], secondaryPerks: [...DEMO_RUNES[role].secondaryPerks!] };
+}
+
+/** A sequence of its own for a demo game's builds where no timeline drew them (the other sequences stay as they were). */
+function demoGameRnd(matchId: string): () => number {
+  let s = [...matchId].reduce((n, c) => n + c.charCodeAt(0) * 11, 17);
+  return () => ((s = (s * 9301 + 49297) % 233280), s / 233280);
+}
 
 /**
  * Purchases and skill order for one demo player (demo mode only): the role's starting items, then
@@ -630,16 +693,28 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
     // the lane opponent's frames are as they always were), and the record's team counts follow
     // the timeline's objectives.
     let objectiveCounts: Record<number, Record<string, number>> | null = null;
+    // Everyone's lane: the player and the lane opponent play the player's role, the others the four other roles.
+    const roles = DEMO_ROLES_FOR(role);
+    const others = [...allies.map((a, k) => ({ puuid: a.puuid, ally: true, role: roles[k]! })), ...enemies.slice(1).map((e, k) => ({ puuid: e.puuid, ally: false, role: roles[k]! }))];
+    const players = [{ puuid, role }, { puuid: lane, role }, ...others];
+    let builds: Array<{ puuid: string; purchases: Array<[number, number]> }> | null = null;
     if (i % 6 !== 5) {
       let gameSeed = [...matchId].reduce((n, c) => n + c.charCodeAt(0) * 7, 13);
       const gameRnd = () => ((gameSeed = (gameSeed * 9301 + 49297) % 233280), gameSeed / 233280);
-      const roles = DEMO_ROLES_FOR(role);
-      const others = [...allies.map((a, k) => ({ puuid: a.puuid, ally: true, role: roles[k]! })), ...enemies.slice(1).map((e, k) => ({ puuid: e.puuid, ally: false, role: roles[k]! }))];
       const frames = fitFramesToRecord(demoFrames(laneRnd, duration, puuid, lane, role, win, (opponentIndex - 1) * 25, { rnd: gameRnd, players: others }), sides);
-      const builds = [{ puuid, role }, { puuid: lane, role }, ...others].map((x) => ({ puuid: x.puuid, ...demoBuild(gameRnd, duration, x.role) }));
+      const drawn = players.map((x) => ({ puuid: x.puuid, ...demoBuild(gameRnd, duration, x.role) }));
       const { kda, events, counts } = demoEvents(gameRnd, duration, win ? ownTeam : otherTeam, sides);
-      timelines.push({ matchId, platform: "euw1", participants: builds.map((b) => ({ ...b, ...kda.get(b.puuid)! })), frames, events });
+      timelines.push({ matchId, platform: "euw1", participants: drawn.map((b) => ({ ...b, ...kda.get(b.puuid)! })), frames, events });
       objectiveCounts = counts;
+      builds = drawn;
+    }
+    // Everyone's build, summoner spells and runes in the stored record, as a real record has them:
+    // the build from the timeline's own purchases, or, in a game left without a timeline, from a
+    // sequence of the game's own (the games' other figures stay as they were).
+    const ownRnd = builds ? null : demoGameRnd(matchId);
+    for (const x of players) {
+      const purchases = builds?.find((b) => b.puuid === x.puuid)?.purchases ?? demoBuild(ownRnd!, duration, x.role).purchases;
+      giveDemoLoadout(sides.find((p) => p.puuid === x.puuid)!, x.role, purchases, duration);
     }
     details.push({ matchId, platform: "euw1", queueId, gameCreation, gameDuration: duration, gameVersion: `${season}.20.1`, teams: [100, 200].map((teamId) => ({ teamId, win: teamId === ownTeam ? win : !win, bans: [], objectives: objectiveCounts?.[teamId] ?? {} })), participants: sides });
   }

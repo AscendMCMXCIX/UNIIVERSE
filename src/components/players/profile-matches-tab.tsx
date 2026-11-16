@@ -73,18 +73,26 @@ async function ProfileMatchesTabBody({ db, header, session, basePath, search }: 
     getMatchSyncStatus(db, player.id),
     listAccountsForPlayer(db, player.id),
   ]);
-  return <MatchHistoryView data={data} championsById={championsById} basePath={`${basePath}/matches`} playerId={player.id} playerName={player.displayName} status={gamesStatus(accounts, syncStatus, data.missingOnPage)} refresh={refreshFor(session, player.id, syncStatus)} />;
+  return <MatchHistoryView data={data} championsById={championsById} basePath={`${basePath}/matches`} playerId={player.id} playerName={player.displayName} status={gamesStatus(accounts, syncStatus, data)} refresh={refreshFor(session, player.id, syncStatus)} />;
 }
 
-/** The games list's data status: the accounts' syncs, and the games on the page whose items are still being collected. */
-function gamesStatus(accounts: Awaited<ReturnType<typeof listAccountsForPlayer>>, sync: Awaited<ReturnType<typeof getMatchSyncStatus>>, missingOnPage = 0) {
+/**
+ * The games list's data status: the accounts' syncs, the games on the page whose items are still
+ * being collected, and those whose stored record holds no items (their cards draw no build, so the
+ * page says it once instead of every card showing empty slots).
+ */
+function gamesStatus(accounts: Awaited<ReturnType<typeof listAccountsForPlayer>>, sync: Awaited<ReturnType<typeof getMatchSyncStatus>>, page: { missingOnPage: number; unrecordedOnPage: number } = { missingOnPage: 0, unrecordedOnPage: 0 }) {
   const riotConfigured = !!process.env.RIOT_API_KEY;
+  const { missingOnPage, unrecordedOnPage } = page;
   return dataStatus({
     accounts: accounts.map((a) => describeAccountSync({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, resolveAttempts: a.resolveAttempts, history: a.historyBackfill, riotConfigured })),
     checkedAt: sync.checkedAt,
     attemptedAt: sync.attemptedAt,
     newestGameAt: sync.newestGameAt,
-    notes: missingOnPage > 0 ? [{ label: `Items and runes of ${missingOnPage} older game${missingOnPage === 1 ? "" : "s"} on this page are still being collected`, detail: "The account sync adds them; their results already count." }] : [],
+    notes: [
+      ...(missingOnPage > 0 ? [{ label: `Items and runes of ${missingOnPage} older game${missingOnPage === 1 ? "" : "s"} on this page are still being collected`, detail: "The account sync adds them; their results already count." }] : []),
+      ...(unrecordedOnPage > 0 ? [{ label: `Items of ${unrecordedOnPage} game${unrecordedOnPage === 1 ? "" : "s"} on this page were not recorded`, detail: "Their stored records hold no items, so their cards show no build; their results and figures still count." }] : []),
+    ],
   });
 }
 
@@ -106,7 +114,7 @@ async function ProfileEncounterGamesBody({ db, header, session, basePath, search
   const met = await loadEncounterFocus(db, { accountIds: accountId ? [accountId] : ids, season, mode }, focus);
   const data = await getMatchHistory(db, player.id, { season, mode, accountId, page: Number(search.page) || 1, per: Number(search.per) || undefined, onlyMatchIds: met.matchIds }, (r) => (legalRolesFor(player).includes(r) ? poolFor(player, r) : []), (id) => canViewPlayerStats(session, id), { admin: isAdmin(session) });
   const encounter = { focus, list: encounterListChoice(search), summary: met.summary, renamed: met.renamed, opgg: met.opgg };
-  return <MatchHistoryView data={data} championsById={championsById} basePath={`${basePath}/matches`} playerId={player.id} playerName={player.displayName} status={gamesStatus(accounts, syncStatus, data.missingOnPage)} refresh={refreshFor(session, player.id, syncStatus)} encounter={encounter} />;
+  return <MatchHistoryView data={data} championsById={championsById} basePath={`${basePath}/matches`} playerId={player.id} playerName={player.displayName} status={gamesStatus(accounts, syncStatus, data)} refresh={refreshFor(session, player.id, syncStatus)} encounter={encounter} />;
 }
 
 /**
