@@ -133,7 +133,7 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
         </CardAvatar>
         <div className="contents sm:block sm:min-w-0 sm:flex-1 sm:pb-0.5">
           {/* On a phone the Customise chip sits at the name's row end: the name keeps clear of it. */}
-          <div className={cn("min-w-0", editable && "max-sm:pr-12")}>
+          <div className={cn("min-w-0", editable && "max-sm:pr-10")}>
             <CardTagline look={p.look} className="text-sm drop-shadow" />
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="min-w-0 max-w-full text-2xl tracking-tight text-fg drop-shadow sm:text-3xl">
@@ -160,7 +160,11 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
               )}
               {p.offRoles.map((r) => (
                 <span key={r} className="inline-flex items-center gap-1.5 whitespace-nowrap" data-testid="additional-role">
-                  <RoleIcon role={r} className="h-4 w-4 text-fg-subtle" /> {ROLE_LABELS[r]} <span className="text-fg-subtle max-sm:sr-only">(off role)</span>
+                  {/* On a phone "(off)" (the word "role" read out), so an off role is told from the main one in words, not by colour alone. */}
+                  <RoleIcon role={r} className="h-4 w-4 text-fg-subtle" /> {ROLE_LABELS[r]}{" "}
+                  <span className="text-fg-subtle">
+                    (off<span className="max-sm:sr-only"> role</span>)
+                  </span>
                 </span>
               ))}
               {p.showRank ? (

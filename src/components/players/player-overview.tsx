@@ -39,12 +39,15 @@ export const fmt = {
   own width decides the layout (a container query), so the open or folded sidebar is allowed for.
 */
 
+/** A figure's label with a line break allowed after each "/" ("Damage/min" wraps as "Damage/" "min" in a narrow cell rather than running under its ⓘ). */
+const breakable = (label: string) => label.replaceAll("/", "/\u200b");
+
 /** A headline figure: its label, the number at the size of the page's main figures, its context. */
 function Headline({ label, value, sub, info, tone = "plain", testId, children }: { label: string; value: React.ReactNode; sub?: React.ReactNode; info?: string; tone?: WinRateTone; testId: string; children?: React.ReactNode }) {
   return (
     <div className="min-w-0 px-3 py-3 @min-[34rem]/perf:px-5 @min-[34rem]/perf:py-4" data-testid={testId}>
       <div className="flex items-center gap-1 text-xs font-medium text-fg-muted">
-        <span className="min-w-0 leading-tight">{label}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
+        <span className="min-w-0 leading-tight">{breakable(label)}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
       </div>
       <div className={cn("mt-1.5 text-2xl font-semibold leading-none tracking-tight tabular-nums @min-[34rem]/perf:text-figure", TONE_CLASS[tone])} data-testid={`${testId}-value`}>
         {value}
@@ -61,13 +64,13 @@ function Supporting({ label, value, sub, info, muted, testId }: { label: string;
   return (
     <div className="min-w-0 px-3 py-2.5 @min-[34rem]/perf:px-5" data-testid={testId}>
       <div className="flex items-center gap-1 text-xs text-fg-muted">
-        <span className="min-w-0 leading-tight">{label}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
+        <span className="min-w-0 leading-tight">{breakable(label)}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
       </div>
       <div className="mt-1 flex min-w-0 items-baseline gap-2">
         <span className={cn("text-lg font-semibold leading-tight tabular-nums", muted ? "text-fg-subtle" : "text-fg")} data-testid={`${testId}-value`}>
           {value}
         </span>
-        {sub ? <span className="hidden min-w-0 truncate text-xs text-fg-subtle @min-[44rem]/perf:inline">{sub}</span> : null}
+        {sub ? <span className="hidden min-w-0 truncate text-xs text-fg-subtle @min-[40rem]/perf:inline">{sub}</span> : null}
       </div>
     </div>
   );
@@ -200,8 +203,8 @@ function PerformanceCard({ data, basePath }: { data: PlayerOverviewData; basePat
     2×2 (a window 1440px or wider, and a dashboard of 68rem or more: 1440 with the sidebar open and
                    wider; the owner's choice of 8 Nov 2026, never forced onto smaller screens)
                    the season's card and recent form side by side, level; under them the champion
-                   pools beside ranked progress, each at the top of its cell, in a rail of 20–26rem
-                   (40% of the dashboard). Without recent form, ranked progress takes the whole rail
+                   pools beside ranked progress, each at the top of its cell, in a rail of 20–30rem
+                   (40% of the dashboard: from 28rem ranked progress draws its chart in full). Without recent form, ranked progress takes the whole rail
                    beside the season's card and the pools; without ranked progress, the pools span
                    the width as below;
     wide (58rem+)  the season's card and recent form side by side, level; under them ranked
@@ -212,7 +215,7 @@ function PerformanceCard({ data, basePath }: { data: PlayerOverviewData; basePat
   A card without data is left out (fewer than five games: no recent form; no linked account: no
   ranked progress), and the others close up: nothing is padded out to keep a shape.
 */
-const GRID_2X2 = "min-[90rem]:@min-[68rem]/ov:grid-cols-[minmax(0,1fr)_clamp(20rem,40%,26rem)]";
+const GRID_2X2 = "min-[90rem]:@min-[68rem]/ov:grid-cols-[minmax(0,1fr)_clamp(20rem,40%,30rem)]";
 function OverviewDashboard({ perf, form, ranked, pools }: { perf: React.ReactNode; form?: React.ReactNode; ranked?: React.ReactNode; pools?: React.ReactNode }) {
   const wide = form ? "@min-[58rem]/ov:col-span-2" : undefined;
   // 2×2: only with ranked progress (else the 58rem arrangement stays); the pools go under the
@@ -220,8 +223,10 @@ function OverviewDashboard({ perf, form, ranked, pools }: { perf: React.ReactNod
   // The classes are written out whole, for Tailwind to find them.
   const two = !!ranked;
   return (
-    <div className="@container/ov" data-testid="overview-dashboard" data-layout-2x2={two || undefined}>
-      <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start gap-3 sm:gap-4", form && "@min-[58rem]/ov:grid-cols-[minmax(0,1fr)_minmax(18rem,21rem)]", two && GRID_2X2)}>
+    <div className="@container/ov" data-testid="overview-dashboard">
+      {/* Without recent form, ranked progress spans both rows of the rail: the second row takes its
+          growth (its details opened), so the season's card never stretches and the pools stay put. */}
+      <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start gap-3 sm:gap-4", form && "@min-[58rem]/ov:grid-cols-[minmax(0,1fr)_minmax(18rem,21rem)]", two && GRID_2X2, two && !form && "min-[90rem]:@min-[68rem]/ov:grid-rows-[auto_1fr]")}>
         <div className={cn("min-w-0 self-stretch", two && "min-[90rem]:@min-[68rem]/ov:col-start-1 min-[90rem]:@min-[68rem]/ov:row-start-1")}>{perf}</div>
         {form ? (
           <div className={cn("min-w-0 self-stretch", two && "min-[90rem]:@min-[68rem]/ov:col-start-2 min-[90rem]:@min-[68rem]/ov:row-start-1")} data-testid="overview-form">

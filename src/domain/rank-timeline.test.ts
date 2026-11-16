@@ -195,5 +195,9 @@ describe("ladderGrid", () => {
   it("names tiers alone sooner when asked, and shortens long names for a narrow chart", () => {
     expect(ladderGrid([1500, 2100], { maxDivisions: 4 }).map((g) => g.label)).toEqual(["Platinum", "Emerald"]);
     expect(ladderGrid([1800, 2000], { short: true }).map((g) => g.label)).toEqual(["P2", "P1", "E4"]);
+    // A whole tier's line keeps a short name, and the apex line its code.
+    expect(ladderGrid([2000, 2900], { maxDivisions: 4, short: true }).map((g) => g.label)).toEqual(["Emer", "Dia", "M"]);
+    expect(ladderGrid([1300, 1900], { maxDivisions: 4, short: true }).map((g) => g.label)).toEqual(["Plat"]);
+    expect(ladderGrid([2650, 2950], { short: true }).map((g) => g.label)).toEqual(["D1", "M"]);
   });
 });

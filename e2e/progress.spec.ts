@@ -149,7 +149,7 @@ test("on a large screen the chart's division names stay whole, and a narrow char
   const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
   const labels = () =>
     page.getByTestId("ranked-chart").evaluate((svg) =>
-      [...svg.querySelectorAll<SVGTextElement>("text[text-anchor=end]")].map((t) => ({ x: t.getBBox().x, text: t.textContent ?? "" })),
+      [...svg.querySelectorAll<SVGTextElement>("text[data-division]")].map((t) => ({ x: t.getBBox().x, text: t.textContent ?? "" })),
     );
   await page.setViewportSize({ width: 2560, height: 1440 });
   await page.goto(`/players/${id}`);
@@ -159,8 +159,40 @@ test("on a large screen the chart's division names stay whole, and a narrow char
   const wide = await labels();
   expect(wide.length, "division names drawn").toBeGreaterThan(0);
   for (const l of wide) expect(l.x, `"${l.text}" starts inside the drawing`).toBeGreaterThanOrEqual(0);
-  // A phone-wide window: the same divisions by code (E2, P1, M), still whole.
+  // The longest names the wide chart writes ("Platinum II", "Emerald III", "Diamond IV") are what
+  // the gutter must hold; at 2560 the root is about 22px.
+  expect(wide.some((l) => / I{1,3}V?$|IV$/.test(l.text)), "the wide chart names divisions in full").toBe(true);
+  // A phone-wide window: divisions by code (E2, P1), a whole tier by a short name, the apex "M", whole.
   await page.setViewportSize({ width: 360, height: 800 });
-  await expect.poll(async () => (await labels()).every((l) => /^(I|B|S|G|P|E|D)[1-4]$|^(M|GM|C)$/.test(l.text))).toBe(true);
+  await expect.poll(async () => (await labels()).every((l) => /^(I|B|S|G|P|E|D)[1-4]$|^(Iron|Bronze|Silver|Gold|Plat|Emer|Dia|M|GM|C)$/.test(l.text))).toBe(true);
   for (const l of await labels()) expect(l.x, `"${l.text}" starts inside the drawing`).toBeGreaterThanOrEqual(0);
+});
+
+test("on a phone Ranked progress's header never lets the queue switch cover the title, and its readings fit the box", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "phone widths, set below");
+  await page.goto("/team");
+  const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
+  await page.goto(`/players/${id}`);
+  const ranked = page.getByTestId("ranked-progress");
+  await expect(ranked).toBeVisible();
+  // Larger text on the narrowest phone: the switch goes under the title rather than over its ⓘ.
+  await page.setViewportSize({ width: 320, height: 640 });
+  for (const size of ["100%", "125%", "150%"]) {
+    await page.evaluate((s) => { document.documentElement.style.fontSize = s; }, size);
+    const clash = await ranked.evaluate((el) => {
+      const a = el.querySelector("#ranked-progress-title")!.getBoundingClientRect();
+      const b = el.querySelector("nav[aria-label=Queue]")!.getBoundingClientRect();
+      return Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+    });
+    expect(clash, `${size} text: the queue switch clear of the title`).toBe(0);
+  }
+  await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
+  // The readings at 390: no column pushed out of the box (the "confirmed …" line wraps).
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(async () => {
+    await page.getByTestId("ranked-details-toggle").click();
+    await expect(page.getByTestId("ranked-table")).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 15_000 });
+  const table = await page.getByTestId("ranked-table").evaluate((el) => ({ scroll: el.scrollWidth, client: el.clientWidth }));
+  expect(table.scroll, "390: the readings fit their box").toBeLessThanOrEqual(table.client + 1);
 });
