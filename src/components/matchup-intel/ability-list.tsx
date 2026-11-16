@@ -61,7 +61,9 @@ function AbilityRow({ champion, ability: a }: { champion: ChampionChoice; abilit
   const facts = a.facts;
   const details = a.details.length > 0 || facts.length > 0;
   return (
-    <li id={abilityAnchor(champion.id, a.slot)} className="scroll-mt-4 px-3 py-3.5 transition-colors target:bg-accent/5 sm:px-4" data-testid="ability-row" data-slot={a.slot}>
+    // A chip's jump lands here and gives the row the focus until it moves on (jumpToAnchor,
+    // ability-ref-link.tsx); the row is lit while it holds it.
+    <li id={abilityAnchor(champion.id, a.slot)} className="scroll-mt-4 px-3 py-3.5 transition-colors focus:bg-accent/5 focus-visible:-outline-offset-2 sm:px-4" data-testid="ability-row" data-slot={a.slot}>
       <div className="flex gap-3 @min-[46rem]/abilities:gap-4">
         <AbilityIcon src={a.icon} slot={a.slot} />
         <div className="min-w-0 flex-1 @min-[46rem]/abilities:grid @min-[46rem]/abilities:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] @min-[46rem]/abilities:gap-x-6">

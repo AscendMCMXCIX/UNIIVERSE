@@ -15,12 +15,15 @@ the most important part first; side by side where a desktop has the room):
 
 1. **The ten-second briefing**, where a person has written and checked one for this pair, in this
    direction: the threat, the opportunity and a few points about the lane. Each point has chips
-   naming the abilities it rests on ("Renekton W"), which jump to that ability's row. The briefing
-   says which patch it was checked on ("Checked on patch 26.22"). If Riot's numbers for those
-   abilities moved after the check, it adds "Riot's numbers for these abilities changed after the
-   check: may be out of date". Where no briefing exists, one calm line says so ("No curated briefing
-   for Garen vs Darius yet") and that what follows is the enemy's general reference. It also links
-   the curated matchups that do exist for your champion.
+   naming the abilities it rests on ("Renekton W"), which jump to that ability's row and give it
+   the focus. The jump goes into the address through the router's own history, so Back after a
+   later choice shows the pair it was made on (a browser's own jump to an anchor leaves an entry
+   the router does not restore). The briefing says which patch it was checked on ("Checked on
+   patch 26.22"). If Riot's numbers for those abilities moved after the check, it adds "Riot's
+   numbers for these abilities changed after the check: may be out of date". Where no briefing
+   exists, one calm line says so ("No curated briefing for Garen vs Darius yet") and that what
+   follows is the enemy's general reference. It also links the curated matchups that do exist for
+   your champion.
 2. **The enemy's abilities**, one row each for P, Q, W, E and R:
    - the icon, the key and the name;
    - the base cooldown at each rank, or why there is no number (see Cooldowns);
