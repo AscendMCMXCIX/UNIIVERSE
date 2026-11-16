@@ -83,7 +83,8 @@ describe("the League of Legends Wiki's credit (CC BY-SA 3.0)", () => {
 
   it("links each page by its title", () => {
     const list = part(credit, "matchup-footer-wiki-list", "ul")!;
-    const titles = [...list.matchAll(/<a [^>]*href="([^"]+)"[^>]*>([^<]+)/g)].map((m) => [m[1], m[2]]);
+    // Each link's own words, without the screen readers' "(opens in a new tab)".
+    const titles = [...list.matchAll(/<a [^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)].map((m) => [m[1], text(m[2]!.replace(/<span class="sr-only">[^<]*<\/span>/g, "")).trim()]);
     expect(titles).toEqual([
       [W.url, "Ruthless Predator (Renekton)"],
       [E.url, "Slice and Dice (Renekton)"],
@@ -201,5 +202,27 @@ describe("without curated notes, and with malformed ones", () => {
     expect(html).not.toContain(W.url);
     // A check with no day or patch recorded says "—" for the day and leaves the patch out.
     expect(text(part(html, "matchup-footer-checked")!)).toContain("Ambessa's notes on —.");
+  });
+});
+
+describe("each champion's data, and an offline copy", () => {
+  it("gives each champion's version when the two differ, the enemy's first", () => {
+    const view = curatedPair({ enemyIntel: intel("Renekton", [W], checked, "16.23.1"), yourIntel: intel("Ambessa", [Q], checked, "16.22.1") });
+    expect(text(part(render(view), "matchup-footer-ddragon")!).trim()).toBe("Ability names, icons and base cooldowns: Riot Data Dragon 16.23.1 (patch 26.23) for Renekton; Riot Data Dragon 16.22.1 (patch 26.22) for Ambessa.");
+  });
+
+  it("says an offline copy is one, and that the game's current patch is not known where it is not", () => {
+    const offline = (id: string) => ({ ...intel(id, [], null), offlineCopy: true });
+    const view: FooterView = { ...uncuratedPair, enemyIntel: offline("Darius"), yourIntel: offline("Garen") };
+    expect(text(part(render(view), "matchup-footer-ddragon")!).trim()).toBe("Ability names, icons and base cooldowns: an offline copy of Riot Data Dragon 16.22.1 (patch 26.22); the game's current patch is not known.");
+    expect(text(part(render({ ...view, patch: { current: "26.22" } }), "matchup-footer-ddragon")!).trim()).toBe("Ability names, icons and base cooldowns: an offline copy of Riot Data Dragon 16.22.1 (patch 26.22).");
+  });
+
+  it("neither dates nor credits a briefing whose check is too old to show, while the champions' notes keep theirs", () => {
+    const html = render(curatedPair({ matchup: { verified: checked, sources: [Q, W, E, PAGE], briefing: null, interactions: [] } }));
+    expect(text(part(html, "matchup-footer-checked")!).trim()).toBe("The curated notes on this page were checked on 16 Nov 2026 against patch 26.22.");
+    // The Renekton page was the briefing's alone: no longer listed.
+    expect(html).not.toContain(`href="${PAGE.url}"`);
+    expect(count(html, 'data-testid="matchup-footer-wiki-page"')).toBe(3);
   });
 });

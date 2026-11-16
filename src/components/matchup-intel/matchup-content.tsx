@@ -1,16 +1,14 @@
-import Link from "next/link";
 import { History, Swords } from "lucide-react";
-import type { ChampionChoice, MatchupPageView } from "@/domain/matchup-intel/types";
-import { comparePatches } from "@/domain/patch";
+import type { ChampionChoice, ChampionIntelView, MatchupPageView } from "@/domain/matchup-intel/types";
+import { comparePatches, patchFromVersion, publicPatchName } from "@/domain/patch";
 import { Disclosure } from "@/components/ui/disclosure";
 import { EmptyState } from "@/components/ui/empty-state";
-import { cn } from "@/lib/cn";
-import { matchupHref } from "./address";
-import { AbilitiesPanel, AbilityList } from "./ability-list";
-import { Briefing, CuratedLinks, NoBriefing } from "./briefing";
+import { AbilitiesPanel, AbilityList, CuratedLine, dataSourceOf } from "./ability-list";
+import { Briefing, CuratedLinks, NoBriefing, PAIR_CHIP } from "./briefing";
 import { MatchupFooter } from "./matchup-footer";
-import { OpenPickerButton } from "./matchup-frame";
+import { OpenPickerButton, PairLink } from "./matchup-frame";
 import { InteractionsPanel, LevelNotesPanel } from "./matchup-notes";
+import { staleDataWords } from "./wording";
 
 /*
   MATCHUP INTEL's page body, under the pickers (docs/MATCHUP_INTEL.md), in the order a player needs
@@ -18,13 +16,21 @@ import { InteractionsPanel, LevelNotesPanel } from "./matchup-notes";
     (a) the ten-second briefing, where a curated one exists for this pair, or (b) a calm line that
         none exists yet and what follows is the enemy's general reference;
     (c) the enemy's abilities, P Q W E R, with base cooldowns per rank and the checked facts;
-    (d) interactions and (e) level notes, side by side where there is room;
+    (d) interactions and (e) level notes, one under the other at every width (side by side, the
+        short level notes left a column of empty space beside the interactions on a desktop);
     (f) your own champion's abilities, collapsed;
     (g) the sources, the patch and Riot's notice.
-  With nothing chosen, or one side only, it says what to do next.
+  With nothing chosen, or one side only, it says what to do next. Ability data older than the
+  game's current patch is said once, above the abilities, naming whose it is when only some is.
 */
 
 const toChoices = (ids: readonly string[] | undefined, byId: ReadonlyMap<string, ChampionChoice>) => (ids ?? []).map((id) => byId.get(id)).filter((c): c is ChampionChoice => !!c);
+
+/** "26.22" for Data Dragon "16.22.1"; null without a version. */
+function publicPatchOf(version: string | null): string | null {
+  const patch = version ? patchFromVersion(version) : null;
+  return patch ? publicPatchName(patch) : null;
+}
 
 /** Nothing chosen: what the page does, and the curated briefings there are so far. */
 function NothingChosen({ curated, byId }: { curated: Record<string, string[]>; byId: ReadonlyMap<string, ChampionChoice> }) {
@@ -39,9 +45,9 @@ function NothingChosen({ curated, byId }: { curated: Record<string, string[]>; b
         <p className="mt-3 flex flex-wrap items-center justify-center gap-1.5" data-testid="matchup-curated-pairs">
           <span>Curated briefings so far:</span>
           {pairs.map(({ you, enemy }) => (
-            <Link key={`${you.id}-${enemy.id}`} href={matchupHref(you.id, enemy.id)} prefetch={false} className="touch-target inline-flex min-h-7 items-center rounded-full border border-border-strong bg-surface-2 px-2.5 text-xs font-medium text-fg-muted transition-colors hover:border-accent/60 hover:text-fg" data-testid="matchup-curated-pair">
+            <PairLink key={`${you.id}-${enemy.id}`} you={you.id} enemy={enemy.id} className={PAIR_CHIP} testId="matchup-curated-pair">
               {you.name} vs {enemy.name}
-            </Link>
+            </PairLink>
           ))}
         </p>
       ) : null}
@@ -49,14 +55,12 @@ function NothingChosen({ curated, byId }: { curated: Record<string, string[]>; b
   );
 }
 
-/** Ability data older than the game's current patch: said once, above the abilities. */
-function StaleNote({ data, current }: { data: string; current: string }) {
+/** Ability data older than the game's current patch: said once, above the abilities, naming whose. */
+function StaleNote({ words }: { words: string }) {
   return (
     <p className="flex items-start gap-2 rounded-panel border border-warn/30 bg-warn/10 px-4 py-3 text-sm text-fg" data-testid="matchup-stale">
       <History className="mt-0.5 h-4 w-4 shrink-0 text-warn" aria-hidden />
-      <span>
-        The ability data held here is from patch {data}; the game is on patch {current}. It updates with the next game-data update.
-      </span>
+      <span>{words}</span>
     </p>
   );
 }
@@ -65,16 +69,28 @@ export function MatchupContent({ view, champions, curated, legal }: { view: Matc
   const byId = new Map(champions.map((c) => [c.id, c]));
   const { you, enemy, enemyIntel, yourIntel, matchup } = view;
   const curatedForYou = you ? toChoices(curated[you.id], byId) : [];
-  const stale = view.patch.data && view.patch.current && comparePatches(view.patch.data, view.patch.current) < 0 ? { data: view.patch.data, current: view.patch.current } : null;
   const mirror = !!you && !!enemy && you.id === enemy.id;
-  const interactions = enemyIntel ? <InteractionsPanel matchup={matchup} enemyIntel={enemyIntel} you={you} /> : null;
+  // Each champion's data judged by its own version: one whose file could not be read keeps an older
+  // record while the other's is current, and is named.
+  const current = view.patch.current;
+  const shownData = [enemyIntel, mirror ? null : yourIntel].filter((i): i is ChampionIntelView => !!i?.abilities);
+  const behind = current
+    ? shownData.flatMap((i) => {
+        const patch = publicPatchOf(i.dataVersion);
+        return patch && comparePatches(patch, current) < 0 ? [{ name: i.champion.name, patch }] : [];
+      })
+    : [];
+  // The champions whose ability rows are on the page, for the briefing's chips.
+  const rows = new Set(shownData.map((i) => i.champion.id));
+  const interactions = enemyIntel ? <InteractionsPanel matchup={matchup} enemyIntel={enemyIntel} you={you} rows={rows} /> : null;
   const levels = <LevelNotesPanel intels={[enemyIntel, yourIntel]} />;
-  const hasInteractions = !!enemyIntel && (!!matchup?.interactions.length || !!enemyIntel.abilities?.some((a) => a.facts.some((f) => f.kind === "interaction" || f.kind === "exception")));
+  const hasInteractions = !!enemyIntel && (!!matchup?.interactions.length || !!matchup?.expiredInteractions || !!enemyIntel.abilities?.some((a) => a.facts.some((f) => f.kind === "interaction" || f.kind === "exception")));
   const hasLevels = [enemyIntel, yourIntel].some((i) => !!i?.levelNotes.length);
+  const yourSource = yourIntel ? dataSourceOf(yourIntel) : null;
 
   return (
     <div className="space-y-5">
-      {stale && (enemyIntel?.abilities || yourIntel?.abilities) ? <StaleNote data={stale.data} current={stale.current} /> : null}
+      {behind.length && current ? <StaleNote words={staleDataWords(behind, current, behind.length === shownData.length)} /> : null}
 
       {!you && !enemy ? <NothingChosen curated={curated} byId={byId} /> : null}
 
@@ -93,16 +109,12 @@ export function MatchupContent({ view, champions, curated, legal }: { view: Matc
         </p>
       ) : null}
 
-      {you && enemy ? matchup ? <Briefing matchup={matchup} you={you} enemy={enemy} /> : <NoBriefing you={you} enemy={enemy} curatedForYou={curatedForYou} /> : null}
+      {you && enemy ? matchup ? <Briefing matchup={matchup} you={you} enemy={enemy} rows={rows} /> : <NoBriefing you={you} enemy={enemy} curatedForYou={curatedForYou} /> : null}
 
       {enemyIntel ? <AbilitiesPanel intel={enemyIntel} title={mirror ? `${enemyIntel.champion.name}'s abilities (both sides)` : `${enemyIntel.champion.name}'s abilities`} testId="matchup-enemy-abilities" /> : null}
 
-      {hasInteractions || hasLevels ? (
-        <div className={cn("grid items-start gap-4", hasInteractions && hasLevels && "lg:grid-cols-2")}>
-          {hasInteractions ? interactions : null}
-          {hasLevels ? levels : null}
-        </div>
-      ) : null}
+      {hasInteractions ? interactions : null}
+      {hasLevels ? levels : null}
 
       {yourIntel && !mirror ? (
         // A section with a heading of its own, so its abilities' headings sit under it rather than
@@ -110,7 +122,17 @@ export function MatchupContent({ view, champions, curated, legal }: { view: Matc
         // summary is not read as one everywhere), so the heading is for screen readers alone.
         <section>
           <h2 className="sr-only">{`Your champion: ${yourIntel.champion.name}`}</h2>
-          <Disclosure title={`Your champion: ${yourIntel.champion.name}`} description="Abilities, base cooldowns and checked notes, for reference" testId="matchup-your-abilities">
+          <Disclosure
+            title={`Your champion: ${yourIntel.champion.name}`}
+            description={
+              // Where its abilities come from, its own version (which may differ from the enemy's), and its notes' check.
+              <span className="flex flex-col gap-1">
+                <span>Abilities and base cooldowns, for reference{yourSource ? ` · ${yourSource}` : ""}</span>
+                <CuratedLine intel={yourIntel} />
+              </span>
+            }
+            testId="matchup-your-abilities"
+          >
             <div className="-m-3 sm:-m-4">
               <AbilityList intel={yourIntel} testId="matchup-your-abilities-list" />
             </div>

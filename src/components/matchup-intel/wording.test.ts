@@ -4,10 +4,15 @@ import {
   UNKNOWN_WORDS,
   abilityAnchor,
   abilityName,
+  announcementWords,
   changedAbilitiesWords,
   cooldownLines,
   cooldownSourceWords,
   cooldownWords,
+  dataSourceWords,
+  expiredBriefingWords,
+  expiredInteractionsWords,
+  expiredNotesWords,
   flaggedNotesWords,
   freshnessWords,
   hiddenBriefingWords,
@@ -15,9 +20,12 @@ import {
   hiddenPartWords,
   hiddenPointsWords,
   listWords,
+  missingAbilitiesWords,
   modifierWords,
+  notRecheckedWords,
   recastWords,
   revisionWords,
+  staleDataWords,
   subjectWords,
 } from "./wording";
 
@@ -185,5 +193,51 @@ describe("the rest of the page's words", () => {
     expect(freshnessWords("current", "26.22")).toEqual({ checked: "Checked on patch 26.22", warning: null });
     expect(freshnessWords("unchanged-since", "26.21")).toEqual({ checked: "Checked on patch 26.21", warning: null });
     expect(freshnessWords("changed-since", "26.21")).toEqual({ checked: "Checked on patch 26.21", warning: "Riot changed abilities this rests on after the check: may be out of date" });
+  });
+});
+
+describe("a check a patch or more behind, and data that is old, an offline copy or missing", () => {
+  it("says a checked line has not been re-checked for a later patch, and nothing of the kind under Riot's own data", () => {
+    const at = { freshness: "unchanged-since" as const, checkedPatch: "26.22", dataPatch: "26.23", notRecheckedFor: "26.23" };
+    expect(cooldownSourceWords({ kind: "per-rank", seconds: [8], starts: null, from: "curated" }, at)).toBe("Checked on patch 26.22 · not re-checked for 26.23");
+    expect(cooldownSourceWords({ kind: "none" }, { ...at, checkedPatch: null })).toBe("Checked · not re-checked for 26.23");
+    expect(cooldownSourceWords({ kind: "per-rank", seconds: [8], starts: null, from: "ddragon" }, { ...at, freshness: null })).toBe("Riot's data, not reviewed");
+    expect(notRecheckedWords("26.23")).toBe("Not re-checked for 26.23");
+  });
+
+  it("says how long ago a check too old to show was, and what it hides", () => {
+    expect(expiredNotesWords(3)).toBe("Checked three patches ago: may be out of date");
+    expect(expiredNotesWords(12)).toBe("Checked 12 patches ago: may be out of date");
+    expect(expiredBriefingWords("26.22", 3)).toBe("This briefing is hidden: it was checked on patch 26.22, three patches ago, and not since. It shows again once a person checks it.");
+    expect(expiredInteractionsWords(1, "26.22", 3)).toBe("One interaction is hidden: it was checked on patch 26.22, three patches ago, with the briefing.");
+    expect(expiredInteractionsWords(2, "26.22", 4)).toBe("Two interactions are hidden: they were checked on patch 26.22, four patches ago, with the briefing.");
+  });
+
+  it("names whose ability data is older than the game's patch, unless it is all of it", () => {
+    const tail = "the game is on patch 26.23. The next game-data update reads it from Riot again.";
+    expect(staleDataWords([{ name: "Riven", patch: "26.22" }], "26.23", false)).toBe(`Riven's ability data is from patch 26.22; ${tail}`);
+    expect(staleDataWords([{ name: "Riven", patch: "26.22" }], "26.23", true)).toBe(`The ability data held here is from patch 26.22; ${tail}`);
+    expect(staleDataWords([{ name: "Riven", patch: "26.22" }, { name: "Mordekaiser", patch: "26.22" }], "26.23", true)).toBe(`The ability data held here is from patch 26.22; ${tail}`);
+    expect(staleDataWords([{ name: "Riven", patch: "26.21" }, { name: "Mordekaiser", patch: "26.22" }], "26.23", true)).toBe(`Riven's ability data is from patch 26.21 and Mordekaiser's from 26.22; ${tail}`);
+    expect(staleDataWords([], "26.23", true)).toBe("");
+  });
+
+  it("names an offline copy as one, and says what is missing plainly: none stored, or a copy that cannot be read", () => {
+    expect(dataSourceWords("16.22.1", false)).toBe("Riot Data Dragon 16.22.1");
+    expect(dataSourceWords("16.22.1", true)).toBe("an offline copy of Riot Data Dragon 16.22.1");
+    expect(dataSourceWords("16.22.1", true, true)).toBe("Offline copy of Riot Data Dragon 16.22.1");
+    expect(missingAbilitiesWords("Riven", false)).toEqual({ title: "Ability details aren't stored yet", body: "Riven's abilities are read from Riot's Data Dragon once per game version, and none are stored yet." });
+    expect(missingAbilitiesWords("Riven", true).title).toBe("Riot's ability data for Riven could not be read");
+  });
+
+  it("tells a screen reader what arrived after a choice", () => {
+    const c = (id: string) => ({ id, name: id, title: "", portrait: "" });
+    const matchup = { verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-16" } } as Parameters<typeof announcementWords>[0]["matchup"];
+    expect(announcementWords({ you: c("Riven"), enemy: c("Mordekaiser"), matchup }, true)).toBe("Riven vs Mordekaiser: curated briefing, checked on patch 26.22. Mordekaiser's abilities follow.");
+    expect(announcementWords({ you: c("Riven"), enemy: c("Mordekaiser"), matchup }, false)).toBe("Riven vs Mordekaiser: the curated briefing is hidden. Mordekaiser's abilities follow.");
+    expect(announcementWords({ you: c("Garen"), enemy: c("Darius"), matchup: null }, false)).toBe("No curated briefing for Garen vs Darius yet. Darius's abilities follow.");
+    expect(announcementWords({ you: c("Riven"), enemy: null, matchup: null }, false)).toBe("Playing Riven: now choose the enemy.");
+    expect(announcementWords({ you: null, enemy: c("Darius"), matchup: null }, false)).toBe("Darius's abilities and base cooldowns.");
+    expect(announcementWords({ you: null, enemy: null, matchup: null }, false)).toBe("Choose your champion and the enemy.");
   });
 });

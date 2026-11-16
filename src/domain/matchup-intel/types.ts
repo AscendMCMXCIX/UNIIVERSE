@@ -495,16 +495,41 @@ export interface AbilityView {
   freshness: Freshness | null;
 }
 
+/**
+ * How far the game has moved past a check, by patch (docs/MATCHUP_INTEL.md, "Freshness"): the
+ * newest patch the page knows of (the data's, or the game's current one) is later than the patch
+ * the notes were checked on, and nobody has checked them again since.
+ */
+export interface Recheck {
+  /** That newest patch, by its public name ("26.23"). */
+  patch: string;
+  /** How many patches have come since the check: 1 or more. */
+  patches: number;
+  /**
+   * More than MAX_PATCHES_UNCHECKED (src/server/matchup-intel/view.ts): a briefing is hidden, and
+   * champion notes are flagged, until a person checks them again.
+   */
+  expired: boolean;
+}
+
 /** One champion's intelligence, ready to show. */
 export interface ChampionIntelView {
   champion: ChampionChoice;
   /** The Data Dragon version the abilities come from; null when none are stored yet. */
   dataVersion: string | null;
-  /** Null when no ability data is stored for this champion yet. */
+  /**
+   * The abilities are the committed offline copy of Riot's data (stored when Riot's servers could not
+   * be reached on a first start), not a copy the game-data job read from Data Dragon.
+   */
+  offlineCopy: boolean;
+  /** Null when no ability data is stored for this champion yet, or what is stored cannot be read (abilitiesUnreadable). */
   abilities: AbilityView[] | null;
+  /** A record is stored for this champion but is not in the shape the page reads, so it is not shown. */
+  abilitiesUnreadable: boolean;
   /** Null when this champion has no curated notes. */
-  curated: { verified: Verification; freshness: Freshness } | null;
-  levelNotes: Array<{ level: number; text: string; source: SourceLinkView }>;
+  curated: { verified: Verification; freshness: Freshness; recheck: Recheck | null } | null;
+  /** `changed`: Riot changed an ability the note rests on after the check, so it is flagged. */
+  levelNotes: Array<{ level: number; text: string; source: SourceLinkView; changed: boolean }>;
   sources: Source[];
 }
 
@@ -522,8 +547,17 @@ export interface MatchupIntelView {
   verified: Verification;
   /** How fresh what it shows is: the hidden points and interactions are not counted. */
   freshness: Freshness;
-  briefing: { threat: BriefingPointView; opportunity: BriefingPointView; lane: BriefingPointView[] };
+  /** How far the game has moved past its check; null when it has not, or nothing newer is known. */
+  recheck: Recheck | null;
+  /**
+   * Null once its check is more than MAX_PATCHES_UNCHECKED patches old (recheck.expired): the
+   * briefing's words stay on the server, and the page says why it is hidden.
+   */
+  briefing: { threat: BriefingPointView; opportunity: BriefingPointView; lane: BriefingPointView[] } | null;
+  /** [] once its check is too old (recheck.expired); `expiredInteractions` then says how many that hid. */
   interactions: InteractionView[];
+  /** How many interactions are hidden because the check is too old (0 otherwise). */
+  expiredInteractions: number;
   sources: Source[];
 }
 
@@ -535,6 +569,10 @@ export interface MatchupPageView {
   yourIntel: ChampionIntelView | null;
   /** Null when no curated matchup exists for this direction. */
   matchup: MatchupIntelView | null;
-  /** The game's current public patch as the app knows it (e.g. "26.22"), and the data's. */
+  /**
+   * The game's current public patch as the app knows it (e.g. "26.22"; null while the game data is
+   * the offline fixture), and the data's: the enemy's, else your champion's. Each champion's own is
+   * its intel's `dataVersion`, which the page uses for that champion's labels and stale notice.
+   */
   patch: { current: string | null; data: string | null };
 }

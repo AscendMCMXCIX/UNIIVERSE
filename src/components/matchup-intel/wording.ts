@@ -1,6 +1,6 @@
 import { formatCooldowns, formatCount, formatIsoDay, formatPerRank, formatSeconds } from "@/lib/format";
 import { cooldownFrom } from "@/domain/matchup-intel/cooldown";
-import type { AbilityChange, AbilityModifiers, CooldownDisplay, CooldownStart, FactKind, FactSubject, Freshness, PassiveStart, Recast, Slot, UnknownCooldownReason } from "@/domain/matchup-intel/types";
+import type { AbilityChange, AbilityModifiers, CooldownDisplay, CooldownStart, FactKind, FactSubject, Freshness, MatchupPageView, PassiveStart, Recast, Slot, UnknownCooldownReason } from "@/domain/matchup-intel/types";
 
 /*
   Matchup Intel's fixed words (docs/MATCHUP_INTEL.md, "Cooldowns"): how a cooldown, its modifiers,
@@ -139,13 +139,14 @@ export function modifierWords(m: AbilityModifiers | null | undefined): string[] 
 }
 
 /**
- * Where a cooldown line comes from, said under it: notes a person checked, Riot's data no person
- * has reviewed, or Riot's newer data once it moved after the check. Null where nothing needs
- * saying (no data held, or a line without a number on an ability whose notes are current).
+ * Where a cooldown line comes from, said under it: notes a person checked (and, once a later patch
+ * is out, that nobody has checked them again for it: `notRecheckedFor`, Recheck.patch), Riot's data
+ * no person has reviewed, or Riot's newer data once it moved after the check. Null where nothing
+ * needs saying (no data held, or a line without a number on an ability whose notes are current).
  */
-export function cooldownSourceWords(d: CooldownDisplay, at: { freshness: Freshness | null; checkedPatch: string | null; dataPatch: string | null }): string | null {
+export function cooldownSourceWords(d: CooldownDisplay, at: { freshness: Freshness | null; checkedPatch: string | null; dataPatch: string | null; notRecheckedFor?: string | null }): string | null {
   const from = cooldownFrom(d);
-  if (from === "curated") return at.checkedPatch ? `Checked on patch ${at.checkedPatch}` : "Checked";
+  if (from === "curated") return `${at.checkedPatch ? `Checked on patch ${at.checkedPatch}` : "Checked"}${at.notRecheckedFor ? ` · not re-checked for ${at.notRecheckedFor}` : ""}`;
   if (from === "ddragon") {
     if (at.freshness === "changed-since") return at.dataPatch ? `Riot's data for patch ${at.dataPatch}, not re-checked` : "Riot's data, not re-checked";
     return "Riot's data, not reviewed";
@@ -230,6 +231,60 @@ export function freshnessWords(f: Freshness, patch: string): { checked: string; 
   return { checked: `Checked on patch ${patch}`, warning: f === "changed-since" ? "Riot changed abilities this rests on after the check: may be out of date" : null };
 }
 
+/** Notes checked on an earlier patch than the newest the page knows, which nobody has checked again: "Not re-checked for 26.23". */
+export function notRecheckedWords(patch: string): string {
+  return `Not re-checked for ${patch}`;
+}
+
+/** "three patches ago", "12 patches ago", "one patch ago". */
+const patchesAgo = (n: number) => `${n === 1 ? "one" : countWord(n).toLowerCase()} ${n === 1 ? "patch" : "patches"} ago`;
+
+/** Champion notes past MAX_PATCHES_UNCHECKED patches since their check: "Checked three patches ago: may be out of date". */
+export function expiredNotesWords(patches: number): string {
+  return `Checked ${patchesAgo(patches)}: may be out of date`;
+}
+
+/** In place of a briefing past MAX_PATCHES_UNCHECKED patches since its check: "This briefing is hidden: it was checked on patch 26.22, three patches ago, and not since." */
+export function expiredBriefingWords(checkedPatch: string, patches: number): string {
+  return `This briefing is hidden: it was checked on patch ${checkedPatch}, ${patchesAgo(patches)}, and not since. It shows again once a person checks it.`;
+}
+
+/** In place of a matchup's interactions past MAX_PATCHES_UNCHECKED patches since its check: "Two interactions are hidden: they were checked on patch 26.22, three patches ago." */
+export function expiredInteractionsWords(count: number, checkedPatch: string, patches: number): string {
+  return `${countWord(count)} ${count === 1 ? "interaction is" : "interactions are"} hidden: ${count === 1 ? "it was" : "they were"} checked on patch ${checkedPatch}, ${patchesAgo(patches)}, with the briefing.`;
+}
+
+/**
+ * Ability data older than the game's current patch, said once above the abilities, naming whose it
+ * is when only some of the champions shown are behind: "Riven's ability data is from patch 26.22;
+ * the game is on patch 26.23." Every champion shown behind on one patch: "The ability data held
+ * here is from patch 26.22; …".
+ */
+export function staleDataWords(behind: ReadonlyArray<{ name: string; patch: string }>, current: string, everyShown: boolean): string {
+  const tail = `the game is on patch ${current}. The next game-data update reads it from Riot again.`;
+  if (behind.length === 0) return "";
+  if (everyShown && behind.every((b) => b.patch === behind[0]!.patch)) return `The ability data held here is from patch ${behind[0]!.patch}; ${tail}`;
+  if (behind.length === 1) return `${behind[0]!.name}'s ability data is from patch ${behind[0]!.patch}; ${tail}`;
+  const [first, ...rest] = behind;
+  return `${first!.name}'s ability data is from patch ${first!.patch} and ${listWords(rest.map((b) => `${b.name}'s from ${b.patch}`))}; ${tail}`;
+}
+
+/**
+ * Where a champion's abilities come from: "Riot Data Dragon 16.22.1", or the copy committed with the
+ * app, "an offline copy of Riot Data Dragon 16.22.1" in a sentence (the footer), "Offline copy of
+ * Riot Data Dragon 16.22.1" as a label after a "·" (`label`: a panel's or a section's line).
+ */
+export function dataSourceWords(version: string, offlineCopy: boolean, label = false): string {
+  return offlineCopy ? `${label ? "Offline" : "an offline"} copy of Riot Data Dragon ${version}` : `Riot Data Dragon ${version}`;
+}
+
+/** No abilities to show for a champion: none stored yet, or a record stored that cannot be read. */
+export function missingAbilitiesWords(name: string, unreadable: boolean): { title: string; body: string } {
+  return unreadable
+    ? { title: `Riot's ability data for ${name} could not be read`, body: `A copy is stored, but not in the shape this page reads. ${name}'s abilities are read from Riot's Data Dragon once per game version.` }
+    : { title: "Ability details aren't stored yet", body: `${name}'s abilities are read from Riot's Data Dragon once per game version, and none are stored yet.` };
+}
+
 /** A champion's notes once Riot changed some of its abilities after the check: "Riot changed two abilities after the check: their notes are flagged". */
 export function changedAbilitiesWords(count: number): string {
   return count === 1 ? "Riot changed one ability after the check: its notes are flagged" : `Riot changed ${countWord(count).toLowerCase()} abilities after the check: their notes are flagged`;
@@ -255,4 +310,22 @@ export function hiddenBriefingWords(changed: readonly string[]): string {
 /** After the matchup's interactions shown: "One interaction is hidden: Riot changed Renekton W after it was checked." */
 export function hiddenInteractionsWords(count: number, changed: readonly string[]): string {
   return `${countWord(count)} ${count === 1 ? "interaction is" : "interactions are"} hidden: Riot changed ${changedNames(changed)} after ${count === 1 ? "it was" : "they were"} checked.`;
+}
+
+/**
+ * What a screen reader is told once the page for a choice made in the pickers has arrived (the
+ * slot it is on names only its own champion): whether a curated briefing came, or none exists, and
+ * what follows. `shows`: the briefing shows a point of its own (not hidden whole).
+ */
+export function announcementWords(view: Pick<MatchupPageView, "you" | "enemy" | "matchup">, shows: boolean): string {
+  const { you, enemy, matchup } = view;
+  if (you && enemy) {
+    const pair = `${you.name} vs ${enemy.name}`;
+    if (matchup && shows) return `${pair}: curated briefing, checked on patch ${matchup.verified.patch}. ${enemy.name}'s abilities follow.`;
+    if (matchup) return `${pair}: the curated briefing is hidden. ${enemy.name}'s abilities follow.`;
+    return `No curated briefing for ${pair} yet. ${enemy.name}'s abilities follow.`;
+  }
+  if (you) return `Playing ${you.name}: now choose the enemy.`;
+  if (enemy) return `${enemy.name}'s abilities and base cooldowns.`;
+  return "Choose your champion and the enemy.";
 }

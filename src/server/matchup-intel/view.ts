@@ -1,8 +1,9 @@
 import type { Db } from "@/server/db/types";
-import { FACT_TAGS, SLOTS, type AbilityRef, type AbilityView, type BriefingPoint, type BriefingPointView, type ChampionChoice, type ChampionIntelView, type ChampionNotes, type DdragonChampionAbilities, type Fact, type FactSubject, type FactTag, type FactView, type Freshness, type InteractionView, type MatchupIntelView, type MatchupNotes, type MatchupPageView, type Slot, type Source, type SourceLinkView } from "@/domain/matchup-intel/types";
+import { FACT_TAGS, SLOTS, type AbilityRef, type AbilityView, type BriefingPoint, type BriefingPointView, type ChampionChoice, type ChampionIntelView, type ChampionNotes, type DdragonChampionAbilities, type Fact, type FactSubject, type FactTag, type FactView, type Freshness, type InteractionView, type MatchupIntelView, type MatchupNotes, type MatchupPageView, type Recheck, type Slot, type Source, type SourceLinkView } from "@/domain/matchup-intel/types";
 import { abilityChanges, abilityFreshness, compareDdragonVersions, cooldownDisplay, curatedCooldownDisplay, modifiersView, weakestFreshness } from "@/domain/matchup-intel/cooldown";
-import { patchFromVersion, publicPatchName } from "@/domain/patch";
-import { getCurrentPatch, listChampions, type ChampionSummary } from "@/server/repositories/champions";
+import { patchFromVersion, patchesAfter, publicPatchName } from "@/domain/patch";
+import { cachedFor } from "@/server/observability/cache";
+import { getCurrentPatch, listChampions, listPatchesDesc, type ChampionSummary } from "@/server/repositories/champions";
 import { loadChampionAbilities } from "./abilities";
 import { curatedEnemiesFor, getChampionNotes, getMatchupNotes } from "./curated";
 
@@ -13,9 +14,18 @@ import { curatedEnemiesFor, getChampionNotes, getMatchupNotes } from "./curated"
   (MatchupPageView); the curated dataset and these modules never do (src/app/client-imports.test.ts).
 
   The work is what the page needs and no more: the session (the page's own check), the cached
-  roster and current patch, and the stored abilities of the one or two champions chosen. The
-  curated notes are committed with the code, so reading them costs no request.
+  roster, current patch and list of patches, and the stored abilities of the one or two champions
+  chosen. The curated notes are committed with the code, so reading them costs no request.
 */
+
+/**
+ * The most patches curated notes may go unchecked (docs/MATCHUP_INTEL.md, "Freshness"): past this
+ * many patches since its check, a briefing is hidden, and champion notes are flagged as possibly
+ * out of date, until a person checks them again. Until then each says it has not been re-checked
+ * for the newest patch. Riot's data cannot show most changes (a crowd-control duration, a range sit
+ * behind its tooltips' placeholders), so a check's age is the only sign of them.
+ */
+export const MAX_PATCHES_UNCHECKED = 2;
 
 /** What the view is built from, injected so it is tested without a database. */
 export interface MatchupViewDeps {
@@ -23,8 +33,14 @@ export interface MatchupViewDeps {
   champions: readonly ChampionChoice[];
   /** The current patch as stored ("16.22", Data Dragon "16.22.1"); null when none is known yet, or it is the offline fixture. */
   currentPatch: { patch: string; ddragonVersion: string } | null;
-  /** The stored Data Dragon abilities of these champions (null for one with none stored yet). */
-  loadAbilities: (championIds: readonly string[]) => Promise<{ version: string | null; champions: Record<string, DdragonChampionAbilities | null> }>;
+  /**
+   * The stored Data Dragon abilities of these champions (null for one with none stored yet, or one
+   * whose record cannot be read, which `unreadable` names), and which of them are the committed
+   * offline copy (`offline`).
+   */
+  loadAbilities: (championIds: readonly string[]) => Promise<{ version: string | null; champions: Record<string, DdragonChampionAbilities | null>; offline?: readonly string[]; unreadable?: readonly string[] }>;
+  /** The patches the app has seen ("16.22"), newest first, to count how many came after a check; [] or absent when none are known. */
+  knownPatches?: readonly string[];
   championNotes: (championId: string) => ChampionNotes | null;
   /** The curated matchup for your champion against the enemy, this direction only. */
   matchupNotes: (championId: string, vsId: string) => MatchupNotes | null;
@@ -121,6 +137,28 @@ function freshnessOf(values: readonly Freshness[], verifiedVersion: string, data
 }
 
 /**
+ * How far the game has moved past notes checked on `verifiedVersion`: the newest of `versions` (the
+ * data's, and the game's current one) when its patch is later than the check's, with how many
+ * patches came since (patchesAfter: the known list where it covers them, never fewer than the
+ * numbering shows). Null when none is later, a later build of the same patch included, or nothing
+ * is a version. It compares versions, not Riot's records: notes on an unchanged record still have
+ * not been checked for the newer patch.
+ */
+export function recheckOf(verifiedVersion: string, versions: ReadonlyArray<string | null | undefined>, knownPatches: readonly string[] = []): Recheck | null {
+  const from = typeof verifiedVersion === "string" ? patchFromVersion(verifiedVersion) : null;
+  if (!from || compareDdragonVersions(verifiedVersion, verifiedVersion) === null) return null;
+  let newest: string | null = null;
+  for (const v of versions) {
+    if (typeof v !== "string" || compareDdragonVersions(v, verifiedVersion) === null) continue;
+    if (newest === null || compareDdragonVersions(v, newest)! > 0) newest = v;
+  }
+  const to = newest ? patchFromVersion(newest) : null;
+  if (!newest || !to || compareDdragonVersions(newest, verifiedVersion)! <= 0) return null;
+  const patches = patchesAfter(from, to, knownPatches);
+  return patches > 0 ? { patch: publicPatchName(to), patches, expired: patches > MAX_PATCHES_UNCHECKED } : null;
+}
+
+/**
  * One champion's abilities in slot order, with its curated notes where they exist; null when none
  * are stored yet. Each ability's freshness comes first, because it decides the line: while the
  * notes still describe Riot's record, their cooldown is the line; once Riot's record moved after
@@ -159,29 +197,50 @@ function abilityViews(data: DdragonChampionAbilities | null, notes: ChampionNote
   });
 }
 
+/** What a champion's intel is read with beyond its record and notes. */
+interface IntelContext {
+  /** The record is the committed offline copy. */
+  offline: boolean;
+  /** A record is stored that cannot be read. */
+  unreadable: boolean;
+  /** The game's current Data Dragon version, when the app knows it (not while it runs on the offline fixture). */
+  currentVersion: string | null;
+  knownPatches: readonly string[];
+}
+
 /** One champion's intelligence: Data Dragon's abilities, and the curated layer when there is one. */
-function championIntel(champion: ChampionChoice, data: DdragonChampionAbilities | null, notes: ChampionNotes | null): ChampionIntelView {
+function championIntel(champion: ChampionChoice, data: DdragonChampionAbilities | null, notes: ChampionNotes | null, context: IntelContext): ChampionIntelView {
   const dataVersion = data?.version ?? null;
   const bySlot = new Map((data?.abilities ?? []).map((a) => [a.slot, a]));
+  const freshnessBySlot = new Map<Slot, Freshness>();
+  if (notes) {
+    for (const slot of SLOTS) {
+      const n = notes.abilities[slot];
+      if (n) freshnessBySlot.set(slot, abilityFreshness(bySlot.get(slot) ?? null, n, notes.verified.ddragonVersion, dataVersion));
+    }
+  }
   const curated = notes
     ? {
         verified: { ...notes.verified },
-        freshness: freshnessOf(
-          SLOTS.flatMap((slot) => {
-            const n = notes.abilities[slot];
-            return n ? [abilityFreshness(bySlot.get(slot) ?? null, n, notes.verified.ddragonVersion, dataVersion)] : [];
-          }),
-          notes.verified.ddragonVersion,
-          dataVersion,
-        ),
+        freshness: freshnessOf([...freshnessBySlot.values()], notes.verified.ddragonVersion, dataVersion),
+        recheck: recheckOf(notes.verified.ddragonVersion, [dataVersion, context.currentVersion], context.knownPatches),
       }
     : null;
+  // A level note rests on abilities of its own champion; once Riot changed one of them after the
+  // check, it is flagged, as that ability's notes are.
+  const changedSlot = (slot: unknown) => typeof slot === "string" && freshnessBySlot.get(slot as Slot) === "changed-since";
   return {
     champion,
     dataVersion,
+    offlineCopy: !!data && context.offline,
     abilities: abilityViews(data, notes),
+    abilitiesUnreadable: !data && context.unreadable,
     curated,
-    levelNotes: notes ? [...(notes.levelNotes ?? [])].sort((a, b) => a.level - b.level).map((l) => ({ level: l.level, text: l.text, source: sourceLink(notes.sources, l.source) })) : [],
+    levelNotes: notes
+      ? [...(notes.levelNotes ?? [])]
+          .sort((a, b) => a.level - b.level)
+          .map((l) => ({ level: l.level, text: l.text, source: sourceLink(notes.sources, l.source), changed: Array.isArray(l.basedOn) && l.basedOn.some(changedSlot) }))
+      : [],
     sources: notes ? safeSources(notes.sources) : [],
   };
 }
@@ -231,9 +290,17 @@ function matchupAbilityFreshness(checked: string, data: DdragonChampionAbilities
  * after the matchup was checked ("changed-since") is hidden: its text stays on the server, and the
  * page says in its place which abilities changed. The rest keep their "Checked on patch N", and the
  * matchup's freshness is that of what it shows.
+ *
+ * Once more than MAX_PATCHES_UNCHECKED patches have come since its check (against both champions'
+ * data and the game's current version), the briefing and the interactions are hidden as a whole,
+ * whatever Riot's records say: most changes never show in them. The page says why.
  */
-function matchupIntel(notes: MatchupNotes, ids: ReadonlySet<string>, data: Record<string, DdragonChampionAbilities | null>, championNotes: Record<string, ChampionNotes | null>): MatchupIntelView {
+function matchupIntel(notes: MatchupNotes, ids: ReadonlySet<string>, data: Record<string, DdragonChampionAbilities | null>, championNotes: Record<string, ChampionNotes | null>, context: { currentVersion: string | null; knownPatches: readonly string[] }): MatchupIntelView {
   const verified = notes.verified.ddragonVersion;
+  const recheck = recheckOf(verified, [...[...ids].map((id) => data[id]?.version ?? null), context.currentVersion], context.knownPatches);
+  if (recheck?.expired) {
+    return { verified: { ...notes.verified }, freshness: "unchanged-since", recheck, briefing: null, interactions: [], expiredInteractions: notes.interactions.length, sources: safeSources(notes.sources) };
+  }
   const keep = (refs: readonly AbilityRef[]) => refs.filter((r) => refOf(r, ids) !== null);
   const freshness = new Map<AbilityRef, Freshness>();
   const freshnessOfRef = (r: AbilityRef): Freshness => {
@@ -262,7 +329,7 @@ function matchupIntel(notes: MatchupNotes, ids: ReadonlySet<string>, data: Recor
   const values = [...shown, ...interactions.flatMap((i) => (i.kind === "interaction" ? i.abilities : []))].map(freshnessOfRef);
   const dataVersions = [...ids].map((id) => data[id]?.version ?? null);
   const dataVersion = dataVersions.every((v) => v !== null && v === dataVersions[0]) ? dataVersions[0]! : null;
-  return { verified: { ...notes.verified }, freshness: freshnessOf(values, verified, dataVersion), briefing, interactions, sources: safeSources(notes.sources) };
+  return { verified: { ...notes.verified }, freshness: freshnessOf(values, verified, dataVersion), recheck, briefing, interactions, expiredInteractions: 0, sources: safeSources(notes.sources) };
 }
 
 /** Everything the page shows for one choice of champions (docs/MATCHUP_INTEL.md). */
@@ -271,7 +338,7 @@ export async function buildMatchupPageView(input: { champion?: string; vs?: stri
   const you = resolve(input.champion);
   const enemy = resolve(input.vs);
   const ids = [...new Set([you?.id, enemy?.id].filter((id): id is string => !!id))];
-  const loaded = ids.length ? await deps.loadAbilities(ids) : { version: null, champions: {} as Record<string, DdragonChampionAbilities | null> };
+  const loaded: Awaited<ReturnType<MatchupViewDeps["loadAbilities"]>> = ids.length ? await deps.loadAbilities(ids) : { version: null, champions: {} };
   const data: Record<string, DdragonChampionAbilities | null> = Object.fromEntries(ids.map((id) => [id, loaded.champions[id] ?? null]));
   const notes: Record<string, ChampionNotes | null> = Object.fromEntries(
     ids.map((id) => {
@@ -279,10 +346,14 @@ export async function buildMatchupPageView(input: { champion?: string; vs?: stri
       return [id, n && n.championId === id ? n : null];
     }),
   );
-  const intel = (c: ChampionChoice | null) => (c ? championIntel(c, data[c.id] ?? null, notes[c.id] ?? null) : null);
+  const offline = new Set(loaded.offline ?? []);
+  const unreadable = new Set(loaded.unreadable ?? []);
+  const currentVersion = deps.currentPatch?.ddragonVersion ?? null;
+  const knownPatches = deps.knownPatches ?? [];
+  const intel = (c: ChampionChoice | null) => (c ? championIntel(c, data[c.id] ?? null, notes[c.id] ?? null, { offline: offline.has(c.id), unreadable: unreadable.has(c.id), currentVersion, knownPatches }) : null);
   const curatedMatchup = you && enemy ? deps.matchupNotes(you.id, enemy.id) : null;
   // This direction only: notes for the enemy against your champion are another matchup.
-  const matchup = curatedMatchup && you && enemy && curatedMatchup.championId === you.id && curatedMatchup.vsId === enemy.id ? matchupIntel(curatedMatchup, new Set(ids), data, notes) : null;
+  const matchup = curatedMatchup && you && enemy && curatedMatchup.championId === you.id && curatedMatchup.vsId === enemy.id ? matchupIntel(curatedMatchup, new Set(ids), data, notes, { currentVersion, knownPatches }) : null;
   const dataVersion = (enemy ? data[enemy.id]?.version : null) ?? (you ? data[you.id]?.version : null) ?? loaded.version;
   return {
     you,
@@ -313,14 +384,21 @@ export function curatedIndex(champions: readonly ChampionChoice[], enemiesFor: (
 /** The curated index per roster: the notes are committed with the code, so one per roster list is enough. */
 const indexes = new WeakMap<readonly ChampionSummary[], Record<string, string[]>>();
 
+/**
+ * The patches the app has seen, newest first: a few dozen short rows, cached for a minute like the
+ * current patch (a static sync that changes the patches clears both: invalidateChampionCaches).
+ */
+const knownPatchesOf = (db: Db) => cachedFor("patch:known", 60_000, () => listPatchesDesc(db), db);
+
 /** What the page needs, from the real modules. */
 export async function loadMatchupPage(db: Db, input: { champion?: string; vs?: string }): Promise<{ view: MatchupPageView; champions: ChampionChoice[]; curated: Record<string, string[]> }> {
-  const [list, current] = await Promise.all([listChampions(db), getCurrentPatch(db)]);
+  const [list, current, knownPatches] = await Promise.all([listChampions(db), getCurrentPatch(db), knownPatchesOf(db)]);
   const champions = championChoices(list);
   const view = await buildMatchupPageView(input, {
     champions,
     currentPatch: current && !current.isFixture ? { patch: current.patch, ddragonVersion: current.ddragonVersion } : null,
     loadAbilities: (ids) => loadChampionAbilities(db, ids),
+    knownPatches,
     championNotes: getChampionNotes,
     matchupNotes: getMatchupNotes,
   });

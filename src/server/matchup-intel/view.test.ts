@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AbilityView, ChampionChoice, ChampionNotes, DdragonAbility, DdragonChampionAbilities, Fact, MatchupNotes, MatchupPageView } from "@/domain/matchup-intel/types";
-import { abilityIconUrl, buildMatchupPageView, championResolver, curatedIndex, safeSourceUrl, type MatchupViewDeps } from "./view";
+import { MAX_PATCHES_UNCHECKED, abilityIconUrl, buildMatchupPageView, championResolver, curatedIndex, recheckOf, safeSourceUrl, type MatchupViewDeps } from "./view";
 
 /*
   The page's view, built from injected parts (no database): the roster, the current patch, the
@@ -93,7 +93,7 @@ describe("a curated matchup (Ambessa vs Renekton)", () => {
     const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps());
     expect(v.you?.id).toBe("Ambessa");
     expect(v.enemy?.id).toBe("Renekton");
-    expect(v.matchup?.briefing.threat).toEqual({ kind: "point", text: "His empowered stun.", basedOn: ["Renekton.W"] });
+    expect(v.matchup?.briefing!.threat).toEqual({ kind: "point", text: "His empowered stun.", basedOn: ["Renekton.W"] });
     expect(v.matchup?.freshness).toBe("current");
     expect(v.matchup?.verified.patch).toBe("26.22");
     expect(v.patch).toEqual({ current: "26.22", data: "26.22" });
@@ -117,7 +117,7 @@ describe("a curated matchup (Ambessa vs Renekton)", () => {
     expect(slotOf(v, "P").cooldown).toEqual({ kind: "unknown", reason: "passive-not-in-ddragon" });
     expect(slotOf(v, "Q")).toMatchObject({ cooldown: { kind: "per-rank", seconds: [8, 7, 6, 5, 4], starts: null, from: "ddragon" }, checkedCooldown: null, modifiers: null, facts: [], freshness: null });
 
-    expect(v.enemyIntel!.curated).toEqual({ verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-16" }, freshness: "current" });
+    expect(v.enemyIntel!.curated).toEqual({ verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-16" }, freshness: "current", recheck: null });
     // Level notes in level order, each with its source.
     expect(v.enemyIntel!.levelNotes.map((l) => l.level)).toEqual([2, 6]);
     expect(v.enemyIntel!.levelNotes[0]!.source).toEqual({ title: "Renekton (League of Legends Wiki)", url: WIKI, revisionTime: "2026-09-23T19:37:45Z" });
@@ -127,8 +127,8 @@ describe("a curated matchup (Ambessa vs Renekton)", () => {
 
   it("keeps the briefing to the two champions' abilities", async () => {
     const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps());
-    expect(v.matchup!.briefing.lane[0]).toEqual({ kind: "point", text: "Respect level 2.", basedOn: ["Renekton.W"] });
-    expect(v.matchup!.briefing.opportunity).toEqual({ kind: "point", text: "Trade when Fury is low.", basedOn: ["Renekton.P", "Ambessa.Q"] });
+    expect(v.matchup!.briefing!.lane[0]).toEqual({ kind: "point", text: "Respect level 2.", basedOn: ["Renekton.W"] });
+    expect(v.matchup!.briefing!.opportunity).toEqual({ kind: "point", text: "Trade when Fury is low.", basedOn: ["Renekton.P", "Ambessa.Q"] });
     expect(v.matchup!.interactions[0]).toEqual({ kind: "interaction", text: "Unstoppable answers the stun.", abilities: ["Ambessa.E", "Renekton.W"], source: "wiki" });
   });
 
@@ -199,11 +199,11 @@ describe("Riot's data changed after the check", () => {
     const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps({ loadAbilities: storedAs(changedW) }));
     const m = v.matchup!;
     // The threat rests on Renekton W: hidden, with the ability named in its place; its words stay on the server.
-    expect(m.briefing.threat).toEqual({ kind: "hidden", changed: ["Renekton.W"] });
+    expect(m.briefing!.threat).toEqual({ kind: "hidden", changed: ["Renekton.W"] });
     expect(JSON.stringify(m)).not.toContain("His empowered stun.");
     // The opportunity rests on abilities that did not change: shown, as checked.
-    expect(m.briefing.opportunity).toEqual({ kind: "point", text: "Trade when Fury is low.", basedOn: ["Renekton.P", "Ambessa.Q"] });
-    expect(m.briefing.lane).toEqual([{ kind: "hidden", changed: ["Renekton.W"] }]);
+    expect(m.briefing!.opportunity).toEqual({ kind: "point", text: "Trade when Fury is low.", basedOn: ["Renekton.P", "Ambessa.Q"] });
+    expect(m.briefing!.lane).toEqual([{ kind: "hidden", changed: ["Renekton.W"] }]);
     expect(m.interactions).toEqual([{ kind: "hidden", changed: ["Renekton.W"] }]);
     // What is shown is as fresh as its own abilities: checked on 26.22, nothing changed since.
     expect(m.freshness).toBe("unchanged-since");
@@ -219,7 +219,7 @@ describe("Riot's data changed after the check", () => {
       expect(w.changes, JSON.stringify(over)).toEqual([Object.keys(over)[0] === "charges" ? "charges" : Object.keys(over)[0]!]);
       // Same numbers, but Riot's now: a charge count from Data Dragon alone is no number at all.
       expect(w.cooldown, JSON.stringify(over)).toEqual(over.charges ? { kind: "unknown", reason: "charges-in-ddragon" } : { kind: "per-rank", seconds: [18, 17, 16, 15, 14], starts: null, from: "ddragon" });
-      expect(v.matchup!.briefing.threat, JSON.stringify(over)).toEqual({ kind: "hidden", changed: ["Renekton.W"] });
+      expect(v.matchup!.briefing!.threat, JSON.stringify(over)).toEqual({ kind: "hidden", changed: ["Renekton.W"] });
     }
   });
 
@@ -231,7 +231,7 @@ describe("Riot's data changed after the check", () => {
         matchupNotes: () => ambessaVsRenekton({ briefing: { threat: { text: "A.", basedOn: ["Renekton.W"] }, opportunity: { text: "B.", basedOn: ["Renekton.W", "Ambessa.Q"] }, lane: [{ text: "C.", basedOn: ["Renekton.W"] }] } }),
       }),
     );
-    const { threat, opportunity, lane } = v.matchup!.briefing;
+    const { threat, opportunity, lane } = v.matchup!.briefing!;
     expect([threat, opportunity, ...lane].every((p) => p.kind === "hidden")).toBe(true);
     expect(opportunity).toEqual({ kind: "hidden", changed: ["Renekton.W"] });
   });
@@ -241,7 +241,7 @@ describe("Riot's data changed after the check", () => {
     expect(v.enemyIntel!.curated!.freshness).toBe("unchanged-since");
     expect(slotOf(v, "W").cooldown).toMatchObject({ from: "curated", starts: "after-effect-ends" });
     expect(v.matchup!.freshness).toBe("unchanged-since");
-    expect(v.matchup!.briefing.threat.kind).toBe("point");
+    expect(v.matchup!.briefing!.threat.kind).toBe("point");
   });
 
   it("claims no change by Riot when the data held is older than the check: the notes stay the line, and nothing is hidden", async () => {
@@ -250,7 +250,7 @@ describe("Riot's data changed after the check", () => {
     expect(w.freshness).toBe("unchanged-since");
     expect(w.cooldown).toMatchObject({ from: "curated", seconds: [18, 17, 16, 15, 14] });
     expect(w.checkedCooldown).toBeNull();
-    expect(v.matchup!.briefing.threat.kind).toBe("point");
+    expect(v.matchup!.briefing!.threat.kind).toBe("point");
     expect(v.patch.data).toBe("26.21");
   });
 });
@@ -288,20 +288,22 @@ describe("a matchup checked on another version than the champion notes it rests 
 
   it("hides what rests on an ability whose numbers moved after champion notes taken on a later version than its check (versions compared by number)", async () => {
     const v = await view({
+      // The game on the data's patch: the matchup's check is two patches old, not too old to show.
+      currentPatch: { patch: "16.11", ddragonVersion: "16.11.1" },
       loadAbilities: storedAt("16.11.1", [14, 13, 12, 11, 10]),
       championNotes: (id) => (id === "Renekton" ? renektonAt("16.10.1", "26.10", [16, 15, 14, 13, 12]) : null),
       matchupNotes: () => ambessaVsRenekton({ verified: at("16.9.1", "26.9") }),
     });
     // 16.9.1 (the matchup) before 16.10.1 (the notes) before 16.11.1 (the data): the change came after the matchup's check.
-    expect(v.matchup!.briefing.threat).toEqual({ kind: "hidden", changed: ["Renekton.W"] });
-    expect(v.matchup!.briefing.opportunity.kind).toBe("point");
+    expect(v.matchup!.briefing!.threat).toEqual({ kind: "hidden", changed: ["Renekton.W"] });
+    expect(v.matchup!.briefing!.opportunity.kind).toBe("point");
   });
 
   it("with champion notes older than its check, a change in Riot's numbers may predate the check: nothing is hidden", async () => {
     const v = await view({ loadAbilities: storedAt("16.24.1", [20, 19, 18, 17, 16]), matchupNotes: () => ambessaVsRenekton({ verified: at("16.23.1", "26.23") }) });
     expect(v.enemyIntel!.curated!.freshness).toBe("changed-since");
     expect(v.matchup!.freshness).toBe("unchanged-since");
-    expect(v.matchup!.briefing.threat.kind).toBe("point");
+    expect(v.matchup!.briefing!.threat.kind).toBe("point");
   });
 });
 
@@ -416,5 +418,104 @@ describe("the curated index for the pickers", () => {
   it("lists, per champion, the enemies a curated matchup exists for, on the roster only", () => {
     const index = curatedIndex(ROSTER, (id) => (id === "Ambessa" ? ["Renekton", "Renekton", "Gone"] : id === "Riven" ? ["Mordekaiser"] : []));
     expect(index).toEqual({ Ambessa: ["Renekton"], Riven: ["Mordekaiser"] });
+  });
+});
+
+describe("each champion's data as it is stored", () => {
+  it("keeps each champion's own version: one whose file could not be read keeps an older record beside the other's current one", async () => {
+    const v = await buildMatchupPageView({ champion: "Riven", vs: "Mordekaiser" }, deps({ currentPatch: { patch: "16.23", ddragonVersion: "16.23.1" }, loadAbilities: storedAs({ Riven: kit("Riven", "16.22.1"), Mordekaiser: kit("Mordekaiser", "16.23.1") }) }));
+    expect(v.yourIntel!.dataVersion).toBe("16.22.1");
+    expect(v.enemyIntel!.dataVersion).toBe("16.23.1");
+    expect(v.yourIntel!.abilities![1]!.icon).toContain("/cdn/16.22.1/");
+    expect(v.patch).toEqual({ current: "26.23", data: "26.23" });
+  });
+
+  it("says which records are the offline copy, and which are stored but cannot be read (never 'not stored')", async () => {
+    const v = await buildMatchupPageView(
+      { champion: "Riven", vs: "Mordekaiser" },
+      deps({ currentPatch: null, loadAbilities: async () => ({ version: "16.22.1", champions: { Riven: null, Mordekaiser: kit("Mordekaiser") }, offline: ["Mordekaiser"], unreadable: ["Riven"] }) }),
+    );
+    expect(v.enemyIntel).toMatchObject({ offlineCopy: true, abilitiesUnreadable: false });
+    expect(v.yourIntel).toMatchObject({ offlineCopy: false, abilitiesUnreadable: true, abilities: null });
+    // Without the loader saying so, neither.
+    const plain = await buildMatchupPageView({ champion: "Riven", vs: "Mordekaiser" }, deps());
+    expect(plain.enemyIntel).toMatchObject({ offlineCopy: false, abilitiesUnreadable: false });
+  });
+});
+
+describe("how far the game has moved past a check", () => {
+  const known = ["17.1", "16.24", "16.23", "16.22", "16.21"];
+
+  it("counts the patches from the check to the newest the page knows: the data's or the game's", () => {
+    expect(recheckOf("16.22.1", ["16.23.1", "16.23.1"])).toEqual({ patch: "26.23", patches: 1, expired: false });
+    expect(recheckOf("16.22.1", ["16.22.1", "16.24.1"])).toEqual({ patch: "26.24", patches: 2, expired: false });
+    expect(recheckOf("16.22.1", ["16.25.1", null])).toEqual({ patch: "26.25", patches: 3, expired: true });
+    expect(MAX_PATCHES_UNCHECKED).toBe(2);
+    // Across a season the known patches count (16.23, 16.24, 17.1); without them, only what the numbers prove.
+    expect(recheckOf("16.22.1", ["17.1.1"], known)).toEqual({ patch: "27.1", patches: 3, expired: true });
+    expect(recheckOf("16.22.1", ["17.1.1"])).toEqual({ patch: "27.1", patches: 1, expired: false });
+    // Nothing newer: the same patch (a later build of it too), older data, no versions at all.
+    expect(recheckOf("16.22.1", ["16.22.1"])).toBeNull();
+    expect(recheckOf("16.22.1", ["16.22.2"])).toBeNull();
+    expect(recheckOf("16.23.1", ["16.22.1", null])).toBeNull();
+    expect(recheckOf("16.22.1", [null, undefined, "not a version"])).toBeNull();
+    expect(recheckOf("not a version", ["16.25.1"])).toBeNull();
+  });
+
+  it("one patch on, with Riot's records unchanged: everything shows, and says it has not been re-checked for that patch", async () => {
+    const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps({ currentPatch: { patch: "16.23", ddragonVersion: "16.23.1" }, loadAbilities: storedAs({ Ambessa: kit("Ambessa", "16.23.1"), Renekton: kit("Renekton", "16.23.1") }) }));
+    expect(v.matchup!.recheck).toEqual({ patch: "26.23", patches: 1, expired: false });
+    expect(v.matchup!.briefing!.threat.kind).toBe("point");
+    expect(v.enemyIntel!.curated!.recheck).toEqual({ patch: "26.23", patches: 1, expired: false });
+  });
+
+  it("the game's patch alone counts: data still on the check's patch while the game is two patches on", async () => {
+    const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps({ currentPatch: { patch: "16.24", ddragonVersion: "16.24.1" } }));
+    expect(v.matchup!.recheck).toEqual({ patch: "26.24", patches: 2, expired: false });
+    expect(v.enemyIntel!.curated!.recheck).toMatchObject({ patches: 2, expired: false });
+  });
+
+  it("three patches on, Riot's records unchanged: the briefing and the matchup's interactions are hidden whole, the champion notes flagged", async () => {
+    const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps({ currentPatch: { patch: "16.25", ddragonVersion: "16.25.1" }, loadAbilities: storedAs({ Ambessa: kit("Ambessa", "16.25.1"), Renekton: kit("Renekton", "16.25.1") }) }));
+    const m = v.matchup!;
+    expect(m.recheck).toEqual({ patch: "26.25", patches: 3, expired: true });
+    expect(m.briefing).toBeNull();
+    expect(m.interactions).toEqual([]);
+    expect(m.expiredInteractions).toBe(1);
+    // Its words stay on the server.
+    expect(JSON.stringify(v)).not.toContain("His empowered stun.");
+    expect(JSON.stringify(v)).not.toContain("Unstoppable answers the stun.");
+    // The champion's notes still show, flagged as more than two patches old; Riot's records did not move.
+    expect(v.enemyIntel!.curated).toMatchObject({ freshness: "unchanged-since", recheck: { patches: 3, expired: true } });
+    expect(slotOf(v, "W").cooldown).toMatchObject({ from: "curated" });
+  });
+
+  it("knows nothing newer while the game data is the offline fixture: nothing is counted", async () => {
+    const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps({ currentPatch: null }));
+    expect(v.matchup!.recheck).toBeNull();
+    expect(v.enemyIntel!.curated!.recheck).toBeNull();
+  });
+
+  it("counts across a season by the patches the app has seen", async () => {
+    const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps({ knownPatches: known, currentPatch: { patch: "17.1", ddragonVersion: "17.1.1" }, loadAbilities: storedAs({ Ambessa: kit("Ambessa", "17.1.1"), Renekton: kit("Renekton", "17.1.1") }) }));
+    expect(v.matchup!.recheck).toEqual({ patch: "27.1", patches: 3, expired: true });
+    expect(v.matchup!.briefing).toBeNull();
+  });
+});
+
+describe("level notes", () => {
+  it("are flagged once Riot changes an ability they rest on after the check, and not otherwise", async () => {
+    const changed = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps({ loadAbilities: storedAs({ Ambessa: kit("Ambessa", "16.23.1"), Renekton: kit("Renekton", "16.23.1", [20, 19, 18, 17, 16]) }) }));
+    // Level 2 rests on W, which moved; level 6 on R, which has no notes to compare.
+    expect(changed.enemyIntel!.levelNotes.map((l) => [l.level, l.changed])).toEqual([
+      [2, true],
+      [6, false],
+    ]);
+    const same = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps());
+    expect(same.enemyIntel!.levelNotes.every((l) => !l.changed)).toBe(true);
+    // Notes from elsewhere without what they rest on are never flagged by guess.
+    const loose = renektonNotes({ levelNotes: [{ level: 3, text: "Loose.", source: "wiki" } as never] });
+    const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps({ championNotes: (id) => (id === "Renekton" ? loose : null), loadAbilities: storedAs({ Ambessa: kit("Ambessa", "16.23.1"), Renekton: kit("Renekton", "16.23.1", [20, 19, 18, 17, 16]) }) }));
+    expect(v.enemyIntel!.levelNotes).toMatchObject([{ level: 3, changed: false }]);
   });
 });

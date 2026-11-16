@@ -68,7 +68,8 @@ describe("the page body", () => {
   it("a curated pair: the briefing with its chips, five ability rows with cooldowns, the notes and the sources", async () => {
     const html = await render({ champion: "Ambessa", vs: "Renekton" });
     const t = text(html);
-    expect(t).toContain("Ambessa vs Renekton: the ten-second briefing");
+    // The pair is in the slots above; the heading names it for screen readers.
+    expect(html).toContain('The ten-second briefing<span class="sr-only">: Ambessa vs Renekton</span>');
     expect(t).toContain("Checked on patch 26.22");
     expect(html).toContain('href="#ability-Renekton-W"');
     expect(html).toContain('href="#ability-Ambessa-Q"');
@@ -127,7 +128,11 @@ describe("the page body", () => {
     expect(enemyOnly).toContain("Choose your champion for a curated briefing");
     expect(enemyOnly).toContain("Renekton's abilities");
     const empty = text(await render({ vs: "Darius" }, { loadAbilities: async (ids) => ({ version: null, champions: Object.fromEntries(ids.map((id) => [id, null])) }) }));
-    expect(empty).toContain("Ability details arrive with the next game-data update");
+    expect(empty).toContain("Ability details aren't stored yet Darius's abilities are read from Riot's Data Dragon once per game version, and none are stored yet.");
+    // A record that is stored but cannot be read is said as that, never as missing.
+    const unreadable = text(await render({ vs: "Darius" }, { loadAbilities: async (ids) => ({ version: null, champions: Object.fromEntries(ids.map((id) => [id, null])), unreadable: [...ids] }) }));
+    expect(unreadable).toContain("Riot's ability data for Darius could not be read");
+    expect(unreadable).not.toContain("aren't stored yet");
   });
 
   it("ability data older than the current patch says so", async () => {
@@ -284,5 +289,77 @@ describe("the page's structure", () => {
     expect(links(await render({ champion: "Ambessa" }))).toContain("justify-center");
     // No briefing for the pair: the links follow the calm line, left-aligned like it.
     expect(links(await render({ champion: "Ambessa", vs: "Darius" }))).not.toContain("justify-center");
+  });
+});
+
+/** Each champion stored at its own version. */
+const storedAt = (versions: Record<string, string>, over: (k: DdragonChampionAbilities) => DdragonChampionAbilities = (k) => k): MatchupViewDeps["loadAbilities"] => async (ids) => ({ version: null, champions: Object.fromEntries(ids.map((id) => [id, versions[id] ? over(kit(id, versions[id])) : null])) });
+
+describe("each champion's data, and checks a patch or more behind", () => {
+  it("names whose ability data is older when only one is, and gives each version in the footer and in your champion's section", async () => {
+    const html = await render({ champion: "Garen", vs: "Darius" }, { currentPatch: { patch: "16.23", ddragonVersion: "16.23.1" }, loadAbilities: storedAt({ Garen: "16.22.1", Darius: "16.23.1" }) });
+    const t = text(html);
+    expect(t).toContain("Garen's ability data is from patch 26.22; the game is on patch 26.23.");
+    expect(t).not.toContain("The ability data held here");
+    expect(t).toContain("Ability names, icons and base cooldowns: Riot Data Dragon 16.23.1 (patch 26.23) for Darius; Riot Data Dragon 16.22.1 (patch 26.22) for Garen.");
+    expect(t).toContain("Your champion: Garen Abilities and base cooldowns, for reference · Riot Data Dragon 16.22.1");
+    expect(t).toContain("Base cooldowns, without ability haste · Riot Data Dragon 16.23.1");
+  });
+
+  it("the other way round: the enemy's data older and yours current names the enemy alone; both older on one patch is said once", async () => {
+    const reverse = text(await render({ champion: "Garen", vs: "Darius" }, { currentPatch: { patch: "16.23", ddragonVersion: "16.23.1" }, loadAbilities: storedAt({ Garen: "16.23.1", Darius: "16.22.1" }) }));
+    expect(reverse).toContain("Darius's ability data is from patch 26.22; the game is on patch 26.23.");
+    const both = text(await render({ champion: "Garen", vs: "Darius" }, { currentPatch: { patch: "16.23", ddragonVersion: "16.23.1" }, loadAbilities: storedAt({ Garen: "16.22.1", Darius: "16.22.1" }) }));
+    expect(both).toContain("The ability data held here is from patch 26.22; the game is on patch 26.23.");
+    expect(both).toContain("Ability names, icons and base cooldowns: Riot Data Dragon 16.22.1 (patch 26.22).");
+    // A mirror is one champion.
+    const mirror = text(await render({ champion: "Darius", vs: "Darius" }, { currentPatch: { patch: "16.23", ddragonVersion: "16.23.1" }, loadAbilities: storedAt({ Darius: "16.22.1" }) }));
+    expect(mirror).toContain("The ability data held here is from patch 26.22");
+  });
+
+  it("one patch since the check: 'not re-checked' for it on the briefing, the notes' line and each checked cooldown", async () => {
+    const html = await render({ champion: "Ambessa", vs: "Renekton" }, { currentPatch: { patch: "16.23", ddragonVersion: "16.23.1" }, loadAbilities: storedAt({ Ambessa: "16.23.1", Renekton: "16.23.1" }) });
+    const t = text(html);
+    expect(text(html.slice(html.indexOf('data-testid="matchup-briefing-checked"')))).toMatch(/^[^<]*Checked on patch 26\.22 Not re-checked for 26\.23/);
+    expect(t).toContain("Curated notes: checked on patch 26.22 Not re-checked for 26.23");
+    expect(rowText(html, "Renekton", "W")).toContain("18 / 17 / 16 / 15 / 14 s Checked on patch 26.22 · not re-checked for 26.23");
+    // Riot's own lines say nothing of a check.
+    expect(rowText(html, "Renekton", "Q")).toContain("13 s at every rank Riot's data, not reviewed");
+    expect(t).toContain("The empowered stun.");
+  });
+
+  it("three patches since the check: the briefing and its interactions hidden whole, saying why; the notes flagged; nothing of the briefing dated or credited", async () => {
+    const html = await render({ champion: "Ambessa", vs: "Renekton" }, { currentPatch: { patch: "16.25", ddragonVersion: "16.25.1" }, loadAbilities: storedAt({ Ambessa: "16.25.1", Renekton: "16.25.1" }) });
+    const t = text(html);
+    expect(t).toContain("This briefing is hidden: it was checked on patch 26.22, three patches ago, and not since. It shows again once a person checks it.");
+    expect(t).not.toContain("The empowered stun.");
+    expect(t).not.toContain("Threat");
+    expect(t).toContain("One interaction is hidden: it was checked on patch 26.22, three patches ago, with the briefing.");
+    expect(t).not.toContain("Unstoppable answers it.");
+    expect(t).toContain("Curated notes: checked on patch 26.22 Checked three patches ago: may be out of date");
+    expect(text(html.slice(html.indexOf('data-testid="matchup-level-notes"')))).toMatch(/^[^<]*By level When something notable becomes possible Checked three patches ago: may be out of date/);
+    expect(t).toContain("The curated notes on this page were checked on 16 Nov 2026 against patch 26.22.");
+    expect(t).not.toContain("the Ambessa vs Renekton briefing");
+  });
+
+  it("the offline copy: said in the panel and the footer, with the game's current patch not known", async () => {
+    const t = text(await render({ vs: "Darius" }, { currentPatch: null, loadAbilities: async (ids) => ({ version: "16.22.1", champions: Object.fromEntries(ids.map((id) => [id, kit(id)])), offline: [...ids] }) }));
+    expect(t).toContain("Base cooldowns, without ability haste · Offline copy of Riot Data Dragon 16.22.1");
+    expect(t).toContain("Ability names, icons and base cooldowns: an offline copy of Riot Data Dragon 16.22.1 (patch 26.22); the game's current patch is not known.");
+  });
+
+  it("chips for a champion with no ability rows on the page are labels, never links to nothing", async () => {
+    const html = await render({ champion: "Ambessa", vs: "Renekton" }, { loadAbilities: storedAt({ Ambessa: "16.22.1" }) });
+    expect(html).not.toContain('href="#ability-Renekton-W"');
+    expect(html).toMatch(/<span class="[^"]*" data-testid="briefing-ability-label">Renekton W<\/span>/);
+    expect(html).toContain('href="#ability-Ambessa-Q"');
+  });
+
+  it("a level note from an ability Riot changed after the check is flagged", async () => {
+    const moved = (k: DdragonChampionAbilities) => ({ ...k, abilities: k.abilities.map((a) => (a.slot === "W" ? { ...a, cooldown: [20, 19, 18, 17, 16] } : a)) });
+    const html = await render({ champion: "Ambessa", vs: "Renekton" }, { loadAbilities: storedAt({ Ambessa: "16.23.1", Renekton: "16.23.1" }, moved) });
+    const levels = html.slice(html.indexOf('data-testid="matchup-level-notes"'));
+    expect(levels).toContain('data-testid="matchup-level-note" data-changed=""');
+    expect(text(levels)).toContain("Level 6 Renekton: Dominus. Changed since the check");
   });
 });

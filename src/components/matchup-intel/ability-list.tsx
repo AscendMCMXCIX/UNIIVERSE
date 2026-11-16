@@ -1,12 +1,12 @@
-import { ChevronDown, ChevronsUp, Flame, Footprints, HeartPulse, Link2, Lock, Shield, Timer, TriangleAlert, type LucideIcon } from "lucide-react";
+import { ChevronDown, ChevronsUp, Flame, Footprints, HeartPulse, History, Link2, Lock, Shield, Timer, TriangleAlert, type LucideIcon } from "lucide-react";
 import type { AbilityView, ChampionChoice, ChampionIntelView, CooldownDisplay, FactKind, FactView, Slot } from "@/domain/matchup-intel/types";
 import { patchFromVersion, publicPatchName } from "@/domain/patch";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Panel, PanelHeader } from "@/components/ui/panel";
 import { RemoteImage } from "@/components/ui/remote-image";
-import { SourceLink } from "./source-link";
-import { FACT_KINDS, SLOT_NAMES, abilityAnchor, changedAbilitiesWords, cooldownLines, cooldownSourceWords, flaggedNotesWords, freshnessWords, modifierWords, recastWords, revisionWords, subjectWords } from "./wording";
+import { NO_BREAK, SourceLink } from "./source-link";
+import { FACT_KINDS, SLOT_NAMES, abilityAnchor, changedAbilitiesWords, cooldownLines, cooldownSourceWords, dataSourceWords, expiredNotesWords, flaggedNotesWords, freshnessWords, missingAbilitiesWords, modifierWords, notRecheckedWords, recastWords, revisionWords, subjectWords } from "./wording";
 
 /*
   One champion's abilities, P Q W E R, one row each (docs/MATCHUP_INTEL.md): the icon, the key and
@@ -18,8 +18,9 @@ import { FACT_KINDS, SLOT_NAMES, abilityAnchor, changedAbilitiesWords, cooldownL
   details part (the native details element: it works before the page's code has run, and with the
   keyboard) with the longer notes and each fact's source. Once Riot's data moved after the check,
   the line is Riot's, and the notes, their cooldown as checked included, sit under a flag that says
-  they may be out of date. On a phone a row is one column; where the list is wide (a desktop) the
-  description sits beside the numbers. Rows carry an anchor, so the briefing's chips can jump to them.
+  they may be out of date. On a phone the icon sits beside the name and the cooldown only, and the
+  rest takes the row's whole width under them; where the list is wide (a desktop) the description
+  sits beside the numbers. Rows carry an anchor, so the briefing's chips can jump to them.
 */
 
 /** Each kind of fact: its icon and its badge's tone (the word says it too). */
@@ -69,6 +70,14 @@ function AbilityIcon({ src, slot }: { src: string | null; slot: Slot }) {
   return <RemoteImage src={src} fallback={standIn} alt="" width={48} height={48} loading="lazy" decoding="async" className="h-12 w-12 shrink-0 rounded-md border border-border bg-surface-2 object-cover" />;
 }
 
+/**
+ * A note after a cooldown's numbers, " · starts when the effect ends": the dot is held to what comes
+ * before it by a no-break space, so a wrapped line ends with the dot and never starts with one.
+ */
+function LineNote({ note }: { note: string }) {
+  return <span className="text-fg-muted">{`\u00a0· ${note}`}</span>;
+}
+
 /** The cooldown's line, or one line per form: the numbers (or why there are none) and their notes. */
 function CooldownValue({ cooldown, isStatic, testId }: { cooldown: CooldownDisplay; isStatic: boolean; testId: string }) {
   const lines = cooldownLines(cooldown, { static: isStatic });
@@ -81,27 +90,33 @@ function CooldownValue({ cooldown, isStatic, testId }: { cooldown: CooldownDispl
           {line.value}
         </span>
         {line.notes.map((n) => (
-          <span key={n} className="text-fg-muted">
-            · {n}
-          </span>
+          <LineNote key={n} note={n} />
         ))}
       </>
     );
   }
   return (
-    <span className="flex min-w-0 flex-col gap-0.5" data-testid={testId}>
+    <span className="mt-0.5 block min-w-0 space-y-0.5" data-testid={testId}>
       {lines.map((line, i) => (
-        <span key={`${line.form}-${i}`} data-testid="ability-cooldown-form">
+        <span key={`${line.form}-${i}`} className="block" data-testid="ability-cooldown-form">
           <span className="font-medium text-fg">{line.form}:</span> <span className={value(line.known)}>{line.value}</span>
           {line.notes.map((n) => (
-            <span key={n} className="text-fg-muted">
-              {" "}
-              · {n}
-            </span>
+            <LineNote key={n} note={n} />
           ))}
         </span>
       ))}
     </span>
+  );
+}
+
+/** The cooldown's line in the page's flow of words (no flex boxes, so a note wraps as words do), after a clock. */
+function CooldownLine({ cooldown, isStatic, testId, label, lineTestId }: { cooldown: CooldownDisplay; isStatic: boolean; testId: string; label?: string; lineTestId: string }) {
+  return (
+    <p className="text-sm" data-testid={lineTestId}>
+      {label ? <span className="mr-1.5 text-fg-muted">{label}</span> : <Timer className="mr-1.5 inline h-3.5 w-3.5 align-[-0.125rem] text-fg-subtle" aria-hidden />}
+      {label ? null : <span className="sr-only">Cooldown:</span>}
+      <CooldownValue cooldown={cooldown} isStatic={isStatic} testId={testId} />
+    </p>
   );
 }
 
@@ -150,71 +165,71 @@ function FactDetail({ fact: f, championName }: { fact: FactView; championName: s
         <span className="text-fg-subtle">
           {" "}
           · Source: <SourceLink source={f.source} />
-          {revision ? `, ${revision}` : null}
+          {revision ? `${NO_BREAK}, ${revision}` : null}
         </span>
       ) : null}
     </li>
   );
 }
 
-function AbilityRow({ champion, ability: a, checkedPatch, dataPatch }: { champion: ChampionChoice; ability: AbilityView; checkedPatch: string | null; dataPatch: string | null }) {
+function AbilityRow({ champion, ability: a, checkedPatch, dataPatch, notRecheckedFor }: { champion: ChampionChoice; ability: AbilityView; checkedPatch: string | null; dataPatch: string | null; notRecheckedFor: string | null }) {
   const flagged = a.freshness === "changed-since";
-  const source = cooldownSourceWords(a.cooldown, { freshness: a.freshness, checkedPatch, dataPatch });
+  const source = cooldownSourceWords(a.cooldown, { freshness: a.freshness, checkedPatch, dataPatch, notRecheckedFor });
   const details = a.details.length > 0 || a.facts.length > 0;
   return (
     // A chip's jump lands here and gives the row the focus until it moves on (jumpToAnchor,
     // ability-ref-link.tsx); the row is lit while it holds it.
     <li id={abilityAnchor(champion.id, a.slot)} className="scroll-mt-4 px-3 py-3.5 transition-colors focus:bg-accent/5 focus-visible:-outline-offset-2 sm:px-4" data-testid="ability-row" data-slot={a.slot} data-freshness={a.freshness ?? undefined}>
-      {/* The icon beside the words, or above them where the list is under 16rem: a phone at a large
-          text size (from 150%; 125% on a 320px phone), where beside them it would leave the words a
-          column a word wide and the longest cut off at the panel's edge. */}
-      <div className="flex flex-col gap-3 @min-[16rem]/abilities:flex-row @min-[46rem]/abilities:gap-4">
+      {/* By the list's width (container queries, in rem, so they follow the text size):
+          - under 16rem (a phone at a large text size: from 150%, or 125% on a 320px phone): one
+            column, the icon above the words, which beside it would be a column a word wide;
+          - from 16rem (a phone): the icon beside the key, the name and the cooldown only; the notes,
+            the description and the details take the row's whole width under them (the two
+            wrappers are display: contents, so their parts join this grid);
+          - from 28rem: the icon beside all the words;
+          - from 46rem (a desktop): the description and the details beside the numbers. */}
+      <div className="grid grid-cols-1 gap-x-3 gap-y-2 @min-[16rem]/abilities:grid-cols-[3rem_minmax(0,1fr)] @min-[46rem]/abilities:gap-x-4">
         <AbilityIcon src={a.icon} slot={a.slot} />
-        <div className="min-w-0 flex-1 @min-[46rem]/abilities:grid @min-[46rem]/abilities:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] @min-[46rem]/abilities:gap-x-6">
-          <div className="min-w-0 space-y-1.5">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <KeyChip slot={a.slot} />
-              <h3 className="min-w-0 text-md font-semibold leading-snug text-fg" data-testid="ability-name">
-                {a.name}
-              </h3>
-              {flagged ? (
-                <Badge tone="warn" title="Riot's data for this ability changed after the curated notes were checked: they may be out of date">
-                  Changed since the check
-                </Badge>
-              ) : null}
-            </div>
-            <div>
-              <p className="flex flex-wrap items-baseline gap-x-1.5 text-sm" data-testid="ability-cooldown">
-                <Timer className="h-3.5 w-3.5 shrink-0 self-center text-fg-subtle" aria-hidden />
-                <span className="sr-only">Cooldown:</span>
+        <div className="contents @min-[28rem]/abilities:block @min-[28rem]/abilities:min-w-0 @min-[28rem]/abilities:space-y-2 @min-[46rem]/abilities:grid @min-[46rem]/abilities:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] @min-[46rem]/abilities:gap-x-6 @min-[46rem]/abilities:space-y-0">
+          <div className="contents @min-[28rem]/abilities:block @min-[28rem]/abilities:min-w-0 @min-[28rem]/abilities:space-y-1.5">
+            <div className="min-w-0 space-y-1.5">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <KeyChip slot={a.slot} />
+                <h3 className="min-w-0 text-md font-semibold leading-snug text-fg" data-testid="ability-name">
+                  {a.name}
+                </h3>
+                {flagged ? (
+                  <Badge tone="warn" title="Riot's data for this ability changed after the curated notes were checked: they may be out of date">
+                    Changed since the check
+                  </Badge>
+                ) : null}
+              </div>
+              <div>
                 {/* The notes' static modifier belongs to their line only: once Riot's data moved, it goes with the flagged notes. */}
-                <CooldownValue cooldown={a.cooldown} isStatic={!flagged && a.modifiers?.static === true} testId="ability-cooldown-value" />
-              </p>
-              {source ? (
-                <p className="text-xs text-fg-subtle" data-testid="ability-cooldown-source">
-                  {source}
-                </p>
-              ) : null}
+                <CooldownLine cooldown={a.cooldown} isStatic={!flagged && a.modifiers?.static === true} testId="ability-cooldown-value" lineTestId="ability-cooldown" />
+                {source ? (
+                  <p className="text-xs text-fg-subtle" data-testid="ability-cooldown-source">
+                    {source}
+                  </p>
+                ) : null}
+              </div>
             </div>
             {flagged ? (
-              <div className="space-y-1.5 border-l-2 border-warn/40 pl-3" data-testid="ability-flagged-notes">
+              <div className="col-[1/-1] min-w-0 space-y-1.5 border-l-2 border-warn/40 pl-3" data-testid="ability-flagged-notes">
                 <p className="flex items-start gap-1.5 text-xs font-medium text-warn">
                   <TriangleAlert className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
                   <span>{flaggedNotesWords(checkedPatch, a.changes)}</span>
                 </p>
-                {a.checkedCooldown ? (
-                  <p className="flex flex-wrap items-baseline gap-x-1.5 text-sm" data-testid="ability-checked-cooldown">
-                    <span className="text-fg-muted">As checked:</span>
-                    <CooldownValue cooldown={a.checkedCooldown} isStatic={a.modifiers?.static === true} testId="ability-checked-cooldown-value" />
-                  </p>
-                ) : null}
+                {a.checkedCooldown ? <CooldownLine cooldown={a.checkedCooldown} isStatic={a.modifiers?.static === true} testId="ability-checked-cooldown-value" label="As checked:" lineTestId="ability-checked-cooldown" /> : null}
                 <CuratedParts ability={a} championName={champion.name} />
               </div>
             ) : (
-              <CuratedParts ability={a} championName={champion.name} />
+              <div className="col-[1/-1] min-w-0 space-y-1.5 empty:hidden">
+                <CuratedParts ability={a} championName={champion.name} />
+              </div>
             )}
           </div>
-          <div className="mt-2 min-w-0 space-y-1.5 @min-[46rem]/abilities:mt-0">
+          <div className="col-[1/-1] min-w-0 space-y-1.5 empty:hidden @min-[46rem]/abilities:col-auto">
             {a.description ? (
               <p className="text-sm leading-relaxed text-fg-muted" data-testid="ability-description">
                 {a.description}
@@ -226,7 +241,9 @@ function AbilityRow({ champion, ability: a, checkedPatch, dataPatch }: { champio
                   <ChevronDown className="h-4 w-4 transition-transform group-open/details:rotate-180 motion-reduce:transition-none" aria-hidden />
                   Details and sources
                 </summary>
-                <div className="mt-1 space-y-2 border-l-2 border-border pl-3 text-sm leading-relaxed text-fg-muted" data-testid="ability-details-body">
+                {/* A rule down its side and a small indent from 28rem; on a phone the rule alone, so
+                    the notes keep the row's width. */}
+                <div className="mt-1 space-y-2 border-l-2 border-border pl-2 text-sm leading-relaxed text-fg-muted @min-[28rem]/abilities:pl-3" data-testid="ability-details-body">
                   {flagged ? <p className="text-xs font-medium text-warn">{flaggedNotesWords(checkedPatch, a.changes)}</p> : null}
                   {a.details.map((d, i) => (
                     <p key={i}>{d}</p>
@@ -254,58 +271,79 @@ function publicPatchOf(version: string | null): string | null {
   return patch ? publicPatchName(patch) : null;
 }
 
-/** One champion's ability rows, or what is missing: ability data arrives with the game-data update. */
+/** One champion's ability rows, or what is missing: none stored yet, or a stored copy that cannot be read. */
 export function AbilityList({ intel, testId }: { intel: ChampionIntelView; testId?: string }) {
   if (!intel.abilities || intel.abilities.length === 0) {
+    const missing = missingAbilitiesWords(intel.champion.name, intel.abilitiesUnreadable);
     return (
       <div className="p-3 sm:p-4">
-        <EmptyState compact icon={Timer} title="Ability details arrive with the next game-data update" testId="matchup-abilities-missing">
-          {intel.champion.name}&apos;s abilities are read from Riot&apos;s Data Dragon once per game version, and none are stored yet.
+        <EmptyState compact icon={Timer} title={missing.title} testId="matchup-abilities-missing">
+          {missing.body}
         </EmptyState>
       </div>
     );
   }
   const checkedPatch = intel.curated?.verified.patch ?? null;
   const dataPatch = publicPatchOf(intel.dataVersion);
+  const notRecheckedFor = intel.curated?.recheck?.patch ?? null;
   return (
     <ol className="@container/abilities divide-y divide-border" aria-label={`${intel.champion.name}'s abilities`} data-testid={testId}>
       {/* Keyed by champion as well: another pair's rows start afresh, never with a details part
           the reader opened on a different champion's ability. */}
       {intel.abilities.map((a) => (
-        <AbilityRow key={`${intel.champion.id}-${a.slot}`} champion={intel.champion} ability={a} checkedPatch={checkedPatch} dataPatch={dataPatch} />
+        <AbilityRow key={`${intel.champion.id}-${a.slot}`} champion={intel.champion} ability={a} checkedPatch={checkedPatch} dataPatch={dataPatch} notRecheckedFor={notRecheckedFor} />
       ))}
     </ol>
   );
 }
 
-/** How fresh a champion's curated notes are, beside its abilities' heading. */
-function CuratedLine({ intel }: { intel: ChampionIntelView }) {
+/**
+ * How fresh a champion's curated notes are: when they were checked; that nobody has checked them
+ * again for a later patch (a quiet badge); and a warning when Riot changed some of their abilities
+ * since, or more than two patches have come since the check.
+ */
+export function CuratedLine({ intel }: { intel: ChampionIntelView }) {
   if (!intel.curated) return null;
   const f = freshnessWords(intel.curated.freshness, intel.curated.verified.patch);
+  const recheck = intel.curated.recheck;
   const changed = (intel.abilities ?? []).filter((a) => a.freshness === "changed-since").length;
-  const warning = changed > 0 ? changedAbilitiesWords(changed) : f.warning;
+  const warnings = [...(changed > 0 ? [changedAbilitiesWords(changed)] : f.warning ? [f.warning] : []), ...(recheck?.expired ? [expiredNotesWords(recheck.patches)] : [])];
   return (
     <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1" data-testid="matchup-curated-checked">
       <span>Curated notes: {f.checked.charAt(0).toLowerCase() + f.checked.slice(1)}</span>
-      {warning ? (
-        <Badge tone="warn">
-          <TriangleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
-          {warning}
-        </Badge>
+      {recheck && !recheck.expired ? (
+        <span className="inline-flex max-w-full" data-testid="matchup-not-rechecked">
+          <Badge tone="neutral">
+            <History className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            {notRecheckedWords(recheck.patch)}
+          </Badge>
+        </span>
       ) : null}
+      {warnings.map((w) => (
+        <Badge key={w} tone="warn">
+          <TriangleAlert className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          {w}
+        </Badge>
+      ))}
     </span>
   );
 }
 
-/** A champion's abilities as a panel: the heading says once that the cooldowns are base values, without ability haste. */
+/** Where a champion's abilities come from, as a label after a "·": "Riot Data Dragon 16.22.1", or "Offline copy of …"; null without a version. */
+export function dataSourceOf(intel: Pick<ChampionIntelView, "dataVersion" | "offlineCopy">): string | null {
+  return intel.dataVersion ? dataSourceWords(intel.dataVersion, intel.offlineCopy, true) : null;
+}
+
+/** A champion's abilities as a panel: the heading says once that the cooldowns are base values, without ability haste, and where they come from. */
 export function AbilitiesPanel({ intel, title, testId }: { intel: ChampionIntelView; title: string; testId: string }) {
+  const from = dataSourceOf(intel);
   return (
     <Panel className="overflow-hidden" data-testid={testId} data-champion={intel.champion.id}>
       <PanelHeader
         title={title}
         subtitle={
           <span className="flex flex-col gap-1">
-            <span>Base cooldowns, without ability haste{intel.dataVersion ? ` · Riot Data Dragon ${intel.dataVersion}` : ""}</span>
+            <span>Base cooldowns, without ability haste{from ? ` · ${from}` : ""}</span>
             <CuratedLine intel={intel} />
           </span>
         }

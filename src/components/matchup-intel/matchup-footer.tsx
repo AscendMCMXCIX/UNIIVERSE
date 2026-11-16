@@ -3,10 +3,13 @@ import type { Source, Verification } from "@/domain/matchup-intel/types";
 import { patchFromVersion, publicPatchName } from "@/domain/patch";
 import { formatCount, formatIsoDay } from "@/lib/format";
 import { SourceLink } from "./source-link";
+import { dataSourceWords } from "./wording";
 
 /*
   The page's quiet footer (docs/MATCHUP_INTEL.md, "Compliance"), in this order:
-  - Riot's data: the Data Dragon version the abilities come from, and its public patch;
+  - Riot's data: the Data Dragon version the abilities come from, and its public patch; each
+    champion's own when the two differ (a champion whose file could not be read keeps an older
+    record), and said as an offline copy when it is the one committed with the app;
   - when the curated notes on the page were checked, said once when they share the day and patch;
   - the credit CC BY-SA 3.0 asks for (its section 4(c)): the League of Legends Wiki pages the notes
     are written from, each by its title and linked, their authors ("League of Legends Wiki
@@ -36,6 +39,8 @@ type Checked = Pick<Verification, "patch" | "checkedOn">;
 interface FooterIntel {
   champion: { id: string; name: string };
   dataVersion: string | null;
+  /** The abilities are the offline copy committed with the app (absent: not). */
+  offlineCopy?: boolean;
   sources: readonly FooterSource[];
   curated: { verified: Checked } | null;
 }
@@ -46,7 +51,10 @@ export interface FooterView {
   enemy: { name: string } | null;
   enemyIntel: FooterIntel | null;
   yourIntel: FooterIntel | null;
-  matchup: { verified: Checked; sources: readonly FooterSource[] } | null;
+  /** `briefing` null: its check is too old to show, and with no interaction shown, nothing of it is on the page. */
+  matchup: { verified: Checked; sources: readonly FooterSource[]; briefing?: unknown; interactions?: readonly unknown[] } | null;
+  /** The game's current patch, when the app knows it (absent: not said). */
+  patch?: { current: string | null };
 }
 
 interface NotesOnPage {
@@ -59,8 +67,10 @@ interface NotesOnPage {
 function notesOnPage(view: FooterView): { briefing: NotesOnPage | null; enemy: NotesOnPage | null; you: NotesOnPage | null } {
   const { you, enemy, matchup, enemyIntel, yourIntel } = view;
   const champion = (intel: FooterIntel | null): NotesOnPage | null => (intel?.curated ? { label: `${intel.champion.name}'s notes`, verified: intel.curated.verified, sources: intel.sources ?? [] } : null);
+  // A briefing whose check is too old is hidden with its interactions: nothing of it is on the page to date or credit.
+  const shown = !!matchup && (matchup.briefing !== null || (matchup.interactions?.length ?? 0) > 0);
   return {
-    briefing: matchup && you && enemy ? { label: `the ${you.name} vs ${enemy.name} briefing`, verified: matchup.verified, sources: matchup.sources ?? [] } : null,
+    briefing: matchup && shown && you && enemy ? { label: `the ${you.name} vs ${enemy.name} briefing`, verified: matchup.verified, sources: matchup.sources ?? [] } : null,
     enemy: champion(enemyIntel),
     you: yourIntel && yourIntel.champion.id !== enemyIntel?.champion.id ? champion(yourIntel) : null,
   };
@@ -108,11 +118,34 @@ function wikiPages(groups: ReadonlyArray<NotesOnPage | null>): WikiPage[] {
   return pages;
 }
 
-function DataDragonLine({ version }: { version: string | null }) {
-  const patch = version ? patchFromVersion(version) : null;
+/** One champion's abilities as the footer names their source. */
+interface DataSide {
+  name: string;
+  version: string;
+  offline: boolean;
+}
+
+/** "Riot Data Dragon 16.22.1 (patch 26.22)", or "an offline copy of Riot Data Dragon 16.22.1 (patch 26.22)". */
+const sourceWords = (side: DataSide) => {
+  const patch = patchFromVersion(side.version);
+  return `${dataSourceWords(side.version, side.offline)}${patch ? ` (patch ${publicPatchName(patch)})` : ""}`;
+};
+
+/**
+ * Where the abilities shown come from: one version for the page, or each champion's own when they
+ * differ; an offline copy says so, and that the game's current patch is not known where it is not.
+ */
+function DataDragonLine({ sides, currentKnown }: { sides: readonly DataSide[]; currentKnown: boolean }) {
+  const first = sides[0];
+  const same = !!first && sides.every((s) => s.version === first.version && s.offline === first.offline);
+  const unknownPatch = sides.some((s) => s.offline) && !currentKnown ? "; the game's current patch is not known" : "";
   return (
     <p data-testid="matchup-footer-ddragon">
-      {version ? `Ability names, icons and base cooldowns: Riot Data Dragon ${version}${patch ? ` (patch ${publicPatchName(patch)})` : ""}.` : "Ability names, icons and base cooldowns come from Riot Data Dragon, read once per game version."}
+      {!first
+        ? "Ability names, icons and base cooldowns come from Riot Data Dragon, read once per game version."
+        : same
+          ? `Ability names, icons and base cooldowns: ${sourceWords(first)}${unknownPatch}.`
+          : `Ability names, icons and base cooldowns: ${sides.map((s) => `${sourceWords(s)} for ${s.name}`).join("; ")}${unknownPatch}.`}
     </p>
   );
 }
@@ -148,15 +181,16 @@ function WikiCredit({ pages }: { pages: readonly WikiPage[] }) {
 }
 
 export function MatchupFooter({ view, legal }: { view: FooterView; legal: string }) {
-  const stored = view.enemyIntel?.dataVersion ?? view.yourIntel?.dataVersion ?? null;
-  const version = typeof stored === "string" && VERSION.test(stored) ? stored : null;
+  // The enemy's first, then yours (once for a mirror); only versions that are versions.
+  const intels = [view.enemyIntel, view.yourIntel?.champion.id !== view.enemyIntel?.champion.id ? view.yourIntel : null];
+  const sides = intels.flatMap((i): DataSide[] => (i && typeof i.dataVersion === "string" && VERSION.test(i.dataVersion) ? [{ name: i.champion.name, version: i.dataVersion, offline: i.offlineCopy === true }] : []));
   const { briefing, enemy, you } = notesOnPage(view);
   const checked = checkedSentence([briefing, enemy, you].filter((n): n is NotesOnPage => !!n));
   const pages = wikiPages([enemy, you, briefing]);
   return (
     <footer className="space-y-1.5 border-t border-border pt-4 text-xs leading-relaxed text-fg-subtle" data-testid="matchup-footer">
       <h2 className="sr-only">Sources and notices</h2>
-      <DataDragonLine version={version} />
+      <DataDragonLine sides={sides} currentKnown={view.patch?.current != null} />
       {checked ? <p data-testid="matchup-footer-checked">{checked}</p> : null}
       {pages.length ? <WikiCredit pages={pages} /> : null}
       <p data-testid="matchup-footer-static">A static reference for preparation: no live tracking, no timers, nothing read from a game in progress.</p>
