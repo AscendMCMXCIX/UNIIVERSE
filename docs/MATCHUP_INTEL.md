@@ -51,6 +51,13 @@ the most important part first; side by side where a desktop has the room):
    - "A static reference for preparation: no live tracking";
    - Riot's notice, the same words as the rest of the app (`riotLegal`).
 
+Its sizes are rem, so they follow the reader's text size. On a phone at a large text size, where
+side by side would leave a column a word wide, the two pickers stand one above the other with the
+swap between them (under 14rem: 200%, or 150% up to 375px wide), and an ability row puts its icon
+above its words and a level note its level above it (under 16rem: from 150%, or 125% on a 320px
+phone). At 200% on a 390px phone nothing on the page is cut or reaches past its box
+(`e2e/matchup-intel.spec.ts`).
+
 The page also has a state for each of these:
 
 - **Nothing chosen**: what to do, and links to the curated briefings so far.
