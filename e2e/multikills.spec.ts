@@ -82,6 +82,17 @@ test("Overview: the multikill totals as figures of their own, from the same game
     const cut = await page.getByTestId("season-figures").evaluate((card) => [...card.querySelectorAll("div, span")].filter((d) => d.clientWidth > 1 && d.scrollWidth > d.clientWidth + 1 && getComputedStyle(d).overflow !== "visible").map((d) => d.textContent?.trim().slice(0, 24)));
     expect(cut, "320px: nothing in the season card cut short").toEqual([]);
     expect((await strip.boundingBox())!.height, "320px: the kills band in two rows").toBeLessThan(200);
+    // Each figure's label stays in its own box, beside its ⓘ ("Damage/min" breaks after the "/";
+    // it ran 17px under the ⓘ at 320). The check above leaves out boxes that let text overflow.
+    const labels = () =>
+      page.getByTestId("season-figures").evaluate((card) =>
+        [...card.querySelectorAll<HTMLElement>("[data-testid^=stat-]:not([data-testid$=-value]) > div:first-child > span:first-child")].filter((s) => s.scrollWidth > s.clientWidth + 1).map((s) => s.textContent?.trim() ?? ""),
+      );
+    for (const width of [320, 360]) {
+      await page.setViewportSize({ width, height: 568 });
+      await expect.poll(labels, `${width}px: every figure's label inside its box`).toEqual([]);
+    }
+    expect(await page.getByTestId("stat-damage").locator(":scope > div:first-child > span:first-child").textContent(), "the break adds nothing to the label's text").toBe("Damage/min");
     await page.setViewportSize({ width: 375, height: 667 });
   }
   // The champions behind the totals are in All Champions, with the same filters, most multikills first.

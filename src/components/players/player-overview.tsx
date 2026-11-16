@@ -39,8 +39,24 @@ export const fmt = {
   own width decides the layout (a container query), so the open or folded sidebar is allowed for.
 */
 
-/** A figure's label with a line break allowed after each "/" ("Damage/min" wraps as "Damage/" "min" in a narrow cell rather than running under its ⓘ). */
-const breakable = (label: string) => label.replaceAll("/", "/\u200b");
+/**
+ * A figure's label with a line break allowed after each "/" ("Damage/min" wraps as "Damage/" "min"
+ * in a narrow cell rather than running under its ⓘ, with no extra height for the band): a <wbr>,
+ * so nothing is added to the text, copied or read out. Never overflow-wrap:anywhere, which breaks
+ * inside the word ("Damage/mi" "n"). The ⓘ is named from the label as written.
+ */
+function breakable(label: string): React.ReactNode {
+  const parts = label.split("/");
+  return parts.map((part, i) =>
+    i < parts.length - 1 ? (
+      <React.Fragment key={i}>
+        {part}/<wbr />
+      </React.Fragment>
+    ) : (
+      part
+    ),
+  );
+}
 
 /** A headline figure: its label, the number at the size of the page's main figures, its context. */
 function Headline({ label, value, sub, info, tone = "plain", testId, children }: { label: string; value: React.ReactNode; sub?: React.ReactNode; info?: string; tone?: WinRateTone; testId: string; children?: React.ReactNode }) {
