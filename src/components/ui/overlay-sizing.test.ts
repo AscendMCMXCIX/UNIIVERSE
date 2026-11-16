@@ -3,7 +3,8 @@ import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /*
-  Two rules for overlays (windows, sheets, the account screen, the tablet drawer, menus, tips).
+  Three rules for overlays (windows, sheets, the account screen, the tablet drawer, menus, tips,
+  toasts, pickers).
 
   A window's body grows from its content, never from nothing: `flex-auto`, not `flex-1`. Safari 26
   and earlier collapse a window that is as tall as its content (a dialog's fit-content height) to
@@ -22,6 +23,14 @@ import { describe, expect, it } from "vitest";
   323322). Script that needs the screen's size measures that box (src/lib/screen.ts). The listed
   exceptions say why; inside windows, the Card Studio's section list and the picture cropper still
   follow the viewport, as they did before.
+
+  What must show over a window is drawn inside it. Every window is a modal <dialog> in the browser's
+  top layer, above the whole page and its z-indexes, with the rest of the page inert: an ⓘ's bubble
+  or a toast left on the page was drawn under the window, out of sight, and a toast's buttons could
+  not be pressed. Windows note themselves in the top layer (top-layer.ts) as they open and close; a
+  tip's bubble goes into the window its trigger sits in, the toasts into the topmost window. A
+  picker's list inside a window opens in the flow of the window's body (picker-flow.ts), which is
+  then its one scroller, instead of a list scrolling inside it that the body cut off.
 */
 
 const root = join(__dirname, "..", "..", "..");
@@ -48,11 +57,20 @@ const OVERLAYS = [
   "src/components/ui/dialog.tsx",
   "src/components/ui/menu.tsx",
   "src/components/ui/info-tip.tsx",
+  "src/components/ui/toast.tsx",
+  "src/components/ui/top-layer.ts",
+  "src/components/ui/picker-flow.ts",
   "src/components/ui/keyboard-fit.ts",
   "src/components/mobile-nav.tsx",
   "src/components/account-menu.tsx",
   "src/components/public/sign-in.tsx",
+  "src/components/matches/match-filters.tsx",
+  "src/components/champions/champion-filter.tsx",
+  "src/components/players/opponent-picker.tsx",
 ];
+
+/** The pickers whose list opens under their button, inside windows among other places. */
+const PICKERS = ["src/components/matches/match-filters.tsx", "src/components/champions/champion-filter.tsx", "src/components/players/opponent-picker.tsx"];
 
 /** A viewport unit in a value (12dvh, 100vw, calc(100svh-...)) or a Tailwind size named after one (h-dvh, h-screen). */
 const VIEWPORT_UNIT = /(?<![\w-])\d*\.?\d+(?:d|s|l)?(?:vh|vw|vmin|vmax|vb|vi)\b|(?<![\w-])(?:min-|max-)?[hw]-(?:dvh|svh|lvh|screen|dvw|svw|lvw)\b|(?<![\w-])size-screen\b/g;
@@ -188,5 +206,53 @@ describe("overlays are sized by the box they are fixed to", () => {
   it("the stylesheet has no viewport-sized overlay utility left", () => {
     const css = code(read("src/app/globals.css"));
     expect(css).not.toMatch(/panel-place|--vv-top|--vv-bottom/);
+  });
+});
+
+describe("what shows over a window is drawn inside it", () => {
+  it("every window notes itself in the top layer as it opens and as it closes, and only DetailModal and the tablet's menu are windows of their own", () => {
+    const shown = tsxFiles().filter((file) => /\.showModal\(/.test(code(read(file))));
+    expect(shown.sort()).toEqual(["src/components/mobile-nav.tsx", "src/components/ui/detail-modal.tsx"]);
+    for (const file of shown) {
+      const source = code(read(file));
+      expect(source, file).toMatch(/noteModalOpened\(d\)/);
+      expect(source, file).toMatch(/noteModalClosed\(d\)/);
+    }
+    // DetailModal says it is closing from a layout effect's cleanup, while it is still on the page.
+    expect(code(read("src/components/ui/detail-modal.tsx"))).toMatch(/useLayoutEffect\(\(\) => \{\s*const d = ref\.current;\s*if \(!open \|\| !d\) return;\s*return \(\) => noteModalClosed\(d\);/);
+  });
+
+  it("a tip's bubble is drawn in the window its trigger sits in, and Escape on it is kept from that window", () => {
+    const tip = code(read("src/components/ui/info-tip.tsx"));
+    expect(tip).toContain('trigger?.closest<HTMLElement>("dialog[open]") ?? topModal() ?? document.body');
+    expect(tip).toContain("createPortal(");
+    expect(tip).not.toMatch(/createPortal\([\s\S]*document\.body,\s*\)/);
+    // Captured on window, and the key's default action (the window's close request) prevented.
+    expect(tip).toContain('window.addEventListener("keydown", onKey, true)');
+    expect(tip).toMatch(/if \(e\.key !== "Escape"\) return;\s*e\.preventDefault\(\);\s*e\.stopPropagation\(\);/);
+  });
+
+  it("the toasts are drawn in the topmost window while one is open, and in place otherwise", () => {
+    const toast = code(read("src/components/ui/toast.tsx"));
+    expect(toast).toContain("React.useSyncExternalStore(subscribeModals, topModal, noWindow)");
+    expect(toast).toContain("return host ? createPortal(region, host) : region;");
+    // Over a sheet, a finger on a toast pulls nothing.
+    expect(toast).toContain('data-floating=""');
+    expect(code(read("src/components/ui/detail-modal.tsx"))).toContain('closest?.("[data-floating]")');
+  });
+
+  it("the tablet's menu locks the page as every window does", () => {
+    const nav = code(read("src/components/mobile-nav.tsx"));
+    expect(nav).toContain("const unlock = lockPage();");
+    expect(nav).not.toMatch(/style\.overflow\s*=/);
+  });
+
+  it.each(PICKERS)("%s opens its list in the flow inside a window, with no scroller of its own there", (file) => {
+    const source = code(read(file));
+    expect(source).toMatch(/opensInFlow\((?:wrapRef\.current|wrap\.current)\)/);
+    expect(source).toMatch(/bringIntoView\((?:panelRef|popover)\.current\)/);
+    // The list's own height and scroller only while it floats.
+    expect(source).toMatch(/!inFlow && "max-h-72 overflow-y-auto/);
+    expect(source).not.toMatch(/className="max-h-72 overflow-y-auto/);
   });
 });
