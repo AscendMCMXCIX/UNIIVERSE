@@ -9,7 +9,7 @@ import { NavLinks } from "./nav-links";
 import { Avatar } from "./ui/avatar";
 import { DetailModal } from "./ui/detail-modal";
 import { ModeSwitch } from "./mode-switch";
-import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, ADMIN_TABS, PROFILE_SECTIONS, RESOURCES, adminSheetLinks, currentTab, isActivePath, phoneParent, phoneTabs, profileBase, type NavLink, type PhoneTab } from "@/lib/nav";
+import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, ADMIN_TABS, PROFILE_SECTIONS, RESOURCES, adminSheetLinks, currentTab, isActivePath, pageName, phoneParent, phoneTabs, profileBase, type NavLink, type PhoneTab } from "@/lib/nav";
 import { AccountMenu, otherUsername } from "./account-menu";
 import { announceAccountChange, markAccountChange } from "./account-guard";
 import { InstallAppEntry } from "./install/install-app";
@@ -599,15 +599,6 @@ function recordVisit(path: string) {
   else visits.push({ path, title: null });
   visitsVersion++;
   for (const l of visitListeners) l();
-}
-
-/** The name of the page a path opens, for Back when its heading was never read. */
-function pageName(path: string, tabs: readonly PhoneTab[]): string {
-  const tab = tabs.find((t) => isActivePath(path, t.href));
-  if (tab) return tab.label;
-  if (path.startsWith("/settings") || path === "/admin/settings") return "Settings";
-  if (path === "/resources") return "Resources";
-  return "Back";
 }
 
 function useBack(pathname: string, heading: string | null, tabs: readonly PhoneTab[], home: string): ({ history: true; label: string; go: () => void } | { history: false; label: string; href: string }) | null {
