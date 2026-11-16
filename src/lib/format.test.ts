@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import path from "node:path";
 import { ESLint } from "eslint";
-import { DISPLAY_TIME_ZONE, calendarDay, localPeriodStarts, formatCompactCount, formatCooldowns, formatCount, formatDate, formatDateTime, formatDayMonth, formatIsoDay, formatKilo, formatNumber, formatSeconds, formatTimeOfDay, isoDay, timeAgo, formatLpChange } from "./format";
+import { DISPLAY_TIME_ZONE, calendarDay, localPeriodStarts, formatCompactCount, formatCooldowns, formatCount, formatDate, formatDateTime, formatDayMonth, formatIsoDay, formatKilo, formatNumber, formatPerRank, formatSeconds, formatTimeOfDay, isoDay, timeAgo, formatLpChange } from "./format";
 
 /*
   Every date on the site is written in the installation's time zone (Sydney unless
@@ -128,18 +128,33 @@ describe("cooldowns (Matchup Intel)", () => {
     expect(formatCooldowns([6, 6, 6], "level")).toBe("6 s at every level");
   });
 
-  it("write decimals as the numbers have them, up to two, with the site's decimal point", () => {
+  it("write decimals as the numbers have them, up to four, with the site's decimal point", () => {
     expect(formatCooldowns([8.5, 7.75, 7, 6.25, 5.5])).toBe("8.5 / 7.75 / 7 / 6.25 / 5.5 s");
     expect(formatCooldowns([0.25, 0.25, 0.25])).toBe("0.25 s at every rank");
-    expect(formatSeconds(1.3333)).toBe("1.33");
+    // A checked wait between casts keeps its four decimals: 0.3125 is never written as 0.31.
+    expect(formatSeconds(0.3125)).toBe("0.3125");
+    expect(formatSeconds(4 / 3)).toBe("1.3333");
+    expect(formatSeconds(0.1 + 0.2)).toBe("0.3");
     expect(formatSeconds(16)).toBe("16");
     expect(formatSeconds(Number.NaN)).toBe("—");
+  });
+
+  it("write any values per rank with their unit, the same value once", () => {
+    expect(formatPerRank([25, 35, 45, 55, 65], "%")).toBe("25 / 35 / 45 / 55 / 65%");
+    expect(formatPerRank([40, 40, 40], "%")).toBe("40% at every rank");
+    expect(formatPerRank([40, 40, 40], "%", null)).toBe("40%");
+    expect(formatPerRank([3, 4, 5], "")).toBe("3 / 4 / 5");
+    expect(formatPerRank([20], "s")).toBe("20 s");
+    expect(formatPerRank([17, 16, 15, 14, 13], "s", null)).toBe("17 / 16 / 15 / 14 / 13 s");
   });
 
   it("never write a number that is not there", () => {
     expect(formatCooldowns([])).toBe("—");
     expect(formatCooldowns([8, Number.NaN, 6])).toBe("—");
     expect(formatCooldowns([-1, 2])).toBe("—");
+    expect(formatCooldowns([8, Number.POSITIVE_INFINITY])).toBe("—");
+    expect(formatPerRank(["8"] as unknown as number[], "s")).toBe("—");
+    expect(formatPerRank(null as unknown as number[], "%")).toBe("—");
   });
 });
 

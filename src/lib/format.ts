@@ -178,12 +178,27 @@ export function formatCompactCount(value: number): string {
 }
 
 /**
- * Seconds as a cooldown is written: as many decimals as the number has, up to two ("8", "8.5",
- * "0.25"), with the decimal point and separators of every other number on the site; "—" for a value
- * that is not a number.
+ * Seconds as a cooldown is written: as many decimals as the number has, up to four ("8", "8.5",
+ * "0.25", "0.3125": a checked value is never rounded into another), with the decimal point and
+ * separators of every other number on the site; "—" for a value that is not a number.
  */
 export function formatSeconds(value: number): string {
-  return Number.isFinite(value) ? value.toLocaleString("en", { maximumFractionDigits: 2 }) : "—";
+  return typeof value === "number" && Number.isFinite(value) ? value.toLocaleString("en", { maximumFractionDigits: 4 }) : "—";
+}
+
+/**
+ * Values at each rank, as Matchup Intel writes them, `unit` after the last ("s", "%", or nothing):
+ * "25 / 35 / 45%"; a single value "40%"; the same value at every rank once, "40% at every rank", or
+ * "40%" when `per` is null. `per` names the steps: "rank", or "level" for a passive that changes
+ * with the champion's level. "—" when there is no number (an empty list, or a value that is not a
+ * non-negative number): nothing is guessed.
+ */
+export function formatPerRank(values: readonly number[], unit: "s" | "%" | "", per: "rank" | "level" | null = "rank"): string {
+  if (!Array.isArray(values) || values.length === 0 || values.some((v) => typeof v !== "number" || !Number.isFinite(v) || v < 0)) return "—";
+  const suffix = unit === "s" ? " s" : unit;
+  if (values.length === 1) return `${formatSeconds(values[0]!)}${suffix}`;
+  if (values.every((v) => v === values[0])) return `${formatSeconds(values[0]!)}${suffix}${per ? ` at every ${per}` : ""}`;
+  return `${values.map(formatSeconds).join(" / ")}${suffix}`;
 }
 
 /**
@@ -193,8 +208,5 @@ export function formatSeconds(value: number): string {
  * list, or a value that is not a non-negative number): a cooldown is never guessed.
  */
 export function formatCooldowns(values: readonly number[], per: "rank" | "level" = "rank"): string {
-  if (values.length === 0 || values.some((v) => !Number.isFinite(v) || v < 0)) return "—";
-  if (values.length === 1) return `${formatSeconds(values[0]!)} s`;
-  if (values.every((v) => v === values[0])) return `${formatSeconds(values[0]!)} s at every ${per}`;
-  return `${values.map(formatSeconds).join(" / ")} s`;
+  return formatPerRank(values, "s", per);
 }
