@@ -9,7 +9,7 @@ import { NavLinks } from "./nav-links";
 import { Avatar } from "./ui/avatar";
 import { DetailModal } from "./ui/detail-modal";
 import { ModeSwitch } from "./mode-switch";
-import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, ADMIN_TABS, PROFILE_SECTIONS, RESOURCES, adminSheetLinks, currentTab, isActivePath, phoneParent, phoneTabs, profileBase, type NavLink, type PhoneTab } from "@/lib/nav";
+import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, ADMIN_TABS, PROFILE_SECTIONS, RESOURCES, adminSheetLinks, backSteps, currentTab, isActivePath, pageName, phoneParent, phoneTabs, profileBase, type NavLink, type PhoneTab } from "@/lib/nav";
 import { AccountMenu, otherUsername } from "./account-menu";
 import { announceAccountChange, markAccountChange } from "./account-guard";
 import { InstallAppEntry } from "./install/install-app";
@@ -579,6 +579,8 @@ function usePageHeading(pathname: string, barHeight: number): { text: string | n
   otherwise (a link from elsewhere, a reload, the installed app's start) Back leads to the page
   above this one (phoneParent). Moving between a profile's sections replaces the entry, as the
   sections do on phones (ProfileTabs), so Back leaves the profile rather than stepping through them.
+  A page that adds entries of its own address (Matchup Intel's pairs) is still one visit: Back goes
+  past them to the page it is named after (goBackTo), as its label says.
 */
 interface Visit {
   path: string;
@@ -601,15 +603,6 @@ function recordVisit(path: string) {
   for (const l of visitListeners) l();
 }
 
-/** The name of the page a path opens, for Back when its heading was never read. */
-function pageName(path: string, tabs: readonly PhoneTab[]): string {
-  const tab = tabs.find((t) => isActivePath(path, t.href));
-  if (tab) return tab.label;
-  if (path.startsWith("/settings") || path === "/admin/settings") return "Settings";
-  if (path === "/resources") return "Resources";
-  return "Back";
-}
-
 function useBack(pathname: string, heading: string | null, tabs: readonly PhoneTab[], home: string): ({ history: true; label: string; go: () => void } | { history: false; label: string; href: string }) | null {
   const router = useRouter();
   React.useEffect(() => recordVisit(pathname), [pathname]);
@@ -622,8 +615,23 @@ function useBack(pathname: string, heading: string | null, tabs: readonly PhoneT
   if (!parent) return null;
   const top = visits[visits.length - 1];
   const before = top?.path === pathname ? visits[visits.length - 2] : null;
-  if (before) return { history: true, label: before.title ?? pageName(before.path, tabs), go: () => router.back() };
+  if (before) return { history: true, label: before.title ?? pageName(before.path, tabs), go: () => goBackTo(before.path, pathname, router.back) };
   return { history: false, label: parent.label, href: parent.href };
+}
+
+/** The Navigation API's view of this tab's history, as far as Back needs it (not every browser has it). */
+type HistoryEntries = { currentEntry: { index: number } | null; entries: () => ReadonlyArray<{ url: string | null }> };
+
+/**
+ * Back to the page it is named after, past the entries this page made of itself (Matchup Intel's
+ * pairs: the browser's Back steps through them, the bar's Back promises the page before), where
+ * the Navigation API shows them (backSteps); one step back otherwise.
+ */
+function goBackTo(target: string, pathname: string, back: () => void) {
+  const nav = (window as unknown as { navigation?: HistoryEntries }).navigation;
+  const steps = nav?.currentEntry ? backSteps(nav.entries(), nav.currentEntry.index, pathname, target) : null;
+  if (steps !== null && steps < -1) window.history.go(steps);
+  else back();
 }
 
 /** Distance the page must scroll before the bars may slide away (about the top bar's height). */

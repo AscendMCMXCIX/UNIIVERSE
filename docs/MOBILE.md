@@ -126,7 +126,10 @@ place on that page (its scroll, its open filters) is kept. `MobileNav` remembers
 in this tab since the app opened and names Back after the previous page's heading ("‹ Demo Mid").
 A page opened directly (a link from elsewhere, a reload, the installed app's start) has no page
 before it, so Back leads to the page above it instead (`phoneParent`: a teammate's profile → Players,
-Settings → home). A destination's own pages have no Back: they are where you start.
+Matchup Intel → Resources, Settings → home). A destination's own pages have no Back: they are where
+you start. A page that adds history entries of its own address (Matchup Intel's pairs) is still one
+page for Back: named after the page before, it goes there, past those entries, where the browser's
+Navigation API shows them (`backSteps`); the browser's own Back steps through them.
 
 ### Sections of a page
 
@@ -143,6 +146,9 @@ Settings → home). A destination's own pages have no Back: they are where you s
   (#262: before it, the landing failed now and then). A reader who touches or scrolls the page
   meanwhile keeps their place, and the hold ends after ten seconds on a slow connection.
 - **Team's sections** are the bottom bar itself, so the page tabs are not repeated on phones.
+- **Resources' sections** (Library, Matchup Intel) keep their tabs at the top of both pages on
+  phones too: a member reaches Resources from the account screen, so the tabs are the way between
+  its two pages there.
 - **A page's views** (Match History's Games and Encounters, Leaderboards' Recent form and Records &
   achievements) share one quiet track (`SubTabs`). A label too long to share the line on a phone
   shows its start ("Records"); the rest is still read out, so its name does not change.
@@ -164,6 +170,7 @@ opens.
 | Leaderboards | Built for phones in #188 (docs/LEADERBOARDS_MODEL.md): Recent form is one panel with a row per member (place, picture and name, the gap to the place above, then role, record and dates on one line, the win rate at the right end); Records & achievements are the season's records, the multikills and the milestones. The frame adds the tab, the title in the bar and Back; on phones the whole row of Recent form opens the member's profile, not only the name. | 1,093 → 1,037px (Recent form) |
 | Matches | Each game: result, length, queue and date, then the members who played (champion, role, multikill, K/D/A). Both full teams are in the game's screen, where the scoreboard lists all ten. Bookmarked sits beside Filters. | 2,330 → 1,528px |
 | Match History | Each game: the result line, the champion and role on one line, K/D/A with its ratio and largest multikill, kill participation, CS and damage, then the build. Both teams move to the game's screen. Ten games a page. | 2,268 → 2,000px |
+| Matchup Intel (Resources) | Your champion and the enemy side by side, the swap between them, then what to know first: the ten-second briefing (or the line that none exists yet), then the enemy's five abilities, each row its icon, key and name, the base cooldown per rank, the checked facts as badges and Riot's description, with the longer notes behind Details. Interactions, level notes and your own abilities (collapsed) follow. Each slot opens a picker on a screen of its own with a 16px search at the top (docs/MATCHUP_INTEL.md). | New (16 Nov 2026) |
 
 Lists are **rows in one panel with hairline dividers** (people, a board's members): a single
 surface, not a card per item. **Games stay cards**: each is an object with its own result colour

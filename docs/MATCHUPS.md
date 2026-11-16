@@ -19,7 +19,10 @@ two views:
     match window (never two dimmed layers); its **Back** button returns to the same view.
 
 A **Refine** button in the window's header changes the season, the game mode and (with several
-linked accounts) the account, for the window and the list behind it.
+linked accounts) the account, for the window and the list behind it. Beside it, **Matchup Intel**
+opens the static reference for this champion in Resources (the enemy's abilities, base cooldowns
+and curated briefings: docs/MATCHUP_INTEL.md), with the lane opponent chosen in Matchups when that
+view is open. Matchups is the player's own games; Matchup Intel is the same for everyone.
 
 The window lives in the URL (`?champion=Gwen&crole=TOP&tab=matchups&vs=Nasus`), so it can be
 linked and reloaded; Back closes it. The old section addresses (`/overview/matchups`,

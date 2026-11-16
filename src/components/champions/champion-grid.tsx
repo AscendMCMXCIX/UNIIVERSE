@@ -66,6 +66,17 @@ export interface ChampionGridProps {
    * and recently used champions) and a "Browse all" button, instead of every champion at once.
    */
   progressive?: boolean;
+  /**
+   * False: no search field or role filter of its own, for a window that searches the champions
+   * itself and hands over the ones to show (Matchup Intel's pickers). The grid keeps its keyboard
+   * moves; what it says when nothing matches is the window's.
+   */
+  toolbar?: boolean;
+  /**
+   * Where ArrowUp or ArrowLeft from the first portraits leads, for a window whose search is its own
+   * (toolbar false): it focuses that search. Without it the keys go back to the grid's own search.
+   */
+  onExitTop?: () => void;
 }
 
 const noopSubscribe = () => () => {};
@@ -97,7 +108,7 @@ function rememberRecent(id: string) {
  * filter, portrait grid with clear selected and unavailable states. Enter picks the first match;
  * every portrait is a real button, so keyboard and touch work the same. No network calls.
  */
-export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReason, onPick, initialRole = "ALL", maxHeight = 360, autoFocus = false, toolbarExtra, size = "md", testId = "champion-grid", prioritisedIds, prioritisedLabel, readOnly = false, placeholder = "Search champion…", inputRef, progressive = false }: ChampionGridProps) {
+export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReason, onPick, initialRole = "ALL", maxHeight = 360, autoFocus = false, toolbarExtra, size = "md", testId = "champion-grid", prioritisedIds, prioritisedLabel, readOnly = false, placeholder = "Search champion…", inputRef, progressive = false, toolbar = true, onExitTop }: ChampionGridProps) {
   const [query, setQuery] = React.useState("");
   const [role, setRole] = React.useState<RoleFilter>(initialRole);
   const [browseAll, setBrowseAll] = React.useState(false);
@@ -140,48 +151,52 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
     const to = e.key === "ArrowRight" ? i + 1 : e.key === "ArrowLeft" ? i - 1 : e.key === "ArrowDown" ? i + cols : e.key === "ArrowUp" ? i - cols : e.key === "Home" ? 0 : e.key === "End" ? buttons.length - 1 : null;
     if (to === null) return;
     e.preventDefault();
-    if (to < 0 && (e.key === "ArrowUp" || e.key === "ArrowLeft")) (gridRef.current?.closest("[data-testid]")?.querySelector("input[type=search]") as HTMLInputElement | null)?.focus();
-    else buttons[Math.max(0, Math.min(buttons.length - 1, to))]?.focus();
+    if (to < 0 && (e.key === "ArrowUp" || e.key === "ArrowLeft")) {
+      if (onExitTop) onExitTop();
+      else (gridRef.current?.closest("[data-testid]")?.querySelector("input[type=search]") as HTMLInputElement | null)?.focus();
+    } else buttons[Math.max(0, Math.min(buttons.length - 1, to))]?.focus();
   };
   return (
     <div className="flex min-h-0 flex-col gap-2" data-testid={testId}>
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="relative min-w-40 flex-1">
-          <span className="sr-only">Search champions</span>
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" aria-hidden />
-          <input
-            ref={inputRef}
-            type="search"
-            value={query}
-            autoFocus={autoFocus}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && first && !readOnly) {
-                e.preventDefault();
-                pick(first.id);
-                setQuery("");
-              }
-              if (e.key === "ArrowDown") {
-                e.preventDefault();
-                gridRef.current?.querySelector<HTMLButtonElement>("button[data-champion]:not(:disabled)")?.focus();
-              }
-              if (e.key === "Escape" && query) {
-                e.stopPropagation();
-                setQuery("");
-              }
-            }}
-            placeholder={placeholder}
-            className="h-11 w-full rounded-lg border border-border bg-bg-elevated pl-9 pr-9 text-base text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none md:h-9 md:text-sm"
-          />
-          {query ? (
-            <button type="button" onClick={() => setQuery("")} className="absolute right-1.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-md text-fg-subtle hover:text-fg" aria-label="Clear search">
-              <X className="h-4 w-4" />
-            </button>
-          ) : null}
-        </label>
-        <RoleFilterBar value={role} onChange={setRole} />
-        {toolbarExtra}
-      </div>
+      {toolbar ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="relative min-w-40 flex-1">
+            <span className="sr-only">Search champions</span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" aria-hidden />
+            <input
+              ref={inputRef}
+              type="search"
+              value={query}
+              autoFocus={autoFocus}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && first && !readOnly) {
+                  e.preventDefault();
+                  pick(first.id);
+                  setQuery("");
+                }
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  gridRef.current?.querySelector<HTMLButtonElement>("button[data-champion]:not(:disabled)")?.focus();
+                }
+                if (e.key === "Escape" && query) {
+                  e.stopPropagation();
+                  setQuery("");
+                }
+              }}
+              placeholder={placeholder}
+              className="h-11 w-full rounded-lg border border-border bg-bg-elevated pl-9 pr-9 text-base text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none md:h-9 md:text-sm"
+            />
+            {query ? (
+              <button type="button" onClick={() => setQuery("")} className="absolute right-1.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-md text-fg-subtle hover:text-fg" aria-label="Clear search">
+                <X className="h-4 w-4" />
+              </button>
+            ) : null}
+          </label>
+          <RoleFilterBar value={role} onChange={setRole} />
+          {toolbarExtra}
+        </div>
+      ) : null}
       {short ? (
         <div className="flex items-center justify-between gap-2 text-xs text-fg-subtle">
           <span>{filtered.length ? "Your champions and recent picks · type to search, or pick a role" : "Type a name, or pick a role to browse"}</span>
@@ -225,7 +240,7 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
             </button>
           );
         })}
-        {filtered.length === 0 && !short ? <p className="col-span-full py-8 text-center text-sm text-fg-muted">{query ? `No champion matches “${query}”.` : "No champions in this role."}</p> : null}
+        {filtered.length === 0 && !short && toolbar ? <p className="col-span-full py-8 text-center text-sm text-fg-muted">{query ? `No champion matches “${query}”.` : "No champions in this role."}</p> : null}
       </div>
     </div>
   );

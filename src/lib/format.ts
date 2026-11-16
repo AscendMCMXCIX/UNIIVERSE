@@ -176,3 +176,25 @@ export function formatCompactCount(value: number): string {
   if (value >= 10_000) return `${Math.round(value / 1000)}K`;
   return formatCount(value);
 }
+
+/**
+ * Seconds as a cooldown is written: as many decimals as the number has, up to two ("8", "8.5",
+ * "0.25"), with the decimal point and separators of every other number on the site; "—" for a value
+ * that is not a number.
+ */
+export function formatSeconds(value: number): string {
+  return Number.isFinite(value) ? value.toLocaleString("en", { maximumFractionDigits: 2 }) : "—";
+}
+
+/**
+ * A base cooldown at each rank, as Matchup Intel writes it: "8 / 7 / 6 / 5 / 4 s"; the same value at
+ * every rank once, "13 s at every rank"; a single value "13 s". `per` names the steps: "rank", or
+ * "level" for a passive that changes with the champion's level. "—" when there is no number (an empty
+ * list, or a value that is not a non-negative number): a cooldown is never guessed.
+ */
+export function formatCooldowns(values: readonly number[], per: "rank" | "level" = "rank"): string {
+  if (values.length === 0 || values.some((v) => !Number.isFinite(v) || v < 0)) return "—";
+  if (values.length === 1) return `${formatSeconds(values[0]!)} s`;
+  if (values.every((v) => v === values[0])) return `${formatSeconds(values[0]!)} s at every ${per}`;
+  return `${values.map(formatSeconds).join(" / ")} s`;
+}

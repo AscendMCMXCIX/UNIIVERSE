@@ -1,4 +1,4 @@
-import { BookMarked, Fingerprint, Medal, Users, UserCog, Settings, History, UserPlus, Database, Paintbrush, Activity, LayoutGrid, LayoutDashboard, CircleUserRound, Gauge, Library, ScrollText, Link2, KeyRound, MonitorSmartphone, SlidersHorizontal, ClipboardList, type LucideIcon } from "lucide-react";
+import { BookMarked, Fingerprint, Medal, Users, UserCog, Settings, History, UserPlus, Database, Paintbrush, Activity, LayoutGrid, LayoutDashboard, CircleUserRound, Gauge, Library, ScrollText, Link2, KeyRound, MonitorSmartphone, SlidersHorizontal, ClipboardList, Swords, type LucideIcon } from "lucide-react";
 import { hasPermission, type Permission, type Session } from "@/server/auth/permissions";
 
 export interface NavLink {
@@ -91,9 +91,21 @@ export const TEAM_SECTIONS: NavLink[] = [
 ];
 
 /**
- * Resources: the team's library of League of Legends sites (news, statistics, builds, guides), for
- * every signed-in account. Administrators keep it in Admin Mode → Platform Settings → Resources.
+ * Resources' sections, in this order: the tabs at the top of both pages and the pages the one
+ * Resources entry of the sidebar stands for, for every signed-in account.
+ *   Library        the team's library of League of Legends sites (news, statistics, builds, guides),
+ *                  kept by administrators in Admin Mode → Platform Settings → Resources;
+ *   Matchup Intel  a static reference for preparation: pick your champion and the enemy, read the
+ *                  enemy's abilities, base cooldowns and what matters in lane (docs/MATCHUP_INTEL.md).
+ *                  Not the personal Matchups (a player's own games against an opponent), which
+ *                  live in a champion's window.
  */
+export const RESOURCES_SECTIONS: NavLink[] = [
+  { href: "/resources", label: "Library", icon: BookMarked },
+  { href: "/resources/matchups", label: "Matchup Intel", icon: Swords },
+];
+
+/** The way into Resources where a page lists it on its own (the phone's account screen): the library, under the entry's name. */
 export const RESOURCES: NavLink = { href: "/resources", label: "Resources", icon: BookMarked };
 
 /** Admin Mode's Platform Settings: the site's look, how its pages appear, and the Resources library (administrators only). */
@@ -109,6 +121,7 @@ export const ADMIN_SETTINGS_SECTIONS: NavLink[] = [
  */
 export const SECTION_HUBS: Array<{ key: string; label: string; sections: NavLink[] }> = [
   { key: "team", label: "Team sections", sections: TEAM_SECTIONS },
+  { key: "resources", label: "Resources sections", sections: RESOURCES_SECTIONS },
   { key: "admin-settings", label: "Platform Settings sections", sections: ADMIN_SETTINGS_SECTIONS },
 ];
 
@@ -125,13 +138,14 @@ export function entryLinks(entry: NavEntry): NavLink[] {
  *   Team           one entry for our own team (only for members of the team): it opens Team
  *                  Overview, the team's home page, and stays marked on all of its sections, which
  *                  are the tabs at the top of every Team page (TEAM_SECTIONS);
- *   Resources      the team's library of League of Legends sites.
+ *   Resources      one entry for the library of League of Legends sites and Matchup Intel, the
+ *                  tabs at the top of both (RESOURCES_SECTIONS); it opens the library.
  * The account menu holds Settings and Sign out only.
  */
 export const NAV_ENTRIES: NavEntry[] = [
   { href: "/overview", label: "My Profile", icon: CircleUserRound },
   { key: "team", label: "Team", icon: Users, sections: TEAM_SECTIONS },
-  RESOURCES,
+  { key: "resources", label: RESOURCES.label, icon: RESOURCES.icon, sections: RESOURCES_SECTIONS },
 ];
 
 /** Every Player Mode page in sidebar order (hubs flattened). */
@@ -206,13 +220,16 @@ export function profileBase(pathname: string): string | null {
 /**
  * On a phone, where Back leads from a page opened with no page of this app before it (a link from
  * elsewhere, a reload, the installed app's start): the page above it, named for the button. A tab's
- * own pages and their sections have none: they are where you start.
+ * own pages and their sections have none: they are where you start. Resources' other sections
+ * (Matchup Intel) lead to Resources where it has no tab of its own (a member's account screen holds
+ * it), never to Team.
  */
 export function phoneParent(pathname: string, tabs: readonly PhoneTab[], home: string): { href: string; label: string } | null {
   const tabHrefs = tabs.map((t) => t.href);
   const homeLabel = tabs.find((t) => t.href === home)?.label ?? (home === ADMIN_HOME ? "Dashboard" : "Home");
   if (/^\/players\/[^/]+/.test(pathname)) return { href: "/players", label: "Players" };
   if (pathname === "/me") return { href: "/overview", label: "Profile" };
+  if (pathname.startsWith(`${RESOURCES.href}/`)) return currentTab(pathname, tabHrefs) ? null : { href: RESOURCES.href, label: RESOURCES.label };
   if (pathname.startsWith("/admin")) {
     if (pathname === ADMIN_HOME || currentTab(pathname, tabHrefs)) return null;
     return { href: ADMIN_HOME, label: "Dashboard" };
@@ -220,6 +237,52 @@ export function phoneParent(pathname: string, tabs: readonly PhoneTab[], home: s
   if (currentTab(pathname, tabHrefs) || pathname === home) return null;
   if (pathname === "/no-access") return null;
   return { href: home, label: homeLabel };
+}
+
+/**
+ * The name of the page a path opens, for a phone's Back when that page's heading was never read: a
+ * page with a name of its own (Matchup Intel), else its tab's, else the few pages outside the tabs
+ * by name; "Back" for anything else.
+ */
+export function pageName(path: string, tabs: readonly PhoneTab[]): string {
+  if (path === "/resources/matchups") return "Matchup Intel";
+  const tab = tabs.find((t) => isActivePath(path, t.href));
+  if (tab) return tab.label;
+  if (path.startsWith("/settings") || path === "/admin/settings") return "Settings";
+  if (isActivePath(path, RESOURCES.href)) return RESOURCES.label;
+  return "Back";
+}
+
+/** Two paths that are one place for a phone's Back: the same page, or two sections of one profile (which share a visit). */
+function samePlace(a: string, b: string): boolean {
+  if (a === b) return true;
+  const base = profileBase(a);
+  return base !== null && base === profileBase(b);
+}
+
+/**
+ * How far back, in this tab's history, the page a phone's Back is named after lies: the steps to
+ * give history.go (negative), past the entries the current page made of itself (Matchup Intel's
+ * pairs, each a new entry of its own address, so the browser's Back steps through them). Null when
+ * the history does not show that page there: the entry before those is another page, or an entry's
+ * address is not known. `entries` are the tab's history in order (the Navigation API's), `index`
+ * the current one's place in them.
+ */
+export function backSteps(entries: ReadonlyArray<{ url: string | null }>, index: number, path: string, target: string): number | null {
+  if (index < 1 || index >= entries.length) return null;
+  for (let i = index - 1; i >= 0; i--) {
+    const url = entries[i]!.url;
+    if (!url) return null;
+    let at: string;
+    try {
+      at = new URL(url).pathname;
+    } catch {
+      return null;
+    }
+    if (samePlace(at, path)) continue;
+    return at === target ? i - index : null;
+  }
+  return null;
 }
 
 /** Admin Mode's start page (its dashboard). It is current only on itself, not on the pages beneath it. */
