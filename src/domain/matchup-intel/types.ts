@@ -103,9 +103,10 @@ export interface Verification {
 
 /**
  * When an ability's cooldown starts, as its source states it: "on-cast" where it says so (the page
- * says nothing more), the others because a bare number would mislead. "after-first-cast" is an
- * ability cast again whose cooldown runs from its first cast (on-cast, on such an ability, names
- * that cast). Where the source states no start, a per-rank cooldown's `starts` is null.
+ * says nothing more), the others because a bare number would mislead. "after-first-cast" only where
+ * the source says so in words (Riven's Q: "Starts after first cast"): on an ability cast again,
+ * on-cast alone does not say which cast, and nothing is read into it. Where the source states no
+ * start, a per-rank cooldown's `starts` is null.
  */
 export type CooldownStart = "on-cast" | "after-first-cast" | "after-last-recast" | "after-effect-ends" | "after-channel";
 

@@ -16,8 +16,9 @@ import type { ChampionNotes } from "@/domain/matchup-intel/types";
 
   Cooldown starts, from the page's cooldown-start field (cdstart), and null where it gives none:
   - W: "after-effect-ends" (post-effect).
-  - E: "after-first-cast". The field says on-cast, which, on an ability cast again, names its first
-    cast, Slice: Riven's Broken Wings page gives both, on-cast and "Starts after first cast".
+  - E: "on-cast", as the field says. For an ability cast again (Slice, then Dice), the page does not
+    say whether the cooldown runs from the first cast or the last, so the page shows no start
+    (the owner, 17 Nov 2026: what the wiki does not say is not used).
   - R: "on-cast".
   - Q: null: no cdstart.
   - P: no cooldown spec: the page gives none, and Data Dragon never gives a passive one.
@@ -93,7 +94,7 @@ const notes: ChampionNotes = {
     E: {
       ddragonCooldown: [16, 14.5, 13, 11.5, 10],
       ddragonIdentity: { id: "RenektonSliceAndDice", name: "Slice and Dice", maxRank: 5, charges: null },
-      cooldown: { kind: "per-rank", seconds: [16, 14.5, 13, 11.5, 10], starts: "after-first-cast" },
+      cooldown: { kind: "per-rank", seconds: [16, 14.5, 13, 11.5, 10], starts: "on-cast" },
       recast: { count: 1, windowSeconds: 4, note: "Dice, only after Slice hits an enemy: the same dash and damage again." },
       facts: [
         { kind: "mobility", label: "Dash", detail: "Slice dashes a fixed distance (range 450), damaging enemies in its path.", appliesTo: "self", tags: ["dash"], source: "renekton-e" },

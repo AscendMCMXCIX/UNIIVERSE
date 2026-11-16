@@ -15,9 +15,9 @@ import type { ChampionNotes } from "@/domain/matchup-intel/types";
   knock-down or displacement interrupts and overrides its movement).
 
   Cooldown starts, from the page's cooldown-start field (cdstart), and null where it gives none:
-  - Q: "after-first-cast". Cunning Sweep's field says on-cast, which, on an ability cast again,
-    names its first cast: Riven's Broken Wings page gives both, on-cast and "Starts after first
-    cast". Sundering Slam's page gives no cooldown of its own.
+  - Q: "on-cast", as Cunning Sweep's field says. For an ability cast again, the page does not say
+    whether the cooldown runs from the first cast or the last, so the page shows no start
+    (the owner, 17 Nov 2026: what the wiki does not say is not used). Sundering Slam's page gives no cooldown of its own.
   - W, E, R: null: no cdstart.
   - P: no cooldown spec: the page gives none, and Data Dragon never gives a passive one.
 
@@ -65,7 +65,7 @@ const notes: ChampionNotes = {
     Q: {
       ddragonCooldown: [14, 13, 12, 11, 10],
       ddragonIdentity: { id: "AmbessaQ", name: "Cunning Sweep / Sundering Slam", maxRank: 5, charges: null },
-      cooldown: { kind: "per-rank", seconds: [14, 13, 12, 11, 10], starts: "after-first-cast" },
+      cooldown: { kind: "per-rank", seconds: [14, 13, 12, 11, 10], starts: "on-cast" },
       recast: { count: 1, windowSeconds: 4, note: "Sundering Slam, only after Cunning Sweep hits at least one enemy." },
       facts: [
         { kind: "damage", label: "Max-health damage", detail: "Cunning Sweep's damage includes a share of the target's maximum health, and it is doubled at the outer edge of the sweep.", appliesTo: "target", tags: ["max-health-damage"], source: "ambessa-q1" },

@@ -405,10 +405,11 @@ review checks the rest.
   (`cdstart`) or its cooldown note:
   - `null` where the page gives none (13 of the 24 abilities so far): nothing is assumed;
   - `"on-cast"` where the field says on-cast, and `"after-effect-ends"` where it says post-effect;
-  - `"after-first-cast"` for an ability cast again whose cooldown runs from its first cast: the
-    field's on-cast names that cast (Riven's Broken Wings page gives both, on-cast and "Starts after
-    first cast"), so Ambessa's Q, Renekton's E, Riven's Q and Gwen's R all read "starts after the
-    first cast".
+  - `"after-first-cast"` only where the page says so in words: Riven's Broken Wings ("Starts after
+    first cast"), which reads "starts after the first cast". On an ability cast again, the field's
+    on-cast alone does not say which cast, so Ambessa's Q, Renekton's E and Gwen's R keep
+    `"on-cast"` and the page shows no start for them. The owner's rule (17 Nov 2026): "Don't assume,
+    if you don't know because the wiki doesn't say then don't use that data."
 - `modifiers`, only as the page states them:
   - `refund`: a share (`percent`) or seconds per rank, and what gives it back, in our words (Gwen's
     E: 25 / 35 / 45 / 55 / 65%, "her first basic attack within the 4 seconds after the dash");
@@ -999,16 +1000,15 @@ merge deploys.
    the same):
 
    > Matchup Intel, for signed-in accounts, is a static reference for two champions chosen by hand: each ability's base cooldowns per rank from Data Dragon, and notes written from the League of Legends Wiki (cited, with the patch), with briefings for selected matchups. It makes no Riot API request and has no timers or tracking.
-2. **Say who curates the notes, and who approves briefings.** The first batch was drafted and
-   cross-checked by AI agents, so until the owner names the people, the owner's reading is its only
-   check by a person: read the three briefings (Ambessa vs Renekton, Gwen vs Ornn, Riven vs
-   Mordekaiser) and the six champions' notes in the pull request, and record the sign-off there (a
-   review comment for each file, or the name of the person who checked them), before approving it.
-   If that check is on another day than 16 Nov 2026, each file's `verified.checkedOn` moves to it.
-   Three readings to confirm with the rest: Ambessa's Q, Renekton's E and Gwen's R say "starts after
-   the first cast", read from their pages' on-cast and Riven's page, which gives both (Cooldowns,
-   `"after-first-cast"`); their own pages say only on-cast. The owner's rule is a briefing only where
-   a person wrote and checked it.
+2. **Say who curates the notes, and who approves briefings.** Done on 17 Nov 2026: the owner alone
+   curates and approves them. The owner read the three briefings (Ambessa vs Renekton, Gwen vs Ornn,
+   Riven vs Mordekaiser) and approved them "for now", and set the rule for every note: "Don't assume,
+   if you don't know because the wiki doesn't say then don't use that data." So the three readings
+   that were not on their own pages (Ambessa's Q, Renekton's E and Gwen's R "starts after the first
+   cast") were taken out (Cooldowns, `"after-first-cast"`). Still to follow in this pull request: an
+   audit of every note against the saved copies of the pages it cites, under that rule, and each
+   file's `verified.checkedOn` moved to 17 Nov 2026. The owner's rule is also that a briefing appears
+   only where a person wrote and checked it.
 3. **Approve the Resources navigation change**: Resources becomes one sidebar entry for two
    sections, Library and Matchup Intel, with their tabs at the top of both pages, phones included
    (Where it is). If not, the fallback leaves the sidebar as it was and links the two pages from

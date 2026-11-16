@@ -15,8 +15,8 @@ import type { ChampionNotes } from "@/domain/matchup-intel/types";
 
   Cooldown starts, from the page's cooldown-start field (cdstart), and null where it gives none:
   - W: "after-effect-ends" (post-effect).
-  - R: "after-first-cast". The field says on-cast, which, on an ability cast again, names its first
-    cast: Riven's Broken Wings page gives both, on-cast and "Starts after first cast".
+  - R: "on-cast", as the field says. For an ability cast again, the page does not say whether the
+    cooldown runs from the first cast or the last, so the page shows no start (the owner, 17 Nov 2026: what the wiki does not say is not used).
   - Q, E: null: no cdstart.
   - P: no cooldown spec: the page's cooldown field is empty and Data Dragon has none for passives,
     so the page says it is not in Riot's data rather than "none".
@@ -111,7 +111,7 @@ const notes: ChampionNotes = {
     R: {
       ddragonCooldown: [120, 100, 80],
       ddragonIdentity: { id: "GwenR", name: "Needlework", maxRank: 3, charges: null },
-      cooldown: { kind: "per-rank", seconds: [120, 100, 80], starts: "after-first-cast" },
+      cooldown: { kind: "per-rank", seconds: [120, 100, 80], starts: "on-cast" },
       modifiers: { lockout: { seconds: 1, static: true } },
       // Two more casts, as both the wiki and Riot's tooltip say; their window is disputed (see the header).
       recast: { count: 2, note: "The recasts cost nothing more and throw 3 needles, then 5." },
