@@ -416,6 +416,15 @@ test("the champion window links to Matchup Intel with its champion chosen", asyn
 test("sources are links that open in a new tab, cut off from the page; details expand; nothing is requested from the wiki", async ({ page }) => {
   const hosts = new Set<string>();
   page.on("request", (r) => hosts.add(new URL(r.url()).hostname));
+  // Playwright never reports a request whose URL ends in /favicon.ico (and aborts it once a route is
+  // installed: resources.spec.ts). On 16 Nov 2026 the Library's favicons loaded unreported. So the
+  // browser's own record of every request it starts is read too, through Chromium's DevTools protocol
+  // (every project this spec runs in is Chromium): each page the test opens, each redirect hop by its
+  // own address, and loads still in flight when the test ends.
+  const started = new Set<string>();
+  const cdp = await page.context().newCDPSession(page);
+  cdp.on("Network.requestWillBeSent", (e: { request: { url: string } }) => started.add(new URL(e.request.url).hostname));
+  await cdp.send("Network.enable");
   // A curated champion's ability with details, in the enemy's list (either side of a curated pair).
   const enemyDetails = page.getByTestId("matchup-enemy-abilities").getByTestId("ability-details");
   let found = false;
@@ -446,13 +455,21 @@ test("sources are links that open in a new tab, cut off from the page; details e
   await page.waitForLoadState("networkidle");
   const isWiki = (h: string) => h === "wiki.leagueoflegends.com" || h.endsWith(".wiki.leagueoflegends.com");
   expect([...hosts].filter(isWiki)).toEqual([]);
-  // The page's own resource timing too: Playwright's request events do not report every load. On
-  // 16 Nov 2026 they left out the Library's favicons (/favicon.ico, which Playwright treats apart:
-  // resources.spec.ts), though the page had loaded them and its resource timing listed them. The
-  // page's own scripts are in that list, so an empty one would mean it was not read.
+  expect(started.size, "the browser's record of requests was read").toBeGreaterThan(0);
+  expect([...started].filter(isWiki)).toEqual([]);
+  // The page's own resource timing, which lists every load that has ended on this page; its own
+  // scripts are in it, so an empty list would mean it was not read.
   const loaded = await page.evaluate(() => performance.getEntriesByType("resource").map((e) => new URL(e.name).hostname));
   expect(loaded.length, "the page's resource timing lists its loads").toBeGreaterThan(0);
   expect(loaded.filter(isWiki)).toEqual([]);
+  // And what the page names to load from the wiki, loaded or not: a lazy picture far below the fold
+  // would not have started yet.
+  const named = await page.evaluate(() =>
+    [...document.querySelectorAll("img, source, link, script, iframe, video, audio, object, embed, [style]")]
+      .flatMap((el) => [el.getAttribute("src"), el.getAttribute("srcset"), el.getAttribute("data"), el.tagName === "LINK" ? el.getAttribute("href") : null, el.getAttribute("style")])
+      .filter((v): v is string => !!v && /wiki\.leagueoflegends\.com/i.test(v)),
+  );
+  expect(named, "nothing on the page names the wiki as something to load").toEqual([]);
 });
 
 test("no sideways scrolling at 320, 375, 430 (a large phone) and 768 wide, the picker window included", async ({ page }) => {

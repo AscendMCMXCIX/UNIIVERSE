@@ -223,6 +223,8 @@ describe("the cooldown decision table, as the page says it", () => {
     expect(rowText(html, "Renekton", "E")).toContain(", revision of 5 Jun 2026");
     expect(html).toContain('data-tags="spell-shield"');
     expect(rowText(html, "Renekton", "R")).toContain("3 / 4 / 5 charges · one back every 35 / 30 / 25 s Checked on patch 26.22");
+    // rowText reads a no-break space as a space; the page's own markup holds the count to "charges".
+    expect(html).toContain("3 / 4 / 5\u00a0charges");
   });
 });
 
