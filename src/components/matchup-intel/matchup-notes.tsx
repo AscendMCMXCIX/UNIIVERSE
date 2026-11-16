@@ -89,9 +89,11 @@ export function LevelNotesPanel({ intels }: { intels: ReadonlyArray<ChampionInte
   return (
     <Panel className="overflow-hidden" data-testid="matchup-level-notes">
       <PanelHeader title="By level" subtitle="When something notable becomes possible" />
-      <ol className="divide-y divide-border">
+      {/* The level beside its note, or above it where the list is under 16rem (a phone at a large text
+          size, as the ability rows): beside it, the note would be left a column a word wide. */}
+      <ol className="@container/levels divide-y divide-border">
         {notes.map((n) => (
-          <li key={`${n.champion.id}-${n.order}-${n.i}`} className="grid grid-cols-[4.75rem_minmax(0,1fr)] gap-3 px-3 py-2.5 sm:px-4" data-testid="matchup-level-note">
+          <li key={`${n.champion.id}-${n.order}-${n.i}`} className="grid grid-cols-1 gap-x-3 gap-y-0.5 px-3 py-2.5 @min-[16rem]/levels:grid-cols-[4.75rem_minmax(0,1fr)] sm:px-4" data-testid="matchup-level-note">
             <span className="pt-px text-sm font-semibold tabular-nums text-fg">Level {n.level}</span>
             <div className="min-w-0 space-y-0.5">
               <p className="text-sm leading-relaxed text-fg">
