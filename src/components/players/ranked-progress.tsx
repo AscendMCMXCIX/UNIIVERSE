@@ -6,7 +6,7 @@ import { RANKED_YEAR } from "@/domain/ranked-year";
 import type { RankHistoryAccount } from "@/server/accounts/rank-history";
 import { InfoTip } from "@/components/ui/info-tip";
 import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
-import { formatCount, formatDate, formatDateTime, formatDayMonth, formatLpChange } from "@/lib/format";
+import { formatCount, formatDate, formatDateTime, formatDateTimeAfter, formatDayMonth, formatLpChange } from "@/lib/format";
 import { accountShortNames } from "@/domain/account-names";
 import { cn } from "@/lib/cn";
 import { RankEmblem } from "./rank-emblem";
@@ -48,12 +48,19 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
           a line of its own. From 32rem the title and the tracking line on the left, the controls at
           the right, so the header is two lines tall, as before. */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 @min-[32rem]/rank:grid @min-[32rem]/rank:grid-cols-[minmax(0,1fr)_auto] @min-[32rem]/rank:items-start @min-[32rem]/rank:gap-y-0.5">
-        <h2 id="ranked-progress-title" className="flex min-w-0 grow basis-auto items-center gap-1.5 text-base font-semibold text-fg @min-[32rem]/rank:col-start-1 @min-[32rem]/rank:row-start-1">
-          Ranked progress
-          <InfoTip
-            label="About ranked progress"
-            text={`Riot's API reports only an account's current rank, never past ones. So the chart starts at UNIIVERSE's first reading of this rank and nothing earlier is drawn or estimated. The line continues only across at most one game; a shaded band marks several games played between two readings. Wins and losses are Riot's own count for the ${RANKED_YEAR} ranked year (one ladder since 8 January: Seasons 1, 2 and 3 share it).`}
-          />
+        {/* The title claims only its wrapped width ("progress ⓘ", the ⓘ kept on the last word), so
+            the switch stays beside it as long as even the wrapped title fits there; with larger
+            text it goes under the title rather than over its ⓘ. No min-w-0: that minimum is the
+            point. The tip's bubble is drawn in <body>, so the nowrap does not reach it. */}
+        <h2 id="ranked-progress-title" className="flex-1 text-base font-semibold text-fg @min-[32rem]/rank:col-start-1 @min-[32rem]/rank:row-start-1">
+          Ranked{" "}
+          <span className="whitespace-nowrap">
+            progress{" "}
+            <InfoTip
+              label="About ranked progress"
+              text={`Riot's API reports only an account's current rank, never past ones. So the chart starts at UNIIVERSE's first reading of this rank and nothing earlier is drawn or estimated. The line continues only across at most one game; a shaded band marks several games played between two readings. Wins and losses are Riot's own count for the ${RANKED_YEAR} ranked year (one ladder since 8 January: Seasons 1, 2 and 3 share it).`}
+            />
+          </span>
         </h2>
         <p className="order-last basis-full text-xs text-fg-subtle wrap-anywhere @min-[32rem]/rank:order-none @min-[32rem]/rank:col-start-1 @min-[32rem]/rank:row-start-2" data-testid="ranked-tracking">
           {account.riotId}
@@ -140,7 +147,8 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
         <summary className="flex min-h-8 cursor-pointer list-none items-center gap-1.5 rounded-sm text-xs font-medium text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden" data-testid="ranked-details-toggle">
           <ChevronRight className="h-3.5 w-3.5 shrink-0 transition-transform duration-150 group-open/details:rotate-90" aria-hidden />
           History and coverage
-          <span className="hidden font-normal text-fg-subtle @min-[26rem]/rank:inline">
+          {/* From 25.5rem, as the chart's full names (a 2×2's rail at 1440 holds them, sidebar open). */}
+          <span className="hidden font-normal text-fg-subtle @min-[25.5rem]/rank:inline">
             · {formatCount(timeline.readings.length)} reading{timeline.readings.length === 1 ? "" : "s"} · {formatCount(changes.length)} rank change{changes.length === 1 ? "" : "s"}
           </span>
         </summary>
@@ -314,6 +322,22 @@ function ChartKey({ t }: { t: RankTimeline }) {
   );
 }
 
+/** "confirmed 21 Oct, 3:04 pm" ("confirmed 3:04 pm" the same day; the year only in another one). */
+function ConfirmedUnder({ from, to }: { from: number; to: number }) {
+  const at = formatDateTimeAfter(to, from);
+  return (
+    <span className="block whitespace-normal text-2xs text-fg-subtle @min-[32rem]/rank:hidden">
+      confirmed{" "}
+      {at.day ? (
+        <>
+          <span className="whitespace-nowrap">{at.day},</span>{" "}
+        </>
+      ) : null}
+      <span className="whitespace-nowrap">{at.time}</span>
+    </span>
+  );
+}
+
 function ReadingsTable({ t }: { t: RankTimeline }) {
   const rows = [...t.readings].reverse().slice(0, TABLE_ROWS);
   return (
@@ -348,8 +372,11 @@ function ReadingsTable({ t }: { t: RankTimeline }) {
               <tr key={r.from} className="border-t border-border/60">
                 <td className="whitespace-nowrap px-2 py-1 text-fg-muted">
                   {formatDateTime(r.from)}
-                  {/* Where the Last confirmed column does not fit: under the first reading. */}
-                  {r.to > r.from ? <span className="block whitespace-normal text-2xs text-fg-subtle @min-[32rem]/rank:hidden">confirmed {formatDateTime(r.to)}</span> : null}
+                  {/* Where the Last confirmed column does not fit: under the first reading, without
+                      what the two share (the year, the day), so it is rarely wider than the date
+                      above it and the row keeps W–L in the box; it wraps only between whole parts
+                      ("21 Oct," and "3:04 pm"), never leaving "pm" alone on a line. */}
+                  {r.to > r.from ? <ConfirmedUnder from={r.from} to={r.to} /> : null}
                 </td>
                 <td className="whitespace-nowrap px-2 py-1 font-medium text-fg">
                   {r.label}
