@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { landAt, placeTip } from "./info-tip";
+import { landAt, moving, placeTip } from "./info-tip";
 
 /*
   An ⓘ's bubble: where it goes (placeTip), and the style position that lands it there however the
   box holding it is moved (landAt). Inside a window the bubble is fixed in the window's dialog, which
   is a containing block for it while a transform moves the window (its opening motion): the bubble
   is then offset and scaled with it. Measured once, at the position it has, the offset and the scale
-  give the position that puts it where placeTip says. Drawn over a real window in e2e/popups.spec.ts.
+  give the position that puts it where placeTip says; while the window moves, the bubble is placed
+  again at every frame and once more as it comes to rest (moving), when the window stops being the
+  box it is placed in. Drawn over a real window in e2e/popups.spec.ts.
 */
 
 const screen = { width: 375, height: 667 };
@@ -66,5 +68,21 @@ describe("the style position that lands a bubble where it goes", () => {
 
   it("reads no scale from a box that has no size yet", () => {
     expect(landAt(target, { left: 10, top: 10 }, { left: 30, top: 40, width: 0, height: 0 }, { width: 0, height: 0 })).toEqual({ left: 32, top: 224 });
+  });
+});
+
+describe("whether the window holding a bubble is moving", () => {
+  const holding = (...states: string[]) => ({ getAnimations: () => states.map((playState) => ({ playState })) });
+
+  it("is while a motion of its own runs (its opening or closing motion, a sheet settling back)", () => {
+    expect(moving(holding("running"))).toBe(true);
+    expect(moving(holding("finished", "running"))).toBe(true);
+  });
+
+  it("is not once its motions are over or paused, with none, or where the browser cannot say", () => {
+    expect(moving(holding("finished"))).toBe(false);
+    expect(moving(holding("paused", "idle"))).toBe(false);
+    expect(moving(holding())).toBe(false);
+    expect(moving({})).toBe(false);
   });
 });

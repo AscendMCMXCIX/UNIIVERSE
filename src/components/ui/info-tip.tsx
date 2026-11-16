@@ -45,12 +45,22 @@ export function tipHost(trigger: Element | null): HTMLElement {
 }
 
 /**
+ * Whether what holds an open bubble is moving itself: a window's opening or closing motion, or a
+ * transition of its own (a sheet settling back). Its transform makes it the box the bubble is placed
+ * in, a different box at every frame, and none once it is still.
+ */
+export function moving(host: { getAnimations?: () => ReadonlyArray<{ playState: string }> }): boolean {
+  return typeof host.getAnimations === "function" && host.getAnimations().some((a) => a.playState === "running");
+}
+
+/**
  * The one tooltip of the app: explanatory text for whatever it wraps (by default a small ⓘ).
  * Mouse: opens while pointed at, closes when the pointer leaves. Keyboard: opens on focus, closes
  * on blur or Escape. Touch: a tap opens it, another tap (on it or anywhere else) closes it. Escape
  * closes the bubble alone, never the window or the list it sits in. The bubble is drawn in a layer
  * above the page, so the card it sits in never cuts it off: on the page, or inside the window the
- * tip sits in (tipHost), placed where placeTip says however that window is moving (landAt). The text
+ * tip sits in (tipHost), placed where placeTip says however that window is moving (landAt), and
+ * placed again at every frame while it moves (moving). The text
  * is also the trigger's accessible description, so screen readers read it without opening it.
  * Interactive menus are not tooltips: they stay click-to-open popovers.
  */
@@ -79,6 +89,28 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
   React.useLayoutEffect(() => {
     if (open) place();
   }, [open, place]);
+
+  // While the window holding the bubble moves (its opening motion, as content arriving under a still
+  // pointer opens a bubble), the bubble is placed again at every frame, and once more as it comes to
+  // rest: placed once in a moving window, it was left off its ⓘ by the window's offset when the
+  // motion ended, the window then no longer the box it is placed in (landAt).
+  React.useEffect(() => {
+    if (!open || !host || host === document.body) return;
+    let frame = 0;
+    const follow = () => {
+      cancelAnimationFrame(frame);
+      frame = 0;
+      place();
+      if (moving(host)) frame = requestAnimationFrame(follow);
+    };
+    follow();
+    // A motion starting, or ending (the last frame of one is not always drawn before its end).
+    for (const type of ["animationstart", "animationend", "animationcancel", "transitionrun", "transitionend", "transitioncancel"]) host.addEventListener(type, follow);
+    return () => {
+      cancelAnimationFrame(frame);
+      for (const type of ["animationstart", "animationend", "animationcancel", "transitionrun", "transitionend", "transitioncancel"]) host.removeEventListener(type, follow);
+    };
+  }, [open, host, place]);
 
   React.useEffect(() => {
     if (!open) return;

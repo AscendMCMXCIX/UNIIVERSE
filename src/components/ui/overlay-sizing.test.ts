@@ -237,6 +237,9 @@ describe("what shows over a window is drawn inside it", () => {
     // Captured on window, and the key's default action (the window's close request) prevented.
     expect(tip).toContain('window.addEventListener("keydown", onKey, true)');
     expect(tip).toMatch(/if \(e\.key !== "Escape"\) return;\s*e\.preventDefault\(\);\s*e\.stopPropagation\(\);/);
+    // Placed again at every frame while the window holding it moves, and once more as it stops.
+    expect(tip).toMatch(/place\(\);\s*if \(moving\(host\)\) frame = requestAnimationFrame\(follow\);/);
+    expect(tip).toMatch(/"animationstart", "animationend"/);
   });
 
   it("the toasts are drawn in the topmost window at rest while one is open, and in place otherwise", () => {
