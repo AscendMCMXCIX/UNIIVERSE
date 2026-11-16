@@ -19,20 +19,27 @@ the most important part first; side by side where a desktop has the room):
    the focus. The jump goes into the address through the router's own history, so Back after a
    later choice shows the pair it was made on (a browser's own jump to an anchor leaves an entry
    the router does not restore). The briefing says which patch it was checked on ("Checked on
-   patch 26.22"). If Riot's numbers for those abilities moved after the check, it adds "Riot's
-   numbers for these abilities changed after the check: may be out of date". Where no briefing
+   patch 26.22"). A point that rests on an ability Riot changed after the check is hidden, and the
+   page says so in its place, naming the ability ("Hidden: Riot changed Renekton W after this
+   briefing was checked."; Data, "Hidden points"). Where no briefing
    exists, one calm line says so ("No curated briefing for Garen vs Darius yet") and that what
    follows is the enemy's general reference. It also links the curated matchups that do exist for
    your champion.
 2. **The enemy's abilities**, one row each for P, Q, W, E and R:
    - the icon, the key and the name;
-   - the base cooldown at each rank, or why there is no number (see Cooldowns);
-   - recasts;
-   - the checked facts as badges (crowd control, mobility, defence, sustain, damage, interaction,
-     exception), each with an icon and a word, never colour alone;
+   - the base cooldown at each rank (one line per form for a champion who transforms), or why
+     there is no number, and under it where it comes from: "Checked on patch 26.22", or "Riot's
+     data, not reviewed" (see Cooldowns);
+   - the wait between casts, refunds and attack resets; recasts;
+   - the checked facts as badges (crowd control, mobility, defence, sustain, damage, empowerment,
+     interaction, exception), each with an icon and a word, never colour alone, and who has the
+     effect where its kind would not say ("· on the target");
+   - once Riot's data changed after the check: Riot's own line, then the notes under a flag that
+     says they may be out of date, their cooldown as checked included;
    - Riot's short description;
    - a details part (the native `details` element) with the longer notes and each fact's source.
-3. **Interactions**: the matchup's first, then the enemy's interaction and exception facts.
+3. **Interactions**: the matchup's first, then the enemy's interaction and exception facts. A
+   matchup interaction on an ability Riot changed since is hidden and said, as a briefing point is.
 4. **Level notes**: the levels at which something notable becomes possible, for both champions.
 5. **Your own champion's abilities**, collapsed until asked for.
 6. **A quiet footer**:
@@ -121,8 +128,10 @@ Nothing is generated: what no person has checked is shown as Data Dragon gives i
 
 - **Ability names, icons, ranks and base cooldowns** come from Riot's Data Dragon. The game-data job
   stores them once per game version, and the page reads them per champion with
-  `loadChampionAbilities` (`src/server/matchup-intel/abilities.ts`). How they are stored and
-  refreshed: [DATA_PIPELINES.md](DATA_PIPELINES.md), "Riot static data (Data Dragon)".
+  `loadChampionAbilities` (`src/server/matchup-intel/abilities.ts`). Each ability's record holds
+  its spell id, name, icon, ranks, cooldown array, charges (Data Dragon's `maxammo` above 0, else
+  none) and Riot's short description. How they are stored and refreshed:
+  [DATA_PIPELINES.md](DATA_PIPELINES.md), "Riot static data (Data Dragon)".
 - **Icons** are linked from `https://ddragon.leagueoflegends.com/cdn/<version>/img/spell/<file>`
   (`img/passive/` for the passive), 48px and lazily loaded. The key on a plain tile stands in where
   one cannot load.
@@ -130,15 +139,38 @@ Nothing is generated: what no person has checked is shown as Data Dragon gives i
   `curatedEnemiesFor`) are committed and reviewed; see Curated notes below. Every fact names its
   source, and each set of notes says the patch it was checked on. A source keeps its link only when
   it is an https address on `wiki.leagueoflegends.com`, `ddragon.leagueoflegends.com` or
-  `developer.riotgames.com` (`safeSourceUrl`); any other link is dropped and the title stays.
+  `developer.riotgames.com` (`safeSourceUrl`); any other link is dropped and the title stays. A
+  source may also give its `kind` (`wiki-ability`, `wiki-champion`, `wiki-reference`, `ddragon`,
+  `riot-docs`) and the `revisionTime` of the wiki revision read; the ability details give that
+  revision's day ("revision of 23 Sep 2026").
+- **Facts** say who has the effect where the notes give it (`appliesTo`: `self`, `target`,
+  `allies`, `area`). A badge adds it only where the fact's kind would not say it: crowd control and
+  damage fall on the target, the other kinds on the champion ("Fails on spell shields · on the
+  target"). Tags from `FACT_TAGS` (`src/domain/matchup-intel/types.ts`) name the mechanics a fact
+  is about. The page carries them as data (`data-tags` beside each badge), not as words: the
+  badge's own label says the same.
 - **The patch**: the game's current patch by its public name (26.22 for Data Dragon 16.22.1),
   unknown while the game data is the offline fixture. Ability data older than the current patch is
   said once above the abilities.
-- **Freshness** of curated notes, from Riot's numbers for the abilities they cover
-  (`abilityFreshness`, `weakestFreshness`):
-  - checked on the data's own version: "current";
-  - checked earlier, with the numbers unchanged since: said only as "Checked on patch N";
-  - the numbers changed after the check: flagged as possibly out of date.
+- **Freshness** of curated notes, against Riot's record of each ability they cover (`abilityChanges`,
+  `abilityFreshness` and `weakestFreshness`, `src/domain/matchup-intel/cooldown.ts`). What is
+  compared is the cooldown array (`ddragonCooldown`) and, where the notes record them, the spell
+  id, name, ranks and charges (`ddragonIdentity`): a rework can keep its cooldowns (Mel's Q was
+  renamed in 16.22.1 with the same array). The identity is written out, not hashed, so a reviewer
+  can read it against Riot's file; a hash would also move with fields the page never shows. The
+  description is not compared: the stored one is the index's cleaned text, so a change in the
+  cleaning would read as Riot's.
+  - checked on the data's own version, and nothing compared changed: "current";
+  - checked on an earlier version, and nothing compared changed since: said only as "Checked on
+    patch N";
+  - the data held is older than the check: a difference is the data's age, not Riot's change, so
+    this too is said only as "Checked on patch N", and the notes stay the line;
+  - something compared changed after the check: "changed since". The ability's line is then only
+    what Riot's data supports (Cooldowns, below), and its notes follow under "Notes from patch
+    26.22 · may be out of date: Riot changed its cooldown since", their cooldown as checked
+    included ("As checked: 16 / 14 / 12 / 10 / 8 s · starts when the effect ends"). The champion's
+    line says how many changed ("Riot changed one ability after the check: its notes are
+    flagged").
 
   A briefing's freshness comes from the abilities it rests on, judged against the matchup's own
   check (`matchupAbilityFreshness`, `src/server/matchup-intel/view.ts`). A matchup holds no numbers
@@ -146,14 +178,31 @@ Nothing is generated: what no person has checked is shown as Data Dragon gives i
   champion notes', on their own version. So, for each ability:
   - the data shown is the matchup's version: "current", whichever version the champion's notes
     were checked on;
-  - the champion's notes took their numbers on the matchup's version or later, and Riot's numbers
-    moved since them: the change came after the matchup's check, so the briefing is flagged;
+  - the champion's notes took their numbers on the matchup's version or later, and Riot's record
+    moved since them: the change came after the matchup's check, so it is "changed since";
   - anything else (notes checked before the matchup, data older than the notes, no notes) is not
     known, and is said only as "Checked on patch N".
 
   So a matchup re-checked on a new patch is current even where a champion's older notes are
   flagged, and numbers that moved between a matchup's check and a later check of the champion's
   notes go unflagged: telling those apart needs the matchup's own numbers, which it does not hold.
+
+- **Hidden points.** A briefing point, the threat, the opportunity or one of the matchup's
+  interactions that rests on an ability "changed since" its check is hidden (`matchupIntel`,
+  `view.ts`): its words stay on the server, and the page says in their place what changed, with
+  chips to those abilities' rows:
+  - in place of the threat or the opportunity: "Hidden: Riot changed Renekton W after this
+    briefing was checked.";
+  - after the lane points shown: "One point is hidden: Riot changed Renekton W after this briefing
+    was checked.";
+  - when nothing is left to show: "This briefing is hidden: Riot changed Renekton W after it was
+    checked.";
+  - in the Interactions panel: "One interaction is hidden: Riot changed Renekton W after it was
+    checked."
+
+  The points that rest on nothing that changed keep "Checked on patch N", and the briefing's
+  freshness is that of what it shows. The enemy's facts from a changed ability keep their row's
+  "Changed since the check" in the Interactions panel. Nothing is hidden silently.
 
 ## Curated notes
 
@@ -213,10 +262,13 @@ review checks the rest.
 - `ddragonCooldown` is Data Dragon's `cooldown` array for the version checked, copied exactly. The
   passive's is `[]`: Data Dragon never gives a passive a cooldown.
 - A `per-rank` cooldown repeats that array. Its `starts` comes from the wiki's cooldown-start field
-  or its cooldown notes. Use `"on-cast"` only when the source says so or gives no special start,
-  with a comment saying which.
-- Charges, recharge times, recast windows and counts, static cooldowns between casts, refunds and
-  resets go in only as the wiki gives them.
+  or its cooldown notes, and is `null` where the source states none: nothing is assumed. Use
+  `"on-cast"` only when the source says so, with a comment saying which.
+- `ddragonIdentity` is Data Dragon's spell id, name, ranks and charges for the version checked,
+  copied from `ddragon-<version>.identity.json` (optional while the files are filled in).
+- Charges (per rank where they differ), recharge times, forms, recast windows and counts, static
+  cooldowns, waits between casts, refunds and resets go in only as the wiki gives them: in the
+  `cooldown` spec and `modifiers`, and in `cooldownNote` only what fits neither.
 - A passive gets a cooldown only when the wiki gives one. Otherwise its notes have none, and the
   page says Riot's data has none, never "no cooldown".
 
@@ -228,6 +280,8 @@ review checks the rest.
   immunity.
 - `sustain`: heals, life steal, omnivamp.
 - `damage`: only damage that matters in the matchup (true damage, a share of maximum health).
+- `empowerment`: what strengthens the champion itself (bonus attack damage, an empowered next
+  attack), which `damage` would misname as damage dealt.
 - `interaction`: what cancels, blocks or interrupts it.
 - `exception`: unusual mechanics.
 
@@ -263,6 +317,9 @@ review checks the rest.
      with `P` as `[]`.
    - A new version gets its own file of the same shape, whose `_note` says where the arrays came
      from.
+   - Copy each ability's id, name, `maxrank` and `maxammo` (as charges above 0, else `null`; the
+     passive has no id, 1 rank and no charges) into its `ddragonIdentity` and into
+     `ddragon-<version>.identity.json`, the same way.
 3. Write `champions/<ChampionId>.ts`, named with Data Dragon's id (`MonkeyKing` for Wukong). It
    has `export default` a `ChampionNotes` with:
    - all five slots;
@@ -284,25 +341,27 @@ review checks the rest.
 ### When a patch changes them
 
 Riot's numbers refresh by themselves. The version-check job stores each new Data Dragon version's
-abilities (`src/server/matchup-intel/abilities.ts`). The page compares each ability's current array
-with the notes' `ddragonCooldown`, using `abilityFreshness` in
-`src/domain/matchup-intel/cooldown.ts`:
-- **current**: checked against the version the page shows, and the array still matches;
-- **unchanged since**: checked on an earlier version, and the array has not changed since. It is
-  shown as "checked on patch 26.22", never as current, because crowd-control durations, ranges and
-  interactions can change without the array moving;
-- **changed since**: the array moved after the check. The page shows Riot's new numbers, and the
-  notes may be out of date.
+abilities (`src/server/matchup-intel/abilities.ts`). The page compares each ability's current
+record with the notes' `ddragonCooldown` and, where given, `ddragonIdentity` (its id, name, ranks
+and charges), using `abilityFreshness` in `src/domain/matchup-intel/cooldown.ts`:
+- **current**: checked against the version the page shows, and nothing compared has changed;
+- **unchanged since**: checked on an earlier version, and nothing compared has changed since (or
+  the data held is older than the check). It is shown as "checked on patch 26.22", never as
+  current, because crowd-control durations, ranges and interactions can change without the record
+  moving;
+- **changed since**: the record moved after the check. The line shows only what Riot's data
+  supports, the notes are flagged as possibly out of date, and the briefing points and matchup
+  interactions that rest on the ability are hidden (Data, above).
 
 A champion's label is its weakest ability's (`weakestFreshness`). A matchup's is judged against its own check, ability by ability (Data, Freshness, above).
 
 Re-checking is a person's work, in one pull request per pass:
-1. Find the curated abilities whose array changed (the page labels them "changed since"). Read the
-   patch notes for changes the arrays do not show.
+1. Find the curated abilities whose record changed (the page labels them "Changed since the
+   check"). Read the patch notes for changes the record does not show.
 2. Read those abilities' wiki pages again by hand. Update the facts, the revision ids,
-   `ddragonCooldown` and `verified`.
-3. Add `ddragon-<version>.cooldowns.json` for the version checked against. The test needs one for
-   every version a champion's notes cite.
+   `ddragonCooldown`, `ddragonIdentity` and `verified`.
+3. Add `ddragon-<version>.cooldowns.json` and `ddragon-<version>.identity.json` for the version
+   checked against. The test needs them for every version a champion's notes cite.
 4. Re-read the matchup points that rest on a changed ability (`basedOn`), then update or remove
    them.
 
@@ -317,11 +376,25 @@ Until that merges, the labels say what is known. Nothing is estimated.
 - champion notes without all of P, Q, W, E and R, or with any other slot;
 - a `ddragonCooldown` that is not Data Dragon's array in `ddragon-<version>.cooldowns.json`, or
   notes checked against a version with no such file;
+- a `ddragonIdentity` whose id, name, ranks or charges are not Data Dragon's in
+  `ddragon-<version>.identity.json`, or one given for a version with no such file;
+- a saved Data Dragon file that is not well formed, or that disagrees with the committed offline
+  fixture (`src/server/riot/fixtures/champion-abilities.fixture.json`) of the same version;
 - a `per-rank` cooldown whose seconds differ from `ddragonCooldown`;
+- a cooldown spec the page cannot show as written (it asks the display rules,
+  `curatedCooldownDisplay`): numbers of seconds, whole charge counts above 0, one value or one per
+  rank, levels from 1 to 18 paired with the values, two or more forms; a start outside the
+  vocabulary, or forms with the same name;
+- a modifier the page would leave out: a refund whose amount is not one value or one per rank, a
+  share over 100%, or with nothing saying what gives it; a wait between casts that is not above 0;
+- a fact's tag that is not in `FACT_TAGS` or is named twice, or a subject that is not `self`,
+  `target`, `allies` or `area`;
 - any of these source faults:
   - a fact, level note or interaction that cites a source its file does not list;
   - a source listed twice, or one that is not an https page on the three hosts above;
   - a source with the wrong licence for its host, or a wiki page without its revision;
+  - a source whose `kind` does not fit its page, or whose `revisionTime` is not a time in UTC, has
+    no revision, or comes after the day the notes were checked;
   - a matchup source that differs from the champion notes' source of the same id;
 - a `basedOn` or interaction reference that is not an ability, with notes, of one of the two
   champions;
@@ -338,25 +411,75 @@ cites.
 
 ## Cooldowns
 
-The rules are in `src/domain/matchup-intel/cooldown.ts` (`cooldownDisplay`), the words in
-`src/components/matchup-intel/wording.ts`, and the numbers are written by `formatCooldowns` in
-`src/lib/format.ts`. A number is shown only when the data holds it; what is not known is said as
-not known, never estimated.
+The rules are in `src/domain/matchup-intel/cooldown.ts` (`cooldownDisplay`, and
+`ddragonCooldownDisplay` for Riot's data alone), the words in
+`src/components/matchup-intel/wording.ts`, and the numbers are written by `formatCooldowns` and
+`formatPerRank` in `src/lib/format.ts`. A number is shown only when the data holds it; what is not
+known is said as not known, never estimated.
 
-| Case | Shown as |
-| --- | --- |
-| Base cooldown per rank, without ability haste (the list says this once) | "8 / 7 / 6 / 5 / 4 s" |
-| The same value at every rank | "13 s at every rank" |
-| When it starts, if a source says (on cast goes without saying) | "starts after the first cast", "starts after the last recast", "starts when the effect ends", "starts after the channel" |
-| Charges, from curated notes | "2 charges · one back every 20 / 18 / 16 / 14 / 12 s" |
-| Charges, from Data Dragon alone (its number is the time between casts, not the recharge) | "3 charges · recharge not in Riot's data · 0.25 s between casts" |
-| A passive's own cooldown, where a source states one | "12 / 9 / 6 s · at levels 1 / 7 / 13" |
-| A passive without one (Data Dragon has no passive cooldown) | "Cooldown not in Riot's data", never "none" |
-| No cooldown at all (curated) | "No cooldown" |
-| An all-zero placeholder in Data Dragon | "No fixed cooldown in Riot's data" |
-| Riot's numbers changed after the curated check | Riot's current numbers, and the row is flagged "Changed since the check" |
+**Which line.** While an ability's curated notes still describe Riot's record (not "changed
+since", Data above), their cooldown spec is the line, as checked. Otherwise, or where the notes
+give no spec, or a spec the page cannot read, the line is what Riot's data alone supports, with no
+claim about when it starts. Riot's array passes only these rules, in this order:
 
-Decimals are written as the numbers have them, up to two ("0.25 s").
+1. the passive: Data Dragon has no passive cooldown, so there is none to show;
+2. the exception list (`NOT_THE_COOLDOWN`): arrays the saved evidence shows are not the cooldown,
+   each pinned to the array that was checked, so a different array is judged by the rules below:
+   - Rengar's Q, W and E, 0.25 s at every rank, reported to Riot as wrong (RiotGames/developer-relations
+     issue 787, closed 26 Apr 2025, still 0.25 in 16.22.1);
+   - Corki's R (2 s), Teemo's R (0.25 s) and Gangplank's E (0): the wait between casts of an
+     ability that holds charges, whose recharge the wiki gives (20 s; 35 to 25 s; 17 to 13 s);
+3. `maxammo` above 0: with charges the array is the wait between casts, and the count is not
+   reliable alone (Rengar's Q, W and E list 1; whether Warwick's W and LeBlanc's R, which list 2,
+   hold charges is not verified), so neither a number nor a count is shown;
+4. a value that is not a number of seconds (malformed data);
+5. a name with two abilities (" / "): one array for the two forms of a champion who transforms
+   (Jayce, Nidalee, Elise, Gnar, Rek'Sai) or the two parts of an ability cast again (Ambessa's Q,
+   Lee Sin's Q, W and E); Data Dragon does not tell them apart. Where curated notes checked one
+   array per rank for the slot, a later array is read as that ability's, unless Riot's id, name or
+   ranks moved from what the notes recorded (`ddragonIdentity`);
+6. an empty or all-zero array: a placeholder, not "no cooldown";
+7. not one number per rank;
+8. everything else: Riot's array per rank.
+
+**What the line says, and under it where it comes from:**
+
+| Case | The line | Under it |
+| --- | --- | --- |
+| Curated per rank, Riot's record unchanged | "16 / 14 / 12 / 10 / 8 s"; the same value at every rank "13 s at every rank" | "Checked on patch 26.22" ("Checked" where the patch is not known) |
+| When it starts, where the source states it (on cast, or no start stated, goes without saying) | "· starts after the first cast", "· starts after the last recast", "· starts when the effect ends", "· starts after the channel" | |
+| A static cooldown (`modifiers.static`) | "· unaffected by ability haste" | |
+| Curated charges, one count or one per rank | "3 / 4 / 5 charges · one back every 35 / 30 / 25 s"; "2 charges · one back every 20 s"; "1 charge" | "Checked on patch 26.22" |
+| Curated forms, one line each | "Hammer: 16 / 14 / 12 / 10 / 8 / 6 s", then "Cannon: 8 s at every rank" | "Checked on patch 26.22" |
+| A passive's own cooldown, where a source states one | by level: "12 / 9 / 6 s · at levels 1 / 7 / 13", or "· by level" without the levels, "6 s at every level"; by rank: "30 / 25 / 20 s · by its rank"; and "· per target", "· unaffected by ability haste", "· starts when it takes effect", "· starts when the effect ends" ("10 s · per target · unaffected by ability haste") | "Checked on patch 26.22" |
+| No cooldown (curated) | "No cooldown" | "Checked on patch 26.22" |
+| Riot's record changed after the check | Riot's own line (the rows below), never the notes' start; the row's name has "Changed since the check" | "Riot's data for patch 26.23, not re-checked" ("Riot's data, not re-checked" where the data's patch is not known; "Not re-checked" under a line without a number); then the notes, under "Notes from patch 26.22 · may be out of date: Riot changed its cooldown since" (its cooldown, spell id, name, ranks or charges), with "As checked: …" |
+| Riot's data, a number | "18 / 17 / 16 / 15 / 14 s" | "Riot's data, not reviewed" |
+| Riot's data, the passive | "Cooldown not in Riot's data", never "none" | "Not reviewed" |
+| Riot's data, charges (rule 3, and Corki's R, Teemo's R, Gangplank's E) | "Riot's data lists charges but not their recharge" | "Not reviewed" |
+| Riot's data, known to be wrong (Rengar's Q, W, E) | "Riot's number for this ability is known to be wrong" | "Not reviewed" |
+| Riot's data, a value that is not seconds | "Riot's cooldown data can't be read" | "Not reviewed" |
+| Riot's data, two abilities in one slot | "Two abilities share this slot in Riot's data" | "Not reviewed" |
+| Riot's data, an empty or all-zero array | "No cooldown number in Riot's data" | "Not reviewed" |
+| Riot's data, not one number per rank | "Riot's data doesn't give one number per rank" | "Not reviewed" |
+| No record of the ability | "No cooldown data held yet" (a champion with no abilities stored shows "Ability details arrive with the next game-data update" instead of rows) | |
+
+A line without a number has nothing under it where the ability has curated notes that are not
+flagged: they are the place that says more (a passive whose wiki page gives no cooldown, for
+example).
+
+**The modifiers** follow the line, one short line each, only as the source states them:
+- "0.3125 s between casts, unaffected by ability haste" (`lockout`);
+- "Refunds 25 / 35 / 45 / 55 / 65% of the cooldown: her first attack within 4 seconds", or
+  "Refunds 2 s of the cooldown: …" (`refund`: a share or seconds, one value or one per rank, and
+  what gives it back);
+- "Resets the basic-attack timer" (`resetsAttack`).
+
+`cooldownNote` holds the rest, in words. Once Riot's record changed, the modifiers go with the
+flagged notes.
+
+Decimals are written as the numbers have them, up to four ("0.25 s", "0.3125 s"): a checked value
+is never rounded into another.
 
 ## Compliance
 
