@@ -278,8 +278,10 @@ verified backup and its own data-retirement plan (`docs/RANKED_DEVELOPMENT.md`).
 
 ## Resources (October 2026)
 
-Resources (`/resources`, its own sidebar entry below Team, every signed-in account): the
-team's library of League of Legends sites in five sections (League of Legends, Summoner's Rift,
+Resources (its own sidebar entry below Team, every signed-in account) is two pages under one
+entry since 16 Nov 2026, the tabs at the top of both: the Library (`/resources`, below) and Matchup
+Intel (`/resources/matchups`, a static reference for a pair of champions: docs/MATCHUP_INTEL.md).
+The Library is the team's library of League of Legends sites in five sections (League of Legends, Summoner's Rift,
 ARAM, Arena, Esports). One filter bar (search, then the section), favourites kept in the browser
 (`localStorage`), then one panel per section, two side by side on wide screens. Each site is one
 row that opens in a new tab (`target="_blank" rel="noopener noreferrer"`): its icon, title, host
