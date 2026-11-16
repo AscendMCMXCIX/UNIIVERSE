@@ -136,13 +136,19 @@ test("the profile header: Main lineup is a status, Customise is one small contro
   expect(box.height).toBeLessThanOrEqual(48);
 });
 
-/** An element's text as it shows on screen: without the words that are read out only (sr-only, also behind a variant). */
+/**
+ * An element's text as it shows on screen. Left out: text that is never drawn (an SVG's <title>,
+ * such as the name a role icon's built-in shape carries, which only a tooltip shows; anything in an
+ * element with no box, display: none) and the words that are read out only (sr-only, also behind a
+ * variant).
+ */
 const shownText = (target: Locator) =>
   target.evaluate((el) => {
     let text = "";
     const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
     for (let n = walk.nextNode(); n; n = walk.nextNode()) {
       const parent = n.parentElement!;
+      if (parent.closest("svg title, svg desc") || !parent.checkVisibility()) continue;
       if (getComputedStyle(parent).position === "absolute" && parent.getBoundingClientRect().width <= 1) continue;
       text += n.textContent;
     }
@@ -151,14 +157,20 @@ const shownText = (target: Locator) =>
 
 test("the profile header on a phone: an off role says so in words, and from 375px the picture spans the name's and the roles' rows", async ({ page }) => {
   test.skip(test.info().project.name !== "phone", "the phone header (375px)");
+  // Riot's icon host out of reach, as on a run without internet (and in CI until the images
+  // arrive): the off role's icon stays its built-in shape, which carries its name in an SVG <title>,
+  // so the words on screen are read past that name every time, not by chance. The shapes, and the
+  // rank crest's stand-in, are the size of Riot's images, so the header's measurements hold.
+  await page.route(/raw\.communitydragon\.org/, (route) => route.abort());
   await page.setViewportSize({ width: 375, height: 667 });
   await page.goto("/players");
   await playerEntry(page, "Demo Top").click();
   const header = page.getByTestId("profile-header");
   await expect(header).toBeVisible();
-  // Not by colour alone: "Mid (off)" on screen, "Mid (off role)" read out.
+  // Not by colour alone: "Mid (off)" on screen, "Mid (off role)" read out; the icon's name is not on screen.
   const off = header.getByTestId("additional-role").first();
   await expect(off).toBeVisible();
+  await expect(off.locator("svg[data-role-icon] title"), "the off role's icon: the built-in shape, named in a <title>").toHaveCount(1);
   expect(await shownText(off)).toMatch(/^\S+ \(off\)$/);
   expect((await off.textContent())!.replace(/\s+/g, " ")).toMatch(/\(off role\)/);
   // The picture spans two rows: the roles, rank and status beside it, under the name, not under
