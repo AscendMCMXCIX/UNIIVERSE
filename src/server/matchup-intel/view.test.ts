@@ -143,7 +143,7 @@ describe("a curated matchup (Ambessa vs Renekton)", () => {
 });
 
 describe("curated text as the page draws it", () => {
-  it("holds every number to its unit with a no-break space, in every curated text the page shows, and changes nothing else", async () => {
+  it("holds every number to its unit with a no-break space, in every curated text the page shows and Riot's descriptions, and changes nothing else", async () => {
     const units = renektonNotes({
       abilities: {
         W: {
@@ -160,7 +160,10 @@ describe("curated text as the page draws it", () => {
       briefing: { threat: { text: "The stun lasts 1.625 s or 1.3 s.", basedOn: ["Renekton.W"] }, opportunity: { text: "Trade within 4 seconds.", basedOn: ["Renekton.W"] }, lane: [{ text: "Can be cast 2 more times.", basedOn: ["Renekton.W"] }] },
       interactions: [{ text: "Unstoppable for 1 s answers it.", abilities: ["Renekton.W"], source: "wiki" }],
     });
-    const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps({ championNotes: (id) => (id === "Renekton" ? units : null), matchupNotes: () => matchup }));
+    // Riot's own description too: its words as Riot wrote them, the number held to its unit.
+    const described = (id: string): DdragonChampionAbilities => ({ ...kit(id), abilities: kit(id).abilities.map((a) => (a.slot === "W" ? { ...a, description: "Stuns them for 1.5 seconds." } : a)) });
+    const loadAbilities = async (ids: readonly string[]) => ({ version: "16.22.1", champions: Object.fromEntries(ids.map((id) => [id, described(id)])) });
+    const v = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps({ championNotes: (id) => (id === "Renekton" ? units : null), matchupNotes: () => matchup, loadAbilities }));
     const NBSP = "\u00a0";
     const b = v.matchup!.briefing!;
     expect([b.threat, b.opportunity, ...b.lane].map((p) => (p.kind === "point" ? p.text : null))).toEqual([`The stun lasts 1.625${NBSP}s or 1.3${NBSP}s.`, `Trade within 4${NBSP}seconds.`, "Can be cast 2 more times."]);
@@ -172,6 +175,7 @@ describe("curated text as the page draws it", () => {
     expect(w.recast).toEqual({ count: 1, note: `Open for 0.5${NBSP}s after the dash.` });
     expect(w.modifiers?.refund).toEqual({ unit: "percent", amount: [25, 35, 45, 55, 65], when: `her first attack within 4${NBSP}seconds` });
     expect(v.enemyIntel!.levelNotes.map((n) => n.text)).toEqual([`At 50${NBSP}Fury for 2${NBSP}seconds.`]);
+    expect(w.description).toBe(`Stuns them for 1.5${NBSP}seconds.`);
     // Read with the no-break spaces as spaces, every text is the notes' own, word for word.
     const plain = (t: string | null) => t?.replace(/\u00a0/g, " ");
     expect(plain(w.facts[0]!.detail)).toBe(units.abilities.W!.facts[0]!.detail);

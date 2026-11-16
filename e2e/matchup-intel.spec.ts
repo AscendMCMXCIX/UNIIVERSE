@@ -62,9 +62,11 @@ test("a link to a pair opens it: both champions in their slots, the enemy's five
   await openMatchupIntel(page, undefined, "Riven");
   await expect(row(page, "Q").getByTestId("ability-cooldown-value")).toHaveText("13 s at every rank");
   await openMatchupIntel(page, undefined, "Renekton");
-  await expect(row(page, "W").getByTestId("ability-cooldown-value")).toHaveText(/^\d+(\.\d+)?( \/ \d+(\.\d+)?){4} s$/);
+  // The unit is held to the last number by a no-break space, so a line never ends between them.
+  await expect(row(page, "W").getByTestId("ability-cooldown-value")).toHaveText(/^\d+(\.\d+)?( \/ \d+(\.\d+)?){4}\u00a0s$/);
   // The passive's cooldown is never Data Dragon's to give: a number only where a source states one.
-  await expect(row(page, "P").getByTestId("ability-cooldown-value")).not.toHaveText(/^0 s|^—$/);
+  // (\s: a space or a no-break space, so the check cannot pass on the space alone.)
+  await expect(row(page, "P").getByTestId("ability-cooldown-value")).not.toHaveText(/^0\ss|^—$/);
 });
 
 test("Ambessa vs Renekton: the ten-second briefing, its chips jumping to the abilities, and when it was checked", async ({ page }) => {

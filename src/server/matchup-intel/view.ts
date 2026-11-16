@@ -112,9 +112,10 @@ export function championResolver(champions: readonly ChampionChoice[]): (raw: un
 const REVISION_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?Z$/;
 
 /**
- * A curated text as the page draws it: each number held to its unit by a no-break space ("1.625 s"),
- * so a line never ends between them. Every curated text reaches the page through here; anything that
- * is not a string is passed on as it is (the notes' own checks refuse it).
+ * A curated text, or Riot's short description, as the page draws it: each number held to its unit by
+ * a no-break space ("1.625 s"), so a line never ends between them. Every curated text reaches the
+ * page through here; anything that is not a string is passed on as it is (the notes' own checks
+ * refuse it).
  */
 function drawn<T>(text: T): T {
   return (typeof text === "string" ? keepUnitsWithNumbers(text) : text) as T;
@@ -199,7 +200,8 @@ function abilityViews(data: DdragonChampionAbilities | null, notes: ChampionNote
         modifiers: drawnModifiers(modifiersView(n?.modifiers, freshness === "changed-since" ? checkedRanks : a.maxRank)),
         recast: n?.recast ? { ...n.recast, note: drawn(n.recast.note) } : null,
         facts: n && notes ? n.facts.map((f) => factView(f, notes.sources)) : [],
-        description: a.description,
+        // Riot's words, as written: only a number and its unit held together.
+        description: drawn(a.description),
         details: n?.details ? n.details.map(drawn) : [],
         freshness,
       },

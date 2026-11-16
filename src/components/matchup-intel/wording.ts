@@ -132,7 +132,7 @@ export function cooldownWords(d: CooldownDisplay, options: { static?: boolean } 
 export function modifierWords(m: AbilityModifiers | null | undefined): string[] {
   if (!m) return [];
   const out: string[] = [];
-  if (m.lockout) out.push(`${formatSeconds(m.lockout.seconds)} s between casts${m.lockout.static ? `, ${STATIC}` : ""}`);
+  if (m.lockout) out.push(`${formatSeconds(m.lockout.seconds)}\u00a0s between casts${m.lockout.static ? `, ${STATIC}` : ""}`);
   if (m.refund) out.push(`Refunds ${formatPerRank(m.refund.amount, m.refund.unit === "percent" ? "%" : "s", null)} of the cooldown: ${m.refund.when}`);
   if (m.resetsAttack) out.push("Resets the basic-attack timer");
   return out;
@@ -167,7 +167,7 @@ export function flaggedNotesWords(checkedPatch: string | null, changes: readonly
 /** "Can be cast 2 more times within 4 s" (the recast's own note follows it). */
 export function recastWords(r: Recast): string {
   const more = r.count === 1 ? "again" : `${formatCount(r.count)} more times`;
-  return `Can be cast ${more}${r.windowSeconds !== undefined ? ` within ${formatSeconds(r.windowSeconds)} s` : ""}`;
+  return `Can be cast ${more}${r.windowSeconds !== undefined ? ` within ${formatSeconds(r.windowSeconds)}\u00a0s` : ""}`;
 }
 
 /** Each kind of fact as its badge names it for screen readers (the badge shows the fact's own word). */

@@ -189,13 +189,14 @@ export function formatSeconds(value: number): string {
 /**
  * Values at each rank, as Matchup Intel writes them, `unit` after the last ("s", "%", or nothing):
  * "25 / 35 / 45%"; a single value "40%"; the same value at every rank once, "40% at every rank", or
- * "40%" when `per` is null. `per` names the steps: "rank", or "level" for a passive that changes
+ * "40%" when `per` is null. "s" follows its number after a no-break space ("8 / 7 / 6 s"), so a
+ * line never ends between them. `per` names the steps: "rank", or "level" for a passive that changes
  * with the champion's level. "—" when there is no number (an empty list, or a value that is not a
  * non-negative number): nothing is guessed.
  */
 export function formatPerRank(values: readonly number[], unit: "s" | "%" | "", per: "rank" | "level" | null = "rank"): string {
   if (!Array.isArray(values) || values.length === 0 || values.some((v) => typeof v !== "number" || !Number.isFinite(v) || v < 0)) return "—";
-  const suffix = unit === "s" ? " s" : unit;
+  const suffix = unit === "s" ? "\u00a0s" : unit;
   if (values.length === 1) return `${formatSeconds(values[0]!)}${suffix}`;
   if (values.every((v) => v === values[0])) return `${formatSeconds(values[0]!)}${suffix}${per ? ` at every ${per}` : ""}`;
   return `${values.map(formatSeconds).join(" / ")}${suffix}`;

@@ -32,8 +32,8 @@ import {
 
 describe("the cooldown line", () => {
   it("writes a base cooldown per rank, and the same value once", () => {
-    expect(cooldownWords({ kind: "per-rank", seconds: [18, 17, 16, 15, 14], starts: null, from: "ddragon" })).toEqual({ value: "18 / 17 / 16 / 15 / 14 s", notes: [], known: true });
-    expect(cooldownWords({ kind: "per-rank", seconds: [13, 13, 13, 13, 13], starts: null, from: "ddragon" }).value).toBe("13 s at every rank");
+    expect(cooldownWords({ kind: "per-rank", seconds: [18, 17, 16, 15, 14], starts: null, from: "ddragon" })).toEqual({ value: "18 / 17 / 16 / 15 / 14\u00a0s", notes: [], known: true });
+    expect(cooldownWords({ kind: "per-rank", seconds: [13, 13, 13, 13, 13], starts: null, from: "ddragon" }).value).toBe("13\u00a0s at every rank");
   });
 
   it("says when a cooldown starts only when a source says so, and never the ordinary on cast", () => {
@@ -46,24 +46,24 @@ describe("the cooldown line", () => {
   });
 
   it("says a static cooldown is unaffected by ability haste", () => {
-    expect(cooldownWords({ kind: "per-rank", seconds: [11], starts: null, from: "curated" }, { static: true })).toEqual({ value: "11 s", notes: ["unaffected by ability haste"], known: true });
+    expect(cooldownWords({ kind: "per-rank", seconds: [11], starts: null, from: "curated" }, { static: true })).toEqual({ value: "11\u00a0s", notes: ["unaffected by ability haste"], known: true });
   });
 
   it("gives charges, one count or one per rank, with their recharge", () => {
-    expect(cooldownWords({ kind: "charges", charges: [3, 4, 5], recharge: [35, 30, 25] })).toEqual({ value: "3 / 4 / 5 charges", notes: ["one back every 35 / 30 / 25 s"], known: true });
-    expect(cooldownWords({ kind: "charges", charges: [2], recharge: [20] })).toEqual({ value: "2 charges", notes: ["one back every 20 s"], known: true });
+    expect(cooldownWords({ kind: "charges", charges: [3, 4, 5], recharge: [35, 30, 25] })).toEqual({ value: "3 / 4 / 5 charges", notes: ["one back every 35 / 30 / 25\u00a0s"], known: true });
+    expect(cooldownWords({ kind: "charges", charges: [2], recharge: [20] })).toEqual({ value: "2 charges", notes: ["one back every 20\u00a0s"], known: true });
     expect(cooldownWords({ kind: "charges", charges: [1], recharge: [12, 12, 12] }).value).toBe("1 charge");
-    expect(cooldownWords({ kind: "charges", charges: [3, 3, 3, 3, 3], recharge: [17, 16, 15, 14, 13] })).toEqual({ value: "3 charges", notes: ["one back every 17 / 16 / 15 / 14 / 13 s"], known: true });
+    expect(cooldownWords({ kind: "charges", charges: [3, 3, 3, 3, 3], recharge: [17, 16, 15, 14, 13] })).toEqual({ value: "3 charges", notes: ["one back every 17 / 16 / 15 / 14 / 13\u00a0s"], known: true });
   });
 
   it("gives a passive's own cooldown by level or rank, per target, static, with its start", () => {
     const passive = { kind: "passive" as const, levels: null, perTarget: false, static: false, starts: null };
-    expect(cooldownWords({ ...passive, seconds: [12, 9, 6], scalesWith: "level", levels: [1, 7, 13] })).toEqual({ value: "12 / 9 / 6 s", notes: ["at levels 1 / 7 / 13"], known: true });
-    expect(cooldownWords({ ...passive, seconds: [10], scalesWith: "none" })).toEqual({ value: "10 s", notes: [], known: true });
-    expect(cooldownWords({ ...passive, seconds: [30, 25, 20], scalesWith: "rank" })).toEqual({ value: "30 / 25 / 20 s", notes: ["by its rank"], known: true });
-    expect(cooldownWords({ ...passive, seconds: [6, 6, 6], scalesWith: "level", levels: [1, 6, 11] }).value).toBe("6 s at every level");
+    expect(cooldownWords({ ...passive, seconds: [12, 9, 6], scalesWith: "level", levels: [1, 7, 13] })).toEqual({ value: "12 / 9 / 6\u00a0s", notes: ["at levels 1 / 7 / 13"], known: true });
+    expect(cooldownWords({ ...passive, seconds: [10], scalesWith: "none" })).toEqual({ value: "10\u00a0s", notes: [], known: true });
+    expect(cooldownWords({ ...passive, seconds: [30, 25, 20], scalesWith: "rank" })).toEqual({ value: "30 / 25 / 20\u00a0s", notes: ["by its rank"], known: true });
+    expect(cooldownWords({ ...passive, seconds: [6, 6, 6], scalesWith: "level", levels: [1, 6, 11] }).value).toBe("6\u00a0s at every level");
     // Zed's: 10 s for each target, static. Shen's: 11 s, static, from when he gains the shield.
-    expect(cooldownWords({ ...passive, seconds: [10], scalesWith: "none", perTarget: true, static: true })).toEqual({ value: "10 s", notes: ["per target", "unaffected by ability haste"], known: true });
+    expect(cooldownWords({ ...passive, seconds: [10], scalesWith: "none", perTarget: true, static: true })).toEqual({ value: "10\u00a0s", notes: ["per target", "unaffected by ability haste"], known: true });
     expect(cooldownWords({ ...passive, seconds: [11], scalesWith: "none", static: true, starts: "on-trigger" }).notes).toEqual(["unaffected by ability haste", "starts when it takes effect"]);
     expect(cooldownWords({ ...passive, seconds: [8], scalesWith: "none", starts: "after-effect-ends" }).notes).toEqual(["starts when the effect ends"]);
   });
@@ -78,11 +78,11 @@ describe("the cooldown line", () => {
       ],
     });
     expect(forms).toEqual([
-      { form: "Mercury Hammer", value: "16 / 14 / 12 / 10 / 8 / 6 s", notes: [], known: true },
-      { form: "Mercury Cannon", value: "8 s at every rank", notes: ["starts when the effect ends"], known: true },
+      { form: "Mercury Hammer", value: "16 / 14 / 12 / 10 / 8 / 6\u00a0s", notes: [], known: true },
+      { form: "Mercury Cannon", value: "8\u00a0s at every rank", notes: ["starts when the effect ends"], known: true },
       { form: "Transform", value: "No cooldown", notes: [], known: true },
     ]);
-    expect(cooldownWords({ kind: "forms", forms: [{ name: "Hammer", cooldown: { kind: "none" } }, { name: "Cannon", cooldown: { kind: "charges", charges: [2], recharge: [8] } }] })).toEqual({ value: "Hammer: No cooldown; Cannon: 2 charges · one back every 8 s", notes: [], known: true });
+    expect(cooldownWords({ kind: "forms", forms: [{ name: "Hammer", cooldown: { kind: "none" } }, { name: "Cannon", cooldown: { kind: "charges", charges: [2], recharge: [8] } }] })).toEqual({ value: "Hammer: No cooldown; Cannon: 2 charges · one back every 8\u00a0s", notes: [], known: true });
     expect(cooldownLines({ kind: "none" })).toEqual([{ form: null, value: "No cooldown", notes: [], known: true }]);
   });
 
@@ -137,9 +137,9 @@ describe("where a line comes from", () => {
 
 describe("modifiers, flags and hidden points", () => {
   it("writes the wait between casts, refunds and attack resets, each on a line", () => {
-    expect(modifierWords({ lockout: { seconds: 0.3125, static: true }, resetsAttack: true })).toEqual(["0.3125 s between casts, unaffected by ability haste", "Resets the basic-attack timer"]);
+    expect(modifierWords({ lockout: { seconds: 0.3125, static: true }, resetsAttack: true })).toEqual(["0.3125\u00a0s between casts, unaffected by ability haste", "Resets the basic-attack timer"]);
     expect(modifierWords({ refund: { unit: "percent", amount: [25, 35, 45, 55, 65], when: "her first attack within 4 seconds" } })).toEqual(["Refunds 25 / 35 / 45 / 55 / 65% of the cooldown: her first attack within 4 seconds"]);
-    expect(modifierWords({ refund: { unit: "seconds", amount: [2], when: "each hit on a champion" }, lockout: { seconds: 0.5 } })).toEqual(["0.5 s between casts", "Refunds 2 s of the cooldown: each hit on a champion"]);
+    expect(modifierWords({ refund: { unit: "seconds", amount: [2], when: "each hit on a champion" }, lockout: { seconds: 0.5 } })).toEqual(["0.5\u00a0s between casts", "Refunds 2\u00a0s of the cooldown: each hit on a champion"]);
     // A static cooldown is said on the line itself, not here.
     expect(modifierWords({ static: true })).toEqual([]);
     expect(modifierWords(null)).toEqual([]);
@@ -167,7 +167,7 @@ describe("modifiers, flags and hidden points", () => {
 
 describe("the rest of the page's words", () => {
   it("names recasts, abilities and their rows", () => {
-    expect(recastWords({ count: 2, windowSeconds: 4, note: "" })).toBe("Can be cast 2 more times within 4 s");
+    expect(recastWords({ count: 2, windowSeconds: 4, note: "" })).toBe("Can be cast 2 more times within 4\u00a0s");
     expect(recastWords({ count: 1, note: "" })).toBe("Can be cast again");
     expect(abilityName("Renekton", "W")).toBe("Renekton W");
     expect(abilityName("Riven", "P")).toBe("Riven passive");

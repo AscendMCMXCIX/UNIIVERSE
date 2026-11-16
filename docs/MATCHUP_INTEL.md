@@ -380,10 +380,11 @@ review checks the rest.
   characters a text. A badge label is a few words, and a detail is one sentence. Numbers of 1,000
   and more take a comma ("1,350 units"), as the app writes them.
 - A number and its unit take an ordinary space ("1.625 s", "300 units", "50 Fury"). The page holds
-  them together where it draws every curated text (`keepUnitsWithNumbers`, `src/lib/format.ts`,
-  applied in `view.ts`: a no-break space before s, seconds, units, charges, stacks, Fury, energy,
-  mana, health, range, AP and AD), so a line never ends between them; no special space goes in the
-  notes.
+  them together where it draws every curated text, and Riot's short descriptions too
+  (`keepUnitsWithNumbers`, `src/lib/format.ts`, applied in `view.ts`: a no-break space before s,
+  seconds, units, charges, stacks, Fury, energy, mana, health, range, AP and AD), so a line never
+  ends between them; no special space goes in the notes. The cooldown lines it writes itself hold
+  their "s" the same way (Cooldowns).
 
 **Cooldowns** (how they are shown: `src/domain/matchup-intel/cooldown.ts`)
 - `ddragonCooldown` is Data Dragon's `cooldown` array for the version checked, copied exactly. The
@@ -742,7 +743,9 @@ example).
 flagged notes.
 
 Decimals are written as the numbers have them, up to four ("0.25 s", "0.3125 s"): a checked value
-is never rounded into another.
+is never rounded into another. The "s" follows its number after a no-break space (`formatPerRank`,
+and the wait between casts and a recast's window in `wording.ts`), so a line never ends between
+them.
 
 ## Compliance
 
