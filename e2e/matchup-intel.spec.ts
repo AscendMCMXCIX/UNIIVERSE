@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "./test";
 import { choiceIds, choose, enemyAbilities, openMatchupIntel, openPicker, overflow, pickerSpill, rosterIds } from "./matchup-intel";
+import { untilStill } from "./modal-corner";
 
 /*
   RESOURCES → MATCHUP INTEL (docs/MATCHUP_INTEL.md) on the in-memory demo, which stores Data
@@ -148,8 +149,10 @@ test("the picker's search: 16px, as you type, by name with case, accents and spa
   await search.fill("kha");
   await expect.poll(() => rosterIds(win)).toEqual(["Khazix"]);
   // The field keeps its own name once something is typed (the clear button is beside its label, not
-  // in it), and the clear button is a 44px target.
+  // in it), and the clear button is a 44px target, measured once the window's opening motion (which
+  // scales it from 97%) is over: typed into at once, it is still moving.
   await expect(search).toHaveAccessibleName("Search for the enemy by name");
+  await untilStill(page);
   const clear = (await win.getByTestId("matchup-picker-clear").boundingBox())!;
   expect(Math.min(clear.width, clear.height)).toBeGreaterThanOrEqual(44);
   // ArrowDown goes to the portraits, ArrowUp from the first of them back to the search.
