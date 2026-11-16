@@ -183,7 +183,9 @@ person (For the owner, step 2).
   - the stored abilities of at most the two champions chosen;
   - Branding's names, from the cache the app's frame has just filled.
 - The curated notes are committed with the code, so reading them costs no request.
-- There is no fetching from the browser, and no `next/image`.
+- No component fetches data in the browser (choosing a pair is a navigation, rendered on the
+  server), and there is no `next/image`. Outside the app itself, the browser loads only the champion
+  portraits and ability icons, from Data Dragon's CDN (below), as every page with champion art does.
 - Links to a pair and to a champion use `prefetch={false}`.
 - The curated dataset never reaches a browser bundle (`src/app/client-imports.test.ts`): only plain
   view data does.
@@ -379,12 +381,14 @@ review checks the rest.
 - Plain text only: no wiki markup, no `<` or `>`, no control characters, and at most 300
   characters a text. A badge label is a few words, and a detail is one sentence. Numbers of 1,000
   and more take a comma ("1,350 units"), as the app writes them.
-- A number and its unit take an ordinary space ("1.625 s", "300 units", "50 Fury"). The page holds
-  them together where it draws every curated text, and Riot's short descriptions too
-  (`keepUnitsWithNumbers`, `src/lib/format.ts`, applied in `view.ts`: a no-break space before s,
-  seconds, units, charges, stacks, Fury, energy, mana, health, range, AP and AD), so a line never
-  ends between them; no special space goes in the notes. The cooldown lines it writes itself hold
-  their "s" the same way (Cooldowns).
+- A number and its unit take an ordinary space ("1.625 s", "300 units", "50 Fury"); no special
+  space goes in the notes. Where the page draws a curated text, and Riot's short descriptions too,
+  it joins every number to the word after it (`keepUnitsWithNumbers`, `src/lib/format.ts`, applied
+  in `view.ts`: a no-break space after a number, or a number with "%" or "°", whenever a word
+  follows, whatever the word), so a line never ends on a number and never starts with its unit. A
+  unit of several words can still wrap after its first word ("80% bonus", then "AD" on the next
+  line). The lines it writes itself hold their numbers the same way: the cooldown lines' "s"
+  (Cooldowns), a recast's "2 more times" and a refund's "65% of the cooldown".
 
 **Cooldowns** (how they are shown: `src/domain/matchup-intel/cooldown.ts`)
 - `ddragonCooldown` is Data Dragon's `cooldown` array for the version checked, copied exactly. The
@@ -564,8 +568,11 @@ Until that merges, the labels say what is known. Nothing is estimated.
 The browser tests run against the in-memory demo, which stores Riot's Data Dragon at its first
 start. Their server reads one version: `DDRAGON_VERSION`, set by `playwright.config.ts` to
 `E2E_DDRAGON_VERSION` (`e2e/ddragon-version.ts`), 16.22.1, the version the curated notes were
-checked on. CI's browser job and the WebKit workflow both start that server through the config, so
-both read it; production never sets it.
+checked on. CI's browser job and the WebKit workflow's Playwright step both start that server
+through the config, so both read it; production never sets it. The WebKit workflow's other step,
+the Safari 26 check (`scripts/webkit26-check.mjs`), starts a demo server of its own without the pin:
+it opens only Team and the public team page, so nothing it checks depends on the version, but a
+Matchup Intel page added to it would need `DDRAGON_VERSION` passed as well.
 
 - **Why.** Unpinned, a fresh demo stores Riot's newest version, so the specs would read whatever
   Riot had shipped: once its numbering ran more than two patches past the check (16.25, or 17.3 if
@@ -847,6 +854,7 @@ Each has a default that the code follows today. Only the owner changes one.
 | **A licence header on the curated files.** The repository is public and has no licence of its own. | Our own words, credited, not relicensed: each file's header says its texts are UNIIVERSE's own summaries, its sources list each page with its revision, and the footer credits them. No file declares a licence for itself. A scan of the notes against the pages they cite finds no copied sentence, only runs of numbers and game terms (six to ten words), so the risk that a passage counts as adapted is small, but not none. The recommended choice is a conditional header in each file ("Any material in this file adapted from the League of Legends Wiki is available under CC BY-SA 3.0"), which would cover any such passage without saying anything was adapted; it is not added, because a licence grant is the copyright holder's act. | The owner |
 | **Scripted reads of the wiki** (for example drafts of changes on patch day). | None. Weird Gloop's prior consent would be needed first (its Terms of Use, above). If it were given, a script would only draft changes for a person to review in a pull request, never publish them. | The owner, after asking Weird Gloop |
 | **Who curates, and who approves briefings.** The owner's rule is a briefing only where a person wrote and checked it. | Notes change only through pull requests, reviewed there: the page generates nothing, and nothing is published by itself. The first notes (16 Nov 2026) were drafted and cross-checked by AI agents, for a person's review in this feature's pull request: until the owner names the people, the owner's reading there is the only check by a person, and the merge waits for it (For the owner, step 2). | The owner |
+| **How the first notes were researched.** On 16 Nov 2026, between 06:13 and 06:43 UTC, while researching the first batch, AI agents made about 35 scripted requests to wiki.leagueoflegends.com (33 to its API, one for its robots.txt and one page) and saved copies of the pages the notes cite. They drafted and cross-checked the notes from those copies, which were never committed; all 34 cited revisions come from them. The Terms of Use (above) do not allow automated use without prior consent. | Disclosed in this feature's pull request, and here. Nothing in the app, its jobs or its tests requests the wiki, and curators read it in a browser from now on (No automated use, above). The remedy is not chosen: a person re-reads each cited revision in a browser and records it in the pull request, or Weird Gloop is asked for consent after the fact, or both. | The owner |
 | **Riot's "Legal Jibber Jabber" sentence**: "[The title of your Project] was created under Riot Games' "Legal Jibber Jabber" policy using assets owned by Riot Games. Riot Games does not endorse or sponsor this project." (https://www.riotgames.com/en/legal) | Not shown. The app shows the Developer Portal's notice word for word, which the General Policies require. | The owner |
 
 ## Not built
@@ -992,7 +1000,6 @@ merge deploys.
    run, after each deploy and daily: a member page took 37–105 ms of server CPU in the local
    measurements (HOSTING_USAGE.md), and this one is not measured. Until then a change to the page
    is "deployed", not production-verified (CLAUDE.md §5).
-
 6. **Decide whether Riot's own numbers show where nobody has checked them** (the design's D7).
    Today they do, on every champion without curated notes, only where they pass the guard
    (Cooldowns) and labelled "Riot's data, not reviewed": 600 of the 865 abilities in Data Dragon
