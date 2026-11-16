@@ -53,10 +53,10 @@ function ChoiceRow({ title, choices, selected, onPick, testId }: { title: string
   );
 }
 
-/** What the grid shows while the window opens (its portraits render once the motion is over). */
+/** What the grid shows while the window opens (its portraits render once the motion is over), in the grid's own columns. */
 function GridSkeleton() {
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(68px,1fr))] gap-1 sm:grid-cols-[repeat(auto-fill,minmax(76px,1fr))]" aria-hidden>
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(4.75rem,1fr))] gap-1" aria-hidden>
       {Array.from({ length: 18 }, (_, i) => (
         <div key={i} className="h-24 animate-pulse rounded-lg bg-surface-2" />
       ))}

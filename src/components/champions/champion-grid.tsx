@@ -206,7 +206,10 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
       <div
         ref={gridRef}
         onKeyDown={onGridKeyDown}
-        className={cn("grid content-start gap-1 overflow-y-auto overscroll-contain rounded-lg", size === "sm" ? "grid-cols-[repeat(auto-fill,minmax(60px,1fr))]" : "grid-cols-[repeat(auto-fill,minmax(68px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(76px,1fr))]", maxHeight === "fill" && "min-h-0 flex-1")}
+        // Columns at least as wide as a portrait and the button's padding, in rem, so they grow with
+        // the reader's text size as the portraits do (4rem or 3rem, and 0.75rem of padding): in px,
+        // a large text size drew portraits wider than their columns and cut every name.
+        className={cn("grid content-start gap-1 overflow-y-auto overscroll-contain rounded-lg", size === "sm" ? "grid-cols-[repeat(auto-fill,minmax(3.75rem,1fr))]" : "grid-cols-[repeat(auto-fill,minmax(4.75rem,1fr))]", maxHeight === "fill" && "min-h-0 flex-1")}
         style={typeof maxHeight === "number" ? { maxHeight } : undefined}
       >
         {filtered.map((c) => {
@@ -226,7 +229,9 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
               data-unavailable={disabled ? "true" : undefined}
               data-prioritised={prioritised ? "true" : undefined}
             >
-              <span className="relative">
+              {/* The button is named by the name under the portrait: the portrait is hidden from
+                  assistive technology, or each champion would be read twice. */}
+              <span className="relative" aria-hidden>
                 <ChampionPortrait champion={c} size={portrait} dimmed={disabled && !selected} className={cn("transition-shadow", selected && "ring-2 ring-accent", prioritised && !disabled && !selected && "ring-1 ring-accent/60")} />
                 {selected ? (
                   <span className="pop-in absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-accent text-bg shadow" aria-hidden>
@@ -234,7 +239,8 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
                   </span>
                 ) : null}
               </span>
-              <span className={cn("w-full truncate leading-tight", c.name.length > 7 ? "text-2xs tracking-tight" : "text-xs", disabled && !selected ? "text-fg-subtle" : selected ? "text-fg" : "text-fg-muted group-hover:text-fg")}>{c.name}</span>
+              {/* Two lines where a name needs them (Nunu & Willump, a large text size), never cut. */}
+              <span className={cn("line-clamp-2 w-full break-words leading-tight", c.name.length > 7 ? "text-2xs tracking-tight" : "text-xs", disabled && !selected ? "text-fg-subtle" : selected ? "text-fg" : "text-fg-muted group-hover:text-fg")}>{c.name}</span>
             </button>
           );
         })}
