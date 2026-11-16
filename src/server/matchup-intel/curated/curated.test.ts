@@ -31,6 +31,8 @@ import { curatedEnemiesFor, getChampionNotes, getMatchupNotes } from "./index";
     and has notes of its own;
   - every text is plain and short: no wiki markup ("{{"), no "<" or ">", no control characters, at
     most 300 characters;
+  - no briefing point or interaction uses a word that dictates play or claims too much (REFUSED_WORDS):
+    Riot lets a product highlight decisions, never dictate them;
   - `verified` is a patch, a Data Dragon version and a day, in those shapes;
   - a matchup has a threat, an opportunity and one to four lane points;
   - the three validation matchups exist.
@@ -96,6 +98,49 @@ const REVISION_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 /** A wiki ability's data page, and a champion's own page (one title, no namespace). */
 const WIKI_ABILITY_PATH = /^\/en-us\/Template:Data_[^/]+\/[^/]+$/;
 const WIKI_CHAMPION_PATH = /^\/en-us\/[^/:]+$/;
+
+/**
+ * Words and phrases no briefing point or matchup interaction uses. Riot's League of Legends policies
+ * (https://developer.riotgames.com/docs/lol) say products "may highlight decisions that are
+ * important and give multiple choices", and list "Apps that dictate player decisions" among the
+ * uses that will not be approved (docs/MATCHUP_INTEL.md, "Curated notes"). Each matches as a whole
+ * word or phrase, in any case, with a straight or curly apostrophe: "win" does not match "Wind
+ * Slash", nor "counter" "encounter".
+ */
+export const REFUSED_WORDS: ReadonlyArray<{ why: string; words: readonly string[] }> = [
+  { why: "an absolute claim", words: ["always", "never", "every time", "guaranteed", "guarantee", "guarantees", "certainly", "definitely", "surely", "impossible"] },
+  {
+    why: "an instruction to the player",
+    words: ["must", "should", "shouldn't", "ought", "need to", "have to", "make sure", "be sure", "avoid", "try to", "wait for", "remember to", "you", "your", "yours", "yourself", "you're", "you'll", "you'd", "you've"],
+  },
+  {
+    why: "a verdict on the matchup",
+    words: ["easy", "easier", "easiest", "easily", "free win", "free kill", "auto-win", "auto win", "autowin", "can't lose", "cannot lose", "can't win", "cannot win", "win", "wins", "winning", "winnable", "unwinnable", "best", "optimal", "counter", "counters", "countered", "counter-pick", "counterpick", "punish", "punishes", "punished", "punishing", "outplay", "outplays", "abuse", "exploit", "dominate", "dominates", "stomp", "all-in"],
+  },
+];
+
+/**
+ * A refused word that a factual sentence genuinely needs: the matchup ("Ambessa-vs-Renekton"), the
+ * text's place ("briefing.lane[1].text"), the word, and why the sentence needs it. None so far.
+ */
+const ALLOWED_WORDS: ReadonlyArray<{ matchup: string; at: string; word: string; reason: string }> = [];
+
+/** What may stand next to a refused word inside a longer one: a letter, a digit, "_", an apostrophe or a hyphen. */
+const WORD_CHAR = "[\\p{L}\\p{N}_'’-]";
+const REFUSED: ReadonlyArray<{ word: string; why: string; pattern: RegExp }> = REFUSED_WORDS.flatMap(({ why, words }) =>
+  words.map((word) => {
+    const body = word
+      .split(" ")
+      .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/'/g, "['’]"))
+      .join("\\s+");
+    return { word, why, pattern: new RegExp(`(?<!${WORD_CHAR})${body}(?!${WORD_CHAR})`, "iu") };
+  }),
+);
+
+/** The refused words a text uses (REFUSED_WORDS), each with why it is refused. */
+export function refusedWords(text: string): Array<{ word: string; why: string }> {
+  return REFUSED.filter((r) => r.pattern.test(text)).map(({ word, why }) => ({ word, why }));
+}
 
 const isSlot = (value: string): value is Slot => (SLOTS as readonly string[]).includes(value);
 const sameNumbers = (a: readonly number[], b: readonly number[]) => a.length === b.length && a.every((x, i) => x === b[i]);
@@ -395,6 +440,20 @@ export function matchupProblems(notes: MatchupNotes, rules: Rules, championNotes
     checkRefs(`interactions[${i}].abilities`, interaction.abilities);
     if (!cited.has(interaction.source)) say(`interactions[${i}] cites "${interaction.source}", which is not one of its sources`);
   });
+
+  // Considerations, never instructions or verdicts (REFUSED_WORDS).
+  const key = `${notes.championId}-vs-${notes.vsId}`;
+  const texts: Array<[string, unknown]> = [
+    ...points.map(([at, point]): [string, unknown] => [`${at}.text`, point?.text]),
+    ...(notes.interactions ?? []).map((interaction, i): [string, unknown] => [`interactions[${i}].text`, interaction.text]),
+  ];
+  for (const [at, text] of texts) {
+    if (typeof text !== "string") continue;
+    for (const { word, why } of refusedWords(text)) {
+      if (ALLOWED_WORDS.some((a) => a.matchup === key && a.at === at && a.word === word)) continue;
+      say(`${at} uses "${word}", ${why}: a point states what the two kits do and leaves the decision to the player`);
+    }
+  }
   for (const [at, text] of strings(notes, "")) {
     const problem = textProblem(text);
     if (problem) say(`${at} ${problem}`);
@@ -540,6 +599,15 @@ describe("the curated notes keep the rules", () => {
 
   it.each(matchupFiles.map(({ file, notes }) => [file, notes] as const))("%s", (_file, notes) => {
     expect(matchupProblems(notes, RULES, getChampionNotes)).toEqual([]);
+  });
+
+  it("allows a refused word only where a factual sentence still uses it, with its reason", () => {
+    const stale = ALLOWED_WORDS.filter((a) => {
+      const notes = matchupFiles.find(({ file }) => file === `matchups/${a.matchup}.ts`)?.notes;
+      const text = notes ? strings(notes, "").find(([at]) => at === a.at)?.[1] : undefined;
+      return !text || !refusedWords(text).some((r) => r.word === a.word) || a.reason.trim() === "";
+    });
+    expect(stale).toEqual([]);
   });
 });
 
@@ -804,4 +872,35 @@ describe("the checks fire", () => {
     expect(matchupProblems(page, RULES, getChampionNotes)).toEqual(['Ambessa vs Renekton: source "renekton-page" is titled "Renekton (League of Legends Wiki)", not "League of Legends Wiki: Renekton"']);
   });
 
+  it("on a word in a briefing point or an interaction that dictates play or claims too much", () => {
+    const withLane = (text: string) => {
+      const notes = matchup();
+      notes.briefing.lane[0]!.text = text;
+      return matchupProblems(notes, RULES, getChampionNotes);
+    };
+    const said = (text: string) => withLane(text).map((p) => /uses "([^"]+)"/.exec(p)?.[1]);
+    expect(withLane("Ambessa should wait for Ruthless Predator.")).toEqual([
+      'Ambessa vs Renekton: briefing.lane[0].text uses "should", an instruction to the player: a point states what the two kits do and leaves the decision to the player',
+      'Ambessa vs Renekton: briefing.lane[0].text uses "wait for", an instruction to the player: a point states what the two kits do and leaves the decision to the player',
+    ]);
+    // Any case, straight or curly apostrophes, phrases across spaces.
+    expect(said("This is ALWAYS a Free  Win.")).toEqual(["always", "free win", "win"]);
+    expect(said("Renekton can’t lose this trade.")).toEqual(["can't lose"]);
+    expect(said("You must never be stunned: an easy, guaranteed auto-win.")).toEqual(["never", "guaranteed", "must", "you", "easy", "auto-win"]);
+    expect(said("Punish his cooldown: Ambessa counters Renekton, the best pick.")).toEqual(["best", "counters", "punish"]);
+    // Whole words only: these use none.
+    expect(withLane("Nevertheless, Wind Slash and the twin drakehounds never... encounter a mustard counterattack.")).toEqual([problem(/uses "never"/)]);
+    expect(withLane("Wind Slash, twin drakehounds, an encounter, a counterattack and a young champion.")).toEqual([]);
+    // The threat, the opportunity and the interactions are held to it too.
+    const threat = matchup();
+    threat.briefing.threat.text = "Ambessa must dodge Ruthless Predator.";
+    expect(matchupProblems(threat, RULES, getChampionNotes)).toEqual([problem(/^Ambessa vs Renekton: briefing\.threat\.text uses "must", an instruction to the player/)]);
+    const interaction = matchup();
+    interaction.interactions[0]!.text = "Repudiation's shield is always removed.";
+    expect(matchupProblems(interaction, RULES, getChampionNotes)).toEqual([problem(/^Ambessa vs Renekton: interactions\[0\]\.text uses "always", an absolute claim/)]);
+    // Champion notes describe mechanics, and may say what an ability never does.
+    const notes = renekton();
+    notes.abilities.R!.details = ["Dying during the cast time never refunds the cooldown."];
+    expect(championProblems(notes, RULES)).toEqual([]);
+  });
 });
