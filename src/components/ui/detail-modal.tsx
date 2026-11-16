@@ -3,7 +3,7 @@
 import * as React from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { lastInput, opensFocusingItself } from "./input-kind";
+import { focusWindow, lastInput, opensFocusingItself } from "./input-kind";
 import { noteModalClosed, noteModalOpened } from "./top-layer";
 
 /**
@@ -326,13 +326,16 @@ export function lockPage(): () => void {
  * returns to whatever opened it, and the page behind never scrolls or shifts while it is open.
  * `canClose` lets a window with unsaved edits ask first.
  *
- * Where the focus starts: a window opened by a tap or a click takes it itself (tabIndex -1, drawn
- * without a ring), as the account screen always does, so nothing in it is lit up as it opens;
- * Safari ringed the close button of every other window, the loudest thing in it. Opened from the
- * keyboard (or by nothing the reader did: a link to a game), its close button has the focus, ringed,
- * so a keyboard user sees where they are (input-kind.ts). Tab then reaches the window's controls in
- * order. A window that then focuses a field of its own (sign-in's username, from the effect of the
- * component that renders the window, which runs after this one's) keeps it.
+ * Where the focus starts: a window opened by a tap or a click takes it itself (drawn without a
+ * ring), as the account screen always does, so nothing in it is lit up as it opens; Safari ringed
+ * the close button of every other window, the loudest thing in it. Opened from the keyboard (or by
+ * nothing the reader did: a link to a game), its close button has the focus, ringed, so a keyboard
+ * user sees where they are (input-kind.ts). Tab then reaches the window's controls in order. A
+ * window that then focuses a field of its own (sign-in's username, from the effect of the component
+ * that renders the window, which runs after this one's) keeps it. The window is focusable only while
+ * it holds that focus (focusWindow): pressed inside, or left by the focus, it lets go, so a click on
+ * its text leaves the focus where a page leaves it and the keys scroll its body, as before. Always
+ * focusable, it took the focus back at every such click, and the keys then scrolled nothing.
  *
  * Whatever must show over the window is drawn inside it, the dialog being in the browser's top
  * layer: an ⓘ's bubble (InfoTip) and the toasts (Toaster), which follow the window as it opens and
@@ -571,13 +574,15 @@ export function DetailModal({
   React.useEffect(() => {
     const d = ref.current;
     if (!d) return;
+    let letGo: () => void = () => undefined;
     if (open && !d.open) {
       const active = document.activeElement;
       opener.current = active instanceof HTMLElement && active !== document.body ? active : handedOver;
       d.showModal();
       // Where the focus starts (see above): the window itself after a tap or a click, and always for
-      // a screen; else the close button, ringed for the keyboard.
-      if (screen || opensFocusingItself(lastInput())) d.focus({ preventScroll: true });
+      // a screen, until it is pressed or the focus moves on; else the close button, ringed for the
+      // keyboard.
+      if (screen || opensFocusingItself(lastInput())) letGo = focusWindow(d);
       else closeRef.current?.focus({ preventScroll: true });
     }
     if (!open && d.open) {
@@ -592,6 +597,7 @@ export function DetailModal({
     return () => {
       window.clearTimeout(settleTimer);
       unlock();
+      letGo();
       // Back to what opened the window, whether it was closed or removed from the page (or to the
       // window replacing it, see handedOver).
       const back = opener.current;
@@ -696,7 +702,6 @@ export function DetailModal({
       )}
       data-testid={testId}
       data-size={size}
-      tabIndex={-1}
       data-flow={flow || undefined}
       // What a pull on a docked sheet scrolls before it drags the sheet (useSheetDrag): the body, or
       // the whole sheet while it scrolls as one.

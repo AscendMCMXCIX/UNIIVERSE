@@ -8,7 +8,7 @@ import { BrandMark } from "./brand-mark";
 import { NavLinks } from "./nav-links";
 import { Avatar } from "./ui/avatar";
 import { DetailModal, lockPage } from "./ui/detail-modal";
-import { lastInput, opensFocusingItself } from "./ui/input-kind";
+import { focusWindow, lastInput, opensFocusingItself } from "./ui/input-kind";
 import { noteModalClosed, noteModalOpened } from "./ui/top-layer";
 import { ModeSwitch } from "./mode-switch";
 import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, ADMIN_TABS, PROFILE_SECTIONS, RESOURCES, adminSheetLinks, currentTab, isActivePath, phoneParent, phoneTabs, profileBase, type NavLink, type PhoneTab } from "@/lib/nav";
@@ -389,10 +389,10 @@ const BACK_TABLET = "md:hidden md:standalone:flex";
  * inside, the page behind is inert and locked as behind every window (DetailModal's lockPage: no
  * scrolling, no rubber band, no shift as the scrollbar goes), and Escape or a tap beside the panel
  * closes it. The panel is docked to the left edge, the sidebar's side. The focus starts as in every
- * window: on the menu itself after a tap or a click (no ring), on its close button from the keyboard
- * (input-kind.ts). Closed, or removed while open (a navigation, the window grown to the sidebar's
- * widths), it gives focus back where it came from. Toasts raised meanwhile are drawn in it
- * (top-layer.ts).
+ * window: on the menu itself after a tap or a click (no ring, and only until it is pressed or the
+ * focus moves on), on its close button from the keyboard (input-kind.ts). Closed, or removed while
+ * open (a navigation, the window grown to the sidebar's widths), it gives focus back where it came
+ * from. Toasts raised meanwhile are drawn in it (top-layer.ts).
  */
 function Drawer({ onClose, initialFocus, children }: { onClose: () => void; /** What takes focus when it opens from the keyboard (the close button). */ initialFocus: React.RefObject<HTMLElement | null>; children: React.ReactNode }) {
   const ref = React.useRef<HTMLDialogElement>(null);
@@ -407,7 +407,10 @@ function Drawer({ onClose, initialFocus, children }: { onClose: () => void; /** 
     if (!d) return;
     if (!d.open) d.showModal();
     noteModalOpened(d);
-    if (opensFocusingItself(lastInput())) d.focus({ preventScroll: true });
+    // The focus starts on the menu itself after a tap or a click (until it is pressed or the focus
+    // moves on, as in every window: focusWindow), on its close button from the keyboard.
+    let letGo: () => void = () => undefined;
+    if (opensFocusingItself(lastInput())) letGo = focusWindow(d);
     else initialFocus.current?.focus({ preventScroll: true });
     // The page behind stays where it is.
     const unlock = lockPage();
@@ -418,6 +421,7 @@ function Drawer({ onClose, initialFocus, children }: { onClose: () => void; /** 
     return () => {
       wide.removeEventListener("change", onWide);
       unlock();
+      letGo();
       if (d.open) d.close();
       noteModalClosed(d);
     };
@@ -440,7 +444,6 @@ function Drawer({ onClose, initialFocus, children }: { onClose: () => void; /** 
       // insets), not by viewport units, so its size and its place come from the same box
       // (DetailModal); its width a share of that screen too. Its own focus (after a tap) draws no ring.
       className="m-0 h-auto max-h-none w-[min(calc(20rem+env(safe-area-inset-left)),86%)] max-w-none overflow-visible border-0 bg-transparent p-0 text-fg outline-none backdrop:bg-black/60 backdrop:backdrop-blur-sm open:flex motion-safe:backdrop:fade-in"
-      tabIndex={-1}
       data-testid="mobile-drawer"
     >
       {children}

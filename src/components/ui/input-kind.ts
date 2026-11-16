@@ -5,7 +5,9 @@
   mobile-nav.tsx). Safari draws the focus ring around whatever a window focuses as it opens, and
   after a tap that lit up the close button, the loudest thing in the window; a keyboard user needs
   the ring to see where they are. A window opened by neither (a link to a game, opened as the page
-  loads) gives the focus to its close button, as every window did before.
+  loads) gives the focus to its close button, as every window did before. A window holds the focus
+  it took only until it is pressed or the focus moves on (focusWindow): a press inside it then lets
+  the focus go as a page does, so the keys still scroll its body.
 
   The root layout inlines INPUT_KIND_SCRIPT at the top of <head>, beside the early-tap script
   (early-taps.ts), so every input counts from the start, even a tap made before the page's code has
@@ -40,4 +42,31 @@ export function lastInput(): InputKind | null {
  */
 export function opensFocusingItself(last: InputKind | null): boolean {
   return last === "pointer";
+}
+
+/**
+ * A window takes the focus itself (its <dialog>, drawn without a ring), focusable only while it
+ * holds that focus: tabindex -1 until the focus moves on (Tab, a field of the window's own) or a
+ * pointer presses inside it. A press then finds nothing focusable around what it lands on, as on a
+ * page: the focus is let go, the keys scroll whatever holds the press (the window's body; a focused
+ * window that does not scroll itself held them, and nothing moved), and a tap on text never moves
+ * the focus off a field onto the window. The press is heard on its way down, before the browser
+ * gives the focus to what it lands on. The focus leaving with the page itself (another tab or app in
+ * front) is not the focus moving on: the window has it back when the reader returns. Returns the way
+ * to let go, for a window that closes first.
+ */
+export function focusWindow(dialog: HTMLElement): () => void {
+  const letGo = () => {
+    dialog.removeEventListener("pointerdown", letGo, true);
+    dialog.removeEventListener("focusout", onOut);
+    dialog.removeAttribute("tabindex");
+  };
+  const onOut = (e: Event) => {
+    if (e.target === dialog && dialog.ownerDocument?.hasFocus?.() !== false) letGo();
+  };
+  dialog.tabIndex = -1;
+  dialog.addEventListener("pointerdown", letGo, true);
+  dialog.addEventListener("focusout", onOut);
+  dialog.focus({ preventScroll: true });
+  return letGo;
 }

@@ -241,6 +241,20 @@ describe("what shows over a window is drawn inside it", () => {
     expect(code(read("src/components/ui/detail-modal.tsx"))).toContain('closest?.("[data-floating]")');
   });
 
+  it("a window takes the focus itself through focusWindow alone, focusable only while it holds it", () => {
+    const modal = code(read("src/components/ui/detail-modal.tsx"));
+    const nav = code(read("src/components/mobile-nav.tsx"));
+    const drawer = nav.slice(nav.indexOf("function Drawer("), nav.indexOf("\nfunction ", nav.indexOf("function Drawer(") + 1));
+    for (const [name, source] of [["DetailModal", modal], ["the tablet's menu", drawer]] as const) {
+      expect(source, name).toMatch(/letGo = focusWindow\(d\)/);
+      expect(source, name).toMatch(/letGo\(\);/);
+      expect(source, name).not.toMatch(/\bd\.focus\(/);
+      // No tabindex of its own: a window focusable for good took the focus back at every click on
+      // its text, and the keys then scrolled nothing (its body, which scrolls, is inside it).
+      expect(source, name).not.toMatch(/tabIndex=/);
+    }
+  });
+
   it("the tablet's menu locks the page as every window does", () => {
     const nav = code(read("src/components/mobile-nav.tsx"));
     expect(nav).toContain("const unlock = lockPage();");
