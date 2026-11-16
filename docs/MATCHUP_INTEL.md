@@ -35,9 +35,12 @@ the most important part first; side by side where a desktop has the room):
 3. **Interactions**: the matchup's first, then the enemy's interaction and exception facts.
 4. **Level notes**: the levels at which something notable becomes possible, for both champions.
 5. **Your own champion's abilities**, collapsed until asked for.
-6. **A quiet footer**:
+6. **A quiet footer** (`matchup-footer.tsx`):
    - "Ability names, icons and base cooldowns: Riot Data Dragon 16.22.1 (patch 26.22)";
-   - the curated notes' sources, with their licence and the day they were checked;
+   - the day and patch the curated notes on the page were checked, once when they share them;
+   - the wiki's credit (Compliance): the pages the notes are written from, each once by its title
+     and linked, folded into one line until opened; their authors; the licence; and that the
+     wiki does not endorse the page;
    - "A static reference for preparation: no live tracking";
    - Riot's notice, the same words as the rest of the app (`riotLegal`).
 
