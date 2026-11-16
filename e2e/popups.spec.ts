@@ -12,6 +12,10 @@ import { bubbleFacts, NOT_A_PICTURE, NOT_A_PICTURE_ERROR, openPictureEditor, pic
     - an ⓘ's bubble in a window is drawn inside that window, above it, where its trigger puts it,
       also while the window is moved and scaled (its opening motion); Escape closes the bubble and
       leaves the window open;
+    - an ⓘ arriving under a pointer at rest as its window opens (a click leaves the pointer on
+      whatever of the window arrives under it) stays closed until the pointer moves onto it, so
+      Escape closes the window, whatever has its focus: the window itself, its close button, or
+      nothing after a press inside;
     - a toast raised while a window is open is drawn inside it, above it, heard once (one live
       region, its role), and its dismiss button is a 44px target pressed where it is drawn; a
       window moving (opening, closing) never carries a toast with it: the toast goes into it once
@@ -100,6 +104,82 @@ test("an ⓘ in a window: its bubble is drawn inside the window, above it, where
   await expect(bubble).toHaveCount(0);
   await page.waitForTimeout(300);
   await expect(win).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(win).toBeHidden();
+});
+
+test("an ⓘ arriving under a pointer at rest as its window opens stays closed until the pointer moves onto it: Escape closes the window, whatever has its focus", async ({ page, isMobile }) => {
+  await page.goto("/team");
+  const open = page.getByTestId("lineup-row-MID").getByTestId("open-player-detail");
+  const win = page.getByTestId("player-detail");
+  // The ⓘ of the season's figures, its bubble, and any bubble at all (a pool row's tier label is one).
+  const tip = win.getByTestId("info-tip");
+  const bubble = page.getByTestId("info-tip-bubble");
+  const bubbles = page.locator("[role=tooltip]");
+  // Where the ⓘ comes to rest: the window opened once from the keyboard, the pointer out of its way.
+  await page.mouse.move(0, 0);
+  await expect(async () => {
+    if (!(await win.isVisible())) {
+      await open.focus();
+      await page.keyboard.press("Enter");
+    }
+    await expect(win).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  await untilStill(page);
+  const b = (await tip.boundingBox())!;
+  const spot = { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+  await page.keyboard.press("Escape");
+  await expect(win).toBeHidden();
+  /** The window at rest, the ⓘ under the resting pointer, and no bubble open: none was pointed at. */
+  const restsUnopened = async () => {
+    await expect(win).toBeVisible();
+    await untilStill(page);
+    expect(await page.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest("[data-testid=info-tip]"), spot), "the ⓘ is under the pointer").toBe(true);
+    // The browser tells what arrives under a pointer at rest so (pointerover, pointerenter, no move)
+    // a frame or more after the window shows.
+    await page.waitForTimeout(400);
+    await expect(bubbles).toHaveCount(0);
+  };
+  // The pointer at rest where the ⓘ arrives, and the window opened by a press that leaves it there,
+  // as a click leaves the pointer on whatever of the window then arrives under it (at the tablet's
+  // size, a pool row's tier label under the MID card's opener). The window takes the focus itself.
+  await page.mouse.move(spot.x, spot.y);
+  await open.dispatchEvent("pointerdown");
+  await open.dispatchEvent("click");
+  await restsUnopened();
+  await expect(win).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(win).toBeHidden();
+  // From the keyboard, the pointer still at rest there: the close button has the focus.
+  await open.focus();
+  await page.keyboard.press("Enter");
+  await restsUnopened();
+  await expect(win.getByRole("button", { name: "Close" })).toBeFocused();
+  if (!isMobile) {
+    // A pointer moving onto the ⓘ opens its bubble, and then the first Escape is the bubble's alone;
+    // closed so, it stays closed while the pointer moves on over its ⓘ.
+    await page.mouse.move(spot.x + 1, spot.y + 1);
+    await expect(bubble).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(bubble).toHaveCount(0);
+    await page.mouse.move(spot.x - 1, spot.y);
+    await page.waitForTimeout(300);
+    await expect(bubble).toHaveCount(0);
+    await expect(win).toBeVisible();
+  }
+  await page.keyboard.press("Escape");
+  await expect(win).toBeHidden();
+  // Pressed inside on nothing focusable (the season's padding), the window leaves nothing focused,
+  // as a page does (letGoWhenPressed): Escape still closes it.
+  await open.dispatchEvent("pointerdown");
+  await open.dispatchEvent("click");
+  await expect(win).toBeVisible();
+  await untilStill(page);
+  const season = (await win.getByTestId("detail-season").boundingBox())!;
+  if (await touches(page)) await page.touchscreen.tap(season.x + 4, season.y + season.height / 2);
+  else await page.mouse.click(season.x + 4, season.y + season.height / 2);
+  await expect.poll(() => page.evaluate(() => document.activeElement === document.body)).toBe(true);
+  await expect(bubbles).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(win).toBeHidden();
 });

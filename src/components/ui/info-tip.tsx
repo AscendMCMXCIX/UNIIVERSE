@@ -55,8 +55,14 @@ export function moving(host: { getAnimations?: () => ReadonlyArray<{ playState: 
 
 /**
  * The one tooltip of the app: explanatory text for whatever it wraps (by default a small ⓘ).
- * Mouse: opens while pointed at, closes when the pointer leaves. Keyboard: opens on focus, closes
- * on blur or Escape. Touch: a tap opens it, another tap (on it or anywhere else) closes it. Escape
+ * Mouse: opens as the pointer moves over it, once a visit, and closes when the pointer leaves. A
+ * trigger that comes to a pointer at rest stays closed until the pointer moves: content moving under
+ * a still pointer (a window opening under the pointer that pressed its opener, a page scrolled under
+ * it) is sent pointerover and pointerenter but no pointermove, in Chromium and WebKit alike, and a
+ * bubble opened by those, never pointed at, took the Escape meant for its window (the Team player
+ * window at a tablet's size, opened by a click on the MID card: a pool row's tier label arrived
+ * under the pointer). Keyboard: opens on focus, closes on blur or Escape. Touch: a tap opens it,
+ * another tap (on it or anywhere else) closes it. Escape
  * closes the bubble alone, never the window or the list it sits in. The bubble is drawn in a layer
  * above the page, so the card it sits in never cuts it off: on the page, or inside the window the
  * tip sits in (tipHost), placed where placeTip says however that window is moving (landAt), and
@@ -73,6 +79,9 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
   const bubble = React.useRef<HTMLSpanElement>(null);
   // The pointer that pressed the trigger, so a tap does not count as keyboard focus.
   const pressed = React.useRef<string | null>(null);
+  // A mouse over the trigger has opened the bubble on this visit (from its coming in to its leaving):
+  // closed by Escape, it stays closed while the pointer moves on over the trigger.
+  const visited = React.useRef(false);
   const id = React.useId();
 
   const place = React.useCallback(() => {
@@ -90,9 +99,9 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
     if (open) place();
   }, [open, place]);
 
-  // While the window holding the bubble moves (its opening motion, as content arriving under a still
-  // pointer opens a bubble), the bubble is placed again at every frame, and once more as it comes to
-  // rest: placed once in a moving window, it was left off its ⓘ by the window's offset when the
+  // While the window holding the bubble moves (its opening motion, as a pointer moving over the
+  // window opens a bubble in it), the bubble is placed again at every frame, and once more as it comes
+  // to rest: placed once in a moving window, it was left off its ⓘ by the window's offset when the
   // motion ended, the window then no longer the box it is placed in (landAt).
   React.useEffect(() => {
     if (!open || !host || host === document.body) return;
@@ -167,8 +176,21 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
           else show();
           pressed.current = null;
         }}
-        onPointerEnter={(e) => e.pointerType === "mouse" && show()}
-        onPointerLeave={(e) => e.pointerType === "mouse" && setOpen(false)}
+        // A mouse opens it by moving over it, never by coming in alone: the trigger arriving under a
+        // pointer at rest is a pointerenter with no move (see above). Coming in starts a visit.
+        onPointerEnter={(e) => {
+          if (e.pointerType === "mouse") visited.current = false;
+        }}
+        onPointerMove={(e) => {
+          if (e.pointerType !== "mouse" || visited.current) return;
+          visited.current = true;
+          show();
+        }}
+        onPointerLeave={(e) => {
+          if (e.pointerType !== "mouse") return;
+          visited.current = false;
+          setOpen(false);
+        }}
         onFocus={() => {
           if (!pressed.current) show();
         }}

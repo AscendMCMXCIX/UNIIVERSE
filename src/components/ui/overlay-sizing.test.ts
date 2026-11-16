@@ -245,6 +245,16 @@ describe("what shows over a window is drawn inside it", () => {
     expect(tip).toMatch(/"animationstart", "animationend"/);
   });
 
+  it("a mouse opens a tip's bubble by moving over its trigger, never as the trigger comes to a pointer at rest", () => {
+    // Content moving under a still pointer (a window opening under the pointer that pressed its
+    // opener) is sent pointerenter without a move: a bubble opened by it, never pointed at, took the
+    // Escape meant for the window (e2e/popups.spec.ts).
+    const tip = code(read("src/components/ui/info-tip.tsx"));
+    expect(tip).toMatch(/onPointerMove=\{\(e\) => \{\s*if \(e\.pointerType !== "mouse" \|\| visited\.current\) return;\s*visited\.current = true;\s*show\(\);/);
+    expect(tip).toMatch(/onPointerEnter=\{\(e\) => \{\s*if \(e\.pointerType === "mouse"\) visited\.current = false;\s*\}\}/);
+    expect(tip).not.toMatch(/onPointer(Enter|Over)=\{[^}]*show\(\)/);
+  });
+
   it("the toasts are drawn in the topmost window at rest while one is open, and in place otherwise", () => {
     const toast = code(read("src/components/ui/toast.tsx"));
     expect(toast).toContain("React.useSyncExternalStore(subscribeModals, topLayer, noTopLayer)");
