@@ -131,12 +131,17 @@ export interface AddAccountInput {
   platform: string;
   label?: string;
   role?: Role | null;
-  /** Known PUUID (e.g. from a resolved lookup). */
+  /** Known PUUID, from a lookup Riot just answered (stored as resolved now). */
   puuid?: string | null;
 }
 
-/** Adds an account. The same Riot ID / PUUID can only exist once across players and opponents. */
-export async function addAccount(db: Db, input: AddAccountInput): Promise<RiotAccountRecord> {
+/**
+ * What an account must pass before it is stored, none of it a request to Riot: the Riot ID's
+ * format, the server, an erasure, and the same Riot ID (or, when known, the same PUUID) already
+ * linked. Throws the AccountError to show. addAccount runs it; linking a Riot ID to a profile runs
+ * it before asking Riot too (actions/accounts.ts), so a Riot ID refused anyway is never sent.
+ */
+export async function checkNewAccount(db: Db, input: AddAccountInput): Promise<{ gameName: string; tagLine: string; platform: string }> {
   const parsed = parseRiotId(input.riotId);
   if (!parsed) throw new AccountError("Enter the Riot ID exactly as shown in the client: GameName#TAG.");
   const platform = input.platform.trim().toLowerCase();
@@ -153,6 +158,16 @@ export async function addAccount(db: Db, input: AddAccountInput): Promise<RiotAc
     const where = existing.ownerType === "player" ? "one of our players" : "an opponent";
     throw new AccountError(`${parsed.gameName}#${parsed.tagLine} is already linked to ${where}.`);
   }
+  return { ...parsed, platform };
+}
+
+/**
+ * Adds an account (checkNewAccount first). The same Riot ID / PUUID can only exist once across
+ * players and opponents.
+ */
+export async function addAccount(db: Db, input: AddAccountInput): Promise<RiotAccountRecord> {
+  const parsed = await checkNewAccount(db, input);
+  const platform = parsed.platform;
   // One Main per player: a player's first account is Main, later ones are Alts unless chosen.
   let label = input.label ?? "main";
   let sortOrder: number | null = null;
@@ -171,6 +186,7 @@ export async function addAccount(db: Db, input: AddAccountInput): Promise<RiotAc
       tagLine: parsed.tagLine,
       platform,
       puuid: input.puuid ?? null,
+      puuidResolvedAt: input.puuid ? new Date() : null,
       label,
       sortOrder,
       role: input.role ?? null,
