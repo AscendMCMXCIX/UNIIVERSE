@@ -102,8 +102,9 @@ jobs:
             state="$(jq -r '.summary.state // "no answer"' <<<"$answer" 2>/dev/null || true)"
             # An app from before the key's name was answered derives from CRON_SECRET.
             key="$(jq -r '.summary.key // "CRON_SECRET"' <<<"$answer" 2>/dev/null || true)"
-            # A key the server cannot use (VERIFY_ACCOUNT_SECRET too short, padded or the same as
-            # CRON_SECRET) is said as the app words it; no other error text is printed.
+            # A key the server cannot use (its VERIFY_ACCOUNT_SECRET, or a CRON_SECRET too short to
+            # derive from) is said as the app words it, a fixed sentence naming the rules; no other
+            # error text of the job's is printed.
             problem="$(jq -r '.error // ""' <<<"$answer" 2>/dev/null || true)"
             case "$problem" in "VERIFY_ACCOUNT_SECRET "*|"CRON_SECRET "*) ;; *) problem="" ;; esac
             unset answer
@@ -112,9 +113,11 @@ jobs:
               created|unchanged|password-updated)
                 if [ "$key" = "VERIFY_ACCOUNT_SECRET" ]; then VERIFY_KEY="$VERIFY_ACCOUNT_SECRET"; else key=CRON_SECRET VERIFY_KEY="$CRON_SECRET"; fi
                 echo "verification account key: $key"
-                if [ "$key" = "VERIFY_ACCOUNT_SECRET" ] && { [ -z "$VERIFY_KEY" ] || [[ "$VERIFY_KEY" =~ ^[[:space:]]|[[:space:]]$ ]]; }; then
+                # The app refuses a padded VERIFY_ACCOUNT_SECRET of its own; the repository's copy is
+                # held to the same rule, by the same trim().
+                if [ "$key" = "VERIFY_ACCOUNT_SECRET" ] && ! VERIFY_KEY="$VERIFY_KEY" node -e 'const k = process.env.VERIFY_KEY || ""; process.exit(k !== "" && k.trim() === k ? 0 : 1)'; then
                   # The app uses VERIFY_ACCOUNT_SECRET, and this repository's copy is missing or has a
-                  # space or line break at an end (the app refuses such a value in its own copy).
+                  # space or line break at an end.
                   echo "::error::The app works the verification account's password out from VERIFY_ACCOUNT_SECRET, and this repository's VERIFY_ACCOUNT_SECRET secret is not set, or starts or ends with a space or line break (docs/LIVE_VALIDATION.md)."
                   echo "- FAIL: the repository secret VERIFY_ACCOUNT_SECRET, which the app uses for the verification account, is missing or has a space or line break at an end (docs/LIVE_VALIDATION.md)." > verify-account.md
                   status=1

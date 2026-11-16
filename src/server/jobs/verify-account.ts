@@ -33,7 +33,9 @@ import { VERIFY_DISPLAY_NAME, VERIFY_USERNAME } from "@/server/auth/verification
   member session, and each of the two can be replaced without the other. A change of the key
   (setting VERIFY_ACCOUNT_SECRET, or replacing whichever is in use) changes the password: the next
   run of this job follows it and ends the account's sessions. The job answers which key it used, by
-  name, so the Production check derives the password from the same one.
+  name, so the Production check derives the password from the same one. A VERIFY_ACCOUNT_SECRET the
+  server cannot use is never a reason to fall back: the password CRON_SECRET gave is withdrawn
+  until it is fixed.
 
   `verify-account` (production only) runs before every Production check, and by hand from Data jobs.
   It creates the account, or changes nothing when its password is already the derived one, or
@@ -45,7 +47,8 @@ import { VERIFY_DISPLAY_NAME, VERIFY_USERNAME } from "@/server/auth/verification
   that name that is not the plain member it keeps, and whose password is not the derived one, it
   never touches: an active one answers "conflict", a deactivated one "deactivated". A deactivated
   account stays deactivated: deactivating it in Admin is how the owner turns the signed-in checks
-  off. The Production check fails on withdrawn, conflict or no answer.
+  off; the plain one's password still follows a change of the key. The Production check fails on
+  withdrawn, conflict or no answer.
 */
 
 export { VERIFY_DISPLAY_NAME, VERIFY_USERNAME };
@@ -61,6 +64,9 @@ export type VerifyKeyName = "VERIFY_ACCOUNT_SECRET" | "CRON_SECRET";
 /** The shortest VERIFY_ACCOUNT_SECRET accepted (`openssl rand -base64 48` gives 64 characters). */
 export const VERIFY_SECRET_MIN_LENGTH = 32;
 
+/** Said when VERIFY_ACCOUNT_SECRET cannot be used. The job's answer reaches public logs (Data jobs, the Production check's issue), so it names the rules, not which one failed. */
+export const VERIFY_SECRET_UNUSABLE = `VERIFY_ACCOUNT_SECRET on this server cannot be used: it must be at least ${VERIFY_SECRET_MIN_LENGTH} characters, with no space or line break at either end, and not CRON_SECRET's value.`;
+
 /**
  * The key the password is worked out from: VERIFY_ACCOUNT_SECRET once it is set, CRON_SECRET until
  * then. A VERIFY_ACCOUNT_SECRET that is set but unusable (too short, spaces or a line break at
@@ -70,9 +76,7 @@ export const VERIFY_SECRET_MIN_LENGTH = 32;
 export function verifyAccountKey(env: Record<string, string | undefined>): { ok: true; name: VerifyKeyName; key: string } | { ok: false; error: string } {
   const own = env.VERIFY_ACCOUNT_SECRET ?? "";
   if (own !== "") {
-    if (own.length < VERIFY_SECRET_MIN_LENGTH) return { ok: false, error: `VERIFY_ACCOUNT_SECRET is too short on this server (at least ${VERIFY_SECRET_MIN_LENGTH} characters).` };
-    if (own.trim() !== own) return { ok: false, error: "VERIFY_ACCOUNT_SECRET starts or ends with a space or a line break on this server; set it again without them." };
-    if (own === env.CRON_SECRET) return { ok: false, error: "VERIFY_ACCOUNT_SECRET is the same as CRON_SECRET on this server; it must be a value of its own." };
+    if (own.length < VERIFY_SECRET_MIN_LENGTH || own.trim() !== own || own === env.CRON_SECRET) return { ok: false, error: VERIFY_SECRET_UNUSABLE };
     return { ok: true, name: "VERIFY_ACCOUNT_SECRET", key: own };
   }
   const cron = env.CRON_SECRET ?? "";
@@ -86,7 +90,12 @@ const JOB = { userId: null, username: "verify-account job" } as const;
 export async function ensureVerificationAccount(db: Db, env: Record<string, string | undefined> = process.env): Promise<{ ok: boolean; error?: string; summary: { username: string; state?: VerifyAccountState; key?: VerifyKeyName } }> {
   if (env.VERCEL_ENV !== "production") return { ok: false, error: "Only the production deployment keeps the verification account (VERCEL_ENV is not production).", summary: { username: VERIFY_USERNAME } };
   const chosen = verifyAccountKey(env);
-  if (!chosen.ok) return { ok: false, error: chosen.error, summary: { username: VERIFY_USERNAME } };
+  if (!chosen.ok) {
+    // VERIFY_ACCOUNT_SECRET was set to take the account off CRON_SECRET: while the server cannot
+    // use it, the password CRON_SECRET gave stops opening the job's own account too (fail closed).
+    if ((env.VERIFY_ACCOUNT_SECRET ?? "") !== "") await withdrawCronPassword(db, env.CRON_SECRET ?? "");
+    return { ok: false, error: chosen.error, summary: { username: VERIFY_USERNAME } };
+  }
   // On VERIFY_ACCOUNT_SECRET, the password CRON_SECRET gave (the key before it) still proves the
   // account is this job's own, so a changed one is withdrawn rather than left as a conflict.
   const before = chosen.name === "VERIFY_ACCOUNT_SECRET" && (env.CRON_SECRET ?? "").length >= 16 ? deriveVerifyPassword(env.CRON_SECRET!) : null;
@@ -125,8 +134,16 @@ async function keepAccount(db: Db, password: string, before: string | null): Pro
   // changed and has no password, every run ends its sessions again: such a session lasts until the
   // next run at most. Never for any other account of that name.
   if (!plain && !existing.passwordHash && (await withdrawnByThisJob(db, existing.id))) await revokeAllSessions(db, existing.id);
-  // Deactivated is the owner's off switch, whatever else it is: nothing signs in to it.
-  if (!existing.isActive) return { ok: true, summary: { username: VERIFY_USERNAME, state: "deactivated" } };
+  // Deactivated is the owner's off switch, whatever else it is: nothing signs in to it. The plain
+  // account's password still follows a change of the key (and its sessions end), so reactivating it
+  // never reopens it to the key before.
+  if (!existing.isActive) {
+    if (plain && !derived && existing.passwordHash) {
+      await setPassword(db, existing.id, password);
+      await recordAudit(db, JOB, { action: "account.password-reset", target: { type: "user", id: existing.id, name: VERIFY_USERNAME }, details: { purpose: "production verification", reason: "derived again, while deactivated" } });
+    }
+    return { ok: true, summary: { username: VERIFY_USERNAME, state: "deactivated" } };
+  }
   if (!plain) return { ok: false, error: `An account named "${VERIFY_USERNAME}" exists that is not the plain member this job keeps, and its password is not the derived one; nothing was changed.`, summary: { username: VERIFY_USERNAME, state: "conflict" } };
   if (derived) return { ok: true, summary: { username: VERIFY_USERNAME, state: "unchanged" } };
   // The key changed (VERIFY_ACCOUNT_SECRET set, or the key in use replaced): the new password, and
@@ -134,6 +151,18 @@ async function keepAccount(db: Db, password: string, before: string | null): Pro
   await setPassword(db, existing.id, password);
   await recordAudit(db, JOB, { action: "account.password-reset", target: { type: "user", id: existing.id, name: VERIFY_USERNAME }, details: { purpose: "production verification", reason: "derived again" } });
   return { ok: true, summary: { username: VERIFY_USERNAME, state: "password-updated" } };
+}
+
+/** Withdraws the password CRON_SECRET gave from the account, if it still has it, and ends its sessions. */
+async function withdrawCronPassword(db: Db, cron: string): Promise<void> {
+  if (cron.length < 16) return;
+  const existing = await findUserByUsername(db, VERIFY_USERNAME);
+  if (!existing?.passwordHash || !(await verifyPassword(deriveVerifyPassword(cron), existing.passwordHash))) return;
+  await db.transaction(async (tx) => {
+    await tx.update(users).set({ passwordHash: null, mustChangePassword: false, temporaryPasswordExpiresAt: null, updatedAt: new Date() }).where(eq(users.id, existing.id));
+    await revokeAllSessions(tx, existing.id);
+  });
+  await recordAudit(db, JOB, { action: "account.password-withdrawn", target: { type: "user", id: existing.id, name: VERIFY_USERNAME }, details: { purpose: "production verification", reason: "VERIFY_ACCOUNT_SECRET cannot be used" } });
 }
 
 /** This job withdrew this account's password before (Admin → Audit Logs). */

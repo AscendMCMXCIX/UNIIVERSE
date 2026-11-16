@@ -3,7 +3,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync 
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { deriveVerifyPassword, verifyAccountKey, VERIFY_SECRET_MIN_LENGTH } from "./verify-account";
+import { deriveVerifyPassword, verifyAccountKey, VERIFY_SECRET_MIN_LENGTH, VERIFY_SECRET_UNUSABLE } from "./verify-account";
 
 /*
   The Production check works out the verification account's password itself (production-check.yml,
@@ -53,13 +53,15 @@ describe("the key the password is worked out from", () => {
     expect(verifyAccountKey({ VERIFY_ACCOUNT_SECRET: OWN })).toMatchObject({ ok: true, name: "VERIFY_ACCOUNT_SECRET" });
   });
 
-  it("refuses an unusable VERIFY_ACCOUNT_SECRET instead of falling back to CRON_SECRET", () => {
-    for (const own of ["x".repeat(VERIFY_SECRET_MIN_LENGTH - 1), `${OWN}\n`, ` ${OWN}`, `${OWN} `, CRON]) {
+  it("refuses an unusable VERIFY_ACCOUNT_SECRET instead of falling back to CRON_SECRET, with one sentence for every rule", () => {
+    for (const own of ["x".repeat(VERIFY_SECRET_MIN_LENGTH - 1), `${OWN}\n`, ` ${OWN}`, `${OWN} `, `${OWN}\u00a0`, `\ufeff${OWN}`, CRON]) {
       const chosen = verifyAccountKey({ CRON_SECRET: CRON, VERIFY_ACCOUNT_SECRET: own });
       expect(chosen.ok, JSON.stringify(own)).toBe(false);
-      // The error names the setting, never a value.
-      expect(chosen.ok ? "" : chosen.error).toMatch(/^VERIFY_ACCOUNT_SECRET /);
-      expect(chosen.ok ? "" : chosen.error).not.toContain(own.trim());
+      // The answer reaches public logs: the same sentence whichever rule failed, naming the
+      // setting and its rules, never a value.
+      expect(chosen.ok ? "" : chosen.error).toBe(VERIFY_SECRET_UNUSABLE);
+      expect(VERIFY_SECRET_UNUSABLE).toMatch(/^VERIFY_ACCOUNT_SECRET /);
+      expect(VERIFY_SECRET_UNUSABLE).not.toContain(own.trim());
     }
     expect(verifyAccountKey({ CRON_SECRET: CRON, VERIFY_ACCOUNT_SECRET: "x".repeat(VERIFY_SECRET_MIN_LENGTH) }).ok).toBe(true);
   });
@@ -86,7 +88,7 @@ function liveCheckStep(): string {
   return body.map((l) => l.slice(margin)).join("\n");
 }
 
-type Step = { status: number | null; out: string; summary: string; curlCalled: boolean; seen: { user: string | null; password: string | null; required: string | null; cron: string | null; own: string | null } | null };
+type Step = { status: number | null; out: string; summary: string; curlCalled: boolean; curlArgs: string[]; seen: { user: string | null; password: string | null; required: string | null; cron: string | null; own: string | null } | null };
 
 /**
  * Runs the step with the app's answer `answer` (null: no answer) and the repository's secrets
@@ -99,7 +101,7 @@ function runStep(answer: string | null, secrets: Record<string, string>): Step {
     mkdirSync(bin);
     mkdirSync(path.join(dir, "scripts"));
     writeFileSync(path.join(dir, "answer.json"), answer ?? "");
-    writeFileSync(path.join(bin, "curl"), `#!/usr/bin/env bash\ntouch "${dir}/curl-called"\n${answer === null ? "exit 28" : `cat "${dir}/answer.json"`}\n`);
+    writeFileSync(path.join(bin, "curl"), `#!/usr/bin/env bash\nprintf '%s\\n' "$@" > "${dir}/curl-called"\n${answer === null ? "exit 28" : `cat "${dir}/answer.json"`}\n`);
     chmodSync(path.join(bin, "curl"), 0o755);
     writeFileSync(
       path.join(dir, "scripts", "live-check.mjs"),
@@ -111,7 +113,8 @@ function runStep(answer: string | null, secrets: Record<string, string>): Step {
     const summary = path.join(dir, "summary");
     writeFileSync(output, "");
     writeFileSync(summary, "");
-    const r = spawnSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", script], {
+    // GitHub runs a step without a named shell as \`bash -e {0}\`.
+    const r = spawnSync("bash", ["-e", script], {
       cwd: dir,
       encoding: "utf8",
       timeout: 30_000,
@@ -123,14 +126,15 @@ function runStep(answer: string | null, secrets: Record<string, string>): Step {
     } catch {
       seen = null;
     }
+    let curlArgs: string[] = [];
     let curlCalled = false;
     try {
-      readFileSync(path.join(dir, "curl-called"));
+      curlArgs = readFileSync(path.join(dir, "curl-called"), "utf8").split("\n").filter(Boolean);
       curlCalled = true;
     } catch {
       curlCalled = false;
     }
-    return { status: r.status, out: `${r.stdout}${r.stderr}`, summary: readFileSync(summary, "utf8"), curlCalled, seen };
+    return { status: r.status, out: `${r.stdout}${r.stderr}`, summary: readFileSync(summary, "utf8"), curlCalled, curlArgs, seen };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -151,6 +155,9 @@ describe("the Live check step signs in with the key the app names", () => {
   it("derives from VERIFY_ACCOUNT_SECRET once the app uses it", () => {
     const r = runStep(answer({ state: "password-updated", key: "VERIFY_ACCOUNT_SECRET" }), { CRON_SECRET: CRON, VERIFY_ACCOUNT_SECRET: OWN });
     expect(r.status, r.out).toBe(0);
+    // It asked the app's own job, with the scheduler's secret.
+    expect(r.curlArgs).toContain("https://app.invalid/api/jobs/verify-account");
+    expect(r.curlArgs).toContain(`Authorization: Bearer ${CRON}`);
     expect(r.seen).toEqual({ user: "verify", password: deriveVerifyPassword(OWN), required: "1", cron: null, own: null });
     expect(r.out).toContain("verification account key: VERIFY_ACCOUNT_SECRET");
     // The secrets never reach the log; the password only in the line that masks it.
@@ -160,7 +167,8 @@ describe("the Live check step signs in with the key the app names", () => {
   });
 
   it("fails, saying so, when the app uses VERIFY_ACCOUNT_SECRET and the repository's copy is missing or padded", () => {
-    for (const own of ["", `${OWN}\n`, ` ${OWN}`]) {
+    // The app's own trim(): a no-break space or a byte-order mark counts as padding too.
+    for (const own of ["", `${OWN}\n`, ` ${OWN}`, `${OWN}\u00a0`, `\ufeff${OWN}`]) {
       const r = runStep(answer({ state: "unchanged", key: "VERIFY_ACCOUNT_SECRET" }), { CRON_SECRET: CRON, VERIFY_ACCOUNT_SECRET: own });
       expect(r.status, JSON.stringify(own)).toBe(1);
       expect(r.seen).toMatchObject({ user: null, password: null, required: "1" });
@@ -180,7 +188,11 @@ describe("the Live check step signs in with the key the app names", () => {
     const cases: Array<[string | null, string]> = [
       [JSON.stringify({ ok: false, error: 'The account "verify" no longer has only the default member access', summary: { username: "verify", state: "withdrawn", key: "CRON_SECRET" } }), 'answered "withdrawn"'],
       [JSON.stringify({ ok: false, error: "An account named \"verify\" exists that is not the plain member", summary: { username: "verify", state: "conflict" } }), 'answered "conflict"'],
-      [JSON.stringify({ ok: false, error: "VERIFY_ACCOUNT_SECRET is too short on this server (at least 32 characters).", summary: { username: "verify" } }), 'answered "no answer" (VERIFY_ACCOUNT_SECRET is too short on this server (at least 32 characters).)'],
+      [JSON.stringify({ ok: false, error: VERIFY_SECRET_UNUSABLE, summary: { username: "verify" } }), `answered "no answer" (${VERIFY_SECRET_UNUSABLE})`],
+      [JSON.stringify({ ok: false, error: "CRON_SECRET is not set (or is too short) on this server.", summary: { username: "verify" } }), 'answered "no answer" (CRON_SECRET is not set (or is too short) on this server.)'],
+      // The jobs endpoint's own refusals: a wrong scheduler secret (401) and none on the server (503).
+      [JSON.stringify({ ok: false, error: "Unauthorised" }), 'answered "no answer" (docs'],
+      [JSON.stringify({ ok: false, error: "CRON_SECRET is not configured on the server." }), 'answered "no answer" (CRON_SECRET is not configured on the server.)'],
       [JSON.stringify({ ok: false, error: "Failed query: select something private", summary: { username: "verify" } }), 'answered "no answer" (docs'],
       ["not json", 'answered "no answer" (docs'],
       [null, 'answered "no answer" (docs'],
