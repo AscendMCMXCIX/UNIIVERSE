@@ -6,11 +6,14 @@ import { appSettings } from "@/server/db/schema";
   When the database's own tick schedule last reached the app: production's ten-minute
   `uniiverse-tick`, which pg_cron runs and pg_net sends (docs/DEPLOYMENT.md, 4 c). Every authorised
   call of /api/jobs/tick that pg_net sends is recorded as it arrives, whether the tick then runs
-  jobs or finds nothing due. pg_net names itself in the User-Agent header of every request it sends
-  ("pg_net/<version>", since 0.7 at least) unless the command sets one of its own; the tick's other
-  callers never do: GitHub's Data jobs runs (curl), Vercel's daily cron ("vercel-cron/1.0") and
-  visits, which send no request at all. The five-minute rank schedule is pg_net too, but it calls
-  /api/jobs/rank-watch, recorded apart (rank-schedule-calls.ts).
+  jobs or finds nothing due. pg_net names itself in the User-Agent header ("pg_net/<version>"): its
+  releases (0.7 to 0.20.4 at least) add that header to every request, after the command's own
+  headers, and its unreleased code after 0.20.4 leaves it out when the command sets one. So a
+  command that sends a User-Agent of its own is never recognised: the app reads the command's
+  first (Node keeps the first of two; a proxy that joins them puts the command's first too). The
+  tick's other callers never send pg_net's: GitHub's Data jobs runs (curl), Vercel's daily cron
+  ("vercel-cron/1.0") and visits, which send no request at all. The five-minute rank schedule is
+  pg_net too, but it calls /api/jobs/rank-watch, recorded apart (rank-schedule-calls.ts).
 
   The time of the call before the last is kept too, so /api/health waits four of the schedule's
   own intervals, whatever interval it was given, within the bounds below. Timestamps only. No

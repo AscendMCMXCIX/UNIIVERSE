@@ -11,10 +11,16 @@ const MIN = 60_000;
 
 describe("the database's tick schedule", () => {
   it("is known by pg_net's User-Agent, never by those of the tick's other callers", () => {
-    // pg_net up to 0.15 added its own header before a command's; the two arrive joined.
-    for (const ua of ["pg_net/0.14.0", "pg_net/0.7.1", "PG_NET/0.19.5", "pg_net/0.10.0, custom"]) expect(sentByDatabase(ua)).toBe(true);
+    for (const ua of ["pg_net/0.14.0", "pg_net/0.7.1", "PG_NET/0.19.5", "pg_net/0.20.4"]) expect(sentByDatabase(ua)).toBe(true);
     // No header, GitHub's Data jobs runs, Vercel's daily cron, a browser, a name that only contains it.
     for (const ua of [null, "", "curl/8.5.0", "vercel-cron/1.0", "Mozilla/5.0 (X11; Linux x86_64)", "not pg_net/1.0"]) expect(sentByDatabase(ua)).toBe(false);
+  });
+
+  it("does not know a command that sends a User-Agent of its own", () => {
+    // pg_net's releases add their own header after the command's: Node keeps the first of the two,
+    // and a proxy that joins them puts the command's first. Its unreleased code after 0.20.4 sends
+    // the command's alone. Either way the call is not recorded (docs/DEPLOYMENT.md, 4 c).
+    for (const ua of ["custom", "custom, pg_net/0.14.0"]) expect(sentByDatabase(ua)).toBe(false);
   });
 
   it("may be silent for four of its own intervals, never less than 40 minutes or more than four hours", () => {
