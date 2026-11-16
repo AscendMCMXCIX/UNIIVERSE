@@ -1,8 +1,9 @@
-import { createElement } from "react";
+import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { ChampionChoice, ChampionNotes, DdragonChampionAbilities, MatchupNotes } from "@/domain/matchup-intel/types";
 import { buildMatchupPageView, type MatchupViewDeps } from "@/server/matchup-intel/view";
+import { AbilityList } from "./ability-list";
 import { MatchupContent } from "./matchup-content";
 import { MatchupFrame } from "./matchup-frame";
 
@@ -129,5 +130,29 @@ describe("the page body", () => {
   it("ability data older than the current patch says so", async () => {
     const t = text(await render({ vs: "Darius" }, { loadAbilities: async (ids) => ({ version: "16.21.1", champions: Object.fromEntries(ids.map((id) => [id, kit(id, "16.21.1")])) }) }));
     expect(t).toContain("The ability data held here is from patch 26.21; the game is on patch 26.22.");
+  });
+});
+
+describe("the page's structure", () => {
+  it("your own champion's abilities sit under a heading of their own, not under the panel before them", async () => {
+    const html = await render({ champion: "Garen", vs: "Darius" });
+    const heading = html.search(/<h2 class="sr-only">Your champion: Garen<\/h2>/);
+    expect(heading).toBeGreaterThan(-1);
+    // After every other section's heading, and before Garen's own ability headings.
+    expect(heading).toBeGreaterThan(html.indexOf("Darius&#x27;s abilities"));
+    expect(heading).toBeLessThan(html.indexOf('data-testid="matchup-your-abilities-list"'));
+  });
+
+  it("keys each ability row by its champion as well as its slot, so another pair's rows start closed", async () => {
+    const view = await buildMatchupPageView({ champion: "Ambessa", vs: "Renekton" }, deps);
+    const list = AbilityList({ intel: view.enemyIntel!, testId: "rows" }) as ReactElement<{ children: ReactElement[] }>;
+    expect(list.props.children.map((row) => row.key)).toEqual(["Renekton-P", "Renekton-Q", "Renekton-W", "Renekton-E", "Renekton-R"]);
+  });
+
+  it("centres the curated links in the centred 'choose the enemy' state, and nowhere else", async () => {
+    const links = (html: string) => /<p class="([^"]*)" data-testid="matchup-curated-links"/.exec(html)?.[1]?.split(" ");
+    expect(links(await render({ champion: "Ambessa" }))).toContain("justify-center");
+    // No briefing for the pair: the links follow the calm line, left-aligned like it.
+    expect(links(await render({ champion: "Ambessa", vs: "Darius" }))).not.toContain("justify-center");
   });
 });

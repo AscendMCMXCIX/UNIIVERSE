@@ -80,7 +80,7 @@ export function MatchupContent({ view, champions, curated, legal }: { view: Matc
 
       {you && !enemy ? (
         <EmptyState icon={Swords} title={`Playing ${you.name}: now choose the enemy`} action={<OpenPickerButton slot="enemy" testId="matchup-choose-enemy">Choose the enemy</OpenPickerButton>} testId="matchup-need-enemy" compact>
-          {curatedForYou.length ? <CuratedLinks you={you} enemies={curatedForYou} label={`Curated briefings for ${you.name}:`} /> : <p>The enemy&apos;s abilities and base cooldowns follow once you choose them.</p>}
+          {curatedForYou.length ? <CuratedLinks you={you} enemies={curatedForYou} label={`Curated briefings for ${you.name}:`} centered /> : <p>The enemy&apos;s abilities and base cooldowns follow once you choose them.</p>}
         </EmptyState>
       ) : null}
 
@@ -105,11 +105,17 @@ export function MatchupContent({ view, champions, curated, legal }: { view: Matc
       ) : null}
 
       {yourIntel && !mirror ? (
-        <Disclosure title={`Your champion: ${yourIntel.champion.name}`} description="Abilities, base cooldowns and checked notes, for reference" testId="matchup-your-abilities">
-          <div className="-m-3 sm:-m-4">
-            <AbilityList intel={yourIntel} testId="matchup-your-abilities-list" />
-          </div>
-        </Disclosure>
+        // A section with a heading of its own, so its abilities' headings sit under it rather than
+        // under the panel before it: the disclosure's title is not one (a heading inside its
+        // summary is not read as one everywhere), so the heading is for screen readers alone.
+        <section>
+          <h2 className="sr-only">{`Your champion: ${yourIntel.champion.name}`}</h2>
+          <Disclosure title={`Your champion: ${yourIntel.champion.name}`} description="Abilities, base cooldowns and checked notes, for reference" testId="matchup-your-abilities">
+            <div className="-m-3 sm:-m-4">
+              <AbilityList intel={yourIntel} testId="matchup-your-abilities-list" />
+            </div>
+          </Disclosure>
+        </section>
       ) : null}
 
       <MatchupFooter view={view} legal={legal} />

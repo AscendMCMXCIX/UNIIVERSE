@@ -3,6 +3,7 @@ import { Crosshair, TriangleAlert, Waypoints } from "lucide-react";
 import type { AbilityRef, ChampionChoice, MatchupIntelView, Slot } from "@/domain/matchup-intel/types";
 import { Badge } from "@/components/ui/badge";
 import { Panel, PanelHeader } from "@/components/ui/panel";
+import { cn } from "@/lib/cn";
 import { matchupHref } from "./address";
 import { AbilityRefLink } from "./ability-ref-link";
 import { abilityAnchor, abilityName, freshnessWords } from "./wording";
@@ -101,11 +102,11 @@ export function Briefing({ matchup, you, enemy }: { matchup: MatchupIntelView; y
   );
 }
 
-/** The links to the curated matchups that exist for your champion. */
-export function CuratedLinks({ you, enemies, current, label }: { you: ChampionChoice; enemies: readonly ChampionChoice[]; current?: string | null; label: string }) {
+/** The links to the curated matchups that exist for your champion; `centered` in a centred empty state, so a wrapped row stays under the words above it. */
+export function CuratedLinks({ you, enemies, current, label, centered = false }: { you: ChampionChoice; enemies: readonly ChampionChoice[]; current?: string | null; label: string; centered?: boolean }) {
   if (!enemies.length) return null;
   return (
-    <p className="flex flex-wrap items-center gap-1.5 text-sm" data-testid="matchup-curated-links">
+    <p className={cn("flex flex-wrap items-center gap-1.5 text-sm", centered && "justify-center")} data-testid="matchup-curated-links">
       <span className="text-fg-muted">{label}</span>
       {enemies.map((e) => (
         <Link key={e.id} href={matchupHref(you.id, e.id)} prefetch={false} aria-current={e.id === current ? "page" : undefined} className="touch-target inline-flex min-h-7 items-center rounded-full border border-border-strong bg-surface-2 px-2.5 text-xs font-medium text-fg-muted transition-colors hover:border-accent/60 hover:text-fg" data-testid="matchup-curated-link" data-champion={e.id}>

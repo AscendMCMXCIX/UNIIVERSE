@@ -163,8 +163,10 @@ export function AbilityList({ intel, testId }: { intel: ChampionIntelView; testI
   }
   return (
     <ol className="@container/abilities divide-y divide-border" aria-label={`${intel.champion.name}'s abilities`} data-testid={testId}>
+      {/* Keyed by champion as well: another pair's rows start afresh, never with a details part
+          the reader opened on a different champion's ability. */}
       {intel.abilities.map((a) => (
-        <AbilityRow key={a.slot} champion={intel.champion} ability={a} />
+        <AbilityRow key={`${intel.champion.id}-${a.slot}`} champion={intel.champion} ability={a} />
       ))}
     </ol>
   );
