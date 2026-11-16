@@ -631,38 +631,48 @@ test("phone: a cooldown's dot and a source's comma never start a line, and a lin
   }
 });
 
-test("while a choice loads, the slots show it, a line says what is loading, the page under them is out of reach; then what came is announced", async ({ page }) => {
-  await openMatchupIntel(page, "Riven", "Garen");
-  await hydrated(page);
-  // Hold the server's page for the next pair, as a slow connection or a cold start would.
-  let release!: () => void;
-  const held = new Promise<void>((r) => (release = r));
-  await page.route(
-    (url) => url.pathname === "/resources/matchups" && url.searchParams.get("vs") === "Mordekaiser",
-    async (route) => {
-      await held;
-      await route.continue();
-    },
-  );
-  // A curated pair's link goes through the pickers' frame, as a pick does.
-  await page.getByTestId("matchup-no-briefing").getByTestId("matchup-curated-link").click();
-  await expect(page.getByTestId("matchup-pick-enemy")).toHaveAttribute("data-champion", "Mordekaiser");
-  await expect(page.getByTestId("matchup-loading")).toHaveText("Loading Riven vs Mordekaiser…");
-  await expect(page.getByTestId("matchup-status")).toHaveText("Loading Riven vs Mordekaiser…");
-  const content = page.getByTestId("matchup-intel-content");
-  await expect(content).toHaveAttribute("aria-busy", "true");
-  expect(await content.evaluate((e) => (e as HTMLElement).inert)).toBe(true);
-  // The focus is on the enemy's slot, out of the page that dims.
-  await expect(page.getByTestId("matchup-pick-enemy")).toBeFocused();
-  release();
-  await expect(page).toHaveURL(/\?champion=Riven&vs=Mordekaiser$/);
-  await expect(page.getByTestId("matchup-briefing")).toBeVisible();
-  await expect(page.getByTestId("matchup-status")).toHaveText(/^Riven vs Mordekaiser: curated briefing, checked on patch \d+\.\d+\. Mordekaiser's abilities follow\.$/);
-  expect(await content.evaluate((e) => (e as HTMLElement).inert)).toBe(false);
-  await expect(page.getByTestId("matchup-loading")).toHaveCount(0);
-  // A pick says what came the same way.
-  await choose(page, "enemy", "darius", "Darius");
-  await expect(page.getByTestId("matchup-status")).toHaveText("No curated briefing for Riven vs Darius yet. Darius's abilities follow.");
+test.describe("a choice on its way", () => {
+  // The service worker is blocked here, as in mobile-nav.spec.ts. Once it controls the page (it
+  // claims open pages as it activates, shortly after the first load), a browser navigation to the
+  // next pair is answered through it, past page.route, so the hold below would not apply to it:
+  // measured on the demo, such a navigation was held 0 times of 2 with the worker, 2 of 2 without.
+  // The router's own request for the pair was held either way. With the worker blocked, a fall
+  // back to a browser navigation is held too, and fails the announcement below instead.
+  test.use({ serviceWorkers: "block" });
+
+  test("while a choice loads, the slots show it, a line says what is loading, the page under them is out of reach; then what came is announced", async ({ page }) => {
+    await openMatchupIntel(page, "Riven", "Garen");
+    await hydrated(page);
+    // Hold the server's page for the next pair, as a slow connection or a cold start would.
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    await page.route(
+      (url) => url.pathname === "/resources/matchups" && url.searchParams.get("vs") === "Mordekaiser",
+      async (route) => {
+        await held;
+        await route.continue();
+      },
+    );
+    // A curated pair's link goes through the pickers' frame, as a pick does.
+    await page.getByTestId("matchup-no-briefing").getByTestId("matchup-curated-link").click();
+    await expect(page.getByTestId("matchup-pick-enemy")).toHaveAttribute("data-champion", "Mordekaiser");
+    await expect(page.getByTestId("matchup-loading")).toHaveText("Loading Riven vs Mordekaiser…");
+    await expect(page.getByTestId("matchup-status")).toHaveText("Loading Riven vs Mordekaiser…");
+    const content = page.getByTestId("matchup-intel-content");
+    await expect(content).toHaveAttribute("aria-busy", "true");
+    expect(await content.evaluate((e) => (e as HTMLElement).inert)).toBe(true);
+    // The focus is on the enemy's slot, out of the page that dims.
+    await expect(page.getByTestId("matchup-pick-enemy")).toBeFocused();
+    release();
+    await expect(page).toHaveURL(/\?champion=Riven&vs=Mordekaiser$/);
+    await expect(page.getByTestId("matchup-briefing")).toBeVisible();
+    await expect(page.getByTestId("matchup-status")).toHaveText(/^Riven vs Mordekaiser: curated briefing, checked on patch \d+\.\d+\. Mordekaiser's abilities follow\.$/);
+    expect(await content.evaluate((e) => (e as HTMLElement).inert)).toBe(false);
+    await expect(page.getByTestId("matchup-loading")).toHaveCount(0);
+    // A pick says what came the same way.
+    await choose(page, "enemy", "darius", "Darius");
+    await expect(page.getByTestId("matchup-status")).toHaveText("No curated briefing for Riven vs Darius yet. Darius's abilities follow.");
+  });
 });
 
 test("a tap on a side's slot before the page's code has run opens its picker once the code runs", async ({ page }) => {
