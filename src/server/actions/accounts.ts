@@ -5,12 +5,13 @@ import { releaseLease } from "@/server/jobs/background";
 import { revalidatePath } from "next/cache";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePermission, requireRiotAccountEditor } from "@/server/auth/session";
-import { AccountError, accountForBrowser, addAccount, listAccountsForPlayer, listPendingAccounts, removeAccount, reorderAccounts, setMainAccount, withoutRank, type RiotAccountRecord } from "@/server/accounts/repository";
+import { AccountError, accountForBrowser, addAccount, checkNewAccount, listAccountsForPlayer, listPendingAccounts, removeAccount, reorderAccounts, setMainAccount, withoutRank, type RiotAccountRecord } from "@/server/accounts/repository";
 import { syncAccount } from "@/server/accounts/sync";
 import { accountSyncLeaseKey, accountSyncRetryIn, claimAccountSync, isSyncableAccount, REFRESH_COOLDOWN_MS, ACCOUNT_ACTION_BUDGET_MS, SCHEDULED_SYNC_LEASE_MS } from "@/server/accounts/refresh";
 import { changeAccountRiotId, type RiotIdChange } from "@/server/accounts/change-riot-id";
 import { createRiotClient, parsePlatforms } from "@/server/riot/api/client";
 import { browserTestRiotClient } from "@/server/riot/browser-test";
+import { createVerificationClient, lookupRiotId } from "@/server/riot/verify-identity";
 import { checkRiotCredential, riotKeyCheckLimits, type CredentialState } from "@/server/riot/credential";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
 import { defaultPlatform } from "@/server/auth/signup";
@@ -26,22 +27,36 @@ function touch() {
 }
 
 /**
- * Links a Riot ID to a player. Only the Riot ID is needed: Riot confirms the server during the
- * first sync (the configured default platform is the fallback until then), and accounts carry no
- * type or role of their own: the role belongs to the player profile.
+ * Links a Riot ID to a player. Only the Riot ID is needed, and Riot must know it: it is asked
+ * first, as for an administrator's Add Player Account and with the same messages (lookupRiotId,
+ * server/riot/verify-identity.ts). A Riot ID Riot does not know is refused, and so is one Riot
+ * cannot be asked about right now (no key, a refused key, a rate limit, Riot down), with a message
+ * to try again: nothing is linked unchecked. What needs no request comes first, as before (the
+ * format, an erasure, the Riot ID already linked: checkNewAccount), so a Riot ID refused anyway is
+ * never sent to Riot. The account is stored under Riot's spelling with the PUUID Riot gave, so the
+ * same Riot account already linked under another name is refused too. Riot confirms the server
+ * during the first sync (the configured default platform is the fallback until then), and
+ * accounts carry no type or role of their own: the role belongs to the player profile.
  */
 export async function addPlayerAccountAction(playerId: string, input: { riotId: string; platform?: string }): Promise<Result<RiotAccountRecord>> {
   try {
     const session = await requireRiotAccountEditor(playerId);
     const db = await getAppDb();
-    const account = await addAccount(db, { ownerType: "player", playerId, riotId: input.riotId, platform: input.platform?.trim() || defaultPlatform() });
-    // Resolve immediately when a key is available so the user sees whether the Riot ID exists
-    // (under the account's sync lease, like every sync: a view's slice must not start on the new
-    // row while this runs). The claim is given back as soon as the sync is done, as the sign-up
+    const request = { ownerType: "player" as const, playerId, riotId: input.riotId, platform: input.platform?.trim() || defaultPlatform() };
+    const { platform } = await checkNewAccount(db, request);
+    // One deadline for Riot's check and the first sync (ACCOUNT_ACTION_BUDGET_MS), as for a
+    // changed Riot ID: a check it stops is Riot being busy ("try again"), and nothing is linked.
+    const deadline = Date.now() + ACCOUNT_ACTION_BUDGET_MS;
+    const riot = await lookupRiotId(input.riotId, createVerificationClient({ deadline }), { platformHint: platform });
+    if (riot.status !== "found") return { ok: false, error: riot.message };
+    const account = await addAccount(db, { ...request, riotId: riot.riotId, puuid: riot.puuid });
+    // The first sync at once when a key is available, so the user sees the account's data (under
+    // the account's sync lease, like every sync: a view's slice must not start on the new row
+    // while this runs). The claim is given back as soon as the sync is done, as the sign-up
     // kickoff does, so the page's own refresh carries the history on at once, not 100 s later. Its
-    // Riot client carries the panel's budget (ACCOUNT_ACTION_BUDGET_MS), so the sync ends inside the
-    // lease, never waiting out Riot's limits while the person waits; the next sync carries on.
-    const client = createRiotClient({ deadline: Date.now() + ACCOUNT_ACTION_BUDGET_MS });
+    // Riot client carries the same deadline, so the sync ends inside the lease, never waiting out
+    // Riot's limits while the person waits; the next sync carries on.
+    const client = createRiotClient({ deadline });
     const claimedAt = new Date();
     if (client && (await claimAccountSync(db, account.id, SCHEDULED_SYNC_LEASE_MS, claimedAt))) {
       try {

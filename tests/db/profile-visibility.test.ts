@@ -35,7 +35,7 @@ vi.mock("next/headers", () => ({
   headers: async () => new Headers({ "user-agent": "vitest" }),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined, revalidateTag: () => undefined }));
-// Linking an account syncs it at once when Riot is configured: a stand-in client and sync, for the one test that needs a rank on the new account.
+// Linking an account asks Riot for the Riot ID, then syncs it at once: a stand-in client and sync, for the one test that needs a rank on the new account.
 vi.mock("@/server/riot/api/client", async (orig) => {
   const real = await orig<typeof import("@/server/riot/api/client")>();
   return { ...real, createRiotClient: (...args: Parameters<typeof real.createRiotClient>) => (state.riot as ReturnType<typeof real.createRiotClient>) ?? real.createRiotClient(...args) };
@@ -651,8 +651,8 @@ describe("what a viewer receives about the other players of a game (players/game
   });
 
   it("linking an account answers without its rank to a Player Manager without teammates' statistics", async () => {
-    // A stand-in sync that finds the new account ranked.
-    state.riot = {};
+    // A stand-in Riot that knows the Riot ID, and a stand-in sync that finds the new account ranked.
+    state.riot = { accountByRiotId: async (_platform: string, gameName: string, tagLine: string) => ({ puuid: `puuid-${gameName}`, gameName, tagLine }) };
     state.sync = async (...args: unknown[]) => {
       const account = args[2] as { id: string };
       await handle.db.update(riotAccounts).set({ puuid: `puuid-${account.id}`, syncStatus: "ok", tier: "DIAMOND", division: "III", leaguePoints: 5, rankedWins: 50, rankedLosses: 40, rankQueue: "solo", rankUpdatedAt: new Date() }).where(eq(riotAccounts.id, account.id));

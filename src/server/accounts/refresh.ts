@@ -54,10 +54,10 @@ export const SCHEDULED_SYNC_LEASE_MS = 100_000;
  */
 export const REFRESH_BUDGET_MS = 40_000;
 /**
- * The syncs a person waits on in the Riot accounts panel (Retry sync, linking an account, a
- * replaced Riot ID's lookup and first sync): the same budget as a Refresh, carried by their Riot
- * client, so each ends within one request's timeout of it, well inside SCHEDULED_SYNC_LEASE_MS:
- * the scheduler or a view's slice never starts the same account meanwhile.
+ * The syncs a person waits on in the Riot accounts panel (Retry sync, a linked account's Riot ID
+ * check and first sync, a replaced Riot ID's lookup and first sync): the same budget as a Refresh,
+ * carried by their Riot client, so each ends within one request's timeout of it, well inside
+ * SCHEDULED_SYNC_LEASE_MS: the scheduler or a view's slice never starts the same account meanwhile.
  */
 export const ACCOUNT_ACTION_BUDGET_MS = REFRESH_BUDGET_MS;
 /** New games fetched per account per refresh (each one is one Riot request). */

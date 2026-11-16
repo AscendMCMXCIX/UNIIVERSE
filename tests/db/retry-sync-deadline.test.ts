@@ -2,8 +2,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Session } from "@/server/auth/permissions";
 
 /*
-  The syncs a person waits on in the Riot accounts tab (actions/accounts.ts: Retry sync, and the
-  first sync after linking an account) carry a deadline (ACCOUNT_ACTION_BUDGET_MS, shortened here): no Riot request starts after it, so the sync ends within one request of it,
+  The syncs a person waits on in the Riot accounts tab (actions/accounts.ts: Retry sync, and
+  linking an account: Riot's check of the Riot ID, then the first sync) carry a deadline (ACCOUNT_ACTION_BUDGET_MS, shortened here): no Riot request starts after it, so the sync ends within one request of it,
   inside the 100-second lease the scheduler respects; the answer says it stopped for time instead
   of "no new games", and the account is left for the next sync, neither failed nor marked synced.
 */
@@ -82,7 +82,7 @@ describe("Retry sync on the Riot accounts tab", () => {
     expect(row!.status).not.toBe("ok");
   });
 
-  it("bounds linking an account the same way: its first sync starts no request after the deadline", async () => {
+  it("bounds linking an account the same way: neither Riot's check of the Riot ID nor its first sync starts a request after the deadline", async () => {
     started.length = 0;
     const t0 = Date.now();
     const r = await addPlayerAccountAction(playerId, { riotId: "Slower#OCE" });
