@@ -31,5 +31,8 @@ describe("the database's tick schedule", () => {
     // A call by hand right after a scheduled one, and the first call after a three-day pause.
     expect(tickScheduleSilentMs({ at, previousAt: at - MIN })).toBe(TICK_SCHEDULE_SILENT_MIN_MS);
     expect(tickScheduleSilentMs({ at, previousAt: at - 3 * 24 * 60 * MIN })).toBe(TICK_SCHEDULE_SILENT_MAX_MS);
+    // A schedule every six hours is held to four hours too, so it is listed for the last two hours
+    // before each call (docs/DEPLOYMENT.md, 4 c).
+    expect(tickScheduleSilentMs({ at, previousAt: at - 6 * 60 * MIN })).toBe(4 * 60 * MIN);
   });
 });

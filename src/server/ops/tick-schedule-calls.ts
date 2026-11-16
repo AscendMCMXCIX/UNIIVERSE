@@ -16,8 +16,10 @@ import { appSettings } from "@/server/db/schema";
   pg_net too, but it calls /api/jobs/rank-watch, recorded apart (rank-schedule-calls.ts).
 
   The time of the call before the last is kept too, so /api/health waits four of the schedule's
-  own intervals, whatever interval it was given, within the bounds below. Timestamps only. No
-  dependencies on the jobs, so the public health route can read it without loading them.
+  own intervals, within the bounds below: a schedule with longer gaps between its calls (one that
+  runs less often than every four hours, or pauses, say by night) is listed in each of them
+  (docs/DEPLOYMENT.md, 4 c). Timestamps only. No dependencies on the jobs, so the public health
+  route can read it without loading them.
 */
 
 export const TICK_SCHEDULE_CALL_KEY = "tick-schedule:last-call";
