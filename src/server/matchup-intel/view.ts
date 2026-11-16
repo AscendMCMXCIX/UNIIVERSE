@@ -205,7 +205,10 @@ function refOf(ref: string, ids: ReadonlySet<string>): { championId: string; slo
  *   - anything else is not known (numbers taken before the matchup's check, data older than them,
  *     no notes): "unchanged-since", which the page says only as "Checked on patch N".
  * Comparing with numbers taken on another version than the matchup's would warn about a change the
- * matchup's check already saw, or stay quiet about one it did not.
+ * matchup's check already saw, or stay quiet about one it did not. The committed notes never differ
+ * so: curated.test.ts holds a matchup and the champion notes it rests on to one Data Dragon version,
+ * so their numbers are the ones the matchup was checked with, and the other cases only keep notes
+ * from anywhere else from claiming more than is known.
  */
 function matchupAbilityFreshness(checked: string, data: DdragonChampionAbilities | null, slot: Slot, notes: ChampionNotes | null): Freshness {
   if (data && data.version === checked) return "current";

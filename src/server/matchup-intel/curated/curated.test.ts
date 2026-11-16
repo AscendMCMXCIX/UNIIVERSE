@@ -28,7 +28,8 @@ import { curatedEnemiesFor, getChampionNotes, getMatchupNotes } from "./index";
     page's title is in the house style ("League of Legends Wiki: Ruthless Predator (Renekton)");
   - a matchup's source is the champion notes' source of the same id, in every field;
   - every ability a briefing point or an interaction rests on belongs to one of the two champions
-    and has notes of its own;
+    and has notes of its own, checked against the same Data Dragon version as the matchup: the
+    matchup holds no numbers of its own, so its freshness is those notes';
   - every text is plain and short: no wiki markup ("{{"), no "<" or ">", no control characters, at
     most 300 characters;
   - no briefing point or interaction uses a word that dictates play or claims too much (REFUSED_WORDS):
@@ -440,6 +441,18 @@ export function matchupProblems(notes: MatchupNotes, rules: Rules, championNotes
     checkRefs(`interactions[${i}].abilities`, interaction.abilities);
     if (!cited.has(interaction.source)) say(`interactions[${i}] cites "${interaction.source}", which is not one of its sources`);
   });
+
+  // The matchup holds no numbers of its own: its freshness is the champion notes', so it is checked
+  // against the version they were (view.ts, matchupAbilityFreshness).
+  const restsOn = new Set(
+    [...points.flatMap(([, point]) => point?.basedOn ?? []), ...(notes.interactions ?? []).flatMap((interaction) => interaction.abilities ?? [])]
+      .map((ref) => parseRef(ref)?.championId)
+      .filter((id): id is string => !!id && pair.includes(id)),
+  );
+  for (const id of [...restsOn].sort()) {
+    const theirs = championNotes(id)?.verified?.ddragonVersion;
+    if (theirs !== undefined && theirs !== notes.verified?.ddragonVersion) say(`is checked against Data Dragon ${notes.verified?.ddragonVersion}, but ${id}'s notes, which it rests on, against ${theirs}: check both against the same version`);
+  }
 
   // Considerations, never instructions or verdicts (REFUSED_WORDS).
   const key = `${notes.championId}-vs-${notes.vsId}`;
@@ -870,6 +883,24 @@ describe("the checks fire", () => {
     const page = matchup();
     page.sources.find((x) => x.id === "renekton-page")!.title = "Renekton (League of Legends Wiki)";
     expect(matchupProblems(page, RULES, getChampionNotes)).toEqual(['Ambessa vs Renekton: source "renekton-page" is titled "Renekton (League of Legends Wiki)", not "League of Legends Wiki: Renekton"']);
+  });
+
+  it("on a matchup checked against another Data Dragon version than the champion notes it rests on", () => {
+    const later = (id: string) => (id === "Renekton" ? { ...renekton(), verified: { patch: "26.23", ddragonVersion: "16.23.1", checkedOn: "2026-11-30" } } : getChampionNotes(id));
+    expect(matchupProblems(matchup(), RULES, later)).toEqual(["Ambessa vs Renekton: is checked against Data Dragon 16.22.1, but Renekton's notes, which it rests on, against 16.23.1: check both against the same version"]);
+    const earlier = matchup();
+    earlier.verified = { patch: "26.21", ddragonVersion: "16.21.1", checkedOn: "2026-11-02" };
+    expect(matchupProblems(earlier, RULES, getChampionNotes)).toEqual([
+      "Ambessa vs Renekton: is checked against Data Dragon 16.21.1, but Ambessa's notes, which it rests on, against 16.22.1: check both against the same version",
+      "Ambessa vs Renekton: is checked against Data Dragon 16.21.1, but Renekton's notes, which it rests on, against 16.22.1: check both against the same version",
+    ]);
+    // Only the champions it rests on count: a matchup resting on Renekton alone is not held to Ambessa's version.
+    const renektonOnly = matchup();
+    renektonOnly.briefing.opportunity.basedOn = ["Renekton.W"];
+    renektonOnly.briefing.lane = renektonOnly.briefing.lane.map((point) => ({ ...point, basedOn: ["Renekton.E"] }));
+    renektonOnly.interactions = renektonOnly.interactions.map((interaction) => ({ ...interaction, abilities: ["Renekton.W"] }));
+    const ambessaLater = (id: string) => (id === "Ambessa" ? { ...getChampionNotes("Ambessa")!, verified: { patch: "26.23", ddragonVersion: "16.23.1", checkedOn: "2026-11-30" } } : getChampionNotes(id));
+    expect(matchupProblems(renektonOnly, RULES, ambessaLater)).toEqual([]);
   });
 
   it("on a word in a briefing point or an interaction that dictates play or claims too much", () => {
