@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { searchChampions, searchKey } from "./search";
+import { NICKNAMES, initialsOf, searchChampions, searchKey } from "./search";
+import championList from "@/server/riot/fixtures/champions.fixture.json";
 
 const roster = [
   { id: "AurelionSol", name: "Aurelion Sol" },
@@ -45,5 +46,31 @@ describe("the pickers' search", () => {
     expect(ids("   ")).toEqual([]);
     expect(ids("'.")).toEqual([]);
     expect(ids("zzz")).toEqual([]);
+  });
+
+  it("finds what players type for a name: its initials, and a few reviewed nicknames, after every name match", () => {
+    const full = championList.champions.map((c) => ({ id: c.id, name: c.name }));
+    const first = (q: string) => searchChampions(full, q)[0]?.id;
+    expect(first("tf")).toBe("TwistedFate");
+    expect(first("mf")).toBe("MissFortune");
+    expect(first("tk")).toBe("TahmKench");
+    expect(first("lb")).toBe("Leblanc");
+    expect(first("j4")).toBe("JarvanIV");
+    expect(first("asol")).toBe("AurelionSol");
+    expect(first("ww")).toBe("Warwick");
+    expect(first("gp")).toBe("Gangplank");
+    // Name matches still come first: K'Sante starts with "ks", Akshan, Fiddlesticks and Rek'Sai hold it; Kai'Sa follows by her initials.
+    expect(searchChampions(full, "ks").map((c) => c.id)).toEqual(["KSante", "Akshan", "Fiddlesticks", "RekSai", "Kaisa"]);
+    // Names keep their order: "kai" is Kai'Sa first, "vel" Vel'Koz, "sol" Aurelion Sol.
+    expect(first("kai")).toBe("Kaisa");
+    expect(first("vel")).toBe("Velkoz");
+    expect(first("sol")).toBe("AurelionSol");
+    // One letter is never taken for initials (Kha'Zix's "kz" does not answer "k" before Kai'Sa's name); a name of one part has none.
+    expect(searchChampions(roster, "k").map((c) => c.id)).toEqual(["Kaisa", "Khazix", "MonkeyKing", "Mordekaiser", "Renekton"]);
+    expect(initialsOf("Riven")).toBe("");
+    expect(initialsOf("Nunu & Willump")).toBe("nw");
+    expect(initialsOf("Dr. Mundo")).toBe("dm");
+    // Every nickname names a champion on the roster.
+    for (const [nick, id] of Object.entries(NICKNAMES)) expect(full.some((c) => c.id === id), nick).toBe(true);
   });
 });
