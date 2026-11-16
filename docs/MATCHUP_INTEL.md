@@ -593,7 +593,14 @@ Until that merges, the labels say what is known. Nothing is estimated.
   `REFUSED_WORDS`) in a text of the champion notes the page shows (a fact's label or detail, a
   detail, a cooldown or recast note, a refund, a level note), unless `ALLOWED_WORDS` lists it there
   with its reason;
+- a text the page shows, in champion notes or a matchup, that gives a value as an estimate
+  ("estimated", "estimate", "estimates", "approximately", "approximate" or "roughly", as whole
+  words): a value the wiki marks as estimated is left out (Rules);
 - a missing validation matchup.
+
+Three corrections from the review of 16 Nov 2026 are pinned too, so that they stay made: Riven's Q
+gives no one window for its two recasts, Ornn's W no speed below which he does not lunge, and Gwen
+vs Ornn credits the Renekton page its threat's stun rests on.
 
 Each rule on the notes has a case that proves it fires. What no test can check is the review's:
 the wording, copying, whether a point dictates play in words the list does not hold, whether a

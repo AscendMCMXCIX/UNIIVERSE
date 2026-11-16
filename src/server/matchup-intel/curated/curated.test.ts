@@ -37,6 +37,8 @@ import { curatedEnemiesFor, getChampionNotes, getMatchupNotes } from "./index";
     refund, a level note) a word that instructs the player or gives a verdict: Riot lets a product
     highlight decisions, never dictate them. Champion notes describe mechanics, so they may say what
     an ability always or never does;
+  - no text the page shows, in champion notes or a matchup, gives a value as an estimate
+    ("estimated", "approximately", "roughly"): a value the wiki marks as estimated is left out;
   - every level note names the abilities of its champion it rests on (basedOn), each with notes;
   - `verified` is a patch, a Data Dragon version and a day, in those shapes;
   - a matchup has a threat, an opportunity and one to four lane points;
@@ -149,6 +151,19 @@ const REFUSED: ReadonlyArray<{ word: string; why: string; pattern: RegExp }> = R
 /** The refused words a text uses (REFUSED_WORDS), each with why it is refused. */
 export function refusedWords(text: string): Array<{ word: string; why: string }> {
   return REFUSED.filter((r) => r.pattern.test(text)).map(({ word, why }) => ({ word, why }));
+}
+
+/**
+ * Words that give a value as an estimate, as whole words in any case. A value the wiki marks as
+ * estimated is left out (docs/MATCHUP_INTEL.md, "Curated notes", Rules): Bellows Breath's page
+ * gives the speed below which Ornn does not lunge as an estimate, and the notes once repeated it.
+ */
+const ESTIMATE_WORDS = ["estimated", "estimate", "estimates", "approximately", "approximate", "roughly"] as const;
+const ESTIMATE = new RegExp(`(?<!${WORD_CHAR})(${ESTIMATE_WORDS.join("|")})(?!${WORD_CHAR})`, "iu");
+
+/** The word a text gives a value as an estimate with, in lower case, or null. */
+export function estimateWord(text: string): string | null {
+  return ESTIMATE.exec(text)?.[1]?.toLowerCase() ?? null;
 }
 
 /**
@@ -428,6 +443,8 @@ export function championProblems(notes: ChampionNotes, rules: Rules): string[] {
       if (!CHAMPION_REFUSED.has(why) || ALLOWED_WORDS.some((a) => a.file === file && a.at === at && a.word === word)) continue;
       say(`${at} uses "${word}", ${why}: champion notes state what an ability does and leave the decision to the player`);
     }
+    const estimate = estimateWord(text);
+    if (estimate) say(`${at} uses "${estimate}": a value the wiki marks as estimated is left out`);
   }
   for (const [at, text] of strings(notes, "")) {
     const problem = textProblem(text);
@@ -512,6 +529,8 @@ export function matchupProblems(notes: MatchupNotes, rules: Rules, championNotes
       if (ALLOWED_WORDS.some((a) => a.file === file && a.at === at && a.word === word)) continue;
       say(`${at} uses "${word}", ${why}: a point states what the two kits do and leaves the decision to the player`);
     }
+    const estimate = estimateWord(text);
+    if (estimate) say(`${at} uses "${estimate}": a value the wiki marks as estimated is left out`);
   }
   for (const [at, text] of strings(notes, "")) {
     const problem = textProblem(text);
@@ -1023,5 +1042,42 @@ describe("the checks fire", () => {
     delete withoutR.abilities.R;
     withoutR.levelNotes = [{ level: 6, text: "Something stated.", source: "renekton-r", basedOn: ["R"] }];
     expect(championProblems(withoutR, RULES)).toContainEqual("Renekton: levelNotes[0].basedOn names R, which has no notes here");
+  });
+
+  it("on a value given as an estimate, in champion notes or a matchup", () => {
+    const ornn = structuredClone(getChampionNotes("Ornn")!);
+    ornn.abilities.W!.details = ["At an estimated 190 movement speed or less he does not lunge at all."];
+    expect(championProblems(ornn, RULES)).toEqual(['Ornn: abilities.W.details[0] uses "estimated": a value the wiki marks as estimated is left out']);
+    const levels = renekton();
+    levels.levelNotes = [{ level: 6, text: "Dominus lasts APPROXIMATELY 15 seconds.", source: "renekton-r", basedOn: ["R"] }];
+    expect(championProblems(levels, RULES)).toEqual([problem(/^Renekton: levelNotes\[0\]\.text uses "approximately": a value the wiki marks as estimated is left out$/)]);
+    const withLane = (text: string) => {
+      const notes = matchup();
+      notes.briefing.lane[0]!.text = text;
+      return matchupProblems(notes, RULES, getChampionNotes);
+    };
+    expect(withLane("The knock-back lasts roughly 0.4 s.")).toEqual([problem(/^Ambessa vs Renekton: briefing\.lane\[0\]\.text uses "roughly": a value the wiki marks as estimated is left out$/)]);
+    // Whole words only.
+    expect(withLane("An underestimated range, and an estimation-free page.")).toEqual([]);
+  });
+});
+
+describe("the corrections of the review of 16 Nov 2026 hold", () => {
+  it("Riven's Q gives no one window for both recasts: Broken Wings' page opens each for 4 seconds after the cast before it", () => {
+    const recast = getChampionNotes("Riven")!.abilities.Q!.recast!;
+    expect(recast.count).toBe(2);
+    expect(recast.windowSeconds).toBeUndefined();
+    expect(recast.note).toMatch(/^Each recast is open for 4 seconds after the cast before it/);
+  });
+
+  it("Ornn's W gives no speed below which he does not lunge: Bellows Breath's page marks it as estimated", () => {
+    const texts = championTexts(getChampionNotes("Ornn")!).filter((entry): entry is [string, string] => entry[0].startsWith("abilities.W.") && typeof entry[1] === "string");
+    expect(texts.filter(([, text]) => /\b190\b|movement speed or less/.test(text))).toEqual([]);
+  });
+
+  it("Gwen vs Ornn credits the Renekton page, whose definition of a stun as an immobilising effect its threat rests on, as Ambessa vs Renekton does", () => {
+    const page = getMatchupNotes("Ambessa", "Renekton")!.sources.find((s) => s.id === "renekton-page");
+    expect(page).toMatchObject({ url: "https://wiki.leagueoflegends.com/en-us/Renekton", revision: 4028014 });
+    expect(getMatchupNotes("Gwen", "Ornn")!.sources.find((s) => s.id === "renekton-page")).toEqual(page);
   });
 });
