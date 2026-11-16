@@ -418,55 +418,92 @@ function storedRecord(value: unknown, id: string): DdragonChampionAbilities | nu
   return parsed.data;
 }
 
+/**
+ * One champion's stored abilities as read: its record, or null with `unreadable` when a record is
+ * stored that is not in the shape the page reads (a missing one is neither), and whether the index
+ * it came from is the committed offline copy (source "fixture").
+ */
+interface StoredRead {
+  record: DdragonChampionAbilities | null;
+  unreadable: boolean;
+  offline: boolean;
+}
+
 /** One statement for the champions given: only their records (a few KB, not the whole index), the stored document read once. */
-async function readChampions(db: Db, ids: readonly string[]): Promise<Map<string, DdragonChampionAbilities | null>> {
+async function readChampions(db: Db, ids: readonly string[]): Promise<Map<string, StoredRead>> {
   const result = await db.execute(sql`
-    WITH s AS MATERIALIZED (SELECT value->'champions' AS champions FROM app_settings WHERE key = ${KEY})
-    SELECT coalesce(jsonb_object_agg(k.id, s.champions->k.id), '{}'::jsonb) AS champions
+    WITH s AS MATERIALIZED (SELECT value->'champions' AS champions, value->>'source' AS source FROM app_settings WHERE key = ${KEY})
+    SELECT coalesce(jsonb_object_agg(k.id, s.champions->k.id), '{}'::jsonb) AS champions, min(s.source) AS source
       FROM s, jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb) AS k(id)
      WHERE (s.champions->k.id) IS NOT NULL`);
-  const row = rowsOf<{ champions: unknown }>(result)[0];
+  const row = rowsOf<{ champions: unknown; source: string | null }>(result)[0];
   const found = (parsedJson(row?.champions) ?? {}) as Record<string, unknown>;
-  return new Map(ids.map((id) => [id, Object.hasOwn(found, id) ? storedRecord(found[id], id) : null]));
+  const offline = row?.source === "fixture";
+  return new Map(
+    ids.map((id): [string, StoredRead] => {
+      if (!Object.hasOwn(found, id)) return [id, { record: null, unreadable: false, offline: false }];
+      const record = storedRecord(found[id], id);
+      return [id, { record, unreadable: record === null, offline: record !== null && offline }];
+    }),
+  );
+}
+
+/** What loadChampionAbilities gives back for a set of champions. */
+export interface LoadedChampionAbilities {
+  /** The version every returned record shares, or null when they differ or none is returned. */
+  version: string | null;
+  /** Each champion asked for: its record, or null (none stored, not readable, or not a champion on the roster). */
+  champions: Record<string, DdragonChampionAbilities | null>;
+  /** The champions whose record came from the committed offline copy (an index whose source is "fixture"). */
+  offline: string[];
+  /** The champions with a record stored that is not in the shape the page reads (so null above). */
+  unreadable: string[];
 }
 
 /**
  * The stored abilities of the given champions. A champion with none stored yet maps to null, as
  * does an id that is not an active champion's: a malformed one never reaches a query, and a
- * well-formed one off the roster (the cached champion list) is neither read nor cached. Each
- * champion is kept in this instance's cache for 10 minutes (cleared by a sync that writes); the
- * ones not cached are read together in one statement. Reads the database only: never Riot.
+ * well-formed one off the roster (the cached champion list) is neither read nor cached. A record
+ * stored in a shape the page cannot read maps to null too, and is named in `unreadable`, so the page
+ * never calls it missing. Each champion is kept in this instance's cache for 10 minutes (cleared by
+ * a sync that writes); the ones not cached are read together in one statement. Reads the database
+ * only: never Riot.
  *
  * Each record carries its own Data Dragon version, and that is the one to use for its labels, its
  * icon URLs (/cdn/<version>/img/…) and its freshness: a champion whose file could not be read
- * keeps an older record, so two champions can differ. `version` is the version every returned
- * record shares, or null when they differ or none is returned. A record older than curated notes'
- * `verified.ddragonVersion` is stale data, not a change by Riot.
+ * keeps an older record, so two champions can differ. A record older than curated notes'
+ * `verified.ddragonVersion` is stale data, not a change by Riot. A record from the committed offline
+ * copy is named in `offline`: the first real sync replaces that copy whole.
  */
-export async function loadChampionAbilities(db: Db, championIds: readonly string[]): Promise<{ version: string | null; champions: Record<string, DdragonChampionAbilities | null> }> {
+export async function loadChampionAbilities(db: Db, championIds: readonly string[]): Promise<LoadedChampionAbilities> {
   const champions: Record<string, DdragonChampionAbilities | null> = Object.fromEntries(championIds.map((id) => [id, null]));
+  const nothing: LoadedChampionAbilities = { version: null, champions, offline: [], unreadable: [] };
   const wellFormed = [...new Set(championIds.filter((id) => typeof id === "string" && CHAMPION_ID.test(id)))];
-  if (wellFormed.length === 0) return { version: null, champions };
+  if (wellFormed.length === 0) return nothing;
   // Only champions on the roster are read and cached: ids taken from a URL cannot fill this
   // instance's cache (which never drops an entry by itself) or cost a query each.
   const roster = new Set((await listChampions(db)).map((c) => c.id));
   const ids = wellFormed.filter((id) => roster.has(id));
-  if (ids.length === 0) return { version: null, champions };
+  if (ids.length === 0) return nothing;
   // Every champion not in the cache joins one statement: cachedFor calls its loader at once, so
   // the loaders of this call have all asked before the statement starts.
   const wanted: string[] = [];
-  let batch: Promise<Map<string, DdragonChampionAbilities | null>> | null = null;
-  const read = (id: string): Promise<DdragonChampionAbilities | null> => {
+  let batch: Promise<Map<string, StoredRead>> | null = null;
+  const read = (id: string): Promise<StoredRead> => {
     wanted.push(id);
     batch ??= Promise.resolve().then(() => readChampions(db, wanted));
-    return batch.then((found) => found.get(id) ?? null);
+    return batch.then((found) => found.get(id) ?? { record: null, unreadable: false, offline: false });
   };
-  const records = await Promise.all(ids.map((id) => cachedFor(`${KEY}:${id}`, CACHE_MS, () => read(id), db)));
+  const reads = await Promise.all(ids.map((id) => cachedFor(`${KEY}:${id}`, CACHE_MS, () => read(id), db)));
   const versions = new Set<string>();
+  const offline: string[] = [];
+  const unreadable: string[] = [];
   ids.forEach((id, i) => {
-    const record = records[i];
+    const { record, unreadable: bad, offline: copy } = reads[i]!;
     champions[id] = record ? structuredClone(record) : null;
     if (record) versions.add(record.version);
+    if (record && copy) offline.push(id);
+    if (bad) unreadable.push(id);
   });
-  return { version: versions.size === 1 ? [...versions][0]! : null, champions };
+  return { version: versions.size === 1 ? [...versions][0]! : null, champions, offline, unreadable };
 }

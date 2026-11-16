@@ -8,6 +8,7 @@ import { StaticDataError, type DdragonChampion, type DdragonChampionDetail, type
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { listChampions } from "@/server/repositories/champions";
+import { invalidateCache } from "@/server/observability/cache";
 import { loadChampionAbilities, seedChampionAbilitiesFromFixture, syncChampionAbilities } from "@/server/matchup-intel/abilities";
 import { abilityFixture } from "@/server/matchup-intel/ability-fixture";
 import { runJob } from "@/server/jobs";
@@ -157,6 +158,8 @@ describe("champion abilities: sync and read", () => {
     const before = w.statements();
     const loaded = await loadChampionAbilities(w.db, ["Ahri", "Akali", "Zed"]);
     expect(loaded.version).toBe("16.21.1");
+    // Read from Data Dragon by a sync: not the offline copy, and every record readable.
+    expect(loaded).toMatchObject({ offline: [], unreadable: [] });
     expect(Object.keys(loaded.champions)).toEqual(["Ahri", "Akali", "Zed"]);
     // Zed is not on this roster: null, and never read.
     expect(loaded.champions.Zed).toBeNull();
@@ -248,7 +251,7 @@ describe("champion abilities: sync and read", () => {
     const w = watched(handle.db);
     const bad = ["Riven'; DROP TABLE app_settings; --", "../etc/passwd", "", "A".repeat(41), "Riv en", "Ахри", "Riven\u0000"];
     const loaded = await loadChampionAbilities(w.db, bad);
-    expect(loaded).toEqual({ version: null, champions: Object.fromEntries(bad.map((id) => [id, null])) });
+    expect(loaded).toEqual({ version: null, champions: Object.fromEntries(bad.map((id) => [id, null])), offline: [], unreadable: [] });
     expect(w.statements()).toBe(0);
     // Mixed with valid ones: those are read, the malformed ones stay null and never reach the statement.
     await listChampions(w.db);
@@ -265,7 +268,7 @@ describe("champion abilities: sync and read", () => {
     const before = w.statements();
     // Well-formed ids, as a page could take them from its URL, none of them a champion.
     const strangers = Array.from({ length: 50 }, (_, i) => `NotAChampion${i}`);
-    expect(await loadChampionAbilities(w.db, strangers)).toEqual({ version: null, champions: Object.fromEntries(strangers.map((id) => [id, null])) });
+    expect(await loadChampionAbilities(w.db, strangers)).toEqual({ version: null, champions: Object.fromEntries(strangers.map((id) => [id, null])), offline: [], unreadable: [] });
     expect(w.statements()).toBe(before);
     expect(strangers.flatMap(cachedAbilityKeys)).toEqual([]);
     // Beside a champion: only the champion is read and cached.
@@ -299,6 +302,24 @@ describe("champion abilities: sync and read", () => {
     expect(provider.requests.slice(next)).toEqual(["Akali"]);
     expect((await storedIndex(db))!.champions.Akali).toMatchObject({ format: 1 });
     expect(await syncChampionAbilities(db, "16.23.1", { provider })).toMatchObject({ changed: false, fetched: 0 });
+  });
+
+  it("tells a record stored in a shape the page cannot read from one not stored: the first is named, never called missing", async () => {
+    const db = handle.db;
+    const before = await storedIndex(db);
+    try {
+      // A hand edit or a sync bug: Annie's record loses its abilities' shape.
+      await db.execute(sql`UPDATE app_settings SET value = jsonb_set(value, '{champions,Annie,abilities}', '"broken"'::jsonb) WHERE key = 'champion_abilities'`);
+      invalidateCache("champion_abilities");
+      const loaded = await loadChampionAbilities(db, ["Annie", "Ahri"]);
+      expect(loaded.champions.Annie).toBeNull();
+      expect(loaded.unreadable).toEqual(["Annie"]);
+      expect(loaded.champions.Ahri).not.toBeNull();
+      expect(loaded.offline).toEqual([]);
+    } finally {
+      await db.execute(sql`UPDATE app_settings SET value = ${JSON.stringify(before)}::jsonb WHERE key = 'champion_abilities'`);
+      invalidateCache("champion_abilities");
+    }
   });
 
   it("stops requesting files once more than 10% have failed: the run writes nothing, so the rest would be wasted", async () => {
@@ -388,6 +409,8 @@ describe("champion abilities offline: the committed fixture", () => {
 
     const loaded = await loadChampionAbilities(fresh.db, ["Riven", "Renekton"]);
     expect(loaded.version).toBe("16.22.1");
+    // The page is told these are the offline copy, so it says so.
+    expect(loaded.offline.sort()).toEqual(["Renekton", "Riven"]);
     expect(loaded.champions.Riven).toMatchObject({ championId: "Riven", version: "16.22.1" });
     expect(loaded.champions.Riven!.abilities.find((a) => a.slot === "Q")).toMatchObject({ name: "Broken Wings", maxRank: 5, cooldown: [13, 13, 13, 13, 13], charges: null });
     expect(loaded.champions.Renekton).not.toBeNull();
@@ -413,6 +436,8 @@ describe("champion abilities offline: the committed fixture", () => {
     expect(index!.version).toBe("16.23.1");
     expect(Object.values(index!.champions).every((c) => c.version === "16.23.1")).toBe(true);
     expect((await loadChampionAbilities(fresh.db, ["Riven"])).champions.Riven).toBeNull();
+    // Replaced whole: no record is the offline copy any more.
+    expect((await loadChampionAbilities(fresh.db, ["Renekton"])).offline).toEqual([]);
     real.failing = new Set();
     expect(await syncChampionAbilities(fresh.db, "16.23.1", { provider: real })).toMatchObject({ refreshed: 1, stored: 173 });
   });
