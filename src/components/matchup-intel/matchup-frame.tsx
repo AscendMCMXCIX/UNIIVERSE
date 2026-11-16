@@ -40,7 +40,11 @@ export function OpenPickerButton({ slot, children, testId }: { slot: PickerSlot;
 
 const portraitOf = (c: ChampionChoice) => ({ id: c.id, name: c.name, portraitUrl: c.portrait });
 
-/** One side: its label, the champion's portrait, name and title, or the invitation to choose one. */
+/**
+ * One side: its label, the champion's portrait, name and title, or the invitation to choose one.
+ * Stacked and centred on a phone; from sm the two sides mirror each other, each portrait beside the
+ * swap between them, as the two sides of a lane.
+ */
 function SlotButton({ slot, champion, onOpen }: { slot: PickerSlot; champion: ChampionChoice | null; onOpen: () => void }) {
   const you = slot === "you";
   return (
@@ -49,7 +53,8 @@ function SlotButton({ slot, champion, onOpen }: { slot: PickerSlot; champion: Ch
       onClick={onOpen}
       aria-haspopup="dialog"
       className={cn(
-        "group flex w-full min-w-0 flex-col items-center gap-2 rounded-panel border bg-surface px-2 py-3 text-center transition-colors hover:border-border-strong hover:bg-surface-2/60 sm:flex-row sm:gap-3 sm:px-3 sm:text-left",
+        "group flex w-full min-w-0 flex-col items-center gap-2 rounded-panel border bg-surface px-2 py-3 text-center transition-colors hover:border-border-strong hover:bg-surface-2/60 sm:gap-3 sm:px-4",
+        you ? "sm:flex-row-reverse sm:text-right" : "sm:flex-row sm:text-left",
         champion ? "border-border" : "border-dashed border-border-strong",
       )}
       data-testid={`matchup-pick-${slot}`}
