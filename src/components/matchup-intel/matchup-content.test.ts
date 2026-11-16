@@ -59,7 +59,7 @@ const LEGAL = "UNIIVERSE isn't endorsed by Riot Games.";
 async function render(input: { champion?: string; vs?: string }, over: Partial<MatchupViewDeps> = {}) {
   const view = await buildMatchupPageView(input, { ...deps, ...over });
   const content = createElement(MatchupContent, { view, champions: ROSTER, curated, legal: LEGAL });
-  return renderToStaticMarkup(createElement(MatchupFrame, { you: view.you, enemy: view.enemy, champions: ROSTER, curated, children: content }));
+  return renderToStaticMarkup(createElement(MatchupFrame, { you: view.you, enemy: view.enemy, champions: ROSTER, curated }, content));
 }
 const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/\s+/g, " ");
 

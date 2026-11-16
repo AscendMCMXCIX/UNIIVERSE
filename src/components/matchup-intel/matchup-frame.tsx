@@ -148,7 +148,7 @@ function RememberedLine({ you, remembered, onUse, onRemember }: { you: ChampionC
   );
 }
 
-export function MatchupFrame({ you, enemy, champions, curated, children }: { you: ChampionChoice | null; enemy: ChampionChoice | null; champions: ChampionChoice[]; curated: Record<string, string[]>; children: React.ReactNode }) {
+export function MatchupFrame({ you, enemy, champions, curated, children }: { you: ChampionChoice | null; enemy: ChampionChoice | null; champions: ChampionChoice[]; curated: Record<string, string[]>; children?: React.ReactNode }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   // The choice on its way: shown in the slots until the server's page for it arrives.
