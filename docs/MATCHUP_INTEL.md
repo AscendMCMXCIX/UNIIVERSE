@@ -200,7 +200,8 @@ person (For the owner, step 2).
   [DATA_PIPELINES.md](DATA_PIPELINES.md), "Riot static data (Data Dragon)".
 - **Icons** are linked from `https://ddragon.leagueoflegends.com/cdn/<version>/img/spell/<file>`
   (`img/passive/` for the passive), 48px and lazily loaded. The key on a plain tile stands in where
-  one cannot load.
+  one cannot load. Champions' portraits come from the same CDN (`img/champion/`), with two letters
+  standing in where one cannot load.
 - **Curated notes** (`src/server/matchup-intel/curated/`: `getChampionNotes`, `getMatchupNotes`,
   `curatedEnemiesFor`) are committed and reviewed; see Curated notes below. Every fact names its
   source, and each set of notes says the patch it was checked on. A source keeps its link only when
@@ -356,7 +357,8 @@ review checks the rest.
   meaning `Template:Ability data` gives it ("Spell shield nullifies."; "Movement is interrupted and
   overridden by enemy knockdown or displacement."), so that page is one of the file's sources.
 - From now on the wiki is read by hand, in a browser: its Terms of Use forbid automated use without
-  consent, so no script, job, test or page requests it (Compliance, "No automated use").
+  consent, so no script, job or test reads it, and Matchup Intel loads nothing from it (Compliance,
+  "No automated use", which also names the one request another part of the app makes there).
 
 **Claims**
 - Never invent a number, an interaction or a matchup claim. What no source states is left out.
@@ -385,10 +387,13 @@ review checks the rest.
   space goes in the notes. Where the page draws a curated text, and Riot's short descriptions too,
   it joins every number to the word after it (`keepUnitsWithNumbers`, `src/lib/format.ts`, applied
   in `view.ts`: a no-break space after a number, or a number with "%" or "°", whenever a word
-  follows, whatever the word), so a line never ends on a number and never starts with its unit. A
-  unit of several words can still wrap after its first word ("80% bonus", then "AD" on the next
-  line). The lines it writes itself hold their numbers the same way: the cooldown lines' "s"
-  (Cooldowns), a recast's "2 more times" and a refund's "65% of the cooldown".
+  follows, whatever the word), so a number and the word after it always share a line and a unit
+  never starts one. A unit of several words can still wrap after its first word ("80% bonus", then
+  "AD" on the next line), and a number before anything but a word ("6, 11", "8 / 7", "320 (by
+  level)") keeps its ordinary space. Of the lines the page writes itself, the cooldown lines hold
+  their units the same way ("8 s", "3 charges"; Cooldowns), and so do a recast's "2 more times" and
+  a refund's "65% of the cooldown". Its other words keep ordinary spaces: counts such as the
+  picker's "12 champions found" and the footer's "13 wiki pages", and dates ("23 Sep 2026").
 
 **Cooldowns** (how they are shown: `src/domain/matchup-intel/cooldown.ts`)
 - `ddragonCooldown` is Data Dragon's `cooldown` array for the version checked, copied exactly. The
@@ -570,8 +575,9 @@ start. Their server reads one version: `DDRAGON_VERSION`, set by `playwright.con
 `E2E_DDRAGON_VERSION` (`e2e/ddragon-version.ts`), 16.22.1, the version the curated notes were
 checked on. CI's browser job and the WebKit workflow's Playwright step both start that server
 through the config, so both read it; production never sets it. The WebKit workflow's other step,
-the Safari 26 check (`scripts/webkit26-check.mjs`), starts a demo server of its own without the pin:
-it opens only Team and the public team page, so nothing it checks depends on the version, but a
+the Safari 26 check (`scripts/webkit26-check.mjs`), starts a demo server of its own without the pin.
+It opens Team, a player's profile and match history, and the public team page, never a Matchup
+Intel page, and checks how each window is drawn, so nothing it checks depends on the version; a
 Matchup Intel page added to it would need `DDRAGON_VERSION` passed as well.
 
 - **Why.** Unpinned, a fresh demo stores Riot's newest version, so the specs would read whatever
@@ -803,9 +809,9 @@ pages were read on 16 Nov 2026: the League of Legends documentation
   comes from Data Dragon's own list of versions. The fields read, and those never read (tooltips,
   ranges, costs and their placeholders), are in [DATA_PIPELINES.md](DATA_PIPELINES.md), "Champion
   abilities (Matchup Intel)".
-- **Icons.** Each ability's and passive's icon is linked from Riot's CDN
-  (`ddragon.leagueoflegends.com/cdn/<version>/img/spell/` and `img/passive/`), never copied or
-  hosted by the app.
+- **Icons.** Each ability's and passive's icon, and each champion's portrait, is linked from Riot's
+  CDN (`ddragon.leagueoflegends.com/cdn/<version>/img/spell/`, `img/passive/` and `img/champion/`),
+  never copied or hosted by the app.
 - **Riot's words.** Each ability's short description is Riot's own text from Data Dragon, with its
   markup removed.
 
@@ -836,13 +842,20 @@ pages were read on 16 Nov 2026: the League of Legends documentation
   same, or a compatible license", Meta:Copyrights) is about adapted text. Whether to license the
   curated files anyway is an open question (below).
 - **Images.** "Non-text media on our wikis should not be assumed to be available under the same
-  license as the text." (Meta:Copyrights) No image comes from the wiki.
+  license as the text." (Meta:Copyrights) No image on Matchup Intel comes from the wiki.
 - **No automated use.** Weird Gloop's Terms of Use (https://weirdgloop.org/terms, updated 31
   January 2025) do not allow "Attempting to use our Sites in an automated fashion without prior
   consent from the Company", and the wiki's robots.txt disallows `/*api.php` and `/*?action=` for
   every crawler. From now on, curators read the wiki in a browser (Curated notes, Rules). No
-  script, job, test or page of the app requests it: the page only links to it, and the browser spec
-  checks that it requests nothing from `wiki.leagueoflegends.com`.
+  script, job or test of the app reads the wiki's pages, and Matchup Intel loads nothing from it:
+  the page only links to it, and the browser spec checks, with Playwright's request events and with
+  the page's own resource timing, that it loads nothing from `wiki.leagueoflegends.com`. One request
+  does go there, from another part of the app: the Library (Resources → Library) draws each link
+  with its site's icon, and one of its default links is the League of Legends Wiki
+  (`src/domain/resources.ts`), so a visitor's browser loads `wiki.leagueoflegends.com/favicon.ico`,
+  as it loads every linked site's icon. The browser specs that open the Library without blocking
+  icons (`account-screen`, `quality` and `webkit`) can load it too, in CI: a small automated request
+  (Open compliance questions, "Scripted reads of the wiki").
 
 ## Open compliance questions
 
@@ -852,9 +865,9 @@ Each has a default that the code follows today. Only the owner changes one.
 | --- | --- | --- |
 | **The Developer Portal description.** Riot audits every new feature through the product's registered description (above). | The description in [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md) ("Description for the registration") includes Matchup Intel. The registered one must say the same before the page reaches production, so the merge, which deploys, waits for it. | The owner (For the owner, step 1) |
 | **A licence header on the curated files.** The repository is public and has no licence of its own. | Our own words, credited, not relicensed: each file's header says its texts are UNIIVERSE's own summaries, its sources list each page with its revision, and the footer credits them. No file declares a licence for itself. A scan of the notes against the pages they cite finds no copied sentence, only runs of numbers and game terms (six to ten words), so the risk that a passage counts as adapted is small, but not none. The recommended choice is a conditional header in each file ("Any material in this file adapted from the League of Legends Wiki is available under CC BY-SA 3.0"), which would cover any such passage without saying anything was adapted; it is not added, because a licence grant is the copyright holder's act. | The owner |
-| **Scripted reads of the wiki** (for example drafts of changes on patch day). | None. Weird Gloop's prior consent would be needed first (its Terms of Use, above). If it were given, a script would only draft changes for a person to review in a pull request, never publish them. | The owner, after asking Weird Gloop |
+| **Scripted reads of the wiki** (for example drafts of changes on patch day). | None of its pages. Weird Gloop's prior consent would be needed first (its Terms of Use, above). If it were given, a script would only draft changes for a person to review in a pull request, never publish them. One small automated request exists today, outside Matchup Intel: the browser specs that open the Library can load the wiki's favicon in CI (No automated use, above). Blocking that request in those specs, or a built-in icon for the Library's link to the wiki, would end it. | The owner, after asking Weird Gloop |
 | **Who curates, and who approves briefings.** The owner's rule is a briefing only where a person wrote and checked it. | Notes change only through pull requests, reviewed there: the page generates nothing, and nothing is published by itself. The first notes (16 Nov 2026) were drafted and cross-checked by AI agents, for a person's review in this feature's pull request: until the owner names the people, the owner's reading there is the only check by a person, and the merge waits for it (For the owner, step 2). | The owner |
-| **How the first notes were researched.** On 16 Nov 2026, between 06:13 and 06:43 UTC, while researching the first batch, AI agents made about 35 scripted requests to wiki.leagueoflegends.com (33 to its API, one for its robots.txt and one page) and saved copies of the pages the notes cite. They drafted and cross-checked the notes from those copies, which were never committed; all 34 cited revisions come from them. The Terms of Use (above) do not allow automated use without prior consent. | Disclosed in this feature's pull request, and here. Nothing in the app, its jobs or its tests requests the wiki, and curators read it in a browser from now on (No automated use, above). The remedy is not chosen: a person re-reads each cited revision in a browser and records it in the pull request, or Weird Gloop is asked for consent after the fact, or both. | The owner |
+| **How the first notes were researched.** On 16 Nov 2026, between 06:13 and 06:43 UTC, while researching the first batch, AI agents made 35 scripted requests to wiki.leagueoflegends.com and 7 to Weird Gloop's own sites. The wiki's: its robots.txt first, which disallows `/*api.php` and `/*?action=` for every crawler; then 33 to its API, all at `/en-us/api.php?action=…`; and one page. Weird Gloop's: the robots.txt of meta.weirdgloop.org and of weirdgloop.org, Meta:Copyrights twice, and its Terms of Use three times (one a redirect). They saved copies of the pages the notes cite and of others they consulted (other champions' ability data, the six champions' patch histories and main pages, the wiki's modules and policy pages), and drafted and cross-checked the notes from those copies, which were never committed; all 34 cited revisions come from them. The Terms of Use (above) do not allow automated use without prior consent. | Disclosed in this feature's pull request, and here. Nothing in the app, its jobs or its tests reads the wiki's pages (the one request they make there is the Library's favicon: No automated use, above), and curators read it in a browser from now on. The remedy is not chosen: a person re-reads each cited revision in a browser and records it in the pull request, or Weird Gloop is asked for consent after the fact, or both. | The owner |
 | **Riot's "Legal Jibber Jabber" sentence**: "[The title of your Project] was created under Riot Games' "Legal Jibber Jabber" policy using assets owned by Riot Games. Riot Games does not endorse or sponsor this project." (https://www.riotgames.com/en/legal) | Not shown. The app shows the Developer Portal's notice word for word, which the General Policies require. | The owner |
 
 ## Not built
