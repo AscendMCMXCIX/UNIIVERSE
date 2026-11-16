@@ -88,16 +88,19 @@ function PickerBody({ slot, champions, selected, recent, curated, curatedTitle, 
       {/* The search stays at the top of the window while the roster scrolls under it (not in a
           short window, which scrolls as one under its own pinned title). Its band covers the
           window body's top padding too (pulled up over it, and pinned at the body's edge), so no
-          strip of portraits shows above it while the roster scrolls. The clear button sits beside
-          the label, not in it, so the field's name stays its own once something is typed; it covers
-          the field's right end, 44px square like the field is tall.
+          strip of portraits shows above it while the roster scrolls. Its background starts 1px
+          below its top edge (a transparent border, the background kept to the padding): a window
+          centred at a fractional position rounded the band's top into the row of the header's
+          1px divider and painted over it; pinned, that 1px is above the body's edge, unseen. The
+          clear button sits beside the label, not in it, so the field's name stays its own once
+          something is typed; it covers the field's right end, 44px square like the field is tall.
 
           Not the shared SearchInput, on purpose: this field is 16px at every width (a tablet's
           Safari zooms into a smaller one too, and this window opens on touch screens of any size),
           its clear button is 44px with a mouse as well and gives the focus back to the field, and
           Escape clears what was typed before it closes the window. SearchInput is 14px and 36px
           from md with a mouse, as the app's other lists are. */}
-      <div className="sticky -top-4 z-10 -mx-4 -mt-4 bg-bg-elevated px-4 pb-1 pt-5 sm:-top-5 sm:-mx-6 sm:-mt-5 sm:px-6 sm:pt-6 short:static">
+      <div className="sticky -top-4 z-10 -mx-4 -mt-4 border-t border-transparent bg-bg-elevated bg-clip-padding px-4 pb-1 pt-5 sm:-top-5 sm:-mx-6 sm:-mt-5 sm:px-6 sm:pt-6 short:static" data-testid="matchup-picker-band">
         <div className="relative">
           <label className="block">
             <span className="sr-only">{slot === "you" ? "Search for your champion by name" : "Search for the enemy by name"}</span>
@@ -189,6 +192,7 @@ export function ChampionPickerWindow({ slot, champions, selected, recent, curate
       title={slot === "you" ? "Your champion" : "The enemy"}
       description={slot === "you" ? "The champion you play: remembered on this device." : "The champion you face in lane."}
       testId="matchup-picker"
+      headerTestId="matchup-picker-header"
       closeTestId="matchup-picker-close"
       // With a mouse or a trackpad the search takes the focus once the window is open; a touch
       // screen keeps its keyboard down until the field is tapped, so the lists stay in view.

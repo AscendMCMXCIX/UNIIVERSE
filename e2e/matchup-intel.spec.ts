@@ -1,3 +1,4 @@
+import sharp from "sharp";
 import { expect, test, type Page } from "./test";
 import { choiceIds, choose, cutOrSpilled, enemyAbilities, hydrated, localPictures, openMatchupIntel, openPicker, overflow, pickerCuts, pickerSpill, rosterIds } from "./matchup-intel";
 import { untilStill } from "./modal-corner";
@@ -148,6 +149,54 @@ test("no number where Riot's data cannot give one: charges, and two abilities in
     await expect(row(page, slot).getByTestId("ability-cooldown-value"), `${champion} ${slot}`).toHaveText(words);
     await expect(row(page, slot).getByTestId("ability-cooldown-source"), `${champion} ${slot}`).toHaveText("Not reviewed");
   }
+});
+
+test("the picker's search band leaves the window header's divider drawn, wherever the centred window sits", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 0) < 1024, "a centred window");
+  // A centred window sits at a fractional position (its header is 80.5px tall), and the band, pulled
+  // up to the header's 1px divider, was rounded into the divider's row and painted over it (the
+  // window's top at 289.75 at 1440x900 after "kha"). Its background now starts 1px lower.
+  let fractional = 0;
+  for (const height of [900, 860]) {
+    await page.setViewportSize({ width: 1440, height });
+    await openMatchupIntel(page, "Riven");
+    const win = await openPicker(page, "enemy");
+    await untilStill(page);
+    for (const q of ["", "kha", "riv", "z", "ga"]) {
+      await win.getByTestId("matchup-picker-search").fill(q);
+      if (q) await expect(win.getByTestId("matchup-picker-count")).toContainText(/found|matches/);
+      await untilStill(page);
+      const g = await page.evaluate(() => {
+        const header = document.querySelector('[data-testid="matchup-picker-header"]')!;
+        const band = document.querySelector('[data-testid="matchup-picker-band"]')!;
+        const h = header.getBoundingClientRect();
+        return {
+          top: document.querySelector("dialog[open]")!.getBoundingClientRect().top,
+          headerBottom: h.bottom,
+          x: h.left + h.width / 2,
+          // Where the band's background starts: its top, below its border.
+          bandFill: band.getBoundingClientRect().top + parseFloat(getComputedStyle(band).borderTopWidth),
+          divider: getComputedStyle(header).borderBottomColor,
+          fill: getComputedStyle(band).backgroundColor,
+        };
+      });
+      if (g.top % 1 !== 0) fractional += 1;
+      expect(g.bandFill - g.headerBottom, `${height}, "${q}": the band's background clear of the divider`).toBeGreaterThanOrEqual(0.99);
+      // The divider's colour is in the pixel rows around the header's bottom edge.
+      const rgb = (css: string) => css.match(/\d+(\.\d+)?/g)!.slice(0, 3).map(Number);
+      const [line, fill] = [rgb(g.divider), rgb(g.fill)];
+      const y = Math.floor(g.headerBottom) - 3;
+      const { data, info } = await sharp(await page.screenshot({ clip: { x: Math.round(g.x), y, width: 1, height: 7 } })).raw().toBuffer({ resolveWithObject: true });
+      const rows = Array.from({ length: info.height }, (_, r) => [0, 1, 2].map((c) => data[r * info.width * info.channels + c]!));
+      const near = (a: number[], b: number[]) => a.reduce((sum, v, i) => sum + Math.abs(v - b[i]!), 0) <= 6;
+      expect(near(line, fill), "the divider differs from the band").toBe(false);
+      expect(rows.some((px) => near(px, line)), `${height}, "${q}", window top ${g.top}: the divider is drawn`).toBe(true);
+    }
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Escape");
+  }
+  // The case that hid it was checked.
+  expect(fractional).toBeGreaterThan(0);
 });
 
 test("the picker's search: 16px, as you type, by name with case, accents and spaces ignored", async ({ page }) => {
