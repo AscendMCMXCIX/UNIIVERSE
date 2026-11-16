@@ -453,6 +453,14 @@ test("a champion the roster does not know is left out of the page, said so and n
   expect(await page.locator("main").evaluate((m) => [...m.querySelectorAll("*")].flatMap((el) => [...el.attributes].map((a) => a.value)).filter((v) => v.includes("Zzyzx")))).toEqual([]);
 });
 
+test("a repeated parameter reads its first value, as a link's own would, never a champion the roster does not know", async ({ page }) => {
+  await page.goto("/resources/matchups?champion=Riven&champion=Riven&vs=Garen&vs=Darius");
+  await expect(page.getByTestId("matchup-pick-you-name")).toHaveText("Riven");
+  await expect(page.getByTestId("matchup-pick-enemy-name")).toHaveText("Garen");
+  await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Garen");
+  await expect(page.getByTestId("matchup-unknown")).toHaveCount(0);
+});
+
 test("phone at 200% and 150% text: the states with one side or none chosen, and the picker window, are cut nowhere", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
   await localPictures(page);
