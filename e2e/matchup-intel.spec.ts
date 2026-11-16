@@ -80,10 +80,24 @@ test("Ambessa vs Renekton: the ten-second briefing, its chips jumping to the abi
   // The footer says where everything comes from, and what this is.
   const footer = page.getByTestId("matchup-footer");
   await expect(footer.getByTestId("matchup-footer-ddragon")).toHaveText(/^Ability names, icons and base cooldowns: Riot Data Dragon \d+\.\d+\.\d+ \(patch \d+\.\d+\)\.$/);
-  await expect(footer.getByTestId("matchup-footer-sources").first()).toContainText(/checked on \d{1,2} [A-Z][a-z]{2} \d{4}/);
-  await expect(footer).toContainText("League of Legends Wiki, CC BY-SA 3.0");
+  await expect(footer.getByTestId("matchup-footer-checked")).toContainText(/checked on \d{1,2} [A-Z][a-z]{2} \d{4}/);
+  // The wiki's credit: how its pages were used, who wrote them, the licence, and no endorsement.
+  const wiki = footer.getByTestId("matchup-footer-wiki");
+  await expect(wiki).toContainText("The curated notes are written in our own words from the League of Legends Wiki pages below.");
+  await expect(wiki).toContainText("Their text is by League of Legends Wiki contributors, under CC BY-SA 3.0");
+  await expect(wiki.getByTestId("matchup-footer-endorsement")).toHaveText("The wiki and its contributors do not endorse this page.");
+  await expect(wiki).not.toContainText(/adapt/i);
+  await expect(wiki.getByTestId("matchup-licence-link")).toHaveAttribute("href", "https://creativecommons.org/licenses/by-sa/3.0/");
+  // Each page by its title, folded into one line until asked for, so a phone keeps the footer short.
+  const pages = wiki.getByTestId("matchup-footer-wiki-pages");
+  await expect(pages).not.toHaveAttribute("open", "");
+  await expect(pages.getByTestId("matchup-source-link").first()).toBeHidden();
+  await pages.locator(":scope > summary").click();
+  await expect(pages).toHaveAttribute("open", "");
+  await expect(pages.getByTestId("matchup-source-link").first()).toBeVisible();
+  for (const a of await pages.getByTestId("matchup-source-link").all()) await expect(a).toHaveAttribute("href", /^https:\/\/wiki\.leagueoflegends\.com\/en-us\//);
   await expect(footer.getByTestId("matchup-footer-static")).toContainText("A static reference for preparation: no live tracking");
-  await expect(footer).toContainText("isn't endorsed by Riot Games");
+  await expect(footer.getByTestId("matchup-footer-riot")).toContainText("isn't endorsed by Riot Games");
 
   // The jump is an entry the router can restore: after another choice, Back shows this pair again,
   // never the later pair under this one's address.

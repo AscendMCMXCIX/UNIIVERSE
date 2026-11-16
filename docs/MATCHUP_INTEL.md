@@ -42,9 +42,12 @@ the most important part first; side by side where a desktop has the room):
    matchup interaction on an ability Riot changed since is hidden and said, as a briefing point is.
 4. **Level notes**: the levels at which something notable becomes possible, for both champions.
 5. **Your own champion's abilities**, collapsed until asked for.
-6. **A quiet footer**:
+6. **A quiet footer** (`matchup-footer.tsx`):
    - "Ability names, icons and base cooldowns: Riot Data Dragon 16.22.1 (patch 26.22)";
-   - the curated notes' sources, with their licence and the day they were checked;
+   - the day and patch the curated notes on the page were checked, once when they share them;
+   - the wiki's credit (Compliance): the pages the notes are written from, each once by its title
+     and linked, folded into one line until opened; their authors; the licence; and that the
+     wiki does not endorse the page;
    - "A static reference for preparation: no live tracking";
    - Riot's notice, the same words as the rest of the app (`riotLegal`).
 
@@ -568,33 +571,240 @@ is never rounded into another.
 
 ## Compliance
 
-- **Riot's Game Integrity rules**, as [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md) quotes them: no
-  advantage others could not have; no information unavailable in the client; no acting for the
-  player; enemy ultimate timers banned from 13 March 2025.
-- **The static-reference rule**:
-  - Matchup Intel shows only static data, available to anyone before a game: Data Dragon's
-    published abilities and base cooldowns, and notes written from public reference pages.
-  - It never has timers, trackers, live data or champion-select scouting. Nothing reads the game
-    client, a game in progress or champion select, and nothing counts down.
-  - The base cooldowns are the numbers every player can read in the game's own tooltips.
-  - Briefings point at what matters and leave the decisions to the player: they highlight
-    decisions, never dictate them.
-- **The League of Legends Wiki** is under CC BY-SA 3.0:
-  - the curated notes are written in our own words from its pages;
-  - the footer credits each page with its title, the licence and the day it was checked;
-  - the app never calls the wiki: its pages are links only, and the browser specs check that the
-    page requests nothing from `wiki.leagueoflegends.com`.
-- **Riot's notice**: the page's footer carries the same required notice as the rest of the app
-  (`riotLegal`, with the name the installation gives itself).
-- **The owner's step**: update the product's description in Riot's Developer Portal to mention
-  Matchup Intel ([RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md), item 9).
+What Riot's policies, the League of Legends Wiki's licence and its host's terms say about this
+page, and how the page keeps to them. It is a reading of those pages, not legal advice. Riot's
+pages were read on 16 Nov 2026: the League of Legends documentation
+(https://developer.riotgames.com/docs/lol, "League docs" below), the General Policies
+(https://developer.riotgames.com/policies/general) and the portal page
+(https://developer.riotgames.com/docs/portal). The app-wide checklist is
+[RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md), where Matchup Intel is item 9.
+
+### What Riot allows
+
+| Riot's words (where) | How the page keeps to them |
+| --- | --- |
+| Data Dragon's game data and assets: "All of which can be used by third-party developers." (League docs, Data Dragon) | Ability names, icons, ranks, base cooldowns and short descriptions come from Data Dragon, and only from the fields it publishes for them (below). |
+| "Game overlays that provide static data that is available prior to the game." (League docs, approved use cases) | A web page rather than an overlay, with static data only, for two champions chosen by hand: the same before any game. |
+| "Products should not remove game decisions, but may highlight decisions that are important and give multiple choices to help players make good decisions." (League docs and General Policies, Game Integrity) | A briefing names a threat, an opportunity and what to weigh in lane, each resting on named abilities. It points at decisions and leaves them to the player. |
+
+### What Riot forbids
+
+| Riot's words (where) | How the page stays clear of it |
+| --- | --- |
+| "Products must not use or incorporate information not present in the game client that would give players a competitive edge (e.g., automatically or manually allowing tracking enemy ultimate cooldowns)…" (League docs, Game Integrity). Riot Developer Relations banned "Enemy Ultimate Timers" from 13 March 2025. | Base values per rank only. No timer, countdown, "used" or "ready at" control, alert or shared timer, for ultimates or anything else, and nothing records when an ability was used. |
+| "Products may not provide any game-session-specific information that would be previously unknown to the player." (League docs, unapproved use cases) | Nothing comes from a game in progress or from champion select: no live-game or Spectator request, and no detection of the enemy. Both champions are chosen by hand. |
+| "Products cannot identify or analyze players who are deliberately hidden by the game." (League docs, Game Integrity) | The page names no player and scouts no one. |
+| "Apps that dictate player decisions." (League docs, unapproved use cases); "Products should increase, and not decrease the diversity of game decisions" (Game Integrity) | Briefings are considerations, never instructions (Curated notes, Rules), and the review checks their wording. No win rates, tiers, counter-pick or ban lists, and no single answer. |
+| "Products cannot create an unfair advantage for players, like a cheating program or giving some players an advantage that others would not otherwise have." (Game Integrity) | Everything on the page is public: Riot's published data and the wiki's pages, which anyone can read. |
+| "Products cannot closely resemble Riot's games or products in style or function." (General Policies) | The app's own design, not the game's tooltip or HUD, and no Riot logo. |
+| The League Client API "is not officially supported for use with third party applications." (League docs) | No client integration, overlay, memory reading or automatic pick. |
+
+### What Riot requires
+
+| Riot's words (where) | How the page meets them |
+| --- | --- |
+| "You must post the following legal boilerplate to your product in a location that is readily visible to players" (General Policies) | The footer shows the full notice (`riotLegal`, with the installation's name), as well as the app's other places for it. |
+| "Any new features or changes to a product must be audited through the product's page in the Developer Portal" (General Policies); "You must make sure its description and metadata are kept up to date with the current version of your product." (League docs) | Open until the owner updates the product's description (Open compliance questions; For the owner, step 1). |
+| "Products should use supported services from Riot Games for data ingestion" (General Policies) | Data Dragon only: no CommunityDragon data, and no value taken from the game's files. |
+| "You may not run your application for public consumption using a personal key" (portal page) | Signed-in accounts only. `/resources/*` is not a public path (`src/proxy.ts`), the page calls `requirePageAccess` itself, and the Production check proves that a signed-out request, or one with a forged session cookie, is sent to sign-in (LIVE_VALIDATION.md). |
+
+### Data Dragon: data and icons
+
+- **Data.** Read by the version-check job once per game version, never while a page renders.
+  Riot warns that Data Dragon "is not always updated immediately after a patch" (League docs), so
+  the page names the version and patch it shows ("Riot Data Dragon 16.22.1 (patch 26.22)") and
+  says so when the game's patch is newer. The fields read, and those never read (tooltips, ranges,
+  costs and their placeholders), are in [DATA_PIPELINES.md](DATA_PIPELINES.md), "Champion abilities
+  (Matchup Intel)".
+- **Icons.** Each ability's and passive's icon is linked from Riot's CDN
+  (`ddragon.leagueoflegends.com/cdn/<version>/img/spell/` and `img/passive/`), never copied or
+  hosted by the app.
+- **Riot's words.** Each ability's short description is Riot's own text from Data Dragon, with its
+  markup removed.
+
+### The League of Legends Wiki
+
+- **Licence.** The wiki's text is under CC BY-SA 3.0 (as the wiki reported on 16 Nov 2026),
+  "applied to all creative work added to the wiki with the exception of Riot Games' Intellectual
+  Property" (the wiki's Copyrights page). Most of Weird Gloop's other wikis are under CC BY-NC-SA
+  3.0, several of them since 2025–2026, so whoever re-checks the notes checks the licence in the
+  wiki's footer; each source records its own.
+- **Credit.** Weird Gloop, which hosts the wiki, asks for "A hyperlink (where possible) or URL to
+  the page or pages you are re-using" (https://meta.weirdgloop.org/w/Meta:Copyrights). CC BY-SA
+  3.0 (https://creativecommons.org/licenses/by-sa/3.0/legalcode.en) asks for the author, the title
+  and the address, "reasonable to the medium" (section 4(c)), and the licence's address (4(a)), and
+  forbids implying "any connection with, sponsorship or endorsement by the Original Author" (4(c)).
+  The footer (`matchup-footer.tsx`) gives each:
+  - the pages the notes are written from, each by its title and linked, each once;
+  - "League of Legends Wiki contributors" as their authors;
+  - CC BY-SA 3.0, linked;
+  - how they were used: "written in our own words from";
+  - "The wiki and its contributors do not endorse this page."
+
+  Each ability's details also link the page behind each fact. `matchup-footer.test.ts` proves
+  each part of the credit, and the browser spec checks it on the demo.
+- **Our own words.** The notes state facts in UNIIVERSE's own words and copy no sentence, so the
+  page holds no adaptation of the wiki's text, and the footer never says "adapted". Share-alike
+  ("If you make modifications or additions to the page you re-use, you must license them under the
+  same, or a compatible license", Meta:Copyrights) is about adapted text. Whether to license the
+  curated files anyway is an open question (below).
+- **Images.** "Non-text media on our wikis should not be assumed to be available under the same
+  license as the text." (Meta:Copyrights) No image comes from the wiki.
+- **No automated use.** Weird Gloop's Terms of Use (https://weirdgloop.org/terms, updated 31
+  January 2025) do not allow "Attempting to use our Sites in an automated fashion without prior
+  consent from the Company", and the wiki's robots.txt disallows `/*api.php` and `/*?action=` for
+  every crawler. Curators read the wiki in a browser (Curated notes, Rules). No script, job, test
+  or page of the app requests it: the page only links to it, and the browser spec checks that it requests nothing from
+  `wiki.leagueoflegends.com`.
+
+## Open compliance questions
+
+Each has a safe default that the code follows today. Only the owner changes one.
+
+| Question | The default the code follows now | Who decides |
+| --- | --- | --- |
+| **The Developer Portal description.** Riot audits every new feature through the product's registered description (above). | The description in [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md) ("Description for the registration") includes Matchup Intel. The registered one must say the same before the page reaches production, so the merge, which deploys, waits for it. | The owner (For the owner, step 1) |
+| **A licence header on the curated files.** The repository is public and has no licence of its own. | Our own words, credited, not relicensed: each file's header says its texts are UNIIVERSE's own summaries, its sources list each page with its revision, and the footer credits them. No file declares CC BY-SA 3.0 for itself. That header would be needed only for text adapted from the wiki; adding it would be safe either way. | The owner |
+| **Scripted reads of the wiki** (for example drafts of changes on patch day). | None. Weird Gloop's prior consent would be needed first (its Terms of Use, above). If it were given, a script would only draft changes for a person to review in a pull request, never publish them. | The owner, after asking Weird Gloop |
+| **Who curates, and who approves briefings.** The owner's rule is a briefing only where a person wrote and checked it. | Notes change only through pull requests, reviewed there: the page generates nothing, and nothing is published by itself. The first notes (16 Nov 2026) were drafted for review in this feature's pull request. Until the owner names the people, the owner reads each briefing there before approving the merge. | The owner |
+| **Riot's "Legal Jibber Jabber" sentence**: "[The title of your Project] was created under Riot Games' "Legal Jibber Jabber" policy using assets owned by Riot Games. Riot Games does not endorse or sponsor this project." (https://www.riotgames.com/en/legal) | Not shown. The app shows the Developer Portal's notice word for word, which the General Policies require. | The owner |
 
 ## Not built
 
-For later, if wanted:
-
-- your own notes on a matchup;
+For later, each its own decision:
+- your own notes on a matchup (the notebook, below);
 - favourite matchups;
 - sharing a briefing.
 
 Nothing here reads a player's games either: those are Matchups', in the champion window.
+
+### The notebook: a member's own notes on a matchup
+
+Described here, not built: no table, migration or code exists. Building it needs the owner's
+go-ahead first. STANDARDS.md lists Patterns & Notes, the retired notes of the ranked focus, among
+the features not to revive, and a notebook is close enough to ask. It would not reuse that
+feature's retired column (`ranked_profiles.notes`).
+
+**What it would be.** Under the briefing, a few lines a member writes for themselves about this
+pair, in this direction only, with the patch they were written on. Plain text. Keeping it on the
+device alone (like the remembered champion) would need no table, but a note would not follow its
+author to another device and would vanish with the browser's data, so the design keeps it on the
+server.
+
+**Private, and owned by one account.**
+- Private by default and never public: in the app, only its author sees a note. Administrators
+  do not see members' notes there; the database and its encrypted backups hold them, as they hold
+  everything else. Sharing with teammates is not part of it; if it were ever wanted, it would be a
+  separate decision, off by default, and never on the public team page.
+- Owned by the signed-in account that wrote it (`users.id`), not by a player profile, so an
+  account without a profile (the verification account, a personal-use account) has its own.
+
+**The table**, `matchup_intel_notes` (never "matchups": that name is the personal Matchups
+feature's):
+
+| Column | Type | What it holds |
+| --- | --- | --- |
+| `id` | `uuid`, primary key, random | |
+| `user_id` | `uuid` not null, references `users(id)` on delete cascade | the author: the session's account, never a value from the browser |
+| `champion_id` | `text` not null | your champion, by its Data Dragon id, checked against the roster when saved |
+| `vs_id` | `text` not null | the enemy, checked the same way |
+| `body` | `text` not null | the note: plain text, at most 2,000 characters |
+| `patch` | `text` | the public patch when it was last saved ("26.22"), so the page can say how old it is |
+| `created_at`, `updated_at` | `timestamptz` not null, default now | |
+
+- A unique index on (`user_id`, `champion_id`, `vs_id`): one note per pair and direction.
+- The migration carries the grants block of [DATABASE_PERMISSIONS.md](DATABASE_PERMISSIONS.md)
+  ("How a new table gets its grants"): RLS on with no policies, nothing for the Data API's
+  `anon` and `authenticated`, `SELECT` for `uniiverse_backup`. The id is a uuid, so there are no
+  sequence lines. Then an `auth-audit` run after the deploy (CLAUDE.md §5).
+
+**Ownership, on the server.**
+- Every query names `user_id = session.userId` in the same statement, for a read, a save and a
+  delete. The session comes from the server (`requireSession`); no id from the browser chooses
+  whose note it is. A session without an account (`userId` null, the automatic local owner of a
+  development machine) has no notes, and saving is refused.
+- Two server actions in a `"use server"` module, `saveMatchupNoteAction(championId, vsId, body)`
+  and `deleteMatchupNoteAction(championId, vsId)`, each with `requireSession()` first
+  (`src/server/actions/guards.test.ts` checks it). They check the ids against the roster and the
+  text as plain text (as `plainText` does for Resources, `src/domain/resources.ts`), cap its
+  length, and log nothing of the text.
+- Tests: a database test that one account can neither read, change nor delete another's note,
+  whatever it sends; that a deleted or erased account's notes are gone; and the grants, which
+  `src/server/db/migration-grants.test.ts` and `tests/db/data-api-grants.test.ts` already check in
+  every new migration.
+
+**How it joins the page.**
+- A separate, member-only part, loaded beside the view and never inside it.
+  `buildMatchupPageView` stays the same for everyone: the stored abilities are cached per champion
+  (`cachedFor`), and a member's note must never pass through that or any other cache shared
+  between requests.
+- The page reads the note with one keyed query on each render, only when both champions are
+  chosen, and hands it to a client component of its own (the editor). The page is already rendered
+  on each request (`force-dynamic`), so nothing is kept across members.
+- Saving changes only that part: no `revalidatePath` of a shared page.
+- Its words say whose it is ("Only you can see this note"), and "Written on patch 26.22" once the
+  patch has moved.
+
+**With the member, when they leave or ask.**
+- Deleted with the account: the foreign key cascades, and permanent erasure deletes the account
+  (`src/server/privacy/erasure.ts`), so the notes would go too. The erasure's preview would count
+  them.
+- A note that names someone else: erasure already replaces an erased person's names in notes
+  others wrote (`notesToEdit` in `erasure.ts`). The table would join that list. Its rows belong to
+  an account (`user_id`), where that list's belong to profiles, so its owner filter would compare
+  the account.
+- After a restore from a backup: importing the erasure records (`pnpm privacy:records import`,
+  `scripts/privacy-records.ts`) re-applies them before the app is used. That deletes the erased
+  accounts again, and their notes with them.
+- Access: a member reads all their own notes in the app, which is their copy. A request is
+  answered as any other (docs/PRIVACY.md, "Handling a request"): the owner says what is stored,
+  and never sends anyone another member's notes.
+- The privacy notice (`src/app/privacy/page.tsx`, "What is stored") would gain a line: the notes, the
+  two champions, the patch and when they were saved; for the member's own preparation; seen only
+  by them; kept until they delete them or their account, and in the encrypted weekly backups for
+  up to 28 days. It needs the owner's approval and a new `PRIVACY_UPDATED` (docs/PRIVACY.md,
+  "Changing the notice").
+- Riot: a member's own text is not Riot data and needs no Riot request, but it is a change to the
+  product, so the registered description would gain a few words with it.
+
+**No AI.** It is the member's own text, stored and shown back. Nothing reads, summarises, suggests
+or generates from it, and building it needs no model, key or outside service.
+
+**What must be stable first.**
+- The address and its ids: notes are keyed on Data Dragon's champion ids, as the address is
+  (`?champion=&vs=`), one direction per pair, as the briefings are.
+- The page's layout on a phone, so the notes get a fixed place without moving what is there.
+- The owner's open decisions on Matchup Intel (For the owner), and the privacy notice's new line.
+- The held migrations: the next free number after them (0066 is held by PR #212).
+
+## For the owner
+
+The steps only the owner can take, in order. The first three come before the merge, because the
+merge deploys.
+
+1. **Update the product's description in Riot's Developer Portal** before Matchup Intel reaches
+   production: replace it with the description in RIOT_COMPLIANCE.md ("Description for the
+   registration"; Registering the product, step 2). No key or endpoint changes. Its Matchup Intel
+   part, word for word (`src/server/riot/registration-description.test.ts` keeps the two copies
+   the same):
+
+   > Matchup Intel, for signed-in accounts, is a static reference for two champions chosen by hand: each ability's base cooldowns per rank from Data Dragon, and notes written from the League of Legends Wiki (cited, with the patch), with briefings for selected matchups. It makes no Riot API request and has no timers or tracking.
+2. **Say who curates the notes, and who approves briefings.** Until then, read the three briefings
+   (Ambessa vs Renekton, Gwen vs Ornn, Riven vs Mordekaiser) and the six champions' notes in the
+   pull request before approving it: the owner's rule is a briefing only where a person wrote
+   and checked it.
+3. **Approve the Resources navigation change**: Resources becomes one sidebar entry for two
+   sections, Library and Matchup Intel, with their tabs at the top of both pages, phones included
+   (Where it is). If not, the fallback leaves the sidebar as it was and links the two pages from
+   under their headers.
+4. **Approve the merge**, which deploys to production (CLAUDE.md §4: within the deploy budget, the
+   "merge" method and the exact head), then read the Production check on the deployed commit.
+5. **Decide whether the Production check opens Matchup Intel signed in.** Today it proves only that
+   the page is closed to visitors (LIVE_VALIDATION.md). Opening one pair at desktop width would
+   check the heading, the enemy's five rows (or the "not stored yet" state, as a warning), the Data
+   Dragon version and the licence link in the footer, and axe. It costs Vercel Active CPU on every
+   run, after each deploy and daily: a member page took 37–105 ms of server CPU in the local
+   measurements (HOSTING_USAGE.md), and this one is not measured. Until then a change to the page
+   is "deployed", not production-verified (CLAUDE.md §5).
+
+The open compliance questions above keep their defaults unless the owner decides otherwise.
