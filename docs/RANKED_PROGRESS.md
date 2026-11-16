@@ -39,8 +39,9 @@ from 8 January (patch 26.1), Season 2 from 29 April (26.9; apex tiers hard-reset
 BR, EUNE, EUW, LAN, NA and TR only, "for all other players, nothing will change"), Season 3 from
 29 July (26.15). The data agrees: LEAGUE-V4's wins + losses at each account's first reading count the
 games stored since 8 January, not those of one season (`rank-audit`, 6 Nov: exactly for 12 of the 16
-account/queue pairs with a reading, the store short by 1 to 6 games for the other four), so Riot's
-count spans the year. Every linked account plays on OCE, where no season reset anything.
+account/queue pairs with a reading, the store short by 1 to 6 games for the other four, which also
+hold rows stored without a length that may be those games: `withoutLength` under "Checking it"),
+so Riot's count spans the year. Every linked account plays on OCE, where no season reset anything.
 
 So Ranked progress does not offer the seasons as separate periods (it did until November 2026: Season
 1 and Season 2 could only ever show "not recorded"). It names the season now ("2026 Season 3") and
@@ -183,10 +184,15 @@ traffic per run. No GitHub Actions minutes.
 ## Checking it
 
 - **Data jobs → `rank-audit`** (read-only): per account and queue, Riot's count of the year's games
-  at the first reading against the stored games, the queue's rows without a champion by kind (a game
-  Riot refused for good, recorded with no start time, or one whose champion the list did not have),
-  which say why Riot's count can exceed the stored games, the readings and the games between them,
-  how many games have a figure and why the others have none, with the last few figures and the minutes
+  at the first reading against the stored games, and the queue's rows that are not counted games:
+  `withoutLength`, what the sync stores with the start time and the queue only (a remake, a game whose
+  champion was still unknown three days after it, a game whose record does not name the account;
+  which is which is not stored, and Riot counts the second kind, so where Riot's count exceeds the
+  stored games these rows may be the difference); `withoutChampion.refusedForGood`, a listed game
+  Riot refused for good, recorded with no start time; and `remakesWithLength` and
+  `withoutChampion.championUnknownWithLength`, rows with a length under five minutes or with a
+  counted length and no champion, which no version of the sync writes. Then the readings and the
+  games between them, how many games have a figure and why the others have none, with the last few figures and the minutes
   between each game and its two readings; the 2026 seasons' first patches as stored; the rank changes
   recorded; the year's games and rank changes week by week. Accounts appear as P1/A1 only. Its
   `readings`, `lastReading`, `medianMinutesBetweenReadings`, weekly `soloReadings`/`flexReadings` and
