@@ -240,7 +240,8 @@ function confirmedLines(table: Locator) {
           firstRead: [...first.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent).join("").trim(),
           lastConfirmed: tr.querySelector("td:nth-child(4)")!.textContent!.trim(),
           line: line.innerText.replace(/\s+/g, " ").trim(),
-          parts: [...line.children].map((part) => ({ text: part.textContent!.trim(), lines: part.getClientRects().length })),
+          // Lines, not rectangles: Chrome gives one rectangle per text run, and "14 Nov," is two ("14 Nov" and ","), side by side on one line.
+          parts: [...line.children].map((part) => ({ text: part.textContent!.trim(), lines: new Set([...part.getClientRects()].map((r) => Math.round(r.top))).size })),
         },
       ];
     }),
