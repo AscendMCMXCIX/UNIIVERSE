@@ -438,9 +438,10 @@ export function SortablePool({
                 </span>
                 {inspector}
                 {/* The parts wrap rather than squeeze: where the name's 4rem and the figures do not fit
-                    on one line (larger text, a 320px phone's list while editing), the figures take a
-                    line of their own under the name, at its end. */}
-                <span className={cn("flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 @sm:gap-x-2.5 @lg:gap-x-3", onInspect && "pointer-events-none relative z-[1] [&_button]:pointer-events-auto")}>
+                    on one line (larger text), the figures take a line of their own under the name, at
+                    its end. Under 18rem (a 320px phone's list) the gaps are a step smaller, so the
+                    position, portrait, name and figures share one line there (2px short with 8px gaps). */}
+                <span className={cn("flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-0.5 @2xs:gap-x-2 @sm:gap-x-2.5 @lg:gap-x-3", onInspect && "pointer-events-none relative z-[1] [&_button]:pointer-events-auto")}>
                   <span className="w-3 shrink-0 text-right text-xs font-semibold tabular-nums text-fg-subtle @sm:w-4" aria-hidden>
                     {index + 1}
                   </span>

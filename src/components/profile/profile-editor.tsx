@@ -249,21 +249,25 @@ function PoolPreview({ ids, championsById, onInspect, inspectHref, testId }: { i
  * three in a narrow list, four from 32rem. A fixed width per list width, never shrinking (figures
  * shrunk to a few pixels read as one wrong number): 7.5rem on a phone's list (under 24rem: the
  * champion's name keeps its 4rem beside them from 320px), 10.5rem from 24rem, 17rem from 32rem.
- * Where a row cannot hold them beside the name (larger text) they wrap under it, at its end.
+ * Three equal columns there (2.5rem each: "Perfect" at text-2xs is 38.9px, and a 2.375rem KDA
+ * column cut it). Where a row cannot hold them beside the name (larger text) they wrap under it,
+ * at its end.
  */
-const STATS_COLUMNS = "ml-auto grid w-[7.5rem] shrink-0 grid-cols-[2.75rem_2.375rem_2.375rem] @sm:w-[10.5rem] @sm:grid-cols-3 @lg:w-[17rem] @lg:grid-cols-4";
+const STATS_COLUMNS = "ml-auto grid w-[7.5rem] shrink-0 grid-cols-3 @sm:w-[10.5rem] @lg:w-[17rem] @lg:grid-cols-4";
 /** While editing, a phone's list keeps its room for the grip and ×: the figures come back on Done. */
 const STATS_HIDDEN_WHILE_EDITING = "@max-sm:hidden";
 
 /**
  * The column names over a pool's rows, once (the rows carry each name for screen readers): the
  * champion, then games, win rate, KDA and CS/min (vision for Support, judged on vision rather than
- * farm). While editing it leaves the room the rows' grip and × take.
+ * farm). While editing it leaves the room the rows' grip and × take. One line always: in a phone's
+ * list (under 24rem) in sentence case, since uppercase "GAMES" (46.5px) and "WIN %" (43px) fit no
+ * 2.5rem column ("Games" is 37px, "Win %" 34.7px); uppercase from 24rem, where the columns are wider.
  */
 function PoolColumns({ role, editable, testId }: { role: Role; editable: boolean; testId: string }) {
   return (
     // A row's frame (its 1px transparent border too), so the columns sit over the row's figures.
-    <div aria-hidden className="flex items-center gap-2 border-x border-transparent pb-0.5 pl-2 pr-1.5 text-2xs font-semibold uppercase tracking-label text-fg-subtle @sm:gap-2.5 @lg:gap-3 @lg:pl-2.5" data-testid={`${testId}-columns`}>
+    <div aria-hidden className="flex items-center gap-1.5 whitespace-nowrap border-x border-transparent pb-0.5 pl-2 pr-1.5 text-2xs font-semibold text-fg-subtle @2xs:gap-2 @sm:gap-2.5 @sm:uppercase @sm:tracking-label @lg:gap-3 @lg:pl-2.5" data-testid={`${testId}-columns`}>
       <span className="w-3 shrink-0 @sm:w-4" />
       <span className="min-w-0 flex-1 truncate">Champion</span>
       <span className={cn(STATS_COLUMNS, "text-center", editable && STATS_HIDDEN_WHILE_EDITING)}>

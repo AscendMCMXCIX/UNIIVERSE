@@ -205,28 +205,92 @@ test("profile Overview: a 2×2 dashboard at 1440 (the season beside recent form,
 });
 
 // A pool's figures never shrink below their text (shrunk to a few pixels they read as one wrong
-// number) and stay under their column names; while editing, a phone's list gives their room to the
-// grip and ×; with larger text they wrap under the name rather than squeeze.
+// number) and stay under their column names, which keep to one line; on the narrowest phone a row
+// keeps the figures beside the name; while editing, a phone's list gives their room to the grip and
+// ×; with larger text they wrap under the name rather than squeeze.
 test("profile pools on a phone: every figure whole and under its column, editing and larger text included", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "phone widths, set below");
   await openTeammate(page);
   const pool = page.getByTestId("primary-pool");
   const facts = () =>
     pool.evaluate((el) => {
-      const shown = (e: Element) => getComputedStyle(e).display !== "none" && (e as HTMLElement).offsetParent !== null;
-      const cut = [...el.querySelectorAll<HTMLElement>("[data-testid=pool-card-stats] > span, [data-testid=pool-item] span")].filter((e) => shown(e) && e.clientWidth > 1 && e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent?.trim() ?? "");
+      const shown = (e: Element) => e.checkVisibility();
+      /** The boxes of an element's visible text, line by line (not its read-out-only label). */
+      const textBoxes = (e: Element) => {
+        const boxes: DOMRect[] = [];
+        const walk = document.createTreeWalker(e, NodeFilter.SHOW_TEXT);
+        for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+          const parent = n.parentElement!;
+          if (!n.textContent?.trim() || parent.closest(".sr-only") || !parent.checkVisibility()) continue;
+          const range = document.createRange();
+          range.selectNodeContents(n);
+          boxes.push(...[...range.getClientRects()].filter((r) => r.width > 0));
+        }
+        return boxes;
+      };
+      const extent = (boxes: DOMRect[]) => (boxes.length ? { left: Math.min(...boxes.map((b) => b.left)), right: Math.max(...boxes.map((b) => b.right)) } : null);
+      // A figure is cut when its text is wider than its cell, by any fraction ("Perfect" was 0.9px
+      // over a 38px column: an element's scrollWidth rounds that away).
+      const figures = [...el.querySelectorAll("[data-testid=pool-card-stats] > span")].filter(shown);
+      const cut = figures.flatMap((cell) => {
+        const text = extent(textBoxes(cell));
+        return text && text.right - text.left > cell.getBoundingClientRect().width + 0.25 ? [cell.textContent?.trim() ?? ""] : [];
+      });
+      // The rest of a row (names wrap, never cut).
+      cut.push(...[...el.querySelectorAll<HTMLElement>("[data-testid=pool-item] span")].filter((e) => shown(e) && e.clientWidth > 1 && e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent?.trim() ?? ""));
       const centres = (box: Element | null) => (box && shown(box) ? [...box.children].filter(shown).map((c) => Math.round(c.getBoundingClientRect().left + c.getBoundingClientRect().width / 2)) : []);
-      // The column names' figures part: the header's span that holds three or more names.
-      const headStats = [...el.querySelectorAll("[data-testid$=-columns] > span")].find((s) => s.children.length >= 3) ?? null;
-      const rowStats = el.querySelector("[data-testid=pool-item] [data-testid=pool-card-stats]");
-      return { cut, head: centres(headStats), row: rowStats && rowStats.children.length >= 3 ? centres(rowStats) : [], overflow: document.documentElement.scrollWidth - innerWidth };
+      // The column names: Champion, then the figures' part (the span that holds three or more names).
+      const columns = el.querySelector("[data-testid$=-columns]");
+      const headStats = [...(columns?.children ?? [])].find((s) => s.children.length >= 3) ?? null;
+      const names = [columns?.children[1], ...(headStats && shown(headStats) ? [...headStats.children] : [])].filter((c): c is Element => !!c && shown(c));
+      // Each name on one line, and none running into the next (a name that clips is measured to its edge).
+      const nameLines = names.map((c) => ({ name: c.textContent?.trim() ?? "", lines: new Set(textBoxes(c).map((b) => Math.round(b.top))).size }));
+      const spans = names.flatMap((c) => {
+        const text = extent(textBoxes(c));
+        const clips = getComputedStyle(c).overflowX !== "visible";
+        return text ? [{ name: c.textContent?.trim() ?? "", left: text.left, right: clips ? Math.min(text.right, c.getBoundingClientRect().right) : text.right }] : [];
+      });
+      const overlaps = spans.slice(1).flatMap((s, i) => (s.left < spans[i]!.right - 0.5 ? [`${spans[i]!.name} / ${s.name}`] : []));
+      const withGames = [...el.querySelectorAll("[data-testid=pool-item] [data-testid=pool-card-stats]")].find((s) => s.children.length >= 3) ?? null;
+      // "Perfect" (no demo champion has a perfect KDA): a hidden copy of a KDA cell holding it, a
+      // size smaller under 24rem as PoolRowStats writes it, measured whole against the cell.
+      let perfect: { need: number; room: number } | null = null;
+      const kda = withGames?.children[2];
+      if (kda && shown(kda)) {
+        const probe = kda.cloneNode(false) as HTMLElement;
+        probe.classList.add("@max-sm:text-2xs");
+        probe.textContent = "Perfect";
+        Object.assign(probe.style, { position: "absolute", visibility: "hidden", width: "max-content" });
+        kda.parentElement!.append(probe);
+        perfect = { need: probe.getBoundingClientRect().width, room: kda.getBoundingClientRect().width };
+        probe.remove();
+      }
+      return {
+        cut,
+        head: centres(headStats),
+        row: withGames ? centres(withGames) : [],
+        nameLines,
+        overlaps,
+        perfect,
+        rowHeights: [...el.querySelectorAll("[data-testid=pool-item]")].map((li) => Math.round(li.getBoundingClientRect().height)),
+        overflow: document.documentElement.scrollWidth - innerWidth,
+      };
     });
-  for (const width of [320, 360, 390]) {
+  for (const width of [320, 360, 390, 430]) {
     await page.setViewportSize({ width, height: 800 });
     await expect.poll(async () => (await facts()).cut, `${width}: nothing cut`).toEqual([]);
     const f = await facts();
     expect(f.overflow, `${width}: no sideways page scroll`).toBeLessThanOrEqual(1);
-    if (f.row.length) f.row.forEach((x, i) => expect(Math.abs(x - f.head[i]!), `${width}: figure ${i + 1} under its column name`).toBeLessThanOrEqual(3));
+    expect(f.row.length, `${width}: a row's figures measured`).toBeGreaterThanOrEqual(3);
+    f.row.forEach((x, i) => expect(Math.abs(x - f.head[i]!), `${width}: figure ${i + 1} under its column name`).toBeLessThanOrEqual(3));
+    expect(f.nameLines.length, `${width}: the column names measured`).toBeGreaterThanOrEqual(4);
+    for (const n of f.nameLines) expect(n.lines, `${width}: "${n.name}" on one line`).toBe(1);
+    expect(f.overlaps, `${width}: no column name runs into the next`).toEqual([]);
+    expect(f.perfect, `${width}: a KDA cell measured`).not.toBeNull();
+    expect(f.perfect!.need, `${width}: "Perfect" whole in its column (${f.perfect!.room}px)`).toBeLessThanOrEqual(f.perfect!.room + 0.25);
+    // The narrowest phone: position, portrait, name and figures on one line in every row (44px;
+    // with 8px gaps the line was 2px short and every row took two).
+    if (width === 320) expect(Math.max(...f.rowHeights), `320: rows ${f.rowHeights.join(", ")}px, none wrapped`).toBeLessThanOrEqual(46);
   }
   // Larger text (125% at 360): still nothing cut and no sideways scroll.
   await page.setViewportSize({ width: 360, height: 800 });
@@ -234,11 +298,46 @@ test("profile pools on a phone: every figure whole and under its column, editing
   await expect.poll(async () => (await facts()).cut, "125% text: nothing cut").toEqual([]);
   expect((await facts()).overflow, "125% text: no sideways page scroll").toBeLessThanOrEqual(1);
   await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
-  // Editing at 390 (nothing is saved): the figures step aside for the grip and ×, nothing cut.
+  // Editing at 390 (nothing is saved): the figures and their column names step aside for the grip
+  // and ×, nothing cut; Done brings them back.
   await page.setViewportSize({ width: 390, height: 800 });
+  const edit = page.getByTestId("pools-edit");
   await expect(async () => {
-    await page.getByTestId("pools-edit").click();
-    await expect(pool.getByTestId("pool-item").first().getByRole("button").first()).toBeVisible({ timeout: 2_000 });
+    if (!/Done/.test(await edit.innerText())) await edit.click();
+    await expect(edit).toHaveText(/Done/, { timeout: 2_000 });
   }).toPass({ timeout: 15_000 });
+  await expect(pool.getByTestId("pool-grip").first()).toBeVisible();
+  await expect(pool.getByTestId("pool-card-stats").first()).toBeHidden();
   await expect.poll(async () => (await facts()).cut, "editing: nothing cut").toEqual([]);
+  expect((await facts()).head, "editing: the figures' column names hidden too").toEqual([]);
+  await edit.click();
+  await expect(edit).toHaveText(/Edit/);
+  await expect(pool.getByTestId("pool-card-stats").first()).toBeVisible();
+});
+
+// Without recent form (one champion's games, too few for it), ranked progress spans the rail's two
+// rows: opening its history grows the rail's second row, never the season's card, and the pools
+// under that card stay where they are (the card had stretched by 108px and the pools moved down).
+test("profile Overview's 2×2 without recent form: opening Ranked progress's history moves neither the season's card nor the pools", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "the 2×2 is from a 1440px window");
+  await page.goto("/players");
+  const href = (await playerEntry(page, "Demo Top").first().getAttribute("href"))!;
+  await page.goto(`${href}?scope=champion&champion=Ornn`);
+  await expect(page.getByTestId("ranked-progress")).toBeVisible();
+  await expect(page.getByTestId("recent-form"), "Ornn's games are too few for recent form").toHaveCount(0);
+  /** A card's top on the page (not the window, in case a click scrolls) and its height. */
+  const at = (testId: string) =>
+    page.getByTestId(testId).evaluate((e) => {
+      const r = e.getBoundingClientRect();
+      return { top: r.top + window.scrollY, left: r.left, right: r.right, height: r.height };
+    });
+  const [figures, pools, ranked] = [await at("season-figures"), await at("champion-pools"), await at("ranked-progress")];
+  expect(ranked.left, "the 2×2: ranked progress in the rail beside the season's card").toBeGreaterThan(figures.right);
+  expect(pools.top, "the pools under the season's card").toBeGreaterThan(figures.top + figures.height);
+  await page.getByTestId("ranked-details-toggle").click();
+  await expect(page.getByTestId("ranked-details")).toHaveAttribute("open", "");
+  await expect(page.getByTestId("ranked-table")).toBeVisible();
+  const [figuresOpen, poolsOpen] = [await at("season-figures"), await at("champion-pools")];
+  expect(Math.abs(figuresOpen.height - figures.height), "the season's card keeps its height").toBeLessThanOrEqual(1);
+  expect(Math.abs(poolsOpen.top - pools.top), "the pools stay where they were").toBeLessThanOrEqual(1);
 });
