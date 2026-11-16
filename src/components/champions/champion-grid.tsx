@@ -72,6 +72,11 @@ export interface ChampionGridProps {
    * moves; what it says when nothing matches is the window's.
    */
   toolbar?: boolean;
+  /**
+   * Where ArrowUp or ArrowLeft from the first portraits leads, for a window whose search is its own
+   * (toolbar false): it focuses that search. Without it the keys go back to the grid's own search.
+   */
+  onExitTop?: () => void;
 }
 
 const noopSubscribe = () => () => {};
@@ -103,7 +108,7 @@ function rememberRecent(id: string) {
  * filter, portrait grid with clear selected and unavailable states. Enter picks the first match;
  * every portrait is a real button, so keyboard and touch work the same. No network calls.
  */
-export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReason, onPick, initialRole = "ALL", maxHeight = 360, autoFocus = false, toolbarExtra, size = "md", testId = "champion-grid", prioritisedIds, prioritisedLabel, readOnly = false, placeholder = "Search champion…", inputRef, progressive = false, toolbar = true }: ChampionGridProps) {
+export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReason, onPick, initialRole = "ALL", maxHeight = 360, autoFocus = false, toolbarExtra, size = "md", testId = "champion-grid", prioritisedIds, prioritisedLabel, readOnly = false, placeholder = "Search champion…", inputRef, progressive = false, toolbar = true, onExitTop }: ChampionGridProps) {
   const [query, setQuery] = React.useState("");
   const [role, setRole] = React.useState<RoleFilter>(initialRole);
   const [browseAll, setBrowseAll] = React.useState(false);
@@ -146,8 +151,10 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
     const to = e.key === "ArrowRight" ? i + 1 : e.key === "ArrowLeft" ? i - 1 : e.key === "ArrowDown" ? i + cols : e.key === "ArrowUp" ? i - cols : e.key === "Home" ? 0 : e.key === "End" ? buttons.length - 1 : null;
     if (to === null) return;
     e.preventDefault();
-    if (to < 0 && (e.key === "ArrowUp" || e.key === "ArrowLeft")) (gridRef.current?.closest("[data-testid]")?.querySelector("input[type=search]") as HTMLInputElement | null)?.focus();
-    else buttons[Math.max(0, Math.min(buttons.length - 1, to))]?.focus();
+    if (to < 0 && (e.key === "ArrowUp" || e.key === "ArrowLeft")) {
+      if (onExitTop) onExitTop();
+      else (gridRef.current?.closest("[data-testid]")?.querySelector("input[type=search]") as HTMLInputElement | null)?.focus();
+    } else buttons[Math.max(0, Math.min(buttons.length - 1, to))]?.focus();
   };
   return (
     <div className="flex min-h-0 flex-col gap-2" data-testid={testId}>

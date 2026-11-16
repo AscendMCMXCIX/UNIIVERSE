@@ -79,48 +79,53 @@ function PickerBody({ slot, champions, selected, recent, curated, curatedTitle, 
   };
   const grid = (list: PickerChampion[]) => (
     <div ref={gridRef}>
-      <ChampionGrid champions={list} toolbar={false} maxHeight="auto" selectedIds={selectedIds} onPick={pick} testId="matchup-picker-grid" />
+      {/* ArrowUp (or ArrowLeft) from the first portraits goes back to the search, which is this window's, not the grid's. */}
+      <ChampionGrid champions={list} toolbar={false} maxHeight="auto" selectedIds={selectedIds} onPick={pick} onExitTop={() => inputRef.current?.focus()} testId="matchup-picker-grid" />
     </div>
   );
   return (
     <div className="space-y-4">
       {/* The search stays at the top of the window while the roster scrolls under it (not in a
-          short window, which scrolls as one under its own pinned title). */}
+          short window, which scrolls as one under its own pinned title). The clear button sits
+          beside the label, not in it, so the field's name stays its own once something is typed;
+          it covers the field's right end, 44px square like the field is tall. */}
       <div className="sticky top-0 z-10 -mx-4 bg-bg-elevated px-4 py-1 sm:-mx-6 sm:px-6 short:static">
-        <label className="relative block">
-          <span className="sr-only">{slot === "you" ? "Search for your champion by name" : "Search for the enemy by name"}</span>
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" aria-hidden />
-          <input
-            ref={inputRef}
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && results[0]) {
-                e.preventDefault();
-                pick(results[0].id);
-              } else if (e.key === "ArrowDown") {
-                const first = gridRef.current?.querySelector<HTMLButtonElement>("button[data-champion]:not(:disabled)");
-                if (first) {
+        <div className="relative">
+          <label className="block">
+            <span className="sr-only">{slot === "you" ? "Search for your champion by name" : "Search for the enemy by name"}</span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" aria-hidden />
+            <input
+              ref={inputRef}
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && results[0]) {
                   e.preventDefault();
-                  first.focus();
+                  pick(results[0].id);
+                } else if (e.key === "ArrowDown") {
+                  const first = gridRef.current?.querySelector<HTMLButtonElement>("button[data-champion]:not(:disabled)");
+                  if (first) {
+                    e.preventDefault();
+                    first.focus();
+                  }
+                } else if (e.key === "Escape" && query) {
+                  // Clears the search; a second Escape closes the window.
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setQuery("");
                 }
-              } else if (e.key === "Escape" && query) {
-                // Clears the search; a second Escape closes the window.
-                e.preventDefault();
-                e.stopPropagation();
-                setQuery("");
-              }
-            }}
-            placeholder="Search champions"
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="none"
-            spellCheck={false}
-            enterKeyHint="go"
-            className="h-11 w-full rounded-md border border-border-control bg-bg-elevated pl-9 pr-11 text-base text-fg placeholder:text-fg-subtle hover:border-fg-subtle focus:border-accent focus:outline-none [&::-webkit-search-cancel-button]:hidden"
-            data-testid="matchup-picker-search"
-          />
+              }}
+              placeholder="Search champions"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              enterKeyHint="go"
+              className="h-11 w-full rounded-md border border-border-control bg-bg-elevated pl-9 pr-11 text-base text-fg placeholder:text-fg-subtle hover:border-fg-subtle focus:border-accent focus:outline-none [&::-webkit-search-cancel-button]:hidden"
+              data-testid="matchup-picker-search"
+            />
+          </label>
           {query ? (
             <button
               type="button"
@@ -128,13 +133,14 @@ function PickerBody({ slot, champions, selected, recent, curated, curatedTitle, 
                 setQuery("");
                 inputRef.current?.focus();
               }}
-              className="absolute right-0.5 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-md text-fg-subtle hover:text-fg"
+              className="absolute right-0 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-md text-fg-subtle hover:text-fg"
               aria-label="Clear search"
+              data-testid="matchup-picker-clear"
             >
               <X className="h-4 w-4" aria-hidden />
             </button>
           ) : null}
-        </label>
+        </div>
       </div>
       <AfterOpen fallback={<GridSkeleton />}>
         {typed ? (
