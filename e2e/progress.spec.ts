@@ -1,11 +1,27 @@
 import { expect, test, type Locator, type Page } from "./test";
 import { playerEntry } from "./players";
+import { RANKED_YEAR } from "../src/domain/ranked-year";
 
 /*
   R7/R8 on a teammate's profile (demo roster; the rank readings are synthetic demo data, seeded
   in demo mode only, from the demo games): the recent-form strip follows the filter's newest games,
   and Ranked progress shows the rank read so far, compactly, Solo/Duo and Flex separately.
 */
+
+/*
+  Dates, without naming a year: the demo's games and rank readings are dated back from the moment it
+  was seeded, about 78 days at most (server/demo/seed.ts), so a date the profile shows ("7 Oct 2026",
+  in the installation's time zone) must fall in the 100 days before now, or on the day after it.
+*/
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DAY = 86_400_000;
+function inDemoWindow(date: string): boolean {
+  const m = /^(\d{1,2}) ([A-Z][a-z]{2}) (\d{4})$/.exec(date);
+  const month = m ? MONTHS.indexOf(m[2]!) : -1;
+  if (!m || month < 0) return false;
+  const at = Date.UTC(Number(m[3]), month, Number(m[1]));
+  return at >= Date.now() - 100 * DAY && at <= Date.now() + DAY;
+}
 
 test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
@@ -37,7 +53,11 @@ test("a profile shows recent form and ranked progress per queue", async ({ page 
   const ranked = page.getByTestId("ranked-progress");
   await expect(ranked).toBeVisible();
   await expect(page.getByTestId("ranked-queue-solo")).toHaveAttribute("aria-current", "page");
-  await expect(page.getByTestId("ranked-tracking")).toContainText(/2026 Season \d · rank recorded since \d{1,2} [A-Z][a-z]{2} 2026/);
+  // The ranked year is the app's (domain/ranked-year); the first reading's date is the demo's.
+  const tracking = page.getByTestId("ranked-tracking");
+  await expect(tracking).toContainText(new RegExp(`${RANKED_YEAR} Season \\d · rank recorded since \\d{1,2} [A-Z][a-z]{2} \\d{4}`));
+  const since = /rank recorded since (\d{1,2} [A-Z][a-z]{2} \d{4})/.exec(await tracking.innerText())![1]!;
+  expect(inDemoWindow(since), `rank recorded since ${since}: within the demo's dates`).toBe(true);
   // No period tabs: the seasons share one ladder, and nothing was read before the first reading.
   await expect(ranked.locator('[data-testid^="ranked-view-"]')).toHaveCount(0);
   const chart = page.getByTestId("ranked-chart");
@@ -71,7 +91,9 @@ test("a profile shows recent form and ranked progress per queue", async ({ page 
   await page.mouse.move(0, 0);
   await chart.focus();
   await page.keyboard.press("ArrowLeft");
-  await expect(page.getByTestId("ranked-tip")).toContainText(/Read \d{1,2} [A-Z][a-z]{2} 2026/);
+  await expect(page.getByTestId("ranked-tip")).toContainText(/Read \d{1,2} [A-Z][a-z]{2} \d{4}/);
+  const read = /Read (\d{1,2} [A-Z][a-z]{2} \d{4})/.exec(await page.getByTestId("ranked-tip").innerText())![1]!;
+  expect(inDemoWindow(read), `read ${read}: within the demo's dates`).toBe(true);
   await page.keyboard.press("Escape");
 
   // The details, closed at first: the ranked year's coverage (the year's games week by week, the

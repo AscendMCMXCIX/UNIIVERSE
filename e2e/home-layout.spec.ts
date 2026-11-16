@@ -3,13 +3,14 @@ import { playerEntry } from "./players";
 
 /*
   Team Overview and a profile's Overview as home screens (in-memory demo roster, synthetic data).
-  Team: on a wide screen the five cards stand side by side under the team's header, the two
-  centred together in the window (as much room above the header as below the cards), and long
-  names take a second line instead of being cut; on a short window the page starts at the top and
-  scrolls. Profile: the data status, the season's figures with its multikills, and rank and form
-  fill the first screen of a 1440 × 900 window, with the pools straight after; off roles are
-  one-line summaries that open in place, their portraits still open the champion window, and the
-  pools read as a display until Edit.
+  Team: on a wide screen the five cards stand side by side under the team's header, which sits
+  right under the section tabs; the cards take the window's height down to the bench of
+  substitutes under them (their art grows into it, up to 1.9 times a card's width), so no band of
+  empty page sits above the header or under the cards, and long names take a second line instead
+  of being cut; on a short window the page starts at the top and scrolls. Profile: the data status,
+  the season's figures with its multikills, and rank and form fill the first screen of a
+  1440 × 900 window, with the pools straight after; off roles are one-line summaries that open in
+  place, their portraits still open the champion window, and the pools read as a display until Edit.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -23,38 +24,51 @@ async function box(locator: Locator) {
   return (await locator.boundingBox())!;
 }
 
-/** Space above the header and below the cards inside the frame, and where the frame ends. */
-async function lineupSpace(page: Page) {
+/** Where the lineup's parts sit: the section tabs above it, the team's header, the cards and the bench of substitutes under them. */
+async function lineupParts(page: Page) {
+  const tabs = await box(page.getByTestId("team-tabs"));
   const frame = await box(page.getByTestId("lineup-frame"));
-  const track = await box(page.getByTestId("lineup-overview"));
   const header = await box(page.getByTestId("team-header"));
-  return { above: header.y - frame.y, below: frame.y + frame.height - (track.y + track.height), frameBottom: frame.y + frame.height, headerBottom: header.y + header.height, trackTop: track.y };
+  const track = await box(page.getByTestId("lineup-overview"));
+  const bench = await box(page.getByTestId("lineup-bench"));
+  return { tabsBottom: tabs.y + tabs.height, frameTop: frame.y, headerTop: header.y, headerBottom: header.y + header.height, trackTop: track.y, trackBottom: track.y + track.height, benchTop: bench.y, benchBottom: bench.y + bench.height };
 }
 
 for (const [width, height] of [
   [1920, 1080],
   [1440, 900],
+  [1280, 800],
 ] as const) {
-  test(`Team Overview at ${width} × ${height}: five across under the header, centred together in the window`, async ({ page }, info) => {
+  test(`Team Overview at ${width} × ${height}: five across under the header, from the top of the page down to the bench, the cards taking the window's height`, async ({ page, context, baseURL }, info) => {
     test.skip(info.project.name !== "desktop", "wide screens");
+    // The sidebar open, as it is by default: at 1280 that leaves a 60rem lineup, five across from 58rem.
+    await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: baseURL! }]);
     await page.setViewportSize({ width, height });
     await page.goto("/team");
     const cards = page.getByTestId("lineup-cell");
     await expect(cards).toHaveCount(5);
-    const boxes = await cards.evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ top: Math.round(r.top), height: r.height })));
+    const boxes = await cards.evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ top: Math.round(r.top), width: r.width, height: r.height })));
     expect(new Set(boxes.map((b) => b.top)).size, "one row").toBe(1);
-    // Portrait cards: taller than they are wide, the artwork growing with the window.
+    // Anchored: the header right under the section tabs, the cards right under it, the bench right under them.
+    const parts = await lineupParts(page);
+    expect(parts.headerTop - parts.tabsBottom, "the header sits under the tabs").toBeLessThanOrEqual(24);
+    expect(parts.trackTop - parts.headerBottom).toBeLessThanOrEqual(32);
+    expect(parts.benchTop - parts.trackBottom).toBeLessThanOrEqual(16);
+    // The cards take the height the window leaves them: their art grows into it (a portrait, at
+    // most 1.9 times the card's width, and 30rem), so nothing scrolls and no band of empty page is
+    // left under the bench unless the art has reached its largest size.
+    const rem = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
     const art = await box(page.getByTestId("card-art").first());
-    expect(art.height).toBeGreaterThanOrEqual(13 * 16);
-    // Centred: the frame fills the window (inside the page padding), with as much room above the
-    // header as below the cards, the header right above them; nothing scrolls.
-    const space = await lineupSpace(page);
-    expect(space.frameBottom, "the frame reaches the foot of the window").toBeGreaterThanOrEqual(height - 40);
-    expect(space.trackTop - space.headerBottom).toBeLessThanOrEqual(32);
-    expect(Math.abs(space.above - space.below), `above ${space.above}, below ${space.below}`).toBeLessThanOrEqual(2);
-    expect(space.above).toBeGreaterThan(0);
+    // The card is the art's container: 1.9 times its content box (inside its border).
+    const largest = Math.min(1.9 * (await page.locator("[data-testid^=lineup-row-]").first().evaluate((card) => card.clientWidth)), 30 * rem);
+    expect(art.height).toBeGreaterThanOrEqual(13 * rem - 1);
+    expect(art.height).toBeLessThanOrEqual(largest + 1);
+    expect(parts.benchBottom, "the bench ends on the first screen").toBeLessThanOrEqual(height);
     expect(await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight)).toBeLessThanOrEqual(1);
-    expect(await page.getByTestId("lineup-stage-floor").getAttribute("aria-hidden")).toBe("true");
+    const atLargest = art.height >= largest - 1;
+    if (!atLargest) expect(height - parts.benchBottom, "no band of empty page under the bench").toBeLessThanOrEqual(4 * rem);
+    // The decorative floor (a glow and the team's name under the cards) is gone: the bench is there.
+    await expect(page.getByTestId("lineup-stage-floor")).toHaveCount(0);
     // Names are never cut: a long one wraps instead.
     const cut = await page.locator('[data-testid="lineup-overview"] [data-name-style]').evaluateAll((els) => els.filter((e) => e.scrollWidth > e.clientWidth + 1 || e.scrollHeight > e.clientHeight + 1).length);
     expect(cut).toBe(0);
@@ -66,12 +80,33 @@ test("Team Overview on a short window: the lineup follows the header and the pag
   test.skip(info.project.name !== "desktop", "wide screens");
   await page.setViewportSize({ width: 1440, height: 560 });
   await page.goto("/team");
-  const space = await lineupSpace(page);
-  // No centring gap pushes the page down: the header starts at the top, the cards right under it.
-  expect(space.trackTop - space.headerBottom).toBeLessThanOrEqual(32);
-  expect(Math.abs(space.above), "no space added above the header").toBeLessThanOrEqual(1);
+  const parts = await lineupParts(page);
+  // Nothing pushes the page down: the header starts at the top, the cards right under it.
+  expect(parts.trackTop - parts.headerBottom).toBeLessThanOrEqual(32);
+  expect(Math.abs(parts.headerTop - parts.frameTop), "no space added above the header").toBeLessThanOrEqual(1);
+  expect(parts.headerTop - parts.tabsBottom).toBeLessThanOrEqual(24);
   expect(await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight)).toBeGreaterThan(0);
   expect(await overflow(page)).toBeLessThanOrEqual(1);
+});
+
+test("Team Overview in a short desktop window (1280 × 450): the cards' track scrolls inside the page, which never scrolls sideways", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "wide screens");
+  // A window this short (devtools docked under it, a split screen) shows the lineup as one sideways
+  // track, as a phone held sideways does: inside the content, never as wide as its five cards.
+  await page.setViewportSize({ width: 1280, height: 450 });
+  for (const path of ["/team", "/public"]) {
+    await page.goto(path);
+    const track = page.getByTestId("lineup-overview");
+    await expect(track).toHaveAttribute("data-ready", "true");
+    expect(await overflow(page), `${path}: the page never scrolls sideways`).toBeLessThanOrEqual(1);
+    const room = await track.evaluate((el) => ({ scroll: el.scrollWidth, width: el.clientWidth, right: el.getBoundingClientRect().right }));
+    expect(room.right, `${path}: the track ends inside the window`).toBeLessThanOrEqual(1280);
+    expect(room.scroll, `${path}: the track holds more than it shows`).toBeGreaterThan(room.width + 100);
+    // It scrolls on its own, to its last card.
+    await track.evaluate((el) => el.scrollTo({ left: el.scrollWidth }));
+    await expect.poll(() => track.evaluate((el) => el.scrollLeft), { message: `${path}: the track scrolls` }).toBeGreaterThan(0);
+    expect(await overflow(page)).toBeLessThanOrEqual(1);
+  }
 });
 
 test("Team Overview on a 1366 × 768 laptop with the sidebar open: all five in one centred row of equal cards", async ({ page, context, baseURL }, info) => {
@@ -98,18 +133,27 @@ test("Team Overview on a 1366 × 768 laptop with the sidebar open: all five in o
   expect(await overflow(page)).toBeLessThanOrEqual(1);
 });
 
-test("Team Overview on a very wide screen: the lineup keeps its maximum width, centred", async ({ page, context, baseURL }, info) => {
+test("Team Overview on a very wide screen: the lineup keeps its maximum width, centred, with the bench's cells under their cards", async ({ page, context, baseURL }, info) => {
   test.skip(info.project.name !== "desktop", "wide screens");
   await context.addCookies([{ name: "uniiverse_sidebar", value: "collapsed", url: baseURL! }]);
   await page.setViewportSize({ width: 2560, height: 1440 });
   await page.goto("/team");
   const track = await box(page.getByTestId("lineup-overview"));
   const main = await box(page.locator("main"));
-  // The cap is in rem (the type scales with very large screens, the lineup with it), never the window.
+  // The cap is in rem (the type scales with very large screens, the lineup with it), never the
+  // window: 100rem from a 90rem lineup, so the cards' art reads as portraits.
   const rem = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
-  expect(track.width).toBeLessThanOrEqual(84 * rem + 1);
+  expect(track.width).toBeLessThanOrEqual(100 * rem + 1);
   expect(track.width).toBeLessThan(main.width - 2 * 4 * rem);
   expect(Math.abs(track.x + track.width / 2 - (main.x + main.width / 2))).toBeLessThanOrEqual(2);
+  // The bench's cells share the cards' columns: each role's cell under its card.
+  const roles = ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"];
+  for (const [i, role] of roles.entries()) {
+    const cell = await box(page.getByTestId("lineup-cell").nth(i));
+    const under = await box(page.getByTestId(`bench-${role}`).or(page.getByTestId(`bench-empty-${role}`)));
+    expect(Math.abs(under.x - cell.x), `${role}: left edges`).toBeLessThanOrEqual(1);
+    expect(Math.abs(under.width - cell.width), `${role}: widths`).toBeLessThanOrEqual(1);
+  }
 });
 
 async function openTeammate(page: Page) {
