@@ -168,6 +168,46 @@ test("on a phone the window takes the whole screen; with the keyboard up the fie
   }
 });
 
+test("the window fits above the keyboard only once a field is typed in: a visible part shrunk with nothing typed in leaves it the whole screen", async ({ browser, baseURL }, info) => {
+  // iOS has reported the visible part a keyboard's height short in installed apps with nothing
+  // focused (WebKit bug 323322): a window fitted to that would be squeezed for nothing.
+  test.skip(info.project.name !== "phone", "phones");
+  const viewport = PHONE.viewport;
+  const guest = await guestPage(browser, baseURL!, PHONE);
+  await emulateKeyboard(guest);
+  await guest.goto("/public");
+  await guest.getByTestId("public-sign-in").tap();
+  const dialog = guest.getByRole("dialog", { name: "Sign in" });
+  await expect(dialog).toBeVisible();
+  const username = dialog.getByLabel("Username");
+  await expect(username).toBeFocused();
+  // The focus leaves the fields, then the visible part shrinks by a keyboard's height.
+  await dialog.getByRole("button", { name: "Close" }).focus();
+  await keyboard(guest, 290);
+  await guest.waitForTimeout(300);
+  await expect(dialog.locator("[data-keyboard=true]")).toHaveCount(0);
+  await expect.poll(() => frame(dialog)).toEqual([0, 0, viewport.width, viewport.height]);
+  // A field takes the focus: now it is a keyboard, and the window fits above it.
+  await username.focus();
+  await expect(dialog.locator("[data-keyboard=true]")).toHaveCount(1);
+  await expect.poll(async () => (await span(dialog)).bottom).toBeLessThanOrEqual(viewport.height - 290);
+  // The focus leaves the field while the keyboard is still up (a button pressed): it stays fitted,
+  // until the visible part is the whole screen again.
+  await dialog.getByRole("button", { name: "Close" }).focus();
+  await guest.waitForTimeout(300);
+  await expect(dialog.locator("[data-keyboard=true]")).toHaveCount(1);
+  await keyboard(guest, 0);
+  await expect(dialog.locator("[data-keyboard=true]")).toHaveCount(0);
+  await expect.poll(() => frame(dialog)).toEqual([0, 0, viewport.width, viewport.height]);
+  // Once the visible part has been whole again, a later shrink with nothing typed in is not
+  // believed either (iOS has carried such a shrink into the next page, WebKit bug 323322).
+  await keyboard(guest, 290);
+  await guest.waitForTimeout(300);
+  await expect(dialog.locator("[data-keyboard=true]")).toHaveCount(0);
+  await expect.poll(() => frame(dialog)).toEqual([0, 0, viewport.width, viewport.height]);
+  await guest.context().close();
+});
+
 test("a phone held sideways gets the whole screen: the brand and Close stay at the top while the form scrolls under them", async ({ browser, baseURL }, info) => {
   test.skip(info.project.name !== "phone", "a phone held sideways");
   const guest = await guestPage(browser, baseURL!, { ...PHONE, viewport: { width: 844, height: 390 } });

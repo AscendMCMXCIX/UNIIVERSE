@@ -261,7 +261,7 @@ Bytes sent by Postgres to the app while running the perf probe (`runPerfProbe`, 
 
 ## Safeguards
 
-`tests/ops/hosting-budget.test.ts` checks that:
+`src/server/ops/hosting-budget.test.ts` checks that:
 - previews are skipped unless asked for, and production is built;
 - a build with a `DATABASE_URL` leaves PGlite out, and one without it keeps PGlite;
 - `create.ts` never imports PGlite or its driver at the top level.
