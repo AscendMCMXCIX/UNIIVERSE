@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import path from "node:path";
 import { ESLint } from "eslint";
-import { DISPLAY_TIME_ZONE, calendarDay, localPeriodStarts, formatCompactCount, formatCount, formatDate, formatDateTime, formatDayMonth, formatIsoDay, formatKilo, formatNumber, formatTimeOfDay, isoDay, timeAgo, formatLpChange } from "./format";
+import { DISPLAY_TIME_ZONE, calendarDay, localPeriodStarts, formatCompactCount, formatCooldowns, formatCount, formatDate, formatDateTime, formatDayMonth, formatIsoDay, formatKilo, formatNumber, formatSeconds, formatTimeOfDay, isoDay, timeAgo, formatLpChange } from "./format";
 
 /*
   Every date on the site is written in the installation's time zone (Sydney unless
@@ -115,6 +115,31 @@ describe("numbers", () => {
     expect(formatLpChange(24)).toBe("+24 LP");
     expect(formatLpChange(-21)).toBe("\u221221 LP");
     expect(formatLpChange(0)).toBe("0 LP");
+  });
+});
+
+describe("cooldowns (Matchup Intel)", () => {
+  it("write a base cooldown per rank, the same value once, and one value alone", () => {
+    expect(formatCooldowns([8, 7, 6, 5, 4])).toBe("8 / 7 / 6 / 5 / 4 s");
+    expect(formatCooldowns([13, 13, 13, 13, 13])).toBe("13 s at every rank");
+    expect(formatCooldowns([120, 100, 80])).toBe("120 / 100 / 80 s");
+    expect(formatCooldowns([12])).toBe("12 s");
+    // A passive that changes with the champion's level says so.
+    expect(formatCooldowns([6, 6, 6], "level")).toBe("6 s at every level");
+  });
+
+  it("write decimals as the numbers have them, up to two, with the site's decimal point", () => {
+    expect(formatCooldowns([8.5, 7.75, 7, 6.25, 5.5])).toBe("8.5 / 7.75 / 7 / 6.25 / 5.5 s");
+    expect(formatCooldowns([0.25, 0.25, 0.25])).toBe("0.25 s at every rank");
+    expect(formatSeconds(1.3333)).toBe("1.33");
+    expect(formatSeconds(16)).toBe("16");
+    expect(formatSeconds(Number.NaN)).toBe("—");
+  });
+
+  it("never write a number that is not there", () => {
+    expect(formatCooldowns([])).toBe("—");
+    expect(formatCooldowns([8, Number.NaN, 6])).toBe("—");
+    expect(formatCooldowns([-1, 2])).toBe("—");
   });
 });
 
