@@ -38,11 +38,13 @@ import { accountShortNames } from "@/domain/account-names";
     Matchups   one lane opponent at a time ("Riven vs Renekton", searchable): the record, the lane
                by minute in gold, experience or CS, and every game behind the figures
 
-  Everything here is the player's own stored games. Matchup Intel, the static reference for a pair
-  (the enemy's abilities, base cooldowns, curated briefings), is a page of its own under Resources:
-  the scope row links to it for this champion, and for the opponent chosen in Matchups. Each figure says how many games it rests on;
+  Everything here is the player's own stored games. Each figure says how many games it rests on;
   a game without a timeline is counted as such, never as zero. A game opens the match window in
   place of this one (never two dimmed layers), with a way back to the same view.
+
+  Matchup Intel, the static reference for a pair (the enemy's abilities, base cooldowns, curated
+  briefings), is a page of its own under Resources: the scope row links to it for this champion,
+  and for the lane opponent chosen in Matchups.
 */
 
 export type ChampionTab = "overview" | "matchups";
