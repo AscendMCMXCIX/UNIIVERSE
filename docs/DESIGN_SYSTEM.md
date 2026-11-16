@@ -292,8 +292,9 @@ test):
   be pressed (a moving window carries what is fixed inside it, so they go in once it has finished
   moving in and leave as it starts to close), each heard once by a screen reader. Escape on an open
   bubble closes the bubble alone, never the window; a bubble opens for a mouse as it moves over its
-  ⓘ, never as the ⓘ arrives under a pointer at rest (a window opening under the pointer that pressed
-  its opener), so that Escape closes the window. A picker's list inside a window (the Filters
+  ⓘ, never as a window opening brings the ⓘ under a pointer at rest (the pointer that pressed its
+  opener), so that Escape closes the window (in WebKit an ⓘ scrolled under a still pointer does open,
+  as a hover does). A picker's list inside a window (the Filters
   sheet's member and champion pickers, the champion window's opponent picker) opens in the flow of
   the window's body, which stays its one scroller: no list scrolling inside it, nothing cut off at
   its edge; it fades in where it rests, and a press below it closes it on the press's click, so
