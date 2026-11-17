@@ -170,7 +170,7 @@ test("team cards: compact by default, the whole pool in a detail panel that neve
 
 test("players list and profile: browse, tabs, edit champions in place, season statistics", async ({ page }) => {
   await page.goto("/players");
-  await expect(page.getByTestId(isPhone(page) ? "players-list" : "players-directory")).toBeVisible();
+  await expect(page.getByTestId("players-directory")).toBeVisible();
   await playerLink(page, "Demo Top").click();
   await page.waitForURL(/\/players\/[0-9a-f-]+$/);
   await expectNoHorizontalOverflow(page);

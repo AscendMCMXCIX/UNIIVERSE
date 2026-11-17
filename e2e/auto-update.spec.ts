@@ -36,6 +36,8 @@ async function pastReturnPause(page: Page, since: number) {
 
 test("the Players directory shows a member added elsewhere when its tab is shown again, without a reload", async ({ page, browser }) => {
   const asked = versionChecks(page);
+  // A short window: the roster fits one desktop screen, and the page has to scroll for its place to be kept.
+  await page.setViewportSize({ width: 1440, height: 400 });
   await page.goto("/players");
   await expect(page.getByTestId("player-card").first()).toBeVisible();
   await page.waitForLoadState("networkidle");
