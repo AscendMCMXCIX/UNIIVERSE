@@ -65,13 +65,14 @@ export interface CompactRank {
  * teammate's, without "view teammates' statistics") is left out by the caller instead
  * (CardIdentity's showRank, the profile header's identity.showRank), so it is never read as Unranked.
  */
-export function RankInline({ rank, className, showQueue = false }: { rank: CompactRank | null; className?: string; showQueue?: boolean }) {
+/** `wrap`: the label wraps (a list row's line, which wraps rather than cuts) instead of ending in an ellipsis. */
+export function RankInline({ rank, className, showQueue = false, wrap = false }: { rank: CompactRank | null; className?: string; showQueue?: boolean; wrap?: boolean }) {
   const label = rank ? rankLabel(rank.tier, rank.division) : "Unranked";
   const queue = rank?.queue === "flex" ? "Flex" : rank?.queue === "solo" ? "Solo/Duo" : null;
   return (
     <span className={cn("inline-flex min-w-0 items-center gap-1", className)} title={rank ? `${queue ? `Ranked ${queue}` : "Ranked"} · ${label} · ${rank.leaguePoints} LP (last known)` : "No ranked placement on record"} data-testid="rank-inline">
       <RankEmblem tier={rank?.tier} className="h-4 w-4 shrink-0" />
-      <span className="truncate">{label}</span>
+      <span className={wrap ? "min-w-0 [overflow-wrap:anywhere]" : "truncate"}>{label}</span>
       {showQueue && queue ? <span className="shrink-0 text-fg-subtle">· {queue}</span> : null}
     </span>
   );

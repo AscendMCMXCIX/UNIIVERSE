@@ -7,6 +7,7 @@ import { patches, dataRefreshStatus, riotAccounts } from "@/server/db/schema";
 import { RETIRED_JOB_KEYS, failuresInARow } from "@/server/ops/refresh-status";
 import { getRiotCredentialStatus } from "@/server/riot/credential";
 import { lastRankScheduleCall } from "@/server/ops/rank-schedule-calls";
+import { lastTickScheduleCalls, tickScheduleSilentMs } from "@/server/ops/tick-schedule-calls";
 import { log } from "@/server/observability/log";
 
 export const dynamic = "force-dynamic";
@@ -52,6 +53,15 @@ export async function GET() {
     const successAt = (key: string) => jobs.find((j) => j.key === key)?.lastSuccessAt?.getTime() ?? 0;
     const installedAt = successAt("rank-schedule");
     if (installedAt > successAt("rank-schedule-off") && !failing.includes("rank-schedule") && now - Math.max(installedAt, await lastRankScheduleCall(handle.db)) > RANK_SCHEDULE_SILENT_MS) failing.push("rank-schedule");
+    // The database's own tick schedule (production's ten-minute uniiverse-tick, docs/DEPLOYMENT.md):
+    // each authorised call of /api/jobs/tick that pg_net sends is recorded as it arrives
+    // (server/ops/tick-schedule-calls.ts). A missing tick run proves nothing (GitHub, Vercel's cron
+    // and visits run ticks too) and a refused call records nothing, so the schedule's own calls are
+    // read: once it has called, a silence of four of its intervals (40 minutes to four hours) lists
+    // it, whether its calls are refused (401) or no longer sent (the job removed or made inactive,
+    // pg_cron stopped). One row, read on every check; no pg_cron or Vault read here either.
+    const tick = await lastTickScheduleCalls(handle.db);
+    if (tick.at > 0 && now - tick.at > tickScheduleSilentMs(tick)) failing.push("tick-schedule");
     // While Riot rejects the key (expired or revoked), every linked account waits, backing off
     // for hours, and the account sync finds nothing due and reports success. So the key itself
     // is listed as failing, which fails the scheduled Data jobs run (the owner's email).

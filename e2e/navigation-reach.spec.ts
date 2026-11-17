@@ -195,7 +195,10 @@ test("tablet: the menu is a modal dialog: focus stays inside, the page behind is
   await expect(drawer).toHaveCount(0);
   await expect(menu).toBeFocused();
   // A click outside the panel closes it too, and a page scrolled far down stays where it was when
-  // focus returns to the menu button in the bar.
+  // focus returns to the menu button in the bar. (Players fits one tablet screen: a teammate's
+  // Match History, ten games a page, is the long page here.)
+  await page.goto(`${await teammate(page)}/matches`);
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
   await page.evaluate(() => window.scrollTo(0, 800));
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(500);
   const scrolled = await page.evaluate(() => window.scrollY);

@@ -5,7 +5,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
   its job makes, through the real entry points a browser reaches (loginAction, the server actions,
   the /me page), as tests/db/auth-actions.test.ts drives them:
   - the job withdraws the derived password, and ends the account's sessions, once its own account
-    was given more access, a level, a profile or another name, so CRON_SECRET no longer opens it;
+    was given more access, a level, a profile or another name, so its key no longer opens it;
   - the account cannot change its own username, display name or password in Settings;
   - it cannot give itself a player profile (only the Owner completes one), so it never joins the
     players or starts Riot collection.
@@ -37,7 +37,7 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/server/accounts/kickoff", async (orig) => ({ ...(await orig<object>()), kickoffAccountSync: async () => undefined }));
 
-import { eq, sql } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { auditEvents, sessions as sessionsTable, users as usersTable } from "@/server/db/schema";
@@ -226,6 +226,127 @@ describe("the job withdraws the derived password from its own account once that 
     const r = await usersActions.changeOwnPasswordAction({ current: "", next: CHOSEN, confirm: CHOSEN }).catch((e: Error) => ({ ok: false as const, error: e.message }));
     expect(r.ok).toBe(false);
     expect(await opens(VERIFY_USERNAME, CHOSEN)).toBe(false);
+  });
+});
+
+describe("VERIFY_ACCOUNT_SECRET, the account's own key, once the owner sets it", () => {
+  const OWN = "a-verification-secret-of-its-own-0123456789-abcdefghij";
+  const WITH_OWN = { ...PROD, VERIFY_ACCOUNT_SECRET: OWN };
+  const OWN_DERIVED = deriveVerifyPassword(OWN);
+  const resets = async (id: string) => (await handle.db.select({ action: auditEvents.action }).from(auditEvents).where(eq(auditEvents.targetId, id))).filter((a) => a.action === "account.password-reset").length;
+
+  it("moves the account to it: password-updated, CRON_SECRET's password opens nothing, the old sessions end, and the job names the key", async () => {
+    expect(await login(VERIFY_USERNAME, DERIVED)).toBe("/team");
+    const id = await verifyId();
+    expect(await sessionCount(id)).toBe(1);
+    const moved = await ensureVerificationAccount(handle.db, WITH_OWN);
+    expect(moved).toEqual({ ok: true, summary: { username: VERIFY_USERNAME, state: "password-updated", key: "VERIFY_ACCOUNT_SECRET" } });
+    expect(JSON.stringify(moved)).not.toContain(OWN_DERIVED);
+    expect(await sessionCount(id)).toBe(0);
+    expect(await login(VERIFY_USERNAME, DERIVED)).toMatch(/^error: /);
+    expect(await login(VERIFY_USERNAME, OWN_DERIVED)).toBe("/team");
+    expect((await ensureVerificationAccount(handle.db, WITH_OWN)).summary).toEqual({ username: VERIFY_USERNAME, state: "unchanged", key: "VERIFY_ACCOUNT_SECRET" });
+    // Each key is replaced on its own: a new CRON_SECRET changes nothing now.
+    expect((await ensureVerificationAccount(handle.db, { ...WITH_OWN, CRON_SECRET: ROTATED.CRON_SECRET })).summary.state).toBe("unchanged");
+    expect(await opens(VERIFY_USERNAME, OWN_DERIVED)).toBe(true);
+    // A new VERIFY_ACCOUNT_SECRET is followed like any change of the key.
+    const NEXT = `${OWN}-replaced`;
+    expect((await ensureVerificationAccount(handle.db, { ...PROD, VERIFY_ACCOUNT_SECRET: NEXT })).summary.state).toBe("password-updated");
+    expect(await opens(VERIFY_USERNAME, OWN_DERIVED)).toBe(false);
+    expect(await opens(VERIFY_USERNAME, deriveVerifyPassword(NEXT))).toBe(true);
+    // Taken away again, the account goes back to CRON_SECRET's password.
+    expect((await ensureVerificationAccount(handle.db, PROD)).summary).toEqual({ username: VERIFY_USERNAME, state: "password-updated", key: "CRON_SECRET" });
+    expect(await opens(VERIFY_USERNAME, DERIVED)).toBe(true);
+    expect(await opens(VERIFY_USERNAME, deriveVerifyPassword(NEXT))).toBe(false);
+    expect(await resets(id)).toBe(3);
+  });
+
+  it("an unusable one (too short, padded, CRON_SECRET's own value) never falls back to CRON_SECRET: its password is withdrawn and its sessions end, until the key is fixed", async () => {
+    expect(await login(VERIFY_USERNAME, DERIVED)).toBe("/team");
+    const id = await verifyId();
+    for (const own of ["much-too-short", `${OWN}\n`, ` ${OWN}`, `${OWN}\u00a0`, SECRET]) {
+      const r = await ensureVerificationAccount(handle.db, { ...PROD, VERIFY_ACCOUNT_SECRET: own });
+      expect(r, JSON.stringify(own)).toMatchObject({ ok: false, error: expect.stringMatching(/^VERIFY_ACCOUNT_SECRET /) });
+      expect(r.summary.state).toBeUndefined();
+      expect(JSON.stringify(r)).not.toContain(own.trim());
+      expect(await opens(VERIFY_USERNAME, DERIVED)).toBe(false);
+      expect(await sessionCount(id)).toBe(0);
+    }
+    // Withdrawn once (later runs found no CRON_SECRET password to withdraw), and nothing reset.
+    const audit = (await handle.db.select({ action: auditEvents.action }).from(auditEvents).where(eq(auditEvents.targetId, id))).map((a) => a.action);
+    expect(audit.filter((a) => a === "account.password-withdrawn")).toHaveLength(1);
+    expect(await resets(id)).toBe(0);
+    // Fixed, the next run sets the new key's password.
+    expect((await ensureVerificationAccount(handle.db, WITH_OWN)).summary).toEqual({ username: VERIFY_USERNAME, state: "password-updated", key: "VERIFY_ACCOUNT_SECRET" });
+    expect(await opens(VERIFY_USERNAME, OWN_DERIVED)).toBe(true);
+    expect(await opens(VERIFY_USERNAME, DERIVED)).toBe(false);
+  });
+
+  it("an unusable one leaves a real member called verify alone (their own password)", async () => {
+    await handle.db.delete(usersTable).where(eq(usersTable.username, VERIFY_USERNAME));
+    await registerAccount(handle.db, { username: VERIFY_USERNAME, password: "Their-own-pass-123", role: "player", primaryRiot: { riotId: "Real Verify#OCE", platform: "oc1" }, primaryRole: "ADC" });
+    expect((await ensureVerificationAccount(handle.db, { ...PROD, VERIFY_ACCOUNT_SECRET: "much-too-short" })).ok).toBe(false);
+    expect(await opens(VERIFY_USERNAME, "Their-own-pass-123")).toBe(true);
+  });
+
+  it("withdraws a changed account as before, and neither key opens it", async () => {
+    expect((await ensureVerificationAccount(handle.db, WITH_OWN)).summary.state).toBe("password-updated");
+    await change("admin");
+    expect(await ensureVerificationAccount(handle.db, WITH_OWN)).toMatchObject({ ok: false, summary: { state: "withdrawn", key: "VERIFY_ACCOUNT_SECRET" } });
+    expect(await opens(VERIFY_USERNAME, OWN_DERIVED)).toBe(false);
+    expect(await opens(VERIFY_USERNAME, DERIVED)).toBe(false);
+  });
+
+  it("still recognises its own account by CRON_SECRET's password when it was changed before the key was set: withdrawn, not a conflict", async () => {
+    expect(await login(VERIFY_USERNAME, DERIVED)).toBe("/team");
+    const id = await verifyId();
+    await change("group");
+    // VERIFY_ACCOUNT_SECRET set before any run noticed the change.
+    expect(await ensureVerificationAccount(handle.db, WITH_OWN)).toMatchObject({ ok: false, summary: { state: "withdrawn", key: "VERIFY_ACCOUNT_SECRET" } });
+    expect(await opens(VERIFY_USERNAME, DERIVED)).toBe(false);
+    expect(await opens(VERIFY_USERNAME, OWN_DERIVED)).toBe(false);
+    expect(await sessionCount(id)).toBe(0);
+    // Undone, the next run sets its own key's password.
+    await setAccessGroups(handle.db, null, id, []);
+    expect((await ensureVerificationAccount(handle.db, WITH_OWN)).summary.state).toBe("password-updated");
+    expect(await opens(VERIFY_USERNAME, OWN_DERIVED)).toBe(true);
+  });
+
+  it("ends, on the next run, a session that raced the change of the key, and keeps one begun after it", async () => {
+    const id = await verifyId();
+    expect((await ensureVerificationAccount(handle.db, WITH_OWN)).summary.state).toBe("password-updated");
+    const [change] = await handle.db.select({ at: auditEvents.at }).from(auditEvents).where(eq(auditEvents.action, "account.password-reset")).orderBy(desc(auditEvents.at)).limit(1);
+    const ids = async () => (await handle.db.select({ id: sessionsTable.id }).from(sessionsTable).where(eq(sessionsTable.userId, id))).map((r) => r.id);
+    // A sign-in that checked CRON_SECRET's password just before the change, and created its session just after it.
+    await createSession(handle.db, id);
+    const raced = await ids();
+    expect(raced).toHaveLength(1);
+    // An ordinary sign-in two minutes later.
+    expect(await login(VERIFY_USERNAME, OWN_DERIVED)).toBe("/team");
+    const later = (await ids()).filter((sid) => !raced.includes(sid));
+    expect(later).toHaveLength(1);
+    await handle.db.update(sessionsTable).set({ createdAt: new Date(change!.at.getTime() + 120_000) }).where(eq(sessionsTable.id, later[0]!));
+    expect(await sessionCount(id)).toBe(2);
+    expect((await ensureVerificationAccount(handle.db, WITH_OWN)).summary.state).toBe("unchanged");
+    expect(await ids()).toEqual(later);
+  });
+
+  it("moves a deactivated account to the new key too, so reactivating it never reopens it to CRON_SECRET's password", async () => {
+    const id = await verifyId();
+    await setAccountActive(handle.db, null, id, false);
+    expect((await ensureVerificationAccount(handle.db, WITH_OWN)).summary).toEqual({ username: VERIFY_USERNAME, state: "deactivated", key: "VERIFY_ACCOUNT_SECRET" });
+    expect(await resets(id)).toBe(1);
+    await setAccountActive(handle.db, null, id, true);
+    expect(await opens(VERIFY_USERNAME, DERIVED)).toBe(false);
+    expect(await opens(VERIFY_USERNAME, OWN_DERIVED)).toBe(true);
+    expect((await ensureVerificationAccount(handle.db, WITH_OWN)).summary.state).toBe("unchanged");
+  });
+
+  it("leaves a real member called verify alone with either key: conflict, and their password still works", async () => {
+    await handle.db.delete(usersTable).where(eq(usersTable.username, VERIFY_USERNAME));
+    await registerAccount(handle.db, { username: VERIFY_USERNAME, password: "Their-own-pass-123", role: "player", primaryRiot: { riotId: "Real Verify#OCE", platform: "oc1" }, primaryRole: "ADC" });
+    expect(await ensureVerificationAccount(handle.db, WITH_OWN)).toMatchObject({ ok: false, summary: { state: "conflict", key: "VERIFY_ACCOUNT_SECRET" } });
+    expect(await opens(VERIFY_USERNAME, "Their-own-pass-123")).toBe(true);
   });
 });
 

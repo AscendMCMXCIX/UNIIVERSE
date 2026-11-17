@@ -27,13 +27,15 @@ import { ScrollRow } from "./scroll-row";
 
 type Breakpoint = "md" | "lg";
 
-// Static class strings per breakpoint (Tailwind only sees whole class names).
-const AT: Record<Breakpoint, { row: string; toggle: string; controls: string; search: string; label: string; field: string }> = {
+// Static class strings per breakpoint (Tailwind only sees whole class names). `searchCompact`: the
+// search starts from 9rem instead of 16rem (a `compact` bar), and grows into what the filters leave.
+const AT: Record<Breakpoint, { row: string; toggle: string; controls: string; search: string; searchCompact: string; label: string; field: string }> = {
   md: {
     row: "md:flex-row md:flex-wrap md:items-center",
     toggle: "md:hidden",
     controls: "md:flex md:flex-row md:flex-wrap md:items-center",
     search: "md:w-auto md:max-w-sm md:flex-[1_1_16rem]",
+    searchCompact: "md:w-auto md:max-w-sm md:flex-[1_1_9rem]",
     label: "md:sr-only",
     field: "md:w-auto",
   },
@@ -42,6 +44,7 @@ const AT: Record<Breakpoint, { row: string; toggle: string; controls: string; se
     toggle: "lg:hidden",
     controls: "lg:flex lg:flex-row lg:flex-wrap lg:items-center",
     search: "lg:w-auto lg:max-w-sm lg:flex-[1_1_16rem]",
+    searchCompact: "lg:w-auto lg:max-w-sm lg:flex-[1_1_9rem]",
     label: "lg:sr-only",
     field: "lg:w-auto",
   },
@@ -63,6 +66,7 @@ export function FilterBar({
   onReset,
   resetHref,
   search,
+  compact = false,
   foldBelow = "md",
   align = "start",
   pending = false,
@@ -83,6 +87,12 @@ export function FilterBar({
   resetHref?: string;
   /** A search box (SearchInput), kept visible at every size. */
   search?: React.ReactNode;
+  /**
+   * A bar with several filters (Players), kept to one row inline: the search starts from 9rem rather
+   * than 16rem and grows into what the filters leave, and below xl Reset shows its icon only (its
+   * name kept for screen readers; in the sheet it keeps its word).
+   */
+  compact?: boolean;
   /** Below this breakpoint the filters fold behind the Filters button and its sheet. */
   foldBelow?: Breakpoint;
   /** Where the inline filters sit from the breakpoint up. */
@@ -105,20 +115,23 @@ export function FilterBar({
   const id = React.useId();
   const at = AT[foldBelow];
   const resetCls = "inline-flex min-h-11 items-center justify-center gap-1 rounded-md px-2 text-sm font-medium text-accent hover:bg-accent/10 md:pointer-fine:min-h-9";
-  const resetBody = (
+  // Inline in a compact bar, below xl: the icon alone, as wide as it is tall.
+  const iconOnly = (inSheet: boolean) => compact && !inSheet;
+  const resetBody = (inSheet: boolean) => (
     <>
-      <RotateCcw className="h-3.5 w-3.5" aria-hidden /> {resetLabel}
+      <RotateCcw className="h-3.5 w-3.5" aria-hidden /> <span className={iconOnly(inSheet) ? "max-xl:sr-only" : undefined}>{resetLabel}</span>
     </>
   );
+  const resetClass = (inSheet: boolean) => cn(resetCls, inSheet && "mr-auto", iconOnly(inSheet) && "max-xl:min-w-11 md:pointer-fine:max-xl:min-w-9");
   const reset = (inSheet: boolean) =>
     activeCount > 0 && (onReset || resetHref) ? (
       resetHref ? (
-        <Link href={resetHref} scroll={false} className={cn(resetCls, inSheet && "mr-auto")} data-testid="reset-filters" onClick={inSheet ? () => setOpen(false) : undefined}>
-          {resetBody}
+        <Link href={resetHref} scroll={false} className={resetClass(inSheet)} title={iconOnly(inSheet) ? resetLabel : undefined} data-testid="reset-filters" onClick={inSheet ? () => setOpen(false) : undefined}>
+          {resetBody(inSheet)}
         </Link>
       ) : (
-        <button type="button" onClick={onReset} className={cn(resetCls, inSheet && "mr-auto")} data-testid="reset-filters">
-          {resetBody}
+        <button type="button" onClick={onReset} className={resetClass(inSheet)} title={iconOnly(inSheet) ? resetLabel : undefined} data-testid="reset-filters">
+          {resetBody(inSheet)}
         </button>
       )
     ) : null;
@@ -139,7 +152,7 @@ export function FilterBar({
               (display: contents) and the search sits in the bar's row as before. */}
           {search ? (
             <div className={cn("flex min-w-0 items-center gap-2", foldBelow === "md" ? "md:contents" : "lg:contents")}>
-              <div className={cn("w-full min-w-0 flex-1", at.search)}>{search}</div>
+              <div className={cn("w-full min-w-0 flex-1", compact ? at.searchCompact : at.search)}>{search}</div>
               {filtersButton}
             </div>
           ) : null}

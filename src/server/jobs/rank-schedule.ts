@@ -1,5 +1,7 @@
 import { sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
+import { lastRankScheduleCall } from "@/server/ops/rank-schedule-calls";
+import { lastTickScheduleCalls } from "@/server/ops/tick-schedule-calls";
 import { defineJob } from "./registry";
 
 /*
@@ -47,10 +49,19 @@ function clean(err: unknown, secret: string): string {
   return (secret ? message.split(secret).join("[secret]") : message).slice(0, 300);
 }
 
-/** How the schedule is doing: whether it exists, and its runs and calls of the last hour. No secret, no command text. */
+/**
+ * How the schedule is doing: whether it exists, its runs and calls of the last hour, and when the
+ * app last recorded a call of each database schedule (what /api/health reads). No secret, no
+ * command text.
+ */
 export async function rankScheduleStatus(db: Db, env: Record<string, string | undefined> = process.env): Promise<Record<string, unknown>> {
   const ext = rowsOf(await db.execute(sql`select extname from pg_extension where extname in ('pg_cron', 'pg_net', 'supabase_vault')`)).map((r) => String(r.extname));
-  const out: Record<string, unknown> = { extensions: ext.sort() };
+  // The app's own record of the calls that reached it: the five-minute schedule's rank-watch calls,
+  // and the ten-minute tick's calls, known by pg_net's User-Agent (server/ops/tick-schedule-calls.ts).
+  // A tick that runs but has no time here sends a User-Agent of its own, and /api/health never lists it.
+  const [rankCall, tickCalls] = await Promise.all([lastRankScheduleCall(db), lastTickScheduleCalls(db)]);
+  const atIso = (ms: number) => (ms > 0 ? new Date(ms).toISOString() : null);
+  const out: Record<string, unknown> = { extensions: ext.sort(), callsRecordedByApp: { rankWatch: atIso(rankCall), tick: atIso(tickCalls.at) } };
   if (!ext.includes("pg_cron")) return { ...out, scheduled: false };
   // Why a schedule might not run, or be refused: the scheduler itself, its settings, every job's
   // name and schedule (never its command), the recent runs of each, and the recent calls' answers.
@@ -158,7 +169,7 @@ defineJob({
 
 defineJob({
   key: "rank-schedule-status",
-  description: "Read-only: whether the five-minute rank schedule exists, and its runs and calls of the last hour (counts only). Changes nothing.",
+  description: "Read-only: whether the five-minute rank schedule exists, its runs and calls of the last hour (counts only), and when the app last recorded a call of the rank schedule and of the database's ten-minute tick (what /api/health reads). Changes nothing.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,
   run: async (ctx) => ({ ok: true, summary: await rankScheduleStatus(ctx.db) }),
