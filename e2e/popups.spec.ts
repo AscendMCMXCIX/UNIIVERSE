@@ -16,8 +16,9 @@ import { bubbleFacts, NOT_A_PICTURE, NOT_A_PICTURE_ERROR, openPictureEditor, pic
       whatever of the window arrives under it) stays closed until the pointer moves onto it, so
       Escape closes the window, whatever has its focus: the window itself, its close button, or
       nothing after a press inside; a mouse that moved onto an ⓘ while the page hydrated, and rests
-      on it, opens its bubble as the ⓘ hydrates (a move then reaches nothing else); on the page too,
-      a bubble lands 6px from its ⓘ whatever its height;
+      on it, opens its bubble as the ⓘ hydrates (a move then reaches nothing else), and the coming
+      in React replays once the ⓘ has hydrated is the same visit, so Escape keeps it closed; on the
+      page too, a bubble lands 6px from its ⓘ whatever its height;
     - a toast raised while a window is open is drawn inside it, above it, heard once (one live
       region, its role), and its dismiss button is a 44px target pressed where it is drawn; a
       window moving (opening, closing) never carries a toast with it: the toast goes into it once
@@ -225,6 +226,70 @@ test("a mouse that moved onto an ⓘ while the page hydrated, and rests on it, o
   await page.mouse.move(0, 0);
   await page.mouse.move(spot.x, spot.y);
   await expect(bubble).toBeVisible();
+});
+
+test("a mouse that moved onto an ⓘ while React listened and the ⓘ had yet to hydrate: the coming in React replays once it has hydrated is the same visit, so after Escape a move keeps its bubble closed", async ({ page, isMobile }) => {
+  test.skip(!!isMobile, "a mouse's hover");
+  const profile = await teammateProfile(page);
+  // Unlike the test above, React already listens as the mouse moves: the page's code runs, and only
+  // the ⓘ's own code is held back (the chunks with InfoTip's code, found by its bubble's test id), so
+  // the ⓘ's part of the page has yet to hydrate. React then queues the mouse's coming in onto the ⓘ,
+  // and replays it once the ⓘ has hydrated, after the ⓘ has opened its bubble for the resting mouse.
+  // That replayed coming in must start no new visit, else the move after Escape opens the bubble
+  // again. This is the state in which multikills.spec.ts lost its hover of the status ⓘ on a tablet.
+  // With all of the page's code held (the test above), nothing listens as the mouse moves and
+  // nothing is replayed, so that test passes whether a replayed coming in starts a new visit or not.
+  await page.addInitScript(() => {
+    // React's replay is dispatched by the page itself, not by the browser: an untrusted pointerover.
+    const w = window as Window & { __tipReplays?: number };
+    w.__tipReplays = 0;
+    const onOver = (e: PointerEvent) => {
+      if (!e.isTrusted && (e.target as Element | null)?.closest?.("[data-testid=data-refresh-info]")) w.__tipReplays = (w.__tipReplays ?? 0) + 1;
+    };
+    w.addEventListener("pointerover", onOver, true);
+  });
+  const held: (() => Promise<void>)[] = [];
+  let release = false;
+  await page.route(/\/_next\/static\/chunks\/.+\.js(\?|$)/, async (route) => {
+    const response = await route.fetch();
+    const body = await response.text();
+    if (!release && body.includes("-bubble")) held.push(() => route.fulfill({ response, body }));
+    else await route.fulfill({ response, body });
+  });
+  await page.goto(profile, { waitUntil: "commit" });
+  const tip = page.getByTestId("data-refresh-info");
+  await expect(tip).toBeVisible();
+  // React keeps a node's props on it once it has hydrated it.
+  const hydrated = () => tip.evaluate((el) => Object.keys(el).some((k) => k.startsWith("__reactProps$")));
+  // React marks the document it hydrates as it starts listening to it.
+  await expect.poll(() => page.evaluate(() => Object.keys(document).some((k) => k.startsWith("_reactListening"))), { message: "React listens" }).toBe(true);
+  await expect.poll(() => held.length, { message: "the ⓘ's code is held back" }).toBeGreaterThan(0);
+  const box = (await tip.boundingBox())!;
+  const spot = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  await page.mouse.move(spot.x, spot.y);
+  await page.waitForTimeout(300);
+  const bubble = page.getByTestId("data-refresh-info-bubble");
+  const bubbles = page.locator("[role=tooltip]");
+  await expect(bubbles).toHaveCount(0);
+  expect(await hydrated(), "the ⓘ has yet to hydrate").toBe(false);
+  // The ⓘ's code arrives; the pointer stays where it is. The bubble opens as the ⓘ hydrates, that
+  // ⓘ's alone, and React replays the mouse's coming in.
+  release = true;
+  for (const fulfil of held.splice(0)) await fulfil();
+  await expect(bubble).toBeVisible();
+  await expect(bubbles).toHaveCount(1);
+  await expect.poll(() => page.evaluate(() => (window as Window & { __tipReplays?: number }).__tipReplays), { message: "React replayed the mouse's coming in" }).toBeGreaterThan(0);
+  // The same visit: Escape closes the bubble, and it stays closed while the pointer moves on over
+  // its ⓘ; leaving and coming back opens it again.
+  await page.keyboard.press("Escape");
+  await expect(bubble).toHaveCount(0);
+  await page.mouse.move(spot.x + 1, spot.y);
+  await page.waitForTimeout(300);
+  await expect(bubble).toHaveCount(0);
+  await page.mouse.move(0, 0);
+  await page.mouse.move(spot.x, spot.y);
+  await expect(bubble).toBeVisible();
+  await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
 test("an ⓘ's bubble on the page lands where its ⓘ puts it, 6px from it, whatever its height", async ({ page }) => {

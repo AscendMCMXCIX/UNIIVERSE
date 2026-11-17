@@ -236,7 +236,9 @@ scaled, and once a motion of the window's own is over), Escape closing the bubbl
 arriving under a pointer at rest as its window opens kept closed until the pointer moves onto it,
 so Escape closes the window, whatever has its focus (the window itself, its close button, nothing
 after a press inside); an ⓘ a mouse moved onto while the page hydrated, and rests on, opening as
-the ⓘ hydrates, that ⓘ alone, its visit then as any other; a bubble on the page landing 6px from
+the ⓘ hydrates, that ⓘ alone, its visit then as any other, also when React already listened and
+only the ⓘ's code was held back (the coming in React replays once the ⓘ has hydrated starts no new
+visit: after Escape, a move keeps the bubble closed); a bubble on the page landing 6px from
 its ⓘ whatever its height (a fractional one too); a toast raised over a window drawn in it, heard once, its 44px dismiss
 button (measured once the toast's entrance has run) pressed where it is drawn; a toast never drawn in a window while the window moves
 in, and leaving it as its closing motion starts; a toast raised in the moment its window closes
