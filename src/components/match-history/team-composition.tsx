@@ -15,11 +15,13 @@ import { RemoteImage } from "@/components/ui/remote-image";
   name, in a quieter colour; nothing is guessed.
 
   Layout (no interaction needed to read it): two columns of five, icon and name, on the match
-  cards of a player's Match History and of Team → Matches alike; with 32rem or more of room (a card
-  stacked full width) each side is one line of five instead. Below 13rem of room the names fold
-  away (still read by screen readers) and each side becomes a row of five icons. Match History's
-  phone cards fold them too, to stay compact; Team → Matches keeps them on phones (`keepNames`),
-  since the full line-ups are what its cards are for.
+  cards of a player's Match History and of Team → Matches alike (five 16px lines 1px apart, 84px
+  in all, which sets a wide card's height); with 32rem or more of room (a card stacked full width)
+  each side is one line of five instead. Below 13rem of room the names fold away (still read by
+  screen readers) and each side becomes a row of five icons, its rail and tint as wide as the five
+  icons (a tint across the empty rest of the column read as an empty bar). Match History's phone
+  cards fold them too, to stay compact; Team → Matches keeps them on phones (`keepNames`), since
+  the full line-ups are what its cards are for.
   Icons are 16 px, lazily loaded portraits the browser already caches from the rest of the page.
   Names link to the member's profile, or to a non-member's OP.GG profile (see PlayerLink). A player
   whose personal data was erased is a "Removed player": no champion, name or link.
@@ -38,7 +40,7 @@ import { RemoteImage } from "@/components/ui/remote-image";
 const LAYOUT = {
   fold: {
     grid: "max-md:gap-x-3 md:@max-[13rem]/teams:grid-cols-1 md:@min-[32rem]/teams:grid-cols-1 md:@min-[32rem]/teams:gap-y-1",
-    side: "md:@min-[13rem]/teams:flex-col md:@min-[13rem]/teams:items-stretch md:@min-[13rem]/teams:gap-0.5 md:@min-[13rem]/teams:py-0.5 md:@min-[32rem]/teams:flex-row md:@min-[32rem]/teams:items-center md:@min-[32rem]/teams:gap-3",
+    side: "max-md:justify-self-start md:@max-[13rem]/teams:justify-self-start md:@min-[13rem]/teams:flex-col md:@min-[13rem]/teams:items-stretch md:@min-[13rem]/teams:gap-px md:@min-[32rem]/teams:flex-row md:@min-[32rem]/teams:items-center md:@min-[32rem]/teams:gap-3",
     rankedSide: "max-md:items-start max-md:gap-1",
     slot: "md:@min-[32rem]/teams:flex-1 md:@min-[32rem]/teams:basis-0",
     stacked: "max-md:flex-col max-md:gap-px md:@max-[13rem]/teams:flex-col md:@max-[13rem]/teams:gap-px",
@@ -47,7 +49,7 @@ const LAYOUT = {
   },
   keep: {
     grid: "@max-[13rem]/teams:grid-cols-1 @min-[32rem]/teams:grid-cols-1 @min-[32rem]/teams:gap-y-1",
-    side: "@min-[13rem]/teams:flex-col @min-[13rem]/teams:items-stretch @min-[13rem]/teams:gap-0.5 @min-[13rem]/teams:py-0.5 @min-[32rem]/teams:flex-row @min-[32rem]/teams:items-center @min-[32rem]/teams:gap-3",
+    side: "@max-[13rem]/teams:justify-self-start @min-[13rem]/teams:flex-col @min-[13rem]/teams:items-stretch @min-[13rem]/teams:gap-px @min-[32rem]/teams:flex-row @min-[32rem]/teams:items-center @min-[32rem]/teams:gap-3",
     rankedSide: "",
     slot: "@min-[32rem]/teams:flex-1 @min-[32rem]/teams:basis-0",
     stacked: "@max-[13rem]/teams:flex-col @max-[13rem]/teams:gap-px",

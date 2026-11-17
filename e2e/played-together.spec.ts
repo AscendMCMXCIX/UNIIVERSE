@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "./test";
 import { openTogether } from "./match-history";
 import { openFilterBar } from "./filters";
+import { demoSeasonLabel } from "./demo-season";
 
 /*
   Team → Matches → Played together on the demo roster. The shared games are synthetic demo games
@@ -16,13 +17,14 @@ async function showFilters(page: Page) {
   await openFilterBar(page.getByTestId("together-filters"), "together-filters-toggle");
 }
 
-test("Played together lists games with two or more members on one side, with honest labels and filters", async ({ page }) => {
+test("Played together lists games with two or more members on one side, with honest labels and filters", async ({ page, request }) => {
+  const season = await demoSeasonLabel(request);
   // Played together is the whole page: Encounters are in each profile's Match History.
   await page.goto("/matches");
   await expect(page.getByTestId("matches-tabs")).toHaveCount(0);
   // One line of what is counted; what it proves is behind (i), never claimed as a premade party.
   const summary = page.getByTestId("matches-summary");
-  await expect(summary).toContainText(/Season 2026 · \d+ games? played together/);
+  await expect(summary).toContainText(new RegExp(`${season} · \\d+ games? played together`));
   await expect(summary.getByRole("button", { name: "How games played together are found" })).toHaveAccessibleDescription(/not confirmed premade parties/);
   // No "played together most" ranking: the games come right after the toolbar.
   await expect(page.getByTestId("together-pairs")).toHaveCount(0);
@@ -35,9 +37,10 @@ test("Played together lists games with two or more members on one side, with hon
   // Phones: the filters are folded behind one summary button.
   if ((page.viewportSize()?.width ?? 0) < 640) {
     await expect(page.getByTestId("together-queue")).toBeHidden();
-    await expect(page.getByTestId("together-filters-toggle")).toContainText(/Season 2026 · All supported games · 2\+ members/);
+    await expect(page.getByTestId("together-filters-toggle")).toContainText(`${season} · All supported games · 2+ members`);
   }
-  // Season 2026 is the only season here (no 2025, no "All seasons"), so there is nothing to choose.
+  // The demo's season is the only one here (its games are all in it, nothing before Season 2026 is
+  // offered and there is no "All seasons"), so there is nothing to choose.
   await expect(page.getByTestId("together-season")).toHaveCount(0);
   await expect(page.getByText("All seasons")).toHaveCount(0);
   // Every game shows at least two members, each with a champion and a role.
@@ -183,9 +186,10 @@ test("a Team Matches card opens its game under it, as Match History does; names 
   await expect(page).toHaveURL(/\/players\/[0-9a-f-]+$/);
 });
 
-test("old addresses for Season 2025 or all seasons open Season 2026", async ({ page }) => {
+test("old addresses for Season 2025 or all seasons open the current season", async ({ page, request }) => {
+  const season = await demoSeasonLabel(request);
   for (const q of ["season=15", "season=2025", "season=all"]) {
     await page.goto(`/matches?${q}`);
-    await expect(page.getByTestId("matches-summary")).toContainText("Season 2026");
+    await expect(page.getByTestId("matches-summary")).toContainText(season);
   }
 });
