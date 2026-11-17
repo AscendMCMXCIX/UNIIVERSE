@@ -75,9 +75,9 @@ too. November's redesign (#275) had moved 3 + 2 to 42rem and five across to 58re
 lineup at 100rem from a 90rem lineup, stretched the cards' art to fill the window, put a bench of
 substitutes under the cards, made the header one row (no logo on a phone held upright), given the
 role bar the players' pictures and kept a short window to one sideways track; all of that went with
-the restore. Nothing is drawn under the cards: a substitute is on the back of their starter's card,
-turned to by its control and managed in Edit lineup (ARCHITECTURE.md → Substitute side of the Team
-cards).
+the restore. Nothing about the substitutes is drawn under the cards: a substitute is on the back of
+their starter's card, turned to by its control and managed in Edit lineup (ARCHITECTURE.md →
+Substitute side of the Team cards).
 
 | Lineup | Layout |
 | --- | --- |
@@ -128,12 +128,13 @@ cards).
   taller at 1366 × 768, and the lineup, still centred, sits 7px higher. Kills / deaths / assists per
   game show from 16.5rem among cards side by side, where they fit uncut, so five across (cards of
   about 12.5–15.8rem) they stay in the hover text, for screen readers and in the player's window
-  (the approved design showed them from 14.5rem, at 1920 × 1080 and wider, cut off with an ellipsis
-  there). The pool keeps one row, as approved. A phone's single card (about 16.4rem on a 320px
-  phone) is the phone card as it was, its kills / deaths / assists shown. In Edit lineup a card
-  under 14.25rem stands its two controls one above the other, so both labels stay whole (five
-  across a 1366 or 1440 laptop with the sidebar open, where the approved design cut "Substitute"
-  to "Substit…").
+  (the approved design showed them on cards from 14.5rem, cut off with an ellipsis: five across at
+  1920 × 1080 and wider, and at 1366 × 768 and 1440 × 900 with the sidebar folded). The pool keeps
+  one row, as approved. A phone's single card (about 16.4rem on a 320px phone) is the phone card as
+  it was, its kills / deaths / assists shown. In Edit lineup a card under 14.25rem stands its two
+  controls one above the other, so both labels stay whole (five across a 1366 or 1440 laptop with
+  the sidebar open, where the approved design cut them: "Chan…" and "Subst…" at 1366, "Substit…"
+  at 1440).
 - **Identity rows** stay level side by side (`CardIdentity align`): a shorter name sits at the foot
   of the room kept for a longer one, on its rank, so the room stays above it in the art.
 
@@ -217,7 +218,7 @@ short window; the tablet's menu keeps focus inside and gives it back to the menu
 installed app's Back on a tablet (the display mode stood in for, as Chromium cannot emulate it);
 the filter sheet's Done leaves with its motion; Admin Mode's Settings has its title.
 Team Overview's lineup: `e2e/home-layout.spec.ts` (1440 × 900 and 1920 × 1080: five across,
-centred under the section tabs with nothing under the cards, nothing to scroll, the art within its
+centred under the section tabs with no bench under the cards, nothing to scroll, the art within its
 20rem cap, the floor drawn from just under the cards; 1366 × 768: five equal cards in one centred
 row, whole on the first screen; 2560 × 1440: the 84rem cap; a 1440 × 560 window starting at the
 top), `e2e/team-layout.spec.ts` (from a tablet up the header's eyebrow over the name, the name's
