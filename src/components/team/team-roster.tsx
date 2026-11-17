@@ -982,11 +982,13 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
             <div className="absolute inset-x-[6%] top-10 h-px" style={{ background: "linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-accent) 50%, transparent), transparent)" }} />
             {team.logo ? (
               // Lazy: the server then names it in no preload, and where the floor is hidden (phones,
-              // tablets, narrower desktops) it is never fetched.
+              // tablets, narrower desktops) it is never fetched. Not in a short window (480px tall or
+              // less), where the bench would cut it to a fragment: the approved design's frame cut it
+              // there to its top edge.
               // eslint-disable-next-line @next/next/no-img-element -- the team's validated logo, decorative
-              <img src={team.logoStill ?? team.logo} alt="" loading="lazy" decoding="async" className="absolute left-1/2 top-[38%] h-[min(9rem,45%)] w-auto -translate-x-1/2 -translate-y-1/2 opacity-[0.07] grayscale" />
+              <img src={team.logoStill ?? team.logo} alt="" loading="lazy" decoding="async" className="absolute left-1/2 top-[38%] h-[min(9rem,45%)] w-auto -translate-x-1/2 -translate-y-1/2 opacity-[0.07] grayscale short:hidden" />
             ) : (
-              <span className="absolute inset-x-0 top-[45%] -translate-y-1/2 pl-(--tracking-tagline) text-center text-[clamp(3rem,7vw,7.5rem)] font-black uppercase leading-none tracking-tagline text-fg opacity-[0.035]">{team.shortName}</span>
+              <span className="absolute inset-x-0 top-[45%] -translate-y-1/2 pl-(--tracking-tagline) text-center text-[clamp(3rem,7vw,7.5rem)] font-black uppercase leading-none tracking-tagline text-fg opacity-[0.035] short:hidden">{team.shortName}</span>
             )}
           </div>
         </div>

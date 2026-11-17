@@ -156,7 +156,7 @@ function BenchEntry({ slot, turns, onTurn }: { slot: RosterSlot; turns: LineupTu
   // on an opaque fill, so the stage floor's watermark never shows through it.
   if (!turnable)
     return (
-      <span className={cn(shell, "border-border/70 bg-surface")} style={cardColourVars(sub.look)} data-testid={`bench-${slot.role}`}>
+      <span className={cn(shell, "border-border/70 bg-surface/40 @5xl/lineup:bg-surface")} style={cardColourVars(sub.look)} data-testid={`bench-${slot.role}`}>
         {body}
       </span>
     );

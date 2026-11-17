@@ -152,12 +152,22 @@ test("held sideways, the substitutes' pictures on the bench wait for the first c
   await expect(track).toHaveAttribute("data-art-wait", "true");
   const count = await frames.count();
   expect(count, "the bench shows its substitutes' pictures held sideways").toBeGreaterThan(0);
+  // The demo's substitutes have no pictures: give the first one a picture, so the rule that hides
+  // a picture while the art is on its way has one to hide.
+  await frames.first().evaluate((f) => {
+    const img = document.createElement("img");
+    img.alt = "";
+    img.src = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+    f.appendChild(img);
+  });
+  await expect(frames.first().locator("img")).toHaveCount(1);
   expect(await minWidths()).toEqual(Array(count).fill("24px"));
   for (const img of await frames.locator("img").all()) await expect(img).toBeHidden();
   answer();
-  // Once the first art has arrived, nothing waits.
+  // Once the first art has arrived, nothing waits, and the picture shows.
   await expect(track).not.toHaveAttribute("data-art-wait", /.*/);
   await expect.poll(minWidths).toEqual(Array(count).fill("auto"));
+  await expect(frames.first().locator("img")).toBeVisible();
   await done(page);
 });
 
