@@ -132,7 +132,7 @@ test("a member's own card shows their whole name, whatever else the card carries
       await ctx.close();
     }
 
-    // A teammate's view: the same card on Players, the name whole there too.
+    // A teammate's view: their row on Players, the name whole there too.
     await admin.goto("/players");
     const dir = admin.locator(`main [data-testid='player-card-item'][data-player-name="${username}"]`);
     const onPlayers = await nameOn(dir);
