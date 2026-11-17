@@ -126,6 +126,26 @@ test("upright tablets show the lineup 2 + 2 + 1 and desktops five across, with t
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
 });
 
+test("a 1280 × 800 laptop with the sidebar open shows the lineup 3 + 2, the last two centred under the first three", async ({ page, context, baseURL }, info) => {
+  test.skip(info.project.name !== "desktop", "laptop widths");
+  // The sidebar open, as it is by default: the lineup is then between 56rem and 64rem wide.
+  await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: baseURL! }]);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/team");
+  await expect(page.getByTestId("sidebar")).toHaveAttribute("data-collapsed", "false");
+  const cells = page.getByTestId("lineup-cell");
+  await expect(cells).toHaveCount(5);
+  const boxes = await cells.evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ x: r.x, top: Math.round(r.top), width: r.width })));
+  const track = (await page.getByTestId("lineup-overview").boundingBox())!;
+  // 3 + 2: three cards share the first row, the last two the second, centred under them.
+  expect(new Set(boxes.slice(0, 3).map((b) => b.top)).size, "the first three in one row").toBe(1);
+  expect(new Set(boxes.slice(3).map((b) => b.top)).size, "the last two in one row").toBe(1);
+  expect(boxes[3]!.top, "the last two under the first three").toBeGreaterThan(boxes[0]!.top);
+  const pair = (boxes[3]!.x + boxes[4]!.x + boxes[4]!.width) / 2;
+  expect(Math.abs(pair - (track.x + track.width / 2)), "the last two centred under the lineup").toBeLessThanOrEqual(2);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+});
+
 // Cards side by side keeping their pictures, names and labels level whatever the names and
 // taglines is checked in card-layout.spec.ts, with real long names and taglines at every size
 // where cards stand side by side (the cards size those rows from the lineup's own players).
@@ -173,7 +193,7 @@ test("phones swipe sideways through the five cards, one at a time", async ({ pag
   expect(Math.abs(pager.width - header.width), "the role bar spans the header's width").toBeLessThanOrEqual(1);
   // The substitutes: two chips to a row (they took a row each on a small phone), each half the row.
   const bench = (await page.getByTestId("lineup-bench").boundingBox())!;
-  const chips = await page.getByTestId("lineup-bench").locator("[data-testid^=bench-]:not([data-testid^=bench-empty-])").evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ top: Math.round(r.top), width: r.width })));
+  const chips = await page.getByTestId("lineup-bench").locator("[data-testid^=bench-]").evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ top: Math.round(r.top), width: r.width })));
   for (let i = 0; i + 1 < chips.length; i += 2) {
     expect(chips[i]!.top, "two chips share a row").toBe(chips[i + 1]!.top);
     for (const chip of [chips[i]!, chips[i + 1]!]) expect(chip.width).toBeLessThanOrEqual(bench.width / 2);
@@ -181,7 +201,7 @@ test("phones swipe sideways through the five cards, one at a time", async ({ pag
   // With the browser's text at 200% a chip takes a row of its own, so a substitute's name keeps room
   // (two to a row squeezed it to one letter a line).
   await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
-  const large = await page.getByTestId("lineup-bench").locator("[data-testid^=bench-]:not([data-testid^=bench-empty-])").evaluateAll((els) => els.map((e) => ({ top: Math.round(e.getBoundingClientRect().top), name: e.querySelector("[data-bench-name]")!.getBoundingClientRect().width })));
+  const large = await page.getByTestId("lineup-bench").locator("[data-testid^=bench-]").evaluateAll((els) => els.map((e) => ({ top: Math.round(e.getBoundingClientRect().top), name: e.querySelector("[data-bench-name]")!.getBoundingClientRect().width })));
   const rem = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
   for (let i = 1; i < large.length; i++) expect(large[i]!.top, "one chip a row at 200% text").toBeGreaterThan(large[i - 1]!.top);
   for (const chip of large) expect(chip.name, "a name keeps at least 4rem").toBeGreaterThanOrEqual(4 * rem);

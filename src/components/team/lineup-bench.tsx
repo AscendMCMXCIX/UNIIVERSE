@@ -152,10 +152,11 @@ function BenchEntry({ slot, turns, onTurn }: { slot: RosterSlot; turns: LineupTu
       {turnable ? <Repeat2 className={cn("h-4 w-4 shrink-0", shown ? "text-accent" : "text-fg-subtle")} aria-hidden /> : null}
     </>
   );
-  // Nothing to turn (no starter on the card's front): said plainly, without a control's raised look.
+  // Nothing to turn (no starter on the card's front): said plainly, without a control's raised look,
+  // on an opaque fill, so the stage floor's watermark never shows through it.
   if (!turnable)
     return (
-      <span className={cn(shell, "border-border/70 bg-surface/40")} style={cardColourVars(sub.look)} data-testid={`bench-${slot.role}`}>
+      <span className={cn(shell, "border-border/70 bg-surface")} style={cardColourVars(sub.look)} data-testid={`bench-${slot.role}`}>
         {body}
       </span>
     );

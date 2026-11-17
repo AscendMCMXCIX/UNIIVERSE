@@ -906,7 +906,9 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
           object-contain, never squeezed), and animates where the browser allows motion. */}
       <header className={cn(LINEUP_WIDTH, "flex items-center gap-3 [text-shadow:0_1px_14px_rgb(0_0_0/0.55)] sm:gap-4")} data-testid="team-header">
         <BrandMark src={team.logo} still={team.logoStill} name={team.shortName} className="h-12 w-12 shrink-0 rounded-panel text-lg shadow-lg shadow-black/40 ring-1 ring-border-strong max-sm:not-short:hidden sm:h-16 sm:w-16 sm:rounded-card sm:text-2xl lg:h-20 lg:w-20 lg:text-3xl short:h-11 short:w-11 short:rounded-panel short:text-lg" />
-        <div className="min-w-0 flex-1">
+        {/* Without the state's pill (a visitor's page, Edit lineup while editing) the column keeps the
+            approved 4px under its line, so the header is as tall as before (89px at 1440). */}
+        <div className={cn("min-w-0 flex-1", !status && "sm:not-short:pb-1")}>
           <p className="text-xs font-semibold uppercase tracking-label text-accent max-sm:sr-only short:sr-only">Team Overview</p>
           {/* A long name takes more lines rather than being cut (it is nowhere else whole on a phone). */}
           <h1 className="text-2xl font-bold leading-tight tracking-tight text-fg [overflow-wrap:anywhere] sm:text-3xl lg:text-4xl short:text-xl short:leading-7" data-testid="team-name">
@@ -979,8 +981,10 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
             <div className="absolute inset-x-0 top-0 h-[85%]" style={{ background: "radial-gradient(50% 75% at 50% 0%, color-mix(in srgb, var(--color-accent) 16%, transparent), transparent 75%)" }} />
             <div className="absolute inset-x-[6%] top-10 h-px" style={{ background: "linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-accent) 50%, transparent), transparent)" }} />
             {team.logo ? (
+              // Lazy: the server then names it in no preload, and where the floor is hidden (phones,
+              // tablets, narrower desktops) it is never fetched.
               // eslint-disable-next-line @next/next/no-img-element -- the team's validated logo, decorative
-              <img src={team.logoStill ?? team.logo} alt="" className="absolute left-1/2 top-[38%] h-[min(9rem,45%)] w-auto -translate-x-1/2 -translate-y-1/2 opacity-[0.07] grayscale" />
+              <img src={team.logoStill ?? team.logo} alt="" loading="lazy" decoding="async" className="absolute left-1/2 top-[38%] h-[min(9rem,45%)] w-auto -translate-x-1/2 -translate-y-1/2 opacity-[0.07] grayscale" />
             ) : (
               <span className="absolute inset-x-0 top-[45%] -translate-y-1/2 pl-(--tracking-tagline) text-center text-[clamp(3rem,7vw,7.5rem)] font-black uppercase leading-none tracking-tagline text-fg opacity-[0.035]">{team.shortName}</span>
             )}

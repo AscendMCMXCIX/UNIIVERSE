@@ -127,6 +127,40 @@ test("held sideways, Team Overview's lineup is one sideways track: the cards sid
   }
 });
 
+// docs/PERFORMANCE.md, "Team Overview's first card": held sideways the substitutes' pictures on the
+// bench under the track wait for the first card's art too, each keeping its round 1.5rem place
+// (globals.css finds the bench from the stage that holds the waiting track). Data Dragon answers at
+// once here, except the cards' splash art, which is held until the test lets it go.
+const PIXEL = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
+
+test("held sideways, the substitutes' pictures on the bench wait for the first card's art, keeping their place", async ({ browser, baseURL }) => {
+  const page = await phone(browser, baseURL!, IPHONE_LANDSCAPE);
+  let answer!: () => void;
+  const held = new Promise<void>((resolve) => (answer = resolve));
+  await page.route(/ddragon\.leagueoflegends\.com/, (route) => route.fulfill({ contentType: "image/png", body: PIXEL }));
+  await page.route(/ddragon\.leagueoflegends\.com\/cdn\/img\/champion\/splash\//, async (route) => {
+    await held;
+    await route.fulfill({ contentType: "image/png", body: PIXEL });
+  });
+  // The page's load event waits for the first art, which is held: wait for the page itself.
+  await page.goto("/team", { waitUntil: "domcontentloaded" });
+  const track = page.getByTestId("lineup-overview");
+  await expect(track).toHaveAttribute("data-ready", "true");
+  const frames = page.getByTestId("lineup-bench").locator("[data-avatar-frame]");
+  const minWidths = () => frames.evaluateAll((els) => els.map((e) => getComputedStyle(e).minWidth));
+  // While the first art is on its way: each picture's round place is kept (1.5rem), its image not shown.
+  await expect(track).toHaveAttribute("data-art-wait", "true");
+  const count = await frames.count();
+  expect(count, "the bench shows its substitutes' pictures held sideways").toBeGreaterThan(0);
+  expect(await minWidths()).toEqual(Array(count).fill("24px"));
+  for (const img of await frames.locator("img").all()) await expect(img).toBeHidden();
+  answer();
+  // Once the first art has arrived, nothing waits.
+  await expect(track).not.toHaveAttribute("data-art-wait", /.*/);
+  await expect.poll(minWidths).toEqual(Array(count).fill("auto"));
+  await done(page);
+});
+
 test("held sideways: a detail window takes the whole screen, scrolls as one, and its controls stay in reach", async ({ browser, baseURL }) => {
   const page = await phone(browser, baseURL!, IPHONE_LANDSCAPE);
   await page.goto("/team");

@@ -125,7 +125,7 @@ test("the bench lists each role's substitute; pressing one turns that card to th
   const bench = page.getByTestId("lineup-bench");
   await expect(bench).toBeVisible();
   // Exactly the roles whose card turns to a substitute, each by that substitute's name.
-  const listed = await bench.locator("[data-testid^=bench-]:not([data-testid^=bench-empty-])").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")!.slice("bench-".length)));
+  const listed = await bench.locator("[data-testid^=bench-]").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")!.slice("bench-".length)));
   expect(listed.sort()).toEqual([...withSub].sort());
   // The last of them: on a phone its card is not the one in view.
   const role = withSub.at(-1)!;
