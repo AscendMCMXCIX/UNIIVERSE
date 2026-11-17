@@ -728,8 +728,8 @@ p a.text-accent {
 /* Team Overview on a phone, where the lineup is a track showing one card at a time: until the first
    card's art has arrived, the other cards' art, champions and members' pictures are not displayed,
    and a lazy image that is not displayed is not fetched, so the first card's art has the connection
-   to itself (team-roster.tsx, docs/PERFORMANCE.md "Team Overview's first card"; the role bar's
-   pictures wait in the markup). From @xl the lineup is a grid and nothing waits. */
+   to itself (team-roster.tsx, docs/PERFORMANCE.md "Team Overview's first card"). From @xl the
+   lineup is a grid and nothing waits. */
 @container lineup (width < 36rem) {
   [data-art-wait] > [data-art-later] .card-art-img { display: none; }
   /* The later cards' pool portraits too: ~570 KB that would share the connection with the first card's art. */
@@ -737,45 +737,6 @@ p a.text-accent {
   /* And their members' pictures (/api/avatars), each keeping its round place (a card's picture is 3.5rem). */
   [data-art-wait] > [data-art-later] [data-testid=card-identity] [data-avatar-frame] { min-width: 3.5rem; min-height: 3.5rem; }
   [data-art-wait] > [data-art-later] [data-testid=card-identity] [data-avatar-frame] img { display: none; }
-}
-/* Held sideways (a short window) the track shows two or three cards: the cards after the second wait
-   the same way, and so do the substitutes' pictures on the bench under the track (its chips show
-   them there; 1.5rem each). The bench follows the stage's floor anchor, not the track itself, so it
-   is found from the stage that holds the waiting track. */
-@media (max-height: 480px) {
-  [data-art-wait] > [data-art-far] .card-art-img, [data-art-wait] > [data-art-far] [data-card-pool] img, [data-art-wait] > [data-art-far] [data-testid=card-identity] [data-avatar-frame] img { display: none; }
-  [data-art-wait] > [data-art-far] [data-testid=card-identity] [data-avatar-frame] { min-width: 3.5rem; min-height: 3.5rem; }
-  [data-testid=lineup-stage]:has([data-art-wait]) [data-testid=lineup-bench] [data-avatar-frame] img { display: none; }
-  [data-testid=lineup-stage]:has([data-art-wait]) [data-testid=lineup-bench] [data-avatar-frame] { min-width: 1.5rem; min-height: 1.5rem; }
-}
-/*
-  Team Overview in a short window below lg (a phone held sideways): the lineup's sideways track runs
-  to the screen's edges while it scrolls, but its first card starts, and every card snaps, at the
-  page's gutter (the notch's inset where that is larger): the same gutter as main's (px-safe-4,
-  px-safe-6 from sm), taken back by the track's margins. From lg (a short desktop window) the track
-  stays inside the page: no margins, so it spans the content's width and scrolls within it (the
-  lineup's centring margins would let it grow as wide as its five cards, and the page scroll
-  sideways instead).
-*/
-@utility lineup-bleed {
-  @media (width < 64rem) {
-    --bleed-left: max(1rem, env(safe-area-inset-left));
-    --bleed-right: max(1rem, env(safe-area-inset-right));
-    @media (width >= 40rem) {
-      --bleed-left: max(1.5rem, env(safe-area-inset-left));
-      --bleed-right: max(1.5rem, env(safe-area-inset-right));
-    }
-    margin-left: calc(-1 * var(--bleed-left));
-    margin-right: calc(-1 * var(--bleed-right));
-    padding-left: var(--bleed-left);
-    padding-right: var(--bleed-right);
-    scroll-padding-left: var(--bleed-left);
-    scroll-padding-right: var(--bleed-right);
-  }
-  @media (width >= 64rem) {
-    margin-left: 0;
-    margin-right: 0;
-  }
 }
 .flip-card { perspective: 1800px; }
 .flip-card-inner { transform-style: preserve-3d; }

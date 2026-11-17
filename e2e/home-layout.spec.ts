@@ -1,12 +1,13 @@
 import { expect, test, type Locator, type Page } from "./test";
+import { lineupAtRest } from "./lineup";
 import { playerEntry } from "./players";
 
 /*
   Team Overview and a profile's Overview as home screens (in-memory demo roster, synthetic data).
-  Team: on a wide screen the five cards stand side by side under the team's header, with the bench
-  of substitutes under them, all centred together in the window (as much room above the header as
-  below the bench), and long names take a second line instead of being cut; on a short window the
-  page starts at the top and scrolls. Profile: the data status, the season's figures with its
+  Team: on a wide screen the five cards stand side by side under the team's header, the two
+  centred together in the window (as much room above the header as below the cards, no bench or
+  row of substitutes under them), and long names take a second line instead of being cut; on a
+  short window the page starts at the top and scrolls. Profile: the data status, the season's figures with its
   multikills, and rank and form fill the first screen of a 1440 × 900 window, with the pools
   straight after; off roles are one-line summaries that open in place, their portraits still open
   the champion window, and the pools read as a display until Edit.
@@ -24,9 +25,8 @@ async function box(locator: Locator) {
 }
 
 /**
- * Space above the header and below the lineup inside the frame (the lineup ends with the bench of
- * substitutes under the cards), where the frame ends, and where the parts sit: the section tabs
- * above it, the header, the cards and the bench.
+ * Space above the header and below the cards inside the frame, where the frame ends, and where the
+ * parts sit: the section tabs above it, the header and the cards.
  */
 async function lineupSpace(page: Page) {
   const tabs = await box(page.getByTestId("team-tabs"));
@@ -34,29 +34,21 @@ async function lineupSpace(page: Page) {
   const header = await box(page.getByTestId("team-header"));
   const track = await box(page.getByTestId("lineup-overview"));
   const stage = await box(page.getByTestId("lineup-stage"));
-  const bench = await box(page.getByTestId("lineup-bench"));
-  return { above: header.y - frame.y, below: frame.y + frame.height - (stage.y + stage.height), frameBottom: frame.y + frame.height, tabsBottom: tabs.y + tabs.height, headerTop: header.y, headerBottom: header.y + header.height, trackTop: track.y, trackBottom: track.y + track.height, benchTop: bench.y };
-}
-
-/** The bench's row: its label and substitutes, as items along one line (the spread of their middles: 0 on one line), where it starts, ends and centres. */
-async function benchRow(page: Page) {
-  const items = await page.getByTestId("lineup-bench").locator("li").evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ left: r.left, right: r.right, middle: r.top + r.height / 2 })));
-  const left = Math.min(...items.map((i) => i.left));
-  const right = Math.max(...items.map((i) => i.right));
-  const middles = items.map((i) => i.middle);
-  return { spread: Math.max(...middles) - Math.min(...middles), left, right, centre: (left + right) / 2 };
+  return { above: header.y - frame.y, below: frame.y + frame.height - (stage.y + stage.height), frameBottom: frame.y + frame.height, tabsBottom: tabs.y + tabs.height, headerTop: header.y, headerBottom: header.y + header.height, trackTop: track.y, trackBottom: track.y + track.height, stageBottom: stage.y + stage.height };
 }
 
 for (const [width, height] of [
   [1920, 1080],
   [1440, 900],
 ] as const) {
-  test(`Team Overview at ${width} × ${height}: five across under the header with the bench under them, centred together in the window`, async ({ page, context, baseURL }, info) => {
+  test(`Team Overview at ${width} × ${height}: five across under the header, centred together in the window, nothing under the cards`, async ({ page, context, baseURL }, info) => {
     test.skip(info.project.name !== "desktop", "wide screens");
     // The sidebar open, as it is by default.
     await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: baseURL! }]);
     await page.setViewportSize({ width, height });
     await page.goto("/team");
+    // Measured once the lineup is laid out and at rest (it streams in: e2e/lineup.ts).
+    await lineupAtRest(page);
     const cards = page.getByTestId("lineup-cell");
     await expect(cards).toHaveCount(5);
     const boxes = await cards.evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ top: Math.round(r.top), height: r.height })));
@@ -68,12 +60,13 @@ for (const [width, height] of [
     expect(art.height).toBeGreaterThanOrEqual(13 * 16);
     expect(art.height).toBeLessThanOrEqual(20 * rem + 1);
     // Centred: the frame fills the window (inside the page padding), with as much room above the
-    // header as below the bench, the header right above the cards and the bench right under them;
-    // nothing scrolls.
+    // header as below the cards, the header right above them; nothing scrolls. The cards end the
+    // lineup: no bench or row of substitutes under them.
     const space = await lineupSpace(page);
     expect(space.frameBottom, "the frame reaches the foot of the window").toBeGreaterThanOrEqual(height - 40);
     expect(space.trackTop - space.headerBottom).toBeLessThanOrEqual(32);
-    expect(space.benchTop - space.trackBottom, "the bench right under the cards").toBeLessThanOrEqual(16);
+    await expect(page.getByTestId("lineup-bench")).toHaveCount(0);
+    expect(Math.abs(space.stageBottom - space.trackBottom), "the stage ends with the cards").toBeLessThanOrEqual(1);
     expect(Math.abs(space.above - space.below), `above ${space.above}, below ${space.below}`).toBeLessThanOrEqual(2);
     expect(space.above).toBeGreaterThan(0);
     expect(await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight)).toBeLessThanOrEqual(1);
@@ -95,6 +88,8 @@ test("Team Overview on a short window: the lineup follows the header and the pag
   test.skip(info.project.name !== "desktop", "wide screens");
   await page.setViewportSize({ width: 1440, height: 560 });
   await page.goto("/team");
+  // Measured once the lineup is laid out and at rest (it streams in: e2e/lineup.ts).
+  await lineupAtRest(page);
   const space = await lineupSpace(page);
   // No centring gap pushes the page down: the header starts at the top, the cards right under it.
   expect(space.trackTop - space.headerBottom).toBeLessThanOrEqual(32);
@@ -104,31 +99,13 @@ test("Team Overview on a short window: the lineup follows the header and the pag
   expect(await overflow(page)).toBeLessThanOrEqual(1);
 });
 
-test("Team Overview in a short desktop window (1280 × 450): the cards' track scrolls inside the page, which never scrolls sideways", async ({ page }, info) => {
-  test.skip(info.project.name !== "desktop", "wide screens");
-  // A window this short (devtools docked under it, a split screen) shows the lineup as one sideways
-  // track, as a phone held sideways does: inside the content, never as wide as its five cards.
-  await page.setViewportSize({ width: 1280, height: 450 });
-  for (const path of ["/team", "/public"]) {
-    await page.goto(path);
-    const track = page.getByTestId("lineup-overview");
-    await expect(track).toHaveAttribute("data-ready", "true");
-    expect(await overflow(page), `${path}: the page never scrolls sideways`).toBeLessThanOrEqual(1);
-    const room = await track.evaluate((el) => ({ scroll: el.scrollWidth, width: el.clientWidth, right: el.getBoundingClientRect().right }));
-    expect(room.right, `${path}: the track ends inside the window`).toBeLessThanOrEqual(1280);
-    expect(room.scroll, `${path}: the track holds more than it shows`).toBeGreaterThan(room.width + 100);
-    // It scrolls on its own, to its last card.
-    await track.evaluate((el) => el.scrollTo({ left: el.scrollWidth }));
-    await expect.poll(() => track.evaluate((el) => el.scrollLeft), { message: `${path}: the track scrolls` }).toBeGreaterThan(0);
-    expect(await overflow(page)).toBeLessThanOrEqual(1);
-  }
-});
-
 test("Team Overview on a 1366 × 768 laptop with the sidebar open: all five in one centred row of equal cards", async ({ page, context, baseURL }, info) => {
   test.skip(info.project.name !== "desktop", "laptop widths");
   await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: baseURL! }]);
   await page.setViewportSize({ width: 1366, height: 768 });
   await page.goto("/team");
+  // Measured once the lineup is laid out and at rest (it streams in: e2e/lineup.ts).
+  await lineupAtRest(page);
   const cells = page.getByTestId("lineup-cell");
   await expect(cells).toHaveCount(5);
   const boxes = await cells.evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ top: Math.round(r.top), width: Math.round(r.width), height: Math.round(r.height), bottom: r.bottom })));
@@ -148,11 +125,13 @@ test("Team Overview on a 1366 × 768 laptop with the sidebar open: all five in o
   expect(await overflow(page)).toBeLessThanOrEqual(1);
 });
 
-test("Team Overview on a very wide screen: the lineup keeps its maximum width, centred, with the bench in one centred row under it", async ({ page, context, baseURL }, info) => {
+test("Team Overview on a very wide screen: the lineup keeps its maximum width, centred", async ({ page, context, baseURL }, info) => {
   test.skip(info.project.name !== "desktop", "wide screens");
   await context.addCookies([{ name: "uniiverse_sidebar", value: "collapsed", url: baseURL! }]);
   await page.setViewportSize({ width: 2560, height: 1440 });
   await page.goto("/team");
+  // Measured once the lineup is laid out and at rest (it streams in: e2e/lineup.ts).
+  await lineupAtRest(page);
   const track = await box(page.getByTestId("lineup-overview"));
   const main = await box(page.locator("main"));
   // The cap is in rem (the type scales with very large screens, the lineup with it), never the window.
@@ -160,12 +139,6 @@ test("Team Overview on a very wide screen: the lineup keeps its maximum width, c
   expect(track.width).toBeLessThanOrEqual(84 * rem + 1);
   expect(track.width).toBeLessThan(main.width - 2 * 4 * rem);
   expect(Math.abs(track.x + track.width / 2 - (main.x + main.width / 2))).toBeLessThanOrEqual(2);
-  // The bench: one compact row of the substitutes, centred under the cards and inside their width.
-  const row = await benchRow(page);
-  expect(row.spread, "the label and the substitutes on one line").toBeLessThanOrEqual(2);
-  expect(Math.abs(row.centre - (track.x + track.width / 2)), "centred under the lineup").toBeLessThanOrEqual(2);
-  expect(row.left).toBeGreaterThanOrEqual(track.x - 1);
-  expect(row.right).toBeLessThanOrEqual(track.x + track.width + 1);
 });
 
 async function openTeammate(page: Page) {
