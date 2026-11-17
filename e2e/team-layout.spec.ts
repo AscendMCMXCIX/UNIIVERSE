@@ -78,22 +78,57 @@ test("the header is centred over the cards and sits close to them", async ({ pag
   expect((await page.getByTestId("lineup-status").boundingBox())!.y, "the lineup's state under the name").toBeGreaterThanOrEqual(name.y + name.height - 1);
 });
 
+/**
+ * The lineup as it is laid out, read in one frame once it is at rest: its five cells, the track,
+ * the bench and the items of its row (the label and the substitutes), and how far the page scrolls
+ * sideways. The lineup streams in: React holds it in a hidden container and reveals it a little
+ * later (it batches reveals, up to 300ms after the page's first paint), which can be after the
+ * load event that page.goto waits for. Five cells are then counted while none is laid out (every
+ * box 0 × 0), and the bench, read once it showed, came out 759px under cards that ended at 0. So
+ * every figure a test compares comes from one frame, taken once the cells and the track have a
+ * size and two frames in a row agree.
+ */
+async function lineupAtRest(page: Page) {
+  const layout = await page.evaluate(async () => {
+    const box = (e: Element) => {
+      const r = e.getBoundingClientRect();
+      return { x: r.x, y: r.y, top: Math.round(r.top), bottom: r.bottom, left: r.left, right: r.right, width: r.width, height: r.height };
+    };
+    const read = () => {
+      const track = document.querySelector("[data-testid=lineup-overview]");
+      const bench = document.querySelector("[data-testid=lineup-bench]");
+      return { cells: [...document.querySelectorAll("[data-testid=lineup-cell]")].map(box), track: track && box(track), bench: bench && box(bench), items: bench ? [...bench.querySelectorAll("li")].map(box) : [], overflow: document.documentElement.scrollWidth - window.innerWidth };
+    };
+    const frame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    let last = read();
+    for (let i = 0; i < 600; i++) {
+      await frame();
+      const now = read();
+      const laidOut = now.cells.length === 5 && [...now.cells, now.track].every((b) => !!b && b.width > 0 && b.height > 0);
+      if (laidOut && JSON.stringify(now) === JSON.stringify(last)) return { ...now, still: true };
+      last = now;
+    }
+    return { ...last, still: false };
+  });
+  expect(layout.still, "the lineup laid out and at rest").toBe(true);
+  return { ...layout, track: layout.track! };
+}
+
 /** The bench's row: its label and substitutes, as items along one line (the spread of their middles: 0 on one line), where it starts, ends and centres. */
-async function benchRow(page: Page) {
-  const items = await page.getByTestId("lineup-bench").locator("li").evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ left: r.left, right: r.right, middle: r.top + r.height / 2 })));
+function benchRow(items: Array<{ left: number; right: number; y: number; height: number }>) {
   const left = Math.min(...items.map((i) => i.left));
   const right = Math.max(...items.map((i) => i.right));
-  const middles = items.map((i) => i.middle);
+  const middles = items.map((i) => i.y + i.height / 2);
   return { spread: Math.max(...middles) - Math.min(...middles), left, right, centre: (left + right) / 2 };
 }
 
 test("upright tablets show the lineup 2 + 2 + 1 and desktops five across, with the substitutes in one row under the cards", async ({ page }) => {
   test.skip(isPhone(page), "the phone layout has its own test");
   await page.goto("/team");
-  const cells = page.getByTestId("lineup-cell");
-  await expect(cells).toHaveCount(5);
-  const boxes = await cells.evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ x: r.x, top: Math.round(r.top), bottom: r.bottom, width: r.width })));
-  const track = (await page.getByTestId("lineup-overview").boundingBox())!;
+  await expect(page.getByTestId("lineup-cell")).toHaveCount(5);
+  await expect(page.getByTestId("lineup-bench")).toBeVisible();
+  // The cards, the track and the bench as one layout (lineupAtRest: the lineup streams in).
+  const { cells: boxes, track, bench, items, overflow } = await lineupAtRest(page);
   const tablet = (page.viewportSize()?.width ?? 1440) < 1024;
   if (tablet) {
     // 2 + 2 + 1: two rows of two cards, the fifth alone under them, centred.
@@ -106,9 +141,7 @@ test("upright tablets show the lineup 2 + 2 + 1 and desktops five across, with t
     expect(new Set(boxes.map((b) => b.top)).size, "one row").toBe(1);
   }
   // The bench: right under the cards, a substitute's chip for each role whose card turns to one.
-  const bench = page.getByTestId("lineup-bench");
-  await expect(bench).toBeVisible();
-  const benchTop = (await bench.boundingBox())!.y;
+  const benchTop = bench!.y;
   const cardsEnd = Math.max(...boxes.map((b) => b.bottom));
   expect(benchTop).toBeGreaterThanOrEqual(cardsEnd - 1);
   expect(benchTop - cardsEnd, "the bench right under the cards").toBeLessThanOrEqual(16);
@@ -118,12 +151,12 @@ test("upright tablets show the lineup 2 + 2 + 1 and desktops five across, with t
   }
   // One compact row of the substitutes that exist (no cell under each card), centred under the
   // lineup and inside its width.
-  const row = await benchRow(page);
+  const row = benchRow(items);
   expect(row.spread, "the label and the substitutes on one line").toBeLessThanOrEqual(2);
   expect(Math.abs(row.centre - (track.x + track.width / 2)), "centred under the lineup").toBeLessThanOrEqual(2);
   expect(row.left).toBeGreaterThanOrEqual(track.x - 1);
   expect(row.right).toBeLessThanOrEqual(track.x + track.width + 1);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+  expect(overflow).toBeLessThanOrEqual(1);
 });
 
 test("a 1280 × 800 laptop with the sidebar open shows the lineup 3 + 2, the last two centred under the first three", async ({ page, context, baseURL }, info) => {
@@ -133,17 +166,15 @@ test("a 1280 × 800 laptop with the sidebar open shows the lineup 3 + 2, the las
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/team");
   await expect(page.getByTestId("sidebar")).toHaveAttribute("data-collapsed", "false");
-  const cells = page.getByTestId("lineup-cell");
-  await expect(cells).toHaveCount(5);
-  const boxes = await cells.evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ x: r.x, top: Math.round(r.top), width: r.width })));
-  const track = (await page.getByTestId("lineup-overview").boundingBox())!;
+  await expect(page.getByTestId("lineup-cell")).toHaveCount(5);
+  const { cells: boxes, track, overflow } = await lineupAtRest(page);
   // 3 + 2: three cards share the first row, the last two the second, centred under them.
   expect(new Set(boxes.slice(0, 3).map((b) => b.top)).size, "the first three in one row").toBe(1);
   expect(new Set(boxes.slice(3).map((b) => b.top)).size, "the last two in one row").toBe(1);
   expect(boxes[3]!.top, "the last two under the first three").toBeGreaterThan(boxes[0]!.top);
   const pair = (boxes[3]!.x + boxes[4]!.x + boxes[4]!.width) / 2;
   expect(Math.abs(pair - (track.x + track.width / 2)), "the last two centred under the lineup").toBeLessThanOrEqual(2);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+  expect(overflow).toBeLessThanOrEqual(1);
 });
 
 // Cards side by side keeping their pictures, names and labels level whatever the names and
