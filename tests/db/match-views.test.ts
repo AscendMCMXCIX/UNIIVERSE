@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { testDb } from "./helpers";
+import { makeSeason2026Current, testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
@@ -73,6 +73,7 @@ const clientFor = (puuid: string) => new RiotApiClient({ apiKey: "k", fetchImpl:
 beforeAll(async () => {
   handle = await testDb();
   await syncStaticData(handle.db, new FixtureStaticProvider(), { fingerprint: false });
+  await makeSeason2026Current(handle.db);
   game = riotGame({ matchId: MATCH, players, winner: 200, durationS: 1_874, created: Date.now() - 3 * 3_600_000 });
   second = riotGame({ matchId: SECOND, players, winner: 100, durationS: 1_602, created: Date.now() - 5 * 3_600_000, seed: 77 });
   const team = await getOrCreateTeam(handle.db);
