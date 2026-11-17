@@ -1,7 +1,8 @@
 /*
   A Players roster row's lines, read from the page as a person reads them, for the live check's
-  phone fact (scripts/live-check.mjs, playersFacts: every row of two lines at most 72px tall) and
-  the browser tests (e2e/players-directory.spec.ts), so that both count one way. A row of two lines
+  phone fact (scripts/live-check.mjs, playersFacts: every row of two lines at most 72px tall);
+  e2e/players-directory.spec.ts keeps its own copy in measure(), and its phone test runs this one on
+  the live check's phone and checks the two agree row by row. A row of two lines
   (the name's, then the role, rank and pool) is 64px; a tagline, a Riot state, a name on two lines or
   a status that wraps adds a line by design, so those rows are counted, not measured.
 

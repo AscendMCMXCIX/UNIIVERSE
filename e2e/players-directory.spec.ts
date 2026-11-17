@@ -27,7 +27,7 @@ import { playerEntry } from "./players";
   - every link icon is the same size, above the row's second line;
   - the member's row keeps everything they chose.
   On the Production check's phone (390 × 844), with production's shape of row (a tagline on a name of
-  one line, beside a status and without one), a row with a tagline is three lines and every row of two
+  one line, with no Riot note; here both beside a status and without one), a row with a tagline is three lines and every row of two
   lines is at most 72px, counted with the live check's own count (scripts/roster-lines.mjs), which
   must count every row as this spec does.
 */
@@ -314,10 +314,11 @@ async function saveTagline(browser: Browser, baseURL: string, player: string, ta
 
 test("Players on the Production check's phone: a row with a tagline is three lines, and a row of two lines at most 72px, as the live check counts them", async ({ browser, page, baseURL }, info) => {
   test.skip(info.project.name !== "phone", "the live check's phone, 390 × 844");
-  // Production's roster when #277 was deployed (17 Nov 2026): taglines on names of one line with Riot
-  // data up to date, beside a status and without one. On a phone the tagline takes a line of its own
-  // under the second line (81.5px); the live check's own count missed it, counted that row as one or
-  // two lines and measured it against the 72px of two. The same shapes, from the demo's players.
+  // Production's roster when #277 was deployed (17 Nov 2026) had at least one row of this shape: a
+  // tagline on a name of one line, with no Riot note (its counts cannot say how many, or whether beside
+  // a status). On a phone the tagline takes a line of its own under the second line (81.5px); the live
+  // check's own count missed it, counted that row as one line (no status) or two (beside one) and
+  // measured it against the 72px of two. Both shapes, from the demo's players.
   const shapes = [
     { player: "Demo ADC", tagline: "Fortune favours the bold and the warded", status: true },
     { player: "Demo Sub (Top)", tagline: "Calm in the chaos", status: false },
