@@ -19,6 +19,10 @@ async function topId(page: Page) {
 }
 
 test("a profile opened from a scrolled list starts at its top, and Back returns to the list where it was", async ({ page }, info) => {
+  // Players fits one screen on tablets and desktops since the roster board: a window short enough for
+  // it to scroll there, still taller than a short window (480px), so the pinned section tabs and the
+  // desktop frame behind the bug below are the ones in play.
+  if (info.project.name !== "phone") await page.setViewportSize({ width: page.viewportSize()!.width, height: 500 });
   await page.goto("/players");
   await page.waitForLoadState("networkidle");
   // The list's last profile link (a profile itself, not one of its sections); found again if the list re-renders meanwhile.
@@ -32,7 +36,8 @@ test("a profile opened from a scrolled list starts at its top, and Back returns 
   const link = page.locator(`main a[href="${href}"]:visible`).last();
   await expect(async () => link.scrollIntoViewIfNeeded({ timeout: 2_000 })).toPass({ timeout: 15_000 });
   const listY = await scrollY(page);
-  test.skip(listY === 0, `the Players list does not scroll on ${info.project.name}`);
+  // A list that fits again fails here, loudly, rather than skipping what the test is for.
+  expect(listY, `the Players list scrolls on ${info.project.name}`).toBeGreaterThan(0);
   await link.click();
   await expect(page).toHaveURL(/\/players\/[0-9a-f-]{36}$/);
   await expect(page.getByTestId("profile-header")).toBeVisible();
