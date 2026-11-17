@@ -152,8 +152,8 @@ rules hold beside an open or a collapsed sidebar, and by the window's height:
     away while reading (see above). On phones the top bar sets the page's `scroll-padding-top` to
     its measured height (and the stylesheet clears the tab bar); on tablets the stylesheet's value
     stands, so whatever scrolls into view stays clear of both bars.
-- **Section tabs stay in reach** on tablets and desktops: Team's sections, a profile's sections
-  and Platform Settings' (`TabBar` with `sticky`, the `sticky-tabs` utility in globals.css) stay
+- **Section tabs stay in reach** on tablets and desktops: Team's sections, Resources' (the Library
+  and Matchup Intel), a profile's sections and Platform Settings' (`TabBar` with `sticky`, the `sticky-tabs` utility in globals.css) stay
   pinned at the top of the page once it has scrolled past them, under the tablet's top bar
   (`--bar-top`) and at the window's edge beside the sidebar, so a long section (Matches, a Match
   History, Players with a full roster) never needs scrolling back up
