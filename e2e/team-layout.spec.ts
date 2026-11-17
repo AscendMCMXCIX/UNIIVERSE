@@ -2,11 +2,11 @@ import { expect, test, type CDPSession, type Page } from "./test";
 import { memberContext } from "./member-account";
 
 /*
-  Team Overview layout: the team's header is one row (its name, the lineup's line and Edit lineup
-  side by side) that shares the cards' width and centre on wider screens; upright tablets show the
-  lineup 3 + 2 and desktops five across, with the bench of substitutes under the cards (five
-  across, each role's cell under its card); on phones the five cards are one sideways track (real
-  touch swipes, snap points, role tabs with each player's picture) under a header without the
+  Team Overview layout: the header shares the cards' width and centre on wider screens (the logo,
+  the "Team Overview" eyebrow over the team's name, the lineup's state under it, Edit lineup at the
+  row's end); upright tablets show the lineup 2 + 2 + 1 and desktops five across, with the bench of
+  substitutes in one centred row under the cards; on phones the five cards are one sideways track
+  (real touch swipes, snap points, role tabs with each player's picture) under a header without the
   logo the top bar already shows, its first card whole on the first screen (a lineup with a role
   open too: the header keeps its one row), the role bar as wide as the card, the substitutes two
   chips to a row, and the track never makes the page itself scroll sideways.
@@ -64,18 +64,30 @@ test("the header is centred over the cards and sits close to them", async ({ pag
   expect(cards.y - (header.y + header.height)).toBeLessThanOrEqual(24);
   await expect(page.getByTestId("edit-lineup")).toBeVisible();
   await expect(page.getByTestId("lineup-pager")).toBeHidden();
-  // One row: the logo, the name over its one line, and Edit lineup side by side, no taller than the logo.
-  const logo = (await page.getByTestId("team-header").locator("img, [data-testid=brand-mark-text]").first().boundingBox())!;
   const name = (await page.getByTestId("team-name").boundingBox())!;
   const edit = (await page.getByTestId("edit-lineup").boundingBox())!;
-  expect(header.height).toBeLessThanOrEqual(logo.height + 1);
   for (const part of [name, edit]) expect(part.y >= header.y - 1 && part.y + part.height <= header.y + header.height + 1).toBe(true);
   expect(edit.x).toBeGreaterThan(name.x + name.width);
-  // The tab above already says Team Overview: the header does not repeat it on screen.
-  await expect(page.getByTestId("team-header").getByText("Team Overview")).toHaveClass(/sr-only/);
+  // The team's identity from a tablet up: the "Team Overview" eyebrow shown over the name, the name
+  // large (30px on a tablet, 36px on a desktop), and the lineup's state under it.
+  const eyebrow = (await page.getByTestId("team-header").getByText("Team Overview").boundingBox())!;
+  expect(eyebrow.width, "the eyebrow is shown, not left to screen readers").toBeGreaterThan(40);
+  expect(eyebrow.y + eyebrow.height, "the eyebrow over the name").toBeLessThanOrEqual(name.y + 1);
+  const size = await page.getByTestId("team-name").evaluate((h) => parseFloat(getComputedStyle(h).fontSize));
+  expect(size, "the name's size").toBeGreaterThanOrEqual((page.viewportSize()?.width ?? 1440) >= 1024 ? 36 : 30);
+  expect((await page.getByTestId("lineup-status").boundingBox())!.y, "the lineup's state under the name").toBeGreaterThanOrEqual(name.y + name.height - 1);
 });
 
-test("upright tablets show the lineup 3 + 2 and desktops five across, with the substitutes under the cards", async ({ page }) => {
+/** The bench's row: its label and substitutes, as items along one line (the spread of their middles: 0 on one line), where it starts, ends and centres. */
+async function benchRow(page: Page) {
+  const items = await page.getByTestId("lineup-bench").locator("li").evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ left: r.left, right: r.right, middle: r.top + r.height / 2 })));
+  const left = Math.min(...items.map((i) => i.left));
+  const right = Math.max(...items.map((i) => i.right));
+  const middles = items.map((i) => i.middle);
+  return { spread: Math.max(...middles) - Math.min(...middles), left, right, centre: (left + right) / 2 };
+}
+
+test("upright tablets show the lineup 2 + 2 + 1 and desktops five across, with the substitutes in one row under the cards", async ({ page }) => {
   test.skip(isPhone(page), "the phone layout has its own test");
   await page.goto("/team");
   const cells = page.getByTestId("lineup-cell");
@@ -84,32 +96,33 @@ test("upright tablets show the lineup 3 + 2 and desktops five across, with the s
   const track = (await page.getByTestId("lineup-overview").boundingBox())!;
   const tablet = (page.viewportSize()?.width ?? 1440) < 1024;
   if (tablet) {
-    // 3 + 2: three cards share the first row, the last two the second, centred under them.
-    expect(new Set(boxes.slice(0, 3).map((b) => b.top)).size).toBe(1);
-    expect(new Set(boxes.slice(3).map((b) => b.top)).size).toBe(1);
-    expect(boxes[3]!.top).toBeGreaterThan(boxes[0]!.top);
-    const pair = (boxes[3]!.x + boxes[4]!.x + boxes[4]!.width) / 2;
-    expect(Math.abs(pair - (track.x + track.width / 2))).toBeLessThanOrEqual(2);
+    // 2 + 2 + 1: two rows of two cards, the fifth alone under them, centred.
+    expect(boxes[1]!.top).toBe(boxes[0]!.top);
+    expect(boxes[3]!.top).toBe(boxes[2]!.top);
+    expect(boxes[2]!.top).toBeGreaterThan(boxes[0]!.top);
+    expect(boxes[4]!.top).toBeGreaterThan(boxes[2]!.top);
+    expect(Math.abs(boxes[4]!.x + boxes[4]!.width / 2 - (track.x + track.width / 2))).toBeLessThanOrEqual(2);
   } else {
     expect(new Set(boxes.map((b) => b.top)).size, "one row").toBe(1);
   }
-  // The bench: under the cards, a substitute's entry for each role whose card turns to one.
+  // The bench: right under the cards, a substitute's chip for each role whose card turns to one.
   const bench = page.getByTestId("lineup-bench");
   await expect(bench).toBeVisible();
-  expect((await bench.boundingBox())!.y).toBeGreaterThanOrEqual(Math.max(...boxes.map((b) => b.bottom)) - 1);
+  const benchTop = (await bench.boundingBox())!.y;
+  const cardsEnd = Math.max(...boxes.map((b) => b.bottom));
+  expect(benchTop).toBeGreaterThanOrEqual(cardsEnd - 1);
+  expect(benchTop - cardsEnd, "the bench right under the cards").toBeLessThanOrEqual(16);
   for (const role of ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"]) {
     const turns = (await page.getByTestId(`lineup-sub-${role}`).count()) > 0;
     await expect(page.getByTestId(`bench-${role}`)).toHaveCount(turns ? 1 : 0);
-    if (tablet) await expect(page.getByTestId(`bench-empty-${role}`)).toBeHidden();
   }
-  if (!tablet) {
-    // Five across: a cell under every card, the substitute's or a quiet "No substitute", in the cards' columns.
-    for (const [i, role] of ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"].entries()) {
-      const under = (await page.getByTestId(`bench-${role}`).or(page.getByTestId(`bench-empty-${role}`)).boundingBox())!;
-      expect(Math.abs(under.x - boxes[i]!.x), `${role}: under its card`).toBeLessThanOrEqual(1);
-      expect(Math.abs(under.width - boxes[i]!.width), `${role}: the card's width`).toBeLessThanOrEqual(1);
-    }
-  }
+  // One compact row of the substitutes that exist (no cell under each card), centred under the
+  // lineup and inside its width.
+  const row = await benchRow(page);
+  expect(row.spread, "the label and the substitutes on one line").toBeLessThanOrEqual(2);
+  expect(Math.abs(row.centre - (track.x + track.width / 2)), "centred under the lineup").toBeLessThanOrEqual(2);
+  expect(row.left).toBeGreaterThanOrEqual(track.x - 1);
+  expect(row.right).toBeLessThanOrEqual(track.x + track.width + 1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
 });
 

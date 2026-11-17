@@ -8,17 +8,17 @@ import path from "node:path";
   animation (served as its web copy), and only someone who asks for reduced motion gets the still
   first frame. It is drawn where its place is: on the desktop sidebar's centre line with the icons,
   and at the start of its row everywhere else (the picture's still-frame source takes no place of
-  its own). Team Overview's one-row header shows it at 44px held sideways, 48px on tablets and 56px
-  on desktops; a phone held upright shows it in the top bar right above instead. Each test removes
-  the logo again at the end, so other tests see the usual team mark.
+  its own). Team Overview's header shows it at 44px held sideways, 64px on tablets and 80px on
+  desktops; a phone held upright shows it in the top bar right above instead. Each test removes the
+  logo again at the end, so other tests see the usual team mark.
 */
 
 const GIF = path.join(__dirname, "fixtures/animated-logo.gif");
 
 const SCREENS = [
   { name: "phone sideways", viewport: { width: 812, height: 375 }, isMobile: true, hasTouch: true, side: 44 },
-  { name: "tablet", viewport: { width: 768, height: 1024 }, isMobile: false, hasTouch: true, side: 48 },
-  { name: "desktop", viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false, side: 56 },
+  { name: "tablet", viewport: { width: 768, height: 1024 }, isMobile: false, hasTouch: true, side: 64 },
+  { name: "desktop", viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false, side: 80 },
 ] as const;
 
 /** Uploads the animated logo, runs `checks`, then removes the logo again whatever happened. */
@@ -197,8 +197,9 @@ test("everywhere else the logo starts its row: nothing unseen stands before it, 
       });
       expect(Math.abs(off), `${at}: the sign-in page's logo and name are ${off}px off centre`).toBeLessThanOrEqual(0.5);
       await signIn.context().close();
-      // Team Overview's header, one row: nothing unseen makes it taller than what it shows (an
-      // empty row under its own, as the still-frame source once added to it).
+      // Team Overview's header, a row of the logo, the name's column and Edit lineup: nothing unseen
+      // makes it taller than what it shows (an empty row under its own, as the still-frame source
+      // once added to it).
       const team = await openPage(browser, baseURL!, "/team", options === phone ? "[data-testid=mobile-topbar] img" : "[data-testid=team-header] img", options);
       // Measured once the header is in place: while the page streams in, its parts can stand in a
       // hidden container (nothing has a size there yet).
