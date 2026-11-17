@@ -13,9 +13,9 @@ import { syncStaticData } from "@/server/riot/static/sync";
 
 /*
   The production verification account: a member account with no player profile, whose password is
-  worked out from CRON_SECRET. It must sign in like anyone, hold the default member access and no
-  more, appear in no player list, own no Riot account, and never take over an account of that name
-  it did not make.
+  worked out from VERIFY_ACCOUNT_SECRET, or from CRON_SECRET until that is set. It must sign in like
+  anyone, hold the default member access and no more, appear in no player list, own no Riot account,
+  and never take over an account of that name it did not make.
 */
 
 const SECRET = "a-cron-secret-of-some-length-0123456789";
@@ -35,7 +35,7 @@ describe("the production verification account", () => {
     const team = await getOrCreateTeam(db);
     await createPlayer(db, team.id, { displayName: "Real Member", primaryRole: "MID", primaryPool: ["Ahri"] });
     const first = await ensureVerificationAccount(db, prod);
-    expect(first).toEqual({ ok: true, summary: { username: VERIFY_USERNAME, state: "created" } });
+    expect(first).toEqual({ ok: true, summary: { username: VERIFY_USERNAME, state: "created", key: "CRON_SECRET" } });
     expect(JSON.stringify(first)).not.toContain(deriveVerifyPassword(SECRET));
 
     const signedIn = await authenticate(db, VERIFY_USERNAME, deriveVerifyPassword(SECRET));
