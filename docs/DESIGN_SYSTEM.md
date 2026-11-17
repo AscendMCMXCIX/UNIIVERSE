@@ -321,7 +321,7 @@ deliberately. Each needs its own small PR. Check STATUS.md for the Actions-minut
 |---|---|---|
 | Hover on panels | About 50 controls use `hover:bg-surface-2`, a few `hover:bg-surface-2/70` or `bg-fg/5` | Converge on §5: surface steps on panels, fg overlays on the frame |
 | Page headers | Players, Matches and Resources open with `PageHeader`. Leaderboards opens with its sub-tabs in the title's place; Settings centres a narrower column with its own heading | Intended by STANDARDS.md's three tiers. Leaderboards could take a `PageHeader` when its page is next redesigned |
-| Eyebrows | `PageHeader`'s eyebrow is `accent`; `SectionLabel` is `fg-subtle` | Both are valid. Keep `accent` eyebrows to Team Overview's header (from `sm` in a window taller than 480px; on a phone held either way it is left to screen readers, since the selected tab right above says it), admin pages (`PageHeader`) and the sign-in frames (`BrandFrame`) |
+| Eyebrows | `PageHeader`'s eyebrow is `accent`; `SectionLabel` is `fg-subtle` | Both are valid. Keep `accent` eyebrows to Team Overview's header (from `sm` in a window taller than 480px; on a phone held either way it is left to screen readers, since the selected tab says it), admin pages (`PageHeader`) and the sign-in frames (`BrandFrame`) |
 | Tablet and phone mode switch | A bordered accent button in the drawer and sheet, a quiet row in the sidebar | Deliberate (§7). Revisit only with the owner, since phones were verified |
 
 ## 10. Working on the design
@@ -332,11 +332,12 @@ deliberately. Each needs its own small PR. Check STATUS.md for the Actions-minut
   updates this page in the same PR.
   - `main` (`app-shell.tsx`) is the same block on every page but Team Overview: there, from `lg`,
     it is a flex column (`lg:has-[[data-testid=lineup-frame]]:flex lg:has-[[data-testid=lineup-frame]]:flex-col`),
-    so the lineup's frame takes the height left under the section tabs and centres the header,
-    the cards and the bench in it (October 2026; November's redesign anchored the lineup under the
-    tabs instead, and the centring was restored at the owner's request on 17 Nov 2026). The
-    lineup's own rules in `globals.css` (`lineup-bleed`, the art-wait rules) are described in
-    RESPONSIVE.md → Team Overview's lineup.
+    so the lineup's frame takes the height left under the section tabs and centres the header and
+    the cards in it (October 2026; November's redesign anchored the lineup under the tabs instead,
+    and the centring was restored at the owner's request on 17 Nov 2026). The lineup's layout is
+    described in RESPONSIVE.md → Team Overview's lineup, and its own rules in `globals.css` where
+    they matter: the art-wait rules in PERFORMANCE.md → Team Overview's first card, the cards' turn
+    (`.flip-card`) in ARCHITECTURE.md → Substitute side of the Team cards.
 - **Validation:** `pnpm verify`, then `pnpm build && pnpm test:e2e`. The sidebar's geometry and
   motion are in `e2e/sidebar-motion.spec.ts` and `e2e/quality.spec.ts`; axe runs at three widths
   in `e2e/quality.spec.ts`.
