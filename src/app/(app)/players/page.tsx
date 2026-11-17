@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { ROLES, type Role } from "@/domain/roles";
 import { getAppDb } from "@/server/bootstrap";
 import { hasPermission } from "@/server/auth/session";
@@ -13,7 +12,6 @@ import { rankView } from "@/server/players/overview";
 import { PlayersDirectory } from "@/components/players/players-directory";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { users } from "@/server/db/schema";
-import { PageHeader } from "@/components/ui/page-header";
 import { byDisplayName } from "@/domain/display-name";
 import { loadSocialLinks } from "@/server/repositories/profile";
 import { visibleSocialLinks } from "@/domain/social-links";
@@ -22,7 +20,7 @@ import { FreshnessWatcher } from "@/components/ui/freshness-watcher";
 
 export const dynamic = "force-dynamic";
 
-/** PLAYERS: one directory of everyone active in UNIIVERSE, lineup first. Account administration lives in Admin. */
+/** PLAYERS: one roster of everyone active in UNIIVERSE, A to Z. Account administration lives in Admin. */
 export default async function PlayersPage({ searchParams }: { searchParams: Promise<{ archived?: string }> }) {
   const { archived } = await searchParams;
   const db = await getAppDb();
@@ -51,25 +49,15 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
   const visible = (showArchived ? ordered : ordered.filter((p) => !deactivated.has(p.id))).filter((p) => admin || p.id !== session.playerId);
 
   return (
-    <div className="mx-auto max-w-[var(--content-max)] space-y-6">
+    <div className="mx-auto max-w-[var(--content-max)]">
       <FreshnessWatcher scope={{ kind: "team" }} version={version} />
-      <PageHeader
-        title="Players"
-        description="Everyone with a profile. Search by name or Riot ID, filter by role, and open a profile for pools, Riot accounts and season statistics."
-        guide
-      />
-      {session.playerId && !admin ? (
-        <p className="text-sm text-fg-muted">
-          Looking for yourself?{" "}
-          <Link href="/overview" className="text-accent hover:underline">
-            Open My Profile →
-          </Link>
-        </p>
-      ) : null}
+      {/* The header is the directory's own, so the count can be its scope line (read out as it changes). */}
       <PlayersDirectory
         archived={admin ? { on: showArchived } : null}
+        // A member's own profile is not listed (above): the header offers it.
+        myProfile={!!session.playerId && !admin}
         championsById={championsById}
-        // The record as the cards show it: a profile's notes are nobody else's to receive.
+        // The record as the rows show it: a profile's notes are nobody else's to receive.
         entries={visible.map((p) => ({ player: { ...p, notes: "" }, lineupRole: lineupRoleOf(p.id), isYou: session.playerId === p.id, riot: riot[p.id] ?? null, avatarUrl: avatars[p.id] ?? null, ...rankFor(p.id), riotIds: accounts.filter((a) => a.playerId === p.id).map((a) => a.riotId), social: visibleSocialLinks(social.get(p.id)) }))}
       />
     </div>
