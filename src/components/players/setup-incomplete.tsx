@@ -8,11 +8,14 @@ import { cn } from "@/lib/cn";
  */
 export const SETUP_INCOMPLETE_HINT = "This member has not finished setting up their profile yet, so some of their information (roles, champions, Riot accounts) may still be missing.";
 
-export function SetupIncompleteBadge({ className }: { className?: string }) {
+/** `wordClassName`: classes for the word "incomplete", which a narrow list row keeps for screen readers only ("Setup"; the title still explains it). */
+export function SetupIncompleteBadge({ className, wordClassName }: { className?: string; wordClassName?: string }) {
   return (
     <span className={cn("inline-flex", className)} data-testid="setup-incomplete">
       <Badge tone="neutral" title={SETUP_INCOMPLETE_HINT} className="whitespace-nowrap">
-        Setup incomplete
+        <span>
+          Setup<span className={wordClassName}> incomplete</span>
+        </span>
       </Badge>
     </span>
   );
