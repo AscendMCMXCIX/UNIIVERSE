@@ -1,6 +1,7 @@
 import { AxeBuilder } from "@axe-core/playwright";
 import { expect, test, type Page } from "./test";
 import { memberContext } from "./member-account";
+import { demoSeasonLabel } from "./demo-season";
 
 /*
   Team → Matches → Insights, as administrators preview it while the owner decides
@@ -17,13 +18,14 @@ async function axe(page: Page) {
   expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
 }
 
-test("the preview says what it read, what stands out (or that nothing does), and how", async ({ page }) => {
+test("the preview says what it read, what stands out (or that nothing does), and how", async ({ page, request }) => {
+  const season = await demoSeasonLabel(request);
   await page.goto("/matches/insights");
   const root = page.getByTestId("team-insights");
   await expect(root.getByRole("heading", { level: 1, name: "Team insights" })).toBeVisible();
   await expect(root.getByText("Preview for administrators")).toBeVisible();
   // What was read: the season, the games, the members and the dates.
-  await expect(root).toContainText(/Season 2026 · ([\d,]+ games? of \d+ members?, [\d,]+ played together|No games yet)/);
+  await expect(root).toContainText(new RegExp(`${season} · ([\\d,]+ games? of \\d+ members?, [\\d,]+ played together|No games yet)`));
   // Either findings, each a plain statement with its records and interval, or a plain "nothing".
   const findings = root.getByTestId("insight-finding");
   const nothing = root.getByTestId("insights-nothing");
