@@ -876,10 +876,12 @@ pages were read on 16 Nov 2026: the League of Legends documentation
   this branch loaded it at least six times (at least four between 19:36 and 19:39 UTC, while checking
   this very question, and twice at 20:08 in a review's probe whose block did not hold: the sandbox's
   HTTPS proxy bypasses a host name mapped to a closed port), and the tests above ran in their local
-  browser runs and in the three WebKit workflow runs on this branch that day. Working on other
+  browser runs, in CI (run 43951873455, started when the pull request opened at 20:38 UTC) and in
+  the three WebKit workflow runs on this branch that day. Working on other
   branches that day, the same session's agents also opened the Library with nothing blocked: in a
-  probe at 10:00 UTC, in a screenshot run from 13:16 to 13:24 UTC (11 page loads), in eight WebKit
-  workflow runs and in local runs of the same tests (Open compliance questions, "Scripted reads of
+  probe at 10:00 UTC, in a screenshot run from 13:16 to 13:24 UTC (11 page loads), in CI (seven runs'
+  browser jobs, and two more cancelled part-way, 05:41 to 11:02 UTC), in eight WebKit workflow runs
+  and in local runs of the same tests (Open compliance questions, "Scripted reads of
   the wiki"). The same tests ran again on 17 Nov, locally, in CI and in the WebKit workflow, for
   this pull request and other branches.
 
@@ -1010,8 +1012,8 @@ The steps only the owner can take, in order. The first three come before the mer
 merge deploys.
 
 1. **Update the product's description in Riot's Developer Portal.** Done by the owner on 17 Nov
-   2026 (Sydney). Before Matchup Intel reaches production, replace it with the description in
-   RIOT_COMPLIANCE.md ("Description for the registration"; Registering the product, step 2). No key or endpoint changes. Its Matchup Intel
+   2026 (Sydney): the description is now the one in RIOT_COMPLIANCE.md ("Description for the
+   registration"; Registering the product, step 2). No key or endpoint changes. Its Matchup Intel
    part, word for word (`src/server/riot/registration-description.test.ts` keeps the two copies
    the same):
 
@@ -1027,12 +1029,15 @@ merge deploys.
    them words that add "only", "all", "each", "first" or a timing, cooldown notes that name which
    effect a post-effect start waits for, lists read from an interaction table whose template was
    not saved, effects, terms and tags no page gives, and header claims. Each was reworded to what
-   its page states or removed, except eight header sentences the audit said to keep once the rest
-   was fixed (seven) or once `verified.checkedOn` moved to 17 Nov (one). Re-audits of the changed
-   lines returned 28 findings (27 distinct, among them a sum, a disputed ratio and a sentence copied
+   its page states or removed, except nine the audit said to keep: eight header sentences, once the
+   rest was fixed (seven) or once `verified.checkedOn` moved to 17 Nov (one), and Renekton's
+   passive `maxRank: 1`, which Data Dragon does not give and its header now calls the app's
+   placeholder. Re-audits of the changed lines, and of lines the editors flagged, returned 28
+   findings (27 distinct, among them a sum, a disputed ratio and a sentence copied
    too closely from the wiki): 26 were applied (Gwen's added-up totals removed rather than
-   recorded), and one was not, the request to restore "only" and "before ability haste" in the
-   Ambessa vs Renekton opportunity. Each file's `verified.checkedOn` is now 17 Nov 2026. No person
+   recorded), and one was not: the request to restore the Ambessa vs Renekton opportunity's "only",
+   which that file's audit had classed stated, and its "before ability haste" unless the qualifier
+   went from every file; this pass dropped that sentence's "only" and the qualifier everywhere. Each file's `verified.checkedOn` is now 17 Nov 2026. No person
    has checked each fact against its page, and the corrections reworded parts of the three approved
    briefings. The owner's rule is also that a briefing appears only where a person wrote and
    checked it.
