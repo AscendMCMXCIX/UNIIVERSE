@@ -87,7 +87,7 @@ export function SocialLinks({ links, owner, className }: { links: readonly Socia
  */
 export function CardSocialIcons({ links, owner, mode = "interactive", className }: { links: readonly SocialLinkView[]; owner: string; mode?: "interactive" | "static"; className?: string }) {
   if (!links.length) return null;
-  // A step closer on a card under 12.5rem (five across a 1280px laptop), so three still share the picture's row.
+  // A step closer on a card under 12.5rem (five across a 1366px laptop with the sidebar open), so three still share the picture's row.
   const row = "flex shrink-0 items-center gap-1.5 @max-[12.5rem]/card:gap-1 @min-[17rem]/card:gap-2";
   if (mode === "static")
     return (

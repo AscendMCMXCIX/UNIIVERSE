@@ -290,7 +290,7 @@ export interface CardSeason extends SeasonFigures {
  * note instead of a row of dashes; nothing is estimated. `placeholder` (Card Studio, where the
  * opener did not load figures) keeps the shape with dashes.
  *
- * On a card narrower than 12.5rem (five across a 1280px laptop with the sidebar open) one row of
+ * On a card narrower than 12.5rem (five across a 1366px laptop with the sidebar open) one row of
  * three cannot hold the figures (its middle column shrank to a few pixels and drew "KDACS/MIN"):
  * there the win rate keeps the left with its record, and KDA and CS/min (vision) stand one above
  * the other on the right, each its label over its figure. Same figures, same order.
@@ -337,9 +337,9 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
           <dd className={figure}>{placeholder || season?.kda == null ? dash : season.kda.toFixed(2)}</dd>
           {/* Kills / deaths / assists per game need about 4.5rem beside the other two figures, which
               a card has from 16.5rem: on a narrower card among others side by side (five across a
-              desktop, three across a tablet) they stay in the hover text, for screen readers and in
-              the player's window, instead of showing cut off. A phone's single card (a lineup under
-              36rem, about 16.4rem wide on a 320px phone) always shows them, as it always has. */}
+              desktop) they stay in the hover text, for screen readers and in the player's window,
+              instead of showing cut off. A phone's single card (a lineup under 36rem, about 16.4rem
+              wide on a 320px phone) always shows them, as it always has. */}
           <dd className={cn(sub, narrowHidden)} title={kdaLine ? `Kills / deaths / assists per game: ${kdaLine}` : undefined}>
             {placeholder || !kdaLine ? (
               "\u00a0"
@@ -394,10 +394,7 @@ export interface CardPoolChampion extends PortraitChampion {
 /**
  * The card's champion pool for its role: the first choice featured (portrait, name and its season
  * in the role), then the rest of the pool in order, as many as fit, with the pool's size. A role
- * without champions says so plainly. On a card narrower than 16.5rem among others side by side (a
- * lineup of 36rem or more: five across a desktop up to about 2000px wide, three across a tablet) the
- * rest of the pool takes a row of its own under the first choice, where five portraits fit, instead
- * of the one or two that fitted beside it. A phone's single card keeps the pool on one row.
+ * without champions says so plainly.
  */
 export function CardPool({ champions, roleLabel, showFigures = true, testId = "pool-preview" }: { champions: CardPoolChampion[]; roleLabel: string; showFigures?: boolean; testId?: string }) {
   const [first, ...rest] = champions;
@@ -410,8 +407,8 @@ export function CardPool({ champions, roleLabel, showFigures = true, testId = "p
   const games = first.games ?? 0;
   const firstLine = !showFigures ? "First choice" : games > 0 ? `${games} game${games === 1 ? "" : "s"}${first.winRate != null ? ` · ${Math.round(first.winRate * 100)}%` : ""}` : (first.tierLabel ?? "No games this season");
   return (
-    <div className="flex min-w-0 items-center gap-2.5 @xl/lineup:@max-[16.5rem]/card:flex-wrap @xl/lineup:@max-[16.5rem]/card:gap-y-1.5" aria-label={`${roleLabel} champion pool, in order of preference`} data-testid={testId} data-card-pool>
-      <span className="flex min-w-0 shrink-0 items-center gap-2 @xl/lineup:@max-[16.5rem]/card:shrink" data-testid="pool-first">
+    <div className="flex min-w-0 items-center gap-2.5" aria-label={`${roleLabel} champion pool, in order of preference`} data-testid={testId} data-card-pool>
+      <span className="flex min-w-0 shrink-0 items-center gap-2" data-testid="pool-first">
         <ChampionPortrait champion={first} size="md" className="ring-1 ring-[color:var(--card-accent)]/50" />
         <span className="min-w-0 max-w-[7.5rem]">
           <span className="block truncate text-sm font-semibold leading-tight text-fg">{first.name}</span>
@@ -419,7 +416,7 @@ export function CardPool({ champions, roleLabel, showFigures = true, testId = "p
         </span>
       </span>
       {rest.length ? (
-        <span className="@container ml-auto flex min-w-0 flex-1 justify-end @xl/lineup:@max-[16.5rem]/card:ml-0 @xl/lineup:@max-[16.5rem]/card:basis-full @xl/lineup:@max-[16.5rem]/card:justify-start" data-testid="pool-rest">
+        <span className="@container ml-auto flex min-w-0 flex-1 justify-end">
           <span className="flex min-w-0 items-center gap-1">
             {rest.slice(0, 5).map((c, i) => (
               <span key={c.id} className={cn("shrink-0", REST_HIDDEN[i])}>
