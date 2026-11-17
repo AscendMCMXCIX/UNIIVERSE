@@ -30,6 +30,7 @@ This guide assumes no prior deployment experience. The whole setup takes about 3
    | `UNIIVERSE_AUTH_SECRET` | long random string (signs sessions) | yes |
    | `UNIIVERSE_ACCESS_PASSWORD` | one-time setup key for creating the owner account | yes |
    | `CRON_SECRET` | long random string | yes (automation) |
+   | `VERIFY_ACCOUNT_SECRET` | long random string (`openssl rand -base64 48`), Production only, the same value as the GitHub secret of that name | optional: the key of the Production check's verification account; without it, `CRON_SECRET` (docs/LIVE_VALIDATION.md) |
    | `RIOT_API_KEY` | your Riot key | for linked accounts |
    | `RIOT_PLATFORMS` | the server the Riot key check asks, e.g. `oc1` | optional (default `oc1`) |
    | `RIOT_DEFAULT_PLATFORM` | server the sign-up region selector starts on (default `oc1`; Riot confirms each account's real server) | optional |
