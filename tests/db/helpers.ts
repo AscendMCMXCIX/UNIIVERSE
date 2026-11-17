@@ -1,5 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { createDb, type DbHandle } from "@/server/db/create";
+import type { Db } from "@/server/db/types";
+import { patches } from "@/server/db/schema";
+import { patchSortKey } from "@/domain/patch";
 
 /**
  * Fresh database with all migrations applied.
@@ -29,4 +32,15 @@ export async function testDb(): Promise<DbHandle> {
       await admin.end({ timeout: 5 });
     },
   };
+}
+
+/**
+ * Makes a Season 2026 patch (16.20) the current one, for a test whose games are Season 2026's.
+ * The current season is the current patch's (accounts/sync `currentSeason`), as in production. The
+ * offline fixture's patch has no season, so on fixture data alone it would be the calendar year's,
+ * and from 1 January 2027 those games would no longer be in the current season.
+ */
+export async function makeSeason2026Current(db: Db): Promise<void> {
+  await db.update(patches).set({ isCurrent: false });
+  await db.insert(patches).values({ id: "16.20", ddragonVersion: "16.20.1", isCurrent: true, sortKey: patchSortKey("16.20") }).onConflictDoUpdate({ target: patches.id, set: { isCurrent: true } });
 }

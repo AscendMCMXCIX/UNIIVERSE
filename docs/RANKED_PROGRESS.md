@@ -39,8 +39,9 @@ from 8 January (patch 26.1), Season 2 from 29 April (26.9; apex tiers hard-reset
 BR, EUNE, EUW, LAN, NA and TR only, "for all other players, nothing will change"), Season 3 from
 29 July (26.15). The data agrees: LEAGUE-V4's wins + losses at each account's first reading count the
 games stored since 8 January, not those of one season (`rank-audit`, 6 Nov: exactly for 12 of the 16
-account/queue pairs with a reading, the store short by 1 to 6 games for the other four), so Riot's
-count spans the year. Every linked account plays on OCE, where no season reset anything.
+account/queue pairs with a reading, the store short by 1 to 6 games for the other four, which also
+hold rows stored without a length that may be those games: `withoutLength` under "Checking it"),
+so Riot's count spans the year. Every linked account plays on OCE, where no season reset anything.
 
 So Ranked progress does not offer the seasons as separate periods (it did until November 2026: Season
 1 and Season 2 could only ever show "not recorded"). It names the season now ("2026 Season 3") and
@@ -82,11 +83,16 @@ only when those two readings enclose that game and nothing else (`attributeLp`):
    readings exactly as many games ended as that count rose. The stored games are matched to the
    count in the order they ended. If a game is missing from the store (not collected yet, Riot
    never served it, or stored without a length), or a stored game was not counted, the match breaks
-   and nothing in that stretch is attributed, provided a reading sees the missing game counted
-   before the next stored game can have ended. When none does (Riot counting it 20 or more minutes
-   late, or no reading in between), the next stored game of the same result is matched to the
-   missing game's change. The rule assumes Riot counts each game within about ten minutes of its
-   end. Remakes (under five minutes) are not counted by Riot and never take part.
+   and nothing in that stretch is attributed. The break shows at the first reading that counts the
+   missing game if it was taken before the next stored game can have ended, or counts that game
+   too. If it was taken later and does not count the next game yet, the next game is matched to the
+   missing game's change instead. A next game of the other result is then left without a figure
+   (the count and the games disagree), and so is one of the same result whose earlier reading is
+   more than five minutes older than its start (rule 2: too far), as after a gap in the readings
+   that started before the missing game. A next game of the same result whose readings pass rule 2
+   is given the missing game's change ("What the readings cannot rule out", below). The rule
+   assumes Riot counts each game within about ten minutes of its end. Remakes (under five minutes)
+   are not counted by Riot and never take part.
 2. **Nothing else in between.** The earlier reading must still have held when the game began:
    confirmed while it was played, or in the five minutes before it was created. A queue dodge, the
    only other LP change a player makes, happens in champion select and is followed by a six-minute
@@ -110,9 +116,11 @@ next reading would be counted with that game: Riot reports no dodges, so no trac
 them. The same holds for decay (Diamond and above, after weeks without a game) in the last minutes
 of a game, after its last reading during play; decay earlier in the game shows in that reading,
 apart from the game. The rank watch keeps both windows to a few minutes. Nor can a game Riot
-counted but did not list, or listed late, be told from the next game of the same result when no
-reading falls between them (rule 1). Every figure's tooltip names the two readings it rests on,
-with their times, so it can be checked.
+counted that the store lacks (rule 1) be told from the next game of the same result when the last
+reading without it was taken in the five minutes before that game began or during it (the missing
+game still being played, or not counted yet), and no reading counted it until that game had ended
+(Riot counting it late, or no reading in between). Every figure's tooltip names the two readings it
+rests on, with their times, so it can be checked.
 
 ## Readings: when ranks are read
 
@@ -147,7 +155,7 @@ How often runs happen is what decides how many games get a figure:
 - it schedules `uniiverse-rank-watch` every five minutes.
 
 Running it again changes nothing, except that it updates the Vault copy after a change of `CRON_SECRET`. Only the production deployment installs it.
-- **Check it:** Data jobs `rank-schedule-status` (read only). It reports whether the schedule exists, its runs of the last hour by status, and its calls by HTTP status. `/api/health` shows `rank-watch`'s last success, which should never be more than about five minutes old, and lists `rank-schedule` in `failingJobs` once the installed schedule has not called the app for 20 minutes (its direct calls of `/api/jobs/rank-watch` are recorded; a tick's rank watch does not count), which fails the next scheduled Data jobs run (docs/MONITORING.md). A run in which every account it tried failed is *degraded* with a count-only message, which Admin repeats; one stopped by a full rate limit before its first reading is not (the next run reads again).
+- **Check it:** Data jobs `rank-schedule-status` (read only). It reports whether the schedule exists, its runs of the last hour by status, its calls by HTTP status, and when the app last recorded a call of this schedule and of the ten-minute tick (`callsRecordedByApp`, what `/api/health` reads). `/api/health` shows `rank-watch`'s last success, which should never be more than about five minutes old, and lists `rank-schedule` in `failingJobs` once the installed schedule has not called the app for 20 minutes (its direct calls of `/api/jobs/rank-watch` are recorded; a tick's rank watch does not count), which fails the next scheduled Data jobs run (docs/MONITORING.md). A run in which every account it tried failed, or which a full rate limit stopped before its first reading, is *degraded* with a count-only message, which Admin repeats; it still answers ok, so the schedule's call is not refused, and the next run reads again.
 - **After a change of `CRON_SECRET`:** run Data jobs `rank-schedule` again (it updates the Vault copy), then `rank-schedule-status`: `vaultMatchesServerSecret` should be `true` and the calls `200`. Until then every call is refused (401).
 - **Remove it:** Data jobs `rank-schedule-off`. It unschedules the job and deletes the Vault copy, unless another pg_cron job still reads it (production's ten-minute `uniiverse-tick` does): then it keeps it and says how many jobs read it (`secretStillUsedBy`, a count only). To remove both, unschedule `uniiverse-tick` first (docs/DEPLOYMENT.md), then run `rank-schedule-off`.
 
@@ -183,10 +191,15 @@ traffic per run. No GitHub Actions minutes.
 ## Checking it
 
 - **Data jobs → `rank-audit`** (read-only): per account and queue, Riot's count of the year's games
-  at the first reading against the stored games, the queue's rows without a champion by kind (a game
-  Riot refused for good, recorded with no start time, or one whose champion the list did not have),
-  which say why Riot's count can exceed the stored games, the readings and the games between them,
-  how many games have a figure and why the others have none, with the last few figures and the minutes
+  at the first reading against the stored games, and the queue's rows that are not counted games:
+  `withoutLength`, what the sync stores with the start time and the queue only (a remake, a game whose
+  champion was still unknown three days after it, a game whose record does not name the account;
+  which is which is not stored, and Riot counts the second kind, so where Riot's count exceeds the
+  stored games these rows may be the difference); `withoutChampion.refusedForGood`, a listed game
+  Riot refused for good, recorded with no start time; and `remakesWithLength` and
+  `withoutChampion.championUnknownWithLength`, rows with a length under five minutes or with a
+  counted length and no champion, which no version of the sync writes. Then the readings and the
+  games between them, how many games have a figure and why the others have none, with the last few figures and the minutes
   between each game and its two readings; the 2026 seasons' first patches as stored; the rank changes
   recorded; the year's games and rank changes week by week. Accounts appear as P1/A1 only. Its
   `readings`, `lastReading`, `medianMinutesBetweenReadings`, weekly `soloReadings`/`flexReadings` and

@@ -108,7 +108,14 @@ defineJob({
     const client = rankLookupClient();
     if (!client) return { ok: true, degraded: true, error: "RIOT_API_KEY is not configured; ranks cannot be checked.", summary: { skipped: true } };
     const run = await checkRecentGameRanks(ctx.db, client, { deadline: ctx.startedAt + ctx.budgetMs });
-    ctx.log(`ranks: ${run.found} checked, ${run.failed} failed, ${run.skipped} skipped${run.reason ? ` (${run.reason})` : ""}${run.waits ? `, ${run.waits} waits for Riot's one-second window` : ""}; ${run.waiting} players in ${run.games} recent games were waiting`);
-    return { ok: true, degraded: run.asked > 0 && run.found === 0 && run.failed > 0, summary: { ...run, requests: client.requestCount } };
+    // What the failed checks met, in counts (Riot's status, no readable answer, not stored): the "why" of the message below.
+    const why = Object.entries(run.failedBy).map(([kind, n]) => `${kind}: ${n}`).join(", ");
+    ctx.log(`ranks: ${run.found} checked, ${run.failed} failed${why ? ` (${why})` : ""}, ${run.skipped} skipped${run.reason ? ` (${run.reason})` : ""}${run.waits ? `, ${run.waits} waits for Riot's one-second window` : ""}; ${run.waiting} players in ${run.games} recent games were waiting`);
+    // Every player asked failed (Riot 5xx, a timeout, the network, ids this key cannot read): said in
+    // counts, never a player, so Admin repeats it as a warning, as for the rank watch. Still not
+    // failing: a Riot outage must not fail the scheduled Data jobs run.
+    const noneChecked = run.asked > 0 && run.found === 0 && run.failed > 0;
+    const error = noneChecked ? `${run.failed === 1 ? "The one player asked this run could not be checked" : `None of the ${run.failed} players asked this run could be checked`}; the run's log says why.` : undefined;
+    return { ok: true, degraded: noneChecked, error, summary: { ...run, requests: client.requestCount } };
   },
 });

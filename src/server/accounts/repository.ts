@@ -271,8 +271,11 @@ export async function accountsDueForSync(db: Db, options: { limit: number; older
  *   3. accounts of active players (team members, or signed in during the last week) whose
  *      last refresh is older than `activeOlderThanMinutes`;
  *   4. everything else (quiet personal-use accounts) older than `olderThanMinutes`.
- * Within a group the longest-waiting account goes first, so nothing starves. Only player accounts
- * are refreshed: accounts stored for opposing players by the removed Draft feature are left alone.
+ * Within a group the longest-waiting account goes first, so nothing starves. A run takes at most
+ * `pendingLimit` accounts of group 1 and at most `limit` of the others, each share apart, so
+ * however many links wait for Riot, the regular refreshes keep their places in every run. Only
+ * player accounts are refreshed: accounts stored for opposing players by the removed Draft feature
+ * are left alone.
  */
 export async function accountsForSyncRun(db: Db, options: { limit: number; olderThanMinutes: number; activeOlderThanMinutes?: number; pendingLimit?: number; pendingOlderThanMinutes?: number }): Promise<RiotAccountRecord[]> {
   const base = Math.max(0, options.pendingOlderThanMinutes ?? 5);
@@ -289,17 +292,24 @@ export async function accountsForSyncRun(db: Db, options: { limit: number; older
         END AS priority
       FROM riot_accounts a LEFT JOIN players p ON p.id = a.player_id
       WHERE a.owner_type = 'player' AND a.label <> 'demo' AND a.sync_status <> 'demo'
+    ),
+    due AS (
+      -- Numbered among the retries (group 1) and among the regular refreshes (2 to 4) apart, each in
+      -- run order, so the retries can never take the regular refreshes' places.
+      SELECT id, priority, last_sync_at, row_number() OVER (PARTITION BY priority = 1 ORDER BY priority, last_sync_at ASC NULLS FIRST) AS n
+      FROM ranked
+      WHERE (priority = 1 AND (last_sync_at IS NULL OR last_sync_at < now() - make_interval(mins => ${base}::int * power(2, LEAST(GREATEST(resolve_attempts - 1, 0), 6))::int)
+                                    OR last_sync_at < now() - interval '6 hours'))
+         OR (priority = 2 AND (last_sync_at IS NULL OR last_sync_at < now() - interval '2 minutes'))
+         OR (priority = 3 AND (last_sync_at IS NULL OR last_sync_at < now() - make_interval(mins => ${active}::int)))
+         OR (priority = 4 AND (last_sync_at IS NULL OR last_sync_at < now() - make_interval(mins => ${options.olderThanMinutes}::int)))
     )
-    SELECT id, priority FROM ranked
-    WHERE (priority = 1 AND (last_sync_at IS NULL OR last_sync_at < now() - make_interval(mins => ${base}::int * power(2, LEAST(GREATEST(resolve_attempts - 1, 0), 6))::int)
-                                  OR last_sync_at < now() - interval '6 hours'))
-       OR (priority = 2 AND (last_sync_at IS NULL OR last_sync_at < now() - interval '2 minutes'))
-       OR (priority = 3 AND (last_sync_at IS NULL OR last_sync_at < now() - make_interval(mins => ${active}::int)))
-       OR (priority = 4 AND (last_sync_at IS NULL OR last_sync_at < now() - make_interval(mins => ${options.olderThanMinutes}::int)))
-    ORDER BY priority, last_sync_at ASC NULLS FIRST
-    LIMIT ${options.limit + (options.pendingLimit ?? 10)}`);
+    SELECT id, priority FROM due
+    WHERE n <= CASE WHEN priority = 1 THEN ${options.pendingLimit ?? 10}::int ELSE ${options.limit}::int END
+    ORDER BY priority, last_sync_at ASC NULLS FIRST`);
   const list = ((rows as { rows?: Array<{ id: string; priority: number }> }).rows ?? (rows as unknown as Array<{ id: string; priority: number }>)).map((r) => ({ id: r.id, priority: Number(r.priority) }));
-  // At most `pendingLimit` retries per run, then up to `limit` regular refreshes.
+  // At most `pendingLimit` retries per run, then up to `limit` regular refreshes: the query takes
+  // each group's share apart (a single limit over both let 22 or more waiting retries fill a run).
   const retries = list.filter((r) => r.priority === 1).slice(0, options.pendingLimit ?? 10);
   const regular = list.filter((r) => r.priority > 1).slice(0, options.limit);
   const ids = [...retries, ...regular].map((r) => r.id);

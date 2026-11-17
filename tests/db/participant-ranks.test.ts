@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { eq, inArray } from "drizzle-orm";
-import { testDb } from "./helpers";
+import { makeSeason2026Current, testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { accountMatches, jobRuns, lastKnownRanks, matchDetails, privacyErasures, rankSnapshots, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
@@ -114,6 +114,7 @@ beforeAll(async () => {
   handle = await testDb();
   const db = handle.db;
   await syncStaticData(db, new FixtureStaticProvider(), { fingerprint: false });
+  await makeSeason2026Current(db);
   const team = await getOrCreateTeam(db);
   const member = await createPlayer(db, team.id, { displayName: "MemberOne", primaryRole: "MID", primaryPool: ["Ahri"] });
   const second = await createPlayer(db, team.id, { displayName: "MemberTwo", primaryRole: "TOP", primaryPool: ["Garen"] });
