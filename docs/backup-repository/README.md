@@ -5,6 +5,6 @@ This directory holds the files for the **private** repository `AscendMCMXCIX/uni
 | File | What it does |
 |---|---|
 | `.github/workflows/backup.yml` | Weekly (Mondays 02:43 UTC) and by hand: checks out UNIIVERSE's `main`, runs `scripts/backup-db.sh` (read-only role check, dump, restore check, AES-256 encryption) and keeps the encrypted backup 28 days as an artifact of the run. |
-| `.github/workflows/backup-age.yml` | Daily: fails, and opens a `database-backup` issue, when no backup has passed within 8 days. |
+| `.github/workflows/backup-age.yml` | Daily: fails, and opens a `backup-age` issue, when no backup has passed within 8 days. Its own label, so it never closes a failed weekly run's `database-backup` issue. |
 
 The private repository needs only these two workflow files and two secrets: `BACKUP_DATABASE_URL` and `BACKUP_PASSPHRASE`. The setup steps and the cutover are in `docs/BACKUPS.md`, "Where backups are kept".
