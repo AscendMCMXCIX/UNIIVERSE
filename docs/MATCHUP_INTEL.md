@@ -116,9 +116,10 @@ The data comes in two layers, kept apart so each can improve without the other
 
 The page generates nothing: it shows Riot's Data Dragon data, labelled "not reviewed" where nobody
 has checked it, and the curated notes committed with the code. The notes go through a pull
-request, where a person checks them before they ship. The first batch (16 Nov 2026) was drafted and
-cross-checked by AI agents: the owner's review in this feature's pull request is its check by a
-person (For the owner, step 2).
+request, where a person checks them before they ship: the owner, who alone curates them. The first
+batch (16 Nov 2026) was drafted and cross-checked by AI agents; the owner approved its three
+briefings and set the rule under which every note was then audited and corrected (For the owner,
+step 2).
 
 ## Where it is
 
@@ -306,10 +307,12 @@ person (For the owner, step 2).
 Riot's Data Dragon gives every champion's ability names, icons, ranks and base cooldown arrays. It
 does not say when a cooldown starts, what a recast needs, what crowd control an ability carries or
 what cancels it. The curated notes add that, in two layers. Each file is written from cited
-sources, in our own words, and a person checks it in a pull request before it ships. The first
-batch (16 Nov 2026) was drafted and cross-checked by AI agents, so the owner's reading of it in
-this feature's pull request is its check by a person (For the owner, step 2); from then on a person
-writes or checks each file, under the rules below.
+sources, in our own words, and a person checks it in a pull request before it ships. The owner
+alone curates the notes and approves briefings (17 Nov 2026). The first batch (16 Nov 2026) was
+drafted and cross-checked by AI agents; the owner approved its three briefings "for now", as
+drafted, and set the rule that a note says only what the wiki says, under which every note was
+then audited and corrected (For the owner, step 2). From then on the owner writes or checks each
+file, under the rules below.
 
 | Layer | Files | What it holds |
 |---|---|---|
@@ -875,7 +878,8 @@ pages were read on 16 Nov 2026: the League of Legends documentation
   branches that day, the same session's agents also opened the Library with nothing blocked: in a
   probe at 10:00 UTC, in a screenshot run from 13:16 to 13:24 UTC (11 page loads), in eight WebKit
   workflow runs and in local runs of the same tests (Open compliance questions, "Scripted reads of
-  the wiki").
+  the wiki"). The same tests ran again on 17 Nov, locally and in the WebKit workflow, to validate
+  this pull request and other branches.
 
 ## Open compliance questions
 
@@ -886,7 +890,7 @@ Each has a default that the code follows today. Only the owner changes one.
 | **The Developer Portal description.** Riot audits every new feature through the product's registered description (above). | The description in [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md) ("Description for the registration") includes Matchup Intel. The registered one must say the same before the page reaches production, so the merge, which deploys, waits for it. | The owner (For the owner, step 1) |
 | **A licence header on the curated files.** The repository is public and has no licence of its own. | Our own words, credited, not relicensed: each file's header says its texts are UNIIVERSE's own summaries, its sources list each page with its revision, and the footer credits them. No file declares a licence for itself. A scan of the notes against the pages they cite finds no copied sentence, only runs of numbers and game terms (six to ten words), so the risk that a passage counts as adapted is small, but not none. The recommended choice is a conditional header in each file ("Any material in this file adapted from the League of Legends Wiki is available under CC BY-SA 3.0"), which would cover any such passage without saying anything was adapted; it is not added, because a licence grant is the copyright holder's act. | The owner |
 | **Scripted reads of the wiki** (for example drafts of changes on patch day). | None of its pages. Weird Gloop's prior consent would be needed first (its Terms of Use, above). If it were given, a script would only draft changes for a person to review in a pull request, never publish them. One kind of small automated request exists today, outside Matchup Intel: the browser tests that open the Library or its manager can load the wiki's favicon, in CI and in the WebKit workflow (No automated use, above). Blocking icons in those tests, or a built-in icon for the wiki's entry (the Library and the manager draw the same one), would end it. | The owner, after asking Weird Gloop |
-| **Who curates, and who approves briefings.** The owner's rule is a briefing only where a person wrote and checked it. | Notes change only through pull requests, reviewed there: the page generates nothing, and nothing is published by itself. The first notes (16 Nov 2026) were drafted and cross-checked by AI agents, for a person's review in this feature's pull request: until the owner names the people, the owner's reading there is the only check by a person, and the merge waits for it (For the owner, step 2). | The owner |
+| **Who curates, and who approves briefings.** The owner's rule is a briefing only where a person wrote and checked it. | Decided on 17 Nov 2026: the owner alone curates the notes and approves briefings. Notes change only through pull requests, reviewed there: the page generates nothing, and nothing is published by itself. The first notes (16 Nov 2026) were drafted and cross-checked by AI agents; the owner approved their three briefings "for now", as drafted, and set the rule for every note, "Don't assume, if you don't know because the wiki doesn't say then don't use that data", under which every note was then audited and corrected (For the owner, step 2). | The owner (decided) |
 | **How the first notes were researched.** On 16 Nov 2026, between 05:51 and 06:43 UTC, while researching the first batch, AI agents made 40 scripted requests to wiki.leagueoflegends.com and 8 to Weird Gloop's own sites. The wiki's: a first probe at 05:51 (one API request, the Ambessa page, then its robots.txt, which disallows `/*api.php` and `/*?action=` for every crawler), two API requests at 06:01 and 06:07, and from 06:13 the robots.txt again, 33 API requests and the Renekton page: 36 to its API in all, every one at `/en-us/api.php?action=…`, two pages and the robots.txt twice. Weird Gloop's: the robots.txt of meta.weirdgloop.org and of weirdgloop.org, Meta:Copyrights twice, and its Terms of Use four times (weirdgloop.org/terms twice, each answered with a redirect to /terms/, and /terms/ twice). They saved copies of the pages the notes cite and of others they consulted (other champions' ability data, the six champions' patch histories and main pages, the wiki's modules and policy pages), and drafted and cross-checked the notes from those copies, which were never committed; all 34 cited revisions come from them. The Terms of Use (above) do not allow automated use without prior consent. | Disclosed in this feature's pull request, and here. Nothing in the app, its jobs or its tests reads the wiki's pages (the one request they make there is the wiki's favicon, drawn by the Library and its manager: No automated use, above), and curators read it in a browser from now on. The remedy is not chosen: a person re-reads each cited revision in a browser and records it in the pull request, or Weird Gloop is asked for consent after the fact, or both. | The owner |
 | **Riot's "Legal Jibber Jabber" sentence**: "[The title of your Project] was created under Riot Games' "Legal Jibber Jabber" policy using assets owned by Riot Games. Riot Games does not endorse or sponsor this project." (https://www.riotgames.com/en/legal) | Not shown. The app shows the Developer Portal's notice word for word, which the General Policies require. | The owner |
 
@@ -1046,7 +1050,7 @@ merge deploys.
    "Freshness"), the design's default; one or two patches on, they show with "Not re-checked for
    26.23".
 8. **Decide how long a briefing may be.** The ten-second briefing reads in about 45 to 60 seconds
-   today (177 to 247 words; up to 300 characters a text and four lane points, `curated.test.ts`).
+   today (178 to 243 words; up to 300 characters a text and four lane points, `curated.test.ts`).
    Options: a one-line headline for the threat and the opportunity, shorter texts and fewer points
    (with the test's limits tightened to match), lane points folded on a phone, or a title without
    "ten-second" until the texts are that short.
