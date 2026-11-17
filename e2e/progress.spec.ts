@@ -197,7 +197,7 @@ test("on a large screen the chart's division names stay whole, and a narrow char
   for (const l of await labels()) expect(l.x, `"${l.text}" starts inside the drawing`).toBeGreaterThanOrEqual(0);
 });
 
-/** A demo player's profile address, from the Players directory (rows on a phone, cards wider). */
+/** A demo player's profile address, from the Players roster (a row per player at every width, one link over each). */
 async function profileOf(page: Page, name: string): Promise<string> {
   await page.goto("/players");
   const entry = playerEntry(page, name).first();
