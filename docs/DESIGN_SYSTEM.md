@@ -304,7 +304,8 @@ test):
   bubble closes the bubble alone, never the window; a bubble opens for a mouse as it moves over its
   ⓘ, never as a window opening brings the ⓘ under a pointer at rest (the pointer that pressed its
   opener), so that Escape closes the window (in WebKit an ⓘ scrolled under a still pointer does open,
-  as a hover does). A picker's list inside a window (the Filters
+  as a hover does); a move onto an ⓘ made while the page hydrates counts once the ⓘ has hydrated,
+  the pointer resting on it. A picker's list inside a window (the Filters
   sheet's member and champion pickers, the champion window's opponent picker) opens in the flow of
   the window's body, which stays its one scroller: no list scrolling inside it, nothing cut off at
   its edge; it fades in where it rests, and a press below it closes it on the press's click, so

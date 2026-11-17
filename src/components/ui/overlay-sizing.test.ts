@@ -251,8 +251,22 @@ describe("what shows over a window is drawn inside it", () => {
     // the window (e2e/popups.spec.ts).
     const tip = code(read("src/components/ui/info-tip.tsx"));
     expect(tip).toMatch(/onPointerMove=\{\(e\) => \{\s*if \(e\.pointerType !== "mouse" \|\| visited\.current\) return;\s*visited\.current = true;\s*show\(\);/);
-    expect(tip).toMatch(/onPointerEnter=\{\(e\) => \{\s*if \(e\.pointerType === "mouse"\) visited\.current = false;\s*\}\}/);
+    // Coming in starts a visit, unless the bubble is open already (the coming in React replays once
+    // the trigger has hydrated, under a mouse that opened it as it hydrated, is the same visit).
+    expect(tip).toMatch(/onPointerEnter=\{\(e\) => \{\s*if \(e\.pointerType === "mouse" && !open\) visited\.current = false;\s*\}\}/);
     expect(tip).not.toMatch(/onPointer(Enter|Over)=\{[^}]*show\(\)/);
+  });
+
+  it("a mouse that moved onto a tip's trigger while the page hydrated, and rests on it, opens it as the trigger hydrates", () => {
+    // React replays a pointer's coming in once the trigger has hydrated, never its moves: a hover
+    // made while the page hydrated was lost, the bubble shut until the pointer moved again (the
+    // status ⓘ of a profile, hovered as soon as the page had loaded; e2e/popups.spec.ts). The head's
+    // script notes where the mouse last moved (input-kind.ts), and the trigger, as it mounts, opens
+    // only if that move landed on it and the pointer is over it still: one laid under a pointer at
+    // rest stays closed.
+    const tip = code(read("src/components/ui/info-tip.tsx"));
+    expect(tip).toMatch(/React\.useLayoutEffect\(\(\) => \{\s*const t = trigger\.current;\s*if \(!t \|\| !restsAfterMovingOnto\(t, lastMouseMove\(\)\)\) return;\s*visited\.current = true;/);
+    expect(tip).toMatch(/return trigger\.contains\(last as Node\) && trigger\.matches\(":hover"\);/);
   });
 
   it("the toasts are drawn in the topmost window at rest while one is open, and in place otherwise", () => {

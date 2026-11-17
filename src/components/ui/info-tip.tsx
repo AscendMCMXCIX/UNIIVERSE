@@ -4,6 +4,7 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 import { screenBox } from "@/lib/screen";
+import { lastMouseMove } from "./input-kind";
 import { topModal } from "./top-layer";
 
 const MARGIN = 8;
@@ -54,6 +55,18 @@ export function moving(host: { getAnimations?: () => ReadonlyArray<{ playState: 
 }
 
 /**
+ * Whether a mouse rests on the trigger, having moved onto it: the pointer is over it, and the last
+ * move the page heard (lastMouseMove, from its first move on, before its code ran too) landed on it.
+ * True as an ⓘ hydrates under a mouse that moved onto it while the page was hydrating, a move nothing
+ * else heard; false for an ⓘ laid under a pointer at rest (a window opening under the pointer that
+ * pressed its opener), which last moved over something else.
+ */
+export function restsAfterMovingOnto(trigger: { contains(other: Node | null): boolean; matches(selectors: string): boolean }, last: EventTarget | null): boolean {
+  if (!last || typeof (last as Partial<Node>).nodeType !== "number") return false;
+  return trigger.contains(last as Node) && trigger.matches(":hover");
+}
+
+/**
  * The one tooltip of the app: explanatory text for whatever it wraps (by default a small ⓘ).
  * Mouse: opens as the pointer moves over it, once a visit, and closes when the pointer leaves. A
  * trigger that a window opening brings under a pointer at rest stays closed until the pointer moves:
@@ -64,6 +77,10 @@ export function moving(host: { getAnimations?: () => ReadonlyArray<{ playState: 
  * differs: a page or window scrolled under a still pointer gets no pointermove in Chromium, but one
  * with no movement in WebKit (measured in Playwright's WebKit, not Safari), so there a trigger
  * scrolled under the pointer opens, as a hover does, and the first Escape closes its bubble alone.
+ * A move onto the trigger while the page is still hydrating is heard by nothing here (React replays
+ * the pointer's coming in once the trigger has hydrated, never its moves), so a mouse resting on the
+ * trigger as it hydrates, having moved onto it, opens it then (restsAfterMovingOnto: the head's
+ * script notes where the mouse last moved); the replayed coming in starts no new visit.
  * Keyboard: opens on focus, closes on blur or Escape. Touch: a tap opens it,
  * another tap (on it or anywhere else) closes it. Escape
  * closes the bubble alone, never the window or the list it sits in. The bubble is drawn in a layer
@@ -101,6 +118,18 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
   React.useLayoutEffect(() => {
     if (open) place();
   }, [open, place]);
+
+  // As the trigger hydrates (a layout effect: before React replays the pointer's coming in, which
+  // then starts no new visit), a mouse that moved onto it while the page hydrated, and rests on it
+  // still, opens it, as that move would have. A trigger mounted under a pointer at rest stays closed.
+  React.useLayoutEffect(() => {
+    const t = trigger.current;
+    if (!t || !restsAfterMovingOnto(t, lastMouseMove())) return;
+    visited.current = true;
+    setPos(null);
+    setHost(tipHost(t));
+    setOpen(true);
+  }, []);
 
   // While the window holding the bubble moves (its opening motion, as a pointer moving over the
   // window opens a bubble in it), the bubble is placed again at every frame, and once more as it comes
@@ -181,9 +210,10 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
         }}
         // A mouse opens it by moving over it, never by coming in alone: a trigger that a window opening
         // lays under a pointer at rest gets a pointerenter with no move (see above). Coming in starts a
-        // visit.
+        // visit, unless the bubble is open already: the coming in React replays after the trigger has
+        // hydrated, under a mouse that opened it then (above), is the same visit.
         onPointerEnter={(e) => {
-          if (e.pointerType === "mouse") visited.current = false;
+          if (e.pointerType === "mouse" && !open) visited.current = false;
         }}
         onPointerMove={(e) => {
           if (e.pointerType !== "mouse" || visited.current) return;

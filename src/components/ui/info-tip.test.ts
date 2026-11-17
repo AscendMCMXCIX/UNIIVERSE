@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { landAt, moving, placeTip } from "./info-tip";
+import { landAt, moving, placeTip, restsAfterMovingOnto } from "./info-tip";
 
 /*
   An ⓘ's bubble: where it goes (placeTip), and the style position that lands it there however the
@@ -8,7 +8,9 @@ import { landAt, moving, placeTip } from "./info-tip";
   is then offset and scaled with it. Measured once, at the position it has, the offset and the scale
   give the position that puts it where placeTip says; while the window moves, the bubble is placed
   again at every frame and once more as it comes to rest (moving), when the window stops being the
-  box it is placed in. Drawn over a real window in e2e/popups.spec.ts.
+  box it is placed in. Drawn over a real window in e2e/popups.spec.ts. A mouse that moved onto an ⓘ
+  while the page hydrated, a move nothing heard, opens it as the ⓘ hydrates if it rests on it still
+  (restsAfterMovingOnto); an ⓘ laid under a pointer at rest does not.
 */
 
 const screen = { width: 375, height: 667 };
@@ -84,5 +86,29 @@ describe("whether the window holding a bubble is moving", () => {
     expect(moving(holding("paused", "idle"))).toBe(false);
     expect(moving(holding())).toBe(false);
     expect(moving({})).toBe(false);
+  });
+});
+
+describe("whether a mouse rests on an ⓘ having moved onto it (as the ⓘ hydrates)", () => {
+  /** A stand-in node, and a trigger that holds `inside` and is or is not under the pointer. */
+  const node = () => ({ nodeType: 1 });
+  const trigger = (inside: unknown[], hovered: boolean) => ({ contains: (other: Node | null) => inside.includes(other), matches: (selectors: string) => selectors === ":hover" && hovered });
+
+  it("is when the mouse last moved over the ⓘ (or what is in it) and is over it still", () => {
+    const mark = node();
+    const button = node();
+    expect(restsAfterMovingOnto(trigger([button, mark], true), mark as unknown as EventTarget)).toBe(true);
+    expect(restsAfterMovingOnto(trigger([button, mark], true), button as unknown as EventTarget)).toBe(true);
+  });
+
+  it("is not when the ⓘ came under a pointer that last moved over something else (the opener of its window)", () => {
+    expect(restsAfterMovingOnto(trigger([node()], true), node() as unknown as EventTarget)).toBe(false);
+  });
+
+  it("is not once the pointer has left it, before any move, or for what is not a node", () => {
+    const mark = node();
+    expect(restsAfterMovingOnto(trigger([mark], false), mark as unknown as EventTarget)).toBe(false);
+    expect(restsAfterMovingOnto(trigger([mark], true), null)).toBe(false);
+    expect(restsAfterMovingOnto(trigger([mark], true), {} as EventTarget)).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from "./test";
+import { expect, test, type Locator, type Page, type Route } from "./test";
 import { openFilterBar } from "./filters";
 import { openMatchWindow } from "./match-history";
 import { untilStill } from "./modal-corner";
@@ -15,7 +15,8 @@ import { bubbleFacts, NOT_A_PICTURE, NOT_A_PICTURE_ERROR, openPictureEditor, pic
     - an ⓘ arriving under a pointer at rest as its window opens (a click leaves the pointer on
       whatever of the window arrives under it) stays closed until the pointer moves onto it, so
       Escape closes the window, whatever has its focus: the window itself, its close button, or
-      nothing after a press inside;
+      nothing after a press inside; a mouse that moved onto an ⓘ while the page hydrated, and rests
+      on it, opens its bubble as the ⓘ hydrates (a move then reaches nothing else);
     - a toast raised while a window is open is drawn inside it, above it, heard once (one live
       region, its role), and its dismiss button is a 44px target pressed where it is drawn; a
       window moving (opening, closing) never carries a toast with it: the toast goes into it once
@@ -182,6 +183,47 @@ test("an ⓘ arriving under a pointer at rest as its window opens stays closed u
   await expect(bubbles).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(win).toBeHidden();
+});
+
+test("a mouse that moved onto an ⓘ while the page hydrated, and rests on it, opens its bubble as the ⓘ hydrates, that ⓘ's alone; the visit goes on as any other", async ({ page, isMobile }) => {
+  test.skip(!!isMobile, "a mouse's hover");
+  const profile = await teammateProfile(page);
+  // The page drawn (its styles load) with its code held back, so nothing on it listens yet but the
+  // head's script. A move then was lost: React replays a pointer's coming in once the ⓘ has
+  // hydrated, never its moves, and the bubble stayed shut until the pointer moved again (the
+  // status ⓘ hovered as soon as a profile had loaded).
+  const held: Route[] = [];
+  let release = false;
+  await page.route(/\/_next\/static\/chunks\/.+\.js(\?|$)/, async (route) => {
+    if (release) await route.continue();
+    else held.push(route);
+  });
+  await page.goto(profile, { waitUntil: "commit" });
+  const tip = page.getByTestId("data-refresh-info");
+  await expect(tip).toBeVisible();
+  const box = (await tip.boundingBox())!;
+  const spot = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  await page.mouse.move(spot.x, spot.y);
+  await page.waitForTimeout(300);
+  expect(held.length, "the page's code is held back").toBeGreaterThan(0);
+  const bubble = page.getByTestId("data-refresh-info-bubble");
+  const bubbles = page.locator("[role=tooltip]");
+  await expect(bubbles).toHaveCount(0);
+  // The code runs; the pointer stays where it is.
+  release = true;
+  for (const route of held.splice(0)) await route.continue();
+  await expect(bubble).toBeVisible();
+  await expect(bubbles).toHaveCount(1);
+  // The same visit as any: Escape closes the bubble, and it stays closed while the pointer moves on
+  // over its ⓘ; leaving and coming back opens it again.
+  await page.keyboard.press("Escape");
+  await expect(bubble).toHaveCount(0);
+  await page.mouse.move(spot.x + 1, spot.y);
+  await page.waitForTimeout(300);
+  await expect(bubble).toHaveCount(0);
+  await page.mouse.move(0, 0);
+  await page.mouse.move(spot.x, spot.y);
+  await expect(bubble).toBeVisible();
 });
 
 test("a toast raised while a window is open is drawn in the window, heard once, and its 44px dismiss button answers where it is drawn; the window closing with its motion sends it back in place at once, not heard again", async ({ page }) => {

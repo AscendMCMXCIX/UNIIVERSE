@@ -15,6 +15,11 @@
   run (released to its button once it runs). It listens on window in the capture phase, before
   anything on the page can stop the event. A plain module, not a client one, so the server layout
   gets the script itself.
+
+  The script also notes what the mouse last moved over, from the page's first move on. An ⓘ opens
+  its bubble as a mouse moves over it (InfoTip), and a move made while the page hydrates is heard by
+  nothing else: React replays a pointer's coming in once the ⓘ has hydrated, never its moves, so a
+  mouse that moved onto an ⓘ then and rests on it still opens it as the ⓘ hydrates (lastMouseMove).
 */
 
 export type InputKind = "pointer" | "keyboard";
@@ -23,18 +28,26 @@ declare global {
   interface Window {
     /** The kind of the page's last input (INPUT_KIND_SCRIPT). */
     __lastInput?: InputKind;
+    /** What the mouse last moved over (INPUT_KIND_SCRIPT). */
+    __lastMouseMove?: EventTarget | null;
   }
 }
 
 /**
  * Notes each pointer press and each key press on window.__lastInput. A modifier on its own (Shift,
- * Control, Alt, Meta, held for a click) is not the keyboard being used.
+ * Control, Alt, Meta, held for a click) is not the keyboard being used. Notes what each move of a
+ * mouse lands on on window.__lastMouseMove (a pen's and a finger's moves are not a mouse's).
  */
-export const INPUT_KIND_SCRIPT = `(function(){var w=window,m=["Shift","Control","Alt","Meta"];w.addEventListener("pointerdown",function(){w.__lastInput="pointer"},true);w.addEventListener("keydown",function(e){if(m.indexOf(e.key)<0)w.__lastInput="keyboard"},true)})();`;
+export const INPUT_KIND_SCRIPT = `(function(){var w=window,m=["Shift","Control","Alt","Meta"];w.addEventListener("pointerdown",function(){w.__lastInput="pointer"},true);w.addEventListener("keydown",function(e){if(m.indexOf(e.key)<0)w.__lastInput="keyboard"},true);w.addEventListener("pointermove",function(e){if(e.pointerType==="mouse")w.__lastMouseMove=e.target},true)})();`;
 
 /** The kind of the page's last input, or null before any (and on the server). */
 export function lastInput(): InputKind | null {
   return typeof window === "undefined" ? null : (window.__lastInput ?? null);
+}
+
+/** What the mouse last moved over, or null before any move (and on the server). */
+export function lastMouseMove(): EventTarget | null {
+  return typeof window === "undefined" ? null : (window.__lastMouseMove ?? null);
 }
 
 /**

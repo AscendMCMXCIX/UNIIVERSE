@@ -3,28 +3,48 @@ import { INPUT_KIND_SCRIPT, focusWindow, letGoWhenPressed, opensFocusingItself }
 
 /*
   The script the root layout inlines at the top of <head>: each pointer press and each key press
-  notes its kind on window.__lastInput, heard on window in the capture phase (before anything on the
-  page can stop it). A window opened by a pointer takes the focus itself; from the keyboard, or by
-  nothing the reader did, its close button does. A press inside a window on nothing focusable leaves
-  nothing focused, as on a page. In a browser: e2e/popups.spec.ts.
+  notes its kind on window.__lastInput, and each move of a mouse what it moved over on
+  window.__lastMouseMove, heard on window in the capture phase (before anything on the page can stop
+  it). A window opened by a pointer takes the focus itself; from the keyboard, or by nothing the
+  reader did, its close button does. A press inside a window on nothing focusable leaves nothing
+  focused, as on a page. An ⓘ that a mouse moved onto while the page hydrated opens as it hydrates
+  (InfoTip). In a browser: e2e/popups.spec.ts.
 */
+
+type Fired = { key?: string; pointerType?: string; target?: unknown };
 
 /** The script run against a stand-in window, which records its listeners. */
 function run() {
-  const listeners = new Map<string, { listener: (e: { key?: string }) => void; capture: unknown }>();
-  const win: { __lastInput?: string; addEventListener: (type: string, listener: (e: { key?: string }) => void, capture?: unknown) => void } = {
+  const listeners = new Map<string, { listener: (e: Fired) => void; capture: unknown }>();
+  const win: { __lastInput?: string; __lastMouseMove?: unknown; addEventListener: (type: string, listener: (e: Fired) => void, capture?: unknown) => void } = {
     addEventListener: (type, listener, capture) => listeners.set(type, { listener, capture }),
   };
   new Function("window", INPUT_KIND_SCRIPT)(win);
-  const fire = (type: string, e: { key?: string } = {}) => listeners.get(type)!.listener(e);
+  const fire = (type: string, e: Fired = {}) => listeners.get(type)!.listener(e);
   return { win, listeners, fire };
 }
 
 describe("the input-kind script", () => {
-  it("listens for pointer and key presses on window, in the capture phase", () => {
+  it("listens for pointer and key presses and pointer moves on window, in the capture phase", () => {
     const { listeners } = run();
-    expect([...listeners.keys()].sort()).toEqual(["keydown", "pointerdown"]);
+    expect([...listeners.keys()].sort()).toEqual(["keydown", "pointerdown", "pointermove"]);
     for (const { capture } of listeners.values()) expect(capture).toBe(true);
+  });
+
+  it("notes what a mouse last moved over, and no pen's or finger's moves", () => {
+    const { win, fire } = run();
+    expect(win.__lastMouseMove).toBeUndefined();
+    const mark = { id: "the ⓘ" };
+    const card = { id: "a card" };
+    fire("pointermove", { pointerType: "mouse", target: card });
+    expect(win.__lastMouseMove).toBe(card);
+    fire("pointermove", { pointerType: "mouse", target: mark });
+    expect(win.__lastMouseMove).toBe(mark);
+    fire("pointermove", { pointerType: "touch", target: card });
+    fire("pointermove", { pointerType: "pen", target: card });
+    expect(win.__lastMouseMove).toBe(mark);
+    // A move is not an input of its own: the last input stays what it was.
+    expect(win.__lastInput).toBeUndefined();
   });
 
   it("notes a pointer press, then a key press, as the last input", () => {
