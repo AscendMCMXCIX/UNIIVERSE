@@ -27,8 +27,11 @@ export function placeTip(anchor: { left: number; top: number; bottom: number; wi
  * is placed relative to the screen, unless what holds it is a containing block for fixed boxes: a
  * window during its opening motion, whose transform moves and scales the bubble with it. Where the
  * bubble landed (`landed`, its box on screen) for the style position it had (`style`), and its size
- * before any transform (`size`, offsetWidth and offsetHeight), give that offset and scale, and so the
- * position that puts it at `target`: the same as `target` when nothing moves it.
+ * before any transform (`size`: its computed width and height, unrounded), give that offset and
+ * scale, and so the position that puts it at `target`: the same as `target` when nothing moves it.
+ * offsetWidth and offsetHeight round the size to whole pixels: a bubble 63.5px tall, read as 64, was
+ * taken for one scaled by 0.992, and landed up to 3.5px nearer its ⓘ than it goes, more the lower it
+ * sat (on the page, where nothing placed it again; in a window, for a frame).
  */
 export function landAt(target: { left: number; top: number }, style: { left: number; top: number }, landed: { left: number; top: number; width: number; height: number }, size: { width: number; height: number }): { left: number; top: number } {
   const scaleX = size.width > 0 && landed.width > 0 ? landed.width / size.width : 1;
@@ -111,7 +114,9 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
     const landed = b.getBoundingClientRect();
     // The screen as fixed positioning sees it, the box the tip is placed in (lib/screen.ts).
     const target = placeTip(t.getBoundingClientRect(), landed, screenBox());
-    const at = landAt(target, { left: parseFloat(b.style.left) || 0, top: parseFloat(b.style.top) || 0 }, landed, { width: b.offsetWidth, height: b.offsetHeight });
+    // Its size before any transform, unrounded (landAt): the border box, as every box here is sized.
+    const size = getComputedStyle(b);
+    const at = landAt(target, { left: parseFloat(b.style.left) || 0, top: parseFloat(b.style.top) || 0 }, landed, { width: parseFloat(size.width), height: parseFloat(size.height) });
     setPos((cur) => (cur && Math.abs(cur.left - at.left) < 0.5 && Math.abs(cur.top - at.top) < 0.5 ? cur : at));
   }, []);
 

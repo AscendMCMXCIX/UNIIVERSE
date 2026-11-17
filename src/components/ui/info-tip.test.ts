@@ -68,6 +68,14 @@ describe("the style position that lands a bubble where it goes", () => {
     expect(again.top).toBeCloseTo(first.top, 6);
   });
 
+  it("is where it goes for a box of a fractional size read unrounded; rounded, the half pixel was taken for a scale", () => {
+    const target = { left: 100, top: 583.5 };
+    const landed = { left: 0, top: 0, width: 288, height: 195.5 };
+    expect(landAt(target, { left: 0, top: 0 }, landed, { width: 288, height: 195.5 })).toEqual(target);
+    // offsetHeight's 196: a scale of 0.997, and the bubble placed 1.5px lower than it goes.
+    expect(landAt(target, { left: 0, top: 0 }, landed, { width: 288, height: 196 }).top - target.top).toBeGreaterThan(1.4);
+  });
+
   it("reads no scale from a box that has no size yet", () => {
     expect(landAt(target, { left: 10, top: 10 }, { left: 30, top: 40, width: 0, height: 0 }, { width: 0, height: 0 })).toEqual({ left: 32, top: 224 });
   });

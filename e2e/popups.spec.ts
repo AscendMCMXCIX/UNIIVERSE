@@ -16,7 +16,8 @@ import { bubbleFacts, NOT_A_PICTURE, NOT_A_PICTURE_ERROR, openPictureEditor, pic
       whatever of the window arrives under it) stays closed until the pointer moves onto it, so
       Escape closes the window, whatever has its focus: the window itself, its close button, or
       nothing after a press inside; a mouse that moved onto an ⓘ while the page hydrated, and rests
-      on it, opens its bubble as the ⓘ hydrates (a move then reaches nothing else);
+      on it, opens its bubble as the ⓘ hydrates (a move then reaches nothing else); on the page too,
+      a bubble lands 6px from its ⓘ whatever its height;
     - a toast raised while a window is open is drawn inside it, above it, heard once (one live
       region, its role), and its dismiss button is a 44px target pressed where it is drawn; a
       window moving (opening, closing) never carries a toast with it: the toast goes into it once
@@ -224,6 +225,38 @@ test("a mouse that moved onto an ⓘ while the page hydrated, and rests on it, o
   await page.mouse.move(0, 0);
   await page.mouse.move(spot.x, spot.y);
   await expect(bubble).toBeVisible();
+});
+
+test("an ⓘ's bubble on the page lands where its ⓘ puts it, 6px from it, whatever its height", async ({ page }) => {
+  // A bubble's size is read unrounded: read whole (offsetHeight), a bubble 63.5px tall was taken for
+  // one scaled by 0.992 and landed up to 3.5px nearer its ⓘ, the lower the further off, and on the page
+  // nothing placed it again (the first of a teammate's ⓘs at 1440 × 900 are 63.5px tall).
+  await teammateProfile(page);
+  await page.waitForLoadState("networkidle");
+  const tips = page.locator("main [data-testid=info-tip]:visible");
+  const bubble = page.getByTestId("info-tip-bubble");
+  const touch = await touches(page);
+  const count = Math.min(await tips.count(), 3);
+  expect(count).toBeGreaterThan(0);
+  for (let i = 0; i < count; i++) {
+    const tip = tips.nth(i);
+    await tip.scrollIntoViewIfNeeded();
+    if (touch) await tip.tap();
+    else {
+      await page.mouse.move(0, 0);
+      await tip.hover();
+    }
+    await expect(bubble).toBeVisible();
+    await untilAtRest(bubble);
+    const facts = await tip.evaluate((t) => {
+      const b = document.querySelector("[data-testid=info-tip-bubble]")!.getBoundingClientRect();
+      const r = t.getBoundingClientRect();
+      return { bubble: { left: b.left, top: b.top, right: b.right, bottom: b.bottom, width: b.width, height: b.height }, trigger: { left: r.left, top: r.top, bottom: r.bottom, width: r.width }, screen: { width: innerWidth, height: innerHeight } };
+    });
+    expect(placedRight({ window: null, onTop: true, ...facts }), `ⓘ ${i + 1}: ${JSON.stringify(facts)}`).toBe(true);
+    await page.keyboard.press("Escape");
+    await expect(bubble).toHaveCount(0);
+  }
 });
 
 test("a toast raised while a window is open is drawn in the window, heard once, and its 44px dismiss button answers where it is drawn; the window closing with its motion sends it back in place at once, not heard again", async ({ page }) => {
