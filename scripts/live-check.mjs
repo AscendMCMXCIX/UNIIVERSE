@@ -19,7 +19,7 @@
     up to LIVE_WAIT_SECONDS (default 300) for production to answer from it, and fails otherwise.
 
   It only reads. It signs in, opens pages, opens and closes games and windows, switches a view, and
-  presses Back, Enter and Escape. It never submits a form after signing in, and never presses a
+  presses Back, Tab, Enter and Escape. It never submits a form after signing in, and never presses a
   bookmark, edit, save, sync, refresh, invite or admin control; its other requests are GETs. As
   with any member's visit, an open game can start the app's own background reads (rank checks).
 
