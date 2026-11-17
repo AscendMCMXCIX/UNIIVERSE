@@ -74,6 +74,7 @@ import { chromium } from "@playwright/test";
 import { AxeBuilder } from "@axe-core/playwright";
 import { redact } from "./redact.mjs";
 import { riotKeysOnPage } from "./riot-keys.mjs";
+import { rosterRowLines } from "./roster-lines.mjs";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 
@@ -736,9 +737,10 @@ async function phoneGame(page, kind, name, slug, open) {
  * row's own, `data-row-link`; its social icons link elsewhere) and the rows number what the scope line
  * counts; no pool counts "+1" (a count stands for two or more). On the phone every row of two lines (the
  * name's, then the role, rank and pool) is at most 72px tall: a tagline, a Riot state, a name on two
- * lines or a status that wraps adds a line by design, so those rows are counted, not measured. At 1440
- * with the sidebar open the roster is two columns once it lists two players. Only counts, heights and
- * true or false are reported.
+ * lines or a status that wraps adds a line by design, so those rows are counted, not measured. Each
+ * row's lines are counted by scripts/roster-lines.mjs, as the browser tests count them (a phone row's
+ * tagline is a line of its own, under the second line). At 1440 with the sidebar open the roster is
+ * two columns once it lists two players. Only counts, heights and true or false are reported.
  */
 async function playersFacts(page, kind) {
   const facts = await page.evaluate(() => {
@@ -749,28 +751,13 @@ async function playersFacts(page, kind) {
     const rows = [...panel.querySelectorAll("[data-testid=player-card-item]")];
     const scope = (document.querySelector("[data-testid=players-scope]")?.textContent ?? "").trim();
     const counted = /^([\d,]+)/.exec(scope)?.[1];
-    // A row's lines, as e2e/players-directory.spec.ts counts them: its parts' rows (the second line
-    // and the status by their own parts, which wrap), and any more lines the name takes.
-    const lines = (row) => {
-      const meta = row.querySelector("[data-testid=roster-meta]");
-      const name = row.querySelector("[data-testid=card-name]");
-      if (!meta || !name) return null;
-      const status = row.querySelector("[data-testid=roster-status]");
-      const leaves = [...meta.parentElement.children].flatMap((c) => (c === meta || c === status ? [...c.children] : [c])).filter(shown);
-      const centres = leaves.map((c) => box(c).top + box(c).height / 2).sort((a, b) => a - b);
-      const nameLines = Math.round(box(name).height / parseFloat(getComputedStyle(name).lineHeight));
-      return centres.filter((c, i) => i === 0 || c - centres[i - 1] > 6).length + nameLines - 1;
-    };
-    const measured = rows.map((row) => ({ height: Math.round(box(row).height * 10) / 10, lines: lines(row), left: Math.round(box(row).left) }));
     const counts = [...panel.querySelectorAll("[data-testid=directory-pool-more]")].filter(shown).map((c) => Number(/^\+(\d+)/.exec((c.textContent ?? "").trim())?.[1] ?? NaN));
     return {
       rows: rows.length,
       counted: counted === undefined ? null : Number(counted.replace(/,/g, "")),
       links: rows.map((row) => row.querySelectorAll("a[href^='/players/']").length),
       rowLinks: rows.filter((row) => row.querySelector("a[data-row-link][href^='/players/']")).length,
-      twoLine: measured.filter((r) => r.lines !== null && r.lines <= 2).map((r) => r.height),
-      longer: measured.filter((r) => r.lines === null || r.lines > 2).length,
-      columns: new Set(measured.map((r) => r.left)).size,
+      columns: new Set(rows.map((row) => Math.round(box(row).left))).size,
       counts,
       sidebarOpen: document.querySelector("[data-testid=sidebar]")?.getAttribute("data-collapsed") !== "true",
     };
@@ -784,8 +771,11 @@ async function playersFacts(page, kind) {
   else pass("players", `${kind}: no pool shows +1`, plusOne === 0 && facts.counts.every((n) => n >= 2), { counts: facts.counts.length, plusOne });
   if (kind === "phone") {
     const name = "phone: every roster row of two lines is at most 72px tall";
-    if (facts.twoLine.length === 0) check("players", name, "PASS", `not applicable: no row of two lines (${facts.longer} with a tagline, a Riot state or a long name)`);
-    else pass("players", name, Math.max(...facts.twoLine) <= 72, { twoLine: facts.twoLine.length, tallest: Math.max(...facts.twoLine), longerByDesign: facts.longer });
+    const measured = await page.locator("[data-testid=players-directory] [data-testid=player-card-item]").evaluateAll(rosterRowLines);
+    const twoLine = measured.filter((r) => r.lines !== null && r.lines <= 2).map((r) => r.height);
+    const longer = measured.filter((r) => r.lines === null || r.lines > 2).length;
+    if (twoLine.length === 0) check("players", name, "PASS", `not applicable: no row of two lines (${longer} with a tagline, a Riot state or a long name)`);
+    else pass("players", name, Math.max(...twoLine) <= 72, { twoLine: twoLine.length, tallest: Math.max(...twoLine), longerByDesign: longer });
   }
   if (kind === "desktop") {
     const name = "1440 with the sidebar open: the roster shows 2 columns once it lists 2 or more players";
