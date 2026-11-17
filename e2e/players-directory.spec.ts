@@ -1,6 +1,8 @@
 import { devices, expect, test, type Browser, type Locator, type Page } from "./test";
+import { rosterRowLines } from "../scripts/roster-lines.mjs";
 import { choosePassword, createMember } from "./member-account";
 import { closeFilterSheet, openFilterBar } from "./filters";
+import { playerEntry } from "./players";
 
 /*
   THE PLAYERS ROSTER: ONE PANEL OF ROWS, EVERY ROW WHOLE. Each player is one row of one panel at
@@ -24,6 +26,10 @@ import { closeFilterSheet, openFilterBar } from "./filters";
     portrait cut, and no room left for one more;
   - every link icon is the same size, above the row's second line;
   - the member's row keeps everything they chose.
+  On the Production check's phone (390 × 844), with production's shape of row (a tagline on a name of
+  one line, beside a status and without one), a row with a tagline is three lines and every row of two
+  lines is at most 72px, counted with the live check's own count (scripts/roster-lines.mjs), which
+  must count every row as this spec does.
 */
 
 test.describe.configure({ timeout: 420_000 });
@@ -129,7 +135,8 @@ async function measure(page: Page) {
       const meta = row.querySelector<HTMLElement>("[data-testid=roster-meta]")!;
       const icons = [...row.querySelectorAll("[data-testid^=card-social-]")].filter(shown).map(box);
       // The row's lines: its parts' rows (parts on one row are centred on it; the second line and the
-      // status count by their own parts, which wrap), and any more lines the name takes.
+      // status count by their own parts, which wrap), and any more lines the name takes. The live
+      // check counts them with scripts/roster-lines.mjs, which must agree (the phone test below).
       const status = row.querySelector("[data-testid=roster-status]");
       const column = row.querySelector("[data-testid=roster-name-line]");
       const leaves = [...meta.parentElement!.children].flatMap((c) => (c === meta || c === status || c === column ? [...c.children] : [c])).filter(shown);
@@ -281,6 +288,70 @@ test("Players: every row whole and level with its neighbours, its pool whole, at
     expect(mine.poolSize, `${size}: their pool's size`).toBe(who.pool);
     if (wide) expect(mine.art, `${size}: their art behind the row`).toBe(true);
     await ctx.close();
+  }
+});
+
+/** Saves a tagline on a player's card in the Card Studio, at 1440, as the demo's Owner (who may edit any card); "" takes it off. */
+async function saveTagline(browser: Browser, baseURL: string, player: string, tagline: string) {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL }]);
+  const page = await context.newPage();
+  await page.goto("/players");
+  await page.goto((await playerEntry(page, player).getAttribute("href"))!);
+  const studio = page.getByTestId("card-studio");
+  // The button works once the page has hydrated.
+  await expect(async () => {
+    await page.getByTestId("profile-header").getByTestId("customise-card").click();
+    await expect(studio).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  await page.getByTestId("studio-step-identity").click();
+  await page.getByTestId("tagline-input").fill(tagline);
+  await page.getByTestId("save-card-style").click();
+  await expect(studio).toBeHidden();
+  await expect(page.getByTestId("profile-header").getByTestId("card-tagline")).toHaveCount(tagline ? 1 : 0);
+  await context.close();
+}
+
+test("Players on the Production check's phone: a row with a tagline is three lines, and a row of two lines at most 72px, as the live check counts them", async ({ browser, page, baseURL }, info) => {
+  test.skip(info.project.name !== "phone", "the live check's phone, 390 × 844");
+  // Production's roster when #277 was deployed (17 Nov 2026): taglines on names of one line with Riot
+  // data up to date, beside a status and without one. On a phone the tagline takes a line of its own
+  // under the second line (81.5px); the live check's own count missed it, counted that row as one or
+  // two lines and measured it against the 72px of two. The same shapes, from the demo's players.
+  const shapes = [
+    { player: "Demo ADC", tagline: "Fortune favours the bold and the warded", status: true },
+    { player: "Demo Sub (Top)", tagline: "Calm in the chaos", status: false },
+  ];
+  const saved: string[] = [];
+  try {
+    for (const s of shapes) {
+      await saveTagline(browser, baseURL!, s.player, s.tagline);
+      saved.push(s.player);
+    }
+    await page.context().addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/players");
+    for (const s of shapes) {
+      const row = page.locator(`main [data-testid=player-card-item][data-player-name="${s.player}"]`);
+      await expect(row.getByTestId("card-tagline")).toBeVisible();
+      await expect(row.getByTestId("directory-riot"), `${s.player}: Riot data up to date`).toHaveCount(0);
+      await expect(row.getByTestId("roster-status"), `${s.player}: ${s.status ? "a status" : "no status"}`).toHaveCount(s.status ? 1 : 0);
+    }
+    await page.evaluate(() => document.fonts.ready);
+    const items = page.getByTestId("players-directory").getByTestId("player-card-item");
+    const names = await items.evaluateAll((els) => els.map((e) => e.dataset.playerName ?? ""));
+    const rows = (await items.evaluateAll(rosterRowLines)).map((r, i) => ({ ...r, player: names[i] ?? "" }));
+    // The live check's fact: every row of two lines (the name's, then the role, rank and pool) at most 72px.
+    const twoLine = rows.filter((r) => r.lines !== null && r.lines <= 2);
+    expect(twoLine.length, "rows of two lines to measure").toBeGreaterThan(0);
+    expect(twoLine.filter((r) => r.height > 72).map((r) => `${r.player}: ${r.height}px`), "rows of two lines over 72px, as the live check counts them").toEqual([]);
+    // A row with a tagline: the name's line, the second line, then the tagline under it.
+    for (const s of shapes) expect(rows.find((r) => r.player === s.player)?.lines, `${s.player}: three lines with the tagline`).toBe(3);
+    // One count: the live check's counts every row as this spec's measure() does.
+    expect(rows.map((r) => r.lines), "the live check's count, row by row").toEqual((await measure(page)).rows.map((r) => r.lines));
+  } finally {
+    for (const player of saved) await saveTagline(browser, baseURL!, player, "");
   }
 });
 
