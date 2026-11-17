@@ -231,10 +231,11 @@ test("a mouse that moved onto an ⓘ while the page hydrated, and rests on it, o
 test("a mouse that moved onto an ⓘ while React listened and the ⓘ had yet to hydrate: the coming in React replays once it has hydrated is the same visit, so after Escape a move keeps its bubble closed", async ({ page, isMobile }) => {
   test.skip(!!isMobile, "a mouse's hover");
   const profile = await teammateProfile(page);
-  // Unlike the test above, React already listens as the mouse moves: the page's code runs, and only
-  // the ⓘ's own code is held back (the chunks with InfoTip's code, found by its bubble's test id), so
-  // the ⓘ's part of the page has yet to hydrate. React then queues the mouse's coming in onto the ⓘ,
-  // and replays it once the ⓘ has hydrated, after the ⓘ has opened its bubble for the resting mouse.
+  // Unlike the test above, React already listens as the mouse moves: every chunk runs but those with
+  // InfoTip's code (found by its bubble's test id, "-bubble"; on a profile that is one page chunk,
+  // which also carries much of the page's own code), so the page, the ⓘ in it, has yet to hydrate.
+  // React then queues the mouse's coming in onto the ⓘ, and replays it once the ⓘ has hydrated,
+  // after the ⓘ has opened its bubble for the resting mouse.
   // That replayed coming in must start no new visit, else the move after Escape opens the bubble
   // again. This is the state in which multikills.spec.ts lost its hover of the status ⓘ on a tablet.
   // With all of the page's code held (the test above), nothing listens as the mouse moves and
@@ -263,7 +264,7 @@ test("a mouse that moved onto an ⓘ while React listened and the ⓘ had yet to
   const hydrated = () => tip.evaluate((el) => Object.keys(el).some((k) => k.startsWith("__reactProps$")));
   // React marks the document it hydrates as it starts listening to it.
   await expect.poll(() => page.evaluate(() => Object.keys(document).some((k) => k.startsWith("_reactListening"))), { message: "React listens" }).toBe(true);
-  await expect.poll(() => held.length, { message: "the ⓘ's code is held back" }).toBeGreaterThan(0);
+  await expect.poll(() => held.length, { message: "the chunks with InfoTip's code are held back" }).toBeGreaterThan(0);
   const box = (await tip.boundingBox())!;
   const spot = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   await page.mouse.move(spot.x, spot.y);
