@@ -1,5 +1,5 @@
 import { expect, test } from "./test";
-import { listsAsRows, playerEntry } from "./players";
+import { playerEntry } from "./players";
 
 /*
   Membership and setup are separate (demo roster, in-memory only): "Demo Newcomer" has chosen
@@ -10,18 +10,15 @@ import { listsAsRows, playerEntry } from "./players";
 
 test("members in setup are listed beside configured members and their profiles open with clear empty states", async ({ page }) => {
   await page.goto("/players");
-  // Each card is a container with one link laid over it; the badges and texts are the container's.
-  // Phones list a row per player instead (one link), with the same badges.
-  const rows = listsAsRows(page);
-  const cards = page.locator(rows ? "main [data-testid='player-row']" : "main [data-testid='player-card-item']");
+  // A row per player at every width, with one link laid over it; the badges and texts are the row's.
+  const cards = page.locator("main [data-testid='player-card-item']");
   await expect(cards.filter({ hasText: "Demo Top" })).toHaveCount(1);
   const newcomer = cards.filter({ hasText: "Demo Newcomer" });
   const halfway = cards.filter({ hasText: "Demo Halfway" });
   await expect(newcomer).toHaveCount(1);
   await expect(halfway).toHaveCount(1);
   await expect(newcomer.getByTestId("setup-incomplete")).toBeVisible();
-  if (rows) await expect(newcomer).toContainText("Roles not set");
-  else await expect(newcomer.getByTestId("directory-no-roles")).toBeVisible();
+  await expect(newcomer.getByTestId("directory-no-roles")).toHaveText("Roles not set");
   // Neither has a Riot account: nothing was read, so no rank is claimed ("Unranked" would mean a
   // check found no placement); the note says why instead.
   for (const member of [newcomer, halfway]) {
@@ -32,7 +29,7 @@ test("members in setup are listed beside configured members and their profiles o
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
 
-  await newcomer.click();
+  await newcomer.getByTestId("player-card").click();
   await expect(page.getByTestId("setup-incomplete").first()).toBeVisible();
   await expect(page.getByTestId("profile-no-role")).toBeVisible();
   await expect(page.getByTestId("no-roles")).toBeVisible();

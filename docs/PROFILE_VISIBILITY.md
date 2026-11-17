@@ -34,8 +34,8 @@ This note is the reference. `docs/UNIIVERSE_TECHNICAL_HANDOVER.md` §G1 (Visibil
     refuse without it), so in practice this matters for a viewer's own games.
 - **The Players directory** (`src/app/(app)/players/page.tsx` → `players-directory.tsx`): each
   entry carries `showRank = canViewPlayerStats(viewer, player)`, and a hidden rank is not sent at
-  all. The desktop card (`PlayerSummaryCard` → `CardIdentity showRank`) and the phone row (#203's
-  `PlayerRow`) both leave the rank out, with its separator, as on Team Overview.
+  all. Each row of the roster (`RosterRow`, the same at every width) leaves the rank out, with its
+  separator, as on Team Overview.
 
 ## 2. A personal-use profile is its player's and the administrators' only
 

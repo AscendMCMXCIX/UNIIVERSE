@@ -168,8 +168,21 @@ export interface RankCheck {
 
 export const NO_CHECK: RankCheck = { asked: 0, found: 0, failed: 0, skipped: 0, reason: null };
 
+/** How one check ended; a failure says what it met (failureKind). */
+type CheckOutcome = "found" | "busy" | "refused" | { failed: string };
+
+/**
+ * What a failed check met, in a few fixed words for the job's log: Riot's HTTP status, no readable
+ * answer (the network, a timeout, a body that is not Riot's) or an answer that could not be stored.
+ * Never the error's own text: a database error's text can carry the player's PUUID.
+ */
+function failureKind(err: unknown): string {
+  if (err instanceof RiotApiError) return err.status >= 400 ? `Riot ${err.status}` : "no readable answer";
+  return "not stored";
+}
+
 // Per server instance: checks in flight (two windows on one match ask once), recent failures, and a rejected key.
-const inFlight = new Map<string, Promise<"found" | "failed" | "busy" | "refused">>();
+const inFlight = new Map<string, Promise<CheckOutcome>>();
 const failedUntil = new Map<string, number>();
 let refusedUntil = 0;
 
@@ -229,19 +242,22 @@ export async function lookUpRanks(
   return (await askRiot(db, client, match, players, options)).check;
 }
 
-/** lookUpRanks, and the players turned away because the rate-limit share was full (for the job to ask again once it has room). */
+/**
+ * lookUpRanks, the players turned away because the rate-limit share was full (for the job to ask
+ * again once it has room), and what each failed check met (failureKind, for the job's log).
+ */
 async function askRiot(
   db: Db,
   client: RiotApiClient | null,
   match: { matchId: string; platform: string | null },
   players: ReadonlyArray<Player>,
   options: { now?: Date; perDay?: number },
-): Promise<{ check: RankCheck; busy: Player[] }> {
+): Promise<{ check: RankCheck; busy: Player[]; failures: string[] }> {
   const now = options.now ?? new Date();
   const t = now.getTime();
   const candidates = players.filter((p) => p.puuid && (failedUntil.get(p.puuid) ?? 0) <= t);
-  if (!candidates.length) return { check: NO_CHECK, busy: [] };
-  if (!client || !checkable(match, t)) return { check: { ...NO_CHECK, skipped: candidates.length, reason: "unavailable" }, busy: [] };
+  if (!candidates.length) return { check: NO_CHECK, busy: [], failures: [] };
+  if (!client || !checkable(match, t)) return { check: { ...NO_CHECK, skipped: candidates.length, reason: "unavailable" }, busy: [], failures: [] };
   // Never anyone whose personal data was erased (a stored match no longer names them; this is a second lock).
   const erased = await erasureFilter(db);
   const allowed = candidates.filter((p) => !erased.participant(p));
@@ -253,21 +269,21 @@ async function askRiot(
     ask.map((p) => {
       const running = inFlight.get(p.puuid);
       if (running) return running;
-      const run = (async () => {
+      const run = (async (): Promise<CheckOutcome> => {
         try {
           const entries = await client.leagueEntriesByPuuid(platform, p.puuid);
           await storeLookup(db, match.matchId, p.puuid, entries, now);
-          return "found" as const;
+          return "found";
         } catch (err) {
-          if (err instanceof RiotApiError && err.status === 429) return "busy" as const;
+          if (err instanceof RiotApiError && err.status === 429) return "busy";
           if (err instanceof RiotApiError && (err.status === 401 || err.status === 403)) {
             refusedUntil = t + REFUSED_PAUSE_MS;
-            return "refused" as const;
+            return "refused";
           }
           if (failedUntil.size > 2_000) for (const [k, until] of failedUntil) if (until <= t) failedUntil.delete(k);
           const unreadable = err instanceof RiotApiError && (err.status === 400 || err.status === 404);
           failedUntil.set(p.puuid, t + (unreadable ? UNREADABLE_PAUSE_MS : FAILED_PAUSE_MS));
-          return "failed" as const;
+          return { failed: failureKind(err) };
         } finally {
           inFlight.delete(p.puuid);
         }
@@ -277,17 +293,20 @@ async function askRiot(
     }),
   );
   const busy: Player[] = [];
+  const failures: string[] = [];
   results.forEach((r, i) => {
     if (r === "found") outcome.found++;
-    else if (r === "failed") outcome.failed++;
-    else {
+    else if (typeof r === "object") {
+      outcome.failed++;
+      failures.push(r.failed);
+    } else {
       outcome.asked--;
       outcome.skipped++;
       outcome.reason ??= r === "busy" ? "busy" : "unavailable";
       if (r === "busy") busy.push(ask[i]!);
     }
   });
-  return { check: outcome, busy };
+  return { check: outcome, busy, failures };
 }
 
 /** What one run of the checks after collection did: the RankCheck of its matches, and what is left. */
@@ -297,6 +316,8 @@ export interface RecentGameChecks extends RankCheck {
   games: number;
   /** Times the run waited for Riot's one-second window to turn over. */
   waits: number;
+  /** The failed checks by what they met (failureKind): counts only, never a player. */
+  failedBy: Record<string, number>;
 }
 
 /** Riot's shortest rate-limit window is a second: a little longer, and the requests in it have left it. */
@@ -343,7 +364,7 @@ export async function checkRecentGameRanks(
       SELECT w.match_id, w.platform, w.puuid, w.name, (SELECT count(*) FROM waiting) AS waiting, (SELECT count(DISTINCT match_id) FROM waiting) AS games
       FROM waiting w ORDER BY w.game_creation DESC, w.match_id, w.puuid LIMIT ${limit * 4}`),
   );
-  const outcome: RecentGameChecks = { ...NO_CHECK, games: Number(rows[0]?.games ?? 0), waiting: Number(rows[0]?.waiting ?? 0), waits: 0 };
+  const outcome: RecentGameChecks = { ...NO_CHECK, games: Number(rows[0]?.games ?? 0), waiting: Number(rows[0]?.waiting ?? 0), waits: 0, failedBy: {} };
   const byMatch = new Map<string, { platform: string | null; players: Array<{ puuid: string; name: string | null }> }>();
   for (const r of rows.filter((r) => (failedUntil.get(r.puuid) ?? 0) <= t).slice(0, limit)) {
     const m = byMatch.get(r.match_id) ?? { platform: r.platform, players: [] };
@@ -362,10 +383,11 @@ export async function checkRecentGameRanks(
         outcome.skipped += players.length;
         continue matches;
       }
-      const { check, busy } = await askRiot(db, client, { matchId, platform: m.platform }, players, { now, perDay });
+      const { check, busy, failures } = await askRiot(db, client, { matchId, platform: m.platform }, players, { now, perDay });
       outcome.asked += check.asked;
       outcome.found += check.found;
       outcome.failed += check.failed;
+      for (const kind of failures) outcome.failedBy[kind] = (outcome.failedBy[kind] ?? 0) + 1;
       if (check.reason === "budget") last = true;
       const wait = busy.length > 0 && (check.asked > 0 || !waited) && (!options.deadline || Date.now() + WINDOW_WAIT_MS < options.deadline);
       if (wait) {

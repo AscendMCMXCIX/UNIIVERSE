@@ -76,7 +76,7 @@ test("a substitute's side shows their own links, and using one keeps the card tu
   await expect(page.getByTestId("lineup-row-SUPPORT").getByTestId("card-social")).toHaveCount(0);
 });
 
-test("Players: the icons sit on the card, and using one never opens the profile", async ({ page, context }, info) => {
+test("Players: the icons sit on the player's row, and using one never opens the profile", async ({ page, context }, info) => {
   test.skip(info.project.name === "phone", "phones list the players as rows and leave the links to the profile (docs/MOBILE.md), whose touch sizes social-links.spec checks");
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/players");
@@ -84,7 +84,7 @@ test("Players: the icons sit on the card, and using one never opens the profile"
   await expect(icons).toBeVisible();
   await expect(icons.getByTestId("card-social-youtube")).toHaveAttribute("href", "https://www.youtube.com/@DemoMidChannel");
   await expect(icons.getByTestId("card-social-twitch")).toHaveCount(0);
-  // Over the card's own artwork, inside its edges.
+  // On the row, inside the edges of the link laid over it.
   const card = (await page.locator("main a[data-testid='player-card'][data-player-name='Demo Mid']").boundingBox())!;
   const box = (await icons.boundingBox())!;
   expect(box.x).toBeGreaterThan(card.x);

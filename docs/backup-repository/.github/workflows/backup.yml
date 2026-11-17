@@ -15,7 +15,7 @@
 # keeps it 28 days as an artifact of the run, with its manifest (sizes, row counts and checksums: no
 # data, no secret) kept 90 days. A failed run, or a backup over 80% of MAX_MB, opens one issue
 # labelled database-backup in this repository; the next healthy run closes it. backup-age.yml checks
-# daily that a backup passed within 8 days. About 3 private Actions minutes a week.
+# daily that a backup passed within 8 days, with an issue of its own (backup-age). About 3 private Actions minutes a week.
 name: Database backup
 
 on:
@@ -66,10 +66,11 @@ jobs:
       - name: Install the PostgreSQL client tools
         run: |
           sudo install -d /usr/share/postgresql-common/pgdg
-          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          # Retried: one dropped connection fetching the key failed the run of 16 Nov 2026 (curl exit 56).
+          sudo curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq "postgresql-client-$PG_MAJOR"
+          sudo apt-get -o Acquire::Retries=5 update -qq
+          sudo apt-get -o Acquire::Retries=5 install -y -qq "postgresql-client-$PG_MAJOR"
           echo "/usr/lib/postgresql/$PG_MAJOR/bin" >> "$GITHUB_PATH"
       - name: Back up, check the restore, encrypt
         env:

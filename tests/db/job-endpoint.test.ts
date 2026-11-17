@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
   single: null as RunJobResult | null,
   later: [] as Array<() => Promise<unknown>>,
   calls: 0,
+  tickCalls: 0,
 }));
 vi.mock("@/server/bootstrap", () => ({ getAppDb: async () => ({}) }));
 vi.mock("@/server/jobs", () => ({
@@ -22,6 +23,8 @@ vi.mock("@/server/jobs", () => ({
 }));
 vi.mock("next/server", async (orig) => ({ ...(await orig<object>()), after: (task: () => Promise<unknown>) => void state.later.push(task) }));
 vi.mock("@/server/ops/rank-schedule-calls", () => ({ markRankScheduleCall: async () => void (state.calls += 1) }));
+// Only the write is stubbed: which caller counts as the database (sentByDatabase) is the real rule.
+vi.mock("@/server/ops/tick-schedule-calls", async (orig) => ({ ...(await orig<object>()), markTickScheduleCall: async () => void (state.tickCalls += 1) }));
 
 import { GET } from "@/app/api/jobs/[job]/route";
 
@@ -39,11 +42,12 @@ beforeEach(() => {
   state.single = null;
   state.later = [];
   state.calls = 0;
+  state.tickCalls = 0;
 });
 
 const result = (key: RunJobResult["key"], outcome: Partial<RunJobResult>): RunJobResult => ({ key, ok: true, durationMs: 10, ...outcome });
-async function call(job: string, query = "") {
-  const res = await GET(new NextRequest(`http://localhost/api/jobs/${job}${query}`, { headers: { authorization: `Bearer ${SECRET}` } }), { params: Promise.resolve({ job }) });
+async function call(job: string, query = "", headers: Record<string, string> = {}) {
+  const res = await GET(new NextRequest(`http://localhost/api/jobs/${job}${query}`, { headers: { authorization: `Bearer ${SECRET}`, ...headers } }), { params: Promise.resolve({ job }) });
   return { status: res.status, body: (await res.json()) as { ok: boolean; accepted?: boolean; ran?: RunJobResult[] } };
 }
 
@@ -96,5 +100,28 @@ describe("the five-minute rank schedule's sign of life", () => {
     const refused = await GET(new NextRequest("http://localhost/api/jobs/rank-watch", { headers: { authorization: "Bearer not-the-secret" } }), { params: Promise.resolve({ job: "rank-watch" }) });
     expect(refused.status).toBe(401);
     expect(state.calls).toBe(1);
+  });
+});
+
+describe("the database's ten-minute tick's sign of life", () => {
+  const PG_NET = { "user-agent": "pg_net/0.14.0" };
+  it("is recorded for an authorised tick call that pg_net sends, run or in the background, and for no other caller", async () => {
+    await call("tick", "", PG_NET);
+    await call("tick", "?background=1", PG_NET);
+    for (const task of state.later) await task();
+    expect(state.tickCalls).toBe(2);
+    // GitHub's Data jobs runs (curl), Vercel's daily cron and a caller that names nothing run the tick too: not the schedule.
+    await call("tick", "?background=1", { "user-agent": "curl/8.5.0" });
+    await call("tick", "", { "user-agent": "vercel-cron/1.0" });
+    await call("tick");
+    // The five-minute rank schedule is pg_net too, but it calls the rank watch: its own sign, not the tick's.
+    state.single = result("rank-watch", {});
+    await call("rank-watch", "", PG_NET);
+    expect(state.calls).toBe(1);
+    expect(state.tickCalls).toBe(2);
+    // A refused call records nothing: that silence is what /api/health reports.
+    const refused = await GET(new NextRequest("http://localhost/api/jobs/tick", { headers: { authorization: "Bearer not-the-secret", ...PG_NET } }), { params: Promise.resolve({ job: "tick" }) });
+    expect(refused.status).toBe(401);
+    expect(state.tickCalls).toBe(2);
   });
 });
