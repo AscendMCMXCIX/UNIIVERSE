@@ -103,6 +103,35 @@ describe("attributeLp", () => {
     expect(out.get("m")).toMatchObject({ kind: "none", reason: "inconsistent" });
   });
 
+  // Riot counted a win (+24 LP) played from minute 5 to 30 that the store lacks; the stored game
+  // "n" follows, from 35 to 60.
+  it("moves the match at the first reading that counts a missing game before the next game can have ended", () => {
+    const games = [...history, game("n", 35, 25, true)];
+    // Read during "n" with the missing win counted: "n" gets its own change (+20), not the missing one's.
+    const readings = [read("GOLD", "II", 46, 10, 10, 0, 2), read("GOLD", "II", 70, 11, 10, 40, 58), read("GOLD", "II", 90, 12, 10, 62)];
+    expect(attributeLp(readings, games).get("n")).toMatchObject({ kind: "lp", delta: 20, before: { leaguePoints: 70 } });
+  });
+
+  it("leaves the next game without a figure when the first reading that counts a missing game is too far, or counts the next game too", () => {
+    const win = [...history, game("n", 35, 25, true)];
+    // No reading from before the missing game until after "n": "n" is matched to the missing win's change, too far from it.
+    expect(attributeLp([read("GOLD", "II", 46, 10, 10, 0, 2), read("GOLD", "II", 70, 11, 10, 62)], win).get("n")).toMatchObject({ kind: "none", reason: "readings-too-far" });
+    // The same reading counting both games: the match moves there, and "n" has no figure.
+    expect(attributeLp([read("GOLD", "II", 46, 10, 10, 0, 2), read("GOLD", "II", 90, 12, 10, 65, 90)], win).get("n")).toMatchObject({ kind: "none", reason: "inconsistent" });
+    // A loss is never given the missing win's change.
+    const loss = [...history, game("n", 35, 25, false)];
+    expect(attributeLp([read("GOLD", "II", 46, 10, 10, 0, 32), read("GOLD", "II", 70, 11, 10, 62)], loss).get("n")).toMatchObject({ kind: "none", reason: "inconsistent" });
+  });
+
+  it("cannot tell a missing game from the next one of the same result when no reading counts it until that one has ended", () => {
+    const games = [...history, game("n", 35, 25, true)];
+    // Read during "n" without the missing win (Riot counting it late), then after "n" with it only: "n" is given its +24.
+    expect(attributeLp([read("GOLD", "II", 46, 10, 10, 0, 58), read("GOLD", "II", 70, 11, 10, 62)], games).get("n")).toMatchObject({ kind: "lp", delta: 24, before: { leaguePoints: 46 } });
+    // Read in the missing game's last minute, "n" created four minutes later, and no reading in between: the same.
+    const soon = [...history, game("n", 33, 25, true)];
+    expect(attributeLp([read("GOLD", "II", 46, 10, 10, 0, 29), read("GOLD", "II", 70, 11, 10, 61)], soon).get("n")).toMatchObject({ kind: "lp", delta: 24, before: { leaguePoints: 46 } });
+  });
+
   it("attributes nothing when the result disagrees with what Riot counted", () => {
     const out = attributeLp([read("GOLD", "II", 46, 10, 10, 0, 30), read("GOLD", "II", 25, 10, 11, 50)], [...history, game("m", 22, 25, true)]);
     expect(out.get("m")).toMatchObject({ kind: "none", reason: "inconsistent" });

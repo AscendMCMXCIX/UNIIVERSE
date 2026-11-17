@@ -8,14 +8,26 @@ import { rankLabel, TIERS } from "./rank-progress";
   can only be the difference between two readings of the account's rank in the game's queue, and
   only when those two readings enclose that game and nothing else:
 
-  1. Which game. Riot's wins + losses count the queue's games of the ranked season, so between two
+  1. Which game. Riot's wins + losses count the queue's games of the ranked year, so between two
      readings exactly as many games ended as that count rose. The stored games are matched to the
      count in the order they ended: the readings' count less the stored games Riot must already
      have counted (ended more than UPDATE_ALLOWANCE_MS before the reading) is the same "offset" at
-     every reading while the stored games are complete; a game missing from the store (not
-     collected yet, or Riot never served it) or a stored game Riot did not count changes the
-     offset, and every game between those readings is left unattributed. A game Riot does not
-     count (a remake: under five minutes) never takes part.
+     every reading while the stored games are complete. A game missing from the store (not
+     collected yet, Riot never served it, or stored without a length, which leaves it out of the
+     count: "unknown-length") or a stored game Riot did not count changes the offset, and every
+     game between those readings is left unattributed. The change shows at the first reading that
+     counts the missing game if that reading was taken before the next stored game can have ended,
+     or counts that game too. If it was taken later and does not count the next game yet, the
+     offset holds there and the next game is matched to the missing game's change. Rule 3 then
+     leaves a next game of the other result "inconsistent", and rule 2 leaves one of the same result
+     "readings-too-far" when the earlier reading was last seen more than BEFORE_MARGIN_MS before
+     it began, as after a gap in the readings that started before the missing game. A next game
+     of the same result that passes rule 2 takes the missing game's change as its figure, and no
+     reading can tell the two apart: the earlier reading fell in the missing game's last minutes,
+     or after its end before Riot counted it, and none counted the missing game until the next
+     one had ended (Riot counting it late, or no reading in between). The rule assumes Riot counts
+     each game within UPDATE_ALLOWANCE_MS (ten minutes) of its end. A game Riot does not count (a
+     remake: under five minutes) never takes part.
   2. Nothing else in between. The earlier reading must still have held when the game began:
      confirmed during the game or in the BEFORE_MARGIN_MS before it was created. The only other LP
      change a player makes, a queue dodge, happens in champion select and is followed by a

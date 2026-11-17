@@ -2,6 +2,7 @@ import { after, NextResponse, type NextRequest } from "next/server";
 import { getAppDb } from "@/server/bootstrap";
 import { getJob, runJob, runTick } from "@/server/jobs";
 import { markRankScheduleCall } from "@/server/ops/rank-schedule-calls";
+import { markTickScheduleCall, sentByDatabase } from "@/server/ops/tick-schedule-calls";
 import type { JobKey } from "@/server/ops/refresh-status";
 import { deploymentInfo } from "@/server/ops/deployment";
 import { jobRequestAuthorised } from "@/server/jobs/authorise";
@@ -28,6 +29,10 @@ async function handle(request: NextRequest, params: Promise<{ job: string }>) {
   const db = await getAppDb();
   const budgetMs = Number(process.env.UNIIVERSE_JOB_BUDGET_MS ?? 240_000);
   const deployment = deploymentInfo();
+  // The database's own tick schedule (pg_cron's ten-minute uniiverse-tick) is told apart from the
+  // tick's other callers by pg_net's User-Agent, and its call is its sign of life for /api/health
+  // (server/ops/tick-schedule-calls.ts). A failed write must not fail the tick.
+  if (job === "tick" && sentByDatabase(request.headers.get("user-agent"))) await markTickScheduleCall(db).catch(() => undefined);
   if (job === "tick" && request.nextUrl.searchParams.get("background") === "1") {
     // The answer comes before the jobs run, so it can only say the tick was accepted. Their
     // outcome reaches /api/health (failingJobs), which the scheduled Data jobs run reads next.
