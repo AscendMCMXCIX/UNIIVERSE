@@ -2,7 +2,7 @@ import type { MatchupNotes } from "@/domain/matchup-intel/types";
 
 /*
   Riven (you) against Mordekaiser (the enemy): curated matchup notes (Layer 2, this direction
-  only), checked on 16 Nov 2026 against patch 26.22 and Data Dragon 16.22.1, the same version as
+  only), checked on 17 Nov 2026 against patch 26.22 and Data Dragon 16.22.1, the same version as
   both champions' notes.
 
   Every point rests on mechanics the League of Legends Wiki's ability data pages state (the same
@@ -25,13 +25,17 @@ import type { MatchupNotes } from "@/domain/matchup-intel/types";
     Death's Grasp or Realm of Death;
   - how far "too far away" is for Realm of Death's cancel during its cast, so nothing is said
     about leaving its range with a dash;
+  - that Death's Grasp is Mordekaiser's only pull;
+  - whether ability haste shortens Death's Grasp's cooldown;
+  - when Obliterate strikes relative to its 0.5-second cast time: its page's own words do not say,
+    and the template it calls there (Effect at cast time end) was not saved;
   - the wiki's lane tip on where to cast Realm of Death (advice, not a mechanic).
 */
 
 const notes: MatchupNotes = {
   championId: "Riven",
   vsId: "Mordekaiser",
-  verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-16" },
+  verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-17" },
   sources: [
     { id: "riven-p", title: "League of Legends Wiki: Runic Blade (Riven)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Riven/Runic_Blade", kind: "wiki-ability", revision: 4091406, revisionTime: "2026-10-30T14:54:09Z", licence: "CC BY-SA 3.0" },
     { id: "riven-q", title: "League of Legends Wiki: Broken Wings (Riven)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Riven/Broken_Wings", kind: "wiki-ability", revision: 4025373, revisionTime: "2026-06-05T15:05:11Z", licence: "CC BY-SA 3.0" },
@@ -48,7 +52,7 @@ const notes: MatchupNotes = {
       basedOn: ["Mordekaiser.R", "Riven.E"],
     },
     opportunity: {
-      text: "Death's Grasp pulls 0.5 seconds after Mordekaiser summons the claw, and its cooldown is 16 seconds at rank 1 and 8 at rank 5, before ability haste: until it is ready again, he has no pull.",
+      text: "Death's Grasp pulls 0.5 seconds after Mordekaiser summons the claw, and its cooldown is 16 seconds at rank 1 and 8 at rank 5.",
       basedOn: ["Mordekaiser.E"],
     },
     lane: [
@@ -57,11 +61,11 @@ const notes: MatchupNotes = {
         basedOn: ["Mordekaiser.P"],
       },
       {
-        text: "Neither sees the other's count: other champions cannot see Mordekaiser's Darkness Rise stacks, and Riven's Runic Blade charges show only to her player.",
+        text: "Neither sees the other's display under the health bar: the one showing Mordekaiser's Darkness Rise stacks is hidden from other champions, and only Riven's player sees the one showing her Runic Blade charges.",
         basedOn: ["Mordekaiser.P", "Riven.P"],
       },
       {
-        text: "Obliterate lands at the end of its 0.5-second cast time, towards the spot he aimed at when the cast began, and deals 30% more at rank 1 (50% at rank 5) when it hits only one enemy.",
+        text: "Obliterate has a 0.5-second cast time; it strikes towards the spot he aimed at when the cast began, and deals 30% more at rank 1 (50% at rank 5) when it hits only one enemy.",
         basedOn: ["Mordekaiser.Q"],
       },
       {
@@ -72,7 +76,7 @@ const notes: MatchupNotes = {
   },
   interactions: [
     { text: "In the Death Realm, Riven's dashes and Broken Wings' knock-back stop at the arena's edge.", abilities: ["Mordekaiser.R", "Riven.Q", "Riven.E"], source: "mordekaiser-r" },
-    { text: "The realm change does not affect turrets: they behave as if Riven and Mordekaiser were both still in the normal realm.", abilities: ["Mordekaiser.R"], source: "mordekaiser-r" },
+    { text: "Structures are present in every realm simultaneously, and turrets act as usual, as if all units shared one realm.", abilities: ["Mordekaiser.R"], source: "mordekaiser-r" },
   ],
 };
 

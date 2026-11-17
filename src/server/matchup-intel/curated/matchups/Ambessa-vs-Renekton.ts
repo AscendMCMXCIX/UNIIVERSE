@@ -2,15 +2,16 @@ import type { MatchupNotes } from "@/domain/matchup-intel/types";
 
 /*
   Ambessa (you) against Renekton (the enemy): curated matchup notes (Layer 2, this direction only),
-  checked on 16 Nov 2026 against patch 26.22 and Data Dragon 16.22.1, the same version as both
+  checked on 17 Nov 2026 against patch 26.22 and Data Dragon 16.22.1, the same version as both
   champions' notes.
 
-  Every point rests on mechanics the League of Legends Wiki states (CC BY-SA 3.0) for the abilities
-  it names, all present in the two champions' notes, at the same revisions. A point may apply what a
-  page states of a whole class (damage shields, immobilising effects) to a member that a page names
-  as one. The Renekton champion page is cited for the wiki's own definition of a stun, shown on that
-  page: an immobilising effect that interrupts attack windups except uncancellable ones. The points
-  are considerations: no win rates, tiers or advice on what to do.
+  Every point rests on what the cited pages state (CC BY-SA 3.0): the named abilities' data pages,
+  at the revisions the two champions' notes also cite, and the glossary shown on the saved copy of
+  the Renekton champion page, for what a stun is and interrupts and what an ability's cooldown means. A point may apply
+  what a page states of a whole class (damage shields, immobilising effects) to a member that a page
+  names as one. The Renekton champion page is cited for the wiki's own definition of a stun, shown
+  on that page: an immobilising effect that interrupts attack windups except uncancellable ones. The
+  points are considerations: no win rates, tiers or advice on what to do.
 
   Left out, and why:
   - whether Ruthless Predator's stun stops Public Execution's cast time: no saved source says (see
@@ -20,7 +21,7 @@ import type { MatchupNotes } from "@/domain/matchup-intel/types";
 const notes: MatchupNotes = {
   championId: "Ambessa",
   vsId: "Renekton",
-  verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-16" },
+  verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-17" },
   sources: [
     { id: "ambessa-p", title: "League of Legends Wiki: Drakehound's Step (Ambessa)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ambessa/Drakehound's_Step", kind: "wiki-ability", revision: 4078254, revisionTime: "2026-10-06T20:43:13Z", licence: "CC BY-SA 3.0" },
     { id: "ambessa-q1", title: "League of Legends Wiki: Cunning Sweep (Ambessa)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ambessa/Cunning_Sweep", kind: "wiki-ability", revision: 4077875, revisionTime: "2026-10-06T14:46:36Z", licence: "CC BY-SA 3.0" },
@@ -38,7 +39,7 @@ const notes: MatchupNotes = {
       basedOn: ["Renekton.P", "Renekton.W"],
     },
     opportunity: {
-      text: "Ruthless Predator's cooldown starts only when its effect ends, then runs 16 seconds at rank 1 and 8 at rank 5, before ability haste. Until it is ready again, he has neither its stun nor its 50-Fury shield break, which destroys damage shields such as Repudiation's.",
+      text: "Ruthless Predator's cooldown, 16 seconds at rank 1 and 8 at rank 5, starts when its effect ends. Until it is ready again, he has neither its stun nor its 50-Fury shield break, which destroys damage shields such as Repudiation's.",
       basedOn: ["Renekton.W", "Ambessa.W"],
     },
     lane: [
@@ -47,7 +48,7 @@ const notes: MatchupNotes = {
         basedOn: ["Renekton.P", "Renekton.Q", "Renekton.W", "Renekton.E"],
       },
       {
-        text: "Dice, Renekton's second dash, is open for 4 seconds only after Slice hits an enemy, and with 50 Fury it also cuts armour by 25 to 35% for 4 seconds. Sundering Slam likewise needs Cunning Sweep to hit.",
+        text: "Dice, Renekton's second dash, can be cast within 4 seconds if Slice hits an enemy, and with 50 Fury it also cuts armour by 25 to 35% for 4 seconds. Sundering Slam can likewise be cast within 4 seconds if Cunning Sweep hits an enemy.",
         basedOn: ["Renekton.E", "Ambessa.Q"],
       },
       {

@@ -930,7 +930,12 @@ describe("the checks fire", () => {
     expect(withSource({ kind: "wiki-champion" })).toEqual([problem(/source "renekton-w" is of kind "wiki-champion", which is a champion's page/)]);
     expect(withSource({ kind: "ddragon" })).toEqual([problem(/source "renekton-w" is of kind "ddragon", which is a page on ddragon\.leagueoflegends\.com/)]);
     expect(withSource({ revisionTime: "23 Sep 2026" })).toEqual(['Renekton: source "renekton-w" revisionTime "23 Sep 2026" is not a time in UTC such as "2026-09-23T19:37:45Z"']);
-    expect(withSource({ revisionTime: "2026-11-17T08:00:00Z" })).toEqual(['Renekton: source "renekton-w" revisionTime 2026-11-17T08:00:00Z is after the day the notes were checked (2026-11-16)']);
+    // The day the notes were checked, whichever it is: a revision saved that day passes, one saved the
+    // next day is flagged.
+    const checked = renekton().verified.checkedOn;
+    const nextDay = new Date(Date.parse(`${checked}T08:00:00Z`) + 86_400_000).toISOString().replace(".000Z", "Z");
+    expect(withSource({ revisionTime: `${checked}T08:00:00Z` })).toEqual([]);
+    expect(withSource({ revisionTime: nextDay })).toEqual([`Renekton: source "renekton-w" revisionTime ${nextDay} is after the day the notes were checked (${checked})`]);
     const ddragon = renekton().sources.findIndex((x) => x.id === "ddragon");
     expect(withSource({ kind: "ddragon" }, ddragon)).toEqual([]);
     expect(withSource({ kind: "riot-docs" }, ddragon)).toEqual([problem(/is of kind "riot-docs", which is a page on developer\.riotgames\.com/)]);

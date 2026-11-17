@@ -2,16 +2,17 @@ import type { MatchupNotes } from "@/domain/matchup-intel/types";
 
 /*
   Gwen (you) against Ornn (the enemy): curated matchup notes (Layer 2, this direction only), checked
-  on 16 Nov 2026 against patch 26.22 and Data Dragon 16.22.1, the same version as both champions'
+  on 17 Nov 2026 against patch 26.22 and Data Dragon 16.22.1, the same version as both champions'
   notes.
 
   Every point rests on mechanics the two champions' wiki ability pages state (the same revisions as
   their champion notes, CC BY-SA 3.0) and names the abilities it rests on. A point may apply what a
   page states of a whole class to a member that a page names as one: that a stun spends Brittle
-  rests on Living Forge's page (immobilising effects spend it; Riot's tooltip says the same of
-  immobilising effects) and on the wiki's definition of a stun as an immobilising effect, shown on
-  the Renekton page (revision 4028014), which is therefore one of the sources below, as it is for
-  Ambessa vs Renekton. Ornn's own pages give the lengthened stuns (1.625 s and 1.3 s) but call a stun
+  rests on Living Forge's page (immobilising effects spend it; Riot's tooltip says immobilising
+  effects on a Brittle target last 30% longer and deal extra magic damage, but not that they spend
+  it) and on the wiki's definition of a stun as an immobilising effect, shown on the Renekton page
+  (revision 4028014), which is therefore one of the sources below, as it is for Ambessa vs
+  Renekton. Ornn's own pages give the lengthened stuns (1.625 s and 1.3 s) but call a stun
   an immobilising effect only through that definition. The points are considerations: no win
   rates, tiers, guesses or instructions on how to play.
 
@@ -28,13 +29,19 @@ import type { MatchupNotes } from "@/domain/matchup-intel/types";
   - whether slowing Ornn with Needlework can stop Bellows Breath's lunge (that would rest on
     arithmetic and an estimated movement-speed threshold, not a stated interaction);
   - how Ornn's knock-ups meet Gwen's E dash: her page's knockdown field says an enemy displacement
-    interrupts it, but Ornn's pages do not call their knock-ups displacements in words.
+    interrupts it, but Ornn's pages do not call their knock-ups displacements in words;
+  - when Hallowed Mist's cooldown starts: its page's cooldown-start field says post-effect and names
+    no effect, so the opportunity gives only the mist's 4 s;
+  - that a wall sets off Searing Charge's shockwave, or that nothing but terrain does: its page says
+    only that colliding with terrain does, and no saved page calls a wall terrain;
+  - what Ornn cannot do during Bellows Breath beyond acting at all: the page's interaction table,
+    whose template was not saved, is not read.
 */
 
 const notes: MatchupNotes = {
   championId: "Gwen",
   vsId: "Ornn",
-  verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-16" },
+  verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-17" },
   sources: [
     { id: "gwen-p", title: "League of Legends Wiki: A Thousand Cuts (Gwen)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Gwen/A_Thousand_Cuts", kind: "wiki-ability", revision: 4081720, revisionTime: "2026-10-09T12:23:52Z", licence: "CC BY-SA 3.0" },
     { id: "gwen-q", title: "League of Legends Wiki: Snip Snip! (Gwen)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Gwen/Snip_Snip!", kind: "wiki-ability", revision: 4026398, revisionTime: "2026-06-09T21:51:08Z", licence: "CC BY-SA 3.0" },
@@ -48,20 +55,20 @@ const notes: MatchupNotes = {
   ],
   briefing: {
     threat: {
-      text: "If Bellows Breath's final burst hits Gwen, she is Brittle for 3 s. A stun from Ornn's E shockwave (1.25 s) or his R's second pass (1 s) then spends it: with no tenacity the stun lasts 1.625 s or 1.3 s, and she takes magic damage of 9% (at his level 1) to 17% (at level 18) of her maximum health.",
+      text: "If Bellows Breath's final burst hits Gwen, she is Brittle for 3 s. A stun from Ornn's E shockwave (1.25 s) or his R's second pass spends it: with no tenacity of her own the stun lasts 1.625 s or 1.3 s, and she takes magic damage of 9% (at his level 1) to 17% (at level 18) of her maximum health.",
       basedOn: ["Ornn.W", "Ornn.P", "Ornn.E", "Ornn.R"],
     },
     opportunity: {
-      text: "While Gwen is inside Hallowed Mist, Ornn cannot target her from outside it. The mist lasts 4 s, and Hallowed Mist's cooldown starts only when it ends.",
+      text: "While Gwen is inside Hallowed Mist, Ornn cannot target her from outside it. The mist lasts 4 s.",
       basedOn: ["Gwen.W"],
     },
     lane: [
       {
-        text: "Searing Charge knocks up and stuns only when Ornn rams terrain, such as a wall or the pillar his Q leaves for 4 s; without terrain it is a damaging dash.",
+        text: "Searing Charge knocks up and stuns when Ornn's charge rams terrain, such as the pillar his Q leaves for 4 s; the charge itself damages the enemies it passes through.",
         basedOn: ["Ornn.E", "Ornn.Q"],
       },
       {
-        text: "During Bellows Breath's 0.75 s march Ornn cannot attack or cast his other abilities, and he cannot act for 0.5 s after Searing Charge's dash, or during his R recast dash and for 0.5 s after it.",
+        text: "Ornn cannot act during Bellows Breath's 0.75 s march, for 0.5 s after Searing Charge's dash, or during his R recast dash and for 0.5 s after it.",
         basedOn: ["Ornn.W", "Ornn.E", "Ornn.R"],
       },
       {

@@ -1,35 +1,40 @@
 import type { ChampionNotes } from "@/domain/matchup-intel/types";
 
 /*
-  Riven: curated champion notes (Layer 1), checked on 16 Nov 2026 against patch 26.22 and Data
+  Riven: curated champion notes (Layer 1), checked on 17 Nov 2026 against patch 26.22 and Data
   Dragon 16.22.1.
 
   Sources: the League of Legends Wiki's ability data pages (Template:Data Riven/<ability>, read at the
   revisions below, CC BY-SA 3.0) and Data Dragon 16.22.1. Each ability's ddragonCooldown and
   ddragonIdentity are Data Dragon's cooldown array, spell id, name, ranks and charges, copied exactly
-  (the passive has no cooldown or id in Data Dragon); the wiki's cooldown for every ability matches.
-  Numbers are base values per rank, without ability haste. Every text is UNIIVERSE's own summary of
-  what the page states. Badges read from a page's fields use the meanings Template:Ability data
-  gives them: spellshield (a spell shield nullifies it), parry (blind, block or dodge prevents it),
-  grounded (grounding disables it) and knockdown (an enemy knock-down or displacement interrupts and
-  overrides its movement).
+  (the passive has no cooldown, id or rank in Data Dragon; its 1 rank is the app's placeholder); the
+  wiki's cooldown for every ability matches.
+  Numbers are as the pages give them: by rank, by level (Runic Blade's ratio), by the target's
+  missing health (Wind Slash's increase) or fixed. Every text
+  is UNIIVERSE's own summary of what the page states. Badges read from a page's fields use the
+  meanings Template:Ability data gives them: spellshield (a spell shield nullifies it), parry
+  (blind, block or dodge prevents it), grounded (grounding disables it) and knockdown (an enemy
+  knock-down or displacement interrupts and overrides its movement).
 
   Cooldown starts, from the page's cooldown-start field (cdstart) and cooldown notes, and null where
   they give none:
-  - Q: "after-first-cast": its cooldown note says "Starts after first cast", and its cdstart, on-cast,
-    names the same moment: the 13 seconds run from the first cast.
+  - Q: "after-first-cast": the cooldown note on its 13 seconds says "Starts after first cast".
   - R: "after-effect-ends" (post-effect).
   - W, E: null: no cdstart.
-  - P: no cooldown spec: the page gives none, and Data Dragon never gives a passive one.
+  - P: no cooldown spec: the page gives none, and Data Dragon 16.22.1 gives no passive a cooldown.
   Modifiers, as Broken Wings' page states them: a static 0.3125-second cooldown between casts, and
   each cast resets her basic-attack timer.
 
   Disputed, so left off the page until a person resolves it:
   - how long Broken Wings' third cast holds enemies: the wiki gives the knock-back as 75 units over
-    0.5 seconds, Riot's tooltip a knock-up of 0.75 seconds (possibly two measures). The notes give
-    the 75 units, which nothing contradicts.
+    0.5 seconds, Riot's tooltip a knock-up of 0.75 seconds. The notes give the 75 units, which
+    nothing contradicts.
+  - the base of Blade of the Exile's bonus AD: its page gives 20% of her AD, Riven's patch history
+    (V26.15, revision 4046563) 20% of her bonus AD. The notes give no ratio.
 
   Left out, and why:
+  - which effect's end starts Blade of the Exile's cooldown: its cooldown-start field says
+    post-effect and names no effect, so the empowerment's 15 seconds is a detail, not a cooldown note;
   - level notes: no saved page states when her abilities unlock or when her ultimate gains ranks;
   - a recast window in seconds for Wind Slash: the page allows it from 0.5 seconds into Blade of
     the Exile until the 15 seconds end, which the recast note says in words;
@@ -44,7 +49,7 @@ import type { ChampionNotes } from "@/domain/matchup-intel/types";
 
 const notes: ChampionNotes = {
   championId: "Riven",
-  verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-16" },
+  verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-17" },
   sources: [
     { id: "riven-p", title: "League of Legends Wiki: Runic Blade (Riven)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Riven/Runic_Blade", kind: "wiki-ability", revision: 4091406, revisionTime: "2026-10-30T14:54:09Z", licence: "CC BY-SA 3.0" },
     { id: "riven-q", title: "League of Legends Wiki: Broken Wings (Riven)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Riven/Broken_Wings", kind: "wiki-ability", revision: 4025373, revisionTime: "2026-06-05T15:05:11Z", licence: "CC BY-SA 3.0" },
@@ -61,7 +66,7 @@ const notes: ChampionNotes = {
       ddragonIdentity: { id: null, name: "Runic Blade", maxRank: 1, charges: null },
       facts: [
         { kind: "empowerment", label: "Charged attacks", detail: "Each ability cast stores a charge for 6 seconds, up to 3, and each basic attack spends one for bonus physical damage.", appliesTo: "self", source: "riven-p" },
-        { kind: "exception", label: "Charges hidden from enemies", detail: "Only Riven's player sees how many charges she holds: they show under her health bar.", appliesTo: "self", source: "riven-p" },
+        { kind: "exception", label: "Charge display only her player sees", detail: "A display under her health bar shows how many charges she holds, and only her player can see it.", appliesTo: "self", source: "riven-p" },
       ],
       details: [
         "Bonus damage per charge: 30% of her AD at level 1, rising evenly to 45% at level 18. Half as much against structures; 50 more against monsters.",
@@ -87,7 +92,7 @@ const notes: ChampionNotes = {
         "Physical damage per cast: 45 to 165 (+60 to 80% bonus AD) by rank; three times that over all three casts.",
         "Radius: 150 units for the first two casts and 250 for the third; 200 and 300 during Blade of the Exile.",
         "Each cast orders her to attack the enemy it targets, if there is one.",
-        "After the third cast she is kept from attacking or casting for longer than after the first two.",
+        "The third cast keeps her from attacking or casting for longer than the first two do.",
         "Every cast counts separately for on-cast effects, Spellblade for example.",
       ],
     },
@@ -120,19 +125,19 @@ const notes: ChampionNotes = {
       ddragonCooldown: [120, 90, 60],
       ddragonIdentity: { id: "RivenFengShuiEngine", name: "Blade of the Exile", maxRank: 3, charges: null },
       cooldown: { kind: "per-rank", seconds: [120, 90, 60], starts: "after-effect-ends" },
-      cooldownNote: "The empowerment lasts 15 seconds.",
-      // One Wind Slash: the wiki describes a single cast within the duration, and Data Dragon's description says "once".
+      // One Wind Slash: Data Dragon's description says "once"; the wiki says she can cast it within the duration and gives no count.
       recast: { count: 1, note: "Wind Slash, from 0.5 seconds into Blade of the Exile until its 15 seconds end: three missiles in a cone that deal more damage the more health the target is missing." },
       facts: [
-        { kind: "empowerment", label: "Bonus AD for 15 s", detail: "Bonus AD equal to 20% of her AD, 75 more attack range, and wider Broken Wings and Ki Burst areas.", appliesTo: "self", source: "riven-r" },
+        { kind: "empowerment", label: "Bonus AD for 15 s", detail: "Bonus AD, 75 more attack range, and wider Broken Wings and Ki Burst areas.", appliesTo: "self", source: "riven-r" },
         { kind: "damage", label: "Missing-health damage", detail: "Wind Slash's damage rises with the health the target is missing, up to three times as much at 75% missing.", appliesTo: "target", source: "riven-wind-slash" },
         { kind: "interaction", label: "Wind Slash blockable", detail: "A spell shield blocks Wind Slash.", appliesTo: "target", tags: ["spell-shield"], source: "riven-wind-slash" },
       ],
       details: [
+        "The empowerment lasts 15 seconds.",
         "The bonuses start 0.5 seconds into the cast, and the bonus AD is fixed when she casts it.",
         "Blade of the Exile and Wind Slash each have a 0.25-second cast time.",
         "Wind Slash: 100 to 200 (+55% bonus AD) physical damage by rank, rising by 2.667% for each 1% of health the target is missing, to 300 to 600 (+165% bonus AD) at 75% missing or more.",
-        "Its three missiles fan out over 18° and travel 1,100 units; each enemy is hit by one at most. It flies towards where her cursor was as the cast began.",
+        "Its three missiles fan out over 18° and travel 1,100 units; each enemy takes damage from one at most. It flies towards where her cursor was as the cast began.",
         "A hit while Riven is hidden briefly reveals the area around her to enemies.",
       ],
     },

@@ -1,16 +1,17 @@
 import type { ChampionNotes } from "@/domain/matchup-intel/types";
 
 /*
-  Ambessa: curated champion notes (Layer 1), checked on 16 Nov 2026 against patch 26.22 and Data
+  Ambessa: curated champion notes (Layer 1), checked on 17 Nov 2026 against patch 26.22 and Data
   Dragon 16.22.1.
 
   Sources: the League of Legends Wiki's ability data pages (Template:Data Ambessa/<ability>, read at
   the revisions below, CC BY-SA 3.0) and Data Dragon 16.22.1. Each ability's ddragonCooldown and
   ddragonIdentity are Data Dragon's cooldown array, spell id, name, ranks and charges, copied exactly
-  (the passive has no cooldown or id in Data Dragon); the wiki's cooldown for every ability matches.
+  (the passive has no cooldown, id or rank in Data Dragon; its 1 rank is the app's placeholder); the
+  wiki's cooldown for every ability matches.
   The wiki's R cooldown ({{ap|130 to 100}}) shows as 130 / 115 / 100 on the rendered ability, the
-  same as Data Dragon's three ranks. Numbers are base values per rank, without ability haste. Every
-  text is UNIIVERSE's own summary of what the page states. Badges read from a page's fields use the
+  same as Data Dragon's three ranks. Cooldowns are per rank, as Data Dragon lists them. Every text is
+  UNIIVERSE's own summary of what the page states. Badges read from a page's fields use the
   meanings Template:Ability data gives them: grounded (grounding disables it) and knockdown (an enemy
   knock-down or displacement interrupts and overrides its movement).
 
@@ -19,23 +20,26 @@ import type { ChampionNotes } from "@/domain/matchup-intel/types";
     whether the cooldown runs from the first cast or the last, so the page shows no start
     (the owner, 17 Nov 2026: what the wiki does not say is not used). Sundering Slam's page gives no cooldown of its own.
   - W, E, R: null: no cdstart.
-  - P: no cooldown spec: the page gives none, and Data Dragon never gives a passive one.
+  - P: no cooldown spec: the page gives none, and Data Dragon 16.22.1 gives no passive a cooldown.
 
   Terms: Riot's tooltip calls her "Unstoppable" during Public Execution, where the wiki says
-  displacement immune; the notes use the wiki's term, the narrower claim.
+  displacement immune; the notes use the wiki's term.
 
   Left out, and why:
   - what interrupts Public Execution's cast time: its interaction table reads "revival-false" and
     its template was not saved, and the wiki's stun definition names attack windups and channels,
     not cast times, so no saved source says whether a stun stops it;
-  - which summoner spells she can use during Public Execution: only that interaction table says,
-    and it cannot be read without its template;
-  - level notes beyond the energy steps: no saved page states another level rule for Ambessa.
+  - which summoner spells she can use during Public Execution: the page gives them in its
+    interaction table, whose template was not saved, so they are left out under the rule for such
+    tables (its notes add one point, marked as unexpected: if she tries to use Flash during the cast
+    time, it is not queued);
+  - level notes beyond the energy steps: the passive's dash-speed steps at levels 6, 11 and 16 are
+    kept in its details, not as level notes.
 */
 
 const notes: ChampionNotes = {
   championId: "Ambessa",
-  verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-16" },
+  verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-17" },
   sources: [
     { id: "ambessa-p", title: "League of Legends Wiki: Drakehound's Step (Ambessa)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ambessa/Drakehound's_Step", kind: "wiki-ability", revision: 4078254, revisionTime: "2026-10-06T20:43:13Z", licence: "CC BY-SA 3.0" },
     { id: "ambessa-q1", title: "League of Legends Wiki: Cunning Sweep (Ambessa)", url: "https://wiki.leagueoflegends.com/en-us/Template:Data_Ambessa/Cunning_Sweep", kind: "wiki-ability", revision: 4077875, revisionTime: "2026-10-06T14:46:36Z", licence: "CC BY-SA 3.0" },
@@ -66,7 +70,7 @@ const notes: ChampionNotes = {
       ddragonCooldown: [14, 13, 12, 11, 10],
       ddragonIdentity: { id: "AmbessaQ", name: "Cunning Sweep / Sundering Slam", maxRank: 5, charges: null },
       cooldown: { kind: "per-rank", seconds: [14, 13, 12, 11, 10], starts: "on-cast" },
-      recast: { count: 1, windowSeconds: 4, note: "Sundering Slam, only after Cunning Sweep hits at least one enemy." },
+      recast: { count: 1, windowSeconds: 4, note: "Sundering Slam, if Cunning Sweep hits at least one enemy." },
       facts: [
         { kind: "damage", label: "Max-health damage", detail: "Cunning Sweep's damage includes a share of the target's maximum health, and it is doubled at the outer edge of the sweep.", appliesTo: "target", tags: ["max-health-damage"], source: "ambessa-q1" },
         { kind: "damage", label: "Doubled on first enemy", detail: "Sundering Slam's damage also includes a share of maximum health, doubled on the first enemy in its line.", appliesTo: "target", tags: ["max-health-damage"], source: "ambessa-q2" },
@@ -110,7 +114,7 @@ const notes: ChampionNotes = {
         { kind: "crowd-control", label: "Suppression", detail: "0.75 seconds; the target is revealed.", appliesTo: "target", tags: ["suppression"], source: "ambessa-r" },
         { kind: "crowd-control", label: "Stun", detail: "0.4 seconds, with the slam's damage, once she crashes the target down.", appliesTo: "target", tags: ["stun"], source: "ambessa-r" },
         { kind: "defence", label: "Displacement immune", detail: "Through the cast time and the target's suppression; polymorphs do not affect her then either.", appliesTo: "self", tags: ["displacement-immune"], source: "ambessa-r" },
-        { kind: "interaction", label: "Removing the suppression ends it", detail: "A target that clears the suppression, with a cleanse for example, breaks free at once: no slam damage or stun, and her lockout and displacement immunity end early.", appliesTo: "target", tags: ["suppression"], source: "ambessa-r" },
+        { kind: "interaction", label: "Removing the suppression ends it", detail: "A target that removes the suppression in any way, for example with an applicable cleanse or dispel, breaks free at once: no slam damage or stun, and her lockout and displacement immunity end early.", appliesTo: "target", tags: ["suppression"], source: "ambessa-r" },
         { kind: "interaction", label: "Resisted by crowd-control immunity", detail: "A target immune to crowd control or displacement, or behind a spell shield, is not seized: she still blinks, with no damage and no stun.", appliesTo: "target", tags: ["cc-immune", "displacement-immune", "spell-shield"], source: "ambessa-r" },
         { kind: "sustain", label: "Heals from ability damage", detail: "Passive: 15 to 20% (by rank) of the damage her active abilities deal after mitigation, plus half her life steal; 25% as effective against minions and monsters.", appliesTo: "self", tags: ["heal"], source: "ambessa-r" },
       ],

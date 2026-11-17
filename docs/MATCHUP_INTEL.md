@@ -329,7 +329,7 @@ The index imports every file statically, and it is server-only. No client compon
 `src/app/client-imports.test.ts` refuses any path from browser code into `src/server`, apart from
 the few shared modules it lists. The browser gets only the plain view built from it.
 
-Curated so far, checked on 16 Nov 2026 for patch 26.22 (Data Dragon 16.22.1):
+Curated so far, checked on 17 Nov 2026 for patch 26.22 (Data Dragon 16.22.1):
 - champions: Ambessa, Gwen, Mordekaiser, Ornn, Renekton and Riven;
 - matchups: the three validation pairs, Ambessa vs Renekton, Gwen vs Ornn and Riven vs Mordekaiser.
 
@@ -420,8 +420,10 @@ review checks the rest.
     haste does not shorten it (Riven's Q, 0.3125 s; Gwen's R, 1 s). A delay before a recast opens
     ("can be recast after 0.5 seconds") goes in the recast's note.
 - Charges (per rank where they differ), recharge times and forms go in the `cooldown` spec, and a
-  recast's count and window in `recast`. `cooldownNote` holds only what fits nowhere else, such as
-  what "the effect" is for a start after it ("The mist lasts 4 s.").
+  recast's count and window in `recast`. `cooldownNote` holds only words on the cooldown that fit
+  nowhere else, as the page states them. It never says what "the effect" is for a start after it
+  unless the page does: a post-effect field names no effect, so a duration such as Hallowed Mist's
+  4 s goes in the details.
 - A passive gets a cooldown spec only when the page gives the passive's own cooldown, with
   `perTarget`, `static` and `starts` as stated. A timer of something else is a detail: Ornn's 4 s
   "Forge Disable Time" is the forge's, not Brittle's. Without a spec the page says Riot's data has
@@ -1009,14 +1011,19 @@ merge deploys.
 
    > Matchup Intel, for signed-in accounts, is a static reference for two champions chosen by hand: each ability's base cooldowns per rank from Data Dragon, and notes written from the League of Legends Wiki (cited, with the patch), with briefings for selected matchups. It makes no Riot API request and has no timers or tracking.
 2. **Say who curates the notes, and who approves briefings.** Done on 17 Nov 2026: the owner alone
-   curates and approves them. The owner read the three briefings (Ambessa vs Renekton, Gwen vs Ornn,
-   Riven vs Mordekaiser) and approved them "for now", and set the rule for every note: "Don't assume,
-   if you don't know because the wiki doesn't say then don't use that data." So the three readings
-   that were not on their own pages (Ambessa's Q, Renekton's E and Gwen's R "starts after the first
-   cast") were taken out (Cooldowns, `"after-first-cast"`). Still to follow in this pull request: an
-   audit of every note against the saved copies of the pages it cites, under that rule, and each
-   file's `verified.checkedOn` moved to 17 Nov 2026. The owner's rule is also that a briefing appears
-   only where a person wrote and checked it.
+   curates and approves them. The owner approved the three briefings (Ambessa vs Renekton, Gwen vs
+   Ornn, Riven vs Mordekaiser, sent as screenshots) "for now", and set the rule for every note:
+   "Don't assume, if you don't know because the wiki doesn't say then don't use that data." So the
+   three readings that were not on their own pages (Ambessa's Q, Renekton's E and Gwen's R "starts
+   after the first cast") were taken out (Cooldowns, `"after-first-cast"`), and every note was then
+   audited against the saved copies of the pages it cites under that rule. The audit classed 59
+   items as not stated: words that add "only", "all", "each", "first" or a timing, cooldown notes
+   that name which effect a post-effect start waits for, lists read from an interaction table whose
+   template was not saved, and header claims. Each was reworded to what its page states or removed,
+   and a re-audit of every changed line found further ones of the same kinds (a sum, a disputed
+   ratio, a sentence copied from the wiki), corrected the same way. Each file's
+   `verified.checkedOn` is now 17 Nov 2026. The owner's rule is also that a briefing appears only
+   where a person wrote and checked it.
 3. **Approve the Resources navigation change**: Resources becomes one sidebar entry for two
    sections, Library and Matchup Intel, with their tabs at the top of both pages, phones included
    (Where it is). If not, the fallback leaves the sidebar as it was and links the two pages from
