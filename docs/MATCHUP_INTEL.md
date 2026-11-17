@@ -115,11 +115,12 @@ The data comes in two layers, kept apart so each can improve without the other
   only.
 
 The page generates nothing: it shows Riot's Data Dragon data, labelled "not reviewed" where nobody
-has checked it, and the curated notes committed with the code. The notes go through a pull
-request, where a person checks them before they ship: the owner, who alone curates them. The first
-batch (16 Nov 2026) was drafted and cross-checked by AI agents; the owner approved its three
-briefings and set the rule under which every note was then audited and corrected (For the owner,
-step 2).
+has checked it, and the curated notes committed with the code. The notes change only through pull
+requests. The owner alone curates them, and from the second batch on writes or checks each file
+there before it ships. The first batch (16 Nov 2026) was drafted and cross-checked by AI agents.
+The owner approved its three briefings "for now", as drafted, and set the rule under which AI
+agents then audited and corrected every note; the corrections reworded parts of those briefings
+afterwards, and no person has checked each fact against its page (For the owner, step 2).
 
 ## Where it is
 
@@ -307,12 +308,13 @@ step 2).
 Riot's Data Dragon gives every champion's ability names, icons, ranks and base cooldown arrays. It
 does not say when a cooldown starts, what a recast needs, what crowd control an ability carries or
 what cancels it. The curated notes add that, in two layers. Each file is written from cited
-sources, in our own words, and a person checks it in a pull request before it ships. The owner
-alone curates the notes and approves briefings (17 Nov 2026). The first batch (16 Nov 2026) was
-drafted and cross-checked by AI agents; the owner approved its three briefings "for now", as
-drafted, and set the rule that a note says only what the wiki says, under which every note was
-then audited and corrected (For the owner, step 2). From then on the owner writes or checks each
-file, under the rules below.
+sources, in our own words, and changes only through a pull request. The owner alone curates the
+notes and approves briefings (17 Nov 2026, Sydney). The first batch (16 Nov 2026) was drafted and
+cross-checked by AI agents; the owner approved its three briefings "for now", as drafted, and set
+the rule that a note says only what the wiki says, under which AI agents then audited and corrected
+every note (For the owner, step 2). No person has checked each fact of the first batch against its
+page, and the corrections reworded parts of the briefings after the owner approved them. From then
+on the owner writes or checks each file, under the rules below.
 
 | Layer | Files | What it holds |
 |---|---|---|
@@ -411,7 +413,7 @@ review checks the rest.
   - `"after-first-cast"` only where the page says so in words: Riven's Broken Wings ("Starts after
     first cast"), which reads "starts after the first cast". On an ability cast again, the field's
     on-cast alone does not say which cast, so Ambessa's Q, Renekton's E and Gwen's R keep
-    `"on-cast"` and the page shows no start for them. The owner's rule (17 Nov 2026): "Don't assume,
+    `"on-cast"` and the page shows no start for them. The owner's rule (17 Nov 2026, Sydney): "Don't assume,
     if you don't know because the wiki doesn't say then don't use that data."
 - `modifiers`, only as the page states them:
   - `refund`: a share (`percent`) or seconds per rank, and what gives it back, in our words (Gwen's
@@ -496,7 +498,7 @@ page carries them as data, not words.
 - Its sources are the champion notes' sources of the same ids, copied whole.
 
 **Verification**
-- Every file carries `verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-16" }`:
+- Every file carries `verified: { patch: "26.22", ddragonVersion: "16.22.1", checkedOn: "2026-11-17" }`:
   the public patch, the Data Dragon version the arrays were compared with, and the day.
 
 ### Adding a champion
@@ -802,7 +804,7 @@ pages were read on 16 Nov 2026: the League of Legends documentation
 | Riot's words (where) | How the page meets them |
 | --- | --- |
 | "You must post the following legal boilerplate to your product in a location that is readily visible to players" (General Policies) | The footer shows the full notice (`riotLegal`, with the installation's name), as well as the app's other places for it. |
-| "Any new features or changes to a product must be audited through the product's page in the Developer Portal" (General Policies); "You must make sure its description and metadata are kept up to date with the current version of your product." (League docs) | Open until the owner updates the product's description (Open compliance questions; For the owner, step 1). |
+| "Any new features or changes to a product must be audited through the product's page in the Developer Portal" (General Policies); "You must make sure its description and metadata are kept up to date with the current version of your product." (League docs) | Done: the owner reported on 17 Nov 2026 (Sydney) that the product's description in the Developer Portal is now the one in RIOT_COMPLIANCE.md, which includes Matchup Intel (For the owner, step 1). It is updated again whenever a feature changes what is read or shown. |
 | "Products should use supported services from Riot Games for data ingestion" (General Policies) | Data Dragon only: no CommunityDragon data, and no value taken from the game's files. |
 | "You may not run your application for public consumption using a personal key" (portal page) | Signed-in accounts only. `/resources/*` is not a public path (`src/proxy.ts`), the page calls `requirePageAccess` itself, and the Production check proves that a signed-out request, or one with a forged session cookie, is sent to sign-in (LIVE_VALIDATION.md). |
 
@@ -878,7 +880,7 @@ pages were read on 16 Nov 2026: the League of Legends documentation
   branches that day, the same session's agents also opened the Library with nothing blocked: in a
   probe at 10:00 UTC, in a screenshot run from 13:16 to 13:24 UTC (11 page loads), in eight WebKit
   workflow runs and in local runs of the same tests (Open compliance questions, "Scripted reads of
-  the wiki"). The same tests ran again on 17 Nov, locally and in the WebKit workflow, to validate
+  the wiki"). The same tests ran again on 17 Nov, locally, in CI and in the WebKit workflow, for
   this pull request and other branches.
 
 ## Open compliance questions
@@ -887,10 +889,10 @@ Each has a default that the code follows today. Only the owner changes one.
 
 | Question | The default the code follows now | Who decides |
 | --- | --- | --- |
-| **The Developer Portal description.** Riot audits every new feature through the product's registered description (above). | The description in [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md) ("Description for the registration") includes Matchup Intel. The registered one must say the same before the page reaches production, so the merge, which deploys, waits for it. | The owner (For the owner, step 1) |
+| **The Developer Portal description.** Riot audits every new feature through the product's registered description (above). | Done on 17 Nov 2026 (Sydney): the owner reported the registered description replaced with the one in [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md) ("Description for the registration"), which includes Matchup Intel. | The owner (done) |
 | **A licence header on the curated files.** The repository is public and has no licence of its own. | Our own words, credited, not relicensed: each file's header says its texts are UNIIVERSE's own summaries, its sources list each page with its revision, and the footer credits them. No file declares a licence for itself. A scan of the notes against the pages they cite finds no copied sentence, only runs of numbers and game terms (six to ten words), so the risk that a passage counts as adapted is small, but not none. The recommended choice is a conditional header in each file ("Any material in this file adapted from the League of Legends Wiki is available under CC BY-SA 3.0"), which would cover any such passage without saying anything was adapted; it is not added, because a licence grant is the copyright holder's act. | The owner |
 | **Scripted reads of the wiki** (for example drafts of changes on patch day). | None of its pages. Weird Gloop's prior consent would be needed first (its Terms of Use, above). If it were given, a script would only draft changes for a person to review in a pull request, never publish them. One kind of small automated request exists today, outside Matchup Intel: the browser tests that open the Library or its manager can load the wiki's favicon, in CI and in the WebKit workflow (No automated use, above). Blocking icons in those tests, or a built-in icon for the wiki's entry (the Library and the manager draw the same one), would end it. | The owner, after asking Weird Gloop |
-| **Who curates, and who approves briefings.** The owner's rule is a briefing only where a person wrote and checked it. | Decided on 17 Nov 2026: the owner alone curates the notes and approves briefings. Notes change only through pull requests, reviewed there: the page generates nothing, and nothing is published by itself. The first notes (16 Nov 2026) were drafted and cross-checked by AI agents; the owner approved their three briefings "for now", as drafted, and set the rule for every note, "Don't assume, if you don't know because the wiki doesn't say then don't use that data", under which every note was then audited and corrected (For the owner, step 2). | The owner (decided) |
+| **Who curates, and who approves briefings.** The owner's rule is a briefing only where a person wrote and checked it. | Decided on 17 Nov 2026 (Sydney): the owner alone curates the notes and approves briefings. Notes change only through pull requests, reviewed there: the page generates nothing, and nothing is published by itself. The first notes (16 Nov 2026) were drafted and cross-checked by AI agents; the owner approved their three briefings "for now", as drafted, and set the rule for every note, "Don't assume, if you don't know because the wiki doesn't say then don't use that data", under which AI agents then audited and corrected every note; no person has checked each fact against its page (For the owner, step 2). | The owner (decided) |
 | **How the first notes were researched.** On 16 Nov 2026, between 05:51 and 06:43 UTC, while researching the first batch, AI agents made 40 scripted requests to wiki.leagueoflegends.com and 8 to Weird Gloop's own sites. The wiki's: a first probe at 05:51 (one API request, the Ambessa page, then its robots.txt, which disallows `/*api.php` and `/*?action=` for every crawler), two API requests at 06:01 and 06:07, and from 06:13 the robots.txt again, 33 API requests and the Renekton page: 36 to its API in all, every one at `/en-us/api.php?action=…`, two pages and the robots.txt twice. Weird Gloop's: the robots.txt of meta.weirdgloop.org and of weirdgloop.org, Meta:Copyrights twice, and its Terms of Use four times (weirdgloop.org/terms twice, each answered with a redirect to /terms/, and /terms/ twice). They saved copies of the pages the notes cite and of others they consulted (other champions' ability data, the six champions' patch histories and main pages, the wiki's modules and policy pages), and drafted and cross-checked the notes from those copies, which were never committed; all 34 cited revisions come from them. The Terms of Use (above) do not allow automated use without prior consent. | Disclosed in this feature's pull request, and here. Nothing in the app, its jobs or its tests reads the wiki's pages (the one request they make there is the wiki's favicon, drawn by the Library and its manager: No automated use, above), and curators read it in a browser from now on. The remedy is not chosen: a person re-reads each cited revision in a browser and records it in the pull request, or Weird Gloop is asked for consent after the fact, or both. | The owner |
 | **Riot's "Legal Jibber Jabber" sentence**: "[The title of your Project] was created under Riot Games' "Legal Jibber Jabber" policy using assets owned by Riot Games. Riot Games does not endorse or sponsor this project." (https://www.riotgames.com/en/legal) | Not shown. The app shows the Developer Portal's notice word for word, which the General Policies require. | The owner |
 
@@ -1007,32 +1009,39 @@ or generates from it, and building it needs no model, key or outside service.
 The steps only the owner can take, in order. The first three come before the merge, because the
 merge deploys.
 
-1. **Update the product's description in Riot's Developer Portal** before Matchup Intel reaches
-   production: replace it with the description in RIOT_COMPLIANCE.md ("Description for the
-   registration"; Registering the product, step 2). No key or endpoint changes. Its Matchup Intel
+1. **Update the product's description in Riot's Developer Portal.** Done by the owner on 17 Nov
+   2026 (Sydney). Before Matchup Intel reaches production, replace it with the description in
+   RIOT_COMPLIANCE.md ("Description for the registration"; Registering the product, step 2). No key or endpoint changes. Its Matchup Intel
    part, word for word (`src/server/riot/registration-description.test.ts` keeps the two copies
    the same):
 
    > Matchup Intel, for signed-in accounts, is a static reference for two champions chosen by hand: each ability's base cooldowns per rank from Data Dragon, and notes written from the League of Legends Wiki (cited, with the patch), with briefings for selected matchups. It makes no Riot API request and has no timers or tracking.
-2. **Say who curates the notes, and who approves briefings.** Done on 17 Nov 2026: the owner alone
-   curates and approves them. The owner approved the three briefings (Ambessa vs Renekton, Gwen vs
-   Ornn, Riven vs Mordekaiser, sent as screenshots) "for now", and set the rule for every note:
-   "Don't assume, if you don't know because the wiki doesn't say then don't use that data." So the
-   three readings that were not on their own pages (Ambessa's Q, Renekton's E and Gwen's R "starts
-   after the first cast") were taken out (Cooldowns, `"after-first-cast"`), and every note was then
-   audited against the saved copies of the pages it cites under that rule. The audit classed 59
-   items as not stated: words that add "only", "all", "each", "first" or a timing, cooldown notes
-   that name which effect a post-effect start waits for, lists read from an interaction table whose
-   template was not saved, and header claims. Each was reworded to what its page states or removed,
-   and a re-audit of every changed line found further ones of the same kinds (a sum, a disputed
-   ratio, a sentence copied from the wiki), corrected the same way. Each file's
-   `verified.checkedOn` is now 17 Nov 2026. The owner's rule is also that a briefing appears only
-   where a person wrote and checked it.
-3. **Approve the Resources navigation change**: Resources becomes one sidebar entry for two
+2. **Say who curates the notes, and who approves briefings.** Done on 17 Nov 2026 (Sydney; 16 Nov,
+   21:16 UTC): the owner alone curates and approves them. The owner approved the three briefings
+   (Ambessa vs Renekton, Gwen vs Ornn, Riven vs Mordekaiser, sent as screenshots) "for now", and
+   set the rule for every note: "Don't assume, if you don't know because the wiki doesn't say then
+   don't use that data." So the three readings that were not on their own pages (Ambessa's Q,
+   Renekton's E and Gwen's R "starts after the first cast") were taken out (Cooldowns,
+   `"after-first-cast"`), and AI agents then audited every note against the saved copies of the
+   pages it cites, under that rule. By the nine auditors' tallies 59 items were not stated, among
+   them words that add "only", "all", "each", "first" or a timing, cooldown notes that name which
+   effect a post-effect start waits for, lists read from an interaction table whose template was
+   not saved, effects, terms and tags no page gives, and header claims. Each was reworded to what
+   its page states or removed, except eight header sentences the audit said to keep once the rest
+   was fixed (seven) or once `verified.checkedOn` moved to 17 Nov (one). Re-audits of the changed
+   lines returned 28 findings (27 distinct, among them a sum, a disputed ratio and a sentence copied
+   too closely from the wiki): 26 were applied (Gwen's added-up totals removed rather than
+   recorded), and one was not, the request to restore "only" and "before ability haste" in the
+   Ambessa vs Renekton opportunity. Each file's `verified.checkedOn` is now 17 Nov 2026. No person
+   has checked each fact against its page, and the corrections reworded parts of the three approved
+   briefings. The owner's rule is also that a briefing appears only where a person wrote and
+   checked it.
+3. **Approve the Resources navigation change** (approved by the owner on 17 Nov 2026, Sydney):
+   Resources becomes one sidebar entry for two
    sections, Library and Matchup Intel, with their tabs at the top of both pages, phones included
    (Where it is). If not, the fallback leaves the sidebar as it was and links the two pages from
    under their headers.
-4. **Approve the merge**, which deploys to production (CLAUDE.md §4: within the deploy budget, the
+4. **Approve the merge** (approved by the owner on 17 Nov 2026, Sydney), which deploys to production (CLAUDE.md §4: within the deploy budget, the
    "merge" method and the exact head), then read the Production check on the deployed commit.
 5. **Decide whether the Production check opens Matchup Intel signed in.** Today it proves only that
    the page is closed to visitors (LIVE_VALIDATION.md). Opening one pair at desktop width would
