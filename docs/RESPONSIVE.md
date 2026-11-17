@@ -70,56 +70,77 @@ fit (iPhone 15 and wider) and scroll on narrower phones.
 ## Team Overview's lineup
 
 The lineup (`team-roster.tsx`) is laid out by its own width (the `lineup` container), so the same
-rules hold beside an open or a collapsed sidebar, and by the window's height:
+rules hold beside an open or a collapsed sidebar, and by the window's height. These are the
+approved design's rules (October 2026), restored at the owner's request on 17 Nov 2026 with its
+header, centring, card proportions and stage; November's redesign had moved 3 + 2 to 42rem and five
+across to 58rem, capped the lineup at 100rem from a 90rem lineup and stretched the cards' art to
+fill the window. Its phone and short-window work stays.
 
 | Lineup | Layout |
 | --- | --- |
 | under 36rem (phones upright) | one swipe track, a card at a time, under the role bar (each tab the player's picture and the role) |
-| 36–42rem | 2 + 2 + 1 |
-| 42–58rem (upright tablets, a 1024px laptop) | 3 + 2: an upright iPad (810 × 1080) shows both rows whole on the first screen, the bench's chips just under it (1.05 screens) |
-| 58rem and up (a 1280px laptop with the sidebar open) | five across, capped at 84rem, at 100rem from a 90rem lineup (2560px and up) |
+| 36–56rem (iPads, upright and landscape) | 2 + 2 + 1, capped at 54rem |
+| 56–64rem (a 1280px laptop with the sidebar open) | 3 + 2, capped at 80rem |
+| 64rem and up (1366 and 1440 laptops with the sidebar open, and wider) | five across, capped at 84rem |
 | a short window, any width | one sideways track, two or three cards in view, no role bar; from lg (a short desktop window: devtools docked under it, a split screen) the track stays inside the content and scrolls within it, never as wide as its five cards |
 
-- **The header** is one row everywhere: the logo (56px on desktops, 48px on tablets, 44px held
-  sideways, none on a phone held upright, where the top bar shows it), the team's name over one
-  line of the lineup's context and state, and Edit lineup. A long name wraps whole, never cut. The
-  state: a quiet "Lineup complete", or for a lineup with a role open a pill from `sm`; on a phone
-  a warn token on the same line instead ("● 4/5 roles", the sentence read out and in its title;
-  where a lineup manager's Edit takes the room, "● 4/5" on a 360px phone and the dot alone at
-  320px), so the header keeps its one 48px row either way.
-- **Five across, the cards fill the window:** the page starts under the section tabs (no centring),
-  and the cards' art takes the height the window leaves: everything else down the page is known in
-  rem (the page's frame, the header, the card's body, the bench), so `lineup-art-height` in
-  globals.css sizes the art from `100dvh` less that, from 13rem up to 1.9 times the card's width
-  and 30rem. The account's own action cards above the section tabs (`AccountNudges`: complete your
-  profile, set a password) are counted too (`--lineup-nudges`, from how many it shows). Edit
-  lineup's bar is left out of the sum, so entering it moves nothing on the cards (the page grows
-  instead).
-  - **Measured (demo lineup, sidebar open):** windows of 1280 × 800, 1366 × 768, 1440 × 900,
-    1536 × 864 and 1920 × 1080 end with the bench on the first screen and nothing to scroll; on
-    2560px screens and wider the art reaches its largest size and the page ends above the window's
-    foot (271px at 2560 × 1440).
+- **The header**, from `sm` in a window taller than 480px: the logo (64px, 80px from `lg`) beside
+  the accent "Team Overview" eyebrow over the team's name (30px, 36px from `lg`) and "Main lineup ·
+  season", the lineup's state as a pill on a line of its own with its ⓘ inside (green when the
+  lineup is complete, warn when a role is open), and Edit lineup at the row's end: 113px tall at
+  1440 × 900, as approved. A phone held upright and a short window keep one compact row: no logo
+  upright (the top bar right above shows it), 44px held sideways, the name over one line of the
+  lineup's context and state. There the state is a quiet "Lineup complete" (only its ⓘ on a
+  phone), or for a lineup with a role open a pill held sideways and on a phone a warn token on the
+  same line ("● 4/5 roles", the sentence read out and in its title; where a lineup manager's Edit
+  takes the room, "● 4/5" on a 360px phone and the dot alone at 320px), so the phone's header
+  keeps its one 48px row. A long name wraps whole, never cut.
+- **Centred in the window** (from `lg`): on this page `main` and the page are flex columns, so the
+  frame (`lineup-frame`) takes the height left under the section tabs and centres the header, the
+  cards and the bench under them, with as much room above the header as under the bench. A window
+  too short for that starts at the top and scrolls. Five across, the cards' art is
+  `clamp(13rem, 29vh, 20rem)`: portrait cards that grow a little with the window, never stretched
+  to fill it.
+  - **Measured (demo lineup, sidebar open; 17 Nov 2026):** 1366 × 768, 1440 × 900, 1536 × 864 and
+    1920 × 1080 show the whole lineup and its bench centred on one screen, with 11px, 65px, 52px
+    and 102px above the header and under the bench (2560 × 1440, sidebar folded: 187px). The
+    approved design had 48px, 95px, 82px, 135px and 226px there before the bench: the bench (60px
+    at a 16px root: 12px above its 44px chips and 4px under them) is the only extra height. The
+    art is 223px tall at 1366 × 768, 261px at 1440 × 900, 313px at 1920 × 1080 and 412px at
+    2560 × 1440, as approved. 1280 × 800 is 3 + 2 and scrolls 1.35 screens (1.28 before the
+    bench), an upright iPad (810 × 1080) is 2 + 2 + 1 at 1.41 screens (1.36), a landscape one
+    (1080 × 810) 1.83 (1.75).
   - **In a real browser** the window is shorter than the screen by its toolbars (and the taskbar):
-    1440 × 789 and 1920 × 950 still fit, but a 1366 × 768 laptop gives about 1366 × 657, where the
-    cards stay whole with their art at its 13rem floor and the bench sits at the fold (1.11 screens;
-    1.14–1.15 at 641–633px), and a 1280 × 800 laptop about 1280 × 690 (1.08 screens, the bench two
-    thirds in view). The cards fitted there before at 1.02–1.06 screens without a bench: the bench
-    is the extra height, as on upright phones.
-- **The bench** follows the cards: five across, a cell under each card, of one height along the
-  row (the substitute, "No substitute", or nothing under an open role: on the public page a role
-  whose player is not shown keeps its substitute private too); otherwise a row of chips for the
-  roles that have one, two to a row on a phone held upright (a lone last chip takes the row; at a
-  large text size, where two would leave a name less than about 4rem, one to a row), their names
-  wrapping inside the chip.
-- **Narrow cards** (five across a laptop): a card under 12.5rem shows its season as two columns (the
-  win rate; KDA over CS/min) and steps its sides in by 2px and its link icons 2px closer, so three
-  links still share the picture's row and the pictures stay level along the row; under 16.5rem
-  among cards side by side (five across up to about 2000px wide, three across a tablet) the rest of
-  the pool gets a row of its own, so all five of its other champions show, and kills / deaths /
-  assists per game show from 16.5rem, where they fit uncut. A phone's single card (about 16.4rem
-  on a 320px phone) is the phone card as it was: its pool on one row, its kills / deaths / assists
-  shown. In Edit lineup a card under 14.25rem stands its two controls one above the other, so both
-  labels stay whole.
+    1440 × 789 and 1920 × 950 still centre the whole lineup (26px and 56px above the header and
+    under the bench); a 1366 × 768 laptop's 1366 × 657 starts at the top and scrolls 1.11 screens
+    (1.02 before the bench), the cards whole above the fold; a 1280 × 800 laptop's 1280 × 690,
+    3 + 2, 1.57 (1.48).
+  - **The public page** centres the same way between its header and the footer with Riot's notice,
+    which stays on the first screen at 1280 × 800, 1366 × 768, 1440 × 900 and 1920 × 1080 (52px,
+    41px, 88px and 137px above the header and under the bench).
+- **The stage**, five across: the cards stand on a floor lit from just under them
+  (`lineup-stage-floor`: a radial glow in the brand blue, a hairline at their foot, and the team's
+  logo in grayscale at 7% or its short name at 3.5% as a watermark). It is decoration: hidden from
+  screen readers, behind the cards and the bench (`-z-10` in the stage's own stacking context),
+  absolutely placed and clipped by the frame (`overflow-y-clip`), so it never sizes a card or adds
+  a scroll (DESIGN_SYSTEM.md §4: the one place the brand blue is a light).
+- **The bench** follows the cards, 12px under them: one compact, centred row of the substitutes
+  that exist, after a "Substitutes" label, at every width (five across, on the floor's light). A
+  role without a substitute has no chip. On a phone held upright two chips to a row (a lone last
+  chip takes the row; at a large text size, where two would leave a name less than about 4rem, one
+  to a row), their names wrapping inside the chip. From lg it keeps 4px under its chips, so a
+  focused chip's ring stays whole where the bench ends the frame's clip (a window shorter than the
+  lineup).
+- **Narrow cards** (five across a laptop): a card under 12.5rem (five across a 1366px laptop with
+  the sidebar open: 12.47rem) shows its season as two columns (the win rate; KDA over CS/min) and
+  steps its sides in by 2px and its link icons 2px closer, so three links still share the
+  picture's row and the pictures stay level along the row; kills / deaths / assists per game show
+  from 16.5rem among cards side by side, where they fit uncut, so five across (cards of about
+  12.5–15.8rem) they stay in the hover text, for screen readers and in the player's window (the
+  approved design showed them from 14.5rem, at 1920 × 1080 and wider, cut off with an ellipsis
+  there). The pool keeps one row, as approved. A phone's single card (about 16.4rem on a 320px
+  phone) is the phone card as it was, its kills / deaths / assists shown. In Edit lineup a card
+  under 14.25rem stands its two controls one above the other, so both labels stay whole.
 - **Identity rows** stay level side by side (`CardIdentity align`): a shorter name sits at the foot
   of the room kept for a longer one, on its rank, so the room stays above it in the art.
 
@@ -202,12 +223,17 @@ as a long page scrolls, All Champions' column headings pin under them, and nothi
 short window; the tablet's menu keeps focus inside and gives it back to the menu button; the
 installed app's Back on a tablet (the display mode stood in for, as Chromium cannot emulate it);
 the filter sheet's Done leaves with its motion; Admin Mode's Settings has its title.
-Team Overview's lineup: `e2e/home-layout.spec.ts` (five across from 1280 × 800 to 2560 × 1440,
-anchored under the tabs, nothing to scroll, the bench under the cards; a 1280 × 450 window's track
-inside the page), `e2e/team-layout.spec.ts` (the one-row header, 3 + 2 on a tablet, the phone's
-track, role bar and two chips to a row, the header and first card with a role open, no member's
-picture asked for while the first card's art loads), `e2e/card-layout.spec.ts` (identity rows
-level) and `e2e/mobile-landscape.spec.ts` (the sideways track held sideways, clear of the notch).
+Team Overview's lineup: `e2e/home-layout.spec.ts` (1440 × 900 and 1920 × 1080: five across,
+centred under the section tabs with the bench under the cards, nothing to scroll, the art within
+its 20rem cap, the floor drawn from just under the cards; 1366 × 768: five equal cards, whole on
+the first screen; 2560 × 1440: the 84rem cap, the bench centred under the cards; a 1440 × 560
+window starting at the top; a 1280 × 450 window's track inside the page),
+`e2e/team-layout.spec.ts` (from a tablet up the header's eyebrow over the name, the name's size and
+the state under it; 2 + 2 + 1 on a tablet, the bench in one centred row; the phone's track, role
+bar and two chips to a row, the header and first card with a role open, no member's picture asked
+for while the first card's art loads), `e2e/team-logo.spec.ts` (the logo's sizes),
+`e2e/card-layout.spec.ts` (identity rows level) and `e2e/mobile-landscape.spec.ts` (the sideways
+track held sideways, clear of the notch).
 In this repository's sandbox set `PW_CHROMIUM_PATH` to the Chromium binary.
 
 The wider audit script that produced the before/after numbers (eight viewports × twelve routes,
