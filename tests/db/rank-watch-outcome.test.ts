@@ -12,10 +12,12 @@ import { runJob } from "@/server/jobs";
 import { GET as health } from "@/app/api/health/route";
 
 /*
-  The rank watch's outcome, as Admin shows it: a run in which no account tried could be read (a
-  Riot outage, timeouts, the network) is degraded and says so in counts, so Admin repeats it as a
-  warning. It is still not "failing": a Riot outage must not fail the scheduled Data jobs run.
-  A partial read, a full rate limit and a refused key keep their own outcomes.
+  The rank watch's outcome, as Admin shows it: a run in which no account could be read (every one
+  tried failed: a Riot outage, timeouts, the network; or the rate limits had no room before the
+  first reading) is degraded and says so in counts, so Admin repeats it as a warning. It is still
+  not "failing": neither a Riot outage nor a busy key may fail the scheduled Data jobs run, and the
+  run still answers ok, so the schedule's call is not refused. A partial read, a full rate limit
+  after a reading and a refused key keep their own outcomes.
 */
 
 const ZERO_KEY = "RGAPI-00000000-0000-0000-0000-000000000000";
@@ -52,11 +54,14 @@ afterEach(() => {
   invalidateCache("riot-credential");
 });
 
-/** The given accounts due again (last read 10 minutes ago, the others just read), then one run with Riot answering per account. */
+/**
+ * The given accounts due again (last read 10 to 12 minutes ago, the first longest ago, so it is read
+ * first; the others just read), then one run with Riot answering per account.
+ */
 async function run(answer: (puuid: string) => number | "ok", due = accounts) {
   const db = handle.db;
   await db.update(rankSnapshots).set({ confirmedAt: new Date() }).where(inArray(rankSnapshots.accountId, accounts));
-  await db.update(rankSnapshots).set({ confirmedAt: new Date(Date.now() - 10 * 60_000) }).where(inArray(rankSnapshots.accountId, due));
+  for (const [i, id] of due.entries()) await db.update(rankSnapshots).set({ confirmedAt: new Date(Date.now() - (10 + due.length - i) * 60_000) }).where(eq(rankSnapshots.accountId, id));
   process.env.RIOT_API_KEY = ZERO_KEY;
   vi.stubGlobal("fetch", async (input: string | URL | Request) => {
     const puuid = decodeURIComponent(String(input).split("/entries/by-puuid/")[1] ?? "");
@@ -89,15 +94,26 @@ describe("the rank watch's outcome", () => {
     expect(outcome.error).toBe("The one account tried this run could not be read; the run's log says why.");
   });
 
-  it("is unchanged for a partial read, a refused key and a full rate limit", async () => {
+  it("is unchanged for a partial read and a refused key", async () => {
     const partial = await run((p) => (p === "watch-a" ? "ok" : 503));
     expect(partial).toMatchObject({ ok: true, degraded: false, summary: { read: 1, failed: 1 } });
     expect(partial.error).toBeUndefined();
     const refused = await run(() => 403);
     expect(refused).toMatchObject({ ok: true, degraded: true, error: "Riot refused the key (403)" });
-    // Last: a 429 pauses the process-wide limiter.
+  });
+
+  // Last: a 429 pauses the process-wide limiter (for its retry-after, 0 here).
+  it("says so in counts when the rate limits had no room before the first reading, still without failing", async () => {
+    const db = handle.db;
     const limited = await run(() => 429);
-    expect(limited).toMatchObject({ ok: true, degraded: false, summary: { read: 0, failed: 0, stoppedBy: "no room in the rate limits" } });
-    expect(limited.error).toBeUndefined();
+    expect(limited).toMatchObject({ ok: true, degraded: true, summary: { due: 2, read: 0, failed: 0, stoppedBy: "no room in the rate limits" } });
+    expect(limited.error).toBe("None of the 2 accounts due could be read this run: the rate limits had no room before the first reading (account sync and the rank checks share them); the next run reads again.");
+    expect((await getDataHealth(db)).warnings).toContain(`rank-watch: ${limited.error}`);
+    expect(((await (await health()).json()) as { failingJobs: string[] }).failingJobs).not.toContain("rank-watch");
+    expect((await run(() => 429, [accounts[0]!])).error).toBe("The one account due could not be read this run: the rate limits had no room before the first reading (account sync and the rank checks share them); the next run reads again.");
+    // After a reading, a full rate limit is a partial read, as before: the next run reads the rest.
+    const after = await run((p) => (p === "watch-a" ? "ok" : 429));
+    expect(after).toMatchObject({ ok: true, degraded: false, summary: { read: 1, failed: 0, stoppedBy: "no room in the rate limits" } });
+    expect(after.error).toBeUndefined();
   });
 });

@@ -11,11 +11,16 @@ import { canonicalPatch } from "@/domain/patch";
 /*
   Read-only audit of ranked history for the 2026 ranked year (from 8 January): for every linked
   account of the team's players and each ranked queue, Riot's own count of the year's games
-  against the stored games, the rank readings and what lies between them, and how many games have
-  an LP change recorded under domain/lp-attribution's rules (with a few recent examples to check
-  by hand). Also when each 2026 season's first patch first appears in the stored games, how often
-  accounts were synced and ranks read, and the year's games week by week. Accounts appear as
-  P1/A1 (player 1, account 1) only: no names, Riot IDs or PUUIDs. Changes nothing.
+  against the stored games, the stored rank readings and what lies between them, and how many
+  games have an LP change recorded under domain/lp-attribution's rules (with a few recent examples
+  to check by hand). Also when each 2026 season's first patch first appears in the stored games,
+  the account syncs and the rank changes of each of the last 21 days, and the year's games and
+  rank changes week by week. A stored reading is a row of rank_snapshots, one per rank change (an
+  unchanged reading only confirms the last row), so every count of readings here counts changes,
+  never how often ranks were read (for that: Data jobs rank-schedule-status, the schedule's runs
+  and calls).
+  Accounts appear as P1/A1 (player 1, account 1) only: no names, Riot IDs or PUUIDs. Changes
+  nothing.
 */
 
 const QUEUE_ID: Record<RankQueue, number> = { solo: 420, flex: 440 };
@@ -46,7 +51,7 @@ function lpTally(records: Iterable<LpRecord>) {
 
 defineJob({
   key: "rank-audit",
-  description: "Read-only: the 2026 ranked year's rank history per account and queue (Riot's game count against the stored games, the rows without a champion by kind, the readings and the gaps between them, the games with a recorded LP change and why the others have none), the 2026 seasons' first patches, how often ranks were read, and the year's games by week. Accounts as P1/A1 only. Changes nothing.",
+  description: "Read-only: the 2026 ranked year's rank history per account and queue (Riot's game count against the stored games, the rows stored without a length or a champion by kind, the stored readings (one per rank change) and the gaps between them, the games with a recorded LP change and why the others have none), the 2026 seasons' first patches, the account syncs and rank changes per day, and the year's games and rank changes by week. Accounts as P1/A1 only. Changes nothing.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,
   run: async (ctx) => {
@@ -89,13 +94,16 @@ defineJob({
           const countedGames = list.filter(isCountedGame);
           // Riot's count of the year's games at the first reading, against the stored games ended by then.
           const check = first && first.wins !== null && first.losses !== null ? { riotCount: first.wins + first.losses, ...storedCountAt(first.capturedAt, list) } : null;
-          // The queue's rows without a champion, which no page counts, by what they are: a game
-          // Riot refused for good (recorded with no start time, so it is on no page and in no count
-          // here), or one whose champion the list did not have when it was stored (counted above as
-          // a game, shown nowhere). Where Riot's count exceeds the stored games, these say why.
+          // The queue's rows without a champion, which no page counts. A listed game Riot refused
+          // for good is recorded with no start time (refusedForGood), so it is on no page and in no
+          // count here. Every other row the sync stores without a champion (a remake, a game whose
+          // champion was still unknown three days after it, a game whose record does not name the
+          // account) has no length either: it is counted in withoutLength below, never here.
+          // championUnknownWithLength counts rows with a counted length and no champion, which no
+          // version of the sync has stored, so only rows written some other way.
           const withoutChampion = {
             refusedForGood: games.filter((g) => g.accountId === a.id && g.queueId === QUEUE_ID[queue] && Number(g.gameCreation) === 0).length,
-            championUnknown: yearGames.filter((g) => g.accountId === a.id && g.queueId === QUEUE_ID[queue] && g.championId === null && isCountedGame({ matchId: g.matchId, createdAt: g.gameCreation, durationS: g.gameDuration, win: g.win })).length,
+            championUnknownWithLength: yearGames.filter((g) => g.accountId === a.id && g.queueId === QUEUE_ID[queue] && g.championId === null && isCountedGame({ matchId: g.matchId, createdAt: g.gameCreation, durationS: g.gameDuration, win: g.win })).length,
           };
           const gaps: Record<string, number> = { "0 games": 0, "1 game": 0, "2 games": 0, "3-5 games": 0, "6+ games": 0, reset: 0 };
           const minutes: number[] = [];
@@ -135,11 +143,20 @@ defineJob({
             queue,
             {
               games: countedGames.length,
-              remakes: list.filter((g) => g.durationS !== null && !isCountedGame(g)).length,
+              // Rows with a stored length under five minutes, which Riot does not count. The sync
+              // stores a remake without a length (withoutLength), so only rows written some other
+              // way are counted here.
+              remakesWithLength: list.filter((g) => g.durationS !== null && !isCountedGame(g)).length,
+              // Rows with no stored length. The sync stores three kinds this way, with the start
+              // time and the queue only: a remake, a game whose champion was still unknown three
+              // days after it (five minutes or more, so Riot counts it) and a game whose record does
+              // not name the account. Which is which is not stored, so where Riot's count exceeds
+              // the stored games, these rows may be the difference.
               withoutLength: list.filter((g) => g.durationS === null).length,
               firstGame: iso(countedGames[0]?.createdAt),
               lastGame: iso(countedGames.at(-1)?.createdAt),
               bySeason,
+              // Stored readings: one row per rank change, so changes, not how often the rank was read.
               readings: rows.length,
               distinctReadings: readings.length,
               firstReading: iso(first?.capturedAt),
@@ -170,7 +187,7 @@ defineJob({
       return { season: s.label, from: isoDay(s.from), firstPatch: s.firstPatch, firstStoredGameOnPatch: firsts.length ? iso(Math.min(...firsts)) : null };
     });
 
-    // The team's 2026 ranked games and readings by week, from the week of 8 January.
+    // The team's 2026 ranked games and rank changes (stored readings) by week, from the week of 8 January.
     const weeks = new Map<string, { solo: number; flex: number; soloReadings: number; flexReadings: number }>();
     for (let w = Date.parse(`${weekOf(RANKED_YEAR_START)}T00:00:00Z`); w <= now; w += 7 * DAY) weeks.set(isoDay(w), { solo: 0, flex: 0, soloReadings: 0, flexReadings: 0 });
     for (const g of yearGames) {
@@ -183,7 +200,8 @@ defineJob({
       if (row) row[s.queue === "solo" ? "soloReadings" : "flexReadings"] += 1;
     }
 
-    // How often accounts were synced (each sync reads the rank) and ranks recorded, the last 21 days.
+    // The last 21 days, day by day: the account-sync runs by trigger, and the rank changes recorded
+    // (stored readings). Not how often ranks were read: an unchanged reading adds no row.
     const since = new Date(now - 21 * DAY);
     const syncRuns = await db.select({ startedAt: jobRuns.startedAt, trigger: jobRuns.trigger }).from(jobRuns).where(and(eq(jobRuns.job, "account-sync"), gte(jobRuns.startedAt, since)));
     const cadence = new Map<string, { syncRuns: number; byTrigger: Record<string, number>; readings: number }>();
@@ -203,7 +221,7 @@ defineJob({
     const totals: Record<string, number> = {};
     for (const t of allLp) for (const [k, v] of Object.entries(t)) totals[k] = (totals[k] ?? 0) + v;
     const firstReading = snapshots.reduce<number | null>((m, s) => (m === null || s.capturedAt.getTime() < m ? s.capturedAt.getTime() : m), null);
-    ctx.log(`rank-audit: ${accounts.length} accounts, ${yearGames.length} ranked games of 2026 stored, ${snapshots.length} rank readings since ${iso(firstReading) ?? "never"}; LP recorded for ${totals.lp ?? 0} games`);
+    ctx.log(`rank-audit: ${accounts.length} accounts, ${yearGames.length} ranked rows of 2026 stored, ${snapshots.length} stored rank readings (one per change) since ${iso(firstReading) ?? "never"}; LP recorded for ${totals.lp ?? 0} games`);
     return {
       ok: true,
       summary: {

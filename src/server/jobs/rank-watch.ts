@@ -22,7 +22,9 @@ import { isRiotPlatform } from "@/domain/riot-platforms";
   - never-ranked accounts are left to account sync, which reads every account's rank anyway.
   Limits: at most RANK_WATCH_MAX accounts a run, half of each rate-limit window (account sync and
   the rank checks share the key), no retries and no waiting: a run with no room left stops, as it
-  does at a refused key. Nothing is lost by a skipped run: the next one reads again.
+  does at a refused key. Nothing is lost by a skipped run: the next one reads again. A run that
+  read no account (every one tried failed, or no room before the first reading) is degraded and
+  says so in counts, so Admin repeats it; it still answers ok, so its caller never sees a failure.
 */
 
 export const RANK_WATCH_ACTIVE_DAYS = 30;
@@ -76,6 +78,9 @@ export interface RankWatchRun {
   stoppedBy: string | null;
 }
 
+/** Why a run stopped when the rate limits had no room for its next request (Riot's 429, or the client's own limiter). */
+export const NO_ROOM_IN_RATE_LIMITS = "no room in the rate limits";
+
 /** Reads the accounts due now, one request each, until the deadline, a full rate limit or a refused key. */
 export async function watchRanks(db: Db, client: RiotApiClient, options: { deadline: number; log?: (message: string) => void; now?: number }): Promise<RankWatchRun> {
   const now = options.now ?? Date.now();
@@ -104,7 +109,7 @@ export async function watchRanks(db: Db, client: RiotApiClient, options: { deadl
         break;
       }
       if (err instanceof RiotApiError && err.status === 429) {
-        run.stoppedBy = "no room in the rate limits";
+        run.stoppedBy = NO_ROOM_IN_RATE_LIMITS;
         break;
       }
       run.failed += 1;
@@ -126,7 +131,17 @@ defineJob({
     const refused = run.stoppedBy?.startsWith("Riot refused") ?? false;
     // Every account tried failed (Riot 5xx, a timeout, the network): said in counts, so Admin repeats it as a warning.
     const noneRead = run.read === 0 && run.failed > 0;
-    const error = refused ? (run.stoppedBy ?? undefined) : noneRead ? `${run.failed === 1 ? "The one account tried this run could not be read" : `None of the ${run.failed} accounts tried this run could be read`}; the run's log says why.` : undefined;
-    return { ok: true, degraded: refused || noneRead, error, summary: { ...run, requests: client.requestCount } };
+    // The rate limits had no room before the first reading (account sync and the rank checks share
+    // the key): nothing was read either, said the same way. Not a failure: the run still answers ok
+    // (the schedule's call 200), /api/health does not list it, and the next run reads again.
+    const noRoomFirst = run.read === 0 && run.failed === 0 && run.stoppedBy === NO_ROOM_IN_RATE_LIMITS;
+    const error = refused
+      ? (run.stoppedBy ?? undefined)
+      : noneRead
+        ? `${run.failed === 1 ? "The one account tried this run could not be read" : `None of the ${run.failed} accounts tried this run could be read`}; the run's log says why.`
+        : noRoomFirst
+          ? `${run.due === 1 ? "The one account due could not be read" : `None of the ${run.due} accounts due could be read`} this run: the rate limits had no room before the first reading (account sync and the rank checks share them); the next run reads again.`
+          : undefined;
+    return { ok: true, degraded: refused || noneRead || noRoomFirst, error, summary: { ...run, requests: client.requestCount } };
   },
 });

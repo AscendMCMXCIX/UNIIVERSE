@@ -128,7 +128,8 @@ Key single files:
     - Backfills: `TIMELINE_BACKFILL_PER_RUN` and `FIGURES_BACKFILL_PER_RUN` (30 records a run each).
     - Visit ticks: `UNIIVERSE_VISIT_TICK_MINUTES` (30), `UNIIVERSE_VISIT_TICK_BUDGET_MS` (230000).
     - Database: `DATABASE_POOL_MAX`, `DATABASE_SSL`.
-  - **GitHub Actions secrets:** `APP_URL`, `CRON_SECRET`; repository variable `DATA_JOBS_ENABLED`.
+  - **Verification account:** `VERIFY_ACCOUNT_SECRET` (optional, Production only, also a GitHub Actions secret of the same value): the key its password is worked out from; unset, `CRON_SECRET` (docs/LIVE_VALIDATION.md).
+  - **GitHub Actions secrets:** `APP_URL`, `CRON_SECRET`, optionally `VERIFY_ACCOUNT_SECRET`; repository variable `DATA_JOBS_ENABLED`.
   - **Local / demo only:** `UNIIVERSE_DB_MODE=memory`, `UNIIVERSE_SEED_DEMO`, `UNIIVERSE_REQUIRE_AUTH`.
 
 ---

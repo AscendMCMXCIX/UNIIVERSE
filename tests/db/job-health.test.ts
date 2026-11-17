@@ -14,6 +14,8 @@ import { invalidateCache } from "@/server/observability/cache";
 import { runJob } from "@/server/jobs";
 import { GET as health } from "@/app/api/health/route";
 import { markRankScheduleCall, RANK_SCHEDULE_CALL_KEY } from "@/server/ops/rank-schedule-calls";
+import { lastTickScheduleCalls, markTickScheduleCall, TICK_SCHEDULE_CALL_KEY } from "@/server/ops/tick-schedule-calls";
+import { rankScheduleStatus } from "@/server/jobs/rank-schedule";
 
 /*
   What the owner is told about the data jobs: /api/health (read by every scheduled Data jobs run,
@@ -141,6 +143,58 @@ describe("/api/health", () => {
     expect(await listed()).toBe(false);
     await db.delete(dataRefreshStatus).where(inArray(dataRefreshStatus.key, KEYS));
     await db.delete(appSettings).where(eq(appSettings.key, RANK_SCHEDULE_CALL_KEY));
+  });
+
+  it("lists the database's tick schedule once it has called and then stayed silent for four of its intervals, whatever else runs the tick", async () => {
+    const db = handle.db;
+    const now = Date.now();
+    const MIN = 60_000;
+    /** The schedule's last call and the one before it, the given minutes ago (null: none). */
+    const calls = async (lastMinutesAgo: number | null, previousMinutesAgo: number | null = null) => {
+      await db.delete(appSettings).where(eq(appSettings.key, TICK_SCHEDULE_CALL_KEY));
+      if (previousMinutesAgo !== null) await markTickScheduleCall(db, new Date(now - previousMinutesAgo * MIN));
+      if (lastMinutesAgo !== null) await markTickScheduleCall(db, new Date(now - lastMinutesAgo * MIN));
+    };
+    const listed = async () => (await readHealth()).body.failingJobs.includes("tick-schedule");
+    // Never called (no database tick, or none since this deployment): nothing to say.
+    await calls(null);
+    expect(await listed()).toBe(false);
+    // Each call keeps the one before it.
+    await calls(41, 51);
+    expect(await lastTickScheduleCalls(db)).toEqual({ at: now - 41 * MIN, previousAt: now - 51 * MIN });
+    // The ten-minute schedule: listed after four missed calls (40 minutes), not before, so the scheduled run fails.
+    const { body } = await readHealth();
+    expect(body.ok).toBe(true);
+    expect(body.failingJobs).toContain("tick-schedule");
+    await calls(39, 49);
+    expect(await listed()).toBe(false);
+    // The first call (no interval yet) gets 40 minutes too.
+    await calls(41);
+    expect(await listed()).toBe(true);
+    // An hourly schedule gets four of its intervals: four hours, the most it is ever given.
+    await calls(200, 260);
+    expect(await listed()).toBe(false);
+    await calls(241, 301);
+    expect(await listed()).toBe(true);
+    // The first call after a two-day pause: four hours, not eight days.
+    await calls(241, 241 + 2 * 24 * 60);
+    expect(await listed()).toBe(true);
+    // GitHub's runs, Vercel's cron and visits keep the tick's jobs succeeding: that does not hide a silent schedule.
+    const at = new Date(now - MIN);
+    await db.insert(dataRefreshStatus).values({ key: "account-sync", status: "ok", lastStartedAt: at, lastSuccessAt: at, updatedAt: at, consecutiveFailures: 0 }).onConflictDoUpdate({ target: dataRefreshStatus.key, set: { status: "ok", lastStartedAt: at, lastSuccessAt: at, consecutiveFailures: 0 } });
+    await calls(45, 55);
+    expect(await listed()).toBe(true);
+    await db.delete(appSettings).where(eq(appSettings.key, TICK_SCHEDULE_CALL_KEY));
+  });
+
+  it("are shown by rank-schedule-status as the app recorded them, times only", async () => {
+    const db = handle.db;
+    await db.delete(appSettings).where(inArray(appSettings.key, [RANK_SCHEDULE_CALL_KEY, TICK_SCHEDULE_CALL_KEY]));
+    expect((await rankScheduleStatus(db, {})).callsRecordedByApp).toEqual({ rankWatch: null, tick: null });
+    const at = new Date(Date.now() - 3 * 60_000);
+    await markTickScheduleCall(db, at);
+    expect((await rankScheduleStatus(db, {})).callsRecordedByApp).toEqual({ rankWatch: null, tick: at.toISOString() });
+    await db.delete(appSettings).where(eq(appSettings.key, TICK_SCHEDULE_CALL_KEY));
   });
 });
 
