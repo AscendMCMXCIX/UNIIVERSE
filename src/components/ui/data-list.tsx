@@ -10,7 +10,8 @@ import { formatOrdinal } from "@/lib/format";
 
 /*
   A list of rows that reads as one board (docs/STANDARDS.md, Components): Recent form's ranking
-  first, later Records' rows and the Players roster. The pieces:
+  first, later Records' rows. The Players roster is its own RosterRow (players/roster-row.tsx),
+  which repeats ROW_STATES' hover and pressed classes and ROW_CONTROL's lift. The pieces:
 
     DataList     the board: its surface, the container its rows measure (@container/list), the
                  column template they share (--dl-cols, set per width on the body), the headings,
@@ -49,7 +50,7 @@ export const ROW_GAP_X = "gap-x-2.5 @min-[36rem]/list:gap-x-3";
  * a tap never leaves a row lit.
  */
 export const ROW_STATES = "transition-colors duration-150 hover:bg-surface-2 has-[[data-row-link]:active]:bg-surface-3 max-md:has-[[data-row-link]:active]:bg-surface-2";
-/** A control drawn above the row's link, so it keeps its own press (later: Players' social icons). */
+/** A control drawn above the row's link, so it keeps its own press (RosterRow lifts Players' social icons the same way). */
 export const ROW_CONTROL = "relative z-[2]";
 
 const SURFACE = {
