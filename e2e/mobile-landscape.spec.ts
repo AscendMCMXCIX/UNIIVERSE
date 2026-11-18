@@ -178,23 +178,26 @@ test("held sideways, the band holds the longest line it is made for, on one line
     await page.setViewportSize(viewport);
     await page.goto(profile);
     await expect(page.getByTestId("profile-header").getByTestId("social-links").locator("li")).toHaveCount(2);
+    await page.waitForLoadState("networkidle");
     await page.evaluate(() => document.fonts.ready);
-    // Demo Mid: Mid with Top as an off role, in the lineup, two links shown; ranked or not, the rank's words become the longest.
-    await page.evaluate(() => {
-      const h = document.querySelector("[data-testid=profile-header]")!;
-      const meta = h.querySelector("[data-testid=profile-meta]")!;
-      meta.firstElementChild!.querySelector("span:last-child")!.textContent = "Support";
-      const off = meta.querySelector("[data-testid=additional-role]")!;
-      off.after(off.cloneNode(true));
-      const rank = meta.querySelector("[data-testid=profile-rank]")!;
-      const tier = [...rank.childNodes].find((n) => n.nodeType === Node.TEXT_NODE && n.textContent!.trim());
-      if (tier) tier.textContent = "Grandmaster";
-      rank.querySelector(".text-fg-muted")!.textContent = tier ? "· 1234 LP" : "Grandmaster · 1234 LP";
-      for (const s of meta.querySelectorAll("[data-testid=lineup-status] span:last-child")) s.textContent = "Main lineup · Support";
-      const links = h.querySelector("[data-testid=social-links]")!;
-      links.append(links.lastElementChild!.cloneNode(true));
-    });
     await expect(async () => {
+      // Demo Mid: Mid with Top as an off role, in the lineup, two links shown; ranked or not, the
+      // rank's words become the longest. Drawn again on each try, adding only what is missing: React
+      // may still be taking over the page (a busy machine) and put its own nodes back.
+      await page.evaluate(() => {
+        const h = document.querySelector("[data-testid=profile-header]")!;
+        const meta = h.querySelector("[data-testid=profile-meta]")!;
+        meta.firstElementChild!.querySelector("span:last-child")!.textContent = "Support";
+        const offs = meta.querySelectorAll("[data-testid=additional-role]");
+        if (offs.length < 2) offs[0]!.after(offs[0]!.cloneNode(true));
+        const rank = meta.querySelector("[data-testid=profile-rank]")!;
+        const tier = [...rank.childNodes].find((n) => n.nodeType === Node.TEXT_NODE && n.textContent!.trim());
+        if (tier) tier.textContent = "Grandmaster";
+        rank.querySelector(".text-fg-muted")!.textContent = tier ? "· 1234 LP" : "Grandmaster · 1234 LP";
+        for (const s of meta.querySelectorAll("[data-testid=lineup-status] span:last-child")) s.textContent = "Main lineup · Support";
+        const links = h.querySelector("[data-testid=social-links]")!;
+        if (links.children.length < 3) links.append(links.lastElementChild!.cloneNode(true));
+      });
       const m = await page.evaluate(() => {
         const h = document.querySelector<HTMLElement>("[data-testid=profile-header]")!;
         const meta = h.querySelector<HTMLElement>("[data-testid=profile-meta]")!;
@@ -223,7 +226,7 @@ test("held sideways, the band holds the longest line it is made for, on one line
       expect(m.chip, `${where}: a link's chip`).toBeLessThanOrEqual(32.5);
       expect(m.touch, `${where}: a link's target to a finger`).toBeGreaterThanOrEqual(44);
       expect(m.wider, `${where}: nothing wider than the phone`).toBeLessThanOrEqual(1);
-    }).toPass({ timeout: 10_000 });
+    }).toPass({ timeout: 15_000 });
   }
   await done(page);
 });

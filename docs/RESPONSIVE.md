@@ -402,6 +402,13 @@ where the row is narrower than the bar, included) and `e2e/card-layout.spec.ts` 
 `e2e/lineup.ts`): it streams in through `(app)/loading.tsx`'s Suspense boundary, and React can
 reveal it up to 300ms after the first paint, after the load event `page.goto` waits for, when its
 five cells can already be counted with no size.
+`e2e/phone-wraps.spec.ts` keeps a row's subject whole on a 320px phone, and a profile's header at a
+larger text size: on 320 and 375px phones at 150%, 175% and 200% text, the Overview's header and the
+other sections' band of each of the lineup's five cut nothing (the rank, an off role, the lineup
+status) and break no word of four letters or more across lines, the name's included; and so with the
+browser's own text at twice its size (Chromium's default font size, which scales the media
+queries' rem as well). The header follows its own width in rem for this (`LARGE_TEXT` in
+`profile-header.tsx`); at 100% text it is laid out exactly as before.
 In this repository's sandbox set `PW_CHROMIUM_PATH` to the Chromium binary.
 
 The wider audit script that produced the before/after numbers (eight viewports × twelve routes,
