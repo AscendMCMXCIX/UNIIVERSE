@@ -172,10 +172,10 @@ export function LpChange({ lp, className, dense = false }: { lp: LpRecord | null
  * summoner spells and two rune trees beside it (empty slots when the details were not collected,
  * never guessed ones).
  */
-export function ChampionLoadout({ champion, spells, keystone, secondary, level = null, size = "lg", icon = 22, className, portraitClassName, iconsClassName }: { champion: PortraitChampion; spells: Array<Icon | null> | null; keystone: Icon | null; secondary: Icon | null; /** The champion's level at the end of the game, on the portrait's corner. */ level?: number | null; size?: "md" | "lg"; icon?: number; className?: string; portraitClassName?: string; iconsClassName?: string }) {
+export function ChampionLoadout({ champion, spells, keystone, secondary, level = null, size = "lg", icon = 22, className, portraitClassName, iconsClassName, testId }: { champion: PortraitChampion; spells: Array<Icon | null> | null; keystone: Icon | null; secondary: Icon | null; /** The champion's level at the end of the game, on the portrait's corner. */ level?: number | null; size?: "md" | "lg"; icon?: number; className?: string; portraitClassName?: string; iconsClassName?: string; testId?: string }) {
   const two = spells?.length ? spells.slice(0, 2) : [null, null];
   return (
-    <span className={cn("flex shrink-0 items-center gap-1", className)}>
+    <span className={cn("flex shrink-0 items-center gap-1", className)} data-testid={testId}>
       <span className="relative flex shrink-0">
         <ChampionPortrait champion={champion} size={size} className={portraitClassName} />
         {level !== null ? (

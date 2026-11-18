@@ -68,6 +68,25 @@ export interface ChampionScope {
 
 export type RefineChange = Partial<{ season: number; mode: SeasonMode; account: string | null }>;
 
+/*
+  Below sm (Tailwind's max-sm), where Refine ends the tabs' row: its panel then opens after that row,
+  so in reading and focus order it follows the button that opened it (WCAG 2.4.3), and the button
+  stays where it was tapped. False on the server and until hydrated; the panel only ever renders
+  after a press, so the first render is the same on both.
+*/
+const BELOW_SM = "(width < 40rem)";
+function subscribeBelowSm(onChange: () => void) {
+  const query = window.matchMedia(BELOW_SM);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+const useBelowSm = () =>
+  React.useSyncExternalStore(
+    subscribeBelowSm,
+    () => window.matchMedia(BELOW_SM).matches,
+    () => false,
+  );
+
 const plural = (n: number, word: string) => `${formatCount(n)} ${word}${n === 1 ? "" : "s"}`;
 
 export function ChampionDetail({
@@ -104,6 +123,9 @@ export function ChampionDetail({
   const me = champ(sel.championId);
   const [match, setMatch] = React.useState<string | null>(null);
   const [refine, setRefine] = React.useState(false);
+  // One Refine panel (id champion-refine), after the row of the Refine that is drawn: the scope's
+  // from sm, the tabs' on a phone (a window that crosses sm while it is open moves it with the button).
+  const phone = useBelowSm();
   const [metric, setMetric] = React.useState<LaneMetric>("gold");
   const role = sel.role ?? card?.role ?? null;
   const accountLabel = scope.accountId ? (scope.accounts.find((a) => a.id === scope.accountId)?.riotId ?? "One account") : scope.accounts.length > 1 ? "All linked accounts" : (scope.accounts[0]?.riotId ?? "No linked account");
@@ -127,7 +149,8 @@ export function ChampionDetail({
       <CardArtLayer art={{ championId: sel.championId, skinNum: 0 }} accent={accent} kind="splash" position="center 22%" strength="strong" testId="champion-detail-art" />
       <div className={cn("relative pl-4 pt-4 sm:pl-6 sm:pt-5", CLEAR_OF_CONTROLS)}>
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-          <ChampionPortrait champion={me} size="lg" className="shrink-0 rounded-panel ring-2 ring-[color:var(--card-accent,var(--color-accent))]/50 shadow-lg shadow-black/40" />
+          {/* 48px on a phone, 64px from sm. */}
+          <ChampionPortrait champion={me} size="lg" className="shrink-0 rounded-panel ring-2 ring-[color:var(--card-accent,var(--color-accent))]/50 shadow-lg shadow-black/40 max-sm:h-12 max-sm:w-12" />
           <div className="min-w-0 space-y-1">
             <h2 id="champion-detail-title" className="truncate text-2xl font-bold tracking-tight text-fg sm:text-3xl" data-testid="champion-detail-name">
               {me.name}
@@ -144,46 +167,60 @@ export function ChampionDetail({
             </p>
           </div>
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-          {/* On a phone the scope wraps rather than cutting off the account it names. */}
-          <span className="min-w-0 truncate text-fg-muted max-sm:overflow-visible max-sm:whitespace-normal max-sm:break-words" data-testid="champion-detail-scope">
-            {scopeText}
-          </span>
-          <RefineButton open={refine} count={narrowed} controls="champion-refine" onClick={() => setRefine((r) => !r)} className="bg-bg/40" testId="champion-detail-refine" />
-          <Link href={matchupHref(sel.championId, intelVs)} prefetch={false} className={buttonClass("outline", "sm", "bg-bg/40")} data-testid="champion-matchup-intel">
-            <Swords className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            Matchup Intel
-            <span className="sr-only">
-              : {me.name}
-              {intelVs ? ` vs ${champ(intelVs).name}` : ""}, the static reference in Resources
+        {/* Under the champion's name the rows are clear of the close button: on a phone they take
+            the window's width (a 1rem edge), so the scope and Matchup Intel share a line. */}
+        <div className="max-sm:mr-[calc(1rem-var(--modal-clear-right,4.5rem))]">
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+            {/* On a phone the scope wraps rather than cutting off the account it names, beside
+                Matchup Intel while it keeps 9rem (under it at a large text size). */}
+            <span className="min-w-0 truncate text-fg-muted max-sm:min-w-[9rem] max-sm:flex-[1_1_0%] max-sm:overflow-visible max-sm:whitespace-normal max-sm:break-words" data-testid="champion-detail-scope">
+              {scopeText}
             </span>
-          </Link>
-          {pending ? <span className="text-fg-subtle" aria-live="polite">Updating…</span> : null}
-        </div>
-        {refine ? <RefinePanel scope={scope} onRefine={onRefine} /> : null}
-        <div role="tablist" aria-label={`${me.name} views`} className="mt-3 flex gap-1">
-          {tabs.map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              id={`champion-tab-${key}`}
-              aria-selected={sel.tab === key}
-              aria-controls={`champion-panel-${key}`}
-              tabIndex={sel.tab === key ? 0 : -1}
-              onClick={() => onTab(key)}
-              onKeyDown={(e) => {
-                if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-                const next = key === "overview" ? "matchups" : "overview";
-                onTab(next);
-                document.getElementById(`champion-tab-${next}`)?.focus();
-              }}
-              className={cn("-mb-px h-10 px-3 text-sm font-medium transition-colors", tabIndicatorClass(sel.tab === key))}
-              data-testid={`champion-tab-${key}`}
-            >
-              {label}
-            </button>
-          ))}
+            {/* Refine beside the scope from sm; on a phone it ends the tabs' row (below). */}
+            <RefineButton open={refine} count={narrowed} controls="champion-refine" onClick={() => setRefine((r) => !r)} className="bg-bg/40 max-sm:hidden" testId="champion-detail-refine" />
+            <Link href={matchupHref(sel.championId, intelVs)} prefetch={false} className={buttonClass("outline", "sm", "bg-bg/40")} data-testid="champion-matchup-intel">
+              <Swords className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              Matchup Intel
+              <span className="sr-only">
+                : {me.name}
+                {intelVs ? ` vs ${champ(intelVs).name}` : ""}, the static reference in Resources
+              </span>
+            </Link>
+            {pending ? <span className="text-fg-subtle" aria-live="polite">Updating…</span> : null}
+          </div>
+          {refine && !phone ? <RefinePanel scope={scope} onRefine={onRefine} /> : null}
+          {/* At a large text size Refine, then the second tab, wrap rather than run past the window's edge. */}
+          <div className="mt-3 flex flex-wrap items-end gap-x-2">
+            <div role="tablist" aria-label={`${me.name} views`} className="flex min-w-0 flex-wrap gap-1">
+              {tabs.map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  id={`champion-tab-${key}`}
+                  aria-selected={sel.tab === key}
+                  aria-controls={`champion-panel-${key}`}
+                  tabIndex={sel.tab === key ? 0 : -1}
+                  onClick={() => onTab(key)}
+                  onKeyDown={(e) => {
+                    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+                    const next = key === "overview" ? "matchups" : "overview";
+                    onTab(next);
+                    document.getElementById(`champion-tab-${next}`)?.focus();
+                  }}
+                  // 40px with a mouse, 44px on a touch screen; on a phone a little narrower, so Refine shares their row.
+                  className={cn("-mb-px h-10 px-3 text-sm font-medium transition-colors pointer-coarse:h-11 max-sm:px-2", tabIndicatorClass(sel.tab === key))}
+                  data-testid={`champion-tab-${key}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {/* The same Refine, at the end of the tabs' row on a phone (one of the two is ever drawn). */}
+            <RefineButton open={refine} count={narrowed} controls="champion-refine" onClick={() => setRefine((r) => !r)} className="mb-1 ml-auto bg-bg/40 max-sm:px-2.5 sm:hidden" testId="champion-detail-refine" />
+          </div>
+          {/* On a phone the panel opens under the tabs' row, right after its button. */}
+          {refine && phone ? <RefinePanel scope={scope} onRefine={onRefine} className="mb-3" /> : null}
         </div>
       </div>
     </div>
@@ -226,8 +263,8 @@ export function ChampionDetail({
 function PanelSkeleton() {
   return (
     <div className="space-y-3" aria-busy="true" aria-label="Loading">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {Array.from({ length: 4 }, (_, i) => (
+      <div className="grid grid-cols-3 gap-2 lg:grid-cols-6">
+        {Array.from({ length: 6 }, (_, i) => (
           <div key={i} className="h-16 animate-pulse rounded-lg bg-surface-2" />
         ))}
       </div>
@@ -240,10 +277,10 @@ function PanelSkeleton() {
  * Season, game mode and account for the window and the list behind it (one shared scope): the same
  * labelled fields as the profile's filters (FilterField, Select).
  */
-function RefinePanel({ scope, onRefine }: { scope: ChampionScope; onRefine: (c: RefineChange) => void }) {
+function RefinePanel({ scope, onRefine, className }: { scope: ChampionScope; onRefine: (c: RefineChange) => void; className?: string }) {
   const accountNames = accountShortNames(scope.accounts);
   return (
-    <div id="champion-refine" role="group" aria-label="Refine this champion's figures" className="mt-2 grid gap-3 rounded-panel border border-border bg-bg/70 p-3 backdrop-blur sm:grid-cols-[repeat(auto-fit,minmax(11rem,1fr))]" data-testid="champion-refine">
+    <div id="champion-refine" role="group" aria-label="Refine this champion's figures" className={cn("mt-2 grid gap-3 rounded-panel border border-border bg-bg/70 p-3 backdrop-blur sm:grid-cols-[repeat(auto-fit,minmax(11rem,1fr))]", className)} data-testid="champion-refine">
       <FilterField label="Season" htmlFor="champion-refine-season" alwaysLabel>
         <Select id="champion-refine-season" value={scope.season} onChange={(e) => onRefine({ season: Number(e.target.value) })} data-testid="champion-refine-season">
           {scope.seasons.map((s) => (
@@ -280,11 +317,27 @@ function RefinePanel({ scope, onRefine }: { scope: ChampionScope; onRefine: (c: 
   );
 }
 
-function Tile({ label, value, sub, className, testId }: { label: string; value: React.ReactNode; sub?: React.ReactNode; className?: string; testId?: string }) {
+/**
+ * A figure with its label. `short`: the label a phone shows ("CS/min" for "CS per minute"), so three
+ * tiles share its width; screen readers still hear the whole label. In the champion's stats (the
+ * `stats` container) a 320px phone's figures are a step smaller, so they stay whole.
+ */
+function Tile({ label, short, value, sub, className, testId }: { label: string; short?: string; value: React.ReactNode; sub?: React.ReactNode; className?: string; testId?: string }) {
   return (
-    <div className="min-w-0 rounded-panel border border-border/70 bg-bg-elevated/60 px-3 py-2" data-testid={testId}>
-      <dt className="truncate text-xs text-fg-subtle">{label}</dt>
-      <dd className={cn("text-xl font-semibold tabular-nums text-fg", className)}>{value}</dd>
+    <div className="min-w-0 rounded-panel border border-border/70 bg-bg-elevated/60 px-3 py-2 max-sm:px-2" data-testid={testId}>
+      <dt className="truncate text-xs text-fg-subtle">
+        {short ? (
+          <>
+            <span aria-hidden className="sm:hidden">
+              {short}
+            </span>
+            <span className="max-sm:sr-only">{label}</span>
+          </>
+        ) : (
+          label
+        )}
+      </dt>
+      <dd className={cn("text-xl font-semibold tabular-nums text-fg @max-[19rem]/stats:text-lg", className)}>{value}</dd>
       {sub ? <dd className="text-2xs leading-tight text-fg-subtle">{sub}</dd> : null}
     </div>
   );
@@ -327,21 +380,30 @@ function OverviewPanel({ me, card, data, champ, multiAccount, onOpponent, onMatc
   const p = card?.performance ?? null;
   const lane = data?.lane ?? null;
   return (
-    <div className="space-y-3" data-testid="champion-overview">
+    <div className="@container/stats space-y-3" data-testid="champion-overview">
       {!card || !r || r.games === 0 ? (
         <Note testId="champion-overview-empty">No games on {me.name} in this scope. Refine the season, game mode or account to look further back.</Note>
       ) : (
-        <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6" data-testid="champion-stats">
+        // Three by two below lg (six across from lg, as before); two across, then one, where a large
+        // text size leaves a phone too little room. Every figure and label is written whole. Three
+        // across: the last column (KDA and Mastery points, the widest figures) takes the room its
+        // figures need, the middle one keeps its label whole ("Damage/min", which no browser breaks
+        // at the slash), and the first (Games and CS/min, the shortest) takes the rest. Two across:
+        // the second column (Mastery) takes its room and the first keeps the rest, which holds
+        // "Damage/min" and "Perfect" beside a seven-digit Mastery from a 12.9rem box (12.86rem at
+        // 150% text, 12.89rem at 125%, measured), so narrower boxes take one column.
+        <dl className="grid grid-cols-1 gap-2 max-lg:@min-[12.9rem]/stats:grid-cols-[minmax(0,1fr)_minmax(min-content,1fr)] max-lg:@min-[17.5rem]/stats:grid-cols-[minmax(0,1fr)_minmax(min-content,1fr)_minmax(min-content,1fr)] lg:grid-cols-6" data-testid="champion-stats">
           <Tile label="Games" value={r.games} sub={`${r.wins}W ${r.losses}L`} testId="champion-stat-games" />
           <Tile label="Win rate" value={r.winRate === null ? "—" : percent(r.winRate, 0)} className={WIN_RATE_TONE_CLASS[winRateTone(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)]} sub={winRateSampleNote(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion) ?? undefined} testId="champion-stat-winrate" />
           <Tile label="KDA" value={p?.perfectKda ? "Perfect" : p?.kdaRatio == null ? "—" : p.kdaRatio.toFixed(2)} sub={p?.kills == null ? undefined : `${p.kills.toFixed(1)} / ${p.deaths!.toFixed(1)} / ${p.assists!.toFixed(1)}`} testId="champion-stat-kda" />
-          <Tile label="CS per minute" value={p?.csPerMinute == null ? "—" : p.csPerMinute.toFixed(1)} sub={p?.csMinuteGames ? plural(p.csMinuteGames, "game") : "No CS recorded"} />
-          <Tile label="Damage per minute" value={p?.damagePerMinute == null ? "—" : formatCount(p.damagePerMinute)} sub={p?.damageMinuteGames ? plural(p.damageMinuteGames, "game") : "Not in the stored details"} />
-          <Tile label="Mastery points" value={card.mastery?.points ? formatCount(card.mastery.points) : "—"} sub={card.mastery ? "All linked accounts" : "No mastery recorded"} />
+          <Tile label="CS per minute" short="CS/min" value={p?.csPerMinute == null ? "—" : p.csPerMinute.toFixed(1)} sub={p?.csMinuteGames ? plural(p.csMinuteGames, "game") : "No CS recorded"} />
+          <Tile label="Damage per minute" short="Damage/min" value={p?.damagePerMinute == null ? "—" : formatCount(p.damagePerMinute)} sub={p?.damageMinuteGames ? plural(p.damageMinuteGames, "game") : "Not in the stored details"} />
+          <Tile label="Mastery points" short="Mastery" value={card.mastery?.points ? formatCount(card.mastery.points) : "—"} sub={card.mastery ? "All linked accounts" : "No mastery recorded"} testId="champion-stat-mastery" />
         </dl>
       )}
-      {/* The champion's multikills in the same games, with how many of them have counts. */}
-      {card?.multikills && r && r.games > 0 ? <MultikillSummaryRow m={card.multikills} className="rounded-panel border border-border/70 bg-bg-elevated/60 px-3 py-2" testId="champion-multikills-summary" /> : null}
+      {/* The champion's multikills in the same games, with how many of them have counts; both its ⓘ
+          (the title's and the coverage note's) have a 44px touch area (InfoTip's 40px elsewhere). */}
+      {card?.multikills && r && r.games > 0 ? <MultikillSummaryRow m={card.multikills} className="rounded-panel border border-border/70 bg-bg-elevated/60 px-3 py-2" tipClassName="pointer-coarse:after:-inset-2.5!" testId="champion-multikills-summary" /> : null}
       {!r || r.games === 0 ? null : !data ? (
         <Loading label={`Loading ${me.name}'s lanes`} />
       ) : !lane || lane.games === 0 ? (

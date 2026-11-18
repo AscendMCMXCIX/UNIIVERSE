@@ -104,6 +104,8 @@ export function FilterBar({
   resetLabel = "Reset",
   chips = [],
   end,
+  compactToggle = false,
+  inlineReset,
 }: {
   /** What is chosen, in a few words ("Season 2026 · All supported games"): the sheet's subtitle, and read with the folded button. */
   summary: string;
@@ -136,6 +138,20 @@ export function FilterBar({
   chips?: readonly FilterChip[];
   /** Beside the folded button at the row's far end (phones): a page's own action, such as Bookmarked. */
   end?: React.ReactNode;
+  /**
+   * A folded bar that shares its row with a section's views (Match History): under 360px the Filters
+   * button shows its icon alone (its word, the summary and the count stay for screen readers), and no
+   * empty room follows it when there is no chip and no `end`, so the views, Filters and Refresh keep
+   * one row on a 320px phone. Other bars are unchanged.
+   */
+  compactToggle?: boolean;
+  /**
+   * The inline Reset (from the breakpoint up), where it differs from the sheet's: a page whose sheet
+   * also holds choices that wider screens keep elsewhere (Encounters' minimum and order, in its list's
+   * toolbar) counts them for the Filters button and the sheet's Reset only (`count`), and its inline
+   * Reset leaves them as they are (`onReset`).
+   */
+  inlineReset?: { count: number; onReset: () => void };
 }) {
   // Who opened the sheet: its own Filters button (phones), or the frame once the bar has scrolled away.
   const [openedFrom, setOpenedFrom] = React.useState<"own" | "toolbar" | "topbar" | null>(null);
@@ -158,9 +174,14 @@ export function FilterBar({
   // it bring the list's start into view.
   const chose = React.useRef(false);
   const [landBy, setLandBy] = React.useState<number | null>(null);
+  // Opened from md (the pinned row, or the top bar of a phone held sideways), the sheet holds the bar's
+  // own fields only: a list's own choices (`inlineReset`) are its toolbar's there, so the sheet's Reset
+  // is the inline one.
+  const [sheetWide, setSheetWide] = React.useState(false);
   const openSheet = React.useCallback((from: "own" | "toolbar" | "topbar") => {
     const row = controlsRef.current;
     setKept(row && row.offsetHeight ? { width: row.offsetWidth, height: row.offsetHeight } : null);
+    setSheetWide(window.matchMedia("(min-width: 48rem)").matches);
     atOpen.current = now.current;
     chose.current = false;
     setLandBy(null);
@@ -179,10 +200,12 @@ export function FilterBar({
   }, []);
   // One bar a page tells the frame how to open its sheet, and whether its sheet is open and from where
   // (ui/page-toolbar.tsx: the control that opened it stays until it has the focus back).
+  // From md a list's own choices are not this bar's (`inlineReset`): the pinned row's Filters counts what the bar narrows there.
+  const wideCount = inlineReset ? inlineReset.count : activeCount;
   React.useEffect(() => {
     const root = rootRef.current;
-    if (root) publishPageFilters({ open: openSheet, openedFrom, count: activeCount, summary, root }, root);
-  }, [openSheet, openedFrom, activeCount, summary]);
+    if (root) publishPageFilters({ open: openSheet, openedFrom, count: activeCount, wideCount, summary, root }, root);
+  }, [openSheet, openedFrom, activeCount, wideCount, summary]);
   React.useEffect(() => {
     const root = rootRef.current;
     return () => publishPageFilters(null, root);
@@ -217,8 +240,10 @@ export function FilterBar({
     </>
   );
   const resetClass = (inSheet: boolean) => cn(resetCls, inSheet && "mr-auto", iconOnly(inSheet) && "max-xl:min-w-11 md:pointer-fine:max-xl:min-w-9");
+  // The full Reset, or the inline one: in the page from the breakpoint up, and in a sheet opened from md.
+  const fullReset = (inSheet: boolean) => !inlineReset || (inSheet && !sheetWide);
   const reset = (inSheet: boolean) =>
-    activeCount > 0 && (onReset || resetHref) ? (
+    (fullReset(inSheet) ? activeCount : inlineReset!.count) > 0 && (onReset || resetHref) ? (
       resetHref ? (
         <Link
           href={resetHref}
@@ -243,7 +268,7 @@ export function FilterBar({
           type="button"
           onClick={() => {
             if (inSheet) choose();
-            onReset?.();
+            (fullReset(inSheet) ? onReset : inlineReset!.onReset)?.();
           }}
           className={resetClass(inSheet)}
           title={iconOnly(inSheet) ? resetLabel : undefined}
@@ -254,11 +279,15 @@ export function FilterBar({
       )
     ) : null;
   const filtersButton = (
-    <button type="button" onClick={() => openSheet("own")} aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined} className={toolbarButtonClass(activeCount > 0, at.toggle)} data-testid={toggleTestId} data-filter-toggle="">
+    <button type="button" onClick={() => openSheet("own")} aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined} className={toolbarButtonClass(activeCount > 0, cn(at.toggle, compactToggle && "max-[22.5rem]:min-w-11 max-[22.5rem]:px-2.5"))} data-testid={toggleTestId} data-filter-toggle="">
       <SlidersHorizontal className="h-4 w-4 shrink-0 text-accent" aria-hidden />
-      Filters
+      {compactToggle ? <span className="max-[22.5rem]:sr-only">Filters</span> : "Filters"}
       <span className="sr-only">: {summary}</span>
-      {activeCount ? <span className="rounded-full bg-accent px-1.5 text-xs font-semibold tabular-nums text-bg">{activeCount}</span> : null}
+      {activeCount ? (
+        <span className="rounded-full bg-accent px-1.5 text-xs font-semibold tabular-nums text-bg" data-testid="filter-count">
+          {activeCount}
+        </span>
+      ) : null}
     </button>
   );
   return (
@@ -295,7 +324,7 @@ export function FilterBar({
                     </li>
                   ))}
                 </ScrollRow>
-              ) : (
+              ) : compactToggle && !end ? null : (
                 <span className="flex-1" />
               )}
               {end}

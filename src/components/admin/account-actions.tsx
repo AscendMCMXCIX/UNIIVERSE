@@ -119,7 +119,7 @@ export function DeleteProfileButton({ playerId, name }: { playerId: string; name
   const [busy, setBusy] = React.useState(false);
   return (
     <>
-      <Button size="sm" variant="ghost" className="text-bad" onClick={() => setOpen(true)}>
+      <Button size="sm" variant="ghost" className="text-bad" wrap onClick={() => setOpen(true)}>
         Delete profile
       </Button>
       <ConfirmDialog
@@ -171,20 +171,20 @@ export function AccountActions({ account, currentUserId, viewerIsOwner = false }
   return (
     <div className="flex flex-wrap items-center gap-1.5" data-testid="account-actions">
       {account.isActive ? (
-        <Button size="sm" variant="outline" disabled={busy} onClick={() => (account.password.state === "none" ? resetPassword() : setConfirming("reset"))}>
+        <Button size="sm" variant="outline" wrap disabled={busy} onClick={() => (account.password.state === "none" ? resetPassword() : setConfirming("reset"))}>
           {account.password.state === "none" ? "Create temporary password" : "Reset password"}
         </Button>
       ) : null}
       {account.isActive ? (
-        <Button size="sm" variant="ghost" disabled={busy} onClick={() => setConfirming("deactivate")}>
+        <Button size="sm" variant="ghost" wrap disabled={busy} onClick={() => setConfirming("deactivate")}>
           Deactivate
         </Button>
       ) : (
-        <Button size="sm" variant="ghost" disabled={busy} onClick={() => void run(() => setAccountActiveAction(account.userId, true), `${account.username} reactivated; their password works again.`)}>
+        <Button size="sm" variant="ghost" wrap disabled={busy} onClick={() => void run(() => setAccountActiveAction(account.userId, true), `${account.username} reactivated; their password works again.`)}>
           Reactivate
         </Button>
       )}
-      <Button size="sm" variant="ghost" className="text-bad" disabled={busy} onClick={() => setConfirming("delete")}>
+      <Button size="sm" variant="ghost" className="text-bad" wrap disabled={busy} onClick={() => setConfirming("delete")}>
         Delete
       </Button>
 

@@ -58,7 +58,7 @@ export function RiotHealthPanel({ riot, isOwner }: { riot: RiotHealthView; isOwn
           <p className="text-fg-muted">{s.plain}</p>
         ) : (
           <>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
               <Fact label="Configured" value={riot.configured ? `Yes${riot.keyFingerprint ? ` (key ends ${riot.keyFingerprint})` : ""}` : "No"} />
               <Fact label="Last successful Riot request" value={riot.lastOkAt ? <RelativeTime date={riot.lastOkAt} /> : "none recorded"} />
               <Fact label="Last error" value={riot.lastErrorAt ? <><RelativeTime date={riot.lastErrorAt} />{riot.lastStatusCode ? ` · HTTP ${riot.lastStatusCode}` : ""}</> : "none recorded"} />
@@ -67,10 +67,10 @@ export function RiotHealthPanel({ riot, isOwner }: { riot: RiotHealthView; isOwn
             {riot.lastError ? <p className="text-xs text-fg-muted">{riot.lastError}</p> : null}
             {riot.advice ? <p className={riot.state === "rejected" ? "rounded-md border border-bad/40 bg-bad/10 px-3 py-2 text-xs text-bad" : "text-xs text-fg-subtle"}>{riot.advice}</p> : null}
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" disabled={busy !== null || !riot.configured} onClick={async () => { setBusy("check"); const r = await checkRiotKeyAction(); setBusy(null); if (!r.ok) toast.error("Could not check the key", { description: r.error }); else if (r.data.state === "accepted") toast.success(r.data.message); else if (r.data.state === "rejected") toast.error(r.data.message); else toast.info(r.data.message); router.refresh(); }}>
+              <Button size="sm" variant="outline" wrap disabled={busy !== null || !riot.configured} onClick={async () => { setBusy("check"); const r = await checkRiotKeyAction(); setBusy(null); if (!r.ok) toast.error("Could not check the key", { description: r.error }); else if (r.data.state === "accepted") toast.success(r.data.message); else if (r.data.state === "rejected") toast.error(r.data.message); else toast.info(r.data.message); router.refresh(); }}>
                 <KeyRound className="h-3.5 w-3.5" /> {busy === "check" ? "Checking…" : "Check key now"}
               </Button>
-              <Button size="sm" variant="outline" disabled={busy !== null || !riot.configured || riot.pendingAccounts === 0} onClick={async () => { setBusy("retry"); const r = await retryPendingAccountsAction(); setBusy(null); if (!r.ok) toast.error("Retry failed", { description: r.error }); else (r.data.synced > 0 ? toast.success : toast.info)(`Retried ${r.data.attempted} account${r.data.attempted === 1 ? "" : "s"}: ${r.data.synced} synced, ${r.data.pending} still pending, ${r.data.failed} need attention.${r.data.skipped ? ` ${r.data.skipped} left to a sync already running.` : ""}`); router.refresh(); }}>
+              <Button size="sm" variant="outline" wrap disabled={busy !== null || !riot.configured || riot.pendingAccounts === 0} onClick={async () => { setBusy("retry"); const r = await retryPendingAccountsAction(); setBusy(null); if (!r.ok) toast.error("Retry failed", { description: r.error }); else (r.data.synced > 0 ? toast.success : toast.info)(`Retried ${r.data.attempted} account${r.data.attempted === 1 ? "" : "s"}: ${r.data.synced} synced, ${r.data.pending} still pending, ${r.data.failed} need attention.${r.data.skipped ? ` ${r.data.skipped} left to a sync already running.` : ""}`); router.refresh(); }}>
                 <RefreshCw className="h-3.5 w-3.5" /> {busy === "retry" ? "Retrying…" : "Retry pending Riot accounts"}
               </Button>
             </div>
@@ -83,7 +83,7 @@ export function RiotHealthPanel({ riot, isOwner }: { riot: RiotHealthView; isOwn
 
 function Fact({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="rounded-md border border-border bg-bg-elevated px-2.5 py-1.5">
+    <div className="min-w-0 rounded-md border border-border bg-bg-elevated px-2.5 py-1.5 [overflow-wrap:anywhere]">
       <div className="text-xs font-semibold uppercase tracking-label text-fg-subtle">{label}</div>
       <div className="text-sm font-semibold text-fg">{value}</div>
     </div>

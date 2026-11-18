@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { RoleSegmented } from "@/components/ui/segmented";
-import { FilterBar, FilterField, InFilterSheet, RefineButton } from "@/components/ui/filter-bar";
+import { FilterBar, FilterField, InFilterSheet, RefineButton, type FilterChip } from "@/components/ui/filter-bar";
 import { FiltersControl, PageToolbar } from "@/components/ui/page-toolbar";
 import {
   SEASON_MODES,
@@ -32,6 +32,15 @@ import { formatCount } from "@/lib/format";
  * never takes part in the layout around it (the heading beside the filters keeps its width), and
  * it closes on a click outside, Escape or Refine again. On phones the same fields are part of the
  * opened filter bar, which is already a full-width panel.
+ *
+ * `sheetFields` and `sheetChips`: a list's own choices that a phone keeps in the Filters sheet and
+ * wider screens in the list's own toolbar (Encounters' Minimum games and Sort by, owner decision D8
+ * of 8 Nov 2026): the fields join the sheet only, and their chips (when a choice differs from its
+ * default) sit beside the phone's Filters button with the other chips and count with them; the
+ * sheet's Reset (the page's `resetQuery`) puts them back too. From tablets up they are not filters
+ * of this bar: they do not count, its Reset appears only for what the bar narrows, and it leaves
+ * them as they are (it keeps `keep`, which carries them).
+ * `compactToggle`: the bar shares a row with a section's views (FilterBar's `compactToggle`).
  */
 export function OverviewFilters({
   basePath,
@@ -50,7 +59,16 @@ export function OverviewFilters({
   extraFields,
   extraRefinements = [],
   refineLabel = "Refine the statistics",
+  sheetFields,
+  sheetChips = [],
+  compactToggle = false,
 }: {
+  /** The folded bar shares a row with a section's views (Match History): see FilterBar. */
+  compactToggle?: boolean;
+  /** A list's own fields that only a phone's Filters sheet holds (see above). */
+  sheetFields?: React.ReactNode;
+  /** Those choices where they differ from their default: chips beside a phone's Filters button. */
+  sheetChips?: readonly FilterChip[];
   /** The Refine panel's name for assistive technology. */
   refineLabel?: string;
   /** What Refine's choices narrow on this page, said at the top of its panel (the sections it leaves alone keep their own scope). */
@@ -121,9 +139,9 @@ export function OverviewFilters({
       document.removeEventListener("keydown", onKey);
     };
   }, [open]);
-  const narrowed = refinements.length + (filter.mode !== "all" ? 1 : 0) + (filter.season !== currentSeason ? 1 : 0);
+  const narrowed = refinements.length + (filter.mode !== "all" ? 1 : 0) + (filter.season !== currentSeason ? 1 : 0) + sheetChips.length;
   const field = "md:w-auto";
-  const summary = [seasonLabel(filter.season), SEASON_MODES.find((m) => m.key === filter.mode)?.label ?? "All supported games", ...refinements.map((r) => r.text)].join(" · ");
+  const summary = [seasonLabel(filter.season), SEASON_MODES.find((m) => m.key === filter.mode)?.label ?? "All supported games", ...refinements.map((r) => r.text), ...sheetChips.map((c) => c.text)].join(" · ");
   return (
     <form
       method="get"
@@ -145,8 +163,12 @@ export function OverviewFilters({
           ...(filter.season !== currentSeason ? [{ key: "season", text: seasonLabel(filter.season), clear: () => go({ season: currentSeason }) }] : []),
           ...(filter.mode !== "all" ? [{ key: "mode", text: SEASON_MODES.find((m) => m.key === filter.mode)?.label ?? filter.mode, clear: () => go({ mode: "all" }) }] : []),
           ...refinements,
+          ...sheetChips,
         ]}
         onReset={() => startTransition(() => router.replace(resetQuery ? `${basePath}?${resetQuery}` : basePath, { scroll: false }))}
+        // From tablets up a list's own choices are not this bar's (see above).
+        inlineReset={sheetFields ? { count: narrowed - sheetChips.length, onReset: () => startTransition(() => router.replace(`${basePath}?${new URLSearchParams(keep).toString()}`, { scroll: false })) } : undefined}
+        compactToggle={compactToggle}
         align="end"
         pending={pending}
         after={
@@ -249,6 +271,8 @@ export function OverviewFilters({
             )}
           </InFilterSheet>
         ) : null}
+        {/* Only in a phone's sheet: wider screens keep these in the list's own toolbar. */}
+        {sheetFields ? <div className="flex min-w-0 flex-col gap-4 md:hidden">{sheetFields}</div> : null}
       </FilterBar>
       <noscript>
         <button type="submit" className="text-xs underline">
