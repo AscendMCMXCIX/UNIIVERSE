@@ -56,12 +56,13 @@ export function SocialLinksFields({ draft, onChange, disabled = false, idPrefix 
     <div className="space-y-3">
       {SOCIAL_KINDS.map((k) => (
         <div key={k} className="min-w-0" data-testid={`social-field-${k}`} data-public={draft[k].public || undefined}>
-          <div className="flex min-h-8 items-center justify-between gap-3">
+          {/* At a larger text size "Show publicly" goes under the field's name, and wraps on a phone. */}
+          <div className="flex min-h-8 flex-wrap items-center justify-between gap-x-3">
             <label htmlFor={`${idPrefix}-${k}`} className="inline-flex min-w-0 items-center gap-2 text-sm font-medium text-fg">
               <BrandIcon kind={k} className="h-4 w-4" />
               {SOCIAL_LABELS[k]}
             </label>
-            <Switch inline id={`${idPrefix}-${k}-public`} label="Show publicly" ariaLabel={`Show publicly: ${SOCIAL_LABELS[k]}`} checked={draft[k].public} disabled={disabled} onChange={(on) => onChange(k, { public: on })} className="-mr-1.5" testId={`social-public-${k}`} />
+            <Switch inline id={`${idPrefix}-${k}-public`} label="Show publicly" ariaLabel={`Show publicly: ${SOCIAL_LABELS[k]}`} checked={draft[k].public} disabled={disabled} onChange={(on) => onChange(k, { public: on })} className="max-sm:min-w-0 max-sm:shrink -mr-1.5" testId={`social-public-${k}`} />
           </div>
           <Input id={`${idPrefix}-${k}`} value={draft[k].value} placeholder={PLACEHOLDERS[k]} autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={200} enterKeyHint="done" disabled={disabled} onChange={(e) => onChange(k, { value: e.target.value })} aria-invalid={!!problems[k]} aria-describedby={problems[k] ? `${idPrefix}-${k}-problem` : undefined} />
           {problems[k] ? (

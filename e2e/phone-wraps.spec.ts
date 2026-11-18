@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "./test";
+import { memberContext } from "./member-account";
 
 /*
   On a 320px phone, the narrowest docs/MOBILE.md supports, what a row is about wraps rather than
@@ -46,4 +47,33 @@ test("the champion window: the account its figures come from wraps rather than b
   await page.goto(`${new URL(href!, "http://x").pathname}/champions`);
   await openChampion(page, page.getByTestId("top-champion").first().getByTestId("open-champion"));
   await expectWhole(page.getByTestId("champion-detail-scope"), "the window's scope");
+});
+
+test("at 200% text on a 320px phone, Settings for a member with a player profile (its Social links too) is no wider than the phone, and no button spills its label", async ({ browser, page }) => {
+  // A member with a profile sees Social links, which the local owner (no profile) does not.
+  const member = await memberContext(browser, page, { width: 320, height: 568 }, { base: "Wide" });
+  try {
+    await member.page.goto("/settings");
+    await expect(member.page.getByTestId("social-links-save")).toBeVisible();
+    await member.page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+    await member.page.evaluate(() => document.fonts.ready);
+    await expect.poll(() => member.page.evaluate(() => document.documentElement.scrollWidth), { message: "the page as wide as the phone" }).toBeLessThanOrEqual(320);
+    const spilled = await member.page.evaluate(() => [...document.querySelectorAll<HTMLElement>("main button")].filter((b) => b.getBoundingClientRect().width > 0 && b.scrollHeight > b.clientHeight + 1).map((b) => b.textContent?.trim() ?? ""));
+    expect(spilled, "buttons whose label spills out of them").toEqual([]);
+  } finally {
+    await member.context.close();
+  }
+});
+
+test("at 200% text on a 320px phone, Team Overview's header (Edit lineup included) is no wider than the phone", async ({ page }) => {
+  await page.goto("/team");
+  await expect(page.getByTestId("team-header")).toBeVisible();
+  await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+  await page.evaluate(() => document.fonts.ready);
+  await expect.poll(() => page.evaluate(() => Math.round(document.querySelector("[data-testid=team-header]")!.getBoundingClientRect().right)), { message: "the header's right edge" }).toBeLessThanOrEqual(320);
+  const edit = page.getByTestId("edit-lineup");
+  if (await edit.count()) {
+    const box = (await edit.boundingBox())!;
+    expect(box.x + box.width, "Edit lineup within the phone").toBeLessThanOrEqual(320.5);
+  }
 });
