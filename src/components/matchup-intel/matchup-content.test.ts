@@ -62,7 +62,9 @@ async function render(input: { champion?: string; vs?: string }, over: Partial<M
   const content = createElement(MatchupContent, { view, champions: ROSTER, curated, legal: LEGAL });
   return renderToStaticMarkup(createElement(MatchupFrame, { you: view.you, enemy: view.enemy, champions: ROSTER, curated }, content));
 }
-const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/\s+/g, " ");
+// A source link holds its last word's end with its icon in a nowrap span (source-link.tsx), drawn
+// joined to the rest of the word: that tag is read without a space, every other tag as one.
+const text = (html: string) => html.replace(/<span class="whitespace-nowrap">/g, "").replace(/<[^>]+>/g, " ").replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/\s+/g, " ");
 
 describe("the page body", () => {
   it("a curated pair: the briefing with its chips, five ability rows with cooldowns, the notes and the sources", async () => {

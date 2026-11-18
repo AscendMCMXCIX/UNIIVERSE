@@ -38,7 +38,9 @@ const uncuratedPair: FooterView = { you: { name: "Garen" }, enemy: { name: "Dari
 
 const LEGAL = riotLegal("Rocket Hub");
 const render = (view: FooterView, legal = LEGAL) => renderToStaticMarkup(createElement(MatchupFooter, { view, legal }));
-const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/\s+/g, " ");
+// A source link holds its last word's end with its icon in a nowrap span (source-link.tsx), drawn
+// joined to the rest of the word: that tag is read without a space, every other tag as one.
+const text = (html: string) => html.replace(/<span class="whitespace-nowrap">/g, "").replace(/<[^>]+>/g, " ").replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/\s+/g, " ");
 /** The inner HTML of the element with this test id (the first; elements of this footer do not nest their own kind). */
 const part = (html: string, testId: string, tag = "[a-z]+") => new RegExp(`<(${tag})[^>]*data-testid="${testId}"[^>]*>([\\s\\S]*?)</\\1>`).exec(html)?.[2] ?? null;
 const links = (html: string) => [...html.matchAll(/<a [^>]*>/g)].map((m) => m[0]);
