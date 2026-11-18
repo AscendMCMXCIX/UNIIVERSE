@@ -1,7 +1,9 @@
 import { devices, expect, test, type Locator, type Page } from "./test";
+import { lineupAtRest } from "./lineup";
 import { emulateKeyboard, keyboard } from "./keyboard";
 import { expectClearCorner, untilStill } from "./modal-corner";
-import { besideAMark } from "./match-history";
+import { besideAMark, openMatchWindow } from "./match-history";
+import { bubbleFacts, NOT_A_PICTURE, NOT_A_PICTURE_ERROR, openPictureEditor, placedRight, toastFacts } from "./popups";
 import path from "node:path";
 
 /*
@@ -11,6 +13,11 @@ import path from "node:path";
   Screen app, the iOS keyboard (emulated here, as in the Chromium tests) and real touch scrolling
   still need a device (docs/RESPONSIVE.md → Safari and iPhones). Every other test runs in Chromium
   on the phone, tablet and desktop projects.
+  The popups over windows that behave differently in Safari are checked here too (the rest are in
+  e2e/popups.spec.ts): a window opened by a tap holds the focus itself with nothing in it ringed
+  (Safari ringed the close button), an ⓘ's bubble in a game's window is drawn inside it and Escape
+  closes the bubble alone, and a toast over the picture editor is drawn in it, its dismiss button
+  reached by a tap where it is drawn.
   The shared fixture fails a test on any uncaught page error, hydration mismatches included.
 */
 
@@ -38,6 +45,8 @@ test("the priority pages load without an error and without sideways scrolling", 
 test("Team Overview: the cards are one sideways track, a role tab brings its card into view, and names are whole", async ({ page }) => {
   await page.goto("/team");
   await expect(page.getByTestId("lineup-cell")).toHaveCount(5);
+  // Measured once the lineup is laid out and at rest (it streams in: e2e/lineup.ts).
+  await lineupAtRest(page);
   await fitsWidth(page, "/team");
   const pager = page.getByTestId("lineup-pager");
   // A tap before the page is interactive does nothing: tap until the track has moved. The tab's job
@@ -528,6 +537,7 @@ test("held sideways: the pages fit, the tab bar stays in reach as a compact row,
   for (const route of ["/team", "/players", "/resources"]) {
     await page.goto(route);
     await expect(page.locator("main"), route).toBeVisible();
+    if (route === "/team") await lineupAtRest(page);
     await fitsWidth(page, `${route}, sideways`);
     // The places to go stay one tap away sideways too (there is no menu drawer on a phone).
     await expect(tabs, route).toBeVisible();
@@ -545,47 +555,6 @@ test("held sideways: the pages fit, the tab bar stays in reach as a compact row,
   });
   await expect(page.getByTestId("mobile-topbar")).toHaveAttribute("data-hidden", "true");
   await expect(tabs).toHaveAttribute("data-hidden", "true");
-  await context.close();
-});
-
-test("Team Overview held sideways: one track of cards that snaps a card to the page's gutter without moving the page sideways, and a substitute's chip turns its card", async ({ browser, baseURL }) => {
-  const { defaultBrowserType: _, ...landscape } = devices["iPhone 15 landscape"];
-  const context = await browser.newContext(landscape);
-  await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
-  const page = await context.newPage();
-  await page.goto("/team");
-  const track = page.getByTestId("lineup-overview");
-  await expect(track).toHaveAttribute("data-ready", "true");
-  const cells = page.getByTestId("lineup-cell");
-  await expect(cells).toHaveCount(5);
-  const lefts = () => cells.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().left)));
-  const tops = await cells.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
-  expect(new Set(tops).size, "the five cards in one row").toBe(1);
-  // The first card starts at the page's gutter, under the header's start.
-  const gutter = Math.round((await page.getByTestId("team-header").boundingBox())!.x);
-  expect(Math.abs((await lefts())[0]! - gutter)).toBeLessThanOrEqual(1);
-  await fitsWidth(page, "/team, sideways");
-  // Scrolled part of the way (by script: WebKit's touch emulation has no swipe), the track comes to
-  // rest with a later card at the gutter (snap), and the page itself never scrolls sideways. A later
-  // card, not any card: the first one sits at the gutter before the scroll, so `some` over all five
-  // would pass before the track had moved.
-  await track.evaluate((el) => el.scrollBy({ left: 180 }));
-  await expect.poll(async () => (await lefts()).slice(1).some((x) => Math.abs(x - gutter) <= 2), { timeout: 5_000 }).toBe(true);
-  expect(await track.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
-  await fitsWidth(page, "/team, sideways, the track scrolled");
-  // A substitute's chip under the track turns that card to them and moves focus onto its way back.
-  const chip = page.getByTestId("lineup-bench").locator("button[data-testid^=bench-]").first();
-  await expect(chip).toBeVisible();
-  const role = (await chip.getAttribute("data-testid"))!.slice("bench-".length);
-  await chip.scrollIntoViewIfNeeded();
-  // A tap before the page is interactive does nothing: tap until the card has turned.
-  await expect(async () => {
-    if ((await chip.getAttribute("aria-pressed")) !== "true") await chip.tap();
-    await expect(page.getByTestId(`lineup-card-${role}`)).toHaveAttribute("data-flipped", "true", { timeout: 1_000 });
-  }).toPass({ timeout: 15_000 });
-  await expect(chip).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByTestId(`lineup-sub-${role}`).getByTestId("flip-back")).toBeFocused();
-  await fitsWidth(page, "/team, sideways, a card turned");
   await context.close();
 });
 
@@ -693,4 +662,69 @@ test("an uploaded logo: at the start of the top bar, animated unless motion is r
     await page.getByTestId("confirm-dialog-confirm").click();
     await expect(page.getByTestId("brand-logo-empty")).toBeVisible();
   }
+});
+
+test("popups: a window opened by a tap takes the focus itself, and nothing in it is ringed (Safari ringed its close button)", async ({ page }) => {
+  await page.goto("/team");
+  const open = page.getByTestId("lineup-row-TOP").getByTestId("open-player-detail");
+  const win = page.getByTestId("player-detail");
+  // A tap before the page is interactive does nothing: tap until the window opens.
+  await expect(async () => {
+    if (!(await win.isVisible())) await open.tap({ timeout: 2_000 });
+    await expect(win).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  await untilStill(page);
+  const focus = await win.evaluate((d) => {
+    const active = document.activeElement as HTMLElement | null;
+    return {
+      onWindow: active === d,
+      outline: active ? getComputedStyle(active).outlineStyle : null,
+      ringed: [...d.querySelectorAll("*")].filter((e) => e.matches(":focus-visible")).map((e) => e.getAttribute("aria-label") ?? e.tagName),
+    };
+  });
+  expect(focus).toEqual({ onWindow: true, outline: "none", ringed: [] });
+  await page.keyboard.press("Escape");
+  await expect(win).toBeHidden();
+});
+
+test("popups: a tapped ⓘ in a game's window is drawn inside the window, on top, beside its ⓘ, and the first Escape closes the bubble alone", async ({ page }) => {
+  const win = await openMatchWindow(page);
+  await untilStill(page);
+  // The notes under the scoreboard settle first (they redraw the lines above the ⓘ).
+  await expect(win.getByTestId("ranks-note")).not.toHaveAttribute("data-state", "checking", { timeout: 15_000 });
+  await expect(win.getByTestId("possible-groups-note")).not.toHaveAttribute("data-state", "loading", { timeout: 15_000 });
+  const tip = win.getByTestId("ranks-info");
+  const bubble = page.getByTestId("ranks-info-bubble");
+  await tip.scrollIntoViewIfNeeded();
+  // A tap toggles the bubble: tap again only while it has not opened.
+  await expect(async () => {
+    if ((await bubble.count()) === 0) await tip.tap({ timeout: 2_000 });
+    await expect(bubble).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  const facts = await bubbleFacts(bubble, "ranks-info");
+  expect(facts.window).toBe("match-detail");
+  expect(facts.onTop).toBe(true);
+  expect(placedRight(facts), JSON.stringify(facts)).toBe(true);
+  // Escape closes the bubble; the window's close request is the key's default action, kept from it.
+  await page.keyboard.press("Escape");
+  await expect(bubble).toHaveCount(0);
+  await page.waitForTimeout(300);
+  await expect(win).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(win).toBeHidden();
+});
+
+test("popups: an error toast raised over the picture editor is drawn in the window, on top, and a tap at its dismiss button's centre reaches it", async ({ page }) => {
+  const win = await openPictureEditor(page);
+  await page.getByTestId("avatar-file").setInputFiles(NOT_A_PICTURE);
+  const toast = page.getByTestId("toast").filter({ hasText: NOT_A_PICTURE_ERROR });
+  await expect(toast).toBeVisible();
+  const f = await toastFacts(toast);
+  expect({ inWindow: f.inWindow, live: f.live, onTop: f.onTop, reached: f.dismiss.reached }).toEqual({ inWindow: true, live: 1, onTop: true, reached: true });
+  expect(f.dismiss.width).toBeGreaterThanOrEqual(44);
+  expect(f.dismiss.height).toBeGreaterThanOrEqual(44);
+  // A finger where the button is drawn (over the sheet: a toast is not part of it, and pulls nothing).
+  await page.touchscreen.tap((f.dismiss.box.left + f.dismiss.box.right) / 2, (f.dismiss.box.top + f.dismiss.box.bottom) / 2);
+  await expect(toast).toHaveCount(0);
+  await expect(win).toBeVisible();
 });

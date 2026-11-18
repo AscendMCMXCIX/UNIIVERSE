@@ -13,6 +13,10 @@ import path from "node:path";
   - a colour written as a hex value in a class (bg-[#…]) instead of a named palette colour;
   - an easing curve that is not one of the --ease-* tokens, in a class, a style or a script;
   - an uppercase label spaced other than tracking-label (a pill badge may use tracking-wide);
+  - a size, weight, case or letter spacing beside label-caps, which sets all four (a colour may
+    replace its fg-subtle): Tailwind orders label-caps after a text size, so the size would be lost;
+  - the standing-alone measure written as a number (max-w-[72rem], max-w-6xl) instead of
+    max-w-[var(--measure)], so the boards that use it change together;
   - a safe-area padding (pb-safe, pb-safe-N; pt-safe, pt-safe-N) beside another padding for the same
     edge in one class list: Tailwind's stylesheet order then decides which wins, not the class
     list, and `py-4 pb-safe` gave the bare inset, 0px in a browser (#265);
@@ -71,6 +75,9 @@ function utilityOf(token: string): string {
   return token.slice(end + 1).replace(/^!|!$/g, "");
 }
 
+/** What label-caps sets, so a class string carries none of it beside label-caps. */
+const LABEL_CAPS_SETS = [/^(uppercase|lowercase|capitalize|normal-case)$/, /^tracking-/, /^font-(thin|extralight|light|normal|medium|semibold|bold|extrabold|black)$/, /^text-(4xs|2xs|xs|sm|md|base|lg|xl|\dxl|figure)(\/.+)?$/, /^text-\[(length:)?[\d.]+(px|rem|em)\]$/];
+
 /** Per edge: its safe-area paddings, and every other padding that sets that edge. */
 const SAFE_EDGES = [
   { edge: "pb-safe", safe: /^pb-safe(-\d+)?$/, other: /^-?(p|py|pb)-/ },
@@ -119,6 +126,18 @@ export function tokenProblems(source: string, tokens: Map<string, string>, optio
       for (const c of classes) {
         if (/(^|:)tracking-(tighter|tight|normal|wide|wider|widest)$/.test(c)) problems.push(`${at}: ${c} on an uppercase label; use tracking-label`);
       }
+    }
+    // label-caps sets a label's size, weight, case and letter spacing: none of them beside it.
+    for (const m of text.matchAll(/(["'`])([^"'`]*\blabel-caps\b[^"'`]*)\1/g)) {
+      const classes = m[2]!.split(/\s+/).filter(Boolean);
+      if (!classes.some((c) => utilityOf(c) === "label-caps")) continue;
+      for (const c of classes) {
+        if (LABEL_CAPS_SETS.some((re) => re.test(utilityOf(c)))) problems.push(`${at}: ${c} beside label-caps, which sets the label's size, weight, case and letter spacing`);
+      }
+    }
+    // The standing-alone measure is one token, so every board that uses it changes together.
+    for (const m of text.matchAll(/[^\s"'`{}]+/g)) {
+      if (/^max-w-(\[72rem\]|6xl)$/.test(utilityOf(m[0]))) problems.push(`${at}: ${m[0]} is max-w-[var(--measure)]`);
     }
     // A safe-area padding is its element's only padding for that edge (globals.css): beside another
     // one, whichever Tailwind writes later wins, at every width the classes share.
@@ -179,6 +198,8 @@ describe("design tokens", () => {
       `<p className="bg-[#f5c451] hover:border-[#abc]/40 text-gold" />`,
       `el.animate(frames, { easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" }); const odd = "cubic-bezier(0.1, 0.7, 0.1, 1)"; const c = "ease-[cubic-bezier(0.2,_0.8,_0.2,_1)]";`,
       `<span className="text-2xs uppercase tracking-wide" /><span className="rounded-full uppercase tracking-wide" /><span className="uppercase tracking-label sm:tracking-wider" />`,
+      `<span className="label-caps text-xs" /><span className="label-caps tracking-wide" /><span className="label-caps uppercase font-medium" /><span className="label-caps text-fg-muted" />`,
+      `<div className="max-w-[72rem] lg:max-w-6xl max-w-[var(--measure)] max-w-[80rem]" />`,
       `<div className="px-4 py-4 pb-safe sm:py-5" /><div className="pt-3 pb-safe-3" /><div className="p-2 pt-safe-2" /><div className="pb-safe-4 sm:pb-safe-5 short:pb-safe-4 pt-4" /><div className="max-sm:pb-safe-4 pb-tabbar" />`,
       `<div className="pb-[max(1rem,env(safe-area-inset-bottom))] max-sm:pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-top))] pb-[max(0.6rem,env(safe-area-inset-bottom))] pb-[calc(1rem+env(safe-area-inset-bottom))]" />`,
       `<p className="shadow-accent/15 hover:shadow-accent drop-shadow-accent shadow-accent-strong shadow-[0_0_60px_-20px_var(--color-accent)] shadow-accent-2 shadow-black/40 shadow-[0_0_60px_-20px_var(--color-accent-2)] ring-1 ring-inset ring-accent/40" />`,
@@ -204,20 +225,26 @@ describe("design tokens", () => {
       "4: cubic-bezier(0.1, 0.7, 0.1, 1) is not an --ease token",
       "5: tracking-wide on an uppercase label; use tracking-label",
       "5: sm:tracking-wider on an uppercase label; use tracking-label",
-      "6: py-4 beside pb-safe; pad that edge once (pb-safe-N is N steps, or the inset where larger)",
-      "6: sm:py-5 beside pb-safe; pad that edge once (pb-safe-N is N steps, or the inset where larger)",
-      "6: p-2 beside pt-safe; pad that edge once (pt-safe-N is N steps, or the inset where larger)",
-      "6: pb-tabbar beside pb-safe; pad that edge once (pb-safe-N is N steps, or the inset where larger)",
-      "7: pb-[max(1rem,env(safe-area-inset-bottom))] is pb-safe-4",
-      "7: pt-[max(0.75rem,env(safe-area-inset-top))] is pt-safe-3",
-      "8: shadow-accent/15 is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
-      "8: shadow-accent is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
-      "8: drop-shadow-accent is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
-      "8: shadow-accent-strong is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
-      "8: shadow-[0_0_60px_-20px_var(--color-accent)] is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
-      "9: shadow-(color:--color-accent) is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
-      "9: inset-shadow-(color:--color-accent-strong)/30 is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
-      "9: drop-shadow-(--color-accent) is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "6: text-xs beside label-caps, which sets the label's size, weight, case and letter spacing",
+      "6: tracking-wide beside label-caps, which sets the label's size, weight, case and letter spacing",
+      "6: uppercase beside label-caps, which sets the label's size, weight, case and letter spacing",
+      "6: font-medium beside label-caps, which sets the label's size, weight, case and letter spacing",
+      "7: max-w-[72rem] is max-w-[var(--measure)]",
+      "7: lg:max-w-6xl is max-w-[var(--measure)]",
+      "8: py-4 beside pb-safe; pad that edge once (pb-safe-N is N steps, or the inset where larger)",
+      "8: sm:py-5 beside pb-safe; pad that edge once (pb-safe-N is N steps, or the inset where larger)",
+      "8: p-2 beside pt-safe; pad that edge once (pt-safe-N is N steps, or the inset where larger)",
+      "8: pb-tabbar beside pb-safe; pad that edge once (pb-safe-N is N steps, or the inset where larger)",
+      "9: pb-[max(1rem,env(safe-area-inset-bottom))] is pb-safe-4",
+      "9: pt-[max(0.75rem,env(safe-area-inset-top))] is pt-safe-3",
+      "10: shadow-accent/15 is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "10: shadow-accent is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "10: drop-shadow-accent is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "10: shadow-accent-strong is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "10: shadow-[0_0_60px_-20px_var(--color-accent)] is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "11: shadow-(color:--color-accent) is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "11: inset-shadow-(color:--color-accent-strong)/30 is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
+      "11: drop-shadow-(--color-accent) is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
     ]);
   });
 });

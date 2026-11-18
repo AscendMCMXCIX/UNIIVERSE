@@ -1,5 +1,5 @@
 import { calendarDay, formatDate } from "@/lib/format";
-import type { RankQueue } from "@/domain/rank-progress";
+import { rankCode, type RankQueue } from "@/domain/rank-progress";
 
 /*
   The rank beside each player of a completed game. Riot's match records (MATCH-V5) hold no rank,
@@ -201,7 +201,6 @@ export function rankBadgeLabel(rank: ParticipantRank, queueId: number | null, no
   };
 }
 
-const TIER_LETTERS: Record<string, string> = { IRON: "I", BRONZE: "B", SILVER: "S", GOLD: "G", PLATINUM: "P", EMERALD: "E", DIAMOND: "D", MASTER: "M", GRANDMASTER: "GM", CHALLENGER: "C" };
 
 export interface RankShortLabel {
   /** "E2", "D4", "GM", "Unr"; null when nothing is known (the card shows nothing). */
@@ -238,7 +237,7 @@ export function rankShortLabel(rank: ParticipantRank, queueId: number | null, no
   const other = queue !== matchRankQueue(queueId);
   const words = `${TIER_SHORT[tier] ?? titleCase(tier)}${division ? ` ${division}` : ""}`;
   return {
-    text: `${TIER_LETTERS[tier] ?? tier.charAt(0)}${division}`,
+    text: rankCode(tier, rank.division),
     tier,
     queueMark: other ? (queue === "flex" ? "f" : "s") : null,
     old,

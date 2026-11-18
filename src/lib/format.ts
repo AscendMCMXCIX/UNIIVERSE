@@ -116,6 +116,18 @@ export function formatTimeOfDay(date: DateInput): string {
   return c ? `${c.hour % 12 || 12}:${String(c.minute).padStart(2, "0")} ${c.hour < 12 ? "am" : "pm"}` : "—";
 }
 
+/**
+ * A later instant written against an earlier one, leaving out what the two share: on the same
+ * calendar day its time alone ({ day: null, time: "3:04 pm" }), in the same year its day and month
+ * too ("21 Oct"), else its full date ("2 Jan 2027"). Ranked progress's readings say this way when a
+ * reading was last confirmed, under the instant it was first read.
+ */
+export function formatDateTimeAfter(date: DateInput, earlier: DateInput): { day: string | null; time: string } {
+  const time = formatTimeOfDay(date);
+  if (isoDay(date) === isoDay(earlier)) return { day: null, time };
+  return { day: calendarDay(date)?.year === calendarDay(earlier)?.year ? formatDayMonth(date) : formatDate(date), time };
+}
+
 /** "21 Oct 2026, 3:04 pm". */
 export function formatDateTime(date: DateInput): string {
   const c = clock(date);
@@ -158,6 +170,14 @@ export function formatLpChange(delta: number): string {
 /** A whole number with thousands separators, written the same in every browser ("12,345"). */
 export function formatCount(value: number): string {
   return Math.round(value).toLocaleString("en");
+}
+
+/** "1st", "2nd", "3rd", "4th", "11th", "21st", "1,001st": a place in words ("Tied for 4th"), the same on the server and in every browser. */
+export function formatOrdinal(n: number): string {
+  const whole = Math.round(n);
+  const last2 = Math.abs(whole) % 100;
+  const suffix = last2 >= 11 && last2 <= 13 ? "th" : (["th", "st", "nd", "rd"][Math.abs(whole) % 10] ?? "th");
+  return `${formatCount(whole)}${suffix}`;
 }
 
 /** A number with exactly `digits` decimals and thousands separators ("1,234.5"). */

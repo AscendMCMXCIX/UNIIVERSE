@@ -3,7 +3,8 @@ import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /*
-  Two rules for overlays (windows, sheets, the account screen, the tablet drawer, menus, tips).
+  Three rules for overlays (windows, sheets, the account screen, the tablet drawer, menus, tips,
+  toasts, pickers).
 
   A window's body grows from its content, never from nothing: `flex-auto`, not `flex-1`. Safari 26
   and earlier collapse a window that is as tall as its content (a dialog's fit-content height) to
@@ -22,6 +23,17 @@ import { describe, expect, it } from "vitest";
   323322). Script that needs the screen's size measures that box (src/lib/screen.ts). The listed
   exceptions say why; inside windows, the Card Studio's section list and the picture cropper still
   follow the viewport, as they did before.
+
+  What must show over a window is drawn inside it. Every window is a modal <dialog> in the browser's
+  top layer, above the whole page and its z-indexes, with the rest of the page inert: an ⓘ's bubble
+  or a toast left on the page was drawn under the window, out of sight, and a toast's buttons could
+  not be pressed. Windows note themselves in the top layer (top-layer.ts) as they open, come to rest
+  and close; a tip's bubble goes into the window its trigger sits in, the toasts into the topmost
+  window at rest (a moving window carries what is fixed inside it). A window takes the focus itself
+  only through focusWindow, holding it until it is pressed, and a press on nothing focusable in it
+  leaves nothing focused (letGoWhenPressed). A picker's list inside a window opens in the flow of
+  the window's body (picker-flow.ts), which is then its one scroller, instead of a list scrolling
+  inside it that the body cut off; there it closes on a press's click.
 */
 
 const root = join(__dirname, "..", "..", "..");
@@ -48,11 +60,20 @@ const OVERLAYS = [
   "src/components/ui/dialog.tsx",
   "src/components/ui/menu.tsx",
   "src/components/ui/info-tip.tsx",
+  "src/components/ui/toast.tsx",
+  "src/components/ui/top-layer.ts",
+  "src/components/ui/picker-flow.ts",
   "src/components/ui/keyboard-fit.ts",
   "src/components/mobile-nav.tsx",
   "src/components/account-menu.tsx",
   "src/components/public/sign-in.tsx",
+  "src/components/matches/match-filters.tsx",
+  "src/components/champions/champion-filter.tsx",
+  "src/components/players/opponent-picker.tsx",
 ];
+
+/** The pickers whose list opens under their button, inside windows among other places. */
+const PICKERS = ["src/components/matches/match-filters.tsx", "src/components/champions/champion-filter.tsx", "src/components/players/opponent-picker.tsx"];
 
 /** A viewport unit in a value (12dvh, 100vw, calc(100svh-...)) or a Tailwind size named after one (h-dvh, h-screen). */
 const VIEWPORT_UNIT = /(?<![\w-])\d*\.?\d+(?:d|s|l)?(?:vh|vw|vmin|vmax|vb|vi)\b|(?<![\w-])(?:min-|max-)?[hw]-(?:dvh|svh|lvh|screen|dvw|svw|lvw)\b|(?<![\w-])size-screen\b/g;
@@ -68,7 +89,7 @@ const VIEWPORT_JS = /\binnerHeight\b|\binnerWidth\b|\b(?:documentElement|root|ht
 const VIEWPORT_JS_ALLOWED: Record<string, { reads: string[]; why: string }> = {
   "src/components/ui/keyboard-fit.ts": {
     reads: ["visualViewport"],
-    why: "the on-screen keyboard is only visible as the visual viewport shrinking; it is believed only once a field in the window is typed in, against the fixed box's height, and only a plausible keyboard",
+    why: "the on-screen keyboard is only visible as the visual viewport shrinking; it is believed only once a field in the window is typed in (or, for the add-champion list kept above it, while its field has the focus), against the fixed box's height, and only a plausible keyboard",
   },
   "src/components/ui/detail-modal.tsx": {
     reads: ["innerWidth", "root.clientWidth"],
@@ -188,5 +209,127 @@ describe("overlays are sized by the box they are fixed to", () => {
   it("the stylesheet has no viewport-sized overlay utility left", () => {
     const css = code(read("src/app/globals.css"));
     expect(css).not.toMatch(/panel-place|--vv-top|--vv-bottom/);
+  });
+});
+
+describe("what shows over a window is drawn inside it", () => {
+  it("every window notes itself in the top layer as it opens and as it closes, and only DetailModal and the tablet's menu are windows of their own", () => {
+    const shown = tsxFiles().filter((file) => /\.showModal\(/.test(code(read(file))));
+    expect(shown.sort()).toEqual(["src/components/mobile-nav.tsx", "src/components/ui/detail-modal.tsx"]);
+    for (const file of shown) {
+      const source = code(read(file));
+      expect(source, file).toMatch(/noteModalOpened\(d\)/);
+      expect(source, file).toMatch(/noteModalAtRest\(/);
+      expect(source, file).toMatch(/noteModalClosed\(d\)/);
+    }
+    // DetailModal says it is closing from a layout effect's cleanup, while it is still on the page,
+    // and as its closing motion starts; it is at rest once its opening motion has ended (or after
+    // REST_MS): a moving window carries what is fixed in it (the toasts) along with its motion.
+    const modal = code(read("src/components/ui/detail-modal.tsx"));
+    expect(modal).toMatch(/useLayoutEffect\(\(\) => \{\s*const d = ref\.current;\s*if \(!open \|\| !d\) return;\s*return \(\) => noteModalClosed\(d\);/);
+    expect(modal).toMatch(/setClosing\(true\);\s*if \(ref\.current\) noteModalClosed\(ref\.current\);/);
+    expect(modal).toMatch(/if \(OPENING_MOTIONS\.has\(e\.animationName\)\) \{\s*settle\(\);\s*noteModalAtRest\(e\.currentTarget\);/);
+    expect(modal).toContain("restTimer = window.setTimeout(() => noteModalAtRest(d), REST_MS)");
+  });
+
+  it("a tip's bubble is drawn in the window its trigger sits in, and Escape on it is kept from that window", () => {
+    const tip = code(read("src/components/ui/info-tip.tsx"));
+    expect(tip).toContain('trigger?.closest<HTMLElement>("dialog[open]") ?? topModal() ?? document.body');
+    expect(tip).toContain("createPortal(");
+    expect(tip).not.toMatch(/createPortal\([\s\S]*document\.body,\s*\)/);
+    // Captured on window, and the key's default action (the window's close request) prevented.
+    expect(tip).toContain('window.addEventListener("keydown", onKey, true)');
+    expect(tip).toMatch(/if \(e\.key !== "Escape"\) return;\s*e\.preventDefault\(\);\s*e\.stopPropagation\(\);/);
+    // Placed again at every frame while the window holding it moves, and once more as it stops.
+    expect(tip).toMatch(/place\(\);\s*if \(moving\(host\)\) frame = requestAnimationFrame\(follow\);/);
+    // Its size read unrounded: offsetWidth and offsetHeight round it, and a bubble of a fractional
+    // height was taken for a scaled one and landed off its ⓘ.
+    expect(tip).toContain("{ width: parseFloat(size.width), height: parseFloat(size.height) }");
+    expect(tip).not.toMatch(/offset(Width|Height)/);
+    expect(tip).toMatch(/"animationstart", "animationend"/);
+  });
+
+  it("a mouse opens a tip's bubble by moving over its trigger, never as a window opening brings the trigger under a pointer at rest", () => {
+    // A window opening under the pointer that pressed its opener sends what it lays there a
+    // pointerenter without a move: a bubble opened by it, never pointed at, took the Escape meant for
+    // the window (e2e/popups.spec.ts).
+    const tip = code(read("src/components/ui/info-tip.tsx"));
+    expect(tip).toMatch(/onPointerMove=\{\(e\) => \{\s*if \(e\.pointerType !== "mouse" \|\| visited\.current\) return;\s*visited\.current = true;\s*show\(\);/);
+    // Coming in starts a visit, unless the bubble is open already (the coming in React replays once
+    // the trigger has hydrated, under a mouse that opened it as it hydrated, is the same visit).
+    expect(tip).toMatch(/onPointerEnter=\{\(e\) => \{\s*if \(e\.pointerType === "mouse" && !open\) visited\.current = false;\s*\}\}/);
+    expect(tip).not.toMatch(/onPointer(Enter|Over)=\{[^}]*show\(\)/);
+  });
+
+  it("a mouse that moved onto a tip's trigger while the page hydrated, and rests on it, opens it as the trigger hydrates", () => {
+    // React replays a pointer's coming in once the trigger has hydrated, never its moves: a hover
+    // made while the page hydrated was lost, the bubble shut until the pointer moved again (the
+    // status ⓘ of a profile, hovered as soon as the page had loaded; e2e/popups.spec.ts). The head's
+    // script notes where the mouse last moved (input-kind.ts), and the trigger, as it mounts, opens
+    // only if that move landed on it and the pointer is over it still: one laid under a pointer at
+    // rest stays closed.
+    const tip = code(read("src/components/ui/info-tip.tsx"));
+    expect(tip).toMatch(/React\.useLayoutEffect\(\(\) => \{\s*const t = trigger\.current;\s*if \(!t \|\| !restsAfterMovingOnto\(t, lastMouseMove\(\)\)\) return;\s*visited\.current = true;/);
+    expect(tip).toMatch(/return trigger\.contains\(last as Node\) && trigger\.matches\(":hover"\);/);
+  });
+
+  it("the toasts are drawn in the topmost window at rest while one is open, and in place otherwise", () => {
+    const toast = code(read("src/components/ui/toast.tsx"));
+    expect(toast).toContain("React.useSyncExternalStore(subscribeModals, topLayer, noTopLayer)");
+    expect(toast).toContain("return host ? createPortal(region, host) : region;");
+    // Covered by a window moving in, they wait; a toast is heard once it has been live in place.
+    expect(toast).toMatch(/if \(place\.ready \|\| place\.opening\) return;/);
+    expect(toast).toContain("React.useEffect(() => () => heard.moved(), [place.host, place.opening]);");
+    // Over a sheet, a finger on a toast pulls nothing.
+    expect(toast).toContain('data-floating=""');
+    expect(code(read("src/components/ui/detail-modal.tsx"))).toContain('closest?.("[data-floating]")');
+  });
+
+  it("a window takes the focus itself through focusWindow alone, holds it only until pressed, and a press on nothing focusable leaves nothing focused", () => {
+    const modal = code(read("src/components/ui/detail-modal.tsx"));
+    const nav = code(read("src/components/mobile-nav.tsx"));
+    const drawer = nav.slice(nav.indexOf("function Drawer("), nav.indexOf("\nfunction ", nav.indexOf("function Drawer(") + 1));
+    for (const [name, source] of [["DetailModal", modal], ["the tablet's menu", drawer]] as const) {
+      expect(source, name).toMatch(/letGo = focusWindow\(d\)/);
+      expect(source, name).toMatch(/letGo\(\);/);
+      expect(source, name).not.toMatch(/\bd\.focus\(/);
+      // No tabindex of its own: a window focusable for good took the focus back at every click on
+      // its text. Nor is dropping it enough: Chromium and WebKit focus a dialog itself at such a
+      // click, tabindex or not, and the keys then scrolled nothing (its body, which scrolls, is
+      // inside it). Every press is let go once the browser has handed the focus out.
+      expect(source, name).not.toMatch(/tabIndex=/);
+      expect(source, name).toMatch(/const presses = letGoWhenPressed\(d\);/);
+      expect(source, name).toMatch(/presses\(\);/);
+    }
+  });
+
+  it("the tablet's menu locks the page as every window does", () => {
+    const nav = code(read("src/components/mobile-nav.tsx"));
+    expect(nav).toContain("const unlock = lockPage();");
+    expect(nav).not.toMatch(/style\.overflow\s*=/);
+  });
+
+  it.each(PICKERS)("%s opens its list in the flow inside a window, with no scroller of its own there", (file) => {
+    const source = code(read(file));
+    expect(source).toMatch(/opensInFlow\((?:wrapRef\.current|wrap\.current)\)/);
+    expect(source).toMatch(/bringIntoView\((?:panelRef|popover)\.current\)/);
+    // The list's own height and scroller only while it floats.
+    expect(source).toMatch(/!inFlow && "max-h-72 overflow-y-auto/);
+    expect(source).not.toMatch(/className="max-h-72 overflow-y-auto/);
+    // In the flow it closes on the click of a press outside (closed as the press started, it moved
+    // what is below it under the finger before the click), and no rise moves it as it is brought
+    // into view (it would rest a rise's height off).
+    expect(source).toMatch(/closeOnPressOutside\(document, \(node\) => !!(?:wrapRef|wrap)\.current\?\.contains\(node\), inFlow, /);
+    expect(source).not.toMatch(/addEventListener\("pointerdown"/);
+    expect(source).not.toMatch(/"rise-in[^"]*", inFlow \?/);
+    expect(source).not.toMatch(/inFlow \? "[^"]*rise-in/);
+  });
+
+  it("the pickers' searches are 16px on touch screens at every width: iOS zooms into a smaller field, on a phone held sideways too", () => {
+    for (const file of [...PICKERS, "src/components/profile/add-champion.tsx"]) {
+      const source = code(read(file));
+      expect(source, file).toMatch(/text-base[^"]*(?:sm|md):pointer-fine:text-sm/);
+      expect(source, file).not.toMatch(/\b(?:sm|md):text-sm\b/);
+    }
   });
 });
