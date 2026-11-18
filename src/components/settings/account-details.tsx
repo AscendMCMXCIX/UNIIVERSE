@@ -11,8 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
 import { useAvatarUpload } from "@/components/profile/avatar-upload";
-import { SectionIndex, type SectionIndexItem } from "@/components/ui/section-index";
-import { chipClass } from "@/components/ui/segmented";
+import { SECTION_INDEX_LINK, SectionIndex, type SectionIndexItem } from "@/components/ui/section-index";
 import { cn } from "@/lib/cn";
 
 const USERNAME_RULE = /^[\p{L}\p{N}][\p{L}\p{N} ._-]{0,30}[\p{L}\p{N}]$/u;
@@ -215,19 +214,25 @@ export function AvatarEditor({ name, src }: { name: string; src: string | null }
   );
 }
 
-/** Settings' sections, in the account card: chips on a phone and in a window 480px tall or less, a list down the card from md, the one being read marked. */
+/**
+ * Settings' sections, in the account card (Records' SectionIndex: plain links whose click jumps
+ * through the router's history, jumpToAnchor). On a phone, and in a window 480px tall or less, its
+ * quiet line ("Name · Links · Password"); from md in a taller window a list down the card, the
+ * section being read marked.
+ */
 export function SettingsIndex({ items }: { items: readonly SectionIndexItem[] }) {
   return (
     <SectionIndex
       label="Settings sections"
       items={items}
       spy
-      className="md:not-short:flex-col md:not-short:gap-0.5"
+      listClassName="md:not-short:flex-col md:not-short:items-stretch md:not-short:gap-0.5"
+      separatorClassName="md:not-short:hidden"
       linkClassName={(on) =>
         cn(
-          chipClass(on),
-          "md:not-short:flex md:not-short:w-full md:not-short:rounded-md md:not-short:border-transparent md:not-short:px-2 md:not-short:text-sm",
-          on ? "md:not-short:bg-surface-2 md:not-short:font-semibold" : "md:not-short:hover:bg-surface-2",
+          SECTION_INDEX_LINK,
+          "md:not-short:flex md:not-short:min-h-9 md:not-short:w-full md:not-short:rounded-md md:not-short:px-2 md:not-short:hover:bg-surface-2 md:not-short:hover:no-underline md:not-short:pointer-coarse:min-h-11",
+          on && "md:not-short:bg-surface-2 md:not-short:font-semibold md:not-short:text-fg",
         )
       }
       testId="settings-index"

@@ -199,6 +199,29 @@ test("Matchup Intel: a slot's picker fills the screen, a search and a tap choose
   expect(top, "the row's top, under the top bar").toBeGreaterThanOrEqual(bar.y + bar.height - 1);
 });
 
+test("Leaderboards' Records on an iPhone: the index brings each section under the top bar, focused, and nothing is wider than the phone, at a larger text size too", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/leaderboards?view=records");
+  // Once the page's code runs: before it, a tap is the browser's own jump to the anchor.
+  await expect(page.getByTestId("leaderboards")).toHaveAttribute("data-ready", "true");
+  await expect(page.getByTestId("season-record")).toHaveCount(7);
+  await fitsWidth(page, "Records");
+  const index = page.getByTestId("section-index");
+  for (const [name, id] of [
+    ["Milestones", "milestones"],
+    ["Multikills", "multikills"],
+  ] as const) {
+    await index.getByRole("link", { name }).tap();
+    const section = page.locator(`section#${id}`);
+    await expect(section).toBeFocused();
+    await expect(section).toBeInViewport();
+    const bar = (await page.getByTestId("mobile-topbar").boundingBox())!;
+    expect((await section.boundingBox())!.y, `${name}: under the top bar`).toBeGreaterThanOrEqual(bar.y + bar.height - 1);
+  }
+  await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), { message: "200%: as wide as the phone" }).toBeLessThanOrEqual(0);
+});
+
 test("Match History: a game opens as a whole screen of its own, its ranks are checked there, and Back returns to the list", async ({ page }) => {
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-ADC").getAttribute("data-player-id"))!;

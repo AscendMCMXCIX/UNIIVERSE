@@ -90,7 +90,7 @@ ink is darker than every panel, so panels still lift off it. Text contrast on it
 |---|---|---|
 | `panel-depth` | sheen from the top, hairline of light on the top edge, soft shadow | every panel and card (`Panel` has it) |
 | `panel-featured` | `panel-depth` plus a faint violet wash in the top corner | the one card a page leads with |
-| `surface-lead` | `panel-featured` plus the brand's line along the top edge (accent to accent-2, fading out), drawn above the card's first row | the one card a page leads with, at most one a page (Recent form's board; Settings' account card; the profile's season card next) |
+| `surface-lead` | `panel-featured` plus the brand's line along the top edge (accent to accent-2, fading out), drawn above the card's first row | the one card a page leads with, at most one a page (Recent form's board, Records' book; Settings' account card; the profile's season card next) |
 | `panel-lift` | rises 1px with a brighter edge on hover; none with reduced motion | cards that open something |
 | `chrome-light` | sheen from the top and a faint violet glow behind the logo, on the sidebar's still layer | the desktop sidebar only |
 | `brand-plate` | hairline of light around the logo (brighter on top) and a soft shadow under it | the team's logo set into the frame |
@@ -296,6 +296,14 @@ test):
   alone (a filter, a view) keeps the place: it is the same page. The next page of a list starts with
   its first item under the bars (Match History's pager). (`e2e/navigation-landings.spec.ts`; the
   sections' landing from md, `e2e/navigation-reach.spec.ts`)
+- **A long page's own sections.** Where a phone's column makes a page several screens long, its
+  sections are in-page links under its scope (`SectionIndex`, `ui/section-index.tsx`: Records'
+  "Season records · Multikills · Milestones"; from a 36rem view the page fits without them). Each is
+  a plain link to its section's anchor, so it works before the page's code has run; once it runs a
+  click jumps through the router's history (`jumpToAnchor`, which Matchup Intel's chips share): the
+  section comes under the top bar, takes the focus, and the jump is an entry of the page's own where
+  the browser has the Navigation API (the phone's Back steps past it, `backSteps`), else it replaces
+  the entry. (`e2e/leaderboards-recent.spec.ts`; Safari's engine in `e2e/webkit.spec.ts`)
 - **Back to the top.** On a phone, tapping the current tab on its own page goes back to the top
   (smooth; at once with reduced motion), and so does tapping the page's title once it has moved into
   the top bar; at a tablet's width (md to lg) in a window 480px tall or less, where the section tabs

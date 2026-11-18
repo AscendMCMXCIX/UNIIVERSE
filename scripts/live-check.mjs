@@ -56,6 +56,12 @@
     not failed); a shared place is titled "Tied for Nth" and no other place claims it; every row's bar
     has 20 segments, as many filled as the row's wins and as many missing as its window lacks. Counts,
     heights and true/false only: the rows carry names.
+  - records (PR 5b): Records & achievements (/leaderboards?view=records) at every width loads as every
+    page does (no sideways scroll, no page error, no failed request, no broken image) and axe on the
+    records view; at 1440 the record book stands beside the multikills (their tops within 1px), and
+    every record row of two lines (the record over the holder and game) is at most 72px (rows of more
+    lines, a long name or champion, are counted, not failed; the verification account has no profile,
+    so no row carries "Your best"). Counts, heights and true/false only: the rows carry names.
   - settings: the picture and display-name help name the public team page, and Settings never
     mentions a Public profile switch (retired; true or false only); on the phone, Sign out is on
     Settings' first screen (above the tab bar).
@@ -659,6 +665,48 @@ async function leaderboardsFacts(page, kind) {
 }
 
 /**
+ * Records & achievements (PR 5b), at 1440, as true/false, counts and heights only (the rows carry
+ * names, which redact() keeps): the record book beside the multikills, their tops level within 1px,
+ * and every record row of two lines (its record on one line over its holder and game on one) at most
+ * 72px. A row of more lines (a long name or champion wrapping its game's line, a qualifier on a line
+ * of its own) is counted, not failed, as Recent form's are. The verification account has no profile,
+ * so no row carries "Your best".
+ */
+async function recordsFacts(page, kind) {
+  if (kind !== "desktop") return;
+  const f = await page.evaluate(() => {
+    const book = document.querySelector("[data-testid=records-book]");
+    if (!book) return null;
+    const box = (el) => el.getBoundingClientRect();
+    const multikills = document.querySelector("[data-testid=records-multikills]");
+    // One line: the record's title no taller than its line; the holder and the game's parts level with each other.
+    const titleOneLine = (row) => {
+      const t = row.querySelector("[data-testid=record-title]");
+      return !t || box(t).height <= (parseFloat(getComputedStyle(t).lineHeight) || 20) + 2;
+    };
+    const gameOneLine = (row) => {
+      const g = row.querySelector("[data-testid=record-game]");
+      if (!g) return true;
+      const mids = [...g.children].filter((c) => box(c).width > 0).map((c) => box(c).top + box(c).height / 2);
+      return mids.length === 0 || Math.max(...mids) - Math.min(...mids) <= 6;
+    };
+    const rows = [...book.querySelectorAll("[data-testid=season-record]")].map((r) => ({ h: Math.round(box(r).height * 10) / 10, two: titleOneLine(r) && gameOneLine(r) }));
+    return {
+      rows: rows.length,
+      twoLine: rows.filter((r) => r.two).map((r) => r.h),
+      longer: rows.filter((r) => !r.two).length,
+      topsApart: multikills ? Math.round(Math.abs(box(book).top - box(multikills).top) * 10) / 10 : null,
+      multikillsBeside: multikills ? box(multikills).left >= box(book).right : false,
+    };
+  });
+  if (!f) return pass("leaderboards", "1440: Records' book is on the page", false, "no records-book");
+  pass("leaderboards", "1440: Records' book beside the multikills, their tops within 1px", f.multikillsBeside && f.topsApart !== null && f.topsApart <= 1, { beside: f.multikillsBeside, topsApart: f.topsApart });
+  const name = "1440: every Records row of two lines is at most 72px";
+  if (!f.twoLine.length) check("leaderboards", name, "PASS", `not applicable: ${f.longer} rows of more lines`);
+  else pass("leaderboards", name, Math.max(...f.twoLine) <= 72, { rows: f.rows, twoLine: f.twoLine.length, tallest: Math.max(...f.twoLine), longerByDesign: f.longer });
+}
+
+/**
  * Settings says who sees a member's picture and display name: teammates, and the public team page
  * while they are in the lineup or a substitute. The Public profile switch it once named is gone
  * (19 Oct 2026; docs/UNIIVERSE_TECHNICAL_HANDOVER.md §C4). Only true or false is reported.
@@ -1124,6 +1172,12 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
     if (await visit(page, log, kind, "leaderboards", "/leaderboards")) {
       await leaderboardsFacts(page, kind);
       await axe(page, kind, "leaderboards");
+    }
+  });
+  await guarded(kind, "records", async () => {
+    if (await visit(page, log, kind, "records", "/leaderboards?view=records")) {
+      await recordsFacts(page, kind);
+      await axe(page, kind, "records", "[data-testid=records]");
     }
   });
   await guarded(kind, "settings", async () => {
