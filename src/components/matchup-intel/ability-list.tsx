@@ -178,7 +178,7 @@ function AbilityRow({ champion, ability: a, checkedPatch, dataPatch, notRechecke
   const details = a.details.length > 0 || a.facts.length > 0;
   return (
     // A chip's jump lands here and gives the row the focus until it moves on (jumpToAnchor,
-    // ability-ref-link.tsx); the row is lit while it holds it.
+    // ui/section-index.tsx); the row is lit while it holds it.
     <li id={abilityAnchor(champion.id, a.slot)} className="scroll-mt-4 px-3 py-3.5 transition-colors focus:bg-accent/5 focus-visible:-outline-offset-2 sm:px-4" data-testid="ability-row" data-slot={a.slot} data-freshness={a.freshness ?? undefined}>
       {/* By the list's width (container queries, in rem, so they follow the text size):
           - under 16rem (a phone at a large text size: from 150%, or 125% on a 320px phone): one

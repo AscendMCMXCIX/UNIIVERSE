@@ -7,7 +7,8 @@ Status: **live.** The owner approved the rules, and these boards replaced the pr
 - **Where the code is:**
   - `src/domain/leaderboard-recent.ts` and `src/domain/leaderboard-records.ts`;
   - the view in `src/server/leaderboards/recent-view.ts`;
-  - the page in `src/components/leaderboards/recent-leaderboards.tsx`.
+  - the page in `src/components/leaderboards/recent-leaderboards.tsx` (Records & achievements in
+    `records.tsx`).
 - **Who sees it:** everyone who can open Team Leaderboards (`/leaderboards`), and the public
   Leaderboards where the deployment allows Riot data on the public pages (`docs/TEAM_LEADERBOARDS.md`).
   Section 1 describes the boards it replaced.

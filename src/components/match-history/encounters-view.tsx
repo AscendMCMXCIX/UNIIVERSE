@@ -14,7 +14,8 @@ import { DataStatusNote, RefreshButton, type DataRefreshTarget } from "@/compone
 import type { DataStatus } from "@/domain/data-status";
 import { Select } from "@/components/ui/input";
 import { SearchInput } from "@/components/ui/search-input";
-import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
+import { chipClass, segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
+import { FilterField } from "@/components/ui/filter-bar";
 import { ModeElsewhere, OverviewFilters } from "@/components/players/overview-filters";
 import { formatCount, formatDate, percent } from "@/lib/format";
 import { cn } from "@/lib/cn";
@@ -29,6 +30,9 @@ import { MatchHistoryHeader, scopeText } from "./match-history-header";
     Alongside  players on the player's team, with the player's record alongside them.
   A player met on both sides is in both lists. The same header, season, game mode and account
   filters as the games list (one choice for both views); every count and highlight follows them.
+  The list's own minimum and order sit in its toolbar from md; a phone keeps them in the Filters
+  sheet as chips, beside the season and game mode (owner decision D8, 8 Nov 2026), so the list
+  starts higher on the first screen.
   Counted in the database for this player only (server/players/encounters), a page of players at a
   time. A player opens their games in Match History itself (the games list, filtered to them, with
   their records and a way back here: match-history-view), so a game looks and opens the same
@@ -56,6 +60,39 @@ const PERSPECTIVE: Record<EncounterRelation, { label: string; none: string }> = 
   alongside: { label: "Alongside", none: "No one met alongside" },
 };
 const SORT_LABEL: Record<EncounterSort, string> = { games: "Most games", recent: "Most recent", best: "Highest win rate", worst: "Lowest win rate" };
+/** A minimum in words, as the toolbar's control and a phone's chips say it. */
+const minimumText = (n: number) => (n === 1 ? "Any number of games" : `${n}+ games`);
+
+/**
+ * The list's minimum and order in a phone's Filters sheet: one choice each, as chips (a radio group
+ * each, applied at once and replacing the address, as every filter does). Wider screens keep both in
+ * the list's toolbar, where the column names also sort.
+ */
+function ListChoiceFields({ choice, sorts, pending, go }: { choice: EncounterListChoice; sorts: readonly EncounterSort[]; pending: boolean; go: (change: Partial<EncounterListChoice>) => void }) {
+  const id = React.useId();
+  return (
+    <>
+      <FilterField label="Minimum games" labelId={`${id}-min`} alwaysLabel>
+        <div role="radiogroup" aria-labelledby={`${id}-min`} className="flex flex-wrap gap-2" data-testid="encounter-min-choices">
+          {ENCOUNTER_MINIMUMS.map((n) => (
+            <button key={n} type="button" role="radio" aria-checked={choice.min === n} disabled={pending} onClick={() => go({ min: n })} className={chipClass(choice.min === n)} data-value={n}>
+              {minimumText(n)}
+            </button>
+          ))}
+        </div>
+      </FilterField>
+      <FilterField label="Sort by" labelId={`${id}-sort`} alwaysLabel>
+        <div role="radiogroup" aria-labelledby={`${id}-sort`} className="flex flex-wrap gap-2" data-testid="encounter-sort-choices">
+          {sorts.map((k) => (
+            <button key={k} type="button" role="radio" aria-checked={choice.sort === k} disabled={pending} onClick={() => go({ sort: k })} className={chipClass(choice.sort === k)} data-value={k}>
+              {SORT_LABEL[k]}
+            </button>
+          ))}
+        </div>
+      </FilterField>
+    </>
+  );
+}
 
 /** Against reads warm and alongside cool, always with the word: colour is never the only sign. */
 export const REL: Record<Relation, { word: string; tag: string; dot: string; text: string }> = {
@@ -171,6 +208,14 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
   }, [query, c.q, href, router]);
 
   const keep = { view: "encounters", ...encounterListParams({ ...c, limit: ENCOUNTER_PAGE }) };
+  // Reset puts the season, game mode and account back, and the list's minimum and order (the
+  // Filters sheet holds them on a phone); the side in view and a search stay.
+  const reset = { view: "encounters", ...encounterListParams({ ...c, min: defaultMinimum(c.q), sort: "games", limit: ENCOUNTER_PAGE }) };
+  // The minimum and the order where they differ from their default: chips beside a phone's Filters.
+  const listChips = [
+    ...(c.min !== defaultMinimum(c.q) ? [{ key: "min", text: minimumText(c.min), clear: () => go({ min: defaultMinimum(c.q) }) }] : []),
+    ...(c.sort !== "games" ? [{ key: "sort", text: SORT_LABEL[c.sort], clear: () => go({ sort: "games" }) }] : []),
+  ];
   const narrowed = f.accountId || f.mode !== "all" || f.season !== data.currentSeason;
   const scope = scopeText(f, data.accountOptions, data.accountsLinked);
   // Highlights about the side in view (both sides' in All), hidden while searching for someone.
@@ -199,10 +244,28 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
           ) : null
         }
         status={status ? <DataStatusNote status={status} refresh={refresh} /> : null}
-        refresh={status ? <RefreshButton status={status} refresh={refresh} /> : null}
+        narrowed={!!narrowed || listChips.length > 0}
+        refined={!!f.accountId}
+        refresh={status ? <RefreshButton status={status} refresh={refresh} compact /> : null}
         controls={
           <div aria-busy={pending} className="min-w-0">
-            <OverviewFilters basePath={basePath} filter={f} seasons={data.seasons} currentSeason={data.currentSeason} champions={[]} accounts={data.accountOptions} keep={keep} resetQuery={new URLSearchParams(keep).toString()} modeCounts={data.modes.counts} showChampions={false} showRole={false} testId="encounter-filters" />
+            <OverviewFilters
+              basePath={basePath}
+              filter={f}
+              seasons={data.seasons}
+              currentSeason={data.currentSeason}
+              champions={[]}
+              accounts={data.accountOptions}
+              keep={keep}
+              resetQuery={new URLSearchParams(reset).toString()}
+              modeCounts={data.modes.counts}
+              showChampions={false}
+              showRole={false}
+              sheetFields={<ListChoiceFields choice={c} sorts={sorts} pending={pending} go={go} />}
+              sheetChips={listChips}
+              compactToggle
+              testId="encounter-filters"
+            />
           </div>
         }
       />
@@ -216,14 +279,16 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
         <div className={cn("space-y-3 transition-opacity duration-150", pending && "opacity-60")} aria-busy={pending}>
           {insights.length ? <Highlights insights={insights} gamesOf={gamesOf} /> : null}
 
-          {/* One card: its toolbar (the filter, the search, the minimum, Sort by where the column
-              names are not shown), the column names (each sorts), the players, then the next page
-              one press away. */}
+          {/* One card: its toolbar (the filter, the search, and from md the minimum and Sort by
+              where the column names are not shown), the column names (each sorts; pinned under the
+              section tabs as the list scrolls), the players, then the next page one press away. */}
           <div className="@container/enc rounded-card border border-border bg-surface panel-depth" data-testid="encounter-table">
             <div className="flex flex-wrap items-center gap-2 border-b border-border/70 px-3 py-2.5 @min-[40rem]/enc:px-4">
               <nav aria-label="Which players" className={segmentedGroupClass("@max-[40rem]/enc:w-full")} data-testid="encounter-relations">
                 {RELATIONS.map((r) => (
-                  <Link key={r} href={href({ relation: r })} replace scroll={false} aria-current={c.relation === r ? "page" : undefined} className={segmentClass(c.relation === r, { size: "md", className: "@max-[40rem]/enc:flex-1" })} data-testid={`encounter-relation-${r}`}>
+                  // relative: the hidden " players" stays inside the group, which scrolls sideways when
+                  // its choices outgrow it (a large text size), instead of widening the page.
+                  <Link key={r} href={href({ relation: r })} replace scroll={false} aria-current={c.relation === r ? "page" : undefined} className={segmentClass(c.relation === r, { size: "md", className: "relative @max-[40rem]/enc:flex-1" })} data-testid={`encounter-relation-${r}`}>
                     {r !== "all" ? <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", REL[relationOf(r)].dot)} aria-hidden /> : null}
                     {PERSPECTIVE[r].label}
                     <span className={cn("tabular-nums", c.relation === r ? "text-fg-muted" : "text-fg-subtle")} data-testid="encounter-relation-count">
@@ -236,12 +301,13 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
               {/* What Against and Alongside mean, and what the records count: beside the choice it explains. */}
               <InfoTip text={ENCOUNTERS_CAVEAT} label="How encounters are counted" testId="encounters-caveat" />
               <SearchInput value={query} onChange={setQuery} label="Find a player by name or Riot ID" placeholder="Find a player or Riot ID" className="flex-[1_1_12rem] @min-[40rem]/enc:max-w-72" maxLength={32} testId="encounter-search" />
-              {/* The minimum and, where the column names are not shown, their orders as one Sort by control: one line. */}
-              <div className="flex w-full gap-2 @min-[40rem]/enc:ml-auto @min-[40rem]/enc:w-auto">
+              {/* The minimum and, where the column names are not shown, their orders as one Sort by
+                  control: one line, from md (a phone has them in its Filters sheet, as chips). */}
+              <div className="flex w-full gap-2 max-md:hidden @min-[40rem]/enc:ml-auto @min-[40rem]/enc:w-auto">
                 <Select aria-label="Minimum games" value={String(c.min)} disabled={pending} onChange={(e) => go({ min: Number(e.target.value) })} className="min-w-0 flex-1 @min-[40rem]/enc:w-auto @min-[40rem]/enc:flex-none" data-testid="encounter-min">
                   {ENCOUNTER_MINIMUMS.map((n) => (
                     <option key={n} value={n}>
-                      {n === 1 ? "Any number of games" : `${n}+ games`}
+                      {minimumText(n)}
                     </option>
                   ))}
                 </Select>
@@ -304,9 +370,10 @@ function Highlights({ insights, gamesOf }: { insights: EncounterInsight[]; games
             <li key={i.kind} className="min-w-0">
               {/* What it is, then who and the record; on a narrow screen the two wrap onto lines of their own rather than cut the name. */}
               <Link href={gamesOf(i.summary.key, relation === "opponent" ? "against" : "alongside")} className="group flex min-h-10 min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 rounded-lg px-2 py-1 transition-colors hover:bg-surface-2/60 focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11" data-testid="encounter-insight" data-kind={i.kind}>
-                <span className="flex items-center gap-x-2">
+                {/* The label stays one line unless it alone is wider than the screen (a large text size). */}
+                <span className="flex min-w-0 items-center gap-x-2">
                   <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", REL[relation].dot)} aria-hidden />
-                  <span className="whitespace-nowrap text-xs text-fg-muted">{INSIGHT_LABELS[i.kind]}</span>
+                  <span className="min-w-0 text-xs text-fg-muted">{INSIGHT_LABELS[i.kind]}</span>
                 </span>
                 <RiotId name={i.summary.name} className="text-sm" />
                 <span className="flex items-baseline gap-x-1.5 whitespace-nowrap text-xs tabular-nums text-fg-muted">
@@ -326,6 +393,12 @@ function Highlights({ insights, gamesOf }: { insights: EncounterInsight[]; games
 }
 
 const HEAD = "whitespace-nowrap text-2xs font-semibold uppercase tracking-label";
+/**
+ * The column names stay pinned under the profile's section tabs while the list scrolls (as All
+ * Champions' do: globals.css, --bar-top and --tabs-top), where those tabs are pinned: from md in a
+ * window taller than 480px. Elsewhere (a phone, a short window) nothing is pinned.
+ */
+const PINNED_HEADS = "z-[1] bg-surface [@media(min-width:48rem)_and_(min-height:481px)]:sticky [@media(min-width:48rem)_and_(min-height:481px)]:top-[calc(var(--bar-top)+var(--tabs-top))]";
 
 /** The column names (from 40rem; All's from 60rem): each order's own name sorts by it; the win rate reverses on a second press. */
 function ColumnHeads({ relation, sort, href }: { relation: EncounterRelation; sort: EncounterSort; href: (change: Partial<EncounterListChoice>) => string }) {
@@ -353,7 +426,7 @@ function ColumnHeads({ relation, sort, href }: { relation: EncounterRelation; so
       </span>
     );
     return (
-      <div className={cn("hidden items-end gap-x-4 border-b border-border/70 pl-4 pr-3 @min-[60rem]/enc:grid", BOTH_SIDES_GRID)} data-testid="encounter-heads">
+      <div className={cn("hidden items-end gap-x-4 border-b border-border/70 pl-4 pr-3 @min-[60rem]/enc:grid", BOTH_SIDES_GRID, PINNED_HEADS)} data-testid="encounter-heads">
         <span className={cn(HEAD, "self-end py-2.5 text-fg-subtle")}>Player</span>
         <span className="flex justify-end self-end">{sortable("Games", "games", "games")}</span>
         {group("opponent")}
@@ -365,7 +438,7 @@ function ColumnHeads({ relation, sort, href }: { relation: EncounterRelation; so
   }
   const side = relationOf(relation);
   return (
-    <div className={cn("hidden items-center gap-x-4 border-b border-border/70 pl-4 pr-3 @min-[40rem]/enc:grid", ONE_SIDE_GRID)} data-testid="encounter-heads">
+    <div className={cn("hidden items-center gap-x-4 border-b border-border/70 pl-4 pr-3 @min-[40rem]/enc:grid", ONE_SIDE_GRID, PINNED_HEADS)} data-testid="encounter-heads">
       <span className={cn(HEAD, "flex items-center gap-1.5 py-2.5", REL[side].text)}>
         <span className={cn("h-1.5 w-1.5 rounded-full", REL[side].dot)} aria-hidden />
         Players met {REL[side].word.toLowerCase()}
@@ -383,7 +456,7 @@ function ColumnHeads({ relation, sort, href }: { relation: EncounterRelation; so
 function SideFigures({ relation, wl }: { relation: Relation; wl: RelationRecord }) {
   return (
     // Narrow, a side never met is left out of the stack (the wide table says "never" in its column).
-    <span className={cn("flex min-w-0 items-baseline gap-x-2 text-sm tabular-nums", SIDE_GROUP_WIDE, !wl.games && "@max-[60rem]/enc:hidden")} data-testid="encounter-record" data-relation={relation} data-games={wl.games}>
+    <span className={cn("flex min-w-0 flex-wrap items-baseline gap-x-2 text-sm tabular-nums", SIDE_GROUP_WIDE, !wl.games && "@max-[60rem]/enc:hidden")} data-testid="encounter-record" data-relation={relation} data-games={wl.games}>
       <span className={cn("flex w-24 shrink-0 items-center gap-1.5 text-xs font-medium @min-[60rem]/enc:hidden", REL[relation].text)} data-testid="relation-tag" data-relation={relation}>
         <span className={cn("h-1.5 w-1.5 rounded-full", REL[relation].dot)} aria-hidden />
         {REL[relation].word}

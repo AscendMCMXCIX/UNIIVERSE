@@ -153,8 +153,10 @@ export function DataStatusNote({ status, refresh, className, testId = "data-refr
  * arrives as a notification. Says "Refreshing…" with a turning icon until then and takes no second
  * press meanwhile (a press during the server's cooldown is answered without asking it: refresh-store).
  * Offered to the player and those who manage Riot accounts, where Riot can be asked; null elsewhere.
+ * `compact`: below sm (an upright phone) its icon alone in a 44px square, its word kept for screen
+ * readers and in its title, so it shares a row with a section's views and Filters (Match History).
  */
-export function RefreshButton({ status, refresh, className, testId = "data-refresh-button" }: { status: DataStatus; refresh?: DataRefreshTarget | null; className?: string; testId?: string }) {
+export function RefreshButton({ status, refresh, compact = false, className, testId = "data-refresh-button" }: { status: DataStatus; refresh?: DataRefreshTarget | null; compact?: boolean; className?: string; testId?: string }) {
   const offered = !!refresh && status.state !== "none";
   const { step, busy, press } = usePlayerRefresh(offered ? refresh!.playerId : null, refresh?.onNewGames);
   if (!offered) return null;
@@ -165,13 +167,13 @@ export function RefreshButton({ status, refresh, className, testId = "data-refre
         onClick={press}
         aria-disabled={busy || undefined}
         title="Check Riot for new games, rank and mastery now, then update this page"
-        className={toolbarButtonClass(false, cn(busy && "cursor-progress text-fg", className))}
+        className={toolbarButtonClass(false, cn(busy && "cursor-progress text-fg", compact && "max-sm:w-11 max-sm:px-0", className))}
         data-testid={testId}
         data-busy={busy || undefined}
         data-step={step ?? undefined}
       >
         <RefreshCw className={cn("h-4 w-4", busy && "motion-safe:animate-spin")} aria-hidden />
-        {busy ? "Refreshing…" : "Refresh"}
+        <span className={compact ? "max-sm:sr-only" : undefined}>{busy ? "Refreshing…" : "Refresh"}</span>
       </button>
       {/* The steps, said to screen readers as they happen (the result arrives as a notification). */}
       <span className="sr-only" role="status" aria-live="polite">

@@ -40,6 +40,52 @@ decorative chrome.
   - quiet labels and strong figures.
 - **Match History** is a finished, successful experience. Do not restyle it for novelty. Change it
   only for a bug, an accessibility fix or a product decision.
+  - **Density (owner decision D8, approved 8 Nov 2026, built 18 Nov):** denser cards that keep the
+    statistics, champions, ranks, LP and every interaction readable. The card follows the list's
+    own width (`@container/mh`), in three tiers:
+    - **a phone's card** (a list under 36rem), about 118px (131–147px before): the result line
+      across the card, with a ranked game's LP at its end; the portrait, the champion and role
+      with the build under them (from a 21.375rem list, where the widest K/D/A still fits beside
+      a line of seven 20px items; narrower, kill participation takes that place and the build
+      closes the card) and the K/D/A; then the figures. Both teams stay on the game's own screen;
+    - **a two-row card** (36–50rem: tablets, and phones held sideways under 848px, such as an
+      iPhone; a Pixel 7 held sideways has a 50.9rem list and keeps the wide card), about 120px on
+      an iPad (about 150px before): the portrait, the result line over the champion, the K/D/A, the
+      figures and the build in one row, both teams under them. The champion's name has its whole
+      box (the role takes the next line when both do not fit), so even a 36rem list keeps "Nunu &
+      Willump" whole;
+    - **the wide card** (from 50rem), one row of about 100px, unchanged.
+  - Read in the order drawn: a card's parts and the header's come in the page in the order they
+    are drawn. A phone's card has its own copies of the result line (its first line) and of the
+    build (beside the champion), placed where they are read; only one copy is ever displayed.
+  - Around the cards: the views (Games, Encounters), Filters and Refresh share one row at every
+    width where they fit, from a 320px phone up (on a phone the views drop their icons, Refresh
+    shows its icon alone, and under 360px Filters too, their names kept for screen readers); the
+    scope line follows; a narrowed filter's chips take the next row when they do not fit, and below
+    `xl` an active refinement's always do, from the row's start, clear of the Refine panel.
+  - The summary (`StatStrip`) holds every figure at once in three lines on a phone from 393px
+    (an iPhone 15): the last twenty with the streak and a trend; the record, KDA, CS and kill
+    participation; the champions played most and the ladder change. Its words are the approved
+    design's short ones ("4W streak", "+45 Solo/Duo since 3 Nov", on a phone "Better +9 pts"), the
+    full ones read by screen readers and in each figure's title. The squares share what their line
+    leaves, never under 3px. A line wraps where its figures still do not fit: at 375px a streak
+    beside a named trend takes a second row on the first line, and the longest ladder label or a
+    two-digit record on a champion can move the ladder change to a fourth line; a 360px phone's
+    ladder change, a 320px phone and a large text size wrap too. From 36rem one flowing line; from
+    60rem one row of tiles with every figure at once (a trend, a streak, three champions and the
+    ladder change, at their widest with both arrows too, on a 60rem list as well); from 78rem
+    without a trend one line of text. Measured with demo Support (a trend, a streak and the ladder
+    change) and the widest real values written in (e2e/match-history-layout.spec.ts).
+  - Encounters keeps its minimum and order in a phone's Filters sheet, as chips that count with
+    the filters and that its Reset puts back; from tablets up they stay in the list's toolbar and
+    are the list's own (the filters' Reset neither counts nor changes them). Its column names pin
+    under the section tabs.
+  - What did not change: one button per card, a game opening under its card (full screen on a
+    phone), the result said three ways, the honest-data rules (LP only where the readings prove
+    it, "Removed player", grey small samples), the compact profile band and every filter, link,
+    figure and explanation (what moved where is in MOBILE.md, section 3).
+  - Page heights against the plan's targets are in MOBILE.md, section 3; one is missed: a Pixel 7
+    held sideways (863×360), where the wide card and the phone's frame leave D8 nothing to take.
 
 ## 2. Principles
 
@@ -90,7 +136,7 @@ ink is darker than every panel, so panels still lift off it. Text contrast on it
 |---|---|---|
 | `panel-depth` | sheen from the top, hairline of light on the top edge, soft shadow | every panel and card (`Panel` has it) |
 | `panel-featured` | `panel-depth` plus a faint violet wash in the top corner | the one card a page leads with |
-| `surface-lead` | `panel-featured` plus the brand's line along the top edge (accent to accent-2, fading out), drawn above the card's first row | the one card a page leads with, at most one a page (Recent form's board; the profile's season card next) |
+| `surface-lead` | `panel-featured` plus the brand's line along the top edge (accent to accent-2, fading out), drawn above the card's first row | the one card a page leads with, at most one a page (Recent form's board, Records' book; Settings' account card; the profile's season card next) |
 | `panel-lift` | rises 1px with a brighter edge on hover; none with reduced motion | cards that open something |
 | `chrome-light` | sheen from the top and a faint violet glow behind the logo, on the sidebar's still layer | the desktop sidebar only |
 | `brand-plate` | hairline of light around the logo (brighter on top) and a soft shadow under it | the team's logo set into the frame |
@@ -134,9 +180,9 @@ It should not appear:
 Violet (`accent-2`) carries the light: the ambient glow, `panel-featured`, `chrome-light`, the
 gradient's second stop and emphasis that is not a control.
 
-Bars that are figures (Recent form's 20-game record, `QuietBar`) are neutral overlays of `fg`
-(filled, empty and outlined segments), never the accent or a state colour, so they keep their
-contrast on any surface and any Branding. Gold appears only on the first place's crown.
+Bars that are figures (Recent form's 20-game record, All Champions' share of the games: `QuietBar`)
+are neutral overlays of `fg` (filled, empty and outlined segments, or one continuous share), never
+the accent or a state colour, so they keep their contrast on any surface and any Branding. Gold appears only on the first place's crown.
 
 ## 5. Interaction states
 
@@ -290,7 +336,8 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     sidebar open (before, 38, 208 and 576px from the first tab), 140px at 1920 with it folded. Team
     Matches' list keeps `--content-max` under Team's wider header, left-aligned, so a game's row is
     never longer than before. A page's loading state takes the width `pageWidthOf` gives its address
-    (a Team section's own; the ordinary 80rem elsewhere).
+    (a Team section's own; the ordinary 80rem elsewhere); Team Matches' own skeleton stands as its
+    page does, its list at `--content-max`.
 - **Tablet drawer.** It is a native `<dialog>`: it keeps focus inside, the page behind it cannot
   be used and is locked as behind a window (no scrolling, no rubber band), the focus starts as in a
   window (on the menu itself after a tap, on its close button from the keyboard), and closing it
@@ -318,6 +365,17 @@ test):
   alone (a filter, a view) keeps the place: it is the same page. The next page of a list starts with
   its first item under the bars (Match History's pager). (`e2e/navigation-landings.spec.ts`; the
   sections' landing from md, `e2e/navigation-reach.spec.ts`)
+- **A long page's own sections.** Where a phone's column makes a page several screens long, its
+  sections are in-page links under its scope (`SectionIndex`, `ui/section-index.tsx`: Records'
+  "Season records · Multikills · Milestones"; from a 36rem view the page fits without them; Settings
+  keeps its index in its account card: Name, Links and Password as chips on a phone and in a window
+  480px tall or less (the approved plan's look there) and a list from md in a taller window, the
+  section being read marked either way). Each is
+  a plain link to its section's anchor, so it works before the page's code has run; once it runs a
+  click jumps through the router's history (`jumpToAnchor`, which Matchup Intel's chips share): the
+  section comes under the top bar, takes the focus, and the jump is an entry of the page's own where
+  the browser has the Navigation API (the phone's Back steps past it, `backSteps`), else it replaces
+  the entry. (`e2e/leaderboards-recent.spec.ts`; Safari's engine in `e2e/webkit.spec.ts`)
 - **Back to the top.** On a phone, tapping the current tab on its own page goes back to the top
   (smooth; at once with reduced motion), and so does tapping the page's title once it has moved into
   the top bar; at a tablet's width (md to lg) in a window 480px tall or less, where the section tabs
@@ -400,7 +458,7 @@ deliberately. Each needs its own small PR. Check STATUS.md for the Actions-minut
 | Area | Finding | Direction |
 |---|---|---|
 | Hover on panels | About 50 controls use `hover:bg-surface-2`, a few `hover:bg-surface-2/70` or `bg-fg/5` | Converge on §5: surface steps on panels, fg overlays on the frame. `DataList` rows follow §5 already (`ROW_STATES`) |
-| Page headers | Players, Matches and Resources open with `PageHeader`. Leaderboards opens with its sub-tabs in the title's place; Settings centres a narrower column with its own heading | Intended by STANDARDS.md's three tiers. Leaderboards could take a `PageHeader` when its page is next redesigned |
+| Page headers | Players, Matches and Resources open with `PageHeader`. Leaderboards opens with its sub-tabs in the title's place; Settings (64rem, both modes) leads with its account card (`surface-lead`) beside or above its sections, its title over them | Intended by STANDARDS.md's three tiers. Leaderboards could take a `PageHeader` when its page is next redesigned |
 | Eyebrows | `PageHeader`'s eyebrow is `accent`; `SectionLabel` is `fg-subtle` | Both are valid. Keep `accent` eyebrows to Team Overview's header (from `sm` in a window taller than 480px; on a phone held either way it is left to screen readers, since the selected tab says it), admin pages (`PageHeader`) and the sign-in frames (`BrandFrame`) |
 | Tablet and phone mode switch | A bordered accent button in the drawer and sheet, a quiet row in the sidebar | Deliberate (§7). Revisit only with the owner, since phones were verified |
 
