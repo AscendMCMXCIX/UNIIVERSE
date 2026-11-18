@@ -250,6 +250,17 @@ export function gamesShare(games: number, total: number): number {
   return total > 0 ? Math.min(1, Math.max(0, games / total)) : 0;
 }
 
+/**
+ * A share in words, a whole percent, but never "0%" or "100%" for a share that is neither: a
+ * champion played once in 250 games is "under 1%" of them, not 0%, and one that missed a single
+ * game of 250 is "over 99%".
+ */
+export function shareWords(share: number): string {
+  if (share > 0 && share < 0.005) return "under 1%";
+  if (share < 1 && share >= 0.995) return "over 99%";
+  return percent(share, 0);
+}
+
 /** Sorts within the rows already filtered; stable, ties by champion name. */
 export function sortChampions(rows: readonly OverviewCard[], key: SortKey, dir: Dir, nameOf: (id: string) => string): OverviewCard[] {
   const sign = dir === "asc" ? 1 : -1;
@@ -370,10 +381,11 @@ export function AllChampions({ data, basePath, championsById, playerId, look, de
               </span>
               {/* Games, with a quiet bar under it: the champion's share of every game in the filters
                   (QuietBar, neutral and continuous), said in words in its title and to screen readers. */}
-              <span className="hidden text-right @min-[44rem]:block" title={`${formatCount(r.games)} game${r.games === 1 ? "" : "s"} · ${percent(share, 0)} of the ${formatCount(total)} game${total === 1 ? "" : "s"} in these filters`} data-testid="champion-games">
+              <span className="hidden text-right @min-[44rem]:block" title={`${formatCount(r.games)} game${r.games === 1 ? "" : "s"} · ${shareWords(share)} of the ${formatCount(total)} game${total === 1 ? "" : "s"} in these filters`} data-testid="champion-games">
                 <span className={cn("block tabular-nums", strong("games") ? "font-semibold text-fg" : "font-medium text-fg")}>{formatCount(r.games)}</span>
-                <QuietBar value={share} className="mt-1" testId="champion-games-share" />
-                <span className="sr-only">, {percent(share, 0)} of the games in these filters</span>
+                {/* Clicks pass through to the row (its fill's transform would otherwise paint it above the row's button). */}
+                <QuietBar value={share} className="pointer-events-none mt-1" testId="champion-games-share" />
+                <span className="sr-only">, {shareWords(share)} of the games in these filters</span>
               </span>
               <span className="hidden min-w-0 text-right @min-[44rem]:block" title={winRateSampleNote(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion) ?? undefined}>
                 <span className={cn("block text-sm font-semibold tabular-nums leading-tight", WIN_RATE_TONE_CLASS[winRateTone(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)])}>{r.winRate === null ? "—" : percent(r.winRate, 0)}</span>
@@ -435,29 +447,43 @@ export function AllChampions({ data, basePath, championsById, playerId, look, de
         {data.topChampions.length ? (
           // Below 76rem the toolbar has the rows' padding, so the search lines up with the champions.
           // From a 20.5rem card (a 360px phone) the search and Sort by share one row; on a narrower
-          // card the search takes its own line above Sort by.
-          <div className="flex flex-wrap items-center gap-2 border-b border-border/70 px-3 py-2.5 @min-[20.5rem]:flex-nowrap @min-[76rem]:px-4">
+          // card the search takes its own line above Sort by. From 44rem the row holds the search,
+          // the count and the bar's key, wrapping only if a larger text size leaves no room.
+          <div className="flex flex-wrap items-center gap-2 border-b border-border/70 px-3 py-2.5 @min-[20.5rem]:flex-nowrap @min-[44rem]:flex-wrap @min-[76rem]:px-4">
             <SearchInput value={query} onChange={setQuery} placeholder="Find a champion or role…" label="Find a champion or a role" className="flex-[1_1_12rem] @min-[44rem]:max-w-xs" testId="all-champions-search" />
             <span className="ml-auto hidden text-xs tabular-nums text-fg-subtle @min-[44rem]:inline" aria-live="polite" data-testid="all-champions-count">
               {q ? `${rows.length} of ${data.topChampions.length}` : data.topChampions.length} champion{(q ? rows.length : data.topChampions.length) === 1 ? "" : "s"}
             </span>
+            {/* What the bar under Games shows, as a chart's key, on screen for every reader where the
+                bar is drawn (a cell's title is a mouse's only; screen readers hear each share with
+                its figure). In the toolbar's row, so it costs no height. */}
+            <span className="hidden items-center gap-1.5 text-xs text-fg-subtle @min-[44rem]:inline-flex" data-testid="games-share-legend">
+              <span className="w-5">
+                <QuietBar value={0.6} />
+              </span>
+              share of the {formatCount(total)} game{total === 1 ? "" : "s"} in these filters
+            </span>
             {/* Phones: the table's columns as one compact Sort by control and a direction toggle. */}
-            {/* Sharing the search's row, the label is left to screen readers: the column's name and the
-                direction's arrow say what it does, and the columns' short names keep the control
-                narrow. At a large text size Sort by takes a line of its own over the control and its
-                arrow, and the control narrows, so the toolbar is never wider than the phone. */}
+            {/* Sharing the search's row (from a 20.5rem card), the words "Sort by" are read out only,
+                and the control shows the sort mark in their place, before the column's short name (the
+                names keep it narrow). At a large text size Sort by takes a line of its own over the
+                control and its arrow, and the control narrows, so the toolbar is never wider than the
+                phone. */}
             <div className="flex min-w-0 flex-wrap items-center gap-1.5 @min-[20.5rem]:shrink-0 @min-[20.5rem]:flex-nowrap @min-[44rem]:hidden" data-testid="all-champions-sort-mobile">
               <label htmlFor="all-champions-sort-by" className="text-xs text-fg-muted @min-[20.5rem]:sr-only">
                 Sort by
               </label>
               <div className="flex min-w-0 items-center gap-1.5">
-                <select id="all-champions-sort-by" value={sort.key} onChange={(e) => setSort({ key: e.target.value as SortKey, dir: defaultDir(e.target.value as SortKey) })} className={selectClass("w-auto")}>
-                  {COLUMNS.map((c) => (
-                    <option key={c.key} value={c.key}>
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
+                <span className="relative flex min-w-0">
+                  <ArrowUpDown className="pointer-events-none absolute left-2 top-1/2 hidden h-4 w-4 -translate-y-1/2 text-fg-subtle @min-[20.5rem]:block" aria-hidden data-testid="all-champions-sort-mark" />
+                  <select id="all-champions-sort-by" value={sort.key} onChange={(e) => setSort({ key: e.target.value as SortKey, dir: defaultDir(e.target.value as SortKey) })} className={selectClass("w-auto @min-[20.5rem]:pl-7")}>
+                    {COLUMNS.map((c) => (
+                      <option key={c.key} value={c.key}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                </span>
                 <button type="button" onClick={() => setSort((cur) => ({ ...cur, dir: cur.dir === "asc" ? "desc" : "asc" }))} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-border-control bg-bg-elevated text-fg transition-colors hover:border-fg-subtle" aria-label={`${label}, ${sort.dir === "asc" ? "ascending" : "descending"}: reverse`} data-testid="all-champions-sort-dir">
                   {sort.dir === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
                 </button>

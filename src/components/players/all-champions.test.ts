@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { OverviewCard } from "@/server/players/overview";
-import { gamesShare, sortChampions, summaryPairs } from "./all-champions";
+import { gamesShare, shareWords, sortChampions, summaryPairs } from "./all-champions";
 
 const card = (championId: string, games: number, winRate: number | null, mastery: number | null, kda: number | null = null): OverviewCard =>
   ({ championId, role: "MID", selected: { games, winRate }, performance: { kdaRatio: kda, csPerMinute: null }, mastery: mastery === null ? null : { points: mastery } }) as unknown as OverviewCard;
@@ -75,6 +75,18 @@ describe("All Champions phone pairs", () => {
     expect(text(summaryPairs(full({ multikills: { counted: 0 } }), "triple"))[0]).toBe("Triple kills — (sorted)");
     // No games to count multikills in: neither the kind nor the Multikills pair.
     expect(text(summaryPairs(full({ multikills: null }), "double"))).toEqual(["KDA 2.74", "CS/min 7.9", "Kills 70", "Mastery 428K"]);
+  });
+});
+
+describe("All Champions games share in words", () => {
+  it("is a whole percent, but never 0% or 100% for a share that is neither", () => {
+    expect(shareWords(gamesShare(14, 36))).toBe("39%");
+    expect(shareWords(gamesShare(1, 250))).toBe("under 1%");
+    expect(shareWords(gamesShare(1, 199))).toBe("1%");
+    expect(shareWords(gamesShare(249, 250))).toBe("over 99%");
+    expect(shareWords(gamesShare(36, 36))).toBe("100%");
+    expect(shareWords(gamesShare(0, 36))).toBe("0%");
+    expect(shareWords(gamesShare(0, 0))).toBe("0%");
   });
 });
 
