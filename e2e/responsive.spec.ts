@@ -115,6 +115,64 @@ test("touch targets and inputs are phone-sized", async ({ page }) => {
   expect(fontSize, "16px inputs stop iOS zooming").toBeGreaterThanOrEqual(16);
 });
 
+test("Settings: the account card leads (compact on a phone, a column of its own wider), Sign out on the first screen, each field with its Save on its row", async ({ page }, info) => {
+  await page.goto("/settings");
+  const card = page.getByTestId("settings-account");
+  await expect(card).toBeVisible();
+  // Sign out is on the first screen at every width: above the phone's tab bar, inside the window wider.
+  const signOut = card.getByTestId("settings-sign-out");
+  const bar = page.getByTestId("phone-tabbar");
+  const firstScreen = (await bar.isVisible()) ? (await bar.boundingBox())!.y : page.viewportSize()!.height;
+  expect((await signOut.boundingBox())!.y + (await signOut.boundingBox())!.height, "Sign out on the first screen").toBeLessThanOrEqual(firstScreen);
+  // Who you are: the name, @username and a neutral role badge.
+  await expect(card.getByTestId("settings-username")).toHaveText(/^@/);
+  // The display name and its Save share one row: 44px on a phone and on a touch screen.
+  const form = page.getByTestId("display-name-form");
+  const field = (await form.getByLabel("Display name").boundingBox())!;
+  const save = (await form.getByRole("button", { name: "Save display name" }).boundingBox())!;
+  expect(Math.abs(field.y - save.y), "the field and its Save on one row").toBeLessThanOrEqual(1);
+  if (info.project.name !== "desktop") {
+    expect(field.height).toBe(44);
+    expect(save.height).toBe(44);
+  }
+  // The index jumps to each section.
+  const index = page.getByTestId("settings-index");
+  await expect(index.getByRole("link")).toHaveText(["Name", "Password"]);
+  await expect(index.getByRole("link", { name: "Password" })).toHaveAttribute("href", "#password");
+  if (isPhone(page)) {
+    // A phone: the card above the sections, the password form folded behind Change password.
+    expect((await card.boundingBox())!.y + (await card.boundingBox())!.height).toBeLessThanOrEqual((await page.locator("#name").boundingBox())!.y);
+    await expect(page.locator("#current")).toBeHidden();
+    const open = page.getByTestId("password-open");
+    await expect(async () => {
+      if (await open.isVisible()) await open.tap({ timeout: 2_000 });
+      await expect(page.locator("#current")).toBeVisible({ timeout: 1_000 });
+    }).toPass({ timeout: 15_000 });
+    await expect(page.locator("#current")).toBeFocused();
+    await page.getByTestId("password-cancel").tap();
+    await expect(page.locator("#current")).toBeHidden();
+    await expect(open).toBeVisible();
+  } else {
+    // Wider: the card is a column of its own beside the sections, sticky under the bar, the form open.
+    expect((await card.boundingBox())!.x + (await card.boundingBox())!.width).toBeLessThanOrEqual((await page.locator("#name").boundingBox())!.x);
+    expect(await card.evaluate((el) => getComputedStyle(el).position)).toBe("sticky");
+    await expect(page.locator("#current")).toBeVisible();
+    await expect(page.getByTestId("password-open")).toBeHidden();
+    if (info.project.name === "desktop") {
+      // From xl the display name and the username stand side by side.
+      expect(Math.abs((await page.getByTestId("username-form").boundingBox())!.y - (await form.boundingBox())!.y)).toBeLessThanOrEqual(1);
+      // The index marks the section being read (scroll-spy) in a window short enough to scroll.
+      await page.setViewportSize({ width: 1440, height: 560 });
+      await expect(index.getByRole("link", { name: "Name" })).toHaveAttribute("aria-current", "location");
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      await expect(index.getByRole("link", { name: "Password" })).toHaveAttribute("aria-current", "location");
+      await expect(index.getByRole("link", { name: "Name" })).not.toHaveAttribute("aria-current", "location");
+      // The card stayed in view.
+      expect((await card.boundingBox())!.y).toBeGreaterThanOrEqual(0);
+    }
+  }
+});
+
 test("team cards: compact by default, the whole pool in a detail panel that never moves the lineup, equal heights, lineup editing behind one button", async ({ page }) => {
   await page.goto("/team");
   const cards = page.locator("[data-testid^=lineup-row-]");
