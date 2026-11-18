@@ -253,7 +253,7 @@ test("Settings in a window 480px tall or less (a phone held sideways) and on the
   }
 });
 
-test("Settings' index marks the section being read as the page scrolls (a member with Social links: three sections)", async ({ browser, page: admin }, info) => {
+test("Settings for a member with Social links: the index marks the section being read as the page scrolls; on a 320px touch screen a tap just under a wrapped quiet link is still its own", async ({ browser, page: admin }, info) => {
   test.skip(info.project.name !== "desktop", "the card's index is a list from md; once is enough");
   const { context, page } = await memberContext(browser, admin, { width: 1440, height: 700 }, { base: "Spy" });
   try {
@@ -272,6 +272,28 @@ test("Settings' index marks the section being read as the page scrolls (a member
     // At the page's end, the last section.
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     await expect(index.getByRole("link", { name: "Password" })).toHaveAttribute("aria-current", "location");
+    // On a 320px touch screen the quiet links wrap, Sign out under My Profile, the lines 12px apart:
+    // Sign out's 44px touch area stops short of My Profile, so a tap on My Profile's lower edge, or
+    // just under it, opens My Profile. (With the lines 4px apart, as before, Sign out's area lay over
+    // My Profile's lower edge.)
+    const phone = await browser.newContext({ storageState: await context.storageState(), viewport: { width: 320, height: 568 }, isMobile: true, hasTouch: true });
+    try {
+      const small = await phone.newPage();
+      await small.goto("/settings");
+      const quiet = small.getByTestId("settings-actions").filter({ visible: true });
+      const profile = (await quiet.getByRole("link", { name: "My Profile" }).boundingBox())!;
+      const signOut = (await quiet.getByRole("button", { name: "Sign out" }).boundingBox())!;
+      expect(signOut.y - (profile.y + profile.height), "Sign out wrapped under My Profile, 12px or more below it").toBeGreaterThanOrEqual(12);
+      // Where both are drawn, one above the other.
+      const x = Math.max(profile.x, signOut.x) + Math.min(profile.width, signOut.width) / 2;
+      expect(x).toBeLessThan(Math.min(profile.x + profile.width, signOut.x + signOut.width));
+      for (const below of [-1, 2]) {
+        const hit = await small.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest("a, button")?.textContent?.trim() ?? null, { x, y: profile.y + profile.height + below });
+        expect(hit, `a tap ${below}px from My Profile's lower edge`).toBe("My Profile");
+      }
+    } finally {
+      await phone.close();
+    }
   } finally {
     await context.close();
   }

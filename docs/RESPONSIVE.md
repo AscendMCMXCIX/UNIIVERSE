@@ -195,7 +195,7 @@ it hid under the fade at 1024, 1280 and 1366 (about 28px at 1440).
 
 | Width | Layout |
 | --- | --- |
-| phone (< 640px), and any window 480px tall or less | the title, then the compact account card: the 56px picture beside the name, @username and a neutral role badge; a row of quiet links (My Profile, Riot Accounts, the mode switch, Sign out; 12px between wrapped lines, so their 44px touch areas never overlap); Change and Remove; what the picture is for; the index ("Name · Links · Password"). Every section stacked; each field with its Save on one row, 44px |
+| phone (< 640px), and any window 480px tall or less | the title, then the compact account card: the 56px picture beside the name, @username and a neutral role badge; a row of quiet links (My Profile, Riot Accounts, the mode switch, Sign out; wrapped lines 12px apart, so a link's 44px touch area stops short of the link drawn above or below it); Change and Remove; what the picture is for; the index ("Name · Links · Password"). Every section stacked; each field with its Save on one row, 44px |
 | from `sm` (a phone held sideways from 640px wide) | two columns: the card (15rem, 16rem from `lg`) beside the sections, the title over the sections |
 | from `md` in a window taller than 480px | the card's full look: the 80px picture beside who you are, Change and Remove, the help, the index down the card (the section being read marked, `aria-current="location"`), then My Profile, Riot Accounts, the mode switch and Sign out as rows; sticky under the tablet's bar (`--bar-top` plus 1rem) |
 | from `xl` | Name & username side by side, each with its Save |
@@ -361,7 +361,8 @@ a window 480px tall or less), the name, the neutral role badge and the picture's
 full, each field and its Save on one row (44px on touch screens), the password form shown; on a
 phone an index link's jump landing under the top bar, focused, and Back from the next page coming
 back to it; on a desktop Name & username side by side, and the index marking the section being read
-as a member's three sections scroll by. `e2e/resources.spec.ts` checks the Library's index (a
+as a member's three sections scroll by; on a 320px touch screen a tap on or just under a wrapped
+quiet link (My Profile, Sign out under it) still its own. `e2e/resources.spec.ts` checks the Library's index (a
 section by tapping, the counts following the search), its layout at each width (two columns pinned
 from 640px, the panel titles' size, the host cut first and ↗ drawn, descriptions whole on a touch
 screen), the index whole at 1024, 1280, 1366 and 1440 with the sidebar open and folded, and the ★

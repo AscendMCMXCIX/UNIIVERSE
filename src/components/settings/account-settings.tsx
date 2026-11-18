@@ -22,7 +22,8 @@ const ACTION_ICON = "h-4 w-4 shrink-0 text-fg-subtle";
  * where it is drawn in the card's reading order (the other is display: none, so neither the keyboard
  * nor a screen reader meets it):
  *   "quiet"   on a phone and in a window 480px tall or less: a row of quiet links right under who you
- *             are, 44px targets on a touch screen that never overlap (12px between wrapped lines);
+ *             are, 44px targets on a touch screen; wrapped lines are 12px apart (as the base had), so a
+ *             link's touch area stops short of the link drawn above or below it;
  *   "rows"    from md in a taller window: rows at the card's end, after its index.
  */
 function AccountActions({ variant, profileLinks, modeSwitch }: { variant: "quiet" | "rows"; profileLinks: boolean; modeSwitch: "player" | "admin" | null }) {
