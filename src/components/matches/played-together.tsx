@@ -7,6 +7,7 @@ import { seasonLabel } from "@/domain/season";
 import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterBar, FilterField } from "@/components/ui/filter-bar";
+import { FiltersControl, PageToolbar, ToolbarChip } from "@/components/ui/page-toolbar";
 import { InfoTip } from "@/components/ui/info-tip";
 import { chipClass } from "@/components/ui/segmented";
 import { queueLabel } from "@/server/players/match-history";
@@ -73,6 +74,13 @@ export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams 
   const narrowed = (filters.season !== currentSeason ? 1 : 0) + (filters.queue !== "all" ? 1 : 0) + (!filters.saved && filters.min !== 2 ? 1 : 0) + (filters.with.length ? 1 : 0);
   return (
     <div className="space-y-4" data-testid="played-together">
+      {/* From md, once the filters have scrolled away: Filters and Bookmarked at the pinned tabs' end (ui/page-toolbar.tsx). */}
+      <PageToolbar label="Matches controls" land="[data-testid=together-card]">
+        <FiltersControl />
+        <ToolbarChip href={href({ saved: !filters.saved, limit: 20 })} on={filters.saved} label="Bookmarked" count={savedCount} testId="toolbar-together-saved">
+          <Bookmark className="h-3.5 w-3.5" aria-hidden />
+        </ToolbarChip>
+      </PageToolbar>
       <FilterBar
         testId="together-filters"
         toggleTestId="together-filters-toggle"

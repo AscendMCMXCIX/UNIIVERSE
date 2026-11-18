@@ -23,6 +23,7 @@ import { MULTIKILL_HELP, MULTIKILL_SHORT } from "./multikill-summary";
 import { InfoTip } from "@/components/ui/info-tip";
 import { DataStatusNote, RefreshButton, type DataRefreshTarget } from "@/components/ui/data-status";
 import { SectionHeader } from "@/components/ui/section-header";
+import { COMPACT_SEARCH, FiltersControl, PageToolbar } from "@/components/ui/page-toolbar";
 import type { DataStatus } from "@/domain/data-status";
 import type { CardLook } from "@/domain/card-style";
 import { RoleTag } from "@/components/role-icon";
@@ -222,6 +223,8 @@ const masteryText = (n: number | null | undefined) => (n == null ? "—" : forma
  */
 export function AllChampions({ data, basePath, championsById, playerId, look, detail, status, refresh }: { data: PlayerOverviewData; basePath: string; championsById: Record<string, PortraitChampion>; playerId: string; /** The player's card look: the champion window takes their colours. */ look?: CardLook | null; detail: MatchupsData | null; /** The page's data status (domain/data-status). */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts, where Riot can be asked. */ refresh?: DataRefreshTarget | null }) {
   const [query, setQuery] = React.useState("");
+  // The table's own search: once it has gone up under the pinned tabs, the row offers a copy (PageToolbar).
+  const searchRef = React.useRef<HTMLInputElement>(null);
   // Opened from Overview's multikills (?sort=multikills) or any other link with a sort: that order first.
   const initialSort = useSearchParams().get("sort");
   const [sort, setSort] = React.useState<{ key: SortKey; dir: Dir }>(() => (isSortKey(initialSort) ? { key: initialSort, dir: defaultDir(initialSort) } : { key: "games", dir: "desc" }));
@@ -367,6 +370,10 @@ export function AllChampions({ data, basePath, championsById, playerId, look, de
         refresh={status ? <RefreshButton status={status} refresh={refresh} /> : null}
         controls={<OverviewFilters basePath={basePath} filter={f} seasons={data.seasons} currentSeason={data.currentSeason} champions={[]} accounts={data.accountOptions} showChampions={false} modeCounts={data.modes.counts} testId="all-champions-filters" />}
       />
+      <PageToolbar anchor={searchRef} label="All Champions controls" land="[data-testid=top-champion]">
+        <SearchInput value={query} onChange={setQuery} placeholder="Find a champion…" label="Find a champion or a role" className={COMPACT_SEARCH} testId="toolbar-all-champions-search" />
+        <FiltersControl />
+      </PageToolbar>
       {/* One card: its toolbar (the search, how many champions, Sort by on phones), the column
           names (each sorts, again to reverse), the rows, then the rest one click away. */}
       <div className="rounded-card border border-border bg-surface panel-depth" data-testid="all-champions-table">
@@ -374,7 +381,7 @@ export function AllChampions({ data, basePath, championsById, playerId, look, de
           // Below 76rem the toolbar has the rows' padding, so the search lines up with the champions.
           <div className="flex flex-wrap items-center gap-2 border-b border-border/70 px-3 py-2.5 @min-[76rem]:px-4">
             {/* The search keeps at least 12rem: on narrow phones it takes its own line above Sort by. */}
-            <SearchInput value={query} onChange={setQuery} placeholder="Find a champion or role…" label="Find a champion or a role" className="flex-[1_1_12rem] @min-[44rem]:max-w-xs" testId="all-champions-search" />
+            <SearchInput ref={searchRef} value={query} onChange={setQuery} placeholder="Find a champion or role…" label="Find a champion or a role" className="flex-[1_1_12rem] @min-[44rem]:max-w-xs" testId="all-champions-search" />
             <span className="ml-auto hidden text-xs tabular-nums text-fg-subtle @min-[44rem]:inline" aria-live="polite" data-testid="all-champions-count">
               {q ? `${rows.length} of ${data.topChampions.length}` : data.topChampions.length} champion{(q ? rows.length : data.topChampions.length) === 1 ? "" : "s"}
             </span>

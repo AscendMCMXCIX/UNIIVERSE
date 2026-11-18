@@ -16,6 +16,7 @@ import { buttonClass } from "@/components/ui/button";
 import { RoleSegmented, chipClass } from "@/components/ui/segmented";
 import { FilterBar, FilterField } from "@/components/ui/filter-bar";
 import { SearchInput } from "@/components/ui/search-input";
+import { COMPACT_SEARCH, FiltersControl, PageToolbar } from "@/components/ui/page-toolbar";
 import { formatCount } from "@/lib/format";
 import type { CompactRank } from "./rank-emblem";
 import { RosterRow, type RiotState } from "./roster-row";
@@ -71,6 +72,11 @@ export function PlayersDirectory({ entries, championsById, archived = null, myPr
   const scopeLine = [shown.length === entries.length ? players(entries.length) : `${formatCount(shown.length)} of ${players(entries.length)}`, filtered ? `${ROLE_LABELS[filtered]} as primary or off role` : null, scope === "lineup" ? "Main lineup" : null, archived?.on ? "With archived and deactivated" : null].filter(Boolean).join(" · ");
   return (
     <div className="space-y-4">
+      {/* From md, once the toolbar has scrolled away: the search and Filters at the pinned tabs' end (ui/page-toolbar.tsx). */}
+      <PageToolbar label="Players controls" land="[data-testid=player-card]">
+        <SearchInput value={query} onChange={setQuery} placeholder="Search players" label="Search players by name or Riot ID" className={COMPACT_SEARCH} testId="toolbar-players-search" />
+        <FiltersControl />
+      </PageToolbar>
       {/* Sideways phones: one row from 35rem (room for the title's 15rem and a bar whose search keeps 9rem), stacked below it. */}
       <div className="flex flex-col gap-4 max-md:short:min-[35rem]:flex-row max-md:short:min-[35rem]:items-center max-md:short:min-[35rem]:gap-x-5">
         <PageHeader
