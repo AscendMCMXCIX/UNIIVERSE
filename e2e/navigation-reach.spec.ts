@@ -752,7 +752,9 @@ test("touch screens from 1024px (an iPad held sideways, a touch laptop): Team's 
   test.skip(info.project.name !== "tablet", "a touch screen: the tablet project, made 1180 and 1366 wide");
   test.setTimeout(120_000);
   await page.emulateMedia({ reducedMotion: "reduce" });
-  for (const viewport of [{ width: 1180, height: 820 }, { width: 1366, height: 1024 }]) {
+  // An iPad held sideways and a touch laptop: windows short enough for the demo's Team Matches (six
+  // games in member rows) to scroll its filters away under the tabs.
+  for (const viewport of [{ width: 1180, height: 820 }, { width: 1366, height: 768 }]) {
     const at = `${viewport.width} × ${viewport.height}`;
     await page.setViewportSize(viewport);
     // Team Matches: a list long enough to pin the tabs and scroll its filters away.
@@ -799,6 +801,8 @@ test("touch screens from 1024px (an iPad held sideways, a touch laptop): Team's 
 
 test("desktop: with a mouse Team's section tabs stay 40px, level with the sidebar's brand row, under the 2.75rem the pinned stack keeps for them", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "a mouse at 1440");
+  // Short enough for the demo's Team Matches to scroll its filters away under the tabs.
+  await page.setViewportSize({ width: 1440, height: 600 });
   await page.goto("/matches");
   await expect(page.getByTestId("played-together")).toBeVisible();
   const rest = await teamStack(page);
