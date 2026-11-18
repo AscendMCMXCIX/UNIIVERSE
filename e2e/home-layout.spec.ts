@@ -17,7 +17,8 @@ test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
 });
 
-const overflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+// Against the layout viewport's width: a phone's (isMobile) window grows with what spills past it, so innerWidth would hide it.
+const overflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 /** An element's box once it is on screen (measuring before it renders gives no box). */
 async function box(locator: Locator) {
   await expect(locator).toBeVisible();
@@ -331,7 +332,7 @@ test("profile pools on a phone: every figure whole and under its column, editing
         overlaps,
         perfect,
         rowHeights: [...el.querySelectorAll("[data-testid=pool-item]")].map((li) => Math.round(li.getBoundingClientRect().height)),
-        overflow: document.documentElement.scrollWidth - innerWidth,
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
         listRem: list.getBoundingClientRect().width / rem,
         headShown: !!columns && shown(columns),
         headPast: columns && shown(columns) ? columns.scrollWidth - columns.clientWidth : 0,

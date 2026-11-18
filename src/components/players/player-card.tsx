@@ -20,8 +20,12 @@ import { formatCount, formatCompactCount } from "@/lib/format";
   full pool rows. Each page arranges them for its purpose; the pieces themselves look the same.
 */
 
-/** The role chip in the card's top-left corner. */
-export function CardRoleChip({ role, label, className }: { role: Role | null; label: string; className?: string }) {
+/**
+ * The role chip in the card's top-left corner. `labelClassName` goes on the role's name: the Team
+ * card hides it to the eye (sr-only, so it stays the chip's text for screen readers) where the card
+ * is too narrow for it, leaving the role's icon.
+ */
+export function CardRoleChip({ role, label, className, labelClassName }: { role: Role | null; label: string; className?: string; labelClassName?: string }) {
   return (
     <span className={cn("inline-flex items-center gap-1.5 rounded-full bg-bg/85 px-3 py-1 text-sm font-semibold uppercase tracking-label text-fg", className)} data-testid="assigned-role">
       {role ? (
@@ -33,7 +37,9 @@ export function CardRoleChip({ role, label, className }: { role: Role | null; la
           ●
         </span>
       )}{" "}
-      {label}
+      <span className={labelClassName} data-testid="assigned-role-label">
+        {label}
+      </span>
     </span>
   );
 }
@@ -217,6 +223,14 @@ export interface CardSeason extends SeasonFigures {
  * three cannot hold the figures (its middle column shrank to a few pixels and drew "KDACS/MIN"):
  * there the win rate keeps the left with its record, and KDA and CS/min (vision) stand one above
  * the other on the right, each its label over its figure. Same figures, same order.
+ *
+ * Narrower than 9rem, which only larger text makes (a phone's card at 175% on 320px, 200% up to
+ * 393px; every card at the usual size is 12.2rem or wider), the right-hand column cannot hold its
+ * labels either: "CS/MIN" ran past the card at 175% on 320px and KDA and the vision figure were cut
+ * at 200%. There KDA and CS/min (vision) move under the win rate, side by side where the two fit
+ * and one above the other where they do not, all on the left; the wins bar keeps at least 2rem,
+ * with the game count under it when the two do not fit on one line. Still the same figures, in the
+ * same order.
  */
 export function CardPerformance({ season, support, roleLabel, placeholder = false }: { season: CardSeason | null; support: boolean; roleLabel: string; placeholder?: boolean }) {
   const games = season?.games ?? 0;
@@ -239,16 +253,18 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
   const sub = "block truncate text-2xs tabular-nums text-fg-subtle";
   // KDA and CS/min (vision) on a narrow card: one above the other in the right-hand column, each its
   // label over its figure, right-aligned (a label and figure side by side did not fit "VISION 79.3").
-  const pair = "min-w-0 @max-[12.5rem]/card:col-start-2 @max-[12.5rem]/card:text-right";
+  // Under 9rem they flow under the win rate, aligned on the left like it.
+  const pair = "min-w-0 @max-[12.5rem]/card:col-start-2 @max-[12.5rem]/card:text-right @max-[9rem]/card:text-left";
   const figure = "text-lg font-semibold leading-tight tabular-nums text-fg @max-[12.5rem]/card:text-base";
   const narrowHidden = "@max-[12.5rem]/card:hidden";
   return (
     <div className="rounded-lg bg-bg/55 px-3 pb-2.5 pt-2 ring-1 ring-inset ring-white/[0.06] @max-[12.5rem]/card:px-2.5" data-testid="card-season">
       {/* One row, read left to right: how often they win, how they fight, how they farm (vision for
           Support). The outer figures take the room they need and KDA the rest, so nothing is cut off.
-          A narrow card: the win rate on the left, KDA over CS/min (vision) on the right. */}
-      <dl className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-x-2.5 @min-[14.5rem]/card:@max-[16.5rem]/card:gap-x-1 @max-[12.5rem]/card:grid-cols-[auto_minmax(0,1fr)] @max-[12.5rem]/card:items-center @max-[12.5rem]/card:gap-x-2 @max-[12.5rem]/card:gap-y-1">
-        <div className="min-w-0 @max-[12.5rem]/card:row-span-2">
+          A narrow card: the win rate on the left, KDA over CS/min (vision) on the right. Under 9rem:
+          a line for the win rate, then KDA and CS/min (vision) wrapping as they fit. */}
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-x-2.5 @min-[14.5rem]/card:@max-[16.5rem]/card:gap-x-1 @max-[12.5rem]/card:grid-cols-[auto_minmax(0,1fr)] @max-[12.5rem]/card:items-center @max-[12.5rem]/card:gap-x-2 @max-[12.5rem]/card:gap-y-1 @max-[9rem]/card:flex @max-[9rem]/card:flex-wrap @max-[9rem]/card:gap-x-3 @max-[9rem]/card:gap-y-1.5">
+        <div className="min-w-0 @max-[12.5rem]/card:row-span-2 @max-[9rem]/card:basis-full">
           <dt className={label}>Win rate</dt>
           <dd className={cn("text-2xl font-bold leading-tight tabular-nums", wr === null ? "text-fg-muted" : tone)} title={winRateSampleNote(season?.winRate, games, WIN_RATE_MIN_GAMES.season) ?? undefined} data-testid="card-winrate">
             {wr === null ? dash : `${Math.round(wr * 100)}%`}
@@ -294,9 +310,10 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
           </div>
         )}
       </dl>
-      {/* Wins against losses (the proportion only, no target line) and the sample beside it. */}
-      <div className="mt-1.5 flex items-center gap-2">
-        <span className="flex h-1 flex-1 overflow-hidden rounded-full bg-bad/25" aria-hidden>
+      {/* Wins against losses (the proportion only, no target line) and the sample beside it. Under
+          9rem the bar keeps 2rem (the count left it none at 200% on 320px), the count wrapping under it. */}
+      <div className="mt-1.5 flex items-center gap-2 @max-[9rem]/card:flex-wrap @max-[9rem]/card:gap-y-1">
+        <span className="flex h-1 flex-1 overflow-hidden rounded-full bg-bad/25 @max-[9rem]/card:min-w-8" aria-hidden>
           {decided > 0 ? <span className="h-full rounded-full bg-good/80" style={{ width: `${((wins ?? 0) / decided) * 100}%` }} /> : null}
         </span>
         <span className="shrink-0 text-2xs tabular-nums text-fg-muted">
@@ -318,6 +335,11 @@ export interface CardPoolChampion extends PortraitChampion {
  * The card's champion pool for its role: the first choice featured (portrait, name and its season
  * in the role), then the rest of the pool in order, as many as fit, with the pool's size. A role
  * without champions says so plainly.
+ *
+ * The first choice never shrinks, so on a card narrower than 9.75rem, which only larger text makes,
+ * it ran past the card ("Nauti", "12 gam" at 200% on a 320px phone). There it may shrink: its name
+ * and line go under the portrait when the three do not fit side by side, and wrap at their spaces
+ * instead of being cut. Where they fit, nothing moves.
  */
 export function CardPool({ champions, roleLabel, showFigures = true, testId = "pool-preview" }: { champions: CardPoolChampion[]; roleLabel: string; showFigures?: boolean; testId?: string }) {
   const [first, ...rest] = champions;
@@ -328,14 +350,17 @@ export function CardPool({ champions, roleLabel, showFigures = true, testId = "p
       </div>
     );
   const games = first.games ?? 0;
-  const firstLine = !showFigures ? "First choice" : games > 0 ? `${games} game${games === 1 ? "" : "s"}${first.winRate != null ? ` · ${Math.round(first.winRate * 100)}%` : ""}` : (first.tierLabel ?? "No games this season");
+  // The "·" held to the words either side of it by no-break spaces: where the line wraps (a narrow
+  // card at larger text) it never ends a line ("14 games ·" over "29%" at 200% on a 320px phone) or
+  // starts one, as on Recent form.
+  const firstLine = !showFigures ? "First choice" : games > 0 ? `${games} game${games === 1 ? "" : "s"}${first.winRate != null ? ` · ${Math.round(first.winRate * 100)}%` : ""}` : (first.tierLabel ?? "No games this season");
   return (
     <div className="flex min-w-0 items-center gap-2.5" aria-label={`${roleLabel} champion pool, in order of preference`} data-testid={testId} data-card-pool>
-      <span className="flex min-w-0 shrink-0 items-center gap-2" data-testid="pool-first">
+      <span className="flex min-w-0 shrink-0 items-center gap-2 @max-[9.75rem]/card:shrink @max-[9.75rem]/card:flex-wrap" data-testid="pool-first">
         <ChampionPortrait champion={first} size="md" className="ring-1 ring-[color:var(--card-accent)]/50" />
         <span className="min-w-0 max-w-[7.5rem]">
-          <span className="block truncate text-sm font-semibold leading-tight text-fg">{first.name}</span>
-          <span className="block truncate text-2xs text-fg-subtle tabular-nums">{firstLine}</span>
+          <span className="block truncate text-sm font-semibold leading-tight text-fg @max-[9.75rem]/card:whitespace-normal">{first.name}</span>
+          <span className="block truncate text-2xs text-fg-subtle tabular-nums @max-[9.75rem]/card:whitespace-normal">{firstLine}</span>
         </span>
       </span>
       {rest.length ? (
