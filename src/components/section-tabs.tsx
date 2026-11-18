@@ -18,7 +18,7 @@ import { cn } from "@/lib/cn";
  * Every tab is a link with its own address, so deep links, Back/Forward and new tabs work as
  * before. The bar sits in the same place on every section. Team's sections other than Overview
  * (the team's home page, whose header already shows it) name the team at the bar's right end.
- * On desktop the bar is compact (40px tabs level with the sidebar's brand row, 44px on touch screens). The bar is the
+ * On desktop the bar is compact (40 px tabs level with the sidebar's brand row). The bar is the
  * shared TabBar (ui/tab-bar.tsx), as on a profile: on phones the tabs share the width when they
  * fit, and otherwise scroll sideways with the current one in view; on tablets and desktops it stays
  * pinned at the top of the page once it has scrolled past (TabBar's sticky), so a long section
