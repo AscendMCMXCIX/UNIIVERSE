@@ -74,6 +74,8 @@ export interface PageFilters {
   /** Whether the sheet is open, and what opened it: that control stays until the sheet has handed it the focus back. */
   openedFrom: "own" | "toolbar" | "topbar" | null;
   count: number;
+  /** What the bar narrows from md, where a list's own choices are its toolbar's (FilterBar's `inlineReset`): the pinned row's count. */
+  wideCount: number;
   summary: string;
   /** The bar's own element: once it has gone up under what is pinned, the copies show. */
   root: HTMLElement;
@@ -304,14 +306,14 @@ export function FiltersControl() {
       className={cn(
         "touch-target inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 text-sm font-medium transition-colors",
         COMPACT_CONTROL,
-        filters.count > 0 ? "border-accent/60 bg-accent/10 text-fg" : "border-border-control bg-bg-elevated text-fg-muted hover:border-fg-subtle hover:text-fg",
+        filters.wideCount > 0 ? "border-accent/60 bg-accent/10 text-fg" : "border-border-control bg-bg-elevated text-fg-muted hover:border-fg-subtle hover:text-fg",
       )}
       data-testid="toolbar-filters"
     >
       <SlidersHorizontal className="h-4 w-4 shrink-0 text-accent" aria-hidden />
       <span className={COMPACT_LABEL}>Filters</span>
       <span className="sr-only">: {filters.summary}</span>
-      {filters.count ? <span className="rounded-full bg-accent px-1.5 text-xs font-semibold tabular-nums text-bg">{filters.count}</span> : null}
+      {filters.wideCount ? <span className="rounded-full bg-accent px-1.5 text-xs font-semibold tabular-nums text-bg">{filters.wideCount}</span> : null}
     </button>
   );
 }

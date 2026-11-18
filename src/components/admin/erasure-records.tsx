@@ -139,14 +139,14 @@ export function ErasureRecords({ records }: { records: ErasureRecordView[] }) {
         <p className="text-sm text-fg-muted">No one has been erased.</p>
       )}
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void exportRecords()} data-testid="erasure-export">
+        <Button size="sm" variant="outline" wrap disabled={busy !== null} onClick={() => void exportRecords()} data-testid="erasure-export">
           <Download className="h-4 w-4" /> {busy === "export" ? "Exporting…" : "Export records"}
         </Button>
-        <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => fileRef.current?.click()}>
+        <Button size="sm" variant="outline" wrap disabled={busy !== null} onClick={() => fileRef.current?.click()}>
           <Upload className="h-4 w-4" /> {busy === "import" ? "Importing…" : "Import records"}
         </Button>
         <input ref={fileRef} type="file" accept="application/json,.json" className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => void importRecords(e.target.files?.[0])} />
-        <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void reconcile()} data-testid="erasure-reconcile">
+        <Button size="sm" variant="outline" wrap disabled={busy !== null} onClick={() => void reconcile()} data-testid="erasure-reconcile">
           <RefreshCw className="h-4 w-4" /> {busy === "reconcile" ? "Re-applying…" : "Re-apply records"}
         </Button>
       </div>

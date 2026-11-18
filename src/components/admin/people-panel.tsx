@@ -98,7 +98,7 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
   const mayErase = (a: AccountView) => a.userId !== currentUserId && a.role !== "owner" && (!a.isAdmin || viewerIsOwner);
   const accessButton = (a: AccountView) =>
     canManageAccounts ? (
-      <Button size="sm" variant="outline" onClick={() => setEditing(a)} disabled={!!lockedReason(a)} title={lockedReason(a) ?? "Team membership, access level, additional access and administrator access"} data-testid="open-access">
+      <Button size="sm" variant="outline" wrap onClick={() => setEditing(a)} disabled={!!lockedReason(a)} title={lockedReason(a) ?? "Team membership, access level, additional access and administrator access"} data-testid="open-access">
         <ShieldCheck className="h-4 w-4" /> Manage access
       </Button>
     ) : null;
@@ -123,7 +123,7 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
       <section className="space-y-4 rounded-card border border-border bg-surface p-4 sm:p-5" data-testid="players-admin">
         <header className="flex flex-wrap items-center justify-between gap-3">
           <SearchInput value={query} onChange={setQuery} placeholder="Find a person, username or Riot ID" label="Find a person" className="sm:max-w-xs" testId="people-search" />
-          <Button size="sm" variant="ghost" onClick={() => setShowArchived((v) => !v)}>
+          <Button size="sm" variant="ghost" wrap onClick={() => setShowArchived((v) => !v)}>
             {showArchived ? "Hide archived" : "Show archived"}
           </Button>
         </header>
@@ -136,7 +136,7 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
               aria-pressed={filter === f.id}
               onClick={() => setFilter(f.id)}
               className={cn(
-                "inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors pointer-coarse:min-h-11",
+                "inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-full border px-3 text-sm transition-colors pointer-coarse:min-h-11 [overflow-wrap:anywhere]",
                 filter === f.id ? "border-accent bg-accent/15 text-accent" : "border-border text-fg-muted hover:text-fg",
               )}
             >
@@ -159,10 +159,11 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
               {g.rows.map((p) => {
                 const riot = riotStatus(p.riot.state);
                 return (
-                  <li key={p.id} className={cn("space-y-3 rounded-panel border border-border bg-bg-elevated p-3", p.archived && "opacity-70")} data-testid="admin-player-row">
+                  <li key={p.id} className={cn("space-y-3 rounded-panel border border-border bg-bg-elevated p-3 @container", p.archived && "opacity-70")} data-testid="admin-player-row">
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                       <Avatar name={p.displayName} src={p.account?.avatarUrl ?? null} size="md" />
-                      <div className="min-w-0 flex-1">
+                      {/* Beside the picture; with a larger text size on a phone (the row under 14rem), on a line of its own under it. */}
+                      <div className="min-w-0 flex-1 [overflow-wrap:anywhere] @max-[14rem]:basis-full">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                           {p.primaryRole && p.teamMember ? (
                             // Their profile is a Player Mode page: it opens in a new tab, so Admin Mode stays here.
@@ -185,7 +186,7 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
                           ) : (
                             <span className="text-fg-subtle">Role not chosen yet</span>
                           )}
-                          <span className="text-fg-subtle">· {p.riotId ?? "no Riot ID"}</span>
+                          <span className="min-w-0 text-fg-subtle [overflow-wrap:anywhere]">· {p.riotId ?? "no Riot ID"}</span>
                           {p.lineupRole ? <span className="text-fg-subtle">· lineup {ROLE_LABELS[p.lineupRole]}</span> : null}
                         </div>
                       </div>
@@ -222,7 +223,7 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
                         {canManageRoster ? (
                           <>
                             {!p.account ? (
-                              <Button size="sm" variant="ghost" disabled={busy} onClick={() => run(() => archivePlayerAction(p.id, !p.archived), p.archived ? "Profile restored." : "Profile archived.")}>
+                              <Button size="sm" variant="ghost" wrap disabled={busy} onClick={() => run(() => archivePlayerAction(p.id, !p.archived), p.archived ? "Profile restored." : "Profile archived.")}>
                                 {p.archived ? "Restore profile" : "Archive profile"}
                               </Button>
                             ) : null}
@@ -247,12 +248,12 @@ export function PeoplePanel({ players, adminAccounts = [], presets = [], current
               {adminAccounts
                 .filter((a) => !q || fold(a.username).includes(q))
                 .map((a) => (
-                  <li key={a.userId} className="space-y-2 rounded-panel border border-border bg-bg-elevated p-3" data-testid="admin-user-row">
+                  <li key={a.userId} className="space-y-2 rounded-panel border border-border bg-bg-elevated p-3 @container" data-testid="admin-user-row">
                     <div className="flex flex-wrap items-center gap-3">
                       <Avatar name={a.username} src={a.avatarUrl} size="md" />
-                      <div className="min-w-0 flex-1">
+                      <div className="min-w-0 flex-1 [overflow-wrap:anywhere] @max-[14rem]:basis-full">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-semibold text-fg">{a.username}</span>
+                          <span className="min-w-0 font-semibold text-fg [overflow-wrap:anywhere]">{a.username}</span>
                           {a.userId === currentUserId ? <span className="text-xs text-fg-subtle">(you)</span> : null}
                           {a.role === "owner" ? <Badge tone="accent">Owner</Badge> : a.isAdmin ? <Badge tone="accent" title="Can open Admin Mode">Administrator</Badge> : null}
                         </div>

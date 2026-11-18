@@ -7,7 +7,7 @@ import { cn } from "@/lib/cn";
 /**
  * The one search box: a magnifier, the field, and a clear button once something is typed. 44px with
  * 16px text on phones (no zoom on iOS), the compact 36px / 14px from md up with a mouse, like every
- * other field.
+ * other field. A placeholder longer than a narrow field ends in an ellipsis, never cut mid-letter.
  */
 export function SearchInput({ value, onChange, label, placeholder, className, testId, ...props }: Omit<React.ComponentProps<"input">, "value" | "onChange" | "type"> & { value: string; onChange: (value: string) => void; /** Read by screen readers (the placeholder is not a label). */ label: string; testId?: string }) {
   return (
@@ -19,7 +19,7 @@ export function SearchInput({ value, onChange, label, placeholder, className, te
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         aria-label={label}
-        className="h-11 w-full rounded-md border border-border-control bg-bg-elevated pl-9 pr-9 text-base text-fg placeholder:text-fg-subtle hover:border-fg-subtle focus:border-accent focus:outline-none md:pointer-fine:text-sm md:pointer-fine:h-9 [&::-webkit-search-cancel-button]:hidden"
+        className="h-11 w-full text-ellipsis rounded-md border border-border-control bg-bg-elevated pl-9 pr-9 text-base text-fg placeholder:text-fg-subtle hover:border-fg-subtle focus:border-accent focus:outline-none md:pointer-fine:text-sm md:pointer-fine:h-9 [&::-webkit-search-cancel-button]:hidden"
         data-testid={testId}
         {...props}
       />

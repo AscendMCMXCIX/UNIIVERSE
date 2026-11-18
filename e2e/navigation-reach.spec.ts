@@ -181,6 +181,10 @@ test("tablet and desktop: a profile section chosen far down the page starts at i
 
 test("tablet and desktop: Team's sections stay in reach as a long page scrolls, and switch the section from there", async ({ page }) => {
   test.skip(isPhone(page), "phones have the bottom tab bar");
+  // Records is the longest Team page, but since PR 5b it fits a 1440×900 window in about 1.3
+  // screens: a desktop window 600px tall keeps it long enough to scroll well past the tabs (still
+  // taller than 480px, where they pin). The tablet's 768×1024 shows it in about two screens.
+  if (!isTablet(page)) await page.setViewportSize({ width: 1440, height: 600 });
   await page.goto("/leaderboards?view=records");
   await expect(page.getByTestId("leaderboards")).toHaveAttribute("data-ready", "true");
   await expect(page.getByTestId("records")).toBeVisible();
@@ -191,7 +195,7 @@ test("tablet and desktop: Team's sections stay in reach as a long page scrolls, 
   const ink = () => tabs.evaluate((el) => getComputedStyle(el).backgroundColor);
   expect(await ink()).toBe("rgba(0, 0, 0, 0)");
   await page.evaluate(() => window.scrollTo(0, 1200));
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(600);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(400);
   // Pinned at the top of the page: under the tablet's top bar, at the window's edge beside the
   // sidebar, and in the frame's ink while it is.
   const pinned = await rect(tabs);
@@ -768,7 +772,9 @@ test("touch screens from 1024px (an iPad held sideways, a touch laptop): Team's 
   test.skip(info.project.name !== "tablet", "a touch screen: the tablet project, made 1180 and 1366 wide");
   test.setTimeout(120_000);
   await page.emulateMedia({ reducedMotion: "reduce" });
-  for (const viewport of [{ width: 1180, height: 820 }, { width: 1366, height: 1024 }]) {
+  // An iPad held sideways and a touch laptop: windows short enough for the demo's Team Matches (six
+  // games in member rows) to scroll its filters away under the tabs.
+  for (const viewport of [{ width: 1180, height: 820 }, { width: 1366, height: 768 }]) {
     const at = `${viewport.width} × ${viewport.height}`;
     await page.setViewportSize(viewport);
     // Team Matches: a list long enough to pin the tabs and scroll its filters away.
@@ -815,6 +821,8 @@ test("touch screens from 1024px (an iPad held sideways, a touch laptop): Team's 
 
 test("desktop: with a mouse Team's section tabs stay 40px, level with the sidebar's brand row, under the 2.75rem the pinned stack keeps for them", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "a mouse at 1440");
+  // Short enough for the demo's Team Matches to scroll its filters away under the tabs.
+  await page.setViewportSize({ width: 1440, height: 600 });
   await page.goto("/matches");
   await expect(page.getByTestId("played-together")).toBeVisible();
   const rest = await teamStack(page);
@@ -825,6 +833,38 @@ test("desktop: with a mouse Team's section tabs stay 40px, level with the sideba
   const pinned = await teamStack(page);
   expect([pinned.stuck, pinned.tab, pinned.bar]).toEqual([true, 40, 40]);
   for (const c of pinned.controls) expect(c.top >= 0 && c.bottom >= 0 && Math.abs(c.top - c.bottom) <= 0.5, `${c.name} inside the bar and centred (${c.top}px above, ${c.bottom}px below)`).toBe(true);
+});
+
+test("Encounters in another order: from md the pinned row's Filters counts and resets only what the bar narrows (the order is the list's own toolbar's there); a phone's top bar counts it, as its sheet holds it", async ({ page }, info) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const phone = info.project.name === "phone";
+  const profile = await teammate(page);
+  // Short enough for the list to scroll its filters away, tall enough to pin.
+  if (!phone) await page.setViewportSize({ width: width(page), height: 560 });
+  await page.goto(`${profile}/matches?view=encounters&sort=recent`);
+  await expect(page.getByTestId("encounter-row").first()).toBeVisible();
+  await page.waitForLoadState("networkidle");
+  await scrollTo(page, "end");
+  const filters = page.getByTestId(phone ? "topbar-filters" : "toolbar-filters");
+  await expect(filters).toBeVisible();
+  const sheet = page.getByTestId("filter-sheet");
+  if (phone) {
+    await expect(filters.locator("span.rounded-full:visible")).toHaveText("1");
+    await filters.click();
+    await expect(sheet).toBeVisible();
+    await expect(sheet.getByTestId("encounter-sort-choices")).toBeVisible();
+    await expect(sheet.getByTestId("reset-filters")).toBeVisible();
+  } else {
+    // Nothing the bar itself narrows: no count, and its sheet offers no Reset and not the order.
+    await expect(filters.locator("span.rounded-full")).toHaveCount(0);
+    await filters.click();
+    await expect(sheet).toBeVisible();
+    await expect(sheet.getByTestId("encounter-sort-choices")).toBeHidden();
+    await expect(sheet.getByTestId("reset-filters")).toHaveCount(0);
+  }
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
+  await expect(page).toHaveURL(/sort=recent/);
 });
 
 test("tablet and desktop: Records → Recent form from the pinned row", async ({ page }) => {

@@ -159,12 +159,13 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
                 </span>
               ) : null}
               {p.showRank ? (
-                <span className="inline-flex flex-wrap items-center gap-x-1 text-fg" data-testid="profile-rank" title={rankTitle}>
+                // At a large text size on a narrow phone the LP go under the rank rather than past the screen's edge.
+                <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1 text-fg" data-testid="profile-rank" title={rankTitle}>
                   <RankEmblem tier={rank?.tier} className="h-4 w-4" />
                   {rank ? (
                     <>
-                      {rankLabel(rank.tier, rank.division)}
-                      <span className="text-fg-muted">· {rank.leaguePoints} LP</span>
+                      <span className="whitespace-nowrap">{rankLabel(rank.tier, rank.division)}</span>
+                      <span className="whitespace-nowrap text-fg-muted">· {rank.leaguePoints} LP</span>
                     </>
                   ) : (
                     <span className="text-fg-muted">Unranked</span>

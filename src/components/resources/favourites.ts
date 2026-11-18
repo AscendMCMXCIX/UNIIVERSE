@@ -4,8 +4,9 @@ import * as React from "react";
 
 /*
   Favourite resources, kept in this browser only (localStorage): nothing is sent to the server, so
-  a favourite costs no database request, and each device has its own. Empty on the server and
-  until the page has loaded, then the stored list; other tabs follow through the storage event.
+  a favourite costs no database request, and each device has its own. Unknown on the server and
+  until the page has loaded (`known` false: the Library keeps a fixed slot for the count, so nothing
+  moves once it arrives), then the stored list; other tabs follow through the storage event.
 */
 
 const KEY = "uniiverse.resources.favourites.v1";
@@ -13,6 +14,8 @@ const MAX = 50;
 const listeners = new Set<() => void>();
 let cache: { raw: string | null; ids: readonly string[] } = { raw: null, ids: [] };
 const NONE: readonly string[] = [];
+/** The server's answer, and the browser's until the page has hydrated: not read yet. */
+const UNKNOWN: readonly string[] = Object.freeze([]);
 
 function read(): readonly string[] {
   let raw: string | null = null;
@@ -55,12 +58,12 @@ function write(ids: readonly string[]) {
   for (const l of listeners) l();
 }
 
-/** The favourite ids, and a toggle. */
-export function useFavourites(): { ids: readonly string[]; toggle: (id: string) => void } {
-  const ids = React.useSyncExternalStore(subscribe, read, () => NONE);
+/** The favourite ids (none until `known`: read from this browser once the page has hydrated), and a toggle. */
+export function useFavourites(): { ids: readonly string[]; known: boolean; toggle: (id: string) => void } {
+  const ids = React.useSyncExternalStore(subscribe, read, () => UNKNOWN);
   const toggle = React.useCallback((id: string) => {
     const current = read();
     write(current.includes(id) ? current.filter((x) => x !== id) : [...current, id]);
   }, []);
-  return { ids, toggle };
+  return { ids, known: ids !== UNKNOWN, toggle };
 }

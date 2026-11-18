@@ -45,14 +45,14 @@ export function PreviewStudio() {
   return (
     <section className="space-y-3 rounded-card border border-border bg-surface p-3 sm:p-4" data-testid="preview-studio">
       <div className="flex flex-wrap items-center gap-2">
-        <div role="radiogroup" aria-label="Page" className="flex gap-0.5 rounded-lg border border-border bg-bg-elevated p-0.5">
+        <div role="radiogroup" aria-label="Page" className="flex min-w-0 flex-wrap gap-0.5 rounded-lg border border-border bg-bg-elevated p-0.5">
           {SCREENS.map((s) => (
             <button key={s.key} type="button" role="radio" aria-checked={screen === s.key} onClick={() => setScreen(s.key)} className={cn("min-h-9 rounded-md px-3 text-sm font-medium", screen === s.key ? "bg-surface-3 text-fg" : "text-fg-muted hover:text-fg")} data-testid={`preview-screen-${s.key}`}>
               {s.label}
             </button>
           ))}
         </div>
-        <div role="radiogroup" aria-label="Screen size" className="flex gap-0.5 rounded-lg border border-border bg-bg-elevated p-0.5">
+        <div role="radiogroup" aria-label="Screen size" className="flex min-w-0 flex-wrap gap-0.5 rounded-lg border border-border bg-bg-elevated p-0.5">
           {DEVICES.map(({ key, label, icon: Icon }) => (
             <button key={key} type="button" role="radio" aria-checked={device === key} onClick={() => setDevice(key)} className={cn("inline-flex min-h-9 items-center gap-1.5 rounded-md px-2.5 text-sm", device === key ? "bg-surface-3 text-fg" : "text-fg-muted hover:text-fg")} data-testid={`preview-device-${key}`}>
               <Icon className="h-4 w-4" aria-hidden /> <span className="max-sm:sr-only">{label}</span>
