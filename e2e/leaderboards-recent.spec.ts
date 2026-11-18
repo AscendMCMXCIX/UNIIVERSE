@@ -2,16 +2,18 @@ import { AxeBuilder } from "@axe-core/playwright";
 import { expect, test, type Page } from "./test";
 
 /*
-  Team Leaderboards (docs/LEADERBOARDS_MODEL.md): Recent form, each member's latest 20 Summoner's
-  Rift games ranked by win rate, and Records & achievements for the season. The demo viewer is the
-  Owner, an administrator without a player profile. The games are synthetic demo games, never real
-  Riot data: every demo member has a full 20-game window, three of them share fourth place, and two
-  members have too few recent games. The board's layout follows its own width (DataList's tiers:
-  under 36rem, from 36rem, from 58rem); the states the demo never shows (a provisional window, your
-  own row, a shared first place) are checked as markup in recent-leaderboards.test.ts. Records'
-  boards follow the view's own width (under 36rem one column with an index of its sections, from
-  62rem the book beside the multikills, from 98rem three columns); what the demo never shows there
-  (the viewer's best, a record nobody holds, the public boards) is markup in records.test.ts.
+  Team Leaderboards (docs/LEADERBOARDS_MODEL.md, docs/TEAM_LEADERBOARDS.md), one page since #72:
+  Recent form leads (each member's latest 20 Summoner's Rift games, ranked by win rate), the
+  season's records and achievements follow (season records, multikills, milestones), with no views
+  to switch between. The demo viewer is the Owner, an administrator without a player profile. The
+  games are synthetic demo games, never real Riot data: every demo member has a full 20-game window,
+  three of them share fourth place, and two members have too few recent games. The page places its
+  four boards by its own width (one column under 59rem, Recent form across with the records beside
+  the multikills from 59rem, Recent form beside the records from 86rem); each board's rows follow
+  the board's own width (Recent form: under 36rem, from 36rem, from 58rem; each record's cell: under
+  16rem, under 36rem, from 36rem). The states the demo never shows (a provisional window, your own
+  row, a shared first place, the viewer's best, a record nobody holds, the public boards) are
+  checked as markup in recent-leaderboards.test.ts, records.test.ts and leaderboards-dashboard.test.ts.
 */
 
 const BOARDS = "/leaderboards";
@@ -41,18 +43,79 @@ async function axe(page: Page, selector: string) {
   expect(scan.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
 }
 
-test("Recent form is the default view, with the team's data status beside it", async ({ page }) => {
+test("one page, no views: Recent form leads, the season's records and achievements follow, the team's data status in the header", async ({ page }) => {
   await open(page, BOARDS);
-  await expect(page.getByTestId("leaderboards-tab-form")).toHaveAttribute("aria-current", "page");
+  // No tabs or views to switch between, and no paragraph of explanation.
+  await expect(page.getByTestId("leaderboards-views")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /Records & achievements/ })).toHaveCount(0);
+  await expect(page.getByTestId("records-volume-note")).toHaveCount(0);
+  await expect(page.getByTestId("form-footnote")).toHaveAccessibleName("How Recent form counts");
+  // Every board on the one page, in reading order, each under its own h2.
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Leaderboards");
+  const order = await page.evaluate(() => ["recent-form", "season-records", "multikills", "milestones"].map((id) => document.getElementById(id)!.getBoundingClientRect().top + window.scrollY));
+  expect(order[0]!, "Recent form first").toBeLessThanOrEqual(Math.min(...order.slice(1)));
+  await expect(page.locator("main h2")).toHaveText([/^Recent form/, "Season records", /^Multikills · Season \d{4}$/, "Milestones"]);
+  for (const id of ["form-board", "records-book", "records-multikills", "records-milestones"]) await expect(page.getByTestId(id), id).toBeVisible();
   // Today's categories, filters and the admins' preview banner are gone.
   await expect(page.getByTestId("leaderboard-categories")).toHaveCount(0);
   await expect(page.getByTestId("leaderboards-preview")).toHaveCount(0);
-  // How fresh the boards are: the team's status behind one ⓘ under the title, as on a profile.
+  // How fresh the boards are: the team's status behind one ⓘ in the header, as on a profile.
   await expect(page.getByTestId("leaderboards-status-info")).toBeVisible();
-  // An old address (today's category or filters) opens the boards, ignoring what it asked for.
+  // An old address (today's category or filters) opens the page, ignoring what it asked for.
   await open(page, "/leaderboards?category=combat&metric=kda&queue=solo&lineup=1");
-  await expect(page.getByTestId("leaderboards-tab-form")).toHaveAttribute("aria-current", "page");
+  await expect(page.getByTestId("form-board")).toBeVisible();
   await noOverflow(page);
+});
+
+test("Records & achievements' old address lands on the same page at its season records, in one history entry: Back leaves the page, Forward returns", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/team");
+  await expect(page.getByTestId("team-tabs").or(page.getByTestId("phone-tabbar")).first()).toBeVisible();
+  const entries = await page.evaluate(() => history.length);
+  await open(page, "/leaderboards?view=records&season=16");
+  // The view leaves the address (the season stays), the page lands on its records, focused for screen readers.
+  await expect(page).toHaveURL(/\/leaderboards\?season=16#season-records$/);
+  const section = page.locator("section#season-records");
+  await expect(section).toBeFocused();
+  await expect(section).toBeInViewport();
+  // Under whatever is pinned over the page (the top bar, the section tabs).
+  const pinned = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0);
+  const top = (await section.boundingBox())!.y;
+  expect(top, "the records under the bars").toBeGreaterThanOrEqual(pinned - 2);
+  // At the window's top, unless the page ends before it can bring them there.
+  const atEnd = await page.evaluate(() => window.scrollY + innerHeight >= document.documentElement.scrollHeight - 2);
+  if (!atEnd) expect(top, "the records at the window's top").toBeLessThanOrEqual(pinned + 24);
+  // One entry for the page: the landing replaced the old address, it did not add one.
+  expect(await page.evaluate(() => history.length)).toBe(entries + 1);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/team$/);
+  await page.goForward();
+  await expect(page).toHaveURL(/\/leaderboards\?season=16#season-records$/);
+  await expect(page.getByTestId("records-book")).toBeVisible();
+  // Any other view: the same page from its top, the view gone from the address.
+  for (const view of ["form", "anything"]) {
+    await open(page, `/leaderboards?view=${view}`);
+    await expect(page).toHaveURL(/\/leaderboards$/);
+    expect(await page.evaluate(() => window.scrollY), `?view=${view}: at the top`).toBe(0);
+    await expect(page.getByTestId("form-board")).toBeVisible();
+  }
+});
+
+test("tablet and desktop: Leaderboards puts nothing of its own in the pinned row, however far down the page", async ({ page }, info) => {
+  test.skip(info.project.name === "phone", "the pinned row is from md");
+  if (info.project.name === "desktop") await page.setViewportSize({ width: 1440, height: 600 });
+  await open(page, BOARDS);
+  await page.evaluate(async () => {
+    for (let at = 0; at < document.documentElement.scrollHeight; at += 240) {
+      window.scrollTo(0, at);
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+    }
+    window.scrollTo(0, document.documentElement.scrollHeight);
+  });
+  await expect(page.getByTestId("team-tabs")).toHaveAttribute("data-stuck", "");
+  // Nothing to switch, nothing to filter: the row holds the section tabs and the team's name alone.
+  await expect(page.getByTestId("page-toolbar")).toHaveCount(0);
+  await expect(page.getByTestId("toolbar-leaderboards-views")).toHaveCount(0);
 });
 
 test("Leaderboards is a Team tab between Players and Matches", async ({ page }, info) => {
@@ -66,7 +129,7 @@ test("Leaderboards is a Team tab between Players and Matches", async ({ page }, 
 
 test("Recent form ranks every full 20-game window by win rate, shared places and gaps in wins", async ({ page }) => {
   await open(page, BOARDS);
-  await expect(page.getByTestId("scope-label")).toHaveText(/Latest 20 games from the last 60 days/);
+  await expect(page.getByTestId("form-scope")).toHaveText(/Latest 20 games from the last 60 days/);
   const rows = await page.getByTestId("form-row").evaluateAll((els) =>
     els.map((e) => {
       const place = e.querySelector('[data-testid="form-place"]');
@@ -150,13 +213,14 @@ test("Recent form ranks every full 20-game window by win rate, shared places and
   const edge = await page.evaluate(() => {
     const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
     const board = document.querySelector("[data-testid=form-board]")!.getBoundingClientRect();
-    const views = document.querySelector("[data-testid=leaderboards-views]")!.getBoundingClientRect();
-    return { width: board.width, measure: 72 * rem, left: board.left, header: views.left };
+    const title = document.querySelector("main h1")!.getBoundingClientRect();
+    return { width: board.width, measure: 72 * rem, left: board.left, header: title.left };
   });
   expect(edge.width).toBeLessThanOrEqual(edge.measure + 1);
   expect(Math.abs(edge.left - edge.header)).toBeLessThanOrEqual(1);
   await expect(page.getByTestId("form-row").first().getByRole("img", { name: "First place" })).toBeVisible();
-  await expect(page.getByTestId("form-footnote")).toContainText("places within 2 wins of each other are close");
+  // The caveats are behind the ⓘ in the board's title (its description, read without opening it), not a footnote under it.
+  await expect(page.getByTestId("form-footnote")).toHaveAccessibleDescription(/places within 2 wins of each other are close.*The gaps assume the players above don't play in the meantime/);
   await noOverflow(page);
   await axe(page, "[data-testid=form]");
 });
@@ -278,8 +342,8 @@ test("the board's layout follows its own width: four, six or eight columns, neve
     const edge = await page.evaluate(() => {
       const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
       const board = document.querySelector("[data-testid=form-board]")!.getBoundingClientRect();
-      const views = document.querySelector("[data-testid=leaderboards-views]")!.getBoundingClientRect();
-      return { width: board.width, measure: 72 * rem, left: board.left, header: views.left };
+      const title = document.querySelector("main h1")!.getBoundingClientRect();
+      return { width: board.width, measure: 72 * rem, left: board.left, header: title.left };
     });
     expect(edge.width, `${width}px`).toBeLessThanOrEqual(edge.measure + 1);
     expect(Math.abs(edge.left - edge.header), `${width}px`).toBeLessThanOrEqual(1);
@@ -349,29 +413,39 @@ test("while it loads, the page shows the board's shape at the page's own width",
   expect(Math.abs(skeleton.x - board.x)).toBeLessThanOrEqual(1);
 });
 
-/** Opens Records & achievements from Recent form's tab, as a member does. */
+/** Opens the page and waits for the season's records on it, its fonts in. */
 async function openRecords(page: Page) {
   await open(page, BOARDS);
-  await page.getByTestId("leaderboards-tab-records").click();
-  await expect(page).toHaveURL(/\/leaderboards\?view=records/);
   await expect(page.getByTestId("records")).toBeVisible();
   await page.evaluate(() => document.fonts.ready);
 }
 
-/** The record book's inner width in rem (what its rows' tiers measure). */
-const bookRem = (page: Page) => page.getByTestId("records-book").evaluate((b) => b.clientWidth / parseFloat(getComputedStyle(document.documentElement).fontSize));
+/** Each record's cell: its own width in rem (what its row's tiers measure), its height, whether its qualifier takes a line of its own. */
+const recordCells = (page: Page) =>
+  page.getByTestId("season-record").evaluateAll((rows) =>
+    rows.map((row) => {
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+      const cell = row.closest("li")!;
+      const label = row.querySelector("[data-testid=record-label]")!.getBoundingClientRect();
+      const qualifier = row.querySelector("[data-testid=record-qualifier]")?.getBoundingClientRect() ?? null;
+      return { id: row.getAttribute("data-record"), rem: cell.clientWidth / rem, height: row.getBoundingClientRect().height, rowRem: row.getBoundingClientRect().height / rem, ownLine: !!qualifier && qualifier.top >= label.bottom - 2 };
+    }),
+  );
 
-test("Records & achievements: seven records in one book, each opening its game; multikills rarest first; milestones", async ({ page }) => {
+test("the season records: seven cells in one panel, each opening its game; multikills rarest first; milestones", async ({ page }) => {
   await openRecords(page);
-  await expect(page.getByTestId("records-volume-note")).toContainText("reward playing more");
-  // One lead card holding the seven records, its definitions behind one ⓘ in its title.
+  // One panel holding the seven records, its definitions (and that records reward playing more) behind one ⓘ in its title.
   const book = page.getByTestId("records-book");
   await expect(book.getByTestId("season-record")).toHaveCount(7);
   await expect(page.getByTestId("season-record")).toHaveCount(7);
-  await expect(book).toHaveClass(/surface-lead/);
+  // One lead card on the page, Recent form's: the records are a plain panel beside or after it.
+  await expect(book).not.toHaveClass(/surface-lead/);
+  await expect(page.locator("main .surface-lead")).toHaveCount(1);
+  await expect(page.getByTestId("form-board")).toHaveClass(/surface-lead/);
+  await expect(page.getByTestId("records-scope")).toHaveText(/^Season \d{4} · All supported games · [\d,]+ games$/);
   const definitions = book.getByTestId("records-definitions");
   await expect(definitions).toHaveAccessibleName("How these records count");
-  await expect(definitions).toHaveAccessibleDescription(/Damage to champions, in a game of 15 minutes or more\..*A tie goes to whoever set it first\./);
+  await expect(definitions).toHaveAccessibleDescription(/Records reward playing more: every game is another chance\..*Damage to champions, in a game of 15 minutes or more\..*A tie goes to whoever set it first\./);
   // Each record's qualifier on its row.
   await expect(book.locator("[data-record=damage-per-minute] [data-testid=record-qualifier]")).toContainText("to champions · 15+ min games");
   await expect(book.locator("[data-record=cs-per-minute] [data-testid=record-qualifier]")).toContainText("15+ min games");
@@ -381,13 +455,14 @@ test("Records & achievements: seven records in one book, each opening its game; 
   const portrait = page.locator("[data-testid=season-record][data-record=kills] [data-testid=record-picture]").locator("img, [role=img]").first();
   await expect(portrait).toBeVisible();
   expect((await portrait.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-  // From a 36rem book every row is two lines beside its 48px picture (the record and its qualifier
-  // over the holder, champion, role, K/D/A and date): 64px where each fits its line. On a book under
-  // about 37.7rem (39.9rem with a member's best) the damage record's qualifier takes a line of its
-  // own (about 78px there), so at most 72px holds from a 40rem book: this runs at the 768 and 1440
-  // books (44.9 and 44.4rem).
-  if ((await bookRem(page)) >= 40) {
-    for (const h of await book.getByTestId("season-record").evaluateAll((rows) => rows.map((r) => r.getBoundingClientRect().height))) expect(h, "a record row from a 40rem book").toBeLessThanOrEqual(72);
+  // Each cell's row follows the cell's own width: from 40rem two lines beside its 48px picture (the
+  // record and its qualifier over the holder, champion, role, K/D/A and date: at most 4.5rem, 72px at
+  // 100%); under 36rem three lines (at most 6rem, 96px at 100%), or 7rem (112px) where the qualifier
+  // starts a line of its own. Between 36 and 40rem the damage record's qualifier may take a line of
+  // its own (about 78px), so neither bound applies there.
+  for (const c of await recordCells(page)) {
+    if (c.rem >= 40) expect(c.rowRem, `${c.id}: a record in a ${c.rem.toFixed(1)}rem cell, two lines`).toBeLessThanOrEqual(4.5);
+    else if (c.rem < 36) expect(c.rowRem, `${c.id}: a record in a ${c.rem.toFixed(1)}rem cell, three lines`).toBeLessThanOrEqual(c.ownLine ? 7 : 6);
   }
   const multis = await page.getByTestId("multikill-row").evaluateAll((els) => els.map((e) => ["data-penta", "data-quadra", "data-triple"].map((k) => Number(e.getAttribute(k)))));
   expect(multis.length).toBeGreaterThan(0);
@@ -412,94 +487,119 @@ test("Records & achievements: seven records in one book, each opening its game; 
     expect(n.inside, `${n.name}: inside its row`).toBe(true);
     expect(n.cut, `${n.name}: whole`).toBe(false);
   }
-  // The milestones' figures as format.ts shortens them (486K), the rest of a member's counted.
+  // The milestones' figures as format.ts shortens them (486K), the rest of a member's counted, what
+  // counts behind each kind's ⓘ.
   await expect(page.getByTestId("milestones-mastery").getByTestId("milestone-figure").first()).toHaveText(/^\d+(\.\d)?[KM]$/);
   await expect(page.getByTestId("milestones-mastery").getByTestId("milestone-more").first()).toHaveText(/^\+\d+ more/);
+  await expect(page.getByTestId("milestones-mastery-hint")).toHaveAccessibleDescription(/100K, 500K and 1M points/);
   await noOverflow(page);
-  await axe(page, "[data-testid=records]");
+  await axe(page, "[data-testid=leaderboards]");
   // The whole row opens its game in the holder's Match History (under its card, or in the match window).
   const kills = page.locator('[data-testid=season-record][data-record="kills"]');
   await expect(kills.locator("[data-row-link]")).toHaveAttribute("href", /^\/players\/[^/]+\/matches\?match=/);
   // A click on the row's figure, not on its words: the link covers the whole row (no link is drawn there).
+  await kills.scrollIntoViewIfNeeded();
   const value = (await kills.getByTestId("record-value").boundingBox())!;
   await page.mouse.click(value.x + value.width / 2, value.y + value.height / 2);
   await expect(page).toHaveURL(/\/players\/[^/]+\/matches\?match=/);
   await expect(page.locator("[data-testid=match-detail], [data-testid=match-breakdown]").first()).toBeVisible();
 });
 
-test("Records at 1440: the book beside the multikills, every record and multikill on the first screen; from 98rem three columns on one screen", async ({ page }, info) => {
+/** Where each board is on the page (document px), and the window. */
+const boards = (page: Page) =>
+  page.evaluate(() => {
+    const box = (id: string) => {
+      const b = document.querySelector(`[data-testid=${id}]`)!.getBoundingClientRect();
+      return { left: b.left, right: b.right, top: b.top + scrollY, bottom: b.bottom + scrollY, width: b.width, height: b.height };
+    };
+    const bottoms = (id: string) => [...document.querySelectorAll(`[data-testid=${id}]`)].map((e) => e.getBoundingClientRect().bottom + scrollY);
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    return { rem, page: document.querySelector("[data-testid=leaderboards]")!.clientWidth / rem, form: box("form-board"), records: box("records-book"), multikills: box("records-multikills"), milestones: box("records-milestones"), formRows: bottoms("form-row"), recordRows: bottoms("season-record"), multikillRows: bottoms("multikill-row"), height: document.documentElement.scrollHeight, window: innerHeight };
+  });
+
+test("the page's own width places its boards: Recent form across with the records beside the multikills at 1280 and 1440; from 1920 Recent form beside the records, every ranking row and record on the first screen", async ({ page, context, baseURL }, info) => {
   test.skip(info.project.name !== "desktop", "explicit window sizes");
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await openRecords(page);
-  const facts = () =>
-    page.evaluate(() => {
-      const box = (id: string) => document.querySelector(`[data-testid=${id}]`)!.getBoundingClientRect();
-      const bottoms = (id: string) => [...document.querySelectorAll(`[data-testid=${id}]`)].map((e) => e.getBoundingClientRect().bottom);
-      return { book: box("records-book").toJSON(), multikills: box("records-multikills").toJSON(), milestones: box("records-milestones").toJSON(), records: bottoms("season-record"), multis: bottoms("multikill-row"), rows: [...document.querySelectorAll("[data-testid=season-record]")].map((r) => r.getBoundingClientRect().height), height: document.documentElement.scrollHeight, window: innerHeight };
-    });
-  const f = await facts();
-  // Side by side, top-aligned, the milestones under both.
-  expect(Math.abs(f.book.top - f.multikills.top), "the book beside the multikills").toBeLessThanOrEqual(1);
-  expect(f.multikills.left).toBeGreaterThan(f.book.right);
-  expect(f.milestones.top).toBeGreaterThanOrEqual(f.book.bottom);
-  expect(f.milestones.width, "the milestones full width under both").toBeGreaterThanOrEqual(f.multikills.right - f.book.left - 1);
-  // All seven records and every multikill on the first screen, each record row at most 72px.
-  expect(f.records).toHaveLength(7);
-  for (const b of [...f.records, ...f.multis]) expect(b, "on the first screen").toBeLessThanOrEqual(f.window);
-  for (const h of f.rows) expect(h, "a record row").toBeLessThanOrEqual(72);
-  // A short board never stretches beside a tall one.
-  expect(f.multikills.height).toBeLessThan(f.book.height);
-  // From 98rem (2560 and 3440 wide): book, multikills and milestones side by side, the page on one screen.
-  for (const width of [2560, 3440]) {
-    await page.setViewportSize({ width, height: 1440 });
-    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
-    const w = await facts();
-    expect(Math.abs(w.milestones.top - w.book.top), `${width}px: the milestones beside the multikills`).toBeLessThanOrEqual(1);
-    expect(w.milestones.left, `${width}px`).toBeGreaterThan(w.multikills.right);
-    expect(w.height, `${width}px: one screen`).toBeLessThanOrEqual(w.window + 1);
-    await noOverflow(page);
+  test.setTimeout(120_000);
+  for (const sidebar of ["expanded", "collapsed"] as const) {
+    await context.addCookies([{ name: "uniiverse_sidebar", value: sidebar, url: baseURL! }]);
+    for (const [width, height] of [
+      [1280, 800],
+      [1440, 900],
+      [1920, 1080],
+      [2560, 1440],
+      [3440, 1440],
+    ] as const) {
+      await page.setViewportSize({ width, height });
+      await openRecords(page);
+      const f = await boards(page);
+      const at = `${width} × ${height}, sidebar ${sidebar} (a ${f.page.toFixed(1)}rem page)`;
+      // A short board never stretches beside a tall one; nothing is wider than the window.
+      await noOverflow(page);
+      if (f.page >= 86) {
+        // Recent form beside the records, tops level; the multikills under Recent form's start, the milestones beside them to the page's end.
+        expect(Math.abs(f.form.top - f.records.top), `${at}: the records beside Recent form`).toBeLessThanOrEqual(1);
+        expect(f.records.left, `${at}`).toBeGreaterThan(f.form.right);
+        expect(Math.abs(f.multikills.left - f.form.left), `${at}: the multikills under Recent form's start`).toBeLessThanOrEqual(1);
+        expect(Math.abs(f.multikills.top - f.milestones.top), `${at}: the milestones beside the multikills`).toBeLessThanOrEqual(1);
+        expect(Math.abs(f.milestones.right - f.records.right), `${at}: the milestones to the page's end`).toBeLessThanOrEqual(1);
+        expect(f.multikills.top, `${at}: the achievements under both`).toBeGreaterThanOrEqual(Math.max(f.form.bottom, f.records.bottom));
+        // Recent form keeps its one-line rows (a wide board), and every ranking row and record is on the first screen.
+        expect(f.form.width / f.rem, `${at}: Recent form at least 58rem`).toBeGreaterThanOrEqual(58);
+        for (const b of [...f.formRows, ...f.recordRows]) expect(b, `${at}: on the first screen`).toBeLessThanOrEqual(f.window);
+        // Where the window is 1440 tall, the multikills too.
+        if (height >= 1440) for (const b of f.multikillRows) expect(b, `${at}: every multikill on the first screen`).toBeLessThanOrEqual(f.window);
+      } else {
+        // Recent form across the page (at most the measure), the records beside the multikills, the milestones across under both.
+        expect(f.records.top, `${at}: the records under Recent form`).toBeGreaterThanOrEqual(f.form.bottom);
+        expect(Math.abs(f.records.top - f.multikills.top), `${at}: the records beside the multikills`).toBeLessThanOrEqual(1);
+        expect(f.multikills.left, `${at}`).toBeGreaterThan(f.records.right);
+        expect(f.milestones.top, `${at}: the milestones under both`).toBeGreaterThanOrEqual(Math.max(f.records.bottom, f.multikills.bottom));
+        expect(f.milestones.width, `${at}: the milestones across`).toBeGreaterThanOrEqual(f.multikills.right - f.records.left - 1);
+        // The ranking whole on the first screen.
+        for (const b of f.formRows) expect(b, `${at}: every ranking row on the first screen`).toBeLessThanOrEqual(f.window);
+      }
+    }
   }
 });
 
-test("Records on a phone: three-line records, an index that jumps to each section under the top bar, chips without names, one line per member's multikills", async ({ page }, info) => {
+test("on a phone: one column, the index of the sections below Recent form jumping to each under the top bar, three-line records, chips without names, one line per member's multikills", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "the phone's column");
   await page.emulateMedia({ reducedMotion: "reduce" });
   await openRecords(page);
-  expect(await bookRem(page), "a phone's book is under 36rem").toBeLessThan(36);
-  // The volume note in one sentence: the pointer to Recent form is read out, not shown.
-  const second = page.getByTestId("records-volume-note").getByText("How members are doing lately is on Recent form.");
-  expect((await second.boundingBox())?.width ?? 0).toBeLessThanOrEqual(1);
+  // One column, in reading order: the header, the index, Recent form, the records, the multikills, the milestones.
+  const tops = await page.evaluate(() => ["section-index", "form-board", "records-book", "records-multikills", "records-milestones"].map((id) => document.querySelector(`[data-testid=${id}]`)!.getBoundingClientRect()));
+  for (let i = 1; i < tops.length; i++) expect(tops[i]!.top, "one column, in order").toBeGreaterThanOrEqual(tops[i - 1]!.bottom - 1);
+  for (const t of tops) expect(Math.abs(t.left - tops[0]!.left)).toBeLessThanOrEqual(1);
   // Each record: its words over the holder (the figure at that line's end) over the game, the picture beside them.
   const kills = page.locator("[data-testid=season-record][data-record=kills]");
   const [title, holder, game, value] = await Promise.all(["record-title", "record-holder", "record-context", "record-value"].map((id) => kills.getByTestId(id).boundingBox()));
   expect(holder!.y, "the holder under the record").toBeGreaterThanOrEqual(title!.y + title!.height - 1);
   expect(game!.y, "the game under the holder").toBeGreaterThanOrEqual(holder!.y + holder!.height - 1);
   expect(Math.abs(value!.y + value!.height / 2 - (holder!.y + holder!.height / 2)), "the value on the holder's line").toBeLessThanOrEqual(4);
-  // Every row: three lines, at most 96px; a qualifier that starts a line of its own (the demo's damage
-  // record at 375px) adds one, at most 112px.
-  const rows = await page.getByTestId("season-record").evaluateAll((els) =>
-    els.map((row) => {
-      const label = row.querySelector("[data-testid=record-label]")!.getBoundingClientRect();
-      const qualifier = row.querySelector("[data-testid=record-qualifier]")?.getBoundingClientRect() ?? null;
-      return { id: row.getAttribute("data-record"), height: row.getBoundingClientRect().height, ownLine: !!qualifier && qualifier.top >= label.bottom - 2 };
-    }),
-  );
-  expect(rows).toHaveLength(7);
-  for (const r of rows) expect(r.height, `${r.id}: ${r.ownLine ? "its qualifier on a line of its own" : "three lines"}`).toBeLessThanOrEqual(r.ownLine ? 112 : 96);
-  // The index: the page's three sections, each jump an entry of the page's own, the section under the top bar and focused.
+  // Every record: three lines, at most 96px; a qualifier that starts a line of its own (the demo's
+  // damage record at 375px) adds one, at most 112px. One column of cells.
+  const cells = await recordCells(page);
+  expect(cells).toHaveLength(7);
+  for (const c of cells) {
+    expect(c.rem, `${c.id}: a phone's cell is under 36rem`).toBeLessThan(36);
+    expect(c.height, `${c.id}: ${c.ownLine ? "its qualifier on a line of its own" : "three lines"}`).toBeLessThanOrEqual(c.ownLine ? 112 : 96);
+  }
+  // The index: the sections below Recent form, each jump an entry of the page's own, the section under the top bar and focused.
   const index = page.getByTestId("section-index");
   await expect(index.getByRole("link")).toHaveText(["Season records", "Multikills", "Milestones"]);
-  for (const [name, id] of [["Milestones", "milestones"], ["Multikills", "multikills"]] as const) {
+  for (const [name, id] of [["Milestones", "milestones"], ["Multikills", "multikills"], ["Season records", "season-records"]] as const) {
     // Chromium has the Navigation API, so each jump pushes an entry (the phone's Back steps past it).
     const entries = await page.evaluate(() => history.length);
     await index.getByRole("link", { name }).tap();
-    await expect(page).toHaveURL(new RegExp(`/leaderboards\\?view=records#${id}$`));
+    await expect(page).toHaveURL(new RegExp(`/leaderboards#${id}$`));
     await expect.poll(() => page.evaluate(() => history.length), { message: `${name}: an entry of the page's own` }).toBe(entries + 1);
     const section = page.locator(`section#${id}`);
     await expect(section).toBeFocused();
     const bar = (await page.getByTestId("mobile-topbar").boundingBox())!;
     await expect.poll(async () => (await section.boundingBox())!.y, { message: `${name}: under the top bar` }).toBeGreaterThanOrEqual(bar.y + bar.height - 1);
     expect((await section.boundingBox())!.y, `${name}: just under it`).toBeLessThanOrEqual(bar.y + bar.height + 24);
+    // Back to the index for the next jump.
+    await page.evaluate(() => window.scrollTo(0, 0));
   }
   // Milestone chips: the champion's portrait and the figure, its name for screen readers only (D6).
   const chip = page.getByTestId("milestones-mastery").getByTestId("milestone").first();
@@ -520,5 +620,25 @@ test("Records on a phone: three-line records, an index that jumps to each sectio
       expect(c.y + c.height / 2).toBeLessThanOrEqual(name.y + name.height + 1);
     }
   }
+  await noOverflow(page);
+});
+
+test("tablet: one column, the season records two to a row, the streak across both, the index of the sections below Recent form", async ({ page }, info) => {
+  test.skip(info.project.name !== "tablet", "a tablet's column");
+  await openRecords(page);
+  await expect(page.getByTestId("section-index")).toBeVisible();
+  const cells = await page.getByTestId("season-record").evaluateAll((rows) => rows.map((r) => r.closest("li")!.getBoundingClientRect()));
+  expect(cells).toHaveLength(7);
+  // Two columns: the first six in three rows of two, the seventh across both.
+  for (let i = 0; i < 6; i += 2) {
+    expect(Math.abs(cells[i]!.top - cells[i + 1]!.top), `cells ${i + 1} and ${i + 2} side by side`).toBeLessThanOrEqual(1);
+    expect(cells[i + 1]!.left).toBeGreaterThan(cells[i]!.right - 1);
+  }
+  expect(cells[6]!.width, "the streak across both columns").toBeGreaterThanOrEqual(cells[1]!.right - cells[0]!.left - 1);
+  // Recent form across the page, then the records, the multikills and the milestones under each other.
+  const f = await boards(page);
+  expect(f.records.top).toBeGreaterThanOrEqual(f.form.bottom);
+  expect(f.multikills.top).toBeGreaterThanOrEqual(f.records.bottom);
+  expect(f.milestones.top).toBeGreaterThanOrEqual(f.multikills.bottom);
   await noOverflow(page);
 });

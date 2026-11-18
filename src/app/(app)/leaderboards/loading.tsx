@@ -4,30 +4,30 @@ import { Skeleton } from "@/components/ui/skeleton";
 /**
  * Leaderboards while the page loads, in its own shape and at its own width (the page's
  * --content-wide, not the 80rem of the app's generic loading state, so nothing jumps wider at 1920
- * and up): the two views and the scope line, then Recent form's board at the measure with its rows
- * at each width's height, then the footnote. Records is read in the same transition when the view
- * changes in the page, so only a direct load of ?view=records shows this board's shape first.
- * The header copies SectionHeader's spacing and SubTabs' phone track, and the scope line takes as
- * many 20px lines as the real one (three up to 24rem, two on phones, one from sm), so the board
- * lands where its skeleton was.
+ * and up), on the page's own grid by its own width (leaderboards-dashboard.tsx): the title and the
+ * member count on one line; the index line of a one-column page; then Recent form's board at the
+ * measure with its rows at each width's height, the season records' panel (beside it from 86rem),
+ * the multikills and the milestones. Each board's first row is its title, as on the page.
  */
 export default function Loading() {
   return (
-    <div className="mx-auto flex w-full max-w-[var(--content-wide)] flex-col gap-4" role="status" aria-live="polite" aria-label="Loading" data-testid="leaderboards-skeleton">
-      <div className="min-w-0 xl:pt-0.5">
-        <div className="flex min-w-0 flex-wrap items-center gap-1 max-sm:w-full max-sm:rounded-[0.875rem] max-sm:bg-surface/70 max-sm:p-1 max-sm:ring-1 max-sm:ring-inset max-sm:ring-border">
-          <Skeleton className="h-9 w-36 rounded-lg! max-sm:flex-1 pointer-coarse:h-11" />
-          <Skeleton className="h-9 w-48 rounded-lg! max-sm:flex-1 pointer-coarse:h-11" />
-        </div>
-        <div className="mt-1 flex flex-col">
-          <Skeleton className="my-0.5 h-4 w-[min(36rem,100%)]" />
-          <Skeleton className="my-0.5 h-4 w-2/3 sm:hidden" />
-          <Skeleton className="my-0.5 hidden h-4 w-1/3 max-[24rem]:block" />
-        </div>
+    <div className="@container/dash mx-auto flex w-full max-w-[var(--content-wide)] flex-col gap-4" role="status" aria-live="polite" aria-label="Loading" data-testid="leaderboards-skeleton">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+        <Skeleton className="my-1 h-6 w-40" />
+        <Skeleton className="h-4 w-24" />
       </div>
-      <div className="flex min-w-0 max-w-[var(--measure)] flex-col gap-3">
-        <DataListSkeleton rows={7} heads surface="lead" density={{ narrow: "two-line", medium: "regular", wide: "dense" }} />
-        <Skeleton className="h-3 w-[min(40rem,100%)]" />
+      <Skeleton className="my-0.5 h-4 w-[min(18rem,100%)] @min-[59rem]/dash:hidden" />
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] items-start gap-4 @min-[59rem]/dash:grid-cols-[minmax(36rem,1fr)_minmax(21rem,24rem)] @min-[59rem]/dash:gap-6 @min-[86rem]/dash:grid-cols-[minmax(22rem,24rem)_minmax(34.5rem,1fr)_minmax(26.5rem,38.5rem)]">
+        <div className="flex min-w-0 max-w-[var(--measure)] flex-col @min-[59rem]/dash:col-span-2">
+          <DataListSkeleton rows={7} heads title surface="lead" density={{ narrow: "two-line", medium: "regular", wide: "dense" }} />
+        </div>
+        <div className="min-w-0 @min-[86rem]/dash:col-start-3 @min-[86rem]/dash:row-start-1">
+          <DataListSkeleton rows={7} heads={false} title density="two-line" />
+        </div>
+        <DataListSkeleton rows={5} heads={false} title density="dense" />
+        <div className="min-w-0 @min-[59rem]/dash:col-span-2">
+          <DataListSkeleton rows={5} heads={false} title density="dense" />
+        </div>
       </div>
       <p className="sr-only">Loading…</p>
     </div>

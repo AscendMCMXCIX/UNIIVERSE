@@ -199,18 +199,20 @@ test("Matchup Intel: a slot's picker fills the screen, a search and a tap choose
   expect(top, "the row's top, under the top bar").toBeGreaterThanOrEqual(bar.y + bar.height - 1);
 });
 
-test("Leaderboards' Records on an iPhone: the index brings each section under the top bar, focused, and nothing is wider than the phone, at a larger text size too", async ({ page }) => {
+test("Leaderboards on an iPhone: the index brings each section under the top bar, focused, the old Records address lands on its section, and nothing is wider than the phone, at a larger text size too", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/leaderboards?view=records");
+  await page.goto("/leaderboards");
   // Once the page's code runs: before it, a tap is the browser's own jump to the anchor.
   await expect(page.getByTestId("leaderboards")).toHaveAttribute("data-ready", "true");
   await expect(page.getByTestId("season-record")).toHaveCount(7);
-  await fitsWidth(page, "Records");
+  await fitsWidth(page, "Leaderboards");
   const index = page.getByTestId("section-index");
   for (const [name, id] of [
     ["Milestones", "milestones"],
     ["Multikills", "multikills"],
+    ["Season records", "season-records"],
   ] as const) {
+    await page.evaluate(() => window.scrollTo(0, 0));
     await index.getByRole("link", { name }).tap();
     const section = page.locator(`section#${id}`);
     await expect(section).toBeFocused();
@@ -218,6 +220,10 @@ test("Leaderboards' Records on an iPhone: the index brings each section under th
     const bar = (await page.getByTestId("mobile-topbar").boundingBox())!;
     expect((await section.boundingBox())!.y, `${name}: under the top bar`).toBeGreaterThanOrEqual(bar.y + bar.height - 1);
   }
+  // Records & achievements' old address: the same page, at its records (Safari's history replaced, not added to).
+  await page.goto("/leaderboards?view=records");
+  await expect(page).toHaveURL(/\/leaderboards#season-records$/);
+  await expect(page.locator("section#season-records")).toBeFocused();
   await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), { message: "200%: as wide as the phone" }).toBeLessThanOrEqual(0);
 });

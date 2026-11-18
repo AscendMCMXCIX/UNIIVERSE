@@ -13,9 +13,10 @@ import { expect, test, type Page } from "./test";
   profile, so no row of theirs): "You" drops under a name whose longest word would not fit beside
   it, where the name broke mid-word before ("Suppor|t" at 125% on a 375px phone, "Christopher" even
   at 100% on a 320px phone), and stays beside it where it fits. The role badge stays on its
-  picture and the tie bracket off the names; no "·" ends or starts a line. Records' boards already
-  reflow on their own; a record's qualifier there hides its "·" only when it starts a line of its
-  own (the title's clipped edge), never beside its record.
+  picture and the tie bracket off the names; no "·" ends or starts a line. The season records,
+  multikills and milestones (on the same page, after Recent form) already reflow on their own; a
+  record's qualifier there hides its "·" only when it starts a line of its own (the title's clipped
+  edge), never beside its record.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -308,10 +309,10 @@ test("Recent form, your own row, at 100% to 200% text on 320 to 393px phones: \"
   await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
 });
 
-test("Records at 125% to 200% text on 320 to 393px phones: words whole, nothing cut but the separator of a qualifier on a line of its own, no sideways scroll", async ({ page }, info) => {
+test("the season records, multikills and milestones at 125% to 200% text on 320 to 393px phones: words whole, nothing cut but the separator of a qualifier on a line of its own, no sideways scroll", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "phone widths, set below");
   test.setTimeout(120_000);
-  await open(page, "/leaderboards?view=records");
+  await open(page, "/leaderboards");
   await expect(page.getByTestId("season-record").first()).toBeVisible();
   await expect(page.getByTestId("record-qualifier")).not.toHaveCount(0);
   for (const [width, root] of [[320, 100], [375, 100], ...SIZES] as const) {

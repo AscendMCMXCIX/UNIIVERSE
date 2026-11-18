@@ -7,7 +7,7 @@ import { elapsed } from "./log";
 import { processEgress } from "@/server/db/egress";
 import { getTeamRoster } from "@/server/team/roster";
 import { invalidateLeaderboardCache, loadLeaderboardData, type LeaderboardData } from "@/server/leaderboards/service";
-import { buildRecentLeaderboardView, type RecentLeaderboardView } from "@/server/leaderboards/recent-view";
+import { buildFormView, buildRecordsView, type FormView, type RecordsView } from "@/server/leaderboards/recent-view";
 import { invalidatePlayedTogetherCache, loadPlayedTogether, type PlayedTogether } from "@/server/matches/played-together";
 import { getMatchGroups, type MatchGroupsResult } from "@/server/matches/possible-groups";
 import { loadEncounterPage, loadGamesBySeason, loadMatchMeetings, type EncounterPage, type MatchMeeting } from "@/server/players/encounters";
@@ -298,23 +298,24 @@ export async function runPerfProbe(
     push(board);
     if (!board.error) {
       const data = await loadLeaderboardData(db, team.id);
-      // The two views (docs/LEADERBOARDS_MODEL.md): how full the Recent form board is on production
-      // data, and the Records view's size. Counts only.
+      // The page's two parts (docs/LEADERBOARDS_MODEL.md), each timed on its own though the page
+      // builds both from one load: how full the Recent form board is on production data, and the
+      // size of the season's records and achievements. Counts only.
       push(
-        await step("leaderboards.recent-form", async () => buildRecentLeaderboardView(data, { tab: "form" }, null), {
+        await step("leaderboards.recent-form", async () => buildFormView(data, null), {
           warm: true,
           note: (r) => {
-            const f = (r as RecentLeaderboardView).form!;
+            const f = r as FormView;
             const placed = f.rows.filter((x) => x.place !== null);
             return `${placed.length} full windows on ${new Set(placed.map((x) => x.place)).size} places · ${f.rows.length - placed.length} provisional · ${f.notEnough.length} with too few recent games`;
           },
         }),
       );
       push(
-        await step("leaderboards.records", async () => buildRecentLeaderboardView(data, { tab: "records" }, null), {
+        await step("leaderboards.records", async () => buildRecordsView(data, {}, null), {
           warm: true,
           note: (r) => {
-            const v = (r as RecentLeaderboardView).records!;
+            const v = r as RecordsView;
             return `${v.games} games this season · ${v.records.filter((x) => x.holder).length} of ${v.records.length} records held · ${v.multikills.length} members with multikills · ${v.championGames.length + v.mastery.length} milestone groups`;
           },
         }),

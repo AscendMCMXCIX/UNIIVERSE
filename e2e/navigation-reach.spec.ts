@@ -181,11 +181,11 @@ test("tablet and desktop: a profile section chosen far down the page starts at i
 
 test("tablet and desktop: Team's sections stay in reach as a long page scrolls, and switch the section from there", async ({ page }) => {
   test.skip(isPhone(page), "phones have the bottom tab bar");
-  // Records is the longest Team page, but since PR 5b it fits a 1440×900 window in about 1.3
-  // screens: a desktop window 600px tall keeps it long enough to scroll well past the tabs (still
-  // taller than 480px, where they pin). The tablet's 768×1024 shows it in about two screens.
+  // Leaderboards is the longest Team page (Recent form, then the season's records and achievements,
+  // since #72 on one page): a desktop window 600px tall keeps it long enough to scroll well past the
+  // tabs (still taller than 480px, where they pin). The tablet's 768×1024 shows it in about two screens.
   if (!isTablet(page)) await page.setViewportSize({ width: 1440, height: 600 });
-  await page.goto("/leaderboards?view=records");
+  await page.goto("/leaderboards");
   await expect(page.getByTestId("leaderboards")).toHaveAttribute("data-ready", "true");
   await expect(page.getByTestId("records")).toBeVisible();
   const tabs = page.getByTestId("team-tabs");
@@ -278,12 +278,11 @@ test("wide windows: every tab row starts at its pages' column, on each of their 
   const profile = await teammate(page);
   const SETS: Array<{ nav: string; mode: "player" | "admin"; pages: string[]; ownBar?: boolean }> = [
     // Bars of main's own, above pages centred in their set's width (SECTION_HUBS).
-    { nav: "team-tabs", mode: "player", pages: ["/team", "/players", "/leaderboards", "/leaderboards?view=records", "/matches"], ownBar: true },
+    { nav: "team-tabs", mode: "player", pages: ["/team", "/players", "/leaderboards", "/matches"], ownBar: true },
     { nav: "resources-tabs", mode: "player", pages: ["/resources", "/resources/matchups"], ownBar: true },
     { nav: "admin-settings-tabs", mode: "admin", pages: ["/admin/branding", "/admin/previews", "/admin/resources"], ownBar: true },
-    // Bars inside their pages: a profile's sections, and the views of a section.
+    // Bars inside their pages: a profile's sections, and the views of a section (Leaderboards has none since #72: one page).
     { nav: "profile-tabs", mode: "player", pages: [profile, `${profile}/champions`, `${profile}/matches`, `${profile}/accounts`] },
-    { nav: "leaderboards-views", mode: "player", pages: ["/leaderboards", "/leaderboards?view=records"] },
     { nav: "match-views", mode: "player", pages: [`${profile}/matches`, `${profile}/matches?view=encounters`] },
     { nav: "people-tabs", mode: "admin", pages: ["/admin/people", "/admin/people/access", "/admin/people/privacy"] },
   ];
@@ -932,17 +931,18 @@ test("the open sheet follows the phone turning across 768px: Encounters' order l
   await expect(page).not.toHaveURL(/sort=recent/);
 });
 
-test("tablet and desktop: Records → Recent form from the pinned row", async ({ page }) => {
+test("tablet and desktop: Leaderboards is one page, with no views for the pinned row; its sections are in reach by scrolling, and its old Records address lands at them", async ({ page }) => {
   test.skip(isPhone(page), "the pinned row is from md");
+  if (!isTablet(page)) await page.setViewportSize({ width: 1440, height: 600 });
   await page.goto("/leaderboards?view=records");
   await expect(page.getByTestId("records")).toBeVisible();
+  await expect(page).toHaveURL(/\/leaderboards#season-records$/);
+  await expect(page.locator("section#season-records")).toBeFocused();
   await scrollTo(page, "end");
-  const form = page.getByTestId("toolbar-leaderboards-tab-form");
-  await expect(form).toBeVisible();
-  await expect(page.getByTestId("toolbar-leaderboards-tab-records")).toHaveAttribute("aria-current", "page");
-  await form.click();
-  await expect(page).not.toHaveURL(/view=records/);
-  await expect(page.getByTestId("leaderboards-tab-form")).toHaveAttribute("aria-current", "page");
+  await expect(page.getByTestId("team-tabs")).toHaveAttribute("data-stuck", "");
+  // No views to copy into the pinned row: it holds the section tabs (and the team's name) alone.
+  await expect(pageToolbar(page)).toHaveCount(0);
+  await expect(page.getByTestId("toolbar-leaderboards-tab-form")).toHaveCount(0);
 });
 
 test("tablet: the destinations are in the top bar, one tap each, and the avatar menu keeps the focus as a menu does and gives it back to the avatar", async ({ page }) => {

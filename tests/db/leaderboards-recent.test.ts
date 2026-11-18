@@ -5,13 +5,13 @@ import { accountMatches, accountMastery, riotAccounts } from "@/server/db/schema
 import { currentSeason } from "@/server/accounts/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { invalidateLeaderboardCache, loadLeaderboardData } from "@/server/leaderboards/service";
-import { buildRecentLeaderboardView, recentLeaderboardHref } from "@/server/leaderboards/recent-view";
+import { buildLeaderboardsView, leaderboardsHref } from "@/server/leaderboards/recent-view";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 
 /*
-  The proposed Leaderboards (Recent form, Records & achievements) on stored games, read the way
-  the page reads them: synthetic accounts and games only, no Riot request. Seven members cover
+  The Leaderboards page (Recent form, the season's records and achievements) on stored games, read
+  the way the page reads them: synthetic accounts and games only, no Riot request. Seven members cover
   every case of the rules: a lead, a gap of one win, a shared place, a provisional window that
   never ranks above a full one, too few recent games, and games older than the 60 days.
 */
@@ -74,8 +74,8 @@ afterAll(async () => {
 describe("Recent form on stored games", () => {
   it("ranks the full windows by win rate, with shared places, then provisional ones, then those with too few games", async () => {
     const data = await loadLeaderboardData(handle.db, teamId);
-    const view = buildRecentLeaderboardView(data, { tab: "form" }, id.Bo!, { now: NOW });
-    const rows = view.form!.rows.map((r) => [r.playerId, r.place, r.tied, r.winRate, `${r.wins}-${r.losses}`, r.status]);
+    const view = buildLeaderboardsView(data, {}, id.Bo!, { now: NOW });
+    const rows = view.form.rows.map((r) => [r.playerId, r.place, r.tied, r.winRate, `${r.wins}-${r.losses}`, r.status]);
     expect(rows).toEqual([
       [id.Ash, 1, false, 65, "13-7", "established"],
       [id.Bo, 2, false, 60, "12-8", "established"],
@@ -84,24 +84,24 @@ describe("Recent form on stored games", () => {
       [id.Ed, null, false, 79, "11-3", "provisional"],
     ]);
     // A match seen from two of Ash's accounts counts once: still 20 games, not 21.
-    expect(view.form!.rows[0]!.games).toBe(20);
-    expect(view.form!.notEnough).toEqual([
+    expect(view.form.rows[0]!.games).toBe(20);
+    expect(view.form.notEnough).toEqual([
       { playerId: id.Fi, games: 6, needed: 4, lastGame: expect.any(String) },
       { playerId: id.Gu, games: 0, needed: 10, lastGame: expect.any(String) },
     ]);
-    expect(view.form!.notEnough[1]!.lastGame).toMatch(/2026$/);
+    expect(view.form.notEnough[1]!.lastGame).toMatch(/2026$/);
   });
 
   it("says each gap in wins, and draw level only when one win does it", async () => {
     const data = await loadLeaderboardData(handle.db, teamId);
-    const view = buildRecentLeaderboardView(data, { tab: "form" }, null, { now: NOW });
-    const note = (name: string) => view.form!.rows.find((r) => r.playerId === id[name])!.note;
+    const view = buildLeaderboardsView(data, {}, null, { now: NOW });
+    const note = (name: string) => view.form.rows.find((r) => r.playerId === id[name])!.note;
     expect(note("Ash")).toBeNull();
     expect(note("Bo")).toBe("Win your next game to draw level with Ash");
     expect(note("Cy")).toBe("2 wins behind Bo");
     expect(note("Ed")).toBe("Provisional · 14 of 20 games");
     // The same notes in parts, for the board's short gap ("Next win: 1=", "2 wins behind", "14 of 20 games").
-    const gap = (name: string) => view.form!.rows.find((r) => r.playerId === id[name])!.gap;
+    const gap = (name: string) => view.form.rows.find((r) => r.playerId === id[name])!.gap;
     expect(gap("Ash")).toBeNull();
     expect(gap("Bo")).toEqual({ kind: "level", place: 1 });
     expect(gap("Cy")).toEqual({ kind: "behind", wins: 2, place: 2 });
@@ -111,21 +111,21 @@ describe("Recent form on stored games", () => {
 
   it("names each member's main role from their window, the record's dates, and marks the viewer", async () => {
     const data = await loadLeaderboardData(handle.db, teamId);
-    const view = buildRecentLeaderboardView(data, { tab: "form" }, id.Bo!, { now: NOW });
-    const bo = view.form!.rows.find((r) => r.playerId === id.Bo)!;
+    const view = buildLeaderboardsView(data, {}, id.Bo!, { now: NOW });
+    const bo = view.form.rows.find((r) => r.playerId === id.Bo)!;
     expect(bo.role).toEqual({ role: "MID", games: 20 });
     expect(bo.you).toBe(true);
     expect(bo.dates).toMatch(/^\d{1,2} [A-Z][a-z]{2} – \d{1,2} [A-Z][a-z]{2}$/);
-    expect(view.form!.rows.filter((r) => r.you)).toHaveLength(1);
+    expect(view.form.rows.filter((r) => r.you)).toHaveLength(1);
     expect(view.players[id.Bo!]!.profileHref).toBe(`/players/${id.Bo}`);
   });
 });
 
-describe("Records & achievements on stored games", () => {
+describe("The season's records and achievements on stored games", () => {
   it("holds each season record with its game, opens the game, and gives the viewer their own best", async () => {
     const data = await loadLeaderboardData(handle.db, teamId);
-    const view = buildRecentLeaderboardView(data, { tab: "records" }, id.Bo!, { now: NOW });
-    const r = view.records!;
+    const view = buildLeaderboardsView(data, {}, id.Bo!, { now: NOW });
+    const r = view.records;
     expect(r.season).toBe(season);
     const kills = r.records.find((x) => x.id === "kills")!;
     expect(kills.holder).toMatchObject({ playerId: id.Ed, value: "22", unit: "kills", championId: "Riven", role: "ADC", kda: "22/1/6" });
@@ -143,13 +143,13 @@ describe("Records & achievements on stored games", () => {
 
   it("links nowhere on the public boards, whose links keep to the public address", async () => {
     const data = await loadLeaderboardData(handle.db, teamId);
-    const open = buildRecentLeaderboardView(data, { tab: "records" }, null, { now: NOW, profiles: false, basePath: "/public/leaderboards" });
-    expect(open.records!.records.every((x) => x.holder === null || x.holder.href === null)).toBe(true);
+    const open = buildLeaderboardsView(data, {}, null, { now: NOW, profiles: false, basePath: "/public/leaderboards" });
+    expect(open.records.records.every((x) => x.holder === null || x.holder.href === null)).toBe(true);
     expect(Object.values(open.players).every((p) => p.profileHref === null)).toBe(true);
-    expect(open.tabs.form).toBe("/public/leaderboards");
-    expect(open.tabs.records).toBe("/public/leaderboards?view=records");
-    const members = buildRecentLeaderboardView(data, { tab: "form" }, null, { now: NOW });
-    expect(members.tabs).toEqual({ form: "/leaderboards", records: "/leaderboards?view=records" });
-    expect(recentLeaderboardHref({ tab: "records", season: 15 })).toBe("/leaderboards?view=records&season=15");
+    // The season's choice keeps to the public address; the current season's address names none.
+    expect(open.records.seasons.map((s) => s.href)).toEqual(open.records.seasons.map((s) => (s.value === data.currentSeason ? "/public/leaderboards" : `/public/leaderboards?season=${s.value}`)));
+    const members = buildLeaderboardsView(data, {}, null, { now: NOW });
+    expect(members.records.seasons.find((s) => s.value === data.currentSeason)!.href).toBe("/leaderboards");
+    expect(leaderboardsHref(15)).toBe("/leaderboards?season=15");
   });
 });

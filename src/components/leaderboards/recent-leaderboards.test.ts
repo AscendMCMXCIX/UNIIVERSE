@@ -6,7 +6,7 @@ import type { BoardPlayer, FormRow, FormView } from "@/server/leaderboards/recen
 import { RecentForm, gapToken } from "./recent-leaderboards";
 
 /*
-  Recent form's board as markup, for the states the demo board never shows (it has no provisional
+  Recent form's board (the Leaderboards page's lead card) as markup, for the states the demo board never shows (it has no provisional
   window, no You row, no shared first place nor multi-win gap): a fixture of Ash first, Bo and Cy
   sharing second, Di (the viewer) fourth, Ed provisional at 9 of 14, and Fi and Gu without enough
   games. The browser tests check the layout; this checks what each row says and how.
@@ -173,11 +173,28 @@ describe("the board's markup", () => {
     expect(html.indexOf('data-testid="form-empty"')).toBeLessThan(html.indexOf('data-testid="form-not-enough"'));
   });
 
-  it("keeps the footnote's caveats, gaps for notes, and says what the bar counts", () => {
-    const foot = textOf(render(), "form-footnote")!;
-    expect(foot).toContain("places within 2 wins of each other are close");
+  it("keeps the board's caveats behind the ⓘ in its title (no footnote under it): a short sample, the gaps' assumption, what the bar counts", () => {
+    const html = render();
+    expect(html).toContain('aria-label="How Recent form counts"');
+    // The ⓘ's text is its trigger's description, always in the page for screen readers.
+    const tip = /<span id="[^"]+" class="sr-only">([^<]*)<\/span>/.exec(html.slice(html.indexOf('data-testid="form-footnote"')))![1]!;
+    const foot = decode(tip);
+    expect(foot).toContain("20 games is a short sample: places within 2 wins of each other are close");
     expect(foot).toContain("The gaps assume the players above don't play in the meantime");
     expect(foot).toContain("Each bar counts the window's games, wins first, not the order they were played");
+    expect(foot).toContain("Every linked account counts, a game seen from two accounts once; remakes are left out.");
+    expect(html).not.toMatch(/<p[^>]*data-testid="form-footnote"/);
+  });
+
+  it("is the page's lead card, its first row its title: Recent form, what it counts, ranked by win rate for screen readers", () => {
+    const html = render();
+    expect(html).toContain('<section id="recent-form" aria-labelledby="form-board-title"');
+    expect(html).toMatch(/class="[^"]*surface-lead[^"]*" data-testid="form-board"/);
+    expect(html).toMatch(/<h2 id="form-board-title" class="[^"]*">(?:(?!<\/h2>)[\s\S])*Recent form<span class="sr-only">, ranked by win rate over each member&#x27;s latest 20 games<\/span>/);
+    expect(textOf(html, "form-scope")).toBe("Latest 20 games from the last 60 days · Summoner's Rift, 5 minutes or longer");
+    // The title row comes first, then the column headings, then the ranking.
+    expect(html.indexOf('id="form-board-title"')).toBeLessThan(html.indexOf('data-testid="form-heads"'));
+    expect(html.indexOf('data-testid="form-heads"')).toBeLessThan(html.indexOf('data-testid="form-rows"'));
   });
 });
 

@@ -7,7 +7,7 @@ import { currentSeason } from "@/server/accounts/sync";
 import { archivePlayer, createPlayer, getOrCreateTeam, setLineupSlot, setTeamMember } from "@/server/repositories/team";
 import { createUser } from "@/server/repositories/users";
 import { invalidateLeaderboardCache, loadLeaderboardData } from "@/server/leaderboards/service";
-import { buildRecentLeaderboardView } from "@/server/leaderboards/recent-view";
+import { buildLeaderboardsView } from "@/server/leaderboards/recent-view";
 import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 
@@ -118,7 +118,7 @@ describe("team leaderboards data", () => {
     const ids = new Set(data.games.map((g) => g.playerId));
     for (const out of [personal, archived, pending]) expect(ids.has(out)).toBe(false);
     // Listed, but with no games nothing is ranked or shown as zero for them.
-    const form = buildRecentLeaderboardView(data, { tab: "form" }, pending).form!;
+    const form = buildLeaderboardsView(data, {}, pending).form;
     expect(form.rows.some((r) => r.playerId === pending)).toBe(false);
     expect(data.lineupIds).toEqual([ace]);
     expect(data.currentSeason).toBe(season);

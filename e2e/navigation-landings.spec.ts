@@ -107,9 +107,9 @@ function watchNavigations(page: Page) {
 test("tablets and desktops: the current section tab, and the frame's entry for the page shown (the sidebar's, a tablet's top bar's), keep the page as it is and go back to the top", async ({ page }, info) => {
   test.skip(info.project.name === "phone", "phones: the tab bar (the test above)");
   await page.emulateMedia({ reducedMotion: "reduce" });
-  // Records is Leaderboards' second view, kept in the address (?view=records); the current tab's own
-  // link has no query, and following it used to bring back Recent form.
-  await page.goto("/leaderboards?view=records");
+  // Leaderboards' records keep their season in the address (?season=); the current tab's own link has
+  // no query, and following it used to bring back the default (Recent form, when Records was a view).
+  await page.goto("/leaderboards?season=16");
   await expect(page.getByTestId("records")).toBeVisible();
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await expect.poll(() => scrollY(page)).toBeGreaterThan(200);
@@ -118,13 +118,13 @@ test("tablets and desktops: the current section tab, and the frame's entry for t
   await expect.poll(() => scrollY(page)).toBe(0);
   // Kept, not fetched again: no request for the page's content once the network is quiet.
   expect(await navigations(), "the current tab fetches nothing").toEqual([]);
-  await expect(page).toHaveURL(/[?&]view=records/);
+  await expect(page).toHaveURL(/[?&]season=16/);
   await expect(page.getByTestId("records")).toBeVisible();
   // With a modifier key the tab keeps its meaning: it opens in a new tab.
   const [opened] = await Promise.all([page.context().waitForEvent("page"), page.getByTestId("team-tab-leaderboards").click({ modifiers: ["ControlOrMeta"] })]);
   await opened.close();
   // Matchup Intel's current tab (Resources' tabs are at every width) keeps the pair it shows and goes
-  // to the top, as Records' tab keeps its view: its own link has no query, and following it cleared
+  // to the top, as Leaderboards' tab keeps its season: its own link has no query, and following it cleared
   // the pair. The page is made long enough to scroll, as the Library's below.
   await page.goto("/resources/matchups?champion=Riven&vs=Mordekaiser");
   await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Mordekaiser");

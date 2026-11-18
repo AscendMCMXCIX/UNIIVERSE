@@ -1,15 +1,19 @@
-import { describe, expect, it } from "vitest";
-import { createElement } from "react";
+import { describe, expect, it, vi } from "vitest";
+import { createElement, Fragment } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { cardLookFor } from "@/domain/card-style";
 import type { BoardPlayer, RecordHolder, RecordsView, RecordView } from "@/server/leaderboards/recent-view";
-import { Records } from "./records";
+import { Milestones, Multikills, SeasonRecords } from "./records";
+
+// The season's choice (a client component) asks for the router, which a markup test has none of.
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: () => {} }) }));
 
 /*
-  Records & achievements as markup, for the states the demo never shows (its viewer has no profile,
-  every record has a holder, and nothing is public): the viewer's own best and a record they hold, a
-  record nobody holds yet, the public boards linking nowhere, empty multikills and milestones. The
-  browser tests check the layout; this checks what each row says and how.
+  The season's records and achievements as markup (the Leaderboards page's sections after Recent
+  form), for the states the demo never shows (its viewer has no profile, every record has a holder,
+  and nothing is public): the viewer's own best and a record they hold, a record nobody holds yet,
+  the public boards linking nowhere, empty multikills and milestones. The browser tests check the
+  layout; this checks what each cell and row says and how.
 */
 
 const NAMES: Record<string, string> = { ash: "Ash", bo: "Bo", cy: "Cy" };
@@ -24,7 +28,7 @@ function view(profiles: boolean, o: Partial<RecordsView> = {}): RecordsView {
   return {
     season: 16,
     seasonLabel: "Season 2026",
-    seasons: [{ value: 16, label: "Season 2026", href: "/leaderboards?view=records" }],
+    seasons: [{ value: 16, label: "Season 2026", href: "/leaderboards" }],
     games: 32,
     records: [
       // Bo (the viewer) has a best of their own.
@@ -59,13 +63,17 @@ function view(profiles: boolean, o: Partial<RecordsView> = {}): RecordsView {
     ...o,
   };
 }
+/** The three sections in the page's order: the season records, the multikills, the milestones. */
 const render = (o: { profiles?: boolean; viewer?: string | null; records?: Partial<RecordsView> } = {}) => {
   const profiles = o.profiles ?? true;
-  return renderToStaticMarkup(createElement(Records, { records: view(profiles, o.records), player: players(profiles), champ, viewer: o.viewer === undefined ? (profiles ? "bo" : null) : o.viewer }));
+  const records = view(profiles, o.records);
+  const player = players(profiles);
+  const viewer = o.viewer === undefined ? (profiles ? "bo" : null) : o.viewer;
+  return renderToStaticMarkup(createElement(Fragment, null, createElement(SeasonRecords, { records, player, champ, viewer }), createElement(Multikills, { records, player }), createElement(Milestones, { records, player, champ })));
 };
 
-/** Each season record's row, by record. */
-const rowsOf = (html: string) => Object.fromEntries([...html.matchAll(/<li [^>]*data-testid="season-record" data-record="([\w-]+)"[\s\S]*?<\/li>/g)].map((m) => [m[1]!, m[0]]));
+/** Each season record's cell (its li, holding its row), by record. */
+const rowsOf = (html: string) => Object.fromEntries([...html.matchAll(/<li class="[^"]*"><div class="[^"]*"><div [^>]*data-testid="season-record" data-record="([\w-]+)"[\s\S]*?<\/li>/g)].map((m) => [m[1]!, m[0]]));
 /** The markup inside the first element with this test id (its nested elements of the same tag included). */
 const innerOf = (html: string, testId: string): string | null => {
   const open = new RegExp(`<(\\w+)[^>]*data-testid="${testId}"[^>]*>`).exec(html);
@@ -87,15 +95,42 @@ const shownOf = (html: string, testId: string) => {
 const decode = (text: string) => text.replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
 const count = (html: string, re: RegExp) => html.match(re)?.length ?? 0;
 
-describe("the record book", () => {
+describe("the season records", () => {
   const html = render();
   const rows = rowsOf(html);
 
-  it("is the page's lead card: seven rows, in the model's order, under one title", () => {
+  it("are seven cells of one panel, in the model's order, under one title: a plain panel, Recent form leads the page", () => {
     expect(Object.keys(rows)).toEqual(["kills", "assists", "damage-per-minute", "cs-per-minute", "vision-per-minute", "kda", "win-streak"]);
-    expect(html).toMatch(/data-testid="records-book" class="[^"]*"|class="[^"]*surface-lead[^"]*" data-testid="records-book"/);
-    expect(count(html, /surface-lead/g)).toBe(1);
-    expect(html).toContain('<h3 id="season-records-title"');
+    expect(html).toMatch(/<div class="[^"]*panel-depth[^"]*" data-testid="records-book">/);
+    expect(html).not.toContain("surface-lead");
+    expect(html).toContain('<section id="season-records" aria-labelledby="season-records-title" class="min-w-0" data-testid="records">');
+    expect(html).toContain('<h2 id="season-records-title"');
+    // What it counts, under the title: the season and its games.
+    expect(shownOf(html, "records-scope")).toBe("Season 2026 · All supported games · 32 games");
+    // One season: no choice to make.
+    expect(html).not.toContain("records-season");
+  });
+
+  it("place their cells on a grid by the panel's width, each cell measuring itself, the seventh across both columns", () => {
+    expect(html).toMatch(/<ul aria-label="Season records" class="grid grid-cols-\[minmax\(0,1fr\)\] [^"]*@min-\[44rem\]\/list:grid-cols-2" data-testid="season-records">/);
+    const cells = [...html.matchAll(/<li class="([^"]*)"><div class="([^"]*)"><div [^>]*data-testid="season-record"/g)];
+    expect(cells).toHaveLength(7);
+    for (const [, cellClass, colsClass] of cells) {
+      const [cell, cols] = [decode(cellClass!), decode(colsClass!)];
+      expect(cell).toContain("@container/list");
+      expect(cell).toContain("@min-[44rem]/list:[&:last-child:nth-child(odd)]:col-span-2");
+      // Each cell holds its own column template, so its row reads the cell's width.
+      expect(cols).toContain("[--dl-cols:3rem_minmax(5rem,1fr)_auto]");
+      expect(cols).toContain("@min-[36rem]/list:[--dl-cols:3rem_minmax(0,1fr)_auto_1rem]");
+    }
+  });
+
+  it("offer the season where there are two to choose from", () => {
+    const two = render({ records: { seasons: [{ value: 16, label: "Season 2026", href: "/leaderboards" }, { value: 17, label: "Season 2027", href: "/leaderboards?season=17" }] } });
+    expect(two).toContain('data-testid="records-season"');
+    // In the records' own title row.
+    expect(two.indexOf('data-testid="records-season"')).toBeGreaterThan(two.indexOf('id="season-records-title"'));
+    expect(two.indexOf('data-testid="records-season"')).toBeLessThan(two.indexOf('data-testid="season-records"'));
   });
 
   it("opens each record's game from the whole row, named by the record; the streak and an empty record open none", () => {
@@ -122,11 +157,12 @@ describe("the record book", () => {
     expect(shownOf(rows.kda!, "record-qualifier")).toBe("·10+ takedowns");
     expect(shownOf(rows["win-streak"]!, "record-qualifier")).toBe("·in game order");
     expect(rows.kills).not.toContain("record-qualifier");
-    // One ⓘ, named "How these records count", holding each definition and the tie rule (its text is the trigger's description).
+    // One ⓘ, named "How these records count", holding that records reward playing more, each
+    // definition and the tie rule (its text is the trigger's description).
     expect(count(html, /data-testid="records-definitions"/g)).toBe(1);
     expect(html).toContain('aria-label="How these records count"');
     const tip = /<span id="[^"]+" class="sr-only">([\s\S]*?)<\/span><\/span>/.exec(html.slice(html.indexOf('data-testid="records-definitions"')))![1]!;
-    for (const words of ["Most damage per minute:</span> Damage to champions, in a game of 15 minutes or more.", "Most CS per minute:</span> Lane minions and monsters", "Most vision per minute:</span> Vision score", "Best KDA in a game:</span> (Kills + assists) ÷ deaths", "Longest win streak:</span> In the order the games were played.", "A tie goes to whoever set it first."]) expect(tip).toContain(words);
+    for (const words of ["Records reward playing more: every game is another chance.", "Most damage per minute:</span> Damage to champions, in a game of 15 minutes or more.", "Most CS per minute:</span> Lane minions and monsters", "Most vision per minute:</span> Vision score", "Best KDA in a game:</span> (Kills + assists) ÷ deaths", "Longest win streak:</span> In the order the games were played.", "A tie goes to whoever set it first."]) expect(tip).toContain(words);
     // No definition is left on a row: they are in the ⓘ.
     expect(Object.values(rows).join("")).not.toContain("Lane minions and monsters");
   });
@@ -217,23 +253,22 @@ describe("milestones", () => {
   });
 });
 
-describe("the view", () => {
-  it("says first that records reward playing more, in one sentence on a phone", () => {
+describe("the sections", () => {
+  it("are the page's sections, each under its h2, with no paragraph of explanation: what counts is behind each ⓘ", () => {
     const html = render();
-    expect(shownOf(html, "records-volume-note")).toBe("Records and achievements reward playing more: every game is another chance. How members are doing lately is on Recent form.");
-    expect(html).toContain('<span class="@max-[36rem]/records:sr-only"> How members are doing lately is on Recent form.</span>');
-  });
-
-  it("indexes its sections for a phone, each link to a section on the page", () => {
-    const html = render();
-    const links = [...html.matchAll(/<a href="#([\w-]+)"[^>]*data-testid="section-index-link"[^>]*>([^<]*)<\/a>/g)].map((m) => [m[1], m[2]]);
-    expect(links).toEqual([
-      ["season-records", "Season records"],
-      ["multikills", "Multikills"],
-      ["milestones", "Milestones"],
-    ]);
-    for (const [id] of links) expect(html).toContain(`<section id="${id}"`);
-    expect(html).toMatch(/<nav aria-label="On this page" class="[^"]*@min-\[36rem\]\/records:hidden[^"]*" data-testid="section-index">/);
+    for (const [id, title] of [["season-records", "season-records-title"], ["multikills", "multikills-title"], ["milestones", "milestones-title"]]) {
+      expect(html).toContain(`<section id="${id}" aria-labelledby="${title}"`);
+      expect(html).toContain(`<h2 id="${title}"`);
+    }
+    expect(html).not.toContain("records-volume-note");
+    expect(html).not.toContain("How members are doing lately is on Recent form");
+    // Each milestone's thresholds behind the ⓘ beside its kind, not a line of text.
+    const games = innerOf(html, "milestones-games")!;
+    expect(games).toContain('aria-label="What counts: Games on one champion · Season 2026"');
+    expect(games).toMatch(/<span id="[^"]+" class="sr-only">Champions with 25, 50 or 100 games this season\.<\/span>/);
+    expect(innerOf(html, "milestones-mastery")).toMatch(/<span id="[^"]+" class="sr-only">Riot&#x27;s champion mastery over each member&#x27;s linked accounts: 100K, 500K and 1M points\./);
+    // The multikills' coverage stays in words under their title: it says which games the counts come from.
+    expect(shownOf(html, "multikill-note")).toBe("From the 31 of 32 games this season that carry Riot's multikill figures; the others are left out, not counted as zero.");
   });
 
   it("links nowhere on the public boards: no link, no profile or game address, the names read and the chips titled", () => {
