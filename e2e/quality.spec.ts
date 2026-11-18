@@ -89,7 +89,7 @@ test.describe("accessibility", () => {
     // The accent outline of the shared controls (globals.css), on links and hand-made buttons too:
     // never the browser's own ring, which differs between browsers, and never none. A text field
     // marks its focus with its accent border instead.
-    for (const route of ["/team", "/players", "/resources", "/admin/people"]) {
+    for (const route of ["/team", "/players", "/leaderboards", "/resources", "/admin/people"]) {
       await page.goto(route);
       await page.waitForLoadState("networkidle");
       const accent = await page.evaluate(() => {
