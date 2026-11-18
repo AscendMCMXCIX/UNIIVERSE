@@ -385,10 +385,14 @@ function OverviewPanel({ me, card, data, champ, multiAccount, onOpponent, onMatc
         <Note testId="champion-overview-empty">No games on {me.name} in this scope. Refine the season, game mode or account to look further back.</Note>
       ) : (
         // Three by two below lg (six across from lg, as before); two across, then one, where a large
-        // text size leaves a phone too little room. Every figure is written whole: the last column
-        // (KDA and Mastery points, the widest figures) takes the room its figures need, at least a
-        // third, and the others share the rest.
-        <dl className="grid grid-cols-1 gap-2 max-lg:@min-[11rem]/stats:grid-cols-[minmax(0,1fr)_minmax(min-content,1fr)] max-lg:@min-[17.5rem]/stats:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(min-content,1fr)] lg:grid-cols-6" data-testid="champion-stats">
+        // text size leaves a phone too little room. Every figure and label is written whole. Three
+        // across: the last column (KDA and Mastery points, the widest figures) takes the room its
+        // figures need, the middle one keeps its label whole ("Damage/min", which no browser breaks
+        // at the slash), and the first (Games and CS/min, the shortest) takes the rest. Two across:
+        // the second column (Mastery) takes its room and the first keeps the rest, which holds
+        // "Damage/min" and "Perfect" beside a seven-digit Mastery from a 12.9rem box (12.86rem at
+        // 150% text, 12.89rem at 125%, measured), so narrower boxes take one column.
+        <dl className="grid grid-cols-1 gap-2 max-lg:@min-[12.9rem]/stats:grid-cols-[minmax(0,1fr)_minmax(min-content,1fr)] max-lg:@min-[17.5rem]/stats:grid-cols-[minmax(0,1fr)_minmax(min-content,1fr)_minmax(min-content,1fr)] lg:grid-cols-6" data-testid="champion-stats">
           <Tile label="Games" value={r.games} sub={`${r.wins}W ${r.losses}L`} testId="champion-stat-games" />
           <Tile label="Win rate" value={r.winRate === null ? "—" : percent(r.winRate, 0)} className={WIN_RATE_TONE_CLASS[winRateTone(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)]} sub={winRateSampleNote(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion) ?? undefined} testId="champion-stat-winrate" />
           <Tile label="KDA" value={p?.perfectKda ? "Perfect" : p?.kdaRatio == null ? "—" : p.kdaRatio.toFixed(2)} sub={p?.kills == null ? undefined : `${p.kills.toFixed(1)} / ${p.deaths!.toFixed(1)} / ${p.assists!.toFixed(1)}`} testId="champion-stat-kda" />
