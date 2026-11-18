@@ -382,11 +382,12 @@ test("Records & achievements: seven records in one book, each opening its game; 
   await expect(portrait).toBeVisible();
   expect((await portrait.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   // From a 36rem book every row is two lines beside its 48px picture (the record and its qualifier
-  // over the holder, champion, role, K/D/A and date): 64px where each fits its line, at most 72px.
-  // On a book under about 37.7rem (39.9rem with a member's best) the damage record's qualifier takes
-  // a line of its own (about 78px there): this runs at the 768 and 1440 books (45 and 44.5rem).
-  if ((await bookRem(page)) >= 36) {
-    for (const h of await book.getByTestId("season-record").evaluateAll((rows) => rows.map((r) => r.getBoundingClientRect().height))) expect(h, "a record row from a 36rem book").toBeLessThanOrEqual(72);
+  // over the holder, champion, role, K/D/A and date): 64px where each fits its line. On a book under
+  // about 37.7rem (39.9rem with a member's best) the damage record's qualifier takes a line of its
+  // own (about 78px there), so at most 72px holds from a 40rem book: this runs at the 768 and 1440
+  // books (44.9 and 44.4rem).
+  if ((await bookRem(page)) >= 40) {
+    for (const h of await book.getByTestId("season-record").evaluateAll((rows) => rows.map((r) => r.getBoundingClientRect().height))) expect(h, "a record row from a 40rem book").toBeLessThanOrEqual(72);
   }
   const multis = await page.getByTestId("multikill-row").evaluateAll((els) => els.map((e) => ["data-penta", "data-quadra", "data-triple"].map((k) => Number(e.getAttribute(k)))));
   expect(multis.length).toBeGreaterThan(0);

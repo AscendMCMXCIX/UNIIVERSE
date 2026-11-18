@@ -81,11 +81,12 @@ test("at 200% text on a 320px phone, Team Overview's header (Edit lineup include
   }
 });
 
-test("on a 320px phone, at 100%, 150% and 200% text, Leaderboards' Records is no wider than the phone, every record's words, holder, value and unit whole and inside their boxes", async ({ page }) => {
+test("on a 320px phone, at 100%, 150% and 200% text, Leaderboards' Records is no wider than the phone, every record's words, holder, value and unit whole and inside their boxes, the holder at least 5rem", async ({ page }) => {
   // Each record's value was held beside its unit ("1,039" beside "damage/min"): the page was 374px
   // wide at 150% and about 500px at 200%. At 100% the holder keeps at least 5rem beside the figure,
-  // whose unit wraps under the value; under a 16rem book (150% and 200%) a record's row is one column
-  // and the value and unit wrap.
+  // whose unit wraps under the value (the damage record's holder was 68px before that floor); under a
+  // 16rem book (150% and 200%) a record's row is one column, the holder across it, and the value and
+  // unit wrap.
   await page.goto("/leaderboards?view=records");
   await expect(page.getByTestId("records")).toBeVisible();
   for (const root of [100, 150, 200]) {
@@ -96,6 +97,7 @@ test("on a 320px phone, at 100%, 150% and 200% text, Leaderboards' Records is no
       rows.flatMap((row) => {
         const id = row.getAttribute("data-record");
         const box = (el: Element) => el.getBoundingClientRect();
+        const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
         const out: string[] = [];
         // Nothing cut, nothing past the row.
         for (const el of row.querySelectorAll<HTMLElement>("[data-testid=record-label], [data-testid=record-qualifier], [data-testid=record-value], [data-testid=record-unit], [data-testid=card-name]")) {
@@ -108,7 +110,14 @@ test("on a 320px phone, at 100%, 150% and 200% text, Leaderboards' Records is no
         const inside = (el: Element | null, outer: DOMRect, what: string) => {
           if (el && (box(el).left < outer.left - 0.5 || box(el).right > outer.right + 0.5)) out.push(`${id}: ${what}`);
         };
-        if (holder) inside(holder.querySelector("[data-testid=card-name]"), box(holder), "the holder's name past its box");
+        if (holder) {
+          inside(holder.querySelector("[data-testid=card-name]"), box(holder), "the holder's name past its box");
+          // The holder's floor: at least 5rem beside the figure (across the row under a 16rem book),
+          // and its name on at most two lines, never a letter a line.
+          if (box(holder).width < 5 * rem - 0.5) out.push(`${id}: the holder narrower than 5rem (${Math.round(box(holder).width)}px)`);
+          const name = holder.querySelector<HTMLElement>("[data-testid=card-name]");
+          if (name && Math.round(box(name).height / parseFloat(getComputedStyle(name).lineHeight)) > 2) out.push(`${id}: the holder's name on more than two lines`);
+        }
         if (figure) {
           inside(figure.querySelector("[data-testid=record-value]"), box(figure), "the value past the figure's box");
           inside(figure.querySelector("[data-testid=record-unit]"), box(figure), "the unit past the figure's box");
