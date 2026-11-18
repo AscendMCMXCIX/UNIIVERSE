@@ -92,6 +92,11 @@ test("Records & achievements' old address lands on the same page at its season r
   await page.goForward();
   await expect(page).toHaveURL(/\/leaderboards\?season=16#season-records$/);
   await expect(page.getByTestId("records-book")).toBeVisible();
+  // A section its old index named (?view=records#multikills): that section, the view gone from the address.
+  await open(page, "/leaderboards?view=records#multikills");
+  await expect(page).toHaveURL(/\/leaderboards#multikills$/);
+  await expect(page.locator("section#multikills")).toBeFocused();
+  await expect(page.locator("section#multikills")).toBeInViewport();
   // Any other view: the same page from its top, the view gone from the address.
   for (const view of ["form", "anything"]) {
     await open(page, `/leaderboards?view=${view}`);

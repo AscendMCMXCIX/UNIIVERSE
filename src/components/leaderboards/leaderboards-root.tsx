@@ -20,13 +20,16 @@ export function LeaderboardsRoot({ className, children }: { className: string; c
   );
 }
 
+/** The sections Records & achievements' old address could name with its index (`?view=records#multikills`). */
+const RECORDS_SECTIONS: readonly string[] = [SECTIONS.records, SECTIONS.multikills, SECTIONS.milestones];
+
 /**
  * The page's address before it was one page (until 19 Nov 2026 Recent form and Records &
  * achievements were two views, Records at `?view=records`): any `view` leaves the address, which
  * the page's own replaces in the same history entry (Back and Forward step over nothing new), and
- * Records' lands on its section, as the index's jump does (in view under the bars, and focused).
- * The season stays. The server never reads `view`: the page is the same either way, and without
- * this code it simply opens at its top.
+ * Records' lands on its section (or on the multikills or milestones its old index named), as the
+ * index's jump does: in view under the bars, and focused. The season stays. The server never reads
+ * `view`: the page is the same either way, and without this code it simply opens at its top.
  */
 export function RetiredViewLanding() {
   React.useEffect(() => {
@@ -34,10 +37,12 @@ export function RetiredViewLanding() {
     const view = url.searchParams.get("view");
     if (view === null) return;
     url.searchParams.delete("view");
-    if (view === "records") url.hash = SECTIONS.records;
+    const named = url.hash.slice(1);
+    const target = view === "records" ? (RECORDS_SECTIONS.includes(named) ? named : SECTIONS.records) : null;
+    if (target) url.hash = target;
     // Next.js copies its own state into the entry (as for SectionIndex's jumps).
     window.history.replaceState(null, "", url);
-    if (view === "records") jumpToAnchor(SECTIONS.records);
+    if (target) jumpToAnchor(target);
   }, []);
   return null;
 }
