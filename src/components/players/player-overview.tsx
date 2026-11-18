@@ -58,12 +58,20 @@ function breakable(label: string): React.ReactNode {
   );
 }
 
+/**
+ * The ⓘ after a figure's label hangs into the cell's padding by its last 8px (`-mr-2`): its 16px
+ * mark keeps its place beside the label, and the label gets that room. On a 320px phone "Damage/"
+ * needs about 51px and had 50 (it ran 1px into its ⓘ, which newer Chromium builds round to 2px);
+ * it now has about 54. Where the label is short, the row ends after the ⓘ and nothing moves.
+ */
+const LABEL_TIP = "-mr-2";
+
 /** A headline figure: its label, the number at the size of the page's main figures, its context. */
 function Headline({ label, value, sub, info, tone = "plain", testId, children }: { label: string; value: React.ReactNode; sub?: React.ReactNode; info?: string; tone?: WinRateTone; testId: string; children?: React.ReactNode }) {
   return (
     <div className="min-w-0 px-3 py-3 @min-[34rem]/perf:px-5 @min-[34rem]/perf:py-4" data-testid={testId}>
       <div className="flex items-center gap-1 text-xs font-medium text-fg-muted">
-        <span className="min-w-0 leading-tight">{breakable(label)}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
+        <span className="min-w-0 leading-tight">{breakable(label)}</span> {info ? <InfoTip text={info} label={`About ${label}`} className={LABEL_TIP} /> : null}
       </div>
       <div className={cn("mt-1.5 text-2xl font-semibold leading-none tracking-tight tabular-nums @min-[34rem]/perf:text-figure", TONE_CLASS[tone])} data-testid={`${testId}-value`}>
         {value}
@@ -80,7 +88,7 @@ function Supporting({ label, value, sub, info, muted, testId }: { label: string;
   return (
     <div className="min-w-0 px-3 py-2.5 @min-[34rem]/perf:px-5" data-testid={testId}>
       <div className="flex items-center gap-1 text-xs text-fg-muted">
-        <span className="min-w-0 leading-tight">{breakable(label)}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
+        <span className="min-w-0 leading-tight">{breakable(label)}</span> {info ? <InfoTip text={info} label={`About ${label}`} className={LABEL_TIP} /> : null}
       </div>
       <div className="mt-1 flex min-w-0 items-baseline gap-2">
         <span className={cn("text-lg font-semibold leading-tight tabular-nums", muted ? "text-fg-subtle" : "text-fg")} data-testid={`${testId}-value`}>

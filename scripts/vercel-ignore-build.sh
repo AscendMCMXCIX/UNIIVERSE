@@ -22,6 +22,29 @@ if [ "${VERCEL_ENV:-}" = "preview" ]; then
   echo "Preview deployment not requested (branch preview/... or [preview] in the commit message): skipping."
   exit 0
 fi
+# A batch of merges deploys once. Vercel builds one deployment at a time, so the merges of a batch
+# queue up; when this commit's turn comes and its branch already has a later commit that contains
+# it, that later commit's own deployment builds next (and holds this commit's changes, since it is
+# compared with the last deployment that succeeded), so this one is skipped. Any doubt builds: no
+# answer from GitHub in time, a later commit that does not contain this one, or no commit to compare.
+# (To deploy an older commit on purpose, use Vercel's Instant Rollback, which builds nothing.) docs/HOSTING_USAGE.md, "18 Nov 2026".
+superseded_by() {
+  local ref="${VERCEL_GIT_COMMIT_REF:-}" sha="${VERCEL_GIT_COMMIT_SHA:-}" url tip
+  url="${VERCEL_IGNORE_REMOTE:-}"
+  if [ -z "$url" ] && [ -n "${VERCEL_GIT_REPO_OWNER:-}" ] && [ -n "${VERCEL_GIT_REPO_SLUG:-}" ]; then
+    url="https://github.com/${VERCEL_GIT_REPO_OWNER}/${VERCEL_GIT_REPO_SLUG}.git"
+  fi
+  [ -n "$url" ] && [ -n "$ref" ] && [ -n "$sha" ] || return 1
+  tip=$(timeout 20 git ls-remote "$url" "refs/heads/$ref" 2>/dev/null | cut -f1) || return 1
+  [ -n "$tip" ] && [ "$tip" != "$sha" ] || return 1
+  timeout 60 git fetch --quiet --depth=50 "$url" "$tip" 2>/dev/null || return 1
+  git merge-base --is-ancestor "$sha" "$tip" 2>/dev/null || return 1
+  printf '%s\n' "$tip"
+}
+if [ "${VERCEL_ENV:-}" = "production" ] && tip=$(superseded_by); then
+  echo "A later commit on ${VERCEL_GIT_COMMIT_REF} (${tip:0:7}) holds this one and deploys next: skipping this deployment."
+  exit 0
+fi
 prev="${VERCEL_GIT_PREVIOUS_SHA:-}"
 if [ -z "$prev" ]; then
   echo "No previous deployment to compare with: building."; exit 1
