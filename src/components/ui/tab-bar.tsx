@@ -108,7 +108,7 @@ export function TabBar({ label, items, current, keepScroll = false, dense = fals
                     // A click that opens a new tab or window leaves this page as it is: nothing to tell.
                     if (!stayOnCurrentPage(e, on) && isPlainClick(e)) onChoose?.(s.key);
                   }}
-                  className={cn("inline-flex min-h-11 items-center gap-2 whitespace-nowrap px-3 text-sm font-medium transition-colors duration-150 max-sm:w-full max-sm:justify-center max-sm:px-2", dense && "lg:min-h-10", tabIndicatorClass(on))}
+                  className={cn("inline-flex min-h-11 items-center gap-2 whitespace-nowrap px-3 text-sm font-medium transition-colors duration-150 max-sm:w-full max-sm:justify-center max-sm:px-2", dense && "lg:min-h-10 lg:pointer-coarse:min-h-11", tabIndicatorClass(on))}
                   data-testid={s.testId}
                 >
                   <s.icon className={cn("hidden h-4 w-4 sm:block", on ? "text-accent" : "text-fg-subtle")} aria-hidden />
