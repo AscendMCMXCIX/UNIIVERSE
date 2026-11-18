@@ -27,7 +27,7 @@ Each item says what to do, what to expect and where to look when it fails.
 
 ## Automated live check
 
-**It runs by itself (3 Nov 2026):** GitHub's Production check (`.github/workflows/production-check.yml`) runs it after each production deployment and every day, from GitHub's runner, with no setup by anyone. Since 7 Nov 2026 it signs in as the verification account (below) and checks the member pages too; while that account is not available, or `SIGNED_IN_CHECKS` is `false`, it checks the public pages and the signed-out security only, and reports the member pages as pending. The numbered items below that need a signed-in member, and the pages the check does not open, stay for a person (`docs/MONITORING.md`).
+**It runs by itself (3 Nov 2026):** GitHub's Production check (`.github/workflows/production-check.yml`) runs it after each production deployment and every day, from GitHub's runner, with no setup by anyone. Since 7 Nov 2026 it signs in as the verification account (below) and checks the member pages too. A lost sign-in fails the check and opens its issue: the account withdrawn, a conflict, no answer from its job, no `CRON_SECRET`, a key the app cannot use, or the repository's `VERIFY_ACCOUNT_SECRET` missing or padded while the app uses it ("When the account is lost, the check fails", below). Only the owner's two off switches, `SIGNED_IN_CHECKS` set to `false` or `verify` deactivated in Admin, leave the member pages pending instead (a key the app cannot use still fails the run); the run then checks the public pages and the signed-out security only. The numbered items below that need a signed-in member, and the pages the check does not open, stay for a person (`docs/MONITORING.md`).
 
 `scripts/live-check.mjs` checks the deployed site from a browser. It runs the read-only checks that people otherwise do by hand, at desktop (1440 px), tablet (768 px) and phone (390 px) widths, and saves a screenshot of every page for review.
 
@@ -114,6 +114,7 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 ## 3. Linked Riot accounts and proficiency
 
 - [ ] Players → a player → Riot accounts: add your own Riot ID (exact spelling, including the tag). Expect the PUUID to resolve and the status to become *synced*; a renamed account should keep the same PUUID and adopt Riot's canonical spelling.
+- [ ] Add a Riot ID with a typo: refused under the field (*Riot has no account named …*), with nothing linked. While Riot cannot be asked (Riot down, a refused key) the refusal says to try again, and nothing is linked either.
 - [ ] Add the same Riot ID again (or an alt that resolves to a linked PUUID): expect a clear "already linked" message, never a duplicate.
 - [ ] After `account-sync` (Admin → Data & Riot) the Team page shows tier dots on pool champions.
 - [ ] Unicode Riot ID (Korean/Japanese name): it must be sent and shown exactly as typed.

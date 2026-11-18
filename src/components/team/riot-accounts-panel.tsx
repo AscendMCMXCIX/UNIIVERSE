@@ -29,7 +29,9 @@ export { PLATFORMS } from "@/domain/platforms";
  * (make Main, change Riot ID, sync, remove). Exactly one account is the Main (shown on the profile
  * and used for rank); every account, Main or Alt, counts in the statistics. Accounts are stored by
  * their permanent Riot identity (PUUID): a rename made in Riot is picked up automatically, and
- * typing a new Riot ID either renames the same account or, after confirmation, replaces it.
+ * typing a new Riot ID either renames the same account or, after confirmation, replaces it. A
+ * Riot ID added here is linked only once Riot confirms it (actions/accounts.ts); a refusal is
+ * shown under the field.
  * The ⋯ menu floats above the page (a portal), so it is never clipped by the card it belongs to.
  * Alternatives are numbered and can be moved up or down (buttons, so keyboard and touch work the
  * same); that one order is used wherever the accounts are listed. Ordering changes no statistic.
@@ -75,6 +77,8 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
     if (!riotId.includes("#")) return setAddError("Enter the Riot ID exactly as shown in the client: GameName#TAG.");
     setBusy("add");
     setAddError(null);
+    // Riot checks the Riot ID before anything is linked: one it does not know, or cannot be asked
+    // about right now, comes back as the error under the field, with nothing linked.
     const r = await addPlayerAccountAction(playerId, { riotId });
     setBusy(null);
     if (!r.ok) return setAddError(r.error);
@@ -86,7 +90,8 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
     // Riot confirmed it and its first sync stopped for time (a busy minute): the row says it is
     // confirmed, so the message must not say "pending" (the next sync carries on).
     else if (a.puuid && a.syncStatus === "never" && !a.syncError) toast.success(`${a.riotId} linked.`, { description: "Riot confirmed this account; its games follow with the next sync." });
-    else toast.info(`${a.riotId} saved.`, { description: riotConfigured ? (a.syncError ?? "Verification with Riot is pending and retried automatically.") : "It will be verified once Riot data is available." });
+    // Riot confirmed it, then failed during its first sync: the sync's reason, retried automatically.
+    else toast.info(`${a.riotId} linked.`, { description: a.syncError ?? "Riot confirmed this account; its first sync is retried automatically." });
     router.refresh();
   };
 
@@ -239,8 +244,9 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
               <div className="min-w-0 flex-1">
                 <Label htmlFor={`riot-id-${playerId}`}>Add a Riot ID</Label>
                 <Input id={`riot-id-${playerId}`} value={riotId} onChange={(e) => { setRiotId(e.target.value); setAddError(null); }} placeholder="GameName#TAG" spellCheck={false} autoComplete="off" autoFocus={accounts.length > 0} aria-invalid={!!addError} aria-describedby={`riot-id-help-${playerId}`} />
-                <p id={`riot-id-help-${playerId}`} className={addError ? "mt-1.5 text-xs text-bad" : "mt-1.5 text-xs text-fg-subtle"}>
-                  {addError ?? "Copy it from the League client, including the #TAG. Riot confirms the server."}
+                {/* A refusal replaces the hint as its own alert, so a screen reader announces it. */}
+                <p key={addError ? "error" : "hint"} id={`riot-id-help-${playerId}`} role={addError ? "alert" : undefined} className={addError ? "mt-1.5 text-xs text-bad" : "mt-1.5 text-xs text-fg-subtle"}>
+                  {addError ?? "Copy it from the League client, including the #TAG. Riot checks the account and confirms its server."}
                 </p>
               </div>
               <div className="flex gap-2 sm:mt-5">
@@ -260,7 +266,7 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
             </Button>
           )
         ) : null}
-        {!riotConfigured ? <p className="text-xs text-fg-subtle">Riot data is not available on the server yet; accounts are saved now and verified automatically once it is.</p> : null}
+        {!riotConfigured ? <p className="text-xs text-fg-subtle">Riot data is not available on the server yet, so Riot IDs cannot be checked or linked until it is.</p> : null}
       </PanelBody>
       {renaming ? <ChangeRiotIdDialog playerId={playerId} account={renaming} onClose={() => setRenaming(null)} /> : null}
       <ConfirmDialog

@@ -13,7 +13,6 @@ vi.mock("@/server/bootstrap", () => ({ getAppDb: async () => state.db }));
 vi.mock("@/server/auth/session", async (orig) => ({ ...(await orig<object>()), getSession: async () => state.session, requireRiotAccountEditor: async () => state.session }));
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 
-import { eq } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { accountMatches, matchDetails, riotAccounts } from "@/server/db/schema";
@@ -56,20 +55,29 @@ describe("linked accounts in the browser", () => {
 
   it("the link action's answer carries no PUUID", async () => {
     state.session = owner();
-    const prev = process.env.RIOT_API_KEY;
-    delete process.env.RIOT_API_KEY;
+    // Riot (a stand-in for its HTTP API) knows the Riot ID, so the account is linked with its PUUID
+    // at once; its first sync finds no rank, mastery or games.
+    const prev = { key: process.env.RIOT_API_KEY, fetch: globalThis.fetch };
+    process.env.RIOT_API_KEY = "RGAPI-00000000-0000-0000-0000-000000000000";
+    globalThis.fetch = (async (input: string | URL | Request) => {
+      const url = String(input);
+      const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+      if (url.includes("/by-riot-id/Second/OCE") || url.includes("/accounts/by-puuid/secret-puuid-second")) return json({ puuid: "secret-puuid-second", gameName: "Second", tagLine: "OCE" });
+      if (url.includes("/region/by-game/lol/by-puuid/")) return json({ puuid: "secret-puuid-second", game: "lol", region: "oc1" });
+      if (url.includes("/ids?") || url.includes("/lol/league/v4/entries/by-puuid/") || url.includes("/lol/champion-mastery/v4/")) return json([]);
+      return json({ status: { status_code: 404 } }, 404);
+    }) as typeof fetch;
     try {
       const r = await addPlayerAccountAction(ace, { riotId: "Second#OCE" });
-      expect(r).toMatchObject({ ok: true });
-      // Mark it resolved as a sync would, then link a third to read a resolved answer.
-      await handle.db.update(riotAccounts).set({ puuid: "secret-puuid-third" }).where(eq(riotAccounts.gameName, "Second"));
+      expect(r).toMatchObject({ ok: true, data: { riotId: "Second#OCE", puuid: PUUID_KEPT_ON_SERVER } });
+      expect(JSON.stringify(r)).not.toMatch(/secret-puuid/);
+      // The PUUID is known, on the server only.
       const all = await listAccountsForPlayer(handle.db, ace);
-      expect(all.some((a) => a.puuid === "secret-puuid-third")).toBe(true);
-      const third = await addPlayerAccountAction(ace, { riotId: "Third#OCE" });
-      expect(third.ok).toBe(true);
-      expect(JSON.stringify(third)).not.toMatch(/secret-puuid/);
+      expect(all.find((a) => a.gameName === "Second")?.puuid).toBe("secret-puuid-second");
     } finally {
-      if (prev !== undefined) process.env.RIOT_API_KEY = prev;
+      globalThis.fetch = prev.fetch;
+      if (prev.key === undefined) delete process.env.RIOT_API_KEY;
+      else process.env.RIOT_API_KEY = prev.key;
     }
   });
 });
