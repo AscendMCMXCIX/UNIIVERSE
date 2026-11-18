@@ -803,13 +803,15 @@ test("the summary is three lines on a phone and one row of tiles on a desktop, w
         const f = await summary.evaluate(summaryShape);
         const where = `${size.width}px, ${role} ${what}`;
         if (isPhone(page)) {
-          // Three lines, each one line of figures (about 21px). At 375px a two-digit record on a
-          // champion takes the ladder change to a fourth line (the champions and the ladder need
-          // about 323px of 317).
-          const fourth = size.width < 393 && what === "at its widest";
+          // Three lines from 393px, each one line of figures (about 21px). At 375px a streak beside a
+          // named trend takes a second row on the first line (3px squares do not fit beside them),
+          // and the widened ladder change may take a fourth line (the champions and the longest
+          // label need about 315px of 317, a two-digit record about 323px).
+          const narrow = size.width < 393;
+          const allowed = [narrow && role === "SUPPORT" ? 48 : 24, 24, narrow && widest !== null ? 48 : 24];
           expect(f.lines.length).toBe(3);
-          for (const [i, h] of f.lines.entries()) expect(h, `${where}: line ${i + 1}`).toBeLessThanOrEqual(fourth && i === 2 ? 48 : 24);
-          if (!fourth) expect(f.height, `${where}: three lines, about 89px`).toBeLessThanOrEqual(94);
+          for (const [i, h] of f.lines.entries()) expect(h, `${where}: line ${i + 1}`).toBeLessThanOrEqual(allowed[i]!);
+          if (!narrow) expect(f.height, `${where}: three lines, about 89px`).toBeLessThanOrEqual(94);
         } else {
           // One row of tiles, about 44px, on a 60rem list (1280 with the sidebar open) too.
           expect(f.rows, `${where}: one row of tiles`).toBe(1);
@@ -833,13 +835,54 @@ test("the summary is three lines on a phone and one row of tiles on a desktop, w
   }
 });
 
+/** The summary's squares: the narrowest, whether all stay inside the strip, and whether the last ends before the streak on its row. */
+const summarySquares = (s: Element) => {
+  const squares = [...s.querySelectorAll("[data-result]")].map((e) => e.getBoundingClientRect());
+  const strip = s.getBoundingClientRect();
+  const last = squares[squares.length - 1]!;
+  const streak = s.querySelector('[data-testid="history-summary-streak"]')?.getBoundingClientRect() ?? null;
+  const beside = !!streak && last.top < streak.bottom && last.bottom > streak.top;
+  return {
+    count: squares.length,
+    narrowest: Math.min(...squares.map((r) => r.width)),
+    inside: squares.every((r) => r.left >= strip.left - 0.5 && r.right <= strip.right + 0.5),
+    clear: !beside || last.right <= streak!.left + 0.5,
+  };
+};
+
+test("a phone's summary squares keep their 3px floor: never drawn under the streak or past the strip", async ({ page }) => {
+  test.skip(!isPhone(page), "a phone's first line");
+  // Demo Support: a streak and a named trend beside the squares, the tightest first line; demo ADC
+  // beside a streak. At 320, 360 and 375px, and at 150% text on the narrowest.
+  const players = { SUPPORT: await profileOf(page, "SUPPORT"), ADC: await profileOf(page, "ADC") };
+  for (const [width, height, text] of [[320, 568, 1], [360, 780, 1], [375, 667, 1], [320, 568, 1.5], [375, 667, 1.5]] as const) {
+    await page.setViewportSize({ width, height });
+    for (const [role, profile] of Object.entries(players)) {
+      await page.goto(`${profile}/matches`, { waitUntil: "networkidle" });
+      if (text !== 1) await page.addStyleTag({ content: `html { font-size: ${text * 100}% !important; }` });
+      await page.evaluate(() => document.fonts.ready);
+      const summary = page.getByTestId("history-summary");
+      await expect(summary.getByTestId("history-summary-streak")).toBeVisible();
+      if (role === "SUPPORT") await expect(summary.getByTestId("history-summary-trend")).toBeVisible();
+      const f = await summary.evaluate(summarySquares);
+      const where = `${width}px at ${text * 100}% text, ${role}`;
+      expect(f.count, where).toBe(20);
+      expect(f.narrowest, `${where}: every square at least 3px wide`).toBeGreaterThanOrEqual(2.99);
+      expect(f.inside, `${where}: inside the strip`).toBe(true);
+      expect(f.clear, `${where}: clear of the streak`).toBe(true);
+      expect(await overflow(page)).toBeLessThanOrEqual(1);
+    }
+  }
+});
+
 /**
  * The plan's page heights (D8), in screens: the page's height over the window's, for Demo ADC's games
  * and Encounters, at each project's devices (touch for phones and tablets). Each bound is the
- * plan's target, so a regression of a line shows; docs/MOBILE.md (section 3) has the measurements,
- * dated. The one target missed is bound by the height measured, and MOBILE.md says why: a Pixel 7
- * held sideways (863×360) keeps the wide one-row card, which D8 leaves as it is, under the phone's
- * frame.
+ * plan's target, compared at its two decimals (the plan's own precision), so a lost or added line
+ * (16px or more) shows but a pixel of rounding between browser builds does not (1440×900 meets its
+ * target with no room to spare: 1,440px). docs/MOBILE.md (section 3) has the measurements, dated.
+ * The one target missed is bound by the height measured, and MOBILE.md says why: a Pixel 7 held
+ * sideways (863×360) keeps the wide one-row card, which D8 leaves as it is, under the phone's frame.
  */
 const HEIGHTS: Record<string, Array<{ device: string; size: { width: number; height: number }; games: number; encounters?: number }>> = {
   phone: [
@@ -872,7 +915,7 @@ test("Match History's and Encounters' page heights stay within the plan's target
       await expect(page.locator("[data-testid='match-history'][data-ready], [data-testid='encounters'][data-ready]")).toBeVisible();
       await page.evaluate(() => document.fonts.ready);
       const screens = await page.evaluate(() => document.documentElement.scrollHeight / window.innerHeight);
-      expect(screens, `${device}, ${view ? "Encounters" : "games"}: ${screens.toFixed(3)} screens`).toBeLessThanOrEqual(bound + 0.0005);
+      expect(Math.round(screens * 100) / 100, `${device}, ${view ? "Encounters" : "games"}: ${screens.toFixed(3)} screens`).toBeLessThanOrEqual(bound);
     }
   }
 });
