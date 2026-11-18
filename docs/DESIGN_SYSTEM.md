@@ -269,6 +269,19 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     "no blur on content" (§3) holds.
   - Anything pinned under it (All Champions' column headings) offsets by `--tabs-top`.
   - Nothing is pinned in a window under 481px tall.
+  - **One composition at every width (PR 10, 18 Nov 2026).** The pages of a tab set share one width
+    (`SECTION_HUBS`' `width`): Team's four sections `--content-wide` (Players and Matches moved up
+    from `--content-max` to join Team Overview and Leaderboards), Resources' and Platform Settings'
+    `--content-max`. The bar's row of tabs takes it (`TabBar`'s `inner`), so in a window wide enough
+    for the pages to stop growing and centre beside the sidebar (80rem pages from about 1650px with
+    the sidebar open and 1417px with it folded; Team's 100rem from about 2370px and 1926px) the first
+    tab still starts where the page does, Team's name at the row's end ends where it ends, and the
+    row never moves when you switch sections. Before, the row
+    started at the room's edge: 74px left of Players at 1920 and 250px at 2560, 400 to 620px at 3440.
+    The line under the tabs and the pinned ink still span the room beside the sidebar, as a frame
+    does. A profile's tabs, and a section's views (`SubTabs`), sit inside their page's own column, so
+    they always lined up. Team Overview's lineup keeps its own cap (84rem), centred in the column.
+    A page's loading state takes the same width (`PageSkeleton`'s `width`, from `pageWidthOf`).
 - **Tablet drawer.** It is a native `<dialog>`: it keeps focus inside, the page behind it cannot
   be used and is locked as behind a window (no scrolling, no rubber band), the focus starts as in a
   window (on the menu itself after a tap, on its close button from the keyboard), and closing it

@@ -207,6 +207,18 @@ Substitute side of the Team cards).
   moving onto a pinned tab, the sidebar's logo or the top bar's buttons never scrolls the page.
   A sticky bar must be a child of what the page scrolls through, never of a wrapper that ends with
   it.
+- **One composition at every width** (PR 10, 18 Nov 2026): the pages of a tab set share one width
+  (`SECTION_HUBS`' `width` in `src/lib/nav.ts`: Team's four sections `--content-wide`, Resources'
+  and Platform Settings' `--content-max`), and a bar of `main`'s own (`SectionTabs`) gives its row
+  of tabs that width (`TabBar`'s `inner`). Once the window is wide enough for the pages to stop
+  growing and centre in the room beside the sidebar (80rem pages from about 1650px with the sidebar
+  open, 1417px with it folded; Team's 100rem from about 2370px and 1926px), the first tab still
+  starts at the page's left edge and Team's name at the row's end stops at its right edge, and the
+  row stays in the same place on every section of the set; the line under it and its pinned ink span
+  the room. Below those widths the pages fill the room and nothing changed. A profile's tabs and a
+  section's views (`SubTabs`) are inside their page's column, so they always lined up. The route's
+  loading state takes the same width (`PageSkeleton`'s `width`, from `pageWidthOf`): Players and a
+  teammate's profile share `players/loading.tsx`, which reads the address it stands in for.
 - `main` pads for the tab bar (`pb-tabbar`) so content never hides behind it.
 
 ## Primitives
@@ -252,7 +264,11 @@ and 16px inputs on phones, and the champion picker on the player profile.
 far down the page starts at its top once its content has arrived (tapped in place, without
 Playwright's own scroll into view); on tablets and desktops the Team and profile tabs stay pinned
 as a long page scrolls, All Champions' column headings pin under them, and nothing is pinned in a
-short window; the tablet's menu keeps focus inside and gives it back to the menu button; the
+short window; at 2560 × 1440 and 3440 × 1440 (and at 1440 × 900 with the sidebar folded) every tab
+row's first tab starts at its page's edge within 1px on each section of its set (Team's, Resources',
+Platform Settings', a profile's, Leaderboards' and Match History's views, Users & Permissions'), the
+row in the same place on all of them, Team's name ending at the page's right edge and the bar's line
+spanning the room; the tablet's menu keeps focus inside and gives it back to the menu button; the
 installed app's Back on a tablet (the display mode stood in for, as Chromium cannot emulate it);
 the filter sheet's Done leaves with its motion; Admin Mode's Settings has its title.
 `e2e/popups.spec.ts` keeps what shows over a window inside it: an ⓘ's bubble in a window drawn
@@ -288,7 +304,8 @@ picture asked for while the first card's art loads), `e2e/mobile-landscape.spec.
 on an iPhone 15 and an iPhone SE (3rd gen): 2 + 2 + 1, no sideways track, no role bar, the 44px
 logo), `e2e/team-flip.spec.ts` (turning, choosing, replacing and removing a substitute, Make
 starter and the keyboard focus after it, with reduced motion too), `e2e/team-logo.spec.ts` (the
-logo's sizes) and `e2e/card-layout.spec.ts` (identity rows level). `home-layout`'s Team tests and
+logo's sizes, and the logo starting its row wherever it sits, the Team tabs' row at 1440 and at 1920
+included) and `e2e/card-layout.spec.ts` (identity rows level). `home-layout`'s Team tests and
 `team-layout`'s grids read the lineup once it is laid out and at rest (`lineupAtRest`,
 `e2e/lineup.ts`): it streams in through `(app)/loading.tsx`'s Suspense boundary, and React can
 reveal it up to 300ms after the first paint, after the load event `page.goto` waits for, when its
@@ -302,9 +319,11 @@ the responsive pass report.
 ## Phase 3 checks
 
 `e2e/quality.spec.ts` loads every player page at 320×640, 375×667, 390×844, 430×932, 768×1024,
-1024×768, 1366×768, 1440×900, 1920×1080, 844×390 (phone landscape) and 1366×600 (short laptop)
-and fails on any horizontal overflow or a missing heading; admin pages at five widths. The
-same file runs axe (WCAG 2.1 A/AA) on every page and fails on critical or serious violations.
+1024×768, 1280×800, 1366×768, 1440×900, 1920×1080, 2560×1440, 3440×1440, 3840×2160, 844×390
+(phone landscape) and 1366×600 (short laptop) and fails on any horizontal overflow or a missing
+heading; admin pages at five widths. The same file runs axe (WCAG 2.1 A/AA) on every page and fails
+on critical or serious violations, and again at 1920 on Team's four sections and Resources, where
+the section tabs' row takes the pages' width.
 Panel layouts that live in variable-width columns use container queries (`@container`, `@xl:`) rather than viewport breakpoints.
 For example, Team Matches' cards take their four columns from their list's width (`@container/tm`, from 58rem), because the sidebar beside the list takes 4.5 or 16rem of the same window (`e2e/played-together.spec.ts`).
 

@@ -149,7 +149,10 @@ roomy. Empty or thin data shrinks a card rather than leaving a frame to fill.
 
 **Page layout.** One frame for every page, so pages differ by their content, not their scaffolding:
 - **Width:** `--content-max` for profiles, lists of cards, documents and forms; `--content-wide` for
-  the grids that gain from more columns (Team Overview's lineup, Leaderboards). A board or table
+  the grids that gain from more columns (Team Overview's lineup, Leaderboards). The pages of one tab
+  set share one width, so its tabs line up with each and never move between them (`SECTION_HUBS`'
+  `width`, `PAGE_WIDTH` in `src/lib/nav.ts`): Team's four sections take `--content-wide`, Players'
+  roster and Team Matches' list included. A board or table
   that stands alone on such a page (Recent form) stops at `--measure` (`max-w-[var(--measure)]`,
   72rem), left-aligned: one left edge with the header, never centred in the space. The page's
   padding comes from the app shell; a page adds none of its own.
@@ -210,7 +213,7 @@ Use the shared component before writing a new one (`src/components/ui`):
 | Choices in a list | `Menu`, `MenuItem`, `MenuLink` |
 | Filters | `FilterBar`, `RefineButton`, `FilterField`, `SearchInput`, `ToggleChip`. On phones the bar folds to a Filters button that opens a sheet, with what is narrowed as removable chips beside it (`chips`). A bar with several filters keeps to one row inline with `compact` (a narrower search to start from, Reset as its icon below `xl`) |
 | One choice out of a few that filters what a page shows (a role, a side, a sort) | `segmentedGroupClass` with `segmentClass` (`size: "md"` for a list's main filter, as Encounters' All, Against and Alongside), `RoleSegmented` (`compactBelow="xl"`: icons only for the roles not chosen on tablets and laptops, in a crowded toolbar). Never to move between views or pages |
-| A page's sections (primary) | `TabBar`: a profile's Overview, All Champions, Match History and Riot Accounts; Team's sections. On tablets and desktops the bar stays pinned at the top of the page once it scrolls (`sticky`; [RESPONSIVE.md](RESPONSIVE.md) → Shell). On phones Team's sections are the bottom tab bar and a profile's ride in the top bar (`ProfileTabs variant="chrome"`) |
+| A page's sections (primary) | `TabBar`: a profile's Overview, All Champions, Match History and Riot Accounts; Team's sections. On tablets and desktops the bar stays pinned at the top of the page once it scrolls (`sticky`; [RESPONSIVE.md](RESPONSIVE.md) → Shell). A bar wider than the pages under it (`SectionTabs`, a child of `main`) gives its row their width (`inner`), so its first tab starts where they do at every width. On phones Team's sections are the bottom tab bar and a profile's ride in the top bar (`ProfileTabs variant="chrome"`) |
 | Equal views of one section, or related pages (secondary) | `SubTabs` (`ui/sub-tabs.tsx`): links with `aria-current`, directly under the primary tabs, in the section title's place (`SectionHeader`'s `nav`): Match History's Games and Encounters. `SubNav` when the path decides the current one (Admin's Users & Permissions) |
 | Views inside one panel (a game's Scoreboard, Analysis, Timeline and Build; a champion's views) | `role="tablist"` buttons with `tabIndicatorClass` |
 | Tabs that filter one list | `TabLinks`, only where it is today (Admin's audit categories), until that page is redesigned |
@@ -220,7 +223,7 @@ Use the shared component before writing a new one (`src/components/ui`):
 | A table that can be wider than the screen | `ScrollRegion` with a `label`: the keyboard can focus and scroll it, and screen readers name it |
 | A status or a tag | `Badge` |
 | Nothing to show | `EmptyState`: the default `block` (a dashed panel of its own, `compact` for less padding), `variant="row"` in place of a group of rows inside a `DataList`, `variant="inline"` as one line of running text (a `<p>`: phrasing content only) |
-| Loading | `Skeleton`, `PageSkeleton` (route `loading.tsx`) |
+| Loading | `Skeleton`, `PageSkeleton` (route `loading.tsx`, at the width of the page it stands in for: `width`, from `pageWidthOf`) |
 | Saving | `SaveStatusIndicator`, `toast` |
 | Images from Riot or another host | `RemoteImage`, `useImageFailure`, `ChampionPortrait`, `Avatar` |
 | A time ago that stays current | `RelativeTime`, `useNow` |
