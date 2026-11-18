@@ -96,9 +96,7 @@ export function SocialLinks({ links, owner, className }: { links: readonly Socia
 export function CardSocialIcons({ links, owner, mode = "interactive", size = "card", className }: { links: readonly SocialLinkView[]; owner: string; mode?: "interactive" | "static"; size?: "card" | "row"; className?: string }) {
   if (!links.length) return null;
   // On a row the touch areas (44px around a 24px chip) meet in the gap between the icons, never on a chip.
-  // On a card, a step closer under 12.5rem (five across a 1280px laptop), so three still share the
-  // picture's row.
-  const row = cn("flex shrink-0 items-center", size === "row" ? "gap-1.5 pointer-coarse:gap-3" : "gap-1.5 @max-[12.5rem]/card:gap-1 @min-[17rem]/card:gap-2");
+  const row = cn("flex shrink-0 items-center", size === "row" ? "gap-1.5 pointer-coarse:gap-3" : "gap-1.5 @min-[17rem]/card:gap-2");
   if (mode === "static")
     return (
       <span className={cn(row, className)} aria-hidden data-testid="card-social-preview">
