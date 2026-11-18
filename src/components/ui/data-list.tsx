@@ -190,8 +190,10 @@ const PLACE = "flex min-w-0 items-center justify-end gap-0.5 text-sm font-bold t
  * least 10px; it takes 4px of it. A tied place's "=" ends 6px from the column's edge (4px from the
  * bracket's arm, not 2px, so it never reads "4=–"); a shared 1= keeps 4px, since there the crown,
  * not the "=", meets the bracket, and more would push "1=" and the crown out of a 2.5rem column.
+ * `bracketClassName` is the bracket's own (Recent form's rows hide it where their text runs under
+ * the place, at large text sizes: the "=" still says the tie).
  */
-export function Place({ place, tie = null, crown = false, unplaced = "Provisional", className, testId }: { place: number | null; tie?: TiePosition | null; crown?: boolean; unplaced?: string; className?: string; testId?: string }) {
+export function Place({ place, tie = null, crown = false, unplaced = "Provisional", className, bracketClassName, testId }: { place: number | null; tie?: TiePosition | null; crown?: boolean; unplaced?: string; className?: string; bracketClassName?: string; testId?: string }) {
   if (place === null) {
     return (
       <span className={cn(PLACE, "pr-1 text-fg-subtle", className)} data-testid={testId} title={unplaced}>
@@ -214,7 +216,7 @@ export function Place({ place, tie = null, crown = false, unplaced = "Provisiona
         )}
         {crown ? <Crown className="h-4 w-4 shrink-0 text-gold" aria-label="First place" role="img" /> : null}
       </span>
-      {tie ? <span aria-hidden className={cn("pointer-events-none absolute col-[1/2] -right-1 w-1.5 border-fg-subtle/55", BRACKET[tie])} /> : null}
+      {tie ? <span aria-hidden className={cn("pointer-events-none absolute col-[1/2] -right-1 w-1.5 border-fg-subtle/55", BRACKET[tie], bracketClassName)} /> : null}
     </>
   );
 }
