@@ -76,6 +76,9 @@
   - wide (PR 10): the desktop context made 2560 × 1440 opens Team, Players, Records and the
     teammate's profile (as every page, with axe): each tab row's first tab starts where its page
     does (within 1px), and Team's row is in the same place on its three sections.
+  - reach (PR 2b): from the end of Match History, on the desktop and the tablet the pinned row offers
+    Filters and it opens the filter sheet; on the phone the top bar's Filters opens it (Escape closes
+    it again; no filter is touched).
   - every page at every width: it loads signed in, no sideways scroll, no page error, no app console
     error, no failed request to the app, no broken image from the app, and a screenshot to review.
 */
@@ -1001,6 +1004,42 @@ async function teamMatches(page, log, kind, context) {
   }
 }
 
+/**
+ * Page controls in reach (PR 2b), from the end of Match History: on the tablet and the desktop the
+ * pinned tabs' row offers Filters once the page's header has gone up under it, and it opens the
+ * filter sheet; on the phone the top bar does. Opening and closing the sheet changes nothing (no
+ * filter is touched). True or false only; a list too short to scroll its header away passes as not
+ * applicable.
+ */
+async function reachFacts(page, kind) {
+  const name = kind === "phone" ? "phone: from the end of Match History the top bar's Filters opens the filter sheet" : `${kind}: from the end of Match History the pinned row offers Filters and it opens the filter sheet`;
+  const room = await page.evaluate(async () => {
+    const bar = document.querySelector("[data-testid=match-history] [data-testid=section-toolbar]");
+    const end = document.documentElement.scrollHeight - innerHeight;
+    for (let at = window.scrollY; at < end; at += 240) {
+      window.scrollTo(0, at);
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+    }
+    window.scrollTo(0, end);
+    return bar ? Math.round(bar.getBoundingClientRect().bottom) : null;
+  });
+  // The header still in view at the end (a short list): nothing to offer.
+  if (room !== null && room > 120) return check("reach", name, "PASS", { notApplicable: "the list is too short for its header to scroll away", headerBottom: room });
+  const control = page.getByTestId(kind === "phone" ? "topbar-filters" : "toolbar-filters");
+  const offered = await control.waitFor({ timeout: 5_000 }).then(() => true, () => false);
+  let opened = false;
+  if (offered) {
+    if (kind === "phone") await control.tap();
+    else await control.click();
+    const sheet = page.getByTestId("filter-sheet");
+    opened = await sheet.waitFor({ timeout: 10_000 }).then(() => true, () => false);
+    await shot(page, `${kind}-match-history-filters-from-the-frame`);
+    await page.keyboard.press("Escape");
+    await sheet.waitFor({ state: "detached", timeout: 5_000 }).catch(() => {});
+  }
+  pass("reach", name, offered && opened, { offered, opened });
+}
+
 async function matchHistory(page, log, kind, playerId) {
   const path = playerId ? `/players/${playerId}/matches` : "/overview/matches";
   if (!(await visit(page, log, kind, "match-history", path, { fullPage: false }))) return;
@@ -1069,6 +1108,8 @@ async function matchHistory(page, log, kind, playerId) {
     await shot(page, `${kind}-match-history-open`);
     if (kind !== "tablet") await axe(page, kind, "match-history-game-open");
   }
+  // The page's controls in reach from the end of its list (PR 2b): the pinned row's or the top bar's Filters.
+  await guarded("reach", `${kind}: Filters from the end of Match History`, () => reachFacts(page, kind));
   // Encounters, the players met, from the view switch.
   const switcher = page.getByTestId("match-views").getByRole("link", { name: /encounters/i }).or(page.getByTestId("match-views").getByRole("button", { name: /encounters/i })).or(page.getByTestId("match-views").getByRole("tab", { name: /encounters/i }));
   if (await switcher.count()) {
