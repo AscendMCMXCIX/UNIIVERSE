@@ -113,6 +113,7 @@ Failure signs: 401 → the value stored as `RIOT_API_KEY` is not a key Riot reco
 ## 3. Linked Riot accounts and proficiency
 
 - [ ] Players → a player → Riot accounts: add your own Riot ID (exact spelling, including the tag). Expect the PUUID to resolve and the status to become *synced*; a renamed account should keep the same PUUID and adopt Riot's canonical spelling.
+- [ ] Add a Riot ID with a typo: refused under the field (*Riot has no account named …*), with nothing linked. While Riot cannot be asked (Riot down, a refused key) the refusal says to try again, and nothing is linked either.
 - [ ] Add the same Riot ID again (or an alt that resolves to a linked PUUID): expect a clear "already linked" message, never a duplicate.
 - [ ] After `account-sync` (Admin → Data & Riot) the Team page shows tier dots on pool champions.
 - [ ] Unicode Riot ID (Korean/Japanese name): it must be sent and shown exactly as typed.
