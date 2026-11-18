@@ -1,4 +1,4 @@
-import { ladderScore, rankLabel, TIERS, type RankSnapshot } from "./rank-progress";
+import { ladderScore, rankCode, rankLabel, TIERS, type RankSnapshot } from "./rank-progress";
 import { RANKED_SEASONS_2026, RANKED_YEAR, RANKED_YEAR_START, rankedSeasonAt, type RankedSeason } from "./ranked-year";
 import { isoDay, localPeriodStarts } from "@/lib/format";
 
@@ -273,16 +273,20 @@ export function rankedYearCoverage(t: Pick<RankTimeline, "trackingSince" | "read
   };
 }
 
-const SHORT_TIER: Record<string, string> = { PLATINUM: "Plat", EMERALD: "Emer", DIAMOND: "Dia", GRANDMASTER: "GM", CHALLENGER: "Chall" };
-
-/** "Gold II", or on a narrow chart "Plat II" / "Emer IV" / "Dia I". */
+/**
+ * "Gold II" (a tier alone, "Gold", where only tiers are lined), or on a narrow chart the code match
+ * cards use, in one notation: "G2", and a tier's line by its first division, "E4".
+ */
 function gridLabel(tier: string, division: string | null, short: boolean): string {
-  const full = rankLabel(tier, division);
-  if (!short || !SHORT_TIER[tier]) return full;
-  return division ? `${SHORT_TIER[tier]} ${division}` : SHORT_TIER[tier]!;
+  return short ? rankCode(tier, division) : rankLabel(tier, division);
 }
 
-/** Division gridlines for a score range: each division where few, each tier's first division where more than `maxDivisions`. */
+/**
+ * Division gridlines for a score range: each division where few, each tier's first division where
+ * more than `maxDivisions`; Master's line, where the range reaches it ("M" on a narrow chart).
+ * A wide chart names a tier's line by the tier ("Emerald"), a narrow one by its division code
+ * ("E4"), never a bare letter beside the apex's "M".
+ */
 export function ladderGrid(range: [number, number], opts: { maxDivisions?: number; short?: boolean } = {}): Array<{ score: number; label: string }> {
   const [lo, hi] = range;
   const many = (hi - lo) / 100 > (opts.maxDivisions ?? 6);
@@ -290,13 +294,13 @@ export function ladderGrid(range: [number, number], opts: { maxDivisions?: numbe
   for (let s = Math.ceil(lo / 100) * 100; s <= hi; s += 100) {
     const apex = s >= APEX_FROM * 400;
     if (apex) {
-      if (s === APEX_FROM * 400) out.push({ score: s, label: "Master" });
+      if (s === APEX_FROM * 400) out.push({ score: s, label: opts.short ? "M" : "Master" });
       continue;
     }
     const tier = TIERS[Math.floor(s / 400)]!;
     const div = DIVISIONS[Math.floor((s % 400) / 100)]!;
     if (many && div !== "IV") continue;
-    out.push({ score: s, label: gridLabel(tier, many ? null : div, !!opts.short) });
+    out.push({ score: s, label: gridLabel(tier, many && !opts.short ? null : div, !!opts.short) });
   }
   return out;
 }

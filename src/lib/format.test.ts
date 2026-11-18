@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import path from "node:path";
 import { ESLint } from "eslint";
-import { DISPLAY_TIME_ZONE, calendarDay, localPeriodStarts, formatCompactCount, formatCount, formatDate, formatDateTime, formatDayMonth, formatIsoDay, formatKilo, formatNumber, formatTimeOfDay, isoDay, timeAgo, formatLpChange } from "./format";
+import { DISPLAY_TIME_ZONE, calendarDay, localPeriodStarts, formatCompactCount, formatCount, formatDate, formatDateTime, formatDateTimeAfter, formatDayMonth, formatIsoDay, formatKilo, formatNumber, formatTimeOfDay, isoDay, timeAgo, formatLpChange } from "./format";
 
 /*
   Every date on the site is written in the installation's time zone (Sydney unless
@@ -52,6 +52,20 @@ describe("dates", () => {
     expect(formatTimeOfDay("2026-10-20T22:30:00Z")).toBe("9:30 am");
     expect(formatTimeOfDay("2026-10-21T01:00:00Z")).toBe("12:00 pm");
     expect(formatTimeOfDay(Number.NaN)).toBe("—");
+  });
+
+  it("write a later instant without what it shares with an earlier one, by the installation's calendar", () => {
+    // The same Sydney day (9:30 am and 11:59 pm on 21 Oct): the time alone.
+    expect(formatDateTimeAfter("2026-10-21T12:59:00Z", "2026-10-20T22:30:00Z")).toEqual({ day: null, time: "11:59 pm" });
+    // The next Sydney day, though the same UTC one (13:00 UTC on 21 Oct is midnight on the 22nd).
+    expect(formatDateTimeAfter("2026-10-21T13:00:00Z", "2026-10-21T01:00:00Z")).toEqual({ day: "22 Oct", time: "12:00 am" });
+    // The same year: day and month, no year.
+    expect(formatDateTimeAfter("2026-11-02T04:05:00Z", "2026-10-20T22:30:00Z")).toEqual({ day: "2 Nov", time: "3:05 pm" });
+    // Another year (Sydney's, 1 Jan 2027 from 13:00 UTC on 31 Dec): the full date.
+    expect(formatDateTimeAfter("2026-12-31T13:30:00Z", "2026-12-31T12:00:00Z")).toEqual({ day: "1 Jan 2027", time: "12:30 am" });
+    // Epoch milliseconds and dates alike; nothing for an instant that is not one.
+    expect(formatDateTimeAfter(Date.UTC(2026, 9, 21, 1), new Date("2026-10-20T22:30:00Z"))).toEqual({ day: null, time: "12:00 pm" });
+    expect(formatDateTimeAfter(Number.NaN, Number.NaN)).toEqual({ day: null, time: "—" });
   });
 });
 

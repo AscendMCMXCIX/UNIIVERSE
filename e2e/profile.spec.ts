@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "./test";
+import { expect, test, type Locator, type Page } from "./test";
 import { playerEntry } from "./players";
 
 /* My Profile pieces: All Champions sorting (both ways, filters kept) and the profile header controls. */
@@ -134,6 +134,74 @@ test("the profile header: Main lineup is a status, Customise is one small contro
   await expect(customise).toHaveAccessibleName(/Customise/);
   const box = (await customise.boundingBox())!;
   expect(box.height).toBeLessThanOrEqual(48);
+});
+
+/**
+ * An element's text as it shows on screen. Left out: text that is never drawn (an SVG's <title>,
+ * such as the name a role icon's built-in shape carries, which only a tooltip shows; anything in an
+ * element with no box, display: none) and the words that are read out only (sr-only, also behind a
+ * variant).
+ */
+const shownText = (target: Locator) =>
+  target.evaluate((el) => {
+    let text = "";
+    const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+      const parent = n.parentElement!;
+      if (parent.closest("svg title, svg desc") || !parent.checkVisibility()) continue;
+      if (getComputedStyle(parent).position === "absolute" && parent.getBoundingClientRect().width <= 1) continue;
+      text += n.textContent;
+    }
+    return text.replace(/\s+/g, " ").trim();
+  });
+
+test("the profile header on a phone: an off role says so in words, and from 375px the picture spans the name's and the roles' rows", async ({ page }) => {
+  test.skip(test.info().project.name !== "phone", "the phone header (375px)");
+  // Riot's icon host out of reach, as on a run without internet (and in CI until the images
+  // arrive): the off role's icon stays its built-in shape, which carries its name in an SVG <title>,
+  // so the words on screen are read past that name every time, not by chance. The shapes, and the
+  // rank crest's stand-in, are the size of Riot's images, so the header's measurements hold.
+  await page.route(/raw\.communitydragon\.org/, (route) => route.abort());
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.goto("/players");
+  await playerEntry(page, "Demo Top").click();
+  const header = page.getByTestId("profile-header");
+  await expect(header).toBeVisible();
+  // Not by colour alone: "Mid (off)" on screen, "Mid (off role)" read out; the icon's name is not on screen.
+  const off = header.getByTestId("additional-role").first();
+  await expect(off).toBeVisible();
+  await expect(off.locator("svg[data-role-icon] title"), "the off role's icon: the built-in shape, named in a <title>").toHaveCount(1);
+  expect(await shownText(off)).toMatch(/^\S+ \(off\)$/);
+  expect((await off.textContent())!.replace(/\s+/g, " ")).toMatch(/\(off role\)/);
+  // The picture spans two rows: the roles, rank and status beside it, under the name, not under
+  // the picture across the width. Demo Top's standard card (no tagline, no links): 142px.
+  const [picture, name, roles] = await Promise.all([header.locator("[data-avatar-frame]").first().boundingBox(), header.locator("h1").boundingBox(), off.locator("xpath=..").boundingBox()]);
+  expect(roles!.x, "the roles' line starts beside the picture").toBeGreaterThanOrEqual(picture!.x + picture!.width);
+  expect(roles!.y, "under the name").toBeGreaterThanOrEqual(name!.y + name!.height - 1);
+  expect((await header.boundingBox())!.height, "Demo Top's header at 375px").toBeLessThanOrEqual(148);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+});
+
+test("the editable profile header with larger text: the name takes the width under the picture instead of a letter a line", async ({ page }) => {
+  test.skip(test.info().project.name !== "phone", "a phone's browser text size, set over Chromium's DevTools protocol");
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto("/players");
+  await playerEntry(page, "Demo Top").click();
+  const header = page.getByTestId("profile-header");
+  await expect(header.getByTestId("customise-card")).toBeVisible();
+  // The browser's text size (24px, 150%), which rem media queries follow; an inline size on the
+  // root would not reach them.
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Page.setFontSizes", { fontSizes: { standard: 24 } });
+  await expect.poll(() => page.evaluate(() => matchMedia("(width < 17.5rem)").matches), "a window under 17.5rem at this text size").toBe(true);
+  const name = header.locator("h1");
+  await expect.poll(async () => (await name.boundingBox())!.width, "the name's width at 150% text").toBeGreaterThanOrEqual(120);
+  // Clear of Customise, which stays at the picture's row end.
+  const [n, chip] = [(await name.boundingBox())!, (await header.getByTestId("customise-card").boundingBox())!];
+  const overlap = Math.max(0, Math.min(n.x + n.width, chip.x + chip.width) - Math.max(n.x, chip.x)) * Math.max(0, Math.min(n.y + n.height, chip.y + chip.height) - Math.max(n.y, chip.y));
+  expect(overlap, "the name clear of Customise").toBe(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+  await cdp.send("Page.setFontSizes", { fontSizes: { standard: 16 } });
 });
 
 test("whole roles reorder: drag an Off Role above the Primary Role, and move it back with the keyboard", async ({ page }) => {

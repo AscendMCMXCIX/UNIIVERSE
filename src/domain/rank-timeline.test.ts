@@ -194,6 +194,26 @@ describe("ladderGrid", () => {
 
   it("names tiers alone sooner when asked, and shortens long names for a narrow chart", () => {
     expect(ladderGrid([1500, 2100], { maxDivisions: 4 }).map((g) => g.label)).toEqual(["Platinum", "Emerald"]);
-    expect(ladderGrid([1800, 2000], { short: true }).map((g) => g.label)).toEqual(["Plat II", "Plat I", "Emer IV"]);
+    expect(ladderGrid([1800, 2000], { short: true }).map((g) => g.label)).toEqual(["P2", "P1", "E4"]);
+    // One notation on a narrow chart: a tier's line by its first division's code, the apex "M"
+    // (never a bare letter, nor short words beside codes).
+    expect(ladderGrid([2000, 2900], { maxDivisions: 4, short: true }).map((g) => g.label)).toEqual(["E4", "D4", "M"]);
+    expect(ladderGrid([1300, 1900], { maxDivisions: 4, short: true }).map((g) => g.label)).toEqual(["P4"]);
+    expect(ladderGrid([2650, 2950], { short: true }).map((g) => g.label)).toEqual(["D1", "M"]);
+    // Four divisions are not too many: each by its code, then the apex.
+    expect(ladderGrid([2500, 2900], { maxDivisions: 4, short: true }).map((g) => g.label)).toEqual(["D3", "D2", "D1", "M"]);
+  });
+
+  it("puts each line where its label says, wide or narrow alike", () => {
+    // The same scores either way; only the words change (the narrow chart's lines do not move).
+    for (const range of [[2000, 2900], [1300, 1900], [2650, 2950], [800, 2900]] as Array<[number, number]>) {
+      expect(ladderGrid(range, { maxDivisions: 4, short: true }).map((g) => g.score)).toEqual(ladderGrid(range, { maxDivisions: 4 }).map((g) => g.score));
+    }
+    // A tier's line sits on its first division: Emerald IV is 2000, Diamond IV 2400, Master 2800.
+    expect(ladderGrid([2000, 2900], { maxDivisions: 4, short: true })).toEqual([
+      { score: 2000, label: "E4" },
+      { score: 2400, label: "D4" },
+      { score: 2800, label: "M" },
+    ]);
   });
 });
