@@ -130,6 +130,7 @@ function rosterDots(page: Page) {
     for (const meta of panel.querySelectorAll<HTMLElement>("[data-testid=roster-meta]")) {
       const who = meta.closest("[data-player-name]")?.getAttribute("data-player-name") ?? "a row";
       const edge = meta.getBoundingClientRect().left;
+      const clips = /clip|hidden/.test(getComputedStyle(meta).overflowX);
       const parts: DOMRect[] = [];
       const dots: { box: DOMRect; el: Element }[] = [];
       const walk = document.createTreeWalker(meta, NodeFilter.SHOW_TEXT);
@@ -154,6 +155,10 @@ function rosterDots(page: Page) {
       }
       for (const { box: d, el } of dots) {
         if (d.right <= edge + 0.5) {
+          if (!clips) {
+            problems.push(`${who}: a "·" drawn past its line's edge`);
+            continue;
+          }
           // Cut off: the rank (its crest, or the words) starts the line at its edge.
           cutOff++;
           const next = el.nextElementSibling?.getBoundingClientRect();
