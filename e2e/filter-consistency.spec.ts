@@ -90,10 +90,10 @@ test("opened from the pinned row on a tablet and a desktop, the sheet labels eve
   await page.goto("/players");
   const card = page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']");
   const profile = new URL((await card.getAttribute("href"))!, "http://x").pathname;
-  for (const [path, sheetId, more] of [
-    [profile, "filter-sheet", false],
-    [`${profile}/matches`, "filter-sheet", true],
-    ["/matches", "together-filters-sheet", false],
+  for (const [path, sheetId, more, picker] of [
+    [profile, "filter-sheet", false, false],
+    [`${profile}/matches`, "filter-sheet", true, false],
+    ["/matches", "together-filters-sheet", false, true],
   ] as const) {
     await page.goto(path);
     await page.waitForLoadState("networkidle");
@@ -119,6 +119,12 @@ test("opened from the pinned row on a tablet and a desktop, the sheet labels eve
     const labels = await sheet.locator("[data-filter-controls] [data-filter-label]").evaluateAll((els) => els.map((el) => ({ text: (el.textContent ?? "").trim(), w: el.getBoundingClientRect().width, h: el.getBoundingClientRect().height })));
     expect(labels.length, `${path}: labels`).toBeGreaterThan(0);
     for (const l of labels) expect(l.w > 1 && l.h > 1, `${path}: the label "${l.text}" shows`).toBe(true);
+    // Team Matches' Played with takes the sheet's width as its selects do (inline from md it keeps to its own).
+    if (picker) {
+      const button = (await sheet.getByTestId("together-with-button").boundingBox())!;
+      const select = (await sheet.getByTestId("together-queue").boundingBox())!;
+      expect(Math.abs(button.width - select.width), `${path}: Played with is as wide as Game mode`).toBeLessThanOrEqual(1);
+    }
     // One copy of each id on the page: the fields are in the sheet, not also in the row.
     const ids = await page.evaluate(() => [...document.querySelectorAll("[id]")].map((e) => e.id).filter((id, i, all) => all.indexOf(id) !== i));
     expect(ids, `${path}: ids found twice`).toEqual([]);

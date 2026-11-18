@@ -536,7 +536,7 @@ test("tablet and desktop: closed with Escape or Done, the sheet hands the focus 
   await expect(pageToolbar(page)).toHaveCount(0);
 });
 
-test("tablet and desktop: a sheet closed unchanged arms nothing: a later change in the page's own filters keeps the place", async ({ page }) => {
+test("tablet and desktop: a sheet closed after only a look moves nothing once the reader goes on: a later change in the page's own filters keeps the place", async ({ page }) => {
   test.skip(isPhone(page), "the pinned row is from md");
   await page.emulateMedia({ reducedMotion: "reduce" });
   const profile = await teammate(page);
@@ -544,9 +544,17 @@ test("tablet and desktop: a sheet closed unchanged arms nothing: a later change 
   await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
   await scrollTo(page, "end");
   await page.getByTestId("toolbar-filters").click();
-  await expect(page.getByTestId("filter-sheet")).toBeVisible();
+  const sheet = page.getByTestId("filter-sheet");
+  await expect(sheet).toBeVisible();
+  // A look only: More filters opened, nothing chosen, and closed.
+  await sheet.getByTestId("refine-more").click();
+  await expect(sheet.getByTestId("refine-more")).toHaveAttribute("aria-expanded", "true");
   await page.keyboard.press("Escape");
-  await expect(page.getByTestId("filter-sheet")).toHaveCount(0);
+  await expect(sheet).toHaveCount(0);
+  // The reader goes back up with the wheel (scrolling by script sends no input of the reader's).
+  await page.mouse.move(width(page) / 2, 300);
+  await page.mouse.wheel(0, -100_000);
+  await expect.poll(() => page.evaluate(() => window.scrollY), { message: "the wheel took the page up" }).toBeLessThan(400);
   await scrollTo(page, 0);
   // The page's own Game mode, at the top: the new list arrives and the page stays at its top.
   await page.locator("#overview-mode").selectOption("solo");
@@ -659,6 +667,62 @@ test("desktop: Team Matches' Bookmarked from the pinned row replaces the entry, 
   const at = await page.evaluate(() => ({ y: window.scrollY, end: document.documentElement.scrollHeight - window.innerHeight }));
   expect(at.end, "the shorter page still scrolls").toBeGreaterThan(0);
   expect(at.y, "the page kept its place").toBeGreaterThanOrEqual(at.end - 1);
+});
+
+test("desktop: after a look in the sheet (Team Matches' Played with opened and closed, then Done), Bookmarked from the pinned row still keeps the place", async ({ page }) => {
+  test.skip(width(page) < 1024, "one desktop window");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  // As in the test above, at 175% text, and a window short enough (still tall enough to pin) for the
+  // page with only the bookmarked games listed (none in the demo) to end well below where the list's
+  // start would land: a landing reads less than the page's end.
+  await page.setViewportSize({ width: 1440, height: 500 });
+  await page.goto("/matches");
+  await expect(page.getByTestId("played-together")).toBeVisible();
+  await page.addStyleTag({ content: "html { font-size: 175% !important; }" });
+  await page.waitForLoadState("networkidle");
+  await scrollTo(page, "end");
+  await page.getByTestId("toolbar-filters").click();
+  const sheet = page.getByTestId("together-filters-sheet");
+  await expect(sheet).toBeVisible();
+  const picker = sheet.getByTestId("together-with-button");
+  await picker.click();
+  await expect(picker).toHaveAttribute("aria-expanded", "true");
+  await picker.click();
+  await expect(picker).toHaveAttribute("aria-expanded", "false");
+  await sheet.getByRole("button", { name: "Done" }).click();
+  await expect(sheet).toHaveCount(0);
+  // The press on Bookmarked is the reader moving on: its change keeps the place, not the list's start.
+  await page.getByTestId("toolbar-together-saved").click();
+  await expect(page).toHaveURL(/saved=1/);
+  await expect(page.getByTestId("together-saved")).toHaveAttribute("aria-current", "page");
+  await page.waitForTimeout(500);
+  const at = await page.evaluate(() => ({ y: window.scrollY, end: document.documentElement.scrollHeight - window.innerHeight }));
+  expect(at.end, "the shorter page still scrolls").toBeGreaterThan(0);
+  expect(at.y, "the page kept its place").toBeGreaterThanOrEqual(at.end - 1);
+});
+
+test("desktop: the compact search's Clear lets its copy go once the page's own search is back in view, and leaves no focus in the row", async ({ page }) => {
+  test.skip(width(page) < 1024, "one desktop window");
+  await page.setViewportSize({ width: 1440, height: 560 });
+  await page.goto("/players");
+  await expect(page.locator("main h1, main h2").first()).toBeVisible();
+  // A larger text size, so the demo's short list scrolls its toolbar away under the tabs.
+  await page.addStyleTag({ content: "html { font-size: 175% !important; }" });
+  await page.waitForLoadState("networkidle");
+  await scrollTo(page, "end");
+  const field = page.getByTestId("toolbar-players-search");
+  await expect(field).toBeVisible();
+  // Narrowed to a few players, the page is short again and its own search back in view: the copy
+  // stays while it has the focus.
+  await field.fill("mid");
+  await expect.poll(async () => (await rect(page.getByTestId("players-search"))).top - (await rect(page.getByTestId("team-tabs"))).bottom, { message: "the page's own search back in view, under the tabs" }).toBeGreaterThanOrEqual(0);
+  await expect(field).toBeVisible();
+  await expect(field).toBeFocused();
+  // Its Clear goes as it clears (the field is empty), taking the focus with it: the copy goes too.
+  await pageToolbar(page).getByRole("button", { name: "Clear search" }).click();
+  await expect(page.getByTestId("players-search")).toHaveValue("");
+  await expect(pageToolbar(page)).toHaveCount(0);
+  expect(await page.evaluate(() => !!document.activeElement?.closest("[data-page-toolbar-slot]")), "no focus left in the row").toBe(false);
 });
 
 test("tablet and desktop: Records → Recent form from the pinned row", async ({ page }) => {

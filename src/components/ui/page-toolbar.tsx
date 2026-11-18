@@ -140,12 +140,13 @@ export function useScrolledAway(target: HTMLElement | React.RefObject<HTMLElemen
  * view, the page shortened by a filter): from a press or the focus on it (`grab`), while the sheet it
  * opened is open (`sheetOpen`), and until that sheet has handed the focus back as it closes (it does
  * on the next frame). Let go when the focus moves on to the page (`onBlur`; a move into the sheet it
- * opened does not count), or, once it is not wanted, when the focus is not in it two frames later (a
- * focused button removed by its own press, as a search's Clear, sends no blur). `el`: the control or
- * its group.
+ * opened does not count), or, once it is not wanted, when the focus is not in it two frames after
+ * any render (a focused button removed by its own press, as a search's Clear, sends no blur, and
+ * changes nothing this hook watches: the page's render after it does). `el`: the control or its group.
  */
 export function useHeld(el: React.RefObject<HTMLElement | null>, wanted: boolean, sheetOpen: boolean) {
   const [held, setHeld] = React.useState(false);
+  // After every render, not only when these change: see above.
   React.useEffect(() => {
     if (!held || wanted || sheetOpen) return;
     let second = 0;
@@ -158,7 +159,7 @@ export function useHeld(el: React.RefObject<HTMLElement | null>, wanted: boolean
       cancelAnimationFrame(first);
       cancelAnimationFrame(second);
     };
-  }, [held, wanted, sheetOpen, el]);
+  });
   const grab = React.useCallback(() => setHeld(true), []);
   const onBlur = React.useCallback(
     (e: React.FocusEvent) => {

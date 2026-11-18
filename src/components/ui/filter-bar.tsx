@@ -28,7 +28,8 @@ import { landTarget, publishPageFilters } from "./page-toolbar";
       (one bar a page). Opened that way it is the sheet at every width, its fields in their sheet
       form (labels shown, the whole width, a page's Refine fields in place: useInFilterSheet), while
       the inline row keeps its size in the page; closed after a change, the list's start comes into
-      view under what is pinned (the page's PageToolbar names it; else the bar itself).
+      view under what is pinned (the page's PageToolbar names it; else the bar itself), unless the
+      reader has moved on first (scrolled, pressed, typed, stepped Back or Forward).
   Pages decide which filters they need; the bar decides how they look and behave.
 */
 
@@ -70,6 +71,9 @@ export function useInFilterSheet(): boolean {
 export function InFilterSheet({ children }: { children: (inSheet: boolean) => React.ReactNode }) {
   return <>{children(useInFilterSheet())}</>;
 }
+
+/** What the reader does next that ends the wait for a change to land (as profile-tabs.tsx's), and a step Back or Forward. */
+const READER_INPUT = ["wheel", "touchstart", "pointerdown", "keydown", "popstate"] as const;
 
 /** How long after the sheet closes a change still brings the list's start into view (a slow page). */
 const LAND_WITHIN_MS = 8_000;
@@ -183,16 +187,23 @@ export function FilterBar({
     const root = rootRef.current;
     return () => publishPageFilters(null, root);
   }, []);
-  // The list's start under what is pinned, once the change has arrived; disarmed when the time is up,
-  // so a later change, made any other way, keeps the place as every change does.
+  // The list's start under what is pinned, once the change has arrived. Until then it is disarmed when
+  // the time is up, or by the reader's next scroll, press or key, or a step Back or Forward (a change
+  // made any other way starts with one of these; captured, so no handler can hide it), so a later
+  // change keeps the place as every change does. Done's and Escape's own events come before the close.
   React.useEffect(() => {
-    if (landBy === null || open || pending) return;
+    if (landBy === null || open) return;
     const was = atOpen.current;
     const changed = was.summary !== summary || was.activeCount !== activeCount;
     const left = landBy - Date.now();
-    if (!changed || left < 0) {
-      const t = window.setTimeout(() => setLandBy(null), Math.max(0, left));
-      return () => window.clearTimeout(t);
+    if (pending || !changed || left < 0) {
+      const disarm = () => setLandBy(null);
+      const t = window.setTimeout(disarm, Math.max(0, left));
+      for (const type of READER_INPUT) window.addEventListener(type, disarm, { capture: true, passive: true });
+      return () => {
+        window.clearTimeout(t);
+        for (const type of READER_INPUT) window.removeEventListener(type, disarm, { capture: true });
+      };
     }
     setLandBy(null);
     land(landTarget() ?? rootRef.current);
