@@ -160,6 +160,96 @@ Substitute side of the Team cards).
   take as much room as the tallest among everyone the lineup can show, and a shorter name sits at
   the top of that room, as approved.
 
+## The Library and Settings
+
+**The Library** (Resources' first tab, `resources/resources-view.tsx`; 18 Nov 2026). A search, the
+index (All, ★ Favourites and each section with its count, the counts following the search: one
+choice that filters the list, `segmentClass` buttons in a radio group) and the live count at the
+index's end, then the sites grouped by section, an `h2` each:
+
+| Width | Layout |
+| --- | --- |
+| phone (< 640px) | a full-width search; the index under it, scrolling sideways (`ScrollRow`); the live count left to screen readers (each segment says it); one panel, a heading per section, hairlines between the rows |
+| a phone held sideways (from `sm` in a window 480px tall or less) | the search and the index share a row; a panel per section, two columns |
+| tablet (640–1023px) | the search on its own row, the index under it with the live count at its end; a panel per section packed into two columns (`columns-2`, each panel kept whole) |
+| from `lg` | one row: the search, the index, the count at its end; two columns, three from `xl` |
+
+The plan said two columns from `md`; they start at `sm` so a phone held sideways (an iPhone 15 in
+Safari is 734px wide) gets them too, which its 2.4-screen target needs. A row is its site's icon,
+the title (it wraps, never cut), the host beside it (cut first, then ↗) and at most two lines of
+description (its whole text read out, and shown on hover); the star at its end keeps a favourite in
+this browser. The ★ segment is in the server's page with an empty slot of its count's width (two
+digits; at most 50 favourites), which fills once the page has read this browser, so nothing moves.
+
+**Settings** (`settings/account-settings.tsx`, the same page in both modes; 18 Nov 2026), 64rem wide
+(`max-w-5xl`):
+
+| Width | Layout |
+| --- | --- |
+| phone (< 640px) | the title, then the compact account card: the 56px picture beside the name, @username and a neutral role badge; Change and Remove; what the picture is for; a row of quiet links (My Profile, Riot Accounts, the mode switch, Sign out); the index as chips (Name · Links · Password, jumps within the page). Every section stacked; each field with its Save on one row, 44px; the password form behind Change password |
+| a window 480px tall or less, any width | the compact card, its quiet links right under who you are, so Sign out stays on the first screen of a phone held sideways; the password form behind Change password |
+| from `sm` | two columns: the card (15rem, 16rem from `lg`) beside the sections, the title over the sections |
+| from `md` in a window taller than 480px | the card's full look: the 80px picture with Change and Remove beside it, who you are, the help, the index down the card (the section being read marked, `aria-current="location"`), My Profile, Riot Accounts, the mode switch and Sign out as rows; sticky under the tablet's bar (`--bar-top` plus 1rem); the password form open |
+| from `xl` | Name & username side by side, each with its Save |
+
+The card is one grid whose parts each look places itself (`CARD_CELLS`); its DOM order is the
+desktop's. Sign out is on the first screen at every size measured (below).
+
+**Measured** on 18 Nov 2026 (the demo build, in-memory; page height in screens, base `8ef5a612` →
+this change, the plan's target in brackets; the owner in Player Mode, Admin Mode's Settings the
+same; a member with a player profile, so Social links too; Playwright's device sizes, the screen's
+own in the label):
+
+| Size | Library (target) | Settings, owner (target) | Settings, member | Sign out on the first screen (owner) |
+| --- | --- | --- | --- | --- |
+| iPhone 15 (Safari, 393 × 659) | 2.62 → 1.95 (2.0) | 2.29 → 1.59 (1.6) | 3.13 → 2.50 (2.3) | no → yes |
+| iPhone SE 1st gen (320 × 568) | 3.52 → 2.46 (2.5) | 2.89 → 2.00 (2.0) | 3.93 → 3.19 | no → yes |
+| iPhone 15 installed (393 × 852, safe areas 59 / 34) | 2.13 → 1.62 (1.7) | 1.88 → 1.34 | 2.53 → 2.04 | no → yes |
+| iPhone 15 sideways (734 × 343) | 4.24 → 2.40 (2.4) | 3.37 → 2.18 (2.5) | 4.81 → 3.81 | no → yes |
+| Pixel 7 sideways (863 × 360) | 4.05 → 2.17 (2.3) | 3.13 → 1.91 (2.4) | 4.49 → 3.46 | no → yes |
+| iPad (810 × 1080) | 1.35 → 1.00 (1.0) | 1.04 → 1.00 (1.0) | 1.50 → 1.39 | yes → yes |
+| 1440 × 900 | 1.10 → 1.00 (1.0) | 1.16 → 1.00 (1.0) | 1.63 → 1.32 | no → yes |
+
+The Library's "before" includes #292's Library and Matchup Intel tabs (about 60px on a phone),
+which the plan's figures predate. A member's Sign out is on the first screen at every size too. A
+member on an iPhone 15 stays above the plan's 2.3 (2.50): Social links' three fields, each a line
+for its name and Show publicly and one for the field, are the rest, and they are shared with the
+Player Card Studio and the first sign-in (`SocialLinksFields`, pinned by `e2e/social-links.spec.ts`).
+
+## Admin Mode at a larger text size
+
+Every Admin Mode page is as wide as the phone at 150% and 200% text on 320, 375 and 393px phones (18
+Nov 2026; before, the dashboard was 404–440px wide at 200%, Branding 430, Users & Permissions 457,
+Previews 367, Platform Settings → Resources 525 at 200% and 394 already at 150% on 375 and 393px,
+Data & Integrations 357 and System Health 387). Nothing new, only the means #300 used elsewhere:
+
+- buttons whose label wraps on a phone (`Button`'s `wrap`): Branding's Reset colours, Save and
+  Cancel; a member's Manage access, Reset password, Deactivate, Delete and Erase personal data;
+  Show archived; the erasure records' Export, Import and Re-apply; Check key now and Retry pending
+  Riot accounts; Save intervals; Seed demo roster;
+- rows that wrap: Branding's save bar, Previews' page and screen-size switches, the Library
+  manager's five buttons;
+- grid columns that may shrink below their longest word (`grid-cols-1` where a phone had the
+  implicit column, `min-w-0`), and a word longer than its line broken inside it
+  (`[overflow-wrap:anywhere]`): the access levels' cards, the Riot API's facts, the datasets, the
+  Data jobs' cards, the environment's names, a Riot ID, the privacy page's notes;
+- where one of those would also move something at the usual text size, a container query in rem
+  waits until its container is that narrow, which on a phone only a larger text size makes it (the
+  usual size gives 18rem and more): the dashboard's account tiles stack, a long word broken, under
+  16rem; the health cards (`StatusCards`, on the dashboard, Data & Integrations and System Health)
+  break a long word under 17rem; Branding's colour rows give the name a line of its own and the hex
+  field the rest of the next under 14rem; a member's name and role go under the picture under
+  14rem; Users & Permissions' tab labels wrap under 13.5rem (`people-tabs.tsx`, so the shared
+  `SubTabs` is untouched).
+
+At the usual text size nothing moves: compared with the base build at 320, 375, 393, 768 and
+1440px (the box of every heading, button, link, field, list item, paragraph, label and live region
+on the ten Admin Mode pages), 49 of the 50 are identical; the fiftieth, System Health at 320px, is
+its job list, which differs between any two servers with the demo's background runs (two servers of
+the base differed by 450px). `e2e/phone-wraps.spec.ts` checks every Admin Mode page at 200% and 150%
+on a 320px phone, and `e2e/account-screen.spec.ts` now opens the account screen over the dashboard
+at 200% on a 320px phone as well.
+
 ## Shell
 
 - `src/components/app-shell.tsx`: sidebar from `lg`; `MobileNav` below.
@@ -248,7 +338,14 @@ MATCHUP_INTEL.md, "What the browser tests pin"). A demo server started by hand f
 (`E2E_PORT`) needs the same environment, `DDRAGON_VERSION=16.22.1` included: outside CI
 Playwright uses a server already on the port as it is. It checks: no horizontal overflow on every page, navigation (tab bar, drawer, sidebar), 44px targets
 and 16px inputs on phones, and the champion picker on the player profile.
-`e2e/navigation-reach.spec.ts` keeps where you are in reach: on a phone a profile section chosen
+`e2e/responsive.spec.ts` also checks Settings at the three widths: the account card leads (above
+the sections on a phone, a sticky column beside them wider), Sign out on the first screen, the
+display name and its Save on one row (44px on touch screens), the index's jumps, the phone's folded
+password form (Change password opens it with the focus in its first field; Cancel folds it), and on
+a desktop Name & username side by side and the index marking the section being read.
+`e2e/resources.spec.ts` checks the Library's index (a section by tapping, the counts following the
+search), its layout at each width and the ★ segment (in the server's page with an empty slot; its
+count fills without moving the list). `e2e/navigation-reach.spec.ts` keeps where you are in reach: on a phone a profile section chosen
 far down the page starts at its top once its content has arrived (tapped in place, without
 Playwright's own scroll into view); on tablets and desktops the Team and profile tabs stay pinned
 as a long page scrolls, All Champions' column headings pin under them, and nothing is pinned in a
