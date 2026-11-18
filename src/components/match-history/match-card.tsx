@@ -43,6 +43,8 @@ const LINE_BELOW = {
   sm: { wrap: "max-sm:flex-row max-sm:flex-wrap max-sm:items-baseline max-sm:gap-x-2" },
   md: { wrap: "max-md:flex-row max-md:flex-wrap max-md:items-baseline max-md:gap-x-2" },
   lg: { wrap: "max-lg:flex-row max-lg:flex-wrap max-lg:items-baseline max-lg:gap-x-2" },
+  // Team Matches: by the width of its list (@container/tm), not the window's, as its cards' columns are.
+  teamMatches: { wrap: "@max-[58rem]/tm:flex-row @max-[58rem]/tm:flex-wrap @max-[58rem]/tm:items-baseline @max-[58rem]/tm:gap-x-2" },
 } as const;
 
 /**

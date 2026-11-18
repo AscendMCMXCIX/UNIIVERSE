@@ -186,6 +186,94 @@ test("a Team Matches card opens its game under it, as Match History does; names 
   await expect(page).toHaveURL(/\/players\/[0-9a-f-]+$/);
 });
 
+test("wide cards follow their list's width, not the window's: four columns exactly from a 58rem list, every name keeps its room and no member runs into the teams", async ({ page, context, baseURL }, info) => {
+  test.skip(info.project.name !== "desktop", "desktop windows, with the sidebar open and folded");
+  // Four columns (the result, the members, both teams, the bookmark) once the list is 58rem wide,
+  // whatever the window: the sidebar beside it takes 4.5 or 16rem. Sized by the window (lg), they
+  // came at 1024px beside the open sidebar too, where the members' column was too narrow for a
+  // name and each member's figures ran into the teams. These windows put the list on both sides of
+  // 58rem, with the sidebar open and folded (at 1080, 47.5rem open and 59rem folded), and none
+  // within a pixel of it (1248 open, 1064 folded).
+  for (const sidebar of ["expanded", "collapsed"] as const) {
+    await context.addCookies([{ name: "uniiverse_sidebar", value: sidebar, url: baseURL! }]);
+    for (const viewport of [{ width: 1024, height: 768 }, { width: 1080, height: 810 }, { width: 1133, height: 744 }, { width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
+      const where = `${viewport.width} × ${viewport.height}, the sidebar ${sidebar}`;
+      await page.setViewportSize(viewport);
+      await page.goto("/matches");
+      await expect(page.getByTestId("together-card").first()).toBeVisible();
+      await page.evaluate(() => document.fonts.ready);
+      const facts = await page.evaluate(() => {
+        const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+        const listRem = document.querySelector("[data-testid=together-list]")!.getBoundingClientRect().width / rem;
+        const cards = [...document.querySelectorAll("[data-testid=together-card]")];
+        let wide = 0;
+        const squeezed: string[] = [];
+        let intoTeams = 0;
+        for (const card of cards) {
+          const grid = card.querySelector(":scope > div.grid");
+          const columns = grid ? getComputedStyle(grid).gridTemplateColumns.split(" ").length : 0;
+          if (columns >= 4) wide++;
+          const teams = card.querySelector("[data-testid=match-teams]")?.parentElement;
+          const teamsLeft = teams && columns >= 4 ? teams.getBoundingClientRect().left : Infinity;
+          for (const member of card.querySelectorAll("[data-testid=together-member]")) {
+            const name = member.querySelector<HTMLElement>("a[href^='/players/']");
+            // A name is whole, or cut with at least 4rem of it shown.
+            if (name && name.scrollWidth > name.clientWidth + 1 && name.getBoundingClientRect().width < 4 * rem) squeezed.push(name.textContent ?? "");
+            let right = 0;
+            for (const part of member.querySelectorAll("*")) {
+              const box = part.getBoundingClientRect();
+              if (box.width) right = Math.max(right, box.right);
+            }
+            if (right > teamsLeft) intoTeams++;
+          }
+        }
+        return { cards: cards.length, wide, squeezed, intoTeams, listRem };
+      });
+      expect(facts.cards, `${where}: cards to measure`).toBeGreaterThan(0);
+      expect(facts.wide, `${where}: four columns exactly when the list is 58rem or wider (it is ${facts.listRem.toFixed(1)}rem)`).toBe(facts.listRem >= 58 ? facts.cards : 0);
+      expect(facts.squeezed, `${where}: every name whole or at least 4rem of it shown`).toEqual([]);
+      expect(facts.intoTeams, `${where}: no member's row runs into the teams`).toBe(0);
+    }
+  }
+});
+
+test.describe("on a touch screen", () => {
+  test.use({ hasTouch: true });
+  test("four-column cards give the result its whole column: the room kept clear of the corner bookmark goes with the corner", async ({ page, context, baseURL }, info) => {
+    test.skip(info.project.name !== "desktop", "a large tablet held sideways, with the sidebar open");
+    // On a touch screen the corner bookmark is larger, so stacked cards keep 3rem clear of it. On
+    // four columns the bookmark has a column of its own; keeping the 3rem there cut "Ranked Solo/Duo"
+    // to "Ranked Solo/D…" in the 9rem result column.
+    await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: baseURL! }]);
+    await page.setViewportSize({ width: 1366, height: 1024 });
+    await page.goto("/matches");
+    await expect(page.getByTestId("together-card").first()).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    const facts = await page.evaluate(() => {
+      const cards = [...document.querySelectorAll("[data-testid=together-card]")];
+      let wide = 0;
+      const cut: string[] = [];
+      const queues = new Set<string>();
+      for (const card of cards) {
+        const grid = card.querySelector(":scope > div.grid");
+        if (grid && getComputedStyle(grid).gridTemplateColumns.split(" ").length >= 4) wide++;
+        const result = grid?.firstElementChild;
+        if (!result) continue;
+        // The queue and the date: each one line, cut with an ellipsis when it does not fit.
+        for (const line of result.querySelectorAll<HTMLElement>("span.truncate")) {
+          queues.add(line.textContent ?? "");
+          if (line.scrollWidth > line.clientWidth + 0.5) cut.push(line.textContent ?? "");
+        }
+      }
+      return { coarse: matchMedia("(pointer: coarse)").matches, cards: cards.length, wide, cut, solo: queues.has("Ranked Solo/Duo") };
+    });
+    expect(facts.coarse, "a touch screen").toBe(true);
+    expect(facts.wide, "four columns beside the open sidebar (a 65.4rem list)").toBe(facts.cards);
+    expect(facts.solo, "the demo's Team Matches include a Ranked Solo/Duo game, the longest queue name").toBe(true);
+    expect(facts.cut, "every queue name and date whole").toEqual([]);
+  });
+});
+
 test("old addresses for Season 2025 or all seasons open the current season", async ({ page, request }) => {
   const season = await demoSeasonLabel(request);
   for (const q of ["season=15", "season=2025", "season=all"]) {

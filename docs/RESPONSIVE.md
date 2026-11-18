@@ -306,6 +306,7 @@ the responsive pass report.
 and fails on any horizontal overflow or a missing heading; admin pages at five widths. The
 same file runs axe (WCAG 2.1 A/AA) on every page and fails on critical or serious violations.
 Panel layouts that live in variable-width columns use container queries (`@container`, `@xl:`) rather than viewport breakpoints.
+For example, Team Matches' cards take their four columns from their list's width (`@container/tm`, from 58rem), because the sidebar beside the list takes 4.5 or 16rem of the same window (`e2e/played-together.spec.ts`).
 
 ## Device matrix
 
