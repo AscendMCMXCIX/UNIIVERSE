@@ -120,10 +120,12 @@ test("opened from the pinned row on a tablet and a desktop, the sheet labels eve
     expect(labels.length, `${path}: labels`).toBeGreaterThan(0);
     for (const l of labels) expect(l.w > 1 && l.h > 1, `${path}: the label "${l.text}" shows`).toBe(true);
     // Team Matches' Played with takes the sheet's width as its selects do (inline from md it keeps to its own).
+    // Measured once the sheet has finished opening (it scales in from 0.97 over 180ms) and in one frame:
+    // read in two calls during that animation, the two boxes came out 2px apart on CI.
     if (picker) {
-      const button = (await sheet.getByTestId("together-with-button").boundingBox())!;
-      const select = (await sheet.getByTestId("together-queue").boundingBox())!;
-      expect(Math.abs(button.width - select.width), `${path}: Played with is as wide as Game mode`).toBeLessThanOrEqual(1);
+      await expect(async () => expect(await sheet.evaluate((d) => d.getAnimations().length)).toBe(0)).toPass();
+      const widths = await sheet.evaluate((d) => ({ button: d.querySelector("[data-testid=together-with-button]")!.getBoundingClientRect().width, select: d.querySelector("[data-testid=together-queue]")!.getBoundingClientRect().width }));
+      expect(Math.abs(widths.button - widths.select), `${path}: Played with is as wide as Game mode`).toBeLessThanOrEqual(1);
     }
     // One copy of each id on the page: the fields are in the sheet, not also in the row.
     const ids = await page.evaluate(() => [...document.querySelectorAll("[id]")].map((e) => e.id).filter((id, i, all) => all.indexOf(id) !== i));
