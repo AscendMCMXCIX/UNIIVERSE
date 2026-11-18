@@ -144,8 +144,10 @@ panels, with a border and `shadow-2xl`. No blur filters on content.
 **Density by context.** One system, not one look: the profile Overview is a compact dashboard
 (several related cards on the first screen, the figures in a clear order of importance, no card
 kept at a size its content does not fill); All Champions is a dense analytical table; Match
-History is detailed and scannable; banners are expressive; Settings and forms are plain and
-roomy. Empty or thin data shrinks a card rather than leaving a frame to fill.
+History is detailed and scannable, its cards dense by the owner's decision D8 (about 118px on a
+phone, two rows on a tablet, one row from a 50rem list: DESIGN_SYSTEM.md §1); banners are
+expressive; Settings and forms are plain and roomy. Empty or thin data shrinks a card rather than
+leaving a frame to fill.
 
 **Page layout.** One frame for every page, so pages differ by their content, not their scaffolding:
 - **Width:** `--content-max` for profiles, lists of cards, documents and forms; `--content-wide` for
@@ -161,7 +163,10 @@ roomy. Empty or thin data shrinks a card rather than leaving a frame to fill.
     are the only exceptions.
 - **Toolbars:** the filters first, then the page's own actions at the end (Refine, Refresh,
   Bookmarked), never on a row of their own. A page's toolbar sits under its scope line; a profile
-  section's moves beside its title from `xl` (`SectionHeader`).
+  section's moves beside its title from `xl` (`SectionHeader`). Match History's (Games and
+  Encounters) shares its views' row at every width where it fits (`toolbarBesideNav`, owner decision
+  D8): on a phone the views, Filters and Refresh are one row, and a narrowed filter's chips take the
+  next.
 - **Density, by what the page is for:**
   - an analytical table has 2rem portraits and rows of about 48px wherever it is a table. Its
     figure columns are as wide as their heading needs and a little more (at least room for the sort
@@ -224,7 +229,8 @@ Use the shared component before writing a new one (`src/components/ui`):
 | Saving | `SaveStatusIndicator`, `toast` |
 | Images from Riot or another host | `RemoteImage`, `useImageFailure`, `ChampionPortrait`, `Avatar` |
 | A time ago that stays current | `RelativeTime`, `useNow` |
-| How current a page's Riot data is, and Refresh | `DataStatusNote` beside the scope line, `RefreshButton` at the toolbar's end (`usePlayerRefresh` in `refresh-store.ts` behind every Refresh of a player, `usePlayerRefreshState` for what only shows it) |
+| How current a page's Riot data is, and Refresh | `DataStatusNote` beside the scope line, `RefreshButton` at the toolbar's end (`usePlayerRefresh` in `refresh-store.ts` behind every Refresh of a player, `usePlayerRefreshState` for what only shows it); `compact` where it shares a phone's row with a section's views (Match History: its icon alone below `sm`, a 44px square, its name kept for screen readers) |
+| A line of figures over a list (Match History's summary of its newest games) | `StatStrip`, `StatLine` and `StatTile` (`ui/stat-strip.tsx`): by the strip's own width, its lines one under the other on a phone (a figure's value and label on one baseline), one flowing line from 36rem, one row of tiles (the value over an 11px caption, hairlines between) from 60rem, and with `wideLine` one text line from 78rem where the figures fit |
 | A section of Riot data's heading: title, scope line and status, a toolbar of filters ending in Refresh | `SectionHeader` |
 | A button in a toolbar beside the filters (Refine, Refresh) | `toolbarButtonClass` (`filter-bar.tsx`) |
 | A player's identity on a card (picture and links, name, rank and labels, tagline) | `CardIdentity` (`players/player-card.tsx`) inside a `@container/card` |

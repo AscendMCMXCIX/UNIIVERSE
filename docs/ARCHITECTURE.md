@@ -444,6 +444,25 @@ request is a game's match timeline, once per game, when a section that needs it 
   the figures, as on narrow cards. Before, the KDA and figure tracks had fixed minimums narrower
   than their text: at 1280–1440px with the sidebar open "(241)" and "(31%)" ran up to 14px under the
   build (in production the item icons covered them), and on 800–960px lists under the teams.
+- **Denser cards** (18 Nov 2026, the owner's decision D8 of 8 Nov; `match-history-view.tsx`'s
+  `CARD_GRID` and `PHONE_*` placements, docs/DESIGN_SYSTEM.md §1): under a 36rem list a phone's card
+  of about 118px (131–147px before): the result line across the card ("Victory · Solo/Duo · 40h
+  ago", the queue without "Ranked" on every card under 50rem) with a ranked game's LP at its end; the
+  portrait and the K/D/A beside the champion and role, with the build under the name from a
+  21.375rem list (one line of seven 20px items: the widest K/D/A, capped at 5.75rem with its ratio
+  wrapping under it, still fits beside them; `IconImg` reads `--icon-size`, which only that line
+  sets); from 16 to 21.375rem kill participation takes the build's place and the build closes the
+  card, so CS and damage keep one line (about 139px on a 320px phone, 155–170px before); under 16rem
+  (a large text size) two columns, the K/D/A on a line under the champion and the build in two rows,
+  so nothing is cut or wider than the card at 200% text. From 36 to 50rem a two-row card (about
+  120px; about 150px stacked in three before): the portrait, the result line over the champion and role,
+  the K/D/A, the figures and the build (two rows of items) in one row, both teams across the next,
+  with the wide card's floors (6.25em, 8.125rem) so the columns stay level. The header puts
+  Filters and Refresh on the views' row (`SectionHeader toolbarBesideNav`; a phone's views without
+  their icons, Refresh `compact`), the scope line under it with the data status in its text, and the
+  summary is `StatStrip`: three lines on a phone (four with the ladder change), one flowing line
+  from 36rem, one row of tiles from 60rem and one text line from 78rem without a trend. The page
+  heights at each size are in docs/MOBILE.md, section 3.
 - **Builds on cards** (`icon-img.tsx`): an item, spell or rune whose image fails (Data Dragon
   down, a blocked host, the installed app offline) shows its initials on a tile, named in its
   title and for screen readers; an empty slot stays a plain tile. A stored record without items
@@ -453,7 +472,8 @@ request is a game's match timeline, once per game, when a section that needs it 
   scoreboard keeps its quiet empty slots, so its columns stay in line.
 - **Pager**: ten games a page (`PER_PAGE_DEFAULT`; a window with room for more than ten whole
   cards below the list's top, a portrait monitor, gets as many as fit, up to 25, counted at the
-  first card's height as drawn: about 100px in one row, 150–165px stacked). Its buttons are
+  first card's height as drawn: about 100px in one row, about 120px in two since 18 Nov 2026,
+  150–165px when they stacked in three). Its buttons are
   44px on touch screens (`pointer-coarse:`), 32px with a mouse from md. A phone too narrow for
   every button on one line (a middle page of a long history: seven buttons and two "…" need
   23.4rem) leaves the pages either side of the current one to the arrows, which go to the same
@@ -481,8 +501,9 @@ request is a game's match timeline, once per game, when a section that needs it 
   accounts) the profile card is one compact band (`ProfileHeader`'s `basePath`: name, role, rank
   and Customise, about 65px instead of about 250px on a 390px phone); the Overview keeps the full card. A
   narrow card's meta line keeps the time of its game in view ("Ranked" dropped from the queue on
-  cards under 36rem; since 8 Nov 2026 it wraps between its parts rather than cut the time off on a
-  320px phone), and its team members fold to the first name and "+N". On a phone a scoreboard
+  cards under 36rem, under 50rem since 18 Nov 2026; since 8 Nov 2026 it wraps between its parts
+  rather than cut the time off on a 320px phone), and its team members fold to the first name and
+  "+N". On a phone a scoreboard
   row is three lines (the items share the damage's line). An open game ends with "Close this
   game", which closes it, brings its card back into view and puts the focus on it. On a phone,
   Refine shows Result and keeps the other fields behind "More filters" (open when one is in use).
