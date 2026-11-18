@@ -613,7 +613,7 @@ test("Team → Matches opens a game as a whole screen too, and its cards keep to
 });
 
 test("a page's views share one track on the narrowest phones, each named in full", async ({ page }) => {
-  // Match History's Games and Encounters: since #72 the only views in Player Mode (Leaderboards is one page).
+  // Match History's Games and Encounters: since 19 Nov 2026 the only views in Player Mode (Leaderboards is one page).
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-MID").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}/matches`);

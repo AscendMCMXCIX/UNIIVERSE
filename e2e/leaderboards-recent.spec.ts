@@ -2,7 +2,7 @@ import { AxeBuilder } from "@axe-core/playwright";
 import { expect, test, type Page } from "./test";
 
 /*
-  Team Leaderboards (docs/LEADERBOARDS_MODEL.md, docs/TEAM_LEADERBOARDS.md), one page since #72:
+  Team Leaderboards (docs/LEADERBOARDS_MODEL.md, docs/TEAM_LEADERBOARDS.md), one page since 19 Nov 2026:
   Recent form leads (each member's latest 20 Summoner's Rift games, ranked by win rate), the
   season's records and achievements follow (season records, multikills, milestones), with no views
   to switch between. The demo viewer is the Owner, an administrator without a player profile. The
@@ -514,10 +514,10 @@ const boards = (page: Page) =>
     };
     const bottoms = (id: string) => [...document.querySelectorAll(`[data-testid=${id}]`)].map((e) => e.getBoundingClientRect().bottom + scrollY);
     const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
-    return { rem, page: document.querySelector("[data-testid=leaderboards]")!.clientWidth / rem, form: box("form-board"), records: box("records-book"), multikills: box("records-multikills"), milestones: box("records-milestones"), formRows: bottoms("form-row"), recordRows: bottoms("season-record"), multikillRows: bottoms("multikill-row"), height: document.documentElement.scrollHeight, window: innerHeight };
+    return { rem, page: document.querySelector("[data-testid=leaderboards]")!.clientWidth / rem, form: box("form-board"), records: box("records-book"), multikills: box("records-multikills"), milestones: box("records-milestones"), formRows: bottoms("form-row"), recordRows: bottoms("season-record"), height: document.documentElement.scrollHeight, window: innerHeight };
   });
 
-test("the page's own width places its boards: Recent form across with the records beside the multikills at 1280 and 1440; from 1920 Recent form beside the records, every ranking row and record on the first screen", async ({ page, context, baseURL }, info) => {
+test("the page's own width places its boards: Recent form across with the records beside the multikills at 1280 and 1440; from 1920 Recent form beside the records, every ranking row and record on the first screen, the achievements starting on it", async ({ page, context, baseURL }, info) => {
   test.skip(info.project.name !== "desktop", "explicit window sizes");
   test.setTimeout(120_000);
   for (const sidebar of ["expanded", "collapsed"] as const) {
@@ -546,9 +546,8 @@ test("the page's own width places its boards: Recent form across with the record
         // Recent form keeps its one-line rows (a wide board), and every ranking row and record is on the first screen.
         expect(f.form.width / f.rem, `${at}: Recent form at least 58rem`).toBeGreaterThanOrEqual(58);
         for (const b of [...f.formRows, ...f.recordRows]) expect(b, `${at}: on the first screen`).toBeLessThanOrEqual(f.window);
-        // At 2560 × 1440 the multikills too (at 3440 the root's 22px, against 20.6px, takes them a row or two lower).
-        if (width === 2560) for (const b of f.multikillRows) expect(b, `${at}: every multikill on the first screen`).toBeLessThanOrEqual(f.window);
-        // The achievements start on the first screen, under both.
+        // The achievements start on the first screen, under both. (Where their last rows fall depends on
+        // how many members the demo has by then: other specs add members, each a chip in Recent form's last group.)
         expect(Math.min(f.multikills.top, f.milestones.top), `${at}: the achievements start on the first screen`).toBeLessThan(f.window);
       } else {
         // Recent form across the page (at most the measure), the records beside the multikills, the milestones across under both.

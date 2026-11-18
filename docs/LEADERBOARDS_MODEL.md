@@ -4,7 +4,7 @@ Status: **live.** The owner approved the rules, and these boards replaced the pr
 - **Built as recommended on 3 Nov 2026:** one Recent form board (overall, All games, ranked by win
   rate) and the Records & achievements tab. Left out of the launch: the role boards, the Ranked
   switch and the lane figure (sections 3 and 5 describe the full model).
-- **One page since #72 (19 Nov 2026, the owner's approved change):** Recent form leads and the
+- **One page since 19 Nov 2026 (the owner's approved change):** Recent form leads and the
   season's records and achievements follow on the same page, with no tabs (docs/TEAM_LEADERBOARDS.md,
   "The page"). The rules below are unchanged.
 - **Where the code is:**
@@ -44,11 +44,11 @@ Status: **live.** The owner approved the rules, and these boards replaced the pr
    figures are adjusted, weighted or normalised.
 4. **One plain figure per column.** No composite "impact" score, no hidden formula.
 5. **Two experiences, kept apart:** how players are doing lately (Recent performance), and what
-   they have achieved (Records & achievements). Since #72 they share one page, kept apart as its
+   they have achieved (Records & achievements). Since 19 Nov 2026 they share one page, kept apart as its
    sections: Recent form leads as the page's lead card, the records and achievements follow under
    their own titles, and nothing is combined across them.
 
-## 3. Recent performance (the default view)
+## 3. Recent performance (the page's first section)
 
 ### The window
 
@@ -121,7 +121,7 @@ Status: **live.** The owner approved the rules, and these boards replaced the pr
 - **Otherwise** it shows the gap in wins to the place above. When the oldest game was a win, a win
   only keeps the gap, so the row says "1 win behind", not "win your next game".
 - **These gaps assume the players above do not play in the meantime.** The page says this once,
-  in the ⓘ in Recent form's title (a footnote under the board until #72).
+  in the ⓘ in Recent form's title (a footnote under the board until 19 Nov 2026).
 
 ### Inactivity
 
@@ -153,7 +153,7 @@ expected of a record.
 
   Each record shows the role and champion it was set on.
 - **Multikills this season:** pentakills, quadra kills and triple kills per player, rarest first.
-- **Champion milestones**, under their own "Milestones" heading ("Lifetime and milestones" until #72):
+- **Champion milestones**, under their own "Milestones" heading ("Lifetime and milestones" until 19 Nov 2026):
   - games on one champion this season (25, 50, 100);
   - Riot mastery points on a champion (100,000, 500,000, 1,000,000).
 
@@ -161,7 +161,7 @@ expected of a record.
 
 ## 5. Navigation
 
-- **One page** (two tabs until #72): Recent performance, then Records & achievements.
+- **One page** (two tabs until 19 Nov 2026): Recent performance, then Records & achievements.
 - **Recent performance has one row of controls:**
   - a board (Overall, Top, Jungle, Mid, Bottom, Support);
   - a mode (All games, Ranked).

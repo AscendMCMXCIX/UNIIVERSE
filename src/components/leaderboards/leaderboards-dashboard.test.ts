@@ -10,7 +10,7 @@ import { LeaderboardsDashboard } from "./leaderboards-dashboard";
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: () => {} }) }));
 
 /*
-  Leaderboards as one page (#72: no views, no tabs): the header, the index of the sections on a long
+  Leaderboards as one page (since 19 Nov 2026: no views, no tabs): the header, the index of the sections on a long
   page, then Recent form, the season records, the multikills and the milestones, in that order and
   in one grid placed by the page's own width. The boards' own markup is in
   recent-leaderboards.test.ts and records.test.ts; the browser tests check the layout at each width

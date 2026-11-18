@@ -364,7 +364,7 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     (`PageToolbar`, `src/components/ui/page-toolbar.tsx`): Match History and Encounters
     [Games | Encounters] + [Filters · n]; Overview [Filters · n]; All Champions and Players
     [Search] + [Filters · n]; Team Matches [Filters · n] + [Bookmarked]; Leaderboards none (one
-    page since #72: no views, no filters). Back up at the toolbar the copy goes, and it is drawn only while it
+    page since 19 Nov 2026: no views, no filters). Back up at the toolbar the copy goes, and it is drawn only while it
     shows, so nothing hidden can be tabbed to. In use it stays: pressed or focused, while the sheet
     its Filters opened is open, and until that sheet has handed the focus back, so a change that
     shortens the page never leaves the focus with nowhere to return (`useHeld`). Never in a short
@@ -517,7 +517,7 @@ deliberately. Each needs its own small PR. Check STATUS.md for the Actions-minut
 | Area | Finding | Direction |
 |---|---|---|
 | Hover on panels | About 50 controls use `hover:bg-surface-2`, a few `hover:bg-surface-2/70` or `bg-fg/5` | Converge on §5: surface steps on panels, fg overlays on the frame. `DataList` rows follow §5 already (`ROW_STATES`) |
-| Page headers | Players, Matches and Resources open with `PageHeader`. Leaderboards (one page since #72) opens with its title, member count and data status on one line (its own header: the line `PageHeader` would put under the title stands beside it, so the boards start one line higher); Settings (64rem, both modes) leads with its account card (`surface-lead`) beside or above its sections, its title over them | Intended by STANDARDS.md's three tiers |
+| Page headers | Players, Matches and Resources open with `PageHeader`. Leaderboards (one page since 19 Nov 2026) opens with its title, member count and data status on one line (its own header: the line `PageHeader` would put under the title stands beside it, so the boards start one line higher); Settings (64rem, both modes) leads with its account card (`surface-lead`) beside or above its sections, its title over them | Intended by STANDARDS.md's three tiers |
 | Eyebrows | `PageHeader`'s eyebrow is `accent`; `SectionLabel` is `fg-subtle` | Both are valid. Keep `accent` eyebrows to Team Overview's header (from `sm` in a window taller than 480px; on a phone held either way it is left to screen readers, since the selected tab says it), admin pages (`PageHeader`) and the sign-in frames (`BrandFrame`) |
 | Tablet and phone mode switch | A row on the phone's account screen and an item of a tablet's avatar menu, each in the accent on the way to Admin Mode; a quiet row in the sidebar | Deliberate (§7). Revisit only with the owner, since phones were verified |
 

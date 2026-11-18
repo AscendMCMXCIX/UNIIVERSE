@@ -182,7 +182,7 @@ test("tablet and desktop: a profile section chosen far down the page starts at i
 test("tablet and desktop: Team's sections stay in reach as a long page scrolls, and switch the section from there", async ({ page }) => {
   test.skip(isPhone(page), "phones have the bottom tab bar");
   // Leaderboards is the longest Team page (Recent form, then the season's records and achievements,
-  // since #72 on one page): a desktop window 600px tall keeps it long enough to scroll well past the
+  // since 19 Nov 2026 on one page): a desktop window 600px tall keeps it long enough to scroll well past the
   // tabs (still taller than 480px, where they pin). The tablet's 768×1024 shows it in about two screens.
   if (!isTablet(page)) await page.setViewportSize({ width: 1440, height: 600 });
   await page.goto("/leaderboards");
@@ -281,7 +281,7 @@ test("wide windows: every tab row starts at its pages' column, on each of their 
     { nav: "team-tabs", mode: "player", pages: ["/team", "/players", "/leaderboards", "/matches"], ownBar: true },
     { nav: "resources-tabs", mode: "player", pages: ["/resources", "/resources/matchups"], ownBar: true },
     { nav: "admin-settings-tabs", mode: "admin", pages: ["/admin/branding", "/admin/previews", "/admin/resources"], ownBar: true },
-    // Bars inside their pages: a profile's sections, and the views of a section (Leaderboards has none since #72: one page).
+    // Bars inside their pages: a profile's sections, and the views of a section (Leaderboards has none since 19 Nov 2026: one page).
     { nav: "profile-tabs", mode: "player", pages: [profile, `${profile}/champions`, `${profile}/matches`, `${profile}/accounts`] },
     { nav: "match-views", mode: "player", pages: [`${profile}/matches`, `${profile}/matches?view=encounters`] },
     { nav: "people-tabs", mode: "admin", pages: ["/admin/people", "/admin/people/access", "/admin/people/privacy"] },

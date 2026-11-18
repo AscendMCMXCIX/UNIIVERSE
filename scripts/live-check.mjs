@@ -60,7 +60,7 @@
     not failed); a shared place is titled "Tied for Nth" and no other place claims it; every row's bar
     has 20 segments, as many filled as the row's wins and as many missing as its window lacks. Counts,
     heights and true/false only: the rows carry names.
-  - records (#72: Recent form and the season's records and achievements on one page): on
+  - records (19 Nov 2026: Recent form and the season's records and achievements on one page): on
     /leaderboards, at 1440, the season records stand beside the multikills (their tops within 1px), and
     every record cell is no taller than its layout allows: two lines (from a 36rem cell) at most 72px,
     three lines (under it) at most 96px (cells of more lines, a long name or champion, are counted, not
@@ -98,7 +98,7 @@
     column does (within 1px; on Team Overview Team's 100rem column, its header's inset reported), a
     missing row failing, and Team's row is in the same place on its three sections; on Leaderboards
     Recent form stands beside the season records (their tops within 1px), every record on the first
-    screen (#72).
+    screen (19 Nov 2026).
   - reach (PR 2b): from the end of Match History, on the desktop and the tablet the pinned row offers
     Filters and it opens the filter sheet; on the phone the top bar's Filters opens it (Escape closes
     it again; no filter is touched).
@@ -725,7 +725,7 @@ async function leaderboardsFacts(page, kind) {
 }
 
 /**
- * The season records (#72: on Leaderboards' one page, after Recent form), at 1440, as true/false,
+ * The season records (19 Nov 2026: on Leaderboards' one page, after Recent form), at 1440, as true/false,
  * counts and heights only (the cells carry names, which redact() keeps): the records beside the
  * multikills, their tops level within 1px, and every record cell no taller than its layout allows.
  * A cell from 36rem is two lines beside its picture (its record on one line over its holder and game
@@ -768,7 +768,7 @@ async function recordsFacts(page, kind) {
 }
 
 /**
- * Records & achievements' old address (#72): /leaderboards?view=records opens the one page, the view
+ * Records & achievements' old address (19 Nov 2026): /leaderboards?view=records opens the one page, the view
  * gone from its address (the page's own in the same history entry), at the season records: the
  * section in view and focused. True or false and the address's shape only.
  */
@@ -785,7 +785,7 @@ async function recordsLandingFacts(page, kind) {
 }
 
 /**
- * Leaderboards at 2560 × 1440 (#72, the wide check): Recent form beside the season records, their
+ * Leaderboards at 2560 × 1440 (19 Nov 2026, the wide check): Recent form beside the season records, their
  * tops within 1px, and every record on the first screen. Positions and true or false only.
  */
 async function dashboardFacts(page) {
@@ -1119,7 +1119,7 @@ async function tabRowEdges(page, testId) {
 /**
  * Wide screens (PR 10, 18 Nov 2026), in the desktop context made 2560 × 1440 (the sidebar open), where
  * the pages have stopped growing and are centred in the room beside the sidebar: Team, Players,
- * Leaderboards (with its dashboard's facts, #72) and the teammate's profile load as every page does (visit) with axe, and each
+ * Leaderboards (with its dashboard's facts, 19 Nov 2026) and the teammate's profile load as every page does (visit) with axe, and each
  * one's tab row starts where its page's column does, within 1px (Team's tabs on Team's three, the
  * profile's on the profile; on Team Overview the column is Team's 100rem, its header and lineup
  * centred 84rem inside it, the inset reported), the Team row in the same place on all three. Four page
