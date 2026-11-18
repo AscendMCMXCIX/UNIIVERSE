@@ -9,8 +9,13 @@ import { expect, test, type Page } from "./test";
   scroll. Recent form's rows reflow where a name cannot sit beside its figures (the win rate under
   the name, then the name under the place and picture); before, the name kept a few letters a line
   (one at 200%) and the gap ("1 win behind") ran 32px past the board. At 100% nothing changes.
-  Records' boards already reflow on their own; a record's qualifier there hides its "·" only when
-  it starts a line of its own (the title's clipped edge), never beside its record.
+  Your own row is checked with "You" put beside every name (the demo's viewer has no player
+  profile, so no row of theirs): "You" drops under a name whose longest word would not fit beside
+  it, where the name broke mid-word before ("Suppor|t" at 125% on a 375px phone, "Christopher" even
+  at 100% on a 320px phone), and stays beside it where it fits. The role badge stays on its
+  picture and the tie bracket off the names; no "·" ends or starts a line. Records' boards already
+  reflow on their own; a record's qualifier there hides its "·" only when it starts a line of its
+  own (the title's clipped edge), never beside its record.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -100,7 +105,111 @@ function textFacts(page: Page, selector: string) {
   }, selector);
 }
 
-test("Recent form at 125% to 200% text on 320 to 393px phones: names wrap only between words, nothing cut or overlapping, no sideways scroll; at 100% the win rate stays beside the name", async ({ page }, info) => {
+/**
+ * In each Recent form row (ranked or without enough games), the boxes that must not meet: its
+ * visible text, its picture and the tie bracket beside the place (under 13.5rem, where the names
+ * run under the place, the bracket steps aside). `roleOff`: a role badge more than 0.5rem from its
+ * own picture, whose lower right it sits on (under 13.5rem it keeps to the picture's line rather
+ * than float down the row, over the win rate). The badge is held to its picture rather than kept
+ * off the text: it hangs 0.25rem below the picture by design, and under 13.5rem that reaches the
+ * top of the name's line box under it, above the letters. `roles` and `brackets`: how many were
+ * measured, so neither check is idle.
+ */
+function rowBoxes(page: Page) {
+  return page.locator("[data-testid=form-row], [data-testid=form-not-enough-member]").evaluateAll((els) => {
+    const shown = (e: Element) => e.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    const hits: string[] = [];
+    const roleOff: string[] = [];
+    let roles = 0;
+    let brackets = 0;
+    els.forEach((row, i) => {
+      const srOnly = (e: Element) => {
+        for (let p: Element | null = e; p && p !== row; p = p.parentElement) {
+          const cs = getComputedStyle(p);
+          if (cs.position === "absolute" && parseFloat(cs.width) <= 1.5 && parseFloat(cs.height) <= 1.5) return true;
+        }
+        return false;
+      };
+      const boxes: { owner: number; what: string; r: DOMRect }[] = [];
+      row.querySelectorAll("[data-avatar-frame]").forEach((a) => boxes.push({ owner: -1, what: "picture", r: a.getBoundingClientRect() }));
+      const role = row.querySelector("[data-testid=form-role]");
+      if (role && shown(role) && !srOnly(role)) {
+        roles++;
+        const r = role.getBoundingClientRect();
+        const picture = row.querySelector("[data-avatar-frame]")!.getBoundingClientRect();
+        const apart = Math.max(picture.left - r.right, r.left - picture.right, picture.top - r.bottom, r.top - picture.bottom, 0);
+        if (apart > 0.5 * rem) roleOff.push(`row ${i + 1}: role badge ${Math.round(apart)}px from its picture`);
+      }
+      // The bracket follows its place, both the row's own children (Place).
+      const bracket = row.querySelector(":scope > [data-testid=form-place] + [aria-hidden]");
+      if (bracket && shown(bracket)) {
+        brackets++;
+        boxes.push({ owner: -2, what: "tie bracket", r: bracket.getBoundingClientRect() });
+      }
+      const walk = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+      let owner = 0;
+      for (let n = walk.nextNode(); n; n = walk.nextNode(), owner++) {
+        const parent = n.parentElement;
+        // The picture's own initial is the picture.
+        if (!n.textContent?.trim() || !parent || parent.closest("[data-avatar-frame]") || !shown(parent) || srOnly(parent)) continue;
+        const range = document.createRange();
+        range.selectNodeContents(n);
+        for (const r of range.getClientRects()) if (r.width > 0.5 && r.height > 0.5) boxes.push({ owner, what: `"${n.textContent.trim().slice(0, 16)}"`, r });
+      }
+      for (let a = 0; a < boxes.length; a++)
+        for (let b = a + 1; b < boxes.length; b++) {
+          const [x, y] = [boxes[a]!, boxes[b]!];
+          if (x.owner === y.owner) continue;
+          if (x.r.left < y.r.right - 1 && y.r.left < x.r.right - 1 && x.r.top < y.r.bottom - 1 && y.r.top < x.r.bottom - 1) hits.push(`row ${i + 1}: ${x.what} over ${y.what}`);
+        }
+    });
+    return { hits, roleOff, roles, brackets };
+  });
+}
+
+/**
+ * Each visible "·" in Recent form's second lines, its captions and its "Not enough recent games"
+ * rows, that ends or starts a line: with a character of its own text either side of it on its
+ * line, it does neither.
+ */
+function danglingDots(page: Page) {
+  return page.locator("[data-testid=form-meta], [data-testid=form-not-enough-member], [data-testid=form-not-enough-head], [data-testid=form-provisional-head]").evaluateAll((els) =>
+    els.flatMap((el) => {
+      const srOnly = (e: Element) => {
+        for (let p: Element | null = e; p && p !== el.parentElement; p = p.parentElement) {
+          const cs = getComputedStyle(p);
+          if (cs.position === "absolute" && parseFloat(cs.width) <= 1.5 && parseFloat(cs.height) <= 1.5) return true;
+        }
+        return false;
+      };
+      const chars: { c: string; mid: number }[] = [];
+      const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+        const parent = n.parentElement;
+        if (!parent || !parent.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) || srOnly(parent)) continue;
+        const text = n.textContent ?? "";
+        for (let k = 0; k < text.length; k++) {
+          if (!text[k]!.trim()) continue;
+          const range = document.createRange();
+          range.setStart(n, k);
+          range.setEnd(n, k + 1);
+          const box = [...range.getClientRects()].find((b) => b.width > 0.1);
+          if (box) chars.push({ c: text[k]!, mid: box.top + box.height / 2 });
+        }
+      }
+      return chars.flatMap((ch, k) => {
+        if (ch.c !== "·") return [];
+        const [before, after] = [chars[k - 1], chars[k + 1]];
+        const ends = !after || Math.abs(after.mid - ch.mid) > 4;
+        const starts = !before || Math.abs(before.mid - ch.mid) > 4;
+        return ends || starts ? [`${el.getAttribute("data-testid")}: a "·" ${ends ? "ends" : "starts"} a line`] : [];
+      });
+    }),
+  );
+}
+
+test("Recent form at 125% to 200% text on 320 to 393px phones: names wrap only between words, nothing cut or overlapping (the tie bracket too, the role badge on its picture), no dangling \"·\", no sideways scroll; at 100% the win rate stays beside the name", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "phone widths, set below");
   test.setTimeout(120_000);
   await open(page, "/leaderboards");
@@ -122,6 +231,7 @@ test("Recent form at 125% to 200% text on 320 to 393px phones: names wrap only b
     expect(beside, `${width}px at 100%: each win rate beside its name`).toEqual(beside.map(() => true));
   }
 
+  let [roles, brackets] = [0, 0];
   for (const [width, root] of SIZES) {
     await setSize(page, width, root);
     const at = `${width}px at ${root}%`;
@@ -130,48 +240,70 @@ test("Recent form at 125% to 200% text on 320 to 393px phones: names wrap only b
     expect.soft(text.words, `${at}: the board's words measured`).toBeGreaterThan(100);
     expect.soft(text.cut, `${at}: nothing cut`).toEqual([]);
     expect.soft(text.broken, `${at}: every word whole`).toEqual([]);
-    // In each row (ranked or without enough games) no text runs into other text or the picture.
-    const overlaps = await page.locator("[data-testid=form-row], [data-testid=form-not-enough-member]").evaluateAll((els) =>
-      els.flatMap((row, i) => {
-        const srOnly = (e: Element) => {
-          for (let p: Element | null = e; p && p !== row; p = p.parentElement) {
-            const cs = getComputedStyle(p);
-            if (cs.position === "absolute" && parseFloat(cs.width) <= 1.5 && parseFloat(cs.height) <= 1.5) return true;
-          }
-          return false;
-        };
-        const boxes: { owner: number; what: string; r: DOMRect }[] = [];
-        row.querySelectorAll("[data-avatar-frame]").forEach((a) => boxes.push({ owner: -1, what: "picture", r: a.getBoundingClientRect() }));
-        const walk = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
-        let owner = 0;
-        for (let n = walk.nextNode(); n; n = walk.nextNode(), owner++) {
-          const parent = n.parentElement;
-          // The picture's own initial is the picture.
-          if (!n.textContent?.trim() || !parent || parent.closest("[data-avatar-frame]") || !parent.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) || srOnly(parent)) continue;
-          const range = document.createRange();
-          range.selectNodeContents(n);
-          for (const r of range.getClientRects()) if (r.width > 0.5 && r.height > 0.5) boxes.push({ owner, what: `"${n.textContent.trim().slice(0, 16)}"`, r });
-        }
-        const hits: string[] = [];
-        for (let a = 0; a < boxes.length; a++)
-          for (let b = a + 1; b < boxes.length; b++) {
-            const [x, y] = [boxes[a]!, boxes[b]!];
-            if (x.owner === y.owner) continue;
-            if (x.r.left < y.r.right - 1 && y.r.left < x.r.right - 1 && x.r.top < y.r.bottom - 1 && y.r.top < x.r.bottom - 1) hits.push(`row ${i + 1}: ${x.what} over ${y.what}`);
-          }
-        return hits;
+    // In each row (ranked or without enough games) no text runs into other text, the picture or the tie bracket; the role badge stays on the picture.
+    const boxes = await rowBoxes(page);
+    expect.soft(boxes.hits, `${at}: no text over other text, a picture or a tie bracket`).toEqual([]);
+    expect.soft(boxes.roleOff, `${at}: each role badge on its picture`).toEqual([]);
+    [roles, brackets] = [roles + boxes.roles, brackets + boxes.brackets];
+    // No "·" ends or starts a line: the second lines' record and dates share a line or take one each; elsewhere the "·" keeps to its words.
+    expect.soft(await danglingDots(page), `${at}: no "·" ending or starting a line`).toEqual([]);
+  }
+  expect(roles, "role badges measured").toBeGreaterThan(0);
+  expect(brackets, "tie brackets measured (the demo's three tied for 4th, from 13.5rem)").toBeGreaterThan(0);
+  await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
+});
+
+/** MemberCell's "You" (Badge tone="accent") as your own row draws it. */
+const YOU = '<span class="inline-flex max-w-full items-center gap-1 rounded-sm border px-1.5 py-0.5 text-xs font-medium leading-tight bg-accent/15 text-accent-strong border-accent/30">You</span>';
+
+test("Recent form, your own row, at 100% to 200% text on 320 to 393px phones: \"You\" drops under a name it would break and stays beside one it fits, words whole, nothing overlapping", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "phone widths, set below");
+  test.setTimeout(120_000);
+  await open(page, "/leaderboards");
+  await expect(page.getByTestId("form-not-enough-member")).not.toHaveCount(0);
+  // Every row made your own, "You" put in MemberCell's line beside the name; from the third ranked
+  // row on, single words of 9 to 11 letters for names (the first two keep theirs, "Demo Support"
+  // and "Demo Sub (Support)", and so do the not-enough rows).
+  const own = await page.evaluate((you) => {
+    const words = ["Christopher", "Doublelift", "Moonlight", "Shadowfax", "Supportive"];
+    const rows = [...document.querySelectorAll("[data-testid=form-row], [data-testid=form-not-enough-member]")];
+    rows.forEach((row, i) => {
+      const name = row.querySelector("[data-testid=card-name]")!;
+      // The line holds the box around CardName, then "You".
+      const line = name.parentElement!.parentElement!.parentElement!;
+      const word = row.matches("[data-testid=form-row]") ? words[i - 2] : undefined;
+      if (word) name.textContent = word;
+      const badge = document.createElement("span");
+      badge.className = "inline-flex shrink-0";
+      badge.dataset.testid = "card-you";
+      badge.innerHTML = you;
+      line.append(badge);
+    });
+    return rows.length;
+  }, YOU);
+  expect(own, "rows made your own").toBeGreaterThanOrEqual(9);
+  // "You" beside its name (after it, on its first line) or under it.
+  const youPlaces = () =>
+    page.getByTestId("card-you").evaluateAll((badges) =>
+      badges.map((b) => {
+        const [you, name] = [b.getBoundingClientRect(), b.parentElement!.firstElementChild!.getBoundingClientRect()];
+        return you.left >= name.right - 1 && you.top < name.bottom - 1 ? "beside" : "under";
       }),
     );
-    expect.soft(overlaps, `${at}: no text over other text or a picture`).toEqual([]);
-    // A row's second line never ends with a "·": the record and the dates share a line or take one each.
-    const dangling = await page.getByTestId("form-meta").evaluateAll((metas) =>
-      metas.filter((meta) => {
-        const parts = [...meta.children].map((c) => ({ dot: c.textContent?.trim() === "·", box: c.getBoundingClientRect() })).filter((p) => p.box.width > 0);
-        const mid = (b: DOMRect) => b.top + b.height / 2;
-        return parts.some((p, k) => p.dot && !(parts[k + 1] && Math.abs(mid(parts[k + 1]!.box) - mid(p.box)) <= 4));
-      }).length,
-    );
-    expect.soft(dangling, `${at}: second lines ending with ·`).toBe(0);
+
+  for (const [width, root] of [[320, 100], [375, 100], ...SIZES] as const) {
+    await setSize(page, width, root);
+    const at = `${width}px at ${root}%`;
+    expect.soft(await sideways(page), `${at}: no sideways page scroll`).toBeLessThanOrEqual(1);
+    const text = await textFacts(page, "[data-testid=form]");
+    expect.soft(text.cut, `${at}: nothing cut`).toEqual([]);
+    expect.soft(text.broken, `${at}: every word whole`).toEqual([]);
+    expect.soft((await rowBoxes(page)).hits, `${at}: no text over other text, a picture or a tie bracket`).toEqual([]);
+    const places = await youPlaces();
+    expect.soft(places.length, `${at}: "You" in every row`).toBe(own);
+    // Beside every name on a 375px phone at 100% (each word fits beside it), under the longest words on a 320px one.
+    if (width === 375 && root === 100) expect.soft(places, `${at}: "You" beside every name`).toEqual(places.map(() => "beside"));
+    if (width === 320 && root === 100) expect.soft(places.filter((p) => p === "under").length, `${at}: "You" under the names it would break`).toBeGreaterThan(0);
   }
   await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
 });

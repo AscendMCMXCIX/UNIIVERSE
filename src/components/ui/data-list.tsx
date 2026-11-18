@@ -247,20 +247,37 @@ export function FigureCell({ children, spoken, label, size = "sm", emphasis = "m
 }
 
 /**
+ * MemberCell's `youWraps` (Recent form, whose board large text narrows in rem): on a narrow board
+ * (under 36rem) "You" drops under the name where the name's longest word would not fit beside it,
+ * and stays beside it everywhere else, as before. Beside "You" (2.6rem with its gap) a name's word
+ * broke mid-word: "Suppor|t" at 125% on a 375px phone, "Christopher" even at 100% on a 320px one.
+ * The line wraps, and the name enters it at its longest word's width (its min-content, counting
+ * only the breaks between words: CardName's overflow-wrap "anywhere" would count a single letter;
+ * `words` is on CardName's box and reaches its text), growing to its one-line width at most: where
+ * both fit, the name has exactly the width it had beside "You". Alone on its line (every other
+ * row) the name takes the line's width or its own, as before.
+ */
+const YOU_WRAPS = {
+  line: "@max-[36rem]/list:flex-wrap",
+  name: "@max-[36rem]/list:w-min @max-[36rem]/list:max-w-max @max-[36rem]/list:grow",
+  words: "@max-[36rem]/list:*:wrap-break-word",
+};
+
+/**
  * A member as their card shows them (every row of the Leaderboards, Recent form's and Records'): the framed picture, the
  * name in their name style with their emblem, in their colours (cardColourVars, on this cell only:
  * no look colour reaches a place or a figure), and "You". Exactly one CardName, never cut.
  * `readName={false}` when the row's link already says the name: the visible one is then hidden
- * from screen readers, so it is not read twice.
+ * from screen readers, so it is not read twice. `youWraps`: see YOU_WRAPS.
  */
-export function MemberCell({ look, name, avatarUrl = null, avatar = "md", avatarClassName, you = false, readName = true, nameClassName, nameTestId, className }: { look: CardLook | null | undefined; name: string; avatarUrl?: string | null; avatar?: "xs" | "sm" | "md" | false; /** The picture's own classes: Records' book hides it on a phone, where the row's picture is the champion's. */ avatarClassName?: string; you?: boolean; readName?: boolean; nameClassName?: string; nameTestId?: string; className?: string }) {
+export function MemberCell({ look, name, avatarUrl = null, avatar = "md", avatarClassName, you = false, youWraps = false, readName = true, nameClassName, nameTestId, className }: { look: CardLook | null | undefined; name: string; avatarUrl?: string | null; avatar?: "xs" | "sm" | "md" | false; /** The picture's own classes: Records' book hides it on a phone, where the row's picture is the champion's. */ avatarClassName?: string; you?: boolean; youWraps?: boolean; readName?: boolean; nameClassName?: string; nameTestId?: string; className?: string }) {
   return (
     <span className={cn("flex min-w-0 items-center gap-2.5 text-sm", className)} style={cardColourVars(look)}>
       {avatar ? <CardAvatar look={look} name={name} src={avatarUrl} size={avatar} className={avatarClassName} /> : null}
       <span className="flex min-w-0 flex-1 flex-col" data-testid={nameTestId}>
-        <span className="flex min-w-0 items-center gap-1.5">
-          <span className="min-w-0 text-fg" aria-hidden={readName ? undefined : true}>
-            <CardName look={look} name={name} className={nameClassName} />
+        <span className={cn("flex min-w-0 items-center gap-1.5", youWraps && YOU_WRAPS.line)}>
+          <span className={cn("min-w-0 text-fg", youWraps && YOU_WRAPS.name)} aria-hidden={readName ? undefined : true}>
+            <CardName look={look} name={name} className={cn(nameClassName, youWraps && YOU_WRAPS.words)} />
           </span>
           {you ? (
             <span className="inline-flex shrink-0" data-testid="card-you">

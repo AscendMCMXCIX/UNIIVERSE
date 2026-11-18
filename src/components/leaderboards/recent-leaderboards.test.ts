@@ -52,6 +52,8 @@ describe("Recent form's rows", () => {
     // The ranked rows, then the provisional strip and its row, then the last group.
     expect(html.indexOf('data-testid="form-rows"')).toBeLessThan(html.indexOf('data-testid="form-provisional-head"'));
     expect(html.indexOf('data-testid="form-provisional"')).toBeLessThan(html.indexOf('data-testid="form-not-enough-head"'));
+    // Its caption's "·" held to its words by no-break spaces, as the last group's.
+    expect(textOf(html, "form-provisional-head")).toBe("Provisional\u00a0·\u00a010 to 19 recent games, listed after every full window");
   });
 
   it("first place: the crown, no gap (—) and no sentence", () => {
@@ -96,6 +98,8 @@ describe("Recent form's rows", () => {
     expect(rows.di).toMatch(/^<li class="[^"]*bg-accent\/5[^"]*"[^>]*data-you="true"/);
     expect(rows.di).toContain('<span aria-hidden="true" class="pointer-events-none absolute inset-y-0 left-0 w-0.5 bg-accent"></span>');
     expect(rows.di).toContain(">You<");
+    // On a narrow board "You" drops under a name whose longest word would not fit beside it (MemberCell's youWraps; e2e/large-text-leaderboards.spec.ts).
+    expect(rows.di).toMatch(/<span class="flex min-w-0 items-center gap-1\.5 @max-\[36rem\]\/list:flex-wrap"><span class="min-w-0 text-fg @max-\[36rem\]\/list:w-min @max-\[36rem\]\/list:max-w-max @max-\[36rem\]\/list:grow"[\s\S]*?data-testid="card-you"/);
     for (const id of ["ash", "bo", "cy", "ed"]) expect(rows[id]).not.toMatch(/bg-accent\/5|data-you|>You</);
   });
 
@@ -116,7 +120,7 @@ describe("Recent form's rows", () => {
     expect(rows.ash).toContain("Support</span><span class=\"sr-only\"> main role (14 of 20 games)</span>");
     // The link says the member's name (its tooltip layer after it is aria-hidden), so the visible one is not read twice.
     expect(rows.ash).toContain('data-row-link="" href="/players/ash"><span class="sr-only">Ash</span><span aria-hidden="true" title=');
-    expect(rows.ash).toContain('<span class="min-w-0 text-fg" aria-hidden="true">');
+    expect(rows.ash).toMatch(/<span class="min-w-0 text-fg[^"]*" aria-hidden="true">/);
   });
 });
 
@@ -127,15 +131,16 @@ describe("the board's last group: members without enough recent games", () => {
   it("lists each with the games they need and their last game, linked to their profile", () => {
     expect(members.map((m) => m[1])).toEqual(["fi", "gu"]);
     const visible = (li: string) => li.replace(/<span class="sr-only">[^<]*<\/span>/g, "").replace(/<[^>]+>/g, "");
-    expect(visible(members[0]![0])).toContain("Needs 4 more games · last game 3 Sep 2026");
-    expect(visible(members[1]![0])).toContain("Needs 10 more games · no games yet");
+    // The "·" held to its words by no-break spaces, so it never ends or starts a line.
+    expect(visible(members[0]![0])).toContain("Needs 4 more games\u00a0·\u00a0last game 3 Sep 2026");
+    expect(visible(members[1]![0])).toContain("Needs 10 more games\u00a0·\u00a0no games yet");
     expect(members[0]![0]).toContain('href="/players/fi"');
     expect(members[1]![0]).toContain('href="/players/gu"');
     for (const [li] of members) {
       expect(count(li, /data-testid="card-name"/g)).toBe(1);
       expect(count(li, /data-row-link=""/g)).toBe(1);
     }
-    expect(textOf(html, "form-not-enough-head")).toBe("Not enough recent games · 10 needed in the last 60 days");
+    expect(textOf(html, "form-not-enough-head")).toBe("Not enough recent games\u00a0·\u00a010 needed in the last 60 days");
     expect(html).toMatch(/<ul aria-label="Not enough recent games" data-testid="form-not-enough"/);
   });
 });
@@ -154,7 +159,8 @@ describe("the board's markup", () => {
     expect(html).not.toContain("/players/");
     expect(html).not.toContain("hover:bg-surface-2");
     // The names are read where there is no link to say them.
-    expect(html).not.toContain('<span class="min-w-0 text-fg" aria-hidden="true">');
+    expect(html).not.toMatch(/<span class="min-w-0 text-fg[^"]*" aria-hidden="true">/);
+    expect(html).toMatch(/<span class="min-w-0 text-fg[^"]*"><span class="flex min-w-0 items-start/);
   });
 
   it("with no window of 10 games yet: one row saying so inside the board, no headings, and the last group", () => {

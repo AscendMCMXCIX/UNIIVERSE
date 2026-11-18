@@ -110,7 +110,11 @@ export function RecentLeaderboards({ view, champions, status }: { view: RecentLe
                    320px phone). The tie bracket steps aside, since the names run under it; the
                    "=" still says the tie.
   Names wrap only between their words there, and nothing is cut (the gap, "1 win behind", ran 32px
-  past the board at 200% on a 320px phone).
+  past the board at 200% on a 320px phone). In your own row "You" drops under your name where your
+  name's longest word would not fit beside it (MemberCell's youWraps: below 36rem, so at 100% too,
+  where a 320px phone's line broke a name of 9 letters or more), and stays beside it where it fits.
+  An inline "·" (the captions, the "Not enough recent games" rows) is held to the words either side
+  of it by no-break spaces, so it never ends or starts a line.
 */
 const FORM_COLS =
   "[--dl-cols:2rem_2.5rem_minmax(0,1fr)_auto] @max-[16.5rem]/list:[--dl-cols:2rem_2.5rem_minmax(0,1fr)] " +
@@ -178,7 +182,7 @@ export function RecentForm({ form, player, viewer }: { form: FormView; player: (
             className="@max-[36rem]/list:divide-y-0"
             caption={
               <>
-                <span className="font-semibold text-fg">Provisional</span> · {form.window.provisionalFrom} to {form.window.games - 1} recent games, listed after every full window
+                <span className="font-semibold text-fg">Provisional</span>&nbsp;·&nbsp;{form.window.provisionalFrom} to {form.window.games - 1} recent games, listed after every full window
               </>
             }
           >
@@ -197,7 +201,7 @@ export function RecentForm({ form, player, viewer }: { form: FormView; player: (
             className="[--dl-cols:2rem_2.5rem_minmax(0,1fr)] @min-[36rem]/list:flex @min-[36rem]/list:flex-wrap @min-[36rem]/list:gap-2 @min-[36rem]/list:divide-y-0 @min-[36rem]/list:px-3 @min-[36rem]/list:py-3 @min-[58rem]/list:px-4"
             caption={
               <>
-                <span className="font-semibold text-fg">Not enough recent games</span> · {form.window.provisionalFrom} needed in the last {form.window.days} days
+                <span className="font-semibold text-fg">Not enough recent games</span>&nbsp;·&nbsp;{form.window.provisionalFrom} needed in the last {form.window.days} days
               </>
             }
           >
@@ -336,7 +340,7 @@ function FormRowItem({ r, p, tie, window }: { r: FormRow; p: BoardPlayer; tie: T
         </>
       }
     >
-      <MemberCell look={p.look} name={p.name} avatar={false} you={r.you} readName={!p.profileHref} nameTestId="board-member-name" nameClassName="text-md leading-snug @min-[36rem]/list:text-sm" className="col-[3/4] row-[1/2] @max-[13.5rem]/list:col-[1/-1] @max-[13.5rem]/list:row-[2/3] @min-[36rem]/list:self-end @min-[58rem]/list:self-center" />
+      <MemberCell look={p.look} name={p.name} avatar={false} you={r.you} youWraps readName={!p.profileHref} nameTestId="board-member-name" nameClassName="text-md leading-snug @min-[36rem]/list:text-sm" className="col-[3/4] row-[1/2] @max-[13.5rem]/list:col-[1/-1] @max-[13.5rem]/list:row-[2/3] @min-[36rem]/list:self-end @min-[58rem]/list:self-center" />
     </DataRow>
   );
 }
@@ -375,10 +379,11 @@ function NotEnoughMember({ n, p, you }: { n: FormView["notEnough"][number]; p: B
         </RowLink>
       ) : null}
       <span className="flex min-w-0 flex-col @max-[13.5rem]/list:col-[1/-1] @max-[13.5rem]/list:row-[2/3] @max-[13.5rem]/list:mt-0.5 @min-[36rem]/list:flex-row @min-[36rem]/list:flex-wrap @min-[36rem]/list:items-baseline @min-[36rem]/list:gap-x-2">
-        <MemberCell look={p.look} name={p.name} avatar={false} you={you} readName={!p.profileHref} nameClassName="text-md leading-snug @min-[36rem]/list:text-sm" />
+        <MemberCell look={p.look} name={p.name} avatar={false} you={you} youWraps readName={!p.profileHref} nameClassName="text-md leading-snug @min-[36rem]/list:text-sm" />
+        {/* The "·" between the games needed and the last game held to both by no-break spaces (FORM_COLS): with large text it ended or started a line. */}
         <span className="text-xs text-fg-muted">
           Needs {n.needed} more game{n.needed === 1 ? "" : "s"}
-          <span aria-hidden> · </span>
+          <span aria-hidden>&nbsp;·&nbsp;</span>
           <span className="sr-only">, </span>
           {n.lastGame ? `last game ${n.lastGame}` : "no games yet"}
         </span>
