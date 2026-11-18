@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, ADMIN_TABS, NAV_ENTRIES, NAV_LINKS, PAGE_WIDTH, PHONE_TABS, PHONE_TAB_LIMIT, RESOURCES, RESOURCES_SECTIONS, SECTION_HUBS, TEAM_SECTIONS, activeHref, backSteps, canOpen, currentTab, encountersRedirect, entryLinks, isActivePath, pageName, pageWidthOf, phoneParent, phoneTabs, profileBase } from "./nav";
+import { ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, ADMIN_TABS, NAV_ENTRIES, NAV_LINKS, PAGE_WIDTH, PHONE_TABS, PHONE_TAB_LIMIT, RESOURCES, RESOURCES_SECTIONS, SECTION_HUBS, TEAM_SECTIONS, activeHref, adminSheetLinks, backSteps, canOpen, currentDestination, currentTab, encountersRedirect, entryLinks, isActivePath, pageName, pageWidthOf, phoneParent, phoneTabs, profileBase, tabletDestinations } from "./nav";
 import type { Session } from "@/server/auth/permissions";
 
 const entryId = (e: (typeof NAV_ENTRIES)[number]) => ("key" in e ? e.key : e.href);
@@ -136,6 +136,51 @@ describe("phone tab bar", () => {
     expect(currentTab("/draft", m)).toBeNull();
     expect(currentTab("/trends/solo", m)).toBeNull();
     expect(ADMIN_TABS.map((t) => t.href)).not.toContain("/draft");
+  });
+});
+
+describe("tablet top bar", () => {
+  const all = NAV_LINKS.map((l) => l.href);
+  const adminAll = ADMIN_LINKS.map((l) => l.href);
+
+  it("Player Mode: the sidebar's three entries, one tap each, a hub's to its first page this account may open", () => {
+    const bar = tabletDestinations(all, false);
+    expect(bar.map((d) => [d.href, d.label])).toEqual([
+      ["/overview", "My Profile"],
+      ["/team", "Team"],
+      ["/resources", "Resources"],
+    ]);
+    // The same icons as the sidebar's entries.
+    expect(bar.map((d) => d.icon)).toEqual(NAV_ENTRIES.map((e) => e.icon));
+    // Team stands for its four sections, Resources for its two.
+    expect(bar[1]!.pages).toEqual(TEAM_SECTIONS.map((s) => s.href));
+    expect(bar[2]!.pages).toEqual(RESOURCES_SECTIONS.map((s) => s.href));
+    // An account outside the team: no Team entry; one that may open only Players: Team leads there.
+    expect(tabletDestinations(["/overview", "/resources", "/resources/matchups"], false).map((d) => d.href)).toEqual(["/overview", "/resources"]);
+    expect(tabletDestinations(["/overview", "/players", "/resources"], false).map((d) => d.href)).toEqual(["/overview", "/players", "/resources"]);
+  });
+
+  it("Admin Mode: the phone's four tabs, and the pages without a tab (for the avatar menu) are Data & Integrations and Audit Logs", () => {
+    const bar = tabletDestinations(adminAll, true);
+    expect(bar.map((d) => d.href)).toEqual(ADMIN_TABS.map((t) => t.href));
+    expect(adminSheetLinks(adminAll, bar.map((d) => d.href)).map((l) => l.label)).toEqual(["Data & Integrations", "Audit Logs"]);
+    // Only what the account may open.
+    expect(tabletDestinations([ADMIN_HOME, "/admin/system"], true).map((d) => d.href)).toEqual([ADMIN_HOME, "/admin/system"]);
+  });
+
+  it("marks the destination a page belongs to, as the sidebar and the tabs do; none for Settings", () => {
+    const bar = tabletDestinations(all, false);
+    expect(currentDestination("/team", bar, false)).toBe("/team");
+    expect(currentDestination("/matches", bar, false)).toBe("/team");
+    expect(currentDestination("/players/abc/matches", bar, false)).toBe("/team");
+    expect(currentDestination("/overview/champions", bar, false)).toBe("/overview");
+    expect(currentDestination("/resources/matchups", bar, false)).toBe("/resources");
+    expect(currentDestination("/settings", bar, false)).toBeNull();
+    const admin = tabletDestinations(adminAll, true);
+    expect(currentDestination("/admin", admin, true)).toBe(ADMIN_HOME);
+    expect(currentDestination("/admin/previews", admin, true)).toBe("/admin/branding");
+    expect(currentDestination("/admin/people/access", admin, true)).toBe("/admin/people");
+    expect(currentDestination("/admin/data", admin, true)).toBeNull();
   });
 });
 

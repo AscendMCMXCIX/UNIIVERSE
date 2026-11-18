@@ -156,7 +156,8 @@ export function entryLinks(entry: NavEntry): NavLink[] {
  *                  are the tabs at the top of every Team page (TEAM_SECTIONS);
  *   Resources      one entry for the library of League of Legends sites and Matchup Intel, the
  *                  tabs at the top of both (RESOURCES_SECTIONS); it opens the library.
- * The account menu holds Settings and Sign out only.
+ * The account menu holds Settings and Sign out (on a tablet, which has no sidebar, also Install App,
+ * the switch between the modes, the patch line and Riot's notice).
  */
 export const NAV_ENTRIES: NavEntry[] = [
   { href: "/overview", label: "My Profile", icon: CircleUserRound },
@@ -187,8 +188,10 @@ export interface PhoneTab {
  *   Profile        your own profile and its sections;
  *   Resources      when there is room (an account without the Team pages); otherwise in the account
  *                  sheet behind your avatar, with Settings and Sign out.
- * At most five, those this account may open (the pages check again). Tablets and desktops keep the
- * sidebar's three entries and the page tabs (TEAM_SECTIONS), so the two never disagree on names.
+ * At most five, those this account may open (the pages check again). Held sideways (a short window
+ * below lg) the phone keeps them, in its one compact top bar instead of a bottom bar. Tablets and
+ * desktops keep the sidebar's three entries (in a tablet's top bar: tabletDestinations) and the page
+ * tabs (TEAM_SECTIONS), so the two never disagree on names.
  */
 export const PHONE_TABS: PhoneTab[] = [
   { href: "/team", label: "Team", icon: Users },
@@ -347,7 +350,7 @@ export const ADMIN_ENTRIES: NavEntry[] = [
 /** Every Admin Mode page in sidebar order (hubs flattened). */
 export const ADMIN_LINKS: NavLink[] = ADMIN_ENTRIES.flatMap(entryLinks);
 
-/** Phone bottom tabs in Admin Mode, with short labels (the rest are in the menu). */
+/** Admin Mode's tabs, with short labels: the phone's (its bottom bar, or its compact bar held sideways) and a tablet's top bar; the rest are on the account screen or in the avatar menu. */
 export const ADMIN_TABS: Array<{ href: string; label: string; icon: LucideIcon }> = [
   { href: ADMIN_HOME, label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/people", label: "Users", icon: UserCog },
@@ -356,10 +359,10 @@ export const ADMIN_TABS: Array<{ href: string; label: string; icon: LucideIcon }
 ];
 
 /**
- * Admin Mode's pages on the phone's account screen: one link per entry, as the drawer lists them (a
- * hub's link opens its first section this account may open, under the hub's name), less the pages
- * the tab bar already holds, so the screen repeats nothing that is one tap away (as Player Mode's
- * account screen holds Resources only when it has no tab).
+ * Admin Mode's pages on the phone's account screen and in a tablet's avatar menu: one link per
+ * entry, as the sidebar lists them (a hub's link opens its first section this account may open,
+ * under the hub's name), less the pages the tabs already hold, so neither repeats anything that is
+ * one tap away (as Player Mode's account screen holds Resources only when it has no tab).
  */
 export function adminSheetLinks(allowed: readonly string[], tabHrefs: readonly string[]): NavLink[] {
   return ADMIN_ENTRIES.flatMap((entry): NavLink[] => {
@@ -373,6 +376,50 @@ export function adminSheetLinks(allowed: readonly string[], tabHrefs: readonly s
 
 /** Account settings in Admin Mode: the same page as Player Mode's, without leaving Admin Mode. */
 export const ADMIN_ACCOUNT_LINKS: NavLink[] = [{ href: "/admin/settings", label: "Settings", icon: Settings }];
+
+/**
+ * A destination in a tablet's top bar (md to lg, in a window taller than 480px): `pages` are every
+ * page it stands for, each of which marks it as the current one.
+ */
+export interface BarDestination {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  pages: string[];
+}
+
+/**
+ * TABLETS (md to lg, not a short window) have no sidebar and no drawer: their destinations sit in
+ * the top bar, one tap each (docs/MOBILE.md, "Frames by posture"):
+ *   Player Mode   the sidebar's entries, My Profile, Team and Resources, each to the first page of it
+ *                 this account may open, under the entry's name, marked on all of its pages (Team's
+ *                 sections stay the pinned tabs in the page);
+ *   Admin Mode    the phone's four tabs (ADMIN_TABS); the admin pages without a tab (Data &
+ *                 Integrations, Audit Logs) are in the avatar menu (adminSheetLinks).
+ * A phone held sideways (a short window below lg) keeps the phone's destinations (PHONE_TABS) in its
+ * one compact bar instead.
+ */
+export function tabletDestinations(allowed: readonly string[], admin: boolean): BarDestination[] {
+  if (admin) return ADMIN_TABS.filter((t) => allowed.includes(t.href)).map((t) => ({ ...t, pages: [t.href] }));
+  return NAV_ENTRIES.flatMap((entry): BarDestination[] => {
+    const pages = entryLinks(entry)
+      .filter((l) => allowed.includes(l.href))
+      .map((l) => l.href);
+    return pages.length ? [{ href: pages[0]!, label: entry.label, icon: entry.icon, pages }] : [];
+  });
+}
+
+/**
+ * The tablet's destination a page belongs to: in Player Mode as the sidebar marks it (a teammate's
+ * profile is Team's, your own profile's sections My Profile's, Matchup Intel Resources'), in Admin
+ * Mode as its tabs do (Platform Settings' pages are its Settings tab); none for Settings and pages
+ * outside them.
+ */
+export function currentDestination(pathname: string, destinations: readonly BarDestination[], admin: boolean): string | null {
+  if (admin) return currentTab(pathname, destinations.map((d) => d.href));
+  const page = activeHref(pathname, destinations.flatMap((d) => d.pages));
+  return page === null ? null : (destinations.find((d) => d.pages.includes(page))?.href ?? null);
+}
 
 /** May this session open the link? (Pages enforce the same rule on the server.) */
 export function canOpen(session: Session | null, link: Pick<NavLink, "permission" | "anyOf">): boolean {
