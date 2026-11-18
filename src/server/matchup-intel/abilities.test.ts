@@ -39,6 +39,8 @@ describe("compactChampionAbilities: what is taken from a champion's Data Dragon 
       cooldown: [13, 13, 13, 13, 13],
       charges: null,
       description: "Riven lashes out in a series of strikes. This ability can be reactivated three times in a short time frame with the third hit knocking back nearby enemies.",
+      // A hash of Riot's raw description and tooltip, never the text: whether it is still the text reviewed.
+      textHash: "dddc41c53134d5e2",
     });
     expect(riven).toMatchObject({ championId: "Riven", version: V });
     expect(riven!.abilities.map((a) => a.slot)).toEqual([...SLOTS]);

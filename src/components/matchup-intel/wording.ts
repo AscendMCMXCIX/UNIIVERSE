@@ -1,6 +1,6 @@
 import { formatCooldowns, formatCount, formatIsoDay, formatPerRank, formatSeconds, keepUnitsWithNumbers } from "@/lib/format";
 import { cooldownFrom } from "@/domain/matchup-intel/cooldown";
-import type { AbilityChange, AbilityModifiers, CooldownDisplay, CooldownStart, FactKind, FactSubject, Freshness, MatchupPageView, PassiveStart, Recast, Slot, UnknownCooldownReason } from "@/domain/matchup-intel/types";
+import type { AbilityChange, AbilityModifiers, CooldownDisplay, CooldownStart, FactKind, FactSubject, Freshness, KindGroup, MatchupPageView, PassiveStart, Recast, RiotTextKind, RiotTextSource, Slot, UnknownCooldownReason } from "@/domain/matchup-intel/types";
 
 /*
   Matchup Intel's fixed words (docs/MATCHUP_INTEL.md, "Cooldowns"): how a cooldown, its modifiers,
@@ -326,18 +326,147 @@ export function hiddenInteractionsWords(count: number, changed: readonly string[
 
 /**
  * What a screen reader is told once the page for a choice made in the pickers has arrived (the
- * slot it is on names only its own champion): whether a curated briefing came, or none exists, and
- * what follows. `shows`: the briefing shows a point of its own (not hidden whole).
+ * slot it is on names only its own champion): whether a curated briefing came, or none exists and
+ * an assembled reference follows (never called a briefing), and what follows. `shows`: the briefing
+ * shows a point of its own (not hidden whole).
  */
 export function announcementWords(view: Pick<MatchupPageView, "you" | "enemy" | "matchup">, shows: boolean): string {
   const { you, enemy, matchup } = view;
   if (you && enemy) {
     const pair = `${you.name} vs ${enemy.name}`;
     if (matchup && shows) return `${pair}: curated briefing, checked on patch ${matchup.verified.patch}. ${enemy.name}'s abilities follow.`;
-    if (matchup) return `${pair}: the curated briefing is hidden. ${enemy.name}'s abilities follow.`;
-    return `No curated briefing for ${pair} yet. ${enemy.name}'s abilities follow.`;
+    if (matchup) return `${pair}: the curated briefing is hidden; an assembled reference from each champion's own facts follows. ${enemy.name}'s abilities follow.`;
+    return `No curated briefing for ${pair} yet: an assembled reference from each champion's own facts, which no person has checked as a pair. ${enemy.name}'s abilities follow.`;
   }
   if (you) return `Playing ${you.name}: now choose the enemy.`;
   if (enemy) return `${enemy.name}'s abilities and base cooldowns.`;
   return "Choose your champion and the enemy.";
+}
+
+/* ---------- Facts from Riot's text (L3) and the assembled reference (L5) ---------- */
+
+/** Each kind from Riot's text as its chip names it. */
+export const RIOT_TEXT_KIND_WORDS: Record<RiotTextKind, string> = {
+  stun: "Stun",
+  knockup: "Knock-up",
+  knockback: "Knock-back",
+  pull: "Pull",
+  root: "Root",
+  slow: "Slow",
+  silence: "Silence",
+  fear: "Fear",
+  flee: "Flee",
+  charm: "Charm",
+  taunt: "Taunt",
+  suppression: "Suppression",
+  ground: "Grounding",
+  polymorph: "Polymorph",
+  sleep: "Sleep",
+  blind: "Blind",
+  disarm: "Disarm",
+  nearsight: "Nearsight",
+  drowsy: "Drowsy",
+  dash: "Dash",
+  blink: "Blink",
+  leap: "Leap",
+  teleport: "Teleport",
+  unstoppable: "Unstoppable",
+  shield: "Shield",
+  untargetable: "Untargetable",
+  invulnerable: "Invulnerable",
+  stasis: "Stasis",
+  spellshield: "Spell shield",
+  damagereduction: "Damage reduction",
+  tenacity: "Tenacity",
+  cleanse: "Cleanse",
+  stealth: "Stealth",
+  parry: "Parry",
+  heal: "Heal",
+  lifesteal: "Life steal",
+  omnivamp: "Omnivamp",
+  regeneration: "Regeneration",
+  recast: "Recast",
+  charges: "Charges",
+  cooldownrefund: "Cooldown refund",
+  reset: "Reset",
+  toggle: "Toggle",
+  empower: "Empowered",
+  transform: "Transforms",
+};
+
+/** Each group of facts as the dashboard names it. */
+export const KIND_GROUP_WORDS: Record<KindGroup, string> = {
+  "crowd-control": "Crowd control",
+  power: "Burst and power",
+  mobility: "Mobility",
+  defence: "Defence",
+  sustain: "Sustain",
+  cooldown: "Cooldown",
+};
+
+/** The label every fact from Riot's text carries, in the owner's words (18 Nov 2026). */
+export const RIOT_TEXT_LABEL = "From Riot's ability text, reviewed automatically (not by a person)";
+
+/** Which of Riot's texts a clause is quoted from: "Riot's tooltip for Ki Burst", "Riot's description of Ki Burst". */
+export function riotTextSourceWords(source: RiotTextSource, ability: string): string {
+  return source === "tooltip" ? `Riot's tooltip for ${ability}` : `Riot's description of ${ability}`;
+}
+
+/** When a champion's facts from Riot's text were reviewed: "Reviewed against Riot's text of patch 26.22, on 18 Nov 2026". */
+export function riotTextReviewedWords(patch: string | null, reviewedOn: string): string {
+  const day = formatIsoDay(reviewedOn);
+  return `Reviewed against Riot's text${patch ? ` of patch ${patch}` : ""}${day === "—" ? "" : `, on ${day}`}`;
+}
+
+/** The assembled reference's title: it is never called a briefing. */
+export const ASSEMBLED_TITLE = "Assembled reference";
+
+/** What the assembled reference is, said on it every time: "Put together from each champion's own facts. No person has checked Riven vs Darius as a pair." */
+export function assembledWords(you: string, enemy: string): string {
+  return `Put together from each champion's own facts. No person has checked ${you} vs ${enemy} as a pair.`;
+}
+
+/** A champion with neither checked notes nor reviewed facts: "No reviewed facts for Darius yet: crowd control, mobility, defence and sustain are not recorded." */
+export function noFactsWords(name: string): string {
+  return `No reviewed facts for ${name} yet: crowd control, mobility, defence and sustain are not recorded.`;
+}
+
+/** A group with nothing in it, said where its facts would be: never "none", only what is recorded. */
+export function noneRecordedWords(from: "checked" | "riot-text"): string {
+  return from === "checked" ? "None in the checked notes" : "None recorded in Riot's text";
+}
+
+/**
+ * In place of an ability's facts from Riot's text that are hidden: "Riot's text for W changed after
+ * the review: its 2 facts are hidden." Never left out silently.
+ */
+export function hiddenRiotTextWords(count: number, because: "changed" | "renamed" | "unknown", key: string): string {
+  const facts = `${count === 1 ? "its fact is" : `its ${formatCount(count)} facts are`} hidden`;
+  if (because === "renamed") return `Riot renamed ${key} after the review: ${facts}.`;
+  if (because === "unknown") return `Whether Riot's text for ${key} changed since the review is not known yet: ${facts}.`;
+  return `Riot's text for ${key} changed after the review: ${facts}.`;
+}
+
+/** No level notes for the champions on the page: "No level changes recorded for Darius or Riven." */
+export function noLevelNotesWords(names: readonly string[]): string {
+  const list = names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} or ${names[names.length - 1]}`;
+  return `No level changes recorded${list ? ` for ${list}` : ""}.`;
+}
+
+/** No interactions to show for the pair, and where they could come from. */
+export const NO_INTERACTIONS_WORDS = "No interactions recorded for this pair: they come only from curated matchup notes and each champion's checked notes.";
+
+/** The danger side of the dashboard: "Darius's kit, by kind". */
+export function dangerSideWords(enemy: string): string {
+  return `${enemy}'s kit, by kind`;
+}
+
+/** The opportunity side of the dashboard: "Riven's tools, by kind". */
+export function toolsSideWords(you: string): string {
+  return `${you}'s tools, by kind`;
+}
+
+/** The folded lane points: "2 more". */
+export function moreWords(count: number): string {
+  return `${formatCount(count)} more`;
 }
