@@ -63,17 +63,19 @@ decorative chrome.
     shows its icon alone, and under 360px Filters too, their names kept for screen readers); the
     scope line follows; a narrowed filter's chips take the next row when they do not fit, and below
     `xl` an active refinement's always do, from the row's start, clear of the Refine panel.
-  - The summary (`StatStrip`) holds every figure at once in three lines on a phone from 375px:
-    the last twenty with the streak and a trend; the record, KDA, CS and kill participation; the
-    champions played most and the ladder change. Its words are the approved design's short ones
-    ("4W streak", "+45 Solo/Duo since 3 Nov", on a phone "Better +9 pts"), the full ones read by
-    screen readers and in each figure's title. A line wraps where its figures still do not fit:
-    at 375px a two-digit record on a champion beside the ladder change, a 360px phone's ladder
-    change, a 320px phone, a large text size. From 36rem one flowing line; from 60rem one row of
-    tiles with every figure at once (a trend, a streak, three champions and the ladder change, at
-    their widest with both arrows too, on a 60rem list as well); from 78rem without
-    a trend one line of text. Measured with demo Support (a trend, a streak and the ladder change)
-    and the widest real values written in (e2e/match-history-layout.spec.ts).
+  - The summary (`StatStrip`) holds every figure at once in three lines on a phone from 393px
+    (an iPhone 15): the last twenty with the streak and a trend; the record, KDA, CS and kill
+    participation; the champions played most and the ladder change. Its words are the approved
+    design's short ones ("4W streak", "+45 Solo/Duo since 3 Nov", on a phone "Better +9 pts"), the
+    full ones read by screen readers and in each figure's title. The squares share what their line
+    leaves, never under 3px. A line wraps where its figures still do not fit: at 375px a streak
+    beside a named trend takes a second row on the first line, and the longest ladder label or a
+    two-digit record on a champion can move the ladder change to a fourth line; a 360px phone's
+    ladder change, a 320px phone and a large text size wrap too. From 36rem one flowing line; from
+    60rem one row of tiles with every figure at once (a trend, a streak, three champions and the
+    ladder change, at their widest with both arrows too, on a 60rem list as well); from 78rem
+    without a trend one line of text. Measured with demo Support (a trend, a streak and the ladder
+    change) and the widest real values written in (e2e/match-history-layout.spec.ts).
   - Encounters keeps its minimum and order in a phone's Filters sheet, as chips that count with
     the filters and that its Reset puts back; from tablets up they stay in the list's toolbar and
     are the list's own (the filters' Reset neither counts nor changes them). Its column names pin

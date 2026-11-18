@@ -23,17 +23,19 @@ const metricText = (m: Pick<FormMetric, "key" | "recent">) => (m.recent === null
   Laid out by ui/stat-strip (owner decision D8, 8 Nov 2026), in the order the approved design reads:
   the form (the last twenty as squares, the streak, the trend), the record, KDA, CS (vision for
   supports) and kill participation, the champions played most and the ladder change. The ⓘ sits
-  with "Last 20", which it explains. On a phone, three lines:
+  with "Last 20", which it explains. On a phone from 393px, three lines with every figure at once:
     1. "Last 20 ⓘ", the squares (they share what the line leaves, 3 to 8px each), the streak
        ("4W streak") and, when one is named, the trend ("Better +9 pts");
     2. the record, KDA, CS and kill participation, spread across;
     3. the champions played most and the ladder change ("+45 Solo/Duo since 30 Sep").
   The words a phone's line leaves out are read by screen readers and are in each figure's title
   ("4 wins in a row", "Solo/Duo points", "Better lately"); from 36rem the trend says them again. A
-  line wraps where its figures still do not fit: at 375px a two-digit record on a champion beside
-  the ladder change, a 360px phone's ladder change, a 320px phone, a large text size. From 36rem one
-  flowing line, from 60rem one row of tiles, from 78rem without a trend one line of text
-  (ui/stat-strip).
+  line wraps where its figures still do not fit: at 375px a streak beside a named trend takes a
+  second row on the first line (the squares, never under 3px, go under "Last 20 ⓘ" or the trend
+  moves down), and the longest ladder label or a two-digit record on a champion can move the ladder
+  change to a fourth line; a 360px phone's ladder change, a 320px phone and a large text size wrap
+  too. From 36rem one flowing line, from 60rem one row of tiles, from 78rem without a trend one line
+  of text (ui/stat-strip).
 */
 export function HistorySummaryStrip({ summary, ladder, championsById }: { summary: HistorySummary; ladder: MatchHistoryPage["ladder"]; championsById: Record<string, PortraitChampion> }) {
   const { form } = summary;

@@ -467,9 +467,11 @@ request is a game's match timeline, once per game, when a section that needs it 
   `compact`, FilterBar's `compactToggle`; `toolbarFills`: a narrowed filter's chips on the next row
   when they do not fit, an active refinement's always below `xl`, clear of the Refine panel), the
   scope line under it with the data status in its text, and the summary is `StatStrip`: every
-  figure in three lines on a phone from 375px (the approved design's short words, the full ones in
-  titles and screen-reader text), one flowing line from 36rem, one row of tiles from 60rem and one
-  text line from 78rem without a trend. Encounters' minimum and order count with the filters in a
+  figure in three lines on a phone from 393px (the approved design's short words, the full ones in
+  titles and screen-reader text; the squares never under 3px; at 375px a streak beside a named
+  trend takes a second row on the first line, and the longest ladder label or a two-digit record
+  on a champion can take the ladder change to a fourth line), one flowing line from 36rem, one row
+  of tiles from 60rem and one text line from 78rem without a trend. Encounters' minimum and order count with the filters in a
   phone's sheet only (FilterBar's `inlineReset`). The page heights at each size are in
   docs/MOBILE.md, section 3, and in a test.
 - **Builds on cards** (`icon-img.tsx`): an item, spell or rune whose image fails (Data Dragon
