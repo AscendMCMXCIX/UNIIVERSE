@@ -186,6 +186,54 @@ test("a Team Matches card opens its game under it, as Match History does; names 
   await expect(page).toHaveURL(/\/players\/[0-9a-f-]+$/);
 });
 
+test("wide cards follow their list's width, not the window's: beside an open sidebar every name keeps its room and no member runs into the teams", async ({ page, context, baseURL }, info) => {
+  test.skip(info.project.name !== "desktop", "desktop windows, with the sidebar open and folded");
+  // The four columns (the result, the members, both teams, the bookmark) need a list about 58rem
+  // wide. Sized by the window (lg), they came at 1024px beside the 16rem sidebar too, where the
+  // members' column was too narrow for a name and each member's figures ran into the teams.
+  for (const sidebar of ["expanded", "collapsed"] as const) {
+    await context.addCookies([{ name: "uniiverse_sidebar", value: sidebar, url: baseURL! }]);
+    for (const viewport of [{ width: 1024, height: 768 }, { width: 1080, height: 810 }, { width: 1440, height: 900 }]) {
+      const where = `${viewport.width} × ${viewport.height}, the sidebar ${sidebar}`;
+      await page.setViewportSize(viewport);
+      await page.goto("/matches");
+      await expect(page.getByTestId("together-card").first()).toBeVisible();
+      await page.evaluate(() => document.fonts.ready);
+      const facts = await page.evaluate(() => {
+        const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+        const cards = [...document.querySelectorAll("[data-testid=together-card]")];
+        let wide = 0;
+        const squeezed: string[] = [];
+        let intoTeams = 0;
+        for (const card of cards) {
+          const grid = card.querySelector(":scope > div.grid");
+          const columns = grid ? getComputedStyle(grid).gridTemplateColumns.split(" ").length : 0;
+          if (columns >= 4) wide++;
+          const teams = card.querySelector("[data-testid=match-teams]")?.parentElement;
+          const teamsLeft = teams && columns >= 4 ? teams.getBoundingClientRect().left : Infinity;
+          for (const member of card.querySelectorAll("[data-testid=together-member]")) {
+            const name = member.querySelector<HTMLElement>("a[href^='/players/']");
+            // A name is whole, or cut with at least 4rem of it shown.
+            if (name && name.scrollWidth > name.clientWidth + 1 && name.getBoundingClientRect().width < 4 * rem) squeezed.push(name.textContent ?? "");
+            let right = 0;
+            for (const part of member.querySelectorAll("*")) {
+              const box = part.getBoundingClientRect();
+              if (box.width) right = Math.max(right, box.right);
+            }
+            if (right > teamsLeft) intoTeams++;
+          }
+        }
+        return { cards: cards.length, wide, squeezed, intoTeams };
+      });
+      expect(facts.cards, `${where}: cards to measure`).toBeGreaterThan(0);
+      expect(facts.squeezed, `${where}: every name whole or at least 4rem of it shown`).toEqual([]);
+      expect(facts.intoTeams, `${where}: no member's row runs into the teams`).toBe(0);
+      // At 1440 the cards keep their four columns, with the sidebar open or folded.
+      if (viewport.width === 1440) expect(facts.wide, `${where}: four columns`).toBe(facts.cards);
+    }
+  }
+});
+
 test("old addresses for Season 2025 or all seasons open the current season", async ({ page, request }) => {
   const season = await demoSeasonLabel(request);
   for (const q of ["season=15", "season=2025", "season=all"]) {
