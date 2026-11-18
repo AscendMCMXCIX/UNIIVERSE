@@ -88,12 +88,17 @@ export function usePageFilters(): PageFilters | null {
   return React.useSyncExternalStore(filtersStore.subscribe, filtersStore.get, () => null);
 }
 
-/** Where the page's list starts (its first item), for the sheet closed after a change: from the page's PageToolbar (`land`). */
-let landing: (() => Element | null) | null = null;
+/**
+ * Where the page's list starts (its first item), for the sheet closed after a change, as each
+ * mounted PageToolbar names it (`land`): the page's own outranks a shared part's fallback, whatever
+ * order their effects ran in.
+ */
+const landings: Array<{ find: () => Element | null; fallback: boolean }> = [];
 
 /** The page's list's first item, as its PageToolbar names it (null: none named, or none on the page now). */
 export function landTarget(): Element | null {
-  return landing?.() ?? null;
+  const named = [...landings].reverse().find((l) => !l.fallback) ?? landings.at(-1);
+  return named?.find() ?? null;
 }
 
 /**
@@ -209,13 +214,14 @@ export function PageToolbar({ anchor, land, fallback = false, label = "This page
   }, [fallback]);
   const outranked = React.useSyncExternalStore(mains.subscribe, mains.get, () => 0) > 0 && fallback;
   React.useEffect(() => {
-    if (!land || outranked) return;
-    const find = () => [...document.querySelectorAll(land)].find((el) => el.getBoundingClientRect().height > 0) ?? null;
-    landing = find;
+    if (!land) return;
+    const entry = { find: () => [...document.querySelectorAll(land)].find((el) => el.getBoundingClientRect().height > 0) ?? null, fallback };
+    landings.push(entry);
     return () => {
-      if (landing === find) landing = null;
+      const at = landings.indexOf(entry);
+      if (at >= 0) landings.splice(at, 1);
     };
-  }, [land, outranked]);
+  }, [land, fallback]);
   const filters = usePageFilters();
   // The page's own toolbar: its element as the page names it, else its filter bar's.
   const foot = useStackFoot(slot?.stuck ? slot.bar : null);
