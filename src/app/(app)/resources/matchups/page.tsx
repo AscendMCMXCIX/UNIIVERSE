@@ -39,7 +39,9 @@ export default async function MatchupIntelPage({ searchParams }: { searchParams:
   const lane = shows ? ", and what matters in lane" : view.matchup ? "; its curated briefing is hidden" : "; no curated briefing yet";
   const description = you && enemy ? `${you.name} vs ${enemy.name}: the enemy's abilities and base cooldowns${lane}.` : you ? `Playing ${you.name}: choose the enemy.` : enemy ? `Facing ${enemy.name}: the abilities and base cooldowns. Choose your champion for a curated briefing, where one exists.` : "Before lane: choose your champion and the enemy, then read the enemy's abilities, their base cooldowns and, where one exists, a curated briefing.";
   return (
-    <div className="mx-auto max-w-[var(--content-max)] space-y-5" data-testid="matchup-intel">
+    // A word too long for its line breaks rather than reach past its box (inherited by all the page
+    // holds): only at a larger text size on a narrow phone, as at 200% on a 320px one.
+    <div className="mx-auto max-w-[var(--content-max)] space-y-5 [overflow-wrap:anywhere]" data-testid="matchup-intel">
       <PageHeader title="Matchup Intel" description={description} guide />
       {dropped ? (
         <p role="status" className="rounded-panel border border-warn/30 bg-warn/10 px-4 py-3 text-sm text-fg" data-testid="matchup-unknown">
