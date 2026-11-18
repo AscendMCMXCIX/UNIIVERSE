@@ -53,12 +53,42 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
 const TOGETHER_CAVEAT =
   "Riot games in which two or more team members were on the same team, found in their synced match histories (no extra Riot requests). Riot's match data does not say who queued together, so these are games played together, not confirmed premade parties. Several linked accounts of one player count as one member; members on opposite sides are never counted as teammates. From Season 2026 on.";
 
-/** The header's one line: what is counted, with the caveat behind (i). */
-function Summary({ children, caveat, label }: { children: React.ReactNode; caveat: string; label: string }) {
+/**
+ * Games with two or more members that this page cannot list (which side each member was on is not
+ * known): said behind the scope line's (i), with the rule, as the list's own line used to say them.
+ */
+function leftOutNotes(data: Pick<PlayedTogether, "unknownSide" | "unavailableSide">): string[] {
+  const notes: string[] = [];
+  if (data.unknownSide) notes.push("Some games with two or more members could not be checked yet: their match details are not stored, so which side each member was on is unknown. They appear once the details are synced.");
+  if (data.unavailableSide) notes.push(`${data.unavailableSide} game${data.unavailableSide === 1 ? "" : "s"} with two or more members ${data.unavailableSide === 1 ? "is" : "are"} left out: Riot no longer provides the record, so which side each member was on cannot be known. The results still count on the members' profiles.`);
+  return notes;
+}
+
+/** The header's one line: what is counted, with the caveat (and any games left out) behind (i). */
+function Summary({ children, caveat, notes = [], label }: { children: React.ReactNode; caveat: string; notes?: string[]; label: string }) {
   return (
-    <span className="inline-flex flex-wrap items-center gap-x-1.5" data-testid="matches-summary">
-      <span>{children}</span>
-      <InfoTip text={caveat} label={label} />
+    // The (i) after the line's last word, in its flow: on a narrow phone it never takes a line alone.
+    <span data-testid="matches-summary">
+      <span>{children}</span>{" "}
+      <span className="ml-0.5 inline-flex align-middle">
+        <InfoTip
+          text={
+            notes.length ? (
+              <>
+                <span className="block">{caveat}</span>
+                {notes.map((n) => (
+                  <span key={n} className="mt-1.5 block" data-testid="matches-left-out">
+                    {n}
+                  </span>
+                ))}
+              </>
+            ) : (
+              caveat
+            )
+          }
+          label={label}
+        />
+      </span>
     </span>
   );
 }
@@ -144,7 +174,7 @@ async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<Ret
       <PageHeader
         title="Matches"
         description={
-          <Summary caveat={TOGETHER_CAVEAT} label="How games played together are found">
+          <Summary caveat={TOGETHER_CAVEAT} notes={leftOutNotes(data)} label="How games played together are found">
             {seasonLabel(season)} · {plural(all.length, "game", "games")} {saved ? "bookmarked" : "played together"}
             {decided ? ` · ${wins}W ${decided - wins}L` : ""}
           </Summary>

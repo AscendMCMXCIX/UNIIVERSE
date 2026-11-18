@@ -69,7 +69,15 @@ test("Played together lists games with two or more members on one side, with hon
   await showFilters(page);
   await page.getByTestId("together-queue").selectOption("solo");
   await expect(page).toHaveURL(/queue=solo/);
-  await expect(page.getByText(/Ranked Solo\/Duo allows parties of two at most/).first()).toBeVisible();
+  // Text on the card, never only behind an (i): whole on a stacked card; in the four columns' narrow
+  // result column a short line on screen, the whole sentence read out and in its title.
+  const caveat = page.getByTestId("together-solo-caveat").first();
+  await expect(caveat).toBeVisible();
+  const full = "Ranked Solo/Duo allows parties of two at most, so not all of them queued together.";
+  await expect(caveat).toHaveAttribute("title", full);
+  expect(await caveat.evaluate((p) => p.textContent)).toContain(full);
+  const wide = await page.getByTestId("together-list").evaluate((l) => l.getBoundingClientRect().width / parseFloat(getComputedStyle(document.documentElement).fontSize) >= 58);
+  expect(await caveat.evaluate((p) => [...p.children].filter((c) => c.getBoundingClientRect().width > 1).map((c) => c.textContent!.trim()).join(""))).toBe(wide ? "Solo/Duo: duos at most" : full);
   // All five, Clash: none in the demo, so an honest empty state, and Clear filters puts every filter back.
   await showFilters(page);
   await page.getByTestId("together-queue").selectOption("clash");
@@ -280,4 +288,73 @@ test("old addresses for Season 2025 or all seasons open the current season", asy
     await page.goto(`/matches?${q}`);
     await expect(page.getByTestId("matches-summary")).toContainText(season);
   }
+});
+
+test("members two to a row from a 34rem column: a 36px portrait with the member's 16px picture on its corner, the K/D/A right after the name; Bookmarked ends the filter row", async ({ page, context, baseURL }, info) => {
+  test.skip(info.project.name === "phone", "a phone lists the members one to a row");
+  // The tablet's stacked card (a 45rem list), and four columns beside the open sidebar at 1440 (the
+  // members' column 35rem). A game of four takes two rows of two.
+  await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: baseURL! }]);
+  await page.goto("/matches");
+  const four = page.locator("[data-testid=together-game][data-members='4']").first();
+  await expect(four).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  const members = await four.evaluate((card) =>
+    [...card.querySelectorAll<HTMLElement>("[data-testid=together-member]")].map((m) => {
+      const box = (el: Element) => el.getBoundingClientRect();
+      const portrait = box(m.firstElementChild!.firstElementChild!);
+      const badge = box(m.querySelector("[data-testid=together-member-avatar]")!.firstElementChild!);
+      const name = box(m.querySelector("a[href^='/players/']")!);
+      const kda = box(m.querySelector("[data-testid=together-kda]")!);
+      return { left: Math.round(box(m).left), height: box(m).height, portrait: [portrait.width, portrait.height], badge: [badge.width, badge.height], corner: [badge.right - portrait.right, badge.bottom - portrait.bottom], gap: kda.left - name.right, sameLine: Math.abs(kda.top + kda.height / 2 - (name.top + name.height / 2)) < 6 };
+    }),
+  );
+  expect(members.length).toBe(4);
+  expect(new Set(members.map((m) => m.left)).size, "two columns").toBe(2);
+  for (const m of members) {
+    expect(m.portrait.map(Math.round), "a 36px portrait").toEqual([36, 36]);
+    expect(m.badge.map(Math.round), "a 16px picture").toEqual([16, 16]);
+    // On the portrait's lower right corner, 4px past it (-bottom-1 -right-1).
+    for (const d of m.corner) expect(Math.abs(d - 4)).toBeLessThanOrEqual(1);
+    expect(m.sameLine && m.gap >= 0 && m.gap <= 12, "the K/D/A right after the name").toBe(true);
+    expect(m.height, "a member's row").toBeLessThanOrEqual(56);
+  }
+  // No line of its own for the count: the scope line counts the games, and Bookmarked ends the filter row.
+  await expect(page.getByTestId("together-count")).toHaveCount(0);
+  const saved = page.getByTestId("together-saved");
+  await expect(saved).toBeVisible();
+  const [s, list, first] = [(await saved.boundingBox())!, (await page.getByTestId("together-list").boundingBox())!, (await page.getByTestId("together-queue").boundingBox())!];
+  expect(Math.abs(s.x + s.width - (list.x + list.width)), "at the row's end").toBeLessThanOrEqual(1);
+  expect(Math.abs(s.y + s.height / 2 - (first.y + first.height / 2)), "on the filters' line").toBeLessThanOrEqual(2);
+});
+
+test("on a phone each member is a row of about 40px with the name whole, the count of members read out only", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "phones");
+  for (const width of [375, 320]) {
+    await page.setViewportSize({ width, height: 700 });
+    await page.goto("/matches");
+    await expect(page.getByTestId("together-member").first()).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    const facts = await page.evaluate(() => ({
+      heights: [...document.querySelectorAll("[data-testid=together-member]")].map((m) => Math.round(m.getBoundingClientRect().height)),
+      cut: [...document.querySelectorAll<HTMLElement>("[data-testid=together-member] a[href^='/players/']")].filter((a) => a.scrollWidth > a.clientWidth + 1).map((a) => a.textContent),
+      size: [...document.querySelectorAll("[data-testid=together-size]")].map((s) => s.parentElement!.getBoundingClientRect().width),
+    }));
+    const forty = facts.heights.filter((h) => h <= 44).length;
+    expect(forty / facts.heights.length, `${width}px: most rows about 40px (${facts.heights.join(", ")})`).toBeGreaterThanOrEqual(0.75);
+    expect(Math.max(...facts.heights), `${width}px: a long name and a multikill take a third line at most`).toBeLessThanOrEqual(60);
+    expect(facts.cut, `${width}px: names whole`).toEqual([]);
+    for (const w of facts.size) expect(w, `${width}px: the count read out only`).toBeLessThanOrEqual(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+  }
+});
+
+test("at 200% text on a 320px phone, Team Matches is no wider than the phone", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "a 320px phone");
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.goto("/matches");
+  await expect(page.getByTestId("together-game").first()).toBeVisible();
+  await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+  await page.evaluate(() => document.fonts.ready);
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), { message: "the page as wide as the phone" }).toBeLessThanOrEqual(0);
 });
