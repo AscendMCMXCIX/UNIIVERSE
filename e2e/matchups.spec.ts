@@ -116,14 +116,30 @@ test("old Matchups addresses open the champion window on Matchups, keeping the f
   await expect(page.getByRole("link", { name: "Matchups", exact: true })).toHaveCount(0);
 });
 
-test("on a phone the champion window is compact: a 48px portrait, Refine ending the tabs' row, the stats three by two with short labels, touch-sized tabs and multikills ⓘ", async ({ page }) => {
+/** The window's stats once its panel has rendered: the six tiles (AfterOpen holds the panel back while the window moves in). */
+async function statTiles(win: Locator) {
+  await expect(win.getByTestId("champion-stats").locator(":scope > div")).toHaveCount(6, { timeout: 15_000 });
+  return win.getByTestId("champion-stats").locator(":scope > div").evaluateAll((els) =>
+    els.map((t) => {
+      const dt = t.querySelector("dt")!;
+      const dd = t.querySelector("dd")!;
+      const shown = [...dt.childNodes].map((n) => (n instanceof HTMLElement ? (n.checkVisibility() && n.getBoundingClientRect().width > 1 ? n.textContent : "") : n.textContent)).join("");
+      const short = dt.querySelector("[aria-hidden=true]");
+      return { top: Math.round(t.getBoundingClientRect().top), shown, read: dt.querySelector("[class*='sr-only']")?.textContent ?? dt.textContent, shortHidden: !short || short.getAttribute("aria-hidden") === "true", value: dd.textContent, cut: t.scrollWidth > t.clientWidth + 1 || dd.scrollWidth > dd.clientWidth + 1 };
+    }),
+  );
+}
+
+test("on a phone the champion window is compact: a 48px portrait, Refine ending the tabs' row and its panel after it, the stats three by two with short labels and whole figures, touch-sized tabs and multikills ⓘ", async ({ page }) => {
   test.skip(test.info().project.name !== "phone", "the window on a phone");
   await page.setViewportSize({ width: 393, height: 852 });
   const profile = await firstProfile(page);
   await page.goto(`${profile}/champions`);
-  await openChampion(page, page.getByTestId("top-champion").first().getByTestId("open-champion"));
+  const row = page.getByTestId("top-champion").first();
+  const points = Number(await row.getAttribute("data-mastery"));
+  await openChampion(page, row.getByTestId("open-champion"));
   const win = page.getByTestId("champion-detail");
-  await expect(win.getByTestId("champion-detail-loading")).toHaveCount(0, { timeout: 15_000 });
+  let tiles = await statTiles(win);
   await expect(win.getByTestId("champion-detail-body")).toHaveCSS("opacity", "1", { timeout: 15_000 });
   const name = (await win.getByTestId("champion-detail-name").textContent())!;
   const portrait = (await win.getByTestId("champion-detail-header").getByRole("img", { name, exact: true }).boundingBox())!;
@@ -131,21 +147,19 @@ test("on a phone the champion window is compact: a 48px portrait, Refine ending 
   // One Refine is drawn, at the end of the tabs' row; the tabs are 44px on a touch screen.
   const refine = win.getByTestId("champion-detail-refine").filter({ visible: true });
   await expect(refine).toHaveCount(1);
+  const box = await win.boundingBox();
   const [overview, matchups, r] = [(await win.getByTestId("champion-tab-overview").boundingBox())!, (await win.getByTestId("champion-tab-matchups").boundingBox())!, (await refine.boundingBox())!];
   expect(r.y < overview.y + overview.height && r.y + r.height > overview.y, "Refine on the tabs' row").toBe(true);
   expect(r.x, "after the tabs").toBeGreaterThan(matchups.x + matchups.width);
+  expect(r.x + r.width, "Refine 1rem inside the window's edge").toBeLessThanOrEqual(box!.x + box!.width - 16 + 0.5);
   expect(Math.round(overview.height), "a 44px tab").toBe(44);
   await expect(win.getByTestId("champion-matchup-intel")).toBeVisible();
-  // The stats three by two, each label short on screen and whole for screen readers.
-  const tiles = await win.getByTestId("champion-stats").locator(":scope > div").evaluateAll((els) =>
-    els.map((t) => {
-      const dt = t.querySelector("dt")!;
-      const shown = [...dt.childNodes].map((n) => (n instanceof HTMLElement ? (n.checkVisibility() && n.getBoundingClientRect().width > 1 ? n.textContent : "") : n.textContent)).join("");
-      return { top: Math.round(t.getBoundingClientRect().top), shown, read: dt.querySelector(".sr-only, [class*='max-sm:sr-only']")?.textContent ?? dt.textContent, cut: t.scrollWidth > t.clientWidth + 1 };
-    }),
-  );
+  // The stats three by two, each label short on screen (the short word hidden from screen readers)
+  // and whole for screen readers; every figure written whole, Mastery points too.
   expect(tiles.map((t) => t.shown)).toEqual(["Games", "Win rate", "KDA", "CS/min", "Damage/min", "Mastery"]);
   expect(tiles.map((t) => t.read)).toEqual(["Games", "Win rate", "KDA", "CS per minute", "Damage per minute", "Mastery points"]);
+  expect(tiles.every((t) => t.shortHidden), "the short labels hidden from screen readers").toBe(true);
+  expect(tiles[5]!.value, "the whole mastery points").toBe(points.toLocaleString("en"));
   expect(new Set(tiles.slice(0, 3).map((t) => t.top)).size, "three on the first row").toBe(1);
   expect(new Set(tiles.slice(3).map((t) => t.top)).size, "three on the second").toBe(1);
   expect(tiles[3]!.top).toBeGreaterThan(tiles[0]!.top);
@@ -153,24 +167,79 @@ test("on a phone the champion window is compact: a 48px portrait, Refine ending 
   // The multikills ⓘ: a 24px mark with a 44px touch area.
   const tip = win.getByTestId("champion-multikills-summary").getByTestId("info-tip");
   expect(await tip.evaluate((b) => [getComputedStyle(b, "::after").width, getComputedStyle(b, "::after").height])).toEqual(["44px", "44px"]);
-  // The lane comparison starts on the first screen (it started at 631px).
+  // The lane comparison's top. The plan estimated about 460px on this 393 × 852 phone; it starts at
+  // 524 (631 before): since the plan, the scope row also holds Matchup Intel (#292) and the scope
+  // wraps instead of cutting off the account (#300), and the tabs are 44px on a touch screen. The
+  // bound is that 524 with 16px for the engine's text: a header or tiles growing back fails it.
   const lane = win.getByTestId("champion-lane").or(win.getByTestId("champion-lane-empty"));
-  expect((await lane.boundingBox())!.y - (await win.boundingBox())!.y, "the lane's top in the window").toBeLessThanOrEqual(540);
-  expect(await win.evaluate((d) => d.scrollWidth - d.clientWidth), "nothing wider than the window").toBeLessThanOrEqual(0);
+  expect((await lane.boundingBox())!.y - box!.y, "the lane's top in the window").toBeLessThanOrEqual(540);
+  // Nothing wider than the window: the header (overflow-hidden) and the body (it scrolls) keep any
+  // overflow to themselves, so each is measured, not the dialog.
+  for (const id of ["champion-detail-header", "champion-detail-body"]) expect(await win.getByTestId(id).evaluate((e) => e.scrollWidth - e.clientWidth), `${id}: nothing wider`).toBeLessThanOrEqual(0);
+
+  // Refine opens its panel after the tabs' row, right after the button in reading and focus order;
+  // the button stays where it was tapped.
+  await refine.tap();
+  await expect(refine).toHaveAttribute("aria-expanded", "true");
+  const panel = win.getByTestId("champion-refine");
+  await expect(panel).toBeVisible();
+  await expect(win.locator("#champion-refine")).toHaveCount(1);
+  const [after, p] = [(await refine.boundingBox())!, (await panel.boundingBox())!];
+  expect(Math.abs(after.y - r.y), "the button did not move").toBeLessThanOrEqual(1);
+  expect(p.y, "the panel under the button's row").toBeGreaterThanOrEqual(after.y + after.height - 1);
+  expect(await refine.evaluate((b) => !!(b.compareDocumentPosition(document.getElementById("champion-refine")!) & Node.DOCUMENT_POSITION_FOLLOWING)), "the panel after its button").toBe(true);
+  await refine.focus();
+  await page.keyboard.press("Tab");
+  await expect(win.locator("#champion-refine-season"), "Tab from Refine goes to the season").toBeFocused();
+  await refine.tap();
+  await expect(panel).toHaveCount(0);
+
+  // A 320px phone: every figure still whole, Mastery points written whole; its column takes the room
+  // a seven-digit figure needs rather than rounding it.
+  await page.setViewportSize({ width: 320, height: 568 });
+  tiles = await statTiles(win);
+  expect(tiles[5]!.value, "320px: the whole mastery points").toBe(points.toLocaleString("en"));
+  expect(tiles.filter((t) => t.cut), "320px: every figure whole").toEqual([]);
+  await win.getByTestId("champion-stat-mastery").locator("dd").first().evaluate((dd) => (dd.textContent = "1,234,567"));
+  tiles = await statTiles(win);
+  expect(tiles.filter((t) => t.cut), "320px: seven-digit mastery points whole, and every figure beside them").toEqual([]);
+  expect(new Set(tiles.slice(0, 3).map((t) => t.top)).size, "320px: still three to a row").toBe(1);
 });
 
-test("on a computer the champion window keeps its layout: six figures across with their whole labels, Refine beside the scope, 40px tabs", async ({ page }) => {
-  test.skip(test.info().project.name !== "desktop", "the window on a computer");
+test("on a phone the multikills row's coverage ⓘ has a 44px touch area too", async ({ page }) => {
+  test.skip(test.info().project.name !== "phone", "a touch screen");
+  await page.goto("/players");
+  const href = await page.locator("main a[data-testid='player-card']", { hasText: "Demo Support" }).first().getAttribute("href");
+  await page.goto(`${new URL(href!, "http://x").pathname}/champions`);
+  // A champion whose multikills are counted in only some of its games: its window says why, behind an ⓘ.
+  const partial = page.getByTestId("top-champion").and(page.locator("[data-multikill-coverage=partial]")).first();
+  await openChampion(page, partial.getByTestId("open-champion"));
+  const note = page.getByTestId("champion-detail").getByTestId("multikill-coverage-note");
+  await expect(note).toBeVisible({ timeout: 15_000 });
+  expect(await note.evaluate((b) => [getComputedStyle(b, "::after").width, getComputedStyle(b, "::after").height])).toEqual(["44px", "44px"]);
+});
+
+test("from sm the champion window keeps its layout: the figures with their whole labels (three across on a tablet, six on a computer), Refine beside the scope with its panel under that row, 40px tabs with a mouse", async ({ page }) => {
+  test.skip(test.info().project.name === "phone", "the window from sm");
   const profile = await firstProfile(page);
   await page.goto(`${profile}/champions`);
   await openChampion(page, page.getByTestId("top-champion").first().getByTestId("open-champion"));
   const win = page.getByTestId("champion-detail");
-  await expect(win.getByTestId("champion-detail-loading")).toHaveCount(0, { timeout: 15_000 });
-  const tiles = await win.getByTestId("champion-stats").locator(":scope > div").evaluateAll((els) => els.map((t) => ({ top: Math.round(t.getBoundingClientRect().top), label: t.querySelector("dt")!.innerText })));
-  expect(new Set(tiles.map((t) => t.top)).size, "one row of six").toBe(1);
-  expect(tiles.map((t) => t.label)).toEqual(["Games", "Win rate", "KDA", "CS per minute", "Damage per minute", "Mastery points"]);
+  const desktop = test.info().project.name === "desktop";
+  const tiles = await statTiles(win);
+  expect(tiles.map((t) => t.shown)).toEqual(["Games", "Win rate", "KDA", "CS per minute", "Damage per minute", "Mastery points"]);
+  expect(new Set(tiles.map((t) => t.top)).size, desktop ? "one row of six" : "two rows of three").toBe(desktop ? 1 : 2);
+  expect(new Set(tiles.slice(0, 3).map((t) => t.top)).size, "the first three on one row").toBe(1);
+  expect(tiles.filter((t) => t.cut), "every figure whole").toEqual([]);
   const refine = win.getByTestId("champion-detail-refine").filter({ visible: true });
+  await expect(refine).toHaveCount(1);
   const [scope, r, tab] = [(await win.getByTestId("champion-detail-scope").boundingBox())!, (await refine.boundingBox())!, (await win.getByTestId("champion-tab-overview").boundingBox())!];
   expect(Math.abs(r.y + r.height / 2 - (scope.y + scope.height / 2)), "Refine on the scope's row").toBeLessThanOrEqual(4);
-  expect(Math.round(tab.height)).toBe(40);
+  const coarse = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
+  expect(Math.round(tab.height), coarse ? "44px on a touch screen" : "40px with a mouse").toBe(coarse ? 44 : 40);
+  // Its panel opens under the scope's row, before the tabs, as it always did.
+  await refine.click();
+  const p = (await win.getByTestId("champion-refine").boundingBox())!;
+  expect(p.y, "under the scope's row").toBeGreaterThanOrEqual(r.y + r.height - 1);
+  expect(p.y + p.height, "before the tabs").toBeLessThanOrEqual((await win.getByTestId("champion-tab-overview").boundingBox())!.y + 1);
 });

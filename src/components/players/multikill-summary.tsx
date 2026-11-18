@@ -21,8 +21,8 @@ const n = formatCount;
 
 /**
  * Phones: four small tiles under the title; wider: one line. `aside` sits at the end of the row
- * (Overview links the per-champion figures there). `tipClassName` goes to the title's ⓘ (the
- * champion window gives it a 44px touch area).
+ * (Overview links the per-champion figures there). `tipClassName` goes to both its ⓘ, the title's
+ * and the coverage note's (the champion window gives them a 44px touch area).
  */
 export function MultikillSummaryRow({ m, aside, className, tipClassName, testId = "multikills" }: { m: MultikillSummary; aside?: React.ReactNode; className?: string; tipClassName?: string; testId?: string }) {
   const id = React.useId();
@@ -65,7 +65,7 @@ export function MultikillSummaryRow({ m, aside, className, tipClassName, testId 
             </span>
           ) : null}
           <span data-testid="multikill-sample">{coverage.label}</span>
-          {coverage.note ? <InfoTip text={coverage.note} label="Why these totals are not complete" testId="multikill-coverage-note" /> : null}
+          {coverage.note ? <InfoTip text={coverage.note} label="Why these totals are not complete" className={tipClassName} testId="multikill-coverage-note" /> : null}
         </p>
         {aside}
       </div>

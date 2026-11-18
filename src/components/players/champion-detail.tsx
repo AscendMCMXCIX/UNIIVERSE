@@ -22,7 +22,7 @@ import { LaneChart, LaneGameCard, LaneTable, timelineCoverage, type LaneMetric }
 import { OpponentPicker } from "./opponent-picker";
 import { Select } from "@/components/ui/input";
 import { FilterField, RefineButton } from "@/components/ui/filter-bar";
-import { percent, formatCount, formatCompactCount } from "@/lib/format";
+import { percent, formatCount } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { tabIndicatorClass } from "@/components/ui/tab-bar";
 import { buttonClass } from "@/components/ui/button";
@@ -68,6 +68,25 @@ export interface ChampionScope {
 
 export type RefineChange = Partial<{ season: number; mode: SeasonMode; account: string | null }>;
 
+/*
+  Below sm (Tailwind's max-sm), where Refine ends the tabs' row: its panel then opens after that row,
+  so in reading and focus order it follows the button that opened it (WCAG 2.4.3), and the button
+  stays where it was tapped. False on the server and until hydrated; the panel only ever renders
+  after a press, so the first render is the same on both.
+*/
+const BELOW_SM = "(width < 40rem)";
+function subscribeBelowSm(onChange: () => void) {
+  const query = window.matchMedia(BELOW_SM);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+const useBelowSm = () =>
+  React.useSyncExternalStore(
+    subscribeBelowSm,
+    () => window.matchMedia(BELOW_SM).matches,
+    () => false,
+  );
+
 const plural = (n: number, word: string) => `${formatCount(n)} ${word}${n === 1 ? "" : "s"}`;
 
 export function ChampionDetail({
@@ -104,6 +123,9 @@ export function ChampionDetail({
   const me = champ(sel.championId);
   const [match, setMatch] = React.useState<string | null>(null);
   const [refine, setRefine] = React.useState(false);
+  // One Refine panel (id champion-refine), after the row of the Refine that is drawn: the scope's
+  // from sm, the tabs' on a phone (a window that crosses sm while it is open moves it with the button).
+  const phone = useBelowSm();
   const [metric, setMetric] = React.useState<LaneMetric>("gold");
   const role = sel.role ?? card?.role ?? null;
   const accountLabel = scope.accountId ? (scope.accounts.find((a) => a.id === scope.accountId)?.riotId ?? "One account") : scope.accounts.length > 1 ? "All linked accounts" : (scope.accounts[0]?.riotId ?? "No linked account");
@@ -166,7 +188,7 @@ export function ChampionDetail({
             </Link>
             {pending ? <span className="text-fg-subtle" aria-live="polite">Updating…</span> : null}
           </div>
-          {refine ? <RefinePanel scope={scope} onRefine={onRefine} /> : null}
+          {refine && !phone ? <RefinePanel scope={scope} onRefine={onRefine} /> : null}
           {/* At a large text size Refine, then the second tab, wrap rather than run past the window's edge. */}
           <div className="mt-3 flex flex-wrap items-end gap-x-2">
             <div role="tablist" aria-label={`${me.name} views`} className="flex min-w-0 flex-wrap gap-1">
@@ -197,6 +219,8 @@ export function ChampionDetail({
             {/* The same Refine, at the end of the tabs' row on a phone (one of the two is ever drawn). */}
             <RefineButton open={refine} count={narrowed} controls="champion-refine" onClick={() => setRefine((r) => !r)} className="mb-1 ml-auto bg-bg/40 max-sm:px-2.5 sm:hidden" testId="champion-detail-refine" />
           </div>
+          {/* On a phone the panel opens under the tabs' row, right after its button. */}
+          {refine && phone ? <RefinePanel scope={scope} onRefine={onRefine} className="mb-3" /> : null}
         </div>
       </div>
     </div>
@@ -253,10 +277,10 @@ function PanelSkeleton() {
  * Season, game mode and account for the window and the list behind it (one shared scope): the same
  * labelled fields as the profile's filters (FilterField, Select).
  */
-function RefinePanel({ scope, onRefine }: { scope: ChampionScope; onRefine: (c: RefineChange) => void }) {
+function RefinePanel({ scope, onRefine, className }: { scope: ChampionScope; onRefine: (c: RefineChange) => void; className?: string }) {
   const accountNames = accountShortNames(scope.accounts);
   return (
-    <div id="champion-refine" role="group" aria-label="Refine this champion's figures" className="mt-2 grid gap-3 rounded-panel border border-border bg-bg/70 p-3 backdrop-blur sm:grid-cols-[repeat(auto-fit,minmax(11rem,1fr))]" data-testid="champion-refine">
+    <div id="champion-refine" role="group" aria-label="Refine this champion's figures" className={cn("mt-2 grid gap-3 rounded-panel border border-border bg-bg/70 p-3 backdrop-blur sm:grid-cols-[repeat(auto-fit,minmax(11rem,1fr))]", className)} data-testid="champion-refine">
       <FilterField label="Season" htmlFor="champion-refine-season" alwaysLabel>
         <Select id="champion-refine-season" value={scope.season} onChange={(e) => onRefine({ season: Number(e.target.value) })} data-testid="champion-refine-season">
           {scope.seasons.map((s) => (
@@ -360,34 +384,21 @@ function OverviewPanel({ me, card, data, champ, multiAccount, onOpponent, onMatc
       {!card || !r || r.games === 0 ? (
         <Note testId="champion-overview-empty">No games on {me.name} in this scope. Refine the season, game mode or account to look further back.</Note>
       ) : (
-        // Three by two below lg (six across from lg, as before); two across only where three would not keep their figures whole (a large text size on a phone).
-        <dl className="grid grid-cols-2 gap-2 max-lg:@min-[17.5rem]/stats:grid-cols-3 lg:grid-cols-6" data-testid="champion-stats">
+        // Three by two below lg (six across from lg, as before); two across, then one, where a large
+        // text size leaves a phone too little room. Every figure is written whole: the last column
+        // (KDA and Mastery points, the widest figures) takes the room its figures need, at least a
+        // third, and the others share the rest.
+        <dl className="grid grid-cols-1 gap-2 max-lg:@min-[11rem]/stats:grid-cols-[minmax(0,1fr)_minmax(min-content,1fr)] max-lg:@min-[17.5rem]/stats:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(min-content,1fr)] lg:grid-cols-6" data-testid="champion-stats">
           <Tile label="Games" value={r.games} sub={`${r.wins}W ${r.losses}L`} testId="champion-stat-games" />
           <Tile label="Win rate" value={r.winRate === null ? "—" : percent(r.winRate, 0)} className={WIN_RATE_TONE_CLASS[winRateTone(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)]} sub={winRateSampleNote(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion) ?? undefined} testId="champion-stat-winrate" />
           <Tile label="KDA" value={p?.perfectKda ? "Perfect" : p?.kdaRatio == null ? "—" : p.kdaRatio.toFixed(2)} sub={p?.kills == null ? undefined : `${p.kills.toFixed(1)} / ${p.deaths!.toFixed(1)} / ${p.assists!.toFixed(1)}`} testId="champion-stat-kda" />
           <Tile label="CS per minute" short="CS/min" value={p?.csPerMinute == null ? "—" : p.csPerMinute.toFixed(1)} sub={p?.csMinuteGames ? plural(p.csMinuteGames, "game") : "No CS recorded"} />
           <Tile label="Damage per minute" short="Damage/min" value={p?.damagePerMinute == null ? "—" : formatCount(p.damagePerMinute)} sub={p?.damageMinuteGames ? plural(p.damageMinuteGames, "game") : "Not in the stored details"} />
-          <Tile
-            label="Mastery points"
-            short="Mastery"
-            // A phone writes the points as All Champions' rows do ("428K"); screen readers hear them whole.
-            value={
-              card.mastery?.points ? (
-                <>
-                  <span aria-hidden className="sm:hidden">
-                    {formatCompactCount(card.mastery.points)}
-                  </span>
-                  <span className="max-sm:sr-only">{formatCount(card.mastery.points)}</span>
-                </>
-              ) : (
-                "—"
-              )
-            }
-            sub={card.mastery ? "All linked accounts" : "No mastery recorded"} />
+          <Tile label="Mastery points" short="Mastery" value={card.mastery?.points ? formatCount(card.mastery.points) : "—"} sub={card.mastery ? "All linked accounts" : "No mastery recorded"} testId="champion-stat-mastery" />
         </dl>
       )}
-      {/* The champion's multikills in the same games, with how many of them have counts; their ⓘ has a
-          44px touch area (24px, and InfoTip's 40px, elsewhere). */}
+      {/* The champion's multikills in the same games, with how many of them have counts; both its ⓘ
+          (the title's and the coverage note's) have a 44px touch area (InfoTip's 40px elsewhere). */}
       {card?.multikills && r && r.games > 0 ? <MultikillSummaryRow m={card.multikills} className="rounded-panel border border-border/70 bg-bg-elevated/60 px-3 py-2" tipClassName="pointer-coarse:after:-inset-2.5!" testId="champion-multikills-summary" /> : null}
       {!r || r.games === 0 ? null : !data ? (
         <Loading label={`Loading ${me.name}'s lanes`} />
