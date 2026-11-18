@@ -50,55 +50,68 @@ export function SectionHeader({ id, title, nav, aside, description, status, stat
   className?: string;
   testId?: string;
 }) {
-  // Beside the views: one wrapping row. The heading's own box steps aside (display: contents), so its
-  // row of views, the scope line and the toolbar are the row's items: the views, then the toolbar
-  // (at the row's end, growing into what the views leave), then the scope line on a line of its own.
-  const scope = order(toolbarBesideNav);
-  return (
-    <div className={cn(toolbarBesideNav ? "flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1" : "grid grid-cols-[minmax(0,1fr)] gap-y-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start xl:gap-x-6", className)} data-testid={testId}>
-      <div className={toolbarBesideNav ? "contents" : "min-w-0 xl:pt-0.5"}>
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-          <h2 id={id} className={nav ? "sr-only" : "min-w-0 text-xl font-semibold tracking-tight text-fg"}>
-            {title}
-          </h2>
-          {nav}
-          {aside}
+  const heading = (
+    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+      <h2 id={id} className={nav ? "sr-only" : "min-w-0 text-xl font-semibold tracking-tight text-fg"}>
+        {title}
+      </h2>
+      {nav}
+      {aside}
+    </div>
+  );
+  // The scope line: under the title; beside the views, a line of its own after the toolbar.
+  const scopeAt = toolbarBesideNav ? "basis-full" : "mt-1";
+  const scope =
+    description || status ? (
+      statusAfterText ? (
+        // The data status at the end of the scope's text, in its flow (on a phone a long scope
+        // used to leave the status's ⓘ alone on a line of its own).
+        <div className={cn(scopeAt, "min-w-0 text-sm leading-5 [&>p]:inline")} data-testid="section-scope">
+          {description}
+          {status ? (
+            <>
+              {" "}
+              <span className="ml-1 inline-flex max-w-full align-middle">{status}</span>
+            </>
+          ) : null}
         </div>
-        {description || status ? (
-          statusAfterText ? (
-            // The data status at the end of the scope's text, in its flow (on a phone a long scope
-            // used to leave the status's ⓘ alone on a line of its own).
-            <div className={cn("min-w-0 text-sm leading-5 [&>p]:inline", scope)} data-testid="section-scope">
-              {description}
-              {status ? (
-                <>
-                  {" "}
-                  <span className="ml-1 inline-flex max-w-full align-middle">{status}</span>
-                </>
-              ) : null}
-            </div>
-          ) : (
-            <div className={cn("flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1", scope)}>
-              {description}
-              {status}
-            </div>
-          )
-        ) : null}
+      ) : (
+        <div className={cn(scopeAt, "flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1")}>
+          {description}
+          {status}
+        </div>
+      )
+    ) : null;
+  const toolbar =
+    controls || refresh ? (
+      // The toolbar: the filters take the room there is (on phones their folded button fills the
+      // row beside Refresh); from xl it sits at the title's right, as wide as what it holds.
+      // Beside the views it asks for the width its content needs, at the row's end, and takes the
+      // next row when that does not fit (flex-wrap breaks a line before shrinking anything); there
+      // its filters shrink to what Refresh leaves, so the chips of a phone's narrowed filters scroll.
+      <div className={cn("flex min-w-0 items-start gap-2", toolbarBesideNav ? cn("flex-auto justify-end", toolbarFills === "below-xl" && "basis-full xl:basis-auto") : "xl:justify-end")} data-testid="section-toolbar">
+        {controls ? <div className={cn("min-w-0", toolbarBesideNav ? (toolbarFills ? "flex-1" : "flex-initial") : "flex-1 xl:flex-none")}>{controls}</div> : null}
+        {refresh}
       </div>
-      {controls || refresh ? (
-        // The toolbar: the filters take the room there is (on phones their folded button fills the
-        // row beside Refresh); from xl it sits at the title's right, as wide as what it holds.
-        // Beside the views it asks for the width its content needs, at the row's end, and takes the
-        // next row when that does not fit (flex-wrap breaks a line before shrinking anything); there
-        // its filters shrink to what Refresh leaves, so the chips of a phone's narrowed filters scroll.
-        <div className={cn("flex min-w-0 items-start gap-2", toolbarBesideNav ? cn("flex-auto justify-end", toolbarFills === "below-xl" && "basis-full xl:basis-auto") : "xl:justify-end")} data-testid="section-toolbar">
-          {controls ? <div className={cn("min-w-0", toolbarBesideNav ? (toolbarFills ? "flex-1" : "flex-initial") : "flex-1 xl:flex-none")}>{controls}</div> : null}
-          {refresh}
-        </div>
-      ) : null}
+    ) : null;
+  if (toolbarBesideNav)
+    // Beside the views: one wrapping row whose items come in the order they are drawn and read: the
+    // views, the toolbar (at the row's end, growing into what the views leave, or the next line),
+    // then the scope line on a line of its own.
+    return (
+      <div className={cn("flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1", className)} data-testid={testId}>
+        {heading}
+        {toolbar}
+        {scope}
+      </div>
+    );
+  return (
+    <div className={cn("grid grid-cols-[minmax(0,1fr)] gap-y-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start xl:gap-x-6", className)} data-testid={testId}>
+      <div className="min-w-0 xl:pt-0.5">
+        {heading}
+        {scope}
+      </div>
+      {toolbar}
     </div>
   );
 }
-
-/** The scope line's place: under the title (mt-1), or, beside the views, last and on a line of its own. */
-const order = (besideNav: boolean) => (besideNav ? "order-last basis-full" : "mt-1");

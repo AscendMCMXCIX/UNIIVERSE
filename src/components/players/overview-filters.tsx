@@ -35,8 +35,11 @@ import { formatCount } from "@/lib/format";
  * `sheetFields` and `sheetChips`: a list's own choices that a phone keeps in the Filters sheet and
  * wider screens in the list's own toolbar (Encounters' Minimum games and Sort by, owner decision D8
  * of 8 Nov 2026): the fields join the sheet only, and their chips (when a choice differs from its
- * default) sit beside the phone's Filters button with the other chips and count with them. The
- * page's `resetQuery` puts them back too.
+ * default) sit beside the phone's Filters button with the other chips and count with them; the
+ * sheet's Reset (the page's `resetQuery`) puts them back too. From tablets up they are not filters
+ * of this bar: they do not count, its Reset appears only for what the bar narrows, and it leaves
+ * them as they are (it keeps `keep`, which carries them).
+ * `compactToggle`: the bar shares a row with a section's views (FilterBar's `compactToggle`).
  */
 export function OverviewFilters({
   basePath,
@@ -57,7 +60,10 @@ export function OverviewFilters({
   refineLabel = "Refine the statistics",
   sheetFields,
   sheetChips = [],
+  compactToggle = false,
 }: {
+  /** The folded bar shares a row with a section's views (Match History): see FilterBar. */
+  compactToggle?: boolean;
   /** A list's own fields that only a phone's Filters sheet holds (see above). */
   sheetFields?: React.ReactNode;
   /** Those choices where they differ from their default: chips beside a phone's Filters button. */
@@ -159,6 +165,9 @@ export function OverviewFilters({
           ...sheetChips,
         ]}
         onReset={() => startTransition(() => router.replace(resetQuery ? `${basePath}?${resetQuery}` : basePath, { scroll: false }))}
+        // From tablets up a list's own choices are not this bar's (see above).
+        inlineReset={sheetFields ? { count: narrowed - sheetChips.length, onReset: () => startTransition(() => router.replace(`${basePath}?${new URLSearchParams(keep).toString()}`, { scroll: false })) } : undefined}
+        compactToggle={compactToggle}
         align="end"
         pending={pending}
         after={
