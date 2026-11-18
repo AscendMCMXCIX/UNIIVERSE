@@ -245,7 +245,7 @@ export function FigureCell({ children, spoken, label, size = "sm", emphasis = "m
 }
 
 /**
- * A member as their card shows them (the Leaderboards' Who, generalised): the framed picture, the
+ * A member as their card shows them (every row of the Leaderboards, Recent form's and Records'): the framed picture, the
  * name in their name style with their emblem, in their colours (cardColourVars, on this cell only:
  * no look colour reaches a place or a figure), and "You". Exactly one CardName, never cut.
  * `readName={false}` when the row's link already says the name: the visible one is then hidden
