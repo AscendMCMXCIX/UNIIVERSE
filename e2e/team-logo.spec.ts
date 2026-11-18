@@ -169,8 +169,9 @@ test("everywhere else the logo starts its row: nothing unseen stands before it, 
       { name: "the phone's top bar", path: "/team", options: phone, row: "[data-testid=mobile-topbar] a[title]" },
       { name: "the tablet's top bar", path: "/team", options: { viewport: { width: 768, height: 1024 }, hasTouch: true }, row: "[data-testid=mobile-topbar] a[title]" },
       { name: "the Team tabs", path: "/players", options: desktop, row: "[data-testid=team-tabs-identity]" },
-      // Where the tabs' row takes the page's width and ends where it ends (TabBar's inner row).
-      { name: "the Team tabs at 1920", path: "/players", options: { viewport: { width: 1920, height: 1080 } }, row: "[data-testid=team-tabs-identity]" },
+      // At 2560 (the sidebar open) Team's row is narrower than the bar (TabBar's inner row, 100rem in a
+      // 2148px room): the name at the row's end, where the page's column ends, still starts with its logo.
+      { name: "the Team tabs at 2560", path: "/players", options: { viewport: { width: 2560, height: 1440 } }, row: "[data-testid=team-tabs-identity]" },
       { name: "the public page's header", path: "/public", options: desktop, row: '[data-testid=public-header] a[href="/public"]' },
     ];
     for (const r of rows) {

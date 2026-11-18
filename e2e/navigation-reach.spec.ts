@@ -221,8 +221,9 @@ test("tablet and desktop: Team's sections stay in reach as a long page scrolls, 
 /**
  * A tab row against its pages: where its first tab starts and where the page's column does (the
  * element of main#content that holds the page: for a bar of main's own, as Team's, the page after
- * it; for a bar inside a page, as a profile's or a view switch, that page), and the bar against
- * main's room (inside its padding).
+ * it; for a bar inside a page, as a profile's or a view switch, that page), the bar against main's
+ * room (inside its padding), the row itself, and on Team Overview its header (capped at 84rem and
+ * centred in Team's column). Measured on the page itself, never on a loading state standing in for it.
  */
 const rowEdges = (nav: Locator) =>
   nav.evaluate((nav) => {
@@ -233,24 +234,37 @@ const rowEdges = (nav: Locator) =>
       column = nav.nextElementSibling;
       while (column && column.getBoundingClientRect().width === 0) column = column.nextElementSibling;
     }
+    if (!column || column.matches("[role=status]")) throw new Error("measured a loading state, not the page");
     const style = getComputedStyle(main);
     const room = main.getBoundingClientRect();
-    const page = column!.getBoundingClientRect();
+    const page = column.getBoundingClientRect();
     const bar = nav.getBoundingClientRect();
+    const row = (nav.firstElementChild as HTMLElement).getBoundingClientRect();
     const end = nav.querySelector("[data-testid=team-tabs-identity]")?.getBoundingClientRect();
+    const header = column.querySelector("[data-testid=team-header]")?.getBoundingClientRect();
     return {
       tab: nav.querySelector("li")!.getBoundingClientRect().left,
       pageLeft: page.left,
       pageRight: page.right,
       barLeft: bar.left,
       barRight: bar.right,
+      rowLeft: row.left,
+      rowRight: row.right,
       roomLeft: room.left + parseFloat(style.paddingLeft),
       roomRight: room.right - parseFloat(style.paddingRight),
       end: end?.right ?? null,
+      header: header ? { left: header.left, right: header.right } : null,
     };
   });
 
-test("wide windows: every tab row starts where its pages do, on each of their sections, and never moves between them", async ({ page, context, baseURL }) => {
+/** Loads a page and waits for the page itself: its heading in main, and no loading state left in its place. */
+async function loaded(page: Page, path: string) {
+  await page.goto(path);
+  await expect(page.locator("main h1, main h2").first()).toBeVisible();
+  await expect(page.locator("main#content > [role=status]")).toHaveCount(0);
+}
+
+test("wide windows: every tab row starts at its pages' column, on each of their sections, never moving between them; on Team Overview the header is centred in Team's column", async ({ page, context, baseURL }) => {
   test.skip(width(page) < 1024, "desktop windows; phones and tablets fill the width");
   test.setTimeout(240_000);
   const profile = await teammate(page);
@@ -265,36 +279,58 @@ test("wide windows: every tab row starts where its pages do, on each of their se
     { nav: "match-views", mode: "player", pages: [`${profile}/matches`, `${profile}/matches?view=encounters`] },
     { nav: "people-tabs", mode: "admin", pages: ["/admin/people", "/admin/people/access", "/admin/people/privacy"] },
   ];
-  // Ultrawide and 1440p, the sidebar open; and a laptop with it folded, where the pages stopped
-  // growing (80rem) from 1417px wide.
+  // Ultrawide and 1440p, the sidebar open; and 1080p with it folded, where 80rem pages stop growing
+  // while Team's 100rem fill the room. (Under a 1600px window nothing changed: the test below.)
   const WINDOWS = [
     { width: 2560, height: 1440, sidebar: "expanded" },
     { width: 3440, height: 1440, sidebar: "expanded" },
-    { width: 1440, height: 900, sidebar: "collapsed" },
+    { width: 1920, height: 1080, sidebar: "collapsed" },
   ];
   for (const w of WINDOWS) {
     await page.setViewportSize({ width: w.width, height: w.height });
     for (const set of SETS) {
-      if (w.width === 1440 && !set.ownBar) continue;
+      if (w.width === 1920 && !set.ownBar) continue;
       await context.addCookies([{ name: "uniiverse_view", value: set.mode, url: baseURL! }, { name: "uniiverse_sidebar", value: w.sidebar, url: baseURL! }]);
       const starts: number[] = [];
       for (const path of set.pages) {
-        await page.goto(path);
+        await loaded(page, path);
         const nav = set.nav === "people-tabs" ? page.getByRole("navigation", { name: "Users & Permissions" }) : page.getByTestId(set.nav);
         await expect(nav).toBeVisible();
         const at = await rowEdges(nav);
         const where = `${set.nav} on ${path.replace(profile, "a profile")} at ${w.width} × ${w.height} (sidebar ${w.sidebar})`;
-        expect(Math.abs(at.tab - at.pageLeft), `${where}: the first tab at ${at.tab}, the page's edge at ${at.pageLeft}`).toBeLessThanOrEqual(1);
+        expect(Math.abs(at.tab - at.pageLeft), `${where}: the first tab at ${at.tab}, the page's column at ${at.pageLeft}`).toBeLessThanOrEqual(1);
         if (set.ownBar) {
           // The bar's line and its pinned background still span the room beside the sidebar.
           expect(Math.abs(at.barLeft - at.roomLeft) + Math.abs(at.barRight - at.roomRight), `${where}: the bar spans ${at.barLeft} to ${at.barRight}, the room ${at.roomLeft} to ${at.roomRight}`).toBeLessThanOrEqual(1);
-          // Team's name, at the row's end, ends where the page does.
+          // Team's name, at the row's end, ends where the page's column does.
           if (at.end !== null) expect(Math.abs(at.end - at.pageRight), `${where}: the team's name ends at ${at.end}, the page at ${at.pageRight}`).toBeLessThanOrEqual(1);
+        }
+        if (at.header) {
+          // Team Overview's header (and lineup) keep their 84rem, centred in Team's 100rem column: the
+          // tabs start at the column, the logo that inset further in (its approved design, not moved).
+          const inset = { left: at.header.left - at.pageLeft, right: at.pageRight - at.header.right };
+          expect(Math.abs(inset.left - inset.right), `${where}: the header ${Math.round(inset.left)}px inside the column on the left, ${Math.round(inset.right)}px on the right`).toBeLessThanOrEqual(1);
         }
         starts.push(at.tab);
       }
       expect(Math.max(...starts) - Math.min(...starts), `${set.nav} at ${w.width}: the row starts at ${starts.join(", ")} on its sections`).toBeLessThanOrEqual(1);
     }
+  }
+});
+
+test("under a 1600px window the pages and the section tabs are as they always were, the sidebar open or folded", async ({ page, context, baseURL }) => {
+  test.skip(width(page) < 1024, "desktop windows");
+  // A 1920 laptop at 125% (1536 × 864) with the sidebar folded, where the room (1400px) is wider than
+  // 80rem: Players and Matches stay 80rem, centred, the row of tabs spans the bar (it did not follow
+  // them before 1600px either), and Team Overview's 100rem column fills the room.
+  await context.addCookies([{ name: "uniiverse_sidebar", value: "collapsed", url: baseURL! }]);
+  await page.setViewportSize({ width: 1536, height: 864 });
+  for (const [path, wide] of [["/players", false], ["/matches", false], ["/team", true]] as const) {
+    await loaded(page, path);
+    const at = await rowEdges(page.getByTestId("team-tabs"));
+    const room = at.roomRight - at.roomLeft;
+    expect(Math.abs(at.rowLeft - at.roomLeft) + Math.abs(at.rowRight - at.roomRight), `${path}: the row spans the bar`).toBeLessThanOrEqual(1);
+    expect(Math.round(at.pageRight - at.pageLeft), `${path}: the page's width`).toBe(wide ? Math.round(room) : 1280);
   }
 });
 
