@@ -4,7 +4,8 @@ import { memberContext } from "./member-account";
 /*
   On a 320px phone, the narrowest docs/MOBILE.md supports, what a row is about wraps rather than
   being cut: a member's name beside their multikill in Team Matches, a resource's title, and the
-  account the champion window's figures come from. Demo data, in-memory only.
+  account the champion window's figures come from. At 150% and 200% text, Settings and every Admin
+  Mode page stay as wide as the phone. Demo data, in-memory only.
 */
 
 test.beforeEach(async ({ context, baseURL, page }, info) => {
@@ -77,5 +78,25 @@ test("at 200% text on a 320px phone, Team Overview's header (Edit lineup include
   if (await edit.count()) {
     const box = (await edit.boundingBox())!;
     expect(box.x + box.width, "Edit lineup within the phone").toBeLessThanOrEqual(320.5);
+  }
+});
+
+const ADMIN_PAGES = ["/admin", "/admin/people", "/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/data", "/admin/system", "/admin/audit", "/admin/settings"];
+
+test("at 200% and 150% text on a 320px phone, every Admin Mode page is no wider than the phone", async ({ page, context, baseURL }) => {
+  // Its health cards, Branding's Reset colours and save bar, Previews' switches, Users & Permissions'
+  // tabs and row buttons (Erase personal data among them), the access levels, the manager's row
+  // buttons and the Data jobs: each wraps or breaks a long word inside its line (docs/RESPONSIVE.md).
+  test.setTimeout(180_000);
+  await page.route(/\/favicon\.ico$/, (route) => route.abort());
+  await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
+  for (const path of ADMIN_PAGES) {
+    await page.goto(path);
+    await expect(page.locator("main h1")).toBeVisible();
+    for (const root of [200, 150]) {
+      await page.evaluate((r) => (document.documentElement.style.fontSize = `${r}%`), root);
+      await page.evaluate(() => document.fonts.ready);
+      await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth), { message: `${path} at ${root}%: as wide as the phone` }).toBeLessThanOrEqual(320);
+    }
   }
 });

@@ -47,11 +47,11 @@ export function JobsPanel({ jobs, isOwner }: { jobs: JobView[]; isOwner: boolean
   const [intervals, setIntervals] = React.useState<Record<string, number>>(Object.fromEntries(jobs.map((j) => [j.key, j.interval ?? j.defaultIntervalMinutes ?? 0])));
   return (
     <Panel>
-      <PanelHeader title="Data jobs" subtitle="Each job records its last run. Intervals are minutes between runs when the scheduler tick fires (0 = disabled)." actions={isOwner ? <Button size="sm" variant="outline" disabled={!!busy} onClick={() => run("schedule", () => saveScheduleAction(intervals), "Schedule saved.")}>Save intervals</Button> : null} />
+      <PanelHeader title="Data jobs" subtitle="Each job records its last run. Intervals are minutes between runs when the scheduler tick fires (0 = disabled)." actions={isOwner ? <Button size="sm" variant="outline" wrap disabled={!!busy} onClick={() => run("schedule", () => saveScheduleAction(intervals), "Schedule saved.")}>Save intervals</Button> : null} />
       <PanelBody className="space-y-2">
         <div className="space-y-2 md:hidden">
           {jobs.map((j) => (
-            <div key={j.key} className="rounded-md border border-border bg-bg-elevated px-3 py-2 text-xs">
+            <div key={j.key} className="min-w-0 rounded-md border border-border bg-bg-elevated px-3 py-2 text-xs [overflow-wrap:anywhere]">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="font-mono text-fg">{j.key}</span>
                 <Badge tone={j.status === "ok" ? "good" : j.status === "degraded" ? "warn" : j.status === "failed" ? "bad" : j.status === "running" ? "info" : "neutral"}>{j.status}</Badge>
@@ -67,7 +67,7 @@ export function JobsPanel({ jobs, isOwner }: { jobs: JobView[]; isOwner: boolean
                 {j.defaultIntervalMinutes === null ? (
                   <span className="text-fg-subtle">on demand</span>
                 ) : (
-                  <label className="flex items-center gap-1.5 text-fg-subtle">
+                  <label className="flex min-w-0 flex-wrap items-center gap-1.5 text-fg-subtle">
                     every
                     <Input type="number" min={0} className="w-24" value={intervals[j.key] ?? 0} disabled={!isOwner} aria-label={`${j.key} interval in minutes`} onChange={(e) => setIntervals({ ...intervals, [j.key]: Number(e.target.value) })} />
                     min
@@ -141,7 +141,7 @@ export function DemoPanel({ isOwner }: { isOwner: boolean }) {
       <PanelBody className="flex flex-wrap items-center gap-2">
         {isOwner ? (
           <>
-            <Button size="sm" variant="outline" disabled={!!busy} onClick={() => run("roster", () => demoDataAction())}>Seed demo roster</Button>
+            <Button size="sm" variant="outline" wrap disabled={!!busy} onClick={() => run("roster", () => demoDataAction())}>Seed demo roster</Button>
           </>
         ) : (
           <p className="text-xs text-fg-muted">Owner only.</p>
