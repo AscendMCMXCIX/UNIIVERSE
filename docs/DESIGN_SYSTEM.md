@@ -134,9 +134,9 @@ It should not appear:
 Violet (`accent-2`) carries the light: the ambient glow, `panel-featured`, `chrome-light`, the
 gradient's second stop and emphasis that is not a control.
 
-Bars that are figures (Recent form's 20-game record, `QuietBar`) are neutral overlays of `fg`
-(filled, empty and outlined segments), never the accent or a state colour, so they keep their
-contrast on any surface and any Branding. Gold appears only on the first place's crown.
+Bars that are figures (Recent form's 20-game record, All Champions' share of the games: `QuietBar`)
+are neutral overlays of `fg` (filled, empty and outlined segments, or one continuous share), never
+the accent or a state colour, so they keep their contrast on any surface and any Branding. Gold appears only on the first place's crown.
 
 ## 5. Interaction states
 

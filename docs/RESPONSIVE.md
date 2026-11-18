@@ -215,7 +215,8 @@ Substitute side of the Team cards).
   phone a label that a larger text size makes too long wraps and the button grows with it (a form's
   Save beside little room); without it a label stays on one line.
 - `Input`, `Select`, `Textarea`, `SearchInput` and the champion grid's search: 44px and 16px text
-  on phones and on every touch screen, 36px / 14px from `md` with a mouse (`md:pointer-fine:`): iOS
+  on phones and on every touch screen (a search's placeholder longer than its field ends in an
+  ellipsis), 36px / 14px from `md` with a mouse (`md:pointer-fine:`): iOS
   zooms the page into a focused field under 16px, and iPads and most iPhones held sideways (812px
   and up) are `md` or wider. Before #300 their text turned 14px from `md` on a touch screen too.
   `design-tokens.test.ts` refuses a field's 16px dropping below it from any breakpoint without
@@ -237,6 +238,26 @@ both teams to that window.
 A game's breakdown (under its Match History card, or in the match window) sizes its scoreboard by
 its own width (container `bd`, not the screen): name, KDA and items on phones, damage from 36rem,
 gold, CS and vision columns from 60rem; its four section tabs share a phone's width.
+
+All Champions follows its list's own width too (a container query, so the sidebar counts):
+
+| List | Layout |
+| --- | --- |
+| under 17rem (a phone at 150% or 200% text) | each row stacks: the name, then the win rate and games, then the figures as labelled pairs, so no name is squeezed out |
+| under 20.5rem (a 320px phone) | a row per champion, the win rate and games at its right and the figures as pairs under it (the pair it is sorted by first, in semibold); the search on its own line over Sort by |
+| from 20.5rem (a 360px phone) | the search and Sort by share one row (Sort by's label read out only; the control names the columns as the table's headings do) |
+| from 44rem (a 752px tablet, a 1024px computer with the sidebar open) | the table: the champion column keeps 11.75rem, so every row is 51px for every role; a quiet bar under each champion's games is its share of every game in the filters |
+| from 76rem | the four multikills in columns of their own, and the figures in groups (the record, the play, the multikills, mastery) |
+
+On a phone, upright or held sideways, the section's title is left to screen readers: the current
+tab, in the top bar or right above the section, names it. A champion's window on a phone (below
+`sm`) has a 48px portrait, the scope beside Matchup Intel across the window's width, Refine at the
+end of the tabs' row and the figures three by two with short labels (CS/min, Damage/min, Mastery in
+thousands), so the lane comparison starts at 524px instead of 631 on a 393 × 852 phone; on a touch
+screen its tabs and the multikills ⓘ are 44px targets. From `sm` the window is as it was (six
+figures across from `lg`), its tabs 44px on a touch screen. `e2e/profile.spec.ts` (the tiers,
+200% text on a 320px phone, the bar, the groups) and `e2e/matchups.spec.ts` (the phone window) check
+these.
 
 ## Tests
 
