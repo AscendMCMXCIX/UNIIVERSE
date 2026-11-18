@@ -179,7 +179,7 @@ Key single files:
 - **Deduplication:**
   - Riot match ids are primary keys (`match_details`); `account_matches` has PK (account, match).
   - A game seen from two linked accounts of the same player is counted once in statistics (`dedupeGames`, after account filtering).
-  - A Riot ID resolving to an already-linked PUUID is flagged as a duplicate.
+  - A Riot ID resolving to an already-linked PUUID is refused before it is linked: Add Player Account and a profile's Riot Accounts tab ask Riot first and compare the PUUID. A row stored without one (the Owner's setup page, the one-time profile completion) is flagged as a duplicate by the sync.
 - **Ownership validation:**
   - Every server action checks the capability and, where relevant, ownership: `canEditPlayer`, `canManageRiotAccounts`, and the bookmark owner check.
   - Removing a Riot account verifies it belongs to the player being edited (fixed 14 Oct).
@@ -429,7 +429,8 @@ Riot ID typed (account creation, or an Alt added on the profile)
  → proficiency (computed on read by src/server/proficiency/service.ts from history + mastery)
 ```
 
-- **Kick-off on link:** sign-up never waits for Riot. A best-effort verification runs right after linking (`kickoffAccountSync`); anything Riot could not answer is `pending` with a plain reason. It claims each account's sync lease first (below), so a profile view opened meanwhile does not verify the same account a second time.
+- **Kick-off on link:** sign-up never waits for the first sync. A best-effort sync runs right after the response (`kickoffAccountSync`); anything Riot could not answer is `pending` with a plain reason. It claims each account's sync lease first (below), so a profile view opened meanwhile does not verify the same account a second time.
+- **Linking on the Riot Accounts tab** (`addPlayerAccountAction`): Riot checks the Riot ID before anything is stored, with Add Player Account's messages (`lookupRiotId`). A Riot ID Riot does not know, or one Riot cannot be asked about right now (no key, a refused key, a rate limit, Riot down), is refused with nothing linked; the message says to try again when Riot is the reason. A Riot account already linked under another name is refused once Riot names its PUUID; when it is the profile's own (renamed in Riot, its stored name not yet followed), the refusal names that account and says its name updates on its own. The account is stored under Riot's spelling with its PUUID, and its first sync runs in the action, under the account's lease, within the same 40-second budget as the check (`ACCOUNT_ACTION_BUDGET_MS`).
 - **Sync states shown to players:** Updating · Catching up on history · Up to date · Delayed · Needs attention. "Retry sync" appears only for Delayed and Needs attention.
 - **How quickly a new game appears:** the scheduled sync reaches an active account at most every 45 minutes (others every 3 hours, 12 accounts per run) and only when a scheduler tick runs (a visit starts one every 30 minutes; the hourly GitHub run is best effort), so a game played just now usually takes 45–90 minutes. Rendering never waits for Riot; no page caches personal games.
 - **Data status and Refresh** (`src/domain/data-status.ts`, `src/components/ui/data-status.tsx`, `src/components/ui/refresh-store.ts`; 22 Oct 2026, one design on every page):
