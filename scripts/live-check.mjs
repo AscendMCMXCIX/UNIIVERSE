@@ -1018,25 +1018,32 @@ async function teamMatches(page, log, kind, context) {
 
 /**
  * Page controls in reach (PR 2b), from the end of Match History: on the tablet and the desktop the
- * pinned tabs' row offers Filters once the page's header has gone up under it, and it opens the
+ * pinned tabs' row offers Filters once the page's filter bar has gone up under it, and it opens the
  * filter sheet; on the phone the top bar does. Opening and closing the sheet changes nothing (no
- * filter is touched). True or false only; a list too short to scroll its header away passes as not
- * applicable.
+ * filter is touched). True or false only. Not applicable exactly when the frame would not offer it:
+ * the filter bar's bottom still below the pinned stack's foot at the list's end (the pinned row's
+ * bottom on the tablet and the desktop, the top bar's on the phone), or the row not pinned at all.
  */
 async function reachFacts(page, kind) {
   const name = kind === "phone" ? "phone: from the end of Match History the top bar's Filters opens the filter sheet" : `${kind}: from the end of Match History the pinned row offers Filters and it opens the filter sheet`;
-  const room = await page.evaluate(async () => {
-    const bar = document.querySelector("[data-testid=match-history] [data-testid=section-toolbar]");
+  const at = await page.evaluate(async (phone) => {
     const end = document.documentElement.scrollHeight - innerHeight;
-    for (let at = window.scrollY; at < end; at += 240) {
-      window.scrollTo(0, at);
+    for (let y = window.scrollY; y < end; y += 240) {
+      window.scrollTo(0, y);
       await new Promise((r) => requestAnimationFrame(() => r(null)));
     }
     window.scrollTo(0, end);
-    return bar ? Math.round(bar.getBoundingClientRect().bottom) : null;
-  });
-  // The header still in view at the end (a short list): nothing to offer.
-  if (room !== null && room > 120) return check("reach", name, "PASS", { notApplicable: "the list is too short for its header to scroll away", headerBottom: room });
+    await new Promise((r) => setTimeout(r, 300));
+    // What the frame watches (the page's filter bar) against where it watches it from.
+    const bar = document.querySelector("[data-testid=match-history] [data-filter-bar]");
+    const stuck = document.querySelector("[data-sticky-tabs][data-stuck]");
+    const top = document.querySelector("[data-testid=mobile-topbar]");
+    const foot = phone ? (top ? top.getBoundingClientRect().bottom : null) : stuck ? stuck.getBoundingClientRect().bottom : null;
+    return { barBottom: bar ? Math.round(bar.getBoundingClientRect().bottom) : null, foot: foot === null ? null : Math.round(foot) };
+  }, kind === "phone");
+  if (at.barBottom === null) return pass("reach", name, false, { missing: "no filter bar on Match History" });
+  if (at.foot === null) return check("reach", name, "PASS", { notApplicable: "nothing pinned at the list's end (the list too short)" });
+  if (at.barBottom > at.foot + 1) return check("reach", name, "PASS", { notApplicable: "the list is too short for its filter bar to go up under what is pinned", ...at });
   const control = page.getByTestId(kind === "phone" ? "topbar-filters" : "toolbar-filters");
   const offered = await control.waitFor({ timeout: 5_000 }).then(() => true, () => false);
   let opened = false;
@@ -1049,7 +1056,7 @@ async function reachFacts(page, kind) {
     await page.keyboard.press("Escape");
     await sheet.waitFor({ state: "detached", timeout: 5_000 }).catch(() => {});
   }
-  pass("reach", name, offered && opened, { offered, opened });
+  pass("reach", name, offered && opened, { offered, opened, ...at });
 }
 
 async function matchHistory(page, log, kind, playerId) {
