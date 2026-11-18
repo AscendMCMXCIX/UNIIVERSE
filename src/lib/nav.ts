@@ -93,21 +93,20 @@ export const TEAM_SECTIONS: NavLink[] = [
 ];
 
 /**
- * Resources' sections, in this order: the tabs at the top of both pages and the pages the one
- * Resources entry of the sidebar stands for, for every signed-in account.
- *   Library        the team's library of League of Legends sites (news, statistics, builds, guides),
- *                  kept by administrators in Admin Mode → Platform Settings → Resources;
- *   Matchup Intel  a static reference for preparation: pick your champion and the enemy, read the
- *                  enemy's abilities, base cooldowns and what matters in lane (docs/MATCHUP_INTEL.md).
- *                  Not the personal Matchups (a player's own games against an opponent), which
- *                  live in a champion's window.
+ * MATCHUP INTEL, a sidebar entry of its own (owner's decision, 18 Nov 2026), for every signed-in
+ * account: a static reference for preparation, pick your champion and the enemy, read the enemy's
+ * abilities, base cooldowns and what matters in lane (docs/MATCHUP_INTEL.md). Not the personal
+ * Matchups (a player's own games against an opponent), which live in a champion's window. Its
+ * address stays /resources/matchups, as every link to it was written (?champion=…&vs=… included):
+ * nothing redirects. It is no longer one of Resources' sections: the two have no tabs.
  */
-export const RESOURCES_SECTIONS: NavLink[] = [
-  { href: "/resources", label: "Library", icon: BookMarked },
-  { href: "/resources/matchups", label: "Matchup Intel", icon: Swords },
-];
+export const MATCHUP_INTEL: NavLink = { href: "/resources/matchups", label: "Matchup Intel", icon: Swords };
 
-/** The way into Resources where a page lists it on its own (the phone's account screen): the library, under the entry's name. */
+/**
+ * RESOURCES, a sidebar entry of its own, for every signed-in account: the Library, the team's
+ * library of League of Legends sites (news, statistics, builds, guides), kept by administrators in
+ * Admin Mode → Platform Settings → Resources. One page, so no tabs.
+ */
 export const RESOURCES: NavLink = { href: "/resources", label: "Resources", icon: BookMarked };
 
 /** Admin Mode's Platform Settings: the site's look, how its pages appear, and the Resources library (administrators only). */
@@ -149,7 +148,6 @@ export const ROW_WIDTH: Record<"max" | "wide", string> = {
  */
 export const SECTION_HUBS: Array<{ key: string; label: string; width: "max" | "wide"; sections: NavLink[] }> = [
   { key: "team", label: "Team sections", width: "wide", sections: TEAM_SECTIONS },
-  { key: "resources", label: "Resources sections", width: "max", sections: RESOURCES_SECTIONS },
   { key: "admin-settings", label: "Platform Settings sections", width: "max", sections: ADMIN_SETTINGS_SECTIONS },
 ];
 
@@ -178,15 +176,17 @@ export function entryLinks(entry: NavEntry): NavLink[] {
  *   Team           one entry for our own team (only for members of the team): it opens Team
  *                  Overview, the team's home page, and stays marked on all of its sections, which
  *                  are the tabs at the top of every Team page (TEAM_SECTIONS);
- *   Resources      one entry for the library of League of Legends sites and Matchup Intel, the
- *                  tabs at the top of both (RESOURCES_SECTIONS); it opens the library.
+ *   Matchup Intel  one link (MATCHUP_INTEL), marked on its page whatever pair the address holds;
+ *   Resources      one link (RESOURCES), the Library, marked on it alone (Matchup Intel's address
+ *                  starts with its own, so the longest match decides: activeHref).
  * The account menu holds Settings and Sign out (on a tablet, which has no sidebar, also Install App,
  * the switch between the modes, the patch line and Riot's notice).
  */
 export const NAV_ENTRIES: NavEntry[] = [
   { href: "/overview", label: "My Profile", icon: CircleUserRound },
   { key: "team", label: "Team", icon: Users, sections: TEAM_SECTIONS },
-  { key: "resources", label: RESOURCES.label, icon: RESOURCES.icon, sections: RESOURCES_SECTIONS },
+  MATCHUP_INTEL,
+  RESOURCES,
 ];
 
 /** Every Player Mode page in sidebar order (hubs flattened). */
@@ -210,11 +210,13 @@ export interface PhoneTab {
  *   Leaderboards   the team's comparisons;
  *   Matches        the games members played together;
  *   Profile        your own profile and its sections;
- *   Resources      when there is room (an account without the Team pages); otherwise in the account
- *                  sheet behind your avatar, with Settings and Sign out.
+ *   Matchup Intel  when there is room (an account without one or more of the Team pages), before
+ *                  Resources, as the sidebar orders them;
+ *   Resources      likewise. Where there is no room, each is a row of the account screen behind
+ *                  your avatar (Matchup Intel first), with Settings and Sign out: never in both.
  * At most five, those this account may open (the pages check again). Held sideways (a short window
  * below lg) the phone keeps them, in its one compact top bar instead of a bottom bar. Tablets and
- * desktops keep the sidebar's three entries (in a tablet's top bar: tabletDestinations) and the page
+ * desktops keep the sidebar's four entries (in a tablet's top bar: tabletDestinations) and the page
  * tabs (TEAM_SECTIONS), so the two never disagree on names.
  */
 export const PHONE_TABS: PhoneTab[] = [
@@ -223,7 +225,8 @@ export const PHONE_TABS: PhoneTab[] = [
   { href: "/leaderboards", label: "Leaderboards", icon: Medal },
   { href: "/matches", label: "Matches", icon: History },
   { href: "/overview", label: "Profile", icon: CircleUserRound },
-  { href: "/resources", label: "Resources", icon: BookMarked },
+  { href: MATCHUP_INTEL.href, label: MATCHUP_INTEL.label, icon: MATCHUP_INTEL.icon },
+  { href: RESOURCES.href, label: RESOURCES.label, icon: RESOURCES.icon },
 ];
 
 /** The most destinations a phone tab bar holds: more would leave each too narrow for a thumb and its label. */
@@ -236,8 +239,9 @@ export function phoneTabs(allowed: readonly string[]): PhoneTab[] {
 
 /**
  * The bottom tab a page belongs to: its own (the longest match, so a teammate's profile under
- * /players/… is Players and your own profile's sections are Profile), else the first tab of its
- * section set (Admin Mode's Platform Settings pages are its Settings tab), else none (Settings).
+ * /players/… is Players, your own profile's sections are Profile, and Matchup Intel is its own tab
+ * where it has one, never Resources'), else the first tab of its section set (Admin Mode's Platform
+ * Settings pages are its Settings tab), else none (Settings).
  */
 export function currentTab(pathname: string, tabs: readonly string[]): string | null {
   const own = activeHref(pathname, tabs);
@@ -263,16 +267,15 @@ export function profileBase(pathname: string): string | null {
 /**
  * On a phone, where Back leads from a page opened with no page of this app before it (a link from
  * elsewhere, a reload, the installed app's start): the page above it, named for the button. A tab's
- * own pages and their sections have none: they are where you start. Resources' other sections
- * (Matchup Intel) lead to Resources where it has no tab of its own (a member's account screen holds
- * it), never to Team.
+ * own pages and their sections have none: they are where you start. Matchup Intel and Resources,
+ * destinations of their own, lead home where they have no tab (the account screen holds them), as
+ * Settings does: Matchup Intel is not under Resources, whatever its address.
  */
 export function phoneParent(pathname: string, tabs: readonly PhoneTab[], home: string): { href: string; label: string } | null {
   const tabHrefs = tabs.map((t) => t.href);
   const homeLabel = tabs.find((t) => t.href === home)?.label ?? (home === ADMIN_HOME ? "Dashboard" : "Home");
   if (/^\/players\/[^/]+/.test(pathname)) return { href: "/players", label: "Players" };
   if (pathname === "/me") return { href: "/overview", label: "Profile" };
-  if (pathname.startsWith(`${RESOURCES.href}/`)) return currentTab(pathname, tabHrefs) ? null : { href: RESOURCES.href, label: RESOURCES.label };
   if (pathname.startsWith("/admin")) {
     if (pathname === ADMIN_HOME || currentTab(pathname, tabHrefs)) return null;
     return { href: ADMIN_HOME, label: "Dashboard" };
@@ -288,7 +291,7 @@ export function phoneParent(pathname: string, tabs: readonly PhoneTab[], home: s
  * by name; "Back" for anything else.
  */
 export function pageName(path: string, tabs: readonly PhoneTab[]): string {
-  if (path === "/resources/matchups") return "Matchup Intel";
+  if (path === MATCHUP_INTEL.href) return MATCHUP_INTEL.label;
   const tab = tabs.find((t) => isActivePath(path, t.href));
   if (tab) return tab.label;
   if (path.startsWith("/settings") || path === "/admin/settings") return "Settings";
@@ -386,7 +389,8 @@ export const ADMIN_TABS: Array<{ href: string; label: string; icon: LucideIcon }
  * Admin Mode's pages on the phone's account screen and in a tablet's avatar menu: one link per
  * entry, as the sidebar lists them (a hub's link opens its first section this account may open,
  * under the hub's name), less the pages the tabs already hold, so neither repeats anything that is
- * one tap away (as Player Mode's account screen holds Resources only when it has no tab).
+ * one tap away (as Player Mode's account screen holds Matchup Intel and Resources only where they have
+ * no tab).
  */
 export function adminSheetLinks(allowed: readonly string[], tabHrefs: readonly string[]): NavLink[] {
   return ADMIN_ENTRIES.flatMap((entry): NavLink[] => {
@@ -421,9 +425,9 @@ export interface BarDestination {
 /**
  * TABLETS (md to lg, not a short window) have no sidebar and no drawer: their destinations sit in
  * the top bar, one tap each (docs/MOBILE.md, "Frames by posture"):
- *   Player Mode   the sidebar's entries, My Profile, Team and Resources, each to the first page of it
- *                 this account may open, under the entry's name, marked on all of its pages (Team's
- *                 sections stay the pinned tabs in the page);
+ *   Player Mode   the sidebar's entries, My Profile, Team, Matchup Intel and Resources, each to the
+ *                 first page of it this account may open, under the entry's name, marked on all of
+ *                 its pages (Team's sections stay the pinned tabs in the page);
  *   Admin Mode    the phone's four tabs (ADMIN_TABS), Platform Settings by its full name (the avatar
  *                 menu, open under the bar, holds the account's own Settings); the admin pages without
  *                 a tab (Data & Integrations, Audit Logs) are in the avatar menu (adminSheetLinks).
@@ -442,9 +446,9 @@ export function tabletDestinations(allowed: readonly string[], admin: boolean): 
 
 /**
  * The tablet's destination a page belongs to: in Player Mode as the sidebar marks it (a teammate's
- * profile is Team's, your own profile's sections My Profile's, Matchup Intel Resources'), in Admin
- * Mode as its tabs do (Platform Settings' pages are its Settings tab); none for Settings and pages
- * outside them.
+ * profile is Team's, your own profile's sections My Profile's, Matchup Intel its own, whatever pair
+ * its address holds), in Admin Mode as its tabs do (Platform Settings' pages are its Settings tab);
+ * none for Settings and pages outside them.
  */
 export function currentDestination(pathname: string, destinations: readonly BarDestination[], admin: boolean): string | null {
   if (admin) return currentTab(pathname, destinations.map((d) => d.href));
@@ -461,8 +465,10 @@ export function canOpen(session: Session | null, link: Pick<NavLink, "permission
 
 export function isActivePath(pathname: string, href: string): boolean {
   // The dashboard is Admin Mode's root: every admin page starts with its address, so it is the
-  // current page only on itself.
-  if (href === ADMIN_HOME) return pathname === href;
+  // current page only on itself. Resources is the Library alone: Matchup Intel's address starts with
+  // its own (kept from when it was Resources' second section), and Matchup Intel is a destination of
+  // its own, so Resources is the current page only on itself too.
+  if (href === ADMIN_HOME || href === RESOURCES.href) return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 

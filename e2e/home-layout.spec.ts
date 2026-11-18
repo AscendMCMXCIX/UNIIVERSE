@@ -434,9 +434,10 @@ test("at 150% to 200% text on 320, 375 and 393px phones, a profile's Overview is
 });
 
 // Without recent form (one champion's games, too few for it), ranked progress spans the rail's two
-// rows: opening its history grows the rail's second row, never the season's card, and the pools
-// under that card stay where they are (the card had stretched by 108px and the pools moved down).
-test("profile Overview's 2×2 without recent form: opening Ranked progress's history moves neither the season's card nor the pools", async ({ page }, info) => {
+// rows beside the season's card, the pools under that card. Its history used to open under its chart
+// and grow the rail (the card had once stretched by 108px and the pools moved down); since 18 Nov 2026
+// the card ends with its chart, so there is nothing left to open and nothing moves.
+test("profile Overview's 2×2 without recent form: Ranked progress beside the season's card ends with its chart, with nothing to open, and the pools stay under that card", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "the 2×2 is from a 1440px window");
   await page.goto("/players");
   const href = (await playerEntry(page, "Demo Top").first().getAttribute("href"))!;
@@ -452,10 +453,8 @@ test("profile Overview's 2×2 without recent form: opening Ranked progress's his
   const [figures, pools, ranked] = [await at("season-figures"), await at("champion-pools"), await at("ranked-progress")];
   expect(ranked.left, "the 2×2: ranked progress in the rail beside the season's card").toBeGreaterThan(figures.right);
   expect(pools.top, "the pools under the season's card").toBeGreaterThan(figures.top + figures.height);
-  await page.getByTestId("ranked-details-toggle").click();
-  await expect(page.getByTestId("ranked-details")).toHaveAttribute("open", "");
-  await expect(page.getByTestId("ranked-table")).toBeVisible();
-  const [figuresOpen, poolsOpen] = [await at("season-figures"), await at("champion-pools")];
-  expect(Math.abs(figuresOpen.height - figures.height), "the season's card keeps its height").toBeLessThanOrEqual(1);
-  expect(Math.abs(poolsOpen.top - pools.top), "the pools stay where they were").toBeLessThanOrEqual(1);
+  await expect(page.getByTestId("ranked-details-toggle")).toHaveCount(0);
+  await expect(page.getByTestId("ranked-progress").locator("details")).toHaveCount(0);
+  // Its last part holds the chart (or the line saying there is nothing to draw).
+  expect(await page.getByTestId("ranked-progress").evaluate((card) => !!card.lastElementChild?.querySelector("[data-testid=ranked-chart], [data-testid=ranked-no-chart]"))).toBe(true);
 });

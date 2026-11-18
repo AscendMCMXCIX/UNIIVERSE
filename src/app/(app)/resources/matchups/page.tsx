@@ -19,7 +19,8 @@ const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : A
 const named = (v: string | string[] | undefined) => (one(v) ?? "").trim() !== "";
 
 /**
- * RESOURCES → MATCHUP INTEL (docs/MATCHUP_INTEL.md): "I'm playing this champion against that one:
+ * MATCHUP INTEL (docs/MATCHUP_INTEL.md), a sidebar entry of its own at the address it had as one of
+ * Resources' sections (MATCHUP_INTEL, src/lib/nav.ts): "I'm playing this champion against that one:
  * what do I need to know before entering lane?" A static reference for every signed-in account:
  * the two champions come from the address (?champion=<id>&vs=<id>, the champion window's names) and
  * are checked against the roster; the page reads the session, the cached roster, current patch and

@@ -1,8 +1,8 @@
 # Matchup Intel
 
 "I'm playing this champion against that champion. What do I need to know before entering lane?"
-(the owner's request, 16 Nov 2026). Matchup Intel answers it as a fast, static reference in
-Resources, for every signed-in account, built for a phone first.
+(the owner's request, 16 Nov 2026). Matchup Intel answers it as a fast, static reference with its
+own place in the sidebar (since 18 Nov 2026), for every signed-in account, built for a phone first.
 
 It is not **Matchups**, a player's own games against a lane opponent, which lives in a champion's
 window under All Champions ([MATCHUPS.md](MATCHUPS.md)). The two keep their names apart, and this
@@ -110,7 +110,8 @@ The page also has a state for each of these:
   window closed without a pick says nothing (`heldStatus` in `matchup-frame.tsx`).
 - **The page failed** (the roster or the abilities could not be read, with nothing cached to stand
   in): "Matchup Intel could not load", with Try again (the page read afresh) and Start again (no
-  champions chosen), inside the Resources tabs (`error.tsx` beside the page).
+  champions chosen), inside the app's frame, its sidebar entry still marked (`error.tsx` beside the
+  page).
 - **A champion the roster does not know** in the address: it is left out and the page says so,
   never repeating what the address said. A repeated parameter (`?vs=a&vs=b`) reads its first value.
 
@@ -132,15 +133,26 @@ afterwards, and no person has checked each fact against its page (For the owner,
 
 ## Where it is
 
-- **Resources → Matchup Intel** (`/resources/matchups`). Resources is one sidebar entry for two
-  sections, **Library** (`/resources`, the team's sites) and **Matchup Intel**. They are the tabs
-  at the top of both pages, on phones too. A member's phone reaches Resources from the account
-  screen, and Back from Matchup Intel leads to Resources, never to Team (`phoneParent` and
-  `pageName`, `src/lib/nav.ts`). Each pair chosen is an entry in the browser's history, so the
-  browser's Back steps through them; the top bar's Back, named after Resources, goes past them to
-  Resources (`backSteps`). That needs the browser's Navigation API (Chrome, Safari from 26.2,
-  Firefox from 147): without it the page cannot see those entries, so each pair replaces the entry
-  instead, and both Backs leave the page in one step (`historyShowsEntries`).
+- **Its own sidebar entry**, **Matchup Intel** with the swords, between Team and Resources (the
+  owner's decision of 18 Nov 2026; until then it was Resources' second tab, beside the Library).
+  The address is the one it always had, `/resources/matchups`, so every link and deep link
+  (`?champion=…&vs=…`) opens as before and nothing redirects (`MATCHUP_INTEL` in `src/lib/nav.ts`,
+  `MATCHUP_INTEL_PATH` in `address.ts`). The entry is marked on the page whatever pair it shows,
+  and Resources (the Library, `/resources`, one page now) only on the Library: Resources is current
+  only on its own address (`isActivePath`). Neither page has tabs, so each is listed once.
+  - A tablet's top bar holds the same four destinations (`tabletDestinations`).
+  - A member's phone keeps its five tabs (Team, Players, Leaderboards, Matches, Profile): Matchup
+    Intel is the first row of the account screen behind the avatar, above Resources, and a tab of
+    its own where the bar has room (an account without one or two of Team's pages), before
+    Resources (`PHONE_TABS`). Its row on its own page keeps the pair, closes the screen and goes back
+    to the top.
+  - On a phone, Back from Matchup Intel opened directly (a link, a reload) leads home, as from
+    Resources and Settings, not to Resources (`phoneParent`). Each pair chosen is an entry in the
+    browser's history, so the browser's Back steps through them; the top bar's Back, named after the
+    page before Matchup Intel, goes past them to that page (`backSteps`). That needs the browser's
+    Navigation API (Chrome, Safari from 26.2, Firefox from 147): without it the page cannot see
+    those entries, so each pair replaces the entry instead, and both Backs leave the page in one step
+    (`historyShowsEntries`).
 - **The address** carries the choice: `?champion=<id>&vs=<id>`, Data Dragon ids, the same names as
   the champion window's. Each id is checked against the roster on the server. An id that is not on
   it is dropped. The id may also be written as a name, in any case, with accents or punctuation
@@ -872,7 +884,7 @@ pages were read on 16 Nov 2026: the League of Legends documentation
   the browser's own record of every request it starts (Chromium's DevTools protocol, which also sees
   the favicons Playwright never reports, and each redirect hop), the page's resource timing, and the
   page's markup.
-  One request does go there, from other parts of the app: the Library (Resources → Library) and its
+  One request does go there, from other parts of the app: the Library (Resources) and its
   manager in Admin Mode (`/admin/resources`) draw each link with its site's icon, and one of the
   default links is the League of Legends Wiki (`src/domain/resources.ts`), so the browser of a
   visitor, or of an administrator in the manager, loads `wiki.leagueoflegends.com/favicon.ico`, as it
@@ -1056,9 +1068,9 @@ merge deploys.
    checked it.
 3. **Approve the Resources navigation change** (approved by the owner on 17 Nov 2026, Sydney):
    Resources becomes one sidebar entry for two
-   sections, Library and Matchup Intel, with their tabs at the top of both pages, phones included
-   (Where it is). If not, the fallback leaves the sidebar as it was and links the two pages from
-   under their headers.
+   sections, Library and Matchup Intel, with their tabs at the top of both pages, phones included.
+   Superseded on 18 Nov 2026 by the owner's next decision: Matchup Intel is a sidebar entry of its
+   own and Resources the Library alone, with no tabs (Where it is).
 4. **Approve the merge** (approved by the owner on 17 Nov 2026, Sydney), which deploys to production (CLAUDE.md §4: within the deploy budget, the
    "merge" method and the exact head), then read the Production check on the deployed commit.
 5. **Decide whether the Production check opens Matchup Intel signed in.** Today it proves only that

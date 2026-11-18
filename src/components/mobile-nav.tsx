@@ -2,14 +2,14 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { scrollToTop, stayOnCurrentPage } from "@/lib/back-to-top";
+import { isPlainClick, scrollToTop, stayOnCurrentPage } from "@/lib/back-to-top";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, LogOut, SlidersHorizontal } from "lucide-react";
 import { BrandMark } from "./brand-mark";
 import { Avatar } from "./ui/avatar";
 import { DetailModal } from "./ui/detail-modal";
 import { ModeSwitch } from "./mode-switch";
-import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, ADMIN_TABS, PROFILE_SECTIONS, RESOURCES, adminSheetLinks, backSteps, currentDestination, currentTab, isActivePath, pageName, phoneParent, phoneTabs, profileBase, tabletDestinations, type NavLink, type PhoneTab } from "@/lib/nav";
+import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, ADMIN_TABS, MATCHUP_INTEL, PHONE_TAB_LIMIT, PROFILE_SECTIONS, RESOURCES, adminSheetLinks, backSteps, currentDestination, currentTab, isActivePath, pageName, phoneParent, phoneTabs, profileBase, tabletDestinations, type NavLink, type PhoneTab } from "@/lib/nav";
 import { AccountMenu, otherUsername } from "./account-menu";
 import { announceAccountChange, markAccountChange } from "./account-guard";
 import { InstallAppEntry } from "./install/install-app";
@@ -60,8 +60,8 @@ export interface MobileNavProps {
     - the bottom tab bar holds the five places a member goes to most (PHONE_TABS), one tap each,
       within reach of the thumb;
     - the account screen holds the rest, on a screen of its own (DetailModal size "screen"): who is
-      signed in; full-width rows for the pages the tab bar does not hold (Resources when it has no
-      tab; in Admin Mode the admin pages without a tab), Settings and Install App; the switch
+      signed in; full-width rows for the pages the tab bar does not hold (Matchup Intel and Resources
+      when they have no tab; in Admin Mode the admin pages without a tab), Settings and Install App; the switch
       between the modes and Sign out; the patch and Riot's notice. It is fixed to the screen's four
       edges, so its height is the screen's: the sheet and the panel before it were as tall as their
       content, which Safari 26 worked out as a header alone, and the owner's iPhone showed each as a
@@ -74,7 +74,7 @@ export interface MobileNavProps {
     screen); a profile's sections as a 44px second row. It slides away while the page scrolls down
     and comes back on a scroll up, and while it holds the focus (useHideOnScroll).
   TABLETS (md to lg, taller than 480px): the top bar holds the destinations, one tap each (Player
-    Mode: My Profile, Team, Resources; Admin Mode: its four tabs), the page tabs (Team's sections, a
+    Mode: My Profile, Team, Matchup Intel, Resources; Admin Mode: its four tabs), the page tabs (Team's sections, a
     profile's) are pinned in the page, and the avatar opens the account menu (AccountMenu), which
     holds what the sidebar's footer holds on a desktop: Settings, Install App, the switch between
     the modes, Sign out, the patch and Riot's notice (and in Admin Mode the pages without a tab).
@@ -93,8 +93,12 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   const pathname = usePathname();
   // A phone's destinations: the bottom tab bar upright, the compact bar sideways.
   const tabs: PhoneTab[] = adminMode ? ADMIN_TABS.filter((t) => allowed.includes(t.href)) : phoneTabs(allowed);
-  // Where the labels give way to the icons alone, for this set of destinations (TAB_FIT).
-  const fit = adminMode ? TAB_FIT.admin : TAB_FIT.member;
+  // Where the labels give way to the icons alone, for this set of destinations (TAB_FIT, SIDEWAYS_FIT):
+  // a member's five with Matchup Intel among them (an account without one or two of Team's pages)
+  // need more room than the usual five.
+  const intel = !adminMode && tabs.length >= PHONE_TAB_LIMIT && tabs.some((t) => t.href === MATCHUP_INTEL.href);
+  const fit = adminMode ? TAB_FIT.admin : intel ? TAB_FIT.memberIntel : TAB_FIT.member;
+  const sideways = intel ? SIDEWAYS_FIT.intel : SIDEWAYS_FIT;
   const activeTab = currentTab(pathname, tabs.map((t) => t.href));
   // A tablet's destinations, in its top bar.
   const destinations = tabletDestinations(allowed, adminMode);
@@ -131,11 +135,12 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   const profile = adminMode ? null : profileBase(pathname);
   const sections = profile === "/overview" && !hasPlayer ? null : profile;
 
-  // The account screen holds what the phone's destinations do not: in Player Mode Resources (when it has no tab) and My
-  // Profile (likewise), in Admin Mode the admin pages without a tab; then the account's own pages.
+  // The account screen holds what the phone's destinations do not: in Player Mode Matchup Intel and
+  // Resources (each when it has no tab, in the sidebar's order) and My Profile (likewise), in Admin
+  // Mode the admin pages without a tab; then the account's own pages. Nothing is in both.
   const tabHrefs = tabs.map((t) => t.href);
   const sheetLinks: NavLink[] = [
-    ...(adminMode ? adminSheetLinks(allowed, tabHrefs) : [RESOURCES].filter((l) => allowed.includes(l.href) && !tabHrefs.includes(l.href))),
+    ...(adminMode ? adminSheetLinks(allowed, tabHrefs) : [MATCHUP_INTEL, RESOURCES].filter((l) => allowed.includes(l.href) && !tabHrefs.includes(l.href))),
     ...(hasPlayer && !adminMode && !tabHrefs.includes("/overview") ? [{ href: "/overview", label: "My Profile", icon: PROFILE_SECTIONS[0]!.icon }] : []),
     ...accountLinks,
   ];
@@ -213,7 +218,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                       >
                         <span className={cn("flex h-8 items-center gap-1.5 rounded-full px-2 transition-colors duration-150", active ? "bg-accent/15 text-accent" : "text-fg-muted group-hover:bg-surface-2 group-hover:text-fg")}>
                           {own ? <Avatar name={user!.name} src={user!.avatarUrl} size="xs" className={cn(active && "ring-2 ring-accent")} /> : <Icon className="h-5 w-5 shrink-0" aria-hidden />}
-                          <span className={cn("whitespace-nowrap text-2xs font-medium leading-none", active ? cn("font-semibold text-fg", SIDEWAYS_FIT.current) : SIDEWAYS_FIT.others)}>{label}</span>
+                          <span className={cn("whitespace-nowrap text-2xs font-medium leading-none", active ? cn("font-semibold text-fg", sideways.current) : sideways.others)}>{label}</span>
                         </span>
                       </Link>
                     </li>
@@ -333,11 +338,12 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                 ) : null}
               </div>
             </div>
-            {/* The pages the phone's destinations do not hold (Resources when it has no tab; in Admin
-                Mode the admin pages without one), Settings and Install App, one full-width row each (lib/sheet.ts). */}
+            {/* The pages the phone's destinations do not hold (Matchup Intel and Resources when they have
+                no tab; in Admin Mode the admin pages without one), Settings and Install App, one
+                full-width row each (lib/sheet.ts). */}
             <nav aria-label={adminMode ? "More admin pages and your account" : "More pages and your account"} className={ACCOUNT_GROUP}>
               {sheetLinks.map(({ href, label, icon }) => (
-                <AccountRow key={href} href={href} icon={icon} active={isActivePath(pathname, href)} onNavigate={() => setSheetAt(null)}>
+                <AccountRow key={href} href={href} icon={icon} active={isActivePath(pathname, href)} here={href === pathname} onNavigate={() => setSheetAt(null)}>
                   {label}
                 </AccountRow>
               ))}
@@ -436,7 +442,10 @@ function onSignOut() {
  * Measured on 18 Nov 2026 with the bundled Inter at 100% text, by a clone of a real tab per label:
  * Player Mode's five need up to 19.64rem under their icons (with Resources as the fifth; 19.13rem
  * with Profile); Admin Mode's four 14.63rem. Below these widths of the bar, each destination shows
- * its icon alone (docs/MOBILE.md, the tab bar).
+ * its icon alone (docs/MOBILE.md, the tab bar). A member's five with Matchup Intel among them (an
+ * account without one or two of Team's pages; its label is as long as Leaderboards') need up to
+ * 21.09rem (20.62rem without Resources; measured the same way on 18 Nov 2026, Matchup Intel's own
+ * entry): `memberIntel`.
  */
 const TAB_FIT = {
   member: {
@@ -444,6 +453,12 @@ const TAB_FIT = {
     link: "@max-[20rem]/tabbar:px-0.5",
     pill: "@max-[20rem]/tabbar:w-full @max-[20rem]/tabbar:max-w-12",
     label: "@max-[20rem]/tabbar:sr-only",
+  },
+  memberIntel: {
+    li: "@max-[21.5rem]/tabbar:min-w-0",
+    link: "@max-[21.5rem]/tabbar:px-0.5",
+    pill: "@max-[21.5rem]/tabbar:w-full @max-[21.5rem]/tabbar:max-w-12",
+    label: "@max-[21.5rem]/tabbar:sr-only",
   },
   admin: {
     li: "@max-[15rem]/tabbar:min-w-0",
@@ -457,13 +472,16 @@ const TAB_FIT = {
  * Where a tablet's top bar gives way at a larger text size, in the bar's own width in rem (the
  * `topbar` container: its row less its gutters), as static class lists (Tailwind reads them whole):
  * first the team's name beside its mark, then the destinations' labels (each keeps its name for
- * screen readers and in its title). Measured on 18 Nov 2026 with the bundled Inter at 100% text:
- * Player Mode's bar needs 32.84rem with the name and 26.75rem without it, Admin Mode's (its name
- * two lines, "Admin mode" under it, and Platform Settings named in full) 42.68rem and 36.16rem. A
- * 768px tablet's bar is 46rem at 100% text, 36.8rem at 125%, 30.7rem at 150%.
+ * screen readers and in its title). Measured with the bundled Inter at 100% text, the row's shown
+ * parts at their own widths and the gaps between them: Player Mode's four destinations (My Profile,
+ * Team, Matchup Intel, Resources; 18 Nov 2026, when Matchup Intel became an entry of its own) need
+ * 42.00rem with the name and 35.87rem without it (its three needed 32.84rem and 26.75rem), Admin
+ * Mode's (its name two lines, "Admin mode" under it, and Platform Settings named in full) 42.68rem
+ * and 36.16rem. A 768px tablet's bar is 46rem at 100% text, 36.8rem at 125%, 30.7rem at 150%: the
+ * name shows at 100%, the labels at 125% too.
  */
 const BAR_FIT = {
-  member: { brand: "md:@max-[34rem]/topbar:hidden", labels: "md:@max-[28rem]/topbar:sr-only" },
+  member: { brand: "md:@max-[42.5rem]/topbar:hidden", labels: "md:@max-[36.5rem]/topbar:sr-only" },
   admin: { brand: "md:@max-[43rem]/topbar:hidden", labels: "md:@max-[36.5rem]/topbar:sr-only" },
 } as const;
 
@@ -483,6 +501,13 @@ const SIDEWAYS_FIT = {
    * Filters), without them 27.14rem and 20.75rem.
    */
   mode: "@max-[32rem]/topbar:sr-only",
+  /**
+   * A member's five with Matchup Intel among them (an account without one or two of Team's pages):
+   * all five labelled need up to 36.61rem, 39.61rem with Filters (measured on 18 Nov 2026 at 100%
+   * text, its label put in place of the demo's), so the others' labels give way below 40rem; the
+   * current one alone needs no more than the usual five's.
+   */
+  intel: { others: "@max-[40rem]/topbar:sr-only", current: "@max-[27rem]/topbar:sr-only" },
 } as const;
 
 /** The top bar's Filters count, over the button's corner. */
@@ -525,10 +550,27 @@ function AccountScreenHeader() {
   );
 }
 
-/** A page in the account screen: its icon, its name and a chevron, the whole width (lib/sheet.ts). */
-function AccountRow({ href, icon: Icon, active, onNavigate, children }: { href: string; icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>; active: boolean; onNavigate: () => void; children: React.ReactNode }) {
+/**
+ * A page in the account screen: its icon, its name and a chevron, the whole width (lib/sheet.ts).
+ * The row of the page shown (`here`: Matchup Intel with a pair chosen, the Library with a section
+ * picked) keeps the page as it is, its query with it, and takes it back to the top once the screen
+ * has closed, as the current tab does (its own link has no query: following it cleared the pair).
+ * The screen keeps the page in place while it is open, so the page goes up only after it has gone.
+ */
+function AccountRow({ href, icon: Icon, active, here, onNavigate, children }: { href: string; icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>; active: boolean; here: boolean; onNavigate: () => void; children: React.ReactNode }) {
   return (
-    <Link href={href} onClick={onNavigate} aria-current={active ? "page" : undefined} className={cn(ACCOUNT_ROW, active ? ACCOUNT_ROW_CURRENT : ACCOUNT_ROW_IDLE)}>
+    <Link
+      href={href}
+      onClick={(e) => {
+        if (here && isPlainClick(e)) {
+          e.preventDefault();
+          requestAnimationFrame(() => requestAnimationFrame(scrollToTop));
+        }
+        onNavigate();
+      }}
+      aria-current={active ? "page" : undefined}
+      className={cn(ACCOUNT_ROW, active ? ACCOUNT_ROW_CURRENT : ACCOUNT_ROW_IDLE)}
+    >
       <Icon className={cn(ACCOUNT_ROW_ICON, active ? "text-accent" : "text-fg-subtle")} aria-hidden />
       <span className="min-w-0 flex-1 truncate">{children}</span>
       <ChevronRight className={ACCOUNT_ROW_CHEVRON} aria-hidden />

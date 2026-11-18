@@ -43,8 +43,8 @@ import { accountShortNames } from "@/domain/account-names";
   place of this one (never two dimmed layers), with a way back to the same view.
 
   Matchup Intel, the static reference for a pair (the enemy's abilities, base cooldowns, curated
-  briefings), is a page of its own under Resources: the scope row links to it for this champion,
-  and for the lane opponent chosen in Matchups.
+  briefings), is a page of its own, with its own sidebar entry: the scope row links to it for this
+  champion, and for the lane opponent chosen in Matchups.
 */
 
 export type ChampionTab = "overview" | "matchups";
@@ -183,7 +183,7 @@ export function ChampionDetail({
               Matchup Intel
               <span className="sr-only">
                 : {me.name}
-                {intelVs ? ` vs ${champ(intelVs).name}` : ""}, the static reference in Resources
+                {intelVs ? ` vs ${champ(intelVs).name}` : ""}, the static reference for a matchup
               </span>
             </Link>
             {pending ? <span className="text-fg-subtle" aria-live="polite">Updating…</span> : null}

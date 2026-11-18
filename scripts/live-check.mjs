@@ -38,7 +38,11 @@
     puuid, gameName, tagLine or riotId key (scripts/riot-keys.mjs; counts only).
   - frame (#178): the charcoal frame token; the sidebar, open and folded, with the gradient bar on
     the current page; the phone and tablet top bar and the phone's tab bar; the tablet's destinations
-    in its top bar, one tap each, with no drawer (frames by posture); held sideways (844 × 390, in the
+    in its top bar, one tap each, with no drawer (frames by posture); Matchup Intel a destination of
+    its own (18 Nov 2026): the sidebar's entries and the tablet's destinations are My Profile, Team,
+    Matchup Intel and Resources, in that order, Matchup Intel at /resources/matchups, and on the phone Matchup Intel and
+    Resources are each offered once (a tab or an account screen row, Matchup Intel's row first; no
+    page is opened for it); held sideways (844 × 390, in the
     phone's context: two page loads) one compact bar holding the destinations and no bottom bar, and
     on the teammate's profile its sections under the bar, the bars at rest at most 90px and the
     profile's band at most 80px. Phone: the avatar opens the
@@ -95,7 +99,13 @@
   - wide (PR 10): the desktop context made 2560 × 1440 opens Team, Players, Records and the
     teammate's profile (as every page, with axe): each tab row's first tab starts where its page's
     column does (within 1px; on Team Overview Team's 100rem column, its header's inset reported), a
-    missing row failing, and Team's row is in the same place on its three sections.
+    missing row failing, and Team's row is in the same place on its three sections; on each of Team's
+    three, Team's tabs scroll sideways only (18 Nov 2026): no scroll box in the row overflows up and
+    down or can scroll that way, the list hides its scrollbar, and the current tab's bar is inside
+    its tab (the root size is 20.6px there, where the bar used to reach past it).
+  - ranked (18 Nov 2026): on the teammate's profile at every width, Ranked progress ends with its
+    chart: no History and coverage disclosure, year strip, rank changes or readings table (a profile
+    without the card passes as not applicable). True or false only.
   - reach (PR 2b): from the end of Match History, on the desktop and the tablet the pinned row offers
     Filters and it opens the filter sheet; on the phone the top bar's Filters opens it (Escape closes
     it again; no filter is touched).
@@ -417,6 +427,17 @@ const colours = (page, selectors) =>
 /** Same hue as the frame: r, g and b within 3 (a translucent bar rounds its channels slightly). */
 const sameAsFrame = (c, chrome) => !!c && c.slice(0, 3).every((v, i) => Math.abs(v - chrome[i]) <= 3) && c[3] > 0;
 
+/**
+ * Player Mode's destinations as the sidebar and a tablet's top bar list them (18 Nov 2026): My Profile,
+ * Team, Matchup Intel and Resources, in that order, Matchup Intel at its own address. An account
+ * without Team's pages lists the others in the same order.
+ */
+function destinationsInOrder(entries) {
+  const labels = entries.map((e) => e.label);
+  const expected = ["My Profile", "Team", "Matchup Intel", "Resources"].filter((l) => l !== "Team" || labels.includes("Team"));
+  return labels.join("|") === expected.join("|") && entries.find((e) => e.label === "Matchup Intel")?.href === "/resources/matchups";
+}
+
 async function frameChecks(page, kind, context) {
   await page.goto(`${base}/team`, { waitUntil: "domcontentloaded" });
   await settle(page);
@@ -430,6 +451,8 @@ async function frameChecks(page, kind, context) {
     });
     pass("frame", "desktop: the sidebar is painted with the frame colour", sameAsFrame(paint.sidebar, paint.chrome), { sidebar: paint.sidebar, chrome: paint.chrome });
     pass("frame", "desktop: the current page carries the blue-to-violet bar", side.current && side.gradient, side);
+    const entries = await page.evaluate(() => [...document.querySelectorAll("[data-testid=sidebar] nav[aria-label=Main] a")].map((a) => ({ label: a.textContent.trim(), href: a.getAttribute("href") })));
+    pass("frame", "desktop: the sidebar's entries are My Profile, Team, Matchup Intel and Resources, Matchup Intel at /resources/matchups", destinationsInOrder(entries), { entries: entries.map((e) => e.label), matchupIntel: entries.find((e) => e.label === "Matchup Intel")?.href ?? null });
     await shot(page, "desktop-frame-open");
     await context.addCookies([{ name: "uniiverse_sidebar", value: "collapsed", url: base }]);
     await page.reload({ waitUntil: "domcontentloaded" });
@@ -478,7 +501,11 @@ async function frameChecks(page, kind, context) {
         // Full width: as wide as the column the rows sit in (the nav), less its border.
         const column = d.querySelector("nav")?.getBoundingClientRect().width ?? 0;
         const signOut = d.querySelector("[data-testid=sign-out]")?.getBoundingClientRect();
+        const pages = [...d.querySelectorAll("nav a")].map((a) => a.textContent.trim());
+        const tabs = [...document.querySelectorAll("[data-testid=phone-tabbar] a")].map((a) => a.textContent.trim());
         return {
+          pages,
+          tabs,
           box: [Math.round(box.left), Math.round(box.top), Math.round(box.width), Math.round(box.height)],
           screen: [innerWidth, innerHeight],
           bodyScrolls: !!body && body.scrollHeight > body.clientHeight + 1,
@@ -495,6 +522,12 @@ async function frameChecks(page, kind, context) {
       pass("frame", "phone: the account screen comes to rest filling the screen, nothing in it scrolling", rested && fills && !fit.bodyScrolls, { rested, box: fit.box, screen: fit.screen, bodyScrolls: fit.bodyScrolls });
       pass("frame", "phone: every control in the account screen is a full-width target reached by a tap where it is drawn", fit.controls >= 3 && fit.missed === 0 && fit.shortest >= 48 && fit.column > 0 && fit.narrowest >= fit.column - 2, { controls: fit.controls, missed: fit.missed, shortestRow: fit.shortest, narrowestRow: fit.narrowest, column: fit.column });
       pass("frame", "phone: the account screen takes the focus itself as it opens", fit.focus, { focus: fit.focus });
+      // The pages the tab bar does not hold: Matchup Intel's row, then Resources' (a member's five tabs
+      // are Team's pages and Profile). Each is offered once, a tab or a row, Matchup Intel first.
+      const offered = (name) => fit.tabs.filter((t) => t === name).length + fit.pages.filter((t) => t === name).length;
+      const rows = fit.pages.filter((t) => t === "Matchup Intel" || t === "Resources");
+      const intelFirst = rows.length < 2 || rows[0] === "Matchup Intel";
+      pass("frame", "phone: Matchup Intel and Resources are each offered once, Matchup Intel's row before Resources' on the account screen", offered("Matchup Intel") === 1 && offered("Resources") === 1 && intelFirst, { pages: fit.pages, tabs: fit.tabs });
       if (fit.signOut) pass("frame", "phone: Sign out is in view without scrolling the account screen", fit.signOut.inView, fit.signOut);
       else if (local) warn("frame", "phone: Sign out not offered", { why: "LIVE_LOCAL=1: the demo build has no sign-in; the screen holds the mode switch" });
       else pass("frame", "phone: Sign out is in view without scrolling the account screen", false, { signOut: null });
@@ -514,11 +547,14 @@ async function frameChecks(page, kind, context) {
       navs: navs.length,
       inTopBar: !!navs[0]?.closest("[data-testid=mobile-topbar]"),
       destinations: links.length,
+      entries: links.map((a) => ({ label: a.getAttribute("title") ?? a.textContent.trim(), href: a.getAttribute("href") })),
       teamCurrent: links.filter((a) => a.getAttribute("aria-current") === "page").map((a) => a.getAttribute("href")).join() === "/team",
       drawer: !!document.querySelector("[data-testid=menu-button], #mobile-drawer"),
     };
   });
-  pass("frame", `${kind}: the top bar holds the destinations, one tap each, Team marked as the page shown, and no drawer`, bar.navs === 1 && bar.inTopBar && bar.destinations >= 2 && bar.teamCurrent && !bar.drawer, bar);
+  const { entries: barEntries, ...barFacts } = bar;
+  pass("frame", `${kind}: the top bar holds the destinations, one tap each, Team marked as the page shown, and no drawer`, bar.navs === 1 && bar.inTopBar && bar.destinations >= 2 && bar.teamCurrent && !bar.drawer, barFacts);
+  pass("frame", `${kind}: the top bar's destinations are the sidebar's, My Profile, Team, Matchup Intel and Resources, Matchup Intel at /resources/matchups`, destinationsInOrder(barEntries), { entries: barEntries.map((e) => e.label), matchupIntel: barEntries.find((e) => e.label === "Matchup Intel")?.href ?? null });
   await shot(page, `${kind}-frame-topbar`);
   await accountMenuFirstTap(page, kind, page.getByTestId("mobile-topbar").getByTestId("account-menu-button"));
 }
@@ -1079,6 +1115,33 @@ async function tabRowEdges(page, testId) {
 }
 
 /**
+ * Team's tabs' row (18 Nov 2026): its scroll boxes (the list of tabs) scroll sideways only. Counted:
+ * the boxes that overflow up and down, those that can scroll that way, those whose scrollbar is not
+ * hidden; and whether the current tab's bar ends at its tab's foot. Before the fix, the bar sat
+ * 0.125rem under a 2px border and reached past the tab wherever the root size is above 16px (20.6px at
+ * 2560), the list scrolled up and down too, and where scrollbars are classic it drew one beside the
+ * team's name. Counts and true or false only.
+ */
+function tabRowScrolls(page) {
+  return page.evaluate(() => {
+    const nav = document.querySelector("[data-testid=team-tabs]");
+    if (!nav) return null;
+    const scrolls = (v) => v === "auto" || v === "scroll";
+    const boxes = [nav, ...nav.querySelectorAll("*")].filter((el) => scrolls(getComputedStyle(el).overflowX) || scrolls(getComputedStyle(el).overflowY));
+    const current = nav.querySelector("a[aria-current=page]");
+    const bar = current ? getComputedStyle(current, "::after") : null;
+    const tab = current?.getBoundingClientRect();
+    return {
+      boxes: boxes.length,
+      overflowing: boxes.filter((el) => el.scrollHeight > el.clientHeight).length,
+      verticalScrollers: boxes.filter((el) => scrolls(getComputedStyle(el).overflowY)).length,
+      scrollbarShown: boxes.filter((el) => getComputedStyle(el).scrollbarWidth !== "none").length,
+      barInside: !!bar && !!tab && parseFloat(bar.bottom) >= 0 && parseFloat(bar.bottom) + parseFloat(bar.height) <= tab.height,
+    };
+  });
+}
+
+/**
  * Wide screens (PR 10, 18 Nov 2026), in the desktop context made 2560 × 1440 (the sidebar open), where
  * the pages have stopped growing and are centred in the room beside the sidebar: Team, Players,
  * Records (Leaderboards) and the teammate's profile load as every page does (visit) with axe, and each
@@ -1106,13 +1169,34 @@ async function wideChecks(page, log) {
       const fact = `2560: on ${label}, ${says}`;
       if (!at) return pass("wide", fact, false, { missing: `no ${row}, or no page under it` });
       pass("wide", fact, Math.abs(at.tab - at.page) <= 1, at);
-      if (row === "team-tabs") teamRow.push(at.tab);
+      if (row === "team-tabs") {
+        teamRow.push(at.tab);
+        const sideways = await tabRowScrolls(page);
+        pass("wide", `2560: on ${label}, Team's tabs scroll sideways only: nothing overflows up and down, no scrollbar, the current tab's bar inside its tab`, !!sideways && sideways.boxes > 0 && sideways.overflowing === 0 && sideways.verticalScrollers === 0 && sideways.scrollbarShown === 0 && sideways.barInside, sideways ?? { missing: "no team-tabs" });
+      }
     });
   }
   if (!playerId) check("wide", "2560: on the profile, the profile's tabs start where the page does", "PASS", { notApplicable: "no teammate on Team to open" });
   // Once a Team page has loaded, every one of them must have shown the row, in one place.
   if (teamPages > 0) pass("wide", "2560: Team's tab row is in the same place on each of its sections", teamRow.length === teamPages && Math.max(...teamRow) - Math.min(...teamRow) <= 1, { starts: teamRow, pagesLoaded: teamPages });
   await page.setViewportSize(VIEWPORTS.desktop.viewport);
+}
+
+/**
+ * Ranked progress on the teammate's profile ends with its chart (18 Nov 2026): no History and
+ * coverage disclosure, year strip, rank changes or readings table, the card's last part holding the
+ * chart (or the line saying there is nothing to draw). A profile without the card (no linked account)
+ * passes as not applicable. True or false only.
+ */
+async function rankedProgressEnds(page, kind) {
+  const name = `${kind}: Ranked progress ends with its chart, with no History and coverage under it`;
+  if (!(await page.getByTestId("ranked-progress").waitFor({ timeout: 8_000 }).then(() => true, () => false))) return check("ranked", name, "PASS", "not applicable: no Ranked progress on this profile");
+  const f = await page.getByTestId("ranked-progress").evaluate((card) => ({
+    disclosure: !!card.querySelector("details, summary, [data-testid=ranked-details]"),
+    parts: ["ranked-coverage", "ranked-events", "ranked-key", "ranked-table"].filter((id) => card.querySelector(`[data-testid=${id}]`)).length,
+    endsWithChart: !!card.lastElementChild?.querySelector("[data-testid=ranked-chart], [data-testid=ranked-no-chart]"),
+  }));
+  pass("ranked", name, !f.disclosure && f.parts === 0 && f.endsWithChart, f);
 }
 
 async function teamMatches(page, log, kind, context) {
@@ -1372,7 +1456,10 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
   });
   if (playerId) {
     await guarded(kind, "profile", async () => {
-      if (await visit(page, log, kind, "profile", `/players/${playerId}`)) await axe(page, kind, "profile");
+      if (await visit(page, log, kind, "profile", `/players/${playerId}`)) {
+        await axe(page, kind, "profile");
+        await guarded("ranked", `${kind}: Ranked progress`, () => rankedProgressEnds(page, kind));
+      }
     });
   }
   await guarded("all-champions", `${kind}: All Champions`, () => allChampions(page, log, kind, playerId));

@@ -18,8 +18,7 @@ import { cn } from "@/lib/cn";
     somewhere in a gap. The highest recorded rank: ◆.
   - A short hatched stretch only when the first reading is under three days old (the chart's
     shortest span): nothing was read there.
-  Hover, touch or the arrow keys show a reading; the readings table sits in Ranked progress's
-  details.
+  Hover, touch or the arrow keys show a reading.
 */
 
 const MS_DAY = 86_400_000;

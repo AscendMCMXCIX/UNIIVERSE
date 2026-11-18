@@ -557,8 +557,13 @@ test("a profile's sections are tabs on every screen, like Team's, with the curre
   const current = tabs.getByRole("link", { name: "Riot Accounts" });
   await expect(current).toHaveAttribute("aria-current", "page");
   await expect(current).toBeInViewport();
-  // The same bar as Team's sections: the same tab height and the same mark under the current tab.
-  const look = (l: ReturnType<typeof page.getByRole>) => l.evaluate((el) => ({ h: Math.round(el.getBoundingClientRect().height), mark: getComputedStyle(el).borderBottomWidth }));
+  // The same bar as Team's sections: the same tab height and the same mark under the current tab (its
+  // room at the tab's foot, and the bar drawn there).
+  const look = (l: ReturnType<typeof page.getByRole>) =>
+    l.evaluate((el) => {
+      const bar = getComputedStyle(el, "::after");
+      return { h: Math.round(el.getBoundingClientRect().height), mark: [getComputedStyle(el).paddingBottom, bar.height, bar.bottom, bar.backgroundImage.includes("gradient")].join(" ") };
+    });
   const profileTab = await look(current);
   await page.goto("/players");
   const teamTab = await look(page.getByTestId("team-tabs").getByRole("link", { name: "Players" }));
