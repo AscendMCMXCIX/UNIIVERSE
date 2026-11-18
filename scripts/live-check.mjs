@@ -57,7 +57,12 @@
     has 20 segments, as many filled as the row's wins and as many missing as its window lacks. Counts,
     heights and true/false only: the rows carry names.
   - settings: the picture and display-name help name the public team page, and Settings never
-    mentions a Public profile switch (retired; true or false only).
+    mentions a Public profile switch (retired; true or false only); on the phone, Sign out is on
+    Settings' first screen (above the tab bar).
+  - resources (the Library): every section under its h2 and every row a link to a new tab with
+    noopener and noreferrer; the index offers All, Favourites and each section; no title cut short
+    and no broken site icon. The sites' own icons are not asked for (the browser tests' rule: no
+    check asks another site for anything), so every row shows its stand-in. Counts only.
   - games (#178): Team Matches opens a game under its card (no window), with ?match= in the address;
     a copied link opens it; Back returns to it; the keyboard toggles it; "Close this game" closes it
     and keeps the focus on the card. Match History opens games under their cards; at 1440 the
@@ -294,13 +299,16 @@ function instrument(page) {
     if (m.type() !== "error") return;
     const text = m.text();
     if (/ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED|ERR_CERT_/.test(text)) report.blockedByEnvironment++;
+    // The Library's site icons, refused by the check itself (resourcesFacts): not the app's error.
+    else if (/ERR_BLOCKED_BY_CLIENT/.test(text)) return;
     else log.console.push(text.slice(0, 240));
   });
   page.on("pageerror", (e) => log.pageErrors.push(String(e).slice(0, 240)));
   page.on("requestfailed", (r) => {
     const url = r.url(), why = r.failure()?.errorText ?? "failed";
-    if (!url.startsWith(base)) report.blockedByEnvironment++;
-    else if (!/ERR_ABORTED/.test(why)) log.failed.push(`${why} ${url.slice(base.length, base.length + 120)}`);
+    if (!url.startsWith(base)) {
+      if (!/ERR_BLOCKED_BY_CLIENT/.test(why)) report.blockedByEnvironment++;
+    } else if (!/ERR_ABORTED/.test(why)) log.failed.push(`${why} ${url.slice(base.length, base.length + 120)}`);
   });
   page.on("response", (r) => {
     if (r.url().startsWith(base) && r.status() >= 500) log.failed.push(`${r.status()} ${r.url().slice(base.length, base.length + 120)}`);
@@ -663,6 +671,42 @@ async function settingsFacts(page, kind) {
   }));
   pass("settings", `${kind}: Settings never mentions a Public profile switch`, !facts.publicProfile, { mentioned: facts.publicProfile });
   pass("settings", `${kind}: the picture and display-name help name the public team page`, facts.picture && facts.displayName, { picture: facts.picture, displayName: facts.displayName });
+  if (kind !== "phone") return;
+  // The account card leads the page: Sign out is in view as it opens, above the tab bar.
+  const signOut = await page.evaluate(() => {
+    const button = document.querySelector("[data-testid=settings-sign-out]");
+    if (!button) return null;
+    const bar = document.querySelector("[data-testid=phone-tabbar]")?.getBoundingClientRect();
+    const r = button.getBoundingClientRect();
+    return { bottom: Math.round(r.bottom), firstScreen: Math.round(bar && bar.height > 0 ? bar.top : innerHeight), scrollY: Math.round(scrollY) };
+  });
+  pass("settings", "phone: Sign out is on Settings' first screen", !!signOut && signOut.scrollY === 0 && signOut.bottom <= signOut.firstScreen, signOut ?? "no Sign out");
+}
+
+/**
+ * The Library (Resources, its first tab): every section under its own heading, every row a link to
+ * its site in a new tab that cannot reach back to this page or learn its address, the index offering
+ * All, Favourites and each section, no title cut short and no broken site icon. Counts and true or
+ * false only.
+ */
+async function resourcesFacts(page, kind) {
+  await page.getByTestId("resources-list").waitFor({ timeout: 20_000 });
+  const f = await page.evaluate(() => {
+    const links = [...document.querySelectorAll("[data-testid=resource-link]")];
+    return {
+      rows: document.querySelectorAll("[data-testid=resource]").length,
+      groups: document.querySelectorAll("[data-testid=resources-section-group]").length,
+      headed: document.querySelectorAll("[data-testid=resources-section-group] h2").length,
+      unsafeLinks: links.filter((a) => a.target !== "_blank" || !/\bnoopener\b/.test(a.rel) || !/\bnoreferrer\b/.test(a.rel) || !a.href.startsWith("https://")).length,
+      segments: document.querySelectorAll("[data-testid=resources-index] [role=radio]").length,
+      favourites: !!document.querySelector("[data-testid=resources-index-favourites]"),
+      cutTitles: [...document.querySelectorAll("[data-testid=resource-title]")].filter((el) => el.scrollWidth > el.clientWidth + 1).length,
+      brokenIcons: [...document.querySelectorAll("[data-testid=resource] img")].filter((i) => i.complete && i.naturalWidth === 0).length,
+    };
+  });
+  pass("resources", `${kind}: every section under its heading, every row a link to a new tab without this page's address`, f.rows > 0 && f.headed === f.groups && f.unsafeLinks === 0, { rows: f.rows, sections: f.groups, headed: f.headed, unsafeLinks: f.unsafeLinks });
+  pass("resources", `${kind}: the index offers All, Favourites and each section`, f.favourites && f.segments === f.groups + 2, { segments: f.segments, sections: f.groups, favourites: f.favourites });
+  pass("resources", `${kind}: no title cut short, no broken site icon`, f.cutTitles === 0 && f.brokenIcons === 0, { cutTitles: f.cutTitles, brokenIcons: f.brokenIcons });
 }
 
 async function allChampions(page, log, kind, playerId) {
@@ -1086,6 +1130,20 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
     if (await visit(page, log, kind, "settings", "/settings")) {
       await settingsFacts(page, kind);
       await axe(page, kind, "settings");
+    }
+  });
+  await guarded(kind, "resources", async () => {
+    // The rows ask each site for its icon; the check asks none (as the browser tests do), so no
+    // request leaves for another site and every row shows its stand-in.
+    const siteIcon = (url) => !url.href.startsWith(base) && url.pathname.endsWith("/favicon.ico");
+    await page.route(siteIcon, (route) => route.abort("blockedbyclient"));
+    try {
+      if (await visit(page, log, kind, "resources", "/resources")) {
+        await resourcesFacts(page, kind);
+        await axe(page, kind, "resources");
+      }
+    } finally {
+      await page.unroute(siteIcon);
     }
   });
   // Last in the desktop context, so a mode switch that went wrong cannot affect the other checks. Not
