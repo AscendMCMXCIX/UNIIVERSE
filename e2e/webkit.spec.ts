@@ -529,33 +529,47 @@ test("the sign-in window on an iPhone: the whole screen, the fields and Sign in 
   await guest.close();
 });
 
-test("held sideways: the pages fit, the tab bar stays in reach as a compact row, and both bars step aside while reading", async ({ browser }) => {
+test("held sideways: the pages fit, the destinations are in one compact bar with no bottom bar, a profile's sections under it, and it steps aside while reading", async ({ browser, baseURL }) => {
+  // An iPhone 15 held sideways in Safari's tab (734 × 343) and on its whole screen (852 × 393, as wide
+  // as a tablet with viewport-fit=cover): the same frame either way (docs/MOBILE.md, "Frames by posture").
   const { defaultBrowserType: _, ...landscape } = devices["iPhone 15 landscape"];
-  const context = await browser.newContext(landscape);
-  const page = await context.newPage();
-  const tabs = page.getByRole("navigation", { name: "Primary" });
-  for (const route of ["/team", "/players", "/resources"]) {
-    await page.goto(route);
-    await expect(page.locator("main"), route).toBeVisible();
-    if (route === "/team") await lineupAtRest(page);
-    await fitsWidth(page, `${route}, sideways`);
-    // The places to go stay one tap away sideways too (there is no menu drawer on a phone).
-    await expect(tabs, route).toBeVisible();
-    expect((await tabs.boundingBox())!.height, `${route}: a compact row`).toBeLessThanOrEqual(56);
-  }
-  // Reading down a page, both bars slide away (scrolled by script: WebKit's touch emulation has no wheel).
-  await page.goto("/players");
-  await expect(page.locator("main")).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollHeight - innerHeight), "Players scrolls sideways: more than the bars need").toBeGreaterThan(100);
-  await page.evaluate(async () => {
-    for (let i = 0; i < 12; i++) {
-      window.scrollBy(0, 60);
-      await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+  for (const viewport of [landscape.viewport, { width: 852, height: 393 }]) {
+    const where = `${viewport.width} × ${viewport.height}`;
+    const context = await browser.newContext({ ...landscape, viewport });
+    await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+    const page = await context.newPage();
+    const nav = page.getByRole("navigation", { name: "Primary" });
+    for (const route of ["/team", "/players", "/resources"]) {
+      await page.goto(route);
+      await expect(page.locator("main"), route).toBeVisible();
+      if (route === "/team") await lineupAtRest(page);
+      await fitsWidth(page, `${route}, sideways at ${where}`);
+      // The places to go stay one tap away: one primary navigation, in the top bar, which is compact.
+      await expect(nav, `${route} at ${where}`).toHaveCount(1);
+      await expect(page.getByTestId("mobile-topbar").getByRole("navigation", { name: "Primary" }), `${route} at ${where}`).toBeVisible();
+      await expect(page.getByTestId("phone-tabbar"), `${route} at ${where}`).toBeHidden();
+      expect((await page.getByTestId("mobile-topbar").boundingBox())!.height, `${route} at ${where}: one compact bar`).toBeLessThanOrEqual(45.5);
     }
-  });
-  await expect(page.getByTestId("mobile-topbar")).toHaveAttribute("data-hidden", "true");
-  await expect(tabs).toHaveAttribute("data-hidden", "true");
-  await context.close();
+    // A teammate's profile: its sections the bar's second row, the bars at rest about 84px, its band at most 80px.
+    await page.goto("/team");
+    await page.goto(`/players/${await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id")}`);
+    await expect(page.getByTestId("profile-chrome-tabs")).toBeVisible();
+    expect((await page.getByTestId("mobile-topbar").boundingBox())!.height, `${where}: the bar and the sections`).toBeLessThanOrEqual(86);
+    expect((await page.getByTestId("profile-header").boundingBox())!.height, `${where}: the profile's band`).toBeLessThanOrEqual(80);
+    await fitsWidth(page, `the profile, sideways at ${where}`);
+    // Reading down a page, the bar slides away (scrolled by script: WebKit's touch emulation has no wheel).
+    await page.goto("/players");
+    await expect(page.locator("main")).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollHeight - innerHeight), `${where}: Players scrolls sideways, more than the bar needs`).toBeGreaterThan(100);
+    await page.evaluate(async () => {
+      for (let i = 0; i < 12; i++) {
+        window.scrollBy(0, 60);
+        await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+      }
+    });
+    await expect(page.getByTestId("mobile-topbar"), where).toHaveAttribute("data-hidden", "true");
+    await context.close();
+  }
 });
 
 test("Players held sideways: rows two up, level with each other, every portrait whole", async ({ browser, baseURL }) => {

@@ -5,7 +5,8 @@ import { playerEntry } from "./players";
 /*
   Phase 3 quality gates, run once (desktop project) with explicit viewports:
     - no page is wider than the screen from 320 px phones to 1920 px desktops, including short
-      landscape heights, and every page keeps its heading;
+      landscape heights (a 320pt iPhone held sideways, 568 × 320, the compact bar's narrowest), and
+      every page keeps its heading;
     - automated accessibility (axe, WCAG 2.1 A/AA): no critical or serious violations.
 */
 
@@ -30,6 +31,7 @@ const SIZES: Array<[number, number]> = [
   [3440, 1440], // ultrawide
   [3840, 2160],
   [844, 390], // phone in landscape
+  [568, 320], // a 320pt iPhone held sideways: the compact bar's narrowest
   [1366, 600], // short laptop window
 ];
 
@@ -55,7 +57,7 @@ test.describe("layout across screen sizes", () => {
 
   test("admin pages fit phone and desktop widths", async ({ page }) => {
     test.setTimeout(180_000);
-    for (const [width, height] of [[320, 640], [390, 844], [1024, 768], [1366, 768], [1920, 1080]] as const) {
+    for (const [width, height] of [[320, 640], [390, 844], [568, 320], [1024, 768], [1366, 768], [1920, 1080]] as const) {
       await page.setViewportSize({ width, height });
       for (const route of ADMIN_ROUTES) {
         await page.goto(route);

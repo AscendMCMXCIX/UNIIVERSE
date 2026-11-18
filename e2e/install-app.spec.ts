@@ -48,13 +48,19 @@ async function offerInstall(page: Page, outcome: "accepted" | "dismissed") {
   }, outcome);
 }
 
-/** Phones: the account screen behind the avatar (docs/MOBILE.md); tablets: the menu drawer. */
-const phoneWidth = (page: Page) => (page.viewportSize()?.width ?? 1440) < 768;
-const menuOf = (page: Page) => page.locator(phoneWidth(page) ? "[data-testid=account-sheet]" : "#mobile-drawer");
+/**
+ * Phones, upright or held sideways (a short window, at any width below the sidebar's): the account
+ * screen behind the avatar (docs/MOBILE.md); tablets: the avatar menu.
+ */
+const phoneFrame = (page: Page) => {
+  const { width, height } = page.viewportSize() ?? { width: 1440, height: 900 };
+  return width < 768 || (width < 1024 && height <= 480);
+};
+const menuOf = (page: Page) => page.locator(phoneFrame(page) ? "[data-testid=account-sheet]" : "[data-testid=account-menu]");
 /** The button that opens it, where focus returns once Install App's window closes. */
-const menuButton = (page: Page) => (phoneWidth(page) ? page.getByTestId("account-sheet-button") : page.getByRole("button", { name: "Open menu" }));
+const menuButton = (page: Page) => (phoneFrame(page) ? page.getByTestId("account-sheet-button") : page.getByTestId("mobile-topbar").getByTestId("account-menu-button"));
 
-/** The entry in the phone's account screen or the tablet menu (the sidebar is not shown below desktop width). */
+/** The entry in the phone's account screen or a tablet's avatar menu (the sidebar is not shown below desktop width). */
 async function drawerEntry(page: Page) {
   await expect(async () => {
     if (!(await menuOf(page).isVisible())) await menuButton(page).click({ timeout: 2_000 });

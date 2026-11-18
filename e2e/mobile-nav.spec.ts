@@ -7,7 +7,7 @@ import { memberContext } from "./member-account";
   has scrolled away), a profile's sections under it, the account screen behind the avatar (which
   answers a tap made before the page's code has run), filters in a sheet with chips for what is
   narrowed, and a game opened as a whole screen that Back closes. Phones only, except the tests
-  tagged @tablet (the tablet's menu drawer); in-memory demo roster.
+  tagged @tablet (a tablet's top bar and its avatar menu); in-memory demo roster.
 */
 
 test.beforeEach(async ({ context, baseURL }, info) => {
@@ -126,8 +126,8 @@ test("a profile's sections stay under the top bar, and the bar shows the player'
 
 test("the avatar opens the account screen: Resources, Settings, Install App and Sign out live there", async ({ page }) => {
   await page.goto("/team");
-  // No menu drawer on a phone: the tablet's menu button is not shown.
-  await expect(page.getByTestId("menu-button")).toBeHidden();
+  // No menu drawer anywhere (a tablet's destinations are in its top bar).
+  await expect(page.getByTestId("menu-button")).toHaveCount(0);
   await page.getByTestId("account-sheet-button").click();
   const screen = page.getByTestId("account-sheet");
   await expect(screen).toBeVisible();
@@ -266,29 +266,11 @@ test.describe("a tablet before the page's code has run", () => {
   // The page is loaded twice; a service worker would serve the second load's navigation itself.
   test.use({ serviceWorkers: "block" });
 
-  test("a tap on the menu button or on the avatar is kept, shown pressed, and opens the drawer or the account menu once the code runs, exactly once", { tag: "@tablet" }, async ({ page }) => {
-    await page.addInitScript(COUNT_OPENINGS);
-    let scripts = await holdScripts(page);
+  test("a tap on the avatar is kept, shown pressed, and opens the account menu once the code runs, exactly once", { tag: "@tablet" }, async ({ page }) => {
+    // Its other trigger, the sidebar's tile, is on the page too, hidden at this width: the tap opens
+    // the one tapped. (The destinations are links, which work before the code has run.)
+    const scripts = await holdScripts(page);
     await page.goto("/team", { waitUntil: "domcontentloaded" });
-    const menuButton = page.getByTestId("menu-button");
-    await menuButton.tap();
-    await menuButton.tap();
-    await expect(menuButton).toHaveAttribute("aria-busy", "true");
-    expect(await page.evaluate(() => window.__earlyTaps)).toEqual(["drawer"]);
-    scripts.release();
-    const drawer = page.getByTestId("mobile-drawer-panel");
-    await expect(drawer).toBeVisible();
-    await expect(menuButton).not.toHaveAttribute("aria-busy");
-    await page.waitForTimeout(600);
-    await expect(drawer).toBeVisible();
-    expect(await openings(page)).toEqual({ "mobile-drawer": 1 });
-    await page.keyboard.press("Escape");
-    await expect(drawer).toHaveCount(0);
-    // The account menu behind the avatar goes the same way (its other trigger, the sidebar's tile,
-    // is on the page too, hidden at this width: the tap opens the one tapped).
-    await page.unrouteAll({ behavior: "ignoreErrors" });
-    scripts = await holdScripts(page);
-    await page.reload({ waitUntil: "domcontentloaded" });
     const avatar = page.getByTestId("mobile-topbar").getByTestId("account-menu-button");
     await avatar.tap();
     await avatar.tap();
@@ -306,20 +288,75 @@ test.describe("a tablet before the page's code has run", () => {
   });
 });
 
-test("Sign out from the tablet's menu is told to the browser's other tabs, and the next thing they do lands on sign-in", { tag: "@tablet" }, async ({ page, browser }) => {
+test("a tablet's destinations are in its top bar, one tap each; its avatar menu holds the account's items, the switch between the modes, the patch and Riot's notice", { tag: "@tablet" }, async ({ page, context, baseURL }) => {
+  await page.goto("/team");
+  const nav = page.getByRole("navigation", { name: "Primary" });
+  await expect(nav.getByRole("link")).toHaveText(["My Profile", "Team", "Resources"]);
+  // The current destination is marked twice: its icon in the brand blue and its lift, and the name bright.
+  const team = nav.getByRole("link", { name: "Team" });
+  await expect(team).toHaveAttribute("aria-current", "page");
+  for (const box of await nav.getByRole("link").evaluateAll((links) => links.map((l) => l.getBoundingClientRect().height))) expect(box).toBeGreaterThanOrEqual(44);
+  // One tap from anywhere: from Team to Resources, and Team stays marked on its other sections.
+  await nav.getByRole("link", { name: "Resources" }).click();
+  await expect(page).toHaveURL(/\/resources$/);
+  await expect(nav.getByRole("link", { name: "Resources" })).toHaveAttribute("aria-current", "page");
+  await page.goto("/matches");
+  await expect(team).toHaveAttribute("aria-current", "page");
+  const avatar = page.getByTestId("mobile-topbar").getByTestId("account-menu-button");
+  await avatar.click();
+  const menu = page.getByTestId("account-menu");
+  await expect(menu.getByRole("menuitem")).toHaveText(["Settings", "Install App", "Switch to Admin Mode", "Details"]);
+  await expect(menu.getByTestId("account-menu-notes")).toContainText(/Patch .+Not endorsed by Riot Games\./);
+  // Install App opens its window over the page; the menu has closed and the focus goes back to the avatar.
+  await menu.getByTestId("install-app").click();
+  const install = page.getByTestId("install-window");
+  await expect(install).toBeVisible();
+  await expect(menu).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(install).toHaveCount(0);
+  await expect(avatar).toBeFocused();
+  // Admin Mode: its four tabs in the bar, the admin pages without a tab in the avatar menu.
+  await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
+  await page.goto("/admin");
+  await expect(nav.getByRole("link")).toHaveText(["Dashboard", "Users", "Settings", "Health"]);
+  await expect(nav.getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
+  await avatar.click();
+  await expect(menu.getByRole("menuitem")).toHaveText(["Data & Integrations", "Audit Logs", "Settings", "Install App", "Return to Player Mode", "Details"]);
+  await menu.getByRole("menuitem", { name: "Audit Logs" }).click();
+  await expect(page).toHaveURL(/\/admin\/audit$/);
+  await expect(menu).toHaveCount(0);
+});
+
+test("one primary navigation is shown at a time: the bottom bar upright, the compact bar sideways, a tablet's top bar, none beside the sidebar", async ({ page }) => {
+  for (const [viewport, expected] of [
+    [{ width: 375, height: 667 }, "phone-tabbar"],
+    [{ width: 568, height: 320 }, "topbar-tabs"],
+    [{ width: 852, height: 393 }, "topbar-tabs"],
+    [{ width: 768, height: 1024 }, "topbar-destinations"],
+    [{ width: 1024, height: 768 }, null],
+  ] as const) {
+    await page.setViewportSize(viewport);
+    await page.goto("/team");
+    const shown = await page.evaluate(() => [...document.querySelectorAll("nav[aria-label=Primary]")].filter((n) => getComputedStyle(n).display !== "none" && n.getBoundingClientRect().height > 0).map((n) => n.getAttribute("data-testid")));
+    expect(shown, `${viewport.width} × ${viewport.height}`).toEqual(expected ? [expected] : []);
+    await expect(page.getByRole("navigation", { name: "Primary" }), `${viewport.width} × ${viewport.height}`).toHaveCount(expected ? 1 : 0);
+  }
+});
+
+test("Sign out from a tablet's avatar menu is told to the browser's other tabs, and the next thing they do lands on sign-in", { tag: "@tablet" }, async ({ page, browser }) => {
   const member = await memberContext(browser, page, { width: 768, height: 1024 }, { base: "Tabs" });
   const [first, other] = [member.page, await member.context.newPage()];
   await first.goto("/team");
   await other.goto("/team");
-  await expect(other.getByTestId("menu-button")).toBeVisible();
+  await expect(other.getByTestId("mobile-topbar").getByTestId("account-menu-button")).toBeVisible();
   // The other tab listens where the account guard does (account-guard.tsx) for the announcement.
   await other.evaluate(() => {
     const heard: string[] = [];
     (window as unknown as { __heard: string[] }).__heard = heard;
     new BroadcastChannel("uniiverse-account").onmessage = (e) => heard.push(String(e.data));
   });
-  await first.getByTestId("menu-button").click();
-  await first.getByTestId("mobile-drawer-panel").getByRole("button", { name: "Sign out" }).click();
+  await first.getByTestId("mobile-topbar").getByTestId("account-menu-button").click();
+  await first.getByTestId("account-menu").getByRole("menuitem", { name: "Sign out" }).click();
   // Signed out of the only account: the site's address, the public team page.
   await expect(first).toHaveURL(/\/public$/);
   await expect.poll(() => other.evaluate(() => (window as unknown as { __heard: string[] }).__heard)).toEqual(["changed"]);

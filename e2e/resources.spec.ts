@@ -87,7 +87,7 @@ test("every member finds the library in the sidebar: a panel per section, rows t
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
 
-  // The sidebar (or the tablet menu, or the phone's account screen) has it as its own entry.
+  // The sidebar (or a tablet's top bar, or the phone's account screen) has it as its own entry.
   await closeFilterSheet(page);
   if ((page.viewportSize()?.width ?? 0) >= 1024) {
     await expect(page.locator("aside").getByTestId("nav-resources")).toHaveAttribute("aria-current", "page");
@@ -95,8 +95,7 @@ test("every member finds the library in the sidebar: a panel per section, rows t
     await page.getByTestId("account-sheet-button").click();
     await expect(page.getByTestId("account-sheet").getByRole("link", { name: "Resources" })).toHaveAttribute("aria-current", "page");
   } else {
-    await page.getByRole("button", { name: "Open menu" }).click();
-    await expect(page.getByRole("dialog", { name: "Menu" }).getByTestId("nav-resources")).toHaveAttribute("aria-current", "page");
+    await expect(page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: "Resources" })).toHaveAttribute("aria-current", "page");
   }
 });
 
