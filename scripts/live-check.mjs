@@ -43,11 +43,13 @@
     a full-width target at least 48px tall reached by a tap where it is drawn, the screen itself has
     the focus, and Sign out is in view. Tablet and desktop: the account menu opens on the first tap or
     click on its avatar or tile, made as soon as it is on screen.
-  - Team Overview (November 2026), on whatever lineup production has: at 1440 the header at most
-    24px under the section tabs with the lineup and its bench inside the window; on the phone the
-    first lineup card above the tab bar; the bench listing exactly the roles that have a substitute.
-    A fact whose precondition does not hold (no lineup five across, no tab bar) passes as not
-    applicable, with the reason.
+  - Team Overview (November 2026: the approved design, before #275), on whatever lineup production
+    has: at 1440 the lineup centred in the height under the section tabs (or starting at the top
+    when taller than the window), and the header's 80px logo and "Team Overview" eyebrow with the
+    five cards on the stage's floor, hidden from screen readers; on the phone the first lineup card
+    above the tab bar; at every width no bench of substitutes under the lineup (a substitute is on
+    their starter's card). A fact whose precondition does not hold (no lineup five across, no tab
+    bar) passes as not applicable, with the reason.
   - All Champions (#178): compact rows, sorted by games, no heading cut short.
   - settings: the picture and display-name help name the public team page, and Settings never
     mentions a Public profile switch (retired; true or false only).
@@ -500,15 +502,17 @@ async function accountMenuFirstTap(page, kind, trigger) {
 
 /**
  * Team Overview's layout facts (docs/LIVE_VALIDATION.md, "What it checks"), robust to production's
- * real lineup (an open role, no substitutes): a fact whose precondition does not hold passes as
- * "not applicable", with the reason. Only positions, counts and role names are reported.
- * - desktop (1440 × 900, the sidebar open): five across, the team's header sits at most 24px under
- *   the section tabs, and the lineup with its bench ends inside the window (the cards take the
- *   height the window leaves them, less the account's own action cards above the tabs);
+ * real lineup (a role nobody holds, a substitute or not for each role): a fact whose precondition
+ * does not hold passes as "not applicable", with the reason. Only positions, sizes, counts and true
+ * or false are reported.
+ * - desktop (1440 × 900, the sidebar open), five across: the header and the cards are centred in
+ *   the height under the section tabs (as much room above the header as under the cards, the frame
+ *   reaching the window's foot), or start at the top when they are taller than the window; and the
+ *   header shows the logo at 80px and the "Team Overview" eyebrow over the name, with the cards on
+ *   the stage's floor (drawn from just under them, hidden from screen readers);
  * - phone (390 × 844): the first lineup card ends above the tab bar;
- * - every width: the bench lists exactly the roles that have a substitute: a button for each role
- *   whose card turns to one, an entry without a control only for a role nobody starts in, and
- *   nothing for a role whose starter has none.
+ * - every width: no bench of substitutes under the lineup (the approved design shows a substitute
+ *   on their starter's card, turned to by its control).
  */
 async function teamFacts(page, kind) {
   await page.evaluate(() => window.scrollTo(0, 0));
@@ -517,37 +521,62 @@ async function teamFacts(page, kind) {
     const q = (s) => document.querySelector(s);
     const shown = (el) => !!el && getComputedStyle(el).display !== "none" && el.getBoundingClientRect().height > 0;
     const cells = [...document.querySelectorAll("[data-testid=lineup-cell]")].map((c) => c.getBoundingClientRect());
-    const bench = q("[data-testid=lineup-bench]");
     const tabs = q("[data-testid=team-tabs]");
+    const frame = q("[data-testid=lineup-frame]");
     const header = q("[data-testid=team-header]");
+    const stage = q("[data-testid=lineup-stage]");
+    const track = q("[data-testid=lineup-overview]");
+    const floor = q("[data-testid=lineup-stage-floor]");
+    const logo = header?.querySelector("img, [data-testid=brand-mark-text]");
+    const eyebrow = header ? [...header.querySelectorAll("p")].find((p) => p.textContent.trim() === "Team Overview") : null;
     const nav = [...document.querySelectorAll("nav[aria-label=Primary]")].find(shown);
+    const at = (el, side) => (el ? Math.round(el.getBoundingClientRect()[side]) : null);
     return {
       scrollY: Math.round(scrollY),
       window: innerHeight,
+      overflow: document.documentElement.scrollHeight - innerHeight,
       cells: cells.length,
       rows: new Set(cells.map((c) => Math.round(c.top))).size,
-      lineupEnd: cells.length ? Math.round(Math.max(...cells.map((c) => c.bottom))) : null,
-      benchEnd: shown(bench) ? Math.round(bench.getBoundingClientRect().bottom) : null,
-      headerGap: shown(tabs) && header ? Math.round(header.getBoundingClientRect().top - tabs.getBoundingClientRect().bottom) : null,
+      tabsBottom: shown(tabs) ? at(tabs, "bottom") : null,
+      frameTop: at(frame, "top"),
+      frameBottom: at(frame, "bottom"),
+      headerTop: at(header, "top"),
+      trackBottom: at(track, "bottom"),
+      stageBottom: at(stage, "bottom"),
+      logo: shown(logo) ? { w: Math.round(logo.getBoundingClientRect().width), h: Math.round(logo.getBoundingClientRect().height) } : null,
+      // Shown, not left to screen readers (a screen-reader-only line is 1px).
+      eyebrow: !!eyebrow && eyebrow.getBoundingClientRect().width > 1 && eyebrow.getBoundingClientRect().height > 1,
+      floor: { shown: shown(floor), ariaHidden: floor?.getAttribute("aria-hidden") === "true", top: at(floor, "top") },
       firstCardEnd: cells[0] ? Math.round(cells[0].bottom) : null,
       tabBarTop: nav ? Math.round(nav.getBoundingClientRect().top) : null,
       faces: document.querySelectorAll("[data-testid^=lineup-sub-]").length,
-      bench: !!bench,
-      roles: ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"].map((role) => ({
-        role,
-        starter: !!q(`[data-testid=lineup-row-${role}][data-player-id]`),
-        turns: !!q(`[data-testid=lineup-sub-${role}]`),
-        entry: q(`[data-testid=lineup-bench] [data-testid=bench-${role}]`)?.tagName.toLowerCase() ?? null,
-      })),
+      bench: document.querySelectorAll("[data-testid=lineup-bench], [data-testid^=bench-]").length,
     };
   });
   if (kind === "desktop") {
-    const name = "1440: the Team header sits at most 24px under the section tabs and the lineup plus bench end inside the window";
-    if (f.cells !== 5 || f.rows !== 1) check("team", name, "PASS", `not applicable: the lineup is not five across here (${f.cells} cards in ${f.rows} rows)`);
-    else if (f.headerGap === null) check("team", name, "PASS", "not applicable: no section tabs above the header");
+    const fiveAcross = f.cells === 5 && f.rows === 1;
+    const notFive = `not applicable: the lineup is not five across here (${f.cells} cards in ${f.rows} rows)`;
+    // The header and the cards as one composition, centred in the height the section tabs leave (as
+    // much room above the header as under the cards, the frame reaching the window's foot), or, when
+    // it is taller than the window, starting at the top with no room added above it.
+    const centred = "1440: the Team lineup is centred in the height under the section tabs (or starts at the top when taller than the window)";
+    if (!fiveAcross) check("team", centred, "PASS", notFive);
+    else if (f.tabsBottom === null || f.frameTop === null || f.headerTop === null || f.stageBottom === null) check("team", centred, "PASS", `not applicable: ${f.tabsBottom === null ? "no section tabs above the lineup" : "no lineup frame"}`);
     else {
-      const end = (f.benchEnd ?? f.lineupEnd) + f.scrollY;
-      pass("team", name, f.headerGap <= 24 && end <= f.window + 1, { headerGap: f.headerGap, end, window: f.window, bench: f.benchEnd !== null });
+      const above = f.headerTop - f.frameTop;
+      const below = f.frameBottom - f.stageBottom;
+      const taller = f.overflow > 1;
+      const ok = f.frameTop >= f.tabsBottom - 1 && (taller ? Math.abs(above) <= 1 : above >= 0 && Math.abs(above - below) <= 2 && f.frameBottom >= f.window - 40);
+      pass("team", centred, ok, { above, below, frameBottom: f.frameBottom, window: f.window, taller });
+    }
+    // The team's identity at its approved size, and the stage the cards stand on: the floor lit from
+    // just under them (its top in their last 48px), decoration hidden from screen readers.
+    const stage = "1440: the Team header's 80px logo and Team Overview eyebrow, and the five cards on the stage's floor (hidden from screen readers)";
+    if (!fiveAcross) check("team", stage, "PASS", notFive);
+    else {
+      const logo = !!f.logo && Math.abs(f.logo.w - 80) <= 1 && Math.abs(f.logo.h - 80) <= 1;
+      const floor = f.floor.shown && f.floor.ariaHidden && f.floor.top !== null && f.trackBottom !== null && f.floor.top >= f.trackBottom - 48 && f.floor.top <= f.trackBottom;
+      pass("team", stage, logo && f.eyebrow && floor, { logo: f.logo, eyebrow: f.eyebrow, floor: { shown: f.floor.shown, ariaHidden: f.floor.ariaHidden, underCards: f.floor.top !== null && f.trackBottom !== null ? f.floor.top - f.trackBottom : null } });
     }
   }
   if (kind === "phone") {
@@ -555,16 +584,8 @@ async function teamFacts(page, kind) {
     if (f.tabBarTop === null || f.firstCardEnd === null) check("team", name, "PASS", `not applicable: ${f.tabBarTop === null ? "no tab bar shown" : "no lineup card"}`);
     else pass("team", name, f.firstCardEnd + f.scrollY <= f.tabBarTop, { firstCardEnd: f.firstCardEnd + f.scrollY, tabBarTop: f.tabBarTop });
   }
-  const name = `${kind}: the bench lists exactly the roles that have a substitute`;
-  if (!f.bench) {
-    if (f.faces === 0) check("team", name, "PASS", "not applicable: no role has a substitute, and no bench is drawn");
-    else pass("team", name, false, { faces: f.faces, bench: false });
-    return;
-  }
-  // A card that turns has a substitute: its entry is the button that turns it. A role nobody starts
-  // in may list its substitute without a control; a starter without a substitute has no entry.
-  const wrong = f.roles.filter((r) => (r.turns ? r.entry !== "button" : r.starter ? r.entry !== null : r.entry === "button")).map((r) => `${r.role}: ${r.turns ? "turns" : r.starter ? "no substitute" : "open"}, entry ${r.entry ?? "none"}`);
-  pass("team", name, wrong.length === 0, { listed: f.roles.filter((r) => r.entry).map((r) => r.role), wrong });
+  // The approved design has no bench: a substitute is on their starter's card (its back).
+  pass("team", `${kind}: no bench of substitutes under the lineup`, f.bench === 0, { bench: f.bench, cardsWithASubstitute: f.faces });
 }
 
 /**
