@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, ADMIN_TABS, NAV_ENTRIES, NAV_LINKS, PAGE_WIDTH, PHONE_TABS, PHONE_TAB_LIMIT, RESOURCES, RESOURCES_SECTIONS, SECTION_HUBS, TEAM_SECTIONS, activeHref, backSteps, canOpen, currentTab, encountersRedirect, entryLinks, isActivePath, pageName, pageWidthOf, phoneParent, phoneTabs, profileBase } from "./nav";
+import { ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, ADMIN_TABS, NAV_ENTRIES, NAV_LINKS, PAGE_WIDTH, PHONE_TABS, ROW_WIDTH, PHONE_TAB_LIMIT, RESOURCES, RESOURCES_SECTIONS, SECTION_HUBS, TEAM_SECTIONS, activeHref, backSteps, canOpen, currentTab, encountersRedirect, entryLinks, isActivePath, pageName, pageWidthOf, phoneParent, phoneTabs, profileBase } from "./nav";
 import type { Session } from "@/server/auth/permissions";
 
 const entryId = (e: (typeof NAV_ENTRIES)[number]) => ("key" in e ? e.key : e.href);
@@ -66,16 +66,19 @@ describe("navigation entries", () => {
     expect(new Set(hrefs).size).toBe(hrefs.length);
   });
 
-  it("the pages of a tab bar share one width: Team's four sections the wide one, every other page the ordinary one", () => {
+  it("from a 1600px window the pages of a tab bar share one width (Team's the wide one), and under it every page keeps the width it always had", () => {
     expect(SECTION_HUBS.map((h) => [h.key, h.width])).toEqual([
       ["team", "wide"],
       ["resources", "max"],
       ["admin-settings", "max"],
     ]);
-    expect(TEAM_SECTIONS.map((s) => pageWidthOf(s.href))).toEqual(["wide", "wide", "wide", "wide"]);
+    // Team Overview and Leaderboards were always 100rem; Players and Matches join them from 1600px.
+    expect(TEAM_SECTIONS.map((s) => pageWidthOf(s.href))).toEqual(["wide", "wideFrom1600", "wide", "wideFrom1600"]);
     // A teammate's profile sits under Players' address, in the profile's own (ordinary) width.
     for (const path of ["/players/p1", "/players/p1/matches", "/resources", "/resources/matchups", "/admin/branding", "/settings", "/overview"]) expect(pageWidthOf(path), path).toBe("max");
-    expect(PAGE_WIDTH).toEqual({ max: "max-w-[var(--content-max)]", wide: "max-w-[var(--content-wide)]" });
+    expect(PAGE_WIDTH).toEqual({ max: "max-w-[var(--content-max)]", wide: "max-w-[var(--content-wide)]", wideFrom1600: "max-w-[var(--content-max)] min-[100rem]:max-w-[var(--content-wide)]" });
+    // The row of tabs is the bar's width under 1600px, as it always was, and the set's width from there.
+    expect(ROW_WIDTH).toEqual({ max: "min-[100rem]:max-w-[var(--content-max)]", wide: "min-[100rem]:max-w-[var(--content-wide)]" });
   });
 });
 
