@@ -921,24 +921,24 @@ const tabRowEdges = (page, testId) =>
 async function wideChecks(page, log) {
   await page.setViewportSize({ width: 2560, height: 1440 });
   const pages = [
-    ["team", "/team", "team-tabs"],
-    ["players", "/players", "team-tabs"],
-    ["records", "/leaderboards?view=records", "team-tabs"],
-    ...(playerId ? [["profile", `/players/${playerId}`, "profile-tabs"]] : []),
+    ["team", "Team Overview", "/team", "team-tabs"],
+    ["players", "Players", "/players", "team-tabs"],
+    ["records", "Records", "/leaderboards?view=records", "team-tabs"],
+    ...(playerId ? [["profile", "the profile", `/players/${playerId}`, "profile-tabs"]] : []),
   ];
   const teamRow = [];
-  for (const [name, path, row] of pages) {
+  for (const [name, label, path, row] of pages) {
     await guarded("wide", `2560: ${name}`, async () => {
       if (!(await visit(page, log, "wide", name, path, { fullPage: false }))) return;
       await axe(page, "wide", name);
       const at = await tabRowEdges(page, row);
-      const fact = `2560: ${name}'s ${row === "team-tabs" ? "section" : "profile"} tabs start where the page does`;
+      const fact = `2560: on ${label}, the ${row === "team-tabs" ? "section" : "profile's"} tabs start where the page does`;
       if (!at) return check("wide", fact, "PASS", { notApplicable: `no ${row} on the page` });
       pass("wide", fact, Math.abs(at.tab - at.page) <= 1, at);
       if (row === "team-tabs") teamRow.push(at.tab);
     });
   }
-  if (!playerId) check("wide", "2560: the profile's tabs start where the page does", "PASS", { notApplicable: "no teammate on Team to open" });
+  if (!playerId) check("wide", "2560: on the profile, the profile's tabs start where the page does", "PASS", { notApplicable: "no teammate on Team to open" });
   if (teamRow.length > 1) pass("wide", "2560: Team's tab row is in the same place on each of its sections", Math.max(...teamRow) - Math.min(...teamRow) <= 1, { starts: teamRow });
   await page.setViewportSize(VIEWPORTS.desktop.viewport);
 }
