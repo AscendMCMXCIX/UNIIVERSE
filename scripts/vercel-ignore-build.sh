@@ -22,11 +22,15 @@ if [ "${VERCEL_ENV:-}" = "preview" ]; then
   echo "Preview deployment not requested (branch preview/... or [preview] in the commit message): skipping."
   exit 0
 fi
-# A batch of merges deploys once. Vercel builds one deployment at a time, so the merges of a batch
-# queue up; when this commit's turn comes and its branch already has a later commit that contains
-# it, that later commit's own deployment builds next (and holds this commit's changes, since it is
-# compared with the last deployment that succeeded), so this one is skipped. Any doubt builds: no
-# answer from GitHub in time, a later commit that does not contain this one, or no commit to compare.
+# A batch of merges deploys once. Vercel starts each production deployment within a few seconds of
+# its merge (it builds several at once; it does not queue them), and this step runs first. When this
+# commit's branch already has a later commit that contains it, this one is skipped, and the run's
+# last commit builds instead (a later commit is skipped the same way while another follows it within
+# seconds); it holds this commit's changes, since it is compared with the last deployment that
+# succeeded. So merges made back to back, seconds apart, deploy their last commit only (18 Nov 2026:
+# 5 seconds apart, three of four skipped; 10 seconds apart, none). Any doubt
+# builds: no answer from GitHub in time, a later commit that does not contain this one, or no commit
+# to compare.
 # (To deploy an older commit on purpose, use Vercel's Instant Rollback, which builds nothing.) docs/HOSTING_USAGE.md, "18 Nov 2026".
 superseded_by() {
   local ref="${VERCEL_GIT_COMMIT_REF:-}" sha="${VERCEL_GIT_COMMIT_SHA:-}" url tip
