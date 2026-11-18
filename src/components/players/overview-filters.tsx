@@ -216,7 +216,7 @@ export function OverviewFilters({
                     </FilterField>
                   ) : null}
                   {showChampions || accounts.length > 1 ? (
-                    <div className="flex min-w-0 flex-col gap-3 md:grid md:grid-cols-2 md:gap-3">
+                    <div className={cn("flex min-w-0 flex-col gap-3", !inSheet && "md:grid md:grid-cols-2 md:gap-3")}>
                       {showChampions ? (
                         <FilterField label="Champions" alwaysLabel>
                           <ChampionFilter

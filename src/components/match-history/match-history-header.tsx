@@ -47,7 +47,7 @@ export function MatchHistoryHeader({ view, basePath, filter, description, status
         <>
           <SubTabs label="Match History views" items={views} current={view} testId="match-views" />
           {/* From md, once the header has scrolled away: the views and Filters at the pinned tabs' end (ui/page-toolbar.tsx; nothing here). */}
-          <PageToolbar label="Match History controls" land={view === "encounters" ? "[data-testid=encounter-row]" : "[data-testid=match-card]"}>
+          <PageToolbar label="Match History controls" land="[data-testid=encounter-row], [data-testid=match-card]">
             <SubTabs size="compact" label="Match History views" items={views} current={view} testId="match-views" />
             <FiltersControl />
           </PageToolbar>
