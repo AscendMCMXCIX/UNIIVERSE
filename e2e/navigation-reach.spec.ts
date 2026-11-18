@@ -398,7 +398,10 @@ const landedAt = (page: Page, first: string, tabs: string, under?: string) =>
       const item = [...document.querySelectorAll(first)].find((el) => el.getBoundingClientRect().height > 0)!.getBoundingClientRect();
       const foot = document.querySelector(under ?? `[data-testid=${tabs}]`)!.getBoundingClientRect().bottom;
       const end = document.documentElement.scrollHeight - window.innerHeight;
-      return { gap: Math.round(item.top - foot), atEnd: window.scrollY >= end - 1 };
+      // The room the page's scroll padding leaves under what is pinned (globals.css: the pinned
+      // stack's heights and 0.5rem), where a list's start lands; more with larger text.
+      const pad = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) - foot;
+      return { gap: Math.round(item.top - foot), atEnd: window.scrollY >= end - 1, pad: Math.round(pad) };
     },
     { first, tabs, under },
   );
@@ -577,20 +580,22 @@ test("desktop: from the pinned row of every page that offers Filters, a change b
   await page.emulateMedia({ reducedMotion: "reduce" });
   const profile = await teammate(page);
   // Short enough for each list to scroll its filters away, tall enough for the tabs to pin; the demo's
-  // nine players and eight champions need a larger text size for that.
-  const CASES: Array<{ what: string; path: string; tabs: string; first: string; under?: string; text?: number; change: (sheet: Locator) => Promise<unknown>; url?: RegExp }> = [
+  // nine players and eight champions need a larger text size for that, and All Champions a window wide
+  // enough at that size for its column headings (from a 44rem table), which pin under the tabs.
+  const CASES: Array<{ what: string; path: string; tabs: string; first: string; under?: string; text?: number; viewport?: { width: number; height: number }; change: (sheet: Locator) => Promise<unknown>; url?: RegExp }> = [
     { what: "Encounters' first player met", path: `${profile}/matches?view=encounters`, tabs: "profile-tabs", first: "[data-testid=encounter-row]", change: (s) => s.getByLabel("Game mode").selectOption("solo"), url: /mode=solo/ },
     { what: "Team Matches' first game", path: "/matches", tabs: "team-tabs", first: "[data-testid=together-card]", change: (s) => s.getByTestId("together-min").selectOption("3"), url: /min=3/ },
     { what: "the Overview's dashboard", path: profile, tabs: "profile-tabs", first: "[data-testid=overview-dashboard]", change: (s) => s.getByLabel("Game mode").selectOption("solo"), url: /mode=solo/ },
-    { what: "All Champions' first champion, under its pinned column headings", path: `${profile}/champions`, tabs: "profile-tabs", first: "[data-testid=top-champion]", under: "[data-testid=all-champions-header]", text: 175, change: (s) => s.getByLabel("Game mode").selectOption("solo"), url: /mode=solo/ },
+    { what: "All Champions' first champion, under its pinned column headings", path: `${profile}/champions`, tabs: "profile-tabs", first: "[data-testid=top-champion]", under: "[data-testid=all-champions-header]", text: 175, viewport: { width: 1920, height: 560 }, change: (s) => s.getByLabel("Game mode").selectOption("solo"), url: /mode=solo/ },
     { what: "Players' first player", path: "/players", tabs: "team-tabs", first: "[data-testid=player-card]", text: 175, change: (s) => s.getByTestId("role-filter-MID").click() },
   ];
-  await page.setViewportSize({ width: 1440, height: 560 });
   for (const c of CASES) {
+    await page.setViewportSize(c.viewport ?? { width: 1440, height: 560 });
     await page.goto(c.path);
     await expect(page.locator("main h1, main h2").first()).toBeVisible();
     if (c.text) await page.addStyleTag({ content: `html { font-size: ${c.text}% !important; }` });
     await page.waitForLoadState("networkidle");
+    if (c.under) await expect(page.locator(c.under), `${c.what}: the column headings show`).toBeVisible();
     await scrollTo(page, "end");
     await page.getByTestId("toolbar-filters").click();
     const sheet = page.locator("dialog[open]");
@@ -599,7 +604,10 @@ test("desktop: from the pinned row of every page that offers Filters, a change b
     if (c.url) await expect(page).toHaveURL(c.url);
     await sheet.getByRole("button", { name: "Done" }).click();
     await expect(page.locator("dialog[open]")).toHaveCount(0);
-    await expect.poll(async () => { const at = await landedAt(page, c.first, c.tabs, c.under); return at.gap >= -1 && (at.gap <= 12 || at.atEnd); }, { message: c.what }).toBe(true);
+    // Its first item just under what is pinned: at the page's scroll padding under the tabs, or right
+    // under All Champions' pinned column headings, which would cover it there; or as near as the
+    // page's end allows.
+    await expect.poll(async () => { const at = await landedAt(page, c.first, c.tabs, c.under); return at.gap >= -1 && (at.gap <= Math.max(at.pad, 0) + 4 || at.atEnd); }, { message: c.what }).toBe(true);
   }
 });
 
@@ -635,6 +643,10 @@ test("desktop: Team Matches' Bookmarked from the pinned row replaces the entry, 
   await page.setViewportSize({ width: 1440, height: 600 });
   await page.goto("/matches");
   await expect(page.getByTestId("played-together")).toBeVisible();
+  // A larger text size, so that the page is still longer than the window with only the bookmarked
+  // games listed (the demo has none): one sent to its top would read 0.
+  await page.addStyleTag({ content: "html { font-size: 175% !important; }" });
+  await page.waitForLoadState("networkidle");
   await scrollTo(page, "end");
   const saved = page.getByTestId("toolbar-together-saved");
   await expect(saved).toBeVisible();
@@ -643,9 +655,10 @@ test("desktop: Team Matches' Bookmarked from the pinned row replaces the entry, 
   await expect(page).toHaveURL(/saved=1/);
   await expect(page.getByTestId("together-saved")).toHaveAttribute("aria-current", "page");
   expect(await page.evaluate(() => history.length), "a filter replaces the entry").toBe(entries);
-  // Not sent to the page's top: the place is kept, or as near as the shorter list allows.
+  // Not sent to the page's top: the place is kept, as near as the shorter list allows (its end).
   const at = await page.evaluate(() => ({ y: window.scrollY, end: document.documentElement.scrollHeight - window.innerHeight }));
-  expect(at.y === 0 ? at.end : at.y, "the page kept its place").toBeGreaterThan(0);
+  expect(at.end, "the shorter page still scrolls").toBeGreaterThan(0);
+  expect(at.y, "the page kept its place").toBeGreaterThanOrEqual(at.end - 1);
 });
 
 test("tablet and desktop: Records → Recent form from the pinned row", async ({ page }) => {

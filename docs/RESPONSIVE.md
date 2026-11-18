@@ -318,9 +318,10 @@ replaces the entry, is marked and keeps the place; Records → Recent form from 
 `e2e/mobile-nav.spec.ts` has the phone's: the top bar's Filters (44px, "Filters:" and what is chosen)
 only once the page's own has gone, opening the sheet, Done after a change landing the first game
 under the bars, its badge counting; Escape and Done hand the focus back, even after a change that
-emptied the list; nothing wider than the phone in the fullest bar (Back, the title, Filters with its
-count, the avatar) at 320px and 100%, 175% and 200% text. `e2e/filter-consistency.spec.ts`: the sheet
-opened from the pinned row at 1440 labels every field and holds the only copy of each id.
+emptied the list; the fullest bar (Back, the title, Filters with its count, the avatar) within a
+320px phone at 100%, 175% and 200% text, Back giving way. `e2e/filter-consistency.spec.ts`: the sheet
+opened from the pinned row at 768 and 1440 labels every field (More filters opened) and holds the only
+copy of each id.
 `e2e/popups.spec.ts` keeps what shows over a window inside it: an ⓘ's bubble in a window drawn
 inside the window and above it where its trigger puts it (also while the window is moved and
 scaled, and once a motion of the window's own is over), Escape closing the bubble alone; an ⓘ

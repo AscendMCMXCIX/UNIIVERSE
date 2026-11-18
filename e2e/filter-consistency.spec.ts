@@ -81,19 +81,19 @@ test("every filter bar folds on phones and lines up on wide screens", async ({ p
   await checkBar(page, page.getByTestId("together-filters"), "together-filters-toggle");
 });
 
-test("opened from the pinned row at desktop width, the sheet labels every field and holds the only copy of each id", async ({ page }, info) => {
-  test.skip(info.project.name !== "desktop", "the pinned row's sheet at a desktop's width");
-  // A window short enough for each page to scroll its toolbar away, tall enough to pin. (The demo's
-  // Players and All Champions, nine players and eight champions, fit it whole: their rows never need
-  // their compact controls at this width.)
-  await page.setViewportSize({ width: 1440, height: 560 });
+test("opened from the pinned row on a tablet and a desktop, the sheet labels every field and holds the only copy of each id", async ({ page }, info) => {
+  test.skip(info.project.name === "phone", "phones open the sheet from the page's own Filters or the top bar (mobile-nav.spec.ts)");
+  // A window short enough for each page to scroll its toolbar away, tall enough to pin (over 480px).
+  // (The demo's Players and All Champions, nine players and eight champions, fit it whole: their rows
+  // never need their compact controls at these widths.)
+  await page.setViewportSize({ width: page.viewportSize()!.width, height: 560 });
   await page.goto("/players");
   const card = page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']");
   const profile = new URL((await card.getAttribute("href"))!, "http://x").pathname;
-  for (const [path, sheetId] of [
-    [profile, "filter-sheet"],
-    [`${profile}/matches`, "filter-sheet"],
-    ["/matches", "together-filters-sheet"],
+  for (const [path, sheetId, more] of [
+    [profile, "filter-sheet", false],
+    [`${profile}/matches`, "filter-sheet", true],
+    ["/matches", "together-filters-sheet", false],
   ] as const) {
     await page.goto(path);
     await page.waitForLoadState("networkidle");
@@ -107,6 +107,14 @@ test("opened from the pinned row at desktop width, the sheet labels every field 
     await page.getByTestId("toolbar-filters").click();
     const sheet = page.getByTestId(sheetId);
     await expect(sheet, path).toBeVisible();
+    // Match History's Refine keeps its less used fields behind More filters in the sheet, as on a
+    // phone: closed at first, every one of them there once it is opened.
+    if (more) {
+      const toggle = sheet.getByTestId("refine-more");
+      await expect(toggle, path).toHaveAttribute("aria-expanded", "false");
+      await toggle.click();
+      await expect(toggle, path).toHaveAttribute("aria-expanded", "true");
+    }
     // Every field's label shows (not left to screen readers as in the inline row), above its field.
     const labels = await sheet.locator("[data-filter-controls] [data-filter-label]").evaluateAll((els) => els.map((el) => ({ text: (el.textContent ?? "").trim(), w: el.getBoundingClientRect().width, h: el.getBoundingClientRect().height })));
     expect(labels.length, `${path}: labels`).toBeGreaterThan(0);

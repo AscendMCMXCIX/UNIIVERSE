@@ -424,7 +424,7 @@ test("the top bar's Filters gets the focus back from its sheet (Escape, Done), a
   await expect(filters).toHaveCount(0);
 });
 
-test("the top bar's Filters never makes the page wider than the phone, in the fullest bar (Back, the title, Filters with its count, the avatar): 320px at 100%, 175% and 200% text", async ({ page }) => {
+test("the fullest top bar (Back, the title, Filters with its count, the avatar) keeps within a 320px phone at 100%, 175% and 200% text: Back gives way, Filters and the avatar stay on the screen", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 568 });
   const profile = `/players/${await idOf(page, "TOP")}`;
   for (const root of [100, 175, 200]) {
@@ -441,11 +441,17 @@ test("the top bar's Filters never makes the page wider than the phone, in the fu
     const fit = await page.evaluate(() => {
       const bar = document.querySelector<HTMLElement>("[data-testid=mobile-topbar]")!;
       const row = bar.firstElementChild as HTMLElement;
-      const right = (sel: string) => Math.round(document.querySelector(sel)!.getBoundingClientRect().right);
-      return { page: document.documentElement.scrollWidth, row: row.scrollWidth - row.clientWidth, filters: right("[data-testid=topbar-filters]"), avatar: right("[data-testid=account-sheet-button]") };
+      const right = (el: Element) => Math.round(el.getBoundingClientRect().right);
+      return { page: document.documentElement.scrollWidth, bar: right(bar), row: row.scrollWidth - row.clientWidth, items: Math.max(...[...row.children].map(right)), filters: right(document.querySelector("[data-testid=topbar-filters]")!), avatar: right(document.querySelector("[data-testid=account-sheet-button]")!) };
     });
-    expect(fit.page, `${root}% text: the page`).toBeLessThanOrEqual(320);
+    // The page under the bar fits the phone at 100%. At 175% and 200% a teammate's pages are wider
+    // than a 320px phone already, from their own content (the strip of Match History's last games,
+    // All Champions' sort row, Encounters' rates), not from the bar, so there the bar itself is
+    // measured: it, its row and everything in the row end within the screen.
+    if (root === 100) expect(fit.page, "100% text: the page").toBeLessThanOrEqual(320);
+    expect(fit.bar, `${root}% text: the bar`).toBeLessThanOrEqual(320);
     expect(fit.row, `${root}% text: the bar's row`).toBeLessThanOrEqual(1);
+    expect(fit.items, `${root}% text: everything in the bar's row`).toBeLessThanOrEqual(320);
     expect(fit.filters, `${root}% text: Filters on screen`).toBeLessThanOrEqual(320);
     expect(fit.avatar, `${root}% text: the avatar on screen`).toBeLessThanOrEqual(320);
   }
