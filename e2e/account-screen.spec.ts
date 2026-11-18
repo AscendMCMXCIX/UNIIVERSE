@@ -158,8 +158,7 @@ test("held sideways and with large text, the account screen scrolls as one regio
   // 200% text on an upright 320px phone too: the tab bar shows its icons alone once its labels no
   // longer fit, and the top bar's brand gives way, so the page stays the phone's width (it used to
   // widen the area every fixed element is placed in, the account screen included). In Admin Mode
-  // that case is left out: some admin pages are still wider than the phone at 200% (STATUS.md,
-  // Deferred).
+  // as well since every Admin Mode page fits the phone at 200% (18 Nov 2026, e2e/phone-wraps.spec.ts).
   const cases = [
     { size: "sideways", viewport: { width: 734, height: 343 }, root: 100 },
     { size: "sideways at 125% text", viewport: { width: 734, height: 343 }, root: 125 },
@@ -173,7 +172,6 @@ test("held sideways and with large text, the account screen scrolls as one regio
   for (const { size, viewport, root } of cases) {
     await page.setViewportSize(viewport);
     for (const mode of ["player", "admin"] as const) {
-      if (mode === "admin" && root === 200 && viewport.width === 320) continue;
       const where = `${size}, ${mode === "admin" ? "Admin Mode" : "Player Mode"}`;
       await context.addCookies([{ name: "uniiverse_view", value: mode, url: baseURL! }]);
       await page.goto(mode === "admin" ? "/admin" : "/team");

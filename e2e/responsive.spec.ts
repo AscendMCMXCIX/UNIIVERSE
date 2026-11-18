@@ -152,6 +152,11 @@ test("Settings: the account card leads (compact on a phone, a column of its own 
     await page.getByTestId("password-cancel").tap();
     await expect(page.locator("#current")).toBeHidden();
     await expect(open).toBeVisible();
+    // A chip jumps to its section, clear of the top bar.
+    await index.getByRole("link", { name: "Password" }).tap();
+    await expect(page).toHaveURL(/\/settings#password$/);
+    await expect(page.locator("#password")).toBeInViewport();
+    expect((await page.locator("#password").boundingBox())!.y).toBeGreaterThanOrEqual((await page.getByTestId("mobile-topbar").boundingBox())!.height - 1);
   } else {
     // Wider: the card is a column of its own beside the sections, sticky under the bar, the form open.
     expect((await card.boundingBox())!.x + (await card.boundingBox())!.width).toBeLessThanOrEqual((await page.locator("#name").boundingBox())!.x);
