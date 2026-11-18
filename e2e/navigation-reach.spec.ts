@@ -434,17 +434,20 @@ test("tablet and desktop: closing the sheet after a change brings the list's fir
   await scrollTo(page, "end");
   await page.getByTestId("toolbar-filters").click();
   const sheet = page.getByTestId("filter-sheet");
-  await sheet.getByLabel("Game mode").selectOption("solo");
-  await expect(page).toHaveURL(/mode=solo/);
+  // Wins only: about half the games (Refine's fields, in the sheet at this width too).
+  await sheet.getByTestId("refine-result").getByRole("radio", { name: "Wins" }).click();
+  await expect(page).toHaveURL(/result=win/);
   await sheet.getByTestId("filter-sheet-done").click();
   await expect(sheet).toHaveCount(0);
-  const tabs = page.getByTestId("profile-tabs");
-  await expect.poll(async () => {
-    const first = await page.getByTestId("match-card").first().boundingBox();
-    return first ? Math.round(first.y - (await rect(tabs)).bottom) : null;
-  }, { message: "the first game just under the pinned tabs" }).toBeGreaterThanOrEqual(0);
-  const gap = Math.round((await page.getByTestId("match-card").first().boundingBox())!.y - (await rect(tabs)).bottom);
-  expect(gap).toBeLessThanOrEqual(12);
+  // The first game just under the pinned tabs, or as near as the page's end allows.
+  const landed = () =>
+    page.evaluate(() => {
+      const first = document.querySelector("[data-testid=match-card]")!.getBoundingClientRect();
+      const tabs = document.querySelector("[data-testid=profile-tabs]")!.getBoundingClientRect();
+      const end = document.documentElement.scrollHeight - window.innerHeight;
+      return { gap: Math.round(first.top - tabs.bottom), atEnd: window.scrollY >= end - 1 };
+    });
+  await expect.poll(async () => { const at = await landed(); return at.gap >= 0 && (at.gap <= 12 || at.atEnd); }, { message: "the first game just under the pinned tabs" }).toBe(true);
 });
 
 test("tablet and desktop: Records → Recent form from the pinned row", async ({ page }) => {

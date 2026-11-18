@@ -374,23 +374,24 @@ test("once the page's own Filters has scrolled away, the top bar offers it: 44px
   await filters.click();
   const sheet = page.getByTestId("filter-sheet");
   await expect(sheet).toBeVisible();
-  await sheet.getByLabel("Game mode").selectOption("solo");
-  await expect(page).toHaveURL(/mode=solo/);
+  // Wins only: about half the games, still more than a screen of them (Refine's fields are in the sheet).
+  await sheet.getByTestId("refine-result").getByRole("radio", { name: "Wins" }).click();
+  await expect(page).toHaveURL(/result=win/);
   await sheet.getByTestId("filter-sheet-done").click();
   await expect(sheet).toHaveCount(0);
-  // The new list starts at its first game, just under the top bar (with the profile's sections in it).
+  // The new list starts at its first game, just under the top bar (with the profile's sections in it),
+  // or as near it as the page's end allows.
   const bar = page.getByTestId("mobile-topbar");
-  await expect
-    .poll(async () => {
-      const first = await page.getByTestId("match-card").first().boundingBox();
-      const under = (await bar.boundingBox())!;
-      return first ? Math.round(first.y - (under.y + under.height)) : null;
-    }, { message: "the first game just under the bars" })
-    .toBeGreaterThanOrEqual(0);
-  const first = (await page.getByTestId("match-card").first().boundingBox())!;
-  const under = (await bar.boundingBox())!;
-  expect(Math.round(first.y - (under.y + under.height))).toBeLessThanOrEqual(12);
-  // Still offered (the page's own Filters is above), now counting the narrowed filter, and focused again.
+  const landed = () =>
+    page.evaluate(() => {
+      const first = document.querySelector("[data-testid=match-card]")!.getBoundingClientRect();
+      const under = document.querySelector("[data-testid=mobile-topbar]")!.getBoundingClientRect();
+      const end = document.documentElement.scrollHeight - window.innerHeight;
+      return { gap: Math.round(first.top - under.bottom), atEnd: window.scrollY >= end - 1 };
+    });
+  await expect.poll(async () => { const at = await landed(); return at.gap >= 0 && (at.gap <= 12 || at.atEnd); }, { message: "the first game just under the bars" }).toBe(true);
+  expect(await bar.isVisible()).toBe(true);
+  // Focused again as the sheet closed, it stays (now counting the narrowed filter) while it has the focus.
   await expect(filters).toBeFocused();
   await expect(filters).toContainText("1");
 });
