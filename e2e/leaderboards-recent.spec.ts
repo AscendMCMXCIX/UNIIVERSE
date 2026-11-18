@@ -296,13 +296,13 @@ test("members without enough recent games are the board's last group, each linke
   for (const m of await members.all()) {
     await expect(m.getByTestId("card-name")).toHaveCount(1);
     await expect(m.locator("a[data-row-link][href^='/players/']")).toHaveCount(1);
-    // What the eye reads (screen readers hear a comma for the dot).
+    // What the eye reads (screen readers hear a comma for the dot); the dot is held to its words by no-break spaces (\s).
     const shown = await m.evaluate((el) => {
       const copy = el.cloneNode(true) as HTMLElement;
       copy.querySelectorAll(".sr-only").forEach((s) => s.remove());
       return copy.textContent ?? "";
     });
-    expect(shown).toMatch(/Needs \d+ more games? · (last game \d{1,2} [A-Z][a-z]{2} \d{4}|no games yet)/);
+    expect(shown).toMatch(/Needs \d+ more games?\s·\s(last game \d{1,2} [A-Z][a-z]{2} \d{4}|no games yet)/);
   }
   // Rows of 64px on a narrow board; chips from 36rem.
   const inner = await boardRem(page);
