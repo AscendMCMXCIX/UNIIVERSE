@@ -165,10 +165,12 @@ Substitute side of the Team cards).
 - `src/components/app-shell.tsx`: sidebar from `lg`; `MobileNav` below.
 - `src/components/mobile-nav.tsx` (the phone frame is described in full in [MOBILE.md](MOBILE.md)):
   - phones: a sticky top bar with Back (named after where it leads) or the team's mark, the page's
-    title once its heading has scrolled up under the bar, and your avatar, which opens the account
-    screen (a screen of its own: who is signed in, then full-width rows for the pages without a tab,
-    Settings and Install App, the mode switch and Sign out, then the patch and Riot's notice); on a
-    profile, its sections ride under the bar;
+    title once its heading has scrolled up under the bar, the page's Filters once its own have
+    scrolled up under the bar (44px, the count of narrowed filters on it, named "Filters:" and what
+    is chosen; the same sheet; PR 2b), and your avatar, which opens the account screen (a screen of
+    its own: who is signed in, then full-width rows for the pages without a tab, Settings and
+    Install App, the mode switch and Sign out, then the patch and Riot's notice); on a profile, its
+    sections ride under the bar;
   - phones: a bottom tab bar with Team, Players, Leaderboards, Matches and Profile (`PHONE_TABS`,
     at most five, those the account may open). A teammate's profile is under Players. The current
     tab's icon sits in an accent pill and its label is bright, so it does not rely on colour alone;
@@ -219,6 +221,21 @@ Substitute side of the Team cards).
   section's views (`SubTabs`) are inside their page's column, so they always lined up. The route's
   loading state takes the same width (`PageSkeleton`'s `width`, from `pageWidthOf`): Players and a
   teammate's profile share `players/loading.tsx`, which reads the address it stands in for.
+- **A page's controls in reach** (PR 2b, 18 Nov 2026): a long page's own controls (its view switch,
+  Filters, search) scroll away with its header. From md, once the section tabs are pinned and the
+  page's own toolbar has gone up under them, the page's compact copy shows at the pinned row's end
+  (`PageToolbar`; which page offers what: DESIGN_SYSTEM.md §7), at the row's own height (32px with a
+  mouse, 38px on touch screens with a 44px target), the labels where the row is 56rem or wider and
+  the icons alone below that; Team's name at the row's end gives way to it. It is watched against
+  the pinned stack's foot (the tablet's top bar and the tabs, measured from the pinned row), drawn
+  only while it shows, kept while it has the focus, and never in a short window. On phones the top
+  bar offers the page's Filters instead (above), and so does a tablet-wide short window (a phone held
+  sideways), where nothing pins. Either way the page's Filters sheet opens: at any width in its sheet
+  form, the inline toolbar keeping its size in the page (an empty box of its size while its fields
+  are in the sheet, one copy of each field and id), and closed after a change it brings the list's
+  first item under what is pinned (and under anything pinned over its start, as All Champions'
+  column headings). The pinned row's buttons and fields take the scroll padding back as its links
+  do, so focus moving onto them never scrolls the page.
 - `main` pads for the tab bar (`pb-tabbar`) so content never hides behind it.
 
 ## Primitives
@@ -270,7 +287,16 @@ Platform Settings', a profile's, Leaderboards' and Match History's views, Users 
 row in the same place on all of them, Team's name ending at the page's right edge and the bar's line
 spanning the room; the tablet's menu keeps focus inside and gives it back to the menu button; the
 installed app's Back on a tablet (the display mode stood in for, as Chromium cannot emulate it);
-the filter sheet's Done leaves with its motion; Admin Mode's Settings has its title.
+the filter sheet's Done leaves with its motion; Admin Mode's Settings has its title; and a page's
+controls in reach (PR 2b): from md the pinned row offers Match History's views and Filters only once
+it is pinned and the page's toolbar has gone up under it, at the row's resting height and inside it,
+none in a short window; from the end of Match History (768 and 1440) its Filters opens the sheet in
+its sheet form, the toolbar in the page keeping its size and the focus coming back; closed after a
+change, the first game lands under the pinned tabs; Records → Recent form from the pinned row.
+`e2e/mobile-nav.spec.ts` has the phone's: the top bar's Filters (44px, "Filters:" and what is
+chosen) opens the sheet, and Done after a change lands the first game under the bars; nothing wider
+than the phone at 320px, at 100% and 200% text. `e2e/filter-consistency.spec.ts`: the sheet opened
+from the pinned row at 1440 labels every field and holds the only copy of each id.
 `e2e/popups.spec.ts` keeps what shows over a window inside it: an ⓘ's bubble in a window drawn
 inside the window and above it where its trigger puts it (also while the window is moved and
 scaled, and once a motion of the window's own is over), Escape closing the bubble alone; an ⓘ
@@ -323,7 +349,8 @@ the responsive pass report.
 (phone landscape) and 1366×600 (short laptop) and fails on any horizontal overflow or a missing
 heading; admin pages at five widths. The same file runs axe (WCAG 2.1 A/AA) on every page and fails
 on critical or serious violations, and again at 1920 on Team's four sections and Resources, where
-the section tabs' row takes the pages' width.
+the section tabs' row takes the pages' width, and at 1440 × 600 with a page's compact controls
+showing in the pinned row (Team Matches, Records, a profile's Overview, Match History, Encounters).
 Panel layouts that live in variable-width columns use container queries (`@container`, `@xl:`) rather than viewport breakpoints.
 For example, Team Matches' cards take their four columns from their list's width (`@container/tm`, from 58rem), because the sidebar beside the list takes 4.5 or 16rem of the same window (`e2e/played-together.spec.ts`).
 
