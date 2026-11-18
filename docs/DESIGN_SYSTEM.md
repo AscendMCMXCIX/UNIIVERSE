@@ -150,7 +150,14 @@ them. Panels keep the surface steps.
 
 **Focus.** Every focusable element shows the same 2px accent outline (`:focus-visible`,
 globals.css). Rows inside the sidebar draw it inside their edge (`-outline-offset-2`), where the
-frame cannot clip it.
+frame cannot clip it. A window opened by a tap or a click takes the focus itself, without a ring,
+so nothing in it is lit up as it opens (Safari ringed the close button, the loudest thing in the
+window); opened from the keyboard, its close button has the focus, ringed, so a keyboard user sees
+where they are (`DetailModal`, the tablet's menu; `src/components/ui/input-kind.ts`). The window
+holds that focus only until it is pressed or the focus moves on (`focusWindow`), and a press inside
+any window on nothing focusable leaves nothing focused, so a click on its text leaves the focus as a
+page does and the keys still scroll its body (`letGoWhenPressed`): Chromium and WebKit focus a
+dialog itself at such a press, with or without a tabindex, and the keys then scrolled nothing.
 
 **Targets.** At least 24px everywhere and 44px on touch screens (STANDARDS.md).
 
@@ -250,7 +257,9 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
   - Anything pinned under it (All Champions' column headings) offsets by `--tabs-top`.
   - Nothing is pinned in a window under 481px tall.
 - **Tablet drawer.** It is a native `<dialog>`: it keeps focus inside, the page behind it cannot
-  be used, and closing it returns focus to the menu button.
+  be used and is locked as behind a window (no scrolling, no rubber band), the focus starts as in a
+  window (on the menu itself after a tap, on its close button from the keyboard), and closing it
+  returns focus to the menu button.
 - **The installed app on a tablet.** It shows Back in the top bar, as phones do, because the
   installed app has no browser Back.
 
@@ -288,7 +297,23 @@ test):
   never `flex-1`): Safari 26 collapses a window as tall as its content to its header otherwise, as it
   did to the account menu on the owner's iPhone, and as WebKit 26.0 does to most sheets and to the
   compact and centred windows (MOBILE.md, "Why the account menu was a strip on iPhones"). The phone's account menu is a screen of its own instead of a sheet (`size="screen"`):
-  full-width rows of at least 48px on a screen fixed to the phone's four edges.
+  full-width rows of at least 48px on a screen fixed to the phone's four edges. A window is in the
+  browser's top layer, above the page and every z-index on it, with the rest of the page inert, so
+  what must show over a window is drawn inside it (`src/components/ui/top-layer.ts`): an ⓘ's bubble
+  inside the window its trigger sits in, where its trigger puts it, following the window while it
+  moves; the toasts inside the topmost window at rest, in their usual place, where their buttons can
+  be pressed (a moving window carries what is fixed inside it, so they go in once it has finished
+  moving in and leave as it starts to close), each heard once by a screen reader. Escape on an open
+  bubble closes the bubble alone, never the window; a bubble opens for a mouse as it moves over its
+  ⓘ, never as a window opening brings the ⓘ under a pointer at rest (the pointer that pressed its
+  opener), so that Escape closes the window (in WebKit an ⓘ scrolled under a still pointer does open,
+  as a hover does); a move onto an ⓘ made while the page hydrates counts once the ⓘ has hydrated,
+  the pointer resting on it. A picker's list inside a window (the Filters
+  sheet's member and champion pickers, the champion window's opponent picker) opens in the flow of
+  the window's body, which stays its one scroller: no list scrolling inside it, nothing cut off at
+  its edge; it fades in where it rests, and a press below it closes it on the press's click, so
+  nothing moves under the finger first. (`e2e/popups.spec.ts`; Safari's engine in
+  `e2e/webkit.spec.ts`)
 - **Before the page's code has run.** Destinations are real links, and work at once. The frame's
   controls that code drives (the phone's avatar, the tablet's menu button, the account menu's
   triggers on tablets and in the sidebar, the sidebar's collapse control) keep a tap made before it
