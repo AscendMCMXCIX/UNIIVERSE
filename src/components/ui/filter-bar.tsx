@@ -72,6 +72,16 @@ export function InFilterSheet({ children }: { children: (inSheet: boolean) => Re
   return <>{children(useInFilterSheet())}</>;
 }
 
+/** Whether the window is md or wider (48rem, as the md: breakpoint): what the sheet holds of a list's own choices. */
+const WIDE_QUERY = "(min-width: 48rem)";
+function subscribeWide(change: () => void) {
+  const query = window.matchMedia(WIDE_QUERY);
+  query.addEventListener("change", change);
+  return () => query.removeEventListener("change", change);
+}
+const isWide = () => window.matchMedia(WIDE_QUERY).matches;
+const notWide = () => false;
+
 /** What the reader does next that ends the wait for a change to land (as profile-tabs.tsx's), and a step Back or Forward. */
 const READER_INPUT = ["wheel", "touchstart", "pointerdown", "keydown", "popstate"] as const;
 
@@ -146,12 +156,15 @@ export function FilterBar({
    */
   compactToggle?: boolean;
   /**
-   * The inline Reset (from the breakpoint up), where it differs from the sheet's: a page whose sheet
-   * also holds choices that wider screens keep elsewhere (Encounters' minimum and order, in its list's
-   * toolbar) counts them for the Filters button and the sheet's Reset only (`count`), and its inline
-   * Reset leaves them as they are (`onReset`).
+   * What the bar is from md, where a phone's sheet also holds choices that wider screens keep elsewhere
+   * (Encounters' minimum and order, in its list's toolbar): from md they are not this bar's, so they
+   * count, reset and are named only below md (the folded Filters button, the sheet there, a phone's
+   * top bar). `count` and `summary` are the bar's own from md: the inline row's Reset counts `count`,
+   * as do the pinned row's Filters and a sideways phone's top bar, which read `summary` out, and so
+   * does the sheet while the window is 768px or wider (its subtitle `summary`). Its Reset, `onReset`,
+   * leaves the list's choices as they are.
    */
-  inlineReset?: { count: number; onReset: () => void };
+  inlineReset?: { count: number; summary: string; onReset: () => void };
 }) {
   // Who opened the sheet: its own Filters button (phones), or the frame once the bar has scrolled away.
   const [openedFrom, setOpenedFrom] = React.useState<"own" | "toolbar" | "topbar" | null>(null);
@@ -174,14 +187,14 @@ export function FilterBar({
   // it bring the list's start into view.
   const chose = React.useRef(false);
   const [landBy, setLandBy] = React.useState<number | null>(null);
-  // Opened from md (the pinned row, or the top bar of a phone held sideways), the sheet holds the bar's
-  // own fields only: a list's own choices (`inlineReset`) are its toolbar's there, so the sheet's Reset
-  // is the inline one.
-  const [sheetWide, setSheetWide] = React.useState(false);
+  // From md (the pinned row's sheet, a phone held sideways) the sheet holds the bar's own fields only:
+  // a list's own choices (`inlineReset`) are its toolbar's there (their fields md:hidden), so the sheet
+  // counts, names and resets what the bar narrows. Followed live, as the fields are: a phone turned, or
+  // a window resized, with the sheet open.
+  const wide = React.useSyncExternalStore(subscribeWide, isWide, notWide);
   const openSheet = React.useCallback((from: "own" | "toolbar" | "topbar") => {
     const row = controlsRef.current;
     setKept(row && row.offsetHeight ? { width: row.offsetWidth, height: row.offsetHeight } : null);
-    setSheetWide(window.matchMedia("(min-width: 48rem)").matches);
     atOpen.current = now.current;
     chose.current = false;
     setLandBy(null);
@@ -200,12 +213,13 @@ export function FilterBar({
   }, []);
   // One bar a page tells the frame how to open its sheet, and whether its sheet is open and from where
   // (ui/page-toolbar.tsx: the control that opened it stays until it has the focus back).
-  // From md a list's own choices are not this bar's (`inlineReset`): the pinned row's Filters counts what the bar narrows there.
+  // From md a list's own choices are not this bar's (`inlineReset`): the pinned row's Filters counts and names what the bar narrows there.
   const wideCount = inlineReset ? inlineReset.count : activeCount;
+  const wideSummary = inlineReset ? inlineReset.summary : summary;
   React.useEffect(() => {
     const root = rootRef.current;
-    if (root) publishPageFilters({ open: openSheet, openedFrom, count: activeCount, wideCount, summary, root }, root);
-  }, [openSheet, openedFrom, activeCount, wideCount, summary]);
+    if (root) publishPageFilters({ open: openSheet, openedFrom, count: activeCount, wideCount, summary, wideSummary, root }, root);
+  }, [openSheet, openedFrom, activeCount, wideCount, summary, wideSummary]);
   React.useEffect(() => {
     const root = rootRef.current;
     return () => publishPageFilters(null, root);
@@ -240,8 +254,8 @@ export function FilterBar({
     </>
   );
   const resetClass = (inSheet: boolean) => cn(resetCls, inSheet && "mr-auto", iconOnly(inSheet) && "max-xl:min-w-11 md:pointer-fine:max-xl:min-w-9");
-  // The full Reset, or the inline one: in the page from the breakpoint up, and in a sheet opened from md.
-  const fullReset = (inSheet: boolean) => !inlineReset || (inSheet && !sheetWide);
+  // The full Reset, or the inline one: in the page from the breakpoint up, and in the sheet from md.
+  const fullReset = (inSheet: boolean) => !inlineReset || (inSheet && !wide);
   const reset = (inSheet: boolean) =>
     (fullReset(inSheet) ? activeCount : inlineReset!.count) > 0 && (onReset || resetHref) ? (
       resetHref ? (
@@ -350,7 +364,7 @@ export function FilterBar({
             onClose={closeSheet}
             size="sheet"
             title="Filters"
-            description={summary}
+            description={inlineReset && wide ? wideSummary : summary}
             testId={testId ? `${testId}-sheet` : "filter-sheet"}
             closeTestId="filter-sheet-close"
             footer={

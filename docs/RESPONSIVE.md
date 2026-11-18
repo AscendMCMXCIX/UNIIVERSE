@@ -392,11 +392,13 @@ the account screen over the dashboard at 200% on a 320px phone as well.
   first item under what is pinned (and under anything pinned over its start, as All Champions'
   column headings); closed unchanged, or once the reader moves on, nothing later moves the page. The
   pinned row's buttons and fields take the scroll padding back as its links do, so focus moving onto
-  them never scrolls the page. The copy's Filters counts what the page's own bar narrows at its
-  width: from md Encounters' Minimum games and Sort by are its list toolbar's (FilterBar's
-  `inlineReset`), so the pinned row's count and the sheet it opens there leave them out, its Reset
-  the inline one; on a phone the top bar counts them, as the phone's sheet holds them (held sideways
-  at a tablet's width, the compact bar counts what the bar itself narrows, as the pinned row does).
+  them never scrolls the page. The copy's Filters counts and names what the page's own bar narrows
+  at its width: from md Encounters' Minimum games and Sort by are its list toolbar's (FilterBar's
+  `inlineReset`), so the pinned row's count and name, a sideways phone's top bar (the compact bar at a
+  tablet's width), and the sheet from md (its subtitle, its Reset the inline one) leave them out; on
+  an upright phone the top bar and the sheet count, name and reset them, as the phone's sheet holds
+  them. The sheet follows the width while it is open, so a phone turned across 768px changes what it
+  holds and resets, as its fields do.
 - `main` pads for the tab bar (`pb-tabbar`) so content never hides behind it; held sideways, where
   there is none, only for the home indicator.
 
@@ -521,15 +523,20 @@ toolbar in the page keeping its size; Escape and Done hand the focus back to it,
 after a change that emptied the list; a sheet closed after only a look (More filters opened) moves
 nothing once the reader has moved on (a later change in the page's own filters keeps the place), nor
 does Bookmarked after a look at Team Matches' Played with; closed after a change, the first game
-lands under the pinned tabs, and on the desktop Encounters' first player, Team Matches' first game,
-the Overview's dashboard, All Champions' first champion under its pinned headings and Players' first
-player do too; the compact search narrows Players and All Champions in the row's own height, and
-its Clear lets the copy go once the page's own search is back in view, with no focus left in the
-row; Bookmarked from the row replaces the entry, is marked and keeps the place; Records → Recent form
-from the pinned row; on a touch screen at 1180 and 1366, Team's tabs and the bar 44px, the 2.75rem
-`--tabs-top` assumes, at rest and pinned, Filters and Bookmarked centred inside it, a change from it
-landing the first game 8px under it, and at 175% text the compact search filling the bar exactly;
-with a mouse at 1440 the tabs 40px, the controls centred in the bar.
+lands under the pinned tabs, and on the desktop Encounters' first player under its pinned column
+names, Team Matches' first game, the Overview's dashboard, All Champions' first champion under its
+pinned headings and Players' first player do too; the compact search narrows Players and All
+Champions in the row's own height, and its Clear lets the copy go once the page's own search is back
+in view, with no focus left in the row; Bookmarked from the row replaces the entry, is marked and
+keeps the place; Records → Recent form from the pinned row; on a touch screen at 1180 and 1366,
+Team's tabs and the bar 44px, the 2.75rem `--tabs-top` assumes, at rest and pinned, Filters and
+Bookmarked centred inside it, a change from it landing the first game 8px under it, and at 175% text
+the compact search filling the bar exactly; with a mouse at 1440 the tabs 40px, the controls centred
+in the bar; Encounters in its own order and a game mode: from md the pinned row counts and names the
+mode alone and its sheet's Reset keeps the order, on a phone both are counted, named and reset; a
+phone held sideways (852 × 393) counts and names the bar's own; and an open sheet follows the phone
+turning across 768px (upright to sideways: the order and its Reset leave it; back upright: the
+order is in it again, and its Reset puts both back).
 `e2e/mobile-nav.spec.ts` has the phone's: the top bar's Filters (44px, "Filters:" and what is chosen)
 only once the page's own has gone, opening the sheet, Done after a change landing the first game
 under the bars, its badge counting; Escape and Done hand the focus back, even after a change that
