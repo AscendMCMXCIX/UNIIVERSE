@@ -240,6 +240,13 @@ test("held sideways at a tablet's width, a long page still goes back to the top 
     // The bar may hide while scrolling down; scrolling up a little brings it back with the title.
     await page.mouse.wheel(0, -80);
     await expect(title, `${viewport.width} × ${viewport.height}: the page's title in the bar`).toBeVisible();
+    // The brand gives the title its room: beside the title only its mark shows, and it takes no
+    // share of the bar's free space (flex-1), so the title starts just after the mark. With a share,
+    // the title would start half way along the bar, the bar's left half an empty link home.
+    const brand = page.getByTestId("mobile-brand");
+    const [brandBox, markBox, titleBox] = await Promise.all([brand.boundingBox(), brand.locator(":scope > *").first().boundingBox(), title.boundingBox()]);
+    expect(brandBox!.width, `${viewport.width} × ${viewport.height}: the brand is as wide as its mark`).toBeLessThanOrEqual(markBox!.width + 1);
+    expect(titleBox!.x - (brandBox!.x + brandBox!.width), `${viewport.width} × ${viewport.height}: the title starts beside the mark`).toBeLessThanOrEqual(16);
     await title.click();
     await expect.poll(() => page.evaluate(() => window.scrollY), { message: `${viewport.width} × ${viewport.height}: back at the top` }).toBe(0);
     await done(page);
