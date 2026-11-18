@@ -123,6 +123,27 @@ test("tablets and desktops: the current section tab, and the sidebar's entry for
   // With a modifier key the tab keeps its meaning: it opens in a new tab.
   const [opened] = await Promise.all([page.context().waitForEvent("page"), page.getByTestId("team-tab-leaderboards").click({ modifiers: ["ControlOrMeta"] })]);
   await opened.close();
+  // Matchup Intel's current tab (Resources' tabs are at every width) keeps the pair it shows and goes
+  // to the top, as Records' tab keeps its view: its own link has no query, and following it cleared
+  // the pair. The page is made long enough to scroll, as the Library's below.
+  await page.goto("/resources/matchups?champion=Riven&vs=Mordekaiser");
+  await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Mordekaiser");
+  // Once the page's code runs: a click before then follows the tab's bare link.
+  await expect(page.getByTestId("matchup-remembered")).not.toHaveAttribute("data-state", "loading");
+  await page.evaluate(() => {
+    const extra = document.createElement("div");
+    extra.dataset.testid = "test-length";
+    extra.style.height = "2000px";
+    document.querySelector("main")!.append(extra);
+    window.scrollTo(0, document.documentElement.scrollHeight);
+  });
+  await expect.poll(() => scrollY(page)).toBeGreaterThan(200);
+  navigations = watchNavigations(page);
+  await page.getByTestId("resources-tab-matchups").click();
+  await expect.poll(() => scrollY(page)).toBe(0);
+  expect(await navigations(), "the current Matchup Intel tab fetches nothing").toEqual([]);
+  await expect(page).toHaveURL(/\/resources\/matchups\?champion=Riven&vs=Mordekaiser$/);
+  await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Mordekaiser");
   if (info.project.name === "desktop") {
     // The sidebar's entry for the page shown (Resources): the page stays as it is, back at its top.
     // Resources fits a desktop window, so the test makes it long enough to scroll. The Library's rows
@@ -196,4 +217,21 @@ test("phones: a dialog is the one shared sheet, docked to the bottom edge with i
   await expect(dialog.locator("#dialog-title")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
+});
+
+test("phones: Matchup Intel's current tab, in the page, keeps the pair and goes back to the top", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "Resources' tabs sit in the page on phones (the test above has tablets and desktops)");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/resources/matchups?champion=Riven&vs=Mordekaiser");
+  await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Mordekaiser");
+  await expect(page.getByTestId("matchup-remembered")).not.toHaveAttribute("data-state", "loading");
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await expect.poll(() => scrollY(page)).toBeGreaterThan(200);
+  const navigations = watchNavigations(page);
+  // Dispatched, not tapped: a phone does not pin these tabs, and a tap would first scroll them into
+  // view (Playwright's own scroll), which is already the page's top.
+  await page.getByTestId("resources-tab-matchups").dispatchEvent("click");
+  await expect.poll(() => scrollY(page)).toBe(0);
+  expect(await navigations(), "the current tab fetches nothing").toEqual([]);
+  await expect(page).toHaveURL(/\/resources\/matchups\?champion=Riven&vs=Mordekaiser$/);
 });
