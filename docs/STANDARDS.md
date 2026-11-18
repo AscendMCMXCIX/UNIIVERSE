@@ -116,7 +116,10 @@ which are the same sizes under other names. Page widths: `--content-max` (text a
 
 **Layers.** Inside a component: `z-0` to `z-10`. Pinned section tabs (`sticky-tabs`): `z-30`. Sticky bars (top bar, sidebar): `z-40`. Drawers,
 pickers and popovers: `z-50`. Menus and toasts: `z-[60]`. Tooltips: `z-[100]`. Detail windows and
-dialogs are native `<dialog>` elements in the browser's top layer, above everything.
+dialogs are native `<dialog>` elements in the browser's top layer, above everything: no z-index
+lifts anything over an open window, so a tooltip's bubble and the toasts are drawn inside it while
+it is open (`src/components/ui/top-layer.ts`), and a picker's list inside a window opens in the flow
+of its body.
 
 **Elevation.** Panels and cards sit slightly raised from the page: an opaque surface, a hairline
 border and `panel-depth` (globals.css: a faint sheen along the top, a hairline of light on the top

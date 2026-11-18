@@ -6,15 +6,29 @@ import { ROLE_LABELS, type Role } from "@/domain/roles";
 import type { PickerChampion } from "@/components/champions/types";
 import { normalise } from "@/components/champions/types";
 import { cn } from "@/lib/cn";
+import { clearArea } from "@/lib/screen";
+import { aboveKeyboard, watchVisiblePart } from "@/components/ui/keyboard-fit";
+import { placeList, visibleArea } from "@/components/ui/picker-flow";
 import { RemoteImage } from "@/components/ui/remote-image";
 
 const SHOWN = 8;
+/** The list at its tallest (max-h-72), in rem; at its shortest, about one row. */
+const LIST_REM = 18;
+const LEAST_REM = 2.5;
+/** Between the field and its list (mt-1.5, mb-1.5), in px. */
+const LIST_GAP = 6;
 
 /**
  * The last cell of a pool: "+ Add champion". Clicking turns the cell itself into a search box with
  * a short list underneath: champions usually played in this role first, any champion by typing.
  * Click or Enter adds one and keeps the box open for the next; Escape, Tab or clicking elsewhere
- * closes it. Champions already in the pool are left out (a pool never holds one twice).
+ * closes it. Champions already in the pool are left out (a pool never holds one twice). The list
+ * opens above the box instead where the room below it, down to the tab bar's top on a phone, is too
+ * small for it and the room above is larger, and is never taller than the room on its side, so it
+ * never ends under the bars (placeList, clearArea). On a touch screen the box takes the focus as it
+ * opens, so the on-screen keyboard rises over the bottom of the screen: while it is up the room ends
+ * at its top instead (aboveKeyboard), measured again as the keyboard rises and as the page or the
+ * visible part of it moves (iOS fires no resize for the keyboard).
  */
 export function AddChampion({ role, champions, exclude, onAdd, testId, compact = false }: { role: Role; champions: PickerChampion[]; exclude: ReadonlySet<string>; onAdd: (id: string) => void; testId: string; /** A small button beside the section heading (the search opens under it) instead of a grid cell. */ compact?: boolean }) {
   const [open, setOpen] = React.useState(false);
@@ -23,6 +37,8 @@ export function AddChampion({ role, champions, exclude, onAdd, testId, compact =
   const wrapRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const listId = React.useId();
+  // Which side of the box the list opens on, and how tall it may be there; measured as it opens.
+  const [place, setPlace] = React.useState<{ side: "below" | "above"; maxHeight: number } | null>(null);
 
   const results = React.useMemo(() => {
     const q = normalise(query.trim());
@@ -33,15 +49,39 @@ export function AddChampion({ role, champions, exclude, onAdd, testId, compact =
     return [...starts, ...contains].slice(0, SHOWN);
   }, [query, champions, exclude, role]);
 
+  // Chosen for the list at its tallest, so it keeps its side while the search narrows it: before the
+  // list is first drawn, again once the box has the focus (focusing it can scroll the page to it),
+  // when the screen changes size (a phone turned), while the on-screen keyboard rises or goes, and
+  // as the page or its visible part moves (Safari brings the box above the keyboard).
+  const measure = React.useCallback(() => {
+    const field = wrapRef.current?.getBoundingClientRect();
+    if (!field) return;
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    const next = placeList(field, LIST_REM * rem, visibleArea(clearArea(), aboveKeyboard(inputRef.current)), LIST_GAP, LEAST_REM * rem);
+    setPlace((cur) => (cur && cur.side === next.side && cur.maxHeight === next.maxHeight ? cur : next));
+  }, []);
+  React.useLayoutEffect(() => {
+    if (!open) return;
+    measure();
+    window.addEventListener("resize", measure);
+    window.addEventListener("scroll", measure, { passive: true });
+    const unwatch = watchVisiblePart(measure);
+    return () => {
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("scroll", measure);
+      unwatch();
+    };
+  }, [open, measure]);
   React.useEffect(() => {
     if (!open) return;
     inputRef.current?.focus();
+    measure();
     const onDown = (e: PointerEvent) => {
       if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener("pointerdown", onDown);
     return () => document.removeEventListener("pointerdown", onDown);
-  }, [open]);
+  }, [open, measure]);
 
   const add = (id: string) => {
     onAdd(id);
@@ -105,11 +145,21 @@ export function AddChampion({ role, champions, exclude, onAdd, testId, compact =
           aria-controls={listId}
           aria-activedescendant={results[active] ? `${listId}-${active}` : undefined}
           autoComplete="off"
-          className="h-10 min-w-0 flex-1 bg-transparent text-base text-fg outline-none placeholder:text-fg-subtle md:text-sm"
+          // 16px on touch screens at every width (iOS zooms into a smaller field, on a phone held
+          // sideways too); 14px from md with a mouse.
+          className="h-10 min-w-0 flex-1 bg-transparent text-base text-fg outline-none placeholder:text-fg-subtle md:pointer-fine:text-sm"
           data-testid={`${testId}-search`}
         />
       </label>
-      <ul id={listId} role="listbox" aria-label={`Champions to add to ${ROLE_LABELS[role]}`} className="rise-in absolute right-0 top-full z-50 w-full mt-1.5 max-h-72 min-w-[14rem] overflow-y-auto rounded-panel border border-border bg-bg-elevated p-1.5 shadow-2xl shadow-black/40" data-testid={`${testId}-results`}>
+      <ul
+        id={listId}
+        role="listbox"
+        aria-label={`Champions to add to ${ROLE_LABELS[role]}`}
+        style={place ? { maxHeight: place.maxHeight } : undefined}
+        className={cn("rise-in absolute right-0 z-50 w-full max-h-72 min-w-[14rem] overflow-y-auto rounded-panel border border-border bg-bg-elevated p-1.5 shadow-2xl shadow-black/40", place?.side === "above" ? "bottom-full mb-1.5" : "top-full mt-1.5")}
+        data-testid={`${testId}-results`}
+        data-side={place?.side}
+      >
         {!query ? <li role="presentation" className="px-2 pb-1 pt-1 text-2xs font-semibold uppercase tracking-label text-fg-subtle">Often played {ROLE_LABELS[role]}</li> : null}
         {results.length === 0 ? <li className="px-2 py-3 text-center text-sm text-fg-subtle">{query ? `No champion matches “${query}”.` : "Type a champion's name."}</li> : null}
         {results.map((c, i) => (
