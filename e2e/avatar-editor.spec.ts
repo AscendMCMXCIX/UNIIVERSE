@@ -151,6 +151,9 @@ test("zoom, arrow keys and Reset; Cancel keeps the old picture and Save stores t
   await expect(again.frame).toBeHidden();
   const saved = page.getByTestId("avatar-editor").locator("img").first();
   await expect(saved).toHaveAttribute("src", /\/api\/avatars\//);
+  // With a picture, its two controls say what they act on ("Change" and "Remove" on screen).
+  await expect(page.getByTestId("settings-account").getByRole("button", { name: "Change picture" })).toBeVisible();
+  await expect(page.getByTestId("settings-account").getByRole("button", { name: "Remove picture" })).toBeVisible();
   const colour = await saved.evaluate(async (img: HTMLImageElement) => {
     await img.decode();
     const c = document.createElement("canvas");

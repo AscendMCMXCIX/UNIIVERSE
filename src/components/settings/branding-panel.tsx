@@ -323,13 +323,13 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
             <p className="text-sm text-fg-muted">Text stays light, so backgrounds and panels must stay dark enough to read.</p>
           </div>
           {isOwner ? (
-            <Button variant="ghost" size="sm" onClick={() => void save(true)} disabled={busy}>
+            <Button variant="ghost" size="sm" onClick={() => void save(true)} disabled={busy} wrap>
               Reset colours to defaults
             </Button>
           ) : null}
         </div>
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <ul className="space-y-2.5">
+          <ul className="space-y-2.5 @container">
             {COLOUR_FIELDS.map((f) => {
               const value = form[f.key] ?? DEFAULT_COLOURS[f.key];
               const custom = form[f.key] !== null && form[f.key] !== DEFAULT_COLOURS[f.key];
@@ -337,11 +337,11 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
               return (
                 <li key={f.key} className="flex flex-wrap items-center gap-3" data-testid={`colour-${f.key}`}>
                   <input type="color" aria-label={f.label} disabled={!isOwner} value={value} onChange={(e) => setColour(f.key, e.target.value)} className="h-10 w-12 shrink-0 cursor-pointer rounded-md border border-border bg-bg-elevated" />
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1 @max-[14rem]:basis-full">
                     <div className="text-sm font-medium text-fg">{f.label}</div>
                     <div className="text-xs text-fg-muted">{f.hint}</div>
                   </div>
-                  <div className="w-28 shrink-0">
+                  <div className="w-28 shrink-0 @max-[14rem]:w-auto @max-[14rem]:min-w-0 @max-[14rem]:flex-1 @max-[14rem]:shrink">
                     <Input aria-label={`${f.label} hex`} disabled={!isOwner} value={value} onChange={(e) => /^#[0-9a-f]{6}$/i.test(e.target.value) && setColour(f.key, e.target.value.toLowerCase())} maxLength={7} className="font-mono md:h-9" />
                   </div>
                   <button type="button" disabled={!isOwner || !custom} onClick={() => setColour(f.key, null)} className="grid h-9 w-9 place-items-center rounded-md text-fg-subtle hover:bg-surface-2 hover:text-fg disabled:opacity-30" aria-label={`Reset ${f.label} to default`} title="Default">
@@ -368,18 +368,18 @@ export function BrandingPanel({ branding, isOwner }: { branding: Branding; isOwn
       {isOwner ? (
         // One compact row. It stays pinned above the tab bar only while there is something to save,
         // so on a phone it never covers the form for nothing; otherwise it sits at the end.
-        <div className={cn("z-10 flex items-center gap-2 rounded-panel border border-border bg-bg-elevated/95 p-2 shadow-lg backdrop-blur sm:p-3", dirty || busy ? "sticky bottom-tabbar md:bottom-4" : "relative")} data-testid="branding-actions">
-          <Button variant="primary" onClick={() => void save()} disabled={busy || !dirty || unreadable.length > 0} data-testid="branding-save">
+        <div className={cn("z-10 flex flex-wrap items-center gap-2 rounded-panel border border-border bg-bg-elevated/95 p-2 shadow-lg backdrop-blur sm:p-3", dirty || busy ? "sticky bottom-tabbar md:bottom-4" : "relative")} data-testid="branding-actions">
+          <Button variant="primary" onClick={() => void save()} disabled={busy || !dirty || unreadable.length > 0} wrap data-testid="branding-save">
             {busy ? "Saving…" : (
               <>
                 Save<span className="max-sm:hidden"> branding</span>
               </>
             )}
           </Button>
-          <Button variant="outline" onClick={() => setForm((f) => ({ ...saved, assets: f.assets }))} disabled={busy || !dirty} data-testid="branding-cancel">
+          <Button variant="outline" onClick={() => setForm((f) => ({ ...saved, assets: f.assets }))} disabled={busy || !dirty} wrap data-testid="branding-cancel">
             Cancel<span className="max-sm:hidden"> changes</span>
           </Button>
-          <span className="min-w-0 flex-1 text-xs text-fg-muted sm:text-sm" aria-live="polite">
+          <span className="min-w-0 flex-[1_1_5rem] text-xs text-fg-muted sm:text-sm" aria-live="polite">
             {unreadable.length ? "Fix the colours marked in red first." : dirty ? "Unsaved changes." : "Saved."}
           </span>
         </div>

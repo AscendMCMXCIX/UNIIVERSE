@@ -56,8 +56,21 @@
     not failed); a shared place is titled "Tied for Nth" and no other place claims it; every row's bar
     has 20 segments, as many filled as the row's wins and as many missing as its window lacks. Counts,
     heights and true/false only: the rows carry names.
+  - records (PR 5b): Records & achievements (/leaderboards?view=records) at every width loads as every
+    page does (no sideways scroll, no page error, no failed request, no broken image) and axe on the
+    records view; at 1440 the record book stands beside the multikills (their tops within 1px), and
+    every record row of two lines (the record over the holder and game) is at most 72px (rows of more
+    lines, a long name or champion, are counted, not failed; the verification account has no profile,
+    so no row carries "Your best"). Counts, heights and true/false only: the rows carry names.
   - settings: the picture and display-name help name the public team page, and Settings never
-    mentions a Public profile switch (retired; true or false only).
+    mentions a Public profile switch (retired; true or false only); on the phone, Sign out is on
+    Settings' first screen (above the tab bar).
+  - resources (the Library): every section under its h2 and every row a link to a new tab with
+    noopener and noreferrer; the index offers All, Favourites and each section, and choosing a
+    section shows that section alone, as many rows as its segment counts; no title cut short and no
+    broken site icon. No site's own icon is asked for: once any route is installed (the vitals
+    route, and the Library's own below), Playwright itself aborts every request for /favicon.ico,
+    unreported, so every row shows its stand-in. Counts only.
   - games (#178): Team Matches opens a game under its card (no window), with ?match= in the address;
     a copied link opens it; Back returns to it; the keyboard toggles it; "Close this game" closes it
     and keeps the focus on the card. Match History opens games under their cards; at 1440 the
@@ -651,6 +664,48 @@ async function leaderboardsFacts(page, kind) {
 }
 
 /**
+ * Records & achievements (PR 5b), at 1440, as true/false, counts and heights only (the rows carry
+ * names, which redact() keeps): the record book beside the multikills, their tops level within 1px,
+ * and every record row of two lines (its record on one line over its holder and game on one) at most
+ * 72px. A row of more lines (a long name or champion wrapping its game's line, a qualifier on a line
+ * of its own) is counted, not failed, as Recent form's are. The verification account has no profile,
+ * so no row carries "Your best".
+ */
+async function recordsFacts(page, kind) {
+  if (kind !== "desktop") return;
+  const f = await page.evaluate(() => {
+    const book = document.querySelector("[data-testid=records-book]");
+    if (!book) return null;
+    const box = (el) => el.getBoundingClientRect();
+    const multikills = document.querySelector("[data-testid=records-multikills]");
+    // One line: the record's title no taller than its line; the holder and the game's parts level with each other.
+    const titleOneLine = (row) => {
+      const t = row.querySelector("[data-testid=record-title]");
+      return !t || box(t).height <= (parseFloat(getComputedStyle(t).lineHeight) || 20) + 2;
+    };
+    const gameOneLine = (row) => {
+      const g = row.querySelector("[data-testid=record-game]");
+      if (!g) return true;
+      const mids = [...g.children].filter((c) => box(c).width > 0).map((c) => box(c).top + box(c).height / 2);
+      return mids.length === 0 || Math.max(...mids) - Math.min(...mids) <= 6;
+    };
+    const rows = [...book.querySelectorAll("[data-testid=season-record]")].map((r) => ({ h: Math.round(box(r).height * 10) / 10, two: titleOneLine(r) && gameOneLine(r) }));
+    return {
+      rows: rows.length,
+      twoLine: rows.filter((r) => r.two).map((r) => r.h),
+      longer: rows.filter((r) => !r.two).length,
+      topsApart: multikills ? Math.round(Math.abs(box(book).top - box(multikills).top) * 10) / 10 : null,
+      multikillsBeside: multikills ? box(multikills).left >= box(book).right : false,
+    };
+  });
+  if (!f) return pass("leaderboards", "1440: Records' book is on the page", false, "no records-book");
+  pass("leaderboards", "1440: Records' book beside the multikills, their tops within 1px", f.multikillsBeside && f.topsApart !== null && f.topsApart <= 1, { beside: f.multikillsBeside, topsApart: f.topsApart });
+  const name = "1440: every Records row of two lines is at most 72px";
+  if (!f.twoLine.length) check("leaderboards", name, "PASS", `not applicable: ${f.longer} rows of more lines`);
+  else pass("leaderboards", name, Math.max(...f.twoLine) <= 72, { rows: f.rows, twoLine: f.twoLine.length, tallest: Math.max(...f.twoLine), longerByDesign: f.longer });
+}
+
+/**
  * Settings says who sees a member's picture and display name: teammates, and the public team page
  * while they are in the lineup or a substitute. The Public profile switch it once named is gone
  * (19 Oct 2026; docs/UNIIVERSE_TECHNICAL_HANDOVER.md §C4). Only true or false is reported.
@@ -663,6 +718,57 @@ async function settingsFacts(page, kind) {
   }));
   pass("settings", `${kind}: Settings never mentions a Public profile switch`, !facts.publicProfile, { mentioned: facts.publicProfile });
   pass("settings", `${kind}: the picture and display-name help name the public team page`, facts.picture && facts.displayName, { picture: facts.picture, displayName: facts.displayName });
+  if (kind !== "phone") return;
+  // The account card leads the page: Sign out is in view as it opens, above the tab bar. The card
+  // draws its actions once per layout (the other copy is display: none): the one shown is measured.
+  const signOut = await page.evaluate(() => {
+    const button = [...document.querySelectorAll("[data-testid=settings-sign-out]")].find((el) => el.getBoundingClientRect().height > 0);
+    if (!button) return null;
+    const bar = document.querySelector("[data-testid=phone-tabbar]")?.getBoundingClientRect();
+    const r = button.getBoundingClientRect();
+    return { bottom: Math.round(r.bottom), firstScreen: Math.round(bar && bar.height > 0 ? bar.top : innerHeight), scrollY: Math.round(scrollY) };
+  });
+  pass("settings", "phone: Sign out is on Settings' first screen", !!signOut && signOut.scrollY === 0 && signOut.bottom <= signOut.firstScreen, signOut ?? "no Sign out");
+}
+
+/**
+ * The Library (Resources, its first tab): every section under its own heading, every row a link to
+ * its site in a new tab that cannot reach back to this page or learn its address, the index offering
+ * All, Favourites and each section, no title cut short and no broken site icon. Counts and true or
+ * false only.
+ */
+async function resourcesFacts(page, kind) {
+  await page.getByTestId("resources-list").waitFor({ timeout: 20_000 });
+  const f = await page.evaluate(() => {
+    const links = [...document.querySelectorAll("[data-testid=resource-link]")];
+    return {
+      rows: document.querySelectorAll("[data-testid=resource]").length,
+      groups: document.querySelectorAll("[data-testid=resources-section-group]").length,
+      headed: document.querySelectorAll("[data-testid=resources-section-group] h2").length,
+      unsafeLinks: links.filter((a) => a.target !== "_blank" || !/\bnoopener\b/.test(a.rel) || !/\bnoreferrer\b/.test(a.rel) || !a.href.startsWith("https://")).length,
+      segments: document.querySelectorAll("[data-testid=resources-index] [role=radio]").length,
+      favourites: !!document.querySelector("[data-testid=resources-index-favourites]"),
+      cutTitles: [...document.querySelectorAll("[data-testid=resource-title]")].filter((el) => el.scrollWidth > el.clientWidth + 1).length,
+      brokenIcons: [...document.querySelectorAll("[data-testid=resource] img")].filter((i) => i.complete && i.naturalWidth === 0).length,
+    };
+  });
+  pass("resources", `${kind}: every section under its heading, every row a link to a new tab without this page's address`, f.rows > 0 && f.headed === f.groups && f.unsafeLinks === 0, { rows: f.rows, sections: f.groups, headed: f.headed, unsafeLinks: f.unsafeLinks });
+  pass("resources", `${kind}: the index offers All, Favourites and each section`, f.favourites && f.segments === f.groups + 2, { segments: f.segments, sections: f.groups, favourites: f.favourites });
+  // Choosing a section (the page's own filter: no request) shows that section alone, as many rows as
+  // its segment counts; All brings the library back.
+  const segment = page.locator("[data-testid=resources-index] [role=radio]").nth(2);
+  if (f.groups > 0 && (await segment.count())) {
+    await segment.click();
+    await page.waitForFunction(() => document.querySelector("[data-testid=resources-index] [role=radio]:nth-child(3)")?.getAttribute("aria-checked") === "true", null, { timeout: 10_000 });
+    const chosen = await page.evaluate(() => ({
+      groups: document.querySelectorAll("[data-testid=resources-section-group]").length,
+      rows: document.querySelectorAll("[data-testid=resource]").length,
+      counted: Number(document.querySelector("[data-testid=resources-index] [role=radio]:nth-child(3) [data-testid=resources-index-count]")?.textContent?.replace(/\D/g, "") || -1),
+    }));
+    pass("resources", `${kind}: choosing a section shows it alone, its rows as counted`, chosen.groups === 1 && chosen.rows === chosen.counted, chosen);
+    await page.locator("[data-testid=resources-index-all]").click();
+  }
+  pass("resources", `${kind}: no title cut short, no broken site icon`, f.cutTitles === 0 && f.brokenIcons === 0, { cutTitles: f.cutTitles, brokenIcons: f.brokenIcons });
 }
 
 async function allChampions(page, log, kind, playerId) {
@@ -1082,10 +1188,33 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
       await axe(page, kind, "leaderboards");
     }
   });
+  await guarded(kind, "records", async () => {
+    if (await visit(page, log, kind, "records", "/leaderboards?view=records")) {
+      await recordsFacts(page, kind);
+      await axe(page, kind, "records", "[data-testid=records]");
+    }
+  });
   await guarded(kind, "settings", async () => {
     if (await visit(page, log, kind, "settings", "/settings")) {
       await settingsFacts(page, kind);
       await axe(page, kind, "settings");
+    }
+  });
+  await guarded(kind, "resources", async () => {
+    // The rows ask each site for its icon; the check asks none (as the browser tests do). Once any
+    // route is installed, Playwright itself aborts every request for /favicon.ico before a route's
+    // handler runs, and reports none of them: so no request leaves for another site and every row
+    // shows its stand-in. This route is that switch for the Library, should the context's vitals
+    // route ever go; its handler never runs.
+    const siteIcon = (url) => !url.href.startsWith(base) && url.pathname.endsWith("/favicon.ico");
+    await page.route(siteIcon, (route) => route.abort());
+    try {
+      if (await visit(page, log, kind, "resources", "/resources")) {
+        await resourcesFacts(page, kind);
+        await axe(page, kind, "resources");
+      }
+    } finally {
+      await page.unroute(siteIcon);
     }
   });
   // Last in the desktop context, so a mode switch that went wrong cannot affect the other checks. Not

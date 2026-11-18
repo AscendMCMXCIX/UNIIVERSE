@@ -49,9 +49,9 @@ export function PermissionPresetsPanel({ presets }: { presets: PermissionPreset[
           <Plus className="h-4 w-4" /> New level
         </Button>
       </div>
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         {presets.map((p) => (
-          <article key={p.id} className="rounded-lg border border-border bg-surface p-4" data-testid="preset-card">
+          <article key={p.id} className="min-w-0 rounded-lg border border-border bg-surface p-4 [overflow-wrap:anywhere]" data-testid="preset-card">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <h3 className="flex flex-wrap items-center gap-2 font-medium">

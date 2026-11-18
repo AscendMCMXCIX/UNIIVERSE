@@ -136,9 +136,9 @@ describe("Records & achievements on stored games", () => {
     // Gu's 30 wins in a row (70+ days ago, still this season) are the longest streak; a streak opens no single game.
     const streak = r.records.find((x) => x.id === "win-streak")!;
     expect(streak.holder).toMatchObject({ playerId: id.Gu, value: "30", href: null });
-    expect(r.mastery).toEqual([{ playerId: id.Ash, items: [{ championId: "Riven", value: "520K points", milestone: "500K+", tier: 2 }], more: 0 }]);
+    expect(r.mastery).toEqual([{ playerId: id.Ash, items: [{ championId: "Riven", value: "520K points", short: "520K", milestone: "500K+", tier: 2 }], more: 0 }]);
     // Gu's 30 games on Riven reach 25; Ash's 24 (one match on two accounts counted once) do not.
-    expect(r.championGames).toEqual([{ playerId: id.Gu, items: [{ championId: "Riven", value: "30 games", milestone: "25+ games", tier: 1 }], more: 0 }]);
+    expect(r.championGames).toEqual([{ playerId: id.Gu, items: [{ championId: "Riven", value: "30 games", short: "30", milestone: "25+ games", tier: 1 }], more: 0 }]);
   });
 
   it("links nowhere on the public boards, whose links keep to the public address", async () => {
