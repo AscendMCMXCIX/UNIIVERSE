@@ -1,15 +1,16 @@
 import { expect, test, type CDPSession, type Page } from "./test";
 import { memberContext } from "./member-account";
+import { lineupAtRest } from "./lineup";
 
 /*
-  Team Overview layout: the team's header is one row (its name, the lineup's line and Edit lineup
-  side by side) that shares the cards' width and centre on wider screens; upright tablets show the
-  lineup 3 + 2 and desktops five across, with the bench of substitutes under the cards (five
-  across, each role's cell under its card); on phones the five cards are one sideways track (real
-  touch swipes, snap points, role tabs with each player's picture) under a header without the
-  logo the top bar already shows, its first card whole on the first screen (a lineup with a role
-  open too: the header keeps its one row), the role bar as wide as the card, the substitutes two
-  chips to a row, and the track never makes the page itself scroll sideways.
+  Team Overview layout, as approved (before #275): the header shares the cards' width and centre on
+  wider screens (the logo, the "Team Overview" eyebrow over the team's name, the lineup's state
+  under it, Edit lineup at the row's end); upright tablets show the lineup 2 + 2 + 1, a laptop with
+  the sidebar open 3 + 2 and desktops five across, nothing under the cards (no bench: a substitute
+  is on their starter's card); on phones the header keeps the logo beside the name with the state
+  and Edit lineup on a line of their own, and the five cards are one sideways track (real touch
+  swipes, snap points, role tabs of each role's icon and name) that never makes the page itself
+  scroll sideways.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -64,53 +65,112 @@ test("the header is centred over the cards and sits close to them", async ({ pag
   expect(cards.y - (header.y + header.height)).toBeLessThanOrEqual(24);
   await expect(page.getByTestId("edit-lineup")).toBeVisible();
   await expect(page.getByTestId("lineup-pager")).toBeHidden();
-  // One row: the logo, the name over its one line, and Edit lineup side by side, no taller than the logo.
-  const logo = (await page.getByTestId("team-header").locator("img, [data-testid=brand-mark-text]").first().boundingBox())!;
   const name = (await page.getByTestId("team-name").boundingBox())!;
   const edit = (await page.getByTestId("edit-lineup").boundingBox())!;
-  expect(header.height).toBeLessThanOrEqual(logo.height + 1);
   for (const part of [name, edit]) expect(part.y >= header.y - 1 && part.y + part.height <= header.y + header.height + 1).toBe(true);
   expect(edit.x).toBeGreaterThan(name.x + name.width);
-  // The tab above already says Team Overview: the header does not repeat it on screen.
-  await expect(page.getByTestId("team-header").getByText("Team Overview")).toHaveClass(/sr-only/);
+  // The team's identity from a tablet up: the "Team Overview" eyebrow shown over the name, the name
+  // large (30px on a tablet, 36px on a desktop), and the lineup's state under it.
+  const eyebrow = (await page.getByTestId("team-header").getByText("Team Overview").boundingBox())!;
+  expect(eyebrow.width, "the eyebrow is shown, not left to screen readers").toBeGreaterThan(40);
+  expect(eyebrow.y + eyebrow.height, "the eyebrow over the name").toBeLessThanOrEqual(name.y + 1);
+  const size = await page.getByTestId("team-name").evaluate((h) => parseFloat(getComputedStyle(h).fontSize));
+  expect(size, "the name's size").toBeGreaterThanOrEqual((page.viewportSize()?.width ?? 1440) >= 1024 ? 36 : 30);
+  expect((await page.getByTestId("lineup-status").boundingBox())!.y, "the lineup's state under the name").toBeGreaterThanOrEqual(name.y + name.height - 1);
 });
 
-test("upright tablets show the lineup 3 + 2 and desktops five across, with the substitutes under the cards", async ({ page }) => {
+test("upright tablets show the lineup 2 + 2 + 1 and desktops five across, with nothing under the cards", async ({ page }) => {
   test.skip(isPhone(page), "the phone layout has its own test");
   await page.goto("/team");
-  const cells = page.getByTestId("lineup-cell");
-  await expect(cells).toHaveCount(5);
-  const boxes = await cells.evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ x: r.x, top: Math.round(r.top), bottom: r.bottom, width: r.width })));
-  const track = (await page.getByTestId("lineup-overview").boundingBox())!;
+  await expect(page.getByTestId("lineup-cell")).toHaveCount(5);
+  // The cards and the track as one layout (lineupAtRest: the lineup streams in).
+  const { cells: boxes, track, overflow } = await lineupAtRest(page);
   const tablet = (page.viewportSize()?.width ?? 1440) < 1024;
   if (tablet) {
-    // 3 + 2: three cards share the first row, the last two the second, centred under them.
-    expect(new Set(boxes.slice(0, 3).map((b) => b.top)).size).toBe(1);
-    expect(new Set(boxes.slice(3).map((b) => b.top)).size).toBe(1);
-    expect(boxes[3]!.top).toBeGreaterThan(boxes[0]!.top);
-    const pair = (boxes[3]!.x + boxes[4]!.x + boxes[4]!.width) / 2;
-    expect(Math.abs(pair - (track.x + track.width / 2))).toBeLessThanOrEqual(2);
+    // 2 + 2 + 1: two rows of two cards, the fifth alone under them, centred.
+    expect(boxes[1]!.top).toBe(boxes[0]!.top);
+    expect(boxes[3]!.top).toBe(boxes[2]!.top);
+    expect(boxes[2]!.top).toBeGreaterThan(boxes[0]!.top);
+    expect(boxes[4]!.top).toBeGreaterThan(boxes[2]!.top);
+    expect(Math.abs(boxes[4]!.x + boxes[4]!.width / 2 - (track.x + track.width / 2))).toBeLessThanOrEqual(2);
   } else {
     expect(new Set(boxes.map((b) => b.top)).size, "one row").toBe(1);
   }
-  // The bench: under the cards, a substitute's entry for each role whose card turns to one.
-  const bench = page.getByTestId("lineup-bench");
-  await expect(bench).toBeVisible();
-  expect((await bench.boundingBox())!.y).toBeGreaterThanOrEqual(Math.max(...boxes.map((b) => b.bottom)) - 1);
-  for (const role of ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"]) {
-    const turns = (await page.getByTestId(`lineup-sub-${role}`).count()) > 0;
-    await expect(page.getByTestId(`bench-${role}`)).toHaveCount(turns ? 1 : 0);
-    if (tablet) await expect(page.getByTestId(`bench-empty-${role}`)).toBeHidden();
-  }
-  if (!tablet) {
-    // Five across: a cell under every card, the substitute's or a quiet "No substitute", in the cards' columns.
-    for (const [i, role] of ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"].entries()) {
-      const under = (await page.getByTestId(`bench-${role}`).or(page.getByTestId(`bench-empty-${role}`)).boundingBox())!;
-      expect(Math.abs(under.x - boxes[i]!.x), `${role}: under its card`).toBeLessThanOrEqual(1);
-      expect(Math.abs(under.width - boxes[i]!.width), `${role}: the card's width`).toBeLessThanOrEqual(1);
+  // The cards end the lineup: no bench or row of substitutes under them (a substitute is on their
+  // starter's card, turned to by its control, and managed in Edit lineup).
+  await expect(page.getByTestId("lineup-bench")).toHaveCount(0);
+  await expect(page.locator("[data-testid^=bench-]")).toHaveCount(0);
+  const cardsEnd = Math.max(...boxes.map((b) => b.bottom));
+  expect(Math.abs(track.y + track.height - cardsEnd), "the track ends with the cards").toBeLessThanOrEqual(1);
+  // The stage (the cards and their floor) ends with the cards too: #275's bench stood inside it, after the track.
+  const stage = (await page.getByTestId("lineup-stage").boundingBox())!;
+  expect(Math.abs(stage.y + stage.height - cardsEnd), "the stage ends with the cards").toBeLessThanOrEqual(1);
+  expect(overflow).toBeLessThanOrEqual(1);
+});
+
+test("a 1280 × 800 laptop with the sidebar open shows the lineup 3 + 2, the last two centred under the first three", async ({ page, context, baseURL }, info) => {
+  test.skip(info.project.name !== "desktop", "laptop widths");
+  // The sidebar open, as it is by default: the lineup is then between 56rem and 64rem wide.
+  await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: baseURL! }]);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/team");
+  await expect(page.getByTestId("sidebar")).toHaveAttribute("data-collapsed", "false");
+  await expect(page.getByTestId("lineup-cell")).toHaveCount(5);
+  const { cells: boxes, track, overflow } = await lineupAtRest(page);
+  // 3 + 2: three cards share the first row, the last two the second, centred under them.
+  expect(new Set(boxes.slice(0, 3).map((b) => b.top)).size, "the first three in one row").toBe(1);
+  expect(new Set(boxes.slice(3).map((b) => b.top)).size, "the last two in one row").toBe(1);
+  expect(boxes[3]!.top, "the last two under the first three").toBeGreaterThan(boxes[0]!.top);
+  const pair = (boxes[3]!.x + boxes[4]!.x + boxes[4]!.width) / 2;
+  expect(Math.abs(pair - (track.x + track.width / 2)), "the last two centred under the lineup").toBeLessThanOrEqual(2);
+  expect(overflow).toBeLessThanOrEqual(1);
+});
+
+// The season figures and Edit lineup's choices, as approved, on the cards five across: each card's
+// kills / deaths / assists per game under its KDA from 14.5rem (whole there: the three figures stand
+// closer from 14.5rem to 16.5rem, where the reference ended the line in "…"), and Change and
+// Substitute side by side, their labels whole (under 14.25rem their icons step aside; the reference
+// cut "Substitute").
+test("five across, the K/D/A line shows whole from 14.5rem, and Edit lineup's two labels are whole side by side", async ({ page, context, baseURL }, info) => {
+  test.skip(info.project.name !== "desktop", "desktop widths");
+  await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: baseURL! }]);
+  for (const [width, height] of [[1920, 1080], [1440, 900], [1366, 768]] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto("/team");
+    await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
+    await lineupAtRest(page);
+    const cards = await page.locator("[data-testid^=lineup-row-]").evaluateAll((els) => {
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+      return els.map((card) => {
+        const line = card.querySelector<HTMLElement>("[data-testid=card-season] dl > div:nth-child(2) dd:last-child");
+        const text = line?.querySelector<HTMLElement>(":scope > span:not([aria-hidden])");
+        return { width: card.getBoundingClientRect().width / rem, shown: !!text && text.getBoundingClientRect().width > 1, whole: !!line && line.scrollWidth <= line.clientWidth };
+      });
+    });
+    for (const card of cards) {
+      if (card.width >= 14.5) expect(card, `${width}: the K/D/A line shown and whole`).toMatchObject({ shown: true, whole: true });
+      else expect(card.shown, `${width}: no K/D/A line on a ${card.width.toFixed(2)}rem card`).toBe(false);
     }
+    await page.getByTestId("edit-lineup").click();
+    const choices = await page.locator("[data-testid^=lineup-actions-]").evaluateAll((els) =>
+      els.map((row) => {
+        const buttons = [...row.querySelectorAll<HTMLElement>("button")];
+        return {
+          side: buttons.length === 2 && Math.abs(buttons[0]!.getBoundingClientRect().top - buttons[1]!.getBoundingClientRect().top) < 1,
+          whole: buttons.every((b) => [...b.querySelectorAll<HTMLElement>("span")].every((t) => t.scrollWidth <= t.clientWidth)),
+          icons: buttons.map((b) => getComputedStyle(b.querySelector("svg")!).display !== "none"),
+          card: row.closest("article")!.getBoundingClientRect().width / parseFloat(getComputedStyle(document.documentElement).fontSize),
+        };
+      }),
+    );
+    expect(choices.length).toBeGreaterThan(0);
+    for (const c of choices) {
+      expect(c.side, `${width}: Change and Substitute side by side`).toBe(true);
+      expect(c.whole, `${width}: both labels whole`).toBe(true);
+      expect(c.icons, `${width}: their icons ${c.card < 14.25 ? "step aside" : "shown"} on a ${c.card.toFixed(2)}rem card`).toEqual(c.card < 14.25 ? [false, false] : [true, true]);
+    }
+    await page.getByTestId("edit-lineup").click();
   }
-  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
 });
 
 // Cards side by side keeping their pictures, names and labels level whatever the names and
@@ -137,42 +197,23 @@ test("phones swipe sideways through the five cards, one at a time", async ({ pag
   const subtitle = page.getByTestId("team-subtitle");
   await expect(subtitle.locator(":scope > span", { hasText: /^·$/ })).toHaveCount(0);
   expect((await subtitle.locator(":scope > span").first().boundingBox())!.height).toBeLessThanOrEqual(20);
-  // The header is one row: the name and its line beside Edit lineup (a 44px target), and no logo:
-  // the top bar right above shows the team's mark.
-  const header = (await page.getByTestId("team-header").boundingBox())!;
-  const edit = (await page.getByTestId("edit-lineup").boundingBox())!;
+  // The header as approved: the logo at the start of its first line, beside the name, and under them
+  // the lineup's state and Edit lineup (its whole label) on a line of their own.
+  const header = page.getByTestId("team-header");
+  const mark = (await header.locator(":scope > span[aria-hidden], :scope > img, :scope > picture > img").first().boundingBox())!;
   const name = (await page.getByTestId("team-name").boundingBox())!;
-  expect(edit.y).toBeLessThan(name.y + name.height);
-  expect(edit.x).toBeGreaterThan(name.x + name.width - 1);
-  expect(edit.height).toBeGreaterThanOrEqual(44);
-  expect(header.height).toBeLessThanOrEqual(56);
-  await expect(page.getByTestId("team-header").locator("img, [data-testid=brand-mark-text]")).toBeHidden();
-  await expect(page.getByTestId("edit-lineup")).toHaveAccessibleName("Edit lineup");
-  // The first card is whole on the first screen, above the tab bar (375 × 667).
-  const tabBar = (await page.getByRole("navigation", { name: "Primary" }).boundingBox())!;
-  const first = (await cells.first().boundingBox())!;
-  expect(first.y + first.height, "the first card ends above the tab bar").toBeLessThanOrEqual(tabBar.y);
-  // Each role's tab shows who plays it: their picture in its frame, the role's name under it.
-  for (const tab of await tabs.all()) await expect(tab.locator("[data-avatar-frame]")).toHaveCount(1);
-  // The role bar is as wide as the header and the card under it: one control across, not a group floating in the middle.
-  const pager = (await page.getByTestId("lineup-pager").boundingBox())!;
-  expect(Math.abs(pager.x - header.x), "the role bar starts with the header").toBeLessThanOrEqual(1);
-  expect(Math.abs(pager.width - header.width), "the role bar spans the header's width").toBeLessThanOrEqual(1);
-  // The substitutes: two chips to a row (they took a row each on a small phone), each half the row.
-  const bench = (await page.getByTestId("lineup-bench").boundingBox())!;
-  const chips = await page.getByTestId("lineup-bench").locator("[data-testid^=bench-]:not([data-testid^=bench-empty-])").evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ top: Math.round(r.top), width: r.width })));
-  for (let i = 0; i + 1 < chips.length; i += 2) {
-    expect(chips[i]!.top, "two chips share a row").toBe(chips[i + 1]!.top);
-    for (const chip of [chips[i]!, chips[i + 1]!]) expect(chip.width).toBeLessThanOrEqual(bench.width / 2);
-  }
-  // With the browser's text at 200% a chip takes a row of its own, so a substitute's name keeps room
-  // (two to a row squeezed it to one letter a line).
-  await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
-  const large = await page.getByTestId("lineup-bench").locator("[data-testid^=bench-]:not([data-testid^=bench-empty-])").evaluateAll((els) => els.map((e) => ({ top: Math.round(e.getBoundingClientRect().top), name: e.querySelector("[data-bench-name]")!.getBoundingClientRect().width })));
-  const rem = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
-  for (let i = 1; i < large.length; i++) expect(large[i]!.top, "one chip a row at 200% text").toBeGreaterThan(large[i - 1]!.top);
-  for (const chip of large) expect(chip.name, "a name keeps at least 4rem").toBeGreaterThanOrEqual(4 * rem);
-  await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
+  const edit = (await page.getByTestId("edit-lineup").boundingBox())!;
+  const status = (await page.getByTestId("lineup-status").boundingBox())!;
+  expect(Math.round(mark.width), "the logo, 48px").toBe(48);
+  expect(mark.x + mark.width, "the logo before the name").toBeLessThanOrEqual(name.x + 1);
+  expect(edit.y, "Edit lineup on the line under the name").toBeGreaterThanOrEqual(name.y + name.height - 1);
+  expect(status.y, "the lineup's state on the line under the name").toBeGreaterThanOrEqual(name.y + name.height - 1);
+  await expect(page.getByTestId("edit-lineup")).toHaveText("Edit lineup");
+  // Each role's tab is its icon and name: no pictures.
+  for (const tab of await tabs.all()) await expect(tab.locator("[data-role-icon]")).toHaveCount(1);
+  await expect(tabs.locator("[data-avatar-frame], img")).toHaveCount(0);
+  // Nothing under the track: no bench of substitutes.
+  await expect(page.getByTestId("lineup-bench")).toHaveCount(0);
 
   // A real touch swipe to the left lands on the next card, centred (snap).
   const cdp = await context.newCDPSession(page);
@@ -203,10 +244,9 @@ test("phones swipe sideways through the five cards, one at a time", async ({ pag
   await page.evaluate(() => window.scrollTo(0, 0));
 
   // The role bar moves too (a tap away from any player), names each role and says where you are.
-  await expect(page.getByTestId("lineup-dot-label")).toHaveText(["Top", "Jungle", "Mid", "Bottom", "Support"]);
-  // Named by what it shows, the role first, then the player (read from hidden text, which Chromium
-  // sets off with a space: "Top : Demo Top").
-  await expect(tabs.first()).toHaveAccessibleName(/^Top ?: .+/);
+  await expect(tabs).toHaveText(["Top", "Jungle", "Mid", "Bottom", "Support"]);
+  // Named by the role, then the player.
+  await expect(tabs.first()).toHaveAccessibleName(/^Top: .+/);
   await tabs.nth(2).click();
   await expect(tabs.nth(2)).toHaveAttribute("aria-selected", "true");
   await tabs.nth(4).click();
@@ -216,52 +256,6 @@ test("phones swipe sideways through the five cards, one at a time", async ({ pag
   for (const tab of await tabs.all()) expect((await tab.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   // Every card is labelled with its role, player and position.
   await expect(cells.first()).toHaveAttribute("aria-label", /^Top: .+ \(1 of 5\)$/);
-});
-
-test("with a role open (production's lineup), a phone's header keeps its one row and the first card stays whole above the tab bar", async ({ page, browser, baseURL }) => {
-  test.skip(!isPhone(page), "phones only");
-  // Support left empty in a window of its own (Edit lineup), and put back at the end.
-  const manager = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  await manager.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
-  const editor = await manager.newPage();
-  const before = await setStarter(editor, "SUPPORT", null);
-  try {
-    // The phones the first card is whole on: SE (3rd gen) and an iPhone 15 in Safari (its visible area).
-    for (const size of [{ width: 375, height: 667 }, { width: 393, height: 659 }]) {
-      await page.setViewportSize(size);
-      await page.goto("/team");
-      await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
-      // The state is a short warn token on the line under the name ("4/5 roles"), the whole sentence
-      // read out and in its title: no row of its own.
-      const status = page.getByTestId("lineup-status");
-      await expect(status).toHaveAttribute("title", "Assign all five roles");
-      await expect(status).toContainText("Assign all five roles");
-      await expect(page.getByTestId("lineup-status-count")).toHaveText("4/5 roles", { useInnerText: true });
-      const header = (await page.getByTestId("team-header").boundingBox())!;
-      expect(header.height, `${size.width}: one header row`).toBeLessThanOrEqual(56);
-      const tabBar = (await page.getByRole("navigation", { name: "Primary" }).boundingBox())!;
-      const first = (await page.getByTestId("lineup-cell").first().boundingBox())!;
-      expect(first.y + first.height, `${size.width} × ${size.height}: the first card ends above the tab bar`).toBeLessThanOrEqual(tabBar.y);
-    }
-    // A 360px phone, where Edit lineup leaves room for the count but not the word: "4/5", one row.
-    await page.setViewportSize({ width: 360, height: 740 });
-    await page.goto("/team");
-    await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
-    await expect(page.getByTestId("lineup-status-count")).toHaveText("4/5", { useInnerText: true });
-    expect((await page.getByTestId("team-header").boundingBox())!.height, "360: one header row").toBeLessThanOrEqual(56);
-    // The narrowest phones (320px), where Edit lineup leaves no room for the count: the dot alone,
-    // the sentence still read out, and still one row.
-    await page.setViewportSize({ width: 320, height: 568 });
-    await page.goto("/team");
-    await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
-    await expect(page.getByTestId("lineup-status-count")).toBeHidden();
-    await expect(page.getByTestId("lineup-status")).toContainText("Assign all five roles");
-    expect((await page.getByTestId("team-header").boundingBox())!.height).toBeLessThanOrEqual(56);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
-  } finally {
-    await setStarter(editor, "SUPPORT", before);
-    await manager.close();
-  }
 });
 
 // docs/PERFORMANCE.md, "Team Overview's first card": on a phone the first card's art is the page's
@@ -322,10 +316,10 @@ test("the first card's art loads first, and on phones the other cards' art waits
   await expect(cells.nth(1).locator("[data-card-pool] img").first()).toBeVisible();
 });
 
-// The role bar's pictures (new with the bar) and the later cards' own wait for the first card's art
-// as its champions do: a member's picture comes from /api/avatars, and none is asked for while the
-// first art is on its way. The demo has no pictures: a member with one starts at Mid for the test.
-test("on a phone no member's picture is asked for while the first card's art loads; the role bar shows it after", async ({ browser, page: admin, baseURL }, info) => {
+// The later cards' members' pictures wait for the first card's art as its champions do: a member's
+// picture comes from /api/avatars, and none is asked for while the first art is on its way. The
+// demo has no pictures: a member with one starts at Mid for the test.
+test("on a phone no later card's member's picture is asked for while the first card's art loads", async ({ browser, page: admin, baseURL }, info) => {
   test.skip(info.project.name !== "desktop", "one member with a picture, checked on a phone below");
   test.setTimeout(180_000);
   const member = await memberContext(browser, admin, undefined, { base: "Pictured", role: "Mid" });
@@ -371,8 +365,6 @@ test("on a phone no member's picture is asked for while the first card's art loa
     const track = page.getByTestId("lineup-overview");
     await expect(track).toHaveAttribute("data-ready", "true");
     await expect(track).toHaveAttribute("data-art-wait", "true");
-    const mid = page.getByTestId("lineup-pager").getByRole("tab", { name: /^Mid/ });
-    await expect(mid.locator("[data-avatar-frame]")).toHaveCount(1);
     await page.waitForTimeout(800);
     // The Mid card's picture (the member's own, by its address): it is a later card's, so it waits.
     // Only that one is counted: the viewer's own picture in the top bar, and the first card's, are
@@ -381,10 +373,8 @@ test("on a phone no member's picture is asked for while the first card's art loa
     expect(own, "the Mid card carries the member's picture").toMatch(/^\/api\/avatars\//);
     const theirs = () => pictures.filter((u) => new URL(u).pathname === new URL(own!, baseURL).pathname);
     expect(theirs(), "no picture of a later card's member while the first card's art loads").toEqual([]);
-    await expect(mid.locator("img"), "the role bar shows the initial meanwhile").toHaveCount(0);
     answer();
     await expect(track).not.toHaveAttribute("data-art-wait", "true");
-    await expect(mid.locator("img")).toHaveCount(1);
     await expect.poll(() => theirs().length, "the picture once the art is in").toBeGreaterThan(0);
     await phone.close();
   } finally {
