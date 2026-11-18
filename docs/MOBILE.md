@@ -65,8 +65,8 @@ anywhere else:
    iPhone SE with Display Zoom) scrolls a little in Safari's tab. With large text, or held sideways,
    only its body scrolls, as one region, and the bar with the close button stays put. On a page pinched to zoom,
    a finger pans the zoomed view across it. The close button is a quiet 36px circle whose touch
-   area reaches 44px. The screen takes the focus itself as it opens (nothing lights up), Tab reaches
-   the close button and the rows in order, Escape or the close button closes it and the focus goes
+   area reaches 44px. The screen takes the focus itself as it opens (nothing lights up; every
+   window opened by a tap does the same, below), Tab reaches the close button and the rows in order, Escape or the close button closes it and the focus goes
    back to the avatar, and the page behind never moves. It replaces both the menu drawer and the
    account dropdown on phones. See "Why the account menu was a strip on iPhones" below.
 
@@ -131,7 +131,12 @@ place on that page (its scroll, its open filters) is kept. `MobileNav` remembers
 in this tab since the app opened and names Back after the previous page's heading ("‹ Demo Mid").
 A page opened directly (a link from elsewhere, a reload, the installed app's start) has no page
 before it, so Back leads to the page above it instead (`phoneParent`: a teammate's profile → Players,
-Settings → home). A destination's own pages have no Back: they are where you start.
+Matchup Intel → Resources, Settings → home). A destination's own pages have no Back: they are where
+you start. A page that adds history entries of its own address (Matchup Intel's pairs) is still one
+page for Back: named after the page before, it goes there, past those entries, where the browser's
+Navigation API shows them (`backSteps`); the browser's own Back steps through them. Where the
+browser has no Navigation API (Safari before 26.2), the page makes no such entries: each pair
+replaces the entry, so Back leaves the page in one step (`historyShowsEntries`).
 
 ### Sections of a page
 
@@ -148,6 +153,9 @@ Settings → home). A destination's own pages have no Back: they are where you s
   (#262: before it, the landing failed now and then). A reader who touches or scrolls the page
   meanwhile keeps their place, and the hold ends after ten seconds on a slow connection.
 - **Team's sections** are the bottom bar itself, so the page tabs are not repeated on phones.
+- **Resources' sections** (Library, Matchup Intel) keep their tabs at the top of both pages on
+  phones too: a member reaches Resources from the account screen, so the tabs are the way between
+  its two pages there.
 - **A page's views** (Match History's Games and Encounters, Leaderboards' Recent form and Records &
   achievements) share one quiet track (`SubTabs`). A label too long to share the line on a phone
   shows its start ("Records"); the rest is still read out, so its name does not change.
@@ -166,9 +174,10 @@ opens.
 | Page | Phone layout | Height at 390px (`main` at f4e5372 → this redesign) |
 |---|---|---|
 | Players | One panel, a row per player, 64px tall: picture in its frame and the name in the player's own style with their emblem, the status that matters at the line's end (Lineup; "Setup" for an unfinished setup, its whole meaning read out and in its title; Archived), a long name wrapping beside it rather than pushing it down; then the main role (its icon in the card's colour, its name read out), the rank ("No Riot account" without one) and the pool as many whole portraits as fit plus a count, a line that wraps rather than cuts with larger text; the tagline on a third line only for those who have one. A row carries the card's colours but no art, card frame or effect, and nothing is downloaded for a look. The whole row opens the profile (the card, links and every pool). The count is the title's scope line ("9 players", with what narrows it). The same rows on every width since the roster board (Nov 2026): two up on a phone held sideways. Below 768px wide the title, search and Filters then share one row (from 35rem; a split screen or a zoomed small phone stacks them, so the search keeps its width); a large iPhone in Safari, laid out at the screen's whole width (852px on an iPhone 15), keeps the tablet's toolbar on a row of its own. | 2,966 → 1,227 → 850px |
-| Leaderboards | Built for phones in #188 (docs/LEADERBOARDS_MODEL.md): Recent form is one panel with a row per member (place, picture and name, the gap to the place above, then role, record and dates on one line, the win rate at the right end); Records & achievements are the season's records, the multikills and the milestones. The frame adds the tab, the title in the bar and Back; on phones the whole row of Recent form opens the member's profile, not only the name. | 1,093 → 1,037px (Recent form) |
+| Leaderboards | Built for phones in #188 (docs/LEADERBOARDS_MODEL.md), rebuilt as rows in PR 5a: Recent form is one board with a two-line row per member: the place (a bracket joins shared places, "4="), the picture with the main role as a badge on it, the name and "You" with the win rate at the right end, then the record and dates, with the gap ("1 win behind", "Next win: 3=") at the line's right end under the win rate (on a line of its own, still at the right, when the dates or the gap are long: most rows at 360–375px), and the record's 20-game bar as a 2px line along the row's foot. Members with too few recent games are the board's last group, a row each with the games they need. The data status ⓘ ends the scope line. Records & achievements are the season's records, the multikills and the milestones. The frame adds the tab, the title in the bar and Back; the whole row is one link to the member's profile. | 1,093 → 1,037px (#188); 1,004 → 920px (PR 5a, rows 61–106 → 64px from 390px, 64–74.5px at 360–375px) |
 | Matches | Each game: result, length, queue and date, then the members who played (champion, role, multikill, K/D/A). Both full teams are in the game's screen, where the scoreboard lists all ten. Bookmarked sits beside Filters. | 2,330 → 1,528px |
 | Match History | Each game: the result line, the champion and role on one line, K/D/A with its ratio and largest multikill, kill participation, CS and damage, then the build (none drawn when Riot's record had no items). The result line wraps rather than cut the time off on a 320px phone. Both teams move to the game's screen. Ten games a page; the pager's buttons are 44px, and on a narrow phone the pages either side of the current one give way to the arrows, so both arrows stay on its line. | 2,268 → 2,000px |
+| Matchup Intel (Resources) | Your champion and the enemy side by side, the swap between them, as compact slots (a small portrait above the name on a 320 or 375px phone, beside it from 384px), so the ten-second briefing's threat starts on the first screen (whole at 390 by 664). Then the enemy's five abilities, each row its icon beside its key, name and base cooldown per rank, and under them the checked facts as badges and Riot's description, with the longer notes behind Details. Interactions (the enemy's own folded under one line), level notes and your own abilities (collapsed) follow. Each slot opens a picker on a screen of its own with a 16px search at the top (docs/MATCHUP_INTEL.md). At a large text size the slots stand one above the other, and an ability's icon and a note's level stand above their words; nothing is cut at 200% on a 320px or a 390px phone, the picker (its Recent and curated rows too), each curated pair swapped and the states with one side chosen included. | New (16 Nov 2026) |
 
 Lists are **rows in one panel with hairline dividers** (people, a board's members): a single
 surface, not a card per item. **Games stay cards**: each is an object with its own result colour
@@ -182,7 +191,7 @@ text below 12px; 11px (`text-2xs`) only for badges and labels.
 
 | Need | Phone pattern | Why |
 |---|---|---|
-| Narrow a list | **Filters** opens a sheet from the bottom edge with every filter, each with its label, and Reset and Done at its foot (`FilterBar`). Beside the button, what is narrowed shows as chips that remove themselves with a tap. A search box shares the row with Filters. Choices apply at once, as on desktop. | The scope stays visible without opening anything; the sheet is within reach of the thumb and never pushes the page around. |
+| Narrow a list | **Filters** opens a sheet from the bottom edge with every filter, each with its label, and Reset and Done at its foot (`FilterBar`). Beside the button, what is narrowed shows as chips that remove themselves with a tap. A search box shares the row with Filters. Choices apply at once, as on desktop. A picker in the sheet (Played with, Champions) opens its list in the sheet's body, as tall as its options, and the body scrolls it into view; a tap below the open list closes it and reaches what was tapped. | The scope stays visible without opening anything; the sheet is within reach of the thumb and never pushes the page around. One scroller: a list scrolling inside the sheet's scrolling body was cut off at its edge. Closed as a tap started, the list moved the fields below it up before the tap landed. |
 | Open a game | The game takes the whole screen (the match window), as a new entry in the browser's history, so Back (the button, the edge swipe, Android's key) closes it and returns to the list exactly as it was. Its scoreboard keeps the marks for players met in other games; following one closes the game, and Back returns to it. | A scoreboard inside a list is a detour on a narrow screen. Desktop keeps the game under its card. |
 | A champion, a player from Team | The existing detail windows, which already take the whole screen on phones. | |
 | Account, Settings, Sign out | The account screen, from the avatar. | One menu, not two, every entry a full-width row in reach of the thumb. |
@@ -192,7 +201,19 @@ Every sheet and window shares `DetailModal`: native `<dialog>` (focus kept insid
 inert), Escape and the backdrop close it, focus returns to what opened it, a sheet slides up in
 220ms with `--ease-emphasized` and out in 140ms (instant with reduced motion). Every window's body
 grows from its content (`flex-auto`, never `flex-1`: Safari 26 collapses the other, above). The
-account screen is a screen of its own instead (`size="screen"`, above). A sheet:
+account screen is a screen of its own instead (`size="screen"`, above). A window opened by a tap
+takes the focus itself, so nothing in it is ringed as it opens (Safari drew its focus ring around the
+close button, the loudest thing in the window), and holds it only until it is tapped or the focus
+moves on, so a tap on its text never takes the focus from a field; opened from the keyboard, its
+close button has the focus, ringed; sign-in goes straight to its username. A window is in the
+browser's top layer, above the page, so what must show over it is drawn inside it: an ⓘ's bubble
+beside its ⓘ (Escape closes the bubble, not the window), and the toasts in their usual place above
+the tab bar, where their buttons answer a tap. The toasts go into a window once it has risen into
+place and leave it as it starts to close, so they never slide with a sheet; a toast raised as its
+window closes (Save, then the window goes) is announced on the page. In a window, a picker's list
+(the champion window's opponent picker too) opens in the window's body, never as a list scrolling
+inside it, and a tap below the open list reaches what was tapped (the list closes on the tap's
+click, so nothing moves under the finger first). A sheet:
 - is docked to the bottom edge on phones and in short windows (a phone held sideways, where it
   spans up to 44rem), and is a compact centred window on taller wider screens;
 - is as tall as its content, up to the screen less a strip of the page above it, a share of the
@@ -234,10 +255,10 @@ account screen is a screen of its own instead (`size="screen"`, above). A sheet:
 | Frame | Top bar 52px plus the status bar's inset (a profile adds its 44px sections row); tab bar 56px plus the home indicator's inset; the top bar sets the page's `scroll-padding-top` to its measured height and `scroll-padding-bottom` clears the tab bar, so whatever scrolls into view (anchors, the keyboard's focus) stays clear of both bars (WCAG 2.4.11). |
 | Gutters and spacing | 16px gutters (`px-safe-4`), 12–16px between sections; rows 12–14px horizontal padding, at least 64px tall when they carry two lines and a picture. |
 | Surfaces | One panel per list, hairline dividers inside; cards for objects that open (games); no frame around a single group that already has one. Colour and gradient are kept for meaning (a game's result, a selected tab). |
-| Touch targets | 44px for everything a finger presses (tabs, rows, chips through `touch-target`, sheet rows 48px). |
+| Touch targets | 44px for everything a finger presses (tabs, rows, chips through `touch-target`, sheet rows 48px, a toast's dismiss button). |
 | Titles | One `h1` per page; on phones the page tabs and the bar's title say where you are, so instructions under a title are left out (`PageHeader guide`), while a scope line ("Season 2026 · 6 games") always shows. |
 | Interactive states | Pressed rows darken to `surface-2` (`active:`); the current tab, section or view is marked twice (colour and a pill, bar or weight); narrowed filters are accent chips; focus keeps the accent ring everywhere. The avatar tapped before the page's code has run shows pressed (`[data-early][aria-busy]`: `surface-2` in a ring of accent) until it opens the account screen. |
-| Loading, empty, errors | Unchanged components: `Skeleton`, `EmptyState`, `PageError`; the match window shows its skeleton until the game has loaded. Results of actions are toasts, which sit above the tab bar (`bottom-tabbar`) and follow it down when it slides away. |
+| Loading, empty, errors | Unchanged components: `Skeleton`, `EmptyState`, `PageError`; the match window shows its skeleton until the game has loaded. Results of actions are toasts, which sit above the tab bar (`bottom-tabbar`) and follow it down when it slides away; over an open window or sheet they are drawn inside it, in the same place. |
 | Motion | Bars slide 200ms ease-out in short windows; sheets as above; the account screen rises 1rem into place in 200ms and fades out in 140ms; the title fades in 150ms. Everything respects reduced motion. |
 
 ## 6. Verifying
@@ -263,7 +284,13 @@ account screen is a screen of its own instead (`size="screen"`, above). A sheet:
   rests, at rest with every animation held at its first frame, at once with reduced motion; a page
   scrolled from script while it is open is put back; the account dropdown's rows 44px tall on a
   touch screen (a phone held sideways, a tablet); its notes' link closing the screen; `e2e/sidebar-motion.spec.ts` the same early
-  click on the desktop sidebar's collapse control and account tile; `e2e/responsive.spec.ts`,
+  click on the desktop sidebar's collapse control and account tile; `e2e/popups.spec.ts` the
+  popups over windows (an ⓘ's bubble and a toast drawn inside the window, a toast never riding a
+  window's motion and heard once, the focus a window takes as it opens and lets go when pressed)
+  and, on a phone, the Filters sheet's pickers and the opponent picker opening their list in the
+  window's body, a tap under an open list reaching what was tapped, the opponent search at 16px
+  and the add-champion list above the tab bar (the WebKit workflow checks the tap-opened window's
+  focus, the bubble and the toast in Safari's engine); `e2e/responsive.spec.ts`,
   `e2e/mobile-landscape.spec.ts` and `e2e/quality.spec.ts` keep overflow, targets, short windows and
   axe in check at every width.
   Team Overview's phone layout (the logo beside the team's name, the lineup's state and Edit

@@ -7,9 +7,11 @@ import { ChevronLeft, ChevronRight, LogOut, Menu, X } from "lucide-react";
 import { BrandMark } from "./brand-mark";
 import { NavLinks } from "./nav-links";
 import { Avatar } from "./ui/avatar";
-import { DetailModal } from "./ui/detail-modal";
+import { DetailModal, lockPage } from "./ui/detail-modal";
+import { focusWindow, lastInput, letGoWhenPressed, opensFocusingItself } from "./ui/input-kind";
+import { noteModalAtRest, noteModalClosed, noteModalOpened } from "./ui/top-layer";
 import { ModeSwitch } from "./mode-switch";
-import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, ADMIN_TABS, PROFILE_SECTIONS, RESOURCES, adminSheetLinks, currentTab, isActivePath, phoneParent, phoneTabs, profileBase, type NavLink, type PhoneTab } from "@/lib/nav";
+import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, ADMIN_TABS, PROFILE_SECTIONS, RESOURCES, adminSheetLinks, backSteps, currentTab, isActivePath, pageName, phoneParent, phoneTabs, profileBase, type NavLink, type PhoneTab } from "@/lib/nav";
 import { AccountMenu, otherUsername } from "./account-menu";
 import { announceAccountChange, markAccountChange } from "./account-guard";
 import { InstallAppEntry } from "./install/install-app";
@@ -416,11 +418,16 @@ const BACK_TABLET = "md:hidden md:standalone:flex";
 
 /**
  * The tablet's menu: a modal dialog (the native <dialog>, as every sheet and window), so focus stays
- * inside, the page behind is inert and never scrolls, and Escape or a tap beside the panel closes
- * it. The panel is docked to the left edge, the sidebar's side. Closed, or removed while open (a
- * navigation, the window grown to the sidebar's widths), it gives focus back where it came from.
+ * inside, the page behind is inert and locked as behind every window (DetailModal's lockPage: no
+ * scrolling, no rubber band, no shift as the scrollbar goes), and Escape or a tap beside the panel
+ * closes it. The panel is docked to the left edge, the sidebar's side. The focus starts as in every
+ * window: on the menu itself after a tap or a click (no ring, and only until it is pressed or the
+ * focus moves on), on its close button from the keyboard (input-kind.ts); a press on nothing
+ * focusable in it leaves nothing focused, as on a page (letGoWhenPressed). Closed, or removed while
+ * open (a navigation, the window grown to the sidebar's widths), it gives focus back where it came
+ * from. Toasts raised meanwhile are drawn in it (top-layer.ts).
  */
-function Drawer({ onClose, initialFocus, children }: { onClose: () => void; /** What takes focus when it opens (the close button). */ initialFocus: React.RefObject<HTMLElement | null>; children: React.ReactNode }) {
+function Drawer({ onClose, initialFocus, children }: { onClose: () => void; /** What takes focus when it opens from the keyboard (the close button). */ initialFocus: React.RefObject<HTMLElement | null>; children: React.ReactNode }) {
   const ref = React.useRef<HTMLDialogElement>(null);
   const latest = React.useRef(onClose);
   React.useLayoutEffect(() => {
@@ -432,19 +439,28 @@ function Drawer({ onClose, initialFocus, children }: { onClose: () => void; /** 
     const d = ref.current;
     if (!d) return;
     if (!d.open) d.showModal();
-    initialFocus.current?.focus({ preventScroll: true });
+    noteModalOpened(d);
+    // At rest at once: its panel slides in, the dialog itself never moves (top-layer.ts).
+    noteModalAtRest(d);
+    // The focus starts on the menu itself after a tap or a click (until it is pressed or the focus
+    // moves on, as in every window: focusWindow), on its close button from the keyboard.
+    let letGo: () => void = () => undefined;
+    if (opensFocusingItself(lastInput())) letGo = focusWindow(d);
+    else initialFocus.current?.focus({ preventScroll: true });
+    const presses = letGoWhenPressed(d);
     // The page behind stays where it is.
-    const root = document.documentElement;
-    const previous = root.style.overflow;
-    root.style.overflow = "hidden";
+    const unlock = lockPage();
     // The sidebar takes over from lg: a menu left open across that width would keep the page inert.
     const wide = window.matchMedia("(min-width: 64rem)");
     const onWide = () => wide.matches && latest.current();
     wide.addEventListener("change", onWide);
     return () => {
       wide.removeEventListener("change", onWide);
-      root.style.overflow = previous;
+      unlock();
+      presses();
+      letGo();
       if (d.open) d.close();
+      noteModalClosed(d);
     };
   }, [initialFocus]);
   return (
@@ -463,8 +479,8 @@ function Drawer({ onClose, initialFocus, children }: { onClose: () => void; /** 
       // overflow-visible: the panel scrolls itself, and its shadow falls over the backdrop (a dialog clips its contents by default).
       // Full height by the screen it is fixed to (stretched between the dialog's own top and bottom
       // insets), not by viewport units, so its size and its place come from the same box
-      // (DetailModal); its width a share of that screen too.
-      className="m-0 h-auto max-h-none w-[min(calc(20rem+env(safe-area-inset-left)),86%)] max-w-none overflow-visible border-0 bg-transparent p-0 text-fg backdrop:bg-black/60 backdrop:backdrop-blur-sm open:flex motion-safe:backdrop:fade-in"
+      // (DetailModal); its width a share of that screen too. Its own focus (after a tap) draws no ring.
+      className="m-0 h-auto max-h-none w-[min(calc(20rem+env(safe-area-inset-left)),86%)] max-w-none overflow-visible border-0 bg-transparent p-0 text-fg outline-none backdrop:bg-black/60 backdrop:backdrop-blur-sm open:flex motion-safe:backdrop:fade-in"
       data-testid="mobile-drawer"
     >
       {children}
@@ -611,6 +627,8 @@ function usePageHeading(pathname: string, barHeight: number): { text: string | n
   otherwise (a link from elsewhere, a reload, the installed app's start) Back leads to the page
   above this one (phoneParent). Moving between a profile's sections replaces the entry, as the
   sections do on phones (ProfileTabs), so Back leaves the profile rather than stepping through them.
+  A page that adds entries of its own address (Matchup Intel's pairs) is still one visit: Back goes
+  past them to the page it is named after (goBackTo), as its label says.
 */
 interface Visit {
   path: string;
@@ -633,15 +651,6 @@ function recordVisit(path: string) {
   for (const l of visitListeners) l();
 }
 
-/** The name of the page a path opens, for Back when its heading was never read. */
-function pageName(path: string, tabs: readonly PhoneTab[]): string {
-  const tab = tabs.find((t) => isActivePath(path, t.href));
-  if (tab) return tab.label;
-  if (path.startsWith("/settings") || path === "/admin/settings") return "Settings";
-  if (path === "/resources") return "Resources";
-  return "Back";
-}
-
 function useBack(pathname: string, heading: string | null, tabs: readonly PhoneTab[], home: string): ({ history: true; label: string; go: () => void } | { history: false; label: string; href: string }) | null {
   const router = useRouter();
   React.useEffect(() => recordVisit(pathname), [pathname]);
@@ -654,8 +663,23 @@ function useBack(pathname: string, heading: string | null, tabs: readonly PhoneT
   if (!parent) return null;
   const top = visits[visits.length - 1];
   const before = top?.path === pathname ? visits[visits.length - 2] : null;
-  if (before) return { history: true, label: before.title ?? pageName(before.path, tabs), go: () => router.back() };
+  if (before) return { history: true, label: before.title ?? pageName(before.path, tabs), go: () => goBackTo(before.path, pathname, router.back) };
   return { history: false, label: parent.label, href: parent.href };
+}
+
+/** The Navigation API's view of this tab's history, as far as Back needs it (not every browser has it). */
+type HistoryEntries = { currentEntry: { index: number } | null; entries: () => ReadonlyArray<{ url: string | null }> };
+
+/**
+ * Back to the page it is named after, past the entries this page made of itself (Matchup Intel's
+ * pairs: the browser's Back steps through them, the bar's Back promises the page before), where
+ * the Navigation API shows them (backSteps); one step back otherwise.
+ */
+function goBackTo(target: string, pathname: string, back: () => void) {
+  const nav = (window as unknown as { navigation?: HistoryEntries }).navigation;
+  const steps = nav?.currentEntry ? backSteps(nav.entries(), nav.currentEntry.index, pathname, target) : null;
+  if (steps !== null && steps < -1) window.history.go(steps);
+  else back();
 }
 
 /** Distance the page must scroll before the bars may slide away (about the top bar's height). */

@@ -69,7 +69,7 @@ Each surface is a step from the ground up. Lighter means closer to the reader.
 |---|---|---|
 | 0 | `bg` + `--ambient-light` | the page ground, with violet light at the top edge and a low horizon |
 | 0.5 | `chrome` (+ `chrome-light` on the sidebar) | the app's frame: sidebar, top bar, drawer, tab bar |
-| 1 | `surface` + `panel-depth` | panels and cards; `panel-featured` for the one card a page leads with |
+| 1 | `surface` + `panel-depth` | panels and cards; `panel-featured` or `surface-lead` for the one card a page leads with |
 | 2 | `surface-2` | rows and tiles inside panels, hovered rows on panels |
 | 3 | `surface-3` | selected or pressed rows on panels |
 | float | `bg-elevated` + border + `shadow-2xl` | menus, popovers, pickers, a dragged card |
@@ -90,6 +90,7 @@ ink is darker than every panel, so panels still lift off it. Text contrast on it
 |---|---|---|
 | `panel-depth` | sheen from the top, hairline of light on the top edge, soft shadow | every panel and card (`Panel` has it) |
 | `panel-featured` | `panel-depth` plus a faint violet wash in the top corner | the one card a page leads with |
+| `surface-lead` | `panel-featured` plus the brand's line along the top edge (accent to accent-2, fading out), drawn above the card's first row | the one card a page leads with, at most one a page (Recent form's board; the profile's season card next) |
 | `panel-lift` | rises 1px with a brighter edge on hover; none with reduced motion | cards that open something |
 | `chrome-light` | sheen from the top and a faint violet glow behind the logo, on the sidebar's still layer | the desktop sidebar only |
 | `brand-plate` | hairline of light around the logo (brighter on top) and a soft shadow under it | the team's logo set into the frame |
@@ -133,6 +134,10 @@ It should not appear:
 Violet (`accent-2`) carries the light: the ambient glow, `panel-featured`, `chrome-light`, the
 gradient's second stop and emphasis that is not a control.
 
+Bars that are figures (Recent form's 20-game record, `QuietBar`) are neutral overlays of `fg`
+(filled, empty and outlined segments), never the accent or a state colour, so they keep their
+contrast on any surface and any Branding. Gold appears only on the first place's crown.
+
 ## 5. Interaction states
 
 There are two families, by what the control sits on.
@@ -145,12 +150,23 @@ There are two families, by what the control sits on.
 Overlays of `fg` keep their contrast on any custom Branding colour, which is why the frame uses
 them. Panels keep the surface steps.
 
+**List rows** (`DataRow`, Players' rows): hover `surface-2`, pressed `surface-3`, and pressed
+`surface-2` on phones (MOBILE.md, owner-checked). Your own row is `accent/5` with a 2px accent bar
+at its left edge. Only a row that is a link takes these states; its one link covers the whole row.
+
 **Text and icons.** Idle text is `fg-muted` and idle icons `fg-subtle`. On hover both step up
 (`fg`, `fg-muted`). The current item is `fg` with its icon in `accent`.
 
 **Focus.** Every focusable element shows the same 2px accent outline (`:focus-visible`,
 globals.css). Rows inside the sidebar draw it inside their edge (`-outline-offset-2`), where the
-frame cannot clip it.
+frame cannot clip it. A window opened by a tap or a click takes the focus itself, without a ring,
+so nothing in it is lit up as it opens (Safari ringed the close button, the loudest thing in the
+window); opened from the keyboard, its close button has the focus, ringed, so a keyboard user sees
+where they are (`DetailModal`, the tablet's menu; `src/components/ui/input-kind.ts`). The window
+holds that focus only until it is pressed or the focus moves on (`focusWindow`), and a press inside
+any window on nothing focusable leaves nothing focused, so a click on its text leaves the focus as a
+page does and the keys still scroll its body (`letGoWhenPressed`): Chromium and WebKit focus a
+dialog itself at such a press, with or without a tabindex, and the keys then scrolled nothing.
 
 **Targets.** At least 24px everywhere and 44px on touch screens (STANDARDS.md).
 
@@ -170,7 +186,9 @@ frame cannot clip it.
   hairlines shrink with `scale-x`, not width or margin.
 - `prefers-reduced-motion: reduce` makes every animation and transition instant (globals.css);
   decorative effects (card shimmer and drift) stop entirely.
-- Nothing animates on a page's first paint except entrances of things the reader opened.
+- Nothing animates on a page's first paint except entrances of things the reader opened. A
+  `QuietBar` moves only when its value changes (a continuous share slides 200ms with
+  `--ease-emphasized`); its segments never animate.
 
 ## 7. The app's frame: navigation
 
@@ -189,7 +207,9 @@ navigation contract").
      beside it;
    - the collapse control under it. It is quieter than the pages: `fg-subtle`, normal weight, and
      its Ctrl \ hint appears over the row's end only while the row is pointed at or focused.
-2. **Pages:** My Profile, Team and Resources in Player Mode; Admin Mode's six sections.
+2. **Pages:** My Profile, Team and Resources in Player Mode (Resources stands for its Library and
+   Matchup Intel, the tabs at the top of both, as Team stands for its sections); Admin Mode's six
+   sections.
 3. **Footer:**
    - the switch between the modes (administrators only), as a quiet row;
    - Install App;
@@ -241,8 +261,8 @@ Sign out in a panel of their own, and it keeps the accent when it leads to Admin
 
 With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shell):
 
-- **Pinned section tabs (tablets and desktops).** Team's, a profile's and Platform Settings'
-  section tabs stay pinned at the top of the page once it has scrolled past them. They sit under
+- **Pinned section tabs (tablets and desktops).** Team's, Resources', a profile's and Platform
+  Settings' section tabs stay pinned at the top of the page once it has scrolled past them. They sit under
   the tablet's top bar (`--bar-top`) and at the window's edge beside the sidebar, 2.8125rem tall.
   - While pinned (`data-stuck`, set by `TabBar`), the row is frame, not content: the frame's ink
     (`chrome` at 90%) blurred like the phone top bar. At rest it is plain, part of the page, so
@@ -250,7 +270,9 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
   - Anything pinned under it (All Champions' column headings) offsets by `--tabs-top`.
   - Nothing is pinned in a window under 481px tall.
 - **Tablet drawer.** It is a native `<dialog>`: it keeps focus inside, the page behind it cannot
-  be used, and closing it returns focus to the menu button.
+  be used and is locked as behind a window (no scrolling, no rubber band), the focus starts as in a
+  window (on the menu itself after a tap, on its close button from the keyboard), and closing it
+  returns focus to the menu button.
 - **The installed app on a tablet.** It shows Back in the top bar, as phones do, because the
   installed app has no browser Back.
 
@@ -288,7 +310,23 @@ test):
   never `flex-1`): Safari 26 collapses a window as tall as its content to its header otherwise, as it
   did to the account menu on the owner's iPhone, and as WebKit 26.0 does to most sheets and to the
   compact and centred windows (MOBILE.md, "Why the account menu was a strip on iPhones"). The phone's account menu is a screen of its own instead of a sheet (`size="screen"`):
-  full-width rows of at least 48px on a screen fixed to the phone's four edges.
+  full-width rows of at least 48px on a screen fixed to the phone's four edges. A window is in the
+  browser's top layer, above the page and every z-index on it, with the rest of the page inert, so
+  what must show over a window is drawn inside it (`src/components/ui/top-layer.ts`): an ⓘ's bubble
+  inside the window its trigger sits in, where its trigger puts it, following the window while it
+  moves; the toasts inside the topmost window at rest, in their usual place, where their buttons can
+  be pressed (a moving window carries what is fixed inside it, so they go in once it has finished
+  moving in and leave as it starts to close), each heard once by a screen reader. Escape on an open
+  bubble closes the bubble alone, never the window; a bubble opens for a mouse as it moves over its
+  ⓘ, never as a window opening brings the ⓘ under a pointer at rest (the pointer that pressed its
+  opener), so that Escape closes the window (in WebKit an ⓘ scrolled under a still pointer does open,
+  as a hover does); a move onto an ⓘ made while the page hydrates counts once the ⓘ has hydrated,
+  the pointer resting on it. A picker's list inside a window (the Filters
+  sheet's member and champion pickers, the champion window's opponent picker) opens in the flow of
+  the window's body, which stays its one scroller: no list scrolling inside it, nothing cut off at
+  its edge; it fades in where it rests, and a press below it closes it on the press's click, so
+  nothing moves under the finger first. (`e2e/popups.spec.ts`; Safari's engine in
+  `e2e/webkit.spec.ts`)
 - **Before the page's code has run.** Destinations are real links, and work at once. The frame's
   controls that code drives (the phone's avatar, the tablet's menu button, the account menu's
   triggers on tablets and in the sidebar, the sidebar's collapse control) keep a tap made before it
@@ -319,7 +357,7 @@ deliberately. Each needs its own small PR. Check STATUS.md for the Actions-minut
 
 | Area | Finding | Direction |
 |---|---|---|
-| Hover on panels | About 50 controls use `hover:bg-surface-2`, a few `hover:bg-surface-2/70` or `bg-fg/5` | Converge on §5: surface steps on panels, fg overlays on the frame |
+| Hover on panels | About 50 controls use `hover:bg-surface-2`, a few `hover:bg-surface-2/70` or `bg-fg/5` | Converge on §5: surface steps on panels, fg overlays on the frame. `DataList` rows follow §5 already (`ROW_STATES`) |
 | Page headers | Players, Matches and Resources open with `PageHeader`. Leaderboards opens with its sub-tabs in the title's place; Settings centres a narrower column with its own heading | Intended by STANDARDS.md's three tiers. Leaderboards could take a `PageHeader` when its page is next redesigned |
 | Eyebrows | `PageHeader`'s eyebrow is `accent`; `SectionLabel` is `fg-subtle` | Both are valid. Keep `accent` eyebrows to Team Overview's header (from `sm` in a window taller than 480px; on a phone held either way it is left to screen readers, since the selected tab says it), admin pages (`PageHeader`) and the sign-in frames (`BrandFrame`) |
 | Tablet and phone mode switch | A bordered accent button in the drawer and sheet, a quiet row in the sidebar | Deliberate (§7). Revisit only with the owner, since phones were verified |

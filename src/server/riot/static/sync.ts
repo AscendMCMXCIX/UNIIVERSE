@@ -30,6 +30,12 @@ export interface StaticSyncResult {
   newChampions: string[];
   /** Skins added or updated (new champions, new skins, or a first fill of the table). */
   skinsUpserted?: number;
+  /**
+   * The per-champion detail files read at `version` (for skins) when the version changed, by
+   * champion id, so the champion abilities sync (Matchup Intel) uses them instead of reading them
+   * again. Not set when no detail file was read.
+   */
+  championDetails?: Map<string, DdragonChampionDetail>;
   error?: string;
 }
 
@@ -108,14 +114,15 @@ export async function syncStaticData(db: Db, provider: StaticDataProvider, optio
   const newChampions: string[] = [];
   const source = provider.name === "fixture" ? "fixture" : "ddragon";
 
-  // Each champion's skins (only when the version changed: one detail file per champion).
-  const skinsById = new Map<string, DdragonChampionDetail["skins"]>();
+  // Each champion's detail file (only when the version changed: one per champion), for its skins;
+  // kept for the champion abilities sync, which reads the same files.
+  const details = new Map<string, DdragonChampionDetail>();
   if (options.fingerprint !== false && provider.fetchChampionDetail && latest !== FIXTURE_VERSION) {
     const ids = list.champions.map((c) => c.id);
     await mapWithConcurrency(ids, options.concurrency ?? 6, async (id) => {
       try {
         const detail = await provider.fetchChampionDetail!(latest, id);
-        if (detail?.skins.length) skinsById.set(id, detail.skins);
+        if (detail) details.set(id, detail);
       } catch (err) {
         log(`Champion detail fetch failed for ${id}: ${(err as Error).message}`);
       }
@@ -152,7 +159,7 @@ export async function syncStaticData(db: Db, provider: StaticDataProvider, optio
       }
     }
 
-    for (const [championId, skins] of skinsById) await upsertSkins(tx, championId, skins, latest, now);
+    for (const [championId, detail] of details) if (detail.skins.length) await upsertSkins(tx, championId, detail.skins, latest, now);
 
     // Champions that vanished from the list are deactivated, never deleted (pools may reference them).
     const seen = list.champions.map((c) => c.id);
@@ -188,7 +195,8 @@ export async function syncStaticData(db: Db, provider: StaticDataProvider, optio
     changed: true,
     championsUpserted: list.champions.length,
     newChampions,
-    skinsUpserted: [...skinsById.values()].reduce((n, list) => n + list.length, 0),
+    skinsUpserted: [...details.values()].reduce((n, detail) => n + detail.skins.length, 0),
+    championDetails: details.size ? details : undefined,
   };
 }
 

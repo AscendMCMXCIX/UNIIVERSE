@@ -97,7 +97,8 @@ function InstallWindow({ onClose }: { onClose: () => void }) {
   const mobile = guide.kind === "android" || guide.kind === "ios";
   const offer = state.canPrompt && phase === "ready";
   // With the browser's offer, the window opens on Install (the browser still asks before
-  // installing); otherwise on Close, as every window does, ahead of the steps.
+  // installing); otherwise where every window puts the focus, ahead of the steps: the window itself
+  // after a tap or a click, Close from the keyboard (DetailModal).
   const confirm = React.useRef<HTMLButtonElement>(null);
   React.useEffect(() => {
     confirm.current?.focus();

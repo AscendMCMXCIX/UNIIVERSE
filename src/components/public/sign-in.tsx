@@ -65,7 +65,8 @@ function SignInWindow({ brand, onClose }: { brand: SignInBrand; onClose: () => v
   // words above the form step aside so the fields and Sign in stay in view together.
   const keyboard = useKeyboardFit(body);
   // Straight to the username once the window is open (the window's own opening would otherwise
-  // focus its close button). This runs after the window's showModal: a parent's effect runs after its children's.
+  // focus the window itself, or its close button from the keyboard). This runs after the window's
+  // showModal: a parent's effect runs after its children's.
   React.useEffect(() => {
     body.current?.querySelector<HTMLInputElement>("input[name=username]")?.focus();
   }, []);

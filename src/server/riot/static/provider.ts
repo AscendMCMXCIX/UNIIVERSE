@@ -56,7 +56,8 @@ export interface StaticDataProvider {
 export class StaticDataError extends Error {
   constructor(
     message: string,
-    public readonly kind: "network" | "schema" | "http",
+    /** "pin": the pinned version (DDRAGON_VERSION) is not a version, or not one Data Dragon lists. */
+    public readonly kind: "network" | "schema" | "http" | "pin",
     public readonly cause?: unknown,
   ) {
     super(message);
