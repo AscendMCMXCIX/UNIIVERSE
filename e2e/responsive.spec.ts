@@ -168,7 +168,11 @@ test("Settings: the account card leads, drawn in the order it is read, with Sign
   await expect(card.getByTestId("settings-username")).toHaveText(/^@\S/);
   await expect(card.getByTestId("settings-role")).toHaveText("Owner");
   expect(await card.getByTestId("settings-role").locator("span").first().getAttribute("class")).toContain("bg-surface-2");
-  await expect(card.getByRole("button", { name: "Add a picture" })).toBeVisible();
+  // "Add a picture" without one; with one (an earlier spec on this server may have saved it) "Change
+  // picture" and "Remove picture".
+  const picture = card.getByRole("button", { name: /^(Add a picture|Change picture)$/ });
+  await expect(picture).toBeVisible();
+  if ((await picture.textContent())?.startsWith("Change")) await expect(card.getByRole("button", { name: "Remove picture" })).toBeVisible();
   // Each field and its Save share one row: 44px on a phone and on a touch screen.
   for (const [form, label, save] of [
     ["display-name-form", "Display name", "Save display name"],
@@ -198,7 +202,7 @@ test("Settings: the account card leads, drawn in the order it is read, with Sign
     // A phone: the card above the sections; its quiet links right under who you are.
     expect((await card.boundingBox())!.y + (await card.boundingBox())!.height).toBeLessThanOrEqual((await page.locator("#name").boundingBox())!.y);
     const quiet = card.getByTestId("settings-actions").filter({ visible: true });
-    expect((await quiet.boundingBox())!.y).toBeLessThan((await card.getByRole("button", { name: "Add a picture" }).boundingBox())!.y);
+    expect((await quiet.boundingBox())!.y).toBeLessThan((await picture.boundingBox())!.y);
     // A link of the index jumps to its section through the router's history: under the top bar, and
     // Back from the next page comes back to it. Room under the last section, so the jump can land it
     // at the top.
