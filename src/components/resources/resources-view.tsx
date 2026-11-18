@@ -40,13 +40,15 @@ export function ResourcesView({ entries }: { entries: Resource[] }) {
 
   return (
     <div className="space-y-4">
-      {/* Phones: the search, then the index under it. Tablets: the same, the index scrolling sideways
-          when it does not fit, the count at its end. From lg, and on a phone held sideways (a window
-          480px tall or less from sm), one row. */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center sm:short:flex-row sm:short:items-center">
+      {/* Phones: the search, then the index under it, scrolling sideways (a ScrollRow); tablets the same,
+          the count at the index's end; a phone held sideways (from sm in a window 480px tall or less)
+          puts both on one row. From lg the index is whole wherever it is shown: beside the search where
+          the row has room for all of it and the count, else on a row of its own, and where even that
+          row is too narrow (1024px beside the open sidebar) its segments wrap onto a second line. */}
+      <div className="flex flex-col gap-3 sm:short:flex-row sm:short:items-center lg:flex-row lg:flex-wrap lg:items-center">
         <SearchInput value={query} onChange={setQuery} placeholder="Search resources" label="Search resources by name, site or description" testId="resources-search" className="sm:max-w-md lg:w-64 lg:max-w-none lg:shrink-0 sm:short:w-56 sm:short:max-w-none sm:short:shrink-0" />
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          <ScrollRow role="radiogroup" aria-label="Show" className={segmentedGroupClass("min-w-0")} data-testid="resources-index">
+        <div className="flex min-w-0 flex-1 items-center gap-3 lg:basis-auto">
+          <ScrollRow role="radiogroup" aria-label="Show" className={segmentedGroupClass("min-w-0 lg:flex-wrap lg:overflow-visible")} data-testid="resources-index">
             {index.map(({ key, label }) => {
               const on = filter === key;
               const n = count(key);
@@ -71,6 +73,12 @@ export function ResourcesView({ entries }: { entries: Resource[] }) {
         </div>
       </div>
 
+      {/* With nothing in the library, a phone says so on screen too (its live count is read out only). */}
+      {entries.length === 0 ? (
+        <p className="text-sm text-fg-muted sm:hidden" aria-hidden data-testid="resources-empty">
+          No resources yet.
+        </p>
+      ) : null}
       {entries.length > 0 && shown.length === 0 ? (
         filter === "favourites" && known && !entries.some((e) => favourites.has(e.id)) ? (
           <p className="text-sm text-fg-muted" data-testid="resources-favourites-empty">
@@ -90,7 +98,7 @@ export function ResourcesView({ entries }: { entries: Resource[] }) {
           {groups.map((g) => (
             <section key={g.key} className="min-w-0 sm:panel-depth sm:mb-3 sm:break-inside-avoid sm:overflow-hidden sm:rounded-panel sm:border sm:border-border sm:bg-surface" data-testid="resources-section-group" data-section={g.key}>
               <div className="flex items-baseline justify-between gap-3 border-b border-border bg-surface-2/40 px-3 py-1.5 sm:px-4">
-                <h2 className="min-w-0 text-sm font-semibold text-fg">
+                <h2 className="min-w-0 text-sm font-semibold text-fg md:text-base">
                   {g.label}
                 </h2>
                 <span className="text-xs tabular-nums text-fg-subtle">{formatCount(g.entries.length)}</span>
@@ -127,9 +135,9 @@ function ResourceRow({ resource: e, favourite, onToggle }: { resource: Resource;
               </span>
             </span>
           </span>
-          {/* Two lines at most (a longer one ends in "…": its whole text is read out, and shown on hover). */}
+          {/* Whole on a touch screen; with a mouse two lines at most, the rest shown on hover (and read out). */}
           {e.description ? (
-            <span className="mt-0.5 line-clamp-2 text-xs leading-snug text-fg-muted" title={e.description}>
+            <span className="mt-0.5 block text-xs leading-snug text-fg-muted pointer-fine:line-clamp-2" title={e.description}>
               {e.description}
             </span>
           ) : null}

@@ -133,7 +133,7 @@ test("every member finds the library in the sidebar: grouped by section, rows th
   }
 });
 
-test("the layout: one panel on a phone, a panel per section packed into columns wider; the title wraps, the host gives way", async ({ page }, info) => {
+test("the layout: one panel on a phone, a panel per section packed into columns wider; the title wraps, the host is cut first and ↗ is drawn; descriptions whole on a touch screen", async ({ page }, info) => {
   await blockFavicons(page);
   await page.goto("/resources");
   const list = page.getByTestId("resources-list");
@@ -141,44 +141,121 @@ test("the layout: one panel on a phone, a panel per section packed into columns 
   const groups = page.getByTestId("resources-section-group");
   await expect(groups).toHaveCount(5);
   const columns = await list.evaluate((el) => getComputedStyle(el).columnCount);
+  const heading = await groups.first().getByRole("heading", { level: 2 }).evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
   if (info.project.name === "phone") {
     // One panel: the list itself is the surface, its sections separated by hairlines.
     expect(columns).toBe("auto");
     expect(await list.evaluate((el) => getComputedStyle(el).borderTopWidth)).toBe("1px");
     expect(await groups.first().evaluate((el) => getComputedStyle(el).borderTopWidth)).toBe("0px");
+    expect(heading, "a phone's compact headings").toBe(14);
   } else {
-    // Two columns on a tablet, three from xl; each section a panel kept whole.
+    // Two columns on a tablet, three from xl; each section a panel kept whole, titled as a panel is.
     expect(columns).toBe(info.project.name === "desktop" ? "3" : "2");
     expect(await groups.first().evaluate((el) => [getComputedStyle(el).borderTopWidth, getComputedStyle(el).breakInside])).toEqual(["1px", "avoid"]);
-    // From lg the search, the index and the count share one row.
-    if (info.project.name === "desktop") {
-      const search = (await page.getByTestId("resources-search").boundingBox())!;
-      const count = (await page.getByTestId("resources-count").boundingBox())!;
-      expect(Math.abs(search.y + search.height / 2 - (count.y + count.height / 2))).toBeLessThanOrEqual(4);
-    }
+    expect(heading, "a panel's title from md").toBe(16);
   }
-  // A title is whole: it wraps rather than being cut; the host is the one cut short, and ↗ always shows.
+  // A title is whole: it wraps rather than being cut.
   const cut = await page.getByTestId("resource-title").evaluateAll((els) => els.filter((el) => el.scrollWidth > el.clientWidth + 1).length);
   expect(cut).toBe(0);
-  for (const host of await page.getByTestId("resource-host").all()) await expect(host).toContainText("↗");
+  // The host is the one cut short ("leagueofleg…"), its ↗ drawn whole inside the row, left of the star.
+  const news = row(page, "League of Legends news");
+  const host = news.getByTestId("resource-host");
+  const hostText = host.locator("span").first();
+  expect(await hostText.evaluate((el) => [getComputedStyle(el).textOverflow, getComputedStyle(el).whiteSpace, getComputedStyle(el).overflowX])).toEqual(["ellipsis", "nowrap", "hidden"]);
+  if (info.project.name === "phone") expect(await hostText.evaluate((el) => el.scrollWidth > el.clientWidth + 1), "the host cut on a phone").toBe(true);
+  for (const r of await rows(page).all()) {
+    const arrow = (await r.getByTestId("resource-host").locator("span").last().boundingBox())!;
+    const link = (await r.getByTestId("resource-link").boundingBox())!;
+    const star = (await r.getByTestId("resource-favourite").boundingBox())!;
+    expect(arrow.width, "↗ drawn").toBeGreaterThan(0);
+    expect(arrow.x + arrow.width, "↗ inside the row's link, left of the star").toBeLessThanOrEqual(Math.min(link.x + link.width, star.x) + 0.5);
+  }
+  // A description: whole on a touch screen (no hover shows the rest); two lines at most with a mouse, its whole text in its title.
+  const description = news.getByTestId("resource-link").locator("[title]");
+  const clamp = await description.evaluate((el) => getComputedStyle(el).webkitLineClamp);
+  if (info.project.name === "desktop") expect(clamp).toBe("2");
+  else {
+    expect(clamp).toBe("none");
+    for (const d of await page.locator("[data-testid=resource-link] [title]").all()) expect(await d.evaluate((el) => el.scrollHeight <= el.clientHeight + 1), "a description shown whole").toBe(true);
+  }
 });
 
-test("favourites: the ★ segment is drawn with the page, its count fills from this browser without moving the list, and it filters to the starred sites", async ({ page }) => {
+test("held sideways (from sm, 480px tall or less) the search and the index share a row over two columns; below sm one column", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "the phone's sizes");
+  await blockFavicons(page);
+  await page.setViewportSize({ width: 734, height: 343 });
+  await page.goto("/resources");
+  const list = page.getByTestId("resources-list");
+  await expect(list).toBeVisible();
+  expect(await list.evaluate((el) => getComputedStyle(el).columnCount), "two columns from sm").toBe("2");
+  const search = (await page.getByTestId("resources-search").boundingBox())!;
+  const index = (await page.getByTestId("resources-index").boundingBox())!;
+  expect(Math.abs(search.y + search.height / 2 - (index.y + index.height / 2)), "the search and the index on one row").toBeLessThanOrEqual(4);
+  // Just under sm (a 320pt iPhone held sideways is 568px wide): the upright phone's one panel.
+  await page.setViewportSize({ width: 600, height: 343 });
+  await expect.poll(() => list.evaluate((el) => getComputedStyle(el).columnCount)).toBe("auto");
+});
+
+test("from lg the index is whole wherever it is shown: beside the search when the row has room, else on a row of its own, wrapping only where even that is too narrow", async ({ browser, baseURL }, info) => {
+  test.skip(info.project.name !== "desktop", "laptops and desktops");
+  for (const sidebar of ["expanded", "collapsed"] as const) {
+    for (const width of [1024, 1280, 1366, 1440]) {
+      const context = await browser.newContext({ viewport: { width, height: 800 } });
+      await context.addCookies([
+        { name: "uniiverse_view", value: "player", url: baseURL! },
+        { name: "uniiverse_sidebar", value: sidebar, url: baseURL! },
+      ]);
+      const page = await context.newPage();
+      try {
+        await blockFavicons(page);
+        await page.goto("/resources");
+        const index = page.getByTestId("resources-index");
+        await expect(index).toBeVisible();
+        for (const chosen of [null, "esports"]) {
+          if (chosen) await choose(page, segment(page, chosen));
+          const where = `${width}, sidebar ${sidebar}${chosen ? `, ${chosen} chosen` : ""}`;
+          // Nothing of the index hidden sideways, and every segment inside the page.
+          expect(await index.evaluate((el) => el.scrollWidth - el.clientWidth), `${where}: the index whole`).toBeLessThanOrEqual(0);
+          const right = await page.evaluate(() => document.documentElement.clientWidth);
+          for (const seg of await index.getByRole("radio").all()) expect((await seg.boundingBox())!.x + (await seg.boundingBox())!.width, where).toBeLessThanOrEqual(right);
+          await expect(page.getByTestId("resources-count")).toBeVisible();
+        }
+      } finally {
+        await context.close();
+      }
+    }
+  }
+});
+
+test("favourites: the ★ segment is drawn with the page, its count fills from this browser without moving the segment or the list, and it filters to the starred sites", async ({ page }) => {
   await blockFavicons(page);
   // The server's page: the ★ segment is there with an empty slot of the count's width.
   const html = await (await page.request.get("/resources")).text();
   expect(html).toContain('data-testid="resources-index-favourites"');
   // Its count's slot is empty there: favourites are read from the browser.
   expect(html).toMatch(/data-testid="resources-index-favourites"[^]*?data-testid="resources-index-count"><\/span>/);
+  // The server's ★ segment, measured as drawn before any of the page's code runs (its scripts held
+  // back, its stylesheet loaded; the streamed HTML still shows): its empty slot as wide as the count
+  // that fills it.
+  const scripts = /\/_next\/static\/chunks\/[^?]*\.js(\?|$)/;
+  await page.route(scripts, (route) => route.abort());
   await page.goto("/resources");
   const star = segment(page, "favourites");
   const count = star.getByTestId("resources-index-count");
-  // Once the page has read this browser: none yet.
+  await expect(star).toBeVisible();
+  await expect(count).toHaveText("");
+  const server = (await star.boundingBox())!;
+  const serverFirst = await rows(page).first().evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
+  await page.unroute(scripts);
+  await page.goto("/resources");
+  // Once the page has read this browser: none yet, in a slot of the same width.
   await expect(count).toHaveText("0");
   await expect(star).toBeVisible();
+  expect(Math.abs((await star.boundingBox())!.width - server.width), "the ★ segment as wide as the server drew it").toBeLessThanOrEqual(0.5);
   // Where the first row sits in the page (not the window: tapping a star lower down scrolls it).
   const firstTop = () => rows(page).first().evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
   const before = { star: (await star.boundingBox())!, first: await firstTop() };
+  expect(Math.abs(before.first - serverFirst), "the list where the server drew it").toBeLessThanOrEqual(0.5);
   const toggle = row(page, "LoLalytics ARAM").getByTestId("resource-favourite");
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-pressed", "true");
