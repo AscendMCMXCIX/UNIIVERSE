@@ -25,18 +25,27 @@ const sizes: Record<ButtonSize, string> = {
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
+  /**
+   * On a phone, a label that a larger text size makes too long for the line wraps, and the button
+   * grows with it rather than letting it spill (at the usual size it is one line, 44px, as before).
+   * For a label that can be long beside little room: a form's Save, say.
+   */
+  wrap?: boolean;
 }
+
+/** `wrap`: the height follows the label on a phone (its 44px minimum stays), the lines centred. */
+const WRAP = "max-sm:h-auto max-sm:whitespace-normal max-sm:py-2 max-sm:text-center";
 
 /** The button look for anything else (a Link), so links never wrap buttons. */
 export function buttonClass(variant: ButtonVariant = "secondary", size: ButtonSize = "md", className?: string): string {
   return withDefaults(cn("inline-flex items-center justify-center gap-1.5 whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-accent", variants[variant], sizes[size]), className);
 }
 
-export function Button({ className, variant = "secondary", size = "md", type = "button", ...props }: ButtonProps) {
+export function Button({ className, variant = "secondary", size = "md", type = "button", wrap = false, ...props }: ButtonProps) {
   return (
     <button
       type={type}
-      className={withDefaults(cn("inline-flex items-center justify-center gap-1.5 whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-accent", variants[variant], sizes[size]), className)}
+      className={withDefaults(cn("inline-flex items-center justify-center gap-1.5 whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-accent", variants[variant], sizes[size], wrap && WRAP), className)}
       {...props}
     />
   );

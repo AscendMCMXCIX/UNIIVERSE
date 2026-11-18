@@ -71,7 +71,7 @@ export function DisplayNameEditor({ displayName }: { displayName: string }) {
         </p>
       </div>
       {/* On a phone a label that a larger text size makes too long wraps, rather than running off the screen. */}
-      <Button type="submit" variant="outline" className="mt-5 max-sm:whitespace-normal" disabled={busy || !changed || !!local}>
+      <Button type="submit" variant="outline" className="mt-5" wrap disabled={busy || !changed || !!local}>
         {busy ? "Saving…" : "Save display name"}
       </Button>
     </form>
@@ -119,7 +119,7 @@ export function UsernameEditor({ username }: { username: string }) {
           {shown ?? "What you sign in with. Not case-sensitive. Teammates see your display name, not this."}
         </p>
       </div>
-      <Button type="submit" variant="outline" className="mt-5 max-sm:whitespace-normal" disabled={busy || !changed || !!local}>
+      <Button type="submit" variant="outline" className="mt-5" wrap disabled={busy || !changed || !!local}>
         {busy ? "Saving…" : "Save username"}
       </Button>
     </form>
@@ -137,7 +137,7 @@ export function AvatarEditor({ name, src }: { name: string; src: string | null }
     <div className="flex flex-wrap items-center gap-4" data-testid="avatar-editor">
       <Avatar name={name} src={src} size="xl" />
       <div className="flex flex-wrap gap-2">
-        <Button variant="outline" onClick={choose} className="max-sm:whitespace-normal">
+        <Button variant="outline" onClick={choose} wrap>
           <Camera className="h-4 w-4" /> {src ? "Change picture" : "Add a picture"}
         </Button>
         {src ? (

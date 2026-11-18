@@ -21,9 +21,10 @@ import path from "node:path";
     arbitrary shadow made of var(--color-accent), or the shorthand shadow-(color:--color-accent)):
     shadows are neutral and violet (accent-2) carries the light; a selected item's blue edge is a
     ring (DESIGN_SYSTEM.md §4).
-  - a text field's 16px dropping to 14px from md on every screen (md:text-sm beside text-base in a
-    field's classes): iOS zooms the page into a focused field under 16px, so a field's 14px is for a
-    mouse only (md:pointer-fine:text-sm; docs/RESPONSIVE.md → Primitives).
+  - a text field's 16px dropping below it from a breakpoint on every screen (sm:text-sm, md:text-xs
+    and the like beside text-base in a field's classes): iOS zooms the page into a focused field
+    under 16px, so a field's smaller text is for a mouse only (md:pointer-fine:text-sm;
+    docs/RESPONSIVE.md → Primitives).
   Arbitrary values that match no token (a clamp(), a one-off width) stay allowed.
 */
 
@@ -140,7 +141,10 @@ export function tokenProblems(source: string, tokens: Map<string, string>, optio
     for (const m of text.matchAll(/(["'`])([^"'`]*\btext-base\b[^"'`]*)\1/g)) {
       const classes = m[2]!.split(/\s+/).filter(Boolean);
       if (!classes.some((c) => c.startsWith("placeholder:") || c.startsWith("focus:"))) continue;
-      if (classes.includes("md:text-sm")) problems.push(`${at}: md:text-sm on a 16px field; use md:pointer-fine:text-sm (iOS zooms into a focused field under 16px on a touch screen)`);
+      for (const c of classes) {
+        const m = /^(sm|md|lg|xl|2xl):text-(xs|sm)$/.exec(c);
+        if (m) problems.push(`${at}: ${c} on a 16px field; use ${m[1]}:pointer-fine:text-${m[2]} (iOS zooms into a focused field under 16px on a touch screen)`);
+      }
     }
     // An arbitrary max(gutter, inset) padding for the top or bottom edge that a safe-area utility writes.
     for (const m of text.matchAll(/(?<![\w-])(pt|pb)-\[max\(([^,\]]+),env\(safe-area-inset-(top|bottom)\)\)\]/g)) {
@@ -193,7 +197,7 @@ describe("design tokens", () => {
       `<div className="pb-[max(1rem,env(safe-area-inset-bottom))] max-sm:pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-top))] pb-[max(0.6rem,env(safe-area-inset-bottom))] pb-[calc(1rem+env(safe-area-inset-bottom))]" />`,
       `<p className="shadow-accent/15 hover:shadow-accent drop-shadow-accent shadow-accent-strong shadow-[0_0_60px_-20px_var(--color-accent)] shadow-accent-2 shadow-black/40 shadow-[0_0_60px_-20px_var(--color-accent-2)] ring-1 ring-inset ring-accent/40" />`,
       `<p className="shadow-(color:--color-accent) inset-shadow-(color:--color-accent-strong)/30 drop-shadow-(--color-accent) shadow-(color:--color-accent-2) shadow-(--my-shadow)" />`,
-      `<input className="h-11 text-base placeholder:text-fg-subtle md:text-sm" /><input className="text-base focus:outline-none md:pointer-fine:text-sm" /><p className="text-base md:text-sm" />`,
+      `<input className="h-11 text-base placeholder:text-fg-subtle md:text-sm" /><input className="text-base focus:outline-none md:pointer-fine:text-sm sm:pointer-fine:text-xs" /><p className="text-base md:text-sm" /><input className="text-base placeholder:text-fg-subtle sm:text-xs" />`,
     ].join("\n");
     expect(tokenProblems(source, tokens)).toEqual([
       "1: text-[11px] is text-2xs",
@@ -230,6 +234,7 @@ describe("design tokens", () => {
       "9: inset-shadow-(color:--color-accent-strong)/30 is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
       "9: drop-shadow-(--color-accent) is a blue glow or shadow; use a neutral shadow (shadow-black/40), or violet (accent-2) for light",
       "10: md:text-sm on a 16px field; use md:pointer-fine:text-sm (iOS zooms into a focused field under 16px on a touch screen)",
+      "10: sm:text-xs on a 16px field; use sm:pointer-fine:text-xs (iOS zooms into a focused field under 16px on a touch screen)",
     ]);
   });
 });

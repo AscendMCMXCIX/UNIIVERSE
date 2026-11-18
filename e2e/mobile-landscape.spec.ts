@@ -280,7 +280,10 @@ test("with larger text the tab bar still fits the phone: the icons alone once th
     }, root);
     await page.evaluate(() => document.fonts.ready);
     // Each destination keeps its name (its label, read even where only the icon shows).
-    await expect(bar.getByRole("link"), where).toHaveText(["Team", "Players", "Leaderboards", "Matches", "Profile"]);
+    // Each destination keeps its name for screen readers: its accessible name, whether the label
+    // shows or is left to them (sr-only, never removed).
+    const links = bar.getByRole("link");
+    for (const [i, name] of ["Team", "Players", "Leaderboards", "Matches", "Profile"].entries()) await expect(links.nth(i), where).toHaveAccessibleName(name);
     await expect(async () => {
       expect(await page.evaluate(() => window.innerWidth), `${where}: the page as wide as the phone`).toBe(viewport.width);
       for (const tab of await bar.getByRole("link").all()) {

@@ -74,7 +74,8 @@ export function SocialLinksFields({ draft, onChange, disabled = false, idPrefix 
       {/* <div>, not <p>: SocialChips is a list, which a paragraph cannot hold (the browser would close
           the paragraph early and the page would fail to hydrate). */}
       <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-bg/40 px-2.5 py-2 text-xs text-fg-muted" data-testid="social-links-preview">
-        <span className="shrink-0">Shown to teammates and on the public team page:</span>
+        {/* Wraps like any sentence: at one line it ran past a 320px phone's edge, even at the usual text size. */}
+        <span>Shown to teammates and on the public team page:</span>
         {shown.length ? <SocialChips links={shown} /> : <span className="text-fg-subtle">nothing</span>}
       </div>
     </div>
@@ -127,7 +128,7 @@ export function SocialLinksEditor({ initial, preview = false }: { initial: Socia
       {preview ? (
         <p className="text-xs text-fg-subtle">Preview: nothing is saved here.</p>
       ) : (
-        <Button type="submit" variant="outline" disabled={busy || !changed || invalid} data-testid="social-links-save">
+        <Button type="submit" variant="outline" wrap disabled={busy || !changed || invalid} data-testid="social-links-save">
           {busy ? "Saving…" : "Save social links"}
         </Button>
       )}

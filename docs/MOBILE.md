@@ -44,7 +44,7 @@ anywhere else:
    With a larger text size, once the five labels no longer fit (they need 19.1rem under their
    icons, 33.2rem beside them in a short window), each destination shows its icon alone and the
    label stays its name for screen readers: a container query in rem on the bar, so the page never
-   becomes wider than the phone (it did at 125% text on a 320px phone until 18 Nov 2026).
+   becomes wider than the phone (it did at 125% text on a 320px phone before #300).
    Tapping the current tab on its own page goes back to the top, and so does tapping the page's
    title once it has moved into the top bar (docs/DESIGN_SYSTEM.md, "The navigation contract").
 3. **The account screen** (from the avatar: a screen of its own that rises over the page,
@@ -261,8 +261,9 @@ account screen is a screen of its own instead (`size="screen"`, above). A sheet:
   by a tap where it is drawn, the close button sits below the status bar at the top right, the
   screen has the focus and the page never moves, and nothing in it ends under the home indicator;
   a username far longer than the name wraps on the narrowest phones; its close button's touch area
-  of 44px; held sideways at 100%, 125%, 150% and 200% text, upright at 150% and at 200% on a 320px phone, and in a page zoomed
-  to 150% sideways, one scroll region in which every control can be shown whole; on a page pinched
+  of 44px; held sideways at 100%, 125%, 150% and 200% text, upright at 150%, and at 200% on a
+  320px phone in Player Mode, and in a page zoomed to 150% sideways, one scroll region in which
+  every control can be shown whole; on a page pinched
   to zoom, a finger's drag pans the zoomed view; no frame of its motion more than 1rem from where it
   rests, at rest with every animation held at its first frame, at once with reduced motion; a page
   scrolled from script while it is open is put back; the account dropdown's rows 44px tall on a
