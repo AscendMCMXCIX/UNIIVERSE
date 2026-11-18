@@ -348,6 +348,74 @@ test("filters open in a sheet; what is narrowed shows as chips beside Filters, a
   await expect(chip).toHaveCount(0);
 });
 
+/** Scrolls to the page's end by steps, as a reader does, so the observers see the way down. */
+async function scrollToEnd(page: Page) {
+  await page.evaluate(async () => {
+    for (let at = window.scrollY; at < document.documentElement.scrollHeight; at += 240) {
+      window.scrollTo(0, at);
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+    }
+    window.scrollTo(0, document.documentElement.scrollHeight);
+  });
+}
+
+test("once the page's own Filters has scrolled away, the top bar offers it: 44px, named with what is chosen, opening the sheet; Done after a change brings the first game under the bars", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto(`/players/${await idOf(page, "TOP")}/matches`);
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  const filters = page.getByTestId("topbar-filters");
+  // At the top the page's own Filters is in view: the bar has none.
+  await expect(filters).toHaveCount(0);
+  await scrollToEnd(page);
+  await expect(filters).toBeVisible();
+  await expect(filters).toHaveAccessibleName(/^Filters: Season \d{4} · All supported games/);
+  const box = (await filters.boundingBox())!;
+  expect([Math.round(box.width), Math.round(box.height)]).toEqual([44, 44]);
+  await filters.click();
+  const sheet = page.getByTestId("filter-sheet");
+  await expect(sheet).toBeVisible();
+  await sheet.getByLabel("Game mode").selectOption("solo");
+  await expect(page).toHaveURL(/mode=solo/);
+  await sheet.getByTestId("filter-sheet-done").click();
+  await expect(sheet).toHaveCount(0);
+  // The new list starts at its first game, just under the top bar (with the profile's sections in it).
+  const bar = page.getByTestId("mobile-topbar");
+  await expect
+    .poll(async () => {
+      const first = await page.getByTestId("match-card").first().boundingBox();
+      const under = (await bar.boundingBox())!;
+      return first ? Math.round(first.y - (under.y + under.height)) : null;
+    }, { message: "the first game just under the bars" })
+    .toBeGreaterThanOrEqual(0);
+  const first = (await page.getByTestId("match-card").first().boundingBox())!;
+  const under = (await bar.boundingBox())!;
+  expect(Math.round(first.y - (under.y + under.height))).toBeLessThanOrEqual(12);
+  // Still offered (the page's own Filters is above), now counting the narrowed filter, and focused again.
+  await expect(filters).toBeFocused();
+  await expect(filters).toContainText("1");
+});
+
+test("the top bar's Filters never makes the page wider than the phone: 320px, and 200% text on 320px", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  for (const root of [100, 200]) {
+    await page.goto("/players");
+    if (root !== 100) await page.addStyleTag({ content: `html { font-size: ${root}% !important; }` });
+    await expect(page.getByTestId("players-directory")).toBeVisible();
+    await scrollToEnd(page);
+    const filters = page.getByTestId("topbar-filters");
+    await expect(filters, `${root}% text`).toBeVisible();
+    const fit = await page.evaluate(() => {
+      const bar = document.querySelector<HTMLElement>("[data-testid=mobile-topbar]")!;
+      const row = bar.firstElementChild as HTMLElement;
+      const button = document.querySelector("[data-testid=topbar-filters]")!.getBoundingClientRect();
+      return { page: document.documentElement.scrollWidth, row: row.scrollWidth - row.clientWidth, right: Math.round(button.right) };
+    });
+    expect(fit.page, `${root}% text: the page`).toBeLessThanOrEqual(320);
+    expect(fit.row, `${root}% text: the bar's row`).toBeLessThanOrEqual(1);
+    expect(fit.right, `${root}% text: Filters on screen`).toBeLessThanOrEqual(320);
+  }
+});
+
 test("a game opens as a whole screen of its own; Back closes it and the list is as it was", async ({ page }) => {
   await page.goto(`/players/${await idOf(page, "TOP")}/matches`);
   await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");

@@ -95,6 +95,29 @@ test.describe("accessibility", () => {
     }
   });
 
+  test("with a page's compact controls in the pinned row, pages have no critical or serious violations", async ({ page }) => {
+    test.setTimeout(120_000);
+    // Short enough for each toolbar to scroll away, tall enough for the tabs to pin.
+    await page.setViewportSize({ width: 1440, height: 600 });
+    await page.goto("/players");
+    const teammate = await page.locator("main a[data-testid='player-card'][data-player-name='Demo Mid']").getAttribute("href");
+    // The demo's Players and All Champions (nine players, eight champions) fit this window whole, so
+    // their rows never need their compact controls; every other page with them is here.
+    for (const route of ["/matches", "/leaderboards?view=records", teammate!, `${teammate}/matches`, `${teammate}/matches?view=encounters`]) {
+      await page.goto(route);
+      await page.waitForLoadState("networkidle");
+      await page.evaluate(async () => {
+        for (let at = 0; at < document.documentElement.scrollHeight; at += 240) {
+          window.scrollTo(0, at);
+          await new Promise((r) => requestAnimationFrame(() => r(null)));
+        }
+        window.scrollTo(0, document.documentElement.scrollHeight);
+      });
+      await expect(page.getByTestId("page-toolbar"), route).toBeVisible();
+      await audit(page, `${route} with the pinned row's controls`);
+    }
+  });
+
   test("every control the keyboard reaches shows the same focus ring", async ({ page }) => {
     // The accent outline of the shared controls (globals.css), on links and hand-made buttons too:
     // never the browser's own ring, which differs between browsers, and never none. A text field

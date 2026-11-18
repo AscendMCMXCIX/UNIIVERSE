@@ -10,7 +10,10 @@ import { expect, test, type Locator, type Page } from "./test";
       them, never behind them; the tablet's menu is a modal dialog: focus stays inside, the page
       behind is inert, and Escape returns focus to the menu button;
     - the installed app on a tablet has no browser Back, so a page reached from another (a
-      teammate's profile) gets Back in the top bar there.
+      teammate's profile) gets Back in the top bar there;
+    - a long page's own controls stay in reach (PR 2b): from md, once the tabs are pinned and the
+      page's toolbar has gone up under them, the row offers the page's compact controls without
+      growing, its Filters opening the sheet; nothing in a short window.
   In-memory demo roster.
 */
 
@@ -326,6 +329,135 @@ test("tablet and desktop: a profile's sections stay in reach, and All Champions'
   await page.setViewportSize({ width: width(page), height: 420 });
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await expect.poll(async () => (await rect(tabs)).top).toBeLessThan(barBottom);
+});
+
+/** The pinned row's compact controls (PageToolbar), drawn only while they show. */
+const pageToolbar = (page: Page) => page.getByTestId("page-toolbar");
+
+/** Scrolls by steps, as a reader does, so the observers see every place on the way. */
+async function scrollTo(page: Page, y: number | "end") {
+  await page.evaluate(async (y) => {
+    const end = y === "end" ? document.documentElement.scrollHeight : y;
+    const step = end > window.scrollY ? 240 : -240;
+    for (let at = window.scrollY; step > 0 ? at < end : at > end; at += step) {
+      window.scrollTo(0, at);
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+    }
+    window.scrollTo(0, end);
+  }, y);
+}
+
+test("tablet and desktop: once the pinned row is pinned and the page's own toolbar has gone up under it, the row offers the page's controls, and keeps its height", async ({ page }) => {
+  test.skip(isPhone(page), "phones offer Filters in the top bar (mobile-nav.spec.ts)");
+  const profile = await teammate(page);
+  await page.goto(`${profile}/matches`);
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  const tabs = page.getByTestId("profile-tabs");
+  const resting = await rect(tabs);
+  // At rest, and pinned while the toolbar is still in view: nothing in the row.
+  await expect(pageToolbar(page)).toHaveCount(0);
+  const toolbar = page.getByTestId("match-history").getByTestId("section-toolbar");
+  const toolbarTop = await toolbar.evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
+  await scrollTo(page, Math.max(0, Math.round(toolbarTop - resting.height - 80)));
+  await page.waitForTimeout(300);
+  if (await tabs.getAttribute("data-stuck").then((v) => v !== null)) await expect(pageToolbar(page)).toHaveCount(0);
+  // Past it: Games | Encounters and Filters, in the row, which is as tall as at rest.
+  await scrollTo(page, "end");
+  await expect(tabs).toHaveAttribute("data-stuck", "");
+  await expect(pageToolbar(page)).toBeVisible();
+  expect(await pageToolbar(page).evaluate((el) => !!el.closest("[data-testid=profile-tabs]"))).toBe(true);
+  await expect(page.getByTestId("toolbar-match-view-games")).toHaveAttribute("aria-current", "page");
+  await expect(page.getByTestId("toolbar-match-view-encounters")).toBeVisible();
+  await expect(page.getByTestId("toolbar-filters")).toBeVisible();
+  expect((await rect(tabs)).height, "the pinned row keeps its height").toBe(resting.height);
+  // Every compact control within the row's box.
+  const inside = await tabs.evaluate((nav) => {
+    const box = nav.getBoundingClientRect();
+    return [...nav.querySelectorAll("[data-page-toolbar] :is(a, button, input)")].every((el) => {
+      const r = el.getBoundingClientRect();
+      return r.top >= box.top - 0.5 && r.bottom <= box.bottom + 0.5 && r.right <= box.right + 0.5;
+    });
+  });
+  expect(inside, "the controls fit in the row").toBe(true);
+  // Back up at the toolbar: the copies go, so nothing hidden stays to be tabbed to.
+  await scrollTo(page, 0);
+  await expect(pageToolbar(page)).toHaveCount(0);
+  await expect(page.locator("[data-page-toolbar-slot] :is(a, button, input)")).toHaveCount(0);
+});
+
+test("tablet and desktop: in a short window nothing is pinned, so the row offers nothing", async ({ page }) => {
+  test.skip(isPhone(page), "the pinned row is from md");
+  const profile = await teammate(page);
+  await page.setViewportSize({ width: width(page), height: 420 });
+  await page.goto(`${profile}/matches`);
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  await scrollTo(page, "end");
+  await page.waitForTimeout(400);
+  await expect(page.getByTestId("profile-tabs")).not.toHaveAttribute("data-stuck", /.*/);
+  await expect(pageToolbar(page)).toHaveCount(0);
+});
+
+test("tablet and desktop: from the end of Match History the pinned row's Filters opens the filter sheet, the row in the page keeping its height, and focus comes back to it", async ({ page }) => {
+  test.skip(isPhone(page), "phones offer Filters in the top bar (mobile-nav.spec.ts)");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const profile = await teammate(page);
+  await page.goto(`${profile}/matches`);
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  const header = page.getByTestId("match-history").getByTestId("section-toolbar");
+  const before = await rect(header);
+  await scrollTo(page, "end");
+  const filters = page.getByTestId("toolbar-filters");
+  await expect(filters).toBeVisible();
+  const scrolled = await page.evaluate(() => window.scrollY);
+  await filters.click();
+  const sheet = page.getByTestId("filter-sheet");
+  await expect(sheet).toBeVisible();
+  // The sheet's form at this width too: the game mode and Refine's fields in it, each with its label.
+  await expect(sheet.getByLabel("Game mode")).toBeVisible();
+  await expect(sheet.getByTestId("refine-filters")).toHaveCount(0);
+  await expect(sheet.getByTestId("refine-panel")).toBeVisible();
+  // The page behind does not move, and its toolbar keeps its size while its fields are in the sheet.
+  expect(await page.evaluate(() => window.scrollY)).toBe(scrolled);
+  expect((await rect(header)).height).toBe(before.height);
+  await sheet.getByTestId("filter-sheet-done").click();
+  await expect(sheet).toHaveCount(0);
+  await expect(filters).toBeFocused();
+  expect(await page.evaluate(() => window.scrollY)).toBe(scrolled);
+});
+
+test("tablet and desktop: closing the sheet after a change brings the list's first game under the pinned tabs", async ({ page }) => {
+  test.skip(isPhone(page), "phones: mobile-nav.spec.ts");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const profile = await teammate(page);
+  await page.goto(`${profile}/matches`);
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  await scrollTo(page, "end");
+  await page.getByTestId("toolbar-filters").click();
+  const sheet = page.getByTestId("filter-sheet");
+  await sheet.getByLabel("Game mode").selectOption("solo");
+  await expect(page).toHaveURL(/mode=solo/);
+  await sheet.getByTestId("filter-sheet-done").click();
+  await expect(sheet).toHaveCount(0);
+  const tabs = page.getByTestId("profile-tabs");
+  await expect.poll(async () => {
+    const first = await page.getByTestId("match-card").first().boundingBox();
+    return first ? Math.round(first.y - (await rect(tabs)).bottom) : null;
+  }, { message: "the first game just under the pinned tabs" }).toBeGreaterThanOrEqual(0);
+  const gap = Math.round((await page.getByTestId("match-card").first().boundingBox())!.y - (await rect(tabs)).bottom);
+  expect(gap).toBeLessThanOrEqual(12);
+});
+
+test("tablet and desktop: Records → Recent form from the pinned row", async ({ page }) => {
+  test.skip(isPhone(page), "the pinned row is from md");
+  await page.goto("/leaderboards?view=records");
+  await expect(page.getByTestId("records")).toBeVisible();
+  await scrollTo(page, "end");
+  const form = page.getByTestId("toolbar-leaderboards-tab-form");
+  await expect(form).toBeVisible();
+  await expect(page.getByTestId("toolbar-leaderboards-tab-records")).toHaveAttribute("aria-current", "page");
+  await form.click();
+  await expect(page).not.toHaveURL(/view=records/);
+  await expect(page.getByTestId("leaderboards-tab-form")).toHaveAttribute("aria-current", "page");
 });
 
 test("tablet: the menu is a modal dialog: focus stays inside, the page behind is inert, and Escape returns focus to the menu button", async ({ page }) => {

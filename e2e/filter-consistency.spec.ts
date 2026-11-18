@@ -81,6 +81,44 @@ test("every filter bar folds on phones and lines up on wide screens", async ({ p
   await checkBar(page, page.getByTestId("together-filters"), "together-filters-toggle");
 });
 
+test("opened from the pinned row at desktop width, the sheet labels every field and holds the only copy of each id", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "the pinned row's sheet at a desktop's width");
+  // A window short enough for each page to scroll its toolbar away, tall enough to pin. (The demo's
+  // Players and All Champions, nine players and eight champions, fit it whole: their rows never need
+  // their compact controls at this width.)
+  await page.setViewportSize({ width: 1440, height: 560 });
+  await page.goto("/players");
+  const card = page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']");
+  const profile = new URL((await card.getAttribute("href"))!, "http://x").pathname;
+  for (const [path, sheetId] of [
+    [profile, "filter-sheet"],
+    [`${profile}/matches`, "filter-sheet"],
+    ["/matches", "together-filters-sheet"],
+  ] as const) {
+    await page.goto(path);
+    await page.waitForLoadState("networkidle");
+    await page.evaluate(async () => {
+      for (let at = 0; at < document.documentElement.scrollHeight; at += 240) {
+        window.scrollTo(0, at);
+        await new Promise((r) => requestAnimationFrame(() => r(null)));
+      }
+      window.scrollTo(0, document.documentElement.scrollHeight);
+    });
+    await page.getByTestId("toolbar-filters").click();
+    const sheet = page.getByTestId(sheetId);
+    await expect(sheet, path).toBeVisible();
+    // Every field's label shows (not left to screen readers as in the inline row), above its field.
+    const labels = await sheet.locator("[data-filter-controls] [data-filter-label]").evaluateAll((els) => els.map((el) => ({ text: (el.textContent ?? "").trim(), w: el.getBoundingClientRect().width, h: el.getBoundingClientRect().height })));
+    expect(labels.length, `${path}: labels`).toBeGreaterThan(0);
+    for (const l of labels) expect(l.w > 1 && l.h > 1, `${path}: the label "${l.text}" shows`).toBe(true);
+    // One copy of each id on the page: the fields are in the sheet, not also in the row.
+    const ids = await page.evaluate(() => [...document.querySelectorAll("[id]")].map((e) => e.id).filter((id, i, all) => all.indexOf(id) !== i));
+    expect(ids, `${path}: ids found twice`).toEqual([]);
+    await page.keyboard.press("Escape");
+    await expect(sheet).toHaveCount(0);
+  }
+});
+
 test("Reset appears only when something is narrowed and puts every filter back", async ({ page }, info) => {
   test.skip(info.project.name === "tablet", "runs on phone and desktop");
   // Team → Matches: the game mode and the team members in the game are filters with defaults.
