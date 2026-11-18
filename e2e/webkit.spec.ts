@@ -303,6 +303,54 @@ test("Match History: a tap on a game's LP dash says why it has no figure, on scr
   await expect(page.getByTestId("match-breakdown")).toHaveCount(0);
 });
 
+test("Match History: once the page's own Filters has scrolled away, the top bar's Filters (44px) opens the filter sheet with a tap; a choice and Done bring the first game under the bars", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/team");
+  const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
+  await page.goto(`/players/${id}/matches`);
+  await expect(page.locator("[data-testid='match-history'][data-ready]")).toBeVisible();
+  const filters = page.getByTestId("topbar-filters");
+  // Down the list by steps, as a reader scrolls, so the observers see the way down.
+  const toEnd = () =>
+    page.evaluate(async () => {
+      for (let at = window.scrollY; at < document.documentElement.scrollHeight; at += 240) {
+        window.scrollTo(0, at);
+        await new Promise((r) => requestAnimationFrame(() => r(null)));
+      }
+      window.scrollTo(0, document.documentElement.scrollHeight);
+    });
+  await toEnd();
+  await expect(filters).toBeVisible();
+  expect(Math.round((await filters.boundingBox())!.height)).toBe(44);
+  await fitsWidth(page, "the top bar with Filters");
+  // Back at the top the page's own Filters is in view again, and the bar's goes.
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(filters).toHaveCount(0);
+  await toEnd();
+  await filters.tap();
+  const sheet = page.getByTestId("filter-sheet");
+  await expect(sheet).toBeVisible();
+  await sheet.getByTestId("refine-result").getByRole("radio", { name: "Wins" }).tap();
+  await expect(page).toHaveURL(/result=win/);
+  await sheet.getByTestId("filter-sheet-done").tap();
+  await expect(sheet).toHaveCount(0);
+  // The new list starts at its first game, just under the top bar, or as near it as the page's end allows.
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const first = document.querySelector("[data-testid=match-card]")!.getBoundingClientRect();
+          const bar = document.querySelector("[data-testid=mobile-topbar]")!.getBoundingClientRect();
+          const gap = Math.round(first.top - bar.bottom);
+          return gap >= 0 && (gap <= 12 || window.scrollY >= document.documentElement.scrollHeight - window.innerHeight - 1);
+        }),
+      { message: "the first game just under the bars" },
+    )
+    .toBe(true);
+  await expect(filters.locator("span:not(.sr-only)")).toHaveText("1");
+  await fitsWidth(page, "the top bar with Filters and its count");
+});
+
 test("Encounters: each player's records sit under the name with their side in words, and a player met both ways opens with the games filtered by side", async ({ page }) => {
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-SUPPORT").getAttribute("data-player-id"))!;

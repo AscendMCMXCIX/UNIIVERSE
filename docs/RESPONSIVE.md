@@ -410,6 +410,9 @@ Three levels, each saying what it proves:
   - the priority pages load with no page error (hydration included) and no sideways scrolling;
   - Team's card track and role tabs, by tap;
   - a teammate's profile sections and a champion's window;
+  - the top bar's Filters on Match History (PR 2b): gone at the top, offered once the page's own has
+    scrolled away, 44px, a tap opens the filter sheet, and a choice and Done bring the first game
+    under the bars, its count shown;
   - the Card Studio's section list, a palette and Cancel;
   - the account screen: one tap opens it, at rest it fills the screen exactly with nothing in it
     scrolling, every control a row at least 48px tall reached by a tap where it is drawn, the screen
