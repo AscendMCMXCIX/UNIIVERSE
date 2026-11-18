@@ -1,4 +1,5 @@
 import { devices, expect, test, type Locator, type Page } from "./test";
+import { lineupAtRest } from "./lineup";
 import { emulateKeyboard, keyboard } from "./keyboard";
 import { expectClearCorner } from "./modal-corner";
 import { besideAMark } from "./match-history";
@@ -38,6 +39,8 @@ test("the priority pages load without an error and without sideways scrolling", 
 test("Team Overview: the cards are one sideways track, a role tab brings its card into view, and names are whole", async ({ page }) => {
   await page.goto("/team");
   await expect(page.getByTestId("lineup-cell")).toHaveCount(5);
+  // Measured once the lineup is laid out and at rest (it streams in: e2e/lineup.ts).
+  await lineupAtRest(page);
   await fitsWidth(page, "/team");
   const pager = page.getByTestId("lineup-pager");
   // A tap before the page is interactive does nothing: tap until the track has moved. The tab's job
@@ -484,6 +487,7 @@ test("held sideways: the pages fit, the tab bar stays in reach as a compact row,
   for (const route of ["/team", "/players", "/resources"]) {
     await page.goto(route);
     await expect(page.locator("main"), route).toBeVisible();
+    if (route === "/team") await lineupAtRest(page);
     await fitsWidth(page, `${route}, sideways`);
     // The places to go stay one tap away sideways too (there is no menu drawer on a phone).
     await expect(tabs, route).toBeVisible();

@@ -303,8 +303,35 @@ test("in Edit lineup a manager saves the substitute as the starter; the former s
   await expect(page.getByTestId(`lineup-row-${role}`)).toHaveAttribute("data-player-id", starter.id);
 });
 
-test("in Edit lineup a manager chooses, replaces and removes a role's substitute; it is saved and shown to everyone", async ({ page }) => {
+test("with reduced motion too, Make starter leaves keyboard focus on the card's turn control", async ({ page }) => {
   test.skip(isPhone(page), "desktop covers lineup editing");
+  // With reduced motion there is no turn animation, whose end used to be the only later chance to
+  // place focus: it was left on the page in every run.
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openTeam(page);
+  const role = await withSubstitute(page);
+  const starter = (await page.getByTestId(`lineup-row-${role}`).getAttribute("data-player-id"))!;
+  await page.getByTestId("edit-lineup").click();
+  await turnOver(page, role);
+  const back = page.getByTestId(`lineup-sub-${role}`);
+  const sub = (await back.getAttribute("data-player-id"))!;
+  await back.getByTestId("start-substitute").focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId(`lineup-row-${role}`)).toHaveAttribute("data-player-id", sub);
+  try {
+    await expect(card(page, role)).not.toHaveAttribute("data-flipped", "true");
+    await expect(flipButton(page, role)).toBeFocused();
+  } finally {
+    // The lineup goes back as it was, whatever happened (later tests share the demo roster).
+    await turnOver(page, role);
+    await page.getByTestId(`lineup-sub-${role}`).getByTestId("start-substitute").click();
+    await expect(page.getByTestId(`lineup-row-${role}`)).toHaveAttribute("data-player-id", starter);
+  }
+});
+
+test("in Edit lineup a manager chooses, replaces and removes a role's substitute; it is saved and shown to everyone", async ({ page, browser, baseURL }) => {
+  test.skip(isPhone(page), "desktop covers lineup editing");
+  test.setTimeout(180_000);
   await openTeam(page);
   // A role without a substitute whose bench has someone who lists it (in the demo: Mid).
   let role: string | null = null;
@@ -338,6 +365,26 @@ test("in Edit lineup a manager chooses, replaces and removes a role's substitute
   await turnOver(page, role!);
   await expect(page.getByTestId(`lineup-sub-${role!}`)).toHaveAttribute("data-player-name", name);
   await page.getByTestId(`lineup-sub-${role!}`).getByTestId("flip-back").click();
+  // Replaced: a second member who lists the role (the demo has one candidate per role) becomes the
+  // substitute in their place, saved like the first.
+  const label = ({ MID: "Mid", JUNGLE: "Jungle", ADC: "Bottom" } as const)[role as "MID" | "JUNGLE" | "ADC"];
+  const second = await memberContext(browser, page, undefined, { base: "Second", role: label });
+  try {
+    await page.context().addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+    await openTeam(page);
+    await page.getByTestId("edit-lineup").click();
+    await page.getByTestId(`lineup-row-${role!}`).getByRole("button", { name: /Change the .* substitute/ }).click();
+    const sheet = page.getByTestId(`substitute-sheet-${role!}`);
+    await sheet.locator(`[data-testid=substitute-option][data-player-name="${second.username}"]`).click();
+    await page.getByTestId("lineup-sheet-save").click();
+    await expect(sheet).toBeHidden();
+    await page.reload({ waitUntil: "networkidle" });
+    await turnOver(page, role!);
+    await expect(page.getByTestId(`lineup-sub-${role!}`)).toHaveAttribute("data-player-name", second.username);
+    await page.getByTestId(`lineup-sub-${role!}`).getByTestId("flip-back").click();
+  } finally {
+    await second.context.close();
+  }
   // Removed: the card no longer turns.
   await page.getByTestId("edit-lineup").click();
   await page.getByTestId(`lineup-row-${role!}`).getByRole("button", { name: /Change the .* substitute/ }).click();

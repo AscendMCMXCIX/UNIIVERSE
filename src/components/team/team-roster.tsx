@@ -96,10 +96,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
           the picture over the role), from a minimum. Its top keeps clear of the role and the
           card's controls: two controls stand one above the other five across, so a card with both
           keeps more. Five across on wide screens it is tall, a portrait card. */}
-      {/* On a card under 12.5rem (five across a 1366px laptop with the sidebar open) the sides step
-          in by 2px, so three links still share the picture's row (wrapped under it, they lifted
-          that card's picture above its row's). */}
-      <div className={cn("pointer-events-none relative flex min-h-[10.5rem] shrink-0 flex-col justify-end px-3 pb-2.5 pt-12 @max-[12.5rem]/card:px-2.5 @5xl/lineup:min-h-[clamp(13rem,29vh,20rem)] [&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100", twoControls && "@5xl/lineup:pt-[5.25rem] @5xl/lineup:pointer-coarse:pt-[6.75rem]")} data-testid="card-art">
+      <div className={cn("pointer-events-none relative flex min-h-[10.5rem] shrink-0 flex-col justify-end px-3 pb-2.5 pt-12 @5xl/lineup:min-h-[clamp(13rem,29vh,20rem)] [&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100", twoControls && "@5xl/lineup:pt-[5.25rem] @5xl/lineup:pointer-coarse:pt-[6.75rem]")} data-testid="card-art">
         {/* Splash of the player's chosen champion and skin, darkened towards the text, tinted with their accent. */}
         <CardArtLayer art={deferImages ? null : (p?.art ?? null)} accent={accent} kind="splash" position="center 22%" look={p?.look} motion="hover" foot={!!p} priority={priority} />
         <CardRoleChip role={slot.role} label={slot.roleLabel} className="absolute left-3 top-3" />
@@ -125,7 +122,7 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
         // The body continues the artwork (the card's accent fades down from it), so identity, season
         // and pool read as one card, not three strips. Every filled card has the same parts in the
         // same order, so a row of cards lines up whatever each player has recorded.
-        <div className="pointer-events-none relative flex flex-1 flex-col gap-2.5 px-3 pb-3 pt-2.5 @max-[12.5rem]/card:px-2.5" style={{ backgroundImage: "linear-gradient(to bottom, color-mix(in srgb, var(--card-accent) 7%, transparent), transparent 70%)" }}>
+        <div className="pointer-events-none relative flex flex-1 flex-col gap-2.5 px-3 pb-3 pt-2.5" style={{ backgroundImage: "linear-gradient(to bottom, color-mix(in srgb, var(--card-accent) 7%, transparent), transparent 70%)" }}>
           {p.statsVisible ? <CardPerformance season={p.season} support={support} roleLabel={slot.roleLabel} /> : null}
           <div className="flex flex-col gap-1.5">
             <p className="flex items-center justify-between text-2xs font-medium uppercase tracking-label text-fg-subtle">
@@ -193,13 +190,13 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
       )}
       {editing ? (
         // Edit lineup: this role's two choices, at the foot of the card where they never cover the player.
-        // On a narrow card (five across a laptop) one above the other, so both labels stay whole;
-        // entering Edit lineup already lets the page grow.
-        <div className="relative z-[2] grid grid-cols-2 gap-2 border-t border-white/10 bg-bg/50 p-2.5 @max-[14.25rem]/card:grid-cols-1" data-testid={`lineup-actions-${slot.role}`}>
-          <Button size="sm" variant="primary" onClick={() => setSheet({ kind: "starter" })} aria-haspopup="dialog" aria-label={`${p ? "Change" : "Assign"} ${slot.roleLabel} player`} className="min-w-0" data-testid={`lineup-change-${slot.role}`}>
+        // On a card under 14.25rem (five across a laptop) their icons step aside, so both labels stay
+        // whole side by side ("Substitute" was cut to "Substit…" there).
+        <div className="relative z-[2] grid grid-cols-2 gap-2 border-t border-white/10 bg-bg/50 p-2.5" data-testid={`lineup-actions-${slot.role}`}>
+          <Button size="sm" variant="primary" onClick={() => setSheet({ kind: "starter" })} aria-haspopup="dialog" aria-label={`${p ? "Change" : "Assign"} ${slot.roleLabel} player`} className="min-w-0 @max-[14.25rem]/card:[&>svg]:hidden" data-testid={`lineup-change-${slot.role}`}>
             <ArrowLeftRight className="h-3.5 w-3.5 shrink-0" aria-hidden /> <span className="truncate">{p ? "Change" : "Assign"}</span>
           </Button>
-          <Button size="sm" variant="secondary" onClick={() => setSheet({ kind: "substitute" })} aria-haspopup="dialog" aria-label={sub ? `Change the ${slot.roleLabel} substitute (${sub.name})` : `Choose a ${slot.roleLabel} substitute`} className="min-w-0" data-testid={`lineup-substitute-${slot.role}`}>
+          <Button size="sm" variant="secondary" onClick={() => setSheet({ kind: "substitute" })} aria-haspopup="dialog" aria-label={sub ? `Change the ${slot.roleLabel} substitute (${sub.name})` : `Choose a ${slot.roleLabel} substitute`} className="min-w-0 @max-[14.25rem]/card:[&>svg]:hidden" data-testid={`lineup-substitute-${slot.role}`}>
             <Users className="h-3.5 w-3.5 shrink-0" aria-hidden /> <span className="truncate">Substitute</span>
           </Button>
         </div>
@@ -442,6 +439,18 @@ function LineupCard({ openSide, onOpenSide, ...props }: Omit<React.ComponentProp
     target.focus({ preventScroll: true });
     if (document.activeElement === target) focusTo.current = null;
   }, []);
+  // Once its side is shown, the control can stay hidden for a few more frames while the card's
+  // parts settle (measured: about 30ms after Make starter, with reduced motion), and focus() does
+  // nothing on a hidden control: so focus is tried each frame, for up to a second, until it lands.
+  const settleFocus = React.useCallback(() => {
+    let frames = 0;
+    const attempt = () => {
+      if (!focusTo.current) return;
+      placeFocus();
+      if (focusTo.current && ++frames < 60) requestAnimationFrame(attempt);
+    };
+    attempt();
+  }, [placeFocus]);
   const turn = React.useCallback(
     (to: boolean, focus = false) => {
       // Focus moves with the turn when it was on the card, or when the turn asks for it.
@@ -464,6 +473,10 @@ function LineupCard({ openSide, onOpenSide, ...props }: Omit<React.ComponentProp
     const el = rootRef.current;
     if (!el || wasShown.current === shown) return;
     wasShown.current = shown;
+    // This commit made the side now shown interactive (no longer inert), so keyboard focus can move
+    // to it now. A turn with an animation tries again as it ends; with reduced motion there is none,
+    // and focus asked for from an effect (after Make starter saved) could otherwise arrive too early.
+    settleFocus();
     const inFlight = turning.current.length > 0 && turning.current.every((a) => a.playState === "running" || a.playState === "paused");
     if (inFlight) {
       for (const a of turning.current) a.reverse();
@@ -484,7 +497,7 @@ function LineupCard({ openSide, onOpenSide, ...props }: Omit<React.ComponentProp
       turning.current = [];
       placeFocus();
     };
-  }, [shown, placeFocus]);
+  }, [shown, placeFocus, settleFocus]);
   React.useEffect(
     () => () => {
       timers.current.forEach(clearTimeout);

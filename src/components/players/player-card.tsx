@@ -64,10 +64,8 @@ const SIZERS = "invisible hidden max-h-[2lh] overflow-hidden @xl/lineup:grid [&>
  * the cards stand side by side, each card's name and tagline take as much height as the tallest
  * of theirs (up to two lines each; drawn invisibly behind its own), so a name that wraps or a
  * tagline that one player has never lifts that card's picture, name and labels above the others'.
- * No room is kept that nobody needs: with every name on one line, names take one line. A shorter
- * name sits at the foot of the room kept for it, on its rank, so the room sits between it and the
- * picture, in the art, never between the name and its rank. The tagline comes last, so room kept for
- * one sits at the block's foot.
+ * No room is kept that nobody needs: with every name on one line, names take one line. The tagline
+ * comes last, so room kept for one sits at the block's foot, not between the name and its rank.
  *
  * `layout="side"` (the Team player window's header, not a card): the picture beside the same rows.
  * `showRank={false}` leaves the rank out entirely (not "Unranked"): for viewers who may not see the
@@ -104,8 +102,7 @@ export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isY
   const taglines = align?.some((m) => m.look.style.identity.tagline) ?? false;
   const nameSlot = align?.length ? (
     <span className={SLOT}>
-      {/* At the foot of its room: the line kept for a longer name stays above it, in the art. */}
-      <span className="min-w-0 self-end">{nameLine}</span>
+      {nameLine}
       <span aria-hidden className={cn(SIZERS, NAME_SIZE)}>
         {align.map((m, i) => (
           <CardName key={i} look={m.look} name={m.name} decorative />
@@ -250,7 +247,7 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
       {/* One row, read left to right: how often they win, how they fight, how they farm (vision for
           Support). The outer figures take the room they need and KDA the rest, so nothing is cut off.
           A narrow card: the win rate on the left, KDA over CS/min (vision) on the right. */}
-      <dl className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-x-2.5 @max-[12.5rem]/card:grid-cols-[auto_minmax(0,1fr)] @max-[12.5rem]/card:items-center @max-[12.5rem]/card:gap-x-2 @max-[12.5rem]/card:gap-y-1">
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-x-2.5 @min-[14.5rem]/card:@max-[16.5rem]/card:gap-x-1 @max-[12.5rem]/card:grid-cols-[auto_minmax(0,1fr)] @max-[12.5rem]/card:items-center @max-[12.5rem]/card:gap-x-2 @max-[12.5rem]/card:gap-y-1">
         <div className="min-w-0 @max-[12.5rem]/card:row-span-2">
           <dt className={label}>Win rate</dt>
           <dd className={cn("text-2xl font-bold leading-tight tabular-nums", wr === null ? "text-fg-muted" : tone)} title={winRateSampleNote(season?.winRate, games, WIN_RATE_MIN_GAMES.season) ?? undefined} data-testid="card-winrate">
@@ -261,18 +258,18 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
         <div className={pair}>
           <dt className={label}>KDA</dt>
           <dd className={figure}>{placeholder || season?.kda == null ? dash : season.kda.toFixed(2)}</dd>
-          {/* Kills / deaths / assists per game need about 4.5rem beside the other two figures, which
-              a card has from 16.5rem: on a narrower card among others side by side (five across a
-              desktop) they stay in the hover text, for screen readers and in the player's window,
-              instead of showing cut off. A phone's single card (a lineup under 36rem, about 16.4rem
-              wide on a 320px phone) always shows them, as it always has. */}
+          {/* Kills / deaths / assists per game need about 4.5rem: on a card too narrow for them (five
+              across a laptop screen) they stay in the hover text, for screen readers and in the
+              player's window, instead of showing cut off. On a card from 14.5rem to 16.5rem (five
+              across most desktops) the three figures stand 4px apart instead of 10px, so the line
+              fits whole there rather than ending in "…". */}
           <dd className={cn(sub, narrowHidden)} title={kdaLine ? `Kills / deaths / assists per game: ${kdaLine}` : undefined}>
             {placeholder || !kdaLine ? (
               "\u00a0"
             ) : (
               <>
-                <span className="@xl/lineup:@max-[16.5rem]/card:sr-only">{kdaLine}</span>
-                <span aria-hidden className="hidden @xl/lineup:@max-[16.5rem]/card:inline">
+                <span className="@max-[14.5rem]/card:sr-only">{kdaLine}</span>
+                <span aria-hidden className="hidden @max-[14.5rem]/card:inline">
                   {"\u00a0"}
                 </span>
               </>

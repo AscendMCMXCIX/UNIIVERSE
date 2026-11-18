@@ -121,22 +121,22 @@ Substitute side of the Team cards).
   and clipped by the frame (`overflow-y-clip`), so it never sizes a card or adds a scroll
   (DESIGN_SYSTEM.md §4: the one place the brand blue is a light).
 - **Narrow cards** (five across a laptop): a card under 12.5rem (five across a 1366px laptop with
-  the sidebar open: 12.47rem) shows its season as two columns (the win rate; KDA over CS/min) and
-  steps its sides in by 2px and its link icons 2px closer, so three links still share the
-  picture's row and the pictures stay level along the row. The approved design kept the figures in
-  one row there, overflowing their columns on all five cards; stacked, they make the cards 14px
-  taller at 1366 × 768, and the lineup, still centred, sits 7px higher. Kills / deaths / assists per
-  game show from 16.5rem among cards side by side, where they fit uncut, so five across (cards of
-  about 12.5–15.8rem) they stay in the hover text, for screen readers and in the player's window
-  (the approved design showed them on cards from 14.5rem, cut off with an ellipsis: five across at
-  1920 × 1080 and wider, and at 1366 × 768 and 1440 × 900 with the sidebar folded). The pool keeps
-  one row, as approved. A phone's single card (about 16.4rem on a 320px phone) is the phone card as
-  it was, its kills / deaths / assists shown. In Edit lineup a card under 14.25rem stands its two
-  controls one above the other, so both labels stay whole (five across a 1366 or 1440 laptop with
-  the sidebar open, where the approved design cut them: "Chan…" and "Subst…" at 1366, "Substit…"
-  at 1440).
-- **Identity rows** stay level side by side (`CardIdentity align`): a shorter name sits at the foot
-  of the room kept for a longer one, on its rank, so the room stays above it in the art.
+  the sidebar open: 12.47rem) shows its season as two columns (the win rate; KDA over CS/min). The
+  approved design kept the figures in one row there, overflowing their columns on all five cards;
+  stacked, they make the cards 14px taller at 1366 × 768, and the lineup, still centred, sits 7px
+  higher. That is the one place the lineup's geometry differs from the approved design's. Kills /
+  deaths / assists per game show, as approved, on cards from 14.5rem (five across at 1920 × 1080
+  and wider, and at 1366 × 768 and 1440 × 900 with the sidebar folded); from 14.5rem to 16.5rem the
+  three figures stand 4px apart instead of 10px, so the line fits whole where the approved design
+  ended it in "…". Under 14.5rem it stays in the hover text, for screen readers and in the player's
+  window. The pool keeps one row, as approved. A phone's single card (about 16.4rem on a 320px
+  phone) is the phone card as it was, its kills / deaths / assists shown. In Edit lineup, Change and
+  Substitute stand side by side as approved; on a card under 14.25rem their icons step aside, so
+  both labels stay whole (five across a 1366 or 1440 laptop with the sidebar open, where the
+  approved design cut them: "Chan…" and "Subst…" at 1366, "Substit…" at 1440).
+- **Identity rows** stay level side by side (`CardIdentity align`): each card's name and tagline
+  take as much room as the tallest among everyone the lineup can show, and a shorter name sits at
+  the top of that room, as approved.
 
 ## Shell
 
@@ -222,11 +222,16 @@ centred under the section tabs with no bench under the cards, nothing to scroll,
 20rem cap, the floor drawn from just under the cards; 1366 × 768: five equal cards in one centred
 row, whole on the first screen; 2560 × 1440: the 84rem cap; a 1440 × 560 window starting at the
 top), `e2e/team-layout.spec.ts` (from a tablet up the header's eyebrow over the name, the name's
-size and the state under it; 2 + 2 + 1 on a tablet and five across on a desktop, with no bench;
-3 + 2 on a 1280 × 800 laptop; on a phone the logo beside the name with the state and Edit lineup on
-the line under them, the track and its role bar of icons and names, no bench, and no later card's
-member's picture asked for while the first card's art loads), `e2e/team-logo.spec.ts` (the logo's
-sizes) and `e2e/card-layout.spec.ts` (identity rows level). `home-layout`'s Team tests and
+size and the state under it; 2 + 2 + 1 on a tablet and five across on a desktop, the track and the
+stage ending with the cards, no bench; 3 + 2 on a 1280 × 800 laptop; at 1366, 1440 and 1920 the
+kills / deaths / assists line shown and whole on cards from 14.5rem, and Edit lineup's two labels
+whole side by side; on a phone the logo beside the name with the state and Edit lineup on the line
+under them, the track and its role bar of icons and names, no bench, and no later card's member's
+picture asked for while the first card's art loads), `e2e/mobile-landscape.spec.ts` (held sideways
+on an iPhone 15 and an iPhone SE (3rd gen): 2 + 2 + 1, no sideways track, no role bar, the 44px
+logo), `e2e/team-flip.spec.ts` (turning, choosing, replacing and removing a substitute, Make
+starter and the keyboard focus after it, with reduced motion too), `e2e/team-logo.spec.ts` (the
+logo's sizes) and `e2e/card-layout.spec.ts` (identity rows level). `home-layout`'s Team tests and
 `team-layout`'s grids read the lineup once it is laid out and at rest (`lineupAtRest`,
 `e2e/lineup.ts`): it streams in through `(app)/loading.tsx`'s Suspense boundary, and React can
 reveal it up to 300ms after the first paint, after the load event `page.goto` waits for, when its

@@ -263,7 +263,8 @@ account screen is a screen of its own instead (`size="screen"`, above). A sheet:
   Team Overview's phone layout (the logo beside the team's name, the lineup's state and Edit
   lineup on the line under them, the role bar of icons and names over the track, no bench under
   it, and no later card's member's picture asked for while the first card's art loads) is in
-  `e2e/team-layout.spec.ts`.
+  `e2e/team-layout.spec.ts`, and held sideways (2 + 2 + 1, no sideways track, no role bar, the 44px
+  logo) in `e2e/mobile-landscape.spec.ts`.
 - Safari 26's engine: `scripts/webkit26-check.mjs` (RESPONSIVE.md → Safari 26) opens every kind of
   window in WebKit 26.0, the engine that collapsed them, on four phones, an iPad and a Mac.
 - Real devices: see RESPONSIVE.md → Safari and iPhones. Emulated phones prove layout and behaviour

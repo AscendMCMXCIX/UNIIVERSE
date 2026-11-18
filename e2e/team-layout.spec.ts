@@ -102,6 +102,9 @@ test("upright tablets show the lineup 2 + 2 + 1 and desktops five across, with n
   await expect(page.locator("[data-testid^=bench-]")).toHaveCount(0);
   const cardsEnd = Math.max(...boxes.map((b) => b.bottom));
   expect(Math.abs(track.y + track.height - cardsEnd), "the track ends with the cards").toBeLessThanOrEqual(1);
+  // The stage (the cards and their floor) ends with the cards too: #275's bench stood inside it, after the track.
+  const stage = (await page.getByTestId("lineup-stage").boundingBox())!;
+  expect(Math.abs(stage.y + stage.height - cardsEnd), "the stage ends with the cards").toBeLessThanOrEqual(1);
   expect(overflow).toBeLessThanOrEqual(1);
 });
 
@@ -121,6 +124,53 @@ test("a 1280 × 800 laptop with the sidebar open shows the lineup 3 + 2, the las
   const pair = (boxes[3]!.x + boxes[4]!.x + boxes[4]!.width) / 2;
   expect(Math.abs(pair - (track.x + track.width / 2)), "the last two centred under the lineup").toBeLessThanOrEqual(2);
   expect(overflow).toBeLessThanOrEqual(1);
+});
+
+// The season figures and Edit lineup's choices, as approved, on the cards five across: each card's
+// kills / deaths / assists per game under its KDA from 14.5rem (whole there: the three figures stand
+// closer from 14.5rem to 16.5rem, where the reference ended the line in "…"), and Change and
+// Substitute side by side, their labels whole (under 14.25rem their icons step aside; the reference
+// cut "Substitute").
+test("five across, the K/D/A line shows whole from 14.5rem, and Edit lineup's two labels are whole side by side", async ({ page, context, baseURL }, info) => {
+  test.skip(info.project.name !== "desktop", "desktop widths");
+  await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: baseURL! }]);
+  for (const [width, height] of [[1920, 1080], [1440, 900], [1366, 768]] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto("/team");
+    await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
+    await lineupAtRest(page);
+    const cards = await page.locator("[data-testid^=lineup-row-]").evaluateAll((els) => {
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+      return els.map((card) => {
+        const line = card.querySelector<HTMLElement>("[data-testid=card-season] dl > div:nth-child(2) dd:last-child");
+        const text = line?.querySelector<HTMLElement>(":scope > span:not([aria-hidden])");
+        return { width: card.getBoundingClientRect().width / rem, shown: !!text && text.getBoundingClientRect().width > 1, whole: !!line && line.scrollWidth <= line.clientWidth };
+      });
+    });
+    for (const card of cards) {
+      if (card.width >= 14.5) expect(card, `${width}: the K/D/A line shown and whole`).toMatchObject({ shown: true, whole: true });
+      else expect(card.shown, `${width}: no K/D/A line on a ${card.width.toFixed(2)}rem card`).toBe(false);
+    }
+    await page.getByTestId("edit-lineup").click();
+    const choices = await page.locator("[data-testid^=lineup-actions-]").evaluateAll((els) =>
+      els.map((row) => {
+        const buttons = [...row.querySelectorAll<HTMLElement>("button")];
+        return {
+          side: buttons.length === 2 && Math.abs(buttons[0]!.getBoundingClientRect().top - buttons[1]!.getBoundingClientRect().top) < 1,
+          whole: buttons.every((b) => [...b.querySelectorAll<HTMLElement>("span")].every((t) => t.scrollWidth <= t.clientWidth)),
+          icons: buttons.map((b) => getComputedStyle(b.querySelector("svg")!).display !== "none"),
+          card: row.closest("article")!.getBoundingClientRect().width / parseFloat(getComputedStyle(document.documentElement).fontSize),
+        };
+      }),
+    );
+    expect(choices.length).toBeGreaterThan(0);
+    for (const c of choices) {
+      expect(c.side, `${width}: Change and Substitute side by side`).toBe(true);
+      expect(c.whole, `${width}: both labels whole`).toBe(true);
+      expect(c.icons, `${width}: their icons ${c.card < 14.25 ? "step aside" : "shown"} on a ${c.card.toFixed(2)}rem card`).toEqual(c.card < 14.25 ? [false, false] : [true, true]);
+    }
+    await page.getByTestId("edit-lineup").click();
+  }
 });
 
 // Cards side by side keeping their pictures, names and labels level whatever the names and
@@ -160,7 +210,8 @@ test("phones swipe sideways through the five cards, one at a time", async ({ pag
   expect(status.y, "the lineup's state on the line under the name").toBeGreaterThanOrEqual(name.y + name.height - 1);
   await expect(page.getByTestId("edit-lineup")).toHaveText("Edit lineup");
   // Each role's tab is its icon and name: no pictures.
-  await expect(tabs.locator("[data-avatar-frame]")).toHaveCount(0);
+  for (const tab of await tabs.all()) await expect(tab.locator("[data-role-icon]")).toHaveCount(1);
+  await expect(tabs.locator("[data-avatar-frame], img")).toHaveCount(0);
   // Nothing under the track: no bench of substitutes.
   await expect(page.getByTestId("lineup-bench")).toHaveCount(0);
 

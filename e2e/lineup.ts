@@ -11,6 +11,8 @@ import { expect, type Page } from "./test";
  */
 export async function lineupAtRest(page: Page) {
   const layout = await page.evaluate(async () => {
+    // In the page's own font: a fallback lays the cards' text out differently.
+    await document.fonts.ready;
     const box = (e: Element) => {
       const r = e.getBoundingClientRect();
       return { x: r.x, y: r.y, top: Math.round(r.top), bottom: r.bottom, left: r.left, right: r.right, width: r.width, height: r.height };

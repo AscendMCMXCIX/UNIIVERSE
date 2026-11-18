@@ -502,8 +502,9 @@ async function accountMenuFirstTap(page, kind, trigger) {
 
 /**
  * Team Overview's layout facts (docs/LIVE_VALIDATION.md, "What it checks"), robust to production's
- * real lineup (an open role, no substitutes): a fact whose precondition does not hold passes as
- * "not applicable", with the reason. Only positions, counts and role names are reported.
+ * real lineup (a role nobody holds, a substitute or not for each role): a fact whose precondition
+ * does not hold passes as "not applicable", with the reason. Only positions, sizes, counts and true
+ * or false are reported.
  * - desktop (1440 × 900, the sidebar open), five across: the header and the cards are centred in
  *   the height under the section tabs (as much room above the header as under the cards, the frame
  *   reaching the window's foot), or start at the top when they are taller than the window; and the
