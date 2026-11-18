@@ -85,8 +85,14 @@ const PHONE_KDA = "col-[3] row-[2] max-w-[5.75rem] @max-[16rem]/mh:col-[1/-1] @m
 const PHONE_FIGURES = "col-[1/-1] row-[4] mt-0.5 @min-[16rem]/mh:contents @min-[21.375rem]/mh:flex @min-[36rem]/mh:col-auto @min-[36rem]/mh:row-auto @min-[36rem]/mh:mt-0";
 const PHONE_KP = "@min-[16rem]/mh:col-[2] @min-[16rem]/mh:row-[3]";
 const PHONE_FIGURES_REST = "contents @min-[16rem]/mh:col-[1/-1] @min-[16rem]/mh:row-[4] @min-[16rem]/mh:mt-0.5 @min-[16rem]/mh:flex @min-[16rem]/mh:flex-wrap @min-[16rem]/mh:gap-x-3 @min-[16rem]/mh:gap-y-0.5 @min-[21.375rem]/mh:contents";
-/** The build: the card's last line under 21.375rem, under the champion's name beside the K/D/A to 36rem (its items 20px), then a column of its own. */
-const PHONE_BUILD = "col-[1/-1] row-[5] [--icon-size:1.25rem] @min-[21.375rem]/mh:col-[2] @min-[21.375rem]/mh:row-[3] @min-[36rem]/mh:col-auto @min-[36rem]/mh:row-auto @min-[36rem]/mh:[--icon-size:initial]";
+/**
+ * The build: the card's last line under 21.375rem, then a column of its own from 36rem (PHONE_BUILD).
+ * From 21.375 to 36rem it is drawn under the champion's name beside the K/D/A (its items 20px), above
+ * the figures: there a copy placed after the K/D/A is shown instead (PHONE_BUILD_BESIDE), so the
+ * card is read in the order it is drawn. Only one of the two is ever displayed.
+ */
+const PHONE_BUILD = "col-[1/-1] row-[5] [--icon-size:1.25rem] @min-[21.375rem]/mh:hidden @min-[36rem]/mh:col-auto @min-[36rem]/mh:row-auto @min-[36rem]/mh:flex @min-[36rem]/mh:[--icon-size:initial]";
+const PHONE_BUILD_BESIDE = "col-[2] row-[3] hidden items-center overflow-hidden [--icon-size:1.25rem] @min-[21.375rem]/mh:flex @min-[36rem]/mh:hidden";
 
 export { fmtDuration, fmtNum, fmtInt } from "./match-format";
 export { pageList } from "./pager";
@@ -122,8 +128,11 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
   // A stored record without items: no build to draw (see the build's place below).
   const unrecorded = row.record === "stored" && !row.items;
   // One line of seven on a phone's card (the trinket last), two rows of three and four from 36rem
-  // (and under 16rem, at a large text size, where seven do not fit across).
-  const build = row.record === "stored" ? <ItemRow items={row.items} size={22} stacked className="grid-cols-7 @max-[16rem]/mh:grid-cols-4 @min-[36rem]/mh:grid-cols-4" trinketClassName="order-last ml-0.5 @max-[16rem]/mh:order-none @max-[16rem]/mh:ml-0 @min-[36rem]/mh:order-none @min-[36rem]/mh:ml-0" /> : <span className="text-xs text-fg-subtle">{row.record === "missing" ? "Items being collected" : "Items not provided by Riot"}</span>;
+  // (and under 16rem, at a large text size, where seven do not fit across). The line beside the
+  // K/D/A sizes its tracks by their items (seven 20px items, the gaps and the trinket's margin: the
+  // 154px a 21.375rem list leaves beside the widest K/D/A), so nothing is squeezed or clipped.
+  const itemRow = (className: string, trinketClassName: string) => (row.record === "stored" ? <ItemRow items={row.items} size={22} stacked className={className} trinketClassName={trinketClassName} /> : <span className="text-xs text-fg-subtle">{row.record === "missing" ? "Items being collected" : "Items not provided by Riot"}</span>);
+  const build = itemRow("grid-cols-7 @max-[16rem]/mh:grid-cols-4 @min-[36rem]/mh:grid-cols-4", "order-last ml-0.5 @max-[16rem]/mh:order-none @max-[16rem]/mh:ml-0 @min-[36rem]/mh:order-none @min-[36rem]/mh:ml-0");
   const teamsId = `teams-${row.matchId}`;
   const regionId = `match-${row.matchId}-details`;
   const teams = React.useMemo(() => (row.teams && checked ? withChecked(row.teams, checked) : row.teams), [row.teams, checked]);
@@ -131,14 +140,46 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
   const roleName = row.role ? ROLE_LABELS[row.role as Role] : null;
   const standout = row.standout;
   const standoutTitle = standout ? `Your highest ${standout.label} in your last ${standout.games} ${QUEUE_GROUP_WORDS[queueGroup(row.queueId)]} games${roleName ? ` as ${roleName}` : ""}: ${figureText(standout.key, standout.value)} (the highest before: ${figureText(standout.key, standout.top)})` : undefined;
-  /** "Best vision/min in 22": one chip, with the figures on every card (under them on wide cards, in their row on narrow ones). */
+  /** "Best vision/min in 22": one chip, with the figures on every card (under them on wide cards, in their row on narrow ones); under 16rem (a large text size) it wraps between its words rather than be cut. */
   const standoutChip = (className: string) =>
     standout ? (
-      <span className={cn("whitespace-nowrap rounded border border-accent/40 px-1 text-2xs font-semibold leading-4 text-accent", className)} title={standoutTitle} data-testid="match-standout" data-key={standout.key}>
+      <span className={cn("whitespace-nowrap rounded border border-accent/40 px-1 text-2xs font-semibold leading-4 text-accent @max-[16rem]/mh:whitespace-normal", className)} title={standoutTitle} data-testid="match-standout" data-key={standout.key}>
         Best {STANDOUT_SHORT[standout.key]} in {standout.games}
         <span className="sr-only">: {standoutTitle}</span>
       </span>
     ) : null;
+  /*
+    The result line: Victory or Defeat, the queue, when, and a ranked game's LP. Never cut: where the
+    line is too narrow (a 320px phone at a large text size), it wraps between its parts ("Defeat ·
+    Solo/Duo" / "· 43h ago"), so the time stays whole. A ranked game's LP ends it: at the card's end
+    on a phone, after when from 36rem. Two copies, each where its card is read in the order it is
+    drawn: a phone's first line, before the portrait; a two-row card's, over the champion. Only one
+    is ever displayed (a wide card has its result column instead).
+  */
+  const metaLine = (className: string) => (
+    <span className={cn("min-w-0 flex-wrap items-center gap-x-1 text-xs font-bold", tone.text, className)} data-testid="match-card-meta">
+      <span>{tone.word}</span>
+      {/* The line names the queue without "Ranked" (a wide card's result column has the full
+          name), so it stays one line with the LP on a phone and on a two-row card. */}
+      <span className="whitespace-nowrap font-medium text-fg-subtle">· {row.queue.replace(/^Ranked /, "")}</span>
+      {/* "3h ago" is measured on the server first, then by the browser's own clock (useNow):
+          the server's words stand while the page hydrates, which React allows only for an
+          element's own text, so the span that holds it carries the permission. */}
+      <span className="whitespace-nowrap font-medium text-fg-subtle" suppressHydrationWarning>
+        · {when}
+      </span>
+      {row.lp ? (
+        // A dash's trigger reaches 6px past it each side (its target size): the padding keeps
+        // that inside the line where the dash ends it.
+        <span className={cn("ml-auto inline-flex items-center whitespace-nowrap font-medium text-fg-subtle @min-[36rem]/mh:ml-0", row.lp.kind === "none" && "pr-1.5")}>
+          <span className="mr-1 hidden @min-[36rem]/mh:inline" aria-hidden>
+            ·
+          </span>
+          <LpChange lp={row.lp} dense />
+        </span>
+      ) : null}
+    </span>
+  );
   const open = React.useRef<HTMLButtonElement>(null);
   return (
     <li id={`match-${row.matchId}`} className="scroll-mt-0 lg:scroll-mt-3" data-testid="match-item" data-expanded={expanded || undefined}>
@@ -200,48 +241,29 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
           data-result={row.win ? "W" : "L"}
         />
         <MatchRail win={row.win} />
-        <span className={CARD_GRID}>
+        <span className={CARD_GRID} data-testid="match-card-grid">
           {/* The result column: Victory or Defeat with the length, the queue, then when with a ranked game's LP after it. */}
           <MatchResult win={row.win} queue={row.queue} when={when} duration={fmtDuration(row.durationS)} extra={row.lp ? <LpChange lp={row.lp} dense /> : null} className="hidden @min-[50rem]/mh:flex" />
+          {/* A phone's first line, across the card (36–50rem: over the champion, below). */}
+          {metaLine("col-[1/-1] row-[1] mb-0.5 flex @min-[36rem]/mh:hidden")}
           <ChampionLoadout champion={champion} spells={row.spells} keystone={row.keystone} secondary={row.secondary} level={row.champLevel} size="md" icon={22} className={PHONE_PORTRAIT} testId="match-loadout" portraitClassName="@max-[16rem]/mh:h-10 @max-[16rem]/mh:w-10 @min-[50rem]/mh:h-14 @min-[50rem]/mh:w-14" iconsClassName="@max-[54rem]/mh:hidden" />
-          {/* The result line (below 50rem: a wide card has its result column), then the champion, the
-              role, the account it was played on and the team members in the game. On a phone the
-              box steps aside (display: contents): the result line runs across the card, and the rest
-              sits beside the portrait. */}
+          {/* The result line (36–50rem: a wide card has its result column, a phone's card its first
+              line), then the champion, the role, the account it was played on and the team members
+              in the game. On a phone the box steps aside (display: contents): the champion sits
+              beside the portrait. */}
           <span className="min-w-0 leading-snug @max-[36rem]/mh:contents">
-            {/* Never cut: where the line is too narrow (a 320px phone at a large text size), it wraps
-                between its parts ("Defeat · Solo/Duo" / "· 43h ago"), so the time stays whole. A
-                ranked game's LP ends it: at the card's end on a phone, after when from 36rem. */}
-            <span className={cn("col-[1/-1] row-[1] flex min-w-0 flex-wrap items-center gap-x-1 text-xs font-bold @max-[36rem]/mh:mb-0.5 @min-[50rem]/mh:hidden", tone.text)} data-testid="match-card-meta">
-              <span>{tone.word}</span>
-              {/* The line names the queue without "Ranked" (a wide card's result column has the full
-                  name), so it stays one line with the LP on a phone and on a two-row card. */}
-              <span className="whitespace-nowrap font-medium text-fg-subtle">· {row.queue.replace(/^Ranked /, "")}</span>
-              {/* "3h ago" is measured on the server first, then by the browser's own clock (useNow):
-                  the server's words stand while the page hydrates, which React allows only for an
-                  element's own text, so the span that holds it carries the permission. */}
-              <span className="whitespace-nowrap font-medium text-fg-subtle" suppressHydrationWarning>
-                · {when}
-              </span>
-              {row.lp ? (
-                // A dash's trigger reaches 6px past it each side (its target size): the padding keeps
-                // that inside the line where the dash ends it.
-                <span className={cn("ml-auto inline-flex items-center whitespace-nowrap font-medium text-fg-subtle @min-[36rem]/mh:ml-0", row.lp.kind === "none" && "pr-1.5")}>
-                  <span className="mr-1 hidden @min-[36rem]/mh:inline" aria-hidden>
-                    ·
-                  </span>
-                  <LpChange lp={row.lp} dense />
-                </span>
-              ) : null}
-            </span>
-            {/* The champion, then the role and account: one line below 50rem (the champion keeps
-                its whole name, the role and account give way), two on wide cards. On a wide card a
-                long name takes a second line ("Nunu &" / "Willump") rather than lose its end: four
-                lines still fit beside the teams' five. The whole name is its hover text. */}
+            {/* A two-row card's result line, over the champion (a phone's is its first line, above). */}
+            {metaLine("hidden @min-[36rem]/mh:flex @min-[50rem]/mh:hidden")}
+            {/* The champion, then the role and account: one line on a phone's card (the name keeps up
+                to 70% of it, the role and account give way); on a two-row card one line where both
+                fit, else the role takes the next line, so the whole box is the name's (a 36rem list
+                keeps "Nunu & Willump" whole); two lines on wide cards. On a wide card a long name
+                takes a second line ("Nunu &" / "Willump") rather than lose its end: four lines still
+                fit beside the teams' five. The whole name is its hover text. */}
             <span className="col-[2] row-[2] block min-w-0">
               {/* Under 16rem (a large text size) the name wraps rather than lose its end, the role under it. */}
-              <span className="block @max-[50rem]/mh:flex @max-[50rem]/mh:min-w-0 @max-[50rem]/mh:items-center @max-[50rem]/mh:gap-x-2 @max-[16rem]/mh:flex-wrap">
-                <span className="block truncate text-md font-semibold text-fg @max-[50rem]/mh:max-w-[70%] @max-[50rem]/mh:shrink-0 @max-[16rem]/mh:max-w-full @max-[16rem]/mh:whitespace-normal @max-[16rem]/mh:[overflow-wrap:anywhere] @min-[50rem]/mh:line-clamp-2 @min-[50rem]/mh:whitespace-normal" title={champion.name} data-testid="match-champion">
+              <span className="block @max-[50rem]/mh:flex @max-[50rem]/mh:min-w-0 @max-[50rem]/mh:items-center @max-[50rem]/mh:gap-x-2 @max-[16rem]/mh:flex-wrap @min-[36rem]/mh:flex-wrap">
+                <span className="block truncate text-md font-semibold text-fg @max-[36rem]/mh:max-w-[70%] @max-[36rem]/mh:shrink-0 @max-[16rem]/mh:max-w-full @max-[16rem]/mh:whitespace-normal @max-[16rem]/mh:[overflow-wrap:anywhere] @min-[50rem]/mh:line-clamp-2 @min-[50rem]/mh:whitespace-normal" title={champion.name} data-testid="match-champion">
                   {champion.name}
                 </span>
                 <span className="flex min-w-0 items-center gap-1 text-xs text-fg-muted">
@@ -292,22 +314,24 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
               </span>
             ) : null}
           </span>
+          {/* From 21.375 to 36rem the build is drawn here, under the champion beside the K/D/A and above
+              the figures, so it is read here too (PHONE_BUILD_BESIDE). */}
+          {unrecorded ? null : <span className={PHONE_BUILD_BESIDE}>{itemRow("grid-cols-[repeat(7,auto)]", "order-last ml-0.5")}</span>}
           {/* Kill participation, CS and damage: secondary, one line on a phone's card, one per line
               from 36rem; each with its total or share. Then at most one "best" figure, with the
               figures on every card: beside the KDA it widened that column (on a narrow card it cut
               the queue and time off the line beside it; on a wide one it pushed the columns after it
               out of line). */}
           <span className={cn("flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-fg-subtle @min-[36rem]/mh:flex-col @min-[36rem]/mh:gap-y-px", PHONE_FIGURES)} data-testid="match-figures">
-            <Stat label="KP" value={kp} className={PHONE_KP} />
+            <Stat label="KP" value={kp} className={PHONE_KP} testId="match-kp" />
             <span className={PHONE_FIGURES_REST}>
               <Stat label="CS/min" value={fmtNum(row.csPerMin)} extra={row.cs === null ? null : formatCount(row.cs)} title={row.cs === null ? undefined : `${formatCount(row.cs)} CS in the game`} testId="match-cs" />
               <Stat label="dmg/min" value={fmtInt(row.damagePerMin)} extra={row.damageShare === null ? null : `${Math.round(row.damageShare * 100)}%`} title={row.damage === null ? undefined : `${formatCount(row.damage)} damage to champions${row.damageShare === null ? "" : `, ${Math.round(row.damageShare * 100)}% of the team's`}`} testId="match-damage" />
               {standoutChip("self-center @min-[36rem]/mh:mt-px @min-[36rem]/mh:self-start")}
             </span>
           </span>
-          {/* The build: beside the champion on a phone's card (one line of seven 20px items under its
-              name, from 21.375rem; narrower, the card's last line), a compact block of two rows from
-              36rem: at the end of a two-row card's first row, and on wide cards from 61rem (left to
+          {/* The build: a phone's card's last line under 21.375rem (from there to 36rem the copy before
+              the figures is shown instead), a compact block of two rows from 36rem: at the end of a two-row card's first row, and on wide cards from 61rem (left to
               the breakdown when the list is too narrow for it beside the teams). A build that was not
               recorded draws nothing (screen readers hear it; the page's data status counts these
               games), and a card from 36rem keeps the build's room, so its columns stay level with the
@@ -625,7 +649,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
           <div aria-busy={pending} className="min-w-0">
             {encounter ? (
               // A player's games: the season, game mode and account Encounters counts them in.
-              <OverviewFilters basePath={basePath} filter={f} seasons={data.seasons} currentSeason={data.currentSeason} champions={[]} accounts={data.accountOptions} keep={keep} resetQuery={new URLSearchParams(keep).toString()} modeCounts={data.modes.counts} showChampions={false} showRole={false} testId="match-filters" />
+              <OverviewFilters basePath={basePath} filter={f} seasons={data.seasons} currentSeason={data.currentSeason} champions={[]} accounts={data.accountOptions} keep={keep} resetQuery={new URLSearchParams(keep).toString()} modeCounts={data.modes.counts} showChampions={false} showRole={false} compactToggle testId="match-filters" />
             ) : (
               <OverviewFilters
                 basePath={basePath}
@@ -636,6 +660,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
                 accounts={data.accountOptions}
                 keep={keep}
                 modeCounts={data.modes.counts}
+                compactToggle
                 testId="match-filters"
                 refineLabel="Refine the games"
                 extraFields={<HistoryRefineFields refine={data.refine} options={data} set={refineTo} group={groupTo} pending={pending} />}

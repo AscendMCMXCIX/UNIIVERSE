@@ -263,6 +263,7 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
               showRole={false}
               sheetFields={<ListChoiceFields choice={c} sorts={sorts} pending={pending} go={go} />}
               sheetChips={listChips}
+              compactToggle
               testId="encounter-filters"
             />
           </div>

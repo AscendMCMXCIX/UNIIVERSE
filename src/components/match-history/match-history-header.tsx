@@ -22,8 +22,13 @@ import { SubTabs } from "@/components/ui/sub-tabs";
   The season, game mode and account are one choice for both views: they carry over.
 */
 
-/** A phone's views without their icons and a little tighter, so Filters and Refresh share their row (the labels say it all). */
-const PHONE_VIEWS = "max-sm:[&_a]:px-2.5 max-sm:[&_svg]:hidden";
+/**
+ * A phone's views without their icons and a little tighter (the labels say it all), so Filters and
+ * Refresh share their row: about 168px of tabs, Filters (its icon alone under 360px: FilterBar's
+ * `compactToggle`) and a 44px Refresh fit a 320px phone's 288px row, and a 360px one's with the word.
+ * The track hugs its 44px tabs (2px around them), so the row is 48px.
+ */
+const PHONE_VIEWS = "max-sm:[&_a]:px-2 max-sm:[&_svg]:hidden max-sm:[&_ul]:p-0.5";
 
 export type MatchHistoryViewKey = "games" | "encounters";
 

@@ -20,12 +20,20 @@ import { cn } from "@/lib/cn";
 const metricText = (m: Pick<FormMetric, "key" | "recent">) => (m.recent === null ? "—" : m.recent.toFixed(m.key === "vision" ? 0 : m.key === "kda" ? 2 : 1));
 
 /*
-  Laid out by ui/stat-strip (owner decision D8, 8 Nov 2026): one row of tiles from 60rem of its own
-  width (a desktop), one flowing line on a tablet, and three lines on a phone: the results with the
-  record; KDA, CS (vision for supports), kill participation and the streak; the champions played
-  most, the ladder change and the trend, with the ⓘ at the end. A line wraps only where its figures
-  do not fit (a 320px phone, a large text size). Every figure, word and explanation is the same at
-  every width.
+  Laid out by ui/stat-strip (owner decision D8, 8 Nov 2026), in the order the approved design reads:
+  the form (the last twenty as squares, the streak, the trend), the record, KDA, CS (vision for
+  supports) and kill participation, the champions played most and the ladder change. The ⓘ sits
+  with "Last 20", which it explains. On a phone, three lines:
+    1. "Last 20 ⓘ", the squares (they share what the line leaves, 3 to 8px each), the streak
+       ("4W streak") and, when one is named, the trend ("Better +9 pts");
+    2. the record, KDA, CS and kill participation, spread across;
+    3. the champions played most and the ladder change ("+45 Solo/Duo since 30 Sep").
+  The words a phone's line leaves out are read by screen readers and are in each figure's title
+  ("4 wins in a row", "Solo/Duo points", "Better lately"); from 36rem the trend says them again. A
+  line wraps where its figures still do not fit: at 375px a two-digit record on a champion beside
+  the ladder change, a 360px phone's ladder change, a 320px phone, a large text size. From 36rem one
+  flowing line, from 60rem one row of tiles, from 78rem without a trend one line of text
+  (ui/stat-strip).
 */
 export function HistorySummaryStrip({ summary, ladder, championsById }: { summary: HistorySummary; ladder: MatchHistoryPage["ladder"]; championsById: Record<string, PortraitChampion> }) {
   const { form } = summary;
@@ -37,26 +45,81 @@ export function HistorySummaryStrip({ summary, ladder, championsById }: { summar
   // line instead of tiles there. A trend's figure would not, so the tiles stay.
   const trend = form.trend === "up" || form.trend === "down";
   const wideLine = !trend;
+  const streak = summary.streak && summary.streak.games >= 2 ? summary.streak : null;
+  const streakWords = streak ? `${streak.games} ${streak.win ? "wins" : "losses"} in a row` : "";
+  const gap = form.gapPoints ?? 0;
   return (
     <StatStrip label={`Your last ${form.recent.games} games in this list`} testId="history-summary">
       <StatLine>
         <StatTile
-            wideLine={wideLine}
+          wideLine={wideLine}
           lead
           labelFirst
-          label={`Last ${form.recent.games}`}
+          // On a phone the squares take what the line leaves (each 3 to 8px), so the streak and a
+          // trend keep their line; 6px from 36rem.
+          className="@max-[36rem]/strip:flex-1"
+          valueClassName="@max-[36rem]/strip:min-w-0 @max-[36rem]/strip:flex-1"
+          label={
+            <>
+              Last {form.recent.games}{" "}
+              {/* The ⓘ's 16px box keeps a tile's 14px caption line (its 24px target reaches past it). */}
+              <span className="inline-flex @min-[60rem]/strip:-my-px">
+                <InfoTip
+                  label="About these figures"
+                  text={`Over the newest ${form.recent.games} games this list holds with its filters (all ${form.season.games} for the trend). KDA, CS and kill participation count only the games that record them. A trend is named only with enough games and a clear gap, the same rule as the Overview's Recent form. The ladder change comes from rank readings taken at each sync, so it is not split by game.`}
+                />
+              </span>
+            </>
+          }
           value={
-            // 6px squares on a phone (4px on the narrowest), so the record keeps their line; 8px from 36rem.
-            <span className="flex h-5 items-center gap-px @min-[36rem]/strip:gap-0.5" role="img" aria-label={`${form.recent.wins} wins and ${form.recent.games - form.recent.wins} losses, oldest to newest`} data-testid="history-summary-strip">
+            <span className="flex h-5 min-w-0 flex-1 items-center gap-px @min-[36rem]/strip:flex-none @min-[36rem]/strip:gap-0.5" role="img" aria-label={`${form.recent.wins} wins and ${form.recent.games - form.recent.wins} losses, oldest to newest`} data-testid="history-summary-strip">
               {strip.map((g) => (
-                <span key={g.matchId} className={cn("h-5 w-1 shrink-0 rounded-sm @min-[20rem]/strip:w-1.5 @min-[36rem]/strip:w-2", g.win ? "bg-blue/85" : "bg-red/75")} title={`${g.win ? "Win" : "Loss"} · ${champ(g.championId).name}`} data-result={g.win ? "W" : "L"} />
+                <span key={g.matchId} className={cn("h-5 min-w-0.75 max-w-2 flex-1 rounded-sm @min-[36rem]/strip:w-1.5 @min-[36rem]/strip:max-w-none @min-[36rem]/strip:flex-none", g.win ? "bg-blue/85" : "bg-red/75")} title={`${g.win ? "Win" : "Loss"} · ${champ(g.championId).name}`} data-result={g.win ? "W" : "L"} />
               ))}
             </span>
           }
         />
-        <StatTile wideLine={wideLine} value={form.recent.winRate === null ? "—" : `${Math.round(form.recent.winRate * 100)}%`} label={`${form.recent.wins}W ${form.recent.games - form.recent.wins}L`} testId="history-summary-record" />
+        {streak ? (
+          <StatTile
+            wideLine={wideLine}
+            value={
+              <span className={streak.win ? "text-blue" : "text-red"}>
+                <span aria-hidden>
+                  {streak.games}
+                  {streak.win ? "W" : "L"}
+                </span>
+                <span className="sr-only">{streakWords}</span>
+              </span>
+            }
+            label={<span aria-hidden>streak</span>}
+            title={streakWords}
+            testId="history-summary-streak"
+          />
+        ) : null}
+        {trend ? (
+          <StatTile
+            wideLine={wideLine}
+            value={
+              <span className={cn("inline-flex items-center gap-1", form.trend === "up" ? "text-good" : "text-bad")}>
+                {form.trend === "up" ? <TrendingUp className="h-3.5 w-3.5" aria-hidden /> : <TrendingDown className="h-3.5 w-3.5" aria-hidden />}
+                {form.trend === "up" ? "Better" : "Worse"}
+                <span className="@max-[36rem]/strip:sr-only"> lately</span>
+              </span>
+            }
+            label={
+              <>
+                <span className="@max-[36rem]/strip:sr-only">(</span>
+                {gap > 0 ? "+" : ""}
+                {form.gapPoints} pts<span className="@max-[36rem]/strip:sr-only">)</span>
+              </>
+            }
+            title={`${form.trend === "up" ? "Better" : "Worse"} lately: the last ${form.recent.games} games' win rate is ${Math.abs(gap)} points ${gap > 0 ? "above" : "below"} that of all ${form.season.games} in this list`}
+            testId="history-summary-trend"
+          />
+        ) : null}
       </StatLine>
-      <StatLine>
+      <StatLine className="@max-[36rem]/strip:justify-between">
+        <StatTile wideLine={wideLine} value={form.recent.winRate === null ? "—" : `${Math.round(form.recent.winRate * 100)}%`} label={`${form.recent.wins}W ${form.recent.games - form.recent.wins}L`} testId="history-summary-record" />
         {form.metrics.map((m) => (
           <StatTile
             wideLine={wideLine}
@@ -73,7 +136,6 @@ export function HistorySummaryStrip({ summary, ladder, championsById }: { summar
           />
         ))}
         <StatTile wideLine={wideLine} value={kp.value === null ? "—" : `${Math.round(kp.value * 100)}%`} label="KP" title={kp.games ? `Kills and assists over the team's kills, in the ${kp.games} recent games that record both` : "Team kills are not recorded for these games"} testId="history-summary-kp" />
-        {summary.streak && summary.streak.games >= 2 ? <StatTile wideLine={wideLine} value={<span className={summary.streak.win ? "text-blue" : "text-red"}>{summary.streak.games}</span>} label={summary.streak.win ? "wins in a row" : "losses in a row"} testId="history-summary-streak" /> : null}
       </StatLine>
       <StatLine>
         {summary.mostPlayed.length ? (
@@ -82,9 +144,9 @@ export function HistorySummaryStrip({ summary, ladder, championsById }: { summar
             labelFrom60
             label="Played most"
             value={
-              <ul className="flex flex-wrap items-center gap-x-2 gap-y-1" aria-label="Played most in these games" data-testid="history-summary-champions">
+              <ul className="flex flex-wrap items-center gap-x-1 gap-y-1 @min-[36rem]/strip:gap-x-2" aria-label="Played most in these games" data-testid="history-summary-champions">
                 {summary.mostPlayed.map((c) => (
-                  <li key={c.championId} className="flex items-center gap-1" title={`${champ(c.championId).name}: ${c.wins} won, ${c.games - c.wins} lost`}>
+                  <li key={c.championId} className="flex items-center gap-0.5 @min-[36rem]/strip:gap-1" title={`${champ(c.championId).name}: ${c.wins} won, ${c.games - c.wins} lost`}>
                     {/* 20px, the line's height: the portrait's own size (xs) is drawn inside this box. */}
                     <span className="flex h-5 w-5 shrink-0 [&>*]:h-full [&>*]:w-full [&>*]:rounded [&>*]:text-4xs">
                       <ChampionPortrait champion={champ(c.championId)} size="xs" />
@@ -108,29 +170,18 @@ export function HistorySummaryStrip({ summary, ladder, championsById }: { summar
                 {formatCount(Math.abs(ladder.points))}
               </span>
             }
-            label={`${ladder.queue === "flex" ? "Flex" : "Solo/Duo"} points, ${ladder.since === null ? `${ladder.days} days` : `since ${formatDayMonth(ladder.since)}`}`}
+            // "Solo/Duo since 3 Nov" as the approved design writes it; "points" for screen readers.
+            label={
+              <>
+                {ladder.queue === "flex" ? "Flex" : "Solo/Duo"}
+                <span className="sr-only"> points</span>
+                {ladder.since === null ? `, ${ladder.days} days` : ` since ${formatDayMonth(ladder.since)}`}
+              </>
+            }
             title={`${ladder.from} → ${ladder.to}${ladder.riotId ? ` on ${ladder.riotId}` : ""}. Ladder points: LP, with 100 for each division gained or lost. From stored rank readings, not per game.`}
             testId="history-summary-ladder"
           />
         ) : null}
-        {trend ? (
-          <StatTile
-            wideLine={wideLine}
-            value={
-              <span className={cn("inline-flex items-center gap-1", form.trend === "up" ? "text-good" : "text-bad")}>
-                {form.trend === "up" ? <TrendingUp className="h-3.5 w-3.5" aria-hidden /> : <TrendingDown className="h-3.5 w-3.5" aria-hidden />}
-                {form.trend === "up" ? "Better" : "Worse"} lately
-              </span>
-            }
-            label={`(${form.gapPoints !== null && form.gapPoints > 0 ? "+" : ""}${form.gapPoints} pts)`}
-            testId="history-summary-trend"
-          />
-        ) : null}
-        <InfoTip
-          className="ml-auto self-center"
-          label="About these figures"
-          text={`Over the newest ${form.recent.games} games this list holds with its filters (all ${form.season.games} for the trend). KDA, CS and kill participation count only the games that record them. A trend is named only with enough games and a clear gap, the same rule as the Overview's Recent form. The ladder change comes from rank readings taken at each sync, so it is not split by game.`}
-        />
       </StatLine>
     </StatStrip>
   );
