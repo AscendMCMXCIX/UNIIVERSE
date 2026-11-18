@@ -113,7 +113,9 @@ export function useScrolledAway(target: HTMLElement | React.RefObject<HTMLElemen
       ([entry]) => {
         if (!entry) return;
         setWatched(el);
-        setSeen({ el, away: !entry.isIntersecting && entry.boundingClientRect.bottom <= line + 1 });
+        // An element with no box (hidden at this width) is never away: there is nothing to scroll back to.
+        const box = entry.boundingClientRect;
+        setSeen({ el, away: !entry.isIntersecting && box.height > 0 && box.bottom <= line + 1 });
       },
       { rootMargin: `-${line}px 0px 0px 0px`, threshold: [0] },
     );

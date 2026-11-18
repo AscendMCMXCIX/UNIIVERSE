@@ -118,9 +118,11 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   const bar = useTopBarHeight(headerRef);
   const heading = usePageHeading(pathname, bar);
   const back = useBack(pathname, heading.text, tabs, home);
-  // The page's filters (its FilterBar), offered in the bar once the page's own have gone up under it.
+  // The page's filters (its FilterBar), offered in the bar once the page's own have gone up under it,
+  // and kept while the button has the focus (the sheet hands it back there as it closes).
   const filters = usePageFilters();
   const filtersAway = useScrolledAway(filters?.root ?? null, bar || null);
+  const [filtersFocused, setFiltersFocused] = React.useState(false);
   // A profile's sections, when this page is one (your own only when you have a profile).
   const profile = adminMode ? null : profileBase(pathname);
   const sections = profile === "/overview" && !hasPlayer ? null : profile;
@@ -194,8 +196,8 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
           {/* Phones, and tablet widths in a window 480px tall or less (where the section tabs do not pin
               and their row cannot offer them): the page's Filters, once its own have scrolled up under
               the bar; its sheet, as from the page's own button. 44px, with the count of narrowed filters. */}
-          {filters && filtersAway ? (
-            <button type="button" onClick={() => filters.open("topbar")} aria-haspopup="dialog" className="relative grid h-11 w-11 shrink-0 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg md:not-short:hidden" data-testid="topbar-filters">
+          {filters && (filtersAway || filtersFocused) ? (
+            <button type="button" onClick={() => filters.open("topbar")} onFocus={() => setFiltersFocused(true)} onBlur={() => setFiltersFocused(false)} aria-haspopup="dialog" className="relative grid h-11 w-11 shrink-0 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg md:not-short:hidden" data-testid="topbar-filters">
               <SlidersHorizontal className="h-5 w-5 text-accent" aria-hidden />
               <span className="sr-only">Filters: {filters.summary}</span>
               {filters.count ? <span className="absolute right-0.5 top-1 min-w-4 rounded-full bg-accent px-1 text-center text-2xs font-semibold leading-4 tabular-nums text-bg">{filters.count}</span> : null}
