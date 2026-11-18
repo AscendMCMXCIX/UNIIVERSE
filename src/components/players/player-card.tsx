@@ -350,7 +350,10 @@ export function CardPool({ champions, roleLabel, showFigures = true, testId = "p
       </div>
     );
   const games = first.games ?? 0;
-  const firstLine = !showFigures ? "First choice" : games > 0 ? `${games} game${games === 1 ? "" : "s"}${first.winRate != null ? ` · ${Math.round(first.winRate * 100)}%` : ""}` : (first.tierLabel ?? "No games this season");
+  // The "·" held to the words either side of it by no-break spaces: where the line wraps (a narrow
+  // card at larger text) it never ends a line ("14 games ·" over "29%" at 200% on a 320px phone) or
+  // starts one, as on Recent form.
+  const firstLine = !showFigures ? "First choice" : games > 0 ? `${games} game${games === 1 ? "" : "s"}${first.winRate != null ? ` · ${Math.round(first.winRate * 100)}%` : ""}` : (first.tierLabel ?? "No games this season");
   return (
     <div className="flex min-w-0 items-center gap-2.5" aria-label={`${roleLabel} champion pool, in order of preference`} data-testid={testId} data-card-pool>
       <span className="flex min-w-0 shrink-0 items-center gap-2 @max-[9.75rem]/card:shrink @max-[9.75rem]/card:flex-wrap" data-testid="pool-first">

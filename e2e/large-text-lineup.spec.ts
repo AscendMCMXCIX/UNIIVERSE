@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from "./test";
 import { lineupAtRest } from "./lineup";
+import { memberContext, unique } from "./member-account";
 
 /*
   Team Overview's lineup cards with larger text on a phone (in-memory demo roster, synthetic data).
@@ -11,16 +12,20 @@ import { lineupAtRest } from "./lineup";
   and the pool's first choice ("Nauti", "12 gam"); the turn control also covered the picture's edge.
   At 150% to 200% on 320, 375 and 393px each card, front and back, now holds its text: none of it
   past the card's edge or out of the season's box, words whole, the pool's name and first choice
-  never cut short, the card's controls clear of the role's chip (its name hidden to the eye only,
-  where the icon stands alone), the picture, the links and the name, and no sideways scroll. At the
-  usual size nothing of this applies.
+  never cut short, no "·" ending or starting a line, the card's controls clear of the role's chip
+  (its name hidden to the eye only, where the icon stands alone), the picture, the links and the
+  name, and no sideways scroll. The chip shows its name wherever it fits its lane (to the card's own
+  edge on a card without controls) and the icon alone exactly where it does not. A member's own card,
+  with Customise beside the turn control, holds the same at the same sizes, its two controls one
+  above the other on a card under 9.25rem. At the usual size nothing of this applies.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
 });
 
-const overflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+// Against the layout viewport's width: a phone's (isMobile) window grows with what spills past it, so innerWidth would hide it.
+const overflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 const settled = (page: Page) => page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
 
 /** What one side of a card shows, measured in one frame: whatever is wrong with it, as readable lines. */
@@ -84,12 +89,37 @@ function measureFace(face: Locator) {
     for (const el of [heading, ...first]) {
       if (el && shown(el) && el.scrollWidth > el.clientWidth + 1) problems.push(`"${el.textContent?.trim()}" cut short`);
     }
-    // The role's chip inside the card; the card's own controls clear of the chip, the picture, the
-    // links and the name (a touch screen's turn control covered the picture's edge at 200% on 320px).
+    // No "·" ends or starts a line (the first choice's "14 games · 29%" wraps at 200% on 320px): a
+    // character of the card's visible text on its line either side of it.
+    const chars: { c: string; mid: number }[] = [];
+    const letters = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
+    for (let n = letters.nextNode(); n; n = letters.nextNode()) {
+      const text = n.textContent ?? "";
+      if (!text.trim() || !n.parentElement || !shown(n.parentElement)) continue;
+      for (let k = 0; k < text.length; k++) {
+        if (!text[k]!.trim()) continue;
+        const range = document.createRange();
+        range.setStart(n, k);
+        range.setEnd(n, k + 1);
+        const box = [...range.getClientRects()].find((b) => b.width > 0.1);
+        if (box) chars.push({ c: text[k]!, mid: box.top + box.height / 2 });
+      }
+    }
+    chars.forEach((ch, k) => {
+      if (ch.c !== "·") return;
+      const [before, after] = [chars[k - 1], chars[k + 1]];
+      if (!after || Math.abs(after.mid - ch.mid) > 4) problems.push(`a "·" ends a line`);
+      if (!before || Math.abs(before.mid - ch.mid) > 4) problems.push(`a "·" starts a line`);
+    });
+    // The role's chip inside the card, its name shown only where the chip fits its lane; the card's
+    // own controls clear of the chip, the picture, the links, the name and "You" (a touch screen's
+    // turn control covered the picture's edge at 200% on 320px).
     const chip = card.querySelector("[data-testid=assigned-role]")!;
     const chb = chip.getBoundingClientRect();
     if (chb.right > inner.right + 0.5) problems.push(`role chip ${Math.round(chb.right - inner.right)}px past the card`);
-    const parts = [chip, ...card.querySelectorAll("[data-avatar-frame], [data-testid=card-social], [data-testid=card-name]")];
+    const lane = card.querySelector("[data-testid=assigned-role-lane]")!.getBoundingClientRect();
+    if (chb.right > lane.right + 0.5) problems.push(`role chip ${Math.round(chb.right - lane.right)}px past its lane`);
+    const parts = [chip, ...card.querySelectorAll("[data-avatar-frame], [data-testid=card-social], [data-testid=card-name], [data-testid=card-you]")];
     for (const control of card.querySelectorAll(":scope > [data-card-overlay] button")) {
       const b = control.getBoundingClientRect();
       for (const part of parts) {
@@ -103,7 +133,11 @@ function measureFace(face: Locator) {
     const label = chip.querySelector("[data-testid=assigned-role-label]");
     const icon = chip.querySelector("[data-role-icon]")?.getBoundingClientRect();
     if (!icon || icon.width < 8 || icon.right > inner.right) problems.push("role icon not shown whole");
-    return { role: (card.getAttribute("data-testid") ?? "").replace(/^lineup-(row|sub)-/, ""), problems, chipText: chip.textContent?.trim() ?? "", labelShown: label ? shown(label) : true, rem: cb.width / parseFloat(getComputedStyle(document.documentElement).fontSize) };
+    // Two controls (a member's own card: Customise and the turn control): side by side, or one above the other.
+    const [a, b] = [...card.querySelectorAll(":scope > [data-card-overlay] button")].map((el) => el.getBoundingClientRect());
+    const controls = a && b ? (Math.abs(a.top - b.top) < 1 ? "side by side" : Math.abs(a.right - b.right) < 1 && Math.max(a.top, b.top) >= Math.min(a.bottom, b.bottom) ? "one above the other" : "neither") : null;
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    return { role: (card.getAttribute("data-testid") ?? "").replace(/^lineup-(row|sub)-/, ""), problems, chipText: chip.textContent?.trim() ?? "", labelShown: label ? shown(label) : true, rem: cb.width / rem, inner: (inner.right - inner.left) / rem, controls };
   });
 }
 
@@ -132,10 +166,28 @@ test("at 150% to 200% text on 320, 375 and 393px phones, every lineup card holds
       }
     }
   }
-  // The icon stands alone only where the name could not fit (Support beside its turn control from
-  // 150% on 320px; every card at 200% on 320px but Mid, which has no control).
-  expect(narrowed, "the chips shown as their icon alone").toEqual(expect.arrayContaining(["320px at 150% SUPPORT", "320px at 200% TOP", "320px at 200% SUPPORT"]));
-  expect(narrowed, "Mid's short name, with no control beside it, stays").not.toContain("320px at 200% MID");
+  // The icon stands alone exactly where the name could not fit, and nowhere else: Top and Support
+  // beside their turn control (Support from 150% on 320px and 175% on 375 and 393px, Top from 175%
+  // on 320px and 200% on 375 and 393px); Jungle and Bottom, without a control, only where their chip
+  // is wider than the card allows (Bottom from 175% on 320px, Jungle at 200% there). Jungle at 175%
+  // on 320px and Bottom at 200% on 375px fit by 3px and 2px, so they keep their names; Mid's short
+  // name always fits.
+  expect(narrowed, "the chips shown as their icon alone").toEqual([
+    "320px at 150% SUPPORT",
+    "320px at 175% TOP",
+    "320px at 175% ADC",
+    "320px at 175% SUPPORT",
+    "320px at 200% TOP",
+    "320px at 200% JUNGLE",
+    "320px at 200% ADC",
+    "320px at 200% SUPPORT",
+    "375px at 175% SUPPORT",
+    "375px at 200% TOP",
+    "375px at 200% SUPPORT",
+    "393px at 175% SUPPORT",
+    "393px at 200% TOP",
+    "393px at 200% SUPPORT",
+  ]);
 
   // The back of a card (its substitute, with the way back in the corner), at 200% on a 320px phone.
   await page.setViewportSize({ width: 320, height: 800 });
@@ -173,5 +225,72 @@ test("at the usual text size on 320, 375 and 393px phones, the lineup cards keep
       }));
       expect(layout, `${width}px, ${card.role}: one row of figures, the first choice beside its portrait`).toEqual({ figures: "grid", first: "nowrap" });
     }
+  }
+});
+
+/** Edit lineup, as the team's administrator: who starts at Top (chosen by name); its substitute stays. */
+async function setTopStarter(admin: Page, name: string) {
+  await admin.goto("/team");
+  await expect(admin.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
+  if ((await admin.getByTestId("lineup-row-TOP").getAttribute("data-player-name")) === name) return;
+  await admin.getByTestId("edit-lineup").click();
+  await admin.getByTestId("lineup-change-TOP").click();
+  const sheet = admin.getByTestId("lineup-sheet-TOP");
+  await sheet.locator(`[data-testid=lineup-option][data-player-name="${name}"]`).click();
+  await sheet.getByTestId("lineup-sheet-save").click();
+  await expect(sheet).toBeHidden();
+  await expect(admin.getByTestId("lineup-row-TOP")).toHaveAttribute("data-player-name", name);
+  await admin.getByTestId("edit-lineup").click();
+}
+
+test("a member's own card, with Customise beside the turn control, at 150% to 200% text on 320, 375 and 393px phones: the two controls side by side or one above the other, clear of the role, the picture and the name; nothing cut, words whole", async ({ browser, baseURL }, info) => {
+  test.skip(info.project.name !== "phone", "phone widths, set below");
+  test.setTimeout(240_000);
+  // The demo's local owner has no player profile, so a member is made, with a name of short words
+  // (a long one-word name may break inside its word in a narrow card, by design), and starts at Top,
+  // whose substitute gives the card its turn control. The lineup goes back afterwards.
+  const admin = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const adminPage = await admin.newPage();
+  await adminPage.goto(baseURL! + "/team");
+  await expect(adminPage.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
+  const before = (await adminPage.getByTestId("lineup-row-TOP").getAttribute("data-player-name"))!;
+  const display = `Own ${unique("").slice(-5)}`;
+  const member = await memberContext(browser, adminPage, { width: 375, height: 667 }, { base: "Own", role: "Top", display });
+  const phone = await browser.newContext({ viewport: { width: 375, height: 667 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, storageState: await member.context.storageState() });
+  try {
+    await setTopStarter(adminPage, display);
+    const page = await phone.newPage();
+    await page.goto("/team");
+    await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
+    await lineupAtRest(page);
+    const own = page.getByTestId("lineup-row-TOP");
+    await expect(own).toHaveAttribute("data-player-name", display);
+    await expect(own.getByTestId("customise-card")).toBeAttached();
+    await expect(own.getByTestId("flip-to-substitute")).toBeAttached();
+    await expect(own.getByTestId("card-you")).toBeAttached();
+    const named: string[] = [];
+    for (const width of [320, 375, 393]) {
+      await page.setViewportSize({ width, height: 800 });
+      for (const root of [100, 150, 175, 200]) {
+        await page.evaluate((r) => { document.documentElement.style.fontSize = `${r}%`; }, root);
+        await settled(page);
+        const at = `${width}px at ${root}%`;
+        await expect.poll(() => overflow(page), `${at}: no sideways page scroll`).toBeLessThanOrEqual(1);
+        const card = await measureFace(own);
+        expect(card.problems, `${at}, your own Top card (a ${card.rem.toFixed(2)}rem card)`).toEqual([]);
+        expect(card.chipText, `${at}: the chip still names the role`).toBe("Top");
+        // One above the other on a card under 9.25rem, where side by side they left the role no room.
+        expect(card.controls, `${at}: Customise and the turn control (a card ${card.inner.toFixed(2)}rem inside)`).toBe(card.inner < 9.25 ? "one above the other" : "side by side");
+        if (card.labelShown) named.push(at);
+      }
+    }
+    // Beside two controls the role's name fits only at the usual size and at 150% on a 393px phone
+    // (5.4rem of lane for Top's 4.98rem chip); everywhere else the icon stands alone.
+    expect(named, "your own card's chip with the role's name").toEqual(["320px at 100%", "375px at 100%", "393px at 100%", "393px at 150%"]);
+  } finally {
+    await setTopStarter(adminPage, before);
+    await phone.close();
+    await member.context.close();
+    await admin.close();
   }
 });

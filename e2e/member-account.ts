@@ -56,8 +56,8 @@ export async function choosePassword(page: Page, username: string, temporary: st
   await save.click();
 }
 
-/** A team member account, signed in on its own browser context (first-time setup included, with `role` as their Primary Role). */
-export async function memberContext(browser: Browser, admin: Page, viewport = { width: 1440, height: 900 }, { base = "Viewer", role = "Mid" }: { base?: string; role?: "Top" | "Jungle" | "Mid" | "Bottom" | "Support" } = {}): Promise<{ context: BrowserContext; page: Page; username: string }> {
+/** A team member account, signed in on its own browser context (first-time setup included, with `role` as their Primary Role, and `display` as their display name where given). */
+export async function memberContext(browser: Browser, admin: Page, viewport = { width: 1440, height: 900 }, { base = "Viewer", role = "Mid", display }: { base?: string; role?: "Top" | "Jungle" | "Mid" | "Bottom" | "Support"; display?: string } = {}): Promise<{ context: BrowserContext; page: Page; username: string }> {
   const { username, temporary } = await createMember(admin, base);
   const context = await browser.newContext({ viewport });
   const page = await context.newPage();
@@ -67,6 +67,7 @@ export async function memberContext(browser: Browser, admin: Page, viewport = { 
   const refused = page.getByTestId("set-password-form").getByRole("alert");
   await expect(setup.or(refused)).toBeVisible();
   if (await refused.isVisible()) throw new Error(`Save my password was refused: ${await refused.innerText()}`);
+  if (display) await setup.getByTestId("setup-display-name").fill(display);
   await setup.getByTestId("setup-continue").click();
   await setup.getByRole("radiogroup", { name: "Primary role" }).getByRole("button", { name: role }).click();
   await setup.getByTestId("primary-pool-toggle").click();
@@ -75,7 +76,7 @@ export async function memberContext(browser: Browser, admin: Page, viewport = { 
   await setup.getByRole("button", { name: "Finish setup" }).click();
   // The optional Personalise step comes next; skip it.
   await page.getByTestId("personalise-done").click();
-  await expect(page.locator("aside").getByTestId("account-current-name")).toHaveText(username);
+  await expect(page.locator("aside").getByTestId("account-current-name")).toHaveText(display ?? username);
   return { context, page, username };
 }
 
