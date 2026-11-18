@@ -105,6 +105,8 @@ describe("Leaderboards, one page", () => {
     ]);
     for (const [id] of links) expect(html).toContain(`<section id="${id}"`);
     expect(html).toMatch(/<nav aria-label="On this page" class="min-w-0 @min-\[59rem\]\/dash:hidden" data-testid="section-index">/);
+    // Under 18rem (a phone from 125% text) the links wrap: no dots, which would start lines.
+    expect(html).toContain("@max-[18rem]/dash:hidden");
     // Before Recent form, after the header.
     expect(html.indexOf('data-testid="section-index"')).toBeLessThan(html.indexOf('<section id="recent-form"'));
   });

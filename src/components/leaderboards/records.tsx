@@ -17,7 +17,8 @@ import { SECTIONS } from "./sections";
   sections after Recent form: single games, multikills and milestones, which reward playing more,
   and say so (in the records' ⓘ). Three boards, each a section the page places by its own width
   (leaderboards-dashboard.tsx), each laid out by its own width, not the window's:
-    Season records   seven cells in one panel: one column, then two from a 40rem panel (the last,
+    Season records   seven cells in one panel: one column, then two from a 34rem panel where the
+                     page stacks its boards (never beside Recent form, from 86rem) (the last,
                      the streak, across both); each cell measures itself (@container/list), so a
                      record reads the same wherever it is placed (RecordRow);
     Multikills       a row per member, rarest first;
@@ -47,9 +48,11 @@ function Definitions({ records }: { records: RecordView[] }) {
 // ── Season records ─────────────────────────────────────────────────────────────────────────────
 
 /*
-  The records' cells, by the panel's width: a column of cells, two columns from 40rem (both a
-  tablet's ways round, 1280 and 1440 wide; never the desktop's side column, at most 38.5rem), the
-  seventh (the streak) across both, so no cell stands empty. A hairline between neighbours: above every
+  The records' cells, by the panel's width and the page's: a column of cells, two columns from a
+  34rem panel (cells of at least 16.25rem, the three-line layout's room) while the page is under
+  86rem (a tablet either way round, a phone held sideways, 1280 and 1440 wide); from 86rem the panel
+  is the column beside Recent form, and one column of cells keeps it as tall as the board beside it.
+  The seventh (the streak) goes across both columns, so no cell stands empty. A hairline between neighbours: above every
   cell but the first row's, and right of each left-hand cell. Each cell (an li) is its own
   @container/list and holds its column template (BOOK_COLS), so its row picks its layout by the
   cell's width: two lines beside the picture from 36rem (the desktop's side column from 1920 × 1080
@@ -57,9 +60,9 @@ function Definitions({ records }: { records: RecordView[] }) {
   tablet's two columns, the side column at 1920 × 1080 with the sidebar open), one column under
   16rem (a phone at 150% or 200% text).
 */
-const RECORD_CELLS = "grid grid-cols-[minmax(0,1fr)] border-t border-border/70 @min-[40rem]/list:grid-cols-2";
+const RECORD_CELLS = "grid grid-cols-[minmax(0,1fr)] border-t border-border/70 @min-[34rem]/list:@max-[86rem]/dash:grid-cols-2";
 const RECORD_CELL =
-  "@container/list min-w-0 border-border/60 [&:not(:first-child)]:border-t @min-[40rem]/list:[&:nth-child(2)]:border-t-0 @min-[40rem]/list:[&:nth-child(odd):not(:last-child)]:border-r @min-[40rem]/list:[&:last-child:nth-child(odd)]:col-span-2";
+  "@container/list min-w-0 border-border/60 [&:not(:first-child)]:border-t @min-[34rem]/list:@max-[86rem]/dash:[&:nth-child(2)]:border-t-0 @min-[34rem]/list:@max-[86rem]/dash:[&:nth-child(odd):not(:last-child)]:border-r @min-[34rem]/list:@max-[86rem]/dash:[&:last-child:nth-child(odd)]:col-span-2";
 
 /*
   A cell's columns, by its own width (DataList's tiers):

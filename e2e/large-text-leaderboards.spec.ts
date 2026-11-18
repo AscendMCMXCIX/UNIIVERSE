@@ -171,11 +171,11 @@ function rowBoxes(page: Page) {
 
 /**
  * Each visible "·" in Recent form's second lines, its captions and its "Not enough recent games"
- * rows, that ends or starts a line: with a character of its own text either side of it on its
- * line, it does neither.
+ * rows, and in the index of the page's sections, that ends or starts a line: with a character of its
+ * own text either side of it on its line, it does neither.
  */
 function danglingDots(page: Page) {
-  return page.locator("[data-testid=form-meta], [data-testid=form-not-enough-member], [data-testid=form-not-enough-head], [data-testid=form-provisional-head]").evaluateAll((els) =>
+  return page.locator("[data-testid=form-meta], [data-testid=form-not-enough-member], [data-testid=form-not-enough-head], [data-testid=form-provisional-head], [data-testid=section-index]").evaluateAll((els) =>
     els.flatMap((el) => {
       const srOnly = (e: Element) => {
         for (let p: Element | null = e; p && p !== el.parentElement; p = p.parentElement) {
