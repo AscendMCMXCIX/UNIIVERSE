@@ -636,7 +636,7 @@ test("an uploaded logo: at the start of the top bar, animated unless motion is r
       await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
       const phone = await context.newPage();
       await phone.goto("/team");
-      const link = phone.getByTestId("mobile-topbar").locator("a[title]");
+      const link = phone.getByTestId("mobile-topbar").getByTestId("mobile-brand");
       await expect.poll(() => link.locator("img").evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 0)).toBe(true);
       const shown = await link.evaluate((a) => {
         const img = a.querySelector("img")!;
