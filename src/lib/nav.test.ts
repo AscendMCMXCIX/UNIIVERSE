@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, ADMIN_TABS, NAV_ENTRIES, NAV_LINKS, PHONE_TABS, PHONE_TAB_LIMIT, RESOURCES, RESOURCES_SECTIONS, SECTION_HUBS, TEAM_SECTIONS, activeHref, backSteps, canOpen, currentTab, encountersRedirect, entryLinks, isActivePath, pageName, phoneParent, phoneTabs, profileBase } from "./nav";
+import { ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, ADMIN_TABS, NAV_ENTRIES, NAV_LINKS, PAGE_WIDTH, PHONE_TABS, PHONE_TAB_LIMIT, RESOURCES, RESOURCES_SECTIONS, SECTION_HUBS, TEAM_SECTIONS, activeHref, backSteps, canOpen, currentTab, encountersRedirect, entryLinks, isActivePath, pageName, pageWidthOf, phoneParent, phoneTabs, profileBase } from "./nav";
 import type { Session } from "@/server/auth/permissions";
 
 const entryId = (e: (typeof NAV_ENTRIES)[number]) => ("key" in e ? e.key : e.href);
@@ -64,6 +64,18 @@ describe("navigation entries", () => {
   it("every hub section belongs to exactly one tab bar", () => {
     const hrefs = SECTION_HUBS.flatMap((h) => h.sections.map((s) => s.href));
     expect(new Set(hrefs).size).toBe(hrefs.length);
+  });
+
+  it("the pages of a tab bar share one width: Team's four sections the wide one, every other page the ordinary one", () => {
+    expect(SECTION_HUBS.map((h) => [h.key, h.width])).toEqual([
+      ["team", "wide"],
+      ["resources", "max"],
+      ["admin-settings", "max"],
+    ]);
+    expect(TEAM_SECTIONS.map((s) => pageWidthOf(s.href))).toEqual(["wide", "wide", "wide", "wide"]);
+    // A teammate's profile sits under Players' address, in the profile's own (ordinary) width.
+    for (const path of ["/players/p1", "/players/p1/matches", "/resources", "/resources/matchups", "/admin/branding", "/settings", "/overview"]) expect(pageWidthOf(path), path).toBe("max");
+    expect(PAGE_WIDTH).toEqual({ max: "max-w-[var(--content-max)]", wide: "max-w-[var(--content-wide)]" });
   });
 });
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { SECTION_HUBS } from "@/lib/nav";
+import { PAGE_WIDTH, SECTION_HUBS } from "@/lib/nav";
 import { BrandMark } from "@/components/brand-mark";
 import { TabBar } from "@/components/ui/tab-bar";
 import { cn } from "@/lib/cn";
@@ -22,8 +22,13 @@ import { cn } from "@/lib/cn";
  * shared TabBar (ui/tab-bar.tsx), as on a profile: on phones the tabs share the width when they
  * fit, and otherwise scroll sideways with the current one in view; on tablets and desktops it stays
  * pinned at the top of the page once it has scrolled past (TabBar's sticky), so a long section
- * (Players, Matches) never needs scrolling back up to leave it. Pages inside a section (a
- * profile, a match) have their own headers and no Team bar.
+ * (Players, Matches) never needs scrolling back up to leave it. The pages of a set share one width
+ * (SECTION_HUBS' `width`: Team's four sections --content-wide, the others --content-max), which the
+ * bar's row takes (TabBar's `inner`): from 1600px wide, where the pages stop growing and centre in the
+ * room beside the sidebar, the first tab still starts where the page does and the team's name ends
+ * where it ends, and the row never moves between the sections; the bar's line and its pinned
+ * background span the room. Pages inside a section (a profile, a match) have their own headers and
+ * no Team bar.
  */
 export function SectionTabs({ allowed, team }: { allowed: string[]; team: { name: string; logo: string | null; logoStill: string | null } }) {
   const pathname = usePathname();
@@ -41,6 +46,7 @@ export function SectionTabs({ allowed, team }: { allowed: string[]; team: { name
       // Phones reach Team's sections from the bottom tab bar (MobileNav), so the bar is not repeated in the page there.
       className={cn("mb-4 sm:mb-5 lg:mb-4 lg:first:-mt-2", hub.key === "team" && "max-md:hidden")}
       testId={`${hub.key}-tabs`}
+      inner={PAGE_WIDTH[hub.width]}
       end={
         hub.key === "team" && current.href !== "/team" ? (
           <Link href="/team" className="mb-2 hidden min-w-0 max-w-[16rem] shrink items-center gap-2 text-sm font-semibold text-fg-muted hover:text-fg md:flex" title={`${team.name}: Team Overview`} data-testid="team-tabs-identity">

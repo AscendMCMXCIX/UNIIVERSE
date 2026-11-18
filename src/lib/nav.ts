@@ -116,14 +116,30 @@ export const ADMIN_SETTINGS_SECTIONS: NavLink[] = [
 ];
 
 /**
+ * The page widths (globals.css; docs/STANDARDS.md → Page layout), as the class a page's column takes:
+ * `max` (--content-max, 80rem) for profiles, lists of cards, documents and forms; `wide`
+ * (--content-wide, 100rem) for Team's sections.
+ */
+export const PAGE_WIDTH = { max: "max-w-[var(--content-max)]", wide: "max-w-[var(--content-wide)]" } as const;
+export type PageWidth = keyof typeof PAGE_WIDTH;
+
+/**
  * The sets of pages shown as tabs at the top of each of their pages (SectionTabs), one per
  * sidebar entry that stands for several pages. `label` names the tab bar for screen readers.
+ * `width`: the one width every page of the set takes (PAGE_WIDTH), so the tabs start and end where
+ * each page does, however wide the window, and never move between them; the bar's row and the
+ * pages' loading state take it too (pageWidthOf).
  */
-export const SECTION_HUBS: Array<{ key: string; label: string; sections: NavLink[] }> = [
-  { key: "team", label: "Team sections", sections: TEAM_SECTIONS },
-  { key: "resources", label: "Resources sections", sections: RESOURCES_SECTIONS },
-  { key: "admin-settings", label: "Platform Settings sections", sections: ADMIN_SETTINGS_SECTIONS },
+export const SECTION_HUBS: Array<{ key: string; label: string; width: PageWidth; sections: NavLink[] }> = [
+  { key: "team", label: "Team sections", width: "wide", sections: TEAM_SECTIONS },
+  { key: "resources", label: "Resources sections", width: "max", sections: RESOURCES_SECTIONS },
+  { key: "admin-settings", label: "Platform Settings sections", width: "max", sections: ADMIN_SETTINGS_SECTIONS },
 ];
+
+/** The width of the page at `pathname`: its set's (SECTION_HUBS), else the ordinary one. A loading state takes it, so it stands where the page will. */
+export function pageWidthOf(pathname: string): PageWidth {
+  return SECTION_HUBS.find((h) => h.sections.some((s) => s.href === pathname))?.width ?? "max";
+}
 
 /** The pages of an entry, whatever its kind. */
 export function entryLinks(entry: NavEntry): NavLink[] {
