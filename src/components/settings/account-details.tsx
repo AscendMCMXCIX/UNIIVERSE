@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
 import { useAvatarUpload } from "@/components/profile/avatar-upload";
-import { SECTION_INDEX_LINK, SectionIndex, type SectionIndexItem } from "@/components/ui/section-index";
+import { SectionIndex, type SectionIndexItem } from "@/components/ui/section-index";
+import { chipClass } from "@/components/ui/segmented";
 import { cn } from "@/lib/cn";
 
 const USERNAME_RULE = /^[\p{L}\p{N}][\p{L}\p{N} ._-]{0,30}[\p{L}\p{N}]$/u;
@@ -145,10 +146,13 @@ const PICTURE_HELP = `Optional. PNG, JPEG or WebP, cropped to a square. Shown to
 
 /**
  * The picture part of Settings' account card: the picture, who you are (`children`: the name,
- * @username and role) beside it, then `afterIdentity` (the card's quiet links on a phone), Change
- * and Remove, and what the picture is for. It adds no box of its own (display: contents): each part
- * is a cell of the card's grid, in the order it is drawn, so reading and the keyboard follow what is
- * seen (account-settings.tsx). The same editor as My Profile's (useAvatarUpload).
+ * @username and role), then `afterIdentity` (the card's quiet links on a phone), Change and Remove,
+ * and what the picture is for. Who you are sits beside the picture on a phone and in a window 480px
+ * tall or less, and under it, the card's whole width, from md in a taller window and wherever a
+ * larger text size leaves the card under 11rem inside (the card is a container: the longest role,
+ * "Administrator", then keeps its line whole). It adds no box of its own (display: contents): each
+ * part is a cell of the card's grid, in the order it is drawn, so reading and the keyboard follow
+ * what is seen (account-settings.tsx). The same editor as My Profile's (useAvatarUpload).
  */
 export function AccountPicture({ name, src, children, afterIdentity }: { name: string; src: string | null; children: React.ReactNode; afterIdentity?: React.ReactNode }) {
   const { choose, remove, busy, ui } = useAvatarUpload();
@@ -156,7 +160,7 @@ export function AccountPicture({ name, src, children, afterIdentity }: { name: s
     <div className="contents" data-testid="avatar-editor">
       {/* 56px on a phone and in a window 480px tall or less, 80px in the card's column from md. */}
       <Avatar name={name} src={src} size="xl" className="max-md:h-14 max-md:w-14 max-md:text-lg short:h-14 short:w-14 short:text-lg" />
-      <div className="min-w-0" data-testid="account-card-identity">
+      <div className="min-w-0 @max-[11rem]:col-span-2 md:not-short:col-span-2" data-testid="account-card-identity">
         {children}
       </div>
       {afterIdentity}
@@ -217,10 +221,11 @@ export function AvatarEditor({ name, src }: { name: string; src: string | null }
 }
 
 /**
- * Settings' sections, in the account card (Records' SectionIndex: plain links whose click jumps
- * through the router's history, jumpToAnchor). On a phone, and in a window 480px tall or less, its
- * quiet line ("Name · Links · Password"); from md in a taller window a list down the card, the
- * section being read marked.
+ * Settings' sections, in the account card: Records' SectionIndex (plain links whose click jumps
+ * through the router's history, jumpToAnchor), restyled. On a phone, and in a window 480px tall or
+ * less, chips (Name, Links, Password; 44px on a touch screen, 8px apart, no dots between them), the
+ * section being read marked as a chosen chip is; from md in a taller window a list down the card,
+ * the section being read marked.
  */
 export function SettingsIndex({ items }: { items: readonly SectionIndexItem[] }) {
   return (
@@ -228,13 +233,13 @@ export function SettingsIndex({ items }: { items: readonly SectionIndexItem[] })
       label="Settings sections"
       items={items}
       spy
-      listClassName="md:not-short:flex-col md:not-short:items-stretch md:not-short:gap-0.5"
-      separatorClassName="md:not-short:hidden"
+      listClassName="gap-y-2 max-md:gap-x-2 short:gap-x-2 md:not-short:flex-col md:not-short:items-stretch md:not-short:gap-0.5"
+      separatorClassName="hidden"
       linkClassName={(on) =>
         cn(
-          SECTION_INDEX_LINK,
-          "md:not-short:flex md:not-short:min-h-9 md:not-short:w-full md:not-short:rounded-md md:not-short:px-2 md:not-short:hover:bg-surface-2 md:not-short:hover:no-underline md:not-short:pointer-coarse:min-h-11",
-          on && "md:not-short:bg-surface-2 md:not-short:font-semibold md:not-short:text-fg",
+          chipClass(on),
+          "md:not-short:flex md:not-short:w-full md:not-short:rounded-md md:not-short:border-0 md:not-short:px-2 md:not-short:text-sm md:not-short:hover:bg-surface-2",
+          on && "md:not-short:bg-surface-2 md:not-short:font-semibold",
         )
       }
       testId="settings-index"

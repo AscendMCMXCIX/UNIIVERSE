@@ -42,8 +42,8 @@ export interface SectionIndexItem {
   label: string;
 }
 
-/** A link's own look: quiet text, the page's ink. A page that styles its links differently can start from it (linkClassName). */
-export const SECTION_INDEX_LINK = "touch-target inline-flex min-h-6 items-center rounded-sm font-medium text-fg-muted underline-offset-4 transition-colors duration-150 hover:text-fg hover:underline";
+/** A link's own look: quiet text, the page's ink (a page's linkClassName replaces it). */
+const SECTION_INDEX_LINK = "touch-target inline-flex min-h-6 items-center rounded-sm font-medium text-fg-muted underline-offset-4 transition-colors duration-150 hover:text-fg hover:underline";
 
 /**
  * The section being read, for `spy`: the last one whose top has passed the upper third of the

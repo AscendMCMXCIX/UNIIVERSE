@@ -79,10 +79,12 @@ function AccountActions({ variant, profileLinks, modeSwitch }: { variant: "quiet
  * find the switch between the modes here; nobody else sees Admin Mode named.
  *
  * The account card leads (surface-lead), drawn in its reading order at every size: the picture
- * beside the name, @username and the role; on a phone and in a window 480px tall or less, its
- * actions as a row of quiet links (My Profile, Riot Accounts, the mode switch, Sign out), so Sign
- * out is on the first screen; Change and Remove; what the picture is for; the index of the sections
- * (SectionIndex); from md in a taller window the actions as rows at the end. From sm the card is a
+ * and who you are (the name, @username and the role: beside the picture on a phone and in a window
+ * 480px tall or less, under it from md in a taller window and at a larger text size, AccountPicture);
+ * on a phone and in a window 480px tall or less, its actions as a row of quiet links (My Profile,
+ * Riot Accounts, the mode switch, Sign out), so Sign out is on the first screen; Change and Remove;
+ * what the picture is for; the index of the sections (SectionIndex: chips there, a list from md in a
+ * taller window); from md in a taller window the actions as rows at the end. From sm the card is a
  * column of its own (15rem, 16rem from lg; a phone held sideways is sm), sticky under the bar from md
  * in a window taller than 480px.
  * The sections follow: Name & username (side by side from xl, each field with its own Save), Social
@@ -102,7 +104,7 @@ export async function AccountSettings({ mode }: { mode: "player" | "admin" }) {
     <div className="mx-auto grid max-w-5xl gap-3 sm:grid-cols-[15rem_minmax(0,1fr)] sm:grid-rows-[auto_1fr] sm:gap-x-5 sm:gap-y-4 md:gap-x-6 md:gap-y-5 lg:grid-cols-[16rem_minmax(0,1fr)]">
       <PageHeader className="sm:col-start-2 sm:row-start-1" title="Settings" description="Your picture, display name, username and password." guide />
 
-      <section aria-label="Your account" className="surface-lead grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-panel border border-border bg-surface p-3 sm:col-start-1 sm:row-span-2 sm:row-start-1 sm:self-start sm:p-4 md:not-short:sticky md:not-short:top-[calc(var(--bar-top)+1rem)]" data-testid="settings-account">
+      <section aria-label="Your account" className="surface-lead @container grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-panel border border-border bg-surface p-3 sm:col-start-1 sm:row-span-2 sm:row-start-1 sm:self-start sm:p-4 md:not-short:sticky md:not-short:top-[calc(var(--bar-top)+1rem)]" data-testid="settings-account">
         {user ? (
           <AccountPicture name={displayName} src={avatarUrl(user.id, user.avatarVersion)} afterIdentity={<AccountActions variant="quiet" profileLinks={profileLinks} modeSwitch={modeSwitch} />}>
             <p className="text-lg font-semibold leading-tight text-fg [overflow-wrap:anywhere]" data-testid="settings-name">

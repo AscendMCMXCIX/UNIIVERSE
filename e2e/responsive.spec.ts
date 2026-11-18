@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "./test";
+import { expect, test, type Locator, type Page } from "./test";
 import { closeFilterSheet, openFilterBar } from "./filters";
 import { playerEntry } from "./players";
 import { memberContext } from "./member-account";
@@ -172,7 +172,8 @@ test("Settings: the account card leads, drawn in the order it is read, with Sign
   // picture" and "Remove picture".
   const picture = card.getByRole("button", { name: /^(Add a picture|Change picture)$/ });
   await expect(picture).toBeVisible();
-  if ((await picture.textContent())?.startsWith("Change")) await expect(card.getByRole("button", { name: "Remove picture" })).toBeVisible();
+  const hasPicture = (await card.getByRole("button", { name: "Change picture", exact: true }).count()) > 0;
+  await expect(card.getByRole("button", { name: "Remove picture", exact: true })).toHaveCount(hasPicture ? 1 : 0);
   // Each field and its Save share one row: 44px on a phone and on a touch screen.
   for (const [form, label, save] of [
     ["display-name-form", "Display name", "Save display name"],
@@ -198,11 +199,26 @@ test("Settings: the account card leads, drawn in the order it is read, with Sign
   const order = await cardTabOrder(page);
   expect(order.length, "the card's controls").toBeGreaterThanOrEqual(5);
   expect(readsInOrder(order), JSON.stringify(order)).toBe(true);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const identity = (await card.getByTestId("account-card-identity").boundingBox())!;
+  const avatar = (await card.getByTestId("account-card-identity").locator("xpath=preceding-sibling::*[1]").boundingBox())!;
+  const links = index.getByRole("link");
   if (isPhone(page)) {
-    // A phone: the card above the sections; its quiet links right under who you are.
+    // A phone: the card above the sections; who you are beside the picture, its quiet links right under it.
     expect((await card.boundingBox())!.y + (await card.boundingBox())!.height).toBeLessThanOrEqual((await page.locator("#name").boundingBox())!.y);
+    expect(identity.x, "who you are beside the picture").toBeGreaterThanOrEqual(avatar.x + avatar.width);
     const quiet = card.getByTestId("settings-actions").filter({ visible: true });
     expect((await quiet.boundingBox())!.y).toBeLessThan((await picture.boundingBox())!.y);
+    // The index as chips: 44px on a touch screen, bordered, no dots between them, and the section
+    // being read (the first, at the top) marked on screen as a chosen chip is.
+    for (const link of await links.all()) {
+      expect((await link.boundingBox())!.height, "a chip, 44px").toBe(44);
+      expect(await link.evaluate((el) => getComputedStyle(el).borderTopWidth), "a chip's border").toBe("1px");
+    }
+    await expect(index.locator("span[aria-hidden]").filter({ visible: true }), "no dots between the chips").toHaveCount(0);
+    await expect(links.first()).toHaveAttribute("aria-current", "location");
+    const background = (link: Locator) => link.evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(await background(links.first()), "the section being read marked").not.toBe(await background(links.last()));
     // A link of the index jumps to its section through the router's history: under the top bar, and
     // Back from the next page comes back to it. Room under the last section, so the jump can land it
     // at the top.
@@ -219,9 +235,14 @@ test("Settings: the account card leads, drawn in the order it is read, with Sign
     await expect(page).toHaveURL(/\/settings#password$/);
     await expect(page.locator("main h1")).toHaveText("Settings");
   } else {
-    // Wider: the card is a column of its own beside the sections, sticky under the bar.
+    // Wider: the card is a column of its own beside the sections, sticky under the bar; who you are
+    // under the picture, the card's whole width; the index a list down the card (no chip borders).
     expect((await card.boundingBox())!.x + (await card.boundingBox())!.width).toBeLessThanOrEqual((await page.locator("#name").boundingBox())!.x);
     expect(await card.evaluate((el) => getComputedStyle(el).position)).toBe("sticky");
+    expect(identity.y, "who you are under the picture").toBeGreaterThanOrEqual(avatar.y + avatar.height);
+    expect(Math.abs(identity.x - avatar.x)).toBeLessThanOrEqual(1);
+    expect(identity.width, "the card's whole width").toBeGreaterThan(avatar.width * 2);
+    for (const link of await links.all()) expect(await link.evaluate((el) => getComputedStyle(el).borderTopWidth)).toBe("0px");
     // Its actions are rows at its end, after the index.
     const rows = card.getByTestId("settings-actions").filter({ visible: true });
     expect((await rows.boundingBox())!.y).toBeGreaterThan((await index.boundingBox())!.y);
@@ -248,6 +269,7 @@ test("Settings in a window 480px tall or less (a phone held sideways) and on the
     expect(first.bottom, `${where}: Sign out on the first screen`).toBeLessThanOrEqual(first.firstScreen);
     expect(await card.evaluate((el) => getComputedStyle(el).position), `${where}: not pinned`).not.toBe("sticky");
     await expect(page.locator("#current"), `${where}: the password form shown`).toBeVisible();
+    for (const link of await page.getByTestId("settings-index").getByRole("link").all()) expect((await link.boundingBox())!.height, `${where}: the index as chips`).toBe(44);
     const order = await cardTabOrder(page);
     expect(readsInOrder(order), `${where}: ${JSON.stringify(order)}`).toBe(true);
   }
