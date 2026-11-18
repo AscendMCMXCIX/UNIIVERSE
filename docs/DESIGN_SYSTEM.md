@@ -278,11 +278,11 @@ test):
   (smooth; at once with reduced motion), and so does tapping the page's title once it has moved into
   the top bar; at a tablet's width (md to lg) in a window 480px tall or less, where the section tabs
   do not pin, the title in the top bar does too. A page under a tab (a teammate's profile under
-  Players) still goes to the tab's page. The current section tab (Team's on tablets and desktops, a
-  profile's everywhere, the phone's in the top bar included) and the sidebar's entry for the page
-  shown do the same, and keep the page as it is: its view and filters stay (the link's own address
-  leaves the query out, and following it used to bring back the defaults, Records back to Recent
-  form). A click with a modifier key or another button still opens a new tab or window, and leaves
+  Players) still goes to the tab's page. The current section tab (Team's on tablets and desktops,
+  Resources', Platform Settings' and a profile's everywhere, the phone's in the top bar included)
+  and the sidebar's entry for the page shown do the same, and keep the page as it is: its view and
+  filters stay (the link's own address leaves the query out, and following it used to bring back
+  the defaults, Records back to Recent form). A click with a modifier key or another button still opens a new tab or window, and leaves
   this page alone (`src/lib/back-to-top.ts`).
 - **Back.** Phones and the installed app show their own Back, named after where it leads: the
   previous page when it is ours, else the page above (`phoneParent`). A full-screen game is a history
@@ -290,7 +290,10 @@ test):
   does every filter (Team Matches', the Records season, Players' Archived, Ranked progress's queue
   and account, and a mode's other seasons included), so Back leaves the page instead of stepping back
   through each choice. A page's views (`SubTabs`: Recent form and Records, Games and Encounters) stay
-  entries of their own, as each is a link with its own address. An
+  entries of their own, as each is a link with its own address, and so do Matchup Intel's pairs
+  (each pair chosen, and a chip's jump to an ability): the browser's Back steps through them, and
+  the top bar's Back, named after the page before Matchup Intel, goes past them where the browser
+  shows them to the page (the Navigation API, `backSteps`; docs/MATCHUP_INTEL.md). An
   account without a player profile never starts at, or goes Back to, an empty Profile: its home is
   its first other page.
 - **Overlays.** One sheet for every choice and editor (`DetailModal` `size="sheet"`, `Dialog` built

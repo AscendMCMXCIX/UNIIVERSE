@@ -125,7 +125,9 @@ test("tablets and desktops: the current section tab, and the sidebar's entry for
   await opened.close();
   if (info.project.name === "desktop") {
     // The sidebar's entry for the page shown (Resources): the page stays as it is, back at its top.
-    // Resources fits a desktop window, so the test makes it long enough to scroll.
+    // Resources fits a desktop window, so the test makes it long enough to scroll. The Library's rows
+    // ask each site for its icon; a test asks none (resources.spec.ts).
+    await page.route(/\/favicon\.ico$/, (route) => route.abort());
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
     await page.evaluate(() => {
