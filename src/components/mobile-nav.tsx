@@ -666,16 +666,16 @@ function goBackTo(target: string, pathname: string, back: () => void) {
   else back();
 }
 
-/** Distance the page must scroll before the bars may slide away (about the top bar's height). */
+/** Distance the page must scroll before the bar may slide away (about the top bar's height). */
 const HIDE_AFTER = 64;
-/** Distance scrolled one way, from where that direction began, that hides or shows the bars. */
+/** Distance scrolled one way, from where that direction began, that hides or shows the bar. */
 const INTENT = 8;
 
 /**
- * In short windows (a phone held sideways) the bars take a large share of the screen, so they slide
- * away while the page scrolls down and return on any scroll up, at the top of the page, and
- * whenever focus moves into them. Taller windows keep them in place. Distances count from where
- * the scroll last changed direction, so a slow drag (a pixel or two a frame) counts as well.
+ * In short windows (a phone held sideways) even the one compact bar takes a share of the screen, so
+ * it slides away while the page scrolls down and returns on any scroll up, at the top of the page,
+ * and whenever focus moves into it. Taller windows keep it in place. Distances count from where the
+ * scroll last changed direction, so a slow drag (a pixel or two a frame) counts as well.
  */
 function useHideOnScroll() {
   const [hidden, setHidden] = React.useState(false);

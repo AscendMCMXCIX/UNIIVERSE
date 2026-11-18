@@ -207,7 +207,6 @@ export function Menu({ trigger, children, label, align = "end", side = "bottom",
   );
 }
 
-
 export interface MenuItemProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "onSelect"> {
   onSelect?: () => void;
   icon?: React.ReactNode;
