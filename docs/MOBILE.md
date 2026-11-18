@@ -135,7 +135,7 @@ Matchup Intel → Resources, Settings → home). A destination's own pages have 
 you start. A page that adds history entries of its own address (Matchup Intel's pairs) is still one
 page for Back: named after the page before, it goes there, past those entries, where the browser's
 Navigation API shows them (`backSteps`); the browser's own Back steps through them. Where the
-browser has no Navigation API (Safari before 26.2), the page makes no such entries: each pair
+browser has no Navigation API (Safari before 26.2, Firefox before 147), the page makes no such entries: each pair
 replaces the entry, so Back leaves the page in one step (`historyShowsEntries`).
 
 ### Sections of a page
