@@ -36,8 +36,9 @@ test("Team Overview: teammates see the links switched on, and using one leaves t
   await expect(icons.getByTestId("card-social-discord")).toBeVisible();
   await expect(icons.getByTestId("card-social-twitch")).toHaveCount(0);
   // The icons share the avatar's row: a card with them is as tall as its neighbours, names in line.
-  const top = (role: string) => page.getByTestId(`lineup-row-${role}`).locator("[data-testid='card-fit']").evaluate((el) => Math.round(el.getBoundingClientRect().top));
-  expect(await top("MID")).toBe(await top("JUNGLE"));
+  // Compared unrounded, within 1px: rounded, the two tops once came out 514 and 513 after a sub-pixel settle.
+  const top = (role: string) => page.getByTestId(`lineup-row-${role}`).locator("[data-testid='card-fit']").evaluate((el) => el.getBoundingClientRect().top);
+  expect(Math.abs((await top("MID")) - (await top("JUNGLE")))).toBeLessThanOrEqual(1);
 
   // Discord copies the username; the card is neither selected nor opened.
   await icons.getByTestId("card-social-discord").click();
