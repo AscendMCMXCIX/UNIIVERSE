@@ -48,13 +48,22 @@ export default async function PublicLayout({ children }: { children: React.React
         <SignInProvider brand={{ logo: logoSrc(branding), logoStill: logoStillSrc(branding), shortName: branding.shortName }}>
           <div className="flex min-h-dvh flex-col">
             <SiteBackdrop branding={branding} />
-            <header className="relative mx-auto flex w-full max-w-[var(--content-wide)] items-center justify-between gap-3 px-safe-4 pb-3 pt-safe-3 sm:px-safe-6" data-testid="public-header">
-              <Link href="/public" className="flex min-w-0 items-center gap-3 rounded-lg">
+            {/* The mark and the team's name on the left, the pages and Sign in (Open the app) on the
+                right, on one line wherever they fit: the name gives way first (truncated, down to
+                the mark alone). Larger text on a phone made the links wider than the header (past
+                the screen by 42px at 150% on a 320px phone and 163px at 200%; at 125% the mark sat
+                under "Team"), so the line wraps instead: the links take a line of their own under
+                the mark and the name, on the right, and wrap there too where one line cannot hold
+                them. The name starts at its least width (the mark less the gap, which the mark may
+                reach into but never past) and grows to its own width, so where everything fits on
+                one line it is exactly the line it was. */}
+            <header className="relative mx-auto flex w-full max-w-[var(--content-wide)] flex-wrap items-center justify-between gap-x-3 gap-y-1 px-safe-4 pb-3 pt-safe-3 sm:px-safe-6" data-testid="public-header">
+              <Link href="/public" className="flex min-w-6 max-w-max grow basis-0 items-center gap-3 rounded-lg">
                 <BrandMark src={logoSrc(branding)} still={logoStillSrc(branding)} name={branding.shortName} className="h-9 w-9 text-base" />
                 {/* With a second page in the header, phones keep the mark alone: the page's own header names the team. */}
                 <span className={`truncate text-sm font-bold tracking-label text-fg${leaderboards ? " max-sm:sr-only" : ""}`}>{branding.shortName}</span>
               </Link>
-              <nav aria-label="Public pages" className="flex items-center gap-1">
+              <nav aria-label="Public pages" className="ml-auto flex flex-wrap items-center justify-end gap-1">
                 <Link href="/public" className="inline-flex min-h-9 items-center rounded-md px-3 text-sm font-medium text-fg hover:bg-surface-2/60 pointer-coarse:min-h-11">
                   Team
                 </Link>
