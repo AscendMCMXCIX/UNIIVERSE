@@ -459,10 +459,12 @@ request is a game's match timeline, once per game, when a section that needs it 
   the K/D/A, the figures and the build (two rows of items) in one row, both teams across the next,
   with the wide card's floors (6.25em, 8.125rem) so the columns stay level. The header puts
   Filters and Refresh on the views' row (`SectionHeader toolbarBesideNav`; a phone's views without
-  their icons, Refresh `compact`), the scope line under it with the data status in its text, and the
-  summary is `StatStrip`: three lines on a phone (four with the ladder change), one flowing line
-  from 36rem, one row of tiles from 60rem and one text line from 78rem without a trend. The page
-  heights at each size are in docs/MOBILE.md, section 3.
+  their icons, Refresh `compact`; `toolbarFills`: a narrowed filter's chips on the next row when
+  they do not fit, an active refinement's always below `xl`, clear of the Refine panel), the scope
+  line under it with the data status in its text, and the summary is `StatStrip`: three lines on a
+  phone (four with the ladder change), one flowing line from 36rem, one row of tiles from 60rem and
+  one text line from 78rem without a trend. The page heights at each size are in docs/MOBILE.md,
+  section 3.
 - **Builds on cards** (`icon-img.tsx`): an item, spell or rune whose image fails (Data Dragon
   down, a blocked host, the installed app offline) shows its initials on a tile, named in its
   title and for screen readers; an empty slot stays a plain tile. A stored record without items

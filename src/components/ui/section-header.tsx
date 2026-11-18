@@ -15,10 +15,10 @@ import { cn } from "@/lib/cn";
   readers, and is not repeated on screen under the primary tab that already names it.
   `toolbarBesideNav` (Match History, owner decision D8 of 8 Nov 2026): the toolbar shares the views'
   row at every width whenever it fits beside them (a phone's views, Filters and Refresh on one row),
-  the scope line under both; a toolbar too wide for the row (a phone's narrowed filters, shown as
-  chips beside Filters, or a tablet's several selects) takes the next row, as wide as it needs.
+  the scope line under both; a toolbar too wide for the row (a tablet's several selects) takes the
+  next row, and so do filters whose chips need the room (`toolbarFills`).
 */
-export function SectionHeader({ id, title, nav, aside, description, status, statusAfterText = false, controls, refresh, toolbarBesideNav = false, toolbarFills = false, className, testId }: {
+export function SectionHeader({ id, title, nav, aside, description, status, statusAfterText = false, controls, refresh, toolbarBesideNav = false, toolbarFills, className, testId }: {
   /** The heading's id, for the section's aria-labelledby. */
   id: string;
   title: React.ReactNode;
@@ -39,8 +39,14 @@ export function SectionHeader({ id, title, nav, aside, description, status, stat
   refresh?: React.ReactNode;
   /** The toolbar on the views' row whenever it fits there, at every width (see above). */
   toolbarBesideNav?: boolean;
-  /** Beside the views, the filters fill the rest of the row, from its start (narrowed filters with their chips) rather than sit at its end. */
-  toolbarFills?: boolean;
+  /**
+   * Beside the views, filters with chips fill the toolbar from its start: `true` for a phone's
+   * narrowed filters, whose chips sit beside Filters (the toolbar takes the next row when they do not
+   * fit beside the views); "below-xl" for active refinements, whose chips a tablet shows under the
+   * bar: below xl the toolbar then always takes a row of its own, so they start at the row's start,
+   * clear of the Refine panel that opens from the right. From xl it stays beside the views.
+   */
+  toolbarFills?: boolean | "below-xl";
   className?: string;
   testId?: string;
 }) {
@@ -85,7 +91,7 @@ export function SectionHeader({ id, title, nav, aside, description, status, stat
         // Beside the views it asks for the width its content needs, at the row's end, and takes the
         // next row when that does not fit (flex-wrap breaks a line before shrinking anything); there
         // its filters shrink to what Refresh leaves, so the chips of a phone's narrowed filters scroll.
-        <div className={cn("flex min-w-0 items-start gap-2", toolbarBesideNav ? "flex-auto justify-end" : "xl:justify-end")} data-testid="section-toolbar">
+        <div className={cn("flex min-w-0 items-start gap-2", toolbarBesideNav ? cn("flex-auto justify-end", toolbarFills === "below-xl" && "basis-full xl:basis-auto") : "xl:justify-end")} data-testid="section-toolbar">
           {controls ? <div className={cn("min-w-0", toolbarBesideNav ? (toolbarFills ? "flex-1" : "flex-initial") : "flex-1 xl:flex-none")}>{controls}</div> : null}
           {refresh}
         </div>

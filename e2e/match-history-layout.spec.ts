@@ -18,9 +18,10 @@ import { pagerFold, pagerItems, pagerRem } from "../src/components/match-history
   Since 18 Nov 2026 (owner decision D8, denser cards): a phone's card is about 118px, the result
   line across it with the LP at its end and the build beside the champion from 21.375rem, so the
   first game is whole on an iPhone's first screen; a 36–50rem list's card is two rows (about 120px
-  on an iPad); the views, Filters and Refresh share one row; the summary is three lines on a phone
-  (four with the ladder change) and one row of tiles on a desktop; and at 200% text on a 320px
-  phone the games and Encounters are no wider than the phone.
+  on an iPad); the views, Filters and Refresh share one row, and chips (a phone's narrowed
+  filters, a tablet's refinements) take the next row, from its start; the summary is three lines
+  on a phone (four with the ladder change) and one row of tiles on a desktop; and at 200% text on
+  a 320px phone the games and Encounters are no wider than the phone.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -557,16 +558,16 @@ test("the views, Filters and Refresh share one row; narrowed filters bring their
   await page.context().addCookies([{ name: "uniiverse_view", value: "player", url: new URL(page.url()).origin }]);
   await page.goto("/players", { waitUntil: "networkidle" });
   const href = (await page.locator(`main a[data-testid='player-card'][data-player-name='${username}']`).first().getAttribute("href"))!;
+  const centre = async (l: ReturnType<Page["getByTestId"]>) => {
+    const b = (await l.boundingBox())!;
+    return b.y + b.height / 2;
+  };
   for (const view of ["", "?view=encounters"]) {
     await page.goto(`${href}/matches${view}`, { waitUntil: "networkidle" });
     await expect(page.locator("[data-testid='match-history'][data-ready], [data-testid='encounters'][data-ready]")).toBeVisible();
     const refresh = page.getByTestId("data-refresh-button");
     await expect(refresh).toBeVisible();
     const filters = isPhone(page) ? page.getByTestId("filter-toggle") : page.locator("#overview-mode");
-    const centre = async (l: ReturnType<Page["getByTestId"]>) => {
-      const b = (await l.boundingBox())!;
-      return b.y + b.height / 2;
-    };
     const views = page.getByTestId("match-views");
     const [v, f, r] = [await centre(views), await centre(filters), await centre(refresh)];
     expect(Math.abs(v - f), `${view || "games"}: Filters on the views' row`).toBeLessThanOrEqual(4);
@@ -576,16 +577,31 @@ test("the views, Filters and Refresh share one row; narrowed filters bring their
     if (isPhone(page)) expect((await refresh.boundingBox())!.width, "a 44px Refresh").toBeGreaterThanOrEqual(43.5);
     expect(await overflow(page)).toBeLessThanOrEqual(1);
   }
-  if (!isPhone(page)) return;
-  // A narrowed filter's chip needs the room: the toolbar takes the next row, the chip whole on it.
-  await page.goto(`${href}/matches?mode=solo`, { waitUntil: "networkidle" });
-  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
-  const chip = page.getByRole("button", { name: "Ranked Solo/Duo: remove this filter" });
+  // Narrowed filters bring chips that need the room, and the toolbar takes the next row, from its
+  // start: a phone's beside Filters (no room for them beside the views at 375px), and a tablet's
+  // active refinements under the bar, clear of the Refine panel that opens from the right
+  // (e2e/match-refine.spec.ts). A tablet shows no chip for a game mode.
+  const phone = isPhone(page);
+  await page.goto(`${href}/matches?${phone ? "mode=solo" : "result=win"}`, { waitUntil: "networkidle" });
+  const history = page.getByTestId("match-history");
+  await expect(history).toHaveAttribute("data-ready", "true");
+  const views = (await page.getByTestId("match-views").boundingBox())!;
+  const toolbar = (await history.getByTestId("section-toolbar").boundingBox())!;
+  expect(toolbar.y, "the toolbar under the views").toBeGreaterThanOrEqual(views.y + views.height - 1);
+  expect(toolbar.x, "from the row's start").toBeLessThanOrEqual(views.x + 1);
+  const chip = history.getByRole("button", { name: phone ? "Ranked Solo/Duo: remove this filter" : "Remove filter Wins" });
   await expect(chip).toBeVisible();
-  const [views, c] = [(await page.getByTestId("match-views").boundingBox())!, (await chip.boundingBox())!];
-  expect(c.y, "the chips under the views").toBeGreaterThanOrEqual(views.y + views.height - 1);
+  const c = (await chip.boundingBox())!;
+  if (!phone) expect(c.x, "the refinement's chip at the row's start").toBeLessThanOrEqual(views.x + 1);
   expect(c.x + c.width).toBeLessThanOrEqual(page.viewportSize()!.width);
   expect(await overflow(page)).toBeLessThanOrEqual(1);
+  if (phone) return;
+  // A game mode brings no chip on a tablet: the toolbar stays beside the views where it fits
+  // (Encounters' does on a 768px tablet, with Refresh and Reset).
+  await page.goto(`${href}/matches?view=encounters&mode=solo`, { waitUntil: "networkidle" });
+  await expect(page.locator("[data-testid='encounters'][data-ready]")).toBeVisible();
+  const [v, m] = [await centre(page.getByTestId("match-views")), await centre(page.locator("#overview-mode"))];
+  expect(Math.abs(v - m), "a game mode: the toolbar beside the views").toBeLessThanOrEqual(4);
 });
 
 test("the summary is three lines on a phone (four with the ladder change) and one row of tiles on a desktop", async ({ page }, info) => {

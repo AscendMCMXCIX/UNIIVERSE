@@ -166,7 +166,8 @@ leaving a frame to fill.
   section's moves beside its title from `xl` (`SectionHeader`). Match History's (Games and
   Encounters) shares its views' row at every width where it fits (`toolbarBesideNav`, owner decision
   D8): on a phone the views, Filters and Refresh are one row, and a narrowed filter's chips take the
-  next.
+  next row when they do not fit (`toolbarFills`; below `xl` an active refinement's always do, from
+  the row's start, clear of the Refine panel that opens from the right).
 - **Density, by what the page is for:**
   - an analytical table has 2rem portraits and rows of about 48px wherever it is a table. Its
     figure columns are as wide as their heading needs and a little more (at least room for the sort

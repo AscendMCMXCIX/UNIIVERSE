@@ -245,6 +245,7 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
         }
         status={status ? <DataStatusNote status={status} refresh={refresh} /> : null}
         narrowed={!!narrowed || listChips.length > 0}
+        refined={!!f.accountId}
         refresh={status ? <RefreshButton status={status} refresh={refresh} compact /> : null}
         controls={
           <div aria-busy={pending} className="min-w-0">

@@ -588,6 +588,8 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
 
   const f = data.filter;
   const narrowed = f.role || f.scope !== "all" || f.accountId || f.mode !== "all" || f.season !== data.currentSeason || narrowsGames(data.refine);
+  // What Refine narrows or groups: on a tablet its chips show under the filters (the header's toolbar then takes a row of its own).
+  const refined = !!(f.role || f.scope !== "all" || f.accountId || narrowsGames(data.refine) || data.refine.sessions);
   // Refine's own choices ride along every change of the shared filters (a player's games keep the
   // player, their side and the way back); a change of them starts again at the newest games.
   const keep = encounter ? { per: String(data.per), view: "encounters", ...encounterListParams(encounter.list), ...encounterFocusParams(encounter.focus) } : { per: String(data.per), ...refineParams(data.refine) };
@@ -617,6 +619,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
         status={status ? <DataStatusNote status={status} refresh={refresh} /> : null}
         statusAfterText
         narrowed={!!narrowed || data.refine.sessions}
+        refined={refined}
         refresh={status ? <RefreshButton status={status} refresh={refresh ? { ...refresh, onNewGames: data.page > 1 ? { label: "Show the newest", run: () => go({ page: "1" }) } : undefined } : null} compact /> : null}
         controls={
           <div aria-busy={pending} className="min-w-0">

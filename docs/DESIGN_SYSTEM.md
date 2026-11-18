@@ -54,10 +54,12 @@ decorative chrome.
     - **the wide card** (from 50rem), one row of about 100px, unchanged.
   - Around the cards: the views (Games, Encounters), Filters and Refresh share one row at every
     width where they fit (on a phone the views drop their icons and Refresh shows its icon alone,
-    its name kept for screen readers; a narrowed filter's chips take the next row); the summary is
-    three lines on a phone (four with the ladder change) and one row of tiles from 60rem
-    (`StatStrip`, one text line from 78rem when its figures fit); Encounters keeps its minimum and
-    order in a phone's Filters sheet, as chips, and its column names pin under the section tabs.
+    its name kept for screen readers; a narrowed filter's chips take the next row when they do not
+    fit, and below `xl` an active refinement's always do, from the row's start, clear of the Refine
+    panel); the summary is three lines on a phone (four with the ladder change) and one row of
+    tiles from 60rem (`StatStrip`, one text line from 78rem when its figures fit); Encounters keeps
+    its minimum and order in a phone's Filters sheet, as chips, and its column names pin under the
+    section tabs.
   - What did not change: one button per card, a game opening under its card (full screen on a
     phone), the result said three ways, the honest-data rules (LP only where the readings prove
     it, "Removed player", grey small samples), the compact profile band and every filter, link,
