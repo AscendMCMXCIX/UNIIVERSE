@@ -7,6 +7,19 @@ UNIIVERSE runs on the free plans of Supabase (the Postgres database) and Vercel 
 
 This page records what caused that, what was changed, how it was measured, and how to check it again. The second pass, after egress reached 7.14 GB on 20 Oct, is the next section.
 
+## 18 Nov 2026: a batch of merges deploys once
+
+The owner asked on 18 Nov for the deploy limit to follow the evidence rather than a fixed rule, without risking another pause. What the record shows:
+- **Production deployments in the rolling 30 days** (GitHub's deployment records, which Vercel writes): 175 from 19 Oct to 18 Nov, against 324 in the 30 days that ran out on 8 Nov. None from 9 to 15 Nov, then 3 a day on 16, 17 and 18 Nov. The window's busiest days left it or are leaving it: 13–14 Oct (103) by 13 Nov, 19–21 Oct (59) on 18–20 Nov; 4, 6 and 7 Nov (52) leave on 4–7 Dec.
+- **What a deploy costs** (measured, "8–9 Nov" below): the signed-in Production check, about 12.5 CPU-seconds locally since #274 (likely somewhat more on Vercel), plus the cold starts of the functions the deploy replaced: 0.35–0.6 s for the jobs function's next call and 0.6–1.3 s for a member's first page. Builds are not Active CPU.
+- **What the day costs without deploys:** about 100–150 CPU-seconds expected after #274, against about 480 a day for the plan. Vercel's own daily figure is only in the owner's dashboard (Usage → Fluid Active CPU), which no API on Hobby reads.
+
+So the budget counts checks and cold starts more than builds, and a batch can cost about one deploy:
+- **Merges minutes apart deploy once.** Vercel builds one deployment at a time, so the merges of a batch queue behind the first. `scripts/vercel-ignore-build.sh` now skips a production deployment whose commit a later commit on its branch already holds (`git ls-remote` of the branch, then whether that tip contains the commit); the later commit's own deployment builds next, and since it is compared with the last deployment that succeeded, it holds every skipped commit's changes. Any doubt builds: no answer from GitHub within 20 seconds, a tip that does not hold the commit, or no commit to compare. To deploy an older commit on purpose, use Vercel's Instant Rollback, which builds nothing.
+- **The Production check runs once per batch in full:** its job cancels a run in progress when the next deployment's check starts (`concurrency: production-check`, `cancel-in-progress`).
+- **Stacked pull requests keep CI exact:** each PR's head merges the previous PR's branch, so CI tests the tree `main` will have once it merges; after each merge `main` holds exactly that tree, and the push to `main` reuses the PR's result ("reuse after merge", docs/CI_USAGE.md). Before each merge, `git merge-tree` of `main` and the head is checked against that tree.
+- **The limit stays at about 3 production deploys a day, a batch counting as one** (CLAUDE.md §4). Batches make it rarely binding, and it keeps a margin while early November's heavy days are still in the window.
+
 ## 8–9 Nov 2026: Vercel Active CPU (the Hobby plan's 4 hours)
 
 Vercel reported that the project had used the Hobby plan's 4 hours of Fluid **Active CPU** and would be paused on 9 Nov. Community reports count Hobby usage over a rolling 30 days, so the budget is about **480 CPU-seconds a day for everything**. Active CPU is the time code spends executing: rendering, parsing, module loading when an instance starts cold, work in `after()`, and the Routing Middleware (`src/proxy.ts`). Waiting on the database or on Riot is not counted.
@@ -51,7 +64,7 @@ That is about 180 CPU-seconds on an ordinary day and about 350 on a day like 7 N
 
    Fewer invocations also means fewer instances to start cold on Vercel. Every page it opens is still loaded and asserted in full, and a hover or tap still prefetches as it does for a member. The beacons were already dropped by the server for the verification account (#256).
 2. **Merges of tests or tooling alone no longer deploy** (`scripts/vercel-ignore-build.sh`). Besides docs, the skipped files are `e2e/`, `tests/`, `scripts/` (which `next build` never reads), `*.test.ts(x)` and the test runners' configuration. Each skipped deploy saves its cold starts and its Production check.
-3. **A deploy budget** (CLAUDE.md §4): batch merges, at most about 3 production deploys a day, and run manual Data jobs only when needed, several jobs in one run.
+3. **A deploy budget** (CLAUDE.md §4): batch merges, at most about 3 production deploys a day (a batch counts as one since 18 Nov, above), and run manual Data jobs only when needed, several jobs in one run.
 
 This change touches only tests, scripts and docs, so by its own rule it does not deploy. The new check runs on the next deploy and in the daily run, which uses `main`'s script.
 
