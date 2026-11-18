@@ -11,7 +11,9 @@ import { cn } from "@/lib/cn";
  * The sections of a sidebar entry that stands for several pages (SECTION_HUBS), as tabs at the top
  * of each of those pages, limited to the ones this account may open:
  *   Team                 Overview | Players | Leaderboards | Matches;
- *   Platform Settings    Branding | Previews (Admin Mode).
+ *   Resources            Library | Matchup Intel, on phones too: a member reaches Resources from the
+ *                        account screen, and these tabs are the way between its two pages there;
+ *   Platform Settings    Branding | Previews | Resources (Admin Mode).
  * They are the one list of those pages: the sidebar has a single entry, marked on all of them.
  * Every tab is a link with its own address, so deep links, Back/Forward and new tabs work as
  * before. The bar sits in the same place on every section. Team's sections other than Overview

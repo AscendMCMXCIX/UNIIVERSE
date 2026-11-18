@@ -157,7 +157,9 @@ export function FilterBar({
             </div>
           ) : null}
           {!search || chips.length > 0 || end ? (
-            <div className={cn("flex min-w-0 items-center gap-2", at.toggle)}>
+            // It wraps only when a larger text size leaves no room for Filters and the page's own
+            // action side by side (the chips and the spacer take no room of their own: flex-1).
+            <div className={cn("flex min-w-0 flex-wrap items-center gap-2", at.toggle)}>
               {search ? null : filtersButton}
               {chips.length ? (
                 <ScrollRow as="ul" className="-my-1 flex min-w-0 flex-1 gap-1.5 py-1" aria-label="Active filters" data-testid={testId ? `${testId}-chips` : undefined}>

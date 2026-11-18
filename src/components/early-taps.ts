@@ -18,10 +18,17 @@
   once more, so its own handler does what the tap asked for, exactly as for a tap made later. From
   then on the script does nothing. A plain module, not a client one, so the server layout gets the
   script itself.
+
+  A page's own controls can be kept the same way, released by the component that owns them:
+  Matchup Intel's two sides (each side's slot and the page's prompt for it share one kind) open
+  their picker windows (MatchupFrame).
 */
 
-/** What a frame control opens: its data-early value. The account menu's two triggers share one. */
-export type EarlyTap = "sheet" | "drawer" | "sidebar" | "account";
+/**
+ * What a control opens: its data-early value. The account menu's two triggers share one, as do
+ * Matchup Intel's slot and prompt for a side.
+ */
+export type EarlyTap = "sheet" | "drawer" | "sidebar" | "account" | "matchup-you" | "matchup-enemy";
 
 declare global {
   interface Window {

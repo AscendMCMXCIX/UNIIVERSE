@@ -64,7 +64,7 @@ Status: **live.** The owner approved the rules, and these boards replaced the pr
 |---|---|---|
 | 20 | Established | Ranked |
 | 10–19 | Provisional | Listed after every established player, in order, marked "Provisional · 14 of 20 games"; never above an established player |
-| 0–9 | Not enough recent games | Listed below the board: "Needs 6 more games", with the date of their last game |
+| 0–9 | Not enough recent games | The board's last group: "Needs 6 more games", with the date of their last game |
 
 ### Boards and figures
 
@@ -98,6 +98,10 @@ Status: **live.** The owner approved the rules, and these boards replaced the pr
 - **Gaps are shown in games or in the figure's own unit**, never as a bare rank. For example: "1 win
   behind Demo Mid", "0.40 KDA behind Demo Top". The gap is to the place directly above; when
   several players share it, all are named ("3 wins behind Demo Mid and Demo Top").
+- **Recent form shows the gap short** ("1 win behind", "Next win: 3="). The full sentence, with the
+  names, is read out by screen readers and is the row's tooltip on hover.
+- **Shared places are joined.** A bracket in the place column joins the rows that share a place, and
+  each reads "Tied for 4th".
 - **No confidence interval** is drawn on the page, because a band most players cannot read is not
   honesty. The record (13–7) and the games stay visible on every row.
 
@@ -105,17 +109,18 @@ Status: **live.** The owner approved the rules, and these boards replaced the pr
 
 - **The window's next step is exact.** The next game replaces the oldest one in the window. Every
   established window has 20 games, so one win can at best draw level with the place above, and only
-  when the window's oldest game was a loss. The page says so: "Win your next game to draw level with
-  Demo Jungle".
+  when the window's oldest game was a loss. The page says so: the board shows "Next win: 3=" (the
+  place that win would share), and the sentence "Win your next game to draw level with Demo Jungle"
+  is spoken by screen readers and shown on hover.
 - **Otherwise** it shows the gap in wins to the place above. When the oldest game was a win, a win
   only keeps the gap, so the row says "1 win behind", not "win your next game".
-- **These notes assume the players above do not play in the meantime.** The page says this once,
+- **These gaps assume the players above do not play in the meantime.** The page says this once,
   under the board.
 
 ### Inactivity
 
-- **Sixty days.** A player who stops playing moves to provisional, then below the board, within 60
-  days of their last games. They come back as soon as they play again.
+- **Sixty days.** A player who stops playing moves to provisional, then to the board's last group,
+  within 60 days of their last games. They come back as soon as they play again.
 
 ### What this view does not do
 
@@ -204,6 +209,8 @@ role), because a board of one or two players is not a competition.
 - ties;
 - the "win your next game" calculation, and that the note says "draw level" only when one win
   does that;
+- that the gap's parts (the short "Next win: 3=" and "1 win behind" on the board) always say what
+  the sentence says: a part exactly when there is a note, the place of the players it names;
 - that figures which read the same share a place;
 - the audit's counts per board and mode, and that its read of the games matches the page's and
   copies nothing (`tests/db/leaderboard-samples.test.ts`);
