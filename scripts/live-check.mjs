@@ -1020,9 +1020,11 @@ async function teamMatches(page, log, kind, context) {
  * Page controls in reach (PR 2b), from the end of Match History: on the tablet and the desktop the
  * pinned tabs' row offers Filters once the page's filter bar has gone up under it, and it opens the
  * filter sheet; on the phone the top bar does. Opening and closing the sheet changes nothing (no
- * filter is touched). True or false only. Not applicable exactly when the frame would not offer it:
- * the filter bar's bottom still below the pinned stack's foot at the list's end (the pinned row's
- * bottom on the tablet and the desktop, the top bar's on the phone), or the row not pinned at all.
+ * filter is touched). Positions in px and true or false only. Not applicable exactly when the frame
+ * would not offer it: the filter bar's bottom still below the pinned stack's foot at the list's end
+ * (the pinned row's bottom on the tablet and the desktop, the top bar's on the phone), or nothing
+ * pinned while the filter bar is still on screen (a list too short to pin). Nothing pinned with the
+ * bar gone above the window fails: the tabs above it are past their sticky offset there.
  */
 async function reachFacts(page, kind) {
   const name = kind === "phone" ? "phone: from the end of Match History the top bar's Filters opens the filter sheet" : `${kind}: from the end of Match History the pinned row offers Filters and it opens the filter sheet`;
@@ -1042,7 +1044,7 @@ async function reachFacts(page, kind) {
     return { barBottom: bar ? Math.round(bar.getBoundingClientRect().bottom) : null, foot: foot === null ? null : Math.round(foot) };
   }, kind === "phone");
   if (at.barBottom === null) return pass("reach", name, false, { missing: "no filter bar on Match History" });
-  if (at.foot === null) return check("reach", name, "PASS", { notApplicable: "nothing pinned at the list's end (the list too short)" });
+  if (at.foot === null) return at.barBottom > 0 ? check("reach", name, "PASS", { notApplicable: "nothing pinned while the filter bar is still on screen (the list too short)", ...at }) : pass("reach", name, false, { pinned: false, ...at });
   if (at.barBottom > at.foot + 1) return check("reach", name, "PASS", { notApplicable: "the list is too short for its filter bar to go up under what is pinned", ...at });
   const control = page.getByTestId(kind === "phone" ? "topbar-filters" : "toolbar-filters");
   const offered = await control.waitFor({ timeout: 5_000 }).then(() => true, () => false);
