@@ -283,7 +283,7 @@ function AbilityTile({ intel, ability: a, checkedPatch, dataPatch, notRecheckedF
               Changed since the check
             </Badge>
           ) : null}
-          <span className="ml-auto flex min-w-0 items-center gap-2">
+          <span className="flex min-w-0 basis-full items-center justify-between gap-2 @min-[24rem]/abilities:ml-auto @min-[24rem]/abilities:basis-auto @min-[24rem]/abilities:justify-end">
             {/* The notes' static modifier belongs to their line only: once Riot's data moved, it goes with the flagged notes. */}
             <CooldownLine cooldown={a.cooldown} isStatic={!flagged && a.modifiers?.static === true} testId="ability-cooldown-value" lineTestId="ability-cooldown" source={source === commonSource ? null : source} />
             <DetailsDialog label="Details" name={`${a.name}, ${SLOT_NAMES[a.slot]}`} title={a.name} description={`${champion.name} · ${SLOT_NAMES[a.slot]}`} testId="ability-details" bodyTestId="ability-details-body" iconOnly>
@@ -345,7 +345,9 @@ export function AbilityList({ intel, testId }: { intel: ChampionIntelView; testI
   const notRecheckedFor = intel.curated?.recheck?.patch ?? null;
   const commonSource = commonSourceOf(intel);
   return (
-    <ol className="divide-y divide-border" aria-label={`${intel.champion.name}'s abilities`} data-testid={testId}>
+    // Laid out by its own width (container queries, in rem, so they follow the text size): from 24rem
+    // the cooldown ends the name's line; under it (a phone, a large text size) it takes a line of its own.
+    <ol className="@container/abilities divide-y divide-border" aria-label={`${intel.champion.name}'s abilities`} data-testid={testId}>
       {/* Keyed by champion as well: another pair's tiles start afresh. */}
       {intel.abilities.map((a) => (
         <AbilityTile key={`${intel.champion.id}-${a.slot}`} intel={intel} ability={a} checkedPatch={checkedPatch} dataPatch={dataPatch} notRecheckedFor={notRecheckedFor} commonSource={commonSource} />

@@ -43,7 +43,7 @@ export default async function MatchupIntelPage({ searchParams }: { searchParams:
     // A word too long for its line breaks rather than reach past its box (inherited by all the page
     // holds): only at a larger text size on a narrow phone, as at 200% on a 320px one. The title is
     // in the picker bar, with the patch and how fresh the page is, so the dashboard starts high.
-    <div className="mx-auto max-w-[var(--content-max)] space-y-3 [overflow-wrap:anywhere]" data-testid="matchup-intel">
+    <div className="mx-auto max-w-[var(--content-wide)] space-y-3 [overflow-wrap:anywhere]" data-testid="matchup-intel">
       {dropped ? (
         <p role="status" className="rounded-panel border border-warn/30 bg-warn/10 px-4 py-3 text-sm text-fg" data-testid="matchup-unknown">
           This address names a champion that is not on the roster, so it was left out. Choose the champion below.

@@ -6,7 +6,7 @@
 export default function Loading() {
   const block = "animate-pulse bg-surface-2";
   return (
-    <div className="mx-auto max-w-[var(--content-max)] space-y-3" role="status" aria-live="polite" aria-label="Loading Matchup Intel" data-testid="matchup-intel-loading">
+    <div className="mx-auto max-w-[var(--content-wide)] space-y-3" role="status" aria-live="polite" aria-label="Loading Matchup Intel" data-testid="matchup-intel-loading">
       <div className="@container/pickers">
         <div className="grid gap-x-4 gap-y-1.5 @min-[44rem]/pickers:grid-cols-[minmax(0,34rem)_minmax(0,1fr)] @min-[44rem]/pickers:items-center @min-[60rem]/pickers:grid-cols-[auto_minmax(0,34rem)_minmax(0,1fr)]">
           <div className={`${block} h-7 w-40 max-w-full rounded-md @min-[44rem]/pickers:col-span-2 @min-[60rem]/pickers:col-span-1`} />

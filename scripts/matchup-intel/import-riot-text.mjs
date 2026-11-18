@@ -52,6 +52,19 @@ export function plainText(raw) {
     .trim();
 }
 
+/**
+ * A clause as the page shows it: Riot's words as quoted, each placeholder of Riot's (a value its
+ * text fills in at play, "{{ qdamage }}") as "[…]", so no template and no number is ever shown, and
+ * whitespace collapsed.
+ */
+export function shownClause(clause) {
+  return String(clause)
+    .replace(/\{\{\s*[^{}]*?\s*\}\}/g, "[…]")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^[“"']|[”"']$/g, "");
+}
+
 /** A clause as compared: whitespace collapsed, curly quotes straightened, case kept. */
 const squash = (s) => String(s).replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/\s+/g, " ").trim();
 
@@ -61,7 +74,9 @@ const squash = (s) => String(s).replace(/[‘’]/g, "'").replace(/[“”]/g, '
  */
 export function clauseInText(clause, raw) {
   const text = squash(plainText(raw));
-  const quote = squash(clause).replace(/^[“"']|[”"']$/g, "");
+  // The review quotes Riot's text with its markup removed and its placeholders kept ("{{ qdamage }}"):
+  // read both the same way.
+  const quote = squash(plainText(clause)).replace(/^[“"']|[”"']$/g, "");
   const core = quote.replace(/^(?:…|\.\.\.)\s*/, "").replace(/\s*(?:…|\.\.\.)$/, "");
   return core.length >= 8 && text.includes(core);
 }
@@ -121,12 +136,12 @@ export function importChampion(reviewed, full) {
   for (const f of Array.isArray(reviewed.facts) ? reviewed.facts : []) {
     const decision = f?.decision ?? f?.verdict ?? "accept";
     if (decision !== "accept" && decision !== "accepted" && decision !== true) continue;
-    const why = !SLOTS.includes(f?.slot) ? "an unknown slot" : !KINDS.includes(f?.kind) ? `an unknown kind (${f?.kind})` : !SOURCES.includes(f?.source) ? `an unknown source (${f?.source})` : typeof f?.clause !== "string" || !f.clause.trim() ? "no clause" : f.clause.length > MAX_CLAUSE ? "a clause too long" : /[<>]|\{\{|\}\}/.test(f.clause) ? "markup in its clause" : f.source === "tooltip" && texts[f.slot].tooltip === null ? "a tooltip the passive does not have" : !clauseInText(f.clause, texts[f.slot][f.source]) ? `a clause not in Riot's ${f.source}` : null;
+    const why = !SLOTS.includes(f?.slot) ? "an unknown slot" : !KINDS.includes(f?.kind) ? `an unknown kind (${f?.kind})` : !SOURCES.includes(f?.source) ? `an unknown source (${f?.source})` : typeof f?.clause !== "string" || !f.clause.trim() ? "no clause" : shownClause(f.clause).length > MAX_CLAUSE ? "a clause too long" : /[<>]/.test(f.clause) ? "markup in its clause" : /\d/.test(shownClause(f.clause)) ? "a number in its clause" : f.source === "tooltip" && texts[f.slot].tooltip === null ? "a tooltip the passive does not have" : !clauseInText(f.clause, texts[f.slot][f.source]) ? `a clause not in Riot's ${f.source}` : null;
     if (why) {
       left.push(`${id} ${f?.slot} ${f?.kind}: ${why}`);
       continue;
     }
-    const clause = squash(f.clause).replace(/^[“"']|[”"']$/g, "");
+    const clause = shownClause(f.clause);
     if (facts.some((x) => x.slot === f.slot && x.kind === f.kind && x.clause === clause && x.source === f.source)) continue;
     facts.push({ slot: f.slot, kind: f.kind, clause, source: f.source });
   }

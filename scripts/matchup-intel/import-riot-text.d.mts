@@ -5,6 +5,7 @@ export const SLOTS: string[];
 export const KINDS: string[];
 export function plainText(raw: string): string;
 export function clauseInText(clause: string, raw: string): boolean;
+export function shownClause(clause: string): string;
 export function reviewOf(review: unknown): RiotTextReview;
 export function importChampion(reviewed: unknown, full: unknown): { record: RiotTextChampion; notes: string[]; left: string[] };
 export function serialise(record: RiotTextChampion): string;
