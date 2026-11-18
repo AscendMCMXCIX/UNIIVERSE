@@ -254,9 +254,12 @@ tab, in the top bar or right above the section, names it. A champion's window on
 `sm`) has a 48px portrait, the scope beside Matchup Intel across the window's width, Refine at the
 end of the tabs' row (its panel opening right after that row, so it follows its button in reading
 and focus order and the button stays where it was tapped) and the figures three by two with short
-labels (CS/min, Damage/min, Mastery; the whole labels read out). Every figure is written whole,
-Mastery points too: the last column, which holds KDA and Mastery, takes the room its figures need
-(seven digits on a 320px phone) and the others share the rest. On a touch screen its tabs and both
+labels (CS/min, Damage/min, Mastery; the whole labels read out). Every figure and label is written
+whole, Mastery points too: the last column, which holds KDA and Mastery, takes the room its figures
+need (seven digits on a 320px phone), the middle one keeps "Damage/min" whole, and the first, with
+the shortest labels, takes the rest. At a larger text size the figures go two across from a 12.9rem
+box, where the first column still holds "Damage/min" and "Perfect" beside seven digits, and one
+across below it (a 320px phone at 150%). On a touch screen its tabs and both
 multikills ⓘ are 44px targets. The lane comparison starts at 524px instead of 631 on a 393 × 852
 phone. The plan estimated about 460px; since it was written, the scope row also holds Matchup Intel
 (#292) and the scope wraps rather than cutting off the account (#300), and the tabs are 44px on a
