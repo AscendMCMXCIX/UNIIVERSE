@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 
 /*
@@ -24,6 +25,78 @@ describe("Vercel ignored build step", () => {
   });
   it("builds production when it cannot tell what changed", () => {
     expect(ignore({ VERCEL_ENV: "production" })).toBe(1);
+  });
+  // A batch of merges deploys once: a production commit that a later commit on its branch already
+  // holds is skipped (that later commit deploys next). Run in a throw-away clone of a local "remote".
+  describe("a batch of merges", () => {
+    const git = (cwd: string, ...args: string[]) => execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false", ...args], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+    const setup = () => {
+      const dir = mkdtempSync(path.join(tmpdir(), "vercel-ignore-"));
+      const remote = path.join(dir, "remote.git");
+      const clone = path.join(dir, "clone");
+      git(dir, "init", "--quiet", "--bare", "--initial-branch=main", remote);
+      git(dir, "clone", "--quiet", remote, clone);
+      const commit = (name: string) => {
+        writeFileSync(path.join(clone, `${name}.ts`), `export const ${name} = 1;\n`);
+        git(clone, "add", ".");
+        git(clone, "commit", "--quiet", "-m", name);
+        return git(clone, "rev-parse", "HEAD");
+      };
+      return { dir, remote, clone, commit };
+    };
+    const run = (clone: string, env: Record<string, string>) =>
+      spawnSync("bash", [path.join(root, "scripts/vercel-ignore-build.sh")], { cwd: clone, env: { PATH: process.env.PATH ?? "", VERCEL_ENV: "production", VERCEL_GIT_COMMIT_REF: "main", ...env } as unknown as NodeJS.ProcessEnv }).status;
+
+    it("skips a commit that a later one on its branch holds, and builds the later one", () => {
+      const { dir, remote, clone, commit } = setup();
+      try {
+        const first = commit("a");
+        const second = commit("b");
+        const last = commit("c");
+        git(clone, "push", "--quiet", "origin", "main");
+        git(clone, "checkout", "--quiet", second);
+        expect(run(clone, { VERCEL_IGNORE_REMOTE: remote, VERCEL_GIT_COMMIT_SHA: second, VERCEL_GIT_PREVIOUS_SHA: first })).toBe(0);
+        git(clone, "checkout", "--quiet", last);
+        expect(run(clone, { VERCEL_IGNORE_REMOTE: remote, VERCEL_GIT_COMMIT_SHA: last, VERCEL_GIT_PREVIOUS_SHA: first })).toBe(1);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it("builds when the branch's tip does not hold the commit, or the remote does not answer", () => {
+      const { dir, remote, clone, commit } = setup();
+      try {
+        const first = commit("a");
+        const kept = commit("b");
+        git(clone, "push", "--quiet", "origin", "main");
+        // The branch is rewritten: its tip no longer holds `kept`.
+        git(clone, "checkout", "--quiet", first);
+        git(clone, "checkout", "--quiet", "-B", "main");
+        commit("other");
+        git(clone, "push", "--quiet", "--force", "origin", "main");
+        git(clone, "checkout", "--quiet", kept);
+        expect(run(clone, { VERCEL_IGNORE_REMOTE: remote, VERCEL_GIT_COMMIT_SHA: kept, VERCEL_GIT_PREVIOUS_SHA: first })).toBe(1);
+        expect(run(clone, { VERCEL_IGNORE_REMOTE: path.join(dir, "missing.git"), VERCEL_GIT_COMMIT_SHA: first, VERCEL_GIT_PREVIOUS_SHA: first })).toBe(1);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it("never skips a preview this way, and needs the commit and its branch", () => {
+      const { dir, remote, clone, commit } = setup();
+      try {
+        const first = commit("a");
+        commit("b");
+        git(clone, "push", "--quiet", "origin", "main");
+        git(clone, "checkout", "--quiet", first);
+        // A requested preview builds whatever the branch's tip is.
+        expect(run(clone, { VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: "preview/x", VERCEL_IGNORE_REMOTE: remote, VERCEL_GIT_COMMIT_SHA: first })).toBe(1);
+        // Without the commit's SHA, production cannot tell, so it builds.
+        expect(run(clone, { VERCEL_IGNORE_REMOTE: remote })).toBe(1);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
   });
   // A production deployment costs Vercel Active CPU (cold starts, and the Production check runs
   // against it): a merge of tests or tooling alone does not deploy (docs/HOSTING_USAGE.md).
