@@ -47,6 +47,29 @@ type BenchFace = {
 // The round controls on the artwork (the same size as the card's Customise button).
 const ART_BUTTON = "grid h-8 w-8 place-items-center rounded-full bg-bg/80 text-fg-muted shadow-sm shadow-black/30 transition-colors hover:bg-bg/90 hover:text-accent focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:h-11 pointer-coarse:w-11";
 
+/*
+  The role chip and the card's own controls share the artwork's top row. With larger text a phone's
+  card is narrow for what that row holds (6.5rem wide at 200% on a 320px phone, where "SUPPORT" ran
+  past the card under the turn control and read "SUPPO"), so the chip has a lane of its own: from the
+  role's corner to the controls (0, 1 or 2 of them, by count), or to 0.25rem short of the card's far
+  edge where there are none. A control is a 2.75rem touch target 0.625rem from the edge (2rem with a
+  mouse; the lane keeps the touch size), and two stand side by side, or one above the other five
+  across and on a card under 9.25rem, where side by side they left the chip no room; the lane ends
+  0.125rem short of them. Where the lane is narrower than the role's chip (its name in the chip's
+  capitals beside its icon: 4.9rem for Mid to 7.8rem for Support), the chip shows the icon alone, as
+  a round badge of the same height, and the name stays its text for screen readers. Every card at
+  the usual text size is 12.2rem wide or more, which holds the chip beside its controls, so there
+  nothing changes.
+*/
+const CHIP_LANE = ["right-1", "right-14", "right-26.5 @5xl/lineup:right-14 @max-[9.25rem]/card:right-14"] as const;
+const CHIP_FIT: Record<Role, { chip: string; label: string }> = {
+  TOP: { chip: "@max-[4.95rem]/chip:p-1.5", label: "@max-[4.95rem]/chip:sr-only" },
+  JUNGLE: { chip: "@max-[7rem]/chip:p-1.5", label: "@max-[7rem]/chip:sr-only" },
+  MID: { chip: "@max-[4.85rem]/chip:p-1.5", label: "@max-[4.85rem]/chip:sr-only" },
+  ADC: { chip: "@max-[7.3rem]/chip:p-1.5", label: "@max-[7.3rem]/chip:sr-only" },
+  SUPPORT: { chip: "@max-[7.75rem]/chip:p-1.5", label: "@max-[7.75rem]/chip:sr-only" },
+};
+
 /** How a member fits a role, as the lineup sheets name it. */
 const FIT_HINT: Record<string, string> = { primary: "primary role", secondary: "off role", other: "out of role" };
 
@@ -81,6 +104,8 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
   const status = p ? assignmentStatus(p, slot.role) : null;
   // Customise and the turn control both: five across they stand one above the other (see below).
   const twoControls = own && !editingLineup && !!flip;
+  // The controls in the card's top corner (Customise, the turn control or the way back), which the role chip keeps clear of (CHIP_LANE).
+  const controls = (own && !editingLineup ? 1 : 0) + (flip ? 1 : 0) + (bench ? 1 : 0);
 
   return (
     <article className={cn(!bench && "rise-in", "group/card @container/card relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-card border bg-surface transition-[transform,opacity,box-shadow,border-color,filter] duration-200 ease-out motion-reduce:transition-none", editingLineup ? "border-accent/50" : "border-border hover:border-border-strong", selected && "z-[1] -translate-y-1 border-accent shadow-xl shadow-black/40 ring-2 ring-accent motion-reduce:translate-y-0", dimmed && "opacity-50 saturate-[0.6]")} data-selected={selected || undefined} style={p ? { ...cardShellStyle(p.look), ...(editingLineup ? { borderColor: undefined } : {}) } : { ["--card-accent" as string]: accent }} data-frame={p?.look.style.frame} data-fx-host data-testid={bench ? `lineup-sub-${slot.role}` : `lineup-row-${slot.role}`} data-player-id={p?.id} data-player-name={p?.name} data-pool-size={slot.champions.length} data-off-role={status ? status === "off" : undefined} data-role-status={status ?? undefined}>
@@ -94,12 +119,20 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
       {/* The artwork, with the role in its corner and the player's identity at its foot. Its
           height follows its content (a fixed height cut the identity off on narrow cards and drew
           the picture over the role), from a minimum. Its top keeps clear of the role and the
-          card's controls: two controls stand one above the other five across, so a card with both
-          keeps more. Five across on wide screens it is tall, a portrait card. */}
-      <div className={cn("pointer-events-none relative flex min-h-[10.5rem] shrink-0 flex-col justify-end px-3 pb-2.5 pt-12 @5xl/lineup:min-h-[clamp(13rem,29vh,20rem)] [&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100", twoControls && "@5xl/lineup:pt-[5.25rem] @5xl/lineup:pointer-coarse:pt-[6.75rem]")} data-testid="card-art">
+          card's controls: two controls stand one above the other five across (and on a card under
+          9.25rem, see CHIP_LANE), so a card with both keeps more. A touch screen's controls
+          (2.75rem) reach below the usual top, which only matters where they also reach over the
+          picture: a card under 7.75rem with one control, or under 10.875rem with two side by side
+          (larger text on a phone; at 200% on 320px the turn control covered the picture's edge).
+          There the top keeps clear of their row. Five across on wide screens it is tall, a
+          portrait card. */}
+      <div className={cn("pointer-events-none relative flex min-h-[10.5rem] shrink-0 flex-col justify-end px-3 pb-2.5 pt-12 @5xl/lineup:min-h-[clamp(13rem,29vh,20rem)] [&_.card-art-img]:group-hover/card:scale-[1.03] motion-reduce:[&_.card-art-img]:group-hover/card:scale-100", controls === 1 && "@max-[7.75rem]/card:pointer-coarse:pt-[3.625rem]", twoControls && "@5xl/lineup:pt-[5.25rem] @5xl/lineup:pointer-coarse:pt-[6.75rem] @max-[10.875rem]/card:pointer-coarse:pt-[3.625rem] @max-[9.25rem]/card:pt-[5.25rem] @max-[9.25rem]/card:pointer-coarse:pt-[6.75rem]")} data-testid="card-art">
         {/* Splash of the player's chosen champion and skin, darkened towards the text, tinted with their accent. */}
         <CardArtLayer art={deferImages ? null : (p?.art ?? null)} accent={accent} kind="splash" position="center 22%" look={p?.look} motion="hover" foot={!!p} priority={priority} />
-        <CardRoleChip role={slot.role} label={slot.roleLabel} className="absolute left-3 top-3" />
+        {/* The role chip in its lane, clear of the card's controls: the icon alone where the lane is too narrow for the role's name (CHIP_LANE). */}
+        <span className={cn("absolute left-3 top-3 flex @container/chip", CHIP_LANE[controls])} data-testid="assigned-role-lane">
+          <CardRoleChip role={slot.role} label={slot.roleLabel} className={cn("shrink-0", CHIP_FIT[slot.role].chip)} labelClassName={CHIP_FIT[slot.role].label} />
+        </span>
         {p ? (
           <span className="relative">
             <CardIdentity look={p.look} name={p.name} avatarUrl={deferImages ? null : p.avatarUrl} rank={p.rank} showRank={p.statsVisible} isYou={p.id === viewerPlayerId} status={status} role={slot.role} tag={bench ? <SubstituteTag /> : null} social={p.social.length ? <CardSocialIcons links={p.social} owner={p.name} className="pointer-events-auto relative z-[2]" /> : null} align={align} />
@@ -108,8 +141,10 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
       </div>
       {/* The card's own controls, over the artwork's top corner: personalising your own card, and
           turning the card. Side by side; one above the other five across, where the cards are
-          narrow and the artwork tall. Lineup changes are never here: they sit at the card's foot. */}
-      <span className="absolute right-2.5 top-2.5 z-[2] flex items-center gap-1.5 empty:hidden @5xl/lineup:flex-col @5xl/lineup:items-end" data-card-overlay>
+          narrow and the artwork tall, and on a card under 9.25rem (larger text on a phone), where
+          side by side they left the role no room. Lineup changes are never here: they sit at the
+          card's foot. */}
+      <span className="absolute right-2.5 top-2.5 z-[2] flex items-center gap-1.5 empty:hidden @5xl/lineup:flex-col @5xl/lineup:items-end @max-[9.25rem]/card:flex-col @max-[9.25rem]/card:items-end" data-card-overlay>
         {own && !editingLineup && p ? <CustomiseCardButton variant="icon" ownLinks playerId={p.id} name={p.name} avatarUrl={p.avatarUrl} art={p.art} accent={p.cardAccent} look={p.look} champions={champions} poolIds={p.poolIds} preview={{ role: slot.role, rank: p.rank, status, season: p.season, poolIds: slot.champions.map((c) => c.championId), social: p.social }} /> : null}
         {bench ? (
           <button type="button" ref={turnRef} className={ART_BUTTON} onClick={bench.onBack} aria-label={bench.backLabel} title="Back to the starter" data-testid="flip-back">
@@ -125,9 +160,12 @@ function RosterCard({ slot, championsById, canManageLineup, editingLineup, canEd
         <div className="pointer-events-none relative flex flex-1 flex-col gap-2.5 px-3 pb-3 pt-2.5" style={{ backgroundImage: "linear-gradient(to bottom, color-mix(in srgb, var(--card-accent) 7%, transparent), transparent 70%)" }}>
           {p.statsVisible ? <CardPerformance season={p.season} support={support} roleLabel={slot.roleLabel} /> : null}
           <div className="flex flex-col gap-1.5">
-            <p className="flex items-center justify-between text-2xs font-medium uppercase tracking-label text-fg-subtle">
-              <span className="truncate">{slot.roleLabel} pool</span>
-              <span className="inline-flex items-center gap-0.5 normal-case tracking-normal group-hover/card:text-[var(--card-accent)]">
+            {/* Under 9.75rem, which only larger text makes, the pool's name wraps instead of ending in
+                "…" ("SUPPO…" at 200% on a 320px phone): the count stays beside it while its longest
+                word fits there, otherwise it takes a line of its own, still on the right. */}
+            <p className="flex items-center justify-between text-2xs font-medium uppercase tracking-label text-fg-subtle @max-[9.75rem]/card:flex-wrap">
+              <span className="truncate @max-[9.75rem]/card:min-w-min @max-[9.75rem]/card:grow @max-[9.75rem]/card:basis-0 @max-[9.75rem]/card:whitespace-normal">{slot.roleLabel} pool</span>
+              <span className="inline-flex items-center gap-0.5 normal-case tracking-normal group-hover/card:text-[var(--card-accent)] @max-[9.75rem]/card:ml-auto">
                 {slot.champions.length ? (
                   <>
                     {slot.champions.length}
