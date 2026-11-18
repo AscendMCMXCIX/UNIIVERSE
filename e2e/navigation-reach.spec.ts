@@ -218,6 +218,86 @@ test("tablet and desktop: Team's sections stay in reach as a long page scrolls, 
   await expect(page.getByTestId("team-tab-matches")).toHaveAttribute("aria-current", "page");
 });
 
+/**
+ * A tab row against its pages: where its first tab starts and where the page's column does (the
+ * element of main#content that holds the page: for a bar of main's own, as Team's, the page after
+ * it; for a bar inside a page, as a profile's or a view switch, that page), and the bar against
+ * main's room (inside its padding).
+ */
+const rowEdges = (nav: Locator) =>
+  nav.evaluate((nav) => {
+    const main = document.querySelector<HTMLElement>("main#content")!;
+    let column: Element | null = nav;
+    while (column && column.parentElement !== main) column = column.parentElement;
+    if (column === nav) {
+      column = nav.nextElementSibling;
+      while (column && column.getBoundingClientRect().width === 0) column = column.nextElementSibling;
+    }
+    const style = getComputedStyle(main);
+    const room = main.getBoundingClientRect();
+    const page = column!.getBoundingClientRect();
+    const bar = nav.getBoundingClientRect();
+    const end = nav.querySelector("[data-testid=team-tabs-identity]")?.getBoundingClientRect();
+    return {
+      tab: nav.querySelector("li")!.getBoundingClientRect().left,
+      pageLeft: page.left,
+      pageRight: page.right,
+      barLeft: bar.left,
+      barRight: bar.right,
+      roomLeft: room.left + parseFloat(style.paddingLeft),
+      roomRight: room.right - parseFloat(style.paddingRight),
+      end: end?.right ?? null,
+    };
+  });
+
+test("wide windows: every tab row starts where its pages do, on each of their sections, and never moves between them", async ({ page, context, baseURL }) => {
+  test.skip(width(page) < 1024, "desktop windows; phones and tablets fill the width");
+  test.setTimeout(240_000);
+  const profile = await teammate(page);
+  const SETS: Array<{ nav: string; mode: "player" | "admin"; pages: string[]; ownBar?: boolean }> = [
+    // Bars of main's own, above pages centred in their set's width (SECTION_HUBS).
+    { nav: "team-tabs", mode: "player", pages: ["/team", "/players", "/leaderboards", "/leaderboards?view=records", "/matches"], ownBar: true },
+    { nav: "resources-tabs", mode: "player", pages: ["/resources", "/resources/matchups"], ownBar: true },
+    { nav: "admin-settings-tabs", mode: "admin", pages: ["/admin/branding", "/admin/previews", "/admin/resources"], ownBar: true },
+    // Bars inside their pages: a profile's sections, and the views of a section.
+    { nav: "profile-tabs", mode: "player", pages: [profile, `${profile}/champions`, `${profile}/matches`, `${profile}/accounts`] },
+    { nav: "leaderboards-views", mode: "player", pages: ["/leaderboards", "/leaderboards?view=records"] },
+    { nav: "match-views", mode: "player", pages: [`${profile}/matches`, `${profile}/matches?view=encounters`] },
+    { nav: "people-tabs", mode: "admin", pages: ["/admin/people", "/admin/people/access", "/admin/people/privacy"] },
+  ];
+  // Ultrawide and 1440p, the sidebar open; and a laptop with it folded, where the pages stopped
+  // growing (80rem) from 1417px wide.
+  const WINDOWS = [
+    { width: 2560, height: 1440, sidebar: "expanded" },
+    { width: 3440, height: 1440, sidebar: "expanded" },
+    { width: 1440, height: 900, sidebar: "collapsed" },
+  ];
+  for (const w of WINDOWS) {
+    await page.setViewportSize({ width: w.width, height: w.height });
+    for (const set of SETS) {
+      if (w.width === 1440 && !set.ownBar) continue;
+      await context.addCookies([{ name: "uniiverse_view", value: set.mode, url: baseURL! }, { name: "uniiverse_sidebar", value: w.sidebar, url: baseURL! }]);
+      const starts: number[] = [];
+      for (const path of set.pages) {
+        await page.goto(path);
+        const nav = set.nav === "people-tabs" ? page.getByRole("navigation", { name: "Users & Permissions" }) : page.getByTestId(set.nav);
+        await expect(nav).toBeVisible();
+        const at = await rowEdges(nav);
+        const where = `${set.nav} on ${path.replace(profile, "a profile")} at ${w.width} × ${w.height} (sidebar ${w.sidebar})`;
+        expect(Math.abs(at.tab - at.pageLeft), `${where}: the first tab at ${at.tab}, the page's edge at ${at.pageLeft}`).toBeLessThanOrEqual(1);
+        if (set.ownBar) {
+          // The bar's line and its pinned background still span the room beside the sidebar.
+          expect(Math.abs(at.barLeft - at.roomLeft) + Math.abs(at.barRight - at.roomRight), `${where}: the bar spans ${at.barLeft} to ${at.barRight}, the room ${at.roomLeft} to ${at.roomRight}`).toBeLessThanOrEqual(1);
+          // Team's name, at the row's end, ends where the page does.
+          if (at.end !== null) expect(Math.abs(at.end - at.pageRight), `${where}: the team's name ends at ${at.end}, the page at ${at.pageRight}`).toBeLessThanOrEqual(1);
+        }
+        starts.push(at.tab);
+      }
+      expect(Math.max(...starts) - Math.min(...starts), `${set.nav} at ${w.width}: the row starts at ${starts.join(", ")} on its sections`).toBeLessThanOrEqual(1);
+    }
+  }
+});
+
 test("tablet and desktop: a profile's sections stay in reach, and All Champions' column headings pin under them, not behind them", async ({ page }) => {
   test.skip(isPhone(page), "phones show the sections in the top bar");
   const profile = await teammate(page);
