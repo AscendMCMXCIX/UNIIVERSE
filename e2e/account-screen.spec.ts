@@ -155,10 +155,9 @@ test("the close button's touch area reaches 44px around its 36px circle", async 
 });
 
 test("held sideways and with large text, the account screen scrolls as one region under its header, every control can be shown whole, and the close button never scrolls away", async ({ page, context, baseURL }) => {
-  // 200% text on an upright 320px phone is left out: there the page itself is wider than the phone
-  // (the tab bar's labels, the top bar, some page buttons), so the browser widens the area every
-  // fixed element is placed in, the tab bar and every window included. The large-text layout that
-  // keeps pages within the phone's width is its own piece of work (STATUS.md, Deferred).
+  // 200% text on an upright 320px phone too: the tab bar shows its icons alone once its labels no
+  // longer fit, so the page stays the phone's width (it used to widen the area every fixed element
+  // is placed in, the account screen included).
   const cases = [
     { size: "sideways", viewport: { width: 734, height: 343 }, root: 100 },
     { size: "sideways at 125% text", viewport: { width: 734, height: 343 }, root: 125 },
@@ -167,6 +166,7 @@ test("held sideways and with large text, the account screen scrolls as one regio
     // Safari's page zoom at 150% gives the page a smaller viewport in CSS px.
     { size: "sideways, page zoomed to 150%", viewport: { width: 489, height: 229 }, root: 100 },
     { size: "150% text upright", viewport: { width: 393, height: 659 }, root: 150 },
+    { size: "200% text upright on a 320px phone", viewport: { width: 320, height: 568 }, root: 200 },
   ];
   for (const { size, viewport, root } of cases) {
     await page.setViewportSize(viewport);

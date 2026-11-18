@@ -257,6 +257,46 @@ test("the tab bar's five destinations fit side by side on the narrowest phones, 
   }
 });
 
+test("with larger text the tab bar still fits the phone: the icons alone once the labels no longer fit, each destination still named", async ({ browser, baseURL }) => {
+  // A phone's text-size setting scales the root size, and with it the bar's rem: the five labels
+  // need 19.1rem under their icons and 33.2rem beside them (a short window). Wider than the phone,
+  // the bar made the browser widen the area every fixed element is placed in.
+  const cases = [
+    { viewport: { width: 320, height: 568 }, root: 125 },
+    { viewport: { width: 320, height: 568 }, root: 200 },
+    { viewport: { width: 393, height: 659 }, root: 150 },
+    { viewport: { width: 393, height: 659 }, root: 200 },
+    { viewport: { width: 734, height: 343 }, root: 150 },
+    { viewport: { width: 734, height: 343 }, root: 200 },
+  ];
+  const page = await phone(browser, baseURL!, IPHONE);
+  const bar = page.getByTestId("phone-tabbar");
+  for (const { viewport, root } of cases) {
+    const where = `${viewport.width} × ${viewport.height} at ${root}% text`;
+    await page.setViewportSize(viewport);
+    await page.goto("/matches");
+    await page.evaluate((r) => {
+      document.documentElement.style.fontSize = `${r}%`;
+    }, root);
+    await page.evaluate(() => document.fonts.ready);
+    // Each destination keeps its name (its label, read even where only the icon shows).
+    await expect(bar.getByRole("link"), where).toHaveText(["Team", "Players", "Leaderboards", "Matches", "Profile"]);
+    await expect(async () => {
+      expect(await page.evaluate(() => window.innerWidth), `${where}: the page as wide as the phone`).toBe(viewport.width);
+      for (const tab of await bar.getByRole("link").all()) {
+        const box = (await tab.boundingBox())!;
+        expect(box.x, where).toBeGreaterThanOrEqual(-0.5);
+        expect(box.x + box.width, `${where}: inside the phone`).toBeLessThanOrEqual(viewport.width + 0.5);
+        expect(box.height, `${where}: a 44px target`).toBeGreaterThanOrEqual(44);
+        // Its label: whole where it shows, or left to screen readers with the icon alone.
+        const label = await tab.locator("span").last().evaluate((el) => ({ hidden: el.getBoundingClientRect().width <= 1, whole: el.scrollWidth <= el.clientWidth + 1 }));
+        expect(label.hidden || label.whole, `${where}: a label whole or left to screen readers`).toBe(true);
+      }
+    }).toPass({ timeout: 15_000 });
+  }
+  await done(page);
+});
+
 test("the (i) marks are 24px targets, 40px to a finger, without changing the line they sit in", async ({ browser, baseURL }) => {
   const page = await phone(browser, baseURL!, IPHONE);
   await page.goto("/players");

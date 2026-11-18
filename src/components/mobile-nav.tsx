@@ -319,17 +319,22 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
       ) : null}
 
       {tabs.length > 0 ? (
-        <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-chrome/95 px-safe pb-safe backdrop-blur-md transition-transform duration-200 ease-out data-[hidden=true]:not-focus-within:translate-y-full md:hidden" aria-label="Primary" data-hidden={tabsHidden} data-testid="phone-tabbar">
+        <nav className="@container/tabbar fixed inset-x-0 bottom-0 z-40 border-t border-border bg-chrome/95 px-safe pb-safe backdrop-blur-md transition-transform duration-200 ease-out data-[hidden=true]:not-focus-within:translate-y-full md:hidden" aria-label="Primary" data-hidden={tabsHidden} data-testid="phone-tabbar">
           {/* One column per destination, as wide as the bar allows and never narrower than its label,
               so the longest (Leaderboards) stays whole on a 320px screen. The current tab is lit twice
               over: its icon sits in an accent pill and its label turns bright, so it reads at a glance
-              without colour alone. */}
+              without colour alone. With larger text the labels can stop fitting (the five need
+              19.1rem under their icons, 33.2rem beside them in a short window): then the bar shows
+              the icons alone, each pill sharing the width, and the labels stay the destinations'
+              names for screen readers. Measured in the bar's own width in rem, so the user's text
+              size counts: a 320px phone has 20rem at 100% and 10rem at 200%. Wider than the phone,
+              the bar made the browser widen the area every fixed element is placed in. */}
           <ul className="mx-auto flex max-w-lg">
             {tabs.map(({ href, label, icon: Icon }) => {
               const active = href === activeTab;
               const own = href === "/overview" && user?.avatarUrl;
               return (
-                <li key={href} className="min-w-max flex-1 basis-0">
+                <li key={href} className="min-w-max flex-1 basis-0 @max-[19.5rem]/tabbar:min-w-0 short:@max-[33.5rem]/tabbar:min-w-0">
                   <Link
                     href={href}
                     aria-current={active ? "page" : undefined}
@@ -341,11 +346,11 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                         toTop();
                       }
                     }}
-                    className={cn("group flex min-h-14 flex-col items-center justify-center gap-1 px-1 pb-1 pt-1.5 text-2xs font-medium transition-colors duration-150 short:min-h-11 short:flex-row short:gap-1.5 short:py-1", active ? "font-semibold text-fg" : "text-fg-muted hover:text-fg")} data-testid={`tab-${href.slice(1)}`}>
-                    <span className={cn("grid h-7 w-12 place-items-center rounded-full transition-colors duration-150", active ? "bg-accent/15 text-accent" : "group-hover:bg-surface-2")} aria-hidden>
+                    className={cn("group flex min-h-14 flex-col items-center justify-center gap-1 px-1 pb-1 pt-1.5 text-2xs font-medium transition-colors duration-150 short:min-h-11 short:flex-row short:gap-1.5 short:py-1 @max-[19.5rem]/tabbar:px-0.5 short:@max-[33.5rem]/tabbar:px-0.5", active ? "font-semibold text-fg" : "text-fg-muted hover:text-fg")} data-testid={`tab-${href.slice(1)}`}>
+                    <span className={cn("grid h-7 w-12 place-items-center rounded-full transition-colors duration-150 @max-[19.5rem]/tabbar:w-full @max-[19.5rem]/tabbar:max-w-12 short:@max-[33.5rem]/tabbar:w-full short:@max-[33.5rem]/tabbar:max-w-12", active ? "bg-accent/15 text-accent" : "group-hover:bg-surface-2")} aria-hidden>
                       {own ? <Avatar name={user!.name} src={user!.avatarUrl} size="xs" className={cn(active && "ring-2 ring-accent")} /> : <Icon className="h-5 w-5" />}
                     </span>
-                    <span className="leading-none">{label}</span>
+                    <span className="leading-none @max-[19.5rem]/tabbar:sr-only short:@max-[33.5rem]/tabbar:sr-only">{label}</span>
                   </Link>
                 </li>
               );
