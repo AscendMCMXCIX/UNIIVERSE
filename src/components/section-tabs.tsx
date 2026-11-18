@@ -23,6 +23,18 @@ import { cn } from "@/lib/cn";
  * (Players, Matches) never needs scrolling back up to leave it. Pages inside a section (a
  * profile, a match) have their own headers and no Team bar.
  */
+/**
+ * Each Team section's own width (its page's container), so that from 1600px wide the tabs start and
+ * end where the page does instead of at the window's edge beside the sidebar. Platform Settings'
+ * pages take the whole width, as their bar does.
+ */
+const SECTION_WIDTH: Record<string, string> = {
+  "/team": "max-w-[var(--content-wide)]",
+  "/players": "max-w-[var(--content-max)]",
+  "/leaderboards": "max-w-[var(--content-wide)]",
+  "/matches": "max-w-[var(--content-max)]",
+};
+
 export function SectionTabs({ allowed, team }: { allowed: string[]; team: { name: string; logo: string | null; logoStill: string | null } }) {
   const pathname = usePathname();
   const hub = SECTION_HUBS.find((h) => h.sections.some((s) => s.href === pathname));
@@ -39,6 +51,7 @@ export function SectionTabs({ allowed, team }: { allowed: string[]; team: { name
       // Phones reach Team's sections from the bottom tab bar (MobileNav), so the bar is not repeated in the page there.
       className={cn("mb-4 sm:mb-5 lg:mb-4 lg:first:-mt-2", hub.key === "team" && "max-md:hidden")}
       testId={`${hub.key}-tabs`}
+      inner={SECTION_WIDTH[current.href]}
       end={
         hub.key === "team" && current.href !== "/team" ? (
           <Link href="/team" className="mb-2 hidden min-w-0 max-w-[16rem] shrink items-center gap-2 text-sm font-semibold text-fg-muted hover:text-fg md:flex" title={`${team.name}: Team Overview`} data-testid="team-tabs-identity">

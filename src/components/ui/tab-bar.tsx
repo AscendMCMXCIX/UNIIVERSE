@@ -74,37 +74,47 @@ function useStuck(ref: React.RefObject<HTMLElement | null>, enabled: boolean) {
  * the page once it has scrolled past it (under the tablet's top bar), so the sections stay in reach
  * however long the page (globals.css sticky-tabs; docs/RESPONSIVE.md → Shell); it must be a child of
  * the element the page scrolls through, never of a wrapper that ends with it. `end`: content at the
- * bar's right end (Team names the team there).
+ * bar's right end (Team names the team there). `inner`: the width class of the page under the bar
+ * (`max-w-[var(--content-max)]`, say), so that the tabs start where the page does and the bar ends
+ * where it ends, however wide the window; the bar's line and its pinned background still span it.
  */
-export function TabBar({ label, items, current, keepScroll = false, dense = false, sticky = false, className, testId, end }: { label: string; items: readonly TabBarItem[]; current: string; keepScroll?: boolean; dense?: boolean; sticky?: boolean; className?: string; testId?: string; end?: React.ReactNode }) {
+export function TabBar({ label, items, current, keepScroll = false, dense = false, sticky = false, className, testId, end, inner }: { label: string; items: readonly TabBarItem[]; current: string; keepScroll?: boolean; dense?: boolean; sticky?: boolean; inner?: string; className?: string; testId?: string; end?: React.ReactNode }) {
   const listRef = React.useRef<HTMLUListElement>(null);
   const navRef = React.useRef<HTMLElement>(null);
   useScrollEdges(listRef, { keepCurrentInView: true, current });
   useStuck(navRef, sticky);
   return (
-    <nav ref={navRef} aria-label={label} className={cn("flex items-end gap-4 border-b border-border", sticky && "sticky-tabs", className)} data-testid={testId} data-sticky-tabs={sticky || undefined}>
-      <ul ref={listRef} className="scroll-fade-x -mb-px flex min-w-0 flex-1 snap-x gap-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {items.map((s) => {
-          const on = s.key === current;
-          return (
-            <li key={s.key} className="shrink-0 snap-start max-sm:grow">
-              <Link
-                href={s.href}
-                aria-current={on ? "page" : undefined}
-                scroll={!keepScroll}
-                // The page keeps its place (ScrollOnNavigate leaves these links to the page).
-                data-keep-scroll={keepScroll ? "" : undefined}
-                className={cn("inline-flex min-h-11 items-center gap-2 whitespace-nowrap px-3 text-sm font-medium transition-colors duration-150 max-sm:w-full max-sm:justify-center max-sm:px-2", dense && "lg:min-h-10", tabIndicatorClass(on))}
-                data-testid={s.testId}
-              >
-                <s.icon className={cn("hidden h-4 w-4 sm:block", on ? "text-accent" : "text-fg-subtle")} aria-hidden />
-                {s.label}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-      {end}
+    <nav ref={navRef} aria-label={label} className={cn(!inner && "flex items-end gap-4", "border-b border-border", sticky && "sticky-tabs", className)} data-testid={testId} data-sticky-tabs={sticky || undefined}>
+      <TabBarRow inner={inner}>
+        <ul ref={listRef} className="scroll-fade-x -mb-px flex min-w-0 flex-1 snap-x gap-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {items.map((s) => {
+            const on = s.key === current;
+            return (
+              <li key={s.key} className="shrink-0 snap-start max-sm:grow">
+                <Link
+                  href={s.href}
+                  aria-current={on ? "page" : undefined}
+                  scroll={!keepScroll}
+                  // The page keeps its place (ScrollOnNavigate leaves these links to the page).
+                  data-keep-scroll={keepScroll ? "" : undefined}
+                  className={cn("inline-flex min-h-11 items-center gap-2 whitespace-nowrap px-3 text-sm font-medium transition-colors duration-150 max-sm:w-full max-sm:justify-center max-sm:px-2", dense && "lg:min-h-10", tabIndicatorClass(on))}
+                  data-testid={s.testId}
+                >
+                  <s.icon className={cn("hidden h-4 w-4 sm:block", on ? "text-accent" : "text-fg-subtle")} aria-hidden />
+                  {s.label}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+        {end}
+      </TabBarRow>
     </nav>
   );
+}
+
+/** The bar's row: the nav itself, or, with `inner`, a row in the page's own width inside it. */
+function TabBarRow({ inner, children }: { inner?: string; children: React.ReactNode }) {
+  if (!inner) return <>{children}</>;
+  return <div className={cn("mx-auto flex w-full min-w-0 items-end gap-4", inner)}>{children}</div>;
 }

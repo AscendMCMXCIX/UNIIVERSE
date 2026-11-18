@@ -139,6 +139,41 @@ test("tablet and desktop: Team's sections stay in reach as a long page scrolls, 
   await expect(page.getByTestId("team-tab-matches")).toHaveAttribute("aria-current", "page");
 });
 
+test("wide windows: Team's section tabs start and end where the section's page does, not at the edge beside the sidebar", async ({ page, context, baseURL }) => {
+  test.skip(width(page) < 1024, "desktop windows");
+  await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: baseURL! }]);
+  const sections: Array<[string, string]> = [
+    ["/team", "--content-wide"],
+    ["/players", "--content-max"],
+    ["/leaderboards", "--content-wide"],
+    ["/matches", "--content-max"],
+  ];
+  for (const viewport of [{ width: 1440, height: 900 }, { width: 1920, height: 1080 }, { width: 2560, height: 1440 }, { width: 3440, height: 1440 }]) {
+    await page.setViewportSize(viewport);
+    for (const [path, token] of sections) {
+      await page.goto(path);
+      const tabs = page.getByTestId("team-tabs");
+      await expect(tabs).toBeVisible();
+      // Where the page's own container sits: centred in main, as wide as its token at most.
+      const at = await tabs.evaluate((nav, token) => {
+        const main = document.querySelector<HTMLElement>("main#content")!;
+        const style = getComputedStyle(main);
+        const box = main.getBoundingClientRect();
+        const left = box.left + parseFloat(style.paddingLeft);
+        const room = box.width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+        const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+        const pageWidth = Math.min(room, parseFloat(getComputedStyle(document.documentElement).getPropertyValue(token)) * rem);
+        const first = nav.querySelector("li")!.getBoundingClientRect();
+        return { tab: Math.round(first.left), page: Math.round(left + (room - pageWidth) / 2), line: Math.round(nav.getBoundingClientRect().width), room: Math.round(room) };
+      }, token);
+      const where = `${path} at ${viewport.width} × ${viewport.height}`;
+      expect(Math.abs(at.tab - at.page), `${where}: the first tab at the page's own edge`).toBeLessThanOrEqual(1);
+      // The bar's line (and its pinned background) still spans the main column.
+      expect(at.line, `${where}: the line under the tabs spans the page column`).toBe(at.room);
+    }
+  }
+});
+
 test("tablet and desktop: a profile's sections stay in reach, and All Champions' column headings pin under them, not behind them", async ({ page }) => {
   test.skip(isPhone(page), "phones show the sections in the top bar");
   const profile = await teammate(page);
