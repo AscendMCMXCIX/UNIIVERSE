@@ -43,8 +43,8 @@ export function ResourcesView({ entries }: { entries: Resource[] }) {
       {/* Phones: the search, then the index under it, scrolling sideways (a ScrollRow); tablets the same,
           the count at the index's end; a phone held sideways (from sm in a window 480px tall or less)
           puts both on one row. From lg the index is whole wherever it is shown: beside the search where
-          the row has room for all of it and the count, else on a row of its own, and where even that
-          row is too narrow (1024px beside the open sidebar) its segments wrap onto a second line. */}
+          the row has room for all of it and the count's longest form, else on a row of its own, and
+          where even that row is too narrow (1024px) its segments wrap onto a second line. */}
       <div className="flex flex-col gap-3 sm:short:flex-row sm:short:items-center lg:flex-row lg:flex-wrap lg:items-center">
         <SearchInput value={query} onChange={setQuery} placeholder="Search resources" label="Search resources by name, site or description" testId="resources-search" className="sm:max-w-md lg:w-64 lg:max-w-none lg:shrink-0 sm:short:w-56 sm:short:max-w-none sm:short:shrink-0" />
         <div className="flex min-w-0 flex-1 items-center gap-3 lg:basis-auto">
@@ -66,10 +66,18 @@ export function ResourcesView({ entries }: { entries: Resource[] }) {
               );
             })}
           </ScrollRow>
-          {/* The live count: on a phone each segment's count says it, so it is left to screen readers. */}
-          <p className="ml-auto shrink-0 whitespace-nowrap text-sm tabular-nums text-fg-muted max-sm:sr-only" aria-live="polite" data-testid="resources-count">
-            {entries.length === 0 ? "No resources yet." : shown.length === entries.length ? `${formatCount(entries.length)} resource${entries.length === 1 ? "" : "s"}` : `${formatCount(shown.length)} of ${formatCount(entries.length)} resources`}
-          </p>
+          {/* The live count: on a phone each segment's count says it, so it is left to screen readers.
+              From lg it keeps the room of its longest form ("11 of 11 resources", an invisible copy
+              in the same cell), so a section chosen or a search typed never changes whether the index
+              fits beside the search, or moves it. */}
+          <div className="ml-auto grid shrink-0 max-sm:contents">
+            <p className="col-start-1 row-start-1 whitespace-nowrap text-right text-sm tabular-nums text-fg-muted max-sm:sr-only" aria-live="polite" data-testid="resources-count">
+              {entries.length === 0 ? "No resources yet." : shown.length === entries.length ? `${formatCount(entries.length)} resource${entries.length === 1 ? "" : "s"}` : `${formatCount(shown.length)} of ${formatCount(entries.length)} resources`}
+            </p>
+            <span aria-hidden className="invisible col-start-1 row-start-1 hidden whitespace-nowrap text-sm tabular-nums lg:block">
+              {`${formatCount(entries.length)} of ${formatCount(entries.length)} resources`}
+            </span>
+          </div>
         </div>
       </div>
 

@@ -196,10 +196,13 @@ test("held sideways (from sm, 480px tall or less) the search and the index share
   await expect.poll(() => list.evaluate((el) => getComputedStyle(el).columnCount)).toBe("auto");
 });
 
-test("from lg the index is whole wherever it is shown: beside the search when the row has room, else on a row of its own, wrapping only where even that is too narrow", async ({ browser, baseURL }, info) => {
+test("from lg the index is whole wherever it is shown: beside the search when the row has room, else on a row of its own, wrapping only where even that is too narrow; a choice or a search never moves it", async ({ browser, baseURL }, info) => {
   test.skip(info.project.name !== "desktop", "laptops and desktops");
+  test.setTimeout(120_000);
+  // 1300 folded and 1480 open: where the row only just holds the search, the index and "11 resources"
+  // ("2 of 11 resources" is about 30px longer).
   for (const sidebar of ["expanded", "collapsed"] as const) {
-    for (const width of [1024, 1280, 1366, 1440]) {
+    for (const width of [1024, 1280, 1300, 1366, 1440, 1480]) {
       const context = await browser.newContext({ viewport: { width, height: 800 } });
       await context.addCookies([
         { name: "uniiverse_view", value: "player", url: baseURL! },
@@ -211,14 +214,26 @@ test("from lg the index is whole wherever it is shown: beside the search when th
         await page.goto("/resources");
         const index = page.getByTestId("resources-index");
         await expect(index).toBeVisible();
-        for (const chosen of [null, "esports"]) {
-          if (chosen) await choose(page, segment(page, chosen));
-          const where = `${width}, sidebar ${sidebar}${chosen ? `, ${chosen} chosen` : ""}`;
+        const place = async () => {
+          const box = (await index.boundingBox())!;
+          return { top: Math.round(box.y), height: Math.round(box.height), list: Math.round((await page.getByTestId("resources-list").boundingBox())!.y) };
+        };
+        const before = await place();
+        for (const step of ["all", "esports", "aram"]) {
+          if (step === "esports") await choose(page, segment(page, "esports"));
+          if (step === "aram") {
+            await choose(page, segment(page, "all"));
+            await page.getByTestId("resources-search").fill("aram");
+            await expect(page.getByTestId("resources-count")).toHaveText(/^2 of /);
+          }
+          const where = `${width}, sidebar ${sidebar}${step === "esports" ? ", esports chosen" : step === "aram" ? ", searched" : ""}`;
           // Nothing of the index hidden sideways, and every segment inside the page.
           expect(await index.evaluate((el) => el.scrollWidth - el.clientWidth), `${where}: the index whole`).toBeLessThanOrEqual(0);
           const right = await page.evaluate(() => document.documentElement.clientWidth);
           for (const seg of await index.getByRole("radio").all()) expect((await seg.boundingBox())!.x + (await seg.boundingBox())!.width, where).toBeLessThanOrEqual(right);
           await expect(page.getByTestId("resources-count")).toBeVisible();
+          // Where it is drawn does not depend on the count's words: the index and the list stay put.
+          expect(await place(), `${where}: the index and the list where they were`).toEqual(before);
         }
       } finally {
         await context.close();
