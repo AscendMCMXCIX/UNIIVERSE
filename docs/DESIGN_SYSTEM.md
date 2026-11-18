@@ -68,7 +68,7 @@ Each surface is a step from the ground up. Lighter means closer to the reader.
 | Step | Token | Where |
 |---|---|---|
 | 0 | `bg` + `--ambient-light` | the page ground, with violet light at the top edge and a low horizon |
-| 0.5 | `chrome` (+ `chrome-light` on the sidebar) | the app's frame: sidebar, top bar, drawer, tab bar |
+| 0.5 | `chrome` (+ `chrome-light` on the sidebar) | the app's frame: sidebar, top bar, tab bar |
 | 1 | `surface` + `panel-depth` | panels and cards; `panel-featured` or `surface-lead` for the one card a page leads with |
 | 2 | `surface-2` | rows and tiles inside panels, hovered rows on panels |
 | 3 | `surface-3` | selected or pressed rows on panels |
@@ -252,12 +252,28 @@ reads as set into the frame rather than pasted on a flat block.
   `bg-surface-2`), three fade strings, and borders on some rows only.
 - A new sidebar row uses these constants and nothing else.
 
-### Tablets and phones
+### Tablets and phones: frames by posture
 
-Tablets keep the top bar, the drawer (sharing `NavLinks`, so the same rows) and the section tabs.
-Phones keep the top bar, the five-tab bar and the account screen (MOBILE.md). They pick up the new
-`chrome` ink automatically. On the account screen the mode switch is a row like the others, above
-Sign out in a panel of their own, and it keeps the accent when it leads to Admin Mode.
+Below `lg` the frame follows how the screen is held (MOBILE.md, "Frames by posture"; the owner's
+decision of 8 Nov 2026, PR 2d), and exactly one `nav[aria-label=Primary]` is shown at a time:
+
+- **A phone held upright** (below `md`, taller than 480px): the top bar, the five-tab bar and the
+  account screen (MOBILE.md).
+- **A phone held sideways** (480px tall or less, below `lg`, whatever its width): one compact bar,
+  44px plus the inset, with Back or the team's mark, the phone's destinations (only the current one
+  labelled where the bar is narrower than 38rem), the title where room is left, Filters and the
+  avatar (the account screen); a profile's sections as its 40px second row; no bottom bar. It slides
+  away while reading.
+- **A tablet** (`md` to `lg`, taller than 480px): the destinations in the top bar, one tap each (Player
+  Mode: My Profile, Team, Resources; Admin Mode: its four tabs), marked as the sidebar marks the
+  current page (a neutral lift with a hairline of light, the icon in `accent`, the name in `fg`); the
+  section tabs pinned in the page; the avatar menu (`AccountMenu`) with what the sidebar's footer
+  holds on a desktop: Settings, Install App, the switch between the modes above Sign out, the patch
+  and Riot's notice (and Admin Mode's Data & Integrations and Audit Logs). There is no drawer.
+
+They pick up the `chrome` ink automatically. On the account screen the mode switch is a row like the
+others, above Sign out in a panel of their own, and in the avatar menu an item above Sign out; each
+keeps the accent when it leads to Admin Mode.
 
 With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shell):
 
@@ -297,10 +313,11 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     while the toolbar in the page keeps its size; closed after a change, it brings the list's first
     item under the pinned stack. The page's own toolbar is found by the page's filter bar, or named
     by the page (All Champions' table search, Leaderboards' views).
-- **Tablet drawer.** It is a native `<dialog>`: it keeps focus inside, the page behind it cannot
-  be used and is locked as behind a window (no scrolling, no rubber band), the focus starts as in a
-  window (on the menu itself after a tap, on its close button from the keyboard), and closing it
-  returns focus to the menu button.
+- **A tablet's avatar menu** (it replaced the drawer, which was a native `<dialog>`, when the
+  destinations moved into the top bar): a menu, not a window. The focus goes to its first item, the
+  arrow keys go round its items, Tab or a click outside closes it, Escape gives the focus back to the
+  avatar; Install App closes it and opens its window, which gives the focus back to the avatar. A
+  change of page closes it (`Menu`'s `dismissKey`), and Forward never reopens it.
 - **The installed app on a tablet.** It shows Back in the top bar, as phones do, because the
   installed app has no browser Back.
 
@@ -309,14 +326,17 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
 Every page follows the same rules, so moving around never needs thought (#266; each rule names its
 test):
 
-- **Three levels, each always in the same place.** Destinations: the sidebar (desktop), the drawer
-  (tablet), the five-tab bar (phone). Sections: the section tabs, pinned once the page scrolls past
-  them (tablet, desktop), the top bar's second row on a phone profile (Team's sections are the phone
-  tab bar itself). A page's own views and scope (its view switch, filters, search): in its header;
-  once the header has scrolled away, still one press away: from md their compact copy at the pinned
-  tabs' end (`PageToolbar`, above), on a phone (and in a short window as wide as a tablet, where
-  nothing pins) Filters in the top bar, 44px with the count of narrowed filters, named "Filters:"
-  and what is chosen (PR 2b). (`e2e/navigation-reach.spec.ts`, `e2e/mobile-nav.spec.ts`)
+- **Three levels, each always in the same place.** Destinations: the sidebar (desktop), the top bar
+  (tablet), the five-tab bar (a phone held upright) and the one compact bar (a phone held sideways,
+  whatever its width), one tap each in every posture, one `nav[aria-label=Primary]` shown at a time.
+  Sections: the section tabs, pinned once the page scrolls past them (tablet, desktop), the top bar's
+  second row on a phone profile, either way round (Team's sections are the phone's destinations
+  themselves, so the page does not repeat them on a phone). A page's own views and scope (its view
+  switch, filters, search): in its header; once the header has scrolled away, still one press away:
+  from md their compact copy at the pinned tabs' end (`PageToolbar`, above), on a phone either way
+  round (where nothing pins sideways) Filters in the top bar, 44px with the count of narrowed
+  filters, named "Filters:" and what is chosen (PR 2b). (`e2e/navigation-reach.spec.ts`,
+  `e2e/mobile-nav.spec.ts`, `e2e/mobile-landscape.spec.ts`)
 - **Where a page starts.** A page opened by a link or by code starts at its top
   (`ScrollOnNavigate`); Back and Forward restore the exact place (the browser and Next, untouched);
   a link to a `#fragment` lands on its target. A link that changes the address but keeps the place
@@ -330,9 +350,10 @@ test):
   sections' landing from md, `e2e/navigation-reach.spec.ts`)
 - **Back to the top.** On a phone, tapping the current tab on its own page goes back to the top
   (smooth; at once with reduced motion), and so does tapping the page's title once it has moved into
-  the top bar; at a tablet's width (md to lg) in a window 480px tall or less, where the section tabs
-  do not pin, the title in the top bar does too. A page under a tab (a teammate's profile under
-  Players) still goes to the tab's page. The current section tab (Team's on tablets and desktops,
+  the top bar; held sideways, where the section tabs do not pin, the current destination in the
+  compact bar does, and the title where the bar has room for it (at least 6rem beside the
+  destinations), at any width. A page under a tab (a teammate's profile under Players) still goes to
+  the tab's page. The current section tab (Team's on tablets and desktops,
   Resources', Platform Settings' and a profile's everywhere, the phone's in the top bar included)
   and the sidebar's entry for the page shown do the same, and keep the page as it is: its view and
   filters stay (the link's own address leaves the query out, and following it used to bring back
@@ -380,9 +401,9 @@ test):
   nothing moves under the finger first. (`e2e/popups.spec.ts`; Safari's engine in
   `e2e/webkit.spec.ts`)
 - **Before the page's code has run.** Destinations are real links, and work at once. The frame's
-  controls that code drives (the phone's avatar, the tablet's menu button, the account menu's
-  triggers on tablets and in the sidebar, the sidebar's collapse control) keep a tap made before it
-  has run (`data-early`, `src/components/early-taps.ts`): they show pressed at once
+  controls that code drives (the phone's avatar, the account menu's triggers on tablets and in the
+  sidebar, the sidebar's collapse control) keep a tap made before it has run (`data-early`,
+  `src/components/early-taps.ts`): they show pressed at once
   (`[data-early][aria-busy]`: the hover surface in an accent ring) and act once the code runs,
   exactly once. (`e2e/mobile-nav.spec.ts`, `e2e/sidebar-motion.spec.ts`)
 - **The keyboard.** "Skip to content" is the first stop on every page and moves focus to the page
@@ -412,7 +433,7 @@ deliberately. Each needs its own small PR. Check STATUS.md for the Actions-minut
 | Hover on panels | About 50 controls use `hover:bg-surface-2`, a few `hover:bg-surface-2/70` or `bg-fg/5` | Converge on §5: surface steps on panels, fg overlays on the frame. `DataList` rows follow §5 already (`ROW_STATES`) |
 | Page headers | Players, Matches and Resources open with `PageHeader`. Leaderboards opens with its sub-tabs in the title's place; Settings centres a narrower column with its own heading | Intended by STANDARDS.md's three tiers. Leaderboards could take a `PageHeader` when its page is next redesigned |
 | Eyebrows | `PageHeader`'s eyebrow is `accent`; `SectionLabel` is `fg-subtle` | Both are valid. Keep `accent` eyebrows to Team Overview's header (from `sm` in a window taller than 480px; on a phone held either way it is left to screen readers, since the selected tab says it), admin pages (`PageHeader`) and the sign-in frames (`BrandFrame`) |
-| Tablet and phone mode switch | A bordered accent button in the drawer and sheet, a quiet row in the sidebar | Deliberate (§7). Revisit only with the owner, since phones were verified |
+| Tablet and phone mode switch | A row on the phone's account screen and an item of a tablet's avatar menu, each in the accent on the way to Admin Mode; a quiet row in the sidebar | Deliberate (§7). Revisit only with the owner, since phones were verified |
 
 ## 10. Working on the design
 

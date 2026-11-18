@@ -233,7 +233,7 @@ export function brandThemeVars(c: BrandColours): Record<string, string> {
   }
   if (c.background || c.surface) {
     vars["--color-border-control"] = controlEdge(c.surface ?? DEFAULT_COLOURS.surface, c.background ?? DEFAULT_COLOURS.background);
-    // The app's frame (sidebar, top bar, drawer, tab bar): the team's page and panel colours mixed evenly, as the default ink is.
+    // The app's frame (sidebar, top bar, tab bar): the team's page and panel colours mixed evenly, as the default ink is.
     vars["--color-chrome"] = `color-mix(in srgb, ${c.surface ?? DEFAULT_COLOURS.surface} 50%, ${c.background ?? DEFAULT_COLOURS.background})`;
   }
   return vars;

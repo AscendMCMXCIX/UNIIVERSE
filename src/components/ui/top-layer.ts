@@ -1,6 +1,5 @@
 /*
-  The browser's top layer. Every window is a modal <dialog> (DetailModal, and the tablet's menu in
-  mobile-nav.tsx): the browser draws it above the whole page, whatever the page's own stacking, and
+  The browser's top layer. Every window is a modal <dialog> (DetailModal): the browser draws it above the whole page, whatever the page's own stacking, and
   while it is open everything outside it is inert. What must show over a window (an ⓘ's bubble, the
   toasts) is therefore drawn inside the topmost one: no z-index on the page lifts anything above the
   top layer, and a button left outside a window cannot be pressed.

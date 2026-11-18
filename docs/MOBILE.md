@@ -28,8 +28,9 @@ text sizes, target sizes) and its interactions were walked through.
 
 ### The frame
 
-Every phone page has the same three parts, so a member always knows where they are and how to get
-anywhere else:
+Every phone page held upright has the same three parts, so a member always knows where they are and
+how to get anywhere else (held sideways, the same destinations ride in one compact bar: "Frames by
+posture", below):
 
 1. **The top bar** (sticky): the team's mark on a destination's own page, or **Back** on a page
    reached from one (a teammate's profile, Settings), labelled with where it leads ("‹ Players",
@@ -119,15 +120,56 @@ anywhere else:
    keyboard or a resume (322900, 323322). Inside windows, the Card Studio's section list and the
    picture cropper still follow the viewport, as before.
 
-Tablets keep the menu drawer (a modal dialog), the account dropdown and the page tabs
-(`SectionTabs`, pinned at the top of the page once it scrolls, as a profile's sections are, so they
-stay in reach as on a phone); the bottom bar and the account screen are phones only. The menu button
-and the avatar that opens the account dropdown keep an early tap as the phone's avatar does (so does
-the account tile in the desktop sidebar), and the drawer's Sign out tells the browser's other tabs, as
-the account screen's and the account menu's do (`AccountGuard` checks each of them then; a tab left on a
-member's page goes to sign-in at its next page, since the server answers every request from its own
-session cookie). The installed app on a tablet, which has no browser Back, gets the same Back in its
-top bar as a phone.
+### Frames by posture
+
+The frame follows how the screen is held (owner's decision of 8 Nov 2026: "posture-aware navigation
+keeping the destinations in reach with comfortable targets, safe areas and Back"; PR 2d, 18 Nov). CSS
+decides the posture from the window's width and height, so the first paint is right and a turn of
+the phone changes the frame at once; the parts a posture does not use are drawn but not displayed,
+and exactly one `nav[aria-label=Primary]` is shown at a time (none beside the desktop sidebar, whose
+pages are its "Main" navigation).
+
+| Posture | Window | Frame |
+|---|---|---|
+| Phone held upright | below `md`, taller than 480px | The frame above: the top bar (52px plus the status bar's inset; a profile's sections a 44px second row), the bottom tab bar (56px plus the home indicator's inset) and the account screen. Unchanged by this work. |
+| Phone held sideways | 480px tall or less, below `lg`, whatever its width | **One compact bar**, 44px plus the status bar's inset, and no bottom bar: Back or the team's mark (the mark alone, no name), the phone's destinations (the same five, or Admin Mode's four), the page's title in the room the destinations leave, Filters (PR 2b), the avatar, which opens the account screen. Each destination is a 44px target; the current one is lit twice (its icon in an accent pill, its label shown and bright), and where the bar is narrower than 38rem only its label shows, the others' left to screen readers (`SIDEWAYS_FIT` in `mobile-nav.tsx`). A profile's sections are a 40px second row. The bar slides away while the page scrolls down and comes back on a scroll up, with the short-window rules it had (distances from where the scroll last changed direction, so slow drags count; back while the focus is inside it). Team's section tabs are not repeated in the page (the bar's destinations are them), nor a profile's. |
+| Tablet | `md` to `lg`, taller than 480px | **The destinations in the top bar**, one tap each: in Player Mode the sidebar's three entries, My Profile, Team and Resources (Team marked on all of its sections, which stay the pinned tabs in the page); in Admin Mode its four tabs, Dashboard, Users, Settings and Health. The current one is marked as in the sidebar: a neutral lift with a hairline of light, its icon in the brand blue, its name bright. The drawer is gone. The avatar opens the account menu (`AccountMenu`), which holds what the desktop sidebar's footer holds: Settings, Install App, the switch between the modes above Sign out, and the patch and Riot's notice at its foot; in Admin Mode also Data & Integrations and Audit Logs, the admin pages without a tab. At a larger text size the team's name beside its mark gives way first, then the labels to the icons (`BAR_FIT`: Player Mode's bar needs 32.8rem with the name, 26.8rem without; Admin Mode's 38.9rem and 32.3rem), and as a last resort the list scrolls sideways inside the bar. |
+| Desktop | `lg` and up | The sidebar, unchanged. |
+
+**What moved where.** Nothing was removed: every destination, action and account item is reachable
+in every posture.
+
+| Item | Before | After |
+|---|---|---|
+| A phone held sideways: the five destinations | a compact bottom bar below 768px wide; the tablet's drawer (two taps) from 768px | the one compact top bar, one tap, at every width |
+| A phone held sideways: the account items (Resources, Settings, Install App, the mode switch, Sign out, the notes) | the account screen below 768px; the drawer and the account dropdown from 768px | the account screen at every width |
+| A phone held sideways: a profile's sections | the top bar's second row below 768px; the page's tabs from 768px | the compact bar's second row (40px) at every width |
+| A tablet's destinations (My Profile, Team, Resources; Admin Mode's pages) | the drawer, two taps | the top bar, one tap (Admin Mode's Data & Integrations and Audit Logs: the avatar menu, two taps as before) |
+| A tablet's Settings and Sign out | the drawer and the account dropdown (listed twice) | the avatar menu (once) |
+| A tablet's Install App, mode switch and patch line | the drawer | the avatar menu, with Riot's notice |
+
+**Measured** (18 Nov 2026, the demo build, Chromium; the frame at rest at the top of a teammate's
+profile: the top bar, the profile's sections, in the bar or, from 768px wide before, a row of tabs in
+the page, and any bottom bar): an iPhone 15 held sideways in Safari's tab (734 × 343, its home
+indicator's 21px told) 163 → 85px, 47.5% → 24.8% of the height (Team 119 → 45px); its whole screen
+(852 × 393) 101 → 85px, now with the sections pinned and the destinations in the bar (Team 57 → 45px);
+an iPhone SE (1st gen, 568 × 320) 142 → 85px (Team 98 → 45px); 844 × 390 and a Pixel 7 (915 × 412)
+101 → 85px. The profile's band there (the Overview's
+header) 106–138 → 74px. A tablet's destinations: 2 taps → 1. Nothing wider than the window at
+568 × 320, and at 150% and 200% text at 568 × 320, 734 × 343, 852 × 393 and 768 × 1024 (at 200% on a
+568px phone the destinations' row scrolls inside the bar, never the page). Upright phones unchanged
+(393 × 852: 53 + 57px on Team).
+
+The tablet's avatar keeps an early tap as the phone's does (so does the account tile in the desktop
+sidebar), and the account menu's Sign out tells the browser's other tabs, as the account screen's
+does (`AccountGuard` checks each of them then; a tab left on a member's page goes to sign-in at its
+next page, since the server answers every request from its own session cookie). The account menu is
+a menu, not a window: it takes the focus to its first item, the arrow keys go round its items, Tab
+or a click outside closes it, Escape gives the focus back to the avatar, and Install App closes it
+and opens its window, which gives the focus back to the avatar too. It closes when the page changes
+(Back or Forward while it is open), and coming back to a page never opens it unasked. The installed
+app on a tablet, which has no browser Back, gets the same Back in its top bar as a phone, beside the
+destinations.
 
 ### Back
 
@@ -167,8 +209,9 @@ replaces the entry, so Back leaves the page in one step (`historyShowsEntries`).
 
 ### Phones held sideways
 
-Short windows (480px tall or shorter) keep both bars, compact, and slide them away while the page
-scrolls down; any scroll up brings them back. Nothing is lost when a phone turns.
+Short windows (480px tall or shorter, below `lg`) have one compact bar holding the destinations, a
+profile's sections under it, and no bottom bar ("Frames by posture", above); it slides away while the
+page scrolls down, and a scroll up brings it back. Nothing is lost when a phone turns.
 
 ## 3. Data presentation
 
@@ -257,14 +300,14 @@ click, so nothing moves under the finger first). A sheet:
 | Topic | Rule |
 |---|---|
 | Breakpoints | Phone below `md` (768px). Layout differences live in CSS (`max-md:`, `max-sm:`, container queries) so the first paint is right; behaviour that differs (how a game opens) reads `usePhone()` after hydration. |
-| Frame | Top bar 52px plus the status bar's inset (a profile adds its 44px sections row); tab bar 56px plus the home indicator's inset; the top bar sets the page's `scroll-padding-top` to its measured height and `scroll-padding-bottom` clears the tab bar, so whatever scrolls into view (anchors, the keyboard's focus) stays clear of both bars (WCAG 2.4.11). |
+| Frame | Upright: top bar 52px plus the status bar's inset (a profile adds its 44px sections row); tab bar 56px plus the home indicator's inset. Sideways: one bar, 44px plus the inset (a profile's sections a 40px row), no tab bar. The top bar sets the page's `scroll-padding-top` to its measured height (sideways at a tablet's width too) and `scroll-padding-bottom` clears the tab bar (sideways only the home indicator), so whatever scrolls into view (anchors, the keyboard's focus) stays clear of both bars (WCAG 2.4.11). |
 | Gutters and spacing | 16px gutters (`px-safe-4`), 12–16px between sections; rows 12–14px horizontal padding, at least 64px tall when they carry two lines and a picture. |
 | Surfaces | One panel per list, hairline dividers inside; cards for objects that open (games); no frame around a single group that already has one. Colour and gradient are kept for meaning (a game's result, a selected tab). |
 | Touch targets | 44px for everything a finger presses (tabs, rows, chips through `touch-target`, sheet rows 48px, a toast's dismiss button). |
 | Titles | One `h1` per page; on phones the page tabs and the bar's title say where you are, so instructions under a title are left out (`PageHeader guide`), while a scope line ("Season 2026 · 6 games") always shows. |
 | Interactive states | Pressed rows darken to `surface-2` (`active:`); the current tab, section or view is marked twice (colour and a pill, bar or weight); narrowed filters are accent chips; focus keeps the accent ring everywhere. The avatar tapped before the page's code has run shows pressed (`[data-early][aria-busy]`: `surface-2` in a ring of accent) until it opens the account screen. |
-| Loading, empty, errors | Unchanged components: `Skeleton`, `EmptyState`, `PageError`; the match window shows its skeleton until the game has loaded. Results of actions are toasts, which sit above the tab bar (`bottom-tabbar`) and follow it down when it slides away; over an open window or sheet they are drawn inside it, in the same place. |
-| Motion | Bars slide 200ms ease-out in short windows; sheets as above; the account screen rises 1rem into place in 200ms and fades out in 140ms; the title fades in 150ms. Everything respects reduced motion. |
+| Loading, empty, errors | Unchanged components: `Skeleton`, `EmptyState`, `PageError`; the match window shows its skeleton until the game has loaded. Results of actions are toasts, which sit above the tab bar (`bottom-tabbar`; near the bottom edge held sideways, where there is no tab bar); over an open window or sheet they are drawn inside it, in the same place. |
+| Motion | The compact bar slides 200ms ease-out in short windows; sheets as above; the account screen rises 1rem into place in 200ms and fades out in 140ms; the title fades in 150ms. Everything respects reduced motion. |
 
 ## 6. Verifying
 
@@ -274,8 +317,15 @@ click, so nothing moves under the finger first). A sheet:
   tabs, Back and its label, the title, the profile's sections, the account screen, including a tap
   made while the page's code is held back, the screen filling the smallest iPhone in both modes and
   at 150% text, touches that never move the page, the filter sheet and chips, a game opening full
-  screen and Back closing it, the Players and Recent form rows) and, on a tablet, an early tap on
-  the menu button and on the avatar, and that the drawer's Sign out reaches the browser's other tabs;
+  screen and Back closing it, the Players and Recent form rows, one primary navigation shown at a
+  time in each posture) and, on a tablet, the destinations in the top bar in both modes, one tap
+  each, the avatar menu's items (Admin Mode's Data & Integrations and Audit Logs among them),
+  Install App from it giving the focus back to the avatar, an early tap on the avatar, and that the
+  avatar menu's Sign out reaches the browser's other tabs; `e2e/mobile-landscape.spec.ts` the phone
+  held sideways: one compact bar with the destinations (only the current one labelled at 568px) and
+  no bottom bar, hiding and coming back, a profile's bars at rest at most 86px and its band at most
+  80px at five sideways sizes, the avatar opening the account screen at every width, the title and
+  the current destination leading back to the top, and large text;
   `e2e/account-screen.spec.ts` the account screen on seven phones with their safe areas (Chrome told
   an iPhone's insets), on five pages scrolled to the top, the middle and the end: it fills the
   screen exactly, nothing in it scrolls, every control is a full-width row at least 48px tall reached
@@ -287,8 +337,10 @@ click, so nothing moves under the finger first). A sheet:
   every control can be shown whole; on a page pinched
   to zoom, a finger's drag pans the zoomed view; no frame of its motion more than 1rem from where it
   rests, at rest with every animation held at its first frame, at once with reduced motion; a page
-  scrolled from script while it is open is put back; the account dropdown's rows 44px tall on a
-  touch screen (a phone held sideways, a tablet); its notes' link closing the screen; `e2e/sidebar-motion.spec.ts` the same early
+  scrolled from script while it is open is put back; held sideways at 852px wide, the account
+  screen too; the account dropdown's rows 44px tall on a tablet's touch screen; its notes' link
+  closing the screen; `e2e/navigation-reach.spec.ts` the tablet's avatar menu (its focus, its
+  closing on Back without reopening on Forward); `e2e/sidebar-motion.spec.ts` the same early
   click on the desktop sidebar's collapse control and account tile; `e2e/popups.spec.ts` the
   popups over windows (an ⓘ's bubble and a toast drawn inside the window, a toast never riding a
   window's motion and heard once, the focus a window takes as it opens and lets go when pressed)

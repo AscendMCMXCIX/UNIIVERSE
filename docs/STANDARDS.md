@@ -88,7 +88,7 @@ list fades out before the figures (a pool row's left half).
 | Token | Use |
 | --- | --- |
 | `bg`, `bg-elevated` | page background; fields, menus and popovers (a step above the panel they sit on) |
-| `chrome` | the app's frame: sidebar, top bar, drawer and tab bar. The page's own ink, half a step up, so navigation recedes; colour in it marks only the current page (a neutral lift, the brand gradient as a thin bar, the icon in `accent`). The frame's zones, rows and states: [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) |
+| `chrome` | the app's frame: sidebar, top bar and tab bar. The page's own ink, half a step up, so navigation recedes; colour in it marks only the current page (a neutral lift, the brand gradient as a thin bar, the icon in `accent`). The frame's zones, rows and states: [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) |
 | `surface`, `surface-2`, `surface-3` | panels and cards; raised rows and tiles inside them; selected or hovered |
 | `border`, `border-strong`, `border-control` | structure (dividers, panel and card edges); emphasis (a menu's or dialog's edge, a hovered row); the edge of a field, toolbar button, segmented group or switch, 3:1 against the page, the panels and popovers (WCAG 1.4.11; Branding derives it from custom colours) |
 | `fg`, `fg-muted`, `fg-subtle` | text: main, secondary, captions and metadata; all three 4.5:1 or more on every surface, `surface-3` included |
@@ -122,8 +122,8 @@ which are the same sizes under other names. Page widths: `--content-max` (text a
 `--content-wide` (Team, statistics and data pages), and `--measure` (72rem: a board or table that
 stands alone, as `max-w-[var(--measure)]`).
 
-**Layers.** Inside a component: `z-0` to `z-10`. Pinned section tabs (`sticky-tabs`): `z-30`. Sticky bars (top bar, sidebar): `z-40`. Drawers,
-pickers and popovers: `z-50`. Menus and toasts: `z-[60]`. Tooltips: `z-[100]`. Detail windows and
+**Layers.** Inside a component: `z-0` to `z-10`. Pinned section tabs (`sticky-tabs`): `z-30`. Sticky bars (top bar, sidebar): `z-40`.
+Pickers and popovers: `z-50`. Menus and toasts: `z-[60]`. Tooltips: `z-[100]`. Detail windows and
 dialogs are native `<dialog>` elements in the browser's top layer, above everything: no z-index
 lifts anything over an open window, so a tooltip's bubble and the toasts are drawn inside it while
 it is open (`src/components/ui/top-layer.ts`), and a picker's list inside a window opens in the flow
@@ -271,7 +271,9 @@ below-the-fold ones lazily, and keep uploaded brand images small ([HOSTING_USAGE
 - Layouts follow [RESPONSIVE.md](RESPONSIVE.md): Tailwind's breakpoints, the `short:` variant for
   phones held sideways, safe areas, nothing wider than the screen from 320px up. Phones have their
   own frame and patterns ([MOBILE.md](MOBILE.md)): the bottom tab bar, a top bar with Back and the
-  page's title, filters in a sheet, lists as rows, games opened over the whole screen.
+  page's title (held sideways, one compact bar holding the destinations instead), filters in a
+  sheet, lists as rows, games opened over the whole screen; a tablet has its destinations in the
+  top bar (MOBILE.md, "Frames by posture").
 - Targets are at least 24px everywhere and 44px on touch screens (`pointer-coarse:`,
   `touch-target`, `Button` does it).
 - Focus: every element the keyboard reaches shows the same accent ring (`:focus-visible` in
