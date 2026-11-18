@@ -68,17 +68,28 @@ const BAR = "[data-testid=mobile-topbar]";
 /**
  * Where a section starts when it is opened far down the page, the profile card scrolled away. Phones
  * (`chrome`): just under the top bar, which carries the sections. Tablets and desktops (`page`): with
- * the section tabs pinned at the top bar's foot (the window's edge beside the sidebar, where the bar
- * is hidden) and the section right under them: the tabs follow the card, pulled up under its foot
- * by their negative margin.
+ * the section tabs just pinned (at the top bar's foot, or the window's edge beside the sidebar,
+ * where the bar is hidden) and the section right under them. The tabs' place in the page is read
+ * with their pinning set aside for the measurement (in the same frame, so nothing is drawn), as
+ * whatever spacing puts them under the card.
  */
 function sectionTop(variant: "page" | "chrome"): number | null {
   const card = document.querySelector<HTMLElement>(CARD);
   if (!card) return null;
-  const bar = document.querySelector<HTMLElement>(BAR)?.offsetHeight ?? 0;
   const tabs = variant === "page" ? document.querySelector<HTMLElement>("[data-testid=profile-tabs]") : null;
-  const overlap = tabs ? parseFloat(getComputedStyle(tabs).marginTop) || 0 : 0;
-  return Math.max(0, card.getBoundingClientRect().bottom + window.scrollY + overlap - bar);
+  const bar = document.querySelector<HTMLElement>(BAR)?.offsetHeight ?? 0;
+  if (tabs) {
+    // Pinned at their sticky offset; in a window too short for them to pin (globals.css sticky-tabs),
+    // just under the top bar.
+    const style = getComputedStyle(tabs);
+    const pinnedAt = style.position === "sticky" ? parseFloat(style.top) || 0 : bar;
+    const sticky = tabs.style.position;
+    tabs.style.position = "static";
+    const top = tabs.getBoundingClientRect().top + window.scrollY;
+    tabs.style.position = sticky;
+    return Math.max(0, Math.round(top - pinnedAt));
+  }
+  return Math.max(0, card.getBoundingClientRect().bottom + window.scrollY - bar);
 }
 
 /** The profile card has gone under the bar, wholly or in part: the reader is in the section's content. */

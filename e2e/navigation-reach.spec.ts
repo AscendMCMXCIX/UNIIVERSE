@@ -101,14 +101,17 @@ test("tablet and desktop: a profile section chosen far down the page starts at i
   await page.emulateMedia({ reducedMotion: "reduce" });
   const profile = await teammate(page);
   const tabs = page.getByTestId("profile-tabs");
-  // Where a section starts from md: the profile card scrolled away, the tabs (pulled up under its
-  // foot by their negative margin) pinned at the top bar's foot, or the window's edge beside the sidebar.
+  // Where a section starts from md: the profile card scrolled away and the tabs just pinned (at the
+  // top bar's foot, or the window's edge beside the sidebar): their place in the page, less the
+  // offset they pin at.
   const pinnedTop = () =>
     page.evaluate(() => {
-      const card = document.querySelector("[data-testid=profile-header]")!.getBoundingClientRect();
-      const bar = document.querySelector<HTMLElement>("[data-testid=mobile-topbar]")?.offsetHeight ?? 0;
-      const overlap = parseFloat(getComputedStyle(document.querySelector("[data-testid=profile-tabs]")!).marginTop) || 0;
-      return Math.round(card.bottom + window.scrollY + overlap - bar);
+      const tabs = document.querySelector<HTMLElement>("[data-testid=profile-tabs]")!;
+      const pinnedAt = parseFloat(getComputedStyle(tabs).top) || 0;
+      tabs.style.position = "static";
+      const top = tabs.getBoundingClientRect().top + window.scrollY;
+      tabs.style.position = "";
+      return Math.round(top - pinnedAt);
     });
   const settled = async (what: string) => {
     await expect.poll(async () => Math.abs((await page.evaluate(() => window.scrollY)) - (await pinnedTop())), { message: `${what}: the section starts under the pinned tabs` }).toBeLessThanOrEqual(2);
@@ -134,7 +137,9 @@ test("tablet and desktop: a profile section chosen far down the page starts at i
   await expect(page).toHaveURL(new RegExp(`${profile}$`));
   await expect(page.getByTestId("season-summary")).toBeVisible();
   await settled("History → Overview");
-  expect(await rect(tabs), "the tabs pinned at the frame's top").toMatchObject({ top: await page.evaluate(() => document.querySelector<HTMLElement>("[data-testid=mobile-topbar]")?.offsetHeight ?? 0) });
+  // Pinned at the top bar's foot (a tablet) or the window's edge (a desktop, where the bar is hidden).
+  const bar = await page.evaluate(() => document.querySelector<HTMLElement>("[data-testid=mobile-topbar]")?.offsetHeight ?? 0);
+  expect(Math.abs((await rect(tabs)).top - bar), "the tabs pinned at the frame's top").toBeLessThanOrEqual(1);
 
   // And from there, far down the Overview, to History.
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));

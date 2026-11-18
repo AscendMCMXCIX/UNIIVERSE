@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "./test";
+import { closeFilterSheet, openFilterBar } from "./filters";
 
 /*
   The navigation contract (docs/DESIGN_SYSTEM.md, "The navigation contract"): where a page starts,
@@ -102,14 +103,23 @@ test("tablets and desktops: the current section tab, and the sidebar's entry for
   const [opened] = await Promise.all([page.context().waitForEvent("page"), page.getByTestId("team-tab-leaderboards").click({ modifiers: ["ControlOrMeta"] })]);
   await opened.close();
   if (info.project.name === "desktop") {
-    // The sidebar's entry for the page shown (Resources, a long page): the page stays, back at its top.
+    // The sidebar's entry for the page shown (Resources): the page stays as it is, back at its top.
+    // Resources fits a desktop window, so the test makes it long; a page fetched again would lose
+    // the added length.
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
-    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await page.evaluate(() => {
+      const extra = document.createElement("div");
+      extra.dataset.testid = "test-length";
+      extra.style.height = "2000px";
+      document.querySelector("main")!.append(extra);
+      window.scrollTo(0, document.documentElement.scrollHeight);
+    });
     await expect.poll(() => scrollY(page)).toBeGreaterThan(200);
     await page.getByTestId("nav-resources").click();
     await expect.poll(() => scrollY(page)).toBe(0);
     await expect(page).toHaveURL(/\/resources$/);
+    await expect(page.getByTestId("test-length")).toHaveCount(1);
   }
 });
 
@@ -117,20 +127,20 @@ test("Team Matches' filters replace the history entry, as every filter does: Bac
   test.skip(info.project.name === "tablet", "runs on phone and desktop");
   await page.goto("/team");
   await page.goto("/matches");
+  // Phones: the filters are in the sheet behind Filters (opened again if a change closed it); each
+  // field has one copy, wherever it is shown.
   const bar = page.getByTestId("together-filters");
-  const toggle = bar.getByTestId("together-filters-toggle");
-  const open = async () => {
-    if (await toggle.isVisible()) await toggle.click();
-  };
-  await open();
-  await bar.getByTestId("together-queue").selectOption("solo");
+  const show = () => openFilterBar(bar, "together-filters-toggle");
+  await show();
+  await page.getByTestId("together-queue").selectOption("solo");
   await expect(page).toHaveURL(/queue=solo/);
-  await open();
-  await bar.getByTestId("together-min").selectOption("3");
+  await show();
+  await page.getByTestId("together-min").selectOption("3");
   await expect(page).toHaveURL(/min=3/);
-  await open();
+  await show();
   await bar.getByTestId("reset-filters").click();
   await expect(page).not.toHaveURL(/queue=|min=/);
+  await closeFilterSheet(page);
   // Three changes, one entry: Back goes to the page before Matches.
   await page.goBack();
   await expect(page).toHaveURL(/\/team$/);
