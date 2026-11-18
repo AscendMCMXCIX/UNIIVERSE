@@ -113,6 +113,13 @@ describe("the board", () => {
     expect(out).toContain('<div aria-hidden="true" data-testid="heads" class="grid grid-cols-(--dl-cols) items-end py-2 label-caps');
     expect(out).toContain('<p class="bg-surface-2/40 py-2 text-xs text-fg-muted px-3 @min-[58rem]/list:px-4" data-testid="cap">Provisional</p><ol aria-label="Ranking" data-testid="rows" class="divide-y divide-border/60"><li>row</li></ol>');
   });
+
+  it("puts a board's own title first, before its headings and groups, among the parts one hairline splits", () => {
+    const out = html(h(DataList, { title: h("h3", { id: "t" }, "Season records"), heads: "#", headsTestId: "heads", children: h(DataGroup, { testId: "rows", children: h("li", null, "row") }) }));
+    expect(out).toMatch(/<div class="divide-y divide-border\/70"><h3 id="t">Season records<\/h3><div aria-hidden="true" data-testid="heads"[^>]*>#<\/div><ol data-testid="rows"/);
+    // Without one, nothing is added.
+    expect(html(h(DataList, { children: h("p", null, "x") }))).toContain('<div class="divide-y divide-border/70"><p>x</p></div>');
+  });
 });
 
 describe("FigureCell and MemberCell", () => {
@@ -134,6 +141,11 @@ describe("FigureCell and MemberCell", () => {
     expect(read).not.toContain('aria-hidden="true"><span class="flex min-w-0 items-start');
     expect(read.match(/data-testid="card-name"/g)).toHaveLength(1);
     expect(read).not.toContain("card-you");
+  });
+
+  it("gives the picture its own classes when asked (Records' book hides it on a phone)", () => {
+    expect(html(h(MemberCell, { look: null, name: "Ash", avatar: "xs", avatarClassName: "@max-[36rem]/list:hidden" }))).toMatch(/^<span class="flex min-w-0 items-center gap-2.5 text-sm"[^>]*><span class="relative inline-flex shrink-0 rounded-full @max-\[36rem\]\/list:hidden" data-avatar-frame="none">/);
+    expect(html(h(MemberCell, { look: null, name: "Ash", avatar: "xs" }))).toContain('<span class="relative inline-flex shrink-0 rounded-full" data-avatar-frame="none">');
   });
 });
 
