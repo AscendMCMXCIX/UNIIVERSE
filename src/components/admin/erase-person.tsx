@@ -173,7 +173,7 @@ export function ErasePersonButton({ target, name }: { target: { userId?: string 
 
   return (
     <>
-      <Button size="sm" variant="ghost" className="text-bad" onClick={() => void start()} data-testid="erase-person">
+      <Button size="sm" variant="ghost" className="text-bad" wrap onClick={() => void start()} data-testid="erase-person">
         Erase personal data
       </Button>
       <Dialog

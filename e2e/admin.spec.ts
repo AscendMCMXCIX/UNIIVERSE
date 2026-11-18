@@ -85,7 +85,8 @@ test("an administrator moves between Player Mode and Admin Mode; each keeps its 
   await page.goto("/");
   await expect(page).toHaveURL(/\/team$/);
   await page.goto("/settings");
-  await expect(page.getByTestId("settings-mode-switch")).toHaveText(/Switch to Admin Mode/);
+  // The account card draws its actions once per layout (the other copy is display: none).
+  await expect(page.getByTestId("settings-mode-switch").filter({ visible: true })).toHaveText(/Switch to Admin Mode/);
   await modeSwitch.click();
   await expect(page).toHaveURL(/\/admin$/);
   await page.goto("/");

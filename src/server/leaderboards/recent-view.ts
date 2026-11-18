@@ -1,7 +1,7 @@
 import { chooseSeason, seasonLabel } from "@/domain/season";
 import { LEADERBOARD_QUEUES } from "@/domain/leaderboards";
 import { mainRoleOf, rankRecentBoard, recentEntry, RECENT_PROVISIONAL_GAMES, RECENT_WINDOW_DAYS, RECENT_WINDOW_GAMES, shownValue, type RecentGap } from "@/domain/leaderboard-recent";
-import { buildRecords, CHAMPION_GAME_MILESTONES, MASTERY_MILESTONES, shownRecordValue, type ChampionMilestone, type RecordMark, type SeasonRecordId } from "@/domain/leaderboard-records";
+import { buildRecords, CHAMPION_GAME_MILESTONES, KDA_RECORD_MIN_TAKEDOWNS, MASTERY_MILESTONES, RECORD_MIN_GAME_S, shownRecordValue, type ChampionMilestone, type RecordMark, type SeasonRecordId } from "@/domain/leaderboard-records";
 import type { GameRole } from "@/domain/season-stats";
 import { formatCompactCount, formatCount, formatDate, formatDayMonth, formatNumber } from "@/lib/format";
 import type { LeaderboardData, LeaderboardPlayer } from "./service";
@@ -61,6 +61,8 @@ export interface RecordView {
   id: SeasonRecordId;
   label: string;
   definition: string;
+  /** What counts, in a few words on the record's row ("15+ min games"); null when the name says it all. Display only (RECORD_QUALIFIERS). */
+  qualifier: string | null;
   holder: RecordHolder | null;
   /** The viewer's own best, when they have one and do not hold the record. */
   yours: RecordHolder | null;
@@ -97,7 +99,8 @@ export interface RecordsView {
 /** One member's champion milestones: the best few, and how many more there are (the rest are on their profile). */
 export interface MilestoneGroup {
   playerId: string;
-  items: Array<{ championId: string; value: string; milestone: string; tier: number }>;
+  /** `value` in words ("486K points", "29 games"); `short` the figure alone for a chip ("486K", "29"). */
+  items: Array<{ championId: string; value: string; short: string; milestone: string; tier: number }>;
   more: number;
 }
 
@@ -140,8 +143,24 @@ const SUPPORTED = new Set<number>(LEADERBOARD_QUEUES.all.queues);
 /** Champions shown per member under a milestone; the rest are counted. */
 const MILESTONES_SHOWN = 3;
 
+/**
+ * What each season record counts, in a few words on its row (display only: the rules, and each
+ * record's whole definition in the book's one ⓘ, are domain/leaderboard-records'): the per-minute
+ * records' games of 15 minutes or more, the KDA record's 10 takedowns, the streak's order. Kills and
+ * assists need none: their names say it all.
+ */
+export const RECORD_QUALIFIERS: Readonly<Record<SeasonRecordId, string | null>> = {
+  kills: null,
+  assists: null,
+  "damage-per-minute": `to champions · ${formatCount(RECORD_MIN_GAME_S / 60)}+ min games`,
+  "cs-per-minute": `${formatCount(RECORD_MIN_GAME_S / 60)}+ min games`,
+  "vision-per-minute": `${formatCount(RECORD_MIN_GAME_S / 60)}+ min games`,
+  kda: `${formatCount(KDA_RECORD_MIN_TAKEDOWNS)}+ takedowns`,
+  "win-streak": "in game order",
+};
+
 /** Milestones (already sorted best first) by member: each member's best few, members in the order of their best. */
-function groupMilestones(list: readonly ChampionMilestone[], steps: readonly number[], text: (c: ChampionMilestone) => { value: string; milestone: string }): MilestoneGroup[] {
+function groupMilestones(list: readonly ChampionMilestone[], steps: readonly number[], text: (c: ChampionMilestone) => { value: string; short: string; milestone: string }): MilestoneGroup[] {
   const groups = new Map<string, MilestoneGroup>();
   for (const c of list) {
     const g = groups.get(c.playerId) ?? { playerId: c.playerId, items: [], more: 0 };
@@ -209,7 +228,7 @@ export function buildRecentLeaderboardView(data: LeaderboardData, request: { tab
   const records: RecordView[] = result.records.map((r) => {
     const mine = viewer ? r.bests[viewer] : undefined;
     const holdsIt = !!r.holder && r.holder.playerId === viewer;
-    return { id: r.def.id, label: r.def.label, definition: r.def.definition, holder: r.holder ? holderOf(r.holder, r.def) : null, yours: mine && !holdsIt ? holderOf(mine, r.def) : null };
+    return { id: r.def.id, label: r.def.label, definition: r.def.definition, qualifier: RECORD_QUALIFIERS[r.def.id], holder: r.holder ? holderOf(r.holder, r.def) : null, yours: mine && !holdsIt ? holderOf(mine, r.def) : null };
   });
   const byName = (a: { playerId: string }, b: { playerId: string }) => (names.get(a.playerId) ?? "").localeCompare(names.get(b.playerId) ?? "");
   const multikills = [...result.multikills].sort((a, b) => b.penta - a.penta || b.quadra - a.quadra || b.triple - a.triple || byName(a, b));
@@ -225,8 +244,8 @@ export function buildRecentLeaderboardView(data: LeaderboardData, request: { tab
       records,
       multikills,
       multikillNote,
-      championGames: groupMilestones(result.championGames, CHAMPION_GAME_MILESTONES, (c) => ({ value: `${formatCount(c.value)} games`, milestone: `${c.milestone}+ games` })),
-      mastery: groupMilestones(result.mastery, MASTERY_MILESTONES, (c) => ({ value: `${formatCompactCount(c.value)} points`, milestone: c.milestone >= 1_000_000 ? "1M+" : `${formatCount(c.milestone / 1000)}K+` })),
+      championGames: groupMilestones(result.championGames, CHAMPION_GAME_MILESTONES, (c) => ({ value: `${formatCount(c.value)} games`, short: formatCount(c.value), milestone: `${c.milestone}+ games` })),
+      mastery: groupMilestones(result.mastery, MASTERY_MILESTONES, (c) => ({ value: `${formatCompactCount(c.value)} points`, short: formatCompactCount(c.value), milestone: c.milestone >= 1_000_000 ? "1M+" : `${formatCount(c.milestone / 1000)}K+` })),
     },
   };
 }

@@ -27,7 +27,8 @@ test("Matches and a profile's Encounters keep their caveats in an (i), one tap a
 test("small text links have a 44px hit area on touch screens", async ({ page }) => {
   // Settings' "Switch to Admin Mode": a line of text, but a 44px target on a touch screen.
   await page.goto("/settings");
-  const link = page.getByTestId("settings-mode-switch");
+  // The account card draws its actions once per layout: the phone's copy is the one shown.
+  const link = page.getByTestId("settings-mode-switch").filter({ visible: true });
   await expect(link).toBeVisible();
   expect(await link.evaluate((e) => getComputedStyle(e, "::after").height)).toBe("44px");
   // Tapping just above the text still follows the link (in the middle of the screen: on a phone

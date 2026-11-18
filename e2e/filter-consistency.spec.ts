@@ -137,7 +137,8 @@ test("Refine looks and counts the same in a champion's window as in the profile'
   await page.goto(`${profile}/champions`);
   const win = page.getByTestId("champion-detail");
   const open = page.getByTestId("top-champion").first().getByTestId("open-champion");
-  const refine = page.getByTestId("champion-detail-refine");
+  // The window draws one Refine: beside its scope from sm, at the end of its tabs' row on a phone.
+  const refine = page.getByTestId("champion-detail-refine").filter({ visible: true });
   // A click before hydration does nothing, and the window's content settles after it opens: click
   // again until the window shows its Refine button, then measure it there.
   await expect(async () => {

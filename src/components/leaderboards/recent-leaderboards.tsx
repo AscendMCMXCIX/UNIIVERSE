@@ -1,10 +1,6 @@
-import type { ReactNode } from "react";
-import Link from "next/link";
-import { ChevronRight, Flame, Medal, Sparkles, Trophy, TrendingUp } from "lucide-react";
-import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
-import { CardAvatar, CardName, cardColourVars } from "@/components/players/card-look";
+import type { PortraitChampion } from "@/components/champion-portrait";
+import { CardAvatar } from "@/components/players/card-look";
 import { RoleIcon } from "@/components/role-icon";
-import { Badge } from "@/components/ui/badge";
 import { DataGroup, DataHead, DataList, DataRow, FigureCell, MemberCell, Place, ROW_STATES, RowLink, tieRuns, type TiePosition } from "@/components/ui/data-list";
 import { EmptyState } from "@/components/ui/empty-state";
 import { QuietBar } from "@/components/ui/quiet-bar";
@@ -14,9 +10,10 @@ import type { DataStatus } from "@/domain/data-status";
 import { ROLE_LABELS } from "@/domain/roles";
 import { cn } from "@/lib/cn";
 import { formatCount, formatDateTime, formatOrdinal } from "@/lib/format";
-import type { BoardPlayer, FormRow, FormView, MilestoneGroup, RecentLeaderboardView, RecordHolder, RecordsView } from "@/server/leaderboards/recent-view";
+import type { BoardPlayer, FormRow, FormView, RecentLeaderboardView } from "@/server/leaderboards/recent-view";
 import { LeaderboardsRoot } from "./leaderboards-root";
 import { LeaderboardsViews } from "./leaderboards-views";
+import { Records } from "./records";
 import { SeasonChoice } from "./season-choice";
 
 /*
@@ -28,13 +25,9 @@ import { SeasonChoice } from "./season-choice";
                              above in wins. Styling is neutral on purpose: no red for a cold streak
                              (unlike win rates elsewhere), only the first place's crown and your own
                              row are marked.
-    Records & achievements   single games and milestones, which reward playing more, and say so.
+    Records & achievements   single games and milestones, which reward playing more, and say so
+                             (./records.tsx).
 */
-
-/** Column headings (Records' multikill table): label-caps, one line. */
-const HEAD = "label-caps whitespace-nowrap";
-/** Member · penta · quadra · triple. On phones the member takes the whole first line of a row and the three figures the second, under their headings, so a name is never squeezed to a sliver. */
-const MULTI_GRID = "grid-cols-[minmax(0,1fr)_repeat(3,3.5rem)] gap-x-2 px-3 sm:grid-cols-[minmax(0,1fr)_repeat(3,4.5rem)] sm:gap-x-3 sm:px-4";
 
 export function RecentLeaderboards({ view, champions, status }: { view: RecentLeaderboardView; champions: Record<string, PortraitChampion>; /** The members' page: the team's data status. */ status?: DataStatus | null }) {
   const player = (id: string) => view.players[id]!;
@@ -72,7 +65,8 @@ export function RecentLeaderboards({ view, champions, status }: { view: RecentLe
             </p>
           )
         }
-        controls={view.records ? <SeasonChoice seasons={view.records.seasons} current={view.records.season} /> : null}
+        // The season, only where there are two to choose from (an empty toolbar would still take its row's gap).
+        controls={view.records && view.records.seasons.length > 1 ? <SeasonChoice seasons={view.records.seasons} current={view.records.season} /> : null}
       />
       {view.playerCount === 0 ? (
         <p className="rounded-panel border border-border bg-surface p-6 text-sm text-fg-muted" data-testid="leaderboards-empty">
@@ -81,39 +75,9 @@ export function RecentLeaderboards({ view, champions, status }: { view: RecentLe
       ) : view.form ? (
         <RecentForm form={view.form} player={player} viewer={view.viewer} />
       ) : view.records ? (
-        <Records records={view.records} player={player} champ={champ} viewerIsPlayer={!!view.viewer} />
+        <Records records={view.records} player={player} champ={champ} viewer={view.viewer} />
       ) : null}
     </LeaderboardsRoot>
-  );
-}
-
-/**
- * A member's picture and name, as their card shows them (their avatar frame, their name style and
- * emblem in their own colour: CardAvatar, CardName under the card's colour variables), so a member
- * is the same person on the board as on Team and Players. The ranking itself stays neutral (docs/
- * TEAM_LEADERBOARDS.md): no colour from a look reaches a place or a figure. The name links to their
- * profile for members; on the public boards, the same without a link. Records' rows (Recent form's
- * rows are DataRows, with MemberCell).
- */
-function Who({ p, you = false, size = "md", sub, className, nameClassName }: { p: BoardPlayer; you?: boolean; size?: "sm" | "md"; /** Lines under the name. */ sub?: ReactNode; className?: string; nameClassName?: string }) {
-  const name = p.profileHref ? (
-    <Link href={p.profileHref} className="min-w-0 rounded-sm text-fg hover:underline">
-      <CardName look={p.look} name={p.name} className={nameClassName} />
-    </Link>
-  ) : (
-    <CardName look={p.look} name={p.name} className={cn("min-w-0 text-fg", nameClassName)} />
-  );
-  return (
-    <span className={cn("flex min-w-0 items-center gap-2.5 text-sm", className)} style={cardColourVars(p.look)}>
-      <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size={size} />
-      <span className="flex min-w-0 flex-1 flex-col" data-testid="board-member-name">
-        <span className="flex min-w-0 items-center gap-1.5">
-          {name}
-          {you ? <Badge tone="accent" className="shrink-0">You</Badge> : null}
-        </span>
-        {sub}
-      </span>
-    </span>
   );
 }
 
@@ -395,197 +359,5 @@ function NotEnoughMember({ n, p, you }: { n: FormView["notEnough"][number]; p: B
         </span>
       </span>
     </li>
-  );
-}
-
-// ── Records & achievements ──────────────────────────────────────────────────────────────────────
-
-function Records({ records, player, champ, viewerIsPlayer }: { records: RecordsView; player: (id: string) => BoardPlayer; champ: (id: string | null) => PortraitChampion | null; viewerIsPlayer: boolean }) {
-  return (
-    <div className="flex min-w-0 flex-col gap-6" data-testid="records">
-      <p className="flex items-start gap-2 text-sm text-fg-muted" data-testid="records-volume-note">
-        <Medal className="mt-0.5 h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />
-        <span>Records and achievements reward playing more: every game is another chance. How members are doing lately is on Recent form.</span>
-      </p>
-
-      <section aria-labelledby="season-records-title" className="flex min-w-0 flex-col gap-3">
-        <h3 id="season-records-title" className="text-base font-semibold text-fg">
-          Season records
-        </h3>
-        <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,17rem),1fr))] gap-3" data-testid="season-records">
-          {records.records.map((r) => (
-            <li key={r.id} className="min-w-0">
-              <RecordCard label={r.label} definition={r.definition} holder={r.holder} yours={r.yours} viewerIsPlayer={viewerIsPlayer} id={r.id} player={player} champ={champ} />
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section aria-labelledby="multikills-title" className="flex min-w-0 flex-col gap-3">
-        <h3 id="multikills-title" className="flex items-center gap-1.5 text-base font-semibold text-fg">
-          <Flame className="h-4 w-4 text-fg-subtle" aria-hidden /> Multikills · {records.seasonLabel}
-        </h3>
-        {records.multikillNote ? (
-          <p className="text-xs text-fg-muted" data-testid="multikill-note">
-            {records.multikillNote}
-          </p>
-        ) : null}
-        {records.multikills.length ? (
-          <div className="overflow-hidden rounded-card border border-border bg-surface panel-depth" data-testid="records-multikills">
-            <div className={cn("grid items-center border-b border-border/70 py-2.5", MULTI_GRID)} aria-hidden>
-              <span className={HEAD}>Member</span>
-              <span className={cn(HEAD, "text-right")}>Penta</span>
-              <span className={cn(HEAD, "text-right")}>Quadra</span>
-              <span className={cn(HEAD, "text-right")}>Triple</span>
-            </div>
-            <ol className="divide-y divide-border/60" aria-label="Multikills, rarest first">
-              {records.multikills.map((m) => (
-                <li key={m.playerId} className={cn("grid items-center py-2", MULTI_GRID)} data-testid="multikill-row" data-player-id={m.playerId} data-penta={m.penta} data-quadra={m.quadra} data-triple={m.triple}>
-                  <Who p={player(m.playerId)} size="sm" className="max-sm:col-span-4" />
-                  {(["penta", "quadra", "triple"] as const).map((k, i) => (
-                    <span key={k} className={cn("text-right text-sm tabular-nums max-sm:row-start-2", ["max-sm:col-start-2", "max-sm:col-start-3", "max-sm:col-start-4"][i], m[k] ? "font-semibold text-fg" : "text-fg-subtle")}>
-                      {m[k] ? formatCount(m[k]) : "—"}
-                      <span className="sr-only"> {k === "penta" ? "pentakills" : k === "quadra" ? "quadra kills" : "triple kills"}</span>
-                    </span>
-                  ))}
-                </li>
-              ))}
-            </ol>
-          </div>
-        ) : (
-          <p className="rounded-panel border border-dashed border-border p-4 text-sm text-fg-muted" data-testid="multikills-empty">
-            No triple kills or better this season yet.
-          </p>
-        )}
-      </section>
-
-      <section aria-labelledby="milestones-title" className="flex min-w-0 flex-col gap-3">
-        <h3 id="milestones-title" className="flex items-center gap-1.5 text-base font-semibold text-fg">
-          <Sparkles className="h-4 w-4 text-fg-subtle" aria-hidden /> Lifetime and milestones
-        </h3>
-        <div className="grid min-w-0 gap-3 lg:grid-cols-2">
-          <MilestoneList title={`Games on one champion · ${records.seasonLabel}`} hint="Champions with 25, 50 or 100 games this season." empty="Nobody has 25 games on one champion this season yet." groups={records.championGames} player={player} champ={champ} testId="milestones-games" />
-          <MilestoneList title="Mastery on one champion · all-time" hint="Riot's champion mastery over each member's linked accounts: 100K, 500K and 1M points. The best three are shown; every champion is on the member's profile." empty="Nobody has 100K mastery points on one champion yet." groups={records.mastery} player={player} champ={champ} testId="milestones-mastery" />
-        </div>
-      </section>
-    </div>
-  );
-}
-
-const RECORD_ICON = { "win-streak": TrendingUp } as const;
-
-function RecordCard({ id, label, definition, holder, yours, viewerIsPlayer, player, champ }: { id: string; label: string; definition: string; holder: RecordHolder | null; yours: RecordHolder | null; viewerIsPlayer: boolean; player: (id: string) => BoardPlayer; champ: (id: string | null) => PortraitChampion | null }) {
-  const Icon = RECORD_ICON[id as keyof typeof RECORD_ICON] ?? Trophy;
-  const c = holder ? champ(holder.championId) : null;
-  const p = holder ? player(holder.playerId) : null;
-  const detail = holder ? [c?.name, holder.role ? ROLE_LABELS[holder.role] : null, holder.kda, holder.when].filter(Boolean).join(" · ") : "";
-  const body: ReactNode = (
-    <>
-      <span className="flex items-start justify-between gap-2">
-        <span className="text-sm font-semibold leading-snug text-fg" data-testid="record-label">
-          {label}
-        </span>
-        <Icon className="mt-0.5 h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />
-      </span>
-      {definition ? <span className="text-xs text-fg-muted">{definition}</span> : null}
-      {holder && p ? (
-        <>
-          {/* The champion the record was set on leads the card, beside the figure (the same portrait
-              the line below used to show at 28px, so no new bytes); the streak, set on no one
-              champion, keeps the figure alone. Then who holds it, as the member's card names them. */}
-          <span className="mt-1 flex min-w-0 items-center gap-3">
-            {c ? <ChampionPortrait champion={c} size="md" className="rounded-panel ring-1 ring-border-strong/60" title={c.name} /> : null}
-            <span className="min-w-0">
-              <span className="flex items-baseline gap-1.5">
-                <span className="text-2xl font-bold leading-tight tabular-nums text-fg" data-testid="record-value">
-                  {holder.value}
-                </span>
-                <span className="text-sm text-fg-muted">{holder.unit}</span>
-              </span>
-              <span className="block truncate text-xs text-fg-muted" title={detail}>
-                {detail}
-              </span>
-            </span>
-          </span>
-          <span className="flex min-w-0 items-center gap-2 text-sm" style={cardColourVars(p.look)}>
-            <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="sm" />
-            <span className="min-w-0 text-fg" data-testid="record-holder">
-              <CardName look={p.look} name={p.name} />
-            </span>
-          </span>
-        </>
-      ) : (
-        <span className="mt-1 text-sm text-fg-subtle" data-testid="record-none">
-          No game sets this record yet this season.
-        </span>
-      )}
-      {viewerIsPlayer && holder ? (
-        <span className="mt-auto border-t border-border/60 pt-2 text-xs text-fg-muted" data-testid="record-yours">
-          {yours ? (
-            <>
-              Your best: <span className="font-semibold tabular-nums text-fg">{yours.value}</span>
-              {yours.when ? ` · ${yours.when}` : ""}
-            </>
-          ) : (
-            <span className="font-medium text-fg">You hold this record</span>
-          )}
-        </span>
-      ) : null}
-    </>
-  );
-  const cls = "flex h-full min-w-0 flex-col gap-1.5 rounded-card border border-border bg-surface p-4 panel-depth";
-  return holder?.href ? (
-    // The card's own text is its name (what it says is what a screen reader says), ending "Open the game".
-    // A card that opens a game lifts while pointed at (panel-lift: a pixel, the edge brighter; still under reduced motion).
-    <Link href={holder.href} className={cn(cls, "group panel-lift focus-visible:border-accent")} data-testid="season-record" data-record={id}>
-      {body}
-      <span className="flex items-center gap-1 text-xs font-medium text-accent">
-        Open the game <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden />
-      </span>
-    </Link>
-  ) : (
-    <div className={cls} data-testid="season-record" data-record={id}>
-      {body}
-    </div>
-  );
-}
-
-/** A milestone's tier, as the system marks rarities: plain, raised, violet, gold (never a state colour). */
-const TIER_CLASS = ["border-border bg-surface-2/60", "border-border-strong bg-surface-2", "border-violet/50 bg-violet/10", "border-gold/60 bg-gold/10"] as const;
-
-function MilestoneList({ title, hint, empty, groups, player, champ, testId }: { title: string; hint: string; empty: string; groups: MilestoneGroup[]; player: (id: string) => BoardPlayer; champ: (id: string | null) => PortraitChampion | null; testId: string }) {
-  return (
-    <div className="flex min-w-0 flex-col gap-2 rounded-card border border-border bg-surface p-4 panel-depth" data-testid={testId}>
-      <h4 className="text-sm font-semibold text-fg">{title}</h4>
-      <p className="text-xs text-fg-muted">{hint}</p>
-      {groups.length ? (
-        <ul className="divide-y divide-border/60" data-testid={`${testId}-list`}>
-          {groups.map((g) => (
-            <li key={g.playerId} className="flex min-w-0 flex-col gap-2 py-2.5" data-testid="milestone-member" data-player-id={g.playerId}>
-              <Who p={player(g.playerId)} size="sm" />
-              <ul className="flex min-w-0 flex-wrap gap-1.5" aria-label={`${player(g.playerId).name}'s milestones`}>
-                {g.items.map((m) => {
-                  const c = champ(m.championId);
-                  return (
-                    <li key={m.championId} className={cn("flex min-w-0 max-w-full items-center gap-1.5 rounded-md border py-1 pl-1 pr-2 text-xs", TIER_CLASS[Math.min(m.tier, 3)])} title={`${c?.name ?? m.championId}: ${m.value} (${m.milestone} milestone)`} data-testid="milestone" data-tier={m.tier}>
-                      {c ? <ChampionPortrait champion={c} size="xs" /> : null}
-                      <span className="truncate font-medium text-fg">{c?.name ?? m.championId}</span>
-                      <span className="shrink-0 tabular-nums text-fg-muted">{m.value}</span>
-                    </li>
-                  );
-                })}
-                {g.more ? (
-                  <li className="self-center px-1 text-xs text-fg-muted" data-testid="milestone-more">
-                    and {g.more} more
-                  </li>
-                ) : null}
-              </ul>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="text-sm text-fg-subtle">{empty}</p>
-      )}
-    </div>
   );
 }
