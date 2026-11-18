@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useScrollEdges } from "@/components/ui/scroll-row";
+import { stayOnCurrentPage } from "@/lib/back-to-top";
 
 /**
  * The look of a tab and its indicator, shared by every row of tabs (a page's sections, a game's
@@ -74,9 +75,11 @@ function useStuck(ref: React.RefObject<HTMLElement | null>, enabled: boolean) {
  * the page once it has scrolled past it (under the tablet's top bar), so the sections stay in reach
  * however long the page (globals.css sticky-tabs; docs/RESPONSIVE.md → Shell); it must be a child of
  * the element the page scrolls through, never of a wrapper that ends with it. `end`: content at the
- * bar's right end (Team names the team there).
+ * bar's right end (Team names the team there). The current tab, pressed again, keeps the page as it
+ * is (its view and filters, which its own link leaves out) and goes back to the top, as the phone's
+ * tab bar does. `onChoose`: told which other tab was pressed, before the page changes.
  */
-export function TabBar({ label, items, current, keepScroll = false, dense = false, sticky = false, className, testId, end }: { label: string; items: readonly TabBarItem[]; current: string; keepScroll?: boolean; dense?: boolean; sticky?: boolean; className?: string; testId?: string; end?: React.ReactNode }) {
+export function TabBar({ label, items, current, keepScroll = false, dense = false, sticky = false, className, testId, end, onChoose }: { label: string; items: readonly TabBarItem[]; current: string; keepScroll?: boolean; dense?: boolean; sticky?: boolean; className?: string; testId?: string; end?: React.ReactNode; onChoose?: (key: string) => void }) {
   const listRef = React.useRef<HTMLUListElement>(null);
   const navRef = React.useRef<HTMLElement>(null);
   useScrollEdges(listRef, { keepCurrentInView: true, current });
@@ -94,6 +97,9 @@ export function TabBar({ label, items, current, keepScroll = false, dense = fals
                 scroll={!keepScroll}
                 // The page keeps its place (ScrollOnNavigate leaves these links to the page).
                 data-keep-scroll={keepScroll ? "" : undefined}
+                onClick={(e) => {
+                  if (!stayOnCurrentPage(e, on)) onChoose?.(s.key);
+                }}
                 className={cn("inline-flex min-h-11 items-center gap-2 whitespace-nowrap px-3 text-sm font-medium transition-colors duration-150 max-sm:w-full max-sm:justify-center max-sm:px-2", dense && "lg:min-h-10", tabIndicatorClass(on))}
                 data-testid={s.testId}
               >

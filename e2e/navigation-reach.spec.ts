@@ -96,6 +96,54 @@ test("phone: a section chosen far down a profile starts at its top, just under t
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
 });
 
+test("tablet and desktop: a profile section chosen far down the page starts at its own top, under the pinned tabs; one chosen at rest keeps the page still", async ({ page }) => {
+  test.skip(isPhone(page), "phones carry the sections in the top bar (their own test above)");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const profile = await teammate(page);
+  const tabs = page.getByTestId("profile-tabs");
+  // Where a section starts from md: the profile card scrolled away, the tabs (pulled up under its
+  // foot by their negative margin) pinned at the top bar's foot, or the window's edge beside the sidebar.
+  const pinnedTop = () =>
+    page.evaluate(() => {
+      const card = document.querySelector("[data-testid=profile-header]")!.getBoundingClientRect();
+      const bar = document.querySelector<HTMLElement>("[data-testid=mobile-topbar]")?.offsetHeight ?? 0;
+      const overlap = parseFloat(getComputedStyle(document.querySelector("[data-testid=profile-tabs]")!).marginTop) || 0;
+      return Math.round(card.bottom + window.scrollY + overlap - bar);
+    });
+  const settled = async (what: string) => {
+    await expect.poll(async () => Math.abs((await page.evaluate(() => window.scrollY)) - (await pinnedTop())), { message: `${what}: the section starts under the pinned tabs` }).toBeLessThanOrEqual(2);
+    await page.waitForTimeout(600);
+    expect(Math.abs((await page.evaluate(() => window.scrollY)) - (await pinnedTop())), `${what}: still there once the content has arrived`).toBeLessThanOrEqual(2);
+  };
+
+  // At rest (the card in view), a section keeps the page where it is.
+  await page.goto(profile);
+  await expect(page.getByTestId("season-summary")).toBeVisible();
+  await tabs.getByTestId("profile-tab-champions").click();
+  await expect(page).toHaveURL(new RegExp(`${profile}/champions$`));
+  await expect(page.getByTestId("all-champions")).toBeVisible();
+  expect(await page.evaluate(() => window.scrollY), "a section chosen at rest").toBe(0);
+
+  // Far down Match History, Overview (whose card is taller than the band) starts at its own top.
+  await tabs.getByTestId("profile-tab-matches").click();
+  await expect(page).toHaveURL(new RegExp(`${profile}/matches$`));
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(400);
+  await tapInPlace(page, tabs.getByTestId("profile-tab-overview"));
+  await expect(page).toHaveURL(new RegExp(`${profile}$`));
+  await expect(page.getByTestId("season-summary")).toBeVisible();
+  await settled("History → Overview");
+  expect(await rect(tabs), "the tabs pinned at the frame's top").toMatchObject({ top: await page.evaluate(() => document.querySelector<HTMLElement>("[data-testid=mobile-topbar]")?.offsetHeight ?? 0) });
+
+  // And from there, far down the Overview, to History.
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await tapInPlace(page, tabs.getByTestId("profile-tab-matches"));
+  await expect(page).toHaveURL(new RegExp(`${profile}/matches$`));
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  await settled("Overview → History");
+});
+
 test("tablet and desktop: Team's sections stay in reach as a long page scrolls, and switch the section from there", async ({ page }) => {
   test.skip(isPhone(page), "phones have the bottom tab bar");
   await page.goto("/leaderboards?view=records");

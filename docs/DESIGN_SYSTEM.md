@@ -264,15 +264,23 @@ test):
   (`ScrollOnNavigate`); Back and Forward restore the exact place (the browser and Next, untouched);
   a link to a `#fragment` lands on its target. A link that changes the address but keeps the place
   is marked `data-keep-scroll` (a profile's sections, which land at their own top themselves:
-  `settleSectionTop`). A change of the query alone (a filter, a view) keeps the place: it is the same
+  `settleSectionTop`; on a phone just under the top bar that carries them, from md under the pinned
+  tabs, whenever the card had scrolled away; a section chosen with the card in view keeps the page
+  still). A change of the query alone (a filter, a view) keeps the place: it is the same
   page. The next page of a list starts with its first item under the bars (Match History's pager).
   (`e2e/navigation-landings.spec.ts`)
 - **Back to the top.** On a phone, tapping the current tab on its own page goes back to the top
   (smooth; at once with reduced motion), and so does tapping the page's title once it has moved into
   the top bar. A page under a tab (a teammate's profile under Players) still goes to the tab's page.
+  On tablets and desktops the current section tab (Team's, a profile's) and the sidebar's entry for
+  the page shown do the same, and keep the page as it is: its view and filters stay (the link's own
+  address leaves the query out, and following it used to bring back the defaults, Records back to
+  Recent form). A click with a modifier key still opens a new tab or window (`src/lib/back-to-top.ts`).
 - **Back.** Phones and the installed app show their own Back, named after where it leads: the
   previous page when it is ours, else the page above (`phoneParent`). A full-screen game is a history
-  entry (Back closes it); a profile's sections replace the entry (Back leaves the profile). An
+  entry (Back closes it); a profile's sections replace the entry (Back leaves the profile), and so
+  does every filter and choice of view, Team Matches' and the Records season included, so Back leaves
+  the page instead of stepping back through each choice. An
   account without a player profile never starts at, or goes Back to, an empty Profile: its home is
   its first other page.
 - **Overlays.** One sheet for every choice and editor (`DetailModal` `size="sheet"`, `Dialog` built

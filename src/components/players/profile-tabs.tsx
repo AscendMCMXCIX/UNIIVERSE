@@ -34,21 +34,51 @@ export function ProfileTabs({ basePath, variant = "page" }: { basePath: string; 
   const carried = new URLSearchParams();
   if (KEEPS_SEASON.has(current.key)) for (const k of ["season", "mode"]) if (params.get(k)) carried.set(k, params.get(k)!);
   const hrefOf = (s: (typeof sections)[number]) => (KEEPS_SEASON.has(s.key) && carried.size && s.key !== current.key ? `${s.href}?${carried.toString()}` : s.href);
+  // Tablets and desktops: a section chosen while the card was scrolled away starts at its own top,
+  // under the pinned tabs (settleSectionTop), as on a phone; one chosen at rest keeps the page still.
+  const pending = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    const chosen = pending.current;
+    pending.current = null;
+    if (variant !== "page" || chosen !== current.key) return;
+    return settleSectionTop("page");
+  }, [current.key, variant]);
   if (variant === "chrome") return <ChromeTabs items={sections.map((s) => ({ key: s.key, href: hrefOf(s), label: s.short, testId: `profile-chrome-tab-${s.key}` }))} current={current.key} />;
   // Tucked right under the profile card (the frame's own gap taken back), and pinned at the top of
   // the page once the card has scrolled away, so the sections stay in reach (TabBar's sticky).
-  return <TabBar label="Profile sections" items={sections.map((s) => ({ key: s.key, href: hrefOf(s), label: s.label, icon: s.icon, testId: `profile-tab-${s.key}` }))} current={current.key} keepScroll sticky testId="profile-tabs" className="max-md:hidden md:-mt-2.5" />;
+  return (
+    <TabBar
+      label="Profile sections"
+      items={sections.map((s) => ({ key: s.key, href: hrefOf(s), label: s.label, icon: s.icon, testId: `profile-tab-${s.key}` }))}
+      current={current.key}
+      keepScroll
+      sticky
+      testId="profile-tabs"
+      className="max-md:hidden md:-mt-2.5"
+      onChoose={(key) => {
+        pending.current = cardScrolledPast() ? key : null;
+      }}
+    />
+  );
 }
 
 const CARD = "[data-testid=profile-header]";
 const BAR = "[data-testid=mobile-topbar]";
 
-/** Where a section starts when it is opened far down the page: just under the bar, the profile card scrolled away. */
-function sectionTop(): number | null {
+/**
+ * Where a section starts when it is opened far down the page, the profile card scrolled away. Phones
+ * (`chrome`): just under the top bar, which carries the sections. Tablets and desktops (`page`): with
+ * the section tabs pinned at the top bar's foot (the window's edge beside the sidebar, where the bar
+ * is hidden) and the section right under them: the tabs follow the card, pulled up under its foot
+ * by their negative margin.
+ */
+function sectionTop(variant: "page" | "chrome"): number | null {
   const card = document.querySelector<HTMLElement>(CARD);
   if (!card) return null;
   const bar = document.querySelector<HTMLElement>(BAR)?.offsetHeight ?? 0;
-  return Math.max(0, card.getBoundingClientRect().bottom + window.scrollY - bar);
+  const tabs = variant === "page" ? document.querySelector<HTMLElement>("[data-testid=profile-tabs]") : null;
+  const overlap = tabs ? parseFloat(getComputedStyle(tabs).marginTop) || 0 : 0;
+  return Math.max(0, card.getBoundingClientRect().bottom + window.scrollY + overlap - bar);
 }
 
 /** The profile card has gone under the bar, wholly or in part: the reader is in the section's content. */
@@ -78,7 +108,7 @@ const READER_INPUT = ["wheel", "touchstart", "pointerdown", "keydown"] as const;
  * their own (one that moved the page while its height stayed the same: a clamp or an anchoring
  * adjustment comes with a change of height). Returns the cleanup.
  */
-function settleSectionTop(): () => void {
+function settleSectionTop(variant: "page" | "chrome"): () => void {
   const main = document.querySelector("main");
   let expected = -1;
   let height = 0;
@@ -86,7 +116,7 @@ function settleSectionTop(): () => void {
   let target: number | null = null;
   const loading = () => !!main?.querySelector('[role="status"][aria-label="Loading"]');
   const place = () => {
-    const top = sectionTop();
+    const top = sectionTop(variant);
     if (top === null) return;
     target = top;
     // Instant: a smooth scroll would still be under way when the next change to the page arrives.
@@ -129,7 +159,7 @@ function ChromeTabs({ items, current }: { items: Array<{ key: string; href: stri
     const chosen = pending.current;
     pending.current = null;
     if (chosen !== current) return;
-    return settleSectionTop();
+    return settleSectionTop("chrome");
   }, [current]);
   return (
     <nav aria-label="Profile sections" data-testid="profile-chrome-tabs">

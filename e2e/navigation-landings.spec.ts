@@ -85,6 +85,57 @@ test("phones: the current tab on its own page, and the page's title in the top b
   await expect.poll(() => scrollY(page)).toBe(0);
 });
 
+test("tablets and desktops: the current section tab, and the sidebar's entry for the page shown, keep the page as it is and go back to the top", async ({ page }, info) => {
+  test.skip(info.project.name === "phone", "phones: the tab bar (the test above)");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  // Records is Leaderboards' second view, kept in the address (?view=records); the current tab's own
+  // link has no query, and following it used to bring back Recent form.
+  await page.goto("/leaderboards?view=records");
+  await expect(page.getByTestId("records")).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await expect.poll(() => scrollY(page)).toBeGreaterThan(200);
+  await page.getByTestId("team-tab-leaderboards").click();
+  await expect.poll(() => scrollY(page)).toBe(0);
+  await expect(page).toHaveURL(/[?&]view=records/);
+  await expect(page.getByTestId("records")).toBeVisible();
+  // With a modifier key the tab keeps its meaning: it opens in a new tab.
+  const [opened] = await Promise.all([page.context().waitForEvent("page"), page.getByTestId("team-tab-leaderboards").click({ modifiers: ["ControlOrMeta"] })]);
+  await opened.close();
+  if (info.project.name === "desktop") {
+    // The sidebar's entry for the page shown (Resources, a long page): the page stays, back at its top.
+    await page.goto("/resources");
+    await page.waitForLoadState("networkidle");
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await expect.poll(() => scrollY(page)).toBeGreaterThan(200);
+    await page.getByTestId("nav-resources").click();
+    await expect.poll(() => scrollY(page)).toBe(0);
+    await expect(page).toHaveURL(/\/resources$/);
+  }
+});
+
+test("Team Matches' filters replace the history entry, as every filter does: Back leaves the page", async ({ page }, info) => {
+  test.skip(info.project.name === "tablet", "runs on phone and desktop");
+  await page.goto("/team");
+  await page.goto("/matches");
+  const bar = page.getByTestId("together-filters");
+  const toggle = bar.getByTestId("together-filters-toggle");
+  const open = async () => {
+    if (await toggle.isVisible()) await toggle.click();
+  };
+  await open();
+  await bar.getByTestId("together-queue").selectOption("solo");
+  await expect(page).toHaveURL(/queue=solo/);
+  await open();
+  await bar.getByTestId("together-min").selectOption("3");
+  await expect(page).toHaveURL(/min=3/);
+  await open();
+  await bar.getByTestId("reset-filters").click();
+  await expect(page).not.toHaveURL(/queue=|min=/);
+  // Three changes, one entry: Back goes to the page before Matches.
+  await page.goBack();
+  await expect(page).toHaveURL(/\/team$/);
+});
+
 test("Skip to content is the first stop on the page and moves focus to the page itself", async ({ page }) => {
   await page.goto("/team");
   await page.keyboard.press("Tab");

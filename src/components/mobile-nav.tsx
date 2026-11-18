@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { scrollToTop, stayOnCurrentPage } from "@/lib/back-to-top";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, LogOut, Menu, X } from "lucide-react";
 import { BrandMark } from "./brand-mark";
@@ -173,7 +174,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
           {/* Phones: the page's own title, once its heading has gone up under the bar; a tap on it goes
               back to the top, as iOS's status bar does. */}
           {titleShown ? (
-            <button type="button" onClick={toTop} className="min-h-11 min-w-0 flex-1 truncate rounded-md px-1 text-left text-base font-semibold text-fg transition-opacity duration-150 md:hidden" aria-label={`${heading.text}: back to top`} data-testid="mobile-title">
+            <button type="button" onClick={scrollToTop} className="min-h-11 min-w-0 flex-1 truncate rounded-md px-1 text-left text-base font-semibold text-fg transition-opacity duration-150 md:hidden" aria-label={`${heading.text}: back to top`} data-testid="mobile-title">
               {heading.text}
             </button>
           ) : (
@@ -335,12 +336,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                     aria-current={active ? "page" : undefined}
                     // The current tab on its own page: back to the top, as a phone's tab bar does (a page
                     // under the tab, such as a teammate's profile under Players, still goes to the tab's page).
-                    onClick={(e) => {
-                      if (active && pathname === href) {
-                        e.preventDefault();
-                        toTop();
-                      }
-                    }}
+                    onClick={(e) => stayOnCurrentPage(e, active && pathname === href)}
                     className={cn("group flex min-h-14 flex-col items-center justify-center gap-1 px-1 pb-1 pt-1.5 text-2xs font-medium transition-colors duration-150 short:min-h-11 short:flex-row short:gap-1.5 short:py-1", active ? "font-semibold text-fg" : "text-fg-muted hover:text-fg")} data-testid={`tab-${href.slice(1)}`}>
                     <span className={cn("grid h-7 w-12 place-items-center rounded-full transition-colors duration-150", active ? "bg-accent/15 text-accent" : "group-hover:bg-surface-2")} aria-hidden>
                       {own ? <Avatar name={user!.name} src={user!.avatarUrl} size="xs" className={cn(active && "ring-2 ring-accent")} /> : <Icon className="h-5 w-5" />}
@@ -367,11 +363,6 @@ function onSignOut() {
 }
 
 /** Back to the top of the page: smooth, or at once with reduced motion. */
-function toTop() {
-  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  window.scrollTo({ top: 0, behavior: reduce ? "instant" : "smooth" });
-}
-
 /** Phones; and tablets in the installed app, which has no browser Back (a tablet in a browser has the browser's). */
 const BACK_CLASS = "-ml-1 flex min-h-11 min-w-0 max-w-[45%] shrink-0 items-center gap-0.5 rounded-md pr-2 text-sm font-medium text-accent hover:bg-surface-2";
 /**

@@ -126,7 +126,7 @@ export function FilterBar({
   const reset = (inSheet: boolean) =>
     activeCount > 0 && (onReset || resetHref) ? (
       resetHref ? (
-        <Link href={resetHref} scroll={false} className={resetClass(inSheet)} title={iconOnly(inSheet) ? resetLabel : undefined} data-testid="reset-filters" onClick={inSheet ? () => setOpen(false) : undefined}>
+        <Link href={resetHref} replace scroll={false} className={resetClass(inSheet)} title={iconOnly(inSheet) ? resetLabel : undefined} data-testid="reset-filters" onClick={inSheet ? () => setOpen(false) : undefined}>
           {resetBody(inSheet)}
         </Link>
       ) : (
@@ -164,7 +164,7 @@ export function FilterBar({
                   {chips.map((c) => (
                     <li key={c.key} className="shrink-0">
                       {c.href ? (
-                        <Link href={c.href} scroll={false} className={CHIP} aria-label={`${c.text}: remove this filter`}>
+                        <Link href={c.href} replace scroll={false} className={CHIP} aria-label={`${c.text}: remove this filter`}>
                           {c.text} <X className="h-3 w-3 text-fg-subtle" aria-hidden />
                         </Link>
                       ) : (
