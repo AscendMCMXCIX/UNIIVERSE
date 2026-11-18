@@ -135,20 +135,26 @@ test("on a 320px phone, at 100%, 150% and 200% text, Leaderboards' Records is no
 
 const ADMIN_PAGES = ["/admin", "/admin/people", "/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/data", "/admin/system", "/admin/audit", "/admin/settings"];
 
-test("at 200% and 150% text on a 320px phone, every Admin Mode page is no wider than the phone", async ({ page, context, baseURL }) => {
+test("at 200% and 150% text on 320, 375 and 393px phones, every Admin Mode page is no wider than the phone", async ({ page, context, baseURL }) => {
   // Its health cards, Branding's Reset colours and save bar, Previews' switches, Users & Permissions'
   // tabs and row buttons (Erase personal data among them), the access levels, the manager's row
   // buttons and the Data jobs: each wraps or breaks a long word inside its line (docs/RESPONSIVE.md).
-  test.setTimeout(180_000);
+  // The container queries that let some of them wrap switch at rem widths, so each phone falls on
+  // its own side of them: every page is checked at each width.
+  test.setTimeout(360_000);
   await page.route(/\/favicon\.ico$/, (route) => route.abort());
   await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
   for (const path of ADMIN_PAGES) {
     await page.goto(path);
     await expect(page.locator("main h1")).toBeVisible();
-    for (const root of [200, 150]) {
-      await page.evaluate((r) => (document.documentElement.style.fontSize = `${r}%`), root);
-      await page.evaluate(() => document.fonts.ready);
-      await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth), { message: `${path} at ${root}%: as wide as the phone` }).toBeLessThanOrEqual(320);
+    for (const width of [320, 375, 393]) {
+      await page.setViewportSize({ width, height: 700 });
+      for (const root of [200, 150]) {
+        await page.evaluate((r) => (document.documentElement.style.fontSize = `${r}%`), root);
+        await page.evaluate(() => document.fonts.ready);
+        await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth), { message: `${path} at ${root}% on ${width}px: as wide as the phone` }).toBeLessThanOrEqual(width);
+      }
+      await page.evaluate(() => (document.documentElement.style.fontSize = ""));
     }
   }
 });

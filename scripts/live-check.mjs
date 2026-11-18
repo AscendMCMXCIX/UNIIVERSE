@@ -66,9 +66,11 @@
     mentions a Public profile switch (retired; true or false only); on the phone, Sign out is on
     Settings' first screen (above the tab bar).
   - resources (the Library): every section under its h2 and every row a link to a new tab with
-    noopener and noreferrer; the index offers All, Favourites and each section; no title cut short
-    and no broken site icon. The sites' own icons are not asked for (the browser tests' rule: no
-    check asks another site for anything), so every row shows its stand-in. Counts only.
+    noopener and noreferrer; the index offers All, Favourites and each section, and choosing a
+    section shows that section alone, as many rows as its segment counts; no title cut short and no
+    broken site icon. No site's own icon is asked for: once any route is installed (the vitals
+    route, and the Library's own below), Playwright itself aborts every request for /favicon.ico,
+    unreported, so every row shows its stand-in. Counts only.
   - games (#178): Team Matches opens a game under its card (no window), with ?match= in the address;
     a copied link opens it; Back returns to it; the keyboard toggles it; "Close this game" closes it
     and keeps the focus on the card. Match History opens games under their cards; at 1440 the
@@ -305,16 +307,13 @@ function instrument(page) {
     if (m.type() !== "error") return;
     const text = m.text();
     if (/ERR_TUNNEL_CONNECTION_FAILED|ERR_PROXY_CONNECTION_FAILED|ERR_CERT_/.test(text)) report.blockedByEnvironment++;
-    // The Library's site icons, refused by the check itself (resourcesFacts): not the app's error.
-    else if (/ERR_BLOCKED_BY_CLIENT/.test(text)) return;
     else log.console.push(text.slice(0, 240));
   });
   page.on("pageerror", (e) => log.pageErrors.push(String(e).slice(0, 240)));
   page.on("requestfailed", (r) => {
     const url = r.url(), why = r.failure()?.errorText ?? "failed";
-    if (!url.startsWith(base)) {
-      if (!/ERR_BLOCKED_BY_CLIENT/.test(why)) report.blockedByEnvironment++;
-    } else if (!/ERR_ABORTED/.test(why)) log.failed.push(`${why} ${url.slice(base.length, base.length + 120)}`);
+    if (!url.startsWith(base)) report.blockedByEnvironment++;
+    else if (!/ERR_ABORTED/.test(why)) log.failed.push(`${why} ${url.slice(base.length, base.length + 120)}`);
   });
   page.on("response", (r) => {
     if (r.url().startsWith(base) && r.status() >= 500) log.failed.push(`${r.status()} ${r.url().slice(base.length, base.length + 120)}`);
@@ -720,9 +719,10 @@ async function settingsFacts(page, kind) {
   pass("settings", `${kind}: Settings never mentions a Public profile switch`, !facts.publicProfile, { mentioned: facts.publicProfile });
   pass("settings", `${kind}: the picture and display-name help name the public team page`, facts.picture && facts.displayName, { picture: facts.picture, displayName: facts.displayName });
   if (kind !== "phone") return;
-  // The account card leads the page: Sign out is in view as it opens, above the tab bar.
+  // The account card leads the page: Sign out is in view as it opens, above the tab bar. The card
+  // draws its actions once per layout (the other copy is display: none): the one shown is measured.
   const signOut = await page.evaluate(() => {
-    const button = document.querySelector("[data-testid=settings-sign-out]");
+    const button = [...document.querySelectorAll("[data-testid=settings-sign-out]")].find((el) => el.getBoundingClientRect().height > 0);
     if (!button) return null;
     const bar = document.querySelector("[data-testid=phone-tabbar]")?.getBoundingClientRect();
     const r = button.getBoundingClientRect();
@@ -754,6 +754,20 @@ async function resourcesFacts(page, kind) {
   });
   pass("resources", `${kind}: every section under its heading, every row a link to a new tab without this page's address`, f.rows > 0 && f.headed === f.groups && f.unsafeLinks === 0, { rows: f.rows, sections: f.groups, headed: f.headed, unsafeLinks: f.unsafeLinks });
   pass("resources", `${kind}: the index offers All, Favourites and each section`, f.favourites && f.segments === f.groups + 2, { segments: f.segments, sections: f.groups, favourites: f.favourites });
+  // Choosing a section (the page's own filter: no request) shows that section alone, as many rows as
+  // its segment counts; All brings the library back.
+  const segment = page.locator("[data-testid=resources-index] [role=radio]").nth(2);
+  if (f.groups > 0 && (await segment.count())) {
+    await segment.click();
+    await page.waitForFunction(() => document.querySelector("[data-testid=resources-index] [role=radio]:nth-child(3)")?.getAttribute("aria-checked") === "true", null, { timeout: 10_000 });
+    const chosen = await page.evaluate(() => ({
+      groups: document.querySelectorAll("[data-testid=resources-section-group]").length,
+      rows: document.querySelectorAll("[data-testid=resource]").length,
+      counted: Number(document.querySelector("[data-testid=resources-index] [role=radio]:nth-child(3) [data-testid=resources-index-count]")?.textContent?.replace(/\D/g, "") || -1),
+    }));
+    pass("resources", `${kind}: choosing a section shows it alone, its rows as counted`, chosen.groups === 1 && chosen.rows === chosen.counted, chosen);
+    await page.locator("[data-testid=resources-index-all]").click();
+  }
   pass("resources", `${kind}: no title cut short, no broken site icon`, f.cutTitles === 0 && f.brokenIcons === 0, { cutTitles: f.cutTitles, brokenIcons: f.brokenIcons });
 }
 
@@ -1187,10 +1201,13 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
     }
   });
   await guarded(kind, "resources", async () => {
-    // The rows ask each site for its icon; the check asks none (as the browser tests do), so no
-    // request leaves for another site and every row shows its stand-in.
+    // The rows ask each site for its icon; the check asks none (as the browser tests do). Once any
+    // route is installed, Playwright itself aborts every request for /favicon.ico before a route's
+    // handler runs, and reports none of them: so no request leaves for another site and every row
+    // shows its stand-in. This route is that switch for the Library, should the context's vitals
+    // route ever go; its handler never runs.
     const siteIcon = (url) => !url.href.startsWith(base) && url.pathname.endsWith("/favicon.ico");
-    await page.route(siteIcon, (route) => route.abort("blockedbyclient"));
+    await page.route(siteIcon, (route) => route.abort());
     try {
       if (await visit(page, log, kind, "resources", "/resources")) {
         await resourcesFacts(page, kind);
