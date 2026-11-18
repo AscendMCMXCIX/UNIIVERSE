@@ -124,7 +124,7 @@ export function OpponentPicker({ me, options, current, champ, onChoose, testId =
                   button.current?.focus();
                 } else if (e.key === "Tab") setOpen(false);
               }}
-              // 16px on touch screens at every width (every iPhone held sideways is sm or wider);
+              // 16px on touch screens at every width (most iPhones held sideways are sm or wider; a 320pt one is 568px);
               // 14px from sm with a mouse.
               className="h-11 min-w-0 flex-1 bg-transparent text-base text-fg outline-none placeholder:text-fg-subtle sm:pointer-fine:text-sm"
               data-testid={`${testId}-search`}

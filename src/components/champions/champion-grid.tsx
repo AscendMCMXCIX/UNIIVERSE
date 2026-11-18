@@ -183,7 +183,7 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
                 }
               }}
               placeholder={placeholder}
-              className="h-11 w-full rounded-lg border border-border bg-bg-elevated pl-9 pr-9 text-base text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none md:h-9 md:text-sm"
+              className="h-11 w-full rounded-lg border border-border bg-bg-elevated pl-9 pr-9 text-base text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none md:pointer-fine:h-9 md:pointer-fine:text-sm"
             />
             {query ? (
               <button type="button" onClick={() => setQuery("")} className="absolute right-1.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-md text-fg-subtle hover:text-fg" aria-label="Clear search">

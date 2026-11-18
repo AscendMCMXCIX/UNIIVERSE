@@ -61,14 +61,17 @@ Tailwind classes they generate. `src/app/design-tokens.test.ts` refuses font siz
 arbitrary values that equal a token (`text-[0.6875rem]` is `text-2xs`), Tailwind's names for the
 panel and card radii, colours written as hex in a class, easing curves that are not tokens,
 uppercase labels spaced other than `tracking-label`, a size, weight, case or letter spacing beside
-`label-caps` (which sets all four; Tailwind would drop the size silently), the standing-alone measure
-written as a number (`max-w-[72rem]`, `max-w-6xl`) instead of `max-w-[var(--measure)]`, a safe-area
-padding (`pb-safe`, `pt-safe` and their `-N` forms) beside another padding for the same edge, an
-arbitrary `max(…, env(safe-area-inset-…))` top or bottom padding that `pt-safe-N` or `pb-safe-N`
-writes (RESPONSIVE.md → Safe areas), and the brand blue as a glow or shadow colour (`shadow-accent`,
-a shadow made of `var(--color-accent)` or `shadow-(color:--color-accent)`: shadows are neutral and
-violet carries the light, DESIGN_SYSTEM.md §4). SVG charts drawn 1:1 in px keep their text in px,
-so it fits the chart's fixed gutters; the test lists them.
+`label-caps` (which sets all four; Tailwind would drop the size silently), the standing-alone
+measure written as a number (`max-w-[72rem]`, `max-w-6xl`) instead of `max-w-[var(--measure)]`, a
+safe-area padding (`pb-safe`, `pt-safe` and their `-N` forms) beside another padding for the same
+edge, an arbitrary `max(…, env(safe-area-inset-…))` top or bottom padding that `pt-safe-N` or
+`pb-safe-N` writes (RESPONSIVE.md → Safe areas), and the brand blue as a glow or shadow colour
+(`shadow-accent`, a shadow made of `var(--color-accent)` or `shadow-(color:--color-accent)`: shadows
+are neutral and violet carries the light, DESIGN_SYSTEM.md §4), and a text field whose 16px drops
+below it from a breakpoint on every screen (`sm:text-sm`, `md:text-sm` beside `text-base` in a
+field's classes: a field's smaller text is for a mouse only, `md:pointer-fine:text-sm`, as iOS zooms
+the page into a focused field under 16px; RESPONSIVE.md → Primitives). SVG charts drawn 1:1 in px
+keep their text in px, so it fits the chart's fixed gutters; the test lists them.
 
 **Colour** (semantic, never raw values). The ground is a deep ink with a faint indigo undertone,
 each surface one visible step lighter than the one below it. The identity is a pair: the brand

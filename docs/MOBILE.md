@@ -41,6 +41,11 @@ anywhere else:
    those the account may open). The current tab's icon sits in an accent pill and its label is
    bright, so it never relies on colour alone. The Profile tab shows your own picture when you have
    one. A teammate's profile belongs to Players; your own profile's sections to Profile.
+   With a larger text size, once the labels no longer fit (Player Mode's five need up to 19.6rem
+   under their icons and 34.7rem beside them in a short window, Admin Mode's four 14.6rem and
+   26rem), each destination shows its icon alone and the label stays its name for screen readers:
+   a container query in rem on the bar, so the page never becomes wider than the phone (it did at
+   125% text on a 320px phone before #300).
    Tapping the current tab on its own page goes back to the top, and so does tapping the page's
    title once it has moved into the top bar (docs/DESIGN_SYSTEM.md, "The navigation contract").
 3. **The account screen** (from the avatar: a screen of its own that rises over the page,
@@ -272,8 +277,9 @@ click, so nothing moves under the finger first). A sheet:
   by a tap where it is drawn, the close button sits below the status bar at the top right, the
   screen has the focus and the page never moves, and nothing in it ends under the home indicator;
   a username far longer than the name wraps on the narrowest phones; its close button's touch area
-  of 44px; held sideways at 100%, 125%, 150% and 200% text, upright at 150%, and in a page zoomed
-  to 150% sideways, one scroll region in which every control can be shown whole; on a page pinched
+  of 44px; held sideways at 100%, 125%, 150% and 200% text, upright at 150%, and at 200% on a
+  320px phone in Player Mode, and in a page zoomed to 150% sideways, one scroll region in which
+  every control can be shown whole; on a page pinched
   to zoom, a finger's drag pans the zoomed view; no frame of its motion more than 1rem from where it
   rests, at rest with every animation held at its first frame, at once with reduced motion; a page
   scrolled from script while it is open is put back; the account dropdown's rows 44px tall on a

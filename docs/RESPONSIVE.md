@@ -209,13 +209,17 @@ Substitute side of the Team cards).
 
 ## Primitives
 
-- `Button`: desktop heights unchanged; `max-md:min-h-11` and `pointer-coarse:min-h-11`.
-- `Input`, `Select`, `Textarea`: 44px and 16px text on phones (iOS does not zoom a 16px field),
-  36px / 14px from `md`. The pickers' search boxes (member, champion, opponent) and the add-champion
-  field are 16px on touch screens at every width, 14px only with a mouse (`pointer-fine:text-sm`):
-  every iPhone held sideways is `sm` or wider and most are `md`, and iOS zoomed the page into the
-  opponent search at 14px. The shared fields above still turn 14px from `md` on a touch screen too
-  (a large iPhone held sideways); that is their own change to make, with a run of the browser tests.
+- `Button`: desktop heights unchanged; `max-md:min-h-11` and `pointer-coarse:min-h-11`. `wrap`: on a
+  phone a label that a larger text size makes too long wraps and the button grows with it (a form's
+  Save beside little room); without it a label stays on one line.
+- `Input`, `Select`, `Textarea`, `SearchInput` and the champion grid's search: 44px and 16px text
+  on phones and on every touch screen, 36px / 14px from `md` with a mouse (`md:pointer-fine:`): iOS
+  zooms the page into a focused field under 16px, and iPads and most iPhones held sideways (812px
+  and up) are `md` or wider. Before #300 their text turned 14px from `md` on a touch screen too.
+  `design-tokens.test.ts` refuses a field's 16px dropping below it from any breakpoint without
+  `pointer-fine:`. The pickers' search boxes (member, champion, opponent) and the add-champion
+  field also keep 16px on every touch screen and turn 14px only with a mouse (`pointer-fine:`):
+  iOS zoomed the page into the opponent search at 14px.
 - `ToggleChip` (`ui/toggle.tsx`): every selectable chip (roles, modes, filters).
 - A section that folds on phones: `Disclosure` (`ui/disclosure.tsx`, a native `<details>`) or a CSS
   breakpoint. The former `MobileSection` was removed.
