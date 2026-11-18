@@ -8,7 +8,6 @@ import { ROLE_LABELS } from "@/domain/roles";
 import { seasonLabel } from "@/domain/season";
 import { seasonModeInfo } from "@/domain/season-stats";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
-import { RoleIcon } from "@/components/role-icon";
 import { normalise } from "@/components/champions/types";
 import { ModeElsewhere, OverviewFilters } from "./overview-filters";
 import { SearchInput } from "@/components/ui/search-input";
@@ -23,6 +22,7 @@ import { MULTIKILL_HELP, MULTIKILL_SHORT } from "./multikill-summary";
 import { InfoTip } from "@/components/ui/info-tip";
 import { DataStatusNote, RefreshButton, type DataRefreshTarget } from "@/components/ui/data-status";
 import { SectionHeader } from "@/components/ui/section-header";
+import { QuietBar } from "@/components/ui/quiet-bar";
 import type { DataStatus } from "@/domain/data-status";
 import type { CardLook } from "@/domain/card-style";
 import { RoleTag } from "@/components/role-icon";
@@ -33,19 +33,19 @@ type Dir = "asc" | "desc";
 /**
  * The table's columns, in order. Multikills are one column ("multikills": the rarest kind each
  * champion has) where the list is of medium width, and four (double, triple, quadra, penta) where
- * it is wide; phones sort by any of them from Sort by. Figures are right-aligned, so they compare
- * down the column.
+ * it is wide; phones sort by any of them from Sort by, which names them as the headings do. Figures
+ * are right-aligned, so they compare down the column.
  */
-const COLUMNS: Array<{ key: SortKey; label: string; long?: string; title?: string; layout?: "medium" | "wide" }> = [
+const COLUMNS: Array<{ key: SortKey; label: string; title?: string; layout?: "medium" | "wide" }> = [
   { key: "champion", label: "Champion" },
   { key: "games", label: "Games" },
   { key: "win", label: "Win rate" },
   { key: "kda", label: "KDA" },
   { key: "cs", label: "CS/min", title: "Creep score per minute" },
-  { key: "kills", label: "Kills", long: "Total kills", title: "Every kill on the champion in these games, each game's own count added up" },
+  { key: "kills", label: "Kills", title: "Every kill on the champion in these games, each game's own count added up" },
   { key: "multikills", label: "Multikills", title: "The rarest multikill on the champion in these games: pentakills first, then quadra, triple and double kills", layout: "medium" },
-  ...MULTIKILL_KINDS.map((k) => ({ key: k.key, label: MULTIKILL_SHORT[k.key], long: k.label, title: `${k.label} in these games`, layout: "wide" as const })),
-  { key: "mastery", label: "Mastery", long: "Mastery points", title: "Champion mastery points, summed over your linked Riot accounts" },
+  ...MULTIKILL_KINDS.map((k) => ({ key: k.key, label: MULTIKILL_SHORT[k.key], title: `${k.label} in these games`, layout: "wide" as const })),
+  { key: "mastery", label: "Mastery", title: "Champion mastery points, summed over your linked Riot accounts" },
 ];
 const isSortKey = (v: string | null): v is SortKey => !!v && COLUMNS.some((c) => c.key === v);
 /** Which layout a column belongs to: shown only in that one (phones show neither as a column). */
@@ -64,14 +64,22 @@ const FIRST = 20;
   The 44rem tier holds tablets from 752px wide and computers up to 1535px with the sidebar open. A
   grid grows its fixed columns to their maxima before a 1fr column gets anything, so the champion
   column keeps its minimum until the figures are full: 11.75rem, room for the portrait, the name
-  and "Support · In pool" on one line (rows of about 51px for every role). Each figure column's
-  minimum is its heading plus room for the sort arrow beside it (0.875rem with its margin): at
-  least 0.375rem more than the heading, which with the 0.5rem gap keeps the arrow clear of the
-  heading before it (Games follows the champion column, whose heading sits at its far left). With
-  a 0.75rem padding the minimums add up to exactly 44rem, the card's border included.
+  and "Support · In pool" on one line (rows of about 51px for every role, in Chromium and WebKit
+  from 752 to 891px). Each figure column's minimum is its heading plus room for the sort arrow
+  beside it (0.875rem with its margin): at least 0.375rem more than the heading, which with the
+  0.5rem gap keeps the arrow clear of the heading before it (Games follows the champion column,
+  whose heading sits at its far left). With a 0.75rem padding the minimums add up to exactly 44rem,
+  the card's border included, so the champion column cannot take more without a heading's arrow
+  or a figure ("Perfect") losing its room.
+
+  From 76rem the figures are grouped, as they are read: the record (Games, Win rate), the play (KDA,
+  CS/min, Kills), the four multikills, and Mastery. Inside a group the columns are 0.5rem apart and
+  little wider than their heading and its sort arrow (Win rate 4.75rem, each kind 4rem); the first
+  column of the next group is 2rem wider, so the space before a group's first heading and figure is
+  clearly larger than any space inside a group.
 */
 const GRID =
-  "@min-[44rem]:grid-cols-[minmax(11.75rem,1fr)_minmax(3.25rem,4.5rem)_minmax(4.5rem,6rem)_minmax(3.25rem,4.25rem)_minmax(3.5rem,4.5rem)_minmax(3rem,4.25rem)_minmax(5.25rem,6.5rem)_minmax(4.375rem,5.25rem)] @min-[44rem]:gap-x-2 @min-[44rem]:px-3 @min-[76rem]:grid-cols-[minmax(14rem,1fr)_minmax(4rem,4.5rem)_minmax(6rem,6.5rem)_minmax(3.5rem,4.25rem)_minmax(4rem,4.5rem)_minmax(3.5rem,4.25rem)_repeat(4,minmax(3.75rem,4.25rem))_minmax(4.5rem,5.25rem)] @min-[76rem]:gap-x-4 @min-[76rem]:px-5";
+  "@min-[44rem]:grid-cols-[minmax(11.75rem,1fr)_minmax(3.25rem,4.5rem)_minmax(4.5rem,6rem)_minmax(3.25rem,4.25rem)_minmax(3.5rem,4.5rem)_minmax(3rem,4.25rem)_minmax(5.25rem,6.5rem)_minmax(4.375rem,5.25rem)] @min-[44rem]:gap-x-2 @min-[44rem]:px-3 @min-[76rem]:grid-cols-[minmax(14rem,1fr)_minmax(4rem,4.5rem)_minmax(4.75rem,5.25rem)_minmax(5.5rem,6.25rem)_minmax(4rem,4.5rem)_minmax(3.5rem,4.25rem)_minmax(6rem,6.5rem)_repeat(3,minmax(4rem,4.5rem))_minmax(6.5rem,7.25rem)] @min-[76rem]:gap-x-2 @min-[76rem]:px-5";
 /** A sortable number, or null when the figure is missing (missing rows always sort last). */
 function sortValue(c: OverviewCard, key: SortKey): number | null {
   switch (key) {
@@ -190,6 +198,58 @@ function multikillValue(c: OverviewCard): string | null {
   const partial = m.counted < m.games ? "*" : "";
   return top ? `${formatCount(top.count)} ${MULTIKILL_SHORT[top.key].toLowerCase()}${partial}` : `none${partial}`;
 }
+
+/** Narrow rows, sorted by one kind: that kind's count ("3", "3*" from some games, "—" not counted yet). */
+function kindValue(c: OverviewCard, kind: KindKey): string | null {
+  const m = c.multikills;
+  if (!m || !m.games) return null;
+  if (!m.counted) return "—";
+  return `${formatCount(m[kind])}${m.counted < m.games ? "*" : ""}`;
+}
+
+const kdaText = (p: OverviewCard["performance"]) => (p.perfectKda ? "Perfect" : p.kdaRatio === null ? "—" : p.kdaRatio.toFixed(2));
+const csText = (p: OverviewCard["performance"]) => (p.csPerMinute === null ? "—" : p.csPerMinute.toFixed(1));
+
+/** One labelled figure under a narrow row's champion; `sorted` when the list is sorted by it. */
+export interface SummaryPair {
+  key: string;
+  label: string;
+  value: string;
+  sorted: boolean;
+}
+
+/**
+ * Narrow rows: the figures that are not at the row's right, as labelled pairs. The pair the list is
+ * sorted by comes first (in semibold where it is drawn): KDA, CS/min, Kills, the rarest multikill
+ * (also for pentakills, which sort the same) or Mastery; sorted by double, triple or quadra kills,
+ * that kind's own count leads, before the others. Sorted by champion, games or win rate (the name,
+ * and the figures at the row's right), the pairs are as they always were.
+ */
+export function summaryPairs(c: OverviewCard, sorted: SortKey): SummaryPair[] {
+  const p = c.performance;
+  const multi = multikillValue(c);
+  const pairs: Array<Omit<SummaryPair, "sorted"> & { sortKeys: readonly SortKey[] }> = [
+    { key: "kda", label: "KDA", value: kdaText(p), sortKeys: ["kda"] },
+    { key: "cs", label: "CS/min", value: csText(p), sortKeys: ["cs"] },
+    { key: "kills", label: "Kills", value: killsValue(c), sortKeys: ["kills"] },
+    // A champion without any game to count multikills in has no Multikills pair at all.
+    ...(multi === null ? [] : [{ key: "multikills", label: "Multikills", value: multi, sortKeys: ["multikills", "penta"] as const }]),
+    { key: "mastery", label: "Mastery", value: masteryText(c.mastery?.points), sortKeys: ["mastery"] },
+  ];
+  if (sorted === "double" || sorted === "triple" || sorted === "quadra") {
+    const value = kindValue(c, sorted);
+    if (value !== null) pairs.unshift({ key: sorted, label: MULTIKILL_KINDS.find((k) => k.key === sorted)!.label, value, sortKeys: [sorted] });
+  }
+  const lead = pairs.findIndex((pair) => pair.sortKeys.includes(sorted));
+  const ordered = lead > 0 ? [pairs[lead]!, ...pairs.slice(0, lead), ...pairs.slice(lead + 1)] : pairs;
+  return ordered.map(({ sortKeys, ...pair }) => ({ ...pair, sorted: sortKeys.includes(sorted) }));
+}
+
+/** A champion's games as a share of every game in the list's filters (0 when there are none), for the bar under Games. */
+export function gamesShare(games: number, total: number): number {
+  return total > 0 ? Math.min(1, Math.max(0, games / total)) : 0;
+}
+
 /** Sorts within the rows already filtered; stable, ties by champion name. */
 export function sortChampions(rows: readonly OverviewCard[], key: SortKey, dir: Dir, nameOf: (id: string) => string): OverviewCard[] {
   const sign = dir === "asc" ? 1 : -1;
@@ -248,6 +308,8 @@ export function AllChampions({ data, basePath, championsById, playerId, look, de
   // Kills come from each game's full record: a champion with games still without it is marked the same way.
   const killsIncomplete = rows.some((c) => c.performance.detailedGames < c.selected.games);
   const f = data.filter;
+  // Every game in the filters, the whole the bar under each champion's games is a share of.
+  const total = data.summary.record.games;
 
   // The champion window (shared with Roles & champion pools): its state lives in the URL.
   const win = useChampionWindow();
@@ -267,13 +329,13 @@ export function AllChampions({ data, basePath, championsById, playerId, look, de
           const p = c.performance;
           // The sorted column's figures stand out a little; the rest stay quiet, so the numbers never all compete.
           const strong = (key: SortKey) => sortsAs(key, sorted);
-          const kda = p.perfectKda ? "Perfect" : p.kdaRatio === null ? "—" : p.kdaRatio.toFixed(2);
-          const cs = p.csPerMinute === null ? "—" : p.csPerMinute.toFixed(1);
+          const kda = kdaText(p);
+          const cs = csText(p);
           const figure = (key: SortKey) => cn("hidden text-right text-sm tabular-nums @min-[44rem]:block", strong(key) ? "font-semibold text-fg" : "text-fg-muted");
-          const multi = multikillValue(c);
+          const share = gamesShare(r.games, total);
           return (
             // A row lights up while pointed at or focused (a quiet tint; the whole row opens the champion's window).
-            <li key={`${c.championId}-${c.role}`} className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2.5 transition-colors duration-150 hover:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:outline has-[[data-open-champion]:focus-visible]:outline-2 has-[[data-open-champion]:focus-visible]:-outline-offset-2 has-[[data-open-champion]:focus-visible]:outline-accent @min-[44rem]:py-1.5", GRID)} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-kills={p.totalKills ?? ""} data-mastery={c.mastery?.points ?? ""} data-multikills={c.multikills?.counted ? MULTIKILL_KINDS.map((k) => c.multikills![k.key]).join(",") : ""} data-multikill-coverage={c.multikills ? multikillCoverage(c.multikills).state : ""}>
+            <li key={`${c.championId}-${c.role}`} className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2.5 @max-[17rem]:grid-cols-[minmax(0,1fr)] transition-colors duration-150 hover:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:outline has-[[data-open-champion]:focus-visible]:outline-2 has-[[data-open-champion]:focus-visible]:-outline-offset-2 has-[[data-open-champion]:focus-visible]:outline-accent @min-[44rem]:py-1.5", GRID)} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-kills={p.totalKills ?? ""} data-mastery={c.mastery?.points ?? ""} data-multikills={c.multikills?.counted ? MULTIKILL_KINDS.map((k) => c.multikills![k.key]).join(",") : ""} data-multikill-coverage={c.multikills ? multikillCoverage(c.multikills).state : ""}>
               <span className="flex min-w-0 items-center gap-3">
                 <span className="hidden w-5 shrink-0 text-right text-xs tabular-nums text-fg-subtle @4xl:block" aria-hidden>
                   {i + 1}
@@ -282,7 +344,7 @@ export function AllChampions({ data, basePath, championsById, playerId, look, de
                 <span className="min-w-0">
                   {/* The whole row opens the champion's window (the button covers it). */}
                   {/* The row opens a window: the pointer says so, and the name underlines while pointed at, as the pools' cards do. */}
-                  <button type="button" onClick={() => openRef.current(c)} className="block max-w-full cursor-pointer truncate text-left text-md font-semibold leading-tight text-fg outline-none after:absolute after:inset-0 after:content-[''] focus-visible:underline group-hover/row:underline group-hover/row:decoration-fg-subtle group-hover/row:underline-offset-2 @min-[44rem]:text-sm" aria-label={`${ch.name}, ${ROLE_LABELS[c.role]}: open the champion's overview and matchups`} data-open-champion data-testid="open-champion">
+                  <button type="button" onClick={() => openRef.current(c)} className="block max-w-full cursor-pointer truncate text-left text-md font-semibold leading-tight text-fg outline-none @max-[17rem]:whitespace-normal @max-[17rem]:break-words after:absolute after:inset-0 after:content-[''] focus-visible:underline group-hover/row:underline group-hover/row:decoration-fg-subtle group-hover/row:underline-offset-2 @min-[44rem]:text-sm" aria-label={`${ch.name}, ${ROLE_LABELS[c.role]}: open the champion's overview and matchups`} data-open-champion data-testid="open-champion">
                     {ch.name}
                   </button>
                   {/* Narrow rows let "In pool" go under the role; table rows keep both on one line (the role
@@ -297,15 +359,22 @@ export function AllChampions({ data, basePath, championsById, playerId, look, de
                   </span>
                 </span>
               </span>
-              {/* Narrow rows: the win rate and the games at the right, as the columns put them first. */}
-              <span className="text-right tabular-nums @min-[44rem]:hidden" title={winRateSampleNote(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion) ?? undefined}>
+              {/* Narrow rows: the win rate and the games at the right, as the columns put them first.
+                  Under a 17rem list (a large text size on a phone) everything stacks under the name. */}
+              <span className="text-right tabular-nums @max-[17rem]:pl-[3.25rem] @max-[17rem]:text-left @min-[44rem]:hidden" title={winRateSampleNote(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion) ?? undefined}>
                 <span className={cn("block text-base font-semibold leading-tight", WIN_RATE_TONE_CLASS[winRateTone(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)])}>{r.winRate === null ? "—" : percent(r.winRate, 0)}</span>
                 <span className="block text-xs text-fg-subtle">
                   {formatCount(r.games)} game{r.games === 1 ? "" : "s"}
                   {r.games > 0 ? ` · ${r.wins}W ${r.games - r.wins}L` : ""}
                 </span>
               </span>
-              <span className={cn("hidden text-right tabular-nums @min-[44rem]:block", strong("games") ? "font-semibold text-fg" : "font-medium text-fg")}>{formatCount(r.games)}</span>
+              {/* Games, with a quiet bar under it: the champion's share of every game in the filters
+                  (QuietBar, neutral and continuous), said in words in its title and to screen readers. */}
+              <span className="hidden text-right @min-[44rem]:block" title={`${formatCount(r.games)} game${r.games === 1 ? "" : "s"} · ${percent(share, 0)} of the ${formatCount(total)} game${total === 1 ? "" : "s"} in these filters`} data-testid="champion-games">
+                <span className={cn("block tabular-nums", strong("games") ? "font-semibold text-fg" : "font-medium text-fg")}>{formatCount(r.games)}</span>
+                <QuietBar value={share} className="mt-1" testId="champion-games-share" />
+                <span className="sr-only">, {percent(share, 0)} of the games in these filters</span>
+              </span>
               <span className="hidden min-w-0 text-right @min-[44rem]:block" title={winRateSampleNote(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion) ?? undefined}>
                 <span className={cn("block text-sm font-semibold tabular-nums leading-tight", WIN_RATE_TONE_CLASS[winRateTone(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)])}>{r.winRate === null ? "—" : percent(r.winRate, 0)}</span>
                 {r.games > 0 ? (
@@ -325,30 +394,21 @@ export function AllChampions({ data, basePath, championsById, playerId, look, de
                 {masteryText(c.mastery?.points)}
               </span>
               {/* Narrow rows: the other figures as labelled pairs under the champion. */}
-              <dl className="col-span-2 flex flex-wrap gap-x-4 gap-y-0.5 pl-[3.25rem] text-xs @min-[44rem]:hidden" data-testid="champion-summary">
-                {(
-                  [
-                    ["KDA", kda],
-                    ["CS/min", cs],
-                    ["Kills", killsValue(c)],
-                    ["Multikills", multi],
-                    ["Mastery", masteryText(c.mastery?.points)],
-                  ] as const
-                )
-                  .filter(([, v]) => v !== null)
-                  .map(([label, v]) => (
-                    <div key={label} className="flex items-baseline gap-1">
-                      <dt className="text-fg-subtle">{label}</dt>{" "}
-                      <dd className="font-medium tabular-nums text-fg">{v}</dd>
-                    </div>
-                  ))}
+              <dl className="col-span-2 flex flex-wrap gap-x-4 @max-[17rem]:col-span-1 gap-y-0.5 pl-[3.25rem] text-xs @min-[44rem]:hidden" data-testid="champion-summary">
+                {summaryPairs(c, sorted).map((pair) => (
+                  // The pair the list is sorted by comes first, in semibold.
+                  <div key={pair.key} className="flex min-w-0 flex-wrap items-baseline gap-x-1" data-sorted={pair.sorted || undefined}>
+                    <dt className={pair.sorted ? "font-semibold text-fg-muted" : "text-fg-subtle"}>{pair.label}</dt>{" "}
+                    <dd className={cn("tabular-nums text-fg", pair.sorted ? "font-semibold" : "font-medium")}>{pair.value}</dd>
+                  </div>
+                ))}
               </dl>
             </li>
           );
         })}
       </ul>
     ),
-    [shown, champ, sorted],
+    [shown, champ, sorted, total],
   );
   return (
     <section className="@container space-y-3" aria-labelledby="all-champions" data-testid="all-champions">
@@ -356,9 +416,11 @@ export function AllChampions({ data, basePath, championsById, playerId, look, de
       <SectionHeader
         id="all-champions"
         title="All champions"
+        // On a phone (upright, or held sideways) the current tab says "Champions": the title is left to screen readers.
+        titleOnPhones="tab"
         description={
           <p className="text-sm text-fg-muted" data-testid="all-champions-scope">
-            {data.topChampions.length} champion{data.topChampions.length === 1 ? "" : "s"} played · {seasonLabel(data.season)} · {seasonModeInfo(data.mode).label}
+            {formatCount(data.topChampions.length)} champion{data.topChampions.length === 1 ? "" : "s"} · {seasonLabel(data.season)} · {seasonModeInfo(data.mode).label}
             {f.role ? ` · as ${ROLE_LABELS[f.role]}` : ""}
           </p>
         }
@@ -372,27 +434,34 @@ export function AllChampions({ data, basePath, championsById, playerId, look, de
       <div className="rounded-card border border-border bg-surface panel-depth" data-testid="all-champions-table">
         {data.topChampions.length ? (
           // Below 76rem the toolbar has the rows' padding, so the search lines up with the champions.
-          <div className="flex flex-wrap items-center gap-2 border-b border-border/70 px-3 py-2.5 @min-[76rem]:px-4">
-            {/* The search keeps at least 12rem: on narrow phones it takes its own line above Sort by. */}
+          // From a 20.5rem card (a 360px phone) the search and Sort by share one row; on a narrower
+          // card the search takes its own line above Sort by.
+          <div className="flex flex-wrap items-center gap-2 border-b border-border/70 px-3 py-2.5 @min-[20.5rem]:flex-nowrap @min-[76rem]:px-4">
             <SearchInput value={query} onChange={setQuery} placeholder="Find a champion or role…" label="Find a champion or a role" className="flex-[1_1_12rem] @min-[44rem]:max-w-xs" testId="all-champions-search" />
             <span className="ml-auto hidden text-xs tabular-nums text-fg-subtle @min-[44rem]:inline" aria-live="polite" data-testid="all-champions-count">
               {q ? `${rows.length} of ${data.topChampions.length}` : data.topChampions.length} champion{(q ? rows.length : data.topChampions.length) === 1 ? "" : "s"}
             </span>
             {/* Phones: the table's columns as one compact Sort by control and a direction toggle. */}
-            <div className="flex items-center gap-1.5 @min-[44rem]:hidden" data-testid="all-champions-sort-mobile">
-              <label htmlFor="all-champions-sort-by" className="text-xs text-fg-muted">
+            {/* Sharing the search's row, the label is left to screen readers: the column's name and the
+                direction's arrow say what it does, and the columns' short names keep the control
+                narrow. At a large text size Sort by takes a line of its own over the control and its
+                arrow, and the control narrows, so the toolbar is never wider than the phone. */}
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5 @min-[20.5rem]:shrink-0 @min-[20.5rem]:flex-nowrap @min-[44rem]:hidden" data-testid="all-champions-sort-mobile">
+              <label htmlFor="all-champions-sort-by" className="text-xs text-fg-muted @min-[20.5rem]:sr-only">
                 Sort by
               </label>
-              <select id="all-champions-sort-by" value={sort.key} onChange={(e) => setSort({ key: e.target.value as SortKey, dir: defaultDir(e.target.value as SortKey) })} className={selectClass("w-auto")}>
-                {COLUMNS.map((c) => (
-                  <option key={c.key} value={c.key}>
-                    {c.long ?? c.label}
-                  </option>
-                ))}
-              </select>
-              <button type="button" onClick={() => setSort((cur) => ({ ...cur, dir: cur.dir === "asc" ? "desc" : "asc" }))} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-border-control bg-bg-elevated text-fg transition-colors hover:border-fg-subtle" aria-label={`${label}, ${sort.dir === "asc" ? "ascending" : "descending"}: reverse`} data-testid="all-champions-sort-dir">
-                {sort.dir === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
-              </button>
+              <div className="flex min-w-0 items-center gap-1.5">
+                <select id="all-champions-sort-by" value={sort.key} onChange={(e) => setSort({ key: e.target.value as SortKey, dir: defaultDir(e.target.value as SortKey) })} className={selectClass("w-auto")}>
+                  {COLUMNS.map((c) => (
+                    <option key={c.key} value={c.key}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+                <button type="button" onClick={() => setSort((cur) => ({ ...cur, dir: cur.dir === "asc" ? "desc" : "asc" }))} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-border-control bg-bg-elevated text-fg transition-colors hover:border-fg-subtle" aria-label={`${label}, ${sort.dir === "asc" ? "ascending" : "descending"}: reverse`} data-testid="all-champions-sort-dir">
+                  {sort.dir === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
           </div>
         ) : null}

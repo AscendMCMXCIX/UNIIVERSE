@@ -58,6 +58,138 @@ test("All Champions on a phone: a Sort by control with a direction toggle, no si
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
 });
 
+test("All Champions on a phone: the tab names it, one scope line, search and Sort by on one row from 360px, the sorted pair first in semibold", async ({ page }) => {
+  test.skip(test.info().project.name !== "phone", "phone only");
+  await page.goto("/players");
+  const href = await playerEntry(page, "Demo Top").first().getAttribute("href");
+  await page.setViewportSize({ width: 393, height: 852 });
+  await page.goto(`${href}/champions`);
+  const rows = page.getByTestId("top-champion");
+  await expect(rows.first()).toBeVisible();
+  // The title is read out only: the current tab, in the top bar, says where you are.
+  const title = page.locator("#all-champions");
+  await expect(title).toHaveText("All champions");
+  expect(await title.evaluate((h) => h.getBoundingClientRect().width), "the title drawn as screen-reader text").toBeLessThanOrEqual(1);
+  await expect(page.getByTestId("profile-chrome-tab-champions")).toHaveAttribute("aria-current", "page");
+  // "6 champions · Season 2026 · All supported games": every champion in the filters (all of them listed once Show all is pressed).
+  const more = page.getByTestId("all-champions-more");
+  if (await more.count()) await more.click();
+  const n = await rows.count();
+  await expect(page.getByTestId("all-champions-scope")).toHaveText(new RegExp(`^${n} champions? · Season \\d{4} · All supported games$`));
+  const search = page.getByTestId("all-champions-search");
+  const sort = page.getByTestId("all-champions-sort-mobile");
+  const card = page.getByTestId("all-champions-table");
+  // From a 20.5rem card (a 360px phone) the search and Sort by share one row, its label read out only.
+  for (const width of [393, 360]) {
+    await page.setViewportSize({ width, height: 852 });
+    const [s, o, c] = [(await search.boundingBox())!, (await sort.boundingBox())!, (await card.boundingBox())!];
+    expect(Math.abs(s.y + s.height / 2 - (o.y + o.height / 2)), `${width}px: one row`).toBeLessThanOrEqual(2);
+    expect(o.x + o.width, `${width}px: inside the card`).toBeLessThanOrEqual(c.x + c.width);
+    expect(s.width, `${width}px: the search keeps room to type`).toBeGreaterThanOrEqual(120);
+    await expect(page.getByLabel("Sort by")).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), `${width}px: no sideways scroll`).toBeLessThanOrEqual(0);
+  }
+  // On a 320px phone the search keeps its own line, with Sort by and its label under it.
+  await page.setViewportSize({ width: 320, height: 568 });
+  const [s, o] = [(await search.boundingBox())!, (await sort.boundingBox())!];
+  expect(o.y, "320px: Sort by under the search").toBeGreaterThanOrEqual(s.y + s.height - 1);
+  expect(await sort.locator("label").evaluate((l) => l.getBoundingClientRect().width), "320px: the label shown").toBeGreaterThan(1);
+  // The pair the list is sorted by comes first, in semibold; sorted by games (at the row's right), the pairs keep their order, none marked.
+  const firstPairs = () =>
+    rows.evaluateAll((els) =>
+      els.map((r) => {
+        const pair = r.querySelector("[data-testid=champion-summary] > div")!;
+        return { label: pair.querySelector("dt")!.textContent, sorted: pair.hasAttribute("data-sorted"), weight: Number(getComputedStyle(pair.querySelector("dd")!).fontWeight) };
+      }),
+    );
+  await page.locator("#all-champions-sort-by").selectOption("kills");
+  for (const p of await firstPairs()) expect(p).toEqual({ label: "Kills", sorted: true, weight: 600 });
+  await page.locator("#all-champions-sort-by").selectOption("double");
+  for (const p of await firstPairs()) expect(p.label).toBe("Double kills");
+  await page.locator("#all-champions-sort-by").selectOption("games");
+  for (const p of await firstPairs()) expect(p).toEqual({ label: "KDA", sorted: false, weight: 500 });
+  await expect(rows.locator("[data-sorted]")).toHaveCount(0);
+});
+
+test("at 200% text on a 320px phone, All Champions is no wider than the phone, and every champion's name is on screen", async ({ page }) => {
+  test.skip(test.info().project.name !== "phone", "a 320px phone");
+  await page.goto("/players");
+  const href = await playerEntry(page, "Demo Top").first().getAttribute("href");
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.goto(`${href}/champions`);
+  const rows = page.getByTestId("top-champion");
+  await expect(rows.first()).toBeVisible();
+  await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+  await page.evaluate(() => document.fonts.ready);
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), { message: "the page as wide as the phone" }).toBeLessThanOrEqual(0);
+  // The row stacks under a 17rem list instead of squeezing the name out beside the win rate.
+  const names = await rows.getByTestId("open-champion").evaluateAll((els) => els.map((b) => ({ text: b.textContent, width: b.getBoundingClientRect().width, right: b.getBoundingClientRect().right })));
+  for (const name of names) {
+    expect(name.width, `${name.text}: drawn`).toBeGreaterThan(40);
+    expect(name.right, `${name.text}: on screen`).toBeLessThanOrEqual(320);
+  }
+});
+
+test("All Champions on tablets and computers: a quiet bar under each champion's games, its share of every game in the filters", async ({ page }) => {
+  test.skip(test.info().project.name === "phone", "the table's Games column (phones list the games at the row's right)");
+  await page.goto("/players");
+  const href = await playerEntry(page, "Demo Top").first().getAttribute("href");
+  await page.goto(`${href}/champions`);
+  const rows = page.getByTestId("top-champion");
+  await expect(rows.first()).toBeVisible();
+  const cells = await rows.evaluateAll((els) =>
+    els.map((r) => {
+      const cell = r.querySelector<HTMLElement>("[data-testid=champion-games]")!;
+      const bar = cell.querySelector<HTMLElement>("[data-testid=champion-games-share]")!;
+      const [c, b, n] = [cell.getBoundingClientRect(), bar.getBoundingClientRect(), cell.firstElementChild!.getBoundingClientRect()];
+      return { games: Number(r.dataset.games), share: Number(bar.dataset.value), title: cell.title, hidden: bar.getAttribute("aria-hidden"), inCell: b.left >= c.left - 0.5 && b.right <= c.right + 0.5, under: b.top >= n.bottom - 0.5, height: Math.round(r.getBoundingClientRect().height) };
+    }),
+  );
+  expect(cells.length).toBeGreaterThan(1);
+  const [first] = cells;
+  for (const c of cells) {
+    // A share of one whole: each bar is its games over the same total (proportional to the games), never past the bar.
+    expect(c.share * first!.games).toBeCloseTo(first!.share * c.games, 6);
+    expect(c.share).toBeGreaterThan(0);
+    expect(c.share).toBeLessThanOrEqual(1);
+    expect(c.title).toMatch(/^\d+ games? · \d+% of the \d+ games? in these filters$/);
+    expect(c.hidden, "the bar is the figure in words for screen readers, not a second reading").toBe("true");
+    expect(c.inCell && c.under, "under the figure, inside its column").toBe(true);
+    expect(c.height, "the row keeps its height").toBeLessThanOrEqual(56);
+  }
+});
+
+test("All Champions from a 76rem list: the figures in groups, a clearly larger space before each group's first heading", async ({ page }) => {
+  test.skip(test.info().project.name !== "desktop", "a wide window");
+  await page.setViewportSize({ width: 1680, height: 1000 });
+  await page.goto("/players");
+  const href = await playerEntry(page, "Demo Top").first().getAttribute("href");
+  await page.goto(`${href}/champions`);
+  await expect(page.getByTestId("top-champion").first()).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  const heads = await page.getByTestId("all-champions-header").evaluate((h) => {
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    return {
+      rem,
+      cells: [...h.children]
+        .filter((c) => getComputedStyle(c).display !== "none")
+        .map((c) => {
+          const b = c.querySelector("button")!;
+          return { label: b.textContent!.replace(/, sorted.*/, ""), left: b.getBoundingClientRect().left, right: b.getBoundingClientRect().right };
+        }),
+    };
+  });
+  const labels = heads.cells.map((c) => c.label);
+  expect(labels).toEqual(["Champion", "Games", "Win rate", "KDA", "CS/min", "Kills", "Double", "Triple", "Quadra", "Penta", "Mastery"]);
+  // The empty space before each heading, from the one before it.
+  const space = (label: string) => {
+    const i = labels.indexOf(label);
+    return (heads.cells[i]!.left - heads.cells[i - 1]!.right) / heads.rem;
+  };
+  const inside = ["Win rate", "CS/min", "Kills", "Triple", "Quadra", "Penta"].map(space);
+  for (const start of ["KDA", "Double", "Mastery"]) expect(space(start), `${start}: ${space(start).toFixed(2)}rem against at most ${Math.max(...inside).toFixed(2)}rem inside a group`).toBeGreaterThan(Math.max(...inside) + 0.4);
+});
+
 /** All Champions as drawn: its columns, its rows' heights and role lines, and whether every heading, sort arrow and figure is whole. */
 async function championTable(page: Page) {
   await page.evaluate(() => document.fonts.ready);
