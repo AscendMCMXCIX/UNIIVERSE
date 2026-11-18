@@ -279,7 +279,6 @@ test("wide windows: every tab row starts at its pages' column, on each of their 
   const SETS: Array<{ nav: string; mode: "player" | "admin"; pages: string[]; ownBar?: boolean }> = [
     // Bars of main's own, above pages centred in their set's width (SECTION_HUBS).
     { nav: "team-tabs", mode: "player", pages: ["/team", "/players", "/leaderboards", "/leaderboards?view=records", "/matches"], ownBar: true },
-    { nav: "resources-tabs", mode: "player", pages: ["/resources", "/resources/matchups"], ownBar: true },
     { nav: "admin-settings-tabs", mode: "admin", pages: ["/admin/branding", "/admin/previews", "/admin/resources"], ownBar: true },
     // Bars inside their pages: a profile's sections, and the views of a section.
     { nav: "profile-tabs", mode: "player", pages: [profile, `${profile}/champions`, `${profile}/matches`, `${profile}/accounts`] },
@@ -952,7 +951,7 @@ test("tablet: the destinations are in the top bar, one tap each, and the avatar 
   // There is no drawer: each destination is one tap from the bar, Team marked on its sections.
   await expect(page.getByRole("button", { name: "Open menu" })).toHaveCount(0);
   const nav = page.getByRole("navigation", { name: "Primary" });
-  await expect(nav.getByRole("link")).toHaveText(["My Profile", "Team", "Resources"]);
+  await expect(nav.getByRole("link")).toHaveText(["My Profile", "Team", "Matchup Intel", "Resources"]);
   await expect(nav.getByRole("link", { name: "Team" })).toHaveAttribute("aria-current", "page");
   const avatar = page.getByTestId("mobile-topbar").getByTestId("account-menu-button");
   await avatar.click();

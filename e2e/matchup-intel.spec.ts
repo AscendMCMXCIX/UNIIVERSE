@@ -6,7 +6,7 @@ import { E2E_DDRAGON_VERSION } from "./ddragon-version";
 import { patchFromVersion, publicPatchName } from "../src/domain/patch";
 
 /*
-  RESOURCES → MATCHUP INTEL (docs/MATCHUP_INTEL.md) on the in-memory demo, which stores Data
+  MATCHUP INTEL (docs/MATCHUP_INTEL.md), a sidebar entry of its own, on the in-memory demo, which stores Data
   Dragon's abilities for every champion at the pinned version (E2E_DDRAGON_VERSION, 16.22.1, the one
   the curated notes were checked on: playwright.config.ts) and curated notes for Ambessa vs
   Renekton, Gwen vs Ornn and Riven vs Mordekaiser. Pick your champion and the enemy (each in a
@@ -375,11 +375,18 @@ test("phone: the remembered line is one row in every state, the height it keeps 
   }
 });
 
-test("phone: Back in the top bar leads to Resources, as it is named, past the pairs chosen here", async ({ page }) => {
+/** On a phone, Matchup Intel from the account screen, where a member's phone holds it (its five tabs are Team's pages and Profile). */
+async function intelFromAccountScreen(page: Page) {
+  await page.getByTestId("account-sheet-button").click();
+  await page.getByTestId("account-sheet").getByRole("link", { name: "Matchup Intel" }).click();
+  await expect(page).toHaveURL(/\/resources\/matchups$/);
+}
+
+test("phone: Back in the top bar leads to the page before, as it is named, past the pairs chosen here", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "the phone's top bar");
-  // A member's phone has no Resources tab: Resources, then its Matchup Intel tab.
+  // A member's phone has no Matchup Intel tab: the Library, then Matchup Intel from the account screen.
   await page.goto("/resources");
-  await page.getByTestId("resources-tab-matchups").click();
+  await intelFromAccountScreen(page);
   await expect(page.getByRole("heading", { level: 1, name: "Matchup Intel" })).toBeVisible();
   await choose(page, "you", "riven", "Riven");
   await choose(page, "enemy", "morde", "Mordekaiser");
@@ -397,7 +404,7 @@ test("phone, in a browser without the Navigation API (Safari before 26.2): Back 
   // only where it exists, so hiding it gives the page what an older Safari gives it.
   await page.addInitScript(() => Object.defineProperty(window, "navigation", { value: undefined, configurable: true }));
   await page.goto("/resources");
-  await page.getByTestId("resources-tab-matchups").click();
+  await intelFromAccountScreen(page);
   await expect(page.getByRole("heading", { level: 1, name: "Matchup Intel" })).toBeVisible();
   expect(await page.evaluate(() => (window as unknown as { navigation?: unknown }).navigation)).toBeUndefined();
   await choose(page, "you", "riven", "Riven");
@@ -406,6 +413,55 @@ test("phone, in a browser without the Navigation API (Safari before 26.2): Back 
   await expect(back).toContainText("Resources");
   await back.click();
   await expect(page).toHaveURL(/\/resources$/);
+});
+
+test("phone: Matchup Intel opened by a link leads Back home, not to Resources: it is a destination of its own", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1000) >= 768, "the phone's top bar");
+  await page.goto("/resources/matchups?champion=Riven&vs=Mordekaiser");
+  await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Mordekaiser");
+  const back = page.getByTestId("mobile-back");
+  await expect(back).toContainText("Team");
+  await expect(back).toHaveAttribute("href", "/team");
+});
+
+test("Matchup Intel is a destination of its own: the address and its pair open as they always did, with no tabs, marked as the page shown and Resources not", async ({ page }, info) => {
+  // The old address and every deep link keep working, and nothing redirects.
+  const response = await page.goto("/resources/matchups?champion=Riven&vs=Mordekaiser");
+  expect(response?.status()).toBe(200);
+  expect(response?.request().redirectedFrom()).toBeNull();
+  await expect(page).toHaveURL(/\/resources\/matchups\?champion=Riven&vs=Mordekaiser$/);
+  await expect(page.getByTestId("matchup-pick-you")).toHaveAttribute("data-champion", "Riven");
+  await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Mordekaiser");
+  await expect(page.getByRole("heading", { level: 1, name: "Matchup Intel" })).toBeVisible();
+  // No Library | Matchup Intel tabs on either page: each is one destination, never two.
+  await expect(page.getByTestId("resources-tabs")).toHaveCount(0);
+  await expect(page.locator("main a[href='/resources']")).toHaveCount(0);
+  // Marked as the page shown where the frame lists it: the sidebar, a tablet's top bar, the phone's account screen.
+  const marks = async () => {
+    if (info.project.name === "desktop") {
+      const nav = page.locator("aside").getByRole("navigation", { name: "Main" });
+      return { intel: nav.getByRole("link", { name: "Matchup Intel" }), resources: nav.getByRole("link", { name: "Resources" }) };
+    }
+    if (info.project.name === "tablet") {
+      const nav = page.getByRole("navigation", { name: "Primary" });
+      return { intel: nav.getByRole("link", { name: "Matchup Intel" }), resources: nav.getByRole("link", { name: "Resources" }) };
+    }
+    await page.getByTestId("account-sheet-button").click();
+    const screen = page.getByTestId("account-sheet");
+    return { intel: screen.getByRole("link", { name: "Matchup Intel" }), resources: screen.getByRole("link", { name: "Resources" }) };
+  };
+  let m = await marks();
+  await expect(m.intel).toHaveAttribute("aria-current", "page");
+  await expect(m.intel).toHaveAttribute("href", "/resources/matchups");
+  await expect(m.resources).not.toHaveAttribute("aria-current", "page");
+  // The Library: Resources marked, Matchup Intel not, and no tabs there either.
+  await page.goto("/resources");
+  await expect(page.getByTestId("resources-list")).toBeVisible();
+  await expect(page.getByTestId("resources-tabs")).toHaveCount(0);
+  await expect(page.locator("main a[href^='/resources/matchups']")).toHaveCount(0);
+  m = await marks();
+  await expect(m.resources).toHaveAttribute("aria-current", "page");
+  await expect(m.intel).not.toHaveAttribute("aria-current", "page");
 });
 
 test("the champion window links to Matchup Intel with its champion chosen", async ({ page }) => {

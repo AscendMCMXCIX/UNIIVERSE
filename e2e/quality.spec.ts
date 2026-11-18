@@ -87,10 +87,10 @@ test.describe("accessibility", () => {
     }
   });
 
-  test("at 1920, where the section tabs' row takes the pages' width, Team's sections and Resources have no critical or serious violations", async ({ page }) => {
+  test("at 1920, where the section tabs' row takes the pages' width, Team's sections, Matchup Intel and Resources have no critical or serious violations", async ({ page }) => {
     test.setTimeout(120_000);
     await page.setViewportSize({ width: 1920, height: 1080 });
-    for (const route of ["/team", "/players", "/leaderboards", "/matches", "/resources"]) {
+    for (const route of ["/team", "/players", "/leaderboards", "/matches", "/resources/matchups", "/resources"]) {
       await page.goto(route);
       await page.waitForLoadState("networkidle");
       await audit(page, `${route} at 1920`);
@@ -401,11 +401,12 @@ test.describe("retired Ranked Development", () => {
 test.describe("sidebar entries", () => {
   test.beforeEach(({}, info) => test.skip(info.project.name !== "desktop", "runs once"));
 
-  test("Player Mode is three single entries, My Profile, Team and Resources, with no groups to fold", async ({ page }) => {
+  test("Player Mode is four single entries, My Profile, Team, Matchup Intel and Resources, with no groups to fold", async ({ page }) => {
     await page.goto("/team");
     const aside = page.locator("aside");
     const order = await aside.locator("nav[aria-label='Main'] a").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")));
-    expect(order).toEqual(["nav-overview", "nav-team", "nav-resources"]);
+    expect(order).toEqual(["nav-overview", "nav-team", "nav-resources-matchups", "nav-resources"]);
+    await expect(aside.locator("nav[aria-label='Main'] a")).toHaveText(["My Profile", "Team", "Matchup Intel", "Resources"]);
     await expect(aside.getByTestId("nav-team")).toHaveAttribute("aria-current", "page");
   });
 

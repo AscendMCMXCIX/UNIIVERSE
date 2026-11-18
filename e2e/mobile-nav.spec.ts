@@ -124,7 +124,7 @@ test("a profile's sections stay under the top bar, and the bar shows the player'
   await expect(page).toHaveURL(/\/players$/);
 });
 
-test("the avatar opens the account screen: Resources, Settings, Install App and Sign out live there", async ({ page }) => {
+test("the avatar opens the account screen: Matchup Intel, Resources, Settings, Install App and Sign out live there", async ({ page }) => {
   await page.goto("/team");
   // No menu drawer anywhere (a tablet's destinations are in its top bar).
   await expect(page.getByTestId("menu-button")).toHaveCount(0);
@@ -133,7 +133,8 @@ test("the avatar opens the account screen: Resources, Settings, Install App and 
   await expect(screen).toBeVisible();
   await expect(screen).toHaveAttribute("data-size", "screen");
   await expect(screen.getByRole("heading", { name: "Account" })).toBeVisible();
-  await expect(screen.getByRole("link", { name: "Resources" })).toBeVisible();
+  // The pages the tab bar does not hold, in the sidebar's order: Matchup Intel, then Resources.
+  await expect(screen.getByRole("navigation", { name: "More pages and your account" }).getByRole("link")).toHaveText(["Matchup Intel", "Resources", "Settings"]);
   await expect(screen.getByRole("link", { name: "Settings" })).toBeVisible();
   await expect(screen.getByText("Not endorsed by Riot Games.")).toBeVisible();
   // Full-width rows, finger-sized.
@@ -143,8 +144,21 @@ test("the avatar opens the account screen: Resources, Settings, Install App and 
   await screen.getByRole("link", { name: "Resources" }).click();
   await expect(page).toHaveURL(/\/resources$/);
   await expect(screen).toHaveCount(0);
-  // Resources has no tab here, so it is a page reached from another: Back.
+  // Resources has no tab here, so it is a page reached from another: Back. No tabs in the page.
   await expect(page.getByTestId("mobile-back")).toBeVisible();
+  await expect(page.getByTestId("resources-tabs")).toHaveCount(0);
+  // Matchup Intel likewise, one tap from the account screen, and marked there as the page shown.
+  await page.getByTestId("account-sheet-button").click();
+  await expect(screen.getByRole("link", { name: "Resources" })).toHaveAttribute("aria-current", "page");
+  await expect(screen.getByRole("link", { name: "Matchup Intel" })).not.toHaveAttribute("aria-current", "page");
+  await screen.getByRole("link", { name: "Matchup Intel" }).click();
+  await expect(page).toHaveURL(/\/resources\/matchups$/);
+  await expect(screen).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 1, name: "Matchup Intel" })).toBeVisible();
+  await expect(page.getByTestId("mobile-back")).toBeVisible();
+  await page.getByTestId("account-sheet-button").click();
+  await expect(screen.getByRole("link", { name: "Matchup Intel" })).toHaveAttribute("aria-current", "page");
+  await expect(screen.getByRole("link", { name: "Resources" })).not.toHaveAttribute("aria-current", "page");
 });
 
 test("the account screen fills a small phone in Player Mode and Admin Mode: everything in view without scrolling, every control in reach", async ({ page, context, baseURL }) => {
@@ -172,6 +186,7 @@ test("the account screen fills a small phone in Player Mode and Admin Mode: ever
       await expect(screen.getByRole("link", { name: "Dashboard" })).toHaveCount(0);
       await expect(screen.getByTestId("mode-switch")).toBeInViewport();
     } else {
+      await expect(screen.getByRole("link", { name: "Matchup Intel" })).toBeInViewport();
       await expect(screen.getByRole("link", { name: "Resources" })).toBeInViewport();
     }
     await expect(screen.getByText("Not endorsed by Riot Games.")).toBeInViewport();
@@ -291,7 +306,7 @@ test.describe("a tablet before the page's code has run", () => {
 test("a tablet's destinations are in its top bar, one tap each; its avatar menu holds the account's items, the switch between the modes, the patch and Riot's notice", { tag: "@tablet" }, async ({ page, context, baseURL }) => {
   await page.goto("/team");
   const nav = page.getByRole("navigation", { name: "Primary" });
-  await expect(nav.getByRole("link")).toHaveText(["My Profile", "Team", "Resources"]);
+  await expect(nav.getByRole("link")).toHaveText(["My Profile", "Team", "Matchup Intel", "Resources"]);
   // The current destination is marked twice: its icon in the brand blue and its lift, and the name bright.
   const team = nav.getByRole("link", { name: "Team" });
   await expect(team).toHaveAttribute("aria-current", "page");
@@ -303,6 +318,13 @@ test("a tablet's destinations are in its top bar, one tap each; its avatar menu 
   await nav.getByRole("link", { name: "Resources" }).click();
   await expect(page).toHaveURL(/\/resources$/);
   await expect(nav.getByRole("link", { name: "Resources" })).toHaveAttribute("aria-current", "page");
+  await expect(nav.locator("a[aria-current=page]")).toHaveCount(1);
+  // Matchup Intel is a destination of its own, marked on its page with a pair chosen, Resources not.
+  await nav.getByRole("link", { name: "Matchup Intel" }).click();
+  await expect(page).toHaveURL(/\/resources\/matchups$/);
+  await page.goto("/resources/matchups?champion=Riven&vs=Mordekaiser");
+  await expect(nav.getByRole("link", { name: "Matchup Intel" })).toHaveAttribute("aria-current", "page");
+  await expect(nav.locator("a[aria-current=page]")).toHaveCount(1);
   await page.goto("/matches");
   await expect(team).toHaveAttribute("aria-current", "page");
   const avatar = page.getByTestId("mobile-topbar").getByTestId("account-menu-button");
@@ -333,9 +355,10 @@ test("a tablet's destinations are in its top bar, one tap each; its avatar menu 
 
 test("a tablet's top bar gives way at a larger text size: the team's name first, then the labels, by its own width, and never wider than the window", { tag: "@tablet" }, async ({ page, context, baseURL }) => {
   // BAR_FIT in mobile-nav.tsx, in rem of the bar's row less its gutters: Player Mode's name below
-  // 34rem and labels below 28rem, Admin Mode's below 43rem and 36.5rem. A 768px tablet's row is 46rem
-  // at 100% text, 36.8rem at 125%, 30.7rem at 150% and 23rem at 200%.
-  const FIT = { player: { brand: 34, labels: 28 }, admin: { brand: 43, labels: 36.5 } } as const;
+  // 42.5rem and labels below 36.5rem (four destinations since Matchup Intel's own entry), Admin Mode's
+  // below 43rem and 36.5rem. A 768px tablet's row is 46rem at 100% text, 36.8rem at 125%, 30.7rem at
+  // 150% and 23rem at 200%.
+  const FIT = { player: { brand: 42.5, labels: 36.5 }, admin: { brand: 43, labels: 36.5 } } as const;
   for (const mode of ["player", "admin"] as const) {
     await context.addCookies([{ name: "uniiverse_view", value: mode, url: baseURL! }]);
     for (const root of [100, 125, 150, 200]) {
