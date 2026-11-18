@@ -76,17 +76,20 @@ const STACKED_ROW = "@max-[11.125rem]/roster:flex-wrap @max-[11.125rem]/roster:g
 
 /*
   The "·" before the rank (or "No Riot account") shows where the two share a line with the role, and
-  never starts a line. Larger text, or the narrowest rows, wrap the rank under the role, where the
-  line started with the "·" ("· Emerald III" at 200% on a 320px phone; "· No Riot account"). The dot
-  sits between parts of the line (the role's icon, the rank's crest), not inside a run of words, so a
+  never starts a line. Larger text wraps the rank under the role in a narrow row, where the line
+  started with the "·" ("· Emerald III" at 200% on a 320px phone; "· No Riot account"). The dot sits
+  between parts of the line (the role's icon, the rank's crest), not inside a run of words, so a
   no-break space (Recent form's way) has nothing to hold it to; Records' way does it (records.tsx):
-  the role keeps the dot's room on its right (BEFORE), the rank's group gives it back on its left
-  (GROUP), so beside the role nothing moves (the two cancel exactly, and the line wraps where it
+  the role keeps the dot's room on its right (`before`), the rank's group gives it back on its left
+  (`group`), so beside the role nothing moves (the two cancel exactly, and the line wraps where it
   did), and at the start of a line the dot and its gap sit past the line's clipped left edge
-  (roster-meta's overflow-x-clip) while the crest or the words start at the edge. The room is the
-  dot (0.289em of Inter at the line's text size) and the 0.375rem gap after it.
+  (`line`) while the crest or the words start at the edge. The room is the dot (0.289em of Inter at
+  the line's text size) and the 0.375rem gap after it. Only under 16rem of row: a row at the usual
+  text size is 16.4rem or more (a 320px phone's), where the longest role and rank ("Roles not set ·
+  No Riot account", "· Grandmaster") fit beside each other with room to spare, and the clip alone
+  would change how the line's portraits are drawn there (by a shade).
 */
-const SEPARATOR = { before: "mr-[calc(0.289em+0.375rem)]", group: "-ml-[calc(0.289em+0.375rem)]" };
+const SEPARATOR = { line: "@max-[16rem]/row:overflow-x-clip", before: "@max-[16rem]/row:mr-[calc(0.289em+0.375rem)]", group: "@max-[16rem]/row:-ml-[calc(0.289em+0.375rem)]" };
 const STACKED_PICTURE = "@max-[11.125rem]/roster:h-auto";
 const STACKED_TEXT = "@max-[11.125rem]/roster:basis-full";
 
@@ -209,7 +212,7 @@ export function RosterRow({ look, art, name, avatarUrl, role, offRoles, offRoleS
             the narrowest rows), and only a part wider than a whole line wraps its own words. The pool
             keeps at least a portrait and its count (one portrait for a pool of one) and takes the rest
             of its line. */}
-        <span className="order-2 flex min-h-7 min-w-0 basis-full flex-wrap items-center gap-x-1.5 gap-y-1 overflow-x-clip text-xs text-fg-muted" data-testid="roster-meta">
+        <span className={cn("order-2 flex min-h-7 min-w-0 basis-full flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-fg-muted", SEPARATOR.line)} data-testid="roster-meta">
           <RoleCluster role={role} offRoles={offRoles} shown={offRoleShown} className={separated ? SEPARATOR.before : undefined} />
           {/* Without a Riot account no rank was read, so none is claimed ("Unranked" means a check found no placement). Its "·" never starts a line (SEPARATOR). */}
           {riot?.state === "none" ? (
