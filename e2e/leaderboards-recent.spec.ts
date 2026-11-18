@@ -10,7 +10,7 @@ import { expect, test, type Page } from "./test";
   under 36rem, from 36rem, from 58rem); the states the demo never shows (a provisional window, your
   own row, a shared first place) are checked as markup in recent-leaderboards.test.ts. Records'
   boards follow the view's own width (under 36rem one column with an index of its sections, from
-  62rem the book beside the multikills, from 96rem three columns); what the demo never shows there
+  62rem the book beside the multikills, from 98rem three columns); what the demo never shows there
   (the viewer's best, a record nobody holds, the public boards) is markup in records.test.ts.
 */
 
@@ -381,7 +381,10 @@ test("Records & achievements: seven records in one book, each opening its game; 
   const portrait = page.locator("[data-testid=season-record][data-record=kills] [data-testid=record-picture]").locator("img, [role=img]").first();
   await expect(portrait).toBeVisible();
   expect((await portrait.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-  // From a 36rem book every row is one line beside its 48px picture: at most 72px.
+  // From a 36rem book every row is two lines beside its 48px picture (the record and its qualifier
+  // over the holder, champion, role, K/D/A and date): 64px where each fits its line, at most 72px.
+  // On a book under about 37.7rem (39.9rem with a member's best) the damage record's qualifier takes
+  // a line of its own (about 78px there): this runs at the 768 and 1440 books (45 and 44.5rem).
   if ((await bookRem(page)) >= 36) {
     for (const h of await book.getByTestId("season-record").evaluateAll((rows) => rows.map((r) => r.getBoundingClientRect().height))) expect(h, "a record row from a 36rem book").toBeLessThanOrEqual(72);
   }
@@ -423,7 +426,7 @@ test("Records & achievements: seven records in one book, each opening its game; 
   await expect(page.locator("[data-testid=match-detail], [data-testid=match-breakdown]").first()).toBeVisible();
 });
 
-test("Records at 1440: the book beside the multikills, every record and multikill on the first screen; from 96rem three columns on one screen", async ({ page }, info) => {
+test("Records at 1440: the book beside the multikills, every record and multikill on the first screen; from 98rem three columns on one screen", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "explicit window sizes");
   await page.setViewportSize({ width: 1440, height: 900 });
   await openRecords(page);
@@ -445,7 +448,7 @@ test("Records at 1440: the book beside the multikills, every record and multikil
   for (const h of f.rows) expect(h, "a record row").toBeLessThanOrEqual(72);
   // A short board never stretches beside a tall one.
   expect(f.multikills.height).toBeLessThan(f.book.height);
-  // From 96rem (2560 and 3440 wide): book, multikills and milestones side by side, the page on one screen.
+  // From 98rem (2560 and 3440 wide): book, multikills and milestones side by side, the page on one screen.
   for (const width of [2560, 3440]) {
     await page.setViewportSize({ width, height: 1440 });
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
@@ -471,14 +474,26 @@ test("Records on a phone: three-line records, an index that jumps to each sectio
   expect(holder!.y, "the holder under the record").toBeGreaterThanOrEqual(title!.y + title!.height - 1);
   expect(game!.y, "the game under the holder").toBeGreaterThanOrEqual(holder!.y + holder!.height - 1);
   expect(Math.abs(value!.y + value!.height / 2 - (holder!.y + holder!.height / 2)), "the value on the holder's line").toBeLessThanOrEqual(4);
-  const killsRow = (await kills.boundingBox())!;
-  expect(killsRow.height, "a three-line record").toBeLessThanOrEqual(96);
+  // Every row: three lines, at most 96px; a qualifier that starts a line of its own (the demo's damage
+  // record at 375px) adds one, at most 112px.
+  const rows = await page.getByTestId("season-record").evaluateAll((els) =>
+    els.map((row) => {
+      const label = row.querySelector("[data-testid=record-label]")!.getBoundingClientRect();
+      const qualifier = row.querySelector("[data-testid=record-qualifier]")?.getBoundingClientRect() ?? null;
+      return { id: row.getAttribute("data-record"), height: row.getBoundingClientRect().height, ownLine: !!qualifier && qualifier.top >= label.bottom - 2 };
+    }),
+  );
+  expect(rows).toHaveLength(7);
+  for (const r of rows) expect(r.height, `${r.id}: ${r.ownLine ? "its qualifier on a line of its own" : "three lines"}`).toBeLessThanOrEqual(r.ownLine ? 112 : 96);
   // The index: the page's three sections, each jump an entry of the page's own, the section under the top bar and focused.
   const index = page.getByTestId("section-index");
   await expect(index.getByRole("link")).toHaveText(["Season records", "Multikills", "Milestones"]);
   for (const [name, id] of [["Milestones", "milestones"], ["Multikills", "multikills"]] as const) {
+    // Chromium has the Navigation API, so each jump pushes an entry (the phone's Back steps past it).
+    const entries = await page.evaluate(() => history.length);
     await index.getByRole("link", { name }).tap();
     await expect(page).toHaveURL(new RegExp(`/leaderboards\\?view=records#${id}$`));
+    await expect.poll(() => page.evaluate(() => history.length), { message: `${name}: an entry of the page's own` }).toBe(entries + 1);
     const section = page.locator(`section#${id}`);
     await expect(section).toBeFocused();
     const bar = (await page.getByTestId("mobile-topbar").boundingBox())!;
