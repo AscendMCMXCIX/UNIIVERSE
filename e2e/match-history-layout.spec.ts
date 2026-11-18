@@ -109,7 +109,8 @@ test("a narrow card keeps the time of its game in view, on a 320px phone too", a
   for (const size of [page.viewportSize()!, { width: 320, height: 568 }]) {
     await page.setViewportSize(size);
     await page.goto(`${profile}/matches`, { waitUntil: "networkidle" });
-    const metas = page.getByTestId("match-card-meta");
+    // The result line shown (a two-row card's copy waits for its width).
+    const metas = page.getByTestId("match-card-meta").filter({ visible: true });
     const count = await metas.count();
     expect(count).toBeGreaterThan(0);
     // Cards with a "Best … in N" chip too: on a narrow card it sits in the figures' row, so the KDA
@@ -245,9 +246,10 @@ test("an item whose image fails shows its initials, and an empty slot stays a pl
   const profile = await profileOf(page, "TOP");
   await page.goto(`${profile}/matches`, { waitUntil: "networkidle" });
   const card = page.getByTestId("match-card").first();
-  const standIns = card.getByTestId("icon-initials");
+  // The build shown (a phone's copy beside the champion waits for its width).
+  const standIns = card.getByTestId("icon-initials").filter({ visible: true });
   // Every item image of the card has failed and given way (no broken-image glyph anywhere).
-  await expect(card.locator('img[src*="/img/item/"]')).toHaveCount(0);
+  await expect(card.locator('img[src*="/img/item/"]').filter({ visible: true })).toHaveCount(0);
   await expect(standIns.first()).toBeVisible();
   const shown = await standIns.evaluateAll((els) => els.map((e) => ({ name: e.getAttribute("title") ?? "", label: e.getAttribute("aria-label") ?? "", letters: (e.textContent ?? "").trim(), width: e.getBoundingClientRect().width })));
   for (const s of shown) {
@@ -258,14 +260,15 @@ test("an item whose image fails shows its initials, and an empty slot stays a pl
     expect(s.width).toBeGreaterThan(16);
   }
   // The build's empty slots draw no letters: a stand-in only where an item was bought.
-  const slots = await card.locator('[aria-label^="Items:"] > *').count();
+  const build = card.locator('[aria-label^="Items:"]').filter({ visible: true });
+  await expect(build).toHaveCount(1);
+  const slots = await build.locator("> *").count();
   expect(slots).toBe(7);
   expect(shown.length).toBeLessThanOrEqual(7);
-  expect(shown.length).toBe(await card.locator('[aria-label^="Items:"] [data-testid="icon-initials"]').count());
+  expect(shown.length).toBe(await build.locator('[data-testid="icon-initials"]').count());
 });
 
 test("a build that was not recorded draws nothing on its card, and the page says it once", async ({ page }, info) => {
-  test.skip(info.project.name === "tablet", "the phone's and the wide card cover it");
   // A member whose games come from the browser tests' Riot stand-in (server/riot/browser-test.ts):
   // its records carry no items, as a stored record without a build does.
   const { username } = await createMember(page, "Nobuild");
@@ -286,13 +289,36 @@ test("a build that was not recorded draws nothing on its card, and the page says
     expect(box.width).toBeLessThanOrEqual(1);
     expect(box.height).toBeLessThanOrEqual(1);
   }
-  // A wide card's figures still end before the next column, the build's room (kept empty, so the
-  // columns stay level) or the teams: the screen-reader note takes no room in the row.
-  if (info.project.name === "desktop") {
+  // A wide or two-row card's figures still end before the next column, the build's room (kept
+  // empty, so the columns stay level) or the teams: the screen-reader note takes no room in the row.
+  if (!isPhone(page)) {
     for (const [i, c] of (await page.getByTestId("match-card").evaluateAll(cardGeometry)).entries()) {
       expect(c.next, `card ${i}`).not.toBeNull();
       expect(c.nextIs, `card ${i}: the next column is not the screen-reader note`).not.toBe("items-missing");
       expect(Math.max(c.cs, c.damage), `card ${i}: the figures end before the next column`).toBeLessThanOrEqual(c.next! + 0.5);
+    }
+  }
+  // A tablet's two-row card keeps the build's room in its first row (no ghost slots), and its teams
+  // in the second, under the figures and the portrait.
+  if (info.project.name === "tablet") {
+    const rows = await page.getByTestId("match-card").evaluateAll(cardRows);
+    for (const [i, c] of rows.entries()) {
+      expect(c.build, `card ${i}: no build drawn`).toBeNull();
+      if (c.teams) expect(c.teams.top, `card ${i}: the teams in a row of their own`).toBeGreaterThanOrEqual(Math.max(c.figures!.bottom, c.portrait!.bottom) - 0.5);
+    }
+    // The room is the build's width (about 94px), on the figures' row.
+    const room = await page.getByTestId("match-card").evaluateAll((cards) =>
+      cards.map((card) => {
+        const figures = card.querySelector('[data-testid="match-figures"]')!;
+        let next = figures.nextElementSibling;
+        while (next && (next.getBoundingClientRect().width < 0.5 || getComputedStyle(next).position === "absolute")) next = next.nextElementSibling;
+        const [a, b] = [figures.getBoundingClientRect(), next!.getBoundingClientRect()];
+        return { width: b.width, sameRow: b.top < a.bottom && b.bottom > a.top };
+      }),
+    );
+    for (const [i, r] of room.entries()) {
+      expect(r.width, `card ${i}: the build's room kept`).toBeGreaterThanOrEqual(88);
+      expect(r.sameRow, `card ${i}: on the figures' row`).toBe(true);
     }
   }
   // The page says it once, in its data status.
@@ -439,26 +465,75 @@ test("on a phone, Refine shows Result and keeps the other fields behind More fil
   expect(await overflow(page)).toBeLessThanOrEqual(1);
 });
 
-/** Each card's rows as drawn: the result line, the portrait, the champion, the K/D/A, the build, the figures and the teams. */
+/**
+ * Each card's rows as drawn: the result line, the portrait, the champion, the K/D/A, the build, the
+ * figures and the teams. Where a part has a copy for another width (a phone's result line and build
+ * are placed where they are read: MatchCard), the one shown is measured.
+ */
 const cardRows = (els: Element[]) =>
   els.map((card) => {
     const box = (e: Element | null) => (e ? e.getBoundingClientRect().toJSON() : null);
-    const shown = (e: Element | null) => (e && e.getBoundingClientRect().width > 1 ? e : null);
-    const lp = [...card.querySelectorAll('[data-testid="match-lp"]')].find((e) => e.getBoundingClientRect().width > 0) ?? null;
+    const shown = (sel: string) => [...card.querySelectorAll(sel)].find((e) => e.getBoundingClientRect().width > 1) ?? null;
+    const build = shown('[aria-label^="Items:"]');
     return {
       height: card.getBoundingClientRect().height,
       card: box(card)!,
-      meta: box(shown(card.querySelector('[data-testid="match-card-meta"]'))),
-      lp: box(lp),
+      meta: box(shown('[data-testid="match-card-meta"]')),
+      lp: box(shown('[data-testid="match-lp"]')),
       portrait: box(card.querySelector('[data-testid="match-loadout"]')!.firstElementChild),
       champion: box(card.querySelector('[data-testid="match-champion"]')),
+      championCut: (() => {
+        const name = card.querySelector('[data-testid="match-champion"]')!;
+        return name.scrollWidth - name.clientWidth;
+      })(),
       kda: box(card.querySelector('[data-testid="match-kda"]')),
-      build: box(shown(card.querySelector('[aria-label^="Items:"]'))),
+      build: box(build),
+      // The build's own box: nothing in it cut off (its wrapper hides what overflows).
+      buildCut: build ? build.parentElement!.scrollWidth - build.parentElement!.clientWidth : 0,
       figures: box(card.querySelector('[data-testid="match-figures"]')),
+      kp: box(card.querySelector('[data-testid="match-kp"]')),
       cs: box(card.querySelector('[data-testid="match-cs"]')),
-      teams: box(shown(card.querySelector('[data-testid="match-teams"]'))),
+      teams: box(shown('[data-testid="match-teams"]')),
       extra: !!card.querySelector('[data-testid="match-members"], [data-testid="match-multikill"], [data-testid="match-standout"]'),
     };
+  });
+
+/**
+ * A phone's card is read in the order it is drawn: its parts in the page's order follow the grid's
+ * rows, then its columns (the cell each part is placed in, read from the grid). Returns the parts in
+ * page order and in drawn order, by name.
+ */
+const readingOrder = (els: Element[]) =>
+  els.map((card) => {
+    const grid = card.querySelector('[data-testid="match-card-grid"]')!;
+    const cells: Element[] = [];
+    const walk = (el: Element) => {
+      for (const c of el.children) {
+        if (getComputedStyle(c).display === "contents") walk(c);
+        else cells.push(c);
+      }
+    };
+    walk(grid);
+    const shown = (sel: string) => [...card.querySelectorAll(sel)].find((e) => e.getBoundingClientRect().width > 1) ?? null;
+    const parts = Object.entries({
+      result: shown('[data-testid="match-card-meta"]'),
+      portrait: card.querySelector('[data-testid="match-loadout"]'),
+      champion: card.querySelector('[data-testid="match-champion"]'),
+      kda: card.querySelector('[data-testid="match-kda"]'),
+      build: shown('[aria-label^="Items:"]'),
+      kp: card.querySelector('[data-testid="match-kp"]'),
+      cs: card.querySelector('[data-testid="match-cs"]'),
+      damage: card.querySelector('[data-testid="match-damage"]'),
+    })
+      .filter((e): e is [string, Element] => !!e[1] && e[1].getBoundingClientRect().width > 1)
+      .map(([name, el]) => {
+        const cell = cells.find((c) => c === el || c.contains(el))!;
+        const cs = getComputedStyle(cell);
+        return { name, el, row: parseInt(cs.gridRowStart) || 0, col: parseInt(cs.gridColumnStart) || 0 };
+      });
+    const inPage = [...parts].sort((a, b) => (a.el.compareDocumentPosition(b.el) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+    const drawn = [...inPage].sort((a, b) => a.row - b.row || a.col - b.col);
+    return { inPage: inPage.map((p) => p.name), drawn: drawn.map((p) => p.name), placed: parts.every((p) => p.row > 0) };
   });
 
 test("a phone's card is about 118px: the result line across it with the LP at its end, the build beside the champion, and the first game whole on the first screen", async ({ page }) => {
@@ -493,51 +568,77 @@ test("a phone's card is about 118px: the result line across it with the LP at it
         expect(c.build.top, `${where}: under the champion's name`).toBeGreaterThanOrEqual(c.champion!.bottom - 0.5);
         expect(c.build.bottom, `${where}: above the figures`).toBeLessThanOrEqual(c.figures!.top + 0.5);
         expect(c.build.right, `${where}: clear of the K/D/A`).toBeLessThanOrEqual(c.kda!.left + 0.5);
+        expect(c.buildCut, `${where}: no item cut off`).toBeLessThanOrEqual(0.5);
       }
       // Phones leave the teams to the game's own screen.
       expect(c.teams, where).toBeNull();
+    }
+    // Read in the order drawn: the result line, the portrait, the champion, the K/D/A, the build, the figures.
+    for (const [i, o] of (await page.getByTestId("match-card").evaluateAll(readingOrder)).entries()) {
+      expect(o.placed, `${at}, card ${i}: every part placed in the grid`).toBe(true);
+      expect(o.inPage, `${at}, card ${i}: the page's order is the drawn order`).toEqual(o.drawn);
     }
     // The first game is whole above the tab bar.
     const bar = await page.getByTestId("phone-tabbar").evaluate((el) => el.getBoundingClientRect().top);
     expect(cards[0]!.card.bottom, `${at}: the first game whole on the first screen`).toBeLessThanOrEqual(bar);
     expect(await overflow(page)).toBeLessThanOrEqual(1);
   }
+  // The widest K/D/A a real game gives ("10 / 10 / 10"; the demo's deaths stop at 9) at 375px, a
+  // 21.375rem list: the build still fits beside it, whole.
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.goto(`${profile}/matches`, { waitUntil: "networkidle" });
+  await page.evaluate(() => document.fonts.ready);
+  const widest = page.getByTestId("match-card").filter({ has: page.locator('[aria-label^="Items:"]:visible') }).first();
+  await widest.getByTestId("match-kda").evaluate((el) => (el.textContent = "10 / 10 / 10"));
+  const [w] = await widest.evaluateAll(cardRows);
+  expect(w!.build, "375px with 10 / 10 / 10: the build beside the champion").not.toBeNull();
+  expect(w!.build!.right, "375px with 10 / 10 / 10: the build clear of the K/D/A").toBeLessThanOrEqual(w!.kda!.left + 0.5);
+  expect(w!.buildCut, "375px with 10 / 10 / 10: no item cut off").toBeLessThanOrEqual(0.5);
   // The narrowest phone (320px): the build closes the card, kill participation sits under the
-  // champion, and the CS and damage keep one line.
+  // champion (right of the portrait, above the CS), and the CS and damage keep one line.
   await page.setViewportSize({ width: 320, height: 568 });
   await page.goto(`${profile}/matches`, { waitUntil: "networkidle" });
   await page.evaluate(() => document.fonts.ready);
   const narrow = await page.getByTestId("match-card").evaluateAll(cardRows);
   for (const [i, c] of narrow.entries()) {
-    expect(c.height, `320px, card ${i}`).toBeLessThanOrEqual(c.extra ? 170 : 146);
+    const where = `320px, card ${i}`;
+    expect(c.height, where).toBeLessThanOrEqual(c.extra ? 170 : 146);
     // (The figures' own box steps aside there: the CS line stands for it.)
-    if (c.build) expect(c.build.top, `320px, card ${i}: the build last`).toBeGreaterThanOrEqual(c.cs!.bottom - 0.5);
+    if (c.build) expect(c.build.top, `${where}: the build last`).toBeGreaterThanOrEqual(c.cs!.bottom - 0.5);
+    expect(c.kp!.left, `${where}: kill participation right of the portrait`).toBeGreaterThanOrEqual(c.portrait!.right - 0.5);
+    expect(c.kp!.top, `${where}: kill participation under the champion`).toBeGreaterThanOrEqual(c.champion!.bottom - 0.5);
+    expect(c.kp!.bottom, `${where}: kill participation above the CS`).toBeLessThanOrEqual(c.cs!.top + 0.5);
   }
+  for (const [i, o] of (await page.getByTestId("match-card").evaluateAll(readingOrder)).entries()) expect(o.inPage, `320px, card ${i}: the page's order is the drawn order`).toEqual(o.drawn);
   const lines = await page.getByTestId("match-cs").evaluateAll((els) => els.map((cs) => Math.abs(cs.getBoundingClientRect().top - cs.parentElement!.querySelector('[data-testid="match-damage"]')!.getBoundingClientRect().top)));
   for (const d of lines) expect(d, "320px: CS and damage on one line").toBeLessThanOrEqual(1);
   expect(await overflow(page)).toBeLessThanOrEqual(1);
 });
 
 test("a 36–50rem list's card is two rows: the game's figures and build in one, both teams in the other, about 120px", async ({ page }, info) => {
-  test.skip(info.project.name !== "tablet", "an iPad-width list (45rem at 768px)");
+  test.skip(info.project.name === "desktop", "an iPad's list (45rem at 768px) and a phone's held sideways (43rem at 740×360)");
   const profile = await profileOf(page, "ADC");
-  for (const width of [768, 810]) {
-    await page.setViewportSize({ width, height: 1080 });
+  const sizes = isPhone(page) ? [{ width: 740, height: 360 }] : [{ width: 768, height: 1080 }, { width: 810, height: 1080 }];
+  for (const size of sizes) {
+    await page.setViewportSize(size);
     await page.goto(`${profile}/matches`, { waitUntil: "networkidle" });
     await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
     await page.evaluate(() => document.fonts.ready);
     const cards = await page.getByTestId("match-card").evaluateAll(cardRows);
     expect(cards.length).toBeGreaterThan(5);
+    expect(cards.filter((c) => c.teams).length, `${size.width}px: the teams under the game`).toBeGreaterThan(5);
     for (const [i, c] of cards.entries()) {
-      const where = `${width}px, card ${i}`;
+      const where = `${size.width}px, card ${i}`;
       if (!c.teams) continue;
+      // A phone held sideways shows the teams as icons: a shorter second row.
       expect(c.height, where).toBeLessThanOrEqual(c.extra ? 145 : 128);
       // One row: the champion, the K/D/A, the figures and the build side by side.
       expect(c.kda!.left, `${where}: the K/D/A after the champion`).toBeGreaterThanOrEqual(c.champion!.left);
       expect(c.figures!.left, `${where}: the figures after the K/D/A`).toBeGreaterThan(c.kda!.right - 0.5);
       if (c.build) expect(c.build.left, `${where}: the build after the figures`).toBeGreaterThan(c.figures!.right - 0.5);
-      // The result line over the champion, with the LP on it.
+      // The result line over the champion, with the LP on it; the champion's name whole.
       expect(c.meta!.bottom, `${where}: the result line over the champion`).toBeLessThanOrEqual(c.champion!.top + 0.5);
+      expect(c.championCut, `${where}: the champion's name whole`).toBeLessThanOrEqual(1);
       if (c.lp) {
         // On the result line, one line with the queue named without "Ranked".
         expect(c.lp.top + c.lp.height / 2, `${where}: the LP on the result line`).toBeGreaterThan(c.meta!.top);
@@ -551,8 +652,26 @@ test("a 36–50rem list's card is two rows: the game's figures and build in one,
   }
 });
 
-test("the views, Filters and Refresh share one row; narrowed filters bring their chips on a row of their own", async ({ page }, info) => {
-  test.skip(info.project.name === "desktop", "a phone's and a tablet's toolbar (from xl it sat beside the views already)");
+test("a two-row card keeps the longest champion names whole, even on a 36rem list", async ({ page }) => {
+  test.skip(!isPhone(page), "a 608px window: a 36rem list, the narrowest two-row card");
+  const profile = await profileOf(page, "ADC");
+  await page.setViewportSize({ width: 608, height: 900 });
+  await page.goto(`${profile}/matches`, { waitUntil: "networkidle" });
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  await page.evaluate(() => document.fonts.ready);
+  const card = page.getByTestId("match-card").filter({ has: page.locator('[data-testid="match-teams"]:visible') }).first();
+  for (const name of ["Heimerdinger", "Nunu & Willump", "Aurelion Sol", "Renata Glasc"]) {
+    await card.getByTestId("match-champion").evaluate((el, n) => (el.textContent = n), name);
+    const [c] = await card.evaluateAll(cardRows);
+    expect(c!.championCut, `${name}: whole`).toBeLessThanOrEqual(1);
+    // The name has the box; the role takes the next line when both do not fit, the card stays compact.
+    expect(c!.kda!.left, `${name}: the K/D/A after the name`).toBeGreaterThanOrEqual(c!.champion!.right - 0.5);
+    expect(c!.height, `${name}: the card stays two rows`).toBeLessThanOrEqual(c!.extra ? 160 : 145);
+  }
+  expect(await overflow(page)).toBeLessThanOrEqual(1);
+});
+
+test("the views, Filters and Refresh share one row, read and tabbed in the order drawn; narrowed filters bring their chips on a row of their own", async ({ page }, info) => {
   // A member whose games come from the browser tests' Riot stand-in: their own profile offers Refresh.
   const { username } = await createMember(page, "Onerow");
   await page.context().addCookies([{ name: "uniiverse_view", value: "player", url: new URL(page.url()).origin }]);
@@ -562,25 +681,54 @@ test("the views, Filters and Refresh share one row; narrowed filters bring their
     const b = (await l.boundingBox())!;
     return b.y + b.height / 2;
   };
-  for (const view of ["", "?view=encounters"]) {
-    await page.goto(`${href}/matches${view}`, { waitUntil: "networkidle" });
-    await expect(page.locator("[data-testid='match-history'][data-ready], [data-testid='encounters'][data-ready]")).toBeVisible();
-    const refresh = page.getByTestId("data-refresh-button");
-    await expect(refresh).toBeVisible();
-    const filters = isPhone(page) ? page.getByTestId("filter-toggle") : page.locator("#overview-mode");
-    const views = page.getByTestId("match-views");
-    const [v, f, r] = [await centre(views), await centre(filters), await centre(refresh)];
-    expect(Math.abs(v - f), `${view || "games"}: Filters on the views' row`).toBeLessThanOrEqual(4);
-    expect(Math.abs(v - r), `${view || "games"}: Refresh on the views' row`).toBeLessThanOrEqual(4);
-    // Refresh keeps its name for screen readers where it shows its icon alone.
-    await expect(refresh).toHaveAccessibleName(/Refresh/);
-    if (isPhone(page)) expect((await refresh.boundingBox())!.width, "a 44px Refresh").toBeGreaterThanOrEqual(43.5);
-    expect(await overflow(page)).toBeLessThanOrEqual(1);
+  // A phone: the project's 375px, an iPhone SE's 320px and a 360px Android; a tablet; a desktop.
+  const sizes = isPhone(page) ? [page.viewportSize()!, { width: 320, height: 568 }, { width: 360, height: 780 }] : [page.viewportSize()!];
+  for (const size of sizes) {
+    await page.setViewportSize(size);
+    for (const view of ["", "?view=encounters"]) {
+      const at = `${size.width}px, ${view || "games"}`;
+      await page.goto(`${href}/matches${view}`, { waitUntil: "networkidle" });
+      await expect(page.locator("[data-testid='match-history'][data-ready], [data-testid='encounters'][data-ready]")).toBeVisible();
+      const refresh = page.getByTestId("data-refresh-button");
+      await expect(refresh).toBeVisible();
+      const filters = isPhone(page) ? page.getByTestId("filter-toggle") : page.locator("#overview-mode");
+      const views = page.getByTestId("match-views");
+      const [v, f, r] = [await centre(views), await centre(filters), await centre(refresh)];
+      expect(Math.abs(v - f), `${at}: Filters on the views' row`).toBeLessThanOrEqual(4);
+      expect(Math.abs(v - r), `${at}: Refresh on the views' row`).toBeLessThanOrEqual(4);
+      // Refresh and Filters keep their names for screen readers where they show their icon alone.
+      await expect(refresh).toHaveAccessibleName(/Refresh/);
+      if (isPhone(page)) {
+        await expect(filters).toHaveAccessibleName(/^Filters/);
+        expect((await refresh.boundingBox())!.width, `${at}: a 44px Refresh`).toBeGreaterThanOrEqual(43.5);
+        expect((await filters.boundingBox())!.width, `${at}: a 44px Filters`).toBeGreaterThanOrEqual(43.5);
+      }
+      // Tab goes the way the header is drawn: the views, the toolbar (its filters, then Refresh),
+      // then the data status's ⓘ on the scope line under them. Screen readers read it in that order.
+      await page.getByTestId("match-view-encounters").focus();
+      const stops: Array<{ id: string | null; inToolbar: boolean }> = [];
+      for (let i = 0; i < 12; i++) {
+        await page.keyboard.press("Tab");
+        const stop = await page.evaluate(() => {
+          const el = document.activeElement!;
+          return { id: el.getAttribute("data-testid"), inToolbar: !!el.closest('[data-testid="section-toolbar"]') };
+        });
+        stops.push(stop);
+        if (stop.id === "data-refresh-info") break;
+      }
+      const status = stops.findIndex((s) => s.id === "data-refresh-info");
+      expect(status, `${at}: Tab reaches the data status`).toBeGreaterThan(0);
+      expect(stops.slice(0, status).every((s) => s.inToolbar), `${at}: every stop before it is the toolbar's`).toBe(true);
+      expect(stops[status - 1]!.id, `${at}: Refresh just before it`).toBe("data-refresh-button");
+      expect(await overflow(page)).toBeLessThanOrEqual(1);
+    }
   }
+  if (info.project.name === "desktop") return;
   // Narrowed filters bring chips that need the room, and the toolbar takes the next row, from its
   // start: a phone's beside Filters (no room for them beside the views at 375px), and a tablet's
   // active refinements under the bar, clear of the Refine panel that opens from the right
   // (e2e/match-refine.spec.ts). A tablet shows no chip for a game mode.
+  await page.setViewportSize(sizes[0]!);
   const phone = isPhone(page);
   await page.goto(`${href}/matches?${phone ? "mode=solo" : "result=win"}`, { waitUntil: "networkidle" });
   const history = page.getByTestId("match-history");
@@ -604,36 +752,129 @@ test("the views, Filters and Refresh share one row; narrowed filters bring their
   expect(Math.abs(v - m), "a game mode: the toolbar beside the views").toBeLessThanOrEqual(4);
 });
 
-test("the summary is three lines on a phone (four with the ladder change) and one row of tiles on a desktop", async ({ page }, info) => {
+/** The summary's shape: each phone line's height, how many rows its tiles take, and the tallest tile. */
+const summaryShape = (s: Element) => {
+  const tiles = [...s.querySelectorAll("[data-stat-tile]")].filter((e) => e.getBoundingClientRect().height > 0);
+  return {
+    lines: [...s.querySelectorAll("[data-stat-line]")].map((l) => l.getBoundingClientRect().height),
+    rows: new Set(tiles.map((e) => Math.round(e.getBoundingClientRect().top))).size,
+    tallest: Math.max(...tiles.map((e) => e.getBoundingClientRect().height)),
+    height: s.getBoundingClientRect().height,
+  };
+};
+
+/**
+ * The widest a real summary gets, written into a strip that already holds a named trend, the ladder
+ * change, a streak and three champions (demo Support): a three-digit ladder change over the longest
+ * label ("Solo/Duo since 30 Sep"), a two-digit record on a champion, and the KDA and CS (or vision)
+ * arrows. Only the words and figures change; the strip lays them out as it would.
+ */
+const widestSummary = (s: Element, { record = true, arrows = true } = {}) => {
+  const ladder = s.querySelector('[data-testid="history-summary-ladder"]')!;
+  ladder.querySelector("span.font-semibold span")!.textContent = "+999";
+  const label = [...ladder.children].find((c) => !c.classList.contains("font-semibold"))!;
+  [...label.childNodes].reverse().find((n) => n.nodeType === Node.TEXT_NODE)!.textContent = " since 30 Sep";
+  if (record) s.querySelector('[data-testid="history-summary-champions"] li span.tabular-nums')!.textContent = "10–4";
+  if (arrows)
+    for (const key of ["kda", "cs", "vision"]) {
+      const value = s.querySelector(`[data-testid="history-summary-${key}"] span.font-semibold`);
+      if (value && !value.querySelector("svg")) value.insertAdjacentHTML("beforeend", '<svg style="width:14px;height:14px"></svg>');
+    }
+};
+
+test("the summary is three lines on a phone and one row of tiles on a desktop, with every figure at once", async ({ page }, info) => {
   test.skip(info.project.name === "tablet", "the phone's lines and the desktop's row");
-  const profile = await profileOf(page, "ADC");
-  if (isPhone(page)) {
-    await page.setViewportSize({ width: 393, height: 659 });
-    await page.goto(`${profile}/matches`, { waitUntil: "networkidle" });
-    const f = await page.getByTestId("history-summary").evaluate((s) => {
-      const rows = [...s.querySelectorAll("[data-stat-line]")].map((line) => line.getBoundingClientRect().height);
-      return { rows, height: s.getBoundingClientRect().height, ladder: !!s.querySelector('[data-testid="history-summary-ladder"]') };
-    });
-    // Three lines of figures (each 20px; a line wraps only where its figures do not fit: the ladder
-    // change takes a line of its own beside the champions).
-    expect(f.rows.length).toBe(3);
-    expect(f.height, "three lines, four with the ladder change").toBeLessThanOrEqual(f.ladder ? 116 : 92);
-  } else {
-    // One row: every figure's tile starts on the same line, and the strip is about 48px tall; at
-    // 1440×900 and at 1280×800, whose list (the sidebar open) is exactly 60rem.
-    for (const size of [{ width: 1440, height: 900 }, { width: 1280, height: 800 }]) {
-      await page.setViewportSize(size);
+  // Demo ADC: the ladder change, a streak and a KDA arrow. Demo Support: a named trend, the ladder
+  // change and a streak at once. Then Support at its widest (widestSummary).
+  const players = { ADC: await profileOf(page, "ADC"), SUPPORT: await profileOf(page, "SUPPORT") };
+  const sizes = isPhone(page) ? [{ width: 375, height: 667 }, { width: 393, height: 659 }, { width: 412, height: 839 }] : [{ width: 1280, height: 800 }, { width: 1366, height: 768 }, { width: 1440, height: 900 }];
+  for (const size of sizes) {
+    await page.setViewportSize(size);
+    for (const [role, profile] of Object.entries(players)) {
       await page.goto(`${profile}/matches`, { waitUntil: "networkidle" });
-      const f = await page.getByTestId("history-summary").evaluate((s) => ({
-        tops: [...s.querySelectorAll("[data-stat-tile]")].filter((e) => e.getBoundingClientRect().height > 0).map((e) => Math.round(e.getBoundingClientRect().top)),
-        height: s.getBoundingClientRect().height,
-      }));
-      expect(f.tops.length).toBeGreaterThan(5);
-      expect(new Set(f.tops).size, `${size.width}px: one row of tiles`).toBe(1);
-      expect(f.height, `${size.width}px`).toBeLessThanOrEqual(52);
+      await page.evaluate(() => document.fonts.ready);
+      const summary = page.getByTestId("history-summary");
+      if (role === "SUPPORT") await expect(summary.getByTestId("history-summary-trend")).toBeVisible();
+      await expect(summary.getByTestId("history-summary-ladder")).toBeVisible();
+      await expect(summary.getByTestId("history-summary-streak")).toBeVisible();
+      const variants: Array<[string, { record?: boolean; arrows?: boolean } | null]> = role === "ADC" ? [["as it is", null]] : [["as it is", null], ["with the longest ladder label", { record: false, arrows: false }], ["at its widest", {}]];
+      for (const [what, widest] of variants) {
+        if (widest) await summary.evaluate(widestSummary, widest);
+        const f = await summary.evaluate(summaryShape);
+        const where = `${size.width}px, ${role} ${what}`;
+        if (isPhone(page)) {
+          // Three lines, each one line of figures (about 21px). At 375px a two-digit record on a
+          // champion takes the ladder change to a fourth line (the champions and the ladder need
+          // about 323px of 317).
+          const fourth = size.width < 393 && what === "at its widest";
+          expect(f.lines.length).toBe(3);
+          for (const [i, h] of f.lines.entries()) expect(h, `${where}: line ${i + 1}`).toBeLessThanOrEqual(fourth && i === 2 ? 48 : 24);
+          if (!fourth) expect(f.height, `${where}: three lines, about 89px`).toBeLessThanOrEqual(94);
+        } else {
+          // One row of tiles, about 44px, on a 60rem list (1280 with the sidebar open) too.
+          expect(f.rows, `${where}: one row of tiles`).toBe(1);
+          expect(f.height, where).toBeLessThanOrEqual(46);
+        }
+      }
+      expect(await overflow(page)).toBeLessThanOrEqual(1);
     }
   }
-  expect(await overflow(page)).toBeLessThanOrEqual(1);
+  if (isPhone(page)) return;
+  // From 78rem of strip (a 2560px screen) a summary without a trend is one line of text; with one, the tiles stay.
+  await page.setViewportSize({ width: 2560, height: 1440 });
+  for (const [role, profile] of Object.entries(players)) {
+    await page.goto(`${profile}/matches`, { waitUntil: "networkidle" });
+    await page.evaluate(() => document.fonts.ready);
+    const f = await page.getByTestId("history-summary").evaluate(summaryShape);
+    const value = await page.getByTestId("history-summary-record").evaluate((t) => t.querySelector("span.font-semibold")!.getBoundingClientRect().height);
+    expect(f.rows, `2560px, ${role}: one row`).toBe(1);
+    if (role === "ADC") expect(f.tallest, "2560px, no trend: one line of text").toBeLessThanOrEqual(value + 1);
+    else expect(f.tallest, "2560px, a trend: tiles").toBeGreaterThan(value + 8);
+  }
+});
+
+/**
+ * The plan's page heights (D8), in screens: the page's height over the window's, for Demo ADC's games
+ * and Encounters, at each project's devices (touch for phones and tablets). Each bound is the
+ * plan's target, so a regression of a line shows; docs/MOBILE.md (section 3) has the measurements,
+ * dated. The one target missed is bound by the height measured, and MOBILE.md says why: a Pixel 7
+ * held sideways (863×360) keeps the wide one-row card, which D8 leaves as it is, under the phone's
+ * frame.
+ */
+const HEIGHTS: Record<string, Array<{ device: string; size: { width: number; height: number }; games: number; encounters?: number }>> = {
+  phone: [
+    { device: "iPhone 15 in Safari", size: { width: 393, height: 659 }, games: 2.7, encounters: 1.8 },
+    { device: "iPhone 15, the installed app", size: { width: 393, height: 852 }, games: 2.2 },
+    { device: "iPhone SE (1st generation)", size: { width: 320, height: 568 }, games: 3.8, encounters: 2.1 },
+    { device: "iPhone SE (3rd generation)", size: { width: 375, height: 667 }, games: 2.7 },
+    { device: "Pixel 7 in Chrome", size: { width: 412, height: 839 }, games: 2.1 },
+    { device: "an iPhone held sideways, in Safari", size: { width: 734, height: 343 }, games: 4.8, encounters: 3.3 },
+    { device: "a Pixel 7 held sideways, in Chrome", size: { width: 863, height: 360 }, games: 4.3 },
+  ],
+  tablet: [
+    { device: "iPad (820×1180)", size: { width: 820, height: 1180 }, games: 1.6 },
+    { device: "iPad (810×1080)", size: { width: 810, height: 1080 }, games: 1.6, encounters: 1.0 },
+  ],
+  desktop: [
+    { device: "a laptop (1440×900)", size: { width: 1440, height: 900 }, games: 1.6 },
+    { device: "a 2560×1440 monitor", size: { width: 2560, height: 1440 }, games: 1.3 },
+    { device: "an ultrawide (3440×1440)", size: { width: 3440, height: 1440 }, games: 1.35 },
+  ],
+};
+
+test("Match History's and Encounters' page heights stay within the plan's targets on each device", async ({ page }, info) => {
+  const profile = await profileOf(page, "ADC");
+  for (const { device, size, games, encounters } of HEIGHTS[info.project.name] ?? []) {
+    await page.setViewportSize(size);
+    for (const [view, bound] of [["", games], ["?view=encounters", encounters]] as const) {
+      if (bound === undefined) continue;
+      await page.goto(`${profile}/matches${view}`, { waitUntil: "networkidle" });
+      await expect(page.locator("[data-testid='match-history'][data-ready], [data-testid='encounters'][data-ready]")).toBeVisible();
+      await page.evaluate(() => document.fonts.ready);
+      const screens = await page.evaluate(() => document.documentElement.scrollHeight / window.innerHeight);
+      expect(screens, `${device}, ${view ? "Encounters" : "games"}: ${screens.toFixed(3)} screens`).toBeLessThanOrEqual(bound + 0.0005);
+    }
+  }
 });
 
 test("at 200% text on a 320px phone, the games and Encounters are no wider than the phone", async ({ page }) => {
@@ -646,13 +887,31 @@ test("at 200% text on a 320px phone, the games and Encounters are no wider than 
     await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
     await page.evaluate(() => document.fonts.ready);
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), { message: `${path}: no wider than the phone` }).toBeLessThanOrEqual(0);
-    // Nothing in a card is cut off at its edge either: every figure, the K/D/A and the champion stay inside it.
+    // Nothing in a card is cut off either (a card hides what runs past it, so the page's width
+    // cannot tell): every shown part, and the text in it, ends inside the card's content box.
     const cut = await page.getByTestId("match-card").evaluateAll((cards) =>
       cards.flatMap((card) => {
-        const edge = card.getBoundingClientRect().right;
-        return [...card.querySelectorAll('[data-testid="match-kda"], [data-testid="match-champion"], [data-testid="match-cs"], [data-testid="match-damage"], [data-testid="match-card-meta"]')].filter((e) => e.getBoundingClientRect().right > edge + 0.5).map((e) => e.getAttribute("data-testid"));
+        const grid = card.querySelector('[data-testid="match-card-grid"]')!;
+        const edge = grid.getBoundingClientRect().right - parseFloat(getComputedStyle(grid).paddingRight);
+        const parts = [...card.querySelectorAll('[data-testid="match-kda"], [data-testid="match-champion"], [data-testid="match-kp"], [data-testid="match-cs"], [data-testid="match-damage"], [data-testid="match-card-meta"], [data-testid="match-standout"], [aria-label^="Items:"]')].filter((e) => e.getBoundingClientRect().width > 1);
+        // A part's ink: its own box and the text in it (text can run past a box that cannot grow),
+        // leaving out what is laid over the page (screen-reader text, a tooltip's bubble).
+        const inkRight = (e: Element) => {
+          let right = e.getBoundingClientRect().right;
+          const texts = document.createTreeWalker(e, NodeFilter.SHOW_TEXT);
+          for (let n = texts.nextNode(); n; n = texts.nextNode()) {
+            let laidOver = false;
+            for (let a = n.parentElement; a && a !== e.parentElement; a = a.parentElement) if (["absolute", "fixed"].includes(getComputedStyle(a).position)) laidOver = true;
+            if (laidOver || !n.textContent?.trim()) continue;
+            const range = document.createRange();
+            range.selectNodeContents(n);
+            right = Math.max(right, range.getBoundingClientRect().right);
+          }
+          return right;
+        };
+        return parts.filter((e) => inkRight(e) > edge + 0.5).map((e) => e.getAttribute("data-testid") ?? "build");
       }),
     );
-    expect(cut, `${path}: nothing past a card's edge`).toEqual([]);
+    expect(cut, `${path}: nothing past a card's content box`).toEqual([]);
   }
 });

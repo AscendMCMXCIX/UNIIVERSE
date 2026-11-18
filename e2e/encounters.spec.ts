@@ -135,7 +135,7 @@ test("Encounters: Against, Alongside and All, each side with its own record, in 
   // On a phone the choice shows as a chip beside Filters, counted with the filters.
   if (inSheet(page)) {
     await expect(page.getByRole("button", { name: "3+ games: remove this filter" })).toBeVisible();
-    await expect(page.getByTestId("encounter-filters").getByTestId("filter-toggle")).toContainText("1");
+    await expect(page.getByTestId("encounter-filters").getByTestId("filter-count")).toHaveText("1");
   }
   for (const row of await rows.all()) expect((await sideGames(row, "against")) + (await sideGames(row, "alongside"))).toBeGreaterThanOrEqual(3);
 
@@ -423,7 +423,7 @@ test("a phone keeps the list's minimum and order in the Filters sheet, as chips:
   const sortChip = page.getByRole("button", { name: "Most recent: remove this filter" });
   await expect(sortChip).toBeVisible();
   await expect(page.getByRole("button", { name: "Any number of games: remove this filter" })).toBeVisible();
-  await expect(page.getByTestId("encounter-filters").getByTestId("filter-toggle")).toContainText("2");
+  await expect(page.getByTestId("encounter-filters").getByTestId("filter-count")).toHaveText("2");
   await sortChip.click();
   await expect(page).not.toHaveURL(/sort=/);
   await expect(sortChip).toHaveCount(0);
@@ -433,6 +433,32 @@ test("a phone keeps the list's minimum and order in the Filters sheet, as chips:
   await expect(page).not.toHaveURL(/min=/);
   await expect(page).toHaveURL(/rel=against/);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+});
+
+test("tablet and desktop: the list's minimum and order are the list's own: they never bring the filters' Reset, which leaves them as they are", async ({ page }) => {
+  test.skip(inSheet(page), "from md the minimum and the order sit in the list's toolbar (a phone keeps them in its Filters sheet)");
+  await page.goto("/team");
+  const support = `/players/${await page.getByTestId("lineup-row-SUPPORT").getAttribute("data-player-id")}`;
+  await openEncounters(page, `${support}/matches?view=encounters&rel=against`);
+  const filters = page.getByTestId("encounter-filters");
+  // An order chosen from the column names and a minimum chosen in the list's toolbar narrow none of
+  // the filters: no Reset.
+  await page.getByTestId("encounter-sort-recent").click();
+  await expect(page).toHaveURL(/sort=recent/);
+  await chooseListOption(page, "min", "1");
+  await expect(page).toHaveURL(/min=1/);
+  await expect(filters.getByTestId("reset-filters")).toHaveCount(0);
+  // A filter narrowed: Reset appears, and puts the filters back with the list's choices kept.
+  await filters.getByLabel("Game mode").selectOption("solo");
+  await expect(page).toHaveURL(/mode=solo/);
+  const reset = filters.getByTestId("reset-filters");
+  await expect(reset).toBeVisible();
+  await reset.click();
+  await expect(page).not.toHaveURL(/mode=/);
+  await expect(page).toHaveURL(/sort=recent/);
+  await expect(page).toHaveURL(/min=1/);
+  await expect(page).toHaveURL(/rel=against/);
+  await expect(filters.getByTestId("reset-filters")).toHaveCount(0);
 });
 
 test("tablet and desktop: the column names stay pinned under the profile's section tabs while the list scrolls; a short window pins nothing", async ({ page }) => {

@@ -93,12 +93,12 @@ test("the LP sits in the result column on a wide card and at the end of the resu
     }
   } else if (info.project.name === "tablet") {
     // On the result line ("Defeat · Flex · 42h ago · −22 LP"), which has room at this width.
-    const meta = (await card.getByTestId("match-card-meta").boundingBox())!;
+    const meta = (await card.getByTestId("match-card-meta").filter({ visible: true }).boundingBox())!;
     expect(l.y + l.height / 2, "on the result line").toBeGreaterThan(meta.y);
     expect(l.y + l.height / 2, "on the result line").toBeLessThan(meta.y + meta.height);
   } else {
     // On the result line, which runs across the card ("Defeat · Flex · 42h ago … −22 LP"), at its end.
-    const meta = (await card.getByTestId("match-card-meta").boundingBox())!;
+    const meta = (await card.getByTestId("match-card-meta").filter({ visible: true }).boundingBox())!;
     expect(l.y + l.height / 2, "on the result line").toBeGreaterThan(meta.y);
     expect(l.y + l.height / 2, "on the result line").toBeLessThan(meta.y + meta.height);
     expect(c.x + c.width - (l.x + l.width), "at the card's end").toBeLessThan(40);
