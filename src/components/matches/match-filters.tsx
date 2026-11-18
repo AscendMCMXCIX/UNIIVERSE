@@ -22,8 +22,8 @@ export interface LinkOption {
 
 /**
  * Follows a prepared link without moving the page; shows the choice at once. A filter replaces the
- * history entry, as every other filter does (Match History's): Back leaves the page, rather than
- * stepping back through each choice.
+ * history entry (docs/DESIGN_SYSTEM.md, "Back"): Back leaves the page, rather than stepping back
+ * through each choice.
  */
 function useGo() {
   const router = useRouter();

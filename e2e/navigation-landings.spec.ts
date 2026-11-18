@@ -86,6 +86,24 @@ test("phones: the current tab on its own page, and the page's title in the top b
   await expect.poll(() => scrollY(page)).toBe(0);
 });
 
+/**
+ * Follows the page's own content requests (Next's RSC fetches, prefetches left out) from now on:
+ * any it lists after a click means the click navigated, and the page was fetched again.
+ */
+function watchNavigations(page: Page) {
+  const seen: string[] = [];
+  const onRequest = (request: import("@playwright/test").Request) => {
+    const h = request.headers();
+    if (h["rsc"] === "1" && !h["next-router-prefetch"] && !h["next-router-segment-prefetch"]) seen.push(new URL(request.url()).pathname);
+  };
+  page.on("request", onRequest);
+  return async () => {
+    await page.waitForLoadState("networkidle");
+    page.off("request", onRequest);
+    return seen;
+  };
+}
+
 test("tablets and desktops: the current section tab, and the sidebar's entry for the page shown, keep the page as it is and go back to the top", async ({ page }, info) => {
   test.skip(info.project.name === "phone", "phones: the tab bar (the test above)");
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -95,8 +113,11 @@ test("tablets and desktops: the current section tab, and the sidebar's entry for
   await expect(page.getByTestId("records")).toBeVisible();
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await expect.poll(() => scrollY(page)).toBeGreaterThan(200);
+  let navigations = watchNavigations(page);
   await page.getByTestId("team-tab-leaderboards").click();
   await expect.poll(() => scrollY(page)).toBe(0);
+  // Kept, not fetched again: no request for the page's content once the network is quiet.
+  expect(await navigations(), "the current tab fetches nothing").toEqual([]);
   await expect(page).toHaveURL(/[?&]view=records/);
   await expect(page.getByTestId("records")).toBeVisible();
   // With a modifier key the tab keeps its meaning: it opens in a new tab.
@@ -104,8 +125,7 @@ test("tablets and desktops: the current section tab, and the sidebar's entry for
   await opened.close();
   if (info.project.name === "desktop") {
     // The sidebar's entry for the page shown (Resources): the page stays as it is, back at its top.
-    // Resources fits a desktop window, so the test makes it long; a page fetched again would lose
-    // the added length.
+    // Resources fits a desktop window, so the test makes it long enough to scroll.
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
     await page.evaluate(() => {
@@ -116,10 +136,11 @@ test("tablets and desktops: the current section tab, and the sidebar's entry for
       window.scrollTo(0, document.documentElement.scrollHeight);
     });
     await expect.poll(() => scrollY(page)).toBeGreaterThan(200);
+    navigations = watchNavigations(page);
     await page.getByTestId("nav-resources").click();
     await expect.poll(() => scrollY(page)).toBe(0);
+    expect(await navigations(), "the sidebar's entry for the page shown fetches nothing").toEqual([]);
     await expect(page).toHaveURL(/\/resources$/);
-    await expect(page.getByTestId("test-length")).toHaveCount(1);
   }
 });
 

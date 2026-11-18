@@ -7,6 +7,7 @@ import { PROFILE_SECTIONS, activeHref } from "@/lib/nav";
 import { TabBar, tabIndicatorClass } from "@/components/ui/tab-bar";
 import { ScrollRow } from "@/components/ui/scroll-row";
 import { cn } from "@/lib/cn";
+import { isPlainClick, stayOnCurrentPage } from "@/lib/back-to-top";
 
 /** Sections that share the chosen season and game mode when you move between them. */
 const KEEPS_SEASON = new Set(["overview", "champions", "matches"]);
@@ -34,13 +35,16 @@ export function ProfileTabs({ basePath, variant = "page" }: { basePath: string; 
   const carried = new URLSearchParams();
   if (KEEPS_SEASON.has(current.key)) for (const k of ["season", "mode"]) if (params.get(k)) carried.set(k, params.get(k)!);
   const hrefOf = (s: (typeof sections)[number]) => (KEEPS_SEASON.has(s.key) && carried.size && s.key !== current.key ? `${s.href}?${carried.toString()}` : s.href);
-  // Tablets and desktops: a section chosen while the card was scrolled away starts at its own top,
-  // under the pinned tabs (settleSectionTop), as on a phone; one chosen at rest keeps the page still.
-  const pending = React.useRef<string | null>(null);
+  // Tablets and desktops: a section chosen from further down than its own top starts at that top,
+  // under the pinned tabs (settleSectionTop), as on a phone. One chosen with its top still in view
+  // (the card at rest, or only scrolled a little) keeps the page where it is: it never moves down.
+  const pending = React.useRef<{ key: string; from: number } | null>(null);
   React.useEffect(() => {
     const chosen = pending.current;
     pending.current = null;
-    if (variant !== "page" || chosen !== current.key) return;
+    if (variant !== "page" || !chosen || chosen.key !== current.key) return;
+    const top = sectionTop("page");
+    if (top === null || chosen.from <= top) return;
     return settleSectionTop("page");
   }, [current.key, variant]);
   if (variant === "chrome") return <ChromeTabs items={sections.map((s) => ({ key: s.key, href: hrefOf(s), label: s.short, testId: `profile-chrome-tab-${s.key}` }))} current={current.key} />;
@@ -56,7 +60,7 @@ export function ProfileTabs({ basePath, variant = "page" }: { basePath: string; 
       testId="profile-tabs"
       className="max-md:hidden md:-mt-2.5"
       onChoose={(key) => {
-        pending.current = cardScrolledPast() ? key : null;
+        pending.current = { key, from: window.scrollY };
       }}
     />
   );
@@ -187,8 +191,11 @@ function ChromeTabs({ items, current }: { items: Array<{ key: string; href: stri
                 // Lands at the section's own top (settleSectionTop), never at the page's (ScrollOnNavigate).
                 data-keep-scroll=""
                 aria-current={on ? "page" : undefined}
-                onClick={() => {
-                  pending.current = !on && cardScrolledPast() ? t.key : null;
+                onClick={(e) => {
+                  // The current section: the page stays as it is (its view and filters) and goes
+                  // back to the top, as the current tab does everywhere (src/lib/back-to-top.ts).
+                  if (stayOnCurrentPage(e, on)) return;
+                  pending.current = !on && isPlainClick(e) && cardScrolledPast() ? t.key : null;
                 }}
                 // 6px a side: the four names fit a 320px screen with the bar's gutters.
                 className={cn("flex min-h-11 items-center justify-center whitespace-nowrap px-1.5 text-sm font-medium transition-colors duration-150", tabIndicatorClass(on))}

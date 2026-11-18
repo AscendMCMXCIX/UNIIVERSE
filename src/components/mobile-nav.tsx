@@ -171,15 +171,15 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
               {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-label text-accent">Admin mode</span> : tagline ? <span className="block truncate text-xs text-fg-subtle max-md:hidden">{tagline}</span> : null}
             </span>
           </Link>
-          {/* Phones, and any window held sideways or too short for the section tabs to pin (a tablet's
-              too): the page's own title, once its heading has gone up under the bar; a tap on it goes
-              back to the top, as iOS's status bar does. */}
+          {/* Phones, and tablet widths (md to lg) in a window 480px tall or less, where the section
+              tabs do not pin: the page's own title, once its heading has gone up under the bar; a tap
+              on it goes back to the top, as iOS's status bar does. */}
           {titleShown ? (
             <button type="button" onClick={scrollToTop} className="min-h-11 min-w-0 flex-1 truncate rounded-md px-1 text-left text-base font-semibold text-fg transition-opacity duration-150 md:not-short:hidden" aria-label={`${heading.text}: back to top`} data-testid="mobile-title">
               {heading.text}
             </button>
           ) : (
-            <p className="min-w-0 flex-1 px-1 opacity-0 md:not-short:hidden" aria-hidden data-testid="mobile-title" />
+            <p className="min-w-0 flex-1 px-1 opacity-0 md:hidden" aria-hidden data-testid="mobile-title" />
           )}
           {user ? (
             <>
@@ -363,7 +363,6 @@ function onSignOut() {
   announceAccountChange();
 }
 
-/** Back to the top of the page: smooth, or at once with reduced motion. */
 /** Phones; and tablets in the installed app, which has no browser Back (a tablet in a browser has the browser's). */
 const BACK_CLASS = "-ml-1 flex min-h-11 min-w-0 max-w-[45%] shrink-0 items-center gap-0.5 rounded-md pr-2 text-sm font-medium text-accent hover:bg-surface-2";
 /**

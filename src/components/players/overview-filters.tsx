@@ -267,7 +267,7 @@ export function ModeElsewhere({ basePath, filter, elsewhere, keep = {} }: { base
       {elsewhere.map((e, i) => (
         <React.Fragment key={e.season}>
           {i ? ", " : ""}
-          <Link href={`${basePath}?${statsQuery({ ...filter, season: e.season }, keep)}`} scroll={false} className="font-medium text-accent hover:underline">
+          <Link href={`${basePath}?${statsQuery({ ...filter, season: e.season }, keep)}`} replace scroll={false} className="font-medium text-accent hover:underline">
             {seasonLabel(e.season)} ({formatCount(e.games)})
           </Link>
         </React.Fragment>

@@ -96,6 +96,20 @@ test("phone: a section chosen far down a profile starts at its top, just under t
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
 });
 
+test("phone: the current section in the top bar keeps the page's view and goes back to the top", async ({ page }) => {
+  test.skip(!isPhone(page), "the phone's sections in the top bar");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const profile = await teammate(page);
+  // Match History's Encounters view, kept in the address; the current section's own link has none.
+  await page.goto(`${profile}/matches?view=encounters`);
+  await expect(page.getByTestId("profile-chrome-tabs")).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+  await tapInPlace(page, page.getByTestId("profile-chrome-tab-matches"));
+  await expect.poll(() => page.evaluate(() => window.scrollY), { message: "back at the top" }).toBe(0);
+  await expect(page).toHaveURL(/[?&]view=encounters/);
+});
+
 test("tablet and desktop: a profile section chosen far down the page starts at its own top, under the pinned tabs; one chosen at rest keeps the page still", async ({ page }) => {
   test.skip(isPhone(page), "phones carry the sections in the top bar (their own test above)");
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -126,6 +140,18 @@ test("tablet and desktop: a profile section chosen far down the page starts at i
   await expect(page).toHaveURL(new RegExp(`${profile}/champions$`));
   await expect(page.getByTestId("all-champions")).toBeVisible();
   expect(await page.evaluate(() => window.scrollY), "a section chosen at rest").toBe(0);
+
+  // Scrolled only a little, the new section's top still in view: the page never moves down to it.
+  await tabs.getByTestId("profile-tab-matches").click();
+  await expect(page).toHaveURL(new RegExp(`${profile}/matches$`));
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  await page.evaluate(() => window.scrollTo(0, 60));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(60);
+  await tapInPlace(page, tabs.getByTestId("profile-tab-overview"));
+  await expect(page).toHaveURL(new RegExp(`${profile}$`));
+  await expect(page.getByTestId("season-summary")).toBeVisible();
+  await page.waitForTimeout(600);
+  expect(await page.evaluate(() => window.scrollY), "a section chosen a little way down keeps the page, never lower").toBeLessThanOrEqual(60);
 
   // Far down Match History, Overview (whose card is taller than the band) starts at its own top.
   await tabs.getByTestId("profile-tab-matches").click();

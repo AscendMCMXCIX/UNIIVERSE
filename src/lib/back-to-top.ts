@@ -8,6 +8,11 @@ export function scrollToTop() {
   window.scrollTo({ top: 0, behavior: reduce ? "instant" : "smooth" });
 }
 
+/** A plain click: the main button, no modifier key, not already handled. Any other click keeps the browser's meaning (a new tab or window), so this page does not change. */
+export function isPlainClick(e: React.MouseEvent<HTMLElement>): boolean {
+  return !e.defaultPrevented && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
+}
+
 /**
  * A plain click on a link to the page already shown (the current tab, the current sidebar entry):
  * the page stays as it is, its view and filters with it (the link's own address has no query), and
@@ -16,7 +21,7 @@ export function scrollToTop() {
  * whether it handled the click.
  */
 export function stayOnCurrentPage(e: React.MouseEvent<HTMLElement>, isCurrent: boolean): boolean {
-  if (!isCurrent || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return false;
+  if (!isCurrent || !isPlainClick(e)) return false;
   e.preventDefault();
   scrollToTop();
   return true;
