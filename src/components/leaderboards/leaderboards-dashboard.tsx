@@ -16,7 +16,7 @@ import { SECTIONS } from "./sections";
   read in this order and placed by the page's own width (@container/dash), never the window's:
     under 59rem   one column: the header, the index of the sections below Recent form (on a long
                   page: phones upright and sideways, tablets), Recent form, the season records (two
-                  columns of cells from a 34rem panel, under 86rem), the multikills, the milestones;
+                  columns of cells from a 40rem panel), the multikills, the milestones;
     from 59rem    Recent form across the page (at most the measure), the season records beside the
                   multikills (21–24rem), the milestones across (1280 and 1440 wide);
     from 86rem    Recent form (58–61rem) beside the season records (26.5–38.5rem), the multikills

@@ -112,13 +112,13 @@ describe("the season records", () => {
   });
 
   it("place their cells on a grid by the panel's width (two columns where the page stacks its boards), each cell measuring itself, the seventh across both columns", () => {
-    expect(html).toMatch(/<ul aria-label="Season records" class="grid grid-cols-\[minmax\(0,1fr\)\] [^"]*@min-\[34rem\]\/list:@max-\[86rem\]\/dash:grid-cols-2" data-testid="season-records">/);
+    expect(html).toMatch(/<ul aria-label="Season records" class="grid grid-cols-\[minmax\(0,1fr\)\] [^"]*@min-\[40rem\]\/list:@max-\[86rem\]\/dash:grid-cols-2" data-testid="season-records">/);
     const cells = [...html.matchAll(/<li class="([^"]*)"><div class="([^"]*)"><div [^>]*data-testid="season-record"/g)];
     expect(cells).toHaveLength(7);
     for (const [, cellClass, colsClass] of cells) {
       const [cell, cols] = [decode(cellClass!), decode(colsClass!)];
       expect(cell).toContain("@container/list");
-      expect(cell).toContain("@min-[34rem]/list:@max-[86rem]/dash:[&:last-child:nth-child(odd)]:col-span-2");
+      expect(cell).toContain("@min-[40rem]/list:@max-[86rem]/dash:[&:last-child:nth-child(odd)]:col-span-2");
       // Each cell holds its own column template, so its row reads the cell's width.
       expect(cols).toContain("[--dl-cols:3rem_minmax(5rem,1fr)_auto]");
       expect(cols).toContain("@min-[36rem]/list:[--dl-cols:3rem_minmax(0,1fr)_auto_1rem]");
