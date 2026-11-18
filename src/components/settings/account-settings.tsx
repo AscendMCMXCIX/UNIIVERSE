@@ -13,37 +13,63 @@ import { getBranding } from "@/server/repositories/branding";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
-import { cn } from "@/lib/cn";
 
-/**
- * A quiet action in the account card: a line of text on a phone and in a window 480px tall or less
- * (a 44px target on a touch screen), a row of the card from md in a taller window.
- */
-const ACTION = cn(
-  "touch-target inline-flex min-h-6 items-center gap-1.5 text-sm text-fg-muted hover:text-fg",
-  "md:not-short:flex md:not-short:min-h-9 md:not-short:w-full md:not-short:rounded-md md:not-short:px-2 md:not-short:hover:bg-surface-2 md:not-short:pointer-coarse:min-h-11",
-);
 const ACTION_ICON = "h-4 w-4 shrink-0 text-fg-subtle";
 
-/*
-  Where each part of the account card sits in its grid (two columns: the picture's, and the rest):
-    phone (upright)       the picture beside who you are; Change and Remove; the help; the actions
-                          (My Profile, Riot Accounts, the mode switch, Sign out) as one row of quiet
-                          links; the index as chips;
-    480px tall or less    the same, the actions right under who you are, so Sign out stays on the
-                          first screen of a phone held sideways;
-    from md, taller       the 80px picture with Change and Remove beside it; who you are; the help;
-                          the index down the card; the actions as rows.
-  The card's DOM order is the last one's (the keyboard's order on a desktop).
-*/
-const CARD_CELLS = {
-  avatar: "col-start-1 row-start-1",
-  identity: "col-start-2 row-start-1 md:not-short:col-span-2 md:not-short:col-start-1 md:not-short:row-start-2",
-  buttons: "col-span-2 col-start-1 row-start-2 short:row-start-3 md:not-short:col-span-1 md:not-short:col-start-2 md:not-short:row-start-1 md:not-short:flex-col",
-  help: "col-span-2 col-start-1 row-start-3 short:row-start-4 md:not-short:row-start-3",
-  index: "col-span-2 col-start-1 row-start-5 md:not-short:row-start-4 md:not-short:border-t md:not-short:border-border md:not-short:pt-3",
-  actions: "col-span-2 col-start-1 row-start-4 short:row-start-2 md:not-short:row-start-5 md:not-short:border-t md:not-short:border-border md:not-short:pt-3",
-};
+/**
+ * The account card's actions: My Profile and Riot Accounts (Player Mode, with a player profile), the
+ * switch between the modes (administrators) and Sign out. Two copies, one shown at a time, each
+ * where it is drawn in the card's reading order (the other is display: none, so neither the keyboard
+ * nor a screen reader meets it):
+ *   "quiet"   on a phone and in a window 480px tall or less: a row of quiet links right under who you
+ *             are, 44px targets on a touch screen that never overlap (12px between wrapped lines);
+ *   "rows"    from md in a taller window: rows at the card's end, after its index.
+ */
+function AccountActions({ variant, profileLinks, modeSwitch }: { variant: "quiet" | "rows"; profileLinks: boolean; modeSwitch: "player" | "admin" | null }) {
+  const item = variant === "quiet" ? "touch-target inline-flex min-h-6 items-center gap-1.5 text-sm text-fg-muted hover:text-fg" : "flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-sm text-fg-muted hover:bg-surface-2 hover:text-fg pointer-coarse:min-h-11";
+  return (
+    <ul
+      className={variant === "quiet" ? "col-span-2 flex flex-wrap items-center gap-x-3 gap-y-3 md:not-short:hidden" : "col-span-2 hidden flex-col gap-0.5 border-t border-border pt-3 md:not-short:flex"}
+      data-testid="settings-actions"
+    >
+      {profileLinks ? (
+        <>
+          <li>
+            <Link href="/overview" className={item}>
+              <CircleUserRound className={ACTION_ICON} aria-hidden /> My Profile
+            </Link>
+          </li>
+          <li>
+            <Link href="/overview/accounts" className={item}>
+              <Link2 className={ACTION_ICON} aria-hidden /> Riot Accounts
+            </Link>
+          </li>
+        </>
+      ) : null}
+      {/* Plain links to the switch route (never prefetched): it checks the account again. */}
+      {modeSwitch ? (
+        <li>
+          {modeSwitch === "player" ? (
+            <a href="/api/mode?to=admin" className={item} data-testid="settings-mode-switch">
+              <ShieldCheck className={ACTION_ICON} aria-hidden /> Switch to Admin Mode
+            </a>
+          ) : (
+            <a href="/api/mode?to=player" className={item} data-testid="settings-mode-switch">
+              <Gamepad2 className={ACTION_ICON} aria-hidden /> Return to Player Mode
+            </a>
+          )}
+        </li>
+      ) : null}
+      <li>
+        <form action="/api/auth/logout" method="post">
+          <button type="submit" className={item} data-testid="settings-sign-out">
+            <LogOut className={ACTION_ICON} aria-hidden /> Sign out
+          </button>
+        </form>
+      </li>
+    </ul>
+  );
+}
 
 /**
  * Account settings for everyone: picture, display name, username, social links, password and
@@ -51,12 +77,13 @@ const CARD_CELLS = {
  * not leave Admin Mode), 64rem wide; administration itself lives in Admin Mode. Administrators also
  * find the switch between the modes here; nobody else sees Admin Mode named.
  *
- * The account card leads (surface-lead): the picture with Change and Remove, the name, @username
- * and the role, the index of the sections (the one being read marked), My Profile and Riot
- * Accounts, the mode switch and Sign out. From sm it is a column of its own (15rem, 16rem from lg;
- * a phone held sideways is sm), sticky under the bar from md in a window taller than 480px; on a
- * phone, and in a window 480px tall or less, it is compact, its actions a row of quiet links and its
- * index a row of chips, so Sign out is on the first screen everywhere.
+ * The account card leads (surface-lead), drawn in its reading order at every size: the picture
+ * beside the name, @username and the role; on a phone and in a window 480px tall or less, its
+ * actions as a row of quiet links (My Profile, Riot Accounts, the mode switch, Sign out), so Sign
+ * out is on the first screen; Change and Remove; what the picture is for; the index of the sections
+ * (SectionIndex); from md in a taller window the actions as rows at the end. From sm the card is a
+ * column of its own (15rem, 16rem from lg; a phone held sideways is sm), sticky under the bar from md
+ * in a window taller than 480px.
  * The sections follow: Name & username (side by side from xl, each field with its own Save), Social
  * links (members with a player profile), Password, then Riot's notice (#compliance).
  */
@@ -68,14 +95,15 @@ export async function AccountSettings({ mode }: { mode: "player" | "admin" }) {
   const branding = await getBranding(db);
   const social = user?.playerId ? ((await loadSocialLinks(db, [user.playerId])).get(user.playerId) ?? null) : undefined;
   const profileLinks = !!session?.playerId && mode === "player";
+  const modeSwitch = isAdmin(session) ? mode : null;
   const sections = [...(user ? [{ id: "name", label: "Name" }] : []), ...(social !== undefined ? [{ id: "links", label: "Links" }] : []), ...(session?.userId ? [{ id: "password", label: "Password" }] : [])];
   return (
     <div className="mx-auto grid max-w-5xl gap-3 sm:grid-cols-[15rem_minmax(0,1fr)] sm:grid-rows-[auto_1fr] sm:gap-x-5 sm:gap-y-4 md:gap-x-6 md:gap-y-5 lg:grid-cols-[16rem_minmax(0,1fr)]">
       <PageHeader className="sm:col-start-2 sm:row-start-1" title="Settings" description="Your picture, display name, username and password." guide />
 
-      <section aria-label="Your account" className="surface-lead grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2.5 rounded-panel border border-border bg-surface p-3 sm:col-start-1 sm:row-span-2 sm:row-start-1 sm:self-start sm:p-4 md:not-short:sticky md:not-short:top-[calc(var(--bar-top)+1rem)] md:not-short:gap-y-3" data-testid="settings-account">
+      <section aria-label="Your account" className="surface-lead grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-panel border border-border bg-surface p-3 sm:col-start-1 sm:row-span-2 sm:row-start-1 sm:self-start sm:p-4 md:not-short:sticky md:not-short:top-[calc(var(--bar-top)+1rem)]" data-testid="settings-account">
         {user ? (
-          <AccountPicture name={displayName} src={avatarUrl(user.id, user.avatarVersion)} cells={CARD_CELLS}>
+          <AccountPicture name={displayName} src={avatarUrl(user.id, user.avatarVersion)} afterIdentity={<AccountActions variant="quiet" profileLinks={profileLinks} modeSwitch={modeSwitch} />}>
             <p className="text-lg font-semibold leading-tight text-fg [overflow-wrap:anywhere]" data-testid="settings-name">
               {displayName}
             </p>
@@ -83,52 +111,20 @@ export async function AccountSettings({ mode }: { mode: "player" | "admin" }) {
               <span className="min-w-0 [overflow-wrap:anywhere]" data-testid="settings-username">
                 @{user.username}
               </span>
-              <Badge tone="neutral">{describeAccess({ role: user.role, isAdmin: user.isAdmin })}</Badge>
+              <span className="shrink-0" data-testid="settings-role">
+                <Badge tone="neutral">{describeAccess({ role: user.role, isAdmin: user.isAdmin })}</Badge>
+              </span>
             </p>
           </AccountPicture>
-        ) : null}
+        ) : (
+          <AccountActions variant="quiet" profileLinks={profileLinks} modeSwitch={modeSwitch} />
+        )}
         {sections.length > 1 ? (
-          <div className={CARD_CELLS.index}>
+          <div className="col-span-2 md:not-short:border-t md:not-short:border-border md:not-short:pt-3">
             <SettingsIndex items={sections} />
           </div>
         ) : null}
-        <ul className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 md:not-short:flex-col md:not-short:items-stretch md:not-short:gap-0.5", CARD_CELLS.actions)} data-testid="settings-actions">
-          {profileLinks ? (
-            <>
-              <li>
-                <Link href="/overview" className={ACTION}>
-                  <CircleUserRound className={ACTION_ICON} aria-hidden /> My Profile
-                </Link>
-              </li>
-              <li>
-                <Link href="/overview/accounts" className={ACTION}>
-                  <Link2 className={ACTION_ICON} aria-hidden /> Riot Accounts
-                </Link>
-              </li>
-            </>
-          ) : null}
-          {/* Plain links to the switch route (never prefetched): it checks the account again. */}
-          {isAdmin(session) ? (
-            <li>
-              {mode === "player" ? (
-                <a href="/api/mode?to=admin" className={ACTION} data-testid="settings-mode-switch">
-                  <ShieldCheck className={ACTION_ICON} aria-hidden /> Switch to Admin Mode
-                </a>
-              ) : (
-                <a href="/api/mode?to=player" className={ACTION} data-testid="settings-mode-switch">
-                  <Gamepad2 className={ACTION_ICON} aria-hidden /> Return to Player Mode
-                </a>
-              )}
-            </li>
-          ) : null}
-          <li>
-            <form action="/api/auth/logout" method="post">
-              <button type="submit" className={ACTION} data-testid="settings-sign-out">
-                <LogOut className={ACTION_ICON} aria-hidden /> Sign out
-              </button>
-            </form>
-          </li>
-        </ul>
+        <AccountActions variant="rows" profileLinks={profileLinks} modeSwitch={modeSwitch} />
       </section>
 
       <div className="min-w-0 space-y-4 sm:col-start-2 sm:row-start-2 md:space-y-5">

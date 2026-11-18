@@ -145,20 +145,22 @@ const PICTURE_HELP = `Optional. PNG, JPEG or WebP, cropped to a square. Shown to
 
 /**
  * The picture part of Settings' account card: the picture, who you are (`children`: the name,
- * @username and role), Change and Remove, and what the picture is for. It adds no box of its own
- * (display: contents): each part is a cell of the card's grid, which places them by the card's
- * room (account-settings.tsx, CARD_CELLS). The same editor as My Profile's (useAvatarUpload).
+ * @username and role) beside it, then `afterIdentity` (the card's quiet links on a phone), Change
+ * and Remove, and what the picture is for. It adds no box of its own (display: contents): each part
+ * is a cell of the card's grid, in the order it is drawn, so reading and the keyboard follow what is
+ * seen (account-settings.tsx). The same editor as My Profile's (useAvatarUpload).
  */
-export function AccountPicture({ name, src, children, cells }: { name: string; src: string | null; children: React.ReactNode; cells: { avatar: string; identity: string; buttons: string; help: string } }) {
+export function AccountPicture({ name, src, children, afterIdentity }: { name: string; src: string | null; children: React.ReactNode; afterIdentity?: React.ReactNode }) {
   const { choose, remove, busy, ui } = useAvatarUpload();
   return (
     <div className="contents" data-testid="avatar-editor">
       {/* 56px on a phone and in a window 480px tall or less, 80px in the card's column from md. */}
-      <Avatar name={name} src={src} size="xl" className={cn("max-md:h-14 max-md:w-14 max-md:text-lg short:h-14 short:w-14 short:text-lg", cells.avatar)} />
-      <div className={cn("min-w-0", cells.identity)} data-testid="account-card-identity">
+      <Avatar name={name} src={src} size="xl" className="max-md:h-14 max-md:w-14 max-md:text-lg short:h-14 short:w-14 short:text-lg" />
+      <div className="min-w-0" data-testid="account-card-identity">
         {children}
       </div>
-      <div className={cn("flex flex-wrap items-start gap-2", cells.buttons)}>
+      {afterIdentity}
+      <div className="col-span-2 flex flex-wrap items-start gap-2">
         <Button variant="outline" size="sm" onClick={choose} wrap>
           <Camera className="h-4 w-4" aria-hidden />{" "}
           {src ? (
@@ -177,7 +179,7 @@ export function AccountPicture({ name, src, children, cells }: { name: string; s
           </Button>
         ) : null}
       </div>
-      <p className={cn("text-pretty text-xs text-fg-subtle", cells.help)} data-testid="avatar-help">
+      <p className="col-span-2 text-pretty text-xs text-fg-subtle" data-testid="avatar-help">
         {PICTURE_HELP}
       </p>
       {ui}

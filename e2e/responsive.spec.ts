@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "./test";
 import { closeFilterSheet, openFilterBar } from "./filters";
 import { playerEntry } from "./players";
+import { memberContext } from "./member-account";
 
 /*
   Smoke tests for the responsive layout. Each project (phone 375, tablet 768, desktop 1440) runs
@@ -115,66 +116,160 @@ test("touch targets and inputs are phone-sized", async ({ page }) => {
   expect(fontSize, "16px inputs stop iOS zooming").toBeGreaterThanOrEqual(16);
 });
 
-test("Settings: the account card leads (compact on a phone, a column of its own wider), Sign out on the first screen, each field with its Save on its row", async ({ page }, info) => {
+/** Where Settings' Sign out ends, against the first screen: above the phone's tab bar where it shows, else the window's foot. */
+async function signOutOnFirstScreen(page: Page) {
+  const signOut = page.getByTestId("settings-sign-out").filter({ visible: true });
+  await expect(signOut).toHaveCount(1);
+  const bar = page.getByTestId("phone-tabbar");
+  const firstScreen = (await bar.isVisible()) ? (await bar.boundingBox())!.y : page.viewportSize()!.height;
+  const box = (await signOut.boundingBox())!;
+  return { bottom: box.y + box.height, firstScreen };
+}
+
+/** The account card's controls in the order Tab reaches them, each with where it is drawn. */
+async function cardTabOrder(page: Page) {
+  const card = page.getByTestId("settings-account");
+  // Start from the page's heading, just before the card, so Tab enters it at its first control.
+  await page.locator("main h1").evaluate((h) => {
+    h.setAttribute("tabindex", "-1");
+    (h as HTMLElement).focus();
+  });
+  const order: { name: string; top: number; left: number }[] = [];
+  for (let i = 0; i < 20; i++) {
+    await page.keyboard.press("Tab");
+    const at = await page.evaluate(() => {
+      const el = document.activeElement as HTMLElement | null;
+      const inCard = !!el?.closest("[data-testid=settings-account]");
+      const r = el?.getBoundingClientRect();
+      return inCard && r ? { name: (el!.getAttribute("aria-label") ?? el!.textContent ?? "").trim(), top: r.top + scrollY, left: r.left } : null;
+    });
+    if (!at) {
+      if (order.length) break;
+      continue;
+    }
+    order.push(at);
+  }
+  await expect(card).toBeVisible();
+  return order;
+}
+
+/** True when each control is drawn after the one before it: lower down, or on the same line further right. */
+const readsInOrder = (order: { top: number; left: number }[]) => order.every((c, i) => i === 0 || c.top > order[i - 1]!.top + 2 || (Math.abs(c.top - order[i - 1]!.top) <= 2 && c.left > order[i - 1]!.left));
+
+test("Settings: the account card leads, drawn in the order it is read, with Sign out on the first screen and each field's Save on its row", async ({ page }, info) => {
   await page.goto("/settings");
   const card = page.getByTestId("settings-account");
   await expect(card).toBeVisible();
-  // Sign out is on the first screen at every width: above the phone's tab bar, inside the window wider.
-  const signOut = card.getByTestId("settings-sign-out");
-  const bar = page.getByTestId("phone-tabbar");
-  const firstScreen = (await bar.isVisible()) ? (await bar.boundingBox())!.y : page.viewportSize()!.height;
-  expect((await signOut.boundingBox())!.y + (await signOut.boundingBox())!.height, "Sign out on the first screen").toBeLessThanOrEqual(firstScreen);
-  // Who you are: the name, @username and a neutral role badge.
-  await expect(card.getByTestId("settings-username")).toHaveText(/^@/);
-  // The display name and its Save share one row: 44px on a phone and on a touch screen.
-  const form = page.getByTestId("display-name-form");
-  const field = (await form.getByLabel("Display name").boundingBox())!;
-  const save = (await form.getByRole("button", { name: "Save display name" }).boundingBox())!;
-  expect(Math.abs(field.y - save.y), "the field and its Save on one row").toBeLessThanOrEqual(1);
-  if (info.project.name !== "desktop") {
-    expect(field.height).toBe(44);
-    expect(save.height).toBe(44);
+  // Sign out is on the first screen.
+  const first = await signOutOnFirstScreen(page);
+  expect(first.bottom, "Sign out on the first screen").toBeLessThanOrEqual(first.firstScreen);
+  // Who you are: the name, @username and a neutral role badge; the picture's control named in full.
+  await expect(card.getByTestId("settings-name")).not.toBeEmpty();
+  await expect(card.getByTestId("settings-username")).toHaveText(/^@\S/);
+  await expect(card.getByTestId("settings-role")).toHaveText("Owner");
+  expect(await card.getByTestId("settings-role").locator("span").first().getAttribute("class")).toContain("bg-surface-2");
+  await expect(card.getByRole("button", { name: "Add a picture" })).toBeVisible();
+  // Each field and its Save share one row: 44px on a phone and on a touch screen.
+  for (const [form, label, save] of [
+    ["display-name-form", "Display name", "Save display name"],
+    ["username-form", "Username", "Save username"],
+  ] as const) {
+    const scope = page.getByTestId(form);
+    const field = (await scope.getByLabel(label, { exact: true }).boundingBox())!;
+    const button = (await scope.getByRole("button", { name: save }).boundingBox())!;
+    expect(Math.abs(field.y - button.y), `${label}: the field and its Save on one row`).toBeLessThanOrEqual(1);
+    if (info.project.name !== "desktop") {
+      expect(field.height).toBe(44);
+      expect(button.height).toBe(44);
+    }
   }
-  // The index jumps to each section.
+  // The password form is always shown, stacked like the other sections.
+  await expect(page.locator("#current")).toBeVisible();
+  // The index: Records' SectionIndex, a link per section.
   const index = page.getByTestId("settings-index");
   await expect(index.getByRole("link")).toHaveText(["Name", "Password"]);
   await expect(index.getByRole("link", { name: "Password" })).toHaveAttribute("href", "#password");
+  await expect(index.getByTestId("settings-index-link")).toHaveCount(2);
+  // Read in the order it is drawn: Tab moves down the card, and along each line.
+  const order = await cardTabOrder(page);
+  expect(order.length, "the card's controls").toBeGreaterThanOrEqual(5);
+  expect(readsInOrder(order), JSON.stringify(order)).toBe(true);
   if (isPhone(page)) {
-    // A phone: the card above the sections, the password form folded behind Change password.
+    // A phone: the card above the sections; its quiet links right under who you are.
     expect((await card.boundingBox())!.y + (await card.boundingBox())!.height).toBeLessThanOrEqual((await page.locator("#name").boundingBox())!.y);
-    await expect(page.locator("#current")).toBeHidden();
-    const open = page.getByTestId("password-open");
-    await expect(async () => {
-      if (await open.isVisible()) await open.tap({ timeout: 2_000 });
-      await expect(page.locator("#current")).toBeVisible({ timeout: 1_000 });
-    }).toPass({ timeout: 15_000 });
-    await expect(page.locator("#current")).toBeFocused();
-    await page.getByTestId("password-cancel").tap();
-    await expect(page.locator("#current")).toBeHidden();
-    await expect(open).toBeVisible();
-    // A chip jumps to its section, clear of the top bar.
+    const quiet = card.getByTestId("settings-actions").filter({ visible: true });
+    expect((await quiet.boundingBox())!.y).toBeLessThan((await card.getByRole("button", { name: "Add a picture" }).boundingBox())!.y);
+    // A link of the index jumps to its section through the router's history: under the top bar, and
+    // Back from the next page comes back to it. Room under the last section, so the jump can land it
+    // at the top.
+    await page.addStyleTag({ content: "main { padding-bottom: 100vh !important; }" });
     await index.getByRole("link", { name: "Password" }).tap();
     await expect(page).toHaveURL(/\/settings#password$/);
-    await expect(page.locator("#password")).toBeInViewport();
-    expect((await page.locator("#password").boundingBox())!.y).toBeGreaterThanOrEqual((await page.getByTestId("mobile-topbar").boundingBox())!.height - 1);
+    const bar = (await page.getByTestId("mobile-topbar").boundingBox())!;
+    await expect.poll(async () => Math.round((await page.locator("#password").boundingBox())!.y - (bar.y + bar.height))).toBeGreaterThanOrEqual(6);
+    expect(Math.round((await page.locator("#password").boundingBox())!.y - (bar.y + bar.height))).toBeLessThanOrEqual(10);
+    await expect(page.locator("#password")).toBeFocused();
+    await page.getByTestId("settings-privacy-link").click();
+    await expect(page).toHaveURL(/\/privacy$/);
+    await page.goBack();
+    await expect(page).toHaveURL(/\/settings#password$/);
+    await expect(page.locator("main h1")).toHaveText("Settings");
   } else {
-    // Wider: the card is a column of its own beside the sections, sticky under the bar, the form open.
+    // Wider: the card is a column of its own beside the sections, sticky under the bar.
     expect((await card.boundingBox())!.x + (await card.boundingBox())!.width).toBeLessThanOrEqual((await page.locator("#name").boundingBox())!.x);
     expect(await card.evaluate((el) => getComputedStyle(el).position)).toBe("sticky");
-    await expect(page.locator("#current")).toBeVisible();
-    await expect(page.getByTestId("password-open")).toBeHidden();
+    // Its actions are rows at its end, after the index.
+    const rows = card.getByTestId("settings-actions").filter({ visible: true });
+    expect((await rows.boundingBox())!.y).toBeGreaterThan((await index.boundingBox())!.y);
     if (info.project.name === "desktop") {
       // From xl the display name and the username stand side by side.
-      expect(Math.abs((await page.getByTestId("username-form").boundingBox())!.y - (await form.boundingBox())!.y)).toBeLessThanOrEqual(1);
-      // The index marks the section being read (scroll-spy) in a window short enough to scroll.
-      await page.setViewportSize({ width: 1440, height: 560 });
-      await expect(index.getByRole("link", { name: "Name" })).toHaveAttribute("aria-current", "location");
-      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-      await expect(index.getByRole("link", { name: "Password" })).toHaveAttribute("aria-current", "location");
-      await expect(index.getByRole("link", { name: "Name" })).not.toHaveAttribute("aria-current", "location");
-      // The card stayed in view.
-      expect((await card.boundingBox())!.y).toBeGreaterThanOrEqual(0);
+      expect(Math.abs((await page.getByTestId("username-form").boundingBox())!.y - (await page.getByTestId("display-name-form").boundingBox())!.y)).toBeLessThanOrEqual(1);
     }
+  }
+});
+
+test("Settings in a window 480px tall or less (a phone held sideways) and on the smallest phone: Sign out on the first screen, the card read in order and not pinned", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "the phone's sizes");
+  for (const viewport of [
+    { width: 734, height: 343 },
+    { width: 863, height: 360 },
+    { width: 320, height: 568 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/settings");
+    const card = page.getByTestId("settings-account");
+    await expect(card).toBeVisible();
+    const where = `${viewport.width} × ${viewport.height}`;
+    const first = await signOutOnFirstScreen(page);
+    expect(first.bottom, `${where}: Sign out on the first screen`).toBeLessThanOrEqual(first.firstScreen);
+    expect(await card.evaluate((el) => getComputedStyle(el).position), `${where}: not pinned`).not.toBe("sticky");
+    await expect(page.locator("#current"), `${where}: the password form shown`).toBeVisible();
+    const order = await cardTabOrder(page);
+    expect(readsInOrder(order), `${where}: ${JSON.stringify(order)}`).toBe(true);
+  }
+});
+
+test("Settings' index marks the section being read as the page scrolls (a member with Social links: three sections)", async ({ browser, page: admin }, info) => {
+  test.skip(info.project.name !== "desktop", "the card's index is a list from md; once is enough");
+  const { context, page } = await memberContext(browser, admin, { width: 1440, height: 700 }, { base: "Spy" });
+  try {
+    await page.goto("/settings");
+    const index = page.getByTestId("settings-index");
+    await expect(index.getByRole("link")).toHaveText(["Name", "Links", "Password"]);
+    await expect(index.getByRole("link", { name: "Name" })).toHaveAttribute("aria-current", "location");
+    // Links' top just past the upper third of the window, the page far from its end: Links is current.
+    await page.evaluate(() => {
+      const links = document.getElementById("links")!;
+      window.scrollTo(0, links.getBoundingClientRect().top + scrollY - innerHeight / 3 + 20);
+    });
+    await expect(index.getByRole("link", { name: "Links" })).toHaveAttribute("aria-current", "location");
+    expect(await page.evaluate(() => scrollY + innerHeight < document.documentElement.scrollHeight - 40)).toBe(true);
+    await expect(index.getByRole("link", { name: "Name" })).not.toHaveAttribute("aria-current", "location");
+    // At the page's end, the last section.
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await expect(index.getByRole("link", { name: "Password" })).toHaveAttribute("aria-current", "location");
+  } finally {
+    await context.close();
   }
 });
 
