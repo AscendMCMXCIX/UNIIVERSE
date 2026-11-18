@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { scrollToTop, stayOnCurrentPage } from "@/lib/back-to-top";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, LogOut, Menu, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, LogOut, Menu, SlidersHorizontal, X } from "lucide-react";
 import { BrandMark } from "./brand-mark";
 import { NavLinks } from "./nav-links";
 import { Avatar } from "./ui/avatar";
@@ -19,6 +19,7 @@ import { InstallAppEntry } from "./install/install-app";
 import { useInstallState } from "./install/install-state";
 import { ProfileTabs } from "./players/profile-tabs";
 import { PHONE_QUERY } from "./ui/use-phone";
+import { usePageFilters, useScrolledAway } from "./ui/page-toolbar";
 import { releaseEarlyTaps } from "./early-taps";
 import { cn } from "@/lib/cn";
 import { ACCOUNT_GROUP, ACCOUNT_ROW, ACCOUNT_ROW_CHEVRON, ACCOUNT_ROW_CURRENT, ACCOUNT_ROW_ICON, ACCOUNT_ROW_IDLE } from "@/lib/sheet";
@@ -117,6 +118,9 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   const bar = useTopBarHeight(headerRef);
   const heading = usePageHeading(pathname, bar);
   const back = useBack(pathname, heading.text, tabs, home);
+  // The page's filters (its FilterBar), offered in the bar once the page's own have gone up under it.
+  const filters = usePageFilters();
+  const filtersAway = useScrolledAway(filters?.root ?? null, bar || null);
   // A profile's sections, when this page is one (your own only when you have a profile).
   const profile = adminMode ? null : profileBase(pathname);
   const sections = profile === "/overview" && !hasPlayer ? null : profile;
@@ -187,6 +191,16 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
           ) : (
             <p className="min-w-0 flex-1 px-1 opacity-0 md:hidden" aria-hidden data-testid="mobile-title" />
           )}
+          {/* Phones, and tablet widths in a window 480px tall or less (where the section tabs do not pin
+              and their row cannot offer them): the page's Filters, once its own have scrolled up under
+              the bar; its sheet, as from the page's own button. 44px, with the count of narrowed filters. */}
+          {filters && filtersAway ? (
+            <button type="button" onClick={() => filters.open("topbar")} aria-haspopup="dialog" className="relative grid h-11 w-11 shrink-0 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg md:not-short:hidden" data-testid="topbar-filters">
+              <SlidersHorizontal className="h-5 w-5 text-accent" aria-hidden />
+              <span className="sr-only">Filters: {filters.summary}</span>
+              {filters.count ? <span className="absolute right-0.5 top-1 min-w-4 rounded-full bg-accent px-1 text-center text-2xs font-semibold leading-4 tabular-nums text-bg">{filters.count}</span> : null}
+            </button>
+          ) : null}
           {user ? (
             <>
               <span className="max-md:hidden">
