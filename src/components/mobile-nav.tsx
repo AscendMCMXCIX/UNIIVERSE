@@ -163,7 +163,9 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
               </Link>
             )
           ) : null}
-          <Link href={home} className={cn("flex min-h-11 min-w-0 items-center gap-2.5 rounded-md", back ? "max-md:hidden" : "max-md:shrink-0 max-md:pl-1.5", "md:min-h-14 md:flex-1")} title={shortName} data-testid="mobile-brand">
+          {/* It gives way (its name truncates) only when a larger text size leaves the bar no room, so
+              the bar never makes the page wider than the phone. */}
+          <Link href={home} className={cn("flex min-h-11 min-w-0 items-center gap-2.5 rounded-md", back ? "max-md:hidden" : "max-md:pl-1.5", "md:min-h-14 md:flex-1")} title={shortName} data-testid="mobile-brand">
             <BrandMark src={logoSrc} still={logoStill} name={shortName} className="h-8 w-8 rounded-md text-base" />
             <span className={cn("min-w-0 transition-opacity duration-150", titleShown && "max-md:hidden")}>
               <span className="block truncate text-sm font-bold tracking-label text-fg">{shortName}</span>

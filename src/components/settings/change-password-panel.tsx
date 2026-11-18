@@ -50,7 +50,7 @@ export function ChangePasswordPanel({ hasPassword }: { hasPassword: boolean }) {
           ) : null}
           <NewPasswordFields next={next} confirm={confirmValue} onNext={setNext} onConfirm={setConfirmValue} idPrefix="change" />
           {fieldError?.field === "next" ? <p className="text-xs text-bad">{fieldError.text}</p> : null}
-          <Button type="submit" variant={hasPassword ? "outline" : "primary"} disabled={busy || (hasPassword && !current) || !newPasswordReady(next, confirmValue)}>
+          <Button type="submit" variant={hasPassword ? "outline" : "primary"} className="max-sm:whitespace-normal" disabled={busy || (hasPassword && !current) || !newPasswordReady(next, confirmValue)}>
             {busy ? "Saving…" : hasPassword ? "Change password" : "Set password"}
           </Button>
         </form>
