@@ -595,7 +595,8 @@ test("desktop: from the pinned row of every page that offers Filters, a change b
   // nine players and eight champions need a larger text size for that, and All Champions a window wide
   // enough at that size for its column headings (from a 44rem table), which pin under the tabs.
   const CASES: Array<{ what: string; path: string; tabs: string; first: string; under?: string; text?: number; viewport?: { width: number; height: number }; change: (sheet: Locator) => Promise<unknown>; url?: RegExp }> = [
-    { what: "Encounters' first player met", path: `${profile}/matches?view=encounters`, tabs: "profile-tabs", first: "[data-testid=encounter-row]", change: (s) => s.getByLabel("Game mode").selectOption("solo"), url: /mode=solo/ },
+    // Every player met against (a list long enough to land in), under its pinned column names.
+    { what: "Encounters' first player met, under its pinned column names", path: `${profile}/matches?view=encounters&rel=against&min=1&limit=500`, tabs: "profile-tabs", first: "[data-testid=encounter-row]", under: "[data-testid=encounter-heads]", change: (s) => s.getByLabel("Game mode").selectOption("solo"), url: /mode=solo/ },
     { what: "Team Matches' first game", path: "/matches", tabs: "team-tabs", first: "[data-testid=together-card]", change: (s) => s.getByTestId("together-min").selectOption("3"), url: /min=3/ },
     { what: "the Overview's dashboard", path: profile, tabs: "profile-tabs", first: "[data-testid=overview-dashboard]", change: (s) => s.getByLabel("Game mode").selectOption("solo"), url: /mode=solo/ },
     { what: "All Champions' first champion, under its pinned column headings", path: `${profile}/champions`, tabs: "profile-tabs", first: "[data-testid=top-champion]", under: "[data-testid=all-champions-header]", text: 175, viewport: { width: 1920, height: 560 }, change: (s) => s.getByLabel("Game mode").selectOption("solo"), url: /mode=solo/ },
@@ -815,13 +816,21 @@ test("desktop: with a mouse Team's section tabs stay 40px, level with the sideba
   for (const c of pinned.controls) expect(c.top >= 0 && c.bottom >= 0 && Math.abs(c.top - c.bottom) <= 0.5, `${c.name} inside the bar and centred (${c.top}px above, ${c.bottom}px below)`).toBe(true);
 });
 
-test("Encounters in another order: from md the pinned row's Filters counts and resets only what the bar narrows (the order is the list's own toolbar's there); a phone's top bar counts it, as its sheet holds it", async ({ page }, info) => {
+/** At the list's end, a short window's top bar back in view (it steps aside while reading down). */
+async function endWithTheBar(page: Page) {
+  await scrollTo(page, "end");
+  await page.evaluate(() => window.scrollBy(0, -160));
+  await expect(page.getByTestId("topbar-filters")).toBeInViewport();
+}
+
+test("Encounters in its own order and a game mode: from md the pinned row's Filters counts, names and resets only what the bar narrows (the order is its list toolbar's there); a phone's top bar and sheet count, name and reset both", async ({ page }, info) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   const phone = info.project.name === "phone";
   const profile = await teammate(page);
-  // Short enough for the list to scroll its filters away, tall enough to pin.
+  // Short enough for the list to scroll its filters away, tall enough to pin; every player met
+  // against (a long list), in the list's own order and minimum (Most recent, any number of games).
   if (!phone) await page.setViewportSize({ width: width(page), height: 560 });
-  await page.goto(`${profile}/matches?view=encounters&sort=recent`);
+  await page.goto(`${profile}/matches?view=encounters&rel=against&min=1&limit=500&sort=recent&mode=solo`);
   await expect(page.getByTestId("encounter-row").first()).toBeVisible();
   await page.waitForLoadState("networkidle");
   await scrollTo(page, "end");
@@ -829,22 +838,78 @@ test("Encounters in another order: from md the pinned row's Filters counts and r
   await expect(filters).toBeVisible();
   const sheet = page.getByTestId("filter-sheet");
   if (phone) {
-    await expect(filters.locator("span.rounded-full:visible")).toHaveText("1");
+    // The order and the minimum are the sheet's on a phone: counted with the mode, named, and put back by its Reset.
+    await expect(filters.locator("span.rounded-full:visible")).toHaveText("3");
+    await expect(filters).toHaveAccessibleName(/Most recent/);
     await filters.click();
     await expect(sheet).toBeVisible();
     await expect(sheet.getByTestId("encounter-sort-choices")).toBeVisible();
-    await expect(sheet.getByTestId("reset-filters")).toBeVisible();
+    await sheet.getByTestId("reset-filters").click();
+    await expect(page).not.toHaveURL(/mode=solo/);
+    await expect(page).not.toHaveURL(/sort=recent/);
+    await expect(page).not.toHaveURL(/min=1/);
   } else {
-    // Nothing the bar itself narrows: no count, and its sheet offers no Reset and not the order.
-    await expect(filters.locator("span.rounded-full")).toHaveCount(0);
+    // The game mode only: its count and name, a sheet that neither names nor holds the order and the
+    // minimum, and whose Reset leaves them as they are.
+    await expect(filters.locator("span.rounded-full")).toHaveText("1");
+    await expect(filters).not.toHaveAccessibleName(/Most recent|Any number of games/);
     await filters.click();
     await expect(sheet).toBeVisible();
+    await expect(sheet).not.toHaveAccessibleDescription(/Most recent|Any number of games/);
     await expect(sheet.getByTestId("encounter-sort-choices")).toBeHidden();
-    await expect(sheet.getByTestId("reset-filters")).toHaveCount(0);
+    await sheet.getByTestId("reset-filters").click();
+    await expect(page).not.toHaveURL(/mode=solo/);
+    await expect(page).toHaveURL(/sort=recent/);
+    await expect(page).toHaveURL(/min=1/);
   }
+});
+
+test("phone held sideways (852 × 393): the top bar's Filters counts and names what Encounters' bar narrows at that width, not its order", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "a phone turned to a tablet's width");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const profile = await teammate(page);
+  await page.setViewportSize({ width: 852, height: 393 });
+  const filters = page.getByTestId("topbar-filters");
+  await page.goto(`${profile}/matches?view=encounters&sort=recent`);
+  await expect(page.getByTestId("encounter-row").first()).toBeVisible();
+  await endWithTheBar(page);
+  await expect(filters.locator("span.rounded-full:visible")).toHaveCount(0);
+  await expect(filters).not.toHaveAccessibleName(/Most recent/);
+  await page.goto(`${profile}/matches?view=encounters&sort=recent&mode=solo`);
+  await expect(page.getByTestId("encounter-row").first()).toBeVisible();
+  await endWithTheBar(page);
+  await expect(filters.locator("span.rounded-full:visible")).toHaveText("1");
+  await expect(filters).not.toHaveAccessibleName(/Most recent/);
+});
+
+test("the open sheet follows the phone turning across 768px: Encounters' order leaves it held sideways, and is back in it, and in its Reset, held upright", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "a phone turned with its sheet open");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const profile = await teammate(page);
+  const sheet = page.getByTestId("filter-sheet");
+  // Upright, then sideways: the order goes from the sheet, and so does a Reset that would have put it back.
+  await page.goto(`${profile}/matches?view=encounters&sort=recent`);
+  await expect(page.getByTestId("encounter-row").first()).toBeVisible();
+  await page.getByTestId("filter-toggle").click();
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByTestId("encounter-sort-choices")).toBeVisible();
+  await expect(sheet.getByTestId("reset-filters")).toBeVisible();
+  await page.setViewportSize({ width: 852, height: 393 });
+  await expect(sheet.getByTestId("encounter-sort-choices")).toBeHidden();
+  await expect(sheet.getByTestId("reset-filters")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(sheet).toHaveCount(0);
-  await expect(page).toHaveURL(/sort=recent/);
+  // Sideways, then upright, with a game mode too: the order is back in the sheet, and its Reset puts both back.
+  await page.goto(`${profile}/matches?view=encounters&sort=recent&mode=solo`);
+  await expect(page.getByTestId("encounter-row").first()).toBeVisible();
+  await endWithTheBar(page);
+  await page.getByTestId("topbar-filters").click();
+  await expect(sheet).toBeVisible();
+  await page.setViewportSize({ width: 393, height: 852 });
+  await expect(sheet.getByTestId("encounter-sort-choices")).toBeVisible();
+  await sheet.getByTestId("reset-filters").click();
+  await expect(page).not.toHaveURL(/mode=solo/);
+  await expect(page).not.toHaveURL(/sort=recent/);
 });
 
 test("tablet and desktop: Records → Recent form from the pinned row", async ({ page }) => {

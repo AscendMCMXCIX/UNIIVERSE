@@ -202,8 +202,9 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
           {filters && (filtersAway || filtersHold.held || filtersSheet) ? (
             <button ref={filtersButton} type="button" onClick={() => filters.open("topbar")} onFocus={filtersHold.grab} onPointerDown={filtersHold.grab} onBlur={filtersHold.onBlur} aria-haspopup="dialog" className="relative grid h-11 w-11 shrink-0 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg md:not-short:hidden" data-testid="topbar-filters">
               <SlidersHorizontal className="h-5 w-5 text-accent" aria-hidden />
-              <span className="sr-only">Filters: {filters.summary}</span>
-              {/* At tablet widths (a phone held sideways) a list's own choices are its toolbar's, not the sheet's: the bar's own count there. */}
+              {/* At tablet widths (a phone held sideways) a list's own choices are its toolbar's, not the sheet's: the bar's own name and count there. */}
+              <span className={cn("sr-only", filters.wideSummary !== filters.summary && "md:hidden")}>Filters: {filters.summary}</span>
+              {filters.wideSummary !== filters.summary ? <span className="sr-only max-md:hidden">Filters: {filters.wideSummary}</span> : null}
               {filters.count ? <span className={cn(TOPBAR_COUNT, filters.wideCount !== filters.count && "md:hidden")}>{filters.count}</span> : null}
               {filters.wideCount && filters.wideCount !== filters.count ? <span className={cn(TOPBAR_COUNT, "max-md:hidden")}>{filters.wideCount}</span> : null}
             </button>
@@ -418,14 +419,14 @@ const TAB_FIT = {
   },
 } as const;
 
+/** The top bar's Filters count, over the button's corner. */
+const TOPBAR_COUNT = "absolute right-0.5 top-1 min-w-4 rounded-full bg-accent px-1 text-center text-2xs font-semibold leading-4 tabular-nums text-bg";
+
 /**
  * Phones; and tablets in the installed app, which has no browser Back (a tablet in a browser has the
  * browser's). Up to 45% of the bar, and it gives way first (its label shortens, its name stays whole
  * for screen readers) when a larger text size leaves the bar too little room for Filters and the avatar.
  */
-/** The top bar's Filters count, over the button's corner. */
-const TOPBAR_COUNT = "absolute right-0.5 top-1 min-w-4 rounded-full bg-accent px-1 text-center text-2xs font-semibold leading-4 tabular-nums text-bg";
-
 const BACK_CLASS = "-ml-1 flex min-h-11 min-w-0 max-w-[45%] shrink items-center gap-0.5 rounded-md pr-2 text-sm font-medium text-accent hover:bg-surface-2";
 /**
  * Tablets: hidden in a browser, shown in the installed app's display mode from the first paint (the

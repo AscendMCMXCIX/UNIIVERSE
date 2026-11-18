@@ -362,9 +362,9 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     the list's first item under the pinned stack; closed unchanged, or once the reader moves on,
     nothing later moves the page. Bookmarked keeps the place, as every filter does. The page's
     own toolbar is found by the page's filter bar, or named by the page (All Champions' table search,
-    Leaderboards' views). The copy's Filters counts what the page's own bar narrows at its width
-    (from md Encounters' Minimum games and Sort by are its list toolbar's, so the pinned row leaves
-    them out, as the inline bar does).
+    Leaderboards' views). The copy's Filters counts and names what the page's own bar narrows at its
+    width (from md Encounters' Minimum games and Sort by are its list toolbar's, so the pinned row
+    and the sheet there leave them out, as the inline bar does, following the width while open).
 - **Tablet drawer.** It is a native `<dialog>`: it keeps focus inside, the page behind it cannot
   be used and is locked as behind a window (no scrolling, no rubber band), the focus starts as in a
   window (on the menu itself after a tap, on its close button from the keyboard), and closing it
