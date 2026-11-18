@@ -72,9 +72,12 @@ test("navigation is usable", async ({ page }) => {
     // Team's sections are the pinned tabs in the page.
     const nav = page.getByRole("navigation", { name: "Primary" });
     await expect(nav).toHaveCount(1);
-    await expect(nav.getByRole("link")).toHaveText(["My Profile", "Team", "Resources"]);
+    await expect(nav.getByRole("link")).toHaveText(["My Profile", "Team", "Matchup Intel", "Resources"]);
     await expect(nav.getByRole("link", { name: "Team" })).toHaveAttribute("aria-current", "page");
     await expect(page.getByTestId("menu-button")).toHaveCount(0);
+    await nav.getByRole("link", { name: "Matchup Intel" }).click();
+    await expect(page).toHaveURL(/\/resources\/matchups$/);
+    await expect(nav.getByRole("link", { name: "Matchup Intel" })).toHaveAttribute("aria-current", "page");
     await nav.getByRole("link", { name: "Resources" }).click();
     await expect(page).toHaveURL(/\/resources$/);
     await expect(nav.getByRole("link", { name: "Resources" })).toHaveAttribute("aria-current", "page");
@@ -88,11 +91,13 @@ test("navigation is usable", async ({ page }) => {
     const aside = page.locator("aside");
     await expect(aside).toBeVisible();
     // Team: one entry (its sections are the tabs at the top of its pages); My Profile: one link
-    // (its sections are the bar under the profile card); Resources: its own entry below Team.
+    // (its sections are the bar under the profile card); Matchup Intel and Resources: entries of their
+    // own below Team, one page each.
     const team = aside.getByTestId("nav-team");
     await expect(team).toHaveAttribute("href", "/team");
     await expect(team).toHaveAttribute("aria-current", "page");
     await expect(page.getByTestId("team-tabs").getByRole("link")).toHaveText(["Overview", "Players", "Leaderboards", "Matches"]);
+    await expect(aside.getByTestId("nav-resources-matchups")).toHaveAttribute("href", "/resources/matchups");
     await expect(aside.getByTestId("nav-resources")).toHaveAttribute("href", "/resources");
     await expect(aside.getByTestId("nav-clash")).toHaveCount(0);
     await expect(aside.getByRole("link", { name: "My Profile" })).toHaveAttribute("href", "/overview");
