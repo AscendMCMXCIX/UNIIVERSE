@@ -244,10 +244,11 @@ Substitute side of the Team cards).
   fields in one column behind More filters, Players' "Archived and deactivated" whole), the inline
   toolbar keeping its size in the page (an empty box of its size while its fields are in the sheet,
   one copy of each field and id), and closed after a choice made in it, once the change has arrived
-  (within 8 s), it brings the list's first item under what is pinned (and under anything pinned over
-  its start, as All Champions' column headings); closed unchanged, it arms nothing. The pinned row's
-  buttons and fields take the scroll padding back as its links do, so focus moving onto them never
-  scrolls the page.
+  (within 8 s, and before the reader scrolls, presses, types or steps Back), it brings the list's
+  first item under what is pinned (and under anything pinned over its start, as All Champions'
+  column headings); closed unchanged, or once the reader moves on, nothing later moves the page. The
+  pinned row's buttons and fields take the scroll padding back as its links do, so focus moving onto
+  them never scrolls the page.
 - `main` pads for the tab bar (`pb-tabbar`) so content never hides behind it.
 
 ## Primitives
@@ -309,19 +310,22 @@ row pinned at both), at the row's resting height and inside it, gone again at th
 short window; a copy keeps the focus while it has it and goes once the focus moves on; from the end
 of Match History (768 and 1440) Filters opens the sheet in its sheet form (Refine in one column), the
 toolbar in the page keeping its size; Escape and Done hand the focus back to it, still drawn, even
-after a change that emptied the list; a sheet closed unchanged arms nothing (a later change in the
-page's own filters keeps the place); closed after a change, the first game lands under the pinned
-tabs, and on the desktop Encounters' first player, Team Matches' first game, the Overview's
-dashboard, All Champions' first champion under its pinned headings and Players' first player do too;
-the compact search narrows Players and All Champions in the row's own height; Bookmarked from the row
-replaces the entry, is marked and keeps the place; Records → Recent form from the pinned row.
+after a change that emptied the list; a sheet closed after only a look (More filters opened) moves
+nothing once the reader has moved on (a later change in the page's own filters keeps the place), nor
+does Bookmarked after a look at Team Matches' Played with; closed after a change, the first game
+lands under the pinned tabs, and on the desktop Encounters' first player, Team Matches' first game,
+the Overview's dashboard, All Champions' first champion under its pinned headings and Players' first
+player do too; the compact search narrows Players and All Champions in the row's own height, and
+its Clear lets the copy go once the page's own search is back in view, with no focus left in the
+row; Bookmarked from the row replaces the entry, is marked and keeps the place; Records → Recent form
+from the pinned row.
 `e2e/mobile-nav.spec.ts` has the phone's: the top bar's Filters (44px, "Filters:" and what is chosen)
 only once the page's own has gone, opening the sheet, Done after a change landing the first game
 under the bars, its badge counting; Escape and Done hand the focus back, even after a change that
 emptied the list; the fullest bar (Back, the title, Filters with its count, the avatar) within a
 320px phone at 100%, 175% and 200% text, Back giving way. `e2e/filter-consistency.spec.ts`: the sheet
-opened from the pinned row at 768 and 1440 labels every field (More filters opened) and holds the only
-copy of each id.
+opened from the pinned row at 768 and 1440 labels every field (More filters opened), holds the only
+copy of each id, and gives Team Matches' Played with the sheet's width, as its selects.
 `e2e/popups.spec.ts` keeps what shows over a window inside it: an ⓘ's bubble in a window drawn
 inside the window and above it where its trigger puts it (also while the window is moved and
 scaled, and once a motion of the window's own is over), Escape closing the bubble alone; an ⓘ

@@ -307,8 +307,9 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     place. Their Filters opens the page's Filters sheet at every width, in its sheet form (labels
     shown, fields the sheet's width, a page's Refine fields in place, in one column behind More
     filters), while the toolbar in the page keeps its size; closed after a choice made in it, within
-    8 s of the change arriving, it brings the list's first item under the pinned stack; closed
-    unchanged, it changes nothing later. Bookmarked keeps the place, as every filter does. The page's
+    8 s of the change arriving and before the reader scrolls, presses, types or steps Back, it brings
+    the list's first item under the pinned stack; closed unchanged, or once the reader moves on,
+    nothing later moves the page. Bookmarked keeps the place, as every filter does. The page's
     own toolbar is found by the page's filter bar, or named by the page (All Champions' table search,
     Leaderboards' views).
 - **Tablet drawer.** It is a native `<dialog>`: it keeps focus inside, the page behind it cannot
