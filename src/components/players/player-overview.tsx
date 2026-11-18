@@ -37,7 +37,24 @@ export const fmt = {
   Each figure reads label, number, context (the quietest grey). Colour only where it says
   something: a season win rate with enough games, and the record bar's wins and losses. The card's
   own width decides the layout (a container query), so the open or folded sidebar is allowed for.
+  Larger text makes the card narrower in rem (17.9rem on a 320px phone at 100%, 13.9rem at 125%,
+  11.25rem at 150%, 7.9rem at 200%), and a third of it no longer held a cell's widest word: the
+  games' "champions" ran 21px past the card at 150% on a 320px phone (63px at 200%), the win rate
+  ran over the line beside it and "Damage/" under its ⓘ. So under 17.5rem each band goes two across
+  (a third of the card holds "By champion" with its arrow, and "Damage/" with its ⓘ, from 17.34rem),
+  its third figure across both columns (games, vision; the kills in three rows of two, the link in
+  the sixth cell); and under 11.75rem one across (half of the card holds them, and "100%", from
+  11.66rem). Nothing changes at 100% text.
 */
+
+/** A band's columns (see above): three, two under 17.5rem of card, one under 11.75rem. */
+const BAND_COLUMNS = "@max-[17.5rem]/perf:grid-cols-2 @max-[11.75rem]/perf:grid-cols-1";
+/** A three-figure band's first figure: no line after it where the band is one across. */
+const BAND_FIRST = "@max-[11.75rem]/perf:border-e-0";
+/** Its second: at the band's right edge two across (no line there), under the first one across. */
+const BAND_SECOND = "@max-[17.5rem]/perf:border-e-0 @max-[11.75rem]/perf:border-t";
+/** Its third: across the band, under the first two, wherever the band is narrower than three. */
+const BAND_THIRD = "@max-[17.5rem]/perf:col-span-full @max-[17.5rem]/perf:border-t @max-[17.5rem]/perf:border-border/60";
 
 /**
  * A figure's label with a line break allowed after each "/" ("Damage/min" wraps as "Damage/" "min"
@@ -67,9 +84,9 @@ function breakable(label: string): React.ReactNode {
 const LABEL_TIP = "-mr-2";
 
 /** A headline figure: its label, the number at the size of the page's main figures, its context. */
-function Headline({ label, value, sub, info, tone = "plain", testId, children }: { label: string; value: React.ReactNode; sub?: React.ReactNode; info?: string; tone?: WinRateTone; testId: string; children?: React.ReactNode }) {
+function Headline({ label, value, sub, info, tone = "plain", testId, className, children }: { label: string; value: React.ReactNode; sub?: React.ReactNode; info?: string; tone?: WinRateTone; testId: string; className?: string; children?: React.ReactNode }) {
   return (
-    <div className="min-w-0 px-3 py-3 @min-[34rem]/perf:px-5 @min-[34rem]/perf:py-4" data-testid={testId}>
+    <div className={cn("min-w-0 px-3 py-3 @min-[34rem]/perf:px-5 @min-[34rem]/perf:py-4", className)} data-testid={testId}>
       <div className="flex items-center gap-1 text-xs font-medium text-fg-muted">
         <span className="min-w-0 leading-tight">{breakable(label)}</span> {info ? <InfoTip text={info} label={`About ${label}`} className={LABEL_TIP} /> : null}
       </div>
@@ -84,9 +101,9 @@ function Headline({ label, value, sub, info, tone = "plain", testId, children }:
 }
 
 /** A supporting figure: the same reading as a headline one, a size smaller, its context beside it where there is room. */
-function Supporting({ label, value, sub, info, muted, testId }: { label: string; value: React.ReactNode; sub?: string; info?: string; muted?: boolean; testId: string }) {
+function Supporting({ label, value, sub, info, muted, testId, className }: { label: string; value: React.ReactNode; sub?: string; info?: string; muted?: boolean; testId: string; className?: string }) {
   return (
-    <div className="min-w-0 px-3 py-2.5 @min-[34rem]/perf:px-5" data-testid={testId}>
+    <div className={cn("min-w-0 px-3 py-2.5 @min-[34rem]/perf:px-5", className)} data-testid={testId}>
       <div className="flex items-center gap-1 text-xs text-fg-muted">
         <span className="min-w-0 leading-tight">{breakable(label)}</span> {info ? <InfoTip text={info} label={`About ${label}`} className={LABEL_TIP} /> : null}
       </div>
@@ -164,7 +181,7 @@ function KillsBand({ perf, m, byChampionHref }: { perf: PerformanceSummary; m: M
       <h3 id="multikills-heading" className="sr-only">
         Kills and multikills{notes.length ? ` (${notes.join("; ")})` : ""}
       </h3>
-      <div className="grid grid-cols-3 @min-[34rem]/perf:grid-cols-5 @min-[48rem]/perf:grid-cols-[repeat(5,minmax(0,1fr))_auto]" data-testid="multikill-tiles">
+      <div className={cn("grid grid-cols-3 @min-[34rem]/perf:grid-cols-5 @min-[48rem]/perf:grid-cols-[repeat(5,minmax(0,1fr))_auto]", BAND_COLUMNS)} data-testid="multikill-tiles">
         <KillCount label="Total kills" value={perf.totalKills === null ? notYet : formatCount(perf.totalKills)} muted={perf.totalKills === null} sub={perf.totalKills === null ? "Not counted yet" : `${fmt.one(perf.kills)} a game`} testId="stat-total-kills" />
         {MULTIKILL_KINDS.map((k) => (
           <KillCount key={k.key} label={kinds[k.key]} value={unknown ? notYet : formatCount(m[k.key])} muted={unknown} sub={unknown ? "Not counted yet" : multikillRate(m[k.key], m.counted)} testId={`multikill-${k.key}`} className="@min-[34rem]/perf:border-l @min-[34rem]/perf:border-border/60" />
@@ -197,17 +214,17 @@ function PerformanceCard({ data, basePath }: { data: PlayerOverviewData; basePat
     <section aria-labelledby="season-stats" className="@container/perf relative h-full overflow-hidden rounded-card border border-border bg-surface panel-featured" data-testid="season-figures">
       {/* The brand's line along the top edge (panel-featured adds a faint wash of its light in the corner): the card the page leads with. */}
       <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-accent/80 via-accent-2/60 to-transparent" />
-      <div className="grid grid-cols-3 divide-x divide-border/60" data-testid="season-headline">
-        <Headline label="Win rate" value={rec.winRate === null ? "—" : percent(rec.winRate, 0)} sub={rec.games ? `${rec.wins}W ${rec.losses}L` : "No games yet"} tone={winRateTone(rec.winRate, rec.games, WIN_RATE_MIN_GAMES.season)} testId="stat-winrate">
+      <div className={cn("grid grid-cols-3 divide-x divide-border/60", BAND_COLUMNS)} data-testid="season-headline">
+        <Headline label="Win rate" value={rec.winRate === null ? "—" : percent(rec.winRate, 0)} sub={rec.games ? `${rec.wins}W ${rec.losses}L` : "No games yet"} tone={winRateTone(rec.winRate, rec.games, WIN_RATE_MIN_GAMES.season)} testId="stat-winrate" className={BAND_FIRST}>
           <RecordBar wins={rec.wins} losses={rec.losses} />
         </Headline>
-        <Headline label="KDA" value={fmt.kda(perf)} sub={kda} info="(Kills + assists) ÷ deaths, added up over all the games, so one deathless game cannot make it infinite." tone={perf.kdaRatio === null ? "muted" : "plain"} testId="stat-kda" />
-        <Headline label="Games" value={<span data-testid="season-record">{rec.games ? fmt.int(rec.games) : "—"}</span>} sub={rec.games ? `${data.topChampions.length} champion${data.topChampions.length === 1 ? "" : "s"}` : "No games yet"} tone={rec.games ? "plain" : "muted"} testId="stat-games" />
+        <Headline label="KDA" value={fmt.kda(perf)} sub={kda} info="(Kills + assists) ÷ deaths, added up over all the games, so one deathless game cannot make it infinite." tone={perf.kdaRatio === null ? "muted" : "plain"} testId="stat-kda" className={BAND_SECOND} />
+        <Headline label="Games" value={<span data-testid="season-record">{rec.games ? fmt.int(rec.games) : "—"}</span>} sub={rec.games ? `${data.topChampions.length} champion${data.topChampions.length === 1 ? "" : "s"}` : "No games yet"} tone={rec.games ? "plain" : "muted"} testId="stat-games" className={BAND_THIRD} />
       </div>
-      <div className="grid grid-cols-3 divide-x divide-border/60 border-t border-border/70 bg-bg/25" data-testid="season-supporting">
-        <Supporting label="CS/min" value={fmt.csm(perf)} sub={rec.games ? "minions + monsters" : undefined} info="Lane minions plus jungle monsters: total CS ÷ total minutes played, over the games with both recorded (remakes under five minutes left out)." muted={perf.csPerMinute === null} testId="stat-cs" />
-        <Supporting label="Damage/min" value={fmt.int(perf.damagePerMinute)} sub={rec.games ? "to champions" : undefined} info="Damage dealt to enemy champions: total damage ÷ total minutes played, over the games with both recorded (remakes left out)." muted={perf.damagePerMinute === null} testId="stat-damage" />
-        <Supporting label="Vision score" value={fmt.int(perf.visionPerGame)} sub={rec.games ? "per game" : undefined} info="Average Riot vision score per game: wards placed and cleared, and time spent revealing enemies." muted={perf.visionPerGame === null} testId="stat-vision" />
+      <div className={cn("grid grid-cols-3 divide-x divide-border/60 border-t border-border/70 bg-bg/25", BAND_COLUMNS)} data-testid="season-supporting">
+        <Supporting label="CS/min" value={fmt.csm(perf)} sub={rec.games ? "minions + monsters" : undefined} info="Lane minions plus jungle monsters: total CS ÷ total minutes played, over the games with both recorded (remakes under five minutes left out)." muted={perf.csPerMinute === null} testId="stat-cs" className={BAND_FIRST} />
+        <Supporting label="Damage/min" value={fmt.int(perf.damagePerMinute)} sub={rec.games ? "to champions" : undefined} info="Damage dealt to enemy champions: total damage ÷ total minutes played, over the games with both recorded (remakes left out)." muted={perf.damagePerMinute === null} testId="stat-damage" className={BAND_SECOND} />
+        <Supporting label="Vision score" value={fmt.int(perf.visionPerGame)} sub={rec.games ? "per game" : undefined} info="Average Riot vision score per game: wards placed and cleared, and time spent revealing enemies." muted={perf.visionPerGame === null} testId="stat-vision" className={BAND_THIRD} />
       </div>
       {/* The kills over the same games; per champion in All Champions (same filters, sorted by multikills). */}
       {rec.games > 0 ? <KillsBand perf={perf} m={data.summary.multikills} byChampionHref={`${basePath}/champions?${statsQuery({ season: data.filter.season, mode: data.filter.mode, role: data.filter.role, accountId: data.filter.accountId }, { sort: "multikills" })}`} /> : null}

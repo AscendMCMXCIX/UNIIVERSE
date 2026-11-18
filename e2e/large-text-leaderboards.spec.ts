@@ -51,7 +51,8 @@ async function setSize(page: Page, width: number, root: number) {
   await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
 }
 
-const sideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+// Against the layout viewport's width: a phone's (isMobile) window grows with what spills past it, so innerWidth would hide it.
+const sideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
 /**
  * The visible text under `selector` (never what only screen readers get): `cut`, text past the
