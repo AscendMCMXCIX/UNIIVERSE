@@ -1,4 +1,5 @@
 import { devices, expect, test, type Browser, type BrowserContextOptions, type Page } from "./test";
+import { lineupAtRest } from "./lineup";
 import { openMatchWindow } from "./match-history";
 import { playerEntry } from "./players";
 
@@ -94,37 +95,28 @@ test("held upright: the tab bar stays and the top bar stays put", async ({ brows
   await done(page);
 });
 
-test("held sideways, Team Overview's lineup is one sideways track: the cards side by side at one height, about two screens of page, never wider than the window", async ({ browser, baseURL }) => {
-  // The iPhone with its notch's insets (59px at each side, 21px under), the SE without: the track
-  // starts at the page's gutter, which is the inset where that is larger.
-  for (const [device, inset] of [[IPHONE_LANDSCAPE, 59], [SE_LANDSCAPE, 0]] as const) {
+test("held sideways, Team Overview shows the lineup 2 + 2 + 1 as approved: no sideways track, no role bar, the 44px logo", async ({ browser, baseURL }) => {
+  // An iPhone 15 and an iPhone SE (3rd gen) held sideways. The first SE's 568px is too narrow for
+  // two cards side by side: there the lineup is the phone's track, as approved.
+  for (const device of [IPHONE_LANDSCAPE, devices["iPhone SE (3rd gen) landscape"]]) {
     const page = await phone(browser, baseURL!, device);
-    if (inset) {
-      const cdp = await page.context().newCDPSession(page);
-      await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 0, topMax: 0, left: inset, leftMax: inset, bottom: 21, bottomMax: 21, right: inset, rightMax: inset } });
-    }
     await page.goto("/team");
-    const track = page.getByTestId("lineup-overview");
-    await expect(track).toHaveAttribute("data-ready", "true");
-    const cells = await page.getByTestId("lineup-cell").evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ top: Math.round(r.top), left: r.left, right: r.right })));
-    expect(cells).toHaveLength(5);
-    // One row (it was three rows of cards taller than the window), the first card at the page's
-    // gutter under the header's start, the next one beside it in view.
-    expect(new Set(cells.map((c) => c.top)).size, "one row").toBe(1);
-    const header = (await page.getByTestId("team-header").boundingBox())!;
-    const gutter = Math.max(device.viewport.width >= 640 ? 24 : 16, inset);
-    expect(Math.abs(header.x - gutter), "the header starts at the gutter, clear of the notch").toBeLessThanOrEqual(1);
-    expect(Math.abs(cells[0]!.left - header.x)).toBeLessThanOrEqual(1);
-    const vw = page.viewportSize()!.width;
-    expect(cells[1]!.left).toBeLessThan(vw - 100);
-    // The track scrolls sideways on its own; the page never does.
-    expect(await track.evaluate((el) => el.scrollWidth > el.clientWidth + 100)).toBe(true);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
-    // About two screens of page for the whole lineup and its substitutes (four before).
-    expect(await page.evaluate(() => document.documentElement.scrollHeight / window.innerHeight)).toBeLessThanOrEqual(2);
-    // No role bar: the cards side by side are the way through; the substitutes follow the track.
+    await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
+    const { cells, track } = await lineupAtRest(page);
+    const name = `${device.viewport.width} × ${device.viewport.height}`;
+    // Two rows of two cards and the fifth alone under them, centred: never one row of five.
+    expect(cells[1]!.top, `${name}: the first two side by side`).toBe(cells[0]!.top);
+    expect(cells[3]!.top, `${name}: the next two side by side`).toBe(cells[2]!.top);
+    expect(cells[2]!.top, `${name}: the second row under the first`).toBeGreaterThan(cells[0]!.top);
+    expect(cells[4]!.top, `${name}: the fifth under them`).toBeGreaterThan(cells[2]!.top);
+    expect(Math.abs(cells[4]!.x + cells[4]!.width / 2 - (track.x + track.width / 2)), `${name}: the fifth centred`).toBeLessThanOrEqual(2);
+    // The track does not scroll sideways, and there is no role bar to move along it.
+    expect(await page.getByTestId("lineup-overview").evaluate((el) => el.scrollWidth <= el.clientWidth + 1), `${name}: no sideways track`).toBe(true);
     await expect(page.getByTestId("lineup-pager")).toBeHidden();
-    await expect(page.getByTestId("lineup-bench")).toBeVisible();
+    // The header keeps its logo, 44px in a short window.
+    const mark = (await page.getByTestId("team-header").locator(":scope > span[aria-hidden], :scope > img, :scope > picture > img").first().boundingBox())!;
+    expect(Math.round(mark.width), `${name}: the logo`).toBe(44);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
     await done(page);
   }
 });

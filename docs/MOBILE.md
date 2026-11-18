@@ -157,11 +157,6 @@ Settings → home). A destination's own pages have no Back: they are where you s
 Short windows (480px tall or shorter) keep both bars, compact, and slide them away while the page
 scrolls down; any scroll up brings them back. Nothing is lost when a phone turns.
 
-Team Overview's lineup stays one sideways track there, two cards in view (19rem each, the first at
-the page's gutter, clear of the notch, the track running to the screen's edges as it scrolls), with
-no role bar and the substitutes under it: about two screens of page instead of four for a grid of
-three rows of cards taller than the window.
-
 ## 3. Data presentation
 
 The rule: **the first screen answers the question the page exists for**, and more is one obvious
@@ -170,7 +165,6 @@ opens.
 
 | Page | Phone layout | Height at 390px (`main` at f4e5372 → this redesign) |
 |---|---|---|
-| Team Overview | One header row (48px): the team's name over "Main lineup · season" and its ⓘ, with Edit lineup ("Edit", read as "Edit lineup") at the row's end; no logo, as the top bar right above shows the team's mark. A complete lineup draws no status there; one with a role open a warn token on the same line ("● 4/5 roles", the sentence read out and in its title; where a lineup manager's Edit takes the room, "● 4/5" on a 360px phone and the dot alone at 320px), never a row of its own. Then the role bar, as wide as the card, a tab per role with the player's picture in their frame (the role's icon on its corner, the role's name under it), above the swipe track of the five cards, unchanged inside. The first card is whole above the tab bar on an iPhone 15 and SE (3rd gen), with the lineup complete or a role open. Under the track, the substitutes as chips two to a row, one to a row at a large text size (the role's icon, the name wrapping inside the chip, the turn mark): a tap brings that card into view and turns it to them. | At 393 × 659 (an iPhone 15 in Safari; `main` at 5af6988 → November 2026): 722 → 737px, the first card whole on the first screen and the substitutes added under it. At 390 × 844 both are one screen. |
 | Players | One panel, a row per player, 64px tall: picture in its frame and the name in the player's own style with their emblem, the status that matters at the line's end (Lineup; "Setup" for an unfinished setup, its whole meaning read out and in its title; Archived), a long name wrapping beside it rather than pushing it down; then the main role (its icon in the card's colour, its name read out), the rank ("No Riot account" without one) and the pool as many whole portraits as fit plus a count, a line that wraps rather than cuts with larger text; the tagline on a third line only for those who have one. A row carries the card's colours but no art, card frame or effect, and nothing is downloaded for a look. The whole row opens the profile (the card, links and every pool). The count is the title's scope line ("9 players", with what narrows it). The same rows on every width since the roster board (Nov 2026): two up on a phone held sideways. Below 768px wide the title, search and Filters then share one row (from 35rem; a split screen or a zoomed small phone stacks them, so the search keeps its width); a large iPhone in Safari, laid out at the screen's whole width (852px on an iPhone 15), keeps the tablet's toolbar on a row of its own. | 2,966 → 1,227 → 850px |
 | Leaderboards | Built for phones in #188 (docs/LEADERBOARDS_MODEL.md): Recent form is one panel with a row per member (place, picture and name, the gap to the place above, then role, record and dates on one line, the win rate at the right end); Records & achievements are the season's records, the multikills and the milestones. The frame adds the tab, the title in the bar and Back; on phones the whole row of Recent form opens the member's profile, not only the name. | 1,093 → 1,037px (Recent form) |
 | Matches | Each game: result, length, queue and date, then the members who played (champion, role, multikill, K/D/A). Both full teams are in the game's screen, where the scoreboard lists all ten. Bookmarked sits beside Filters. | 2,330 → 1,528px |
@@ -272,10 +266,11 @@ account screen is a screen of its own instead (`size="screen"`, above). A sheet:
   click on the desktop sidebar's collapse control and account tile; `e2e/responsive.spec.ts`,
   `e2e/mobile-landscape.spec.ts` and `e2e/quality.spec.ts` keep overflow, targets, short windows and
   axe in check at every width.
-  Team Overview's phone layout (the one-row header, with a role open too, the role bar's pictures
-  and their wait for the first card's art, the first card above the tab bar, two chips to a row)
-  is in `e2e/team-layout.spec.ts`, its sideways track (clear of the notch) in
-  `e2e/mobile-landscape.spec.ts`, the substitutes' chips in `e2e/team-flip.spec.ts`.
+  Team Overview's phone layout (the logo beside the team's name, the lineup's state and Edit
+  lineup on the line under them, the role bar of icons and names over the track, no bench under
+  it, and no later card's member's picture asked for while the first card's art loads) is in
+  `e2e/team-layout.spec.ts`, and held sideways (2 + 2 + 1, no sideways track, no role bar, the 44px
+  logo) in `e2e/mobile-landscape.spec.ts`.
 - Safari 26's engine: `scripts/webkit26-check.mjs` (RESPONSIVE.md → Safari 26) opens every kind of
   window in WebKit 26.0, the engine that collapsed them, on four phones, an iPad and a Mac.
 - Real devices: see RESPONSIVE.md → Safari and iPhones. Emulated phones prove layout and behaviour
