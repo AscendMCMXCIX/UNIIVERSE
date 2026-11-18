@@ -7,6 +7,7 @@ import { cn } from "@/lib/cn";
 import { Button } from "./button";
 import { DetailModal, useModalClose } from "./detail-modal";
 import { ScrollRow } from "./scroll-row";
+import { landTarget, publishPageFilters } from "./page-toolbar";
 
 /*
   The one filter bar. Every list that can be narrowed (Players, a profile's statistics, Match
@@ -22,6 +23,12 @@ import { ScrollRow } from "./scroll-row";
       does not repeat it.
     - "Reset" appears only when something is narrowed and puts every filter back to its default.
     - Choices apply at once (no Apply button); the page shows a pending state meanwhile.
+    - Once the bar has scrolled away, its sheet opens from the frame too (PR 2b, ui/page-toolbar.tsx):
+      the pinned row's Filters from md, the top bar's on phones. The bar publishes how to open it
+      (one bar a page). Opened that way it is the sheet at every width, its fields in their sheet
+      form (labels shown, the whole width, a page's Refine fields in place: useInFilterSheet), while
+      the inline row keeps its size in the page; closed after a change, the list's start comes into
+      view under what is pinned (the page's PageToolbar names it; else the bar itself).
   Pages decide which filters they need; the bar decides how they look and behave.
 */
 
@@ -51,6 +58,21 @@ const AT: Record<Breakpoint, { row: string; toggle: string; controls: string; se
 };
 
 const FoldContext = React.createContext<Breakpoint>("md");
+/** Inside the Filters sheet, at any width. */
+const SheetContext = React.createContext(false);
+
+/** Whether a field is in the Filters sheet (it then takes its sheet form at every width: labels shown, the whole width, Refine's fields in place). */
+export function useInFilterSheet(): boolean {
+  return React.useContext(SheetContext);
+}
+
+/** For a bar's children made by the page that renders the bar: told whether they are drawn in the sheet. */
+export function InFilterSheet({ children }: { children: (inSheet: boolean) => React.ReactNode }) {
+  return <>{children(useInFilterSheet())}</>;
+}
+
+/** How long after the sheet closes a change still brings the list's start into view (a slow page). */
+const LAND_WITHIN_MS = 8_000;
 
 /** A narrowed filter shown as a chip beside the folded Filters button: a tap removes it (clear) or follows its link (href). */
 export interface FilterChip {
@@ -111,9 +133,54 @@ export function FilterBar({
   /** Beside the folded button at the row's far end (phones): a page's own action, such as Bookmarked. */
   end?: React.ReactNode;
 }) {
-  const [open, setOpen] = React.useState(false);
+  // Who opened the sheet: its own Filters button (phones), or the frame once the bar has scrolled away.
+  const [openedFrom, setOpenedFrom] = React.useState<"own" | "toolbar" | "topbar" | null>(null);
+  const open = openedFrom !== null;
+  const from = React.useRef(openedFrom);
   const id = React.useId();
   const at = AT[foldBelow];
+  const rootRef = React.useRef<HTMLDivElement>(null);
+  const controlsRef = React.useRef<HTMLDivElement>(null);
+  // The inline row's size while its fields are in the sheet, so nothing in the page moves.
+  const [kept, setKept] = React.useState<{ width: number; height: number } | null>(null);
+  // What was chosen when the sheet opened, and when to bring the list's start into view after it closes.
+  const now = React.useRef({ summary, activeCount });
+  React.useLayoutEffect(() => {
+    now.current = { summary, activeCount };
+    from.current = openedFrom;
+  });
+  const atOpen = React.useRef({ summary, activeCount });
+  const [landBy, setLandBy] = React.useState<number | null>(null);
+  const openSheet = React.useCallback((from: "own" | "toolbar" | "topbar") => {
+    const row = controlsRef.current;
+    setKept(row && row.offsetHeight ? { width: row.offsetWidth, height: row.offsetHeight } : null);
+    atOpen.current = now.current;
+    setLandBy(null);
+    setOpenedFrom(from);
+  }, []);
+  const closeSheet = React.useCallback(() => {
+    // Opened from the frame far down the page: after a change, the list starts again in view.
+    if (from.current === "toolbar" || from.current === "topbar") setLandBy(Date.now() + LAND_WITHIN_MS);
+    setOpenedFrom(null);
+  }, []);
+  // One bar a page tells the frame how to open its sheet (ui/page-toolbar.tsx).
+  React.useEffect(() => {
+    const root = rootRef.current;
+    if (root) publishPageFilters({ open: openSheet, count: activeCount, summary, root }, root);
+  }, [openSheet, activeCount, summary]);
+  React.useEffect(() => {
+    const root = rootRef.current;
+    return () => publishPageFilters(null, root);
+  }, []);
+  // The list's start under what is pinned, once the change has arrived (never for a sheet closed unchanged).
+  React.useEffect(() => {
+    if (landBy === null || open || pending) return;
+    const was = atOpen.current;
+    const changed = was.summary !== summary || was.activeCount !== activeCount;
+    if (!changed && Date.now() <= landBy) return;
+    setLandBy(null);
+    if (changed) land(landTarget() ?? rootRef.current);
+  }, [landBy, open, pending, summary, activeCount]);
   const resetCls = "inline-flex min-h-11 items-center justify-center gap-1 rounded-md px-2 text-sm font-medium text-accent hover:bg-accent/10 md:pointer-fine:min-h-9";
   // Inline in a compact bar, below xl: the icon alone, as wide as it is tall.
   const iconOnly = (inSheet: boolean) => compact && !inSheet;
@@ -126,7 +193,7 @@ export function FilterBar({
   const reset = (inSheet: boolean) =>
     activeCount > 0 && (onReset || resetHref) ? (
       resetHref ? (
-        <Link href={resetHref} replace scroll={false} className={resetClass(inSheet)} title={iconOnly(inSheet) ? resetLabel : undefined} data-testid="reset-filters" onClick={inSheet ? () => setOpen(false) : undefined}>
+        <Link href={resetHref} replace scroll={false} className={resetClass(inSheet)} title={iconOnly(inSheet) ? resetLabel : undefined} data-testid="reset-filters" onClick={inSheet ? closeSheet : undefined}>
           {resetBody(inSheet)}
         </Link>
       ) : (
@@ -136,7 +203,7 @@ export function FilterBar({
       )
     ) : null;
   const filtersButton = (
-    <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined} className={toolbarButtonClass(activeCount > 0, at.toggle)} data-testid={toggleTestId} data-filter-toggle="">
+    <button type="button" onClick={() => openSheet("own")} aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined} className={toolbarButtonClass(activeCount > 0, at.toggle)} data-testid={toggleTestId} data-filter-toggle="">
       <SlidersHorizontal className="h-4 w-4 shrink-0 text-accent" aria-hidden />
       Filters
       <span className="sr-only">: {summary}</span>
@@ -145,7 +212,7 @@ export function FilterBar({
   );
   return (
     <FoldContext.Provider value={foldBelow}>
-      <div className={cn("flex min-w-0 flex-col gap-2 transition-opacity motion-reduce:transition-none", pending && "opacity-60", className)} data-testid={testId} aria-busy={pending || undefined}>
+      <div ref={rootRef} className={cn("flex min-w-0 flex-col gap-2 transition-opacity motion-reduce:transition-none", pending && "opacity-60", className)} data-testid={testId} aria-busy={pending || undefined}>
         <div className={cn("flex min-w-0 flex-col gap-2", at.row, align === "end" && !search && "justify-end")}>
           {/* Folded (phones): the search and Filters share the first row; what is narrowed follows as
               chips, then the page's own action. From the breakpoint up the wrapper steps aside
@@ -183,9 +250,12 @@ export function FilterBar({
               {end}
             </div>
           ) : null}
-          {/* Inline from the breakpoint up; while the sheet is open its fields live there instead (one copy of each field and its id). */}
-          {open ? null : (
-            <div className={cn("hidden min-w-0 flex-col gap-3", at.controls, foldBelow === "md" ? "md:gap-2" : "lg:gap-2", align === "end" && (foldBelow === "md" ? "md:ml-auto md:justify-end" : "lg:ml-auto lg:justify-end"))} data-testid={testId ? `${testId}-controls` : undefined} data-filter-controls="">
+          {/* Inline from the breakpoint up; while the sheet is open its fields live there instead (one
+              copy of each field and its id), and an empty box of the row's size keeps its place. */}
+          {open ? (
+            kept ? <div aria-hidden className={cn("hidden min-w-0 flex-none", at.controls, align === "end" && (foldBelow === "md" ? "md:ml-auto" : "lg:ml-auto"))} style={{ width: kept.width, height: kept.height }} data-filter-placeholder="" /> : null
+          ) : (
+            <div ref={controlsRef} className={cn("hidden min-w-0 flex-col gap-3", at.controls, foldBelow === "md" ? "md:gap-2" : "lg:gap-2", align === "end" && (foldBelow === "md" ? "md:ml-auto md:justify-end" : "lg:ml-auto lg:justify-end"))} data-testid={testId ? `${testId}-controls` : undefined} data-filter-controls="">
               {children}
               {reset(false)}
             </div>
@@ -197,7 +267,7 @@ export function FilterBar({
         {open ? (
           <DetailModal
             open
-            onClose={() => setOpen(false)}
+            onClose={closeSheet}
             size="sheet"
             title="Filters"
             description={summary}
@@ -210,14 +280,32 @@ export function FilterBar({
               </>
             }
           >
-            <div id={id} className={cn("flex min-w-0 flex-col gap-4 transition-opacity", pending && "opacity-60")} data-testid={testId ? `${testId}-controls` : undefined} data-filter-controls="" aria-busy={pending || undefined}>
-              {children}
-            </div>
+            {/* The sheet's form at every width: each field labelled and as wide as the sheet (FilterField; a select sized for the inline row too). */}
+            <SheetContext.Provider value>
+              <div id={id} className={cn("flex min-w-0 flex-col gap-4 transition-opacity [&_select]:w-full", pending && "opacity-60")} data-testid={testId ? `${testId}-controls` : undefined} data-filter-controls="" aria-busy={pending || undefined}>
+                {children}
+              </div>
+            </SheetContext.Provider>
           </DetailModal>
         ) : null}
       </div>
     </FoldContext.Provider>
   );
+}
+
+/**
+ * Brings the list's first item to the top, under what is pinned (the page's scroll padding: the
+ * phone's top bar, the pinned tabs), and under anything else pinned over its start (All Champions'
+ * column headings, pinned under the tabs).
+ */
+function land(target: Element | null) {
+  if (!target) return;
+  target.scrollIntoView({ block: "start", behavior: "instant" });
+  const at = target.getBoundingClientRect();
+  const over = document.elementFromPoint(at.left + Math.min(16, at.width / 2), at.top + 1);
+  if (!over || target.contains(over) || over.contains(target)) return;
+  const covered = over.getBoundingClientRect().bottom - at.top;
+  if (covered > 0) window.scrollBy({ top: -covered, behavior: "instant" });
 }
 
 /** Done, at the sheet's foot: closes it the way the close button does, with the sheet's motion. */
@@ -276,15 +364,18 @@ export function RefineButton({ open, count = 0, controls, onClick, haspopup, but
  */
 export function FilterField({ label, htmlFor, labelId, children, className, alwaysLabel = false }: { label: string; htmlFor?: string; labelId?: string; children: React.ReactNode; className?: string; /** Keep the label visible on wide screens too (fields in a panel, such as Refine). */ alwaysLabel?: boolean }) {
   const at = AT[React.useContext(FoldContext)];
-  const cls = cn("text-xs font-medium text-fg-muted", !alwaysLabel && at.label);
+  // In the sheet the label shows at every width, and the field takes the sheet's width.
+  const inSheet = React.useContext(SheetContext);
+  const inline = !alwaysLabel && !inSheet;
+  const cls = cn("text-xs font-medium text-fg-muted", inline && at.label);
   return (
-    <div className={cn("flex min-w-0 flex-col gap-1", !alwaysLabel && at.field, className)}>
+    <div className={cn("flex min-w-0 flex-col gap-1", inline && at.field, className)}>
       {htmlFor ? (
-        <label htmlFor={htmlFor} className={cls}>
+        <label htmlFor={htmlFor} className={cls} data-filter-label="">
           {label}
         </label>
       ) : (
-        <span id={labelId} className={cls}>
+        <span id={labelId} className={cls} data-filter-label="">
           {label}
         </span>
       )}
