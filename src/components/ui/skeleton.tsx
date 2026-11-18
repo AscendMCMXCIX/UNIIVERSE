@@ -1,14 +1,18 @@
 import { cn } from "@/lib/cn";
+import { PAGE_WIDTH, type PageWidth } from "@/lib/nav";
 
 /** Neutral placeholder block shown while a page or panel is loading. */
 export function Skeleton({ className }: { className?: string }) {
   return <div className={cn("animate-pulse rounded-md bg-surface-2", className)} aria-hidden />;
 }
 
-/** Page-sized loading layout: title bar plus a few panels, used by route loading states. */
-export function PageSkeleton({ panels = 3, title = true }: { panels?: number; title?: boolean }) {
+/**
+ * Page-sized loading layout: title bar plus a few panels, used by route loading states. `width`: the
+ * width of the page it stands in for (pageWidthOf), so it stands where the page will.
+ */
+export function PageSkeleton({ panels = 3, title = true, width = "max" }: { panels?: number; title?: boolean; width?: PageWidth }) {
   return (
-    <div className="mx-auto max-w-[var(--content-max)] space-y-5" role="status" aria-live="polite" aria-label="Loading">
+    <div className={cn("mx-auto space-y-5", PAGE_WIDTH[width])} role="status" aria-live="polite" aria-label="Loading" data-testid="page-skeleton">
       {title ? (
         <div className="space-y-2">
           <Skeleton className="h-6 w-48" />
