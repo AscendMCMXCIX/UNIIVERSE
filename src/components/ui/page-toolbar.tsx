@@ -17,11 +17,13 @@ import { cn } from "@/lib/cn";
   short window as wide as a tablet, where nothing is pinned) the top bar offers Filters instead,
   once the page's own Filters has scrolled up under it (MobileNav, from the same registration).
 
-  Three small stores tie the parts together, each one value at a time on a page:
+  Small stores tie the parts together, each holding one value at a time on a page:
     - the pinned row's slot: the sticky TabBar of the page (Team's, Resources', Platform Settings'
       or a profile's) publishes the element at its row's end and whether it is pinned now;
     - the page's filters: the page's FilterBar publishes how to open its sheet, its count and its
       summary, and its own element (whose place says whether it has scrolled away);
+    - how many pages' own toolbars are mounted (a shared part's fallback gives way to them), and
+      where the page's list starts (`land`, for the sheet closed after a change).
   A control in the row is drawn only while it shows, so nothing hidden stays focusable; while the
   focus is in it, it stays, as the bars of a short window do.
 */

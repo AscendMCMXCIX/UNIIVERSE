@@ -40,21 +40,23 @@ export function MatchHistoryHeader({ view, basePath, filter, description, status
     { key: "encounters", label: "Encounters", icon: Users, href: `${basePath}?${statsQuery(shared, { view: "encounters" })}`, testId: "match-view-encounters" },
   ];
   return (
-    <>
-      <SectionHeader
-        id="match-history"
-        title="Match History"
-        nav={<SubTabs label="Match History views" items={views} current={view} testId="match-views" />}
-        description={description}
-        status={status}
-        controls={controls}
-        refresh={refresh}
-      />
-      {/* From md, once the header has scrolled away: the views and Filters at the pinned tabs' end (ui/page-toolbar.tsx). */}
-      <PageToolbar label="Match History controls" land={view === "encounters" ? "[data-testid=encounter-row]" : "[data-testid=match-card]"}>
-        <SubTabs size="compact" label="Match History views" items={views} current={view} testId="match-views" />
-        <FiltersControl />
-      </PageToolbar>
-    </>
+    <SectionHeader
+      id="match-history"
+      title="Match History"
+      nav={
+        <>
+          <SubTabs label="Match History views" items={views} current={view} testId="match-views" />
+          {/* From md, once the header has scrolled away: the views and Filters at the pinned tabs' end (ui/page-toolbar.tsx; nothing here). */}
+          <PageToolbar label="Match History controls" land={view === "encounters" ? "[data-testid=encounter-row]" : "[data-testid=match-card]"}>
+            <SubTabs size="compact" label="Match History views" items={views} current={view} testId="match-views" />
+            <FiltersControl />
+          </PageToolbar>
+        </>
+      }
+      description={description}
+      status={status}
+      controls={controls}
+      refresh={refresh}
+    />
   );
 }
