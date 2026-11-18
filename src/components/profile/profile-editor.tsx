@@ -251,25 +251,34 @@ function PoolPreview({ ids, championsById, onInspect, inspectHref, testId }: { i
  * champion's name keeps its 4rem beside them from 320px), 10.5rem from 24rem, 17rem from 32rem.
  * Three equal columns there (2.5rem each: "Perfect" at text-2xs is 38.9px, and a 2.375rem KDA
  * column cut it). Where a row cannot hold them beside the name (larger text) they wrap under it,
- * at its end.
+ * at its end. Where the list is narrower than 8.5rem (larger text only: a 320px phone's list is
+ * 16.4rem at 100%, 7.9rem at 175% and 6.4rem at 200%), a row cannot hold the columns at all (7.5rem
+ * and its 0.875rem of padding; the KDA column was cut there): the figures take the row's width and
+ * name themselves in words ("Games: 14", "Win rate: 29%", "KDA: 2.74"), wrapping, and the column
+ * names step aside (PoolColumns).
  */
-const STATS_COLUMNS = "ml-auto grid w-[7.5rem] shrink-0 grid-cols-3 @sm:w-[10.5rem] @lg:w-[17rem] @lg:grid-cols-4";
+const STATS_COLUMNS =
+  "ml-auto grid w-[7.5rem] shrink-0 grid-cols-3 @sm:w-[10.5rem] @lg:w-[17rem] @lg:grid-cols-4 @max-[8.5rem]:ml-0 @max-[8.5rem]:flex @max-[8.5rem]:w-full @max-[8.5rem]:flex-wrap @max-[8.5rem]:gap-x-3 @max-[8.5rem]:gap-y-0.5";
 /** While editing, a phone's list keeps its room for the grip and ×: the figures come back on Done. */
 const STATS_HIDDEN_WHILE_EDITING = "@max-sm:hidden";
 
 /**
  * The column names over a pool's rows, once (the rows carry each name for screen readers): the
  * champion, then games, win rate, KDA and CS/min (vision for Support, judged on vision rather than
- * farm). While editing it leaves the room the rows' grip and × take. One line always: in a phone's
- * list (under 24rem) in sentence case, since uppercase "GAMES" (46.5px) and "WIN %" (43px) fit no
- * 2.5rem column ("Games" is 37px, "Win %" 34.7px); uppercase from 24rem, where the columns are wider.
+ * farm). While editing it leaves the room the rows' grip and × take. Each name on one line: in a
+ * phone's list (under 24rem) in sentence case, since uppercase "GAMES" (46.5px) and "WIN %" (43px)
+ * fit no 2.5rem column ("Games" is 37px, "Win %" 34.7px); uppercase from 24rem, where the columns
+ * are wider. Where the names do not fit beside "Champion" (larger text) they wrap under it, at its
+ * end, over the figures, which wrap the same way ("Champion" was cut short from 125% on a 320px
+ * phone, and from 175% the names ran past the list); under 8.5rem, where the rows name their
+ * figures in words (STATS_COLUMNS), they step aside.
  */
 function PoolColumns({ role, editable, testId }: { role: Role; editable: boolean; testId: string }) {
   return (
     // A row's frame (its 1px transparent border too), so the columns sit over the row's figures.
-    <div aria-hidden className="flex items-center gap-1.5 whitespace-nowrap border-x border-transparent pb-0.5 pl-2 pr-1.5 text-2xs font-semibold text-fg-subtle @2xs:gap-2 @sm:gap-2.5 @sm:uppercase @sm:tracking-label @lg:gap-3 @lg:pl-2.5" data-testid={`${testId}-columns`}>
+    <div aria-hidden className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 whitespace-nowrap border-x border-transparent pb-0.5 pl-2 pr-1.5 text-2xs font-semibold text-fg-subtle @2xs:gap-x-2 @sm:gap-x-2.5 @sm:uppercase @sm:tracking-label @lg:gap-x-3 @lg:pl-2.5 @max-[8.5rem]:hidden" data-testid={`${testId}-columns`}>
       <span className="w-3 shrink-0 @sm:w-4" />
-      <span className="min-w-0 flex-1 truncate">Champion</span>
+      <span className="flex-1">Champion</span>
       <span className={cn(STATS_COLUMNS, "text-center", editable && STATS_HIDDEN_WHILE_EDITING)}>
         <span>Games</span>
         <span>
@@ -295,15 +304,16 @@ function PoolRowStats({ s, role, editing }: { s: PoolChampionStats | undefined; 
     return (
       <span className={cn(STATS_COLUMNS, "items-center", hidden)} data-testid="pool-card-stats">
         {/* Wraps rather than ends cut short ("No games this season · 104K mas…" on every phone). */}
-        <span className="col-span-3 text-center text-xs leading-tight text-fg-subtle @lg:col-span-4">
+        <span className="col-span-3 text-center text-xs leading-tight text-fg-subtle @lg:col-span-4 @max-[8.5rem]:text-left">
           No games<span className="hidden @lg:inline"> this season</span>
           {s?.mastery ? ` · ${formatCompactCount(s.mastery)} mastery` : ""}
         </span>
       </span>
     );
   const cell = (label: string, value: React.ReactNode, extra?: { tone?: string; title?: string; testId?: string; className?: string }) => (
-    <span className={cn("min-w-0 truncate text-center text-xs font-semibold tabular-nums @sm:text-sm", extra?.tone ?? "text-fg", extra?.className)} title={extra?.title} data-testid={extra?.testId}>
-      <span className="sr-only">{label}: </span>
+    <span className={cn("min-w-0 truncate text-center text-xs font-semibold tabular-nums @sm:text-sm @max-[8.5rem]:overflow-visible @max-[8.5rem]:whitespace-normal @max-[8.5rem]:text-left", extra?.tone ?? "text-fg", extra?.className)} title={extra?.title} data-testid={extra?.testId}>
+      {/* Read out always; shown where the column names step aside (under 8.5rem, STATS_COLUMNS). */}
+      <span className="sr-only @max-[8.5rem]:not-sr-only @max-[8.5rem]:font-normal @max-[8.5rem]:text-fg-subtle">{label}: </span>
       {value}
     </span>
   );

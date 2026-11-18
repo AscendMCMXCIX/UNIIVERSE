@@ -54,10 +54,12 @@ export function RecentFormStrip({ form, championsById, historyHref, narrowed = n
         </p>
       ) : null}
       {/* A win rises above the line and a loss hangs below it, so the run reads without its colours too. */}
-      {/* The bars share the card's width (up to a fixed size each), over a faint centre line. */}
+      {/* The bars share the card's width (up to a fixed size each), over a faint centre line. No
+          floor: one in rem grew with the text, and at 175-200% on a 320px phone twenty bars ran up to
+          61px past the card and the screen; there they narrow to about 6px instead. */}
       <Link href={historyHref} className="group/strip relative flex items-center gap-0.5 rounded-sm before:pointer-events-none before:absolute before:inset-x-0 before:top-1/2 before:h-px before:bg-border/70" aria-label={`Last ${strip.length} games: ${wins} wins, ${strip.length - wins} losses, newest last. Open Match History`} data-testid="recent-form-strip">
         {strip.map((g) => (
-          <span key={g.matchId} title={`${g.win ? "Win" : "Loss"} · ${champ(g.championId).name}`} className={cn("relative flex h-8 min-w-1.5 max-w-3.5 flex-1 flex-col @xl:max-w-5", g.win ? "justify-start" : "justify-end")} data-result={g.win ? "W" : "L"}>
+          <span key={g.matchId} title={`${g.win ? "Win" : "Loss"} · ${champ(g.championId).name}`} className={cn("relative flex h-8 min-w-0 max-w-3.5 flex-1 flex-col @xl:max-w-5", g.win ? "justify-start" : "justify-end")} data-result={g.win ? "W" : "L"}>
             <span className={cn("h-4 rounded-[3px] transition-opacity duration-150 group-hover/strip:opacity-100", g.win ? "bg-blue opacity-90" : "bg-red opacity-80")} />
           </span>
         ))}
