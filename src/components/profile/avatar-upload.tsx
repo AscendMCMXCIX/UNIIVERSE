@@ -272,11 +272,11 @@ export function useAvatarUpload() {
  * touch screens, on hover or focus elsewhere) opens "Change picture" / "Remove picture", or the
  * file picker straight away when there is no picture yet.
  */
-export function ProfileAvatarEditable({ name, src }: { name: string; src: string | null }) {
+export function ProfileAvatarEditable({ name, src, avatarClassName }: { name: string; src: string | null; /** Sizes for the picture beyond its hero size (the profile's band held sideways). */ avatarClassName?: string }) {
   const { choose, remove, busy, ui } = useAvatarUpload();
   const face = (
     <>
-      <Avatar name={name} src={src} size="hero" />
+      <Avatar name={name} src={src} size="hero" className={avatarClassName} />
       <span className={cn("absolute inset-0 grid place-items-center rounded-full bg-black/45 text-white opacity-0 transition-opacity group-hover/avatar:opacity-100 group-focus-visible/avatar:opacity-100")} aria-hidden>
         <Camera className="h-6 w-6" />
       </span>

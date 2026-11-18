@@ -37,7 +37,11 @@
     page shows Riot's required notice, and neither its HTML nor the RSC payload in it has a
     puuid, gameName, tagLine or riotId key (scripts/riot-keys.mjs; counts only).
   - frame (#178): the charcoal frame token; the sidebar, open and folded, with the gradient bar on
-    the current page; the phone and tablet top bar, drawer and tab bar. Phone: the avatar opens the
+    the current page; the phone and tablet top bar and the phone's tab bar; the tablet's destinations
+    in its top bar, one tap each, with no drawer (frames by posture); held sideways (844 × 390, in the
+    phone's context: two page loads) one compact bar holding the destinations and no bottom bar, and
+    on the teammate's profile its sections under the bar, the bars at rest at most 90px and the
+    profile's band at most 80px. Phone: the avatar opens the
     account screen on the first tap, made as soon as it is on screen; the screen comes to rest (its
     motion run and dropped) filling the screen exactly, nothing in it scrolls, every control in it is
     a full-width target at least 48px tall reached by a tap where it is drawn, the screen itself has
@@ -88,6 +92,13 @@
   - navigation (#266): on the phone a teammate's profile opened from the scrolled Players list starts
     at its top and Back returns to the list at its place (not applicable when the list fits the
     screen); on the desktop Skip to content is the first Tab stop and moves focus to the page.
+  - wide (PR 10): the desktop context made 2560 × 1440 opens Team, Players, Records and the
+    teammate's profile (as every page, with axe): each tab row's first tab starts where its page's
+    column does (within 1px; on Team Overview Team's 100rem column, its header's inset reported), a
+    missing row failing, and Team's row is in the same place on its three sections.
+  - reach (PR 2b): from the end of Match History, on the desktop and the tablet the pinned row offers
+    Filters and it opens the filter sheet; on the phone the top bar's Filters opens it (Escape closes
+    it again; no filter is touched).
   - every page at every width: it loads signed in, no sideways scroll, no page error, no app console
     error, no failed request to the app, no broken image from the app, and a screenshot to review.
 */
@@ -409,7 +420,7 @@ const sameAsFrame = (c, chrome) => !!c && c.slice(0, 3).every((v, i) => Math.abs
 async function frameChecks(page, kind, context) {
   await page.goto(`${base}/team`, { waitUntil: "domcontentloaded" });
   await settle(page);
-  const paint = await colours(page, { sidebar: "[data-testid=sidebar-window]", top: "[data-testid=mobile-topbar]", tabs: "nav[aria-label=Primary]" });
+  const paint = await colours(page, { sidebar: "[data-testid=sidebar-window]", top: "[data-testid=mobile-topbar]", tabs: "[data-testid=phone-tabbar]" });
   pass("frame", `${kind}: the --color-chrome token is deployed`, !!paint.token, paint.token);
   if (kind === "desktop") {
     const side = await page.evaluate(() => {
@@ -493,14 +504,59 @@ async function frameChecks(page, kind, context) {
     await page.waitForTimeout(400);
     return;
   }
-  await page.getByTestId("menu-button").click();
-  await page.getByTestId("mobile-drawer-panel").waitFor({ timeout: 5_000 });
-  const drawer = await colours(page, { panel: "[data-testid=mobile-drawer-panel]" });
-  pass("frame", `${kind}: the drawer is painted with the frame colour`, sameAsFrame(drawer.panel, drawer.chrome), { drawer: drawer.panel, chrome: drawer.chrome });
-  await shot(page, `${kind}-frame-drawer`);
-  await page.keyboard.press("Escape");
-  await page.waitForTimeout(400);
+  // The tablet's destinations are in its top bar, one tap each, Team marked on its page (the menu
+  // drawer they were in has gone: frames by posture). Counts and true or false only.
+  const bar = await page.evaluate(() => {
+    const shown = (el) => !!el && getComputedStyle(el).display !== "none" && el.getBoundingClientRect().height > 0;
+    const navs = [...document.querySelectorAll("nav[aria-label=Primary]")].filter(shown);
+    const links = navs[0] ? [...navs[0].querySelectorAll("a[href]")] : [];
+    return {
+      navs: navs.length,
+      inTopBar: !!navs[0]?.closest("[data-testid=mobile-topbar]"),
+      destinations: links.length,
+      teamCurrent: links.filter((a) => a.getAttribute("aria-current") === "page").map((a) => a.getAttribute("href")).join() === "/team",
+      drawer: !!document.querySelector("[data-testid=menu-button], #mobile-drawer"),
+    };
+  });
+  pass("frame", `${kind}: the top bar holds the destinations, one tap each, Team marked as the page shown, and no drawer`, bar.navs === 1 && bar.inTopBar && bar.destinations >= 2 && bar.teamCurrent && !bar.drawer, bar);
+  await shot(page, `${kind}-frame-topbar`);
   await accountMenuFirstTap(page, kind, page.getByTestId("mobile-topbar").getByTestId("account-menu-button"));
+}
+
+/**
+ * A phone held sideways (844 × 390), in the phone's own context (signed in already), two page loads:
+ * one compact bar holding the destinations and no bottom bar, on Team and on the teammate's profile,
+ * whose sections ride under the bar; the bars at rest at most 90px (44px, the sections' 44px and the
+ * hairline) and the profile's band at most 80px (frames by posture, docs/MOBILE.md). Sizes, counts and
+ * true or false only.
+ */
+async function sidewaysFrame(page, log, profileId) {
+  await page.setViewportSize({ width: 844, height: 390 });
+  const facts = () =>
+    page.evaluate(() => {
+      const shown = (el) => !!el && getComputedStyle(el).display !== "none" && el.getBoundingClientRect().height > 0;
+      const navs = [...document.querySelectorAll("nav[aria-label=Primary]")].filter(shown);
+      const top = document.querySelector("[data-testid=mobile-topbar]");
+      const band = document.querySelector("[data-testid=profile-header]");
+      return {
+        navs: navs.length,
+        inTopBar: !!navs[0]?.closest("[data-testid=mobile-topbar]"),
+        destinations: navs[0] ? navs[0].querySelectorAll("a[href]").length : 0,
+        bottomBar: shown(document.querySelector("[data-testid=phone-tabbar]")),
+        bars: top ? Math.round(top.getBoundingClientRect().height) : null,
+        sections: shown(document.querySelector("[data-testid=profile-chrome-tabs]")),
+        band: shown(band) ? Math.round(band.getBoundingClientRect().height) : null,
+      };
+    });
+  if (await visit(page, log, "phone", "sideways-team", "/team", { fullPage: false })) {
+    const f = await facts();
+    pass("frame", "phone held sideways (844 × 390): one compact bar holds the destinations, with no bottom bar", f.navs === 1 && f.inTopBar && f.destinations >= 2 && !f.bottomBar && f.bars !== null && f.bars <= 46, f);
+  }
+  if (!profileId) return check("frame", "phone held sideways (844 × 390): a profile's sections and band", "PASS", "not applicable: no teammate's profile to open");
+  if (await visit(page, log, "phone", "sideways-profile", `/players/${profileId}`, { fullPage: false })) {
+    const f = await facts();
+    pass("frame", "phone held sideways (844 × 390): a profile's sections under the bar, the bars at rest at most 90px, the band at most 80px", f.navs === 1 && f.sections && !f.bottomBar && f.bars !== null && f.bars <= 90 && f.band !== null && f.band <= 80, f);
+  }
 }
 
 /**
@@ -993,6 +1049,72 @@ async function skipToContent(page) {
   pass("navigation", name, first.skip && first.inView && moved, { firstStop: first.skip, inView: first.inView, focusedMain: moved });
 }
 
+/**
+ * A tab row against its page (`testId`: the row's nav): where its first tab starts and where the
+ * page's column does (the element of main#content holding the page: for a bar of main's own, as
+ * Team's, the page after it; for a bar inside a page, as a profile's, that page), and on Team Overview
+ * how far its header (capped at 84rem, centred) sits inside that column. Measured on the page once no
+ * loading state stands in its place (waited for up to 10 s). Positions in px only; null when there is
+ * no such row, or no page under it.
+ */
+async function tabRowEdges(page, testId) {
+  await page.waitForFunction(() => !document.querySelector("main#content > [role=status]"), null, { timeout: 10_000 }).catch(() => {});
+  return page.evaluate((testId) => {
+    const nav = document.querySelector(`[data-testid=${testId}]`);
+    const main = document.querySelector("main#content");
+    if (!nav || !main || nav.getBoundingClientRect().width === 0) return null;
+    let column = nav;
+    while (column && column.parentElement !== main) column = column.parentElement;
+    if (column === nav) {
+      column = nav.nextElementSibling;
+      while (column && column.getBoundingClientRect().width === 0) column = column.nextElementSibling;
+    }
+    const first = nav.querySelector("li");
+    if (!column || column.matches("[role=status]") || !first) return null;
+    const px = (n) => Math.round(n * 10) / 10;
+    const box = column.getBoundingClientRect();
+    const header = column.querySelector("[data-testid=team-header]")?.getBoundingClientRect();
+    return { tab: px(first.getBoundingClientRect().left), page: px(box.left), ...(header ? { headerInset: [px(header.left - box.left), px(box.right - header.right)] } : {}) };
+  }, testId);
+}
+
+/**
+ * Wide screens (PR 10, 18 Nov 2026), in the desktop context made 2560 × 1440 (the sidebar open), where
+ * the pages have stopped growing and are centred in the room beside the sidebar: Team, Players,
+ * Records (Leaderboards) and the teammate's profile load as every page does (visit) with axe, and each
+ * one's tab row starts where its page's column does, within 1px (Team's tabs on Team's three, the
+ * profile's on the profile; on Team Overview the column is Team's 100rem, its header and lineup
+ * centred 84rem inside it, the inset reported), the Team row in the same place on all three. Four page
+ * loads; positions in px and true or false only. A page without its tab row fails the fact.
+ */
+async function wideChecks(page, log) {
+  await page.setViewportSize({ width: 2560, height: 1440 });
+  const pages = [
+    ["team", "Team Overview", "/team", "team-tabs", "the section tabs start where Team's column does"],
+    ["players", "Players", "/players", "team-tabs", "the section tabs start where the page does"],
+    ["records", "Records", "/leaderboards?view=records", "team-tabs", "the section tabs start where the page does"],
+    ...(playerId ? [["profile", "the profile", `/players/${playerId}`, "profile-tabs", "the profile's tabs start where the page does"]] : []),
+  ];
+  const teamRow = [];
+  let teamPages = 0;
+  for (const [name, label, path, row, says] of pages) {
+    await guarded("wide", `2560: ${name}`, async () => {
+      if (!(await visit(page, log, "wide", name, path, { fullPage: false }))) return;
+      if (row === "team-tabs") teamPages++;
+      await axe(page, "wide", name);
+      const at = await tabRowEdges(page, row);
+      const fact = `2560: on ${label}, ${says}`;
+      if (!at) return pass("wide", fact, false, { missing: `no ${row}, or no page under it` });
+      pass("wide", fact, Math.abs(at.tab - at.page) <= 1, at);
+      if (row === "team-tabs") teamRow.push(at.tab);
+    });
+  }
+  if (!playerId) check("wide", "2560: on the profile, the profile's tabs start where the page does", "PASS", { notApplicable: "no teammate on Team to open" });
+  // Once a Team page has loaded, every one of them must have shown the row, in one place.
+  if (teamPages > 0) pass("wide", "2560: Team's tab row is in the same place on each of its sections", teamRow.length === teamPages && Math.max(...teamRow) - Math.min(...teamRow) <= 1, { starts: teamRow, pagesLoaded: teamPages });
+  await page.setViewportSize(VIEWPORTS.desktop.viewport);
+}
+
 async function teamMatches(page, log, kind, context) {
   if (!(await visit(page, log, kind, "team-matches", "/matches", { fullPage: false }))) return;
   const games = page.getByTestId("together-game");
@@ -1060,6 +1182,51 @@ async function teamMatches(page, log, kind, context) {
     const closed = (await second.getAttribute("aria-expanded")) === "false";
     pass("games", "desktop: Enter on a card opens its game and Enter again closes it", opened && closed, { opened, closed });
   }
+}
+
+/**
+ * Page controls in reach (PR 2b), from the end of Match History: on the tablet and the desktop the
+ * pinned tabs' row offers Filters once the page's filter bar has gone up under it, and it opens the
+ * filter sheet; on the phone the top bar does. Opening and closing the sheet changes nothing (no
+ * filter is touched). Positions in px and true or false only. Not applicable exactly when the frame
+ * would not offer it: the filter bar's bottom still below the pinned stack's foot at the list's end
+ * (the pinned row's bottom on the tablet and the desktop, the top bar's on the phone), or nothing
+ * pinned while the filter bar is still on screen (a list too short to pin). Nothing pinned with the
+ * bar gone above the window fails: the tabs above it are past their sticky offset there.
+ */
+async function reachFacts(page, kind) {
+  const name = kind === "phone" ? "phone: from the end of Match History the top bar's Filters opens the filter sheet" : `${kind}: from the end of Match History the pinned row offers Filters and it opens the filter sheet`;
+  const at = await page.evaluate(async (phone) => {
+    const end = document.documentElement.scrollHeight - innerHeight;
+    for (let y = window.scrollY; y < end; y += 240) {
+      window.scrollTo(0, y);
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+    }
+    window.scrollTo(0, end);
+    await new Promise((r) => setTimeout(r, 300));
+    // What the frame watches (the page's filter bar) against where it watches it from.
+    const bar = document.querySelector("[data-testid=match-history] [data-filter-bar]");
+    const stuck = document.querySelector("[data-sticky-tabs][data-stuck]");
+    const top = document.querySelector("[data-testid=mobile-topbar]");
+    const foot = phone ? (top ? top.getBoundingClientRect().bottom : null) : stuck ? stuck.getBoundingClientRect().bottom : null;
+    return { barBottom: bar ? Math.round(bar.getBoundingClientRect().bottom) : null, foot: foot === null ? null : Math.round(foot) };
+  }, kind === "phone");
+  if (at.barBottom === null) return pass("reach", name, false, { missing: "no filter bar on Match History" });
+  if (at.foot === null) return at.barBottom > 0 ? check("reach", name, "PASS", { notApplicable: "nothing pinned while the filter bar is still on screen (the list too short)", ...at }) : pass("reach", name, false, { pinned: false, ...at });
+  if (at.barBottom > at.foot + 1) return check("reach", name, "PASS", { notApplicable: "the list is too short for its filter bar to go up under what is pinned", ...at });
+  const control = page.getByTestId(kind === "phone" ? "topbar-filters" : "toolbar-filters");
+  const offered = await control.waitFor({ timeout: 5_000 }).then(() => true, () => false);
+  let opened = false;
+  if (offered) {
+    if (kind === "phone") await control.tap();
+    else await control.click();
+    const sheet = page.getByTestId("filter-sheet");
+    opened = await sheet.waitFor({ timeout: 10_000 }).then(() => true, () => false);
+    await shot(page, `${kind}-match-history-filters-from-the-frame`);
+    await page.keyboard.press("Escape");
+    await sheet.waitFor({ state: "detached", timeout: 5_000 }).catch(() => {});
+  }
+  pass("reach", name, offered && opened, { offered, opened, ...at });
 }
 
 async function matchHistory(page, log, kind, playerId) {
@@ -1144,6 +1311,8 @@ async function matchHistory(page, log, kind, playerId) {
     await shot(page, `${kind}-match-history-open`);
     if (kind !== "tablet") await axe(page, kind, "match-history-game-open");
   }
+  // The page's controls in reach from the end of its list (PR 2b): the pinned row's or the top bar's Filters.
+  await guarded("reach", `${kind}: Filters from the end of Match History`, () => reachFacts(page, kind));
   // Encounters, the players met, from the view switch.
   const switcher = page.getByTestId("match-views").getByRole("link", { name: /encounters/i }).or(page.getByTestId("match-views").getByRole("button", { name: /encounters/i })).or(page.getByTestId("match-views").getByRole("tab", { name: /encounters/i }));
   if (await switcher.count()) {
@@ -1244,6 +1413,10 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
       await page.unroute(siteIcon);
     }
   });
+  // Wide screens in the desktop's own context (signed in already): four pages at 2560 × 1440.
+  if (kind === "desktop") await guarded("wide", "2560 × 1440", () => wideChecks(page, log));
+  // A phone held sideways, last in the phone's own context (signed in already): two pages at 844 × 390.
+  if (kind === "phone") await guarded("frame", "phone held sideways (844 × 390)", () => sidewaysFrame(page, log, playerId));
   // Last in the desktop context, so a mode switch that went wrong cannot affect the other checks. Not
   // under LIVE_LOCAL: the demo build's visitor is the local owner, an administrator.
   if (kind === "desktop" && !local) await guarded("security", "a member's refusals", () => memberRefusals(context));

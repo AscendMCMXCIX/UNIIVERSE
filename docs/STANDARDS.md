@@ -88,7 +88,7 @@ list fades out before the figures (a pool row's left half).
 | Token | Use |
 | --- | --- |
 | `bg`, `bg-elevated` | page background; fields, menus and popovers (a step above the panel they sit on) |
-| `chrome` | the app's frame: sidebar, top bar, drawer and tab bar. The page's own ink, half a step up, so navigation recedes; colour in it marks only the current page (a neutral lift, the brand gradient as a thin bar, the icon in `accent`). The frame's zones, rows and states: [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) |
+| `chrome` | the app's frame: sidebar, top bar and tab bar. The page's own ink, half a step up, so navigation recedes; colour in it marks only the current page (a neutral lift, the brand gradient as a thin bar, the icon in `accent`). The frame's zones, rows and states: [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) |
 | `surface`, `surface-2`, `surface-3` | panels and cards; raised rows and tiles inside them; selected or hovered |
 | `border`, `border-strong`, `border-control` | structure (dividers, panel and card edges); emphasis (a menu's or dialog's edge, a hovered row); the edge of a field, toolbar button, segmented group or switch, 3:1 against the page, the panels and popovers (WCAG 1.4.11; Branding derives it from custom colours) |
 | `fg`, `fg-muted`, `fg-subtle` | text: main, secondary, captions and metadata; all three 4.5:1 or more on every surface, `surface-3` included |
@@ -122,8 +122,8 @@ which are the same sizes under other names. Page widths: `--content-max` (text a
 `--content-wide` (Team, statistics and data pages), and `--measure` (72rem: a board or table that
 stands alone, as `max-w-[var(--measure)]`).
 
-**Layers.** Inside a component: `z-0` to `z-10`. Pinned section tabs (`sticky-tabs`): `z-30`. Sticky bars (top bar, sidebar): `z-40`. Drawers,
-pickers and popovers: `z-50`. Menus and toasts: `z-[60]`. Tooltips: `z-[100]`. Detail windows and
+**Layers.** Inside a component: `z-0` to `z-10`. Pinned section tabs (`sticky-tabs`): `z-30`. Sticky bars (top bar, sidebar): `z-40`.
+Pickers and popovers: `z-50`. Menus and toasts: `z-[60]`. Tooltips: `z-[100]`. Detail windows and
 dialogs are native `<dialog>` elements in the browser's top layer, above everything: no z-index
 lifts anything over an open window, so a tooltip's bubble and the toasts are drawn inside it while
 it is open (`src/components/ui/top-layer.ts`), and a picker's list inside a window opens in the flow
@@ -151,7 +151,12 @@ leaving a frame to fill.
 
 **Page layout.** One frame for every page, so pages differ by their content, not their scaffolding:
 - **Width:** `--content-max` for profiles, lists of cards, documents and forms; `--content-wide` for
-  the grids that gain from more columns (Team Overview's lineup, Leaderboards). A board or table
+  the grids that gain from more columns (Team Overview's lineup, Leaderboards). In a window from
+  1600px wide the pages of one tab set share one width, so its tabs line up with each and never move
+  between them (`SECTION_HUBS`' `width`, `PAGE_WIDTH` and `ROW_WIDTH` in `src/lib/nav.ts`): Team's four
+  sections take `--content-wide` there (Players and Matches stay `--content-max` under 1600px, as
+  before). Team Matches' list stays at `--content-max` under that wider header, left-aligned, as Recent
+  form stops at `--measure`: more room never makes a game's row longer. A board or table
   that stands alone on such a page (Recent form) stops at `--measure` (`max-w-[var(--measure)]`,
   72rem), left-aligned: one left edge with the header, never centred in the space. The page's
   padding comes from the app shell; a page adds none of its own.
@@ -169,7 +174,9 @@ leaving a frame to fill.
   `compactToggle`: Filters its icon alone under 360px), and a narrowed filter's chips take the next
   row when they do not fit (`toolbarFills`; below `xl` an active refinement's always do, from the
   row's start, clear of the Refine panel that opens from the right). The scope line comes after
-  the toolbar in the page as on screen, so the header is read and tabbed in the order drawn.
+  the toolbar in the page as on screen, so the header is read and tabbed in the order drawn. On a
+  long page its compact copy stays in reach once it has scrolled away (`PageToolbar` at the pinned
+  tabs' end from md; Filters in the phone's top bar).
 - **Density, by what the page is for:**
   - an analytical table has 2rem portraits and rows of about 48px wherever it is a table. Its
     figure columns are as wide as their heading needs and a little more (at least room for the sort
@@ -225,10 +232,11 @@ Use the shared component before writing a new one (`src/components/ui`):
 | Details over the page (a match, a player, a champion) | `DetailModal` (the standard size fits its content up to the screen's height); a custom `header` keeps clear of the close button's corner with `CLEAR_OF_CONTROLS` (content beside it) or `BELOW_CONTROLS` (content that starts under it), never a fixed padding |
 | A question or a short form | `Dialog`, `ConfirmDialog` |
 | Choices in a list | `Menu`, `MenuItem`, `MenuLink` |
-| Filters | `FilterBar`, `RefineButton`, `FilterField`, `SearchInput`, `ToggleChip`. On phones the bar folds to a Filters button that opens a sheet, with what is narrowed as removable chips beside it (`chips`). A bar with several filters keeps to one row inline with `compact` (a narrower search to start from, Reset as its icon below `xl`) |
+| Filters | `FilterBar`, `RefineButton`, `FilterField`, `SearchInput`, `ToggleChip`. On phones the bar folds to a Filters button that opens a sheet, with what is narrowed as removable chips beside it (`chips`). A bar with several filters keeps to one row inline with `compact` (a narrower search to start from, Reset as its icon below `xl`). One bar a page; once it has scrolled away its sheet also opens from the frame (the pinned row's `FiltersControl`, the phone's top bar), at any width in its sheet form (`useInFilterSheet`, `InFilterSheet` for fields the page draws itself, as Refine's) |
+| A long page's controls kept in reach | `PageToolbar` (`ui/page-toolbar.tsx`): the page's compact controls, shown at the pinned section tabs' end once its own toolbar has scrolled away: `SubTabs size="compact"`, `FiltersControl`, a `SearchInput` with `COMPACT_SEARCH`, `ToolbarChip` for a page's own action. `land` names the list's first item for the sheet closed after a change; `fallback` for a shared part's own (OverviewFilters' Filters), outranked by the page's |
 | One choice out of a few that filters what a page shows (a role, a side, a sort) | `segmentedGroupClass` with `segmentClass` (`size: "md"` for a list's main filter, as Encounters' All, Against and Alongside), `RoleSegmented` (`compactBelow="xl"`: icons only for the roles not chosen on tablets and laptops, in a crowded toolbar). Never to move between views or pages |
-| A page's sections (primary) | `TabBar`: a profile's Overview, All Champions, Match History and Riot Accounts; Team's sections. On tablets and desktops the bar stays pinned at the top of the page once it scrolls (`sticky`; [RESPONSIVE.md](RESPONSIVE.md) → Shell). On phones Team's sections are the bottom tab bar and a profile's ride in the top bar (`ProfileTabs variant="chrome"`) |
-| Equal views of one section, or related pages (secondary) | `SubTabs` (`ui/sub-tabs.tsx`): links with `aria-current`, directly under the primary tabs, in the section title's place (`SectionHeader`'s `nav`): Match History's Games and Encounters. `SubNav` when the path decides the current one (Admin's Users & Permissions) |
+| A page's sections (primary) | `TabBar`: a profile's Overview, All Champions, Match History and Riot Accounts; Team's sections. On tablets and desktops the bar stays pinned at the top of the page once it scrolls (`sticky`; [RESPONSIVE.md](RESPONSIVE.md) → Shell). A bar wider than the pages under it (`SectionTabs`, a child of `main`) gives its row their width from a 1600px window (`inner`, `ROW_WIDTH`), so there its first tab starts at their column. On phones Team's sections are the bottom tab bar and a profile's ride in the top bar (`ProfileTabs variant="chrome"`) |
+| Equal views of one section, or related pages (secondary) | `SubTabs` (`ui/sub-tabs.tsx`): links with `aria-current`, directly under the primary tabs, in the section title's place (`SectionHeader`'s `nav`): Match History's Games and Encounters. `size="compact"` for their copy in the pinned row (`PageToolbar`; its test ids prefixed with `toolbar-`). `SubNav` when the path decides the current one (Admin's Users & Permissions) |
 | Views inside one panel (a game's Scoreboard, Analysis, Timeline and Build; a champion's views) | `role="tablist"` buttons with `tabIndicatorClass` |
 | Tabs that filter one list | `TabLinks`, only where it is today (Admin's audit categories), until that page is redesigned |
 | Buttons and links that look like buttons | `Button`, `buttonClass` (links never wrap buttons) |
@@ -237,7 +245,7 @@ Use the shared component before writing a new one (`src/components/ui`):
 | A table that can be wider than the screen | `ScrollRegion` with a `label`: the keyboard can focus and scroll it, and screen readers name it |
 | A status or a tag | `Badge` |
 | Nothing to show | `EmptyState`: the default `block` (a dashed panel of its own, `compact` for less padding), `variant="row"` in place of a group of rows inside a `DataList`, `variant="inline"` as one line of running text (a `<p>`: phrasing content only) |
-| Loading | `Skeleton`, `PageSkeleton` (route `loading.tsx`) |
+| Loading | `Skeleton`, `PageSkeleton` (route `loading.tsx`; `width` from `pageWidthOf`: a Team section's own width, else 80rem) |
 | Saving | `SaveStatusIndicator`, `toast` |
 | Images from Riot or another host | `RemoteImage`, `useImageFailure`, `ChampionPortrait`, `Avatar` |
 | A time ago that stays current | `RelativeTime`, `useNow` |
@@ -284,7 +292,9 @@ below-the-fold ones lazily, and keep uploaded brand images small ([HOSTING_USAGE
 - Layouts follow [RESPONSIVE.md](RESPONSIVE.md): Tailwind's breakpoints, the `short:` variant for
   phones held sideways, safe areas, nothing wider than the screen from 320px up. Phones have their
   own frame and patterns ([MOBILE.md](MOBILE.md)): the bottom tab bar, a top bar with Back and the
-  page's title, filters in a sheet, lists as rows, games opened over the whole screen.
+  page's title (held sideways, one compact bar holding the destinations instead), filters in a
+  sheet, lists as rows, games opened over the whole screen; a tablet has its destinations in the
+  top bar (MOBILE.md, "Frames by posture").
 - Targets are at least 24px everywhere and 44px on touch screens (`pointer-coarse:`,
   `touch-target`, `Button` does it).
 - Focus: every element the keyboard reaches shows the same accent ring (`:focus-visible` in

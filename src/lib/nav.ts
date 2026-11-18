@@ -9,6 +9,8 @@ export interface NavLink {
   permission?: Permission;
   /** Any one of these permissions is enough. */
   anyOf?: Permission[];
+  /** A section's own page width (PAGE_WIDTH), where it is not its set's: what its loading state takes (pageWidthOf). */
+  width?: PageWidth;
 }
 
 /**
@@ -85,9 +87,9 @@ export function isNavHub(entry: NavEntry): entry is NavHub {
  */
 export const TEAM_SECTIONS: NavLink[] = [
   { href: "/team", label: "Overview", icon: LayoutGrid, permission: "view-team" },
-  { href: "/players", label: "Players", icon: UserCog, permission: "view-players" },
+  { href: "/players", label: "Players", icon: UserCog, permission: "view-players", width: "wideFrom1600" },
   { href: "/leaderboards", label: "Leaderboards", icon: Medal, permission: "view-teammate-stats" },
-  { href: "/matches", label: "Matches", icon: History, permission: "view-matches" },
+  { href: "/matches", label: "Matches", icon: History, permission: "view-matches", width: "wideFrom1600" },
 ];
 
 /**
@@ -116,14 +118,52 @@ export const ADMIN_SETTINGS_SECTIONS: NavLink[] = [
 ];
 
 /**
+ * The page widths (globals.css; docs/STANDARDS.md → Page layout), as the class a page's column takes:
+ * `max` (--content-max, 80rem) for profiles, lists of cards, documents and forms; `wide`
+ * (--content-wide, 100rem) for Team Overview and Leaderboards; `wideFrom1600` for Players and
+ * Matches: 80rem in a window under 1600px (100rem) wide, as they always were, and Team's 100rem from
+ * there, where Team's four sections share one width.
+ */
+export const PAGE_WIDTH = {
+  max: "max-w-[var(--content-max)]",
+  wide: "max-w-[var(--content-wide)]",
+  wideFrom1600: "max-w-[var(--content-max)] min-[100rem]:max-w-[var(--content-wide)]",
+} as const;
+export type PageWidth = keyof typeof PAGE_WIDTH;
+
+/**
+ * A set's row of tabs (TabBar's `inner`): as wide as the bar in a window under 1600px wide, as it
+ * always was, and from there the set's one width, centred as its pages are.
+ */
+export const ROW_WIDTH: Record<"max" | "wide", string> = {
+  max: "min-[100rem]:max-w-[var(--content-max)]",
+  wide: "min-[100rem]:max-w-[var(--content-wide)]",
+};
+
+/**
  * The sets of pages shown as tabs at the top of each of their pages (SectionTabs), one per
  * sidebar entry that stands for several pages. `label` names the tab bar for screen readers.
+ * `width`: the one width every page of the set takes in a window from 1600px wide, so there the
+ * tabs start and end where each page does and never move between them (the bar's row: ROW_WIDTH).
+ * Under 1600px every page and the row keep the widths they always had (a section's own `width`).
  */
-export const SECTION_HUBS: Array<{ key: string; label: string; sections: NavLink[] }> = [
-  { key: "team", label: "Team sections", sections: TEAM_SECTIONS },
-  { key: "resources", label: "Resources sections", sections: RESOURCES_SECTIONS },
-  { key: "admin-settings", label: "Platform Settings sections", sections: ADMIN_SETTINGS_SECTIONS },
+export const SECTION_HUBS: Array<{ key: string; label: string; width: "max" | "wide"; sections: NavLink[] }> = [
+  { key: "team", label: "Team sections", width: "wide", sections: TEAM_SECTIONS },
+  { key: "resources", label: "Resources sections", width: "max", sections: RESOURCES_SECTIONS },
+  { key: "admin-settings", label: "Platform Settings sections", width: "max", sections: ADMIN_SETTINGS_SECTIONS },
 ];
+
+/**
+ * The width of the page at `pathname`, for its loading state: a section's own width, else its set's,
+ * else the ordinary 80rem. Narrower pages outside the sets (Settings, 48rem) are not told apart.
+ */
+export function pageWidthOf(pathname: string): PageWidth {
+  for (const hub of SECTION_HUBS) {
+    const section = hub.sections.find((s) => s.href === pathname);
+    if (section) return section.width ?? hub.width;
+  }
+  return "max";
+}
 
 /** The pages of an entry, whatever its kind. */
 export function entryLinks(entry: NavEntry): NavLink[] {
@@ -140,7 +180,8 @@ export function entryLinks(entry: NavEntry): NavLink[] {
  *                  are the tabs at the top of every Team page (TEAM_SECTIONS);
  *   Resources      one entry for the library of League of Legends sites and Matchup Intel, the
  *                  tabs at the top of both (RESOURCES_SECTIONS); it opens the library.
- * The account menu holds Settings and Sign out only.
+ * The account menu holds Settings and Sign out (on a tablet, which has no sidebar, also Install App,
+ * the switch between the modes, the patch line and Riot's notice).
  */
 export const NAV_ENTRIES: NavEntry[] = [
   { href: "/overview", label: "My Profile", icon: CircleUserRound },
@@ -171,8 +212,10 @@ export interface PhoneTab {
  *   Profile        your own profile and its sections;
  *   Resources      when there is room (an account without the Team pages); otherwise in the account
  *                  sheet behind your avatar, with Settings and Sign out.
- * At most five, those this account may open (the pages check again). Tablets and desktops keep the
- * sidebar's three entries and the page tabs (TEAM_SECTIONS), so the two never disagree on names.
+ * At most five, those this account may open (the pages check again). Held sideways (a short window
+ * below lg) the phone keeps them, in its one compact top bar instead of a bottom bar. Tablets and
+ * desktops keep the sidebar's three entries (in a tablet's top bar: tabletDestinations) and the page
+ * tabs (TEAM_SECTIONS), so the two never disagree on names.
  */
 export const PHONE_TABS: PhoneTab[] = [
   { href: "/team", label: "Team", icon: Users },
@@ -331,7 +374,7 @@ export const ADMIN_ENTRIES: NavEntry[] = [
 /** Every Admin Mode page in sidebar order (hubs flattened). */
 export const ADMIN_LINKS: NavLink[] = ADMIN_ENTRIES.flatMap(entryLinks);
 
-/** Phone bottom tabs in Admin Mode, with short labels (the rest are in the menu). */
+/** Admin Mode's tabs, with short labels: the phone's (its bottom bar, or its compact bar held sideways) and a tablet's top bar; the rest are on the account screen or in the avatar menu. */
 export const ADMIN_TABS: Array<{ href: string; label: string; icon: LucideIcon }> = [
   { href: ADMIN_HOME, label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/people", label: "Users", icon: UserCog },
@@ -340,10 +383,10 @@ export const ADMIN_TABS: Array<{ href: string; label: string; icon: LucideIcon }
 ];
 
 /**
- * Admin Mode's pages on the phone's account screen: one link per entry, as the drawer lists them (a
- * hub's link opens its first section this account may open, under the hub's name), less the pages
- * the tab bar already holds, so the screen repeats nothing that is one tap away (as Player Mode's
- * account screen holds Resources only when it has no tab).
+ * Admin Mode's pages on the phone's account screen and in a tablet's avatar menu: one link per
+ * entry, as the sidebar lists them (a hub's link opens its first section this account may open,
+ * under the hub's name), less the pages the tabs already hold, so neither repeats anything that is
+ * one tap away (as Player Mode's account screen holds Resources only when it has no tab).
  */
 export function adminSheetLinks(allowed: readonly string[], tabHrefs: readonly string[]): NavLink[] {
   return ADMIN_ENTRIES.flatMap((entry): NavLink[] => {
@@ -357,6 +400,57 @@ export function adminSheetLinks(allowed: readonly string[], tabHrefs: readonly s
 
 /** Account settings in Admin Mode: the same page as Player Mode's, without leaving Admin Mode. */
 export const ADMIN_ACCOUNT_LINKS: NavLink[] = [{ href: "/admin/settings", label: "Settings", icon: Settings }];
+
+/**
+ * Admin Mode's tab names in a tablet's top bar where the phone's short one would be ambiguous: there
+ * the avatar menu, opened under the bar, shows the account's own "Settings" beside it.
+ */
+const TABLET_ADMIN_LABELS: Record<string, string> = { "/admin/branding": "Platform Settings" };
+
+/**
+ * A destination in a tablet's top bar (md to lg, in a window taller than 480px): `pages` are every
+ * page it stands for, each of which marks it as the current one.
+ */
+export interface BarDestination {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  pages: string[];
+}
+
+/**
+ * TABLETS (md to lg, not a short window) have no sidebar and no drawer: their destinations sit in
+ * the top bar, one tap each (docs/MOBILE.md, "Frames by posture"):
+ *   Player Mode   the sidebar's entries, My Profile, Team and Resources, each to the first page of it
+ *                 this account may open, under the entry's name, marked on all of its pages (Team's
+ *                 sections stay the pinned tabs in the page);
+ *   Admin Mode    the phone's four tabs (ADMIN_TABS), Platform Settings by its full name (the avatar
+ *                 menu, open under the bar, holds the account's own Settings); the admin pages without
+ *                 a tab (Data & Integrations, Audit Logs) are in the avatar menu (adminSheetLinks).
+ * A phone held sideways (a short window below lg) keeps the phone's destinations (PHONE_TABS) in its
+ * one compact bar instead.
+ */
+export function tabletDestinations(allowed: readonly string[], admin: boolean): BarDestination[] {
+  if (admin) return ADMIN_TABS.filter((t) => allowed.includes(t.href)).map((t) => ({ ...t, label: TABLET_ADMIN_LABELS[t.href] ?? t.label, pages: [t.href] }));
+  return NAV_ENTRIES.flatMap((entry): BarDestination[] => {
+    const pages = entryLinks(entry)
+      .filter((l) => allowed.includes(l.href))
+      .map((l) => l.href);
+    return pages.length ? [{ href: pages[0]!, label: entry.label, icon: entry.icon, pages }] : [];
+  });
+}
+
+/**
+ * The tablet's destination a page belongs to: in Player Mode as the sidebar marks it (a teammate's
+ * profile is Team's, your own profile's sections My Profile's, Matchup Intel Resources'), in Admin
+ * Mode as its tabs do (Platform Settings' pages are its Settings tab); none for Settings and pages
+ * outside them.
+ */
+export function currentDestination(pathname: string, destinations: readonly BarDestination[], admin: boolean): string | null {
+  if (admin) return currentTab(pathname, destinations.map((d) => d.href));
+  const page = activeHref(pathname, destinations.flatMap((d) => d.pages));
+  return page === null ? null : (destinations.find((d) => d.pages.includes(page))?.href ?? null);
+}
 
 /** May this session open the link? (Pages enforce the same rule on the server.) */
 export function canOpen(session: Session | null, link: Pick<NavLink, "permission" | "anyOf">): boolean {

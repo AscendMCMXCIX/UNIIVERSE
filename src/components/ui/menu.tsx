@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { screenBox, screenHeight } from "@/lib/screen";
+import { menuItemClass } from "./menu-style";
 
 /*
   A small actions menu (⋯ menus, the account menu, "Change player"…).
@@ -19,7 +20,9 @@ import { screenBox, screenHeight } from "@/lib/screen";
 
   Behaviour: click or Enter/Space opens and focuses the first item; ↑/↓/Home/End move; Escape or
   Tab closes (Escape returns focus to the trigger); a click outside or a resize closes it, and a
-  scroll moves it with its trigger (closing once the trigger is off screen). Choosing an item closes it.
+  scroll moves it with its trigger (closing once the trigger is off screen). Choosing an item closes it,
+  and so does a change of `dismissKey` (the account menu's is the page's path: Back or Forward while it
+  is open leaves it closed, and coming back never opens it unasked).
 */
 
 interface MenuContextValue {
@@ -49,14 +52,25 @@ export interface MenuProps {
   side?: "bottom" | "top";
   className?: string;
   testId?: string;
+  /** The menu closes whenever this changes (the page's path, so a navigation never leaves it open). */
+  dismissKey?: unknown;
 }
 
 const GAP = 6;
 const MARGIN = 8;
 
-export function Menu({ trigger, children, label, align = "end", side = "bottom", className, testId }: MenuProps) {
+export function Menu({ trigger, children, label, align = "end", side = "bottom", className, testId, dismissKey }: MenuProps) {
   const [open, setOpen] = React.useState(false);
   const [pos, setPos] = React.useState<{ top: number; left: number; maxHeight: number } | null>(null);
+  // Closed as the key changes, while rendering (no effect, so a page reached with it open never shows it).
+  const [seenKey, setSeenKey] = React.useState(dismissKey);
+  if (!Object.is(seenKey, dismissKey)) {
+    setSeenKey(dismissKey);
+    if (open) {
+      setOpen(false);
+      setPos(null);
+    }
+  }
   const [anchor, setAnchor] = React.useState<HTMLElement | null>(null);
   const menuRef = React.useRef<HTMLDivElement>(null);
   const id = React.useId();
@@ -193,14 +207,6 @@ export function Menu({ trigger, children, label, align = "end", side = "bottom",
   );
 }
 
-const itemClass = (tone: "default" | "danger", active?: boolean) =>
-  cn(
-    // 44px rows on a touch screen at every width (a phone held sideways, a tablet), 36px under a mouse.
-    "flex min-h-11 w-full items-center gap-2.5 rounded-md px-3 text-left text-sm outline-none transition-colors focus-visible:bg-surface-2 md:pointer-fine:min-h-9",
-    tone === "danger" ? "text-bad hover:bg-bad/10 focus-visible:bg-bad/10" : "text-fg hover:bg-surface-2",
-    active && "bg-accent/10 font-medium text-fg",
-  );
-
 export interface MenuItemProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "onSelect"> {
   onSelect?: () => void;
   icon?: React.ReactNode;
@@ -209,10 +215,12 @@ export interface MenuItemProps extends Omit<React.ButtonHTMLAttributes<HTMLButto
   active?: boolean;
   /** Right-hand hint (a role, a count…). */
   hint?: React.ReactNode;
+  /** The focus goes back to the menu's button as it closes: for an item that opens a window, which then returns it there. */
+  returnFocus?: boolean;
 }
 
 /** A menu action. Use type="submit" inside a form for actions that post (sign out). */
-export function MenuItem({ onSelect, icon, tone = "default", active, hint, children, className, type = "button", disabled, ...rest }: MenuItemProps) {
+export function MenuItem({ onSelect, icon, tone = "default", active, hint, children, className, type = "button", disabled, returnFocus = false, ...rest }: MenuItemProps) {
   const ctx = React.useContext(MenuContext);
   return (
     <button
@@ -222,12 +230,12 @@ export function MenuItem({ onSelect, icon, tone = "default", active, hint, child
       tabIndex={-1}
       aria-disabled={disabled || undefined}
       disabled={disabled}
-      className={cn(itemClass(tone, active), disabled && "pointer-events-none opacity-50", className)}
+      className={cn(menuItemClass(tone, active), disabled && "pointer-events-none opacity-50", className)}
       onClick={() => {
         onSelect?.();
         // A submit button must reach its form before the menu unmounts.
         if (type === "submit") setTimeout(() => ctx?.close(), 0);
-        else ctx?.close();
+        else ctx?.close(returnFocus);
       }}
     >
       {icon ? <span className="inline-flex shrink-0 text-fg-subtle">{icon}</span> : null}
@@ -241,7 +249,7 @@ export function MenuItem({ onSelect, icon, tone = "default", active, hint, child
 export function MenuLink({ href, icon, children, active }: { href: string; icon?: React.ReactNode; children: React.ReactNode; active?: boolean }) {
   const ctx = React.useContext(MenuContext);
   return (
-    <Link href={href} role="menuitem" tabIndex={-1} className={itemClass("default", active)} aria-current={active ? "page" : undefined} onClick={() => ctx?.close()}>
+    <Link href={href} role="menuitem" tabIndex={-1} className={menuItemClass("default", active)} aria-current={active ? "page" : undefined} onClick={() => ctx?.close()}>
       {icon ? <span className={cn("inline-flex shrink-0", active ? "text-accent" : "text-fg-subtle")}>{icon}</span> : null}
       <span className="min-w-0 flex-1 truncate">{children}</span>
       {active ? <Check className="h-4 w-4 shrink-0 text-accent" aria-hidden /> : null}
@@ -255,4 +263,34 @@ export function MenuSeparator() {
 
 export function MenuLabel({ children }: { children: React.ReactNode }) {
   return <div className="px-3 pb-1 pt-2 text-xs font-medium text-fg-subtle">{children}</div>;
+}
+
+/**
+ * Quiet lines at a menu's foot (the patch, Riot's notice), with the one item they hold (a
+ * MenuInlineLink): a group of the menu, as the menu pattern allows, named by its own words
+ * (`labelledBy`, the ids of those words among `children`), so a screen reader that reaches its item
+ * by the arrow keys hears them too.
+ */
+export function MenuNote({ children, labelledBy, testId }: { children: React.ReactNode; /** The ids of the words that name the group, space-separated. */ labelledBy: string; testId?: string }) {
+  return (
+    <div role="group" aria-labelledby={labelledBy} className="space-y-1 px-3 pb-2 pt-1.5 text-xs leading-snug text-fg-subtle" data-testid={testId}>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * A link inside a menu's note ("Details" in Riot's notice): an item of the menu, so the arrow keys
+ * reach it, drawn as an underlined word with a finger-sized target (touch-target) and the shared
+ * focus ring (globals.css); it closes the menu as it is followed. `context`: words its name adds
+ * after the visible ones, so the item is named in full ("Details: Riot Games notice"; STANDARDS.md:
+ * a name starts with the words shown).
+ */
+export function MenuInlineLink({ href, label, context }: { href: string; label: string; context?: string }) {
+  const ctx = React.useContext(MenuContext);
+  return (
+    <Link href={href} role="menuitem" tabIndex={-1} aria-label={context ? `${label}: ${context}` : undefined} className="touch-target rounded-sm underline underline-offset-2 hover:text-fg focus-visible:text-fg" onClick={() => ctx?.close()}>
+      {label}
+    </Link>
+  );
 }

@@ -341,11 +341,19 @@ test("on a page pinched to zoom, a finger's drag pans the zoomed view across the
   expect((await layout(page)).missed).toEqual([]);
 });
 
-test("the account dropdown that a phone held sideways and a tablet get has 44px rows; under a mouse it keeps the desktop's 36px", async ({ browser, baseURL }) => {
-  // With viewport-fit=cover a phone held sideways is 812–956px wide: the tablet's top bar and its
-  // account dropdown, not the account screen.
+test("held sideways a phone of any width opens the account screen, as upright; the account dropdown a tablet gets has 44px rows, and under a mouse it keeps the desktop's 36px", async ({ browser, baseURL }) => {
+  // With viewport-fit=cover a phone held sideways is 812–956px wide, as wide as a tablet: it keeps the
+  // phone's frame (frames by posture, docs/MOBILE.md), so its avatar opens the account screen.
+  const sideways = await browser.newContext({ viewport: { width: 852, height: 393 }, hasTouch: true, isMobile: true });
+  await sideways.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+  const turned = await sideways.newPage();
+  await turned.goto("/team");
+  await expect(turned.getByTestId("mobile-topbar").getByTestId("account-menu-button")).toBeHidden();
+  await turned.getByTestId("account-sheet-button").tap();
+  await expect(turned.getByTestId("account-sheet")).toHaveAttribute("data-entered", "true");
+  expect(await turned.getByTestId("account-sheet").boundingBox()).toEqual({ x: 0, y: 0, width: 852, height: 393 });
+  await sideways.close();
   const frames = [
-    { name: "a phone held sideways", options: { viewport: { width: 852, height: 393 }, hasTouch: true, isMobile: true }, touch: true },
     { name: "a tablet", options: { viewport: { width: 768, height: 1024 }, hasTouch: true, isMobile: false }, touch: true },
     { name: "a desktop", options: { viewport: { width: 1440, height: 900 }, hasTouch: false, isMobile: false }, touch: false },
   ];
@@ -361,7 +369,8 @@ test("the account dropdown that a phone held sideways and a tablet get has 44px 
     else await button.click();
     const menu = page.getByTestId("account-menu");
     await expect(menu).toBeVisible();
-    const heights = await menu.locator("[role=menuitem]").evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().height)));
+    // Its rows (the inline Details link in the notes at a tablet's menu's foot is a word, with a 44px touch area of its own).
+    const heights = await menu.locator("[role=menuitem]:not(:is([data-testid=account-menu-notes] *))").evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().height)));
     expect(heights.length, frame.name).toBeGreaterThan(0);
     for (const h of heights) {
       if (frame.touch) expect(h, frame.name).toBeGreaterThanOrEqual(44);

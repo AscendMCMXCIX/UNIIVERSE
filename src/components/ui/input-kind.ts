@@ -1,8 +1,7 @@
 /*
   How the reader last used the page: a pointer (a mouse, a pen, a finger) or the keyboard. A window
   opened by a tap or a click takes the focus itself, as the account screen always has; one opened
-  from the keyboard gives it to its close button (DetailModal, and the tablet's menu in
-  mobile-nav.tsx). Safari draws the focus ring around whatever a window focuses as it opens, and
+  from the keyboard gives it to its close button (DetailModal). Safari draws the focus ring around whatever a window focuses as it opens, and
   after a tap that lit up the close button, the loudest thing in the window; a keyboard user needs
   the ring to see where they are. A window opened by neither (a link to a game, opened as the page
   loads) gives the focus to its close button, as every window did before. A window holds the focus

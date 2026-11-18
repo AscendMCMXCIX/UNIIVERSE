@@ -6,6 +6,7 @@ import { seasonModeInfo, statsQuery, type StatsFilter } from "@/domain/season-st
 import { seasonLabel } from "@/domain/season";
 import { SectionHeader } from "@/components/ui/section-header";
 import { SubTabs } from "@/components/ui/sub-tabs";
+import { FiltersControl, PageToolbar } from "@/components/ui/page-toolbar";
 
 /*
   Match History's one header, shared by its two views (components/match-history: the games and
@@ -62,7 +63,16 @@ export function MatchHistoryHeader({ view, basePath, filter, description, status
     <SectionHeader
       id="match-history"
       title="Match History"
-      nav={<SubTabs label="Match History views" items={views} current={view} className={PHONE_VIEWS} testId="match-views" />}
+      nav={
+        <>
+          <SubTabs label="Match History views" items={views} current={view} className={PHONE_VIEWS} testId="match-views" />
+          {/* From md, once the header has scrolled away: the views and Filters at the pinned tabs' end (ui/page-toolbar.tsx; nothing here). */}
+          <PageToolbar label="Match History controls" land="[data-testid=encounter-row], [data-testid=match-card]">
+            <SubTabs size="compact" label="Match History views" items={views} current={view} testId="match-views" />
+            <FiltersControl />
+          </PageToolbar>
+        </>
+      }
       description={description}
       status={status}
       statusAfterText={statusAfterText}

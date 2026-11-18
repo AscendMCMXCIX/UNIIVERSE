@@ -5,7 +5,8 @@ import { playerEntry } from "./players";
 /*
   Phase 3 quality gates, run once (desktop project) with explicit viewports:
     - no page is wider than the screen from 320 px phones to 1920 px desktops, including short
-      landscape heights, and every page keeps its heading;
+      landscape heights (a 320pt iPhone held sideways, 568 × 320, the compact bar's narrowest), and
+      every page keeps its heading;
     - automated accessibility (axe, WCAG 2.1 A/AA): no critical or serious violations.
 */
 
@@ -30,6 +31,7 @@ const SIZES: Array<[number, number]> = [
   [3440, 1440], // ultrawide
   [3840, 2160],
   [844, 390], // phone in landscape
+  [568, 320], // a 320pt iPhone held sideways: the compact bar's narrowest
   [1366, 600], // short laptop window
 ];
 
@@ -55,7 +57,7 @@ test.describe("layout across screen sizes", () => {
 
   test("admin pages fit phone and desktop widths", async ({ page }) => {
     test.setTimeout(180_000);
-    for (const [width, height] of [[320, 640], [390, 844], [1024, 768], [1366, 768], [1920, 1080]] as const) {
+    for (const [width, height] of [[320, 640], [390, 844], [568, 320], [1024, 768], [1366, 768], [1920, 1080]] as const) {
       await page.setViewportSize({ width, height });
       for (const route of ADMIN_ROUTES) {
         await page.goto(route);
@@ -82,6 +84,39 @@ test.describe("accessibility", () => {
       await page.goto(route);
       await page.waitForLoadState("networkidle");
       await audit(page, route);
+    }
+  });
+
+  test("at 1920, where the section tabs' row takes the pages' width, Team's sections and Resources have no critical or serious violations", async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    for (const route of ["/team", "/players", "/leaderboards", "/matches", "/resources"]) {
+      await page.goto(route);
+      await page.waitForLoadState("networkidle");
+      await audit(page, `${route} at 1920`);
+    }
+  });
+
+  test("with a page's compact controls in the pinned row, pages have no critical or serious violations", async ({ page }) => {
+    test.setTimeout(120_000);
+    // Short enough for each toolbar to scroll away, tall enough for the tabs to pin.
+    await page.setViewportSize({ width: 1440, height: 600 });
+    await page.goto("/players");
+    const teammate = await page.locator("main a[data-testid='player-card'][data-player-name='Demo Mid']").getAttribute("href");
+    // The demo's Players and All Champions (nine players, eight champions) fit this window whole, so
+    // their rows never need their compact controls; every other page with them is here.
+    for (const route of ["/matches", "/leaderboards?view=records", teammate!, `${teammate}/matches`, `${teammate}/matches?view=encounters`]) {
+      await page.goto(route);
+      await page.waitForLoadState("networkidle");
+      await page.evaluate(async () => {
+        for (let at = 0; at < document.documentElement.scrollHeight; at += 240) {
+          window.scrollTo(0, at);
+          await new Promise((r) => requestAnimationFrame(() => r(null)));
+        }
+        window.scrollTo(0, document.documentElement.scrollHeight);
+      });
+      await expect(page.getByTestId("page-toolbar"), route).toBeVisible();
+      await audit(page, `${route} with the pinned row's controls`);
     }
   });
 

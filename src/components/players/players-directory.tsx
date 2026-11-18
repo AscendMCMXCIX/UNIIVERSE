@@ -14,8 +14,9 @@ import type { SocialLinkView } from "@/domain/social-links";
 import { PageHeader } from "@/components/ui/page-header";
 import { buttonClass } from "@/components/ui/button";
 import { RoleSegmented, chipClass } from "@/components/ui/segmented";
-import { FilterBar, FilterField } from "@/components/ui/filter-bar";
+import { FilterBar, FilterField, InFilterSheet } from "@/components/ui/filter-bar";
 import { SearchInput } from "@/components/ui/search-input";
+import { COMPACT_SEARCH, FiltersControl, PageToolbar } from "@/components/ui/page-toolbar";
 import { formatCount } from "@/lib/format";
 import type { CompactRank } from "./rank-emblem";
 import { RosterRow, type RiotState } from "./roster-row";
@@ -71,6 +72,11 @@ export function PlayersDirectory({ entries, championsById, archived = null, myPr
   const scopeLine = [shown.length === entries.length ? players(entries.length) : `${formatCount(shown.length)} of ${players(entries.length)}`, filtered ? `${ROLE_LABELS[filtered]} as primary or off role` : null, scope === "lineup" ? "Main lineup" : null, archived?.on ? "With archived and deactivated" : null].filter(Boolean).join(" · ");
   return (
     <div className="space-y-4">
+      {/* From md, once the toolbar has scrolled away: the search and Filters at the pinned tabs' end (ui/page-toolbar.tsx). */}
+      <PageToolbar label="Players controls" land="[data-testid=player-card]">
+        <SearchInput value={query} onChange={setQuery} placeholder="Search players" label="Search players by name or Riot ID" className={COMPACT_SEARCH} testId="toolbar-players-search" />
+        <FiltersControl />
+      </PageToolbar>
       {/* Sideways phones: one row from 35rem (room for the title's 15rem and a bar whose search keeps 9rem), stacked below it. */}
       <div className="flex flex-col gap-4 max-md:short:min-[35rem]:flex-row max-md:short:min-[35rem]:items-center max-md:short:min-[35rem]:gap-x-5">
         <PageHeader
@@ -121,7 +127,7 @@ export function PlayersDirectory({ entries, championsById, archived = null, myPr
               <Link href={archived.on ? "/players" : "/players?archived=1"} replace scroll={false} aria-current={archived.on ? "true" : undefined} className={chipClass(archived.on, "self-start")} data-testid="archived-filter">
                 {/* Inline the one word (its label is hidden there); the sheet, with room, says what it brings back. One text run, so the words keep their spacing. */}
                 <span>
-                  Archived<span className="md:sr-only"> and deactivated</span>
+                  Archived<InFilterSheet>{(inSheet) => <span className={inSheet ? undefined : "md:sr-only"}> and deactivated</span>}</InFilterSheet>
                   <span className="sr-only"> players</span>
                 </span>
               </Link>

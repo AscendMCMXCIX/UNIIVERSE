@@ -6,6 +6,7 @@ import { Check, ChevronDown, Search, X } from "lucide-react";
 import { Select } from "@/components/ui/input";
 import { CardAvatar } from "@/components/players/card-look";
 import { bringIntoView, closeOnPressOutside, opensInFlow } from "@/components/ui/picker-flow";
+import { useInFilterSheet } from "@/components/ui/filter-bar";
 import type { CardLook } from "@/domain/card-style";
 import { cn } from "@/lib/cn";
 import { screenBox } from "@/lib/screen";
@@ -93,6 +94,9 @@ export function MemberPicker({ label, emptyLabel, members, clearHref, multiple =
   const [query, setQuery] = React.useState("");
   const [active, setActive] = React.useState(0);
   const [alignEnd, setAlignEnd] = React.useState(false);
+  // In the Filters sheet (a phone, or the sheet the pinned row opens at any width) the button takes the
+  // sheet's width, as its selects do; inline from md it keeps to its own.
+  const inSheet = useInFilterSheet();
   // The list is part of what holds it (a window's body, a phone's page), decided as it opens.
   const [inFlow, setInFlow] = React.useState(false);
   const wrapRef = React.useRef<HTMLDivElement>(null);
@@ -177,7 +181,7 @@ export function MemberPicker({ label, emptyLabel, members, clearHref, multiple =
         aria-expanded={open}
         aria-label={`${label}: ${buttonText}`}
         disabled={pending && !open}
-        className={cn("flex h-11 w-full min-w-0 items-center gap-2 rounded-md border bg-bg-elevated px-2.5 text-left text-sm text-fg transition-colors hover:border-border-strong md:w-auto md:max-w-[16rem] md:pointer-fine:h-9", chosen.length ? "border-accent/50" : "border-border")}
+        className={cn("flex h-11 w-full min-w-0 items-center gap-2 rounded-md border bg-bg-elevated px-2.5 text-left text-sm text-fg transition-colors hover:border-border-strong md:pointer-fine:h-9", !inSheet && "md:w-auto md:max-w-[16rem]", chosen.length ? "border-accent/50" : "border-border")}
         data-testid={`${testId}-button`}
       >
         {chosen.length ? (

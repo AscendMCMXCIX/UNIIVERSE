@@ -3,8 +3,7 @@ import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /*
-  Three rules for overlays (windows, sheets, the account screen, the tablet drawer, menus, tips,
-  toasts, pickers).
+  Three rules for overlays (windows, sheets, the account screen, menus, tips, toasts, pickers).
 
   A window's body grows from its content, never from nothing: `flex-auto`, not `flex-1`. Safari 26
   and earlier collapse a window that is as tall as its content (a dialog's fit-content height) to
@@ -213,9 +212,11 @@ describe("overlays are sized by the box they are fixed to", () => {
 });
 
 describe("what shows over a window is drawn inside it", () => {
-  it("every window notes itself in the top layer as it opens and as it closes, and only DetailModal and the tablet's menu are windows of their own", () => {
+  it("every window notes itself in the top layer as it opens and as it closes, and DetailModal is the only window of its own", () => {
+    // The tablet's menu drawer was the other, until its destinations moved into the top bar and its
+    // account items into the avatar menu (frames by posture, docs/MOBILE.md).
     const shown = tsxFiles().filter((file) => /\.showModal\(/.test(code(read(file))));
-    expect(shown.sort()).toEqual(["src/components/mobile-nav.tsx", "src/components/ui/detail-modal.tsx"]);
+    expect(shown.sort()).toEqual(["src/components/ui/detail-modal.tsx"]);
     for (const file of shown) {
       const source = code(read(file));
       expect(source, file).toMatch(/noteModalOpened\(d\)/);
@@ -287,9 +288,7 @@ describe("what shows over a window is drawn inside it", () => {
 
   it("a window takes the focus itself through focusWindow alone, holds it only until pressed, and a press on nothing focusable leaves nothing focused", () => {
     const modal = code(read("src/components/ui/detail-modal.tsx"));
-    const nav = code(read("src/components/mobile-nav.tsx"));
-    const drawer = nav.slice(nav.indexOf("function Drawer("), nav.indexOf("\nfunction ", nav.indexOf("function Drawer(") + 1));
-    for (const [name, source] of [["DetailModal", modal], ["the tablet's menu", drawer]] as const) {
+    for (const [name, source] of [["DetailModal", modal]] as const) {
       expect(source, name).toMatch(/letGo = focusWindow\(d\)/);
       expect(source, name).toMatch(/letGo\(\);/);
       expect(source, name).not.toMatch(/\bd\.focus\(/);
@@ -303,10 +302,11 @@ describe("what shows over a window is drawn inside it", () => {
     }
   });
 
-  it("the tablet's menu locks the page as every window does", () => {
+  it("the frame never locks the page itself: its windows (the account screen) lock it as every window does", () => {
     const nav = code(read("src/components/mobile-nav.tsx"));
-    expect(nav).toContain("const unlock = lockPage();");
     expect(nav).not.toMatch(/style\.overflow\s*=/);
+    expect(nav).not.toMatch(/\.showModal\(/);
+    expect(code(read("src/components/ui/detail-modal.tsx"))).toContain("const unlock = lockPage();");
   });
 
   it.each(PICKERS)("%s opens its list in the flow inside a window, with no scroller of its own there", (file) => {

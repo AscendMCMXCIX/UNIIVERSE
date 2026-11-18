@@ -5,7 +5,8 @@ import { memberContext } from "./member-account";
   On a 320px phone, the narrowest docs/MOBILE.md supports, what a row is about wraps rather than
   being cut: a member's name beside their multikill in Team Matches, a resource's title, and the
   account the champion window's figures come from; and at a larger text size the pages are no wider
-  than the phone (Leaderboards' Records, Settings, every Admin Mode page). Demo data, in-memory only.
+  than the phone (Leaderboards' Records, Settings, every Admin Mode page), and a profile's header on
+  320 and 375px phones cuts nothing and breaks no word. Demo data, in-memory only.
 */
 
 test.beforeEach(async ({ context, baseURL, page }, info) => {
@@ -79,6 +80,102 @@ test("at 200% text on a 320px phone, Team Overview's header (Edit lineup include
     const box = (await edit.boundingBox())!;
     expect(box.x + box.width, "Edit lineup within the phone").toBeLessThanOrEqual(320.5);
   }
+});
+
+/**
+ * A profile's header as drawn: text cut by a box that clips it (the header clips at its edge; an
+ * ellipsis made on purpose is not a cut) and words of four letters or more broken across lines.
+ * Labels and sizes only: the demo roster.
+ */
+const HEADER_FACTS = () => {
+  const header = document.querySelector<HTMLElement>("[data-testid=profile-header]")!;
+  const srOnly = (el: Element) => {
+    for (let e: Element | null = el; e && e !== header; e = e.parentElement) {
+      const cs = getComputedStyle(e);
+      if (cs.position === "absolute" && parseFloat(cs.width) <= 1.5 && parseFloat(cs.height) <= 1.5) return true;
+    }
+    return false;
+  };
+  const cut: string[] = [];
+  const broken: string[] = [];
+  const walk = document.createTreeWalker(header, NodeFilter.SHOW_TEXT);
+  for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+    const text = n.textContent ?? "";
+    const parent = n.parentElement;
+    if (!text.trim() || !parent || !parent.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) || srOnly(parent)) continue;
+    const range = document.createRange();
+    range.selectNodeContents(n);
+    const rects = [...range.getClientRects()].filter((b) => b.width > 0.5 && b.height > 0.5);
+    if (!rects.length) continue;
+    const [left, right] = [Math.min(...rects.map((b) => b.left)), Math.max(...rects.map((b) => b.right))];
+    for (let e: HTMLElement | null = parent; e; e = e.parentElement) {
+      const cs = getComputedStyle(e);
+      if (!/hidden|clip/.test(cs.overflowX)) continue;
+      const box = e.getBoundingClientRect();
+      const past = Math.max(right - (box.right - parseFloat(cs.borderRightWidth)), box.left + parseFloat(cs.borderLeftWidth) - left);
+      if (past > 1 && cs.textOverflow !== "ellipsis" && getComputedStyle(parent).textOverflow !== "ellipsis") cut.push(`"${text.trim().slice(0, 24)}" by ${Math.round(past)}px`);
+      break;
+    }
+    for (const m of text.matchAll(/[A-Za-z\u00C0-\u00FF']{4,}/g)) {
+      const word = document.createRange();
+      word.setStart(n, m.index!);
+      word.setEnd(n, m.index! + m[0].length);
+      const lines = new Set([...word.getClientRects()].filter((b) => b.width > 0.5).map((b) => Math.round(b.top))).size;
+      if (lines > 1) broken.push(`"${m[0]}" over ${lines} lines`);
+    }
+  }
+  const name = header.querySelector("[data-testid=card-name]")!;
+  return { cut, broken, name: name.textContent ?? "" };
+};
+
+test("at 150%, 175% and 200% text on 320px and 375px phones, a profile's header cuts nothing and keeps each word of the name whole, on the Overview and in the other sections' band", async ({ page }) => {
+  // The lineup's five: the longest name word ("Support"), off roles and every lineup status. Before,
+  // at 375px and 175% the rank ran 156px past the header's edge, the lineup status 12px, and "Demo"
+  // broke as "De / mo" beside the picture and Customise (LARGE_TEXT in profile-header.tsx).
+  await page.goto("/team");
+  const profiles = await Promise.all((["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"] as const).map(async (role) => `/players/${await page.getByTestId(`lineup-row-${role}`).getAttribute("data-player-id")}`));
+  for (const width of [320, 375]) {
+    await page.setViewportSize({ width, height: 800 });
+    for (const [i, profile] of profiles.entries())
+      for (const section of ["", "/champions"]) {
+        await page.goto(`${profile}${section}`);
+        await expect(page.getByTestId("profile-header")).toBeVisible();
+        await page.evaluate(() => document.fonts.ready);
+        for (const root of [150, 175, 200]) {
+          await page.evaluate((r) => {
+            document.documentElement.style.fontSize = `${r}%`;
+          }, root);
+          const where = `the lineup's ${i + 1} of 5, ${section ? "the band" : "the Overview"}, ${width}px at ${root}%`;
+          await expect(async () => {
+            const facts = await page.evaluate(HEADER_FACTS);
+            expect(facts.cut, `${where}: text cut`).toEqual([]);
+            expect(facts.broken, `${where}: words broken (${facts.name})`).toEqual([]);
+          }).toPass({ timeout: 5_000 });
+        }
+      }
+  }
+});
+
+test("with the browser's own text at twice its size on a 320px phone, a profile's header cuts nothing and keeps each word of the name whole", async ({ browser, baseURL }) => {
+  // The reader's own setting scales the rem of the media queries too (Chromium's default font size),
+  // not only of the page: the header follows its own width either way.
+  const context = await browser.newContext({ viewport: { width: 320, height: 800 }, isMobile: true, hasTouch: true });
+  await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+  const page = await context.newPage();
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("Page.enable");
+  await cdp.send("Page.setFontSizes", { fontSizes: { standard: 32 } });
+  await page.goto("/team");
+  const profile = `/players/${await page.getByTestId("lineup-row-SUPPORT").getAttribute("data-player-id")}`;
+  for (const section of ["", "/champions"]) {
+    await page.goto(`${profile}${section}`);
+    await expect(page.getByTestId("profile-header")).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    const facts = await page.evaluate(HEADER_FACTS);
+    expect(facts.cut, `${section ? "the band" : "the Overview"}: text cut`).toEqual([]);
+    expect(facts.broken, `${section ? "the band" : "the Overview"}: words broken`).toEqual([]);
+  }
+  await context.close();
 });
 
 test("on a 320px phone, at 100%, 150% and 200% text, Leaderboards' Records is no wider than the phone, every record's words, holder, value and unit whole and inside their boxes, the holder at least 5rem", async ({ page }) => {

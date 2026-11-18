@@ -4,24 +4,23 @@ import * as React from "react";
 import Link from "next/link";
 import { scrollToTop, stayOnCurrentPage } from "@/lib/back-to-top";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, LogOut, Menu, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, LogOut, SlidersHorizontal } from "lucide-react";
 import { BrandMark } from "./brand-mark";
-import { NavLinks } from "./nav-links";
 import { Avatar } from "./ui/avatar";
-import { DetailModal, lockPage } from "./ui/detail-modal";
-import { focusWindow, lastInput, letGoWhenPressed, opensFocusingItself } from "./ui/input-kind";
-import { noteModalAtRest, noteModalClosed, noteModalOpened } from "./ui/top-layer";
+import { DetailModal } from "./ui/detail-modal";
 import { ModeSwitch } from "./mode-switch";
-import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, ADMIN_TABS, PROFILE_SECTIONS, RESOURCES, adminSheetLinks, backSteps, currentTab, isActivePath, pageName, phoneParent, phoneTabs, profileBase, type NavLink, type PhoneTab } from "@/lib/nav";
+import { ACCOUNT_LINKS, ADMIN_ACCOUNT_LINKS, ADMIN_TABS, PROFILE_SECTIONS, RESOURCES, adminSheetLinks, backSteps, currentDestination, currentTab, isActivePath, pageName, phoneParent, phoneTabs, profileBase, tabletDestinations, type NavLink, type PhoneTab } from "@/lib/nav";
 import { AccountMenu, otherUsername } from "./account-menu";
 import { announceAccountChange, markAccountChange } from "./account-guard";
 import { InstallAppEntry } from "./install/install-app";
 import { useInstallState } from "./install/install-state";
 import { ProfileTabs } from "./players/profile-tabs";
-import { PHONE_QUERY } from "./ui/use-phone";
+import { useHeld, usePageFilters, useScrolledAway } from "./ui/page-toolbar";
+import { ScrollRow } from "./ui/scroll-row";
 import { releaseEarlyTaps } from "./early-taps";
 import { cn } from "@/lib/cn";
 import { ACCOUNT_GROUP, ACCOUNT_ROW, ACCOUNT_ROW_CHEVRON, ACCOUNT_ROW_CURRENT, ACCOUNT_ROW_ICON, ACCOUNT_ROW_IDLE } from "@/lib/sheet";
+import { RAIL_CURRENT, RAIL_HOVER } from "@/lib/sidebar";
 
 export interface MobileNavProps {
   logoSrc: string | null;
@@ -31,30 +30,33 @@ export interface MobileNavProps {
   tagline: string;
   home: string;
   user: { name: string; username?: string | null; avatarUrl: string | null; roleLabel: string } | null;
-  /** A quiet data-freshness line at the foot of the drawer and the account screen. */
+  /** A quiet data-freshness line at the foot of the account screen and of a tablet's avatar menu. */
   status: React.ReactNode;
-  /** Riot's notice, at the foot of the account screen. */
-  legal?: React.ReactNode;
+  /** Riot's notice at the foot of the account screen and of a tablet's avatar menu: its full text (the line's title) and where its Details link leads. */
+  legal: { title: string; href: string };
   showSignOut: boolean;
   /** Paths this account may open in the current mode (the server decides). */
   allowed: string[];
-  /** Admin Mode: the top bar says so and the drawer offers the way back. */
+  /** Admin Mode: the top bar says so beside the team's mark (held sideways in a compact line of its own, read with the mark's link), and the destinations are its own. */
   adminMode?: boolean;
-  /** The account has a player profile (the drawer's header then opens it). */
+  /** The account has a player profile (the account screen then offers My Profile where Profile has no tab). */
   hasPlayer?: boolean;
   /** The mode this administrator is in, for the switch between Player Mode and Admin Mode (administrators only, placed apart from the pages); null for everyone else. */
   modeSwitch?: "player" | "admin" | null;
 }
 
 /*
-  PHONES (below md) and TABLETS (md to lg); the sidebar takes over from lg.
+  The frame below lg (the sidebar takes over from lg), by posture (docs/MOBILE.md, "Frames by
+  posture"). The posture is CSS's to decide (the window's width and height), so the first paint is
+  right and a turn of the phone changes it at once; the parts each posture does not use are drawn
+  but not displayed (one `nav[aria-label=Primary]` is exposed at a time).
 
-  Phones have one frame, the same on every page (docs/MOBILE.md):
-    - the top bar says where you are: the team's mark on a tab's own pages, or Back on a page you
-      reached from one (a teammate's profile, Settings), labelled with where it leads; the page's
-      title joins it once the page's own heading has scrolled up under it; your avatar at its right
-      end opens the account screen. On a profile the profile's sections ride under it, so they stay
-      in reach however far the page scrolls;
+  PHONES HELD UPRIGHT (below md, taller than 480px): one frame, the same on every page:
+    - the top bar says where you are: the team's mark on a destination's own pages, or Back on a page
+      you reached from one (a teammate's profile, Settings), labelled with where it leads; the
+      page's title joins it once the page's own heading has scrolled up under it; the page's Filters
+      once its own have; your avatar at its right end opens the account screen. On a profile the
+      profile's sections ride under it, so they stay in reach however far the page scrolls;
     - the bottom tab bar holds the five places a member goes to most (PHONE_TABS), one tap each,
       within reach of the thumb;
     - the account screen holds the rest, on a screen of its own (DetailModal size "screen"): who is
@@ -64,52 +66,52 @@ export interface MobileNavProps {
       edges, so its height is the screen's: the sheet and the panel before it were as tall as their
       content, which Safari 26 worked out as a header alone, and the owner's iPhone showed each as a
       strip (DetailModal's BODY_SCROLLS, docs/MOBILE.md).
-  Tablets keep the top bar with the menu at its left end and the drawer with every page, and the
-  page tabs (Team's sections) in the page, pinned at its top once it scrolls. Installed as an app, a
-  tablet has no browser Back, so the bar offers Back there too, on a page reached from another.
+  PHONES HELD SIDEWAYS (a short window, 480px tall or less, below lg, whatever its width): the
+    same destinations in one compact bar, 44px plus the status bar's inset, and no bottom bar: Back
+    or the team's mark (in Admin Mode with "Admin mode" beside it), the five destinations (only the
+    current one labelled where the bar is
+    narrower than 38rem), the page's title where room is left, Filters, the avatar (the account
+    screen); a profile's sections as a 44px second row. It slides away while the page scrolls down
+    and comes back on a scroll up, and while it holds the focus (useHideOnScroll).
+  TABLETS (md to lg, taller than 480px): the top bar holds the destinations, one tap each (Player
+    Mode: My Profile, Team, Resources; Admin Mode: its four tabs), the page tabs (Team's sections, a
+    profile's) are pinned in the page, and the avatar opens the account menu (AccountMenu), which
+    holds what the sidebar's footer holds on a desktop: Settings, Install App, the switch between
+    the modes, Sign out, the patch and Riot's notice (and in Admin Mode the pages without a tab).
+    Installed as an app, a tablet has no browser Back, so the bar offers Back there too, on a page
+    reached from another.
 
-  The avatar and the menu answer a tap made before the page's code has run: the inline script in
-  the root layout keeps it (early-taps.ts), shows the button pressed, and this opens what was asked
-  for once it runs, exactly once.
+  The avatar answers a tap made before the page's code has run: the inline script in the root
+  layout keeps it (early-taps.ts), shows the button pressed, and this opens what was asked for once
+  it runs, exactly once.
 
-  Safe-area insets keep both bars clear of notches, rounded corners and the home indicator. In
-  short windows (a phone held sideways) both bars slide away while the page scrolls down and come
-  back on any scroll up.
+  Safe-area insets keep the bars clear of notches, rounded corners and the home indicator.
 */
-export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, status, legal = null, showSignOut, allowed, adminMode = false, hasPlayer = false, modeSwitch = null }: MobileNavProps) {
+export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, status, legal, showSignOut, allowed, adminMode = false, hasPlayer = false, modeSwitch = null }: MobileNavProps) {
   // The account's own pages in this mode (Settings), so it never leaves the mode.
   const accountLinks = adminMode ? ADMIN_ACCOUNT_LINKS : ACCOUNT_LINKS;
   const pathname = usePathname();
+  // A phone's destinations: the bottom tab bar upright, the compact bar sideways.
   const tabs: PhoneTab[] = adminMode ? ADMIN_TABS.filter((t) => allowed.includes(t.href)) : phoneTabs(allowed);
   // Where the labels give way to the icons alone, for this set of destinations (TAB_FIT).
   const fit = adminMode ? TAB_FIT.admin : TAB_FIT.member;
   const activeTab = currentTab(pathname, tabs.map((t) => t.href));
-  // The drawer (tablets) and the account screen (phones) remember the path they were opened on, so any
-  // navigation closes them without an effect.
-  const [openedAt, setOpenedAt] = React.useState<{ what: "drawer" | "sheet"; path: string } | null>(null);
-  // Forgotten once the page has changed, so coming back to that page (Forward) opens nothing unasked.
+  // A tablet's destinations, in its top bar.
+  const destinations = tabletDestinations(allowed, adminMode);
+  const currentDestinationHref = currentDestination(pathname, destinations, adminMode);
+  // The account screen remembers the path it was opened on, so any navigation closes it without an
+  // effect; forgotten once the page has changed, so coming back to that page (Forward) opens nothing unasked.
+  const [sheetAt, setSheetAt] = React.useState<string | null>(null);
   const [seenPath, setSeenPath] = React.useState(pathname);
   if (seenPath !== pathname) {
     setSeenPath(pathname);
-    if (openedAt && openedAt.path !== pathname) setOpenedAt(null);
+    if (sheetAt !== null && sheetAt !== pathname) setSheetAt(null);
   }
-  const open = openedAt?.what === "drawer" && openedAt.path === pathname;
-  const sheetOpen = openedAt?.what === "sheet" && openedAt.path === pathname;
-  const menuRef = React.useRef<HTMLButtonElement>(null);
-  const setOpen = (next: boolean) => setOpenedAt(next ? { what: "drawer", path: pathname } : null);
-  // The page's code runs now: a tap on the avatar or the menu made before it (early-taps.ts) is
-  // passed on to the button, once, which opens what was asked for; from here on the buttons answer
-  // for themselves.
-  React.useEffect(() => releaseEarlyTaps("sheet", "drawer"), []);
-  // Focus goes back to the menu button once the drawer has gone: while the drawer is open the page
-  // behind it is inert, so the button cannot take focus any earlier. Without scrolling: the button
-  // is in the bar, inside the page's scroll padding, and the page stays where the reader left it.
-  const drawerWasOpen = React.useRef(false);
-  React.useEffect(() => {
-    if (drawerWasOpen.current && !open) menuRef.current?.focus({ preventScroll: true });
-    drawerWasOpen.current = open;
-  }, [open]);
-  const closeRef = React.useRef<HTMLButtonElement>(null);
+  const sheetOpen = sheetAt === pathname;
+  // The page's code runs now: a tap on the avatar made before it (early-taps.ts) is passed on to the
+  // button, once, which opens the account screen; from here on the button answers for itself. (The
+  // tablet's avatar is the account menu's, which releases its own.)
+  React.useEffect(() => releaseEarlyTaps("sheet"), []);
   // The installed app has no browser Back: tablets get one in the bar too (phones always have it).
   const { standalone } = useInstallState();
   const headerRef = React.useRef<HTMLElement>(null);
@@ -117,17 +119,19 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   const bar = useTopBarHeight(headerRef);
   const heading = usePageHeading(pathname, bar);
   const back = useBack(pathname, heading.text, tabs, home);
+  // The page's filters (its FilterBar), offered in the bar once the page's own have gone up under it,
+  // and kept while in use: pressed or focused, while the sheet it opened is open, and until that sheet
+  // has handed it the focus back (useHeld).
+  const filters = usePageFilters();
+  const filtersAway = useScrolledAway(filters?.root ?? null, bar || null);
+  const filtersButton = React.useRef<HTMLButtonElement>(null);
+  const filtersSheet = filters?.openedFrom === "topbar";
+  const filtersHold = useHeld(filtersButton, filtersAway, filtersSheet);
   // A profile's sections, when this page is one (your own only when you have a profile).
   const profile = adminMode ? null : profileBase(pathname);
   const sections = profile === "/overview" && !hasPlayer ? null : profile;
-  // Things pinned above the tab bar (a save bar, notifications) follow it down when it slides away (globals.css: bottom-tabbar).
-  const tabsHidden = hidden && !sheetOpen && tabs.length > 0;
-  React.useEffect(() => {
-    document.documentElement.toggleAttribute("data-tabbar-hidden", tabsHidden);
-    return () => document.documentElement.removeAttribute("data-tabbar-hidden");
-  }, [tabsHidden]);
 
-  // The account screen holds what the tab bar does not: in Player Mode Resources (when it has no tab) and My
+  // The account screen holds what the phone's destinations do not: in Player Mode Resources (when it has no tab) and My
   // Profile (likewise), in Admin Mode the admin pages without a tab; then the account's own pages.
   const tabHrefs = tabs.map((t) => t.href);
   const sheetLinks: NavLink[] = [
@@ -142,17 +146,15 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
       <header
         ref={headerRef}
         className="sticky top-0 z-40 border-b border-border bg-chrome/90 pt-safe backdrop-blur-md transition-transform duration-200 ease-out data-[hidden=true]:not-focus-within:-translate-y-full lg:hidden"
-        data-hidden={hidden && !open && !sheetOpen}
+        data-hidden={hidden && !sheetOpen}
         data-testid="mobile-topbar"
       >
-        <div className="flex min-h-13 items-center gap-1 px-safe-2 sm:px-safe-4 md:min-h-14 md:gap-2">
-          {/* Tablets: the menu button at the left end, by the side the drawer opens from. A tap before
-              the page's code has run is kept (data-early; suppressHydrationWarning: the script may
-              have marked it aria-busy, which React leaves alone). */}
-          <button ref={menuRef} type="button" onClick={() => setOpen(true)} className="-ml-1.5 grid h-11 w-11 shrink-0 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg max-md:hidden sm:-ml-2.5" aria-label="Open menu" aria-expanded={open} aria-controls="mobile-drawer" data-early="drawer" suppressHydrationWarning data-testid="menu-button">
-            <Menu className="h-5 w-5" aria-hidden />
-          </button>
-          {/* Phones: Back where the page was reached from another (labelled with where it leads), else the team's mark. */}
+        {/* The bar's row is the container its parts give way by (in rem, so the reader's text size
+            counts): a phone held sideways labels only the current destination below 38rem, a
+            tablet's brand name and labels give way at large text (BAR_FIT). */}
+        <div className="@container/topbar flex min-h-13 items-center gap-1 px-safe-2 sm:px-safe-4 md:min-h-14 md:gap-2 short:min-h-11 short:gap-1">
+          {/* Back where the page was reached from another (labelled with where it leads), else the
+              team's mark: on phones either way round; on tablets in the installed app only. */}
           {back ? (
             back.history ? (
               <button type="button" onClick={back.go} className={cn(BACK_CLASS, !standalone && BACK_TABLET)} data-testid="mobile-back">
@@ -168,40 +170,137 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
               </Link>
             )
           ) : null}
-          {/* It gives way (its name truncates) only when a larger text size leaves the bar no room, so
-              the bar never makes the page wider than the phone. */}
-          <Link href={home} className={cn("flex min-h-11 min-w-0 items-center gap-2.5 rounded-md", back ? "max-md:hidden" : "max-md:pl-1.5", "md:min-h-14", titleShown ? "md:not-short:flex-1" : "md:flex-1")} title={shortName} data-testid="mobile-brand">
+          {/* The team's mark, and on tablets and upright phones its name. It gives way (its name
+              truncates, or goes on a tablet: BAR_FIT) only when a larger text size leaves the bar
+              no room, so the bar never makes the page wider than the screen. Held sideways the mark
+              alone, so the destinations have the room. */}
+          <Link href={home} className={cn("flex min-h-11 min-w-0 items-center gap-2.5 rounded-md md:min-h-14 md:min-w-8 md:shrink-[1000] short:min-h-11 short:shrink-0", back ? "max-md:hidden short:hidden" : "max-md:pl-1.5 short:pl-1.5")} title={shortName} data-testid="mobile-brand">
             <BrandMark src={logoSrc} still={logoStill} name={shortName} className="h-8 w-8 rounded-md text-base" />
-            <span className={cn("min-w-0 transition-opacity duration-150", titleShown && "max-md:hidden short:hidden")}>
+            <span className={cn("min-w-0 transition-opacity duration-150 short:hidden", BAR_FIT[adminMode ? "admin" : "member"].brand, titleShown && "max-md:hidden")} data-testid="mobile-brand-name">
               <span className="block truncate text-sm font-bold tracking-label text-fg">{shortName}</span>
               {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-label text-accent">Admin mode</span> : tagline ? <span className="block truncate text-xs text-fg-subtle max-md:hidden">{tagline}</span> : null}
             </span>
+            {/* Held sideways the mark stands alone, but the mode is still said: "Admin mode" beside it,
+                in the accent, the link read as the team's name and the mode; at a larger text size the
+                words give way to the destinations and are read out only (SIDEWAYS_FIT). */}
+            {adminMode ? (
+              <span className="hidden whitespace-nowrap short:block" data-testid="mobile-brand-mode">
+                <span className="sr-only">{shortName}, </span>
+                <span className={cn("label-caps text-accent", SIDEWAYS_FIT.mode)}>Admin mode</span>
+              </span>
+            ) : null}
           </Link>
-          {/* Phones, and tablet widths (md to lg) in a window 480px tall or less, where the section
-              tabs do not pin: the page's own title, once its heading has gone up under the bar; a tap
-              on it goes back to the top, as iOS's status bar does. */}
-          {titleShown ? (
-            <button type="button" onClick={scrollToTop} className="min-h-11 min-w-0 flex-1 truncate rounded-md px-1 text-left text-base font-semibold text-fg transition-opacity duration-150 md:not-short:hidden" aria-label={`${heading.text}: back to top`} data-testid="mobile-title">
-              {heading.text}
+          {/* Held sideways: the phone's destinations, one tap each, in the bar (there is no bottom
+              bar). The current one is lit twice (its icon in an accent pill, its label shown and
+              bright); where the bar is narrower than 38rem only its label shows, the others' left to
+              screen readers (SIDEWAYS_FIT). Too long for the bar even so (large text), the row
+              scrolls sideways inside it, the current one kept in view, never widening the page. */}
+          {tabs.length > 0 ? (
+            <nav aria-label="Primary" className="hidden min-w-0 shrink-[0.001] short:flex" data-testid="topbar-tabs">
+              <ScrollRow as="ul" className="flex items-center gap-0.5" keepCurrentInView current={activeTab}>
+                {tabs.map(({ href, label, icon: Icon }) => {
+                  const active = href === activeTab;
+                  const own = href === "/overview" && user?.avatarUrl;
+                  return (
+                    <li key={href} className="shrink-0">
+                      <Link
+                        href={href}
+                        aria-current={active ? "page" : undefined}
+                        // The current destination on its own page: back to the top, as the tab bar's does.
+                        onClick={(e) => stayOnCurrentPage(e, active && pathname === href)}
+                        className="group flex h-11 min-w-11 items-center justify-center rounded-md focus-visible:-outline-offset-2"
+                        data-testid={`topbar-tab-${href.slice(1).replaceAll("/", "-")}`}
+                      >
+                        <span className={cn("flex h-8 items-center gap-1.5 rounded-full px-2 transition-colors duration-150", active ? "bg-accent/15 text-accent" : "text-fg-muted group-hover:bg-surface-2 group-hover:text-fg")}>
+                          {own ? <Avatar name={user!.name} src={user!.avatarUrl} size="xs" className={cn(active && "ring-2 ring-accent")} /> : <Icon className="h-5 w-5 shrink-0" aria-hidden />}
+                          <span className={cn("whitespace-nowrap text-2xs font-medium leading-none", active ? cn("font-semibold text-fg", SIDEWAYS_FIT.current) : SIDEWAYS_FIT.others)}>{label}</span>
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ScrollRow>
+            </nav>
+          ) : null}
+          {/* Tablets: the destinations, one tap each (the drawer they were in has gone). The current
+              one is marked as in the sidebar, with its four signals: a neutral lift with a hairline of
+              light, the brand's gradient as a short bar, its icon in the brand blue and its name
+              bright. The list grows into the room left, so the avatar
+              stays at the bar's end; at a larger text size the team's name beside the mark gives way
+              first, then the labels to the icons (BAR_FIT), and as a last resort the list scrolls
+              sideways inside the bar, never widening the page. */}
+          {destinations.length > 0 ? (
+            <nav aria-label="Primary" className="hidden min-w-0 md:not-short:flex md:not-short:grow" data-testid="topbar-destinations">
+              <ScrollRow as="ul" className="flex min-w-0 items-center gap-1" keepCurrentInView current={currentDestinationHref}>
+                {destinations.map(({ href, label, icon: Icon }) => {
+                  const active = href === currentDestinationHref;
+                  return (
+                    <li key={href} className="shrink-0">
+                      <Link
+                        href={href}
+                        aria-current={active ? "page" : undefined}
+                        // The page already shown stays as it is (its view and filters) and goes back to the top, as the sidebar's entry does.
+                        onClick={(e) => stayOnCurrentPage(e, href === pathname)}
+                        title={label}
+                        className={cn("group isolate relative flex min-h-11 items-center gap-2 whitespace-nowrap rounded-lg px-3 text-sm font-semibold transition-colors duration-150 focus-visible:-outline-offset-2", active ? "text-fg" : "text-fg-muted hover:text-fg")}
+                        data-testid={`topbar-nav-${href.slice(1).replaceAll("/", "-")}`}
+                      >
+                        <span className={cn("absolute inset-0 -z-10 rounded-lg transition-[background-color,box-shadow] duration-150", active ? RAIL_CURRENT : RAIL_HOVER)} aria-hidden />
+                        {/* The brand's gradient as a short bar at the destination's foot, growing in from its centre, as the sidebar's at its row's edge. */}
+                        <span className={cn("absolute inset-x-3 bottom-1 h-0.5 rounded-full bg-gradient-to-r from-accent to-accent-2 transition-[opacity,scale] duration-200 ease-emphasized", active ? "scale-x-100 opacity-100" : "scale-x-50 opacity-0")} aria-hidden data-testid={active ? "topbar-current-bar" : undefined} />
+                        <Icon className={cn("h-[1.125rem] w-[1.125rem] shrink-0 transition-colors duration-150", active ? "text-accent" : "text-fg-subtle group-hover:text-fg-muted")} aria-hidden />
+                        <span className={BAR_FIT[adminMode ? "admin" : "member"].labels}>{label}</span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ScrollRow>
+            </nav>
+          ) : null}
+          {/* Phones (and tablet widths held sideways, where the section tabs do not pin): the page's
+              own title, once its heading has gone up under the bar; a tap on it goes back to the
+              top, as iOS's status bar does. It takes the room the bar has left: held sideways, where
+              the destinations share the bar, it shows only where that room is at least 6rem (the
+              current destination's label says where you are, and leads back to the top too). */}
+          <div className="@container/title min-w-0 flex-1 md:not-short:hidden">
+            {titleShown ? (
+              <button type="button" onClick={scrollToTop} className="min-h-11 w-full min-w-0 truncate rounded-md px-1 text-left text-base font-semibold text-fg transition-opacity duration-150 short:@max-[6rem]/title:hidden" aria-label={`${heading.text}: back to top`} data-testid="mobile-title">
+                {heading.text}
+              </button>
+            ) : (
+              <p className="px-1 opacity-0" aria-hidden data-testid="mobile-title" />
+            )}
+          </div>
+          {/* Phones, and tablet widths in a window 480px tall or less (where the section tabs do not pin
+              and their row cannot offer them): the page's Filters, once its own have scrolled up under
+              the bar; its sheet, as from the page's own button. 44px, with the count of narrowed filters. */}
+          {filters && (filtersAway || filtersHold.held || filtersSheet) ? (
+            <button ref={filtersButton} type="button" onClick={() => filters.open("topbar")} onFocus={filtersHold.grab} onPointerDown={filtersHold.grab} onBlur={filtersHold.onBlur} aria-haspopup="dialog" className="relative grid h-11 w-11 shrink-0 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg md:not-short:hidden" data-testid="topbar-filters">
+              <SlidersHorizontal className="h-5 w-5 text-accent" aria-hidden />
+              <span className="sr-only">Filters: {filters.summary}</span>
+              {/* At tablet widths (a phone held sideways) a list's own choices are its toolbar's, not the sheet's: the bar's own count there. */}
+              {filters.count ? <span className={cn(TOPBAR_COUNT, filters.wideCount !== filters.count && "md:hidden")}>{filters.count}</span> : null}
+              {filters.wideCount && filters.wideCount !== filters.count ? <span className={cn(TOPBAR_COUNT, "max-md:hidden")}>{filters.wideCount}</span> : null}
             </button>
-          ) : (
-            <p className="min-w-0 flex-1 px-1 opacity-0 md:hidden" aria-hidden data-testid="mobile-title" />
-          )}
+          ) : null}
           {user ? (
             <>
-              <span className="max-md:hidden">
-                <AccountMenu user={user} showSignOut={showSignOut} variant="topbar" adminMode={adminMode} />
+              {/* Tablets: the account menu, with what the sidebar's footer holds on a desktop. */}
+              <span className="shrink-0 max-md:hidden short:hidden">
+                <AccountMenu user={user} showSignOut={showSignOut} variant="topbar" adminMode={adminMode} extras={{ pages: adminMode ? adminSheetLinks(allowed, destinations.map((d) => d.href)) : [], modeSwitch, status, legal }} />
               </span>
-              {/* A tap before the page's code has run is kept, as on the menu button. */}
-              <button type="button" onClick={() => setOpenedAt({ what: "sheet", path: pathname })} aria-haspopup="dialog" aria-expanded={sheetOpen} aria-label={`Your account: ${user.name}`} className="-mr-1 grid h-11 w-11 shrink-0 place-items-center rounded-full transition-transform duration-100 active:scale-90 motion-reduce:active:scale-100 md:hidden" data-early="sheet" suppressHydrationWarning data-testid="account-sheet-button">
+              {/* Phones, either way round: the account screen. A tap before the page's code has run is
+                  kept (data-early; suppressHydrationWarning: the script may have marked it aria-busy,
+                  which React leaves alone). */}
+              <button type="button" onClick={() => setSheetAt(pathname)} aria-haspopup="dialog" aria-expanded={sheetOpen} aria-label={`Your account: ${user.name}`} className="-mr-1 grid h-11 w-11 shrink-0 place-items-center rounded-full transition-transform duration-100 active:scale-90 motion-reduce:active:scale-100 md:not-short:hidden" data-early="sheet" suppressHydrationWarning data-testid="account-sheet-button">
                 <Avatar name={user.name} src={user.avatarUrl} size="sm" />
               </button>
             </>
           ) : null}
         </div>
-        {/* Phones: a profile's sections stay under the bar while the page scrolls. */}
+        {/* Phones, either way round: a profile's sections stay under the bar while the page scrolls. */}
         {sections ? (
-          <div className="px-safe-2 md:hidden" data-testid="profile-sections-bar">
+          <div className="px-safe-2 md:not-short:hidden" data-testid="profile-sections-bar">
             <ProfileTabs basePath={sections} variant="chrome" />
           </div>
         ) : null}
@@ -212,7 +311,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
         // fixed to its edges (DetailModal size "screen"). Its header, with the close button, stays
         // under the status bar; the rest is one region that scrolls only where it must (large text, a
         // phone held sideways, a 320pt screen in Safari's tab).
-        <DetailModal open onClose={() => setOpenedAt(null)} size="screen" title="Account" titleId={SHEET_TITLE_ID} header={<AccountScreenHeader />} headerClassName="border-transparent" className="bg-chrome" testId="account-sheet" closeTestId="account-sheet-close">
+        <DetailModal open onClose={() => setSheetAt(null)} size="screen" title="Account" titleId={SHEET_TITLE_ID} header={<AccountScreenHeader />} headerClassName="border-transparent" className="bg-chrome" testId="account-sheet" closeTestId="account-sheet-close">
           <div className="mx-auto w-full max-w-md">
             {/* Who is signed in: their picture, name and role, and their username on a line of its own
                 where it differs from the name (it tells apart accounts that share a name). Nothing is
@@ -233,16 +332,16 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                 ) : null}
               </div>
             </div>
-            {/* The pages the tab bar does not hold (Resources when it has no tab; in Admin Mode the
-                admin pages without one), Settings and Install App, one full-width row each (lib/sheet.ts). */}
+            {/* The pages the phone's destinations do not hold (Resources when it has no tab; in Admin
+                Mode the admin pages without one), Settings and Install App, one full-width row each (lib/sheet.ts). */}
             <nav aria-label={adminMode ? "More admin pages and your account" : "More pages and your account"} className={ACCOUNT_GROUP}>
               {sheetLinks.map(({ href, label, icon }) => (
-                <AccountRow key={href} href={href} icon={icon} active={isActivePath(pathname, href)} onNavigate={() => setOpenedAt(null)}>
+                <AccountRow key={href} href={href} icon={icon} active={isActivePath(pathname, href)} onNavigate={() => setSheetAt(null)}>
                   {label}
                 </AccountRow>
               ))}
               {/* The install window opens over the page: the screen closes first. */}
-              <InstallAppEntry variant="row" beforeOpen={() => setOpenedAt(null)} />
+              <InstallAppEntry variant="row" beforeOpen={() => setSheetAt(null)} />
             </nav>
             {modeSwitch || showSignOut ? (
               // The way between the modes, and Sign out: a group of their own, under the pages.
@@ -266,68 +365,24 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                 // Only a plain click follows the link here: a modified one opens it elsewhere (a new
                 // tab or window), and this page, with its screen, stays as it was.
                 if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-                if ((e.target as Element | null)?.closest?.("a[href]")) setOpenedAt(null);
+                if ((e.target as Element | null)?.closest?.("a[href]")) setSheetAt(null);
               }}
               data-testid="account-sheet-notes"
             >
               {status}
-              {legal}
+              <p className="text-xs leading-snug text-fg-subtle" title={legal.title}>
+                Not endorsed by Riot Games.{" "}
+                <Link href={legal.href} className="touch-target underline underline-offset-2">
+                  Details
+                </Link>
+              </p>
             </div>
           </div>
         </DetailModal>
       ) : null}
 
-      {open ? (
-        <Drawer onClose={() => setOpen(false)} initialFocus={closeRef}>
-          <div className="drawer-in flex h-full w-full flex-col overflow-y-auto overscroll-contain border-r border-border bg-chrome pt-safe pl-[env(safe-area-inset-left)] pb-safe shadow-2xl" data-testid="mobile-drawer-panel">
-            <div className="flex items-center justify-between gap-2 px-4 py-3">
-              {user ? (
-                <Link href={hasPlayer && !adminMode ? "/overview" : (accountLinks[0]?.href ?? "/settings")} onClick={() => setOpen(false)} className="flex min-w-0 items-center gap-2.5">
-                  <Avatar name={user.name} src={user.avatarUrl} size="md" />
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold">{user.name}</span>
-                    <span className="block truncate text-xs text-fg-subtle">{user.roleLabel}</span>
-                  </span>
-                </Link>
-              ) : (
-                <span className="text-sm font-bold tracking-label">{shortName}</span>
-              )}
-              <button ref={closeRef} type="button" onClick={() => setOpen(false)} className="grid h-11 w-11 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg" aria-label="Close menu">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <NavLinks allowed={allowed} admin={adminMode} large onNavigate={() => setOpen(false)} />
-            {modeSwitch ? (
-              <div className="mx-3 mt-3">
-                <ModeSwitch mode={modeSwitch} variant="drawer" />
-              </div>
-            ) : null}
-            <div className="mx-3 mt-3 flex flex-col gap-1 border-t border-border pt-3">
-              {accountLinks.map(({ href, label, icon: Icon }) => (
-                <SheetLink key={href} href={href} icon={Icon} active={isActivePath(pathname, href)} onNavigate={() => setOpen(false)}>
-                  {label}
-                </SheetLink>
-              ))}
-              {/* The install window opens over the page: the menu closes first, and focus goes back
-                  to the menu button (the effect above, once the menu has gone), where the window
-                  returns it when it closes. */}
-              <InstallAppEntry variant="drawer" beforeOpen={() => setOpen(false)} />
-              {showSignOut ? (
-                // The same Sign out as the account screen's and the account menu's: the browser's other tabs are told.
-                <form action="/api/auth/logout" method="post" onSubmit={onSignOut}>
-                  <button className="flex min-h-12 w-full items-center gap-3 rounded-lg pl-[0.9375rem] pr-3 text-left text-sm text-fg-muted hover:bg-surface-2 hover:text-fg" type="submit">
-                    <LogOut className="h-[1.125rem] w-[1.125rem] text-fg-subtle" /> Sign out
-                  </button>
-                </form>
-              ) : null}
-            </div>
-            <div className="mt-auto border-t border-border px-4 py-3">{status}</div>
-          </div>
-        </Drawer>
-      ) : null}
-
       {tabs.length > 0 ? (
-        <nav className="@container/tabbar fixed inset-x-0 bottom-0 z-40 border-t border-border bg-chrome/95 px-safe pb-safe backdrop-blur-md transition-transform duration-200 ease-out data-[hidden=true]:not-focus-within:translate-y-full md:hidden" aria-label="Primary" data-hidden={tabsHidden} data-testid="phone-tabbar">
+        <nav className="@container/tabbar fixed inset-x-0 bottom-0 z-40 border-t border-border bg-chrome/95 px-safe pb-safe backdrop-blur-md md:hidden short:hidden" aria-label="Primary" data-testid="phone-tabbar">
           {/* One column per destination, as wide as the bar allows and never narrower than its label,
               so the longest (Leaderboards) stays whole on a 320px screen. The current tab is lit twice
               over: its icon sits in an accent pill and its label turns bright, so it reads at a glance
@@ -335,10 +390,10 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
               the icons alone, each pill sharing the width, and the labels stay the destinations'
               names for screen readers. Measured in the bar's own width in rem, so the user's text
               size counts (a 320px phone has 20rem at 100% and 10rem at 200%), against what each set
-              of labels needs (TAB_FIT). In a short window the list's cap is wider than its labels
-              side by side. Wider than the phone, the bar made the browser widen the area every fixed
-              element is placed in. */}
-          <ul className="mx-auto flex max-w-lg short:max-w-xl">
+              of labels needs (TAB_FIT). Wider than the phone, the bar made the browser widen the area
+              every fixed element is placed in. Held sideways there is no bottom bar: the
+              destinations ride in the top bar. */}
+          <ul className="mx-auto flex max-w-lg">
             {tabs.map(({ href, label, icon: Icon }) => {
               const active = href === activeTab;
               const own = href === "/overview" && user?.avatarUrl;
@@ -350,7 +405,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                     // The current tab on its own page: back to the top, as a phone's tab bar does (a page
                     // under the tab, such as a teammate's profile under Players, still goes to the tab's page).
                     onClick={(e) => stayOnCurrentPage(e, active && pathname === href)}
-                    className={cn("group flex min-h-14 flex-col items-center justify-center gap-1 px-1 pb-1 pt-1.5 text-2xs font-medium transition-colors duration-150 short:min-h-11 short:flex-row short:gap-1.5 short:py-1", fit.link, active ? "font-semibold text-fg" : "text-fg-muted hover:text-fg")} data-testid={`tab-${href.slice(1)}`}>
+                    className={cn("group flex min-h-14 flex-col items-center justify-center gap-1 px-1 pb-1 pt-1.5 text-2xs font-medium transition-colors duration-150", fit.link, active ? "font-semibold text-fg" : "text-fg-muted hover:text-fg")} data-testid={`tab-${href.slice(1)}`}>
                     <span className={cn("grid h-7 w-12 place-items-center rounded-full transition-colors duration-150", fit.pill, active ? "bg-accent/15 text-accent" : "group-hover:bg-surface-2")} aria-hidden>
                       {own ? <Avatar name={user!.name} src={user!.avatarUrl} size="xs" className={cn(active && "ring-2 ring-accent")} /> : <Icon className="h-5 w-5" />}
                     </span>
@@ -367,7 +422,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
 }
 
 /**
- * Sign out (a plain form post, from the account screen or the drawer, as from the account menu): this tab's
+ * Sign out (a plain form post, from the account screen, as from the account menu): this tab's
  * account guard stands aside while it leaves, and the browser's other tabs are told (account-guard.tsx).
  */
 function onSignOut() {
@@ -376,108 +431,78 @@ function onSignOut() {
 }
 
 /**
- * Where the tab bar's labels stop fitting, as static class lists (Tailwind reads them whole). Measured
- * on 18 Nov 2026 with the bundled Inter at 100% text, by a clone of a real tab per label: Player
- * Mode's five need up to 19.64rem under their icons and 34.67rem beside them in a short window (with
- * Resources as the fifth; 19.13rem and 33.32rem with Profile); Admin Mode's four 14.63rem and 25.99rem.
- * Below these widths of the bar, each destination shows its icon alone (docs/MOBILE.md, the tab bar).
+ * Where the upright tab bar's labels stop fitting, as static class lists (Tailwind reads them whole).
+ * Measured on 18 Nov 2026 with the bundled Inter at 100% text, by a clone of a real tab per label:
+ * Player Mode's five need up to 19.64rem under their icons (with Resources as the fifth; 19.13rem
+ * with Profile); Admin Mode's four 14.63rem. Below these widths of the bar, each destination shows
+ * its icon alone (docs/MOBILE.md, the tab bar).
  */
 const TAB_FIT = {
   member: {
-    li: "@max-[20rem]/tabbar:min-w-0 short:@max-[35rem]/tabbar:min-w-0",
-    link: "@max-[20rem]/tabbar:px-0.5 short:@max-[35rem]/tabbar:px-0.5",
-    pill: "@max-[20rem]/tabbar:w-full @max-[20rem]/tabbar:max-w-12 short:@max-[35rem]/tabbar:w-full short:@max-[35rem]/tabbar:max-w-12",
-    label: "@max-[20rem]/tabbar:sr-only short:@max-[35rem]/tabbar:sr-only",
+    li: "@max-[20rem]/tabbar:min-w-0",
+    link: "@max-[20rem]/tabbar:px-0.5",
+    pill: "@max-[20rem]/tabbar:w-full @max-[20rem]/tabbar:max-w-12",
+    label: "@max-[20rem]/tabbar:sr-only",
   },
   admin: {
-    li: "@max-[15rem]/tabbar:min-w-0 short:@max-[26.5rem]/tabbar:min-w-0",
-    link: "@max-[15rem]/tabbar:px-0.5 short:@max-[26.5rem]/tabbar:px-0.5",
-    pill: "@max-[15rem]/tabbar:w-full @max-[15rem]/tabbar:max-w-12 short:@max-[26.5rem]/tabbar:w-full short:@max-[26.5rem]/tabbar:max-w-12",
-    label: "@max-[15rem]/tabbar:sr-only short:@max-[26.5rem]/tabbar:sr-only",
+    li: "@max-[15rem]/tabbar:min-w-0",
+    link: "@max-[15rem]/tabbar:px-0.5",
+    pill: "@max-[15rem]/tabbar:w-full @max-[15rem]/tabbar:max-w-12",
+    label: "@max-[15rem]/tabbar:sr-only",
   },
 } as const;
 
-/** Phones; and tablets in the installed app, which has no browser Back (a tablet in a browser has the browser's). */
-const BACK_CLASS = "-ml-1 flex min-h-11 min-w-0 max-w-[45%] shrink-0 items-center gap-0.5 rounded-md pr-2 text-sm font-medium text-accent hover:bg-surface-2";
+/**
+ * Where a tablet's top bar gives way at a larger text size, in the bar's own width in rem (the
+ * `topbar` container: its row less its gutters), as static class lists (Tailwind reads them whole):
+ * first the team's name beside its mark, then the destinations' labels (each keeps its name for
+ * screen readers and in its title). Measured on 18 Nov 2026 with the bundled Inter at 100% text:
+ * Player Mode's bar needs 32.84rem with the name and 26.75rem without it, Admin Mode's (its name
+ * two lines, "Admin mode" under it, and Platform Settings named in full) 42.68rem and 36.16rem. A
+ * 768px tablet's bar is 46rem at 100% text, 36.8rem at 125%, 30.7rem at 150%.
+ */
+const BAR_FIT = {
+  member: { brand: "md:@max-[34rem]/topbar:hidden", labels: "md:@max-[28rem]/topbar:sr-only" },
+  admin: { brand: "md:@max-[43rem]/topbar:hidden", labels: "md:@max-[36.5rem]/topbar:sr-only" },
+} as const;
+
+/**
+ * The destinations' labels in a phone's bar held sideways, in the bar's own width in rem: the
+ * others' below 38rem (all five labelled need 33.28rem with the mark and the avatar, 36.28rem with
+ * Filters too; measured on 18 Nov 2026 at 100% text), the current one's below 27rem, where a larger
+ * text size leaves room for the icons alone (26.9rem with Leaderboards current and Filters; the
+ * same fallback as the upright bar's, TAB_FIT).
+ */
+const SIDEWAYS_FIT = {
+  others: "@max-[38rem]/topbar:sr-only",
+  current: "@max-[27rem]/topbar:sr-only",
+  /**
+   * Admin Mode's words beside the mark (6.04rem with their gap), read out only below 32rem: with them
+   * Admin Mode's four labelled need 33.18rem and the current one alone 26.79rem (29.8rem with
+   * Filters), without them 27.14rem and 20.75rem.
+   */
+  mode: "@max-[32rem]/topbar:sr-only",
+} as const;
+
+/** The top bar's Filters count, over the button's corner. */
+const TOPBAR_COUNT = "absolute right-0.5 top-1 min-w-4 rounded-full bg-accent px-1 text-center text-2xs font-semibold leading-4 tabular-nums text-bg";
+
+/**
+ * Back: phones, either way round; tablets in the installed app, which has no browser Back (a tablet
+ * in a browser has the browser's). Up to 45% of the bar, and it gives way first (its label shortens,
+ * its name stays whole for screen readers) when a larger text size leaves the bar too little room for
+ * Filters and the avatar; held sideways, where the destinations share the bar, likewise when the bar
+ * is full, down to the chevron (a 44px target), so the destinations keep their room.
+ */
+const BACK_CLASS = "-ml-1 flex min-h-11 min-w-0 max-w-[45%] shrink items-center gap-0.5 rounded-md pr-2 text-sm font-medium text-accent hover:bg-surface-2 short:min-w-11";
 /**
  * Tablets: hidden in a browser, shown in the installed app's display mode from the first paint (the
  * `standalone` variant, globals.css), so a cold start never draws the bar without it and then with
  * it. Once the page runs, the browser's answer (useInstallState) shows it too: iOS's own flag, and
- * the test's stand-in for a display mode Chromium cannot emulate.
+ * the test's stand-in for a display mode Chromium cannot emulate. Held sideways it is the phone's
+ * Back, shown whatever the display mode (`not-short`).
  */
-const BACK_TABLET = "md:hidden md:standalone:flex";
-
-/**
- * The tablet's menu: a modal dialog (the native <dialog>, as every sheet and window), so focus stays
- * inside, the page behind is inert and locked as behind every window (DetailModal's lockPage: no
- * scrolling, no rubber band, no shift as the scrollbar goes), and Escape or a tap beside the panel
- * closes it. The panel is docked to the left edge, the sidebar's side. The focus starts as in every
- * window: on the menu itself after a tap or a click (no ring, and only until it is pressed or the
- * focus moves on), on its close button from the keyboard (input-kind.ts); a press on nothing
- * focusable in it leaves nothing focused, as on a page (letGoWhenPressed). Closed, or removed while
- * open (a navigation, the window grown to the sidebar's widths), it gives focus back where it came
- * from. Toasts raised meanwhile are drawn in it (top-layer.ts).
- */
-function Drawer({ onClose, initialFocus, children }: { onClose: () => void; /** What takes focus when it opens from the keyboard (the close button). */ initialFocus: React.RefObject<HTMLElement | null>; children: React.ReactNode }) {
-  const ref = React.useRef<HTMLDialogElement>(null);
-  const latest = React.useRef(onClose);
-  React.useLayoutEffect(() => {
-    latest.current = onClose;
-  });
-  // A layout effect: its cleanup runs while the dialog is still on the page, so it can be closed
-  // properly (out of the top layer, the page no longer inert) before it is removed.
-  React.useLayoutEffect(() => {
-    const d = ref.current;
-    if (!d) return;
-    if (!d.open) d.showModal();
-    noteModalOpened(d);
-    // At rest at once: its panel slides in, the dialog itself never moves (top-layer.ts).
-    noteModalAtRest(d);
-    // The focus starts on the menu itself after a tap or a click (until it is pressed or the focus
-    // moves on, as in every window: focusWindow), on its close button from the keyboard.
-    let letGo: () => void = () => undefined;
-    if (opensFocusingItself(lastInput())) letGo = focusWindow(d);
-    else initialFocus.current?.focus({ preventScroll: true });
-    const presses = letGoWhenPressed(d);
-    // The page behind stays where it is.
-    const unlock = lockPage();
-    // The sidebar takes over from lg: a menu left open across that width would keep the page inert.
-    const wide = window.matchMedia("(min-width: 64rem)");
-    const onWide = () => wide.matches && latest.current();
-    wide.addEventListener("change", onWide);
-    return () => {
-      wide.removeEventListener("change", onWide);
-      unlock();
-      presses();
-      letGo();
-      if (d.open) d.close();
-      noteModalClosed(d);
-    };
-  }, [initialFocus]);
-  return (
-    <dialog
-      ref={ref}
-      id="mobile-drawer"
-      aria-label="Menu"
-      // Escape asks the owner to close, so the menu button gets focus back the same way every time.
-      onCancel={(e) => {
-        e.preventDefault();
-        latest.current();
-      }}
-      onClick={(e) => {
-        if (e.target === ref.current) latest.current();
-      }}
-      // overflow-visible: the panel scrolls itself, and its shadow falls over the backdrop (a dialog clips its contents by default).
-      // Full height by the screen it is fixed to (stretched between the dialog's own top and bottom
-      // insets), not by viewport units, so its size and its place come from the same box
-      // (DetailModal); its width a share of that screen too. Its own focus (after a tap) draws no ring.
-      className="m-0 h-auto max-h-none w-[min(calc(20rem+env(safe-area-inset-left)),86%)] max-w-none overflow-visible border-0 bg-transparent p-0 text-fg outline-none backdrop:bg-black/60 backdrop:backdrop-blur-sm open:flex motion-safe:backdrop:fade-in"
-      data-testid="mobile-drawer"
-    >
-      {children}
-    </dialog>
-  );
-}
+const BACK_TABLET = "md:not-short:hidden md:standalone:flex";
 
 /** The account screen's title (its custom header names the dialog). */
 const SHEET_TITLE_ID = "account-sheet-title";
@@ -510,24 +535,22 @@ function AccountRow({ href, icon: Icon, active, onNavigate, children }: { href: 
   );
 }
 
-/** A row of the tablet drawer: an icon and a page, 48px tall. */
-function SheetLink({ href, icon: Icon, active, onNavigate, children }: { href: string; icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>; active: boolean; onNavigate: () => void; children: React.ReactNode }) {
-  return (
-    <Link href={href} onClick={onNavigate} aria-current={active ? "page" : undefined} className={cn("flex min-h-12 items-center gap-3 rounded-lg pl-[0.9375rem] pr-3 text-sm hover:bg-surface-2 hover:text-fg", active ? "text-fg" : "text-fg-muted")}>
-      <Icon className="h-[1.125rem] w-[1.125rem] text-fg-subtle" aria-hidden /> {children}
-    </Link>
-  );
-}
+/**
+ * Where the top bar's height is measured: phones either way round, and any window held sideways
+ * below lg (a phone 768px or wider held sideways: the compact bar, with a profile's sections under it).
+ */
+const MEASURED_BAR = "(max-width: 47.99rem), (max-width: 63.99rem) and (max-height: 480px)";
 
 /**
- * The top bar's height (status bar included, a profile's sections too), measured, and on phones the
- * page's scroll-padding-top to match, so whatever scrolls into view (a link to a section, a game
- * brought up, the keyboard's focus) stops below the bar rather than under it (WCAG 2.4.11;
- * globals.css has the value before this runs). On tablets the bar's height is fixed and the
- * stylesheet's value stands, with the pinned section tabs added where a page has them (globals.css
- * --bar-top and --tabs-top); the sidebar's widths have no bar. Written as scroll-padding-top itself:
- * a custom property set on the root re-styles every element of the page (about 870 on a profile,
- * 50 ms on a slow phone), even one registered as not inherited, where this re-styles the root alone.
+ * The top bar's height (status bar included, a profile's sections too), measured, and on phones
+ * (either way round, MEASURED_BAR) the page's scroll-padding-top to match, so whatever scrolls into
+ * view (a link to a section, a game brought up, the keyboard's focus) stops below the bar rather than
+ * under it (WCAG 2.4.11; globals.css has the value before this runs). On tablets the bar's height is
+ * fixed and the stylesheet's value stands, with the pinned section tabs added where a page has them
+ * (globals.css --bar-top and --tabs-top); the sidebar's widths have no bar. Written as
+ * scroll-padding-top itself: a custom property set on the root re-styles every element of the page
+ * (about 870 on a profile, 50 ms on a slow phone), even one registered as not inherited, where this
+ * re-styles the root alone.
  */
 function useTopBarHeight(ref: React.RefObject<HTMLElement | null>): number {
   const [height, setHeight] = React.useState(0);
@@ -535,7 +558,7 @@ function useTopBarHeight(ref: React.RefObject<HTMLElement | null>): number {
     const el = ref.current;
     if (!el) return;
     const root = document.documentElement;
-    const phone = window.matchMedia(PHONE_QUERY);
+    const phone = window.matchMedia(MEASURED_BAR);
     const apply = () => {
       const h = el.offsetHeight;
       setHeight(h);
@@ -673,16 +696,16 @@ function goBackTo(target: string, pathname: string, back: () => void) {
   else back();
 }
 
-/** Distance the page must scroll before the bars may slide away (about the top bar's height). */
+/** Distance the page must scroll before the bar may slide away (about the top bar's height). */
 const HIDE_AFTER = 64;
-/** Distance scrolled one way, from where that direction began, that hides or shows the bars. */
+/** Distance scrolled one way, from where that direction began, that hides or shows the bar. */
 const INTENT = 8;
 
 /**
- * In short windows (a phone held sideways) the bars take a large share of the screen, so they slide
- * away while the page scrolls down and return on any scroll up, at the top of the page, and
- * whenever focus moves into them. Taller windows keep them in place. Distances count from where
- * the scroll last changed direction, so a slow drag (a pixel or two a frame) counts as well.
+ * In short windows (a phone held sideways) even the one compact bar takes a share of the screen, so
+ * it slides away while the page scrolls down and returns on any scroll up, at the top of the page,
+ * and whenever focus moves into it. Taller windows keep it in place. Distances count from where the
+ * scroll last changed direction, so a slow drag (a pixel or two a frame) counts as well.
  */
 function useHideOnScroll() {
   const [hidden, setHidden] = React.useState(false);

@@ -81,6 +81,60 @@ test("every filter bar folds on phones and lines up on wide screens", async ({ p
   await checkBar(page, page.getByTestId("together-filters"), "together-filters-toggle");
 });
 
+test("opened from the pinned row on a tablet and a desktop, the sheet labels every field and holds the only copy of each id", async ({ page }, info) => {
+  test.skip(info.project.name === "phone", "phones open the sheet from the page's own Filters or the top bar (mobile-nav.spec.ts)");
+  // A window short enough for each page to scroll its toolbar away, tall enough to pin (over 480px).
+  // (The demo's Players and All Champions, nine players and eight champions, fit it whole: their rows
+  // never need their compact controls at these widths.)
+  await page.setViewportSize({ width: page.viewportSize()!.width, height: 560 });
+  await page.goto("/players");
+  const card = page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']");
+  const profile = new URL((await card.getAttribute("href"))!, "http://x").pathname;
+  for (const [path, sheetId, more, picker] of [
+    [profile, "filter-sheet", false, false],
+    [`${profile}/matches`, "filter-sheet", true, false],
+    ["/matches", "together-filters-sheet", false, true],
+  ] as const) {
+    await page.goto(path);
+    await page.waitForLoadState("networkidle");
+    await page.evaluate(async () => {
+      for (let at = 0; at < document.documentElement.scrollHeight; at += 240) {
+        window.scrollTo(0, at);
+        await new Promise((r) => requestAnimationFrame(() => r(null)));
+      }
+      window.scrollTo(0, document.documentElement.scrollHeight);
+    });
+    await page.getByTestId("toolbar-filters").click();
+    const sheet = page.getByTestId(sheetId);
+    await expect(sheet, path).toBeVisible();
+    // Match History's Refine keeps its less used fields behind More filters in the sheet, as on a
+    // phone: closed at first, every one of them there once it is opened.
+    if (more) {
+      const toggle = sheet.getByTestId("refine-more");
+      await expect(toggle, path).toHaveAttribute("aria-expanded", "false");
+      await toggle.click();
+      await expect(toggle, path).toHaveAttribute("aria-expanded", "true");
+    }
+    // Every field's label shows (not left to screen readers as in the inline row), above its field.
+    const labels = await sheet.locator("[data-filter-controls] [data-filter-label]").evaluateAll((els) => els.map((el) => ({ text: (el.textContent ?? "").trim(), w: el.getBoundingClientRect().width, h: el.getBoundingClientRect().height })));
+    expect(labels.length, `${path}: labels`).toBeGreaterThan(0);
+    for (const l of labels) expect(l.w > 1 && l.h > 1, `${path}: the label "${l.text}" shows`).toBe(true);
+    // Team Matches' Played with takes the sheet's width as its selects do (inline from md it keeps to its own).
+    // Measured once the sheet has finished opening (it scales in from 0.97 over 180ms) and in one frame:
+    // read in two calls during that animation, the two boxes came out 2px apart on CI.
+    if (picker) {
+      await expect(async () => expect(await sheet.evaluate((d) => d.getAnimations().length)).toBe(0)).toPass();
+      const widths = await sheet.evaluate((d) => ({ button: d.querySelector("[data-testid=together-with-button]")!.getBoundingClientRect().width, select: d.querySelector("[data-testid=together-queue]")!.getBoundingClientRect().width }));
+      expect(Math.abs(widths.button - widths.select), `${path}: Played with is as wide as Game mode`).toBeLessThanOrEqual(1);
+    }
+    // One copy of each id on the page: the fields are in the sheet, not also in the row.
+    const ids = await page.evaluate(() => [...document.querySelectorAll("[id]")].map((e) => e.id).filter((id, i, all) => all.indexOf(id) !== i));
+    expect(ids, `${path}: ids found twice`).toEqual([]);
+    await page.keyboard.press("Escape");
+    await expect(sheet).toHaveCount(0);
+  }
+});
+
 test("Team Matches' Bookmarked ends the filter row at the controls' height: 36px with a mouse, 44px on a touch screen", async ({ page }) => {
   await page.goto("/matches");
   const phone = (page.viewportSize()?.width ?? 0) < 768;

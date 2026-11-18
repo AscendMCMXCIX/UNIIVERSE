@@ -13,10 +13,11 @@ import { cn } from "@/lib/cn";
   tab (no referrer, nothing embedded); a Discord username, which has no public address, is copied.
   Only links already chosen for this viewer reach here (domain/social-links, visibleSocialLinks on
   the server). Every icon is its own control, so using one never reaches the card or header under
-  it. One look everywhere: a round dark chip around the mark, `md` in headers and windows, `card`
-  on a player card (sized by the card's own width: 1.75rem on a narrow card, 2rem from 17rem, a
-  step more on touch screens), `row` on a Players row (1.5rem, so the name's line keeps its height),
-  and on touch screens an invisible margin makes each a finger-sized target (44px). On a row the
+  it. One look everywhere: a round dark chip around the mark, `md` in headers and windows (`header`
+  in the profile's, 32px held sideways), `card` on a player card (sized by the card's own width:
+  1.75rem on a narrow card, 2rem from 17rem, a step more on touch screens), `row` on a Players row
+  (1.5rem, so the name's line keeps its height), and on touch screens an invisible margin makes
+  each a finger-sized target (44px). On a row the
   target is 44px wide and 38px tall: it stays inside the row (4px above the chip, which sits 4px
   below the row's edge) and off the next icon's chip (the icons are 12px apart there), so a tap meant
   for the row above, or for the next icon, never lands on this one.
@@ -24,13 +25,15 @@ import { cn } from "@/lib/cn";
 
 const SIZE = {
   md: "h-9 w-9 [&_svg]:h-5 [&_svg]:w-5",
+  /** `md`, and 32px in a short window (the profile's band held sideways keeps to 80px); still a 44px target on touch screens. */
+  header: "h-9 w-9 [&_svg]:h-5 [&_svg]:w-5 short:h-8 short:w-8 short:[&_svg]:h-4 short:[&_svg]:w-4",
   card: "h-7 w-7 pointer-coarse:h-8 pointer-coarse:w-8 [&_svg]:h-4 [&_svg]:w-4 @min-[17rem]/card:h-8 @min-[17rem]/card:w-8 @min-[17rem]/card:pointer-coarse:h-9 @min-[17rem]/card:pointer-coarse:w-9 @min-[17rem]/card:[&_svg]:h-[1.125rem] @min-[17rem]/card:[&_svg]:w-[1.125rem]",
   row: "h-6 w-6 [&_svg]:h-3.5 [&_svg]:w-3.5",
 } as const;
 type IconSize = keyof typeof SIZE;
 
 /** The invisible margin on touch screens that makes each icon a 44px target, by size. */
-const TOUCH: Record<IconSize, string> = { md: "pointer-coarse:after:-inset-1.5", card: "pointer-coarse:after:-inset-1.5", row: "pointer-coarse:after:-inset-x-2.5 pointer-coarse:after:-top-1 pointer-coarse:after:-bottom-2.5" };
+const TOUCH: Record<IconSize, string> = { md: "pointer-coarse:after:-inset-1.5", header: "pointer-coarse:after:-inset-1.5", card: "pointer-coarse:after:-inset-1.5", row: "pointer-coarse:after:-inset-x-2.5 pointer-coarse:after:-top-1 pointer-coarse:after:-bottom-2.5" };
 
 const CHIP = "relative grid shrink-0 place-items-center rounded-full bg-bg/80 shadow-sm shadow-black/30 ring-1 ring-white/10";
 const CONTROL = cn(CHIP, "transition-[background-color,transform] duration-150 hover:bg-bg active:scale-95 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none pointer-coarse:after:absolute pointer-coarse:after:content-['']");
@@ -73,14 +76,18 @@ function CopyUsername({ link, label, className, testId }: { link: SocialLinkView
   );
 }
 
-/** The links in a header or window (profile header, Team player window, previews of a member's links). */
-export function SocialLinks({ links, owner, className }: { links: readonly SocialLinkView[]; /** Whose links: part of each control's name. */ owner?: string; className?: string }) {
+/**
+ * The links in a header or window (profile header, Team player window, previews of a member's links).
+ * `header`: the profile header's, 32px held sideways (a short window), where its band keeps to 80px:
+ * the chips stay 44px targets on touch screens (their invisible margin, 6px a side, makes 32 + 12).
+ */
+export function SocialLinks({ links, owner, className, size = "md" }: { links: readonly SocialLinkView[]; /** Whose links: part of each control's name. */ owner?: string; className?: string; size?: "md" | "header" }) {
   if (!links.length) return null;
   return (
     <ul className={cn("flex flex-wrap items-center gap-2", className)} aria-label={owner ? `${owner}'s social links` : "Social links"} data-testid="social-links">
       {links.map((l) => (
         <li key={l.kind}>
-          <SocialIcon link={l} owner={owner} size="md" testId={`social-${l.kind}`} />
+          <SocialIcon link={l} owner={owner} size={size} testId={`social-${l.kind}`} />
         </li>
       ))}
     </ul>

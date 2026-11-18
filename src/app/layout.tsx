@@ -74,7 +74,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <head>
         {/* First on the page: the browser can offer to install before the app's code loads, an
             image that fails while the page loads is noted before any image can fail, a tap on the
-            avatar, the tablet's menu, the account menu or the sidebar's collapse control before the
+            avatar, the account menu or the sidebar's collapse control before the
             code has run is kept and applied once it runs (early-taps.ts), and whether the reader
             taps or types is known from the first input on (input-kind.ts: where a window puts the
             focus as it opens). Inline scripts are allowed: the pages' Content-Security-Policy has

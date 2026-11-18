@@ -28,8 +28,8 @@ async function expectCurrent(page: Page, key: string) {
   if (isPhone(page)) {
     // The bottom bar: each Team section is a destination of its own; the page tabs are not repeated.
     await expect(page.getByTestId("team-tabs")).toBeHidden();
-    await expect(page.locator(`nav[aria-label='Primary'] a[href='${PHONE_TAB[key]}']`)).toHaveAttribute("aria-current", "page");
-    await expect(page.locator("nav[aria-label='Primary'] a[aria-current=page]")).toHaveCount(1);
+    await expect(page.locator(`[data-testid=phone-tabbar] a[href='${PHONE_TAB[key]}']`)).toHaveAttribute("aria-current", "page");
+    await expect(page.locator("[data-testid=phone-tabbar] a[aria-current=page]")).toHaveCount(1);
   } else {
     await expect(page.getByTestId(`team-tab-${key}`)).toHaveAttribute("aria-current", "page");
     await expect(page.getByTestId("team-tabs").locator("[aria-current=page]")).toHaveCount(1);
@@ -47,7 +47,7 @@ test("the Team tabs move between the sections, each at its own address, with Bac
   await expect(page.getByTestId("team-tabs-identity")).toHaveCount(0);
   await expectCurrent(page, "team");
   for (const [key, href] of SECTIONS.slice(1)) {
-    await (isPhone(page) ? page.locator(`nav[aria-label='Primary'] a[href='${href}']`) : page.getByTestId(`team-tab-${key}`)).click();
+    await (isPhone(page) ? page.locator(`[data-testid=phone-tabbar] a[href='${href}']`) : page.getByTestId(`team-tab-${key}`)).click();
     await expect(page).toHaveURL(new RegExp(`${href}$`));
     await expectCurrent(page, key);
   }
@@ -73,7 +73,7 @@ test("a section opened directly has the tabs; a page inside a section has none a
   await expect(page.getByTestId("team-tabs")).toHaveCount(0);
   if ((page.viewportSize()?.width ?? 0) >= 1024) await expect(page.locator("aside").getByTestId("nav-team")).toHaveAttribute("aria-current", "page");
   // A teammate's profile is under Players on a phone, the bar's own destination for it.
-  if (isPhone(page)) await expect(page.locator("nav[aria-label='Primary'] a[href='/players']")).toHaveAttribute("aria-current", "page");
+  if (isPhone(page)) await expect(page.locator("[data-testid=phone-tabbar] a[href='/players']")).toHaveAttribute("aria-current", "page");
 });
 
 test("the collapsed sidebar keeps Team as one marked icon", async ({ page }, info) => {
@@ -107,7 +107,7 @@ test("Clash Scout is gone: no entry, tab or link in any navigation, the phone ba
   } else {
     if (isPhone(page)) {
       // The bar shares its width between the five destinations, with Team lit; the account screen holds the rest.
-      const bar = page.locator("nav[aria-label='Primary']");
+      const bar = page.getByTestId("phone-tabbar");
       await expect(bar.locator("a")).toHaveText(["Team", "Players", "Leaderboards", "Matches", "Profile"]);
       await expect(bar.locator("a[aria-current=page]")).toHaveText("Team");
       const cells = await bar.locator("li").evaluateAll((lis) => lis.map((li) => li.getBoundingClientRect().width));
@@ -121,11 +121,9 @@ test("Clash Scout is gone: no entry, tab or link in any navigation, the phone ba
       await page.keyboard.press("Escape");
       await expect(sheet).toHaveCount(0);
     } else {
-      // The tablet menu: the same entries as the sidebar.
-      await page.getByRole("button", { name: "Open menu" }).click();
-      const drawer = page.getByRole("dialog", { name: "Menu" });
-      expect(await drawer.locator("nav[aria-label='Main'] > a").evaluateAll((as) => as.map((a) => a.getAttribute("data-testid")))).toEqual(entries);
-      await page.keyboard.press("Escape");
+      // A tablet's top bar: the same entries as the sidebar.
+      const bar = page.getByRole("navigation", { name: "Primary" });
+      expect(await bar.getByRole("link").evaluateAll((as) => as.map((a) => a.getAttribute("data-testid")))).toEqual(entries.map((e) => `topbar-${e}`));
     }
   }
   // Its pages answer the app's own "not found", at the address asked for, and its API is gone too.
@@ -140,7 +138,7 @@ test("Clash Scout is gone: no entry, tab or link in any navigation, the phone ba
 test("Meta & Trends is gone: no entry, tab or link in any navigation, and its pages are not found", async ({ page }, info) => {
   await page.goto("/team");
   if (info.project.name === "phone") {
-    await expect(page.locator("nav[aria-label='Primary'] a")).toHaveText(["Team", "Players", "Leaderboards", "Matches", "Profile"]);
+    await expect(page.getByTestId("phone-tabbar").locator("a")).toHaveText(["Team", "Players", "Leaderboards", "Matches", "Profile"]);
     await page.getByTestId("account-sheet-button").click();
     await expect(page.getByTestId("account-sheet")).toBeVisible();
   }

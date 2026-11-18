@@ -7,7 +7,7 @@ import { memberContext } from "./member-account";
   has scrolled away), a profile's sections under it, the account screen behind the avatar (which
   answers a tap made before the page's code has run), filters in a sheet with chips for what is
   narrowed, and a game opened as a whole screen that Back closes. Phones only, except the tests
-  tagged @tablet (the tablet's menu drawer); in-memory demo roster.
+  tagged @tablet (a tablet's top bar and its avatar menu); in-memory demo roster.
 */
 
 test.beforeEach(async ({ context, baseURL }, info) => {
@@ -126,8 +126,8 @@ test("a profile's sections stay under the top bar, and the bar shows the player'
 
 test("the avatar opens the account screen: Resources, Settings, Install App and Sign out live there", async ({ page }) => {
   await page.goto("/team");
-  // No menu drawer on a phone: the tablet's menu button is not shown.
-  await expect(page.getByTestId("menu-button")).toBeHidden();
+  // No menu drawer anywhere (a tablet's destinations are in its top bar).
+  await expect(page.getByTestId("menu-button")).toHaveCount(0);
   await page.getByTestId("account-sheet-button").click();
   const screen = page.getByTestId("account-sheet");
   await expect(screen).toBeVisible();
@@ -266,29 +266,11 @@ test.describe("a tablet before the page's code has run", () => {
   // The page is loaded twice; a service worker would serve the second load's navigation itself.
   test.use({ serviceWorkers: "block" });
 
-  test("a tap on the menu button or on the avatar is kept, shown pressed, and opens the drawer or the account menu once the code runs, exactly once", { tag: "@tablet" }, async ({ page }) => {
-    await page.addInitScript(COUNT_OPENINGS);
-    let scripts = await holdScripts(page);
+  test("a tap on the avatar is kept, shown pressed, and opens the account menu once the code runs, exactly once", { tag: "@tablet" }, async ({ page }) => {
+    // Its other trigger, the sidebar's tile, is on the page too, hidden at this width: the tap opens
+    // the one tapped. (The destinations are links, which work before the code has run.)
+    const scripts = await holdScripts(page);
     await page.goto("/team", { waitUntil: "domcontentloaded" });
-    const menuButton = page.getByTestId("menu-button");
-    await menuButton.tap();
-    await menuButton.tap();
-    await expect(menuButton).toHaveAttribute("aria-busy", "true");
-    expect(await page.evaluate(() => window.__earlyTaps)).toEqual(["drawer"]);
-    scripts.release();
-    const drawer = page.getByTestId("mobile-drawer-panel");
-    await expect(drawer).toBeVisible();
-    await expect(menuButton).not.toHaveAttribute("aria-busy");
-    await page.waitForTimeout(600);
-    await expect(drawer).toBeVisible();
-    expect(await openings(page)).toEqual({ "mobile-drawer": 1 });
-    await page.keyboard.press("Escape");
-    await expect(drawer).toHaveCount(0);
-    // The account menu behind the avatar goes the same way (its other trigger, the sidebar's tile,
-    // is on the page too, hidden at this width: the tap opens the one tapped).
-    await page.unrouteAll({ behavior: "ignoreErrors" });
-    scripts = await holdScripts(page);
-    await page.reload({ waitUntil: "domcontentloaded" });
     const avatar = page.getByTestId("mobile-topbar").getByTestId("account-menu-button");
     await avatar.tap();
     await avatar.tap();
@@ -306,20 +288,147 @@ test.describe("a tablet before the page's code has run", () => {
   });
 });
 
-test("Sign out from the tablet's menu is told to the browser's other tabs, and the next thing they do lands on sign-in", { tag: "@tablet" }, async ({ page, browser }) => {
+test("a tablet's destinations are in its top bar, one tap each; its avatar menu holds the account's items, the switch between the modes, the patch and Riot's notice", { tag: "@tablet" }, async ({ page, context, baseURL }) => {
+  await page.goto("/team");
+  const nav = page.getByRole("navigation", { name: "Primary" });
+  await expect(nav.getByRole("link")).toHaveText(["My Profile", "Team", "Resources"]);
+  // The current destination is marked twice: its icon in the brand blue and its lift, and the name bright.
+  const team = nav.getByRole("link", { name: "Team" });
+  await expect(team).toHaveAttribute("aria-current", "page");
+  // ...and the brand's gradient as a short bar at its foot, the sidebar's fourth signal; on it alone.
+  await expect(team.getByTestId("topbar-current-bar")).toHaveCSS("opacity", "1");
+  await expect(nav.getByTestId("topbar-current-bar")).toHaveCount(1);
+  for (const box of await nav.getByRole("link").evaluateAll((links) => links.map((l) => l.getBoundingClientRect().height))) expect(box).toBeGreaterThanOrEqual(44);
+  // One tap from anywhere: from Team to Resources, and Team stays marked on its other sections.
+  await nav.getByRole("link", { name: "Resources" }).click();
+  await expect(page).toHaveURL(/\/resources$/);
+  await expect(nav.getByRole("link", { name: "Resources" })).toHaveAttribute("aria-current", "page");
+  await page.goto("/matches");
+  await expect(team).toHaveAttribute("aria-current", "page");
+  const avatar = page.getByTestId("mobile-topbar").getByTestId("account-menu-button");
+  await avatar.click();
+  const menu = page.getByTestId("account-menu");
+  await expect(menu.getByRole("menuitem")).toHaveText(["Settings", "Install App", "Switch to Admin Mode", "Details"]);
+  await expect(menu.getByTestId("account-menu-notes")).toContainText(/Patch .+Not endorsed by Riot Games\./);
+  // Install App opens its window over the page; the menu has closed and the focus goes back to the avatar.
+  await menu.getByTestId("install-app").click();
+  const install = page.getByTestId("install-window");
+  await expect(install).toBeVisible();
+  await expect(menu).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(install).toHaveCount(0);
+  await expect(avatar).toBeFocused();
+  // Admin Mode: its four tabs in the bar (Platform Settings by its full name: the avatar menu under the
+  // bar holds the account's own Settings), the admin pages without a tab in the avatar menu.
+  await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
+  await page.goto("/admin");
+  await expect(nav.getByRole("link")).toHaveText(["Dashboard", "Users", "Platform Settings", "Health"]);
+  await expect(nav.getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
+  await avatar.click();
+  await expect(menu.getByRole("menuitem")).toHaveText(["Data & Integrations", "Audit Logs", "Settings", "Install App", "Return to Player Mode", "Details"]);
+  await menu.getByRole("menuitem", { name: "Audit Logs" }).click();
+  await expect(page).toHaveURL(/\/admin\/audit$/);
+  await expect(menu).toHaveCount(0);
+});
+
+test("a tablet's top bar gives way at a larger text size: the team's name first, then the labels, by its own width, and never wider than the window", { tag: "@tablet" }, async ({ page, context, baseURL }) => {
+  // BAR_FIT in mobile-nav.tsx, in rem of the bar's row less its gutters: Player Mode's name below
+  // 34rem and labels below 28rem, Admin Mode's below 43rem and 36.5rem. A 768px tablet's row is 46rem
+  // at 100% text, 36.8rem at 125%, 30.7rem at 150% and 23rem at 200%.
+  const FIT = { player: { brand: 34, labels: 28 }, admin: { brand: 43, labels: 36.5 } } as const;
+  for (const mode of ["player", "admin"] as const) {
+    await context.addCookies([{ name: "uniiverse_view", value: mode, url: baseURL! }]);
+    for (const root of [100, 125, 150, 200]) {
+      const where = `${mode === "admin" ? "Admin Mode" : "Player Mode"} at ${root}% text`;
+      await page.goto(mode === "admin" ? "/admin/settings" : "/team");
+      await page.evaluate((r) => {
+        document.documentElement.style.fontSize = `${r}%`;
+      }, root);
+      await page.evaluate(() => document.fonts.ready);
+      await expect(async () => {
+        const m = await page.evaluate(() => {
+          const row = document.querySelector<HTMLElement>("[data-testid=mobile-topbar] > div")!;
+          const cs = getComputedStyle(row);
+          const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+          const list = document.querySelector<HTMLElement>("[data-testid=topbar-destinations] ul")!;
+          const shown = (el: Element | null) => !!el && el.getBoundingClientRect().width > 1;
+          return {
+            content: (row.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)) / rem,
+            name: shown(document.querySelector("[data-testid=mobile-brand-name]")),
+            labels: [...list.querySelectorAll("a")].map((a) => shown(a.querySelector(":scope > span:last-child"))),
+            listScrolls: list.scrollWidth > list.clientWidth + 1,
+            rowOverflow: row.scrollWidth - row.clientWidth,
+            bar: document.querySelector("[data-testid=mobile-topbar]")!.getBoundingClientRect().right - innerWidth,
+          };
+        });
+        const fit = FIT[mode];
+        expect(m.name, `${where}: the team's name (row ${m.content.toFixed(1)}rem)`).toBe(m.content >= fit.brand);
+        for (const label of m.labels) expect(label, `${where}: a label (row ${m.content.toFixed(1)}rem)`).toBe(m.content >= fit.labels);
+        // What each step leaves fits: the list needs no scrolling, and neither the bar nor its row is
+        // wider than the window (the page's own content is its pages' to fit: e2e/phone-wraps.spec.ts).
+        expect(m.listScrolls, `${where}: the destinations fit`).toBe(false);
+        expect(m.rowOverflow, `${where}: the bar's row`).toBeLessThanOrEqual(1);
+        expect(m.bar, `${where}: the bar within the window`).toBeLessThanOrEqual(1);
+      }).toPass({ timeout: 15_000 });
+    }
+  }
+});
+
+test("one primary navigation is shown at a time: the bottom bar upright, the compact bar sideways, a tablet's top bar, none beside the sidebar", async ({ page }) => {
+  for (const [viewport, expected] of [
+    [{ width: 375, height: 667 }, "phone-tabbar"],
+    [{ width: 568, height: 320 }, "topbar-tabs"],
+    [{ width: 852, height: 393 }, "topbar-tabs"],
+    [{ width: 768, height: 1024 }, "topbar-destinations"],
+    [{ width: 1024, height: 768 }, null],
+  ] as const) {
+    await page.setViewportSize(viewport);
+    await page.goto("/team");
+    const shown = await page.evaluate(() => [...document.querySelectorAll("nav[aria-label=Primary]")].filter((n) => getComputedStyle(n).display !== "none" && n.getBoundingClientRect().height > 0).map((n) => n.getAttribute("data-testid")));
+    expect(shown, `${viewport.width} × ${viewport.height}`).toEqual(expected ? [expected] : []);
+    await expect(page.getByRole("navigation", { name: "Primary" }), `${viewport.width} × ${viewport.height}`).toHaveCount(expected ? 1 : 0);
+  }
+});
+
+test("the account screen closes when the page changes, Back and Forward included, and is not reopened by Forward, upright and held sideways", async ({ page, browser, baseURL }) => {
+  // Its state is the path it was opened on (MobileNav's sheetAt): a navigation leaves it closed.
+  const check = async (p: Page, tab: string, where: string) => {
+    const screen = p.getByTestId("account-sheet");
+    await p.goto("/team");
+    await p.getByTestId(tab).click();
+    await expect(p, where).toHaveURL(/\/players$/);
+    await expect(p.getByTestId("players-directory"), where).toBeVisible();
+    await p.getByTestId("account-sheet-button").click();
+    await expect(screen, where).toBeVisible();
+    await p.goBack();
+    await expect(p, where).toHaveURL(/\/team$/);
+    await expect(screen, `${where}: closed by Back`).toHaveCount(0);
+    await p.goForward();
+    await expect(p, where).toHaveURL(/\/players$/);
+    await expect(p.getByTestId("players-directory"), where).toBeVisible();
+    await expect(screen, `${where}: not reopened by Forward`).toHaveCount(0);
+  };
+  await check(page, "tab-players", "upright");
+  const sideways = await browser.newContext({ viewport: { width: 852, height: 393 }, isMobile: true, hasTouch: true });
+  await sideways.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+  await check(await sideways.newPage(), "topbar-tab-players", "held sideways at 852 × 393");
+  await sideways.close();
+});
+
+test("Sign out from a tablet's avatar menu is told to the browser's other tabs, and the next thing they do lands on sign-in", { tag: "@tablet" }, async ({ page, browser }) => {
   const member = await memberContext(browser, page, { width: 768, height: 1024 }, { base: "Tabs" });
   const [first, other] = [member.page, await member.context.newPage()];
   await first.goto("/team");
   await other.goto("/team");
-  await expect(other.getByTestId("menu-button")).toBeVisible();
+  await expect(other.getByTestId("mobile-topbar").getByTestId("account-menu-button")).toBeVisible();
   // The other tab listens where the account guard does (account-guard.tsx) for the announcement.
   await other.evaluate(() => {
     const heard: string[] = [];
     (window as unknown as { __heard: string[] }).__heard = heard;
     new BroadcastChannel("uniiverse-account").onmessage = (e) => heard.push(String(e.data));
   });
-  await first.getByTestId("menu-button").click();
-  await first.getByTestId("mobile-drawer-panel").getByRole("button", { name: "Sign out" }).click();
+  await first.getByTestId("mobile-topbar").getByTestId("account-menu-button").click();
+  await first.getByTestId("account-menu").getByRole("menuitem", { name: "Sign out" }).click();
   // Signed out of the only account: the site's address, the public team page.
   await expect(first).toHaveURL(/\/public$/);
   await expect.poll(() => other.evaluate(() => (window as unknown as { __heard: string[] }).__heard)).toEqual(["changed"]);
@@ -346,6 +455,115 @@ test("filters open in a sheet; what is narrowed shows as chips beside Filters, a
   await chip.click();
   await expect(page).not.toHaveURL(/mode=solo/);
   await expect(chip).toHaveCount(0);
+});
+
+/** Scrolls to the page's end by steps, as a reader does, so the observers see the way down. */
+async function scrollToEnd(page: Page) {
+  await page.evaluate(async () => {
+    for (let at = window.scrollY; at < document.documentElement.scrollHeight; at += 240) {
+      window.scrollTo(0, at);
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+    }
+    window.scrollTo(0, document.documentElement.scrollHeight);
+  });
+}
+
+test("once the page's own Filters has scrolled away, the top bar offers it: 44px, named with what is chosen, opening the sheet; Done after a change brings the first game under the bars", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto(`/players/${await idOf(page, "TOP")}/matches`);
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  const filters = page.getByTestId("topbar-filters");
+  await scrollToEnd(page);
+  await expect(filters).toBeVisible();
+  await expect(filters).toHaveAccessibleName(/^Filters: Season \d{4} · All supported games/);
+  const box = (await filters.boundingBox())!;
+  expect([Math.round(box.width), Math.round(box.height)]).toEqual([44, 44]);
+  // Back at the top, the page's own Filters is in view: the bar's goes (asserted after it showed, so
+  // it is the observer's answer, not the moment before it).
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(filters).toHaveCount(0);
+  await scrollToEnd(page);
+  await filters.click();
+  const sheet = page.getByTestId("filter-sheet");
+  await expect(sheet).toBeVisible();
+  // Wins only: about half the games, still more than a screen of them (Refine's fields are in the sheet).
+  await sheet.getByTestId("refine-result").getByRole("radio", { name: "Wins" }).click();
+  await expect(page).toHaveURL(/result=win/);
+  await sheet.getByTestId("filter-sheet-done").click();
+  await expect(sheet).toHaveCount(0);
+  // The new list starts at its first game, just under the top bar (with the profile's sections in it),
+  // or as near it as the page's end allows.
+  const landed = () =>
+    page.evaluate(() => {
+      const first = document.querySelector("[data-testid=match-card]")!.getBoundingClientRect();
+      const under = document.querySelector("[data-testid=mobile-topbar]")!.getBoundingClientRect();
+      const end = document.documentElement.scrollHeight - window.innerHeight;
+      return { gap: Math.round(first.top - under.bottom), atEnd: window.scrollY >= end - 1 };
+    });
+  await expect.poll(async () => { const at = await landed(); return at.gap >= 0 && (at.gap <= 12 || at.atEnd); }, { message: "the first game just under the bars" }).toBe(true);
+  // The focus came back to it as the sheet closed; its badge counts the narrowed filter.
+  await expect(filters).toBeFocused();
+  await expect(filters.locator("span:not(.sr-only)")).toHaveText("1");
+});
+
+test("the top bar's Filters gets the focus back from its sheet (Escape, Done), and stays while it has it, even once a change has emptied the list", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto(`/players/${await idOf(page, "TOP")}/matches`);
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  await scrollToEnd(page);
+  const filters = page.getByTestId("topbar-filters");
+  const sheet = page.getByTestId("filter-sheet");
+  await filters.click();
+  await expect(sheet).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
+  await expect(filters).toBeFocused();
+  // A change that leaves no game: the page shortens behind the sheet and its own Filters comes back
+  // into view; the bar's button is still there to take the focus back, and stays while it has it.
+  await filters.click();
+  await sheet.getByTestId("refine-more").click();
+  await sheet.getByTestId("refine-to").fill("2001-01-01");
+  await expect(page).toHaveURL(/to=2001-01-01/);
+  await expect(page.getByTestId("match-empty")).toBeVisible();
+  await sheet.getByTestId("filter-sheet-done").click();
+  await expect(sheet).toHaveCount(0);
+  await expect(filters).toBeVisible();
+  await expect(filters).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(filters).toHaveCount(0);
+});
+
+test("the fullest top bar (Back, the title, Filters with its count, the avatar) keeps within a 320px phone at 100%, 175% and 200% text: Back gives way, Filters and the avatar stay on the screen", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  const profile = `/players/${await idOf(page, "TOP")}`;
+  for (const root of [100, 175, 200]) {
+    // A teammate's Match History, reached from Players (so Back is named) and narrowed (a count badge).
+    await page.goto("/players");
+    await page.goto(`${profile}/matches?result=win`);
+    if (root !== 100) await page.addStyleTag({ content: `html { font-size: ${root}% !important; }` });
+    await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+    await scrollToEnd(page);
+    const filters = page.getByTestId("topbar-filters");
+    await expect(filters, `${root}% text`).toBeVisible();
+    await expect(page.getByTestId("mobile-back"), `${root}% text: Back`).toBeVisible();
+    await expect(filters.locator("span:not(.sr-only)")).toHaveText("1");
+    const fit = await page.evaluate(() => {
+      const bar = document.querySelector<HTMLElement>("[data-testid=mobile-topbar]")!;
+      const row = bar.firstElementChild as HTMLElement;
+      const right = (el: Element) => Math.round(el.getBoundingClientRect().right);
+      return { page: document.documentElement.scrollWidth, bar: right(bar), row: row.scrollWidth - row.clientWidth, items: Math.max(...[...row.children].map(right)), filters: right(document.querySelector("[data-testid=topbar-filters]")!), avatar: right(document.querySelector("[data-testid=account-sheet-button]")!) };
+    });
+    // The page under the bar fits the phone at 100%. At 175% and 200% a teammate's pages are wider
+    // than a 320px phone already, from their own content (the strip of Match History's last games,
+    // All Champions' sort row, Encounters' rates), not from the bar, so there the bar itself is
+    // measured: it, its row and everything in the row end within the screen.
+    if (root === 100) expect(fit.page, "100% text: the page").toBeLessThanOrEqual(320);
+    expect(fit.bar, `${root}% text: the bar`).toBeLessThanOrEqual(320);
+    expect(fit.row, `${root}% text: the bar's row`).toBeLessThanOrEqual(1);
+    expect(fit.items, `${root}% text: everything in the bar's row`).toBeLessThanOrEqual(320);
+    expect(fit.filters, `${root}% text: Filters on screen`).toBeLessThanOrEqual(320);
+    expect(fit.avatar, `${root}% text: the avatar on screen`).toBeLessThanOrEqual(320);
+  }
 });
 
 test("a game opens as a whole screen of its own; Back closes it and the list is as it was", async ({ page }) => {

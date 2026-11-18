@@ -49,7 +49,8 @@ export default async function PlayersPage({ searchParams }: { searchParams: Prom
   const visible = (showArchived ? ordered : ordered.filter((p) => !deactivated.has(p.id))).filter((p) => admin || p.id !== session.playerId);
 
   return (
-    <div className="mx-auto max-w-[var(--content-max)]">
+    // 80rem under a 1600px window, as always; from there Team's one width, so its tabs line up with each section (SECTION_HUBS).
+    <div className="mx-auto max-w-[var(--content-max)] min-[100rem]:max-w-[var(--content-wide)]">
       <FreshnessWatcher scope={{ kind: "team" }} version={version} />
       {/* The header is the directory's own, so the count can be its scope line (read out as it changes). */}
       <PlayersDirectory

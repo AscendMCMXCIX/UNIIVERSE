@@ -31,13 +31,13 @@ export const RAIL_FADE = "transition-opacity duration-150 group-data-[collapsed=
 export const RAIL_ROW = "group isolate relative flex min-h-10 w-full items-center gap-3 rounded-lg py-2 pl-[0.9375rem] pr-3 text-left text-sm font-semibold transition-colors duration-150";
 
 /**
- * A row's highlight (the current page, or the pointer over it): the whole row in the open sidebar
- * and the drawer; in the collapsed sidebar a 3rem square on the icon, as far from the rail's right
- * edge as from its left, so the icon column reads as centred instead of a band cut off by the edge.
+ * A row's highlight (the current page, or the pointer over it): the whole row in the open sidebar;
+ * in the collapsed sidebar a 3rem square on the icon, as far from the rail's right edge as from its
+ * left, so the icon column reads as centred instead of a band cut off by the edge.
  */
 export const RAIL_HIGHLIGHT = "absolute inset-y-0 left-0 right-0 -z-10 rounded-lg transition-[background-color,box-shadow,right] duration-150 group-data-[collapsed=true]/sidebar:right-[calc(100%-3rem)]";
 
-/** The highlight's two states: one neutral lift for the pointer, a brighter one with a hairline of light on top for the current page. */
+/** The highlight's two states: one neutral lift for the pointer, a brighter one with a hairline of light on top for the current page (a tablet's destinations in its top bar wear them too). */
 export const RAIL_HOVER = "group-hover:bg-fg/4 group-active:bg-fg/7";
 export const RAIL_CURRENT = "bg-fg/8 shadow-[inset_0_1px_0_0_color-mix(in_srgb,var(--color-fg)_7%,transparent)]";
 

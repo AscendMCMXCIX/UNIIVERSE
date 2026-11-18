@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, ADMIN_TABS, NAV_ENTRIES, NAV_LINKS, PHONE_TABS, PHONE_TAB_LIMIT, RESOURCES, RESOURCES_SECTIONS, SECTION_HUBS, TEAM_SECTIONS, activeHref, backSteps, canOpen, currentTab, encountersRedirect, entryLinks, isActivePath, pageName, phoneParent, phoneTabs, profileBase } from "./nav";
+import { ADMIN_ACCOUNT_LINKS, ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, ADMIN_TABS, NAV_ENTRIES, NAV_LINKS, PAGE_WIDTH, PHONE_TABS, ROW_WIDTH, PHONE_TAB_LIMIT, RESOURCES, RESOURCES_SECTIONS, SECTION_HUBS, TEAM_SECTIONS, activeHref, adminSheetLinks, backSteps, canOpen, currentDestination, currentTab, encountersRedirect, entryLinks, isActivePath, pageName, pageWidthOf, phoneParent, phoneTabs, profileBase, tabletDestinations } from "./nav";
 import type { Session } from "@/server/auth/permissions";
 
 const entryId = (e: (typeof NAV_ENTRIES)[number]) => ("key" in e ? e.key : e.href);
@@ -65,6 +65,21 @@ describe("navigation entries", () => {
     const hrefs = SECTION_HUBS.flatMap((h) => h.sections.map((s) => s.href));
     expect(new Set(hrefs).size).toBe(hrefs.length);
   });
+
+  it("from a 1600px window the pages of a tab bar share one width (Team's the wide one), and under it every page keeps the width it always had", () => {
+    expect(SECTION_HUBS.map((h) => [h.key, h.width])).toEqual([
+      ["team", "wide"],
+      ["resources", "max"],
+      ["admin-settings", "max"],
+    ]);
+    // Team Overview and Leaderboards were always 100rem; Players and Matches join them from 1600px.
+    expect(TEAM_SECTIONS.map((s) => pageWidthOf(s.href))).toEqual(["wide", "wideFrom1600", "wide", "wideFrom1600"]);
+    // A teammate's profile sits under Players' address, in the profile's own (ordinary) width.
+    for (const path of ["/players/p1", "/players/p1/matches", "/resources", "/resources/matchups", "/admin/branding", "/settings", "/overview"]) expect(pageWidthOf(path), path).toBe("max");
+    expect(PAGE_WIDTH).toEqual({ max: "max-w-[var(--content-max)]", wide: "max-w-[var(--content-wide)]", wideFrom1600: "max-w-[var(--content-max)] min-[100rem]:max-w-[var(--content-wide)]" });
+    // The row of tabs is the bar's width under 1600px, as it always was, and the set's width from there.
+    expect(ROW_WIDTH).toEqual({ max: "min-[100rem]:max-w-[var(--content-max)]", wide: "min-[100rem]:max-w-[var(--content-wide)]" });
+  });
 });
 
 describe("phone tab bar", () => {
@@ -124,6 +139,54 @@ describe("phone tab bar", () => {
     expect(currentTab("/draft", m)).toBeNull();
     expect(currentTab("/trends/solo", m)).toBeNull();
     expect(ADMIN_TABS.map((t) => t.href)).not.toContain("/draft");
+  });
+});
+
+describe("tablet top bar", () => {
+  const all = NAV_LINKS.map((l) => l.href);
+  const adminAll = ADMIN_LINKS.map((l) => l.href);
+
+  it("Player Mode: the sidebar's three entries, one tap each, a hub's to its first page this account may open", () => {
+    const bar = tabletDestinations(all, false);
+    expect(bar.map((d) => [d.href, d.label])).toEqual([
+      ["/overview", "My Profile"],
+      ["/team", "Team"],
+      ["/resources", "Resources"],
+    ]);
+    // The same icons as the sidebar's entries.
+    expect(bar.map((d) => d.icon)).toEqual(NAV_ENTRIES.map((e) => e.icon));
+    // Team stands for its four sections, Resources for its two.
+    expect(bar[1]!.pages).toEqual(TEAM_SECTIONS.map((s) => s.href));
+    expect(bar[2]!.pages).toEqual(RESOURCES_SECTIONS.map((s) => s.href));
+    // An account outside the team: no Team entry; one that may open only Players: Team leads there.
+    expect(tabletDestinations(["/overview", "/resources", "/resources/matchups"], false).map((d) => d.href)).toEqual(["/overview", "/resources"]);
+    expect(tabletDestinations(["/overview", "/players", "/resources"], false).map((d) => d.href)).toEqual(["/overview", "/players", "/resources"]);
+  });
+
+  it("Admin Mode: the phone's four tabs, Platform Settings by its full name, and the pages without a tab (for the avatar menu) are Data & Integrations and Audit Logs", () => {
+    const bar = tabletDestinations(adminAll, true);
+    expect(bar.map((d) => d.href)).toEqual(ADMIN_TABS.map((t) => t.href));
+    // Never two "Settings" side by side: the avatar menu under the bar holds the account's own.
+    expect(bar.map((d) => d.label)).toEqual(["Dashboard", "Users", "Platform Settings", "Health"]);
+    expect(bar.map((d) => d.label)).not.toContain(ADMIN_ACCOUNT_LINKS[0]!.label);
+    expect(adminSheetLinks(adminAll, bar.map((d) => d.href)).map((l) => l.label)).toEqual(["Data & Integrations", "Audit Logs"]);
+    // Only what the account may open.
+    expect(tabletDestinations([ADMIN_HOME, "/admin/system"], true).map((d) => d.href)).toEqual([ADMIN_HOME, "/admin/system"]);
+  });
+
+  it("marks the destination a page belongs to, as the sidebar and the tabs do; none for Settings", () => {
+    const bar = tabletDestinations(all, false);
+    expect(currentDestination("/team", bar, false)).toBe("/team");
+    expect(currentDestination("/matches", bar, false)).toBe("/team");
+    expect(currentDestination("/players/abc/matches", bar, false)).toBe("/team");
+    expect(currentDestination("/overview/champions", bar, false)).toBe("/overview");
+    expect(currentDestination("/resources/matchups", bar, false)).toBe("/resources");
+    expect(currentDestination("/settings", bar, false)).toBeNull();
+    const admin = tabletDestinations(adminAll, true);
+    expect(currentDestination("/admin", admin, true)).toBe(ADMIN_HOME);
+    expect(currentDestination("/admin/previews", admin, true)).toBe("/admin/branding");
+    expect(currentDestination("/admin/people/access", admin, true)).toBe("/admin/people");
+    expect(currentDestination("/admin/data", admin, true)).toBeNull();
   });
 });
 

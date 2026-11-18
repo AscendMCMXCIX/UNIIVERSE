@@ -27,8 +27,8 @@ sizes, row heights and where the columns fall.
   on the page shown. Consolidating further, so that Matchups and Encounters open games under their
   rows too, would mean a window inside a window or leaving the window; neither is better, so they
   keep the window.
-- **The frame recedes:** a near-neutral charcoal (`chrome`) for the sidebar, the top bar, the
-  drawer and the tab bar. Colour in it marks only the current page: a neutral lift, the brand
+- **The frame recedes:** a near-neutral charcoal (`chrome`) for the sidebar, the top bar and the
+  tab bar (the tablet's drawer, painted the same, went in November 2026). Colour in it marks only the current page: a neutral lift, the brand
   gradient (blue to violet) as a thin bar, and the icon in the brand blue. A team with its own page
   or panel colour gets a frame mixed from those colours. Collapse, hover expansion, focus and the
   layouts at every width are unchanged.
