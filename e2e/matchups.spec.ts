@@ -124,8 +124,18 @@ async function statTiles(win: Locator) {
       const dt = t.querySelector("dt")!;
       const dd = t.querySelector("dd")!;
       const shown = [...dt.childNodes].map((n) => (n instanceof HTMLElement ? (n.checkVisibility() && n.getBoundingClientRect().width > 1 ? n.textContent : "") : n.textContent)).join("");
-      const short = dt.querySelector("[aria-hidden=true]");
-      return { top: Math.round(t.getBoundingClientRect().top), shown, read: dt.querySelector("[class*='sr-only']")?.textContent ?? dt.textContent, shortHidden: !short || short.getAttribute("aria-hidden") === "true", value: dd.textContent, cut: t.scrollWidth > t.clientWidth + 1 || dd.scrollWidth > dd.clientWidth + 1 };
+      // The label element drawn on screen (the sr-only one is 1px wide): a short label must be hidden from screen readers.
+      const drawn = [...dt.children].find((n) => n.checkVisibility() && n.getBoundingClientRect().width > 1);
+      return {
+        top: Math.round(t.getBoundingClientRect().top),
+        shown,
+        read: dt.querySelector("[class*='sr-only']")?.textContent ?? dt.textContent,
+        shortHidden: drawn?.getAttribute("aria-hidden") === "true",
+        value: dd.textContent,
+        // The label too, with no tolerance: it is cut with an ellipsis inside its own box (truncate),
+        // which the tile's width never shows, and a cut of 1.2px snaps to a 1px difference.
+        cut: t.scrollWidth > t.clientWidth + 1 || dd.scrollWidth > dd.clientWidth + 1 || dt.scrollWidth > dt.clientWidth,
+      };
     }),
   );
 }
@@ -158,7 +168,8 @@ test("on a phone the champion window is compact: a 48px portrait, Refine ending 
   // and whole for screen readers; every figure written whole, Mastery points too.
   expect(tiles.map((t) => t.shown)).toEqual(["Games", "Win rate", "KDA", "CS/min", "Damage/min", "Mastery"]);
   expect(tiles.map((t) => t.read)).toEqual(["Games", "Win rate", "KDA", "CS per minute", "Damage per minute", "Mastery points"]);
-  expect(tiles.every((t) => t.shortHidden), "the short labels hidden from screen readers").toBe(true);
+  // Tiles 3 to 5 have a short label (Games, Win rate and KDA are plain words).
+  expect(tiles.slice(3).map((t) => t.shortHidden), "the short labels hidden from screen readers").toEqual([true, true, true]);
   expect(tiles[5]!.value, "the whole mastery points").toBe(points.toLocaleString("en"));
   expect(new Set(tiles.slice(0, 3).map((t) => t.top)).size, "three on the first row").toBe(1);
   expect(new Set(tiles.slice(3).map((t) => t.top)).size, "three on the second").toBe(1);
@@ -194,16 +205,31 @@ test("on a phone the champion window is compact: a 48px portrait, Refine ending 
   await refine.tap();
   await expect(panel).toHaveCount(0);
 
-  // A 320px phone: every figure still whole, Mastery points written whole; its column takes the room
-  // a seven-digit figure needs rather than rounding it.
+  // A 320px phone: every figure and label still whole, Mastery points written whole; its column takes
+  // the room a seven-digit figure needs rather than rounding it, and the middle column keeps
+  // "Damage/min" whole beside it.
   await page.setViewportSize({ width: 320, height: 568 });
   tiles = await statTiles(win);
   expect(tiles[5]!.value, "320px: the whole mastery points").toBe(points.toLocaleString("en"));
-  expect(tiles.filter((t) => t.cut), "320px: every figure whole").toEqual([]);
+  expect(tiles.map((t) => t.shown), "320px: the short labels").toEqual(["Games", "Win rate", "KDA", "CS/min", "Damage/min", "Mastery"]);
+  expect(tiles.filter((t) => t.cut).map((t) => t.shown), "320px: every figure and label whole").toEqual([]);
   await win.getByTestId("champion-stat-mastery").locator("dd").first().evaluate((dd) => (dd.textContent = "1,234,567"));
   tiles = await statTiles(win);
-  expect(tiles.filter((t) => t.cut), "320px: seven-digit mastery points whole, and every figure beside them").toEqual([]);
+  expect(tiles.filter((t) => t.cut).map((t) => t.shown), "320px: seven-digit mastery points whole, and every figure and label beside them").toEqual([]);
   expect(new Set(tiles.slice(0, 3).map((t) => t.top)).size, "320px: still three to a row").toBe(1);
+  // Larger text, with the widest KDA ("Perfect") beside the seven digits: at 150% a 320px phone's
+  // figures go one across (two would cut "Perfect" and "Damage/min"); at 125% on it, and at 150% on a
+  // 360px phone, two across hold them whole.
+  await win.getByTestId("champion-stat-kda").locator("dd").first().evaluate((dd) => (dd.textContent = "Perfect"));
+  const text = await page.addStyleTag({ content: "/* text size */" });
+  for (const [width, size, across] of [[320, 150, 1], [320, 125, 2], [360, 150, 2]] as const) {
+    await page.setViewportSize({ width, height: 568 });
+    await text.evaluate((s, size) => (s.textContent = `html { font-size: ${size}% !important; }`), size);
+    tiles = await statTiles(win);
+    expect(tiles.filter((t) => t.cut).map((t) => t.shown), `${width}px at ${size}%: "Perfect", seven-digit mastery points and every label whole`).toEqual([]);
+    expect(new Set(tiles.map((t) => t.top)).size, `${width}px at ${size}%: ${across} across`).toBe(6 / across);
+    expect(await win.getByTestId("champion-detail-body").evaluate((e) => e.scrollWidth - e.clientWidth), `${width}px at ${size}%: nothing wider than the window`).toBeLessThanOrEqual(0);
+  }
 });
 
 test("on a phone the multikills row's coverage ⓘ has a 44px touch area too", async ({ page }) => {
