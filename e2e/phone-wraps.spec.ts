@@ -4,7 +4,8 @@ import { memberContext } from "./member-account";
 /*
   On a 320px phone, the narrowest docs/MOBILE.md supports, what a row is about wraps rather than
   being cut: a member's name beside their multikill in Team Matches, a resource's title, and the
-  account the champion window's figures come from. Demo data, in-memory only.
+  account the champion window's figures come from; and at a larger text size the pages are no wider
+  than the phone. Demo data, in-memory only.
 */
 
 test.beforeEach(async ({ context, baseURL, page }, info) => {
@@ -77,5 +78,27 @@ test("at 200% text on a 320px phone, Team Overview's header (Edit lineup include
   if (await edit.count()) {
     const box = (await edit.boundingBox())!;
     expect(box.x + box.width, "Edit lineup within the phone").toBeLessThanOrEqual(320.5);
+  }
+});
+
+test("at 150% and 200% text on a 320px phone, Leaderboards' Records is no wider than the phone, every record's words, value and unit whole", async ({ page }) => {
+  // Each record's value was held beside its unit ("1,039" beside "damage/min"): the page was 374px
+  // wide at 150% and about 500px at 200%. Under a 16rem book the value and unit are a line of their
+  // own under the record, and wrap.
+  await page.goto("/leaderboards?view=records");
+  await expect(page.getByTestId("records")).toBeVisible();
+  for (const root of [150, 200]) {
+    await page.addStyleTag({ content: `html { font-size: ${root}% !important; }` });
+    await page.evaluate(() => document.fonts.ready);
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), { message: `${root}%: the page as wide as the phone` }).toBeLessThanOrEqual(0);
+    const cut = await page.getByTestId("season-record").evaluateAll((rows) =>
+      rows.flatMap((row) => {
+        const edge = row.getBoundingClientRect().right;
+        return [...row.querySelectorAll<HTMLElement>("[data-testid=record-label], [data-testid=record-qualifier], [data-testid=record-value], [data-testid=record-unit], [data-testid=card-name]")]
+          .filter((el) => el.getBoundingClientRect().right > edge + 0.5 || el.scrollWidth > el.clientWidth + 1)
+          .map((el) => `${row.getAttribute("data-record")}: ${el.getAttribute("data-testid")}`);
+      }),
+    );
+    expect(cut, `${root}%: words, values and units cut or past their row`).toEqual([]);
   }
 });

@@ -177,6 +177,10 @@ test("tablet and desktop: a profile section chosen far down the page starts at i
 
 test("tablet and desktop: Team's sections stay in reach as a long page scrolls, and switch the section from there", async ({ page }) => {
   test.skip(isPhone(page), "phones have the bottom tab bar");
+  // Records is the longest Team page, but since PR 5b it fits a 1440×900 window in about 1.3
+  // screens: a desktop window 600px tall keeps it long enough to scroll well past the tabs (still
+  // taller than 480px, where they pin). The tablet's 768×1024 shows it in about two screens.
+  if (!isTablet(page)) await page.setViewportSize({ width: 1440, height: 600 });
   await page.goto("/leaderboards?view=records");
   await expect(page.getByTestId("leaderboards")).toHaveAttribute("data-ready", "true");
   await expect(page.getByTestId("records")).toBeVisible();
@@ -187,7 +191,7 @@ test("tablet and desktop: Team's sections stay in reach as a long page scrolls, 
   const ink = () => tabs.evaluate((el) => getComputedStyle(el).backgroundColor);
   expect(await ink()).toBe("rgba(0, 0, 0, 0)");
   await page.evaluate(() => window.scrollTo(0, 1200));
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(600);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(400);
   // Pinned at the top of the page: under the tablet's top bar, at the window's edge beside the
   // sidebar, and in the frame's ink while it is.
   const pinned = await rect(tabs);
