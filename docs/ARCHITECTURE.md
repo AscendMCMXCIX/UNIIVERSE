@@ -457,14 +457,21 @@ request is a game's match timeline, once per game, when a section that needs it 
   so nothing is cut or wider than the card at 200% text. From 36 to 50rem a two-row card (about
   120px; about 150px stacked in three before): the portrait, the result line over the champion and role,
   the K/D/A, the figures and the build (two rows of items) in one row, both teams across the next,
-  with the wide card's floors (6.25em, 8.125rem) so the columns stay level. The header puts
-  Filters and Refresh on the views' row (`SectionHeader toolbarBesideNav`; a phone's views without
-  their icons, Refresh `compact`; `toolbarFills`: a narrowed filter's chips on the next row when
-  they do not fit, an active refinement's always below `xl`, clear of the Refine panel), the scope
-  line under it with the data status in its text, and the summary is `StatStrip`: three lines on a
-  phone (four with the ladder change), one flowing line from 36rem, one row of tiles from 60rem and
-  one text line from 78rem without a trend. The page heights at each size are in docs/MOBILE.md,
-  section 3.
+  with the wide card's floors (6.25em, 8.125rem) so the columns stay level; the champion's name
+  has the whole box there (the role takes the next line when both do not fit). A phone's card is
+  read in the order drawn: its result line and its build beside the champion are copies placed
+  where they are read (`metaLine`, `PHONE_BUILD_BESIDE`), the wider tiers' copies hidden, so one
+  is ever displayed; the build line beside the K/D/A has tracks sized by its items. The header puts
+  Filters and Refresh on the views' row from a 320px phone up (`SectionHeader toolbarBesideNav`,
+  rendering the scope line after the toolbar; a phone's views without their icons, Refresh
+  `compact`, FilterBar's `compactToggle`; `toolbarFills`: a narrowed filter's chips on the next row
+  when they do not fit, an active refinement's always below `xl`, clear of the Refine panel), the
+  scope line under it with the data status in its text, and the summary is `StatStrip`: every
+  figure in three lines on a phone from 375px (the approved design's short words, the full ones in
+  titles and screen-reader text), one flowing line from 36rem, one row of tiles from 60rem and one
+  text line from 78rem without a trend. Encounters' minimum and order count with the filters in a
+  phone's sheet only (FilterBar's `inlineReset`). The page heights at each size are in
+  docs/MOBILE.md, section 3, and in a test.
 - **Builds on cards** (`icon-img.tsx`): an item, spell or rune whose image fails (Data Dragon
   down, a blocked host, the installed app offline) shows its initials on a tile, named in its
   title and for screen readers; an empty slot stays a plain tile. A stored record without items

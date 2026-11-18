@@ -165,9 +165,11 @@ leaving a frame to fill.
   Bookmarked), never on a row of their own. A page's toolbar sits under its scope line; a profile
   section's moves beside its title from `xl` (`SectionHeader`). Match History's (Games and
   Encounters) shares its views' row at every width where it fits (`toolbarBesideNav`, owner decision
-  D8): on a phone the views, Filters and Refresh are one row, and a narrowed filter's chips take the
-  next row when they do not fit (`toolbarFills`; below `xl` an active refinement's always do, from
-  the row's start, clear of the Refine panel that opens from the right).
+  D8): on a phone from 320px the views, Filters and Refresh are one row (FilterBar's
+  `compactToggle`: Filters its icon alone under 360px), and a narrowed filter's chips take the next
+  row when they do not fit (`toolbarFills`; below `xl` an active refinement's always do, from the
+  row's start, clear of the Refine panel that opens from the right). The scope line comes after
+  the toolbar in the page as on screen, so the header is read and tabbed in the order drawn.
 - **Density, by what the page is for:**
   - an analytical table has 2rem portraits and rows of about 48px wherever it is a table. Its
     figure columns are as wide as their heading needs and a little more (at least room for the sort
@@ -231,7 +233,7 @@ Use the shared component before writing a new one (`src/components/ui`):
 | Images from Riot or another host | `RemoteImage`, `useImageFailure`, `ChampionPortrait`, `Avatar` |
 | A time ago that stays current | `RelativeTime`, `useNow` |
 | How current a page's Riot data is, and Refresh | `DataStatusNote` beside the scope line, `RefreshButton` at the toolbar's end (`usePlayerRefresh` in `refresh-store.ts` behind every Refresh of a player, `usePlayerRefreshState` for what only shows it); `compact` where it shares a phone's row with a section's views (Match History: its icon alone below `sm`, a 44px square, its name kept for screen readers) |
-| A line of figures over a list (Match History's summary of its newest games) | `StatStrip`, `StatLine` and `StatTile` (`ui/stat-strip.tsx`): by the strip's own width, its lines one under the other on a phone (a figure's value and label on one baseline), one flowing line from 36rem, one row of tiles (the value over an 11px caption, hairlines between) from 60rem, and with `wideLine` one text line from 78rem where the figures fit |
+| A line of figures over a list (Match History's summary of its newest games) | `StatStrip`, `StatLine` and `StatTile` (`ui/stat-strip.tsx`): by the strip's own width, its lines one under the other on a phone (a figure's value and label on one baseline; `valueClassName` lets a value fill its line), one flowing line from 36rem, one row of tiles (the value over an 11px caption, a `labelFirst` caption over its value, hairlines between) from 60rem, and with `wideLine` one text line from 78rem where the figures fit. Each tile in the order it is drawn. Test it with the widest real values, not only the demo's |
 | A section of Riot data's heading: title, scope line and status, a toolbar of filters ending in Refresh | `SectionHeader` |
 | A button in a toolbar beside the filters (Refine, Refresh) | `toolbarButtonClass` (`filter-bar.tsx`) |
 | A player's identity on a card (picture and links, name, rank and labels, tagline) | `CardIdentity` (`players/player-card.tsx`) inside a `@container/card` |
