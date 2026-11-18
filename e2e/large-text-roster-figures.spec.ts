@@ -10,8 +10,10 @@ import { playerEntry } from "./players";
   past its row or its cell, and no sideways scroll. Before, a roster row's text kept 3.3rem beside
   the picture at 200% on a 320px phone ("Emerald" over three lines, "Halfway" and "No Riot account"
   broken), and the season's card kept three figures across: the games' "champions" ran 21px past
-  the card at 150% on a 320px phone (63px at 200%). At 100% nothing changes: the picture beside
-  the name, the figures three across.
+  the card at 150% on a 320px phone (63px at 200%). No "·" starts or ends a line: the one before
+  the rank (or "No Riot account") shows beside the role and is cut off with its room where the rank
+  wraps under the role ("· Emerald III" started a line at 200% on a 320px phone). At 100% nothing
+  changes: the picture beside the name, the figures three across, every "·" beside its role.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -52,7 +54,8 @@ async function setSize(page: Page, width: number, root: number) {
   await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
 }
 
-const sideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+// Against the layout viewport's width: a phone's (isMobile) window grows with what spills past it, so innerWidth would hide it.
+const sideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
 /**
  * The visible text under `selector` (never what only screen readers get): `cut`, text past the
@@ -82,7 +85,9 @@ function textFacts(page: Page, selector: string) {
         range.selectNodeContents(n);
         const rects = [...range.getClientRects()].filter((r) => r.width > 0.5 && r.height > 0.5);
         if (!rects.length) continue;
-        for (let p: Element | null = parent; p && p !== document.documentElement; p = p.parentElement) {
+        // The roster's "·" before the rank is cut off on purpose where the rank starts a line (rosterDots checks it).
+        const separator = text.trim() === "·" && !!parent.closest("[data-testid=roster-meta]");
+        for (let p: Element | null = separator ? null : parent; p && p !== document.documentElement; p = p.parentElement) {
           const cs = getComputedStyle(p);
           if (!/hidden|clip/.test(cs.overflowX)) continue;
           const box = p.getBoundingClientRect();
@@ -102,6 +107,71 @@ function textFacts(page: Page, selector: string) {
     }
     return { cut, broken, words };
   }, selector);
+}
+
+/**
+ * Each "·" on the roster's second lines (before the rank or "No Riot account"). Shown, it has a part
+ * of its line on either side (the role's icon or "Roles not set" before it, the crest or the words
+ * after it); where the rank starts a line it is cut off whole past the line's clipped left edge, the
+ * crest or the words starting at that edge. Either way no "·" starts or ends a line.
+ */
+function rosterDots(page: Page) {
+  return page.getByTestId("players-directory").evaluate((panel) => {
+    const problems: string[] = [];
+    let shown = 0;
+    let cutOff = 0;
+    const srOnly = (e: Element) => {
+      for (let p: Element | null = e; p && p !== panel; p = p.parentElement) {
+        const cs = getComputedStyle(p);
+        if (cs.position === "absolute" && parseFloat(cs.width) <= 1.5 && parseFloat(cs.height) <= 1.5) return true;
+      }
+      return false;
+    };
+    for (const meta of panel.querySelectorAll<HTMLElement>("[data-testid=roster-meta]")) {
+      const who = meta.closest("[data-player-name]")?.getAttribute("data-player-name") ?? "a row";
+      const edge = meta.getBoundingClientRect().left;
+      const parts: DOMRect[] = [];
+      const dots: { box: DOMRect; el: Element }[] = [];
+      const walk = document.createTreeWalker(meta, NodeFilter.SHOW_TEXT);
+      for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+        const parent = n.parentElement;
+        const text = n.textContent ?? "";
+        if (!parent || !text.trim() || !parent.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) || srOnly(parent)) continue;
+        for (let k = 0; k < text.length; k++) {
+          if (!text[k]!.trim()) continue;
+          const range = document.createRange();
+          range.setStart(n, k);
+          range.setEnd(n, k + 1);
+          const box = [...range.getClientRects()].find((b) => b.width > 0.1);
+          if (!box) continue;
+          if (text[k] === "·") dots.push({ box, el: parent });
+          else parts.push(box);
+        }
+      }
+      for (const el of meta.querySelectorAll("[data-role-icon], [data-testid=rank-emblem], img")) {
+        const box = el.getBoundingClientRect();
+        if (box.width > 1 && !srOnly(el)) parts.push(box);
+      }
+      for (const { box: d, el } of dots) {
+        if (d.right <= edge + 0.5) {
+          // Cut off: the rank (its crest, or the words) starts the line at its edge.
+          cutOff++;
+          const next = el.nextElementSibling?.getBoundingClientRect();
+          if (!next || Math.abs(next.left - edge) > 1) problems.push(`${who}: a "·" cut off where the rank does not start its line`);
+          continue;
+        }
+        if (d.left < edge - 0.5) {
+          problems.push(`${who}: a "·" partly cut`);
+          continue;
+        }
+        shown++;
+        const line = (b: DOMRect) => Math.abs(b.top + b.height / 2 - (d.top + d.height / 2)) < Math.max(b.height, d.height) / 2;
+        if (!parts.some((b) => line(b) && b.right <= d.left + 0.5)) problems.push(`${who}: a "·" starts a line`);
+        if (!parts.some((b) => line(b) && b.left >= d.right - 0.5)) problems.push(`${who}: a "·" ends a line`);
+      }
+    }
+    return { problems, shown, cutOff };
+  });
 }
 
 /** Each roster row's picture, name, badges, role, rank and pool portraits against the row's own edges (inside its padding), and where its picture sits against its name. */
@@ -133,12 +203,15 @@ test("Players at 125% to 200% text on 320 to 414px phones: names, ranks and Riot
   await expect(page.getByTestId("players-directory").getByTestId("rank-inline").first()).toBeVisible();
   await expect(page.getByTestId("players-directory").getByText("No Riot account").first()).toBeVisible();
 
-  // At 100% every row keeps its one layout: the picture beside the name.
+  // At 100% every row keeps its one layout: the picture beside the name, every "·" beside its role.
   for (const width of [320, 375]) {
     await setSize(page, width, 100);
     const rows = await rosterRows(page);
     expect(rows.length, "the demo's roster").toBeGreaterThanOrEqual(9);
     expect(rows.filter((r) => !r.beside).map((r) => r.player), `${width}px at 100%: the picture beside the name`).toEqual([]);
+    const dots = await rosterDots(page);
+    expect(dots.problems, `${width}px at 100%: no "·" starting or ending a line`).toEqual([]);
+    expect({ shown: dots.shown >= 9, cutOff: dots.cutOff }, `${width}px at 100%: every row's "·" beside its role`).toEqual({ shown: true, cutOff: 0 });
   }
 
   for (const [width, root] of SIZES) {
@@ -152,9 +225,16 @@ test("Players at 125% to 200% text on 320 to 414px phones: names, ranks and Riot
     expect(rows.filter((r) => r.rank).length, `${at}: rows with a rank measured`).toBeGreaterThanOrEqual(5);
     expect(rows.filter((r) => r.outside.length).map((r) => `${r.player}: ${r.outside.join(", ")}`), `${at}: every part inside its row`).toEqual([]);
     expect(await sideways(page), `${at}: no sideways scroll`).toBeLessThanOrEqual(1);
+    const dots = await rosterDots(page);
+    expect(dots.problems, `${at}: no "·" starting or ending a line`).toEqual([]);
+    expect(dots.shown + dots.cutOff, `${at}: the rows' "·" measured`).toBeGreaterThanOrEqual(9);
     // The narrowest rows (200% on a 320px phone, 6.4rem): the picture takes the row's first line,
-    // the text the row's whole width under it.
-    if (width === 320 && root === 200) expect(rows.filter((r) => !r.above).map((r) => r.player), `${at}: the picture over the name`).toEqual([]);
+    // the text the row's whole width under it, and the ranks that no longer fit beside the role go
+    // under it without their "·" (Demo ADC's "Emerald III", "No Riot account").
+    if (width === 320 && root === 200) {
+      expect(rows.filter((r) => !r.above).map((r) => r.player), `${at}: the picture over the name`).toEqual([]);
+      expect(dots.cutOff, `${at}: ranks under the role, their "·" cut off`).toBeGreaterThan(0);
+    }
   }
   await page.evaluate(() => {
     document.documentElement.style.fontSize = "";
