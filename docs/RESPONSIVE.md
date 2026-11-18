@@ -171,8 +171,11 @@ rules hold beside an open or a collapsed sidebar, and by the window's height:
 ## Primitives
 
 - `Button`: desktop heights unchanged; `max-md:min-h-11` and `pointer-coarse:min-h-11`.
-- `Input`, `Select`, `Textarea`: 44px and 16px text on phones (iOS does not zoom a 16px field),
-  36px / 14px from `md`.
+- `Input`, `Select`, `Textarea`, `SearchInput` and the champion grid's search: 44px and 16px text
+  on phones and on every touch screen, 36px / 14px from `md` with a mouse (`md:pointer-fine:`): iOS
+  zooms the page into a focused field under 16px, and every iPhone held sideways is `sm` or wider
+  and most are `md`, as is an iPad. Until 18 Nov 2026 their text turned 14px from `md` on a touch
+  screen too.
 - `ToggleChip` (`ui/toggle.tsx`): every selectable chip (roles, modes, filters).
 - A section that folds on phones: `Disclosure` (`ui/disclosure.tsx`, a native `<details>`) or a CSS
   breakpoint. The former `MobileSection` was removed.

@@ -136,7 +136,8 @@ export function ChampionDetail({
           </div>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-          <span className="min-w-0 truncate text-fg-muted" data-testid="champion-detail-scope">
+          {/* On a phone the scope wraps rather than cutting off the account it names. */}
+          <span className="min-w-0 truncate text-fg-muted max-sm:overflow-visible max-sm:whitespace-normal max-sm:break-words" data-testid="champion-detail-scope">
             {scopeText}
           </span>
           <RefineButton open={refine} count={narrowed} controls="champion-refine" onClick={() => setRefine((r) => !r)} className="bg-bg/40" testId="champion-detail-refine" />

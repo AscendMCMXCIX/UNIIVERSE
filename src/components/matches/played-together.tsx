@@ -295,7 +295,7 @@ function TogetherCard({ g, p, champions, teams }: { g: TogetherListGame; p: (id:
                   <span className="min-w-0">
                     <span className="flex min-w-0 items-center gap-1.5">
                       {pl ? <CardAvatar look={pl.look} name={pl.name} src={pl.avatarUrl} size="xs" /> : null}
-                      <Link href={`/players/${m.playerId}`} className="relative truncate py-0.5 text-sm font-semibold text-fg hover:underline pointer-coarse:-my-2 pointer-coarse:py-2.5">
+                      <Link href={`/players/${m.playerId}`} className="relative min-w-0 truncate py-0.5 text-sm font-semibold max-sm:overflow-visible max-sm:whitespace-normal max-sm:break-words text-fg hover:underline pointer-coarse:-my-2 pointer-coarse:py-2.5">
                         {pl?.name ?? "Player"}
                       </Link>
                     </span>
