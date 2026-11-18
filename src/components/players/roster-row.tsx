@@ -63,6 +63,19 @@ export interface RosterRowProps {
 const ART: Record<NonNullable<RosterRowProps["screen"]>, string | null> = { any: "max-md:hidden", wide: "", phone: null };
 const LINKS: Record<NonNullable<RosterRowProps["screen"]>, string | null> = { any: "hidden md:@min-[20rem]/row:flex", wide: "hidden @min-[20rem]/row:flex", phone: null };
 
+/*
+  STACKED, larger text only (see RosterRow): a row under 9.625rem, where the text beside the picture
+  (its 2.5rem and the 0.625rem gap) would have less than 6.5rem. The row wraps: the picture alone on
+  the first line (no longer centred on two lines), the text under it. A row cannot query its own
+  width (it is that container), so these read the roster's: wherever the roster lays its rows one
+  across (under 38rem) a row is the roster's width less its 1.5rem of padding, so 11.125rem of
+  roster is 9.625rem of row; two across, a row is 17.5rem or more. A row drawn outside the roster
+  (the Card Studio's previews) keeps its one layout. Written out whole, for Tailwind to find them.
+*/
+const STACKED_ROW = "@max-[11.125rem]/roster:flex-wrap @max-[11.125rem]/roster:gap-y-1";
+const STACKED_PICTURE = "@max-[11.125rem]/roster:h-auto";
+const STACKED_TEXT = "@max-[11.125rem]/roster:basis-full";
+
 /**
  * One player on the Players roster, the same row at every width (docs/MOBILE.md: a row per player
  * in one panel), 64px tall unless a name, a tagline or Riot's state needs another line:
@@ -90,6 +103,13 @@ const LINKS: Record<NonNullable<RosterRowProps["screen"]>, string | null> = { an
  * off roles from 26rem; under 19.5rem (360px phones and narrower) the word "Off" gives its room to
  * the pool, and under 18rem (the smallest phones, or two rows side by side on a phone held sideways)
  * the chevron too.
+ * Larger text makes a row narrower in rem than at 100% on any phone (a 320px phone's row is 16.4rem
+ * at 100%, 9.75rem at 150%, 7.9rem at 175% and 6.4rem at 200%), and beside the picture's 3.1rem the
+ * text kept 3.3rem at 200% on a 320px phone: names ("Halfway"), "No Riot account" and the rank
+ * ("Emerald" over three lines) broke inside their words. So where the text beside the picture would
+ * have less than 6.5rem, which the longest rank with its crest takes ("· Grandmaster", 6.44rem) and
+ * an eight-letter name with its emblem ("Newcomer", 6.1rem), the picture takes the row's first line
+ * and the text the row's whole width under it (STACKED). Nothing changes at 100% text.
  * The whole row opens the profile through one link laid over it, named after the player, so the
  * social icons drawn above it stay links of their own.
  */
@@ -113,6 +133,7 @@ export function RosterRow({ look, art, name, avatarUrl, role, offRoles, offRoleS
     <li
       className={cn(
         "group/row @container/row relative isolate flex min-h-16 items-start gap-x-2.5 border-b border-r border-border/60 px-3 py-1 transition-colors duration-150",
+        STACKED_ROW,
         // Pressed: surface-3 as on every list row; on phones (no hover) surface-2, the pressed shade of the phone row checked on 5 Nov 2026.
         href && "hover:bg-surface-2 has-[[data-row-link]:active]:bg-surface-3 max-md:has-[[data-row-link]:active]:bg-surface-2",
         isYou && "bg-accent/5",
@@ -130,12 +151,12 @@ export function RosterRow({ look, art, name, avatarUrl, role, offRoles, offRoleS
           <span className="sr-only">{name}</span>
         </Link>
       ) : null}
-      {/* Centred on the first two lines (the name's 1.5rem, the gap, the second line's 1.75rem), wherever the row grows. */}
-      <span className="flex h-[3.375rem] shrink-0 items-center">
+      {/* Centred on the first two lines (the name's 1.5rem, the gap, the second line's 1.75rem), wherever the row grows; alone on the first line where the row is stacked. */}
+      <span className={cn("flex h-[3.375rem] shrink-0 items-center", STACKED_PICTURE)}>
         <CardAvatar look={look} name={name} src={avatarUrl} size="md" />
       </span>
-      {/* One wrapping line of parts: the name's line, then the second line and the last ones, each a whole line (basis-full). */}
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-0.5">
+      {/* One wrapping line of parts: the name's line, then the second line and the last ones, each a whole line (basis-full). Under the picture, across the row, where the row is stacked. */}
+      <div className={cn("flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-0.5", STACKED_TEXT)}>
         {tagline ? (
           // From 24rem the name and the tagline share one column that wraps inside itself, beside the
           // badges and links, so those stay at the end of the name's line: the tagline beside the
