@@ -299,8 +299,9 @@ test):
 - **A long page's own sections.** Where a phone's column makes a page several screens long, its
   sections are in-page links under its scope (`SectionIndex`, `ui/section-index.tsx`: Records'
   "Season records · Multikills · Milestones"; from a 36rem view the page fits without them; Settings
-  keeps "Name · Links · Password" in its account card, a list there from md that marks the section
-  being read). Each is
+  keeps its index in its account card: Name, Links and Password as chips on a phone and in a window
+  480px tall or less (the approved plan's look there) and a list from md in a taller window, the
+  section being read marked either way). Each is
   a plain link to its section's anchor, so it works before the page's code has run; once it runs a
   click jumps through the router's history (`jumpToAnchor`, which Matchup Intel's chips share): the
   section comes under the top bar, takes the focus, and the jump is an entry of the page's own where
