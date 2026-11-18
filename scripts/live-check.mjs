@@ -865,6 +865,54 @@ async function resourcesFacts(page, kind) {
   pass("resources", `${kind}: no title cut short, no broken site icon`, f.cutTitles === 0 && f.brokenIcons === 0, { cutTitles: f.cutTitles, brokenIcons: f.brokenIcons });
 }
 
+/**
+ * MATCHUP INTEL, one page load (docs/LIVE_VALIDATION.md, "What it checks"; the owner's decision of
+ * 18 Nov 2026): a curated pair on the desktop. Which layer the pair shows and its label (the curated
+ * briefing and when it was checked, or, once its check is too old, said hidden), the enemy's five
+ * ability tiles with a name and a cooldown line each, the whole overview on one screen at the
+ * check's desktop size, the sources and Riot's notice one press away with their summary on screen,
+ * nothing requested from the League of Legends Wiki, and axe. It reads nothing beyond what the page
+ * itself reads (the session, the cached roster and patches, two champions' stored abilities).
+ */
+async function matchupIntelFacts(page, kind, wikiRequests) {
+  await page.getByTestId("matchup-dashboard").waitFor({ timeout: 20_000 });
+  const f = await page.evaluate(() => {
+    const text = (sel) => document.querySelector(sel)?.textContent?.replace(/\s+/g, " ").trim() ?? "";
+    const tiles = [...document.querySelectorAll('[data-testid="matchup-enemy-abilities"] [data-testid="ability-row"]')];
+    return {
+      heading: text("main h1"),
+      layer: document.querySelector('[data-testid="matchup-dashboard"]')?.getAttribute("data-layer") ?? null,
+      label: text('[data-testid="matchup-layer"]'),
+      threat: text('[data-testid="briefing-threat"]').length,
+      opportunity: text('[data-testid="briefing-opportunity"]').length,
+      checked: text('[data-testid="matchup-briefing-checked"]'),
+      expired: !!document.querySelector('[data-testid="briefing-expired"]'),
+      slots: tiles.map((t) => t.getAttribute("data-slot")).join(""),
+      named: tiles.filter((t) => t.querySelector('[data-testid="ability-name"]')?.textContent?.trim() && t.querySelector('[data-testid="ability-cooldown-value"]')?.textContent?.trim()).length,
+      missing: !!document.querySelector('[data-testid="matchup-abilities-missing"]'),
+      summary: text('[data-testid="matchup-sources-summary"]'),
+      summaryShown: (() => {
+        const r = document.querySelector('[data-testid="matchup-sources-summary"]')?.getBoundingClientRect();
+        return !!r && r.height > 0 && r.bottom <= innerHeight;
+      })(),
+      ddragon: text('[data-testid="matchup-footer-ddragon"]'),
+      notice: text('[data-testid="matchup-footer-riot"]'),
+      licence: document.querySelector('[data-testid="matchup-licence-link"]')?.getAttribute("href") ?? null,
+      fits: document.documentElement.scrollHeight <= innerHeight,
+      overBy: document.documentElement.scrollHeight - innerHeight,
+    };
+  });
+  pass("matchup-intel", `${kind}: Matchup Intel opens Riven vs Mordekaiser under its own heading`, f.heading === "Matchup Intel", { heading: f.heading });
+  if (f.expired) pass("matchup-intel", `${kind}: the curated briefing is hidden as too old to show, and says so`, f.layer === "assembled", { layer: f.layer, checked: f.checked });
+  else pass("matchup-intel", `${kind}: the curated briefing shows its threat and opportunity, labelled with when it was checked`, f.layer === "curated" && f.threat > 0 && f.opportunity > 0 && /Checked on patch \d+\.\d+/.test(f.checked) && f.label.startsWith("Curated briefing"), { layer: f.layer, label: f.label, checked: f.checked });
+  if (f.missing) warn("matchup-intel", `${kind}: Mordekaiser's abilities are not stored yet: the page says so`, { slots: f.slots });
+  else pass("matchup-intel", `${kind}: Mordekaiser's five ability tiles, P to R, each with its name and cooldown line`, f.slots === "PQWER" && f.named === 5, { slots: f.slots, named: f.named });
+  pass("matchup-intel", `${kind}: the whole overview fits the screen, no page scroll`, f.fits, { overBy: f.overBy });
+  pass("matchup-intel", `${kind}: the sources' summary is on screen: a static reference with no live tracking, Riot's data, not endorsed by Riot Games`, f.summaryShown && f.summary.startsWith("A static reference: no live tracking") && /Riot Data Dragon \d/.test(f.summary) && f.summary.endsWith("Not endorsed by Riot Games"), { summary: f.summary });
+  pass("matchup-intel", `${kind}: one press away, the Data Dragon version, the wiki's licence and Riot's notice`, /^Ability names, icons and base cooldowns: Riot Data Dragon \d/.test(f.ddragon) && f.licence === "https://creativecommons.org/licenses/by-sa/3.0/" && /isn't endorsed by Riot Games/.test(f.notice), { ddragon: f.ddragon, licence: f.licence });
+  pass("matchup-intel", `${kind}: nothing requested from the League of Legends Wiki`, wikiRequests.length === 0, wikiRequests.slice(0, 3));
+}
+
 async function allChampions(page, log, kind, playerId) {
   const path = playerId ? `/players/${playerId}/champions` : "/overview/champions";
   if (!(await visit(page, log, kind, "all-champions", path))) return;
@@ -1500,6 +1548,24 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
       await page.unroute(siteIcon);
     }
   });
+  // Matchup Intel, once, on the desktop: one curated pair (its facts above), at the cost of one page load.
+  if (kind === "desktop") {
+    await guarded("matchup-intel", `${kind}: Matchup Intel`, async () => {
+      const wiki = [];
+      const onRequest = (r) => {
+        if (/(^|\.)wiki\.leagueoflegends\.com$/.test(new URL(r.url()).hostname)) wiki.push(r.url().slice(0, 120));
+      };
+      page.on("request", onRequest);
+      try {
+        if (await visit(page, log, kind, "matchup-intel", "/resources/matchups?champion=Riven&vs=Mordekaiser", { fullPage: false })) {
+          await matchupIntelFacts(page, kind, wiki);
+          await axe(page, kind, "matchup-intel");
+        }
+      } finally {
+        page.off("request", onRequest);
+      }
+    });
+  }
   // Wide screens in the desktop's own context (signed in already): four pages at 2560 × 1440.
   if (kind === "desktop") await guarded("wide", "2560 × 1440", () => wideChecks(page, log));
   // A phone held sideways, last in the phone's own context (signed in already): two pages at 844 × 390.

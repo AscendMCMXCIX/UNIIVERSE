@@ -10,8 +10,10 @@ import { patchFromVersion, publicPatchName } from "../src/domain/patch";
   Dragon's abilities for every champion at the pinned version (E2E_DDRAGON_VERSION, 16.22.1, the one
   the curated notes were checked on: playwright.config.ts) and curated notes for Ambessa vs
   Renekton, Gwen vs Ornn and Riven vs Mordekaiser. Pick your champion and the enemy (each in a
-  picker window with a search), read the briefing where one exists, or the enemy's general
-  reference where none does, then the enemy's five abilities with their base cooldowns. The choice
+  picker window with a search), read the curated briefing where one exists, or the assembled
+  reference (each champion's own facts, grouped by kind) where none does, beside the enemy's five
+  ability tiles with their base cooldowns. The single-screen fit, a sweep of many pairs and the
+  details windows are in e2e/matchup-intel-dashboard.spec.ts. The choice
   lives in the address; your own champion is remembered on this device and offered, never assumed.
   A static reference: its sources are links only, and nothing is requested from the League of
   Legends Wiki. Runs on the phone, tablet and desktop projects.
@@ -69,7 +71,7 @@ test("a link to a pair opens it: both champions in their slots, the enemy's five
   await expect(row(page, "P").getByTestId("ability-cooldown-value")).not.toHaveText(/^0\ss|^—$/);
 });
 
-test("Ambessa vs Renekton: the ten-second briefing, its chips jumping to the abilities, and when it was checked", async ({ page }) => {
+test("Ambessa vs Renekton: the curated briefing, its chips jumping to the abilities, and when it was checked", async ({ page }) => {
   await openMatchupIntel(page, "Ambessa", "Renekton");
   const briefing = page.getByTestId("matchup-briefing");
   await expect(briefing).toBeVisible();
@@ -99,6 +101,14 @@ test("Ambessa vs Renekton: the ten-second briefing, its chips jumping to the abi
   await expect(wiki.getByTestId("matchup-footer-endorsement")).toHaveText("The wiki and its contributors do not endorse this page.");
   await expect(wiki).not.toContainText(/adapt/i);
   await expect(wiki.getByTestId("matchup-licence-link")).toHaveAttribute("href", "https://creativecommons.org/licenses/by-sa/3.0/");
+  // The sources and notices sit behind one control at the foot whose summary line stays on screen.
+  const sources = footer.getByTestId("matchup-sources");
+  await expect(footer.getByTestId("matchup-sources-summary")).toBeVisible();
+  await expect(footer.getByTestId("matchup-sources-summary")).toContainText("A static reference: no live tracking");
+  await expect(footer.getByTestId("matchup-sources-summary")).toContainText("Not endorsed by Riot Games");
+  expect(await sources.evaluate((d) => (d as HTMLDetailsElement).open)).toBe(false);
+  await sources.locator(":scope > summary").click();
+  await expect(footer.getByTestId("matchup-footer-riot")).toBeVisible();
   // Each page by its title, folded into one line until asked for, so a phone keeps the footer short.
   const pages = wiki.getByTestId("matchup-footer-wiki-pages");
   await expect(pages).not.toHaveAttribute("open", "");
@@ -107,7 +117,7 @@ test("Ambessa vs Renekton: the ten-second briefing, its chips jumping to the abi
   await expect(pages).toHaveAttribute("open", "");
   await expect(pages.getByTestId("matchup-source-link").first()).toBeVisible();
   for (const a of await pages.getByTestId("matchup-source-link").all()) await expect(a).toHaveAttribute("href", /^https:\/\/wiki\.leagueoflegends\.com\/en-us\//);
-  await expect(footer.getByTestId("matchup-footer-static")).toContainText("A static reference for preparation: no live tracking");
+  await expect(footer.getByTestId("matchup-footer-static")).toHaveText("A static reference: no live tracking, no timers, nothing read from a game in progress.");
   await expect(footer.getByTestId("matchup-footer-riot")).toContainText("isn't endorsed by Riot Games");
 
   // The jump is an entry the router can restore: after another choice, Back shows this pair again,
@@ -119,20 +129,36 @@ test("Ambessa vs Renekton: the ten-second briefing, its chips jumping to the abi
   await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Renekton");
 });
 
-test("a pair without a curated briefing (Garen vs Darius) says so calmly, then the enemy's general reference", async ({ page }) => {
+test("a pair without a curated briefing (Garen vs Darius) says so, then the assembled reference, labelled as such every time", async ({ page }) => {
   await openMatchupIntel(page, "Garen", "Darius");
   const none = page.getByTestId("matchup-no-briefing");
   await expect(none).toContainText("No curated briefing for Garen vs Darius yet.");
-  // The page's description promises nothing about the lane (it shows from md up).
-  await expect(page.locator('[data-testid="matchup-intel"] > header h1 + p')).toHaveText("Garen vs Darius: the enemy's abilities and base cooldowns; no curated briefing yet.");
-  // Darius has no curated notes: the line names what follows, and claims no notes.
-  await expect(none.getByTestId("matchup-general-reference")).toHaveText("What follows is the general reference for Darius: abilities and base cooldowns from Riot's data.");
+  // Put together from each champion's facts, and no person has checked the pair: said on it, and in the bar.
+  await expect(page.getByTestId("matchup-assembled-label")).toHaveText("Put together from each champion's own facts. No person has checked Garen vs Darius as a pair.");
+  await expect(page.getByTestId("matchup-layer")).toHaveAttribute("data-layer", "assembled");
+  await expect(page.getByTestId("matchup-description")).toHaveText("Garen vs Darius: the enemy's abilities and base cooldowns; no curated briefing yet, so each champion's own facts follow.");
   await expect(page.getByTestId("matchup-briefing")).toHaveCount(0);
+  // The danger side is Darius's kit, the opportunity side Garen's: each lists its groups by kind, or
+  // says that it has no reviewed facts at all, never an empty box.
+  for (const [side, name] of [
+    ["danger", "Darius"],
+    ["opportunity", "Garen"],
+  ] as const) {
+    const part = page.getByTestId(`assembled-${side}`);
+    await expect(part).toBeVisible();
+    if ((await part.getAttribute("data-from")) === "none") await expect(part.getByTestId("assembled-no-facts")).toHaveText(`No reviewed facts for ${name} yet: crowd control, mobility, defence and sustain are not recorded.`);
+    else await expect(part.getByTestId("assembled-group")).toHaveCount(5);
+  }
   await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Darius");
   await expect(enemyAbilities(page)).toHaveCount(5);
-  // Nobody has checked Darius: every line says it is Riot's data, not reviewed.
-  for (const r of await enemyAbilities(page).all()) await expect(r.getByTestId("ability-cooldown-source")).toHaveText(/^(Riot's data, not reviewed|Not reviewed)$/);
-  // For a champion with curated matchups, the fallback links to them.
+  // Nobody has checked Darius's numbers: Riot's data, not reviewed, said once for his tiles; a line
+  // with no number says its own.
+  await expect(page.getByTestId("abilities-cooldown-source")).toHaveText("Cooldowns: Riot's data, not reviewed");
+  for (const r of await enemyAbilities(page).all()) {
+    const own = r.getByTestId("ability-cooldown-source");
+    if (await own.count()) await expect(own).toHaveText("Not reviewed");
+  }
+  // For a champion with curated matchups, the assembled reference links to them.
   await openMatchupIntel(page, "Riven", "Garen");
   await expect(page.getByTestId("matchup-no-briefing").getByTestId("matchup-curated-link")).toHaveText(["Riven vs Mordekaiser"]);
 });
@@ -500,25 +526,17 @@ test("sources are links that open in a new tab, cut off from the page; details e
   const cdp = await page.context().newCDPSession(page);
   cdp.on("Network.requestWillBeSent", (e: { request: { url: string } }) => started.add(new URL(e.request.url).hostname));
   await cdp.send("Network.enable");
-  // A curated champion's ability with details, in the enemy's list (either side of a curated pair).
-  const enemyDetails = page.getByTestId("matchup-enemy-abilities").getByTestId("ability-details");
-  let found = false;
-  for (const [you, enemy] of CURATED.flatMap(([a, b]) => [[a, b], [b, a]])) {
-    await openMatchupIntel(page, you, enemy);
-    if ((await enemyDetails.count()) > 0) {
-      found = true;
-      break;
-    }
-  }
-  expect(found, "a curated champion has an ability with details").toBe(true);
-  const details = enemyDetails.first();
-  await details.scrollIntoViewIfNeeded();
-  await expect(details.getByTestId("ability-details-body")).toBeHidden();
-  await details.locator(":scope > summary").click();
-  await expect(details).toHaveAttribute("open", "");
-  await expect(details.getByTestId("ability-details-body")).toBeVisible();
-
-  const links = page.locator('[data-testid="matchup-intel"] a[href^="http"]');
+  // A curated champion's ability: its details window holds each fact with its source, linked.
+  await openMatchupIntel(page, "Ambessa", "Renekton");
+  await hydrated(page);
+  const button = row(page, "W").getByTestId("ability-details");
+  await expect(button).toHaveAccessibleName(/^Details: Ruthless Predator, W$/);
+  await button.click();
+  const body = page.getByTestId("ability-details-body");
+  await expect(body).toBeVisible();
+  await expect(body.getByTestId("matchup-source-link").first()).toBeVisible();
+  await expect(body).toContainText("Riot's description");
+  const links = page.locator('[data-testid="matchup-intel"] a[href^="http"], dialog[open] a[href^="http"]');
   expect(await links.count()).toBeGreaterThan(0);
   for (const a of await links.all()) {
     expect(await a.getAttribute("href")).toMatch(/^https:\/\/(wiki\.leagueoflegends\.com|ddragon\.leagueoflegends\.com|developer\.riotgames\.com|creativecommons\.org)\//);
@@ -527,6 +545,10 @@ test("sources are links that open in a new tab, cut off from the page; details e
     await expect(a).toHaveAttribute("rel", /noreferrer/);
     await expect(a).toContainText("(opens in a new tab)");
   }
+  // Escape closes the window, and the focus goes back to the button that opened it.
+  await page.keyboard.press("Escape");
+  await expect(body).toBeHidden();
+  await expect(button).toBeFocused();
   await page.waitForLoadState("networkidle");
   const isWiki = (h: string) => h === "wiki.leagueoflegends.com" || h.endsWith(".wiki.leagueoflegends.com");
   expect([...hosts].filter(isWiki)).toEqual([]);
@@ -587,7 +609,7 @@ test("no sideways scrolling at 320, 375, 430 (a large phone) and 768 wide, the p
   }
 });
 
-test("phone at 200% text: nothing is cut or spills sideways in the pickers, the remembered line, the briefing, the ability lists (every details part open) or the notes, at 390 and 320 wide, each pair swapped too", async ({ page }) => {
+test("phone at 200% text: nothing is cut or spills sideways in the bar, the briefing or assembled reference, the ability tiles, the notes or the sources (every details part open), at 390 and 320 wide, each pair swapped too", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
   // A phone with its text at 200%, as the other large-text tests set it (html's font size: the
   // page's sizes are in rem, so everything but the screen grows). The three validation pairs: the
@@ -613,7 +635,7 @@ test("phone at 200% text: nothing is cut or spills sideways in the pickers, the 
       });
       const at = `${you} vs ${enemy} at ${width}px`;
       expect(await overflow(page), `${at}: the page`).toBeLessThanOrEqual(1);
-      const parts = curated ? ["matchup-pickers", "matchup-remembered", "matchup-briefing", "matchup-enemy-abilities", "matchup-your-abilities", "matchup-interactions", "matchup-level-notes"] : ["matchup-pickers", "matchup-remembered", "matchup-no-briefing", "matchup-enemy-abilities", "matchup-your-abilities"];
+      const parts = [curated ? "matchup-briefing" : "matchup-assembled", "matchup-pickers", "matchup-remembered", "matchup-patch-state", "matchup-enemy-abilities", "matchup-your-abilities", "matchup-interactions", "matchup-level-notes", "matchup-footer"];
       for (const part of parts) {
         await expect(page.getByTestId(part), `${at}: ${part}`).toBeVisible();
         expect.soft(await cutOrSpilled(page.getByTestId(part)), `${at}: ${part}`).toEqual([]);
@@ -704,7 +726,7 @@ test("phone: the briefing's threat is on the first screen, above the tab bar: wh
       await hydrated(page);
       const m = await page.evaluate(() => {
         const bar = document.querySelector('[data-testid="phone-tabbar"]')!.getBoundingClientRect().top;
-        const threat = document.querySelector('[data-testid="briefing-threat"] p')!;
+        const threat = document.querySelector('[data-testid="briefing-threat"] > div > span')!;
         const range = document.createRange();
         range.selectNodeContents(threat);
         const lines = [...range.getClientRects()];
@@ -806,7 +828,7 @@ test.describe("a choice on its way", () => {
     await expect(page.getByTestId("matchup-loading")).toHaveCount(0);
     // A pick says what came the same way.
     await choose(page, "enemy", "darius", "Darius");
-    await expect(page.getByTestId("matchup-status")).toHaveText("No curated briefing for Riven vs Darius yet. Darius's abilities follow.");
+    await expect(page.getByTestId("matchup-status")).toHaveText("No curated briefing for Riven vs Darius yet: an assembled reference from each champion's own facts, which no person has checked as a pair. Darius's abilities follow.");
   });
 
   test("the status line changes only once a picker window has gone, so a screen reader hears it; a window closed without a pick says nothing", async ({ page }) => {
@@ -831,7 +853,7 @@ test.describe("a choice on its way", () => {
     expect(await changes(), "a window closed without a pick").toEqual([]);
     // A pick: the line says what came, and its words change only once the window has gone.
     await choose(page, "enemy", "darius", "Darius");
-    await expect(page.getByTestId("matchup-status")).toHaveText("No curated briefing for Riven vs Darius yet. Darius's abilities follow.");
+    await expect(page.getByTestId("matchup-status")).toHaveText("No curated briefing for Riven vs Darius yet: an assembled reference from each champion's own facts, which no person has checked as a pair. Darius's abilities follow.");
     const made = await changes();
     expect(made.length, "the line changed").toBeGreaterThan(0);
     expect(made.filter((c) => c.windowOpen), "changes made while the window was open").toEqual([]);
@@ -860,45 +882,56 @@ test("a tap on a side's slot before the page's code has run opens its picker onc
   await expect(page.getByTestId("matchup-picker")).toBeVisible();
 });
 
-test("phone: an ability row's icon stands beside its name and cooldown only; its badges, description and details take the row's width", async ({ page }) => {
+test("phone: an ability tile's icon stands beside its key, name and cooldown, its chips under them; its details open in a window", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
   for (const width of [375, 320]) {
     await page.setViewportSize({ width, height: 740 });
     await openMatchupIntel(page, "Ambessa", "Renekton");
+    await hydrated(page);
     for (const slot of ["Q", "W", "E"]) {
       const r = row(page, slot);
-      await r.getByTestId("ability-details").locator("summary").click();
       const m = await r.evaluate((li) => {
-        const grid = li.firstElementChild as HTMLElement;
         const box = (id: string) => li.querySelector(`[data-testid="${id}"]`)?.getBoundingClientRect() ?? null;
-        return {
-          left: grid.getBoundingClientRect().left,
-          iconRight: (grid.firstElementChild as HTMLElement).getBoundingClientRect().right,
-          name: box("ability-name")!.left,
-          parts: { facts: box("ability-facts")?.left ?? null, description: box("ability-description")?.left ?? null, details: box("ability-details-body")?.left ?? null },
-        };
+        const icon = (li.firstElementChild as HTMLElement).getBoundingClientRect();
+        return { iconRight: icon.right, name: box("ability-name")!, cooldown: box("ability-cooldown")!, facts: box("ability-facts"), right: li.getBoundingClientRect().right };
       });
       const at = `Renekton ${slot} at ${width}`;
-      expect(m.name, `${at}: the name beside the icon`).toBeGreaterThan(m.iconRight);
-      expect(m.parts.description, `${at}: a description`).not.toBeNull();
-      expect(m.parts.details, `${at}: details`).not.toBeNull();
-      for (const [part, left] of Object.entries(m.parts)) if (left !== null) expect(Math.abs(left - m.left), `${at}: the ${part} from the row's left edge`).toBeLessThanOrEqual(1);
+      expect(m.name.left, `${at}: the name beside the icon`).toBeGreaterThan(m.iconRight);
+      expect(m.cooldown.left, `${at}: the cooldown beside the icon`).toBeGreaterThan(m.iconRight);
+      expect(m.cooldown.top, `${at}: the cooldown under the name or beside it`).toBeGreaterThanOrEqual(m.name.top - 1);
+      if (m.facts) expect(m.facts.top, `${at}: the chips under the cooldown`).toBeGreaterThanOrEqual(m.cooldown.bottom - 1);
+      expect(m.cooldown.right, `${at}: inside the tile`).toBeLessThanOrEqual(m.right + 1);
     }
+    // The details window takes the phone's whole screen, and its sources are links.
+    await row(page, "W").getByTestId("ability-details").click();
+    const body = page.getByTestId("ability-details-body");
+    await expect(body).toBeVisible();
+    await expect(body.getByTestId("ability-description")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(body).toBeHidden();
   }
 });
 
-test("on a wide screen, the interactions and the level notes stand one under the other, each the column's width", async ({ page }) => {
-  test.skip((page.viewportSize()?.width ?? 0) < 1024, "a wide screen");
+test("on a wide screen, two columns: the main panel with the notes under it on the left; the enemy's tiles, P to R one under another, and your champion on the right", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 0) < 1280, "a wide screen");
   await openMatchupIntel(page, "Ambessa", "Renekton");
   const box = async (id: string) => (await page.getByTestId(id).boundingBox())!;
+  const main = await box("matchup-briefing");
   const interactions = await box("matchup-interactions");
   const levels = await box("matchup-level-notes");
-  expect(levels.y).toBeGreaterThanOrEqual(interactions.y + interactions.height);
-  expect(Math.abs(levels.x - interactions.x)).toBeLessThanOrEqual(1);
-  expect(Math.abs(levels.width - interactions.width)).toBeLessThanOrEqual(1);
+  const tiles = await box("matchup-enemy-abilities");
+  const yours = await box("matchup-your-abilities");
+  expect(interactions.y).toBeGreaterThanOrEqual(main.y + main.height);
+  expect(Math.abs(levels.y - interactions.y)).toBeLessThanOrEqual(1);
+  expect(tiles.x).toBeGreaterThanOrEqual(main.x + main.width);
+  expect(Math.abs(tiles.y - main.y)).toBeLessThanOrEqual(1);
+  expect(yours.y).toBeGreaterThanOrEqual(tiles.y + tiles.height);
+  const slots = await enemyAbilities(page).evaluateAll((els) => els.map((e) => ({ slot: e.getAttribute("data-slot"), top: e.getBoundingClientRect().top })));
+  expect(slots.map((s) => s.slot)).toEqual(["P", "Q", "W", "E", "R"]);
+  for (let i = 1; i < slots.length; i++) expect(slots[i]!.top).toBeGreaterThan(slots[i - 1]!.top);
 });
 
-test("Interactions: the matchup's own in full; the enemy's, already on its ability rows, folded and counted, one tap away", async ({ page }) => {
+test("Interactions: the matchup's own in full; the enemy's, already chips on its tiles, folded and counted, one tap away", async ({ page }) => {
   await openMatchupIntel(page, "Ambessa", "Renekton");
   const panel = page.getByTestId("matchup-interactions");
   await expect(panel.getByTestId("matchup-interaction").first()).toBeVisible();
@@ -906,7 +939,7 @@ test("Interactions: the matchup's own in full; the enemy's, already on its abili
   expect(await fold.evaluate((d) => (d as HTMLDetailsElement).open)).toBe(false);
   const count = Number(/^Renekton's interactions and exceptions · (\d+)/.exec((await fold.locator("summary").innerText()).replace(/\s+/g, " ").trim())?.[1]);
   expect(count).toBeGreaterThan(0);
-  await expect(fold.getByTestId("enemy-interaction")).toHaveCount(count);
+  await expect(fold.getByTestId("fact-chip")).toHaveCount(count);
   await expect(fold.getByTestId("enemy-interaction").first()).toBeHidden();
   await fold.locator("summary").click();
   await expect(fold.getByTestId("enemy-interaction").first()).toBeVisible();

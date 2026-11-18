@@ -73,6 +73,18 @@ function ChampionInteractions({ intel, testId, rows }: { intel: ChampionIntelVie
 /** How many of the matchup's interactions show before the rest fold behind their count. */
 export const INTERACTIONS_SHOWN = 2;
 
+/**
+ * A note's source, one hover, focus or tap away: the word "source", whose tip names the page (the
+ * page itself is linked in the sources' list at the foot, never in a tip).
+ */
+function SourceTip({ text, testId }: { text: string; testId: string }) {
+  return (
+    <InfoTip text={text} testId={testId}>
+      <span className="text-2xs text-fg-subtle underline decoration-dotted underline-offset-2">source</span>
+    </InfoTip>
+  );
+}
+
 /** One of the curated matchup's interactions: its words, the chips of what it rests on, and its source's name one hover or tap away (the page itself is linked in the sources at the foot). */
 function MatchupInteraction({ item, names, rows, source }: { item: Extract<InteractionView, { kind: "interaction" }>; names: ReadonlyMap<string, string>; rows: ReadonlySet<string>; source: { title: string; url: string } }) {
   return (
@@ -82,7 +94,7 @@ function MatchupInteraction({ item, names, rows, source }: { item: Extract<Inter
       {source.title ? (
         <>
           {" "}
-          <InfoTip label={`Source of this interaction: ${source.title}`} text={`Source: ${source.title}. Curated matchup notes.`} testId="interaction-source" />
+          <SourceTip text={`Source: ${source.title}. Curated matchup notes.`} testId="interaction-source" />
         </>
       ) : null}
     </li>
@@ -120,14 +132,14 @@ export function InteractionsPanel({ matchup, enemyIntel, yourIntel, you, rows }:
         ))}
         {shown.length > INTERACTIONS_SHOWN ? (
           // The rest, word for word, one press away: never cut to fit.
-          <li className="px-3 py-1">
+          <li className="py-1">
             <details className="group/more" data-testid="matchup-interactions-more">
-              <summary className="touch-target inline-flex min-h-7 cursor-pointer list-none items-center gap-1 rounded-sm text-xs font-medium text-accent hover:text-accent-strong [&::-webkit-details-marker]:hidden">
+              <summary className="touch-target mx-3 inline-flex min-h-7 cursor-pointer list-none items-center gap-1 rounded-sm text-xs font-medium text-accent hover:text-accent-strong [&::-webkit-details-marker]:hidden">
                 <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/more:rotate-180 motion-reduce:transition-none" aria-hidden />
                 {moreWords(shown.length - INTERACTIONS_SHOWN)}
                 <span className="sr-only"> interactions</span>
               </summary>
-              <ul className="-mx-3 divide-y divide-border">
+              <ul className="divide-y divide-border">
                 {shown.slice(INTERACTIONS_SHOWN).map((item, i) => (
                   <MatchupInteraction key={`r-${i}`} item={item} names={names} rows={rows} source={sourceOf(item.source)} />
                 ))}
@@ -199,7 +211,7 @@ export function LevelNotesPanel({ intels }: { intels: ReadonlyArray<ChampionInte
                   {n.source.title ? (
                     <>
                       {" "}
-                      <InfoTip label={`Source of this level note: ${n.source.title}`} text={`Source: ${n.source.title}${revision ? `, ${revision}` : ""}. Checked notes.`} testId="level-note-source" />
+                      <SourceTip text={`Source: ${n.source.title}${revision ? `, ${revision}` : ""}. Checked notes.`} testId="level-note-source" />
                     </>
                   ) : null}
                   {n.changed ? (

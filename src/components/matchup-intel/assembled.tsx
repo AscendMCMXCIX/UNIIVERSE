@@ -29,7 +29,9 @@ function KitLine({ item, champion, rows }: { item: KitItem; champion: ChampionCh
     </>
   );
   return (
-    <li className="flex items-start gap-x-1.5" data-testid="assembled-item" data-slot={item.slot}>
+    // One line where it fits; where it does not (a phone at a large text size) the cooldown moves to
+    // the next line, rather than squeezing the chips to nothing.
+    <li className="flex flex-wrap items-start gap-x-1.5 gap-y-0.5" data-testid="assembled-item" data-slot={item.slot}>
       {rows.has(champion.id) ? (
         <AbilityRefLink anchor={abilityAnchor(champion.id, item.slot)} size="sm">
           {key}
@@ -37,14 +39,14 @@ function KitLine({ item, champion, rows }: { item: KitItem; champion: ChampionCh
       ) : (
         <span className="inline-flex min-h-6 items-center rounded-full border border-border-strong bg-surface-2 px-2 text-xs font-medium text-fg-muted">{key}</span>
       )}
-      <span className="flex min-w-0 flex-1 flex-wrap gap-1">
+      <span className="flex min-w-0 flex-[1_1_8rem] flex-wrap gap-1">
         {item.chips.map((c, i) => (
           <FactChipView key={i} chip={c} champion={champion.name} ability={item.ability} testId="assembled-chip" />
         ))}
       </span>
       {cd ? (
         // The ability's own base cooldown per rank (Riot's numbers or the checked ones, as its tile's line).
-        <span className="shrink-0 pt-0.5 text-xs tabular-nums text-fg-muted" data-testid="assembled-cooldown">
+        <span className="ml-auto pt-0.5 text-xs tabular-nums text-fg-muted" data-testid="assembled-cooldown">
           {cd}
         </span>
       ) : null}
