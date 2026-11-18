@@ -328,6 +328,18 @@ test("tablet and desktop: a profile's sections stay in reach, and All Champions'
   expect(pinnedHeader.top).toBeGreaterThanOrEqual(pinnedTabs.bottom - 1);
   // A short window (480px tall or shorter) keeps its height for the page: nothing stays pinned there.
   await page.setViewportSize({ width: width(page), height: 420 });
+  if (isTablet(page)) {
+    // At a tablet's width a short window is a phone held sideways: the page's tabs give way to the
+    // sections in the compact bar, which slides away while reading (two steps: the bar reads the
+    // scroll once a frame, so a jump to the end and back in one step would read as no movement).
+    await expect(tabs).toBeHidden();
+    await expect(page.getByTestId("mobile-topbar").getByTestId("profile-chrome-tabs")).toBeVisible();
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect(page.getByTestId("mobile-topbar")).toHaveAttribute("data-hidden", "false");
+    await scrollTo(page, "end");
+    await expect(page.getByTestId("mobile-topbar")).toHaveAttribute("data-hidden", "true");
+    return;
+  }
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await expect.poll(async () => (await rect(tabs)).top).toBeLessThan(barBottom);
 });
@@ -394,7 +406,12 @@ test("tablet and desktop: in a short window nothing is pinned, so the row offers
   await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
   await scrollTo(page, "end");
   await page.waitForTimeout(400);
-  await expect(page.getByTestId("profile-tabs")).not.toHaveAttribute("data-stuck", /.*/);
+  if (isTablet(page)) {
+    // At a tablet's width a short window is a phone held sideways: no row in the page to pin (the
+    // sections ride in the compact bar), and nothing offered beside it.
+    await expect(page.getByTestId("profile-tabs")).toBeHidden();
+    await expect(page.getByTestId("mobile-topbar").getByTestId("profile-chrome-tabs")).toBeAttached();
+  } else await expect(page.getByTestId("profile-tabs")).not.toHaveAttribute("data-stuck", /.*/);
   await expect(pageToolbar(page)).toHaveCount(0);
 });
 
@@ -477,18 +494,46 @@ test("tablet: the destinations are in the top bar, one tap each, and the avatar 
   await avatar.click();
   const menu = page.getByTestId("account-menu");
   await expect(menu).toBeVisible();
-  // The focus starts on its first item, and the arrow keys go round its items, never into the page.
-  const items = await menu.getByRole("menuitem").count();
-  expect(items).toBeGreaterThanOrEqual(4);
-  const focusedItem = () => page.evaluate(() => !!document.activeElement?.closest("[data-testid=account-menu]") && document.activeElement?.getAttribute("role") === "menuitem");
-  await expect.poll(focusedItem).toBe(true);
-  for (let i = 0; i < items + 2; i++) {
+  // The focus starts on its first item; ArrowDown moves to the next item by name, round from the last
+  // to the first; ArrowUp from the first goes to the last; Home and End to the first and the last.
+  const items = menu.getByRole("menuitem");
+  await expect(items).toHaveText(["Settings", "Install App", "Switch to Admin Mode", "Details"]);
+  const n = await items.count();
+  await expect(items.first()).toBeFocused();
+  for (let i = 1; i <= n; i++) {
     await page.keyboard.press("ArrowDown");
-    expect(await focusedItem(), `focus after ${i + 1} presses`).toBe(true);
+    await expect(items.nth(i % n), `ArrowDown ${i}`).toBeFocused();
   }
+  await page.keyboard.press("ArrowUp");
+  await expect(items.nth(n - 1)).toBeFocused();
+  await page.keyboard.press("Home");
+  await expect(items.first()).toBeFocused();
+  await page.keyboard.press("End");
+  // The last, Riot's notice's "Details", named in full and ringed as every control the keyboard reaches.
+  const details = items.nth(n - 1);
+  await expect(details).toBeFocused();
+  await expect(details).toHaveAccessibleName("Details: Riot Games notice");
+  const accent = await page.evaluate(() => {
+    const probe = document.createElement("span");
+    probe.style.color = "var(--color-accent)";
+    document.body.append(probe);
+    const colour = getComputedStyle(probe).color;
+    probe.remove();
+    return colour;
+  });
+  expect(await details.evaluate((el) => [getComputedStyle(el).outlineStyle, getComputedStyle(el).outlineWidth, getComputedStyle(el).outlineColor])).toEqual(["solid", "2px", accent]);
+  // A word in the notes, a finger-sized target on a touch screen all the same (touch-target).
+  expect(await details.evaluate((el) => parseFloat(getComputedStyle(el, "::after").height))).toBe(44);
+  // The notes are a group named by their own words, as the menu pattern allows.
+  await expect(menu.getByRole("group")).toHaveAccessibleName(/^Patch .+ Not endorsed by Riot Games\.$/);
   await page.keyboard.press("Escape");
   await expect(menu).toHaveCount(0);
   await expect(avatar).toBeFocused();
+  // Tab closes it too.
+  await avatar.click();
+  await expect(items.first()).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(menu).toHaveCount(0);
   // A click outside closes it, and a page scrolled far down stays where it was. (Players fits one
   // tablet screen: a teammate's Match History, ten games a page, is the long page here.) A menu is
   // not a window: a click outside also reaches what it lands on, so it lands on the bar's empty

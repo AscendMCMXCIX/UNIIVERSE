@@ -191,8 +191,14 @@ p a.text-accent {
 */
 @custom-variant short (@media (max-height: 480px));
 
-/* The installed app, in the display modes an install opens in (see install-state.ts): what a browser's own chrome would otherwise provide, such as Back on a tablet. */
-@custom-variant standalone (@media (display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui), (display-mode: window-controls-overlay));
+/* The installed app, in the display modes an install opens in (see install-state.ts): what a browser's own chrome would otherwise provide, such as Back on a tablet.
+   The block form: in the one-line form Tailwind read the list's commas as a selector list once the
+   variant was stacked (md:standalone:…), and the build dropped every display mode but the first. */
+@custom-variant standalone {
+  @media (display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui), (display-mode: window-controls-overlay) {
+    @slot;
+  }
+}
 
 /* Safe-area helpers for notched phones (no-ops elsewhere). */
 @utility pt-safe {

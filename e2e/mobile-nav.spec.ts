@@ -295,6 +295,9 @@ test("a tablet's destinations are in its top bar, one tap each; its avatar menu 
   // The current destination is marked twice: its icon in the brand blue and its lift, and the name bright.
   const team = nav.getByRole("link", { name: "Team" });
   await expect(team).toHaveAttribute("aria-current", "page");
+  // ...and the brand's gradient as a short bar at its foot, the sidebar's fourth signal; on it alone.
+  await expect(team.getByTestId("topbar-current-bar")).toHaveCSS("opacity", "1");
+  await expect(nav.getByTestId("topbar-current-bar")).toHaveCount(1);
   for (const box of await nav.getByRole("link").evaluateAll((links) => links.map((l) => l.getBoundingClientRect().height))) expect(box).toBeGreaterThanOrEqual(44);
   // One tap from anywhere: from Team to Resources, and Team stays marked on its other sections.
   await nav.getByRole("link", { name: "Resources" }).click();
@@ -315,16 +318,59 @@ test("a tablet's destinations are in its top bar, one tap each; its avatar menu 
   await page.keyboard.press("Escape");
   await expect(install).toHaveCount(0);
   await expect(avatar).toBeFocused();
-  // Admin Mode: its four tabs in the bar, the admin pages without a tab in the avatar menu.
+  // Admin Mode: its four tabs in the bar (Platform Settings by its full name: the avatar menu under the
+  // bar holds the account's own Settings), the admin pages without a tab in the avatar menu.
   await context.addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL! }]);
   await page.goto("/admin");
-  await expect(nav.getByRole("link")).toHaveText(["Dashboard", "Users", "Settings", "Health"]);
+  await expect(nav.getByRole("link")).toHaveText(["Dashboard", "Users", "Platform Settings", "Health"]);
   await expect(nav.getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
   await avatar.click();
   await expect(menu.getByRole("menuitem")).toHaveText(["Data & Integrations", "Audit Logs", "Settings", "Install App", "Return to Player Mode", "Details"]);
   await menu.getByRole("menuitem", { name: "Audit Logs" }).click();
   await expect(page).toHaveURL(/\/admin\/audit$/);
   await expect(menu).toHaveCount(0);
+});
+
+test("a tablet's top bar gives way at a larger text size: the team's name first, then the labels, by its own width, and never wider than the window", { tag: "@tablet" }, async ({ page, context, baseURL }) => {
+  // BAR_FIT in mobile-nav.tsx, in rem of the bar's row less its gutters: Player Mode's name below
+  // 34rem and labels below 28rem, Admin Mode's below 43rem and 36.5rem. A 768px tablet's row is 46rem
+  // at 100% text, 36.8rem at 125%, 30.7rem at 150% and 23rem at 200%.
+  const FIT = { player: { brand: 34, labels: 28 }, admin: { brand: 43, labels: 36.5 } } as const;
+  for (const mode of ["player", "admin"] as const) {
+    await context.addCookies([{ name: "uniiverse_view", value: mode, url: baseURL! }]);
+    for (const root of [100, 125, 150, 200]) {
+      const where = `${mode === "admin" ? "Admin Mode" : "Player Mode"} at ${root}% text`;
+      await page.goto(mode === "admin" ? "/admin/settings" : "/team");
+      await page.evaluate((r) => {
+        document.documentElement.style.fontSize = `${r}%`;
+      }, root);
+      await page.evaluate(() => document.fonts.ready);
+      await expect(async () => {
+        const m = await page.evaluate(() => {
+          const row = document.querySelector<HTMLElement>("[data-testid=mobile-topbar] > div")!;
+          const cs = getComputedStyle(row);
+          const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+          const list = document.querySelector<HTMLElement>("[data-testid=topbar-destinations] ul")!;
+          const shown = (el: Element | null) => !!el && el.getBoundingClientRect().width > 1;
+          return {
+            content: (row.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)) / rem,
+            name: shown(document.querySelector("[data-testid=mobile-brand-name]")),
+            labels: [...list.querySelectorAll("a")].map((a) => shown(a.querySelector(":scope > span:last-child"))),
+            listScrolls: list.scrollWidth > list.clientWidth + 1,
+            rowOverflow: row.scrollWidth - row.clientWidth,
+            page: document.documentElement.scrollWidth - innerWidth,
+          };
+        });
+        const fit = FIT[mode];
+        expect(m.name, `${where}: the team's name (row ${m.content.toFixed(1)}rem)`).toBe(m.content >= fit.brand);
+        for (const label of m.labels) expect(label, `${where}: a label (row ${m.content.toFixed(1)}rem)`).toBe(m.content >= fit.labels);
+        // What each step leaves fits: the list needs no scrolling, the row and the page no wider.
+        expect(m.listScrolls, `${where}: the destinations fit`).toBe(false);
+        expect(m.rowOverflow, `${where}: the bar's row`).toBeLessThanOrEqual(1);
+        expect(m.page, `${where}: the page`).toBeLessThanOrEqual(1);
+      }).toPass({ timeout: 15_000 });
+    }
+  }
 });
 
 test("one primary navigation is shown at a time: the bottom bar upright, the compact bar sideways, a tablet's top bar, none beside the sidebar", async ({ page }) => {
@@ -341,6 +387,31 @@ test("one primary navigation is shown at a time: the bottom bar upright, the com
     expect(shown, `${viewport.width} × ${viewport.height}`).toEqual(expected ? [expected] : []);
     await expect(page.getByRole("navigation", { name: "Primary" }), `${viewport.width} × ${viewport.height}`).toHaveCount(expected ? 1 : 0);
   }
+});
+
+test("the account screen closes when the page changes, Back and Forward included, and is not reopened by Forward, upright and held sideways", async ({ page, browser, baseURL }) => {
+  // Its state is the path it was opened on (MobileNav's sheetAt): a navigation leaves it closed.
+  const check = async (p: Page, tab: string, where: string) => {
+    const screen = p.getByTestId("account-sheet");
+    await p.goto("/team");
+    await p.getByTestId(tab).click();
+    await expect(p, where).toHaveURL(/\/players$/);
+    await expect(p.getByTestId("players-directory"), where).toBeVisible();
+    await p.getByTestId("account-sheet-button").click();
+    await expect(screen, where).toBeVisible();
+    await p.goBack();
+    await expect(p, where).toHaveURL(/\/team$/);
+    await expect(screen, `${where}: closed by Back`).toHaveCount(0);
+    await p.goForward();
+    await expect(p, where).toHaveURL(/\/players$/);
+    await expect(p.getByTestId("players-directory"), where).toBeVisible();
+    await expect(screen, `${where}: not reopened by Forward`).toHaveCount(0);
+  };
+  await check(page, "tab-players", "upright");
+  const sideways = await browser.newContext({ viewport: { width: 852, height: 393 }, isMobile: true, hasTouch: true });
+  await sideways.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
+  await check(await sideways.newPage(), "topbar-tab-players", "held sideways at 852 × 393");
+  await sideways.close();
 });
 
 test("Sign out from a tablet's avatar menu is told to the browser's other tabs, and the next thing they do lands on sign-in", { tag: "@tablet" }, async ({ page, browser }) => {

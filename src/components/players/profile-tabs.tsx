@@ -23,8 +23,8 @@ const KEEPS_SEASON = new Set(["overview", "champions", "matches"]);
  *            is an entry of the browser's history. Not in a phone held sideways (a short window
  *            below lg), which carries them in its top bar as upright.
  *   chrome   phones, either way round: in the top bar (MobileNav), so the sections stay in reach
- *            however far the page scrolls; four short names sharing the width, 44px tall upright
- *            and 40px held sideways (the bar's second row). Moving between them replaces the history
+ *            however far the page scrolls; four short names sharing the width, 44px tall (held
+ *            sideways the compact bar's second row). Moving between them replaces the history
  *            entry (as a phone's tabs within one screen do), so Back leaves the profile, and a
  *            section opened far down the page starts at its top, just under the bar.
  */
@@ -199,9 +199,9 @@ function ChromeTabs({ items, current }: { items: Array<{ key: string; href: stri
                   if (stayOnCurrentPage(e, on)) return;
                   pending.current = !on && isPlainClick(e) && cardScrolledPast() ? t.key : null;
                 }}
-                // 6px a side: the four names fit a 320px screen with the bar's gutters. Held sideways the
-                // row is 40px, under the compact bar's 44px.
-                className={cn("flex min-h-11 items-center justify-center whitespace-nowrap px-1.5 text-sm font-medium transition-colors duration-150 short:min-h-10", tabIndicatorClass(on))}
+                // 6px a side: the four names fit a 320px screen with the bar's gutters. 44px tall either way
+                // round: a touch screen's target (STANDARDS.md), under the compact bar's 44px held sideways.
+                className={cn("flex min-h-11 items-center justify-center whitespace-nowrap px-1.5 text-sm font-medium transition-colors duration-150", tabIndicatorClass(on))}
                 data-testid={t.testId}
               >
                 {t.label}

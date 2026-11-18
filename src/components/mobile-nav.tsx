@@ -37,7 +37,7 @@ export interface MobileNavProps {
   showSignOut: boolean;
   /** Paths this account may open in the current mode (the server decides). */
   allowed: string[];
-  /** Admin Mode: the top bar says so, and the destinations are its own. */
+  /** Admin Mode: the top bar says so beside the team's mark (held sideways in a compact line of its own, read with the mark's link), and the destinations are its own. */
   adminMode?: boolean;
   /** The account has a player profile (the account screen then offers My Profile where Profile has no tab). */
   hasPlayer?: boolean;
@@ -68,9 +68,10 @@ export interface MobileNavProps {
       strip (DetailModal's BODY_SCROLLS, docs/MOBILE.md).
   PHONES HELD SIDEWAYS (a short window, 480px tall or less, below lg, whatever its width): the
     same destinations in one compact bar, 44px plus the status bar's inset, and no bottom bar: Back
-    or the team's mark, the five destinations (only the current one labelled where the bar is
+    or the team's mark (in Admin Mode with "Admin mode" beside it), the five destinations (only the
+    current one labelled where the bar is
     narrower than 38rem), the page's title where room is left, Filters, the avatar (the account
-    screen); a profile's sections as a 40px second row. It slides away while the page scrolls down
+    screen); a profile's sections as a 44px second row. It slides away while the page scrolls down
     and comes back on a scroll up, and while it holds the focus (useHideOnScroll).
   TABLETS (md to lg, taller than 480px): the top bar holds the destinations, one tap each (Player
     Mode: My Profile, Team, Resources; Admin Mode: its four tabs), the page tabs (Team's sections, a
@@ -172,10 +173,19 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
               alone, so the destinations have the room. */}
           <Link href={home} className={cn("flex min-h-11 min-w-0 items-center gap-2.5 rounded-md md:min-h-14 md:min-w-8 md:shrink-[1000] short:min-h-11 short:shrink-0", back ? "max-md:hidden short:hidden" : "max-md:pl-1.5 short:pl-1.5")} title={shortName} data-testid="mobile-brand">
             <BrandMark src={logoSrc} still={logoStill} name={shortName} className="h-8 w-8 rounded-md text-base" />
-            <span className={cn("min-w-0 transition-opacity duration-150 short:hidden", BAR_FIT[adminMode ? "admin" : "member"].brand, titleShown && "max-md:hidden")}>
+            <span className={cn("min-w-0 transition-opacity duration-150 short:hidden", BAR_FIT[adminMode ? "admin" : "member"].brand, titleShown && "max-md:hidden")} data-testid="mobile-brand-name">
               <span className="block truncate text-sm font-bold tracking-label text-fg">{shortName}</span>
               {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-label text-accent">Admin mode</span> : tagline ? <span className="block truncate text-xs text-fg-subtle max-md:hidden">{tagline}</span> : null}
             </span>
+            {/* Held sideways the mark stands alone, but the mode is still said: "Admin mode" beside it,
+                in the accent, the link read as the team's name and the mode; at a larger text size the
+                words give way to the destinations and are read out only (SIDEWAYS_FIT). */}
+            {adminMode ? (
+              <span className="hidden whitespace-nowrap short:block" data-testid="mobile-brand-mode">
+                <span className="sr-only">{shortName}, </span>
+                <span className={cn("label-caps text-accent", SIDEWAYS_FIT.mode)}>Admin mode</span>
+              </span>
+            ) : null}
           </Link>
           {/* Held sideways: the phone's destinations, one tap each, in the bar (there is no bottom
               bar). The current one is lit twice (its icon in an accent pill, its label shown and
@@ -210,8 +220,9 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
             </nav>
           ) : null}
           {/* Tablets: the destinations, one tap each (the drawer they were in has gone). The current
-              one is marked as in the sidebar: a neutral lift with a hairline of light, its icon in
-              the brand blue and its name bright. The list grows into the room left, so the avatar
+              one is marked as in the sidebar, with its four signals: a neutral lift with a hairline of
+              light, the brand's gradient as a short bar, its icon in the brand blue and its name
+              bright. The list grows into the room left, so the avatar
               stays at the bar's end; at a larger text size the team's name beside the mark gives way
               first, then the labels to the icons (BAR_FIT), and as a last resort the list scrolls
               sideways inside the bar, never widening the page. */}
@@ -232,6 +243,8 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                         data-testid={`topbar-nav-${href.slice(1).replaceAll("/", "-")}`}
                       >
                         <span className={cn("absolute inset-0 -z-10 rounded-lg transition-[background-color,box-shadow] duration-150", active ? RAIL_CURRENT : RAIL_HOVER)} aria-hidden />
+                        {/* The brand's gradient as a short bar at the destination's foot, growing in from its centre, as the sidebar's at its row's edge. */}
+                        <span className={cn("absolute inset-x-3 bottom-1 h-0.5 rounded-full bg-gradient-to-r from-accent to-accent-2 transition-[opacity,scale] duration-200 ease-emphasized", active ? "scale-x-100 opacity-100" : "scale-x-50 opacity-0")} aria-hidden data-testid={active ? "topbar-current-bar" : undefined} />
                         <Icon className={cn("h-[1.125rem] w-[1.125rem] shrink-0 transition-colors duration-150", active ? "text-accent" : "text-fg-subtle group-hover:text-fg-muted")} aria-hidden />
                         <span className={BAR_FIT[adminMode ? "admin" : "member"].labels}>{label}</span>
                       </Link>
@@ -440,12 +453,12 @@ const TAB_FIT = {
  * first the team's name beside its mark, then the destinations' labels (each keeps its name for
  * screen readers and in its title). Measured on 18 Nov 2026 with the bundled Inter at 100% text:
  * Player Mode's bar needs 32.84rem with the name and 26.75rem without it, Admin Mode's (its name
- * two lines, "Admin mode" under it) 38.88rem and 32.34rem. A 768px tablet's bar is 46rem at 100%
- * text, 30.7rem at 150%.
+ * two lines, "Admin mode" under it, and Platform Settings named in full) 42.68rem and 36.16rem. A
+ * 768px tablet's bar is 46rem at 100% text, 36.8rem at 125%, 30.7rem at 150%.
  */
 const BAR_FIT = {
   member: { brand: "md:@max-[34rem]/topbar:hidden", labels: "md:@max-[28rem]/topbar:sr-only" },
-  admin: { brand: "md:@max-[40rem]/topbar:hidden", labels: "md:@max-[33.5rem]/topbar:sr-only" },
+  admin: { brand: "md:@max-[43rem]/topbar:hidden", labels: "md:@max-[36.5rem]/topbar:sr-only" },
 } as const;
 
 /**
@@ -458,6 +471,12 @@ const BAR_FIT = {
 const SIDEWAYS_FIT = {
   others: "@max-[38rem]/topbar:sr-only",
   current: "@max-[27rem]/topbar:sr-only",
+  /**
+   * Admin Mode's words beside the mark (6.04rem with their gap), read out only below 32rem: with them
+   * Admin Mode's four labelled need 33.18rem and the current one alone 26.79rem (29.8rem with
+   * Filters), without them 27.14rem and 20.75rem.
+   */
+  mode: "@max-[32rem]/topbar:sr-only",
 } as const;
 
 /**
@@ -470,9 +489,10 @@ const BACK_CLASS = "-ml-1 flex min-h-11 min-w-0 max-w-[45%] shrink-0 items-cente
  * Tablets: hidden in a browser, shown in the installed app's display mode from the first paint (the
  * `standalone` variant, globals.css), so a cold start never draws the bar without it and then with
  * it. Once the page runs, the browser's answer (useInstallState) shows it too: iOS's own flag, and
- * the test's stand-in for a display mode Chromium cannot emulate.
+ * the test's stand-in for a display mode Chromium cannot emulate. Held sideways it is the phone's
+ * Back, shown whatever the display mode (`not-short`).
  */
-const BACK_TABLET = "md:not-short:hidden md:not-short:standalone:flex";
+const BACK_TABLET = "md:not-short:hidden md:standalone:flex";
 
 /** The account screen's title (its custom header names the dialog). */
 const SHEET_TITLE_ID = "account-sheet-title";

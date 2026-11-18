@@ -550,13 +550,21 @@ test("held sideways: the pages fit, the destinations are in one compact bar with
       await expect(page.getByTestId("phone-tabbar"), `${route} at ${where}`).toBeHidden();
       expect((await page.getByTestId("mobile-topbar").boundingBox())!.height, `${route} at ${where}: one compact bar`).toBeLessThanOrEqual(45.5);
     }
-    // A teammate's profile: its sections the bar's second row, the bars at rest about 84px, its band at most 80px.
+    // Teammates' profiles: their sections the bar's 44px second row, the bars at rest about 89px, the
+    // band at most 80px: Demo Top's, and Demo Mid's with an off role, the lineup status and two links.
     await page.goto("/team");
-    await page.goto(`/players/${await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id")}`);
-    await expect(page.getByTestId("profile-chrome-tabs")).toBeVisible();
-    expect((await page.getByTestId("mobile-topbar").boundingBox())!.height, `${where}: the bar and the sections`).toBeLessThanOrEqual(86);
-    expect((await page.getByTestId("profile-header").boundingBox())!.height, `${where}: the profile's band`).toBeLessThanOrEqual(80);
-    await fitsWidth(page, `the profile, sideways at ${where}`);
+    const profiles = await Promise.all(["TOP", "MID"].map(async (role) => `/players/${await page.getByTestId(`lineup-row-${role}`).getAttribute("data-player-id")}`));
+    for (const [i, profile] of profiles.entries()) {
+      const who = `${["Demo Top", "Demo Mid"][i]} at ${where}`;
+      await page.goto(profile);
+      await expect(page.getByTestId("profile-chrome-tabs"), who).toBeVisible();
+      if (i === 1) await expect(page.getByTestId("profile-header").getByTestId("social-links").locator("li"), who).toHaveCount(2);
+      await page.evaluate(() => document.fonts.ready);
+      expect((await page.getByTestId("mobile-topbar").boundingBox())!.height, `${who}: the bar and the sections`).toBeLessThanOrEqual(90);
+      expect((await page.getByTestId("profile-sections-bar").boundingBox())!.height, `${who}: the sections, 44px targets`).toBeGreaterThanOrEqual(44);
+      expect((await page.getByTestId("profile-header").boundingBox())!.height, `${who}: the profile's band`).toBeLessThanOrEqual(80);
+      await fitsWidth(page, `${who}: the profile, sideways`);
+    }
     // Reading down a page, the bar slides away (scrolled by script: WebKit's touch emulation has no wheel).
     await page.goto("/players");
     await expect(page.locator("main")).toBeVisible();

@@ -43,7 +43,7 @@ translucent status bar, so:
 - whole-screen windows pad the status bar (`max-sm:pt-safe`); a window's body keeps its last line 1rem from the bottom edge (1.25rem from `sm`), a sheet's footer its actions 1rem where the sheet is docked (0.75rem where it is a centred window), and other windows' footers 0.75rem, or the home indicator's inset where it is larger (`pb-safe-4`, `sm:pb-safe-5`, `pb-safe-3`); a window that scrolls as one on a phone keeps a bar over the status bar, so text never scrolls under the clock;
 - `pt-safe-N` and `pb-safe-N` (like `px-safe-N`) are N spacing steps or the inset, whichever is larger, and are an element's only padding for that edge: beside another one (`py-4 pb-safe`) Tailwind's own order decides which wins, and the bare inset did, 0px in a browser (#265). `src/app/design-tokens.test.ts` refuses that pairing, and an arbitrary `max(…, env(safe-area-inset-…))` padding a utility writes;
 - preview pages (Admin → Previews) leave room for their fixed "Preview" badge (`PREVIEW_PAD_TOP`);
-- the tab bar pads all three; the top bar pads the status bar's inset and, sideways, the notch's (`px-safe-2`).
+- the tab bar pads all three; the top bar pads the status bar's inset and, sideways, the notch's (`px-safe-2`; `sm:px-safe-4` from 640px).
 
 ## Touch targets
 
@@ -186,14 +186,17 @@ Substitute side of the Team cards).
     the others show their icons alone, and below 27rem, at a larger text size, the current one too;
     past that the row scrolls sideways inside the bar), the page's title where the destinations
     leave it at least 6rem (a tap on it going back to the top, as does the current destination on
-    its own page), Filters and the avatar (the account screen); a profile's sections as a 40px
-    second row; no bottom bar. Team's section tabs and a profile's are not repeated in the page;
+    its own page), Filters and the avatar (the account screen); a profile's sections as a 44px
+    second row; no bottom bar. In Admin Mode "Admin mode" stands beside the team's mark (left to
+    screen readers below 32rem of bar, and always in the mark's name). Team's section tabs and a
+    profile's are not repeated in the page;
   - tablets (`md` to `lg`, taller than 480px): the top bar with the destinations, one tap each (Player
-    Mode: My Profile, Team, Resources; Admin Mode: its four tabs; `tabletDestinations` in
-    `src/lib/nav.ts`), and the account menu behind the avatar, which holds Settings, Install App, the
-    mode switch, Sign out, the patch and Riot's notice (in Admin Mode also Data & Integrations and
-    Audit Logs). There is no drawer. At a larger text size the team's name gives way first, then the
-    destinations' labels (`BAR_FIT`, measured in the bar's own width in rem). The menu's Sign out
+    Mode: My Profile, Team, Resources; Admin Mode: its four tabs, Platform Settings by its full name;
+    `tabletDestinations` in `src/lib/nav.ts`), the current one with the sidebar's four signals, and
+    the account menu behind the avatar, which holds Settings, Install App, the mode switch, Sign out,
+    the patch and Riot's notice (in Admin Mode also Data & Integrations and Audit Logs). There is no
+    drawer. At a larger text size the team's name gives way first, then the destinations' labels
+    (`BAR_FIT`, measured in the bar's own width in rem). The menu's Sign out
     tells the browser's other tabs, as the account screen's does. In the installed app, which has no
     browser Back, the bar also shows Back on a page reached from another (a teammate's profile),
     named as on phones.
@@ -299,11 +302,14 @@ short window; at 2560 × 1440 and 3440 × 1440 (and at 1440 × 900 with the side
 row's first tab starts at its page's edge within 1px on each section of its set (Team's, Resources',
 Platform Settings', a profile's, Leaderboards' and Match History's views, Users & Permissions'), the
 row in the same place on all of them, Team's name ending at the page's right edge and the bar's line
-spanning the room; a tablet's destinations in its top bar, one tap each, and its avatar menu taking
-the focus to its first item, keeping the arrow keys inside, giving the focus back to the avatar on
-Escape, leaving the page where it was on a click outside, and closed by Back without Forward
-reopening it; the installed app's Back on a tablet beside the destinations (the display mode stood
-in for, as Chromium cannot emulate it);
+spanning the room; at a tablet's width held sideways (768 × 420) the frame is the compact bar,
+the sections in it and not in the page, sliding away as the page scrolls down; a tablet's
+destinations in its top bar, one tap each, and its avatar menu taking the focus to its first item,
+the arrow keys going round its items (Down and Up wrapping, Home and End), its notes' Details link
+named "Details: Riot Games notice" with the focus ring and a 44px touch area, Tab closing it,
+giving the focus back to the avatar on Escape, leaving the page where it was on a click outside,
+and closed by Back without Forward reopening it; the installed app's Back on a tablet beside the
+destinations (the display mode stood in for, as Chromium cannot emulate it);
 the filter sheet's Done leaves with its motion; Admin Mode's Settings has its title; and a page's
 controls in reach (PR 2b): from md the pinned row offers Match History's views and Filters only once
 it is pinned and the page's toolbar has gone up under it, at the row's resting height and inside it,
@@ -313,7 +319,12 @@ change, the first game lands under the pinned tabs; Records → Recent form from
 `e2e/mobile-nav.spec.ts` has the phone's: the top bar's Filters (44px, "Filters:" and what is
 chosen) opens the sheet, and Done after a change lands the first game under the bars; nothing wider
 than the phone at 320px, at 100% and 200% text; one primary navigation shown at a time in each
-posture; a tablet's destinations and avatar menu in both modes. `e2e/filter-consistency.spec.ts`: the sheet opened
+posture; the account screen closed by Back and not reopened by Forward, upright and held sideways;
+a tablet's destinations (the current one's gradient bar) and avatar menu in both modes, and its top
+bar at 100% to 200% text in both modes, the team's name and then the labels giving way where the
+bar's row is narrower than `BAR_FIT` says, the destinations never scrolling and nothing wider than
+the window. `e2e/navigation-landings.spec.ts` has the current destination on its own page going
+back to the top without a fetch, in the sidebar and in a tablet's top bar. `e2e/filter-consistency.spec.ts`: the sheet opened
 from the pinned row at 1440 labels every field and holds the only copy of each id.
 `e2e/popups.spec.ts` keeps what shows over a window inside it: an ⓘ's bubble in a window drawn
 inside the window and above it where its trigger puts it (also while the window is moved and
@@ -379,9 +390,14 @@ For example, Team Matches' cards take their four columns from their list's width
 contexts with Playwright's device descriptors (iPhone SE, iPhone 15, both ways round) and checks
 the short-window rules above: one compact bar holding the destinations (only the current one
 labelled at 568px) and no tab bar, a bar that gets out of the way and comes back (slow drags, focus
-inside), a profile's bars at rest at most 86px with its band at most 80px at five sideways sizes
-(568 to 915px wide), the account screen from the avatar at every width, the title and the current
-destination leading back to the top at a tablet's width, large text, whole-screen windows that
+inside), a profile's bars at rest at most 90px (the sections a 44px row) with its band at most 80px
+on one line at five sideways sizes (568 to 915px wide; Demo Top's and Demo Mid's, with the page's
+scroll padding clearing the bar), the band's longest line (two off roles, the longest rank, the
+lineup status and three links: 32px chips, 44px targets) and a member's own Overview with three
+links beside Customise, the account screen from the avatar at every width, Admin Mode's compact bar
+saying the mode, the title and the current destination leading back to the top at a tablet's width,
+large text (the labels giving way at 38rem and 27rem of bar, by the bar's real width, and the
+current destination kept in view, loaded sideways or turned to), whole-screen windows that
 scroll as one with reachable 44px controls, dialogs that keep their title and actions on screen,
 state kept across a turn of the phone, tab rows that fade and keep the current tab in view, ⓘ
 targets, and the Branding save bar. Upright, it checks that the player window scrolls as

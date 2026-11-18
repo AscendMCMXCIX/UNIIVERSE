@@ -1,6 +1,7 @@
 import { devices, expect, test, type Browser, type BrowserContextOptions, type Page } from "./test";
 import { lineupAtRest } from "./lineup";
 import { openMatchWindow } from "./match-history";
+import { memberContext } from "./member-account";
 import { playerEntry } from "./players";
 
 /*
@@ -100,7 +101,7 @@ test("held sideways: one compact bar holds the destinations, with no bottom bar,
   await done(page);
 });
 
-test("held sideways, the bars at rest on a profile are the compact bar and the sections' 40px row, its band at most 80px, and nothing is wider than the phone", async ({ browser, baseURL }) => {
+test("held sideways, the bars at rest on a profile are the compact bar and the sections' 44px row, its band at most 80px, and nothing is wider than the phone", async ({ browser, baseURL }) => {
   // An iPhone 15 in Safari (its home indicator's inset told: before, the bars there were 163px:
   // the top bar with the sections 97 and the bottom bar 66), the same phone's whole screen, an
   // iPhone SE (1st gen), an iPhone 12 and a Pixel 7, all held sideways.
@@ -113,35 +114,165 @@ test("held sideways, the bars at rest on a profile are the compact bar and the s
   ];
   const page = await phone(browser, baseURL!, IPHONE_LANDSCAPE);
   await page.goto("/team");
-  const profile = `/players/${await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id")}`;
+  // Demo Top's profile, and Demo Mid's: an off role, the lineup status and two links on the band's line.
+  const profiles = await Promise.all((["TOP", "MID"] as const).map(async (role) => `/players/${await page.getByTestId(`lineup-row-${role}`).getAttribute("data-player-id")}`));
   const cdp = await page.context().newCDPSession(page);
   for (const f of frames) {
     await page.setViewportSize(f.viewport);
     await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 0, topMax: 0, bottom: f.bottom, bottomMax: f.bottom, left: 0, leftMax: 0, right: 0, rightMax: 0 } });
+    for (const [i, profile] of profiles.entries()) {
+      await page.goto(profile);
+      await expect(page.getByTestId("profile-chrome-tabs")).toBeVisible();
+      if (i === 1) await expect(page.getByTestId("profile-header").getByTestId("social-links").locator("li")).toHaveCount(2);
+      await page.evaluate(() => document.fonts.ready);
+      const where = `${["Demo Top", "Demo Mid"][i]} on ${f.name} (${f.viewport.width} × ${f.viewport.height})`;
+      // Read once the bar has measured itself (a ResizeObserver): it sets the page's scroll padding.
+      await expect(async () => {
+        const m = await page.evaluate(() => {
+          const shown = (el: Element | null) => !!el && getComputedStyle(el).display !== "none" && el.getBoundingClientRect().height > 0;
+          const top = document.querySelector<HTMLElement>("[data-testid=mobile-topbar]")!;
+          const meta = document.querySelector<HTMLElement>("[data-testid=profile-meta]")!;
+          const oneLine = (el: Element) => {
+            const r = [...el.children].filter((c) => c.getBoundingClientRect().width > 0).map((c) => c.getBoundingClientRect());
+            return Math.max(...r.map((b) => b.top)) < Math.min(...r.map((b) => b.bottom));
+          };
+          return {
+            bars: top.getBoundingClientRect().height + (shown(document.querySelector("[data-testid=phone-tabbar]")) ? document.querySelector("[data-testid=phone-tabbar]")!.getBoundingClientRect().height : 0),
+            row: top.firstElementChild!.getBoundingClientRect().height,
+            sections: document.querySelector("[data-testid=profile-sections-bar]")!.getBoundingClientRect().height,
+            band: document.querySelector("[data-testid=profile-header]")!.getBoundingClientRect().height,
+            // One line: every item of the roles line overlaps every other's height (a wrapped one starts below the first line's foot).
+            oneLine: oneLine(meta),
+            pageTabs: shown(document.querySelector("[data-testid=profile-tabs]")),
+            padding: parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0,
+            barHeight: top.offsetHeight,
+            wider: document.documentElement.scrollWidth - innerWidth,
+          };
+        });
+        expect(m.row, `${where}: the bar's row`).toBeLessThanOrEqual(44.5);
+        expect(m.sections, `${where}: the sections' row, a 44px target`).toBeGreaterThanOrEqual(44);
+        expect(m.sections, `${where}: the sections' row`).toBeLessThanOrEqual(44.5);
+        expect(m.bars, `${where}: the bars at rest`).toBeLessThanOrEqual(90);
+        expect(m.band, `${where}: the profile's band`).toBeLessThanOrEqual(80);
+        expect(m.oneLine, `${where}: the band's roles line is one line`).toBe(true);
+        // The sections are the bar's row alone: not again in the page.
+        expect(m.pageTabs, `${where}: no sections row in the page`).toBe(false);
+        // What the keyboard or a link's #anchor brings into view lands clear of the bar, its two rows measured (MEASURED_BAR).
+        expect(m.padding, `${where}: the page's scroll padding clears the bar`).toBeGreaterThanOrEqual(m.barHeight);
+        expect(m.wider, `${where}: nothing wider than the phone`).toBeLessThanOrEqual(1);
+      }).toPass({ timeout: 10_000 });
+    }
+  }
+  await done(page);
+});
+
+test("held sideways, the band holds the longest line it is made for, on one line: the roles, the rank, the lineup status and three links", async ({ browser, baseURL }) => {
+  // The worst the band's line must hold (SIDEWAYS_META in profile-header.tsx): "Support" as the
+  // primary role, two off roles, "Grandmaster · 1234 LP", "Main lineup · Support" and three links,
+  // drawn into Demo Mid's band in place (nothing is saved): the narrower the line, the more it condenses.
+  const page = await phone(browser, baseURL!, IPHONE_LANDSCAPE);
+  await page.goto("/team");
+  const profile = `/players/${await page.getByTestId("lineup-row-MID").getAttribute("data-player-id")}`;
+  for (const viewport of [{ width: 568, height: 320 }, { width: 640, height: 360 }, { width: 667, height: 375 }, { width: 734, height: 343 }, { width: 852, height: 393 }, { width: 915, height: 412 }]) {
+    const where = `${viewport.width} × ${viewport.height}`;
+    await page.setViewportSize(viewport);
     await page.goto(profile);
-    await expect(page.getByTestId("profile-chrome-tabs")).toBeVisible();
-    const m = await page.evaluate(() => {
-      const shown = (el: Element | null) => !!el && getComputedStyle(el).display !== "none" && el.getBoundingClientRect().height > 0;
-      const top = document.querySelector("[data-testid=mobile-topbar]")!;
-      const row = top.firstElementChild!.getBoundingClientRect().height;
-      const sections = document.querySelector("[data-testid=profile-sections-bar]")!.getBoundingClientRect().height;
-      return {
-        bars: top.getBoundingClientRect().height + (shown(document.querySelector("[data-testid=phone-tabbar]")) ? document.querySelector("[data-testid=phone-tabbar]")!.getBoundingClientRect().height : 0),
-        row,
-        sections,
-        band: document.querySelector("[data-testid=profile-header]")!.getBoundingClientRect().height,
-        pageTabs: shown(document.querySelector("[data-testid=profile-tabs]")),
-        wider: document.documentElement.scrollWidth - innerWidth,
-      };
+    await expect(page.getByTestId("profile-header").getByTestId("social-links").locator("li")).toHaveCount(2);
+    await page.evaluate(() => document.fonts.ready);
+    // Demo Mid: Mid with Top as an off role, in the lineup, two links shown; ranked or not, the rank's words become the longest.
+    await page.evaluate(() => {
+      const h = document.querySelector("[data-testid=profile-header]")!;
+      const meta = h.querySelector("[data-testid=profile-meta]")!;
+      meta.firstElementChild!.querySelector("span:last-child")!.textContent = "Support";
+      const off = meta.querySelector("[data-testid=additional-role]")!;
+      off.after(off.cloneNode(true));
+      const rank = meta.querySelector("[data-testid=profile-rank]")!;
+      const tier = [...rank.childNodes].find((n) => n.nodeType === Node.TEXT_NODE && n.textContent!.trim());
+      if (tier) tier.textContent = "Grandmaster";
+      rank.querySelector(".text-fg-muted")!.textContent = tier ? "· 1234 LP" : "Grandmaster · 1234 LP";
+      for (const s of meta.querySelectorAll("[data-testid=lineup-status] span:last-child")) s.textContent = "Main lineup · Support";
+      const links = h.querySelector("[data-testid=social-links]")!;
+      links.append(links.lastElementChild!.cloneNode(true));
     });
-    const where = `${f.name} (${f.viewport.width} × ${f.viewport.height})`;
-    expect(m.row, `${where}: the bar's row`).toBeLessThanOrEqual(44.5);
-    expect(m.sections, `${where}: the sections' row`).toBeLessThanOrEqual(40.5);
-    expect(m.bars, `${where}: the bars at rest`).toBeLessThanOrEqual(86);
-    expect(m.band, `${where}: the profile's band`).toBeLessThanOrEqual(80);
-    // The sections are the bar's row alone: not again in the page.
-    expect(m.pageTabs, `${where}: no sections row in the page`).toBe(false);
-    expect(m.wider, `${where}: nothing wider than the phone`).toBeLessThanOrEqual(1);
+    await expect(async () => {
+      const m = await page.evaluate(() => {
+        const h = document.querySelector<HTMLElement>("[data-testid=profile-header]")!;
+        const meta = h.querySelector<HTMLElement>("[data-testid=profile-meta]")!;
+        const oneLine = (el: Element) => {
+          const r = [...el.children].filter((c) => c.getBoundingClientRect().width > 0).map((c) => c.getBoundingClientRect());
+          return Math.max(...r.map((b) => b.top)) < Math.min(...r.map((b) => b.bottom));
+        };
+        const chips = [...h.querySelectorAll<HTMLElement>("[data-testid=social-links] li > *")];
+        const edge = meta.getBoundingClientRect().right;
+        return {
+          band: h.getBoundingClientRect().height,
+          oneLine: oneLine(meta),
+          // Nothing runs past the line's end (into the links, or cut by the band).
+          past: Math.max(meta.scrollWidth - meta.clientWidth, ...[...meta.children].map((c) => c.getBoundingClientRect().right - edge)),
+          chips: chips.length,
+          chip: Math.max(...chips.map((c) => c.getBoundingClientRect().height)),
+          touch: Math.min(...chips.map((c) => parseFloat(getComputedStyle(c, "::after").height) || 0)),
+          wider: document.documentElement.scrollWidth - innerWidth,
+        };
+      });
+      expect(m.chips, where).toBe(3);
+      expect(m.band, `${where}: the band`).toBeLessThanOrEqual(80);
+      expect(m.oneLine, `${where}: one line`).toBe(true);
+      expect(m.past, `${where}: nothing past the line's end`).toBeLessThanOrEqual(1);
+      // The links: 32px chips, each a 44px target to a finger.
+      expect(m.chip, `${where}: a link's chip`).toBeLessThanOrEqual(32.5);
+      expect(m.touch, `${where}: a link's target to a finger`).toBeGreaterThanOrEqual(44);
+      expect(m.wider, `${where}: nothing wider than the phone`).toBeLessThanOrEqual(1);
+    }).toPass({ timeout: 10_000 });
+  }
+  await done(page);
+});
+
+test("held sideways, a member's own Overview with all three links shown keeps its band at most 80px, beside the Customise chip", async ({ browser, page: admin }) => {
+  // A real member (the demo's local owner has no profile of their own): their own band adds the
+  // You badge and the round Customise chip at its end, and the band keeps the chip's room.
+  const member = await memberContext(browser, admin, undefined, { base: "Band", role: "Support" });
+  await member.page.goto("/settings");
+  const form = member.page.getByTestId("social-links-form");
+  await form.getByLabel("YouTube", { exact: true }).fill("youtube.com/@E2EBandChannel");
+  await form.getByLabel("Twitch", { exact: true }).fill("e2e_band_live");
+  await form.getByLabel("Discord", { exact: true }).fill("@E2E.Band");
+  for (const kind of ["youtube", "twitch", "discord"]) await form.getByTestId(`social-public-${kind}`).click();
+  await member.page.getByTestId("social-links-save").click();
+  await expect(member.page.getByText("Social links saved.")).toBeVisible();
+  const { defaultBrowserType: _, ...descriptor } = IPHONE_LANDSCAPE;
+  const context = await browser.newContext({ ...descriptor, storageState: await member.context.storageState() });
+  await member.context.close();
+  const page = await context.newPage();
+  for (const viewport of [{ width: 568, height: 320 }, { width: 667, height: 375 }, { width: 734, height: 343 }, { width: 852, height: 393 }]) {
+    const where = `${viewport.width} × ${viewport.height}`;
+    await page.setViewportSize(viewport);
+    await page.goto("/overview");
+    const header = page.getByTestId("profile-header");
+    await expect(header.getByTestId("social-links").locator("li"), where).toHaveCount(3);
+    await expect(header.getByTestId("customise-card"), where).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    await expect(async () => {
+      const m = await header.evaluate((h) => {
+        const meta = h.querySelector<HTMLElement>("[data-testid=profile-meta]")!;
+        const oneLine = (el: Element) => {
+          const r = [...el.children].filter((c) => c.getBoundingClientRect().width > 0).map((c) => c.getBoundingClientRect());
+          return Math.max(...r.map((b) => b.top)) < Math.min(...r.map((b) => b.bottom));
+        };
+        const chip = h.querySelector("[data-testid=customise-card]")!.getBoundingClientRect();
+        const links = h.querySelector("[data-testid=social-links]")!.getBoundingClientRect();
+        return {
+          band: h.getBoundingClientRect().height,
+          oneLine: oneLine(meta),
+          clear: chip.left - links.right,
+          wider: document.documentElement.scrollWidth - innerWidth,
+        };
+      });
+      expect(m.band, `${where}: the band`).toBeLessThanOrEqual(80);
+      expect(m.oneLine, `${where}: one line`).toBe(true);
+      expect(m.clear, `${where}: the links keep clear of Customise`).toBeGreaterThanOrEqual(0);
+      expect(m.wider, `${where}: nothing wider than the phone`).toBeLessThanOrEqual(1);
+    }).toPass({ timeout: 10_000 });
   }
   await done(page);
 });
@@ -431,12 +562,17 @@ test("with larger text the tab bar still fits the phone: the icons alone once th
   await done(admin);
 });
 
-test("with larger text the compact bar held sideways still fits the phone: labels give way to the icons, each destination still named, and the page never wider than the phone", async ({ browser, baseURL }) => {
-  // Held sideways the destinations ride in the top bar (no bottom bar): below 38rem of bar only the
-  // current one is labelled, below 27rem none (the icons alone), and past that the row scrolls inside
-  // the bar (SIDEWAYS_FIT in mobile-nav.tsx). Wider than the phone, a bar made the browser widen the
-  // area every fixed element is placed in.
+test("with larger text the compact bar held sideways still fits the phone: below 38rem of bar only the current destination is labelled, below 27rem none, each still named, and the page never wider than the phone", async ({ browser, baseURL }) => {
+  // Held sideways the destinations ride in the top bar (no bottom bar). Its row is the container its
+  // labels give way by (SIDEWAYS_FIT in mobile-nav.tsx), in rem of its width less its gutters, so
+  // the reader's text size counts: the others' labels below 38rem, the current one's below 27rem
+  // (the icons alone), and past that the row scrolls inside the bar. Wider than the phone, a bar
+  // made the browser widen the area every fixed element is placed in. The cases fall on both sides
+  // of each step: an iPhone 15 at 100% (51rem: all five labelled), an SE (34.5rem: the current
+  // alone), 734px at 135% (32rem) and 150% (28.6rem), and 20.9 to 24.6rem at 200%.
   const cases = [
+    { viewport: { width: 852, height: 393 }, root: 100 },
+    { viewport: { width: 568, height: 320 }, root: 100 },
     { viewport: { width: 734, height: 343 }, root: 135 },
     { viewport: { width: 734, height: 343 }, root: 150 },
     { viewport: { width: 734, height: 343 }, root: 200 },
@@ -447,6 +583,7 @@ test("with larger text the compact bar held sideways still fits the phone: label
   ];
   const page = await phone(browser, baseURL!, IPHONE_LANDSCAPE);
   const nav = page.getByTestId("topbar-tabs");
+  const seen = { all: false, current: false, none: false };
   for (const { viewport, root } of cases) {
     const where = `${viewport.width} × ${viewport.height} at ${root}% text`;
     await page.setViewportSize(viewport);
@@ -460,20 +597,97 @@ test("with larger text the compact bar held sideways still fits the phone: label
     await expect(async () => {
       const m = await page.evaluate(() => {
         const row = document.querySelector("[data-testid=mobile-topbar]")!.firstElementChild as HTMLElement;
-        return { width: innerWidth, page: document.documentElement.scrollWidth - innerWidth, row: row.scrollWidth - row.clientWidth };
+        const cs = getComputedStyle(row);
+        const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+        return {
+          width: innerWidth,
+          page: document.documentElement.scrollWidth - innerWidth,
+          row: row.scrollWidth - row.clientWidth,
+          content: (row.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)) / rem,
+          tabs: [...document.querySelectorAll<HTMLElement>("[data-testid=topbar-tabs] a")].map((a) => {
+            const label = a.querySelector<HTMLElement>(":scope > span > span:last-child")!;
+            const box = a.getBoundingClientRect();
+            return { current: a.getAttribute("aria-current") === "page", shown: label.getBoundingClientRect().width > 1, whole: label.scrollWidth <= label.clientWidth + 1, height: box.height, width: box.width };
+          }),
+        };
       });
       expect(m.width, `${where}: the page as wide as the phone`).toBe(viewport.width);
       expect(m.page, `${where}: nothing wider than the phone`).toBeLessThanOrEqual(1);
       expect(m.row, `${where}: the bar's row fits`).toBeLessThanOrEqual(1);
-      for (const tab of await links.all()) {
-        const box = (await tab.boundingBox())!;
-        expect(box.height, `${where}: a 44px target`).toBeGreaterThanOrEqual(43.5);
-        // Its label: whole where it shows, or left to screen readers with the icon alone.
-        const label = await tab.locator("span").last().evaluate((el) => ({ hidden: el.getBoundingClientRect().width <= 1, whole: el.scrollWidth <= el.clientWidth + 1 }));
-        expect(label.hidden || label.whole, `${where}: a label whole or left to screen readers`).toBe(true);
+      expect(m.tabs.filter((t) => t.current), `${where}: one current destination`).toHaveLength(1);
+      for (const t of m.tabs) {
+        const rule = t.current ? 27 : 38;
+        expect(t.shown, `${where}: ${t.current ? "the current" : "another"} label, the bar's row ${m.content.toFixed(1)}rem`).toBe(m.content >= rule);
+        if (t.shown) expect(t.whole, `${where}: a label shown whole`).toBe(true);
+        expect(Math.min(t.height, t.width), `${where}: a 44px target`).toBeGreaterThanOrEqual(43.5);
       }
+      if (m.content >= 38) seen.all = true;
+      else if (m.content >= 27) seen.current = true;
+      else seen.none = true;
     }).toPass({ timeout: 15_000 });
   }
+  // The cases cover each of the three steps.
+  expect(seen).toEqual({ all: true, current: true, none: true });
+  await done(page);
+});
+
+test("held sideways with the browser's text at twice its size, the current destination is kept in view in the bar's row, loaded sideways or turned to", async ({ browser, baseURL }) => {
+  // At 200% the five destinations need about 456px and the row has about 360 on an SE: it scrolls,
+  // and Profile, the last, would be out of sight. The browser's own text size, set before the page's
+  // code runs (as a reader sets it): the row lays itself out at that size from the start.
+  const inView = (page: Page) =>
+    page.evaluate(() => {
+      const list = document.querySelector<HTMLElement>("[data-testid=topbar-tabs] ul")!;
+      const box = list.getBoundingClientRect();
+      const at = list.querySelector("[aria-current=page]")!.getBoundingClientRect();
+      return { scrolls: list.scrollWidth > list.clientWidth + 1, inside: at.left >= box.left - 0.5 && at.right <= box.right + 0.5 };
+    });
+  for (const turned of [false, true]) {
+    const where = turned ? "turned to sideways" : "loaded sideways";
+    const page = await phone(browser, baseURL!, turned ? { ...SE, viewport: { width: 320, height: 568 } } : SE_LANDSCAPE);
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Page.enable");
+    await cdp.send("Page.setFontSizes", { fontSizes: { standard: 32 } });
+    await page.goto("/overview");
+    await expect(page.getByTestId("mobile-topbar")).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    // Upright the compact bar's row is not shown (the tab bar is); a turn shows it, at its width then.
+    if (turned) {
+      await expect(page.getByTestId("phone-tabbar")).toBeVisible();
+      await page.setViewportSize({ width: 568, height: 320 });
+    }
+    await expect(page.getByTestId("topbar-tabs").locator("[aria-current=page]"), where).toHaveAccessibleName("Profile");
+    await expect.poll(() => inView(page), { message: `${where}: the row scrolls, its current destination in view` }).toEqual({ scrolls: true, inside: true });
+    // Only the row scrolled, never the page.
+    expect(await page.evaluate(() => [scrollX, document.documentElement.scrollWidth - innerWidth]), where).toEqual([0, 0]);
+    await done(page);
+  }
+});
+
+test("held sideways in Admin Mode, the compact bar holds its four destinations and says the mode beside the team's mark", async ({ browser, baseURL }) => {
+  const page = await phone(browser, baseURL!, SE_LANDSCAPE, "admin");
+  await page.goto("/admin/people");
+  const nav = page.getByTestId("topbar-tabs");
+  await expect(nav.getByRole("link")).toHaveText(["Dashboard", "Users", "Settings", "Health"]);
+  await expect(nav.locator("[aria-current=page]")).toHaveAccessibleName("Users");
+  await expect(page.getByTestId("phone-tabbar")).toBeHidden();
+  // "Admin mode" beside the mark, in words, and in the link's name (the team's, then the mode).
+  const brand = page.getByTestId("mobile-brand");
+  await expect(brand).toHaveAccessibleName(/, Admin mode$/);
+  await expect(page.getByTestId("mobile-brand-mode").getByText("Admin mode", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+  // At a larger text size the words give way to the destinations, and the mode is still read out.
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "150%";
+  });
+  await expect.poll(() => page.getByTestId("mobile-brand-mode").getByText("Admin mode", { exact: true }).evaluate((el) => el.getBoundingClientRect().width), { message: "the words left to screen readers" }).toBeLessThanOrEqual(1);
+  await expect(brand).toHaveAccessibleName(/, Admin mode$/);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+  // The account screen holds the admin pages without a destination of their own.
+  await page.getByTestId("account-sheet-button").click();
+  const screen = page.getByTestId("account-sheet");
+  await expect(screen.getByRole("link", { name: "Data & Integrations" })).toBeVisible();
+  await expect(screen.getByRole("link", { name: "Audit Logs" })).toBeVisible();
   await done(page);
 });
 

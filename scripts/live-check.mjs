@@ -40,7 +40,7 @@
     the current page; the phone and tablet top bar and the phone's tab bar; the tablet's destinations
     in its top bar, one tap each, with no drawer (frames by posture); held sideways (844 × 390, in the
     phone's context: two page loads) one compact bar holding the destinations and no bottom bar, and
-    on the teammate's profile its sections under the bar, the bars at rest at most 86px and the
+    on the teammate's profile its sections under the bar, the bars at rest at most 90px and the
     profile's band at most 80px. Phone: the avatar opens the
     account screen on the first tap, made as soon as it is on screen; the screen comes to rest (its
     motion run and dropped) filling the screen exactly, nothing in it scrolls, every control in it is
@@ -510,7 +510,7 @@ async function frameChecks(page, kind, context) {
 /**
  * A phone held sideways (844 × 390), in the phone's own context (signed in already), two page loads:
  * one compact bar holding the destinations and no bottom bar, on Team and on the teammate's profile,
- * whose sections ride under the bar; the bars at rest at most 86px (44px, the sections' 40px and the
+ * whose sections ride under the bar; the bars at rest at most 90px (44px, the sections' 44px and the
  * hairline) and the profile's band at most 80px (frames by posture, docs/MOBILE.md). Sizes, counts and
  * true or false only.
  */
@@ -539,7 +539,7 @@ async function sidewaysFrame(page, log, profileId) {
   if (!profileId) return check("frame", "phone held sideways (844 × 390): a profile's sections and band", "PASS", "not applicable: no teammate's profile to open");
   if (await visit(page, log, "phone", "sideways-profile", `/players/${profileId}`, { fullPage: false })) {
     const f = await facts();
-    pass("frame", "phone held sideways (844 × 390): a profile's sections under the bar, the bars at rest at most 86px, the band at most 80px", f.navs === 1 && f.sections && !f.bottomBar && f.bars !== null && f.bars <= 86 && f.band !== null && f.band <= 80, f);
+    pass("frame", "phone held sideways (844 × 390): a profile's sections under the bar, the bars at rest at most 90px, the band at most 80px", f.navs === 1 && f.sections && !f.bottomBar && f.bars !== null && f.bars <= 90 && f.band !== null && f.band <= 80, f);
   }
 }
 

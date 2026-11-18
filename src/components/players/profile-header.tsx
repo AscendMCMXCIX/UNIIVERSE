@@ -23,11 +23,35 @@ const QUEUE_LABEL = { solo: "Solo/Duo", flex: "Flex" } as const;
 /** The Overview's picture in its band held sideways (a short window): 56px, as on a phone, beside one line of name and one of roles and rank. */
 const SHORT_PICTURE = "short:h-14 short:w-14 short:text-lg";
 
-/** "Main lineup · Top": the role the player holds in the current lineup, a status pill in the accent (one form on both headers). */
-function LineupStatus({ role, className }: { role: Role; className?: string }) {
+/**
+ * The Overview's band held sideways (a short window) keeps to one line of name and one of roles, rank
+ * and links, so it stays within 80px: the roles line is a container (`meta`), and where it is narrow
+ * the primary role shows its icon alone (below 23.5rem) and the lineup status its short form
+ * "Lineup" (below 29rem), each still read out in full. Measured on 18 Nov 2026 at 100% text against
+ * the longest line it is made to hold, the primary role "Support", two off roles (as icons),
+ * "Grandmaster · 1234 LP" and "Main lineup · Support" (10.1rem; "Lineup" 4.9rem), with the line's
+ * gaps: 27.7rem in full, 22.5rem with the short status, 19.4rem with the role's icon alone too, and
+ * below sm, where the status is not shown, 16.9rem and 13.9rem; with three links beside it the line
+ * is 16.5rem on a 568px phone and 20rem at 640px. Past that (three or four off roles on the
+ * narrowest phones) the line wraps rather than cut anything off.
+ */
+const SIDEWAYS_META = { container: "short:@container/meta", role: "short:@max-[23.5rem]/meta:sr-only", status: "short:@max-[29rem]/meta:sr-only", statusShort: "hidden short:@max-[29rem]/meta:inline" } as const;
+
+/** "Main lineup · Top": the role the player holds in the current lineup, a status pill in the accent (one form on both headers). `sideways`: in the Overview's band, "Lineup" where its line is narrow (SIDEWAYS_META). */
+function LineupStatus({ role, className, sideways = false }: { role: Role; className?: string; sideways?: boolean }) {
   return (
     <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs font-medium text-fg", className)} data-testid="lineup-status" title="Plays this role in the current team lineup">
-      <RoleIcon role={role} className="h-3.5 w-3.5 text-accent" /> Main lineup · {ROLE_LABELS[role]}
+      <RoleIcon role={role} className="h-3.5 w-3.5 text-accent" />{" "}
+      {sideways ? (
+        <>
+          <span className={SIDEWAYS_META.statusShort} aria-hidden>
+            Lineup
+          </span>
+          <span className={SIDEWAYS_META.status}>Main lineup · {ROLE_LABELS[role]}</span>
+        </>
+      ) : (
+        <>Main lineup · {ROLE_LABELS[role]}</>
+      )}
     </span>
   );
 }
@@ -135,11 +159,13 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
           picture and Customise. From sm up: the picture at the left, everything else beside it. A
           phone held sideways (a short window) has little height: the header is one band of at most
           80px, as the other sections' is (no art band above it): a 56px picture beside the name with
-          its tagline after it on one line (cut with an ellipsis, the whole in its title), then the
-          roles, the rank (its queue in the rank's title) and the links on one line, the lineup status
-          too from sm, and Customise as the round chip at the band's end. On a phone held upright the
-          art shows behind the header with no band of its own above the name (204px tall, it left the
-          first screen no figure on an SE). */}
+          its tagline after it on one line (cut with an ellipsis, the whole in its title), then one
+          line of the roles (the off roles as quiet icons, their names read out), the rank (its queue
+          in the rank's title), the lineup status from sm, and the links as 32px chips (44px targets
+          on touch screens), which narrow lines condense further (SIDEWAYS_META), and Customise as the
+          round chip at the band's end: 8 + 28 + 32 + 8px and its border, 78px at most. On a phone held
+          upright the art shows behind the header with no band of its own above the name (204px tall,
+          it left the first screen no figure on an SE). */}
       <div className={cn("relative grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 p-4 min-[23.4375rem]:max-sm:gap-y-1.5 min-[23.4375rem]:max-sm:p-3.5 sm:flex sm:min-h-40 sm:items-end sm:gap-4 sm:p-5 sm:pt-12 lg:min-h-32 lg:pt-9 short:flex short:min-h-0 short:items-center short:gap-3 short:px-3.5 short:py-2", editable && "short:pr-16")}>
         <CardAvatar look={p.look} name={p.displayName} src={p.avatarUrl} className="min-[23.4375rem]:max-sm:row-span-2 min-[23.4375rem]:max-sm:self-start short:self-center">
           {self ? <ProfileAvatarEditable name={p.displayName} src={p.avatarUrl} avatarClassName={SHORT_PICTURE} /> : <Avatar name={p.displayName} src={p.avatarUrl} size="hero" className={SHORT_PICTURE} />}
@@ -149,7 +175,10 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
               (under the picture, below a 17.5rem window, it has the chip's row to itself). Held
               sideways the band keeps the chip's room at its end instead. */}
           <div className={cn("min-w-0 max-[17.5rem]:col-span-2 short:flex short:items-baseline short:gap-2", editable && "max-sm:pr-10 max-[17.5rem]:pr-0 short:pr-0")}>
-            <CardTagline look={p.look} className="text-sm drop-shadow short:order-last short:line-clamp-1 short:min-w-0 short:flex-1 short:text-xs" />
+            {/* Upright and from sm the tagline sits above the name; held sideways after it, on the
+                name's line: a second copy there, so the reading order is the order drawn (one copy
+                is displayed at a time, so one is read). */}
+            <CardTagline look={p.look} className="text-sm drop-shadow short:hidden" />
             <div className="flex flex-wrap items-center gap-2 short:min-w-0 short:flex-nowrap">
               <h1 className="min-w-0 max-w-full text-2xl tracking-tight text-fg drop-shadow sm:text-3xl short:truncate short:text-xl">
                 <CardName look={p.look} name={p.displayName} />
@@ -158,15 +187,20 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
               {p.archived ? <Badge tone="warn">Archived</Badge> : null}
               {p.setupPending ? <SetupIncompleteBadge /> : null}
             </div>
+            {p.look.style.identity.tagline ? (
+              <span className="hidden min-w-0 flex-1 short:block" title={p.look.style.identity.tagline} data-testid="profile-band-tagline">
+                <CardTagline look={p.look} lines={1} decorative className="drop-shadow short:text-xs" />
+              </span>
+            ) : null}
           </div>
-          <div className="col-span-2 min-w-0 min-[23.4375rem]:max-sm:col-span-1 min-[23.4375rem]:max-sm:col-start-2 short:mt-0.5 short:flex short:items-center short:gap-3">
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-fg-muted sm:mt-1.5 short:mt-0 short:min-w-0 short:flex-1 short:gap-x-3 short:gap-y-0.5 short:text-xs">
+          <div className="col-span-2 min-w-0 min-[23.4375rem]:max-sm:col-span-1 min-[23.4375rem]:max-sm:col-start-2 short:flex short:items-center short:gap-3">
+            <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-fg-muted sm:mt-1.5 short:mt-0 short:min-w-0 short:flex-1 short:gap-x-2.5 short:gap-y-0.5 short:text-xs", SIDEWAYS_META.container)} data-testid="profile-meta">
               {p.primaryRole ? (
                 <span className="inline-flex items-center gap-1.5 text-fg short:gap-1">
                   <span style={{ color: "var(--card-accent)" }} className="inline-flex">
                     <RoleIcon role={p.primaryRole} className="h-4 w-4 short:h-3.5 short:w-3.5" />
                   </span>
-                  {ROLE_LABELS[p.primaryRole]}
+                  <span className={SIDEWAYS_META.role}>{ROLE_LABELS[p.primaryRole]}</span>
                 </span>
               ) : (
                 <span className="text-fg-subtle" data-testid="profile-no-role">
@@ -175,9 +209,10 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
               )}
               {p.offRoles.map((r) => (
                 <span key={r} className="inline-flex items-center gap-1.5 whitespace-nowrap short:gap-1" data-testid="additional-role">
-                  {/* On a phone "(off)" (the word "role" read out), so an off role is told from the main one in words, not by colour alone. */}
-                  <RoleIcon role={r} className="h-4 w-4 text-fg-subtle short:h-3.5 short:w-3.5" /> {ROLE_LABELS[r]}{" "}
-                  <span className="text-fg-subtle">
+                  {/* On a phone "(off)" (the word "role" read out), so an off role is told from the main one in words, not by colour alone.
+                      Held sideways a quiet icon, its name and "(off role)" read out, as on Players' rows. */}
+                  <RoleIcon role={r} className="h-4 w-4 text-fg-subtle short:h-3.5 short:w-3.5" /> <span className="short:sr-only">{ROLE_LABELS[r]}</span>{" "}
+                  <span className="text-fg-subtle short:sr-only">
                     (off<span className="max-sm:sr-only short:sr-only"> role</span>)
                   </span>
                 </span>
@@ -196,9 +231,9 @@ export function ProfileHeader({ identity: served, self, editable = false, champi
                   )}
                 </span>
               ) : null}
-              {p.lineupRole ? <LineupStatus role={p.lineupRole} className="max-sm:short:hidden" /> : null}
+              {p.lineupRole ? <LineupStatus role={p.lineupRole} className="max-sm:short:hidden" sideways /> : null}
             </div>
-            <SocialLinks links={p.social} owner={p.displayName} className="mt-2 short:mt-0 short:shrink-0" />
+            <SocialLinks links={p.social} owner={p.displayName} size="header" className="mt-2 short:mt-0 short:shrink-0" />
           </div>
         </div>
       </div>

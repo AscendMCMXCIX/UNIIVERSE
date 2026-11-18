@@ -104,7 +104,7 @@ function watchNavigations(page: Page) {
   };
 }
 
-test("tablets and desktops: the current section tab, and the sidebar's entry for the page shown, keep the page as it is and go back to the top", async ({ page }, info) => {
+test("tablets and desktops: the current section tab, and the frame's entry for the page shown (the sidebar's, a tablet's top bar's), keep the page as it is and go back to the top", async ({ page }, info) => {
   test.skip(info.project.name === "phone", "phones: the tab bar (the test above)");
   await page.emulateMedia({ reducedMotion: "reduce" });
   // Records is Leaderboards' second view, kept in the address (?view=records); the current tab's own
@@ -144,10 +144,12 @@ test("tablets and desktops: the current section tab, and the sidebar's entry for
   expect(await navigations(), "the current Matchup Intel tab fetches nothing").toEqual([]);
   await expect(page).toHaveURL(/\/resources\/matchups\?champion=Riven&vs=Mordekaiser$/);
   await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Mordekaiser");
-  if (info.project.name === "desktop") {
-    // The sidebar's entry for the page shown (Resources): the page stays as it is, back at its top.
-    // Resources fits a desktop window, so the test makes it long enough to scroll. The Library's rows
-    // ask each site for its icon; a test asks none (resources.spec.ts).
+  {
+    // The frame's entry for the page shown (Resources), the sidebar's on a desktop and the top bar's
+    // destination on a tablet: the page stays as it is, back at its top. Resources fits a desktop
+    // window, so the test makes it long enough to scroll. The Library's rows ask each site for its
+    // icon; a test asks none (resources.spec.ts).
+    const entry = page.getByTestId(info.project.name === "desktop" ? "nav-resources" : "topbar-nav-resources");
     await page.route(/\/favicon\.ico$/, (route) => route.abort());
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
@@ -160,10 +162,12 @@ test("tablets and desktops: the current section tab, and the sidebar's entry for
     });
     await expect.poll(() => scrollY(page)).toBeGreaterThan(200);
     navigations = watchNavigations(page);
-    await page.getByTestId("nav-resources").click();
+    await expect(entry).toHaveAttribute("aria-current", "page");
+    await entry.click();
     await expect.poll(() => scrollY(page)).toBe(0);
-    expect(await navigations(), "the sidebar's entry for the page shown fetches nothing").toEqual([]);
+    expect(await navigations(), `the ${info.project.name === "desktop" ? "sidebar's entry" : "top bar's destination"} for the page shown fetches nothing`).toEqual([]);
     await expect(page).toHaveURL(/\/resources$/);
+    await expect(page.getByTestId("test-length"), "the page is the one it was, not a new one").toHaveCount(1);
   }
 });
 

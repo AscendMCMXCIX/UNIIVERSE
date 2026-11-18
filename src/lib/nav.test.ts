@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, ADMIN_TABS, NAV_ENTRIES, NAV_LINKS, PAGE_WIDTH, PHONE_TABS, PHONE_TAB_LIMIT, RESOURCES, RESOURCES_SECTIONS, SECTION_HUBS, TEAM_SECTIONS, activeHref, adminSheetLinks, backSteps, canOpen, currentDestination, currentTab, encountersRedirect, entryLinks, isActivePath, pageName, pageWidthOf, phoneParent, phoneTabs, profileBase, tabletDestinations } from "./nav";
+import { ADMIN_ACCOUNT_LINKS, ADMIN_ENTRIES, ADMIN_HOME, ADMIN_LINKS, ADMIN_TABS, NAV_ENTRIES, NAV_LINKS, PAGE_WIDTH, PHONE_TABS, PHONE_TAB_LIMIT, RESOURCES, RESOURCES_SECTIONS, SECTION_HUBS, TEAM_SECTIONS, activeHref, adminSheetLinks, backSteps, canOpen, currentDestination, currentTab, encountersRedirect, entryLinks, isActivePath, pageName, pageWidthOf, phoneParent, phoneTabs, profileBase, tabletDestinations } from "./nav";
 import type { Session } from "@/server/auth/permissions";
 
 const entryId = (e: (typeof NAV_ENTRIES)[number]) => ("key" in e ? e.key : e.href);
@@ -160,9 +160,12 @@ describe("tablet top bar", () => {
     expect(tabletDestinations(["/overview", "/players", "/resources"], false).map((d) => d.href)).toEqual(["/overview", "/players", "/resources"]);
   });
 
-  it("Admin Mode: the phone's four tabs, and the pages without a tab (for the avatar menu) are Data & Integrations and Audit Logs", () => {
+  it("Admin Mode: the phone's four tabs, Platform Settings by its full name, and the pages without a tab (for the avatar menu) are Data & Integrations and Audit Logs", () => {
     const bar = tabletDestinations(adminAll, true);
     expect(bar.map((d) => d.href)).toEqual(ADMIN_TABS.map((t) => t.href));
+    // Never two "Settings" side by side: the avatar menu under the bar holds the account's own.
+    expect(bar.map((d) => d.label)).toEqual(["Dashboard", "Users", "Platform Settings", "Health"]);
+    expect(bar.map((d) => d.label)).not.toContain(ADMIN_ACCOUNT_LINKS[0]!.label);
     expect(adminSheetLinks(adminAll, bar.map((d) => d.href)).map((l) => l.label)).toEqual(["Data & Integrations", "Audit Logs"]);
     // Only what the account may open.
     expect(tabletDestinations([ADMIN_HOME, "/admin/system"], true).map((d) => d.href)).toEqual([ADMIN_HOME, "/admin/system"]);

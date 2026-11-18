@@ -265,10 +265,15 @@ export function MenuLabel({ children }: { children: React.ReactNode }) {
   return <div className="px-3 pb-1 pt-2 text-xs font-medium text-fg-subtle">{children}</div>;
 }
 
-/** Quiet lines at a menu's foot (the patch, Riot's notice): read with the menu, not a row of their own. */
-export function MenuNote({ children, testId }: { children: React.ReactNode; testId?: string }) {
+/**
+ * Quiet lines at a menu's foot (the patch, Riot's notice), with the one item they hold (a
+ * MenuInlineLink): a group of the menu, as the menu pattern allows, named by its own words
+ * (`labelledBy`, the ids of those words among `children`), so a screen reader that reaches its item
+ * by the arrow keys hears them too.
+ */
+export function MenuNote({ children, labelledBy, testId }: { children: React.ReactNode; /** The ids of the words that name the group, space-separated. */ labelledBy: string; testId?: string }) {
   return (
-    <div className="space-y-1 px-3 pb-2 pt-1.5 text-xs leading-snug text-fg-subtle" data-testid={testId}>
+    <div role="group" aria-labelledby={labelledBy} className="space-y-1 px-3 pb-2 pt-1.5 text-xs leading-snug text-fg-subtle" data-testid={testId}>
       {children}
     </div>
   );
@@ -276,14 +281,16 @@ export function MenuNote({ children, testId }: { children: React.ReactNode; test
 
 /**
  * A link inside a menu's note ("Details" in Riot's notice): an item of the menu, so the arrow keys
- * reach it, drawn as an underlined word with a finger-sized target (touch-target); it closes the
- * menu as it is followed.
+ * reach it, drawn as an underlined word with a finger-sized target (touch-target) and the shared
+ * focus ring (globals.css); it closes the menu as it is followed. `context`: words its name adds
+ * after the visible ones, so the item is named in full ("Details: Riot Games notice"; STANDARDS.md:
+ * a name starts with the words shown).
  */
-export function MenuInlineLink({ href, children }: { href: string; children: React.ReactNode }) {
+export function MenuInlineLink({ href, label, context }: { href: string; label: string; context?: string }) {
   const ctx = React.useContext(MenuContext);
   return (
-    <Link href={href} role="menuitem" tabIndex={-1} className="touch-target rounded-sm underline underline-offset-2 outline-none hover:text-fg focus-visible:text-fg focus-visible:outline-2 focus-visible:outline-accent" onClick={() => ctx?.close()}>
-      {children}
+    <Link href={href} role="menuitem" tabIndex={-1} aria-label={context ? `${label}: ${context}` : undefined} className="touch-target rounded-sm underline underline-offset-2 hover:text-fg focus-visible:text-fg" onClick={() => ctx?.close()}>
+      {label}
     </Link>
   );
 }

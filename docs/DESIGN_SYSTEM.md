@@ -162,7 +162,7 @@ globals.css). Rows inside the sidebar draw it inside their edge (`-outline-offse
 frame cannot clip it. A window opened by a tap or a click takes the focus itself, without a ring,
 so nothing in it is lit up as it opens (Safari ringed the close button, the loudest thing in the
 window); opened from the keyboard, its close button has the focus, ringed, so a keyboard user sees
-where they are (`DetailModal`, the tablet's menu; `src/components/ui/input-kind.ts`). The window
+where they are (`DetailModal`; `src/components/ui/input-kind.ts`). The window
 holds that focus only until it is pressed or the focus moves on (`focusWindow`), and a press inside
 any window on nothing focusable leaves nothing focused, so a click on its text leaves the focus as a
 page does and the keys still scroll its body (`letGoWhenPressed`): Chromium and WebKit focus a
@@ -260,16 +260,20 @@ decision of 8 Nov 2026, PR 2d), and exactly one `nav[aria-label=Primary]` is sho
 - **A phone held upright** (below `md`, taller than 480px): the top bar, the five-tab bar and the
   account screen (MOBILE.md).
 - **A phone held sideways** (480px tall or less, below `lg`, whatever its width): one compact bar,
-  44px plus the inset, with Back or the team's mark, the phone's destinations (only the current one
-  labelled where the bar is narrower than 38rem), the title where room is left, Filters and the
-  avatar (the account screen); a profile's sections as its 40px second row; no bottom bar. It slides
-  away while reading.
+  44px plus the inset, with Back or the team's mark (in Admin Mode "Admin mode" beside it, in the
+  accent, and in the mark's name), the phone's destinations (only the current one labelled where the
+  bar is narrower than 38rem), the title where room is left, Filters and the avatar (the account
+  screen); a profile's sections as its 44px second row; no bottom bar. It slides away while reading.
+  The current destination is marked as the upright tab bar marks it, its icon in an accent pill and
+  its label shown and in `fg` (`aria-current`), so a turn of the phone keeps the same signal.
 - **A tablet** (`md` to `lg`, taller than 480px): the destinations in the top bar, one tap each (Player
-  Mode: My Profile, Team, Resources; Admin Mode: its four tabs), marked as the sidebar marks the
-  current page (a neutral lift with a hairline of light, the icon in `accent`, the name in `fg`); the
-  section tabs pinned in the page; the avatar menu (`AccountMenu`) with what the sidebar's footer
-  holds on a desktop: Settings, Install App, the switch between the modes above Sign out, the patch
-  and Riot's notice (and Admin Mode's Data & Integrations and Audit Logs). There is no drawer.
+  Mode: My Profile, Team, Resources; Admin Mode: its four tabs, Platform Settings by its full name,
+  since the avatar menu holds the account's Settings), the current one marked with the sidebar's
+  four signals (a neutral lift with a hairline of light, the brand gradient as a short bar at its
+  foot, the icon in `accent`, the name in `fg`); the section tabs pinned in the page; the avatar menu
+  (`AccountMenu`) with what the sidebar's footer holds on a desktop: Settings, Install App, the
+  switch between the modes above Sign out, the patch and Riot's notice (and Admin Mode's Data &
+  Integrations and Audit Logs). There is no drawer.
 
 They pick up the `chrome` ink automatically. On the account screen the mode switch is a row like the
 others, above Sign out in a panel of their own, and in the avatar menu an item above Sign out; each
@@ -355,7 +359,7 @@ test):
   destinations), at any width. A page under a tab (a teammate's profile under Players) still goes to
   the tab's page. The current section tab (Team's on tablets and desktops,
   Resources', Platform Settings' and a profile's everywhere, the phone's in the top bar included)
-  and the sidebar's entry for the page shown do the same, and keep the page as it is: its view and
+  and the frame's entry for the page shown (the sidebar's, a tablet's top bar's) do the same, and keep the page as it is: its view and
   filters stay (the link's own address leaves the query out, and following it used to bring back
   the defaults, Records back to Recent form). A click with a modifier key or another button still opens a new tab or window, and leaves
   this page alone (`src/lib/back-to-top.ts`; `e2e/navigation-landings.spec.ts`).

@@ -54,6 +54,7 @@ export interface AccountMenuExtras {
 export function AccountMenu({ user, showSignOut, variant = "sidebar", adminMode = false, extras = null }: { user: AccountMenuUser; showSignOut: boolean; variant?: "sidebar" | "topbar"; /** Admin Mode: Settings without leaving it. */ adminMode?: boolean; /** A tablet's menu: the frame's other items (see above). */ extras?: AccountMenuExtras | null }) {
   const links = adminMode ? ADMIN_ACCOUNT_LINKS : ACCOUNT_LINKS;
   const pathname = usePathname();
+  const notesId = React.useId();
   // The page's code runs now: a tap on either trigger made before it (the sidebar's tile, the
   // tablet's avatar) is passed on to the trigger tapped, once, which opens the menu.
   React.useEffect(() => releaseEarlyTaps("account"), []);
@@ -115,10 +116,12 @@ export function AccountMenu({ user, showSignOut, variant = "sidebar", adminMode 
       {extras ? (
         <>
           <MenuSeparator />
-          <MenuNote testId="account-menu-notes">
-            {extras.status}
+          {/* A group named by its own words (the patch and the notice), holding the notice's one item. */}
+          <MenuNote labelledBy={`${notesId}-patch ${notesId}-notice`} testId="account-menu-notes">
+            <div id={`${notesId}-patch`}>{extras.status}</div>
             <p title={extras.legal.title}>
-              Not endorsed by Riot Games. <MenuInlineLink href={extras.legal.href}>Details</MenuInlineLink>
+              <span id={`${notesId}-notice`}>Not endorsed by Riot Games.</span>{" "}
+              <MenuInlineLink href={extras.legal.href} label="Details" context="Riot Games notice" />
             </p>
           </MenuNote>
         </>

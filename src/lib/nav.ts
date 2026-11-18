@@ -378,6 +378,12 @@ export function adminSheetLinks(allowed: readonly string[], tabHrefs: readonly s
 export const ADMIN_ACCOUNT_LINKS: NavLink[] = [{ href: "/admin/settings", label: "Settings", icon: Settings }];
 
 /**
+ * Admin Mode's tab names in a tablet's top bar where the phone's short one would be ambiguous: there
+ * the avatar menu, opened under the bar, shows the account's own "Settings" beside it.
+ */
+const TABLET_ADMIN_LABELS: Record<string, string> = { "/admin/branding": "Platform Settings" };
+
+/**
  * A destination in a tablet's top bar (md to lg, in a window taller than 480px): `pages` are every
  * page it stands for, each of which marks it as the current one.
  */
@@ -394,13 +400,14 @@ export interface BarDestination {
  *   Player Mode   the sidebar's entries, My Profile, Team and Resources, each to the first page of it
  *                 this account may open, under the entry's name, marked on all of its pages (Team's
  *                 sections stay the pinned tabs in the page);
- *   Admin Mode    the phone's four tabs (ADMIN_TABS); the admin pages without a tab (Data &
- *                 Integrations, Audit Logs) are in the avatar menu (adminSheetLinks).
+ *   Admin Mode    the phone's four tabs (ADMIN_TABS), Platform Settings by its full name (the avatar
+ *                 menu, open under the bar, holds the account's own Settings); the admin pages without
+ *                 a tab (Data & Integrations, Audit Logs) are in the avatar menu (adminSheetLinks).
  * A phone held sideways (a short window below lg) keeps the phone's destinations (PHONE_TABS) in its
  * one compact bar instead.
  */
 export function tabletDestinations(allowed: readonly string[], admin: boolean): BarDestination[] {
-  if (admin) return ADMIN_TABS.filter((t) => allowed.includes(t.href)).map((t) => ({ ...t, pages: [t.href] }));
+  if (admin) return ADMIN_TABS.filter((t) => allowed.includes(t.href)).map((t) => ({ ...t, label: TABLET_ADMIN_LABELS[t.href] ?? t.label, pages: [t.href] }));
   return NAV_ENTRIES.flatMap((entry): BarDestination[] => {
     const pages = entryLinks(entry)
       .filter((l) => allowed.includes(l.href))
