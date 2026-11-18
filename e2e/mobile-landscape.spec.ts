@@ -226,7 +226,7 @@ test("tab rows too wide for the screen fade only where more is hidden, and keep 
 test("held sideways at a tablet's width, a long page still goes back to the top from its title in the top bar", async ({ browser, baseURL }) => {
   // From md the frame is the tablet's (the menu button, no tab bar), and in a window this short the
   // section tabs do not pin, so nothing else leads back up a long page (a Pixel 7 held sideways is
-  // 863 × 360; Records needs about six screens to reach its controls).
+  // 863 × 360; Records is about five screens long there).
   for (const viewport of [{ width: 863, height: 360 }, { width: 852, height: 393 }]) {
     const page = await phone(browser, baseURL!, { ...IPHONE_LANDSCAPE, viewport });
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -325,8 +325,8 @@ test("with larger text the tab bar still fits the phone: the icons alone once th
   // Admin Mode's four labels need less room (14.6rem under their icons): at 150% on a 393px phone
   // (a 16.4rem bar) they still show, where Player Mode's five give way to the icons.
   const admin = await phone(browser, baseURL!, { ...IPHONE, viewport: { width: 393, height: 659 } }, "admin");
-  // Platform settings fits a 393px phone at 150% text (the dashboard's health cards do not yet:
-  // STATUS.md, Deferred), so the bar is measured alone.
+  // Measured on Settings, which fits a 393px phone at 150% text (as every Admin Mode page has since
+  // 18 Nov 2026: e2e/phone-wraps.spec.ts), so the bar is measured alone.
   await admin.goto("/admin/settings");
   await admin.evaluate(() => {
     document.documentElement.style.fontSize = "150%";

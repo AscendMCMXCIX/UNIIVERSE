@@ -81,6 +81,22 @@ test("every filter bar folds on phones and lines up on wide screens", async ({ p
   await checkBar(page, page.getByTestId("together-filters"), "together-filters-toggle");
 });
 
+test("Team Matches' Bookmarked ends the filter row at the controls' height: 36px with a mouse, 44px on a touch screen", async ({ page }) => {
+  await page.goto("/matches");
+  const phone = (page.viewportSize()?.width ?? 0) < 768;
+  // On a phone beside the folded Filters button (the bar's own end); from md after the inline filters.
+  const saved = page.getByTestId(phone ? "together-saved-phone" : "together-saved");
+  await expect(saved).toBeVisible();
+  const coarse = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
+  expect(Math.round((await saved.boundingBox())!.height)).toBe(coarse ? 44 : 36);
+  const control = page.getByTestId(phone ? "together-filters-toggle" : "together-queue");
+  const [s, c] = [(await saved.boundingBox())!, (await control.boundingBox())!];
+  expect(Math.abs(s.y + s.height / 2 - (c.y + c.height / 2)), "on the filter row's line").toBeLessThanOrEqual(2);
+  expect(s.x, "after the filters").toBeGreaterThan(c.x + c.width);
+  await expect(page.getByTestId(phone ? "together-saved" : "together-saved-phone")).toBeHidden();
+  await noHorizontalOverflow(page);
+});
+
 test("Reset appears only when something is narrowed and puts every filter back", async ({ page }, info) => {
   test.skip(info.project.name === "tablet", "runs on phone and desktop");
   // Team → Matches: the game mode and the team members in the game are filters with defaults.
@@ -121,7 +137,8 @@ test("Refine looks and counts the same in a champion's window as in the profile'
   await page.goto(`${profile}/champions`);
   const win = page.getByTestId("champion-detail");
   const open = page.getByTestId("top-champion").first().getByTestId("open-champion");
-  const refine = page.getByTestId("champion-detail-refine");
+  // The window draws one Refine: beside its scope from sm, at the end of its tabs' row on a phone.
+  const refine = page.getByTestId("champion-detail-refine").filter({ visible: true });
   // A click before hydration does nothing, and the window's content settles after it opens: click
   // again until the window shows its Refine button, then measure it there.
   await expect(async () => {

@@ -176,7 +176,10 @@ leaving a frame to fill.
     arrow beside the heading, clear of the heading before it), and the name column takes the rest,
     so figures stay together on a wide screen. The name column never gets less than the name and the
     line under it need, each on one line (a role and "In pool"), so every row keeps one height at
-    the table's narrowest. On phones the rows become compact pairs;
+    the table's narrowest. Where the table is wide enough for all its columns, the figures sit in
+    groups, as they are read (All Champions from a 76rem list: the record, the play, the four
+    multikills, mastery), with a clearly larger space before each group's first heading than inside
+    a group. On phones the rows become compact pairs;
   - a list of games is one card per game, and a game opens under its card;
   - a dashboard's cards are as large as their content.
 
@@ -185,13 +188,19 @@ that never wrap (`label-caps`, `whitespace-nowrap`; the sort arrow sits outside 
 text, so a heading keeps its place when it is sorted). The sorted column is marked by its arrow and
 by its figures in the main text weight; no gradient, glow or bar behind a figure unless the bar is
 the figure itself: Recent form's record as 20 neutral segments, wins first (`QuietBar`), in the
-text's own grey, never a state colour. Win rates take their colour only from `winRateTone`
+text's own grey, never a state colour, and All Champions' share of the games, one continuous
+`QuietBar` under each champion's games (its games over every game in the filters, said by a key
+in the table's toolbar, and in words in the cell's title and to screen readers; a share is never
+written "0%" or "100%" when it is neither). Win rates take their colour only from `winRateTone`
 (`src/domain/stats/win-rate.ts`), except on Recent form, which stays neutral; below the minimum
 games they stay grey and say "small sample", and a sort by win rate ranks established records
 before small samples. A ranking gives equal values the same place, written "2=" (titled and read
 out "Tied for 2nd"), and the tied rows are joined by a bracket in the place column. On phones a
 table becomes compact rows: the one or two figures that matter most at the right, the others as
-labelled pairs underneath (`dl`) or one line under the name, every figure still there.
+labelled pairs underneath (`dl`) or one line under the name, every figure still there; the pair
+the list is sorted by comes first, in semibold. With a large text size, where the row's list is
+narrower than 17rem, the figures at the right go under the name instead, so no name is squeezed
+out.
 
 **Windows.** A detail window (`DetailModal`) is as tall as its content, up to the screen: no
 empty band under a short window. Its header holds who or what it is about and the actions that
@@ -237,14 +246,15 @@ Use the shared component before writing a new one (`src/components/ui`):
 | A section of Riot data's heading: title, scope line and status, a toolbar of filters ending in Refresh | `SectionHeader` |
 | A button in a toolbar beside the filters (Refine, Refresh) | `toolbarButtonClass` (`filter-bar.tsx`) |
 | A player's identity on a card (picture and links, name, rank and labels, tagline) | `CardIdentity` (`players/player-card.tsx`) inside a `@container/card` |
-| A member's name in a list row (Players, Leaderboards) | `CardAvatar` and `CardName` (`players/card-look.tsx`) under the card's colour variables (`cardColourVars` on the row), so the saved name style, emblem and avatar frame follow the member off their card; `CardTagline lines={1}` where a row has room for the tagline. No frame or effect on a row; Players' rows may carry a faint strip of the member's art (below) |
+| A member's name in a list row (Players, Leaderboards) | `CardAvatar` and `CardName` (`players/card-look.tsx`) under the card's colour variables (`cardColourVars` on the row), so the saved name style, emblem and avatar frame follow the member off their card; `CardTagline lines={1}` where a row has room for the tagline. No frame or effect on a row; Players' rows may carry a faint strip of the member's art (below). One exception: on a phone (under a 36rem book) Records' book shows a record's holder by name alone (`CardName`, in their colours), the row's picture being the champion's (`MemberCell`'s `avatarClassName`) |
 | A player on Players (one row of the roster, every width) | `RosterRow` (`players/roster-row.tsx`) in the roster's one panel: picture, name and status, then role, rank and the pool counted to fit (`PoolPreview fit="count" size="xs"`); one link over the row, the social icons (`CardSocialIcons size="row"`) above it; what shows follows the row's own width (`@container/row`). From tablets up, `RowArtStrip` (`players/card-art.tsx`): the player's banner or skin tile at 20% opacity, at rest and while pointed at, behind the picture and name only, faded out by 60% of its width so the rank and pool never sit on art; never on phones |
 | A champion pool's rows (first choice marked, win rate, games, KDA, CS) | `PoolChampionTile` under `PoolColumnNames` (`players/player-card.tsx`) |
-| A ranked list or board of rows (Recent form) | `DataList` (`ui/data-list.tsx`): one surface (`surface="lead"` for the card a page leads with), the column template per tier as `--dl-cols`, headings (`DataHead`, aria-hidden) and groups (`DataGroup`, with a caption) split by one hairline each. The board's own width picks each row's layout (`@container/list`: under 36rem, from 36rem, from 58rem), so a fact is one element placed per tier, never a phone copy and a column copy |
+| A ranked list or board of rows (Recent form; Records' book, multikills and milestones) | `DataList` (`ui/data-list.tsx`): one surface (`surface="lead"` for the card a page leads with), the column template per tier as `--dl-cols`, a title row when the board names itself (`title`: Records' boards, its heading and an ⓘ or a note), headings (`DataHead`, aria-hidden) and groups (`DataGroup`, with a caption) split by one hairline each. The board's own width picks each row's layout (`@container/list`: under 36rem, from 36rem, from 58rem, and any width a board needs, such as Records' 16rem and 21rem), so a fact is one element placed per tier, never a phone copy and a column copy |
 | One row of a `DataList` | `DataRow`: its cells in reading order (place, link, member, figures), its height per tier (`density`: 48, 52 or 64px), your own row's wash and bar, and the hover and pressed states only when it links. One `RowLink` per row covers it (a whole-row target at every width, named by the member's name); a control that must keep its own press sits above it with `ROW_CONTROL`. The row's explanations go in its RowLink's `hint`, an aria-hidden layer over the link that carries the title: a title on the li becomes the list item's accessible name, and one on the link its description |
+| A long page's own sections, on a phone | `SectionIndex` (`ui/section-index.tsx`): a line of in-page links under the page's scope ("Season records · Multikills · Milestones"); each jump brings its section under the bars and focuses it, an entry the phone's Back steps past (`jumpToAnchor`, which Matchup Intel's chips share). Quiet text, never a view switch (`SubTabs`) or a filter. Settings keeps its index in its account card, drawn as chips on a phone and in a window 480px tall or less (`chipClass`: the approved plan's look there, in-page links all the same) and as a list from md in a taller window, the section being read marked: the optional `spy`, `listClassName`, `linkClassName` and `separatorClassName` |
 | A place in a ranking | `Place`: "4=" said and titled "Tied for 4th", with a bracket segment per row (`tieRuns` from the ranking's places); the crown on first place; "–" said "Provisional" without a place |
 | A figure in a row, and a member in a row | `FigureCell` (tabular, never cut, its own words for screen readers: "13 wins, 7 losses"); `MemberCell` (`CardAvatar` and `CardName` in the member's colours, "You"; the name hidden from screen readers when the row's link says it) |
-| A bar that is the figure itself (Recent form's record) | `QuietBar` (`ui/quiet-bar.tsx`): a count in segments (wins first; a window's missing games outlined) or a continuous share, in neutral `fg` overlays; the inset 2px line at a row's foot on narrow boards; no motion on first paint |
+| A bar that is the figure itself (Recent form's record, All Champions' share of the games) | `QuietBar` (`ui/quiet-bar.tsx`): a count in segments (wins first; a window's missing games outlined) or a continuous share, in neutral `fg` overlays; the inset 2px line at a row's foot on narrow boards; no motion on first paint |
 | Both teams of a game | `TeamComposition` (`match-history/team-composition.tsx`); `keepNames` where the line-ups are what the card is for (Team → Matches), so phones keep the names too |
 | Two players' relationship in recorded games (against, alongside) | `RelationTag` (`match-history/encounters-view.tsx`): the word with the side's colour |
 | Bookmarking a game from a dense card | `BookmarkButton` with `iconOnly` (a 44px target on touch screens, its label kept for screen readers) |

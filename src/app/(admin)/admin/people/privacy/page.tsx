@@ -46,10 +46,10 @@ export default async function AdminPrivacyPage() {
 
       <section className="space-y-2">
         <h2 className="text-base font-semibold">Erasure records</h2>
-        <p className="text-sm text-fg-muted">
+        <p className="text-sm text-fg-muted [overflow-wrap:anywhere]">
           Each erasure leaves a reference and keyed codes, never a name, Riot ID or account id. They keep the person out of games synced later and stop their Riot accounts being linked again by accident. They depend on the server secret UNIIVERSE_AUTH_SECRET: replacing it makes them unusable.
         </p>
-        <p className="text-sm text-fg-muted">
+        <p className="text-sm text-fg-muted [overflow-wrap:anywhere]">
           Backups made before an erasure still hold the person&apos;s data until they expire ({BACKUP_RETENTION_DAYS} days), and offline copies until whoever holds them deletes them. Export the records after each erasure and keep the file with the offline backups. If a backup is ever restored, import the newest records file and re-apply them before the app is used again (docs/BACKUPS.md).
         </p>
         <ErasureRecords records={records} />

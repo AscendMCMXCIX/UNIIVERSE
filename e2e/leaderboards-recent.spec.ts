@@ -8,7 +8,10 @@ import { expect, test, type Page } from "./test";
   Riot data: every demo member has a full 20-game window, three of them share fourth place, and two
   members have too few recent games. The board's layout follows its own width (DataList's tiers:
   under 36rem, from 36rem, from 58rem); the states the demo never shows (a provisional window, your
-  own row, a shared first place) are checked as markup in recent-leaderboards.test.ts.
+  own row, a shared first place) are checked as markup in recent-leaderboards.test.ts. Records'
+  boards follow the view's own width (under 36rem one column with an index of its sections, from
+  62rem the book beside the multikills, from 98rem three columns); what the demo never shows there
+  (the viewer's best, a record nobody holds, the public boards) is markup in records.test.ts.
 */
 
 const BOARDS = "/leaderboards";
@@ -346,24 +349,53 @@ test("while it loads, the page shows the board's shape at the page's own width",
   expect(Math.abs(skeleton.x - board.x)).toBeLessThanOrEqual(1);
 });
 
-test("Records & achievements: season records open their game, multikills rarest first, milestones", async ({ page }) => {
+/** Opens Records & achievements from Recent form's tab, as a member does. */
+async function openRecords(page: Page) {
   await open(page, BOARDS);
   await page.getByTestId("leaderboards-tab-records").click();
   await expect(page).toHaveURL(/\/leaderboards\?view=records/);
+  await expect(page.getByTestId("records")).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+}
+
+/** The record book's inner width in rem (what its rows' tiers measure). */
+const bookRem = (page: Page) => page.getByTestId("records-book").evaluate((b) => b.clientWidth / parseFloat(getComputedStyle(document.documentElement).fontSize));
+
+test("Records & achievements: seven records in one book, each opening its game; multikills rarest first; milestones", async ({ page }) => {
+  await openRecords(page);
   await expect(page.getByTestId("records-volume-note")).toContainText("reward playing more");
+  // One lead card holding the seven records, its definitions behind one ⓘ in its title.
+  const book = page.getByTestId("records-book");
+  await expect(book.getByTestId("season-record")).toHaveCount(7);
   await expect(page.getByTestId("season-record")).toHaveCount(7);
-  // A record set on a champion leads with that champion's portrait, beside the figure, at the size of a pool row's.
-  const portrait = page.locator("[data-testid=season-record][data-record=kills] img, [data-testid=season-record][data-record=kills] [role=img]").first();
+  await expect(book).toHaveClass(/surface-lead/);
+  const definitions = book.getByTestId("records-definitions");
+  await expect(definitions).toHaveAccessibleName("How these records count");
+  await expect(definitions).toHaveAccessibleDescription(/Damage to champions, in a game of 15 minutes or more\..*A tie goes to whoever set it first\./);
+  // Each record's qualifier on its row.
+  await expect(book.locator("[data-record=damage-per-minute] [data-testid=record-qualifier]")).toContainText("to champions · 15+ min games");
+  await expect(book.locator("[data-record=cs-per-minute] [data-testid=record-qualifier]")).toContainText("15+ min games");
+  await expect(book.locator("[data-record=kda] [data-testid=record-qualifier]")).toContainText("10+ takedowns");
+  await expect(book.locator("[data-record=win-streak] [data-testid=record-qualifier]")).toContainText("in game order");
+  // A record set on a champion leads with that champion's portrait, at least 44px.
+  const portrait = page.locator("[data-testid=season-record][data-record=kills] [data-testid=record-picture]").locator("img, [role=img]").first();
   await expect(portrait).toBeVisible();
   expect((await portrait.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  // From a 36rem book every row is two lines beside its 48px picture (the record and its qualifier
+  // over the holder, champion, role, K/D/A and date): 64px where each fits its line. On a book under
+  // about 37.7rem (39.9rem with a member's best) the damage record's qualifier takes a line of its
+  // own (about 78px there), so at most 72px holds from a 40rem book: this runs at the 768 and 1440
+  // books (44.9 and 44.4rem).
+  if ((await bookRem(page)) >= 40) {
+    for (const h of await book.getByTestId("season-record").evaluateAll((rows) => rows.map((r) => r.getBoundingClientRect().height))) expect(h, "a record row from a 40rem book").toBeLessThanOrEqual(72);
+  }
   const multis = await page.getByTestId("multikill-row").evaluateAll((els) => els.map((e) => ["data-penta", "data-quadra", "data-triple"].map((k) => Number(e.getAttribute(k)))));
   expect(multis.length).toBeGreaterThan(0);
   const key = (m: number[]) => m[0]! * 1e6 + m[1]! * 1e3 + m[2]!;
   for (let i = 1; i < multis.length; i++) expect(key(multis[i]!)).toBeLessThanOrEqual(key(multis[i - 1]!));
   await expect(page.getByTestId("milestones-mastery").getByTestId("milestone-member").first()).toBeVisible();
-  // A member's name on the multikills table keeps a line's room at every width: whole words, at most
-  // two lines, never a letter a line (on phones the member takes the row's first line, the figures the second).
-  await page.evaluate(() => document.fonts.ready);
+  // A member's name on the multikills keeps a line's room at every width: whole words, at most two
+  // lines, never a letter a line.
   const names = await page.getByTestId("multikill-row").evaluateAll((rows) =>
     rows.map((row) => {
       const name = row.querySelector<HTMLElement>("[data-testid=card-name]")!;
@@ -380,12 +412,113 @@ test("Records & achievements: season records open their game, multikills rarest 
     expect(n.inside, `${n.name}: inside its row`).toBe(true);
     expect(n.cut, `${n.name}: whole`).toBe(false);
   }
+  // The milestones' figures as format.ts shortens them (486K), the rest of a member's counted.
+  await expect(page.getByTestId("milestones-mastery").getByTestId("milestone-figure").first()).toHaveText(/^\d+(\.\d)?[KM]$/);
+  await expect(page.getByTestId("milestones-mastery").getByTestId("milestone-more").first()).toHaveText(/^\+\d+ more/);
   await noOverflow(page);
   await axe(page, "[data-testid=records]");
-  // A record opens its game in the holder's Match History (under its card, or in the match window).
+  // The whole row opens its game in the holder's Match History (under its card, or in the match window).
   const kills = page.locator('[data-testid=season-record][data-record="kills"]');
-  await expect(kills).toHaveAttribute("href", /^\/players\/[^/]+\/matches\?match=/);
-  await kills.click();
+  await expect(kills.locator("[data-row-link]")).toHaveAttribute("href", /^\/players\/[^/]+\/matches\?match=/);
+  // A click on the row's figure, not on its words: the link covers the whole row (no link is drawn there).
+  const value = (await kills.getByTestId("record-value").boundingBox())!;
+  await page.mouse.click(value.x + value.width / 2, value.y + value.height / 2);
   await expect(page).toHaveURL(/\/players\/[^/]+\/matches\?match=/);
   await expect(page.locator("[data-testid=match-detail], [data-testid=match-breakdown]").first()).toBeVisible();
+});
+
+test("Records at 1440: the book beside the multikills, every record and multikill on the first screen; from 98rem three columns on one screen", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "explicit window sizes");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openRecords(page);
+  const facts = () =>
+    page.evaluate(() => {
+      const box = (id: string) => document.querySelector(`[data-testid=${id}]`)!.getBoundingClientRect();
+      const bottoms = (id: string) => [...document.querySelectorAll(`[data-testid=${id}]`)].map((e) => e.getBoundingClientRect().bottom);
+      return { book: box("records-book").toJSON(), multikills: box("records-multikills").toJSON(), milestones: box("records-milestones").toJSON(), records: bottoms("season-record"), multis: bottoms("multikill-row"), rows: [...document.querySelectorAll("[data-testid=season-record]")].map((r) => r.getBoundingClientRect().height), height: document.documentElement.scrollHeight, window: innerHeight };
+    });
+  const f = await facts();
+  // Side by side, top-aligned, the milestones under both.
+  expect(Math.abs(f.book.top - f.multikills.top), "the book beside the multikills").toBeLessThanOrEqual(1);
+  expect(f.multikills.left).toBeGreaterThan(f.book.right);
+  expect(f.milestones.top).toBeGreaterThanOrEqual(f.book.bottom);
+  expect(f.milestones.width, "the milestones full width under both").toBeGreaterThanOrEqual(f.multikills.right - f.book.left - 1);
+  // All seven records and every multikill on the first screen, each record row at most 72px.
+  expect(f.records).toHaveLength(7);
+  for (const b of [...f.records, ...f.multis]) expect(b, "on the first screen").toBeLessThanOrEqual(f.window);
+  for (const h of f.rows) expect(h, "a record row").toBeLessThanOrEqual(72);
+  // A short board never stretches beside a tall one.
+  expect(f.multikills.height).toBeLessThan(f.book.height);
+  // From 98rem (2560 and 3440 wide): book, multikills and milestones side by side, the page on one screen.
+  for (const width of [2560, 3440]) {
+    await page.setViewportSize({ width, height: 1440 });
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    const w = await facts();
+    expect(Math.abs(w.milestones.top - w.book.top), `${width}px: the milestones beside the multikills`).toBeLessThanOrEqual(1);
+    expect(w.milestones.left, `${width}px`).toBeGreaterThan(w.multikills.right);
+    expect(w.height, `${width}px: one screen`).toBeLessThanOrEqual(w.window + 1);
+    await noOverflow(page);
+  }
+});
+
+test("Records on a phone: three-line records, an index that jumps to each section under the top bar, chips without names, one line per member's multikills", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "the phone's column");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openRecords(page);
+  expect(await bookRem(page), "a phone's book is under 36rem").toBeLessThan(36);
+  // The volume note in one sentence: the pointer to Recent form is read out, not shown.
+  const second = page.getByTestId("records-volume-note").getByText("How members are doing lately is on Recent form.");
+  expect((await second.boundingBox())?.width ?? 0).toBeLessThanOrEqual(1);
+  // Each record: its words over the holder (the figure at that line's end) over the game, the picture beside them.
+  const kills = page.locator("[data-testid=season-record][data-record=kills]");
+  const [title, holder, game, value] = await Promise.all(["record-title", "record-holder", "record-context", "record-value"].map((id) => kills.getByTestId(id).boundingBox()));
+  expect(holder!.y, "the holder under the record").toBeGreaterThanOrEqual(title!.y + title!.height - 1);
+  expect(game!.y, "the game under the holder").toBeGreaterThanOrEqual(holder!.y + holder!.height - 1);
+  expect(Math.abs(value!.y + value!.height / 2 - (holder!.y + holder!.height / 2)), "the value on the holder's line").toBeLessThanOrEqual(4);
+  // Every row: three lines, at most 96px; a qualifier that starts a line of its own (the demo's damage
+  // record at 375px) adds one, at most 112px.
+  const rows = await page.getByTestId("season-record").evaluateAll((els) =>
+    els.map((row) => {
+      const label = row.querySelector("[data-testid=record-label]")!.getBoundingClientRect();
+      const qualifier = row.querySelector("[data-testid=record-qualifier]")?.getBoundingClientRect() ?? null;
+      return { id: row.getAttribute("data-record"), height: row.getBoundingClientRect().height, ownLine: !!qualifier && qualifier.top >= label.bottom - 2 };
+    }),
+  );
+  expect(rows).toHaveLength(7);
+  for (const r of rows) expect(r.height, `${r.id}: ${r.ownLine ? "its qualifier on a line of its own" : "three lines"}`).toBeLessThanOrEqual(r.ownLine ? 112 : 96);
+  // The index: the page's three sections, each jump an entry of the page's own, the section under the top bar and focused.
+  const index = page.getByTestId("section-index");
+  await expect(index.getByRole("link")).toHaveText(["Season records", "Multikills", "Milestones"]);
+  for (const [name, id] of [["Milestones", "milestones"], ["Multikills", "multikills"]] as const) {
+    // Chromium has the Navigation API, so each jump pushes an entry (the phone's Back steps past it).
+    const entries = await page.evaluate(() => history.length);
+    await index.getByRole("link", { name }).tap();
+    await expect(page).toHaveURL(new RegExp(`/leaderboards\\?view=records#${id}$`));
+    await expect.poll(() => page.evaluate(() => history.length), { message: `${name}: an entry of the page's own` }).toBe(entries + 1);
+    const section = page.locator(`section#${id}`);
+    await expect(section).toBeFocused();
+    const bar = (await page.getByTestId("mobile-topbar").boundingBox())!;
+    await expect.poll(async () => (await section.boundingBox())!.y, { message: `${name}: under the top bar` }).toBeGreaterThanOrEqual(bar.y + bar.height - 1);
+    expect((await section.boundingBox())!.y, `${name}: just under it`).toBeLessThanOrEqual(bar.y + bar.height + 24);
+  }
+  // Milestone chips: the champion's portrait and the figure, its name for screen readers only (D6).
+  const chip = page.getByTestId("milestones-mastery").getByTestId("milestone").first();
+  expect((await chip.getByTestId("milestone-champion").boundingBox())?.width ?? 0).toBeLessThanOrEqual(1);
+  await expect(chip.getByTestId("milestone-figure")).toBeVisible();
+  // The chips on one line under the member's name.
+  const chipTops = await page.getByTestId("milestones-mastery").getByTestId("milestone-member").first().locator("[data-testid=milestone], [data-testid=milestone-more]").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().top + e.getBoundingClientRect().height / 2));
+  expect(Math.max(...chipTops) - Math.min(...chipTops), "one line of chips").toBeLessThanOrEqual(4);
+  // From a 21rem list each member's multikills are one line: the counts beside the name, under their headings.
+  const listRem = await page.getByTestId("records-multikills").evaluate((b) => b.clientWidth / parseFloat(getComputedStyle(document.documentElement).fontSize));
+  expect(listRem).toBeGreaterThanOrEqual(21);
+  await expect(page.getByTestId("records-multikills").locator("[aria-hidden=true].grid")).toBeVisible();
+  for (const row of (await page.getByTestId("multikill-row").all()).slice(0, 3)) {
+    const name = (await row.getByTestId("board-member-name").boundingBox())!;
+    for (const count of await row.getByTestId("multikill-count").all()) {
+      const c = (await count.boundingBox())!;
+      expect(c.y + c.height / 2, "a count beside the name").toBeGreaterThanOrEqual(name.y - 1);
+      expect(c.y + c.height / 2).toBeLessThanOrEqual(name.y + name.height + 1);
+    }
+  }
+  await noOverflow(page);
 });

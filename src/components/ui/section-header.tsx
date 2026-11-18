@@ -12,16 +12,21 @@ import { cn } from "@/lib/cn";
     wide     the toolbar beside the title, at the right edge; the scope line under the title.
   A section with views of equal weight (Match History: Games and Encounters) shows their secondary
   tabs (`nav`, ui/sub-tabs) in the title's place: the title stays the section's heading for screen
-  readers, and is not repeated on screen under the primary tab that already names it.
+  readers, and is not repeated on screen under the primary tab that already names it. A section
+  whose title only repeats that tab (All Champions) can leave it to screen readers on a phone held
+  either way (`titleOnPhones="tab"`: below sm and in a short window, where the current tab, in the
+  top bar or right above the section, says it).
   `toolbarBesideNav` (Match History, owner decision D8 of 8 Nov 2026): the toolbar shares the views'
   row at every width whenever it fits beside them (a phone's views, Filters and Refresh on one row),
   the scope line under both; a toolbar too wide for the row (a tablet's several selects) takes the
   next row, and so do filters whose chips need the room (`toolbarFills`).
 */
-export function SectionHeader({ id, title, nav, aside, description, status, statusAfterText = false, controls, refresh, toolbarBesideNav = false, toolbarFills, className, testId }: {
+export function SectionHeader({ id, title, titleOnPhones = "shown", nav, aside, description, status, statusAfterText = false, controls, refresh, toolbarBesideNav = false, toolbarFills, className, testId }: {
   /** The heading's id, for the section's aria-labelledby. */
   id: string;
   title: React.ReactNode;
+  /** "tab": on phones (below sm, and in a short window) the title is read by screen readers only; the current tab names the section. */
+  titleOnPhones?: "shown" | "tab";
   /** The section's views (SubTabs), shown in the title's place; the title is then read by screen readers only. */
   nav?: React.ReactNode;
   /** Beside the title. */
@@ -52,7 +57,7 @@ export function SectionHeader({ id, title, nav, aside, description, status, stat
 }) {
   const heading = (
     <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-      <h2 id={id} className={nav ? "sr-only" : "min-w-0 text-xl font-semibold tracking-tight text-fg"}>
+      <h2 id={id} className={nav ? "sr-only" : cn("min-w-0 text-xl font-semibold tracking-tight text-fg", titleOnPhones === "tab" && "max-sm:sr-only short:sr-only")}>
         {title}
       </h2>
       {nav}

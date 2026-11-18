@@ -1,107 +1,125 @@
 "use client";
 
 import * as React from "react";
-import { ExternalLink, Star } from "lucide-react";
-import { RESOURCE_SECTIONS, resourceHost, searchResources, sectionLabel, type Resource, type ResourceSection } from "@/domain/resource-entry";
-import { FilterBar, FilterField } from "@/components/ui/filter-bar";
+import { Star } from "lucide-react";
+import { RESOURCE_SECTIONS, resourceHost, searchResources, type Resource, type ResourceSection } from "@/domain/resource-entry";
 import { SearchInput } from "@/components/ui/search-input";
-import { Select } from "@/components/ui/input";
-import { Panel, PanelHeader } from "@/components/ui/panel";
 import { ScrollRow } from "@/components/ui/scroll-row";
+import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
+import { formatCount } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { ResourceIcon } from "./resource-icon";
 import { useFavourites } from "./favourites";
 
 /*
-  Player Mode → Resources. One filter bar like every other list (search first, then the section),
-  your favourites on this device, then one panel per section, side by side on wide screens: each
-  site a row with its icon, title, host and one or two lines of description. A whole row is the
-  link (a new tab, without access back to this page and without sending this page's address); the
-  star beside it keeps a favourite in this browser. Managing the library is Admin Mode's
-  (Platform Settings → Resources), never this page's.
+  Player Mode → Resources → Library. A search, then the library's index: All, ★ Favourites and
+  each section with its count (the counts follow the search), one choice that filters the list, the
+  live count at the row's end. Then the sites grouped by section, an h2 each: on a phone one panel
+  with a heading per section and hairlines between the rows; wider, a panel per section, packed
+  into columns. Each site is a row with its icon, title (it wraps; it is never cut), host (cut first,
+  then ↗) and one or two lines of description. A whole row is the link (a new tab, without access
+  back to this page and without sending this page's address); the star beside it keeps a favourite
+  in this browser. Managing the library is Admin Mode's (Platform Settings → Resources), never this
+  page's.
 */
 
-type SectionFilter = ResourceSection | "all";
+type Filter = ResourceSection | "all" | "favourites";
 
 export function ResourcesView({ entries }: { entries: Resource[] }) {
   const [query, setQuery] = React.useState("");
-  const [section, setSection] = React.useState<SectionFilter>("all");
-  const { ids: favouriteIds, toggle } = useFavourites();
-  const present = new Set(entries.map((e) => e.section));
-  const shown = searchResources(section === "all" ? entries : entries.filter((e) => e.section === section), query);
-  const favourites = favouriteIds.map((id) => entries.find((e) => e.id === id)).filter((e): e is Resource => !!e);
-  const narrowed = section !== "all" || query.trim() !== "";
-  const groups = RESOURCE_SECTIONS.map((s) => ({ ...s, entries: shown.filter((e) => e.section === s.key) })).filter((g) => g.entries.length);
+  const [filter, setFilter] = React.useState<Filter>("all");
+  const { ids: favouriteIds, known, toggle } = useFavourites();
+  const favourites = new Set(favouriteIds);
+  const inFilter = (e: Resource, f: Filter) => f === "all" || (f === "favourites" ? favourites.has(e.id) : e.section === f);
+  const matching = searchResources(entries, query);
+  const shown = matching.filter((e) => inFilter(e, filter));
+  const count = (f: Filter) => matching.filter((e) => inFilter(e, f)).length;
+  const sections = RESOURCE_SECTIONS.filter((s) => entries.some((e) => e.section === s.key));
+  const groups = sections.map((s) => ({ ...s, entries: shown.filter((e) => e.section === s.key) })).filter((g) => g.entries.length);
+  const index: Array<{ key: Filter; label: string }> = [{ key: "all", label: "All" }, { key: "favourites", label: "Favourites" }, ...sections.map((s) => ({ key: s.key as Filter, label: s.label }))];
 
   return (
-    <div className="space-y-5">
-      <FilterBar
-        testId="resources-filters"
-        summary={section === "all" ? "All sections" : sectionLabel(section)}
-        activeCount={section !== "all" ? 1 : 0}
-        onReset={() => setSection("all")}
-        chips={section !== "all" ? [{ key: "section", text: sectionLabel(section), clear: () => setSection("all") }] : []}
-        align="end"
-        search={<SearchInput value={query} onChange={setQuery} placeholder="Search resources" label="Search resources by name, site or description" testId="resources-search" />}
-      >
-        <FilterField label="Section" htmlFor="resources-section">
-          <Select id="resources-section" value={section} onChange={(e) => setSection(e.target.value as SectionFilter)} data-testid="resources-section">
-            <option value="all">All sections</option>
-            {RESOURCE_SECTIONS.filter((s) => present.has(s.key)).map((s) => (
-              <option key={s.key} value={s.key}>
-                {s.label}
-              </option>
-            ))}
-          </Select>
-        </FilterField>
-      </FilterBar>
+    <div className="space-y-4">
+      {/* Phones: the search, then the index under it, scrolling sideways (a ScrollRow); tablets the same,
+          the count at the index's end; a phone held sideways (from sm in a window 480px tall or less)
+          puts both on one row. From lg the index is whole wherever it is shown: beside the search where
+          the row has room for all of it and the count's longest form, else on a row of its own, and
+          where even that row is too narrow (1024px) its segments wrap onto a second line. */}
+      <div className="flex flex-col gap-3 sm:short:flex-row sm:short:items-center lg:flex-row lg:flex-wrap lg:items-center">
+        <SearchInput value={query} onChange={setQuery} placeholder="Search resources" label="Search resources by name, site or description" testId="resources-search" className="sm:max-w-md lg:w-64 lg:max-w-none lg:shrink-0 sm:short:w-56 sm:short:max-w-none sm:short:shrink-0" />
+        <div className="flex min-w-0 flex-1 items-center gap-3 lg:basis-auto">
+          <ScrollRow role="radiogroup" aria-label="Show" className={segmentedGroupClass("min-w-0 lg:flex-wrap lg:overflow-visible")} data-testid="resources-index">
+            {index.map(({ key, label }) => {
+              const on = filter === key;
+              const n = count(key);
+              // Favourites are read from this browser once the page has hydrated: the server draws
+              // the segment with an empty slot of the count's width, so nothing moves when it fills.
+              const shownCount = key === "favourites" && !known ? null : n;
+              return (
+                <button key={key} type="button" role="radio" aria-checked={on} onClick={() => setFilter(key)} className={segmentClass(on)} title={key === "favourites" ? "The sites you starred, kept on this device" : undefined} data-testid={`resources-index-${key}`}>
+                  {key === "favourites" ? <Star className={cn("h-3.5 w-3.5 shrink-0", on || n ? "fill-current text-warn" : "text-fg-subtle")} aria-hidden /> : null}
+                  {label}
+                  <span className={cn("min-w-6 rounded px-1 text-center text-2xs tabular-nums", shownCount === null ? "bg-transparent" : n ? "bg-surface-3 text-fg-muted" : "text-fg-subtle")} data-testid="resources-index-count">
+                    {shownCount === null ? "" : formatCount(shownCount)}
+                  </span>
+                </button>
+              );
+            })}
+          </ScrollRow>
+          {/* The live count: on a phone each segment's count says it, so it is left to screen readers.
+              From lg it keeps the room of its longest form ("11 of 11 resources", an invisible copy
+              in the same cell), so a section chosen or a search typed never changes whether the index
+              fits beside the search, or moves it. */}
+          <div className="ml-auto grid shrink-0 max-sm:contents">
+            <p className="col-start-1 row-start-1 whitespace-nowrap text-right text-sm tabular-nums text-fg-muted max-sm:sr-only" aria-live="polite" data-testid="resources-count">
+              {entries.length === 0 ? "No resources yet." : shown.length === entries.length ? `${formatCount(entries.length)} resource${entries.length === 1 ? "" : "s"}` : `${formatCount(shown.length)} of ${formatCount(entries.length)} resources`}
+            </p>
+            <span aria-hidden className="invisible col-start-1 row-start-1 hidden whitespace-nowrap text-sm tabular-nums lg:block">
+              {`${formatCount(entries.length)} of ${formatCount(entries.length)} resources`}
+            </span>
+          </div>
+        </div>
+      </div>
 
-      {/* Favourites are read from this browser after the page is interactive: the row is in the
-          server's HTML at its final height either way (one line of chips, or one quiet line saying
-          what the star does), so the library never moves down once they arrive. */}
-      {!narrowed ? (
-        <section aria-labelledby="resources-favourites-title" className="space-y-2" data-testid={favourites.length ? "resources-favourites" : "resources-favourites-empty"}>
-          <h2 id="resources-favourites-title" className="text-xs font-semibold uppercase tracking-label text-fg-muted">
-            Favourites <span className="font-normal normal-case tracking-normal text-fg-subtle">· on this device</span>
-          </h2>
-          {favourites.length ? (
-            <ScrollRow as="ul" className="flex min-h-11 items-center gap-2 md:pointer-fine:min-h-9">
-              {favourites.map((e) => (
-                <li key={e.id} className="shrink-0">
-                  <a href={e.url} target="_blank" rel="noopener noreferrer" className="flex min-h-11 max-w-[16rem] items-center gap-2 rounded-md border border-border bg-surface px-2 text-sm font-medium text-fg hover:border-border-strong focus-visible:outline-2 focus-visible:outline-accent md:pointer-fine:min-h-9" data-testid="resources-favourite-link">
-                    <ResourceIcon icon={e.icon} url={e.url} className="h-6 w-6 border-0 bg-transparent p-0.5" />
-                    <span className="min-w-0 truncate">{e.title}</span>
-                    <ExternalLink className="h-3 w-3 shrink-0 text-fg-subtle" aria-hidden />
-                    <span className="sr-only">(opens in a new tab)</span>
-                  </a>
-                </li>
-              ))}
-            </ScrollRow>
-          ) : (
-            <p className="flex min-h-11 items-center text-xs text-fg-subtle md:pointer-fine:min-h-9">None yet: star a site to keep it here, on this device.</p>
-          )}
-        </section>
+      {/* With nothing in the library, a phone says so on screen too (its live count is read out only). */}
+      {entries.length === 0 ? (
+        <p className="text-sm text-fg-muted sm:hidden" aria-hidden data-testid="resources-empty">
+          No resources yet.
+        </p>
+      ) : null}
+      {entries.length > 0 && shown.length === 0 ? (
+        filter === "favourites" && known && !entries.some((e) => favourites.has(e.id)) ? (
+          <p className="text-sm text-fg-muted" data-testid="resources-favourites-empty">
+            No favourites yet: star a site to keep it here, on this device.
+          </p>
+        ) : (
+          <p className="text-sm text-fg-muted" data-testid="resources-nothing">
+            Nothing matches. Try another word or section.
+          </p>
+        )
       ) : null}
 
-      <p className="text-sm text-fg-muted" aria-live="polite" data-testid="resources-count">
-        {entries.length === 0 ? "No resources yet." : shown.length === entries.length ? `${entries.length} resource${entries.length === 1 ? "" : "s"}` : `${shown.length} of ${entries.length} resources`}
-      </p>
-
-      {entries.length > 0 && shown.length === 0 ? <p className="text-sm text-fg-muted">Nothing matches. Try another word or section.</p> : null}
-
-      {/* Panels keep their own height (items-start): a short section never stretches to its neighbour's. */}
-      <div className="grid items-start gap-4 lg:grid-cols-2">
-        {groups.map((g) => (
-          <Panel key={g.key} className="overflow-hidden" data-testid="resources-section-group" data-section={g.key}>
-            <PanelHeader title={g.label} actions={<span className="text-xs tabular-nums text-fg-subtle">{g.entries.length}</span>} />
-            <ul className="divide-y divide-border">
-              {g.entries.map((e) => (
-                <ResourceRow key={e.id} resource={e} favourite={favouriteIds.includes(e.id)} onToggle={() => toggle(e.id)} />
-              ))}
-            </ul>
-          </Panel>
-        ))}
-      </div>
+      {/* A phone: one panel, a heading per section, hairlines between the rows. From sm (a phone held
+          sideways, tablets, desktops): a panel per section, packed into columns, each kept whole. */}
+      {groups.length ? (
+        <div className="max-sm:panel-depth max-sm:divide-y max-sm:divide-border max-sm:overflow-hidden max-sm:rounded-panel max-sm:border max-sm:border-border max-sm:bg-surface sm:-mb-3 sm:columns-2 sm:gap-3 xl:columns-3 xl:gap-4" data-testid="resources-list">
+          {groups.map((g) => (
+            <section key={g.key} className="min-w-0 sm:panel-depth sm:mb-3 sm:break-inside-avoid sm:overflow-hidden sm:rounded-panel sm:border sm:border-border sm:bg-surface" data-testid="resources-section-group" data-section={g.key}>
+              <div className="flex items-baseline justify-between gap-3 border-b border-border bg-surface-2/40 px-3 py-1.5 sm:px-4">
+                <h2 className="min-w-0 text-sm font-semibold text-fg md:text-base">
+                  {g.label}
+                </h2>
+                <span className="text-xs tabular-nums text-fg-subtle">{formatCount(g.entries.length)}</span>
+              </div>
+              <ul className="divide-y divide-border">
+                {g.entries.map((e) => (
+                  <ResourceRow key={e.id} resource={e} favourite={favourites.has(e.id)} onToggle={() => toggle(e.id)} />
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -109,21 +127,30 @@ export function ResourcesView({ entries }: { entries: Resource[] }) {
 function ResourceRow({ resource: e, favourite, onToggle }: { resource: Resource; favourite: boolean; onToggle: () => void }) {
   return (
     <li className="group flex min-w-0 items-stretch transition-colors hover:bg-surface-2/60" data-testid="resource" data-id={e.id}>
-      <a href={e.url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 flex-1 items-start gap-3 px-3 py-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent sm:px-4" data-testid="resource-link">
-        <ResourceIcon icon={e.icon} url={e.url} className="h-9 w-9" />
+      <a href={e.url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 flex-1 items-start gap-3 py-2 pl-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent sm:pl-4" data-testid="resource-link">
+        <ResourceIcon icon={e.icon} url={e.url} className="mt-0.5 h-8 w-8" />
         <span className="min-w-0 flex-1">
-          <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-            {/* A phone row's name at the row standard (text-md semibold, docs/MOBILE.md); the table's size from md. */}
-            {/* On a phone the title wraps rather than being cut ("League of Legen…" at 320px): the host, beside it or under it, is the one cut if anything must be. */}
-            <span className="min-w-0 truncate text-sm font-medium leading-snug text-fg group-hover:text-accent max-md:text-md max-md:font-semibold max-sm:overflow-visible max-sm:whitespace-normal max-sm:break-words" data-testid="resource-title">
+          {/* The title wraps rather than being cut (a phone row's name at the row standard, text-md
+              semibold, docs/MOBILE.md); the host beside it gives way first, cut short, then ↗. */}
+          <span className="flex min-w-0 items-baseline gap-2">
+            <span className="min-w-0 text-md font-semibold leading-snug text-fg [overflow-wrap:anywhere] group-hover:text-accent md:text-sm md:font-medium" data-testid="resource-title">
               {e.title}
             </span>
-            <span className="min-w-0 truncate text-xs text-fg-subtle">{resourceHost(e.url)}</span>
+            <span className="flex min-w-14 flex-1 basis-0 items-baseline gap-1 text-xs text-fg-subtle" data-testid="resource-host">
+              <span className="min-w-0 truncate">{resourceHost(e.url)}</span>
+              <span className="shrink-0" aria-hidden>
+                ↗
+              </span>
+            </span>
           </span>
-          {e.description ? <span className="mt-0.5 line-clamp-2 block text-xs leading-snug text-fg-muted">{e.description}</span> : null}
+          {/* Whole on a touch screen; with a mouse two lines at most, the rest shown on hover (and read out). */}
+          {e.description ? (
+            <span className="mt-0.5 block text-xs leading-snug text-fg-muted pointer-fine:line-clamp-2" title={e.description}>
+              {e.description}
+            </span>
+          ) : null}
           <span className="sr-only">(opens in a new tab)</span>
         </span>
-        <ExternalLink className="mt-1 h-3.5 w-3.5 shrink-0 text-fg-subtle" aria-hidden />
       </a>
       <button
         type="button"
@@ -131,7 +158,7 @@ function ResourceRow({ resource: e, favourite, onToggle }: { resource: Resource;
         aria-pressed={favourite}
         aria-label={favourite ? `Remove ${e.title} from favourites` : `Add ${e.title} to favourites`}
         title={favourite ? "Remove from favourites" : "Add to favourites (kept on this device)"}
-        className="grid w-11 shrink-0 place-items-start justify-center pt-3.5 text-fg-subtle hover:text-fg focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent max-md:w-12"
+        className="grid w-11 shrink-0 place-items-start justify-center pt-2.5 text-fg-subtle hover:text-fg focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent max-md:w-12"
         data-testid="resource-favourite"
       >
         <Star className={cn("h-4 w-4", favourite && "fill-current text-warn")} aria-hidden />
