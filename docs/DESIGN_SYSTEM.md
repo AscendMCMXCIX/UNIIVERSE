@@ -283,7 +283,7 @@ test):
   and the sidebar's entry for the page shown do the same, and keep the page as it is: its view and
   filters stay (the link's own address leaves the query out, and following it used to bring back
   the defaults, Records back to Recent form). A click with a modifier key or another button still opens a new tab or window, and leaves
-  this page alone (`src/lib/back-to-top.ts`).
+  this page alone (`src/lib/back-to-top.ts`; `e2e/navigation-landings.spec.ts`).
 - **Back.** Phones and the installed app show their own Back, named after where it leads: the
   previous page when it is ours, else the page above (`phoneParent`). A full-screen game is a history
   entry (Back closes it); a profile's sections replace the entry (Back leaves the profile), and so
