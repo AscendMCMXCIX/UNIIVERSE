@@ -24,7 +24,7 @@ jobs:
     # Ubuntu 24.04, not ubuntu-latest (26.04): Playwright 1.58.2, whose WebKit 26.0 the Safari 26
     # step needs, has no WebKit for 26.04; the current Playwright supports both.
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
         with:
