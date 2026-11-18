@@ -72,10 +72,28 @@ describe("Riot's data and notice", () => {
     }
   });
 
-  it("says it is a static reference, with no live tracking, on every state of the page", () => {
+  it("says it is a static reference, with no live tracking, on every state of the page: on the summary line that stays visible, and in full inside", () => {
     for (const view of [curatedPair(), uncuratedPair]) {
-      expect(text(part(render(view), "matchup-footer-static")!).trim()).toBe("A static reference for preparation: no live tracking, no timers, nothing read from a game in progress.");
+      const html = render(view);
+      expect(text(part(html, "matchup-footer-static")!).trim()).toBe("A static reference: no live tracking, no timers, nothing read from a game in progress.");
+      expect(text(part(html, "matchup-sources-summary")!).trim()).toMatch(/^A static reference: no live tracking · Riot Data Dragon 16\.22\.1 · .*Not endorsed by Riot Games$/);
     }
+  });
+
+  it("keeps the whole credit and Riot's notice behind one native disclosure, always on the page, whose summary names it", () => {
+    const html = render(curatedPair());
+    expect(html).toMatch(/<details[^>]*data-testid="matchup-sources"[^>]*><summary[^>]*>[\s\S]*?Sources and notices[\s\S]*?<\/summary>/);
+    const inside = html.split('data-testid="matchup-sources"')[1]!;
+    for (const id of ["matchup-footer-ddragon", "matchup-footer-checked", "matchup-footer-wiki", "matchup-footer-static", "matchup-footer-riot"]) expect(inside).toContain(`data-testid="${id}"`);
+    expect(text(part(html, "matchup-sources-summary")!)).toContain("League of Legends Wiki, CC BY-SA 3.0");
+  });
+
+  it("names the facts from Riot's text, and how they were reviewed, when the page shows them", () => {
+    const view = { ...uncuratedPair, enemyIntel: { ...uncuratedPair.enemyIntel!, riotText: { version: "16.22.1" } } };
+    const html = render(view);
+    expect(text(part(html, "matchup-footer-riot-text")!)).toContain("Kinds of mechanic from Riot's ability text (its descriptions and tooltips, Data Dragon 16.22.1), each with the clause it quotes: from Riot's ability text, reviewed automatically (not by a person), by two independent reviews and an adjudicator.");
+    expect(text(part(html, "matchup-sources-summary")!)).toContain("Riot's text, reviewed automatically");
+    expect(render(uncuratedPair)).not.toContain('data-testid="matchup-footer-riot-text"');
   });
 });
 
@@ -180,7 +198,7 @@ describe("without curated notes, and with malformed ones", () => {
     expect(html).not.toContain('data-testid="matchup-footer-wiki"');
     expect(html).not.toContain("creativecommons.org");
     expect(text(html)).toContain("Riot Data Dragon 16.22.1 (patch 26.22).");
-    expect(text(html)).toContain("A static reference for preparation");
+    expect(text(html)).toContain("A static reference: no live tracking");
     expect(text(html)).toContain(LEGAL);
   });
 

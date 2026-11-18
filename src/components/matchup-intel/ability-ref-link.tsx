@@ -8,7 +8,7 @@ import { jumpToAnchor } from "@/components/ui/section-index";
  * plain link to the row's anchor, so it works before the page's code has run and opens in a new tab
  * like any link; once the code runs, a plain click makes the jump itself (jumpToAnchor).
  */
-export function AbilityRefLink({ anchor, children }: { anchor: string; children: React.ReactNode }) {
+export function AbilityRefLink({ anchor, children, size = "md" }: { anchor: string; children: React.ReactNode; /** sm: a chip in a line of text or a dense list (24px; 44px of target on touch screens). */ size?: "sm" | "md" }) {
   return (
     <a
       href={`#${anchor}`}
@@ -18,7 +18,7 @@ export function AbilityRefLink({ anchor, children }: { anchor: string; children:
         e.preventDefault();
         jumpToAnchor(anchor);
       }}
-      className="touch-target inline-flex min-h-7 items-center rounded-full border border-border-strong bg-surface-2 px-2.5 text-xs font-medium text-fg-muted transition-colors hover:border-accent/60 hover:text-fg"
+      className={size === "sm" ? "touch-target inline-flex min-h-6 items-center rounded-full border border-border-strong bg-surface-2 px-2 text-xs font-medium leading-tight text-fg-muted transition-colors hover:border-accent/60 hover:text-fg" : "touch-target inline-flex min-h-7 items-center rounded-full border border-border-strong bg-surface-2 px-2.5 text-xs font-medium text-fg-muted transition-colors hover:border-accent/60 hover:text-fg"}
       data-testid="briefing-ability"
       data-anchor={anchor}
     >

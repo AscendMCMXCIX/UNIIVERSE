@@ -15,7 +15,9 @@ import { useMatchupPreferences, type PickerSlot } from "./preferences";
 
 /*
   Matchup Intel's choice of champions (docs/MATCHUP_INTEL.md, "Where it is"): your champion and the
-  enemy side by side, large targets with the swap between them, each opening its picker window.
+  enemy side by side with the swap between them, each opening its picker window, in one compact bar
+  with the page's title, the patch and how fresh what follows is (`status`, built on the server) and
+  the remembered line: on a desktop all of it in one row, so the dashboard under it starts high.
   A choice goes into the address (?champion=<id>&vs=<id>, the champion window's names) and the
   server builds the page for it; until it arrives the slots show the new choice, a line under them
   says what is loading, and the page under them is dimmed and out of reach (inert). Once it has
@@ -99,11 +101,10 @@ export function PairLink({ you, enemy, className, children, testId, current, cha
 const portraitOf = (c: ChampionChoice) => ({ id: c.id, name: c.name, portraitUrl: c.portrait });
 
 /**
- * One side: its label, the champion's portrait, name and title, or the invitation to choose one.
- * On a phone it is compact, so the briefing under it starts on the first screen: a small portrait
- * above the label and the name in a narrow row (320 and 375px phones), beside them where the row
- * has room (from 22rem), the two sides mirrored around the swap. From sm the large portrait beside
- * the words, as the two sides of a lane, with the champion's title.
+ * One side: its label, the champion's portrait and name, or the invitation to choose one. Compact,
+ * so the dashboard under it starts high: on a phone a small portrait above the label and the name in
+ * a narrow row (320 and 375px phones), beside them where the row has room (from 22rem), the two
+ * sides mirrored around the swap; from sm the portrait beside the words, as the two sides of a lane.
  */
 function SlotButton({ slot, champion, onOpen, buttonRef }: { slot: PickerSlot; champion: ChampionChoice | null; onOpen: () => void; buttonRef: React.Ref<HTMLButtonElement> }) {
   const you = slot === "you";
@@ -122,7 +123,7 @@ function SlotButton({ slot, champion, onOpen, buttonRef }: { slot: PickerSlot; c
       // portrait beside the words from a row of 22rem (a 384px phone at the usual text size), with
       // a little less padding and gap, so the longest one-word name (Heimerdinger) fits whole at 384px.
       className={cn(
-        "group flex h-full w-full min-w-0 flex-col items-center justify-center gap-1 rounded-panel border bg-surface px-2 py-2 text-center transition-colors hover:border-border-strong hover:bg-surface-2/60 sm:justify-start sm:gap-3 sm:px-4 sm:py-3",
+        "group flex h-full w-full min-w-0 flex-col items-center justify-center gap-1 rounded-panel border bg-surface px-2 py-2 text-center transition-colors hover:border-border-strong hover:bg-surface-2/60 sm:justify-start sm:gap-2.5 sm:px-3 sm:py-1.5",
         "max-sm:@min-[22rem]/pickers:justify-start max-sm:@min-[22rem]/pickers:gap-1.5 max-sm:@min-[22rem]/pickers:px-1.5",
         you ? "max-sm:@min-[22rem]/pickers:flex-row-reverse max-sm:@min-[22rem]/pickers:text-right sm:flex-row-reverse sm:text-right" : "max-sm:@min-[22rem]/pickers:flex-row max-sm:@min-[22rem]/pickers:text-left sm:flex-row sm:text-left",
         champion ? "border-border" : "border-dashed border-border-strong",
@@ -133,25 +134,19 @@ function SlotButton({ slot, champion, onOpen, buttonRef }: { slot: PickerSlot; c
       <span aria-hidden className="shrink-0">
         {champion ? (
           <>
-            <span className="block sm:hidden">
-              <ChampionPortrait champion={portraitOf(champion)} size="sm" className={ring} />
-            </span>
-            <span className="block max-sm:hidden">
-              <ChampionPortrait champion={portraitOf(champion)} size="lg" className={ring} />
-            </span>
+            <ChampionPortrait champion={portraitOf(champion)} size="sm" className={ring} />
           </>
         ) : (
-          <span className="grid h-9 w-9 place-items-center rounded-md border border-dashed border-border-strong text-fg-subtle group-hover:text-fg sm:h-16 sm:w-16">
-            <Plus className="h-5 w-5 sm:h-6 sm:w-6" />
+          <span className="grid h-9 w-9 place-items-center rounded-md border border-dashed border-border-strong text-fg-subtle group-hover:text-fg">
+            <Plus className="h-5 w-5" />
           </span>
         )}
       </span>
       <span className="min-w-0 max-w-full">
-        <span className={cn("block text-xs font-semibold uppercase tracking-label", you ? "text-blue" : "text-red")}>{you ? "You" : "Enemy"}</span>
-        <span className="line-clamp-2 text-md font-semibold leading-snug text-fg [overflow-wrap:anywhere] max-sm:@min-[22rem]/pickers:text-sm max-sm:@min-[22rem]/pickers:tracking-tight sm:text-lg" data-testid={`matchup-pick-${slot}-name`}>
+        <span className={cn("block text-xs font-semibold uppercase leading-tight tracking-label", you ? "text-blue" : "text-red")}>{you ? "You" : "Enemy"}</span>
+        <span className="line-clamp-2 text-md font-semibold leading-snug text-fg [overflow-wrap:anywhere] max-sm:@min-[22rem]/pickers:text-sm max-sm:@min-[22rem]/pickers:tracking-tight sm:text-base" data-testid={`matchup-pick-${slot}-name`}>
           {champion ? champion.name : you ? "Choose your champion" : "Choose the enemy"}
         </span>
-        {champion?.title ? <span className="block truncate text-sm text-fg-muted max-sm:hidden">{champion.title}</span> : null}
         {champion ? <span className="sr-only">, change</span> : null}
       </span>
     </button>
@@ -273,7 +268,8 @@ function RememberedLine({ you, remembered, onUse, onRemember, focusYourSlot }: {
     );
   }
   return (
-    <div className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg-muted" data-testid="matchup-remembered" data-state={state}>
+    // On a desktop it sits under the status at the bar's right end, its buttons 28px with a mouse.
+    <div className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg-muted @min-[44rem]/pickers:min-h-7 @min-[44rem]/pickers:justify-end @min-[44rem]/pickers:text-xs" data-testid="matchup-remembered" data-state={state}>
       {info ? <span className="flex min-w-0 grow basis-24 items-center gap-2 sm:grow-0 sm:basis-auto">{info}</span> : null}
       {actions ? <span className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{actions}</span> : null}
     </div>
@@ -287,7 +283,28 @@ function pairWords(pair: Pair, name: (id: string | null) => string | null): stri
   return you && enemy ? `${you} vs ${enemy}` : (you ?? enemy ?? "Matchup Intel");
 }
 
-export function MatchupFrame({ you, enemy, champions, curated, announcement = "", children }: { you: ChampionChoice | null; enemy: ChampionChoice | null; champions: ChampionChoice[]; curated: Record<string, string[]>; /** What a screen reader is told once the page for a choice made here has arrived ("Riven vs Mordekaiser: curated briefing, checked on patch 26.22."). */ announcement?: string; children?: React.ReactNode }) {
+export function MatchupFrame({
+  you,
+  enemy,
+  champions,
+  curated,
+  announcement = "",
+  heading,
+  patchState,
+  children,
+}: {
+  you: ChampionChoice | null;
+  enemy: ChampionChoice | null;
+  champions: ChampionChoice[];
+  curated: Record<string, string[]>;
+  /** What a screen reader is told once the page for a choice made here has arrived ("Riven vs Mordekaiser: curated briefing, checked on patch 26.22."). */
+  announcement?: string;
+  /** The page's title (its h1), at the bar's start on a desktop, above it on a phone. */
+  heading?: React.ReactNode;
+  /** The patch and how fresh what follows is, at the bar's end (built on the server: MatchupStatus). */
+  patchState?: React.ReactNode;
+  children?: React.ReactNode;
+}) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   // The choice on its way: shown in the slots until the server's page for it arrives.
@@ -367,8 +384,12 @@ export function MatchupFrame({ you, enemy, champions, curated, announcement = ""
 
   return (
     <FrameContext.Provider value={actions}>
-      <div className="space-y-5">
-        <section aria-label="Champions" className="@container/pickers space-y-1.5">
+      <div className="space-y-3">
+        <section aria-label="Champions" className="@container/pickers">
+          {/* One row on a desktop (from a bar of 44rem): the title, the two slots with the swap, then
+              the status and the remembered line at the far end. On a phone, one under the other. */}
+          <div className="grid gap-x-4 gap-y-1.5 @min-[44rem]/pickers:grid-cols-[minmax(0,34rem)_minmax(0,1fr)] @min-[44rem]/pickers:items-center @min-[60rem]/pickers:grid-cols-[auto_minmax(0,34rem)_minmax(0,1fr)]">
+            {heading ? <div className="min-w-0 @min-[44rem]/pickers:col-span-2 @min-[60rem]/pickers:col-span-1" data-testid="matchup-heading">{heading}</div> : null}
           {/* Side by side, or one above the other with the swap between them where the row is under
               14rem: a phone at a large text size (200%; 150% up to 375px wide), where side by side
               each slot would be narrower than its portrait and its label. The two sides are as tall
@@ -379,7 +400,7 @@ export function MatchupFrame({ you, enemy, champions, curated, announcement = ""
               type="button"
               onClick={() => go({ you: shown.enemy, enemy: shown.you })}
               disabled={!shown.you && !shown.enemy}
-              className="grid h-11 w-11 place-items-center self-center justify-self-center rounded-full border border-border-control bg-bg-elevated text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
+              className="grid h-11 w-11 place-items-center self-center justify-self-center rounded-full border border-border-control bg-bg-elevated text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-40 @min-[44rem]/pickers:pointer-fine:h-9 @min-[44rem]/pickers:pointer-fine:w-9"
               aria-label="Swap your champion and the enemy"
               title="Swap"
               data-testid="matchup-swap"
@@ -388,15 +409,19 @@ export function MatchupFrame({ you, enemy, champions, curated, announcement = ""
             </button>
             <SlotButton slot="enemy" champion={choice(shown.enemy)} onOpen={() => openPicker("enemy")} buttonRef={enemySlot} />
           </div>
-          {/* While a choice loads, what is loading takes the remembered line's place, at its height. */}
-          {loading ? (
-            <p className="flex min-h-11 items-center gap-2 text-sm text-fg-muted" aria-hidden data-testid="matchup-loading">
-              <LoaderCircle className="h-4 w-4 shrink-0 animate-spin text-accent motion-reduce:animate-none" />
-              <span className="min-w-0">{loading}</span>
-            </p>
-          ) : (
-            <RememberedLine you={yourChoice} remembered={choice(prefs.you)} onUse={(id) => go({ ...shown, you: id })} onRemember={remember} focusYourSlot={focusYourSlot} />
-          )}
+            <div className="min-w-0 space-y-0.5">
+              {patchState ? <div className="@min-[44rem]/pickers:flex @min-[44rem]/pickers:justify-end">{patchState}</div> : null}
+              {/* While a choice loads, what is loading takes the remembered line's place, at its height. */}
+              {loading ? (
+                <p className="flex min-h-11 items-center gap-2 text-sm text-fg-muted @min-[44rem]/pickers:min-h-7 @min-[44rem]/pickers:justify-end @min-[44rem]/pickers:text-xs" aria-hidden data-testid="matchup-loading">
+                  <LoaderCircle className="h-4 w-4 shrink-0 animate-spin text-accent motion-reduce:animate-none" />
+                  <span className="min-w-0">{loading}</span>
+                </p>
+              ) : (
+                <RememberedLine you={yourChoice} remembered={choice(prefs.you)} onUse={(id) => go({ ...shown, you: id })} onRemember={remember} focusYourSlot={focusYourSlot} />
+              )}
+            </div>
+          </div>
           {/* Always there, so a screen reader hears each change: what is loading, then what came. */}
           <p role="status" className="sr-only" data-testid="matchup-status">
             {heldStatus ?? status}

@@ -1,4 +1,4 @@
-import { formatCooldowns, formatCount, formatIsoDay, formatPerRank, formatSeconds, keepUnitsWithNumbers } from "@/lib/format";
+import { formatCooldowns, formatCooldownsTight, formatCount, formatIsoDay, formatPerRank, formatSeconds, keepUnitsWithNumbers } from "@/lib/format";
 import { cooldownFrom } from "@/domain/matchup-intel/cooldown";
 import type { AbilityChange, AbilityModifiers, CooldownDisplay, CooldownStart, FactKind, FactSubject, Freshness, KindGroup, MatchupPageView, PassiveStart, Recast, RiotTextKind, RiotTextSource, Slot, UnknownCooldownReason } from "@/domain/matchup-intel/types";
 
@@ -469,4 +469,15 @@ export function toolsSideWords(you: string): string {
 /** The folded lane points: "2 more". */
 export function moreWords(count: number): string {
   return `${formatCount(count)} more`;
+}
+
+/**
+ * A cooldown as a grouped fact's line ends with it: the numbers per rank, tight ("14/12/10/8/6 s"),
+ * where the line is one number per rank; null otherwise (charges, forms, a passive, no number: the
+ * ability's tile says those in full).
+ */
+export function tightCooldownWords(d: CooldownDisplay): string | null {
+  if (d.kind !== "per-rank") return null;
+  const value = formatCooldownsTight(d.seconds);
+  return value === "—" ? null : value;
 }
