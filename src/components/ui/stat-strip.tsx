@@ -11,9 +11,9 @@ import { cn } from "@/lib/cn";
     36–60rem     the lines step aside (display: contents): one flowing line of figures that wraps
                  where it must;
     from 60rem   one row of tiles: each figure a column, its value over its label (a caption, 11px),
-                 the tiles split by hairlines; a second row only where the figures outgrow the row
-                 (Match History's every figure at its widest, both arrows too, on a 60rem strip),
-                 never a cut or a sideways scroll;
+                 the tiles split by hairlines; a second row only where a caller's figures outgrow
+                 the row (Match History's, every one at its widest, fit a 60rem strip), never a cut
+                 or a sideways scroll;
     from 78rem   with `wideLine` (the caller's figures fit: Match History's without a trend), the
                  same cells as one line, each value beside its label: a strip a text line tall on
                  the widest screens, where the page's measure (80rem) leaves the room.

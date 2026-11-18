@@ -70,8 +70,8 @@ decorative chrome.
     screen readers and in each figure's title. A line wraps where its figures still do not fit:
     at 375px a two-digit record on a champion beside the ladder change, a 360px phone's ladder
     change, a 320px phone, a large text size. From 36rem one flowing line; from 60rem one row of
-    tiles with every figure at once (a trend, a streak, three champions and the ladder change; at
-    their very widest, with both arrows too, a 60rem list takes a second row); from 78rem without
+    tiles with every figure at once (a trend, a streak, three champions and the ladder change, at
+    their widest with both arrows too, on a 60rem list as well); from 78rem without
     a trend one line of text. Measured with demo Support (a trend, a streak and the ladder change)
     and the widest real values written in (e2e/match-history-layout.spec.ts).
   - Encounters keeps its minimum and order in a phone's Filters sheet, as chips that count with
