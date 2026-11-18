@@ -36,8 +36,18 @@ async function recordOf(row: Locator, relation: "opponent" | "ally") {
   const m = /(\d+)W (\d+)L/.exec(text);
   return { cell, games, wins: m ? Number(m[1]) : 0, losses: m ? Number(m[2]) : 0, rate: m ? await cell.getByTestId("encounter-rate").innerText() : null };
 }
-/** Desktop and tablet show the column names; phones a Sort by control. */
+/** Desktop and tablet show the column names (and, where a table is too narrow for them, a Sort by control); phones choose the order in the Filters sheet. */
 const wide = async (page: Page) => (await page.getByTestId("encounter-heads").count()) > 0 && (await page.getByTestId("encounter-heads").isVisible());
+/** Phones (below md) keep the list's minimum and order in the Filters sheet, as chips (owner decision D8). */
+const inSheet = (page: Page) => (page.viewportSize()?.width ?? 1440) < 768;
+/** Chooses the list's minimum or order: in the phone's Filters sheet (then closes it), else in the list's toolbar. */
+async function chooseListOption(page: Page, which: "min" | "sort", value: string) {
+  if (!inSheet(page)) return page.getByTestId(`encounter-${which}`).selectOption(value);
+  await openFilterBar(page.getByTestId("encounter-filters"));
+  await page.getByTestId(`encounter-${which}-choices`).locator(`[data-value="${value}"]`).click();
+  await expect(page.getByTestId(`encounter-${which}-choices`).locator(`[data-value="${value}"]`)).toHaveAttribute("aria-checked", "true");
+  await closeFilterSheet(page);
+}
 const countOf = async (option: ReturnType<Page["locator"]>) => Number(/\((\d+)\)/.exec((await option.textContent()) ?? "")![1]);
 const relationCount = async (page: Page, r: "against" | "alongside" | "all") => Number(await page.getByTestId(`encounter-relation-${r}`).getByTestId("encounter-relation-count").innerText());
 
@@ -75,6 +85,12 @@ test("Encounters: Against, Alongside and All, each side with its own record, in 
   if (await wide(page)) {
     await expect(page.getByTestId("encounter-heads")).toContainText(/Player.*Games.*Against.*Games.*Record.*Win %.*Alongside.*Games.*Record.*Win %.*Last met/i);
     await expect(page.getByTestId("encounter-sort-best")).toHaveCount(0);
+  } else if (inSheet(page)) {
+    // A phone's orders are chips in the Filters sheet, beside the minimum.
+    await openFilterBar(page.getByTestId("encounter-filters"));
+    await expect(page.getByTestId("encounter-sort-choices").getByRole("radio")).toHaveText(["Most games", "Most recent"]);
+    await expect(page.getByTestId("encounter-min-choices").getByRole("radio", { checked: true })).toHaveText("2+ games");
+    await closeFilterSheet(page);
   } else await expect(page.getByTestId("encounter-sort").locator("option")).toHaveText(["Most games", "Most recent"]);
 
   // Against: the player's own record against each, in figures.
@@ -114,8 +130,13 @@ test("Encounters: Against, Alongside and All, each side with its own record, in 
   await expect(rows.first()).toBeVisible();
 
   // At least three games: every player left was met three times or more in all.
-  await page.getByTestId("encounter-min").selectOption("3");
+  await chooseListOption(page, "min", "3");
   await expect(page).toHaveURL(/min=3/);
+  // On a phone the choice shows as a chip beside Filters, counted with the filters.
+  if (inSheet(page)) {
+    await expect(page.getByRole("button", { name: "3+ games: remove this filter" })).toBeVisible();
+    await expect(page.getByTestId("encounter-filters").getByTestId("filter-toggle")).toContainText("1");
+  }
   for (const row of await rows.all()) expect((await sideGames(row, "against")) + (await sideGames(row, "alongside"))).toBeGreaterThanOrEqual(3);
 
   // A search that matches nobody: an honest empty state, the choices kept.
@@ -160,7 +181,7 @@ test("each order follows the side in view: most games, the most recent, the high
         await expect(page.locator("[data-testid='encounters'] [aria-busy='true']")).toHaveCount(0);
       }
       await page.getByTestId(`encounter-sort-${order === "worst" ? "best" : order}`).click();
-    } else await page.getByTestId("encounter-sort").selectOption(order);
+    } else await chooseListOption(page, "sort", order);
     if (order === "games") await expect(page).not.toHaveURL(/sort=/);
     else await expect(page).toHaveURL(new RegExp(`sort=${order}`));
     await expect(page.locator("[data-testid='encounters'] [aria-busy='true']")).toHaveCount(0);
@@ -374,4 +395,67 @@ test("your own Encounters: the old Team Matches address opens them with its game
   await expect(member.getByTestId("encounters-empty")).toBeVisible();
   await expect(member.locator("main").getByText(/Season 2025/)).toHaveCount(0);
   await context.close();
+});
+
+test("a phone keeps the list's minimum and order in the Filters sheet, as chips: chosen there, shown beside Filters, removed by a tap or by Reset", async ({ page }) => {
+  test.skip(!inSheet(page), "a phone's Filters sheet (from md they are in the list's toolbar)");
+  await page.goto("/team");
+  const support = `/players/${await page.getByTestId("lineup-row-SUPPORT").getAttribute("data-player-id")}`;
+  await openEncounters(page, `${support}/matches?view=encounters&rel=against`);
+  // Not in the list's toolbar on a phone: the list starts higher.
+  await expect(page.getByTestId("encounter-min")).toBeHidden();
+  await expect(page.getByTestId("encounter-sort")).toBeHidden();
+  await openFilterBar(page.getByTestId("encounter-filters"));
+  const sheet = page.getByTestId("filter-sheet");
+  await expect(sheet.getByTestId("encounter-min-choices").getByRole("radio")).toHaveText(["Any number of games", "2+ games", "3+ games", "5+ games", "10+ games"]);
+  // One side in view: every order, the win rates included; each a finger-sized chip.
+  await expect(sheet.getByTestId("encounter-sort-choices").getByRole("radio")).toHaveText(["Most games", "Most recent", "Highest win rate", "Lowest win rate"]);
+  for (const box of await sheet.getByRole("radio").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) expect(box).toBeGreaterThanOrEqual(43.5);
+  // Applied at once, replacing the address (Back leaves the page, as with every filter).
+  const entries = await page.evaluate(() => history.length);
+  await sheet.getByTestId("encounter-sort-choices").locator('[data-value="recent"]').click();
+  await expect(page).toHaveURL(/sort=recent/);
+  await sheet.getByTestId("encounter-min-choices").locator('[data-value="1"]').click();
+  await expect(page).toHaveURL(/min=1/);
+  expect(await page.evaluate(() => history.length)).toBe(entries);
+  await closeFilterSheet(page);
+  // Both shown beside Filters and counted; a tap on a chip removes it.
+  const sortChip = page.getByRole("button", { name: "Most recent: remove this filter" });
+  await expect(sortChip).toBeVisible();
+  await expect(page.getByRole("button", { name: "Any number of games: remove this filter" })).toBeVisible();
+  await expect(page.getByTestId("encounter-filters").getByTestId("filter-toggle")).toContainText("2");
+  await sortChip.click();
+  await expect(page).not.toHaveURL(/sort=/);
+  await expect(sortChip).toHaveCount(0);
+  // Reset puts the minimum back too; the side in view stays.
+  await openFilterBar(page.getByTestId("encounter-filters"));
+  await page.getByTestId("filter-sheet").getByTestId("reset-filters").click();
+  await expect(page).not.toHaveURL(/min=/);
+  await expect(page).toHaveURL(/rel=against/);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+});
+
+test("tablet and desktop: the column names stay pinned under the profile's section tabs while the list scrolls; a short window pins nothing", async ({ page }) => {
+  test.skip(inSheet(page), "a phone's list has no column names");
+  await page.goto("/team");
+  const top = `/players/${await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id")}`;
+  const width = page.viewportSize()!.width;
+  await page.setViewportSize({ width, height: 600 });
+  await openEncounters(page, `${top}/matches?view=encounters&rel=against&min=1&limit=500`);
+  const heads = page.getByTestId("encounter-heads");
+  await expect(heads).toBeVisible();
+  const rest = (await heads.boundingBox())!.y + (await page.evaluate(() => window.scrollY));
+  await page.evaluate((y) => window.scrollTo(0, y + 1500), rest);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(rest);
+  const tabs = page.getByTestId("profile-tabs");
+  const bar = width < 1024 ? (await page.getByTestId("mobile-topbar").boundingBox())!.y + (await page.getByTestId("mobile-topbar").boundingBox())!.height : 0;
+  const [t, h] = [(await tabs.boundingBox())!, (await heads.boundingBox())!];
+  expect(Math.abs(t.y - bar), "the section tabs pinned").toBeLessThanOrEqual(1);
+  expect(Math.abs(h.y - (t.y + t.height)), "the column names right under them").toBeLessThanOrEqual(1);
+  // Still the list's own: sorting from there works.
+  await page.getByTestId("encounter-sort-recent").click();
+  await expect(page).toHaveURL(/sort=recent/);
+  // A short window (480px tall or shorter) keeps its height for the page.
+  await page.setViewportSize({ width, height: 420 });
+  expect(await heads.evaluate((el) => getComputedStyle(el).position)).not.toBe("sticky");
 });

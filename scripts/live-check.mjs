@@ -63,7 +63,8 @@
     and keeps the focus on the card. Match History opens games under their cards; at 1440 the
     first three cards' CS totals and damage shares end before the next column (the build or the
     teams), and a copy of a card with the widest K/D/A and the longest champion names stays level
-    with it and keeps the names whole; its Encounters view and the champion window still open.
+    with it and keeps the names whole; on the phone (390x844) the first game card is complete above
+    the tab bar; its Encounters view and the champion window still open.
   - accessibility (#173): axe (WCAG 2.1 A and AA, plus label-content-name-mismatch) on the main pages
     at every width, with a game open, and in the champion window: no serious or critical violation.
   - players (the roster board, Nov 2026), at every width: one profile link per listed player, and no
@@ -964,7 +965,7 @@ async function matchHistory(page, log, kind, playerId) {
         // The next column: past what takes no room in the row, hidden or out of flow (a build that
         // was not recorded leaves only its screen-reader note, a 1px box at the row's start).
         const inRow = (e) => e.getBoundingClientRect().width >= 0.5 && !["absolute", "fixed"].includes(getComputedStyle(e).position);
-        let next = cs.parentElement.nextElementSibling;
+        let next = (cs.closest("[data-testid=match-figures]") ?? cs.parentElement).nextElementSibling;
         while (next && !inRow(next)) next = next.nextElementSibling;
         return next ? Math.round(Math.max(end(cs), end(damage)) - next.getBoundingClientRect().left) : null;
       }),
@@ -1003,7 +1004,21 @@ async function matchHistory(page, log, kind, playerId) {
     if (!extremes) warn("games", "1440: no card on the first page shows its teams, so the widest K/D/A and the longest names were not tried", path);
     else pass("games", "1440: a card with the widest K/D/A and the longest champion names stays level with the others and keeps the names whole", extremes.shift.every((x) => x <= 1) && extremes.cut.every((x) => !x), extremes);
   }
-  if (kind === "phone") await phoneGame(page, kind, "Match History", "match-history", () => card.click({ position: { x: 24, y: 16 } }));
+  if (kind === "phone") {
+    // The phone's denser cards (owner decision D8): the first game is whole above the tab bar on the
+    // first screen. Positions only; not applicable where no tab bar shows.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(300);
+    const first = await page.evaluate(() => {
+      const nav = [...document.querySelectorAll("nav[aria-label=Primary]")].find((n) => getComputedStyle(n).display !== "none" && n.getBoundingClientRect().height > 0);
+      const card = document.querySelector("[data-testid=match-card]");
+      return { cardBottom: card ? Math.round(card.getBoundingClientRect().bottom + scrollY) : null, tabBarTop: nav ? Math.round(nav.getBoundingClientRect().top) : null };
+    });
+    const name = "390x844: the first game card is complete above the tab bar";
+    if (first.tabBarTop === null) check("games", name, "PASS", "not applicable: no tab bar shown");
+    else pass("games", name, first.cardBottom !== null && first.cardBottom <= first.tabBarTop, first);
+    await phoneGame(page, kind, "Match History", "match-history", () => card.click({ position: { x: 24, y: 16 } }));
+  }
   else {
     await card.click({ position: { x: 24, y: 16 } });
     const opened = await page.getByTestId("match-expanded").getByTestId("match-breakdown").first().waitFor({ timeout: 30_000 }).then(() => true, () => false);

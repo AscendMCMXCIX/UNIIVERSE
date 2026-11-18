@@ -6,7 +6,8 @@ import { expect, test, type Page } from "./test";
   or a quiet dash, each with its tooltip (what it rests on, or why there is none: on hover, or a
   tap on a touch screen) and words for screen readers. On a wide card it follows when the game was
   played, on that line of the result column (a promotion's longer mark takes the next line); on a
-  tablet's it ends the result line; on a phone's it sits under the KDA. Nothing crowds the card.
+  tablet's it ends the result line; on a phone's it ends the result line too, at the card's end
+  (owner decision D8, 18 Nov 2026: it sat under the KDA). Nothing crowds the card.
 */
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -66,7 +67,7 @@ test("ranked cards show the LP their readings prove, or a dash that says why", a
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
 });
 
-test("the LP sits in the result column on a wide card and under the KDA on a narrow one, without making the card taller", async ({ page }, info) => {
+test("the LP sits in the result column on a wide card and at the end of the result line on a narrow one, without making the card taller", async ({ page }, info) => {
   await matchesOf(page, "TOP");
   const card = page.getByTestId("match-card").filter({ has: page.locator('[data-testid="match-lp"]:visible') }).first();
   const lp = card.locator('[data-testid="match-lp"]:visible');
@@ -91,11 +92,17 @@ test("the LP sits in the result column on a wide card and under the KDA on a nar
       expect(x.after, `card ${i}: after the time`).toBeGreaterThanOrEqual(0);
     }
   } else if (info.project.name === "tablet") {
-    // On the result line ("Defeat · Ranked Flex · 42h ago · −22 LP"), which has room at this width.
+    // On the result line ("Defeat · Flex · 42h ago · −22 LP"), which has room at this width.
     const meta = (await card.getByTestId("match-card-meta").boundingBox())!;
     expect(l.y + l.height / 2, "on the result line").toBeGreaterThan(meta.y);
     expect(l.y + l.height / 2, "on the result line").toBeLessThan(meta.y + meta.height);
-  } else expect(c.x + c.width - (l.x + l.width), "under the KDA, at the card's end").toBeLessThan(40);
+  } else {
+    // On the result line, which runs across the card ("Defeat · Flex · 42h ago … −22 LP"), at its end.
+    const meta = (await card.getByTestId("match-card-meta").boundingBox())!;
+    expect(l.y + l.height / 2, "on the result line").toBeGreaterThan(meta.y);
+    expect(l.y + l.height / 2, "on the result line").toBeLessThan(meta.y + meta.height);
+    expect(c.x + c.width - (l.x + l.width), "at the card's end").toBeLessThan(40);
+  }
   // Cards with and without a figure stay compact: the same height on a phone (the KDA column has
   // room), one band on a tablet's stacked card (the figure adds no line).
   const heights = await page.getByTestId("match-card").evaluateAll((els) => els.slice(0, 6).map((e) => Math.round(e.getBoundingClientRect().height)));
