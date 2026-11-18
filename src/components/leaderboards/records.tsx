@@ -150,7 +150,7 @@ export function RecordRow({ record, player, champ, viewer }: { record: RecordVie
         testId="season-record"
         data-record={record.id}
         density={{ narrow: "two-line", medium: "two-line" }}
-        className="h-full @max-[36rem]/list:py-2.5"
+        className="h-full"
         lead={<RecordPicture record={record} holder={holder} champion={c} />}
         // Named by the record, so speech control finds it by the words on the row; the visible words are then not read twice.
         link={

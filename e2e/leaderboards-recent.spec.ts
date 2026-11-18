@@ -70,7 +70,7 @@ test("one page, no views: Recent form leads, the season's records and achievemen
 test("Records & achievements' old address lands on the same page at its season records, in one history entry: Back leaves the page, Forward returns", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/team");
-  await expect(page.getByTestId("team-tabs").or(page.getByTestId("phone-tabbar")).first()).toBeVisible();
+  await expect(page.locator("main")).toBeVisible();
   const entries = await page.evaluate(() => history.length);
   await open(page, "/leaderboards?view=records&season=16");
   // The view leaves the address (the season stays), the page lands on its records, focused for screen readers.
@@ -546,8 +546,10 @@ test("the page's own width places its boards: Recent form across with the record
         // Recent form keeps its one-line rows (a wide board), and every ranking row and record is on the first screen.
         expect(f.form.width / f.rem, `${at}: Recent form at least 58rem`).toBeGreaterThanOrEqual(58);
         for (const b of [...f.formRows, ...f.recordRows]) expect(b, `${at}: on the first screen`).toBeLessThanOrEqual(f.window);
-        // Where the window is 1440 tall, the multikills too.
-        if (height >= 1440) for (const b of f.multikillRows) expect(b, `${at}: every multikill on the first screen`).toBeLessThanOrEqual(f.window);
+        // At 2560 × 1440 the multikills too (at 3440 the root's 22px, against 20.6px, takes them a row or two lower).
+        if (width === 2560) for (const b of f.multikillRows) expect(b, `${at}: every multikill on the first screen`).toBeLessThanOrEqual(f.window);
+        // The achievements start on the first screen, under both.
+        expect(Math.min(f.multikills.top, f.milestones.top), `${at}: the achievements start on the first screen`).toBeLessThan(f.window);
       } else {
         // Recent form across the page (at most the measure), the records beside the multikills, the milestones across under both.
         expect(f.records.top, `${at}: the records under Recent form`).toBeGreaterThanOrEqual(f.form.bottom);

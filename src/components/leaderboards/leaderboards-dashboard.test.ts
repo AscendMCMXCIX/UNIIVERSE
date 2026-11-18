@@ -63,6 +63,8 @@ describe("Leaderboards, one page", () => {
   it("reads in one order: its title and who is on it, then Recent form, the season records, the multikills, the milestones", () => {
     expect(html.match(/<h1[ >]/g)).toHaveLength(1);
     expect(html).toMatch(/<h1 class="[^"]*">Leaderboards<\/h1>/);
+    // A long word that may break only where it cannot fit (200% text on a 320px phone).
+    expect(html).toMatch(/<h1 class="[^"]*\[overflow-wrap:anywhere\][^"]*">/);
     const at = (s: string) => html.indexOf(s);
     const order = ['data-testid="scope-label"', '<section id="recent-form"', '<section id="season-records"', '<section id="multikills"', '<section id="milestones"'].map(at);
     expect(order.every((i) => i >= 0)).toBe(true);
@@ -87,7 +89,7 @@ describe("Leaderboards, one page", () => {
     expect(html).toContain("@container/dash");
     const grid = /<div class="([^"]*)" data-testid="leaderboards-grid">/.exec(html)![1]!;
     expect(grid).toContain("@min-[59rem]/dash:grid-cols-[minmax(36rem,1fr)_minmax(21rem,24rem)]");
-    expect(grid).toContain("@min-[86rem]/dash:grid-cols-[minmax(22rem,24rem)_minmax(34.5rem,1fr)_minmax(26.5rem,38.5rem)]");
+    expect(grid).toContain("@min-[86rem]/dash:grid-cols-[minmax(22rem,25rem)_minmax(34.5rem,1fr)_minmax(26.5rem,38.5rem)]");
     // From 86rem the season records stand beside Recent form, in its first row.
     expect(html).toMatch(/<section id="season-records" aria-labelledby="season-records-title" class="min-w-0 @min-\[86rem\]\/dash:col-start-3 @min-\[86rem\]\/dash:row-start-1" data-testid="records">/);
     expect(html).toMatch(/<section id="recent-form" aria-labelledby="form-board-title" class="[^"]*@min-\[59rem\]\/dash:col-span-2" data-testid="form">/);

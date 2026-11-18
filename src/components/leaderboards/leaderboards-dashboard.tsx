@@ -19,9 +19,9 @@ import { SECTIONS } from "./sections";
                   columns of cells from a 44rem panel), the multikills, the milestones;
     from 59rem    Recent form across the page (at most the measure), the season records beside the
                   multikills (21–24rem), the milestones across (1280 and 1440 wide);
-    from 86rem    Recent form (58–60rem) beside the season records (26.5–38.5rem), the multikills
-                  under Recent form's start and the milestones beside them, to the page's end (1920,
-                  2560 and 3440 wide: Recent form and every record on the first screen).
+    from 86rem    Recent form (58–61rem) beside the season records (26.5–38.5rem), the multikills
+                  (22–25rem) under Recent form's start and the milestones beside them, to the page's
+                  end (1920, 2560 and 3440 wide: Recent form and every record on the first screen).
   Each board keeps its own height (items-start): a short board never stretches beside a tall one.
   The page's lead card is Recent form's board (surface-lead), the others plain panels; every board's
   first row is its title (BoardTitle), with what it counts under it and its explanations behind an
@@ -32,7 +32,7 @@ import { SECTIONS } from "./sections";
 const GRID =
   "grid min-w-0 grid-cols-[minmax(0,1fr)] items-start gap-4 " +
   "@min-[59rem]/dash:grid-cols-[minmax(36rem,1fr)_minmax(21rem,24rem)] @min-[59rem]/dash:gap-6 " +
-  "@min-[86rem]/dash:grid-cols-[minmax(22rem,24rem)_minmax(34.5rem,1fr)_minmax(26.5rem,38.5rem)]";
+  "@min-[86rem]/dash:grid-cols-[minmax(22rem,25rem)_minmax(34.5rem,1fr)_minmax(26.5rem,38.5rem)]";
 /** Across the first two tracks: Recent form from 59rem (across the page there), the milestones from 86rem (beside the multikills). */
 const ACROSS = "@min-[59rem]/dash:col-span-2";
 
@@ -44,7 +44,8 @@ export function LeaderboardsDashboard({ view, champions, status }: { view: Leade
     <LeaderboardsRoot className="@container/dash mx-auto flex w-full max-w-[var(--content-wide)] flex-col gap-4">
       {/* The title and who is on the boards, with how current they are (the members' page) or when they were last read (the public one). */}
       <header className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-fg">Leaderboards</h1>
+        {/* One long word: at 200% text on a 320px phone it is wider than the screen, so there (only) it breaks, hyphenated where the browser can. */}
+        <h1 className="min-w-0 text-2xl font-semibold tracking-tight text-fg hyphens-auto [overflow-wrap:anywhere]">Leaderboards</h1>
         <p className="text-sm text-fg-muted" data-testid="scope-label">
           {/* The count and the status as one unit: they move to the next line together, so the ⓘ never stands on a line alone. */}
           <span className="inline-flex max-w-full flex-wrap items-baseline gap-x-2">

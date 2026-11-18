@@ -4,11 +4,14 @@ Status: **live.** The owner approved the rules, and these boards replaced the pr
 - **Built as recommended on 3 Nov 2026:** one Recent form board (overall, All games, ranked by win
   rate) and the Records & achievements tab. Left out of the launch: the role boards, the Ranked
   switch and the lane figure (sections 3 and 5 describe the full model).
+- **One page since #72 (19 Nov 2026, the owner's approved change):** Recent form leads and the
+  season's records and achievements follow on the same page, with no tabs (docs/TEAM_LEADERBOARDS.md,
+  "The page"). The rules below are unchanged.
 - **Where the code is:**
   - `src/domain/leaderboard-recent.ts` and `src/domain/leaderboard-records.ts`;
-  - the view in `src/server/leaderboards/recent-view.ts`;
-  - the page in `src/components/leaderboards/recent-leaderboards.tsx` (Records & achievements in
-    `records.tsx`).
+  - the page's data in `src/server/leaderboards/recent-view.ts` (both parts from one load);
+  - the page in `src/components/leaderboards/leaderboards-dashboard.tsx`, Recent form's board in
+    `recent-leaderboards.tsx`, the season records, multikills and milestones in `records.tsx`.
 - **Who sees it:** everyone who can open Team Leaderboards (`/leaderboards`), and the public
   Leaderboards where the deployment allows Riot data on the public pages (`docs/TEAM_LEADERBOARDS.md`).
   Section 1 describes the boards it replaced.
@@ -41,7 +44,9 @@ Status: **live.** The owner approved the rules, and these boards replaced the pr
    figures are adjusted, weighted or normalised.
 4. **One plain figure per column.** No composite "impact" score, no hidden formula.
 5. **Two experiences, kept apart:** how players are doing lately (Recent performance), and what
-   they have achieved (Records & achievements).
+   they have achieved (Records & achievements). Since #72 they share one page, kept apart as its
+   sections: Recent form leads as the page's lead card, the records and achievements follow under
+   their own titles, and nothing is combined across them.
 
 ## 3. Recent performance (the default view)
 
@@ -116,7 +121,7 @@ Status: **live.** The owner approved the rules, and these boards replaced the pr
 - **Otherwise** it shows the gap in wins to the place above. When the oldest game was a win, a win
   only keeps the gap, so the row says "1 win behind", not "win your next game".
 - **These gaps assume the players above do not play in the meantime.** The page says this once,
-  under the board.
+  in the ⓘ in Recent form's title (a footnote under the board until #72).
 
 ### Inactivity
 
@@ -148,7 +153,7 @@ expected of a record.
 
   Each record shows the role and champion it was set on.
 - **Multikills this season:** pentakills, quadra kills and triple kills per player, rarest first.
-- **Champion milestones**, under their own "Lifetime and milestones" heading:
+- **Champion milestones**, under their own "Milestones" heading ("Lifetime and milestones" until #72):
   - games on one champion this season (25, 50, 100);
   - Riot mastery points on a champion (100,000, 500,000, 1,000,000).
 
@@ -156,14 +161,15 @@ expected of a record.
 
 ## 5. Navigation
 
-- **Two tabs:** Recent performance, Records & achievements.
+- **One page** (two tabs until #72): Recent performance, then Records & achievements.
 - **Recent performance has one row of controls:**
   - a board (Overall, Top, Jungle, Mid, Bottom, Support);
   - a mode (All games, Ranked).
 
   No season or lineup choice is needed: the window is recent by definition, and the line under the
   title says which games count.
-- **Records & achievements has one choice:** the season, current by default.
+- **Records & achievements has one choice:** the season, current by default (in the season
+  records' title row; Recent performance takes none).
 - **The table shows** each player's place, figure, record and games, the window's dates, and the
   gap to the place above. Choosing another column ranks by it, and the choice is kept in the
   address.

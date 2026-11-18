@@ -17,7 +17,7 @@ export default function Loading() {
         <Skeleton className="h-4 w-24" />
       </div>
       <Skeleton className="my-0.5 h-4 w-[min(18rem,100%)] @min-[59rem]/dash:hidden" />
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] items-start gap-4 @min-[59rem]/dash:grid-cols-[minmax(36rem,1fr)_minmax(21rem,24rem)] @min-[59rem]/dash:gap-6 @min-[86rem]/dash:grid-cols-[minmax(22rem,24rem)_minmax(34.5rem,1fr)_minmax(26.5rem,38.5rem)]">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] items-start gap-4 @min-[59rem]/dash:grid-cols-[minmax(36rem,1fr)_minmax(21rem,24rem)] @min-[59rem]/dash:gap-6 @min-[86rem]/dash:grid-cols-[minmax(22rem,25rem)_minmax(34.5rem,1fr)_minmax(26.5rem,38.5rem)]">
         <div className="flex min-w-0 max-w-[var(--measure)] flex-col @min-[59rem]/dash:col-span-2">
           <DataListSkeleton rows={7} heads title surface="lead" density={{ narrow: "two-line", medium: "regular", wide: "dense" }} />
         </div>

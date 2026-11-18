@@ -87,12 +87,13 @@ test("Back from a teammate's profile returns to where you came from, named after
   await back.click();
   await expect(page).toHaveURL(/\/players$/);
 
-  // From Leaderboards, Back is named after it.
+  // From Leaderboards, Back is named after it (its heading, "Leaderboards", as Players' is "Players").
   await page.goto("/leaderboards");
   await expect(page.getByTestId("leaderboards")).toHaveAttribute("data-ready", "true");
   await page.getByTestId("form-row").first().click();
   await expect(page).toHaveURL(/\/players\/[^/]+$/);
-  await expect(back).toContainText("Team Leaderboards");
+  await expect(back).toHaveAccessibleName(/^Leaderboards\b/);
+  await expect(back).toContainText("Leaderboards");
   await back.click();
   await expect(page).toHaveURL(/\/leaderboards$/);
 
