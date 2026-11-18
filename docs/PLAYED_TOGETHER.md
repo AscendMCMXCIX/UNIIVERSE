@@ -42,4 +42,4 @@ In Ranked Solo/Duo a party is two players at most, so a Solo/Duo game with three
   - personal-use exclusion and promotion;
   - membership changes;
   - details that arrive later.
-- `e2e/played-together.spec.ts`: the tab, labels, filters, the Solo/Duo note and the empty state, on the demo's **synthetic** shared games (match ids `DEMO_9…`, demo mode only).
+- `e2e/played-together.spec.ts`: the tab, labels, filters, the Solo/Duo note and the empty state, on the demo's **synthetic** shared games (match ids `DEMO_9…`, demo mode only). It also checks the cards' layout against their list's width: four columns exactly from a 58rem list, with the sidebar open and folded, and on a touch screen the result keeps its whole column.

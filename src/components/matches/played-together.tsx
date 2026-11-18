@@ -264,10 +264,16 @@ function TogetherCard({ g, p, champions, teams }: { g: TogetherListGame; p: (id:
   return (
     <TogetherCardFrame entry={togetherEntry(g.matchId, g.teamId)} playerId={g.members[0]!.playerId} matchId={g.matchId} championsById={champions} label={`${g.win === null ? "Game" : g.win ? "Victory" : "Defeat"}, ${queueLabel(g.queueId)}, ${formatDate(new Date(g.gameCreation))}, ${g.members.map((m) => p(m.playerId)?.name ?? "Player").join(", ")}`} className={matchCardClass(g.win, { interactive: true })} data-testid="together-game" data-match-id={g.matchId} data-members={g.members.length}>
       <MatchRail win={g.win} />
+      {/* Four columns (the result, the members, both teams, the bookmark) once the list is 58rem wide
+          (@container/tm, on the list): the list's width, not the window's, since the sidebar beside
+          it takes 4.5 or 16rem. The members' column is then 22rem, which leaves a name about 7.8rem
+          beside the widest figures (a multikill tag and a double-digit K/D/A), so a typical name
+          stays whole; narrower lists stack the card. */}
       <div className="relative grid gap-x-4 gap-y-2.5 px-3 py-2.5 @min-[58rem]/tm:grid-cols-[9rem_minmax(0,1fr)_minmax(0,20rem)_auto] @min-[58rem]/tm:items-center @min-[58rem]/tm:py-3">
         {/* The result and the game, then who played it: one line on narrower cards, clear of the
-            bookmark in the corner. */}
-        <div className={cn("min-w-0 @min-[58rem]/tm:pr-0", bookmark && "pr-9 pointer-coarse:pr-12")}>
+            bookmark in the corner (more room on a touch screen, where the bookmark is larger). On
+            four columns the bookmark has its own, so the result keeps its full 9rem. */}
+        <div className={cn("min-w-0", bookmark && "@max-[58rem]/tm:pr-9 @max-[58rem]/tm:pointer-coarse:pr-12")}>
           <MatchResult win={g.win} queue={queueLabel(g.queueId)} when={formatDate(new Date(g.gameCreation))} duration={fmtDuration(g.durationS)} lineBelow="teamMatches" />
           <span className="mt-0.5 block text-xs text-fg-subtle @min-[58rem]/tm:mt-1">
             {g.sharedBy ? (
