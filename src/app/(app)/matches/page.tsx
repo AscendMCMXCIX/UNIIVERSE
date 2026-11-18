@@ -64,30 +64,37 @@ function leftOutNotes(data: Pick<PlayedTogether, "unknownSide" | "unavailableSid
   return notes;
 }
 
-/** The header's one line: what is counted, with the caveat (and any games left out) behind (i). */
-function Summary({ children, caveat, notes = [], label }: { children: React.ReactNode; caveat: string; notes?: string[]; label: string }) {
+/** The header's one line: what is counted and the record, with the caveat (and any games left out) behind (i). */
+function Summary({ scope, record, caveat, notes = [], label }: { scope: string; record: string | null; caveat: string; notes?: string[]; label: string }) {
+  // The (i) ends the line, in its flow, as one unbreakable piece with what comes last: the record
+  // ("7W 5L") when there is one, else the last word. Where the line does not fit, it breaks before
+  // that piece, so the (i) never takes a line alone.
+  const cut = scope.lastIndexOf(" ") + 1;
+  const [lead, last] = record ? [`${scope} · `, record] : [scope.slice(0, cut), scope.slice(cut)];
   return (
-    // The (i) after the line's last word, in its flow: on a narrow phone it never takes a line alone.
     <span data-testid="matches-summary">
-      <span>{children}</span>{" "}
-      <span className="ml-0.5 inline-flex align-middle">
-        <InfoTip
-          text={
-            notes.length ? (
-              <>
-                <span className="block">{caveat}</span>
-                {notes.map((n) => (
-                  <span key={n} className="mt-1.5 block" data-testid="matches-left-out">
-                    {n}
-                  </span>
-                ))}
-              </>
-            ) : (
-              caveat
-            )
-          }
-          label={label}
-        />
+      {lead}
+      <span className="whitespace-nowrap">
+        {last}{" "}
+        <span className="ml-0.5 inline-flex align-middle">
+          <InfoTip
+            text={
+              notes.length ? (
+                <>
+                  <span className="block">{caveat}</span>
+                  {notes.map((n) => (
+                    <span key={n} className="mt-1.5 block" data-testid="matches-left-out">
+                      {n}
+                    </span>
+                  ))}
+                </>
+              ) : (
+                caveat
+              )
+            }
+            label={label}
+          />
+        </span>
       </span>
     </span>
   );
@@ -174,10 +181,13 @@ async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<Ret
       <PageHeader
         title="Matches"
         description={
-          <Summary caveat={TOGETHER_CAVEAT} notes={leftOutNotes(data)} label="How games played together are found">
-            {seasonLabel(season)} · {plural(all.length, "game", "games")} {saved ? "bookmarked" : "played together"}
-            {decided ? ` · ${wins}W ${decided - wins}L` : ""}
-          </Summary>
+          <Summary
+            scope={`${seasonLabel(season)} · ${plural(all.length, "game", "games")} ${saved ? "bookmarked" : "played together"}`}
+            record={decided ? `${wins}W ${decided - wins}L` : null}
+            caveat={TOGETHER_CAVEAT}
+            notes={leftOutNotes(data)}
+            label="How games played together are found"
+          />
         }
       />
       <PlayedTogetherView data={data} seasons={seasons} currentSeason={current} shown={shown} teams={teams} total={all.length} filters={filters} summary={summary} savedCount={savedCount} champions={Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]))} href={href} elsewhere={elsewhere} />

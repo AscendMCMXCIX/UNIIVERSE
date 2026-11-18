@@ -290,12 +290,13 @@ function TogetherCard({ g, p, champions, teams }: { g: TogetherListGame; p: (id:
             )}
           </span>
           {soloCaveat ? (
-            // Whole on a stacked card; in the four columns' narrow result column a short line on
-            // screen, the whole sentence read out and in its title.
+            // Whole on a stacked card. In the four columns' narrow result column a short line on
+            // screen that keeps its point, under the queue's own line ("Ranked Solo/Duo"); the whole
+            // sentence read out and in its title.
             <p className="mt-1 text-xs text-fg-subtle @max-[58rem]/tm:basis-full" title={SOLO_CAVEAT} data-testid="together-solo-caveat">
               <span className="@min-[58rem]/tm:sr-only">{SOLO_CAVEAT}</span>
               <span aria-hidden className="hidden @min-[58rem]/tm:inline">
-                Solo/Duo: duos at most
+                Not all queued together
               </span>
             </p>
           ) : null}
@@ -331,16 +332,24 @@ function TogetherCard({ g, p, champions, teams }: { g: TogetherListGame; p: (id:
                       {/* The game's largest multikill, beside the K/D/A as in Match History. */}
                       {m.multikill ? <MultikillTag size={m.multikill} testId="together-multikill" /> : null}
                     </span>
-                    {/* The role and champion, then the CS and damage where the row has room for both whole
-                        (from sm, a row of 19rem: one member a row, or a tablet's two); otherwise they
-                        are the K/D/A's title and in the game's breakdown, as on a phone. */}
-                    <span className="flex min-w-0 items-center gap-1 text-xs text-fg-muted">
-                      {role ? <RoleIcon role={role} className="h-3 w-3 shrink-0" /> : null}
-                      <span className="min-w-0 truncate">
-                        {role ? ROLE_LABELS[role] : "Role unknown"} · {c.name}
+                    {/* The role and champion (the icon stays with its words), then, from sm in a row of
+                        19rem (one member a row, or a tablet's two), the CS and damage: beside them where
+                        both fit whole, on a line of their own under them otherwise, so they never cut
+                        the champion's name. Their "·" sits in the gap before them, so a line of their
+                        own (clipped at its start) does not begin with it. On narrower rows they are the
+                        K/D/A's title and in the game's breakdown, as on a phone. */}
+                    <span className="flex min-w-0 flex-wrap items-center gap-x-2.5 overflow-hidden text-xs text-fg-muted">
+                      <span className="flex min-w-0 max-w-full items-center gap-1" data-testid="together-member-role">
+                        {role ? <RoleIcon role={role} className="h-3 w-3 shrink-0" /> : null}
+                        <span className="min-w-0 truncate">
+                          {role ? ROLE_LABELS[role] : "Role unknown"} · {c.name}
+                        </span>
                       </span>
-                      <span className="hidden shrink-0 whitespace-nowrap tabular-nums text-fg-subtle sm:@min-[19rem]/member:inline" data-testid="together-member-extra">
-                        · {extra}
+                      <span className="relative hidden whitespace-nowrap tabular-nums text-fg-subtle sm:@min-[19rem]/member:inline" data-testid="together-member-extra">
+                        <span aria-hidden className="absolute right-full w-2.5 text-center">
+                          ·
+                        </span>
+                        {extra}
                       </span>
                     </span>
                   </span>
