@@ -219,7 +219,8 @@ Substitute side of the Team cards).
   at the page's column and Team's name at the row's end stops at its right edge, and the row stays in
   the same place on every section of the set; the line under it and its pinned ink span the room. In
   a window under 1600px every page and the row are exactly as before, the sidebar open or folded
-  (Players and Matches 80rem, the row the bar's width; measured against main's build). A profile's
+  (Players and Matches 80rem, the row the bar's width; measured against main's build), but for PR
+  2b's 44px dense tabs on touch screens from 1024px (below). A profile's
   tabs and a section's views (`SubTabs`) are inside their page's column, so they always lined up. On
   Team Overview the column is Team's 100rem, and its header and lineup keep their 84rem, centred in
   it (the logo 38px inside at 1920, 165px at 2560 and 176px at 3440 with the sidebar open). With
@@ -233,8 +234,12 @@ Substitute side of the Team cards).
   page's own toolbar has gone up under them, the page's compact copy shows at the pinned row's end
   (`PageToolbar`; which page offers what: DESIGN_SYSTEM.md §7), at the row's own height (32px with a
   mouse, 38px on touch screens with a 44px target; the search field 44px on touch screens, kept in
-  the row by its negative margins), the labels where the row is 56rem or wider and the icons alone
-  below that; Team's name at the row's end gives way to it. It is watched against the pinned stack's
+  the row by its negative margins), centred in the whole bar, the labels where the row is 56rem or
+  wider and the icons alone below that; Team's name at the row's end gives way to it. So that the
+  row holds those 44px targets, from 1024px on touch screens the dense section tabs (Team's,
+  Resources' and Platform Settings') are 44px, as a profile's are, not 40px: the bar is then the
+  2.75rem `--tabs-top` and the scroll padding assume (with a mouse they stay 40px, level with the
+  sidebar's brand row). It is watched against the pinned stack's
   foot (the tablet's top bar and the tabs, measured from the pinned row), drawn only while it shows,
   kept while in use (pressed or focused, while the sheet it opened is open, and until that sheet has
   handed the focus back), and never in a short window. On phones the top bar offers the page's
@@ -318,7 +323,10 @@ the Overview's dashboard, All Champions' first champion under its pinned heading
 player do too; the compact search narrows Players and All Champions in the row's own height, and
 its Clear lets the copy go once the page's own search is back in view, with no focus left in the
 row; Bookmarked from the row replaces the entry, is marked and keeps the place; Records → Recent form
-from the pinned row.
+from the pinned row; on a touch screen at 1180 and 1366, Team's tabs and the bar 44px, the 2.75rem
+`--tabs-top` assumes, at rest and pinned, Filters and Bookmarked centred inside it, a change from it
+landing the first game 8px under it, and at 175% text the compact search filling the bar exactly;
+with a mouse at 1440 the tabs 40px, the controls centred in the bar.
 `e2e/mobile-nav.spec.ts` has the phone's: the top bar's Filters (44px, "Filters:" and what is chosen)
 only once the page's own has gone, opening the sheet, Done after a change landing the first game
 under the bars, its badge counting; Escape and Done hand the focus back, even after a change that

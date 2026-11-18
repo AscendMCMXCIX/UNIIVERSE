@@ -280,7 +280,8 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     the room's edge: 74px left of Players at 1920 and 250px at 2560, 400 to 620px at 3440 (the
     sidebar open). In a window under 1600px every page and the row are as they always were, the
     sidebar open or folded (measured against main's build at 1280, 1366, 1440, 1536 and 1599: no
-    difference), so with the sidebar folded between 1417 and 1599px Players, Matches, Resources and
+    difference; PR 2b's 44px dense tabs on touch screens from 1024px aside, below), so with the
+    sidebar folded between 1417 and 1599px Players, Matches, Resources and
     Platform Settings still start up to about 79px inside the row (60px at 1536), as before. The
     line under the tabs and the pinned ink span the room beside the sidebar, as a frame does. A
     profile's tabs, and a section's views (`SubTabs`), sit inside their page's own column, so they
@@ -301,8 +302,11 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     its Filters opened is open, and until that sheet has handed the focus back, so a change that
     shortens the page never leaves the focus with nowhere to return (`useHeld`). Never in a short
     window (nothing is pinned there). The row never grows: the controls are 32px with a mouse and 38px
-    on touch screens (a 44px target), centred in it, the search 44px on touch screens with its 40px
-    clear button; where the row is narrower than 56rem (a tablet, a laptop with the sidebar open) they
+    on touch screens (a 44px target), centred in the whole bar, the search 44px on touch screens with
+    its 40px clear button, and from 1024px on touch screens the dense section tabs (Team's,
+    Resources', Platform Settings') are 44px, not 40px, so the bar holds those targets and is the
+    2.75rem `--tabs-top` assumes (with a mouse they stay 40px); where the row is narrower than 56rem
+    (a tablet, a laptop with the sidebar open) they
     show their icons alone, named for screen readers, and Team's name at the row's end gives them its
     place. Their Filters opens the page's Filters sheet at every width, in its sheet form (labels
     shown, fields the sheet's width, a page's Refine fields in place, in one column behind More
