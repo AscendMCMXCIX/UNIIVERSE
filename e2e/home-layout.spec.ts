@@ -143,7 +143,7 @@ test("Team Overview on a very wide screen: the lineup keeps its maximum width, c
 
 async function openTeammate(page: Page) {
   await page.goto("/players");
-  // Phones list the players as rows (docs/MOBILE.md); wider screens as cards.
+  // Players lists every player as a row of its roster, at every width (#277; docs/MOBILE.md).
   const card = playerEntry(page, "Demo Top");
   await expect(card).toBeVisible();
   await card.click();
