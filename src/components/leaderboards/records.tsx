@@ -17,9 +17,9 @@ import { SECTIONS } from "./sections";
   sections after Recent form: single games, multikills and milestones, which reward playing more,
   and say so (in the records' ⓘ). Three boards, each a section the page places by its own width
   (leaderboards-dashboard.tsx), each laid out by its own width, not the window's:
-    Season records   seven cells in one panel: one column, then two from a 40rem panel where the
-                     page stacks its boards (never beside Recent form, from 86rem) (the last,
-                     the streak, across both); each cell measures itself (@container/list), so a
+    Season records   seven cells in one panel: one column, then two from a 40rem panel under
+                     Recent form, never in the column beside it from 86rem (the last, the
+                     streak, across both); each cell measures itself (@container/list), so a
                      record reads the same wherever it is placed (RecordRow);
     Multikills       a row per member, rarest first;
     Milestones       games on one champion this season, and all-time mastery: a row per member,

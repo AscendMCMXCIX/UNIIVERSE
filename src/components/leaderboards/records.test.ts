@@ -111,7 +111,7 @@ describe("the season records", () => {
     expect(html).not.toContain("records-season");
   });
 
-  it("place their cells on a grid by the panel's width (two columns where the page stacks its boards), each cell measuring itself, the seventh across both columns", () => {
+  it("place their cells on a grid by the panel's width (two columns under Recent form, never beside it), each cell measuring itself, the seventh across both columns", () => {
     expect(html).toMatch(/<ul aria-label="Season records" class="grid grid-cols-\[minmax\(0,1fr\)\] [^"]*@min-\[40rem\]\/list:@max-\[86rem\]\/dash:grid-cols-2" data-testid="season-records">/);
     const cells = [...html.matchAll(/<li class="([^"]*)"><div class="([^"]*)"><div [^>]*data-testid="season-record"/g)];
     expect(cells).toHaveLength(7);

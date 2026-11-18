@@ -638,7 +638,7 @@ function usePageHeading(pathname: string, barHeight: number): { text: string | n
 /*
   Back on a phone. The pages visited in this tab of the browser since the app opened, newest last,
   each with its heading: when the page before this one is known, Back goes to it (the browser's own
-  history, so the place on that page is kept) and is named after it ("Team Leaderboards", "Demo Mid");
+  history, so the place on that page is kept) and is named after it ("Leaderboards", "Demo Mid");
   otherwise (a link from elsewhere, a reload, the installed app's start) Back leads to the page
   above this one (phoneParent). Moving between a profile's sections replaces the entry, as the
   sections do on phones (ProfileTabs), so Back leaves the profile rather than stepping through them.
