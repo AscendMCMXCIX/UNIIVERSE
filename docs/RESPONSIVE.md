@@ -215,8 +215,8 @@ Substitute side of the Team cards).
   phone a label that a larger text size makes too long wraps and the button grows with it (a form's
   Save beside little room); without it a label stays on one line.
 - `Input`, `Select`, `Textarea`, `SearchInput` and the champion grid's search: 44px and 16px text
-  on phones and on every touch screen (a search's placeholder longer than its field ends in an
-  ellipsis), 36px / 14px from `md` with a mouse (`md:pointer-fine:`): iOS
+  on phones and on every touch screen, 36px / 14px from `md` with a mouse (`md:pointer-fine:`) (in
+  `SearchInput`, a placeholder longer than its field ends in an ellipsis): iOS
   zooms the page into a focused field under 16px, and iPads and most iPhones held sideways (812px
   and up) are `md` or wider. Before #300 their text turned 14px from `md` on a touch screen too.
   `design-tokens.test.ts` refuses a field's 16px dropping below it from any breakpoint without
@@ -245,19 +245,28 @@ All Champions follows its list's own width too (a container query, so the sideba
 | --- | --- |
 | under 17rem (a phone at 150% or 200% text) | each row stacks: the name, then the win rate and games, then the figures as labelled pairs, so no name is squeezed out |
 | under 20.5rem (a 320px phone) | a row per champion, the win rate and games at its right and the figures as pairs under it (the pair it is sorted by first, in semibold); the search on its own line over Sort by |
-| from 20.5rem (a 360px phone) | the search and Sort by share one row (Sort by's label read out only; the control names the columns as the table's headings do) |
-| from 44rem (a 752px tablet, a 1024px computer with the sidebar open) | the table: the champion column keeps 11.75rem, so every row is 51px for every role; a quiet bar under each champion's games is its share of every game in the filters |
+| from 20.5rem (a 360px phone) | the search and Sort by share one row: the words "Sort by" are the control's accessible name, read out only, and the control shows the sort mark before the column's name (the columns' short names, as the table's headings write them) |
+| from 44rem (a 752px tablet, a 1024px computer with the sidebar open) | the table: the champion column keeps 11.75rem, so every row is 51px for every role; a quiet bar under each champion's games is its share of every game in the filters, said by a key in the toolbar's row ("share of the 36 games in these filters", beside a sample of the bar) and, for each champion, in words read out (never "0%" for a champion that was played: "under 1%") |
 | from 76rem | the four multikills in columns of their own, and the figures in groups (the record, the play, the multikills, mastery) |
 
 On a phone, upright or held sideways, the section's title is left to screen readers: the current
 tab, in the top bar or right above the section, names it. A champion's window on a phone (below
 `sm`) has a 48px portrait, the scope beside Matchup Intel across the window's width, Refine at the
-end of the tabs' row and the figures three by two with short labels (CS/min, Damage/min, Mastery in
-thousands), so the lane comparison starts at 524px instead of 631 on a 393 × 852 phone; on a touch
-screen its tabs and the multikills ⓘ are 44px targets. From `sm` the window is as it was (six
-figures across from `lg`), its tabs 44px on a touch screen. `e2e/profile.spec.ts` (the tiers,
-200% text on a 320px phone, the bar, the groups) and `e2e/matchups.spec.ts` (the phone window) check
-these.
+end of the tabs' row (its panel opening right after that row, so it follows its button in reading
+and focus order and the button stays where it was tapped) and the figures three by two with short
+labels (CS/min, Damage/min, Mastery; the whole labels read out). Every figure is written whole,
+Mastery points too: the last column, which holds KDA and Mastery, takes the room its figures need
+(seven digits on a 320px phone) and the others share the rest. On a touch screen its tabs and both
+multikills ⓘ are 44px targets. The lane comparison starts at 524px instead of 631 on a 393 × 852
+phone. The plan estimated about 460px; since it was written, the scope row also holds Matchup Intel
+(#292) and the scope wraps rather than cutting off the account (#300), and the tabs are 44px on a
+touch screen. From `sm` the window is as it was (three figures across, six from `lg`), its tabs
+44px on a touch screen. `e2e/profile.spec.ts` checks the phone's title (upright and sideways), its
+scope line, toolbar and sorted pair at 393, 375, 360 and 320px, 200% text on a 320px phone, the bar
+and its legend against the filters' games, and the groups with the 76rem grid's headings, arrows and
+figures at 1536 and 1680px; `e2e/matchups.spec.ts` checks the window on a 393px phone (the portrait,
+Refine and its panel's order, the tiles and their labels, the 44px tab and ⓘ, the lane's top) and on
+a 320px one (whole figures, seven-digit mastery too), and from `sm` on the tablet and the desktop.
 
 ## Tests
 

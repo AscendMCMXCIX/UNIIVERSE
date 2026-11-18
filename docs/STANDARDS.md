@@ -181,8 +181,9 @@ text, so a heading keeps its place when it is sorted). The sorted column is mark
 by its figures in the main text weight; no gradient, glow or bar behind a figure unless the bar is
 the figure itself: Recent form's record as 20 neutral segments, wins first (`QuietBar`), in the
 text's own grey, never a state colour, and All Champions' share of the games, one continuous
-`QuietBar` under each champion's games (its games over every game in the filters, said in words in
-the cell's title and to screen readers). Win rates take their colour only from `winRateTone`
+`QuietBar` under each champion's games (its games over every game in the filters, said by a key
+in the table's toolbar, and in words in the cell's title and to screen readers; a share is never
+written "0%" or "100%" when it is neither). Win rates take their colour only from `winRateTone`
 (`src/domain/stats/win-rate.ts`), except on Recent form, which stays neutral; below the minimum
 games they stay grey and say "small sample", and a sort by win rate ranks established records
 before small samples. A ranking gives equal values the same place, written "2=" (titled and read
