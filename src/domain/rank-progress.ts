@@ -42,6 +42,16 @@ export function rankLabel(tier: string | null, division: string | null): string 
   return TIERS.indexOf(tier.toUpperCase() as (typeof TIERS)[number]) >= APEX_FROM || !division ? tierName(tier.toUpperCase()) : `${tierName(tier.toUpperCase())} ${division}`;
 }
 
+const TIER_CODE: Record<string, string> = { IRON: "I", BRONZE: "B", SILVER: "S", GOLD: "G", PLATINUM: "P", EMERALD: "E", DIAMOND: "D", MASTER: "M", GRANDMASTER: "GM", CHALLENGER: "C" };
+const DIVISION_DIGIT: Record<string, string> = { I: "1", II: "2", III: "3", IV: "4" };
+
+/** A rank's short code, as match cards and a narrow ranked chart write it: "E2", "D4", "GM" (no division above Diamond). */
+export function rankCode(tier: string, division: string | null): string {
+  const t = tier.toUpperCase();
+  const apex = TIERS.indexOf(t as (typeof TIERS)[number]) >= APEX_FROM;
+  return `${TIER_CODE[t] ?? t.charAt(0)}${division && !apex ? (DIVISION_DIGIT[division] ?? division) : ""}`;
+}
+
 /** The snapshot's place on the absolute ladder, or null when unranked or unknown. */
 export function ladderScore(s: Pick<RankSnapshot, "tier" | "division" | "leaguePoints">): number | null {
   if (!s.tier) return null;

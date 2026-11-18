@@ -116,6 +116,18 @@ export function formatTimeOfDay(date: DateInput): string {
   return c ? `${c.hour % 12 || 12}:${String(c.minute).padStart(2, "0")} ${c.hour < 12 ? "am" : "pm"}` : "—";
 }
 
+/**
+ * A later instant written against an earlier one, leaving out what the two share: on the same
+ * calendar day its time alone ({ day: null, time: "3:04 pm" }), in the same year its day and month
+ * too ("21 Oct"), else its full date ("2 Jan 2027"). Ranked progress's readings say this way when a
+ * reading was last confirmed, under the instant it was first read.
+ */
+export function formatDateTimeAfter(date: DateInput, earlier: DateInput): { day: string | null; time: string } {
+  const time = formatTimeOfDay(date);
+  if (isoDay(date) === isoDay(earlier)) return { day: null, time };
+  return { day: calendarDay(date)?.year === calendarDay(earlier)?.year ? formatDayMonth(date) : formatDate(date), time };
+}
+
 /** "21 Oct 2026, 3:04 pm". */
 export function formatDateTime(date: DateInput): string {
   const c = clock(date);
