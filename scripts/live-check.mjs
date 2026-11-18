@@ -177,7 +177,7 @@ function publicPlayerId() {
 function healthAndSecurity(playerId) {
   if (local) return warn("security", "security checks skipped", "LIVE_LOCAL=1: the demo build has no sign-in");
   const forged = `uniiverse_session=s1.${"x".repeat(40)}`;
-  const paths = ["/team", "/players", "/matches", "/leaderboards", "/overview", "/overview/accounts", "/me", "/settings", "/admin", "/admin/players", "/admin/people", "/admin/audit", "/admin/system", "/admin/data"];
+  const paths = ["/team", "/players", "/matches", "/leaderboards", "/overview", "/overview/accounts", "/me", "/settings", "/resources/matchups", "/admin", "/admin/players", "/admin/people", "/admin/audit", "/admin/system", "/admin/data"];
   playerId ??= publicPlayerId();
   if (playerId) paths.push(`/players/${playerId}`, `/players/${playerId}/champions`, `/players/${playerId}/matches`, `/players/${playerId}/accounts`);
   else warn("security", "a member's own pages were not tried", "no player id: not signed in, and the public team page lists no member");

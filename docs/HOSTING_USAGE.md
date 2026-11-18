@@ -402,6 +402,13 @@ The counts equal those of the player's games in Encounters for the same players 
 
 - **Production after the deploy** (Data jobs run 40829460360, 29 Oct 2026, commit 1a24d17): the `perf-probe` step `profile.matchMeetings` took 25.9 ms and sent 0.1 KB for the newest game of the player with the most games (1,150 games this season). No player in that game had been met in another game this season, so this is the light case, the table's second row. A game with players met before has not been timed in production yet; later probe runs time whichever game is newest then. That is one first call, including the round trip from Vercel's Sydney region to the database.
 
+## 16 Nov 2026: Matchup Intel's champion abilities
+
+Resources → Matchup Intel reads each champion's Data Dragon abilities from `app_settings` "champion_abilities" (`docs/DATA_PIPELINES.md`, "Champion abilities (Matchup Intel)"). Measured on PostgreSQL 16 with Data Dragon 16.22.1's 173 champions:
+- **Reads:** only the champions a page shows, 1.2–2.6 KB each (median 1.6 KB; 3.3 KB and about 2–3 ms of database time for a matchup of two), each kept 10 minutes per instance. When nothing changed, the hourly version check's abilities step is one statement: a few hundred bytes back and about 5 ms of database time (4–6 ms, 102 buffers). Both read the stored document once. Before a review found it (16 Nov, before release), the hourly check read the document again for every champion: about 0.5 s of database time and 11,000 buffers (about 87 MiB of 8 KB pages, all from cache) every hour, though only a few hundred bytes left the database.
+- **Writes:** about 270 KB once per game version (117 KB on disk). Writes are not egress.
+- **Data Dragon and CPU:** a new version needs no extra request, because the champion sync's detail files are reused. The first fill after the deploy requests the 173 files once (about 2.3 MB). Compacting the roster takes about 6 ms of CPU.
+
 ## What still needs attention
 
 - **Meta & Trends removed** (after this change). Its collection and aggregation jobs were most of the database's writes, and its tables hold about 200 MB of the database. 12 of them (about 206 MB) were dropped on 4 Nov 2026 (#86, after a verified backup); the rest stay until the owner decides (`docs/DATA_PIPELINES.md`, Retired tables).

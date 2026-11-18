@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import path from "node:path";
 import { ESLint } from "eslint";
-import { DISPLAY_TIME_ZONE, calendarDay, localPeriodStarts, formatCompactCount, formatCount, formatDate, formatDateTime, formatDateTimeAfter, formatDayMonth, formatIsoDay, formatKilo, formatNumber, formatOrdinal, formatTimeOfDay, isoDay, timeAgo, formatLpChange } from "./format";
+import { DISPLAY_TIME_ZONE, calendarDay, localPeriodStarts, formatCompactCount, formatCooldowns, formatCount, formatDate, formatDateTime, formatDateTimeAfter, formatDayMonth, formatIsoDay, formatKilo, formatNumber, formatOrdinal, formatPerRank, formatSeconds, formatTimeOfDay, isoDay, keepUnitsWithNumbers, timeAgo, formatLpChange } from "./format";
 
 /*
   Every date on the site is written in the installation's time zone (Sydney unless
@@ -135,6 +135,72 @@ describe("numbers", () => {
     expect(formatLpChange(24)).toBe("+24 LP");
     expect(formatLpChange(-21)).toBe("\u221221 LP");
     expect(formatLpChange(0)).toBe("0 LP");
+  });
+});
+
+describe("cooldowns (Matchup Intel)", () => {
+  it("write a base cooldown per rank, the same value once, and one value alone", () => {
+    expect(formatCooldowns([8, 7, 6, 5, 4])).toBe("8 / 7 / 6 / 5 / 4\u00a0s");
+    expect(formatCooldowns([13, 13, 13, 13, 13])).toBe("13\u00a0s at every rank");
+    expect(formatCooldowns([120, 100, 80])).toBe("120 / 100 / 80\u00a0s");
+    expect(formatCooldowns([12])).toBe("12\u00a0s");
+    // A passive that changes with the champion's level says so.
+    expect(formatCooldowns([6, 6, 6], "level")).toBe("6\u00a0s at every level");
+  });
+
+  it("write decimals as the numbers have them, up to four, with the site's decimal point", () => {
+    expect(formatCooldowns([8.5, 7.75, 7, 6.25, 5.5])).toBe("8.5 / 7.75 / 7 / 6.25 / 5.5\u00a0s");
+    expect(formatCooldowns([0.25, 0.25, 0.25])).toBe("0.25\u00a0s at every rank");
+    // A checked wait between casts keeps its four decimals: 0.3125 is never written as 0.31.
+    expect(formatSeconds(0.3125)).toBe("0.3125");
+    expect(formatSeconds(4 / 3)).toBe("1.3333");
+    expect(formatSeconds(0.1 + 0.2)).toBe("0.3");
+    expect(formatSeconds(16)).toBe("16");
+    expect(formatSeconds(Number.NaN)).toBe("—");
+  });
+
+  it("write any values per rank with their unit, the same value once", () => {
+    expect(formatPerRank([25, 35, 45, 55, 65], "%")).toBe("25 / 35 / 45 / 55 / 65%");
+    expect(formatPerRank([40, 40, 40], "%")).toBe("40% at every rank");
+    expect(formatPerRank([40, 40, 40], "%", null)).toBe("40%");
+    expect(formatPerRank([3, 4, 5], "")).toBe("3 / 4 / 5");
+    expect(formatPerRank([20], "s")).toBe("20\u00a0s");
+    expect(formatPerRank([17, 16, 15, 14, 13], "s", null)).toBe("17 / 16 / 15 / 14 / 13\u00a0s");
+  });
+
+  it("never write a number that is not there", () => {
+    expect(formatCooldowns([])).toBe("—");
+    expect(formatCooldowns([8, Number.NaN, 6])).toBe("—");
+    expect(formatCooldowns([-1, 2])).toBe("—");
+    expect(formatCooldowns([8, Number.POSITIVE_INFINITY])).toBe("—");
+    expect(formatPerRank(["8"] as unknown as number[], "s")).toBe("—");
+    expect(formatPerRank(null as unknown as number[], "%")).toBe("—");
+  });
+});
+
+describe("numbers and their units in curated text (Matchup Intel)", () => {
+  const NBSP = "\u00a0";
+  it("joins a number and the word after it with a no-break space, so a line never ends between them", () => {
+    expect(keepUnitsWithNumbers("with no tenacity the stun lasts 1.625 s or 1.3 s, and she takes")).toBe(`with no tenacity the stun lasts 1.625${NBSP}s or 1.3${NBSP}s, and she takes`);
+    expect(keepUnitsWithNumbers("For 4 seconds, within 300 units; at 50 Fury, 3 charges, 1 health, 600 range, 55 energy.")).toBe(`For 4${NBSP}seconds, within 300${NBSP}units; at 50${NBSP}Fury, 3${NBSP}charges, 1${NBSP}health, 600${NBSP}range, 55${NBSP}energy.`);
+    expect(keepUnitsWithNumbers("5 (+30% AP) plus 1 second and 2 stacks (Ornn's 4 s forge)")).toBe(`5 (+30%${NBSP}AP) plus 1${NBSP}second and 2${NBSP}stacks (Ornn's 4${NBSP}s forge)`);
+    // Units no list named before: distances, speeds, stats, counts and angles.
+    expect(keepUnitsWithNumbers("The shockwave (360 radius) at 770 speed; 30% armour, 6 snips, 9 needles, a 180\u00b0 sweep.")).toBe(`The shockwave (360${NBSP}radius) at 770${NBSP}speed; 30%${NBSP}armour, 6${NBSP}snips, 9${NBSP}needles, a 180\u00b0${NBSP}sweep.`);
+    // Any word: the number never ends a line. A unit of several words keeps only its first word.
+    expect(keepUnitsWithNumbers("75 bonus range, 20% bonus AD; Can be cast 2 more times, at levels 6, 11 and 16")).toBe(`75${NBSP}bonus range, 20%${NBSP}bonus AD; Can be cast 2${NBSP}more times, at levels 6, 11${NBSP}and 16`);
+    // A word ends where its letters do, whatever follows it.
+    expect(keepUnitsWithNumbers("a 3 seconds-long window")).toBe(`a 3${NBSP}seconds-long window`);
+    // Any letter, Latin or not ("É", "λ"); and a digit that ends a word ("Q2") holds the next word too.
+    expect(keepUnitsWithNumbers("5 Éclat, then Q2 cast")).toBe(`5${NBSP}Éclat, then Q2${NBSP}cast`);
+    expect(keepUnitsWithNumbers("3 λ")).toBe(`3${NBSP}λ`);
+  });
+
+  it("changes nothing else: a number before anything but a word, a word with no number before it, a space already joined", () => {
+    for (const text of ["8 / 7 / 6 / 5 / 4", "at levels 6, 11", "320 (by level)", "Q2: 40 + 10", "lasts 4. Then", "R's second pass", "the s and the units", "ends with 16", ""]) {
+      expect(keepUnitsWithNumbers(text), text).toBe(text);
+    }
+    const joined = `already 1.625${NBSP}s`;
+    expect(keepUnitsWithNumbers(joined)).toBe(joined);
   });
 });
 

@@ -207,7 +207,9 @@ navigation contract").
      beside it;
    - the collapse control under it. It is quieter than the pages: `fg-subtle`, normal weight, and
      its Ctrl \ hint appears over the row's end only while the row is pointed at or focused.
-2. **Pages:** My Profile, Team and Resources in Player Mode; Admin Mode's six sections.
+2. **Pages:** My Profile, Team and Resources in Player Mode (Resources stands for its Library and
+   Matchup Intel, the tabs at the top of both, as Team stands for its sections); Admin Mode's six
+   sections.
 3. **Footer:**
    - the switch between the modes (administrators only), as a quiet row;
    - Install App;
@@ -259,8 +261,8 @@ Sign out in a panel of their own, and it keeps the accent when it leads to Admin
 
 With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shell):
 
-- **Pinned section tabs (tablets and desktops).** Team's, a profile's and Platform Settings'
-  section tabs stay pinned at the top of the page once it has scrolled past them. They sit under
+- **Pinned section tabs (tablets and desktops).** Team's, Resources', a profile's and Platform
+  Settings' section tabs stay pinned at the top of the page once it has scrolled past them. They sit under
   the tablet's top bar (`--bar-top`) and at the window's edge beside the sidebar, 2.8125rem tall.
   - While pinned (`data-stuck`, set by `TabBar`), the row is frame, not content: the frame's ink
     (`chrome` at 90%) blurred like the phone top bar. At rest it is plain, part of the page, so

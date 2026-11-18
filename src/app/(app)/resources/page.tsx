@@ -8,9 +8,10 @@ import { ResourcesView } from "@/components/resources/resources-view";
 export const dynamic = "force-dynamic";
 
 /**
- * RESOURCES (its own sidebar entry): the team's library of League of Legends sites, for every
- * signed-in account. Administrators keep it in Admin Mode → Platform Settings → Resources, which
- * checks the permission again; this Player Mode page has no management controls.
+ * RESOURCES → LIBRARY (the first of Resources' two sections, the tabs at the top of the page with
+ * Matchup Intel; the sidebar's Resources entry opens it): the team's library of League of Legends
+ * sites, for every signed-in account. Administrators keep it in Admin Mode → Platform Settings →
+ * Resources, which checks the permission again; this Player Mode page has no management controls.
  */
 export default async function ResourcesPage() {
   await requirePageAccess();

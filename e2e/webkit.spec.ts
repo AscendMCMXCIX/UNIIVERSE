@@ -34,7 +34,7 @@ async function fitsWidth(page: Page, label: string) {
 }
 
 test("the priority pages load without an error and without sideways scrolling", async ({ page }) => {
-  for (const route of ["/team", "/players", "/leaderboards", "/matches", "/resources", "/settings", "/admin", "/admin/people", "/admin/system"]) {
+  for (const route of ["/team", "/players", "/leaderboards", "/matches", "/resources", "/resources/matchups", "/resources/matchups?champion=Riven&vs=Mordekaiser", "/settings", "/admin", "/admin/people", "/admin/system"]) {
     await page.goto(route);
     await expect(page.locator("main"), route).toBeVisible();
     await expect(page.locator("h1").first(), route).toBeVisible();
@@ -153,6 +153,50 @@ test("a teammate's profile: its sections switch, and a champion's window opens a
   await tabs.getByRole("link", { name: "History" }).tap();
   await expect(page).toHaveURL(new RegExp(`${href}/matches$`));
   await expect(tabs.getByRole("link", { name: "History" })).toHaveAttribute("aria-current", "page");
+});
+
+test("Matchup Intel: a slot's picker fills the screen, a search and a tap choose, the focus comes back to the slot, details open and a chip's row lands under the top bar", async ({ page }) => {
+  await page.goto("/resources/matchups?champion=Riven");
+  await expect(page.getByTestId("matchup-pick-you")).toHaveAttribute("data-champion", "Riven");
+  const slot = page.getByTestId("matchup-pick-enemy");
+  const win = page.getByTestId("matchup-picker");
+  // A tap before the page's code has run is kept and opens the window once it runs; tap until it is open.
+  await expect(async () => {
+    if (!(await win.isVisible())) await slot.tap({ timeout: 2_000 });
+    await expect(win).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  // A screen of its own on a phone, with nothing in it reaching past its edge, measured once its
+  // opening motion (which scales it up from 97%) is over.
+  await untilStill(page);
+  const box = (await win.boundingBox())!;
+  expect(box.width).toBeGreaterThanOrEqual(page.viewportSize()!.width - 1);
+  await fitsWidth(page, "the picker window");
+  const search = win.getByTestId("matchup-picker-search");
+  await search.tap();
+  await search.fill("morde");
+  await expect(win.getByTestId("matchup-picker-count")).toHaveText("1 champion found");
+  await win.getByTestId("matchup-picker-grid").locator('button[data-champion="Mordekaiser"]').tap();
+  await expect(win).toHaveCount(0);
+  await expect(page).toHaveURL(/\?champion=Riven&vs=Mordekaiser$/);
+  await expect(page.getByTestId("matchup-briefing")).toBeVisible();
+  // The window gave the focus back to the slot it opened from, which stays on the page.
+  await expect(slot).toBeFocused();
+  await fitsWidth(page, "Riven vs Mordekaiser");
+  // A row's details open with a tap (the native details element).
+  const details = page.getByTestId("matchup-enemy-abilities").getByTestId("ability-details").first();
+  await details.locator(":scope > summary").tap();
+  await expect(details).toHaveAttribute("open", "");
+  await expect(details.getByTestId("ability-details-body")).toBeVisible();
+  // A briefing chip brings its row into view below the top bar, and gives it the focus.
+  const chip = page.getByTestId("matchup-briefing").locator('[data-testid="briefing-ability"][data-anchor^="ability-Mordekaiser-"]').first();
+  const anchor = (await chip.getAttribute("data-anchor"))!;
+  await chip.tap();
+  const row = page.locator(`#${anchor}`);
+  await expect(row).toBeFocused();
+  await expect(row).toBeInViewport();
+  const top = (await row.boundingBox())!.y;
+  const bar = (await page.getByTestId("mobile-topbar").boundingBox())!;
+  expect(top, "the row's top, under the top bar").toBeGreaterThanOrEqual(bar.y + bar.height - 1);
 });
 
 test("Match History: a game opens as a whole screen of its own, its ranks are checked there, and Back returns to the list", async ({ page }) => {
