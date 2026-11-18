@@ -16,9 +16,12 @@ import type { BoardPlayer, MilestoneGroup, RecordHolder, RecordsView, RecordView
   own width (@container/records), not the window's:
     under 36rem   one column: the volume note in one sentence, the page's sections as in-page links
                   (SectionIndex), then the record book, the multikills and the milestones;
-    from 36rem    the same column without the index, the book's rows on one line each;
+    from 36rem    the same column without the index, the book's rows two lines beside the picture
+                  (the record and its qualifier over the holder, champion, role, K/D/A and date;
+                  64px where each fits its line);
     from 62rem    the book beside the multikills, the milestones under both, full width;
-    from 96rem    three columns: the book, the multikills, the milestones.
+    from 98rem    three columns: the book, the multikills, the milestones (from 98rem the
+                  milestones' column keeps the 32rem from which a chip names its champion).
   The book is the page's lead card (surface-lead): seven rows, each record's qualifier on its row
   and every definition in its title's one ⓘ (D6). Neutral, as Recent form: no colour marks a figure;
   the milestones' chips carry their rarities (violet, gold), as everywhere.
@@ -47,10 +50,10 @@ export function Records({ records, player, champ, viewer }: { records: RecordsVi
         ]}
       />
       {/* The boards. Each keeps its own height (items-start): a short board never stretches beside a tall one. */}
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] items-start gap-x-6 gap-y-4 @min-[62rem]/records:grid-cols-[minmax(0,1fr)_minmax(22rem,24rem)] @min-[96rem]/records:grid-cols-[minmax(0,1.2fr)_minmax(22rem,24rem)_minmax(0,1fr)]">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] items-start gap-x-6 gap-y-4 @min-[62rem]/records:grid-cols-[minmax(0,1fr)_minmax(22rem,24rem)] @min-[98rem]/records:grid-cols-[minmax(0,1.2fr)_minmax(22rem,24rem)_minmax(0,1fr)]">
         <RecordBook records={records.records} player={player} champ={champ} viewer={viewer} />
         <Multikills records={records} player={player} />
-        <Milestones records={records} player={player} champ={champ} className="@min-[62rem]/records:col-span-2 @min-[96rem]/records:col-span-1" />
+        <Milestones records={records} player={player} champ={champ} className="@min-[62rem]/records:col-span-2 @min-[98rem]/records:col-span-1" />
       </div>
     </div>
   );
@@ -83,7 +86,9 @@ function BoardTitle({ id, icon, aside, note, noteTestId, children }: { id: strin
   The book's columns, by its own width (DataList's tiers):
     narrow  picture · text · figure, three lines beside the 48px picture: the record and its
             qualifier; the holder, with the value and its unit at the line's end; the champion, role,
-            K/D/A and date; your best under them. Under 16rem (a phone at a large text size) one
+            K/D/A and date; your best under them (a fourth line). The holder keeps at least 5rem: on
+            a 320px phone a long figure's unit wraps under its value (the figure is flex-wrap) rather
+            than squeeze the name. Under 16rem (a phone at a large text size) one
             column: the picture, then the record, the holder, the game, the value with its unit (which
             wrap) and your best, each across the row, so nothing is held wider than the phone and no
             word is squeezed beside the picture.
@@ -93,7 +98,7 @@ function BoardTitle({ id, icon, aside, note, noteTestId, children }: { id: strin
   A qualifier that does not fit beside its record takes the next line whole, and its "·" stays
   behind (the title's clipped edge), so no line starts or ends with one.
 */
-const BOOK_COLS = "[--dl-cols:3rem_minmax(0,1fr)_auto] @max-[16rem]/list:[--dl-cols:minmax(0,1fr)] @min-[36rem]/list:[--dl-cols:3rem_minmax(0,1fr)_auto_1rem]";
+const BOOK_COLS = "[--dl-cols:3rem_minmax(5rem,1fr)_auto] @max-[16rem]/list:[--dl-cols:minmax(0,1fr)] @min-[36rem]/list:[--dl-cols:3rem_minmax(0,1fr)_auto_1rem]";
 
 function RecordBook({ records, player, champ, viewer }: { records: RecordView[]; player: (id: string) => BoardPlayer; champ: (id: string | null) => PortraitChampion | null; viewer: string | null }) {
   // Every definition in one place (D6), each record's qualifier on its row.
@@ -387,7 +392,8 @@ function MilestoneRow({ group, p, champ }: { group: MilestoneGroup; p: BoardPlay
   const linked = !!p.profileHref;
   const items = group.items.map((m) => ({ ...m, name: champ(m.championId)?.name ?? m.championId }));
   const said = (m: (typeof items)[number]) => `${m.name}: ${m.value} (${m.milestone} milestone)`;
-  const hint = [...items.map(said), group.more ? `${group.more} more on the profile` : null].filter(Boolean).join(". ");
+  const more = formatCount(group.more);
+  const hint = [...items.map(said), group.more ? `${more} more on the profile` : null].filter(Boolean).join(". ");
   return (
     <DataRow testId="milestone-member" data-player-id={group.playerId} density="dense" className="@max-[40rem]/list:py-1.5" link={linked ? <RowLink href={p.profileHref!} hint={hint}>{p.name}</RowLink> : null}>
       <MemberCell look={p.look} name={p.name} avatarUrl={p.avatarUrl} avatar="xs" readName={!linked} className="col-[1/-1] row-[1/2] @min-[40rem]/list:col-[1/2]" />
@@ -411,8 +417,8 @@ function MilestoneRow({ group, p, champ }: { group: MilestoneGroup; p: BoardPlay
         ))}
         {group.more ? (
           <li className="px-1 text-xs text-fg-muted" data-testid="milestone-more">
-            <span aria-hidden>+{group.more} more</span>
-            <span className="sr-only">and {group.more} more on their profile</span>
+            <span aria-hidden>+{more} more</span>
+            <span className="sr-only">and {more} more on their profile</span>
           </li>
         ) : null}
       </ul>
