@@ -8,7 +8,8 @@ export function Skeleton({ className }: { className?: string }) {
 
 /**
  * Page-sized loading layout: title bar plus a few panels, used by route loading states. `width`: the
- * width of the page it stands in for (pageWidthOf), so it stands where the page will.
+ * width pageWidthOf gives the address (a Team section's own, else the ordinary 80rem; narrower pages
+ * such as Settings are not told apart).
  */
 export function PageSkeleton({ panels = 3, title = true, width = "max" }: { panels?: number; title?: boolean; width?: PageWidth }) {
   return (

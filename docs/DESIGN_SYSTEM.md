@@ -269,19 +269,28 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     "no blur on content" (§3) holds.
   - Anything pinned under it (All Champions' column headings) offsets by `--tabs-top`.
   - Nothing is pinned in a window under 481px tall.
-  - **One composition at every width (PR 10, 18 Nov 2026).** The pages of a tab set share one width
-    (`SECTION_HUBS`' `width`): Team's four sections `--content-wide` (Players and Matches moved up
-    from `--content-max` to join Team Overview and Leaderboards), Resources' and Platform Settings'
-    `--content-max`. The bar's row of tabs takes it (`TabBar`'s `inner`), so in a window wide enough
-    for the pages to stop growing and centre beside the sidebar (80rem pages from about 1650px with
-    the sidebar open and 1417px with it folded; Team's 100rem from about 2370px and 1926px) the first
-    tab still starts where the page does, Team's name at the row's end ends where it ends, and the
-    row never moves when you switch sections. Before, the row
-    started at the room's edge: 74px left of Players at 1920 and 250px at 2560, 400 to 620px at 3440.
-    The line under the tabs and the pinned ink still span the room beside the sidebar, as a frame
-    does. A profile's tabs, and a section's views (`SubTabs`), sit inside their page's own column, so
-    they always lined up. Team Overview's lineup keeps its own cap (84rem), centred in the column.
-    A page's loading state takes the same width (`PageSkeleton`'s `width`, from `pageWidthOf`).
+  - **One composition at every width (PR 10, 18 Nov 2026).** In a window from 1600px wide the pages
+    of a tab set share one width (`SECTION_HUBS`' `width`): Team's four sections `--content-wide`
+    (Players and Matches join Team Overview and Leaderboards there), Resources' and Platform
+    Settings' `--content-max`. From 1600px the bar's row of tabs takes it (`TabBar`'s `inner`,
+    `ROW_WIDTH`), so where the pages stop growing and centre beside the sidebar (80rem pages from
+    about 1650px with the sidebar open and from 1600px with it folded; Team's 100rem from about
+    2370px and 1926px) the first tab still starts at the page's column, Team's name at the row's end
+    ends where it ends, and the row never moves when you switch sections. Before, the row started at
+    the room's edge: 74px left of Players at 1920 and 250px at 2560, 400 to 620px at 3440 (the
+    sidebar open). In a window under 1600px every page and the row are as they always were, the
+    sidebar open or folded (measured against main's build at 1280, 1366, 1440, 1536 and 1599: no
+    difference), so with the sidebar folded between 1417 and 1599px Players, Matches, Resources and
+    Platform Settings still start up to 92px inside the row, as before. The line under the tabs and
+    the pinned ink span the room beside the sidebar, as a frame does. A profile's tabs, and a
+    section's views (`SubTabs`), sit inside their page's own column, so they always lined up. On Team
+    Overview the column is Team's 100rem and the header and lineup keep their own 84rem, centred in
+    it (its approved design): the first tab starts at the column and the logo (column − 84rem)/2
+    further in, 38px at 1920, 165px at 2560 and 176px at 3440 with the sidebar open (before, 38, 208
+    and 576px from the first tab), 140px at 1920 with it folded. Team Matches' list keeps
+    `--content-max` under Team's wider header, left-aligned, so a game's row is never longer than
+    before. A page's loading state takes the width `pageWidthOf` gives its address (a Team section's
+    own; the ordinary 80rem elsewhere).
   - **A page's controls in reach (PR 2b, 18 Nov 2026).** Once the row is pinned and the page's own
     toolbar has gone up under it, the page's compact copy of its controls shows at the row's end
     (`PageToolbar`, `src/components/ui/page-toolbar.tsx`): Match History and Encounters

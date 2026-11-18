@@ -9,6 +9,8 @@ export interface NavLink {
   permission?: Permission;
   /** Any one of these permissions is enough. */
   anyOf?: Permission[];
+  /** A section's own page width (PAGE_WIDTH), where it is not its set's: what its loading state takes (pageWidthOf). */
+  width?: PageWidth;
 }
 
 /**
@@ -85,9 +87,9 @@ export function isNavHub(entry: NavEntry): entry is NavHub {
  */
 export const TEAM_SECTIONS: NavLink[] = [
   { href: "/team", label: "Overview", icon: LayoutGrid, permission: "view-team" },
-  { href: "/players", label: "Players", icon: UserCog, permission: "view-players" },
+  { href: "/players", label: "Players", icon: UserCog, permission: "view-players", width: "wideFrom1600" },
   { href: "/leaderboards", label: "Leaderboards", icon: Medal, permission: "view-teammate-stats" },
-  { href: "/matches", label: "Matches", icon: History, permission: "view-matches" },
+  { href: "/matches", label: "Matches", icon: History, permission: "view-matches", width: "wideFrom1600" },
 ];
 
 /**
@@ -118,27 +120,49 @@ export const ADMIN_SETTINGS_SECTIONS: NavLink[] = [
 /**
  * The page widths (globals.css; docs/STANDARDS.md → Page layout), as the class a page's column takes:
  * `max` (--content-max, 80rem) for profiles, lists of cards, documents and forms; `wide`
- * (--content-wide, 100rem) for Team's sections.
+ * (--content-wide, 100rem) for Team Overview and Leaderboards; `wideFrom1600` for Players and
+ * Matches: 80rem in a window under 1600px (100rem) wide, as they always were, and Team's 100rem from
+ * there, where Team's four sections share one width.
  */
-export const PAGE_WIDTH = { max: "max-w-[var(--content-max)]", wide: "max-w-[var(--content-wide)]" } as const;
+export const PAGE_WIDTH = {
+  max: "max-w-[var(--content-max)]",
+  wide: "max-w-[var(--content-wide)]",
+  wideFrom1600: "max-w-[var(--content-max)] min-[100rem]:max-w-[var(--content-wide)]",
+} as const;
 export type PageWidth = keyof typeof PAGE_WIDTH;
+
+/**
+ * A set's row of tabs (TabBar's `inner`): as wide as the bar in a window under 1600px wide, as it
+ * always was, and from there the set's one width, centred as its pages are.
+ */
+export const ROW_WIDTH: Record<"max" | "wide", string> = {
+  max: "min-[100rem]:max-w-[var(--content-max)]",
+  wide: "min-[100rem]:max-w-[var(--content-wide)]",
+};
 
 /**
  * The sets of pages shown as tabs at the top of each of their pages (SectionTabs), one per
  * sidebar entry that stands for several pages. `label` names the tab bar for screen readers.
- * `width`: the one width every page of the set takes (PAGE_WIDTH), so the tabs start and end where
- * each page does, however wide the window, and never move between them; the bar's row and the
- * pages' loading state take it too (pageWidthOf).
+ * `width`: the one width every page of the set takes in a window from 1600px wide, so there the
+ * tabs start and end where each page does and never move between them (the bar's row: ROW_WIDTH).
+ * Under 1600px every page and the row keep the widths they always had (a section's own `width`).
  */
-export const SECTION_HUBS: Array<{ key: string; label: string; width: PageWidth; sections: NavLink[] }> = [
+export const SECTION_HUBS: Array<{ key: string; label: string; width: "max" | "wide"; sections: NavLink[] }> = [
   { key: "team", label: "Team sections", width: "wide", sections: TEAM_SECTIONS },
   { key: "resources", label: "Resources sections", width: "max", sections: RESOURCES_SECTIONS },
   { key: "admin-settings", label: "Platform Settings sections", width: "max", sections: ADMIN_SETTINGS_SECTIONS },
 ];
 
-/** The width of the page at `pathname`: its set's (SECTION_HUBS), else the ordinary one. A loading state takes it, so it stands where the page will. */
+/**
+ * The width of the page at `pathname`, for its loading state: a section's own width, else its set's,
+ * else the ordinary 80rem. Narrower pages outside the sets (Settings, 48rem) are not told apart.
+ */
 export function pageWidthOf(pathname: string): PageWidth {
-  return SECTION_HUBS.find((h) => h.sections.some((s) => s.href === pathname))?.width ?? "max";
+  for (const hub of SECTION_HUBS) {
+    const section = hub.sections.find((s) => s.href === pathname);
+    if (section) return section.width ?? hub.width;
+  }
+  return "max";
 }
 
 /** The pages of an entry, whatever its kind. */

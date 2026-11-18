@@ -209,18 +209,25 @@ Substitute side of the Team cards).
   moving onto a pinned tab, the sidebar's logo or the top bar's buttons never scrolls the page.
   A sticky bar must be a child of what the page scrolls through, never of a wrapper that ends with
   it.
-- **One composition at every width** (PR 10, 18 Nov 2026): the pages of a tab set share one width
-  (`SECTION_HUBS`' `width` in `src/lib/nav.ts`: Team's four sections `--content-wide`, Resources'
-  and Platform Settings' `--content-max`), and a bar of `main`'s own (`SectionTabs`) gives its row
-  of tabs that width (`TabBar`'s `inner`). Once the window is wide enough for the pages to stop
-  growing and centre in the room beside the sidebar (80rem pages from about 1650px with the sidebar
-  open, 1417px with it folded; Team's 100rem from about 2370px and 1926px), the first tab still
-  starts at the page's left edge and Team's name at the row's end stops at its right edge, and the
-  row stays in the same place on every section of the set; the line under it and its pinned ink span
-  the room. Below those widths the pages fill the room and nothing changed. A profile's tabs and a
-  section's views (`SubTabs`) are inside their page's column, so they always lined up. The route's
-  loading state takes the same width (`PageSkeleton`'s `width`, from `pageWidthOf`): Players and a
-  teammate's profile share `players/loading.tsx`, which reads the address it stands in for.
+- **One composition at every width** (PR 10, 18 Nov 2026): in a window from 1600px (100rem) wide
+  the pages of a tab set share one width (`SECTION_HUBS`' `width` in `src/lib/nav.ts`: Team's four
+  sections `--content-wide`, Players and Matches joining Team Overview and Leaderboards there;
+  Resources' and Platform Settings' `--content-max`), and a bar of `main`'s own (`SectionTabs`) gives
+  its row of tabs that width (`TabBar`'s `inner`, `ROW_WIDTH`). Where the pages then stop growing and
+  centre in the room beside the sidebar (80rem pages from about 1650px with the sidebar open and
+  from 1600px with it folded; Team's 100rem from about 2370px and 1926px), the first tab still starts
+  at the page's column and Team's name at the row's end stops at its right edge, and the row stays in
+  the same place on every section of the set; the line under it and its pinned ink span the room. In
+  a window under 1600px every page and the row are exactly as before, the sidebar open or folded
+  (Players and Matches 80rem, the row the bar's width; measured against main's build). A profile's
+  tabs and a section's views (`SubTabs`) are inside their page's column, so they always lined up. On
+  Team Overview the column is Team's 100rem, and its header and lineup keep their 84rem, centred in
+  it (the logo 38px inside at 1920, 165px at 2560 and 176px at 3440 with the sidebar open). With
+  Players at 100rem the roster takes three columns (its own 84rem rule) from about 1780px with the
+  sidebar open and from 1600px with it folded; Team Matches' list stays at `--content-max`,
+  left-aligned. The route's loading state takes the width `pageWidthOf` gives its address (a Team
+  section's own, else 80rem): Players and a teammate's profile share `players/loading.tsx`, which reads
+  the address it stands in for.
 - **A page's controls in reach** (PR 2b, 18 Nov 2026): a long page's own controls (its view switch,
   Filters, search) scroll away with its header. From md, once the section tabs are pinned and the
   page's own toolbar has gone up under them, the page's compact copy shows at the pinned row's end
@@ -281,11 +288,14 @@ and 16px inputs on phones, and the champion picker on the player profile.
 far down the page starts at its top once its content has arrived (tapped in place, without
 Playwright's own scroll into view); on tablets and desktops the Team and profile tabs stay pinned
 as a long page scrolls, All Champions' column headings pin under them, and nothing is pinned in a
-short window; at 2560 × 1440 and 3440 × 1440 (and at 1440 × 900 with the sidebar folded) every tab
-row's first tab starts at its page's edge within 1px on each section of its set (Team's, Resources',
-Platform Settings', a profile's, Leaderboards' and Match History's views, Users & Permissions'), the
-row in the same place on all of them, Team's name ending at the page's right edge and the bar's line
-spanning the room; the tablet's menu keeps focus inside and gives it back to the menu button; the
+short window; at 2560 × 1440 and 3440 × 1440 every tab row's first tab starts at its pages' column
+within 1px on each section of its set (Team's, Resources', Platform Settings', a profile's,
+Leaderboards' and Match History's views, Users & Permissions'), and at 1920 × 1080 with the sidebar
+folded the bars of `main`'s own (Team's, Resources', Platform Settings'), measured once the page
+itself has replaced its loading state: the row in the same place on all of a set's sections, Team's
+name ending at the column's right edge, the bar's line spanning the room, and on Team Overview the
+header centred in Team's column; under a 1600px window (1536 × 864, the sidebar folded) Players and
+Matches stay 80rem and the row spans the bar, as before; the tablet's menu keeps focus inside and gives it back to the menu button; the
 installed app's Back on a tablet (the display mode stood in for, as Chromium cannot emulate it);
 the filter sheet's Done leaves with its motion; Admin Mode's Settings has its title; and a page's
 controls in reach (PR 2b): from md the pinned row offers Match History's views and Filters only once
@@ -330,8 +340,8 @@ picture asked for while the first card's art loads), `e2e/mobile-landscape.spec.
 on an iPhone 15 and an iPhone SE (3rd gen): 2 + 2 + 1, no sideways track, no role bar, the 44px
 logo), `e2e/team-flip.spec.ts` (turning, choosing, replacing and removing a substitute, Make
 starter and the keyboard focus after it, with reduced motion too), `e2e/team-logo.spec.ts` (the
-logo's sizes, and the logo starting its row wherever it sits, the Team tabs' row at 1440 and at 1920
-included) and `e2e/card-layout.spec.ts` (identity rows level). `home-layout`'s Team tests and
+logo's sizes, and the logo starting its row wherever it sits, the Team tabs' row at 1440 and at 2560,
+where the row is narrower than the bar, included) and `e2e/card-layout.spec.ts` (identity rows level). `home-layout`'s Team tests and
 `team-layout`'s grids read the lineup once it is laid out and at rest (`lineupAtRest`,
 `e2e/lineup.ts`): it streams in through `(app)/loading.tsx`'s Suspense boundary, and React can
 reveal it up to 300ms after the first paint, after the load event `page.goto` waits for, when its

@@ -9,9 +9,9 @@ import { pageWidthOf } from "@/lib/nav";
   down to the first loading boundary and the browser keeps that prefetch for minutes; with the
   boundary below the layout, the prefetched part included the profile header (artwork, picture,
   accent), so a teammate saw the old look after a change. Here, only this skeleton is prefetched
-  and the header always comes fresh with the page. It stands in for Players (one of Team's
-  sections, wide) and for a teammate's profile (the ordinary width): it takes the width of the page
-  being opened (pageWidthOf).
+  and the header always comes fresh with the page. It stands in for Players (80rem under a 1600px
+  window, Team's 100rem from there) and for a teammate's profile (the ordinary 80rem): it takes the
+  width pageWidthOf gives the address being opened.
 */
 export default function Loading() {
   return <PageSkeleton panels={4} width={pageWidthOf(usePathname())} />;

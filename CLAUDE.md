@@ -42,8 +42,9 @@ Most of the testing happens here, not on GitHub. Run what the change touches:
 - **How:** merge with the "merge" method and `expectedHeadSha`, and only when the user has asked or approved merging.
 - **Deployment:** Vercel deploys `main` to production on its own. There is no manual deploy step. Merges that change only docs, tests (`e2e/`, `tests/`, `*.test.ts`), the test runners' configuration, `scripts/` or repository settings are skipped by `scripts/vercel-ignore-build.sh`.
 - **Deploy budget (Vercel Active CPU):** the Hobby plan allows 4 hours of Active CPU in 30 days, about 480 CPU-seconds a day for everything, and it ran out on 8 Nov 2026 (docs/HOSTING_USAGE.md, "Vercel Active CPU"). Every production deploy costs part of that: every function starts cold, and the signed-in Production check runs against it.
-  - Batch merges: at most about 3 production deploys a day.
-  - Merge a set of ready PRs one after another rather than spread across the day.
+  - Batch merges: at most about 3 production deploys a day, where a batch counts as one.
+  - Merge a set of ready PRs one after another, minutes apart, rather than spread across the day. Vercel builds one deployment at a time, and `scripts/vercel-ignore-build.sh` skips a production commit that a later commit on `main` already holds, so a batch builds and deploys its last commit, and the Production check (which cancels its own earlier run) checks that one.
+  - A batch of stacked PRs: each PR's head merges the previous PR's branch, so its CI tests the tree `main` will have after it merges; before each merge, `git merge-tree` of `main` and the head must give that tree (docs/HOSTING_USAGE.md, "18 Nov 2026").
 
 ## 5. After a production deploy
 
