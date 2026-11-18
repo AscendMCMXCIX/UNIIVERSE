@@ -291,9 +291,11 @@ test):
   and account, and a mode's other seasons included), so Back leaves the page instead of stepping back
   through each choice. A page's views (`SubTabs`: Recent form and Records, Games and Encounters) stay
   entries of their own, as each is a link with its own address, and so do Matchup Intel's pairs
-  (each pair chosen, and a chip's jump to an ability): the browser's Back steps through them, and
-  the top bar's Back, named after the page before Matchup Intel, goes past them where the browser
-  shows them to the page (the Navigation API, `backSteps`; docs/MATCHUP_INTEL.md). An
+  (each pair chosen, and a chip's jump to an ability) where the browser has the Navigation API: the
+  browser's Back steps through them, and the top bar's Back, named after the page before Matchup
+  Intel, goes past them (`backSteps`). Without it (Safari before 26.2, Firefox before 147) each
+  pair replaces the entry, as a filter does, so both Backs leave the page in one step
+  (`historyShowsEntries`; docs/MATCHUP_INTEL.md). An
   account without a player profile never starts at, or goes Back to, an empty Profile: its home is
   its first other page.
 - **Overlays.** One sheet for every choice and editor (`DetailModal` `size="sheet"`, `Dialog` built
