@@ -116,6 +116,18 @@ export function formatTimeOfDay(date: DateInput): string {
   return c ? `${c.hour % 12 || 12}:${String(c.minute).padStart(2, "0")} ${c.hour < 12 ? "am" : "pm"}` : "—";
 }
 
+/**
+ * A later instant written against an earlier one, leaving out what the two share: on the same
+ * calendar day its time alone ({ day: null, time: "3:04 pm" }), in the same year its day and month
+ * too ("21 Oct"), else its full date ("2 Jan 2027"). Ranked progress's readings say this way when a
+ * reading was last confirmed, under the instant it was first read.
+ */
+export function formatDateTimeAfter(date: DateInput, earlier: DateInput): { day: string | null; time: string } {
+  const time = formatTimeOfDay(date);
+  if (isoDay(date) === isoDay(earlier)) return { day: null, time };
+  return { day: calendarDay(date)?.year === calendarDay(earlier)?.year ? formatDayMonth(date) : formatDate(date), time };
+}
+
 /** "21 Oct 2026, 3:04 pm". */
 export function formatDateTime(date: DateInput): string {
   const c = clock(date);
@@ -160,6 +172,14 @@ export function formatCount(value: number): string {
   return Math.round(value).toLocaleString("en");
 }
 
+/** "1st", "2nd", "3rd", "4th", "11th", "21st", "1,001st": a place in words ("Tied for 4th"), the same on the server and in every browser. */
+export function formatOrdinal(n: number): string {
+  const whole = Math.round(n);
+  const last2 = Math.abs(whole) % 100;
+  const suffix = last2 >= 11 && last2 <= 13 ? "th" : (["th", "st", "nd", "rd"][Math.abs(whole) % 10] ?? "th");
+  return `${formatCount(whole)}${suffix}`;
+}
+
 /** A number with exactly `digits` decimals and thousands separators ("1,234.5"). */
 export function formatNumber(value: number, digits: number): string {
   return value.toLocaleString("en", { minimumFractionDigits: digits, maximumFractionDigits: digits });
@@ -175,4 +195,59 @@ export function formatCompactCount(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
   if (value >= 10_000) return `${Math.round(value / 1000)}K`;
   return formatCount(value);
+}
+
+/**
+ * Seconds as a cooldown is written: as many decimals as the number has, up to four ("8", "8.5",
+ * "0.25", "0.3125": a checked value is never rounded into another), with the decimal point and
+ * separators of every other number on the site; "—" for a value that is not a number.
+ */
+export function formatSeconds(value: number): string {
+  return typeof value === "number" && Number.isFinite(value) ? value.toLocaleString("en", { maximumFractionDigits: 4 }) : "—";
+}
+
+/**
+ * Values at each rank, as Matchup Intel writes them, `unit` after the last ("s", "%", or nothing):
+ * "25 / 35 / 45%"; a single value "40%"; the same value at every rank once, "40% at every rank", or
+ * "40%" when `per` is null. "s" follows its number after a no-break space ("8 / 7 / 6 s"), so a
+ * line never ends between them. `per` names the steps: "rank", or "level" for a passive that changes
+ * with the champion's level. "—" when there is no number (an empty list, or a value that is not a
+ * non-negative number): nothing is guessed.
+ */
+export function formatPerRank(values: readonly number[], unit: "s" | "%" | "", per: "rank" | "level" | null = "rank"): string {
+  if (!Array.isArray(values) || values.length === 0 || values.some((v) => typeof v !== "number" || !Number.isFinite(v) || v < 0)) return "—";
+  const suffix = unit === "s" ? "\u00a0s" : unit;
+  if (values.length === 1) return `${formatSeconds(values[0]!)}${suffix}`;
+  if (values.every((v) => v === values[0])) return `${formatSeconds(values[0]!)}${suffix}${per ? ` at every ${per}` : ""}`;
+  return `${values.map(formatSeconds).join(" / ")}${suffix}`;
+}
+
+/**
+ * A base cooldown at each rank, as Matchup Intel writes it: "8 / 7 / 6 / 5 / 4 s"; the same value at
+ * every rank once, "13 s at every rank"; a single value "13 s". `per` names the steps: "rank", or
+ * "level" for a passive that changes with the champion's level. "—" when there is no number (an empty
+ * list, or a value that is not a non-negative number): a cooldown is never guessed.
+ */
+export function formatCooldowns(values: readonly number[], per: "rank" | "level" = "rank"): string {
+  return formatPerRank(values, "s", per);
+}
+
+/**
+ * A number, with its "%" or "°" if it has one, followed by one space and a word: whatever the word is,
+ * a unit or a count ("1.625 s", "50 Fury", "7% AP", "360 radius", "6 snips", "180° sweep") or any
+ * other ("2 more times"). No list of units to keep up to date: a curator's new unit is covered too.
+ */
+const WORD_AFTER_NUMBER = /(\d[%\u00b0]?) (?=\p{L})/gu;
+
+/**
+ * Curated text as Matchup Intel draws it: each number joined to the word after it by a no-break
+ * space where one space separates them (the notes write no other: no tab, no double space), so a
+ * line never ends between a number and the word after it, and never starts with a unit
+ * ("1.625 s", not "s" alone on the next line). A unit of several words can still wrap after its
+ * first word ("80% bonus" | "AD").
+ * A number before anything but a word ("6, 11", "8 / 7", "320 (by level)") keeps its ordinary space,
+ * and nothing else in the text changes.
+ */
+export function keepUnitsWithNumbers(text: string): string {
+  return text.replace(WORD_AFTER_NUMBER, "$1\u00a0");
 }

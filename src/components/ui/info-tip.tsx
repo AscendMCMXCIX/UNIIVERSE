@@ -4,6 +4,8 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 import { screenBox } from "@/lib/screen";
+import { lastMouseMove } from "./input-kind";
+import { topModal } from "./top-layer";
 
 const MARGIN = 8;
 const GAP = 6;
@@ -21,54 +23,162 @@ export function placeTip(anchor: { left: number; top: number; bottom: number; wi
 }
 
 /**
+ * The style position (left, top) that lands the bubble's box at `target` on screen. A fixed bubble
+ * is placed relative to the screen, unless what holds it is a containing block for fixed boxes: a
+ * window during its opening motion, whose transform moves and scales the bubble with it. Where the
+ * bubble landed (`landed`, its box on screen) for the style position it had (`style`), and its size
+ * before any transform (`size`: its computed width and height, unrounded), give that offset and
+ * scale, and so the position that puts it at `target`: the same as `target` when nothing moves it.
+ * offsetWidth and offsetHeight round the size to whole pixels: a bubble 63.5px tall, read as 64, was
+ * taken for one scaled by 0.992, and landed up to 3.5px nearer its ⓘ than it goes, more the lower it
+ * sat (on the page, where nothing placed it again; in a window, for a frame).
+ */
+export function landAt(target: { left: number; top: number }, style: { left: number; top: number }, landed: { left: number; top: number; width: number; height: number }, size: { width: number; height: number }): { left: number; top: number } {
+  const scaleX = size.width > 0 && landed.width > 0 ? landed.width / size.width : 1;
+  const scaleY = size.height > 0 && landed.height > 0 ? landed.height / size.height : 1;
+  return { left: style.left + (target.left - landed.left) / scaleX, top: style.top + (target.top - landed.top) / scaleY };
+}
+
+/**
+ * What an open bubble is drawn in: the open window its trigger sits in, else the topmost open window,
+ * else the page. A window is a modal dialog in the browser's top layer, drawn above the whole page:
+ * a bubble left on the page would be drawn under it, out of sight (top-layer.ts).
+ */
+export function tipHost(trigger: Element | null): HTMLElement {
+  return trigger?.closest<HTMLElement>("dialog[open]") ?? topModal() ?? document.body;
+}
+
+/**
+ * Whether what holds an open bubble is moving itself: a window's opening or closing motion, or a
+ * transition of its own (a sheet settling back). Its transform makes it the box the bubble is placed
+ * in, a different box at every frame, and none once it is still.
+ */
+export function moving(host: { getAnimations?: () => ReadonlyArray<{ playState: string }> }): boolean {
+  return typeof host.getAnimations === "function" && host.getAnimations().some((a) => a.playState === "running");
+}
+
+/**
+ * Whether a mouse rests on the trigger, having moved onto it: the pointer is over it, and the last
+ * move the page heard (lastMouseMove, from its first move on, before its code ran too) landed on it.
+ * True as an ⓘ hydrates under a mouse that moved onto it while the page was hydrating, a move nothing
+ * else heard; false for an ⓘ laid under a pointer at rest (a window opening under the pointer that
+ * pressed its opener), which last moved over something else.
+ */
+export function restsAfterMovingOnto(trigger: { contains(other: Node | null): boolean; matches(selectors: string): boolean }, last: EventTarget | null): boolean {
+  if (!last || typeof (last as Partial<Node>).nodeType !== "number") return false;
+  return trigger.contains(last as Node) && trigger.matches(":hover");
+}
+
+/**
  * The one tooltip of the app: explanatory text for whatever it wraps (by default a small ⓘ).
- * Mouse: opens while pointed at, closes when the pointer leaves. Keyboard: opens on focus, closes
- * on blur or Escape. Touch: a tap opens it, another tap (on it or anywhere else) closes it. The
- * bubble is drawn in a layer above the page, so it is never cut off by the card it sits in. The
- * text is also the trigger's accessible description, so screen readers read it without opening it.
+ * Mouse: opens as the pointer moves over it, once a visit, and closes when the pointer leaves. A
+ * trigger that a window opening brings under a pointer at rest stays closed until the pointer moves:
+ * a window opening under the pointer that pressed its opener sends what it lays there pointerover
+ * and pointerenter but no pointermove, in Chromium and WebKit alike, and a bubble opened by those,
+ * never pointed at, took the Escape meant for its window (the Team player window at a tablet's size,
+ * opened by a click on the MID card: a pool row's tier label arrived under the pointer). Scrolling
+ * differs: a page or window scrolled under a still pointer gets no pointermove in Chromium, but one
+ * with no movement in WebKit (measured in Playwright's WebKit, not Safari), so there a trigger
+ * scrolled under the pointer opens, as a hover does, and the first Escape closes its bubble alone.
+ * A move onto the trigger while the page is still hydrating is heard by nothing here (React replays
+ * the pointer's coming in once the trigger has hydrated, never its moves), so a mouse resting on the
+ * trigger as it hydrates, having moved onto it, opens it then (restsAfterMovingOnto: the head's
+ * script notes where the mouse last moved); the replayed coming in starts no new visit.
+ * Keyboard: opens on focus, closes on blur or Escape. Touch: a tap opens it,
+ * another tap (on it or anywhere else) closes it. Escape
+ * closes the bubble alone, never the window or the list it sits in. The bubble is drawn in a layer
+ * above the page, so the card it sits in never cuts it off: on the page, or inside the window the
+ * tip sits in (tipHost), placed where placeTip says however that window is moving (landAt), and
+ * placed again at every frame while it moves (moving). The text
+ * is also the trigger's accessible description, so screen readers read it without opening it.
  * Interactive menus are not tooltips: they stay click-to-open popovers.
  */
 export function InfoTip({ text, className, label, children, testId = "info-tip", tabIndex }: { text: React.ReactNode; className?: string; label?: string; children?: React.ReactNode; testId?: string; /** -1 leaves it out of the tab order where what it sits on is already the one stop (a match card); pointers, taps and screen readers still reach it. */ tabIndex?: number }) {
   const [open, setOpen] = React.useState(false);
   const [pos, setPos] = React.useState<{ left: number; top: number } | null>(null);
+  // Where the open bubble is drawn, chosen as it opens (tipHost).
+  const [host, setHost] = React.useState<HTMLElement | null>(null);
   const trigger = React.useRef<HTMLButtonElement>(null);
   const bubble = React.useRef<HTMLSpanElement>(null);
   // The pointer that pressed the trigger, so a tap does not count as keyboard focus.
   const pressed = React.useRef<string | null>(null);
+  // A mouse over the trigger has opened the bubble on this visit (from its coming in to its leaving):
+  // closed by Escape, it stays closed while the pointer moves on over the trigger.
+  const visited = React.useRef(false);
   const id = React.useId();
 
   const place = React.useCallback(() => {
-    const a = trigger.current?.getBoundingClientRect();
-    const b = bubble.current?.getBoundingClientRect();
-    if (!a || !b) return;
+    const t = trigger.current;
+    const b = bubble.current;
+    if (!t || !b) return;
+    const landed = b.getBoundingClientRect();
     // The screen as fixed positioning sees it, the box the tip is placed in (lib/screen.ts).
-    const p = placeTip(a, b, screenBox());
-    setPos({ left: p.left, top: p.top });
+    const target = placeTip(t.getBoundingClientRect(), landed, screenBox());
+    // Its size before any transform, unrounded (landAt): the border box, as every box here is sized.
+    const size = getComputedStyle(b);
+    const at = landAt(target, { left: parseFloat(b.style.left) || 0, top: parseFloat(b.style.top) || 0 }, landed, { width: parseFloat(size.width), height: parseFloat(size.height) });
+    setPos((cur) => (cur && Math.abs(cur.left - at.left) < 0.5 && Math.abs(cur.top - at.top) < 0.5 ? cur : at));
   }, []);
 
   React.useLayoutEffect(() => {
     if (open) place();
   }, [open, place]);
 
+  // As the trigger hydrates (a layout effect: before React replays the pointer's coming in, which
+  // then starts no new visit), a mouse that moved onto it while the page hydrated, and rests on it
+  // still, opens it, as that move would have. A trigger mounted under a pointer at rest stays closed.
+  React.useLayoutEffect(() => {
+    const t = trigger.current;
+    if (!t || !restsAfterMovingOnto(t, lastMouseMove())) return;
+    visited.current = true;
+    setPos(null);
+    setHost(tipHost(t));
+    setOpen(true);
+  }, []);
+
+  // While the window holding the bubble moves (its opening motion, as a pointer moving over the
+  // window opens a bubble in it), the bubble is placed again at every frame, and once more as it comes
+  // to rest: placed once in a moving window, it was left off its ⓘ by the window's offset when the
+  // motion ended, the window then no longer the box it is placed in (landAt).
+  React.useEffect(() => {
+    if (!open || !host || host === document.body) return;
+    let frame = 0;
+    const follow = () => {
+      cancelAnimationFrame(frame);
+      frame = 0;
+      place();
+      if (moving(host)) frame = requestAnimationFrame(follow);
+    };
+    follow();
+    // A motion starting, or ending (the last frame of one is not always drawn before its end).
+    for (const type of ["animationstart", "animationend", "animationcancel", "transitionrun", "transitionend", "transitioncancel"]) host.addEventListener(type, follow);
+    return () => {
+      cancelAnimationFrame(frame);
+      for (const type of ["animationstart", "animationend", "animationcancel", "transitionrun", "transitionend", "transitioncancel"]) host.removeEventListener(type, follow);
+    };
+  }, [open, host, place]);
+
   React.useEffect(() => {
     if (!open) return;
     const onDown = (e: PointerEvent) => {
       if (!trigger.current?.contains(e.target as Node)) setOpen(false);
     };
+    // Escape closes the bubble, and only the bubble: heard first (on the window, as it is captured)
+    // and kept from everything else, the window it sits in included, whose close request is the
+    // key's own default action (stopping the key alone left it to close the window).
     const onKey = (e: KeyboardEvent) => {
-      // Escape closes the bubble first (and only the bubble, not the window it sits in).
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        setOpen(false);
-      }
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      setOpen(false);
     };
     document.addEventListener("pointerdown", onDown);
-    document.addEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
     window.addEventListener("scroll", place, true);
     window.addEventListener("resize", place);
     return () => {
       document.removeEventListener("pointerdown", onDown);
-      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("keydown", onKey, true);
       window.removeEventListener("scroll", place, true);
       window.removeEventListener("resize", place);
     };
@@ -77,6 +187,7 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
   const show = () => {
     if (open) return;
     setPos(null);
+    setHost(tipHost(trigger.current));
     setOpen(true);
   };
 
@@ -102,8 +213,23 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
           else show();
           pressed.current = null;
         }}
-        onPointerEnter={(e) => e.pointerType === "mouse" && show()}
-        onPointerLeave={(e) => e.pointerType === "mouse" && setOpen(false)}
+        // A mouse opens it by moving over it, never by coming in alone: a trigger that a window opening
+        // lays under a pointer at rest gets a pointerenter with no move (see above). Coming in starts a
+        // visit, unless the bubble is open already: the coming in React replays after the trigger has
+        // hydrated, under a mouse that opened it then (above), is the same visit.
+        onPointerEnter={(e) => {
+          if (e.pointerType === "mouse" && !open) visited.current = false;
+        }}
+        onPointerMove={(e) => {
+          if (e.pointerType !== "mouse" || visited.current) return;
+          visited.current = true;
+          show();
+        }}
+        onPointerLeave={(e) => {
+          if (e.pointerType !== "mouse") return;
+          visited.current = false;
+          setOpen(false);
+        }}
         onFocus={() => {
           if (!pressed.current) show();
         }}
@@ -129,7 +255,7 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
       <span id={id} className="sr-only">
         {text}
       </span>
-      {open
+      {open && host
         ? createPortal(
             <span
               ref={bubble}
@@ -141,7 +267,7 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
             >
               {text}
             </span>,
-            document.body,
+            host,
           )
         : null}
     </span>

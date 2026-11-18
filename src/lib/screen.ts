@@ -29,3 +29,14 @@ export function screenBox(): { width: number; height: number } {
 export function screenHeight(): number {
   return screenBox().height;
 }
+
+/**
+ * The part of the screen clear of the frame's bars, top and bottom, as fixed positioning sees it:
+ * from under the top bar to above the tab bar on a phone, the whole screen where there are none.
+ * Read from the page's scroll padding, which MobileNav and globals.css keep to the bars, so that
+ * whatever scrolls into view stops clear of them (WCAG 2.4.11).
+ */
+export function clearArea(): { top: number; bottom: number } {
+  const style = getComputedStyle(document.documentElement);
+  return { top: parseFloat(style.scrollPaddingTop) || 0, bottom: screenHeight() - (parseFloat(style.scrollPaddingBottom) || 0) };
+}

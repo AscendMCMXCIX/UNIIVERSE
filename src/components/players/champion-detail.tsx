@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Info } from "lucide-react";
+import Link from "next/link";
+import { Info, Swords } from "lucide-react";
 import type { OverviewCard } from "@/server/players/overview";
 import type { MatchupsData } from "@/server/players/matchups";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
@@ -24,6 +25,8 @@ import { FilterField, RefineButton } from "@/components/ui/filter-bar";
 import { percent, formatCount } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { tabIndicatorClass } from "@/components/ui/tab-bar";
+import { buttonClass } from "@/components/ui/button";
+import { matchupHref } from "@/components/matchup-intel/address";
 import { accountShortNames } from "@/domain/account-names";
 
 /*
@@ -38,6 +41,10 @@ import { accountShortNames } from "@/domain/account-names";
   Everything here is the player's own stored games. Each figure says how many games it rests on;
   a game without a timeline is counted as such, never as zero. A game opens the match window in
   place of this one (never two dimmed layers), with a way back to the same view.
+
+  Matchup Intel, the static reference for a pair (the enemy's abilities, base cooldowns, curated
+  briefings), is a page of its own under Resources: the scope row links to it for this champion,
+  and for the lane opponent chosen in Matchups.
 */
 
 export type ChampionTab = "overview" | "matchups";
@@ -105,6 +112,8 @@ export function ChampionDetail({
   const narrowed = (scope.season !== scope.currentSeason ? 1 : 0) + (scope.mode !== "all" ? 1 : 0) + (scope.accountId ? 1 : 0);
   const opponents = data?.opponents ?? [];
   const vsName = data?.vs ? champ(data.vs).name : null;
+  // Matchup Intel for this champion, and for the lane opponent shown when Matchups is open.
+  const intelVs = sel.tab === "matchups" && data?.vs && data.opponents.length ? data.vs : null;
   const tabs: Array<[ChampionTab, string]> = [
     ["overview", "Overview"],
     ["matchups", opponents.length ? `Matchups · ${opponents.length}` : "Matchups"],
@@ -136,10 +145,19 @@ export function ChampionDetail({
           </div>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-          <span className="min-w-0 truncate text-fg-muted" data-testid="champion-detail-scope">
+          {/* On a phone the scope wraps rather than cutting off the account it names. */}
+          <span className="min-w-0 truncate text-fg-muted max-sm:overflow-visible max-sm:whitespace-normal max-sm:break-words" data-testid="champion-detail-scope">
             {scopeText}
           </span>
           <RefineButton open={refine} count={narrowed} controls="champion-refine" onClick={() => setRefine((r) => !r)} className="bg-bg/40" testId="champion-detail-refine" />
+          <Link href={matchupHref(sel.championId, intelVs)} prefetch={false} className={buttonClass("outline", "sm", "bg-bg/40")} data-testid="champion-matchup-intel">
+            <Swords className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            Matchup Intel
+            <span className="sr-only">
+              : {me.name}
+              {intelVs ? ` vs ${champ(intelVs).name}` : ""}, the static reference in Resources
+            </span>
+          </Link>
           {pending ? <span className="text-fg-subtle" aria-live="polite">Updating…</span> : null}
         </div>
         {refine ? <RefinePanel scope={scope} onRefine={onRefine} /> : null}

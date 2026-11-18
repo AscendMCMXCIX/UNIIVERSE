@@ -4,6 +4,7 @@ import * as React from "react";
 import { ChevronDown, Search } from "lucide-react";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
 import { normalise } from "@/components/champions/types";
+import { bringIntoView, closeOnPressOutside, opensInFlow } from "@/components/ui/picker-flow";
 import { cn } from "@/lib/cn";
 
 export interface OpponentOption {
@@ -16,28 +17,37 @@ export interface OpponentOption {
  * "Riven vs Renekton ▾": the lane opponents faced on the champion, most played first, in one
  * searchable list that opens under the button (a combobox: type to narrow, arrow keys to move,
  * Enter to choose, Escape to close the list without closing the window). Each option shows its
- * games and record, so a one-game opponent never looks like a pattern.
+ * games and record, so a one-game opponent never looks like a pattern. It sits in the champion
+ * window, so the list opens in the flow of the window's body, which is then the one thing that
+ * scrolls, and is brought into view (picker-flow.ts); a press outside closes it on its click, so a
+ * game tapped below it is the game that opens. The search is 16px on touch screens at every width,
+ * a phone held sideways included: iOS zooms the page into a smaller field as it is focused.
  */
 export function OpponentPicker({ me, options, current, champ, onChoose, testId = "opponent-picker" }: { me: PortraitChampion; options: OpponentOption[]; current: string | null; champ: (id: string) => PortraitChampion; onChoose: (id: string) => void; testId?: string }) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [active, setActive] = React.useState(0);
   const id = React.useId();
+  // The list is part of what holds it (the window's body), decided as it opens.
+  const [inFlow, setInFlow] = React.useState(false);
   const wrap = React.useRef<HTMLDivElement>(null);
   const input = React.useRef<HTMLInputElement>(null);
   const button = React.useRef<HTMLButtonElement>(null);
+  const popover = React.useRef<HTMLDivElement>(null);
   const q = normalise(query.trim());
   const shown = q ? options.filter((o) => normalise(champ(o.championId).name).includes(q)) : options;
   const cur = options.find((o) => o.championId === current) ?? null;
 
+  // A press outside closes the list: as it starts while the list floats, on its click while the list
+  // is in the flow (what is below it moves up as it goes).
   React.useEffect(() => {
     if (!open) return;
-    const away = (e: PointerEvent) => {
-      if (!wrap.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("pointerdown", away);
-    return () => document.removeEventListener("pointerdown", away);
-  }, [open]);
+    return closeOnPressOutside(document, (node) => !!wrap.current?.contains(node), inFlow, () => setOpen(false));
+  }, [open, inFlow]);
+  // Opened in the flow, the list is brought into view in the body that holds it, before it is drawn.
+  React.useLayoutEffect(() => {
+    if (open && inFlow) bringIntoView(popover.current);
+  }, [open, inFlow]);
   React.useEffect(() => {
     if (open) input.current?.focus();
   }, [open]);
@@ -58,7 +68,10 @@ export function OpponentPicker({ me, options, current, champ, onChoose, testId =
         aria-controls={`${id}-list`}
         onClick={() => {
           // Opens on the current opponent, so the arrow keys start from there.
-          if (!open) setActive(Math.max(0, options.findIndex((o) => o.championId === current)));
+          if (!open) {
+            setActive(Math.max(0, options.findIndex((o) => o.championId === current)));
+            setInFlow(opensInFlow(wrap.current));
+          }
           setOpen(!open);
         }}
         className="flex min-h-12 w-full min-w-0 items-center gap-2.5 rounded-panel border border-border-strong bg-bg-elevated px-2.5 py-1.5 text-left transition-colors hover:border-accent/60 focus-visible:outline-2 focus-visible:outline-accent sm:w-auto sm:min-w-[20rem]"
@@ -80,7 +93,7 @@ export function OpponentPicker({ me, options, current, champ, onChoose, testId =
         <ChevronDown className={cn("h-4 w-4 shrink-0 text-fg-subtle transition-transform motion-reduce:transition-none", open && "rotate-180")} aria-hidden />
       </button>
       {open ? (
-        <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-panel border border-border-strong bg-bg-elevated shadow-2xl shadow-black/40 sm:right-auto sm:w-[22rem] motion-safe:fade-in" data-testid={`${testId}-popover`}>
+        <div ref={popover} className={cn("mt-1 overflow-hidden rounded-panel border border-border-strong bg-bg-elevated motion-safe:fade-in", inFlow ? "sm:w-[22rem] sm:max-w-full" : "absolute left-0 right-0 top-full z-50 shadow-2xl shadow-black/40 sm:right-auto sm:w-[22rem]")} data-testid={`${testId}-popover`} data-flow={inFlow || undefined}>
           <div className="flex items-center gap-2 border-b border-border px-3">
             <Search className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />
             <input
@@ -111,11 +124,14 @@ export function OpponentPicker({ me, options, current, champ, onChoose, testId =
                   button.current?.focus();
                 } else if (e.key === "Tab") setOpen(false);
               }}
-              className="h-11 min-w-0 flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-subtle"
+              // 16px on touch screens at every width (most iPhones held sideways are sm or wider; a 320pt one is 568px);
+              // 14px from sm with a mouse.
+              className="h-11 min-w-0 flex-1 bg-transparent text-base text-fg outline-none placeholder:text-fg-subtle sm:pointer-fine:text-sm"
               data-testid={`${testId}-search`}
             />
           </div>
-          <ul id={`${id}-list`} role="listbox" aria-label={`Lane opponents faced on ${me.name}`} className="max-h-72 overflow-y-auto overscroll-contain py-1">
+          {/* In the flow, as tall as its options: the window's body scrolls. Floating, a height of its own. */}
+          <ul id={`${id}-list`} role="listbox" aria-label={`Lane opponents faced on ${me.name}`} className={cn("py-1", !inFlow && "max-h-72 overflow-y-auto overscroll-contain")}>
             {shown.length === 0 ? (
               <li className="px-3 py-3 text-sm text-fg-muted">No opponent matches “{query}”.</li>
             ) : (

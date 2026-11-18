@@ -38,4 +38,12 @@ describe("withDefaults", () => {
     expect(withDefaults("border-b border-border", "border-border-strong").split(" ")).toEqual(["border-b", "border-border-strong"]);
     expect(withDefaults("bg-surface bg-gradient-to-r", "bg-accent").split(" ")).toEqual(["bg-gradient-to-r", "bg-accent"]);
   });
+
+  it("lets a caller wrap a button's label: its white space replaces the default nowrap", () => {
+    const button = "inline-flex items-center justify-center gap-1.5 whitespace-nowrap h-9 px-3.5";
+    const out = withDefaults(button, "h-auto min-h-11 whitespace-normal text-center").split(" ");
+    expect(out).not.toContain("whitespace-nowrap");
+    expect(out).not.toContain("h-9");
+    expect(out).toEqual(expect.arrayContaining(["whitespace-normal", "h-auto", "min-h-11", "text-center", "px-3.5"]));
+  });
 });

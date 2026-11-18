@@ -78,3 +78,22 @@ export function patchDistance(current: string, other: string, knownPatchesDesc: 
   }
   return Math.abs(oi - ci);
 }
+
+/**
+ * How many patches came after `earlier`, up to and including `later` (16.22 then 16.25: 3), or 0
+ * when `later` is not after it or either is not a patch. The patches the app has seen (newest
+ * first, as stored) count where they cover the span; never fewer than the numbering itself shows:
+ * within one season the difference (16.22 to 16.25: 3), and across seasons the later season's own
+ * patches up to `later` plus one for each season between (16.22 to 17.2: at least 2, since how
+ * many patches were left in 16 is not known without the list). So a rollover (16.24 to 17.1) never
+ * reads as hundreds of patches, and an incomplete list never as fewer than the numbers prove.
+ */
+export function patchesAfter(earlier: string, later: string, knownDesc: readonly string[] = []): number {
+  const a = /^(\d+)\.(\d+)$/.exec(canonicalPatch(earlier));
+  const b = /^(\d+)\.(\d+)$/.exec(canonicalPatch(later));
+  if (!a || !b || comparePatches(later, earlier) <= 0) return 0;
+  const [am, an, bm, bn] = [Number(a[1]), Number(a[2]), Number(b[1]), Number(b[2])];
+  const floor = am === bm ? bn - an : bn + (bm - am - 1);
+  const known = new Set(knownDesc.filter((p) => isValidPatch(p) && comparePatches(p, earlier) > 0 && comparePatches(p, later) <= 0).map(canonicalPatch)).size;
+  return Math.max(known, floor);
+}

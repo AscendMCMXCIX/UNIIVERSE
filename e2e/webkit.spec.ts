@@ -1,8 +1,9 @@
 import { devices, expect, test, type Locator, type Page } from "./test";
 import { lineupAtRest } from "./lineup";
 import { emulateKeyboard, keyboard } from "./keyboard";
-import { expectClearCorner } from "./modal-corner";
-import { besideAMark } from "./match-history";
+import { expectClearCorner, untilStill } from "./modal-corner";
+import { besideAMark, openMatchWindow } from "./match-history";
+import { bubbleFacts, NOT_A_PICTURE, NOT_A_PICTURE_ERROR, openPictureEditor, placedRight, toastFacts } from "./popups";
 import path from "node:path";
 
 /*
@@ -12,6 +13,11 @@ import path from "node:path";
   Screen app, the iOS keyboard (emulated here, as in the Chromium tests) and real touch scrolling
   still need a device (docs/RESPONSIVE.md → Safari and iPhones). Every other test runs in Chromium
   on the phone, tablet and desktop projects.
+  The popups over windows that behave differently in Safari are checked here too (the rest are in
+  e2e/popups.spec.ts): a window opened by a tap holds the focus itself with nothing in it ringed
+  (Safari ringed the close button), an ⓘ's bubble in a game's window is drawn inside it and Escape
+  closes the bubble alone, and a toast over the picture editor is drawn in it, its dismiss button
+  reached by a tap where it is drawn.
   The shared fixture fails a test on any uncaught page error, hydration mismatches included.
 */
 
@@ -28,7 +34,7 @@ async function fitsWidth(page: Page, label: string) {
 }
 
 test("the priority pages load without an error and without sideways scrolling", async ({ page }) => {
-  for (const route of ["/team", "/players", "/leaderboards", "/matches", "/resources", "/settings", "/admin", "/admin/people", "/admin/system"]) {
+  for (const route of ["/team", "/players", "/leaderboards", "/matches", "/resources", "/resources/matchups", "/resources/matchups?champion=Riven&vs=Mordekaiser", "/settings", "/admin", "/admin/people", "/admin/system"]) {
     await page.goto(route);
     await expect(page.locator("main"), route).toBeVisible();
     await expect(page.locator("h1").first(), route).toBeVisible();
@@ -147,6 +153,50 @@ test("a teammate's profile: its sections switch, and a champion's window opens a
   await tabs.getByRole("link", { name: "History" }).tap();
   await expect(page).toHaveURL(new RegExp(`${href}/matches$`));
   await expect(tabs.getByRole("link", { name: "History" })).toHaveAttribute("aria-current", "page");
+});
+
+test("Matchup Intel: a slot's picker fills the screen, a search and a tap choose, the focus comes back to the slot, details open and a chip's row lands under the top bar", async ({ page }) => {
+  await page.goto("/resources/matchups?champion=Riven");
+  await expect(page.getByTestId("matchup-pick-you")).toHaveAttribute("data-champion", "Riven");
+  const slot = page.getByTestId("matchup-pick-enemy");
+  const win = page.getByTestId("matchup-picker");
+  // A tap before the page's code has run is kept and opens the window once it runs; tap until it is open.
+  await expect(async () => {
+    if (!(await win.isVisible())) await slot.tap({ timeout: 2_000 });
+    await expect(win).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  // A screen of its own on a phone, with nothing in it reaching past its edge, measured once its
+  // opening motion (which scales it up from 97%) is over.
+  await untilStill(page);
+  const box = (await win.boundingBox())!;
+  expect(box.width).toBeGreaterThanOrEqual(page.viewportSize()!.width - 1);
+  await fitsWidth(page, "the picker window");
+  const search = win.getByTestId("matchup-picker-search");
+  await search.tap();
+  await search.fill("morde");
+  await expect(win.getByTestId("matchup-picker-count")).toHaveText("1 champion found");
+  await win.getByTestId("matchup-picker-grid").locator('button[data-champion="Mordekaiser"]').tap();
+  await expect(win).toHaveCount(0);
+  await expect(page).toHaveURL(/\?champion=Riven&vs=Mordekaiser$/);
+  await expect(page.getByTestId("matchup-briefing")).toBeVisible();
+  // The window gave the focus back to the slot it opened from, which stays on the page.
+  await expect(slot).toBeFocused();
+  await fitsWidth(page, "Riven vs Mordekaiser");
+  // A row's details open with a tap (the native details element).
+  const details = page.getByTestId("matchup-enemy-abilities").getByTestId("ability-details").first();
+  await details.locator(":scope > summary").tap();
+  await expect(details).toHaveAttribute("open", "");
+  await expect(details.getByTestId("ability-details-body")).toBeVisible();
+  // A briefing chip brings its row into view below the top bar, and gives it the focus.
+  const chip = page.getByTestId("matchup-briefing").locator('[data-testid="briefing-ability"][data-anchor^="ability-Mordekaiser-"]').first();
+  const anchor = (await chip.getAttribute("data-anchor"))!;
+  await chip.tap();
+  const row = page.locator(`#${anchor}`);
+  await expect(row).toBeFocused();
+  await expect(row).toBeInViewport();
+  const top = (await row.boundingBox())!.y;
+  const bar = (await page.getByTestId("mobile-topbar").boundingBox())!;
+  expect(top, "the row's top, under the top bar").toBeGreaterThanOrEqual(bar.y + bar.height - 1);
 });
 
 test("Match History: a game opens as a whole screen of its own, its ranks are checked there, and Back returns to the list", async ({ page }) => {
@@ -612,4 +662,69 @@ test("an uploaded logo: at the start of the top bar, animated unless motion is r
     await page.getByTestId("confirm-dialog-confirm").click();
     await expect(page.getByTestId("brand-logo-empty")).toBeVisible();
   }
+});
+
+test("popups: a window opened by a tap takes the focus itself, and nothing in it is ringed (Safari ringed its close button)", async ({ page }) => {
+  await page.goto("/team");
+  const open = page.getByTestId("lineup-row-TOP").getByTestId("open-player-detail");
+  const win = page.getByTestId("player-detail");
+  // A tap before the page is interactive does nothing: tap until the window opens.
+  await expect(async () => {
+    if (!(await win.isVisible())) await open.tap({ timeout: 2_000 });
+    await expect(win).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  await untilStill(page);
+  const focus = await win.evaluate((d) => {
+    const active = document.activeElement as HTMLElement | null;
+    return {
+      onWindow: active === d,
+      outline: active ? getComputedStyle(active).outlineStyle : null,
+      ringed: [...d.querySelectorAll("*")].filter((e) => e.matches(":focus-visible")).map((e) => e.getAttribute("aria-label") ?? e.tagName),
+    };
+  });
+  expect(focus).toEqual({ onWindow: true, outline: "none", ringed: [] });
+  await page.keyboard.press("Escape");
+  await expect(win).toBeHidden();
+});
+
+test("popups: a tapped ⓘ in a game's window is drawn inside the window, on top, beside its ⓘ, and the first Escape closes the bubble alone", async ({ page }) => {
+  const win = await openMatchWindow(page);
+  await untilStill(page);
+  // The notes under the scoreboard settle first (they redraw the lines above the ⓘ).
+  await expect(win.getByTestId("ranks-note")).not.toHaveAttribute("data-state", "checking", { timeout: 15_000 });
+  await expect(win.getByTestId("possible-groups-note")).not.toHaveAttribute("data-state", "loading", { timeout: 15_000 });
+  const tip = win.getByTestId("ranks-info");
+  const bubble = page.getByTestId("ranks-info-bubble");
+  await tip.scrollIntoViewIfNeeded();
+  // A tap toggles the bubble: tap again only while it has not opened.
+  await expect(async () => {
+    if ((await bubble.count()) === 0) await tip.tap({ timeout: 2_000 });
+    await expect(bubble).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  const facts = await bubbleFacts(bubble, "ranks-info");
+  expect(facts.window).toBe("match-detail");
+  expect(facts.onTop).toBe(true);
+  expect(placedRight(facts), JSON.stringify(facts)).toBe(true);
+  // Escape closes the bubble; the window's close request is the key's default action, kept from it.
+  await page.keyboard.press("Escape");
+  await expect(bubble).toHaveCount(0);
+  await page.waitForTimeout(300);
+  await expect(win).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(win).toBeHidden();
+});
+
+test("popups: an error toast raised over the picture editor is drawn in the window, on top, and a tap at its dismiss button's centre reaches it", async ({ page }) => {
+  const win = await openPictureEditor(page);
+  await page.getByTestId("avatar-file").setInputFiles(NOT_A_PICTURE);
+  const toast = page.getByTestId("toast").filter({ hasText: NOT_A_PICTURE_ERROR });
+  await expect(toast).toBeVisible();
+  const f = await toastFacts(toast);
+  expect({ inWindow: f.inWindow, live: f.live, onTop: f.onTop, reached: f.dismiss.reached }).toEqual({ inWindow: true, live: 1, onTop: true, reached: true });
+  expect(f.dismiss.width).toBeGreaterThanOrEqual(44);
+  expect(f.dismiss.height).toBeGreaterThanOrEqual(44);
+  // A finger where the button is drawn (over the sheet: a toast is not part of it, and pulls nothing).
+  await page.touchscreen.tap((f.dismiss.box.left + f.dismiss.box.right) / 2, (f.dismiss.box.top + f.dismiss.box.bottom) / 2);
+  await expect(toast).toHaveCount(0);
+  await expect(win).toBeVisible();
 });

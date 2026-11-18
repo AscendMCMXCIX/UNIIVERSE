@@ -889,7 +889,7 @@ function ColourPicker({ value, onChange, label }: { value: string; onChange: (v:
           autoCapitalize="none"
           enterKeyHint="done"
           aria-label={`${label}: hex value`}
-          className="h-9 w-28 rounded-lg border border-border bg-bg-elevated px-2.5 font-mono text-base text-fg sm:text-sm pointer-coarse:h-11"
+          className="h-9 w-28 rounded-lg border border-border bg-bg-elevated px-2.5 font-mono text-base text-fg sm:pointer-fine:text-sm pointer-coarse:h-11"
         />
       </div>
     </div>
@@ -1179,7 +1179,7 @@ function IdentityPanel({ style, set, problem }: { style: CardStyle; set: Setter;
           }}
           placeholder="In your own words, e.g. “Calm in the chaos”"
           enterKeyHint="done"
-          className="h-11 w-full rounded-lg border border-border bg-bg-elevated px-3 text-base text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none sm:h-10 sm:text-sm pointer-coarse:h-11"
+          className="h-11 w-full rounded-lg border border-border bg-bg-elevated px-3 text-base text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none sm:h-10 sm:pointer-fine:text-sm pointer-coarse:h-11"
           aria-describedby="tagline-help"
           data-testid="tagline-input"
         />

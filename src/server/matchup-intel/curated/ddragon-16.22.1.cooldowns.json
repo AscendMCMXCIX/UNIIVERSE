@@ -1,0 +1,12 @@
+{
+  "_note": "Data Dragon 16.22.1: the cooldown array of each curated champion's abilities, generated from Riot's champion files https://ddragon.leagueoflegends.com/cdn/16.22.1/data/en_US/champion/<Champion>.json (data.<Champion>.spells[0] to [3].cooldown as Q, W, E and R; the passive has no cooldown field, so P is []). Read by src/server/matchup-intel/curated/curated.test.ts. Copy arrays only from Riot's files for this version.",
+  "version": "16.22.1",
+  "champions": {
+    "Ambessa": { "P": [], "Q": [14, 13, 12, 11, 10], "W": [18, 17, 16, 15, 14], "E": [13, 12, 11, 10, 9], "R": [130, 115, 100] },
+    "Gwen": { "P": [], "Q": [6.5, 5.75, 5, 4.25, 3.5], "W": [22, 21, 20, 19, 18], "E": [13, 12.5, 12, 11.5, 11], "R": [120, 100, 80] },
+    "Mordekaiser": { "P": [], "Q": [8, 7, 6, 5, 4], "W": [12, 11, 10, 9, 8], "E": [16, 14, 12, 10, 8], "R": [120, 110, 100] },
+    "Ornn": { "P": [], "Q": [9, 8.5, 8, 7.5, 7], "W": [12, 11.5, 11, 10.5, 10], "E": [14, 13.5, 13, 12.5, 12], "R": [140, 120, 100] },
+    "Renekton": { "P": [], "Q": [7, 7, 7, 7, 7], "W": [16, 14, 12, 10, 8], "E": [16, 14.5, 13, 11.5, 10], "R": [120, 100, 80] },
+    "Riven": { "P": [], "Q": [13, 13, 13, 13, 13], "W": [11, 10, 9, 8, 7], "E": [10, 9, 8, 7, 6], "R": [120, 90, 60] }
+  }
+}

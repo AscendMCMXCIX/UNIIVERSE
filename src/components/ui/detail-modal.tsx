@@ -3,6 +3,8 @@
 import * as React from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { focusWindow, lastInput, letGoWhenPressed, opensFocusingItself } from "./input-kind";
+import { noteModalAtRest, noteModalClosed, noteModalOpened } from "./top-layer";
 
 /**
  * How much room a detail needs: compact for a short note, standard for a player or a champion,
@@ -137,6 +139,14 @@ export const BELOW_CONTROLS_ON_PHONES = "max-sm:pr-4 max-sm:pt-[var(--modal-clea
 /** How long the closing motion runs before the window is removed (matches modal-out). */
 const EXIT_MS = 140;
 /**
+ * How long a window's opening motion may take before it counts as at rest regardless (sheet-in, the
+ * longest, runs 220 ms): what waits for it (the toasts, top-layer.ts) never waits for a motion the
+ * browser did not report the end of.
+ */
+const REST_MS = 400;
+/** The opening motions a window's own animationend reports (MOTION, MODAL_MOTION). */
+const OPENING_MOTIONS = new Set(["modal-in", "sheet-in", "screen-in"]);
+/**
  * When the window counts as open for its content (see AfterOpen): modal-in runs 180 ms on an
  * ease-out curve, which is over 90% of the way by 120 ms; the rest is a barely visible settle.
  */
@@ -223,7 +233,9 @@ function useSheetDrag(ref: React.RefObject<HTMLDialogElement | null>, enabled: b
     const zoomed = () => (window.visualViewport?.scale ?? 1) > 1.01;
     const onStart = (e: TouchEvent) => {
       const t = e.touches[0];
-      if ((pull && !docked.matches) || e.touches.length !== 1 || !t || zoomed()) {
+      // What floats over the window without being part of it (the toasts, data-floating) is not the
+      // sheet: a finger on it pulls nothing.
+      if ((pull && !docked.matches) || e.touches.length !== 1 || !t || zoomed() || (e.target as Element | null)?.closest?.("[data-floating]")) {
         mode = "pass";
         return;
       }
@@ -293,12 +305,50 @@ function useSheetDrag(ref: React.RefObject<HTMLDialogElement | null>, enabled: b
 }
 
 /**
+ * The page behind a window (or the tablet's menu) stays exactly where it is: no scrolling, no rubber
+ * band or pull-to-refresh (iOS and Android browsers), and no shift sideways when its scrollbar goes.
+ * The scrollbar's width is the window's less the root's, believed only up to a scrollbar's width
+ * (24px): a phone has none, and a browser that reports the window's size wrongly cannot push the
+ * page sideways. Returns the way back.
+ */
+export function lockPage(): () => void {
+  const root = document.documentElement;
+  const body = document.body;
+  const gap = Math.min(24, window.innerWidth - root.clientWidth);
+  const prev = { overflow: root.style.overflow, overscroll: root.style.overscrollBehavior, padding: body.style.paddingRight };
+  root.style.overflow = "hidden";
+  root.style.overscrollBehavior = "none";
+  if (gap > 0) body.style.paddingRight = `${gap}px`;
+  return () => {
+    root.style.overflow = prev.overflow;
+    root.style.overscrollBehavior = prev.overscroll;
+    body.style.paddingRight = prev.padding;
+  };
+}
+
+/**
  * The site's one window for contextual details (a player, a match, an analysis): it rises into
  * the centre of the screen over a dimmed page, which stays where it was underneath. Built on the
  * native <dialog>, so focus is trapped and the rest of the page is inert. Escape, the close button
  * and a click on the backdrop close it with a short fade (instant for reduced motion); focus then
  * returns to whatever opened it, and the page behind never scrolls or shifts while it is open.
  * `canClose` lets a window with unsaved edits ask first.
+ *
+ * Where the focus starts: a window opened by a tap or a click takes it itself (drawn without a
+ * ring), as the account screen always does, so nothing in it is lit up as it opens; Safari ringed
+ * the close button of every other window, the loudest thing in it. Opened from the keyboard (or by
+ * nothing the reader did: a link to a game), its close button has the focus, ringed, so a keyboard
+ * user sees where they are (input-kind.ts). Tab then reaches the window's controls in order. A
+ * window that then focuses a field of its own (sign-in's username, from the effect of the component
+ * that renders the window, which runs after this one's) keeps it. The window holds that focus only
+ * until it is pressed or the focus moves on (focusWindow), and a press inside it on nothing
+ * focusable, whenever it comes, leaves nothing focused (letGoWhenPressed): a click on its text
+ * leaves the focus where a page leaves it, and the keys scroll its body. The browser focuses a
+ * dialog itself at such a press, tabindex or not, and the keys then scrolled nothing.
+ *
+ * Whatever must show over the window is drawn inside it, the dialog being in the browser's top
+ * layer: an ⓘ's bubble (InfoTip), and the toasts (Toaster), which come in once the window is at rest
+ * and leave as its closing motion starts: its motion would carry them along (top-layer.ts).
  */
 export function DetailModal({
   open,
@@ -371,6 +421,7 @@ export function DetailModal({
   const grabberRef = React.useRef<HTMLDivElement>(null);
   const bodyRef = React.useRef<HTMLDivElement>(null);
   const footerRef = React.useRef<HTMLDivElement>(null);
+  const closeRef = React.useRef<HTMLButtonElement>(null);
   // Scroll as one on a phone (see FLOW_SHARE), or a docked sheet with too little room for its body
   // (SHEET_SPARE_REM); measured once the window is on the page.
   const [flow, setFlow] = React.useState(false);
@@ -383,6 +434,10 @@ export function DetailModal({
       setFlow(false);
       setEntered(false);
     }
+    // A window kept on the page and opened again starts afresh: its last closing motion (held at its
+    // end, out of sight, until the window was removed) is over. Left set, it ran again at once and
+    // held the window out of sight while the page behind was inert.
+    else setClosing(false);
   }
   const latest = React.useRef({ onClose, canClose, onSettled });
   React.useLayoutEffect(() => {
@@ -520,41 +575,53 @@ export function DetailModal({
     };
   }, [open, docked, innerScroll]);
 
+  // The window is out of the top layer as it closes or leaves the page, said while it is still on
+  // the page (a layout effect's cleanup), so the toasts drawn in it are back in place before the
+  // next frame (top-layer.ts); a window that closes with its motion says so as the motion starts
+  // (requestClose), so they never ride it out. It says it is open once shown, and at rest once its
+  // opening motion is over, in the effect below and onAnimationEnd.
+  React.useLayoutEffect(() => {
+    const d = ref.current;
+    if (!open || !d) return;
+    return () => noteModalClosed(d);
+  }, [open]);
+
   React.useEffect(() => {
     const d = ref.current;
     if (!d) return;
+    let letGo: () => void = () => undefined;
     if (open && !d.open) {
       const active = document.activeElement;
       opener.current = active instanceof HTMLElement && active !== document.body ? active : handedOver;
       d.showModal();
-      // A screen takes the focus itself (tabIndex -1, no ring), so nothing on it is lit up as it
-      // opens; Tab then reaches its close button and its rows in order.
-      if (screen) d.focus({ preventScroll: true });
+      // Where the focus starts (see above): the window itself after a tap or a click, and always for
+      // a screen, until it is pressed or the focus moves on; else the close button, ringed for the
+      // keyboard.
+      if (screen || opensFocusingItself(lastInput())) letGo = focusWindow(d);
+      else closeRef.current?.focus({ preventScroll: true });
     }
     if (!open && d.open) {
       selfClosing.current = true;
       d.close();
     }
     if (!open) return;
+    noteModalOpened(d);
+    // A press on nothing focusable in it leaves nothing focused, as on a page (see above).
+    const presses = letGoWhenPressed(d);
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const settleTimer = window.setTimeout(settle, reduce ? 0 : SETTLE_MS);
-    // The page behind stays exactly where it is: no scrolling, and no shift when the scrollbar goes.
-    // The scrollbar's width is the window's less the root's, believed only up to a scrollbar's width
-    // (24px): a phone has none, and a browser that reports the window's size wrongly cannot push the
-    // page sideways.
-    const root = document.documentElement;
-    const body = document.body;
-    const gap = Math.min(24, window.innerWidth - root.clientWidth);
-    const prev = { overflow: root.style.overflow, overscroll: root.style.overscrollBehavior, padding: body.style.paddingRight };
-    root.style.overflow = "hidden";
-    // No rubber band or pull-to-refresh on the page either (iOS and Android browsers).
-    root.style.overscrollBehavior = "none";
-    if (gap > 0) body.style.paddingRight = `${gap}px`;
+    // At rest once its opening motion has ended (onAnimationEnd), at once without one, and after
+    // REST_MS whatever the browser reported: what is fixed inside it (the toasts) waits until then.
+    let restTimer = 0;
+    if (reduce) noteModalAtRest(d);
+    else restTimer = window.setTimeout(() => noteModalAtRest(d), REST_MS);
+    const unlock = lockPage();
     return () => {
       window.clearTimeout(settleTimer);
-      root.style.overflow = prev.overflow;
-      root.style.overscrollBehavior = prev.overscroll;
-      body.style.paddingRight = prev.padding;
+      window.clearTimeout(restTimer);
+      unlock();
+      presses();
+      letGo();
       // Back to what opened the window, whether it was closed or removed from the page (or to the
       // window replacing it, see handedOver).
       const back = opener.current;
@@ -582,6 +649,9 @@ export function DetailModal({
       return;
     }
     setClosing(true);
+    // Out of the top layer from now: the toasts drawn in it go back in place as its closing motion
+    // starts, rather than riding it out of the screen (top-layer.ts).
+    if (ref.current) noteModalClosed(ref.current);
     timer.current = window.setTimeout(() => {
       timer.current = null;
       latest.current.onClose();
@@ -597,11 +667,12 @@ export function DetailModal({
       {headerExtra ? <span aria-hidden className="mx-1.5 h-5 w-px shrink-0 bg-border-strong" data-testid="modal-controls-divider" /> : null}
       {/* A screen's close button is a quiet 36px circle whose touch area reaches 44px (touch-target),
           and it is not focused as the screen opens (the screen itself is): it once sat in a 48px
-          ring of accent at the top of the account menu, the loudest thing on it. */}
+          ring of accent at the top of the account menu, the loudest thing on it. Any other window's
+          close button has the focus as the window opens from the keyboard (the effect above). */}
       <button
+        ref={closeRef}
         type="button"
         onClick={requestClose}
-        autoFocus={!screen}
         aria-keyshortcuts="Escape"
         className={cn(
           "grid shrink-0 place-items-center transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent",
@@ -635,7 +706,12 @@ export function DetailModal({
       }}
       onAnimationEnd={(e) => {
         if (e.target !== ref.current) return;
-        if (e.animationName === "modal-in" || e.animationName === "sheet-in" || e.animationName === "screen-in") settle();
+        // The opening motion is over: the content may render, and the window is at rest (the toasts
+        // come into it, top-layer.ts).
+        if (OPENING_MOTIONS.has(e.animationName)) {
+          settle();
+          noteModalAtRest(e.currentTarget);
+        }
         if (e.animationName === "screen-in") setEntered(true);
       }}
       aria-labelledby={titleId}
@@ -645,9 +721,10 @@ export function DetailModal({
       data-entered={screen && (entered || closing) ? "true" : undefined}
       className={cn(
         "max-w-none border border-border-strong bg-bg-elevated p-0 text-fg shadow-2xl shadow-black/50 open:flex open:flex-col",
-        // A screen is fixed to the screen's edges (SIZE.screen): no auto margins. Its own focus (it
-        // takes the focus as it opens, see below) draws no ring: the close button is not lit up.
-        screen ? "m-0 px-safe outline-none" : "m-auto px-safe",
+        // A screen is fixed to the screen's edges (SIZE.screen): no auto margins. The window's own
+        // focus (it takes the focus as it opens after a tap or a click, and always for a screen)
+        // draws no ring: nothing in it is lit up.
+        screen ? "m-0 px-safe outline-none" : "m-auto px-safe outline-none",
         !innerScroll && !pinned && !docked && !screen && "short:overflow-y-auto short:overscroll-contain",
         flow ? "overflow-y-auto overscroll-contain" : "overflow-hidden",
         MODAL_BACKDROP,
@@ -657,7 +734,6 @@ export function DetailModal({
       )}
       data-testid={testId}
       data-size={size}
-      tabIndex={screen ? -1 : undefined}
       data-flow={flow || undefined}
       // What a pull on a docked sheet scrolls before it drags the sheet (useSheetDrag): the body, or
       // the whole sheet while it scrolls as one.

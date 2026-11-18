@@ -22,14 +22,34 @@ export function RecentFormStrip({ form, championsById, historyHref, narrowed = n
   const champ = (id: string) => championsById[id] ?? { id, name: id, portraitUrl: "" };
   return (
     <section aria-labelledby="recent-form-title" className="@container flex h-full flex-col gap-3 rounded-card border border-border bg-surface p-4 panel-depth" data-testid="recent-form">
-      <div className="flex items-baseline justify-between gap-2">
-        <h2 id="recent-form-title" className="text-base font-semibold text-fg">
-          Recent form
-        </h2>
-        <span className="text-xs text-fg-subtle">Last {strip.length} · oldest to newest</span>
+      {/* The verdict on the title's row (it was a footer row of its own, a row more on a phone),
+          what the bars show on the line under it. */}
+      <div className="space-y-0.5">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+          <h2 id="recent-form-title" className="text-base font-semibold text-fg">
+            Recent form
+          </h2>
+          <div className="flex items-center gap-1 text-xs" data-testid="recent-form-trend" data-trend={form.trend ?? "none"}>
+            {form.trend === "up" ? (
+              <span className="inline-flex items-center gap-1 text-good">
+                <TrendingUp className="h-3.5 w-3.5" aria-hidden /> Better lately (+{form.gapPoints} pts)
+              </span>
+            ) : form.trend === "down" ? (
+              <span className="inline-flex items-center gap-1 text-bad">
+                <TrendingDown className="h-3.5 w-3.5" aria-hidden /> Worse lately ({form.gapPoints} pts)
+              </span>
+            ) : form.trend === "steady" ? (
+              <span className="text-fg-muted">In line with the season</span>
+            ) : (
+              <span className="text-fg-subtle">Too few games to call a trend</span>
+            )}
+            <InfoTip label="About recent form" text={`The most recent games of the current filter against all of them. A trend is only named with at least ${FORM_MIN_RECENT} recent games, ${FORM_MIN_RECENT} more before them, and a clear gap: 8 percentage points of win rate, 15% of KDA or vision, 0.5 CS per minute. KDA, CS and vision count only the games that carry them; an arrow marks a clear gap.`} />
+          </div>
+        </div>
+        <p className="text-xs text-fg-subtle">Last {strip.length} · oldest to newest</p>
       </div>
       {narrowed ? (
-        <p className="-mt-1.5 truncate text-xs text-fg-muted" title="The same filters as Season performance (Refine)" data-testid="recent-form-scope">
+        <p className="-mt-2 truncate text-xs text-fg-muted" title="The same filters as Season performance (Refine)" data-testid="recent-form-scope">
           Filtered: {narrowed}
         </p>
       ) : null}
@@ -42,7 +62,10 @@ export function RecentFormStrip({ form, championsById, historyHref, narrowed = n
           </span>
         ))}
       </Link>
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm @lg:grid-cols-4" data-testid="recent-form-rates">
+      {/* Stretched to the season card's height beside it (from 58rem), the figures sit on the card's
+          bottom line: the spare height falls between the bars and them, not in a blank strip under
+          them (32-60px from 1280 to 3440). Unstretched (phones) nothing moves. */}
+      <dl className="mt-auto grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm @lg:grid-cols-4" data-testid="recent-form-rates">
         <div>
           <dt className="text-xs text-fg-subtle">Last {form.recent.games}</dt>
           <dd className="text-lg font-semibold tabular-nums text-fg">
@@ -64,22 +87,6 @@ export function RecentFormStrip({ form, championsById, historyHref, narrowed = n
           </div>
         ))}
       </dl>
-      <div className="mt-auto flex items-center gap-1 border-t border-border pt-2.5 text-xs" data-testid="recent-form-trend" data-trend={form.trend ?? "none"}>
-        {form.trend === "up" ? (
-          <span className="inline-flex items-center gap-1 text-good">
-            <TrendingUp className="h-3.5 w-3.5" aria-hidden /> Better lately (+{form.gapPoints} pts)
-          </span>
-        ) : form.trend === "down" ? (
-          <span className="inline-flex items-center gap-1 text-bad">
-            <TrendingDown className="h-3.5 w-3.5" aria-hidden /> Worse lately ({form.gapPoints} pts)
-          </span>
-        ) : form.trend === "steady" ? (
-          <span className="text-fg-muted">In line with the season</span>
-        ) : (
-          <span className="text-fg-subtle">Too few games to call a trend</span>
-        )}
-        <InfoTip label="About recent form" text={`The most recent games of the current filter against all of them. A trend is only named with at least ${FORM_MIN_RECENT} recent games, ${FORM_MIN_RECENT} more before them, and a clear gap: 8 percentage points of win rate, 15% of KDA or vision, 0.5 CS per minute. KDA, CS and vision count only the games that carry them; an arrow marks a clear gap.`} />
-      </div>
     </section>
   );
 }

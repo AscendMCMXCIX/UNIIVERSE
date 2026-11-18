@@ -114,7 +114,10 @@ function ResourceRow({ resource: e, favourite, onToggle }: { resource: Resource;
         <span className="min-w-0 flex-1">
           <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
             {/* A phone row's name at the row standard (text-md semibold, docs/MOBILE.md); the table's size from md. */}
-            <span className="min-w-0 truncate text-sm font-medium leading-snug text-fg group-hover:text-accent max-md:text-md max-md:font-semibold">{e.title}</span>
+            {/* On a phone the title wraps rather than being cut ("League of Legen…" at 320px): the host, beside it or under it, is the one cut if anything must be. */}
+            <span className="min-w-0 truncate text-sm font-medium leading-snug text-fg group-hover:text-accent max-md:text-md max-md:font-semibold max-sm:overflow-visible max-sm:whitespace-normal max-sm:break-words" data-testid="resource-title">
+              {e.title}
+            </span>
             <span className="min-w-0 truncate text-xs text-fg-subtle">{resourceHost(e.url)}</span>
           </span>
           {e.description ? <span className="mt-0.5 line-clamp-2 block text-xs leading-snug text-fg-muted">{e.description}</span> : null}

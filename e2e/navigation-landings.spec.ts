@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "./test";
+import { closeFilterSheet, openFilterBar } from "./filters";
 
 /*
   The navigation contract (docs/DESIGN_SYSTEM.md, "The navigation contract"): where a page starts,
@@ -85,6 +86,110 @@ test("phones: the current tab on its own page, and the page's title in the top b
   await expect.poll(() => scrollY(page)).toBe(0);
 });
 
+/**
+ * Follows the page's own content requests (Next's RSC fetches, prefetches left out) from now on:
+ * any it lists after a click means the click navigated, and the page was fetched again.
+ */
+function watchNavigations(page: Page) {
+  const seen: string[] = [];
+  const onRequest = (request: import("@playwright/test").Request) => {
+    const h = request.headers();
+    if (h["rsc"] === "1" && !h["next-router-prefetch"] && !h["next-router-segment-prefetch"]) seen.push(new URL(request.url()).pathname);
+  };
+  page.on("request", onRequest);
+  return async () => {
+    await page.waitForLoadState("networkidle");
+    page.off("request", onRequest);
+    return seen;
+  };
+}
+
+test("tablets and desktops: the current section tab, and the sidebar's entry for the page shown, keep the page as it is and go back to the top", async ({ page }, info) => {
+  test.skip(info.project.name === "phone", "phones: the tab bar (the test above)");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  // Records is Leaderboards' second view, kept in the address (?view=records); the current tab's own
+  // link has no query, and following it used to bring back Recent form.
+  await page.goto("/leaderboards?view=records");
+  await expect(page.getByTestId("records")).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await expect.poll(() => scrollY(page)).toBeGreaterThan(200);
+  let navigations = watchNavigations(page);
+  await page.getByTestId("team-tab-leaderboards").click();
+  await expect.poll(() => scrollY(page)).toBe(0);
+  // Kept, not fetched again: no request for the page's content once the network is quiet.
+  expect(await navigations(), "the current tab fetches nothing").toEqual([]);
+  await expect(page).toHaveURL(/[?&]view=records/);
+  await expect(page.getByTestId("records")).toBeVisible();
+  // With a modifier key the tab keeps its meaning: it opens in a new tab.
+  const [opened] = await Promise.all([page.context().waitForEvent("page"), page.getByTestId("team-tab-leaderboards").click({ modifiers: ["ControlOrMeta"] })]);
+  await opened.close();
+  // Matchup Intel's current tab (Resources' tabs are at every width) keeps the pair it shows and goes
+  // to the top, as Records' tab keeps its view: its own link has no query, and following it cleared
+  // the pair. The page is made long enough to scroll, as the Library's below.
+  await page.goto("/resources/matchups?champion=Riven&vs=Mordekaiser");
+  await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Mordekaiser");
+  // Once the page's code runs: a click before then follows the tab's bare link.
+  await expect(page.getByTestId("matchup-remembered")).not.toHaveAttribute("data-state", "loading");
+  await page.evaluate(() => {
+    const extra = document.createElement("div");
+    extra.dataset.testid = "test-length";
+    extra.style.height = "2000px";
+    document.querySelector("main")!.append(extra);
+    window.scrollTo(0, document.documentElement.scrollHeight);
+  });
+  await expect.poll(() => scrollY(page)).toBeGreaterThan(200);
+  navigations = watchNavigations(page);
+  await page.getByTestId("resources-tab-matchups").click();
+  await expect.poll(() => scrollY(page)).toBe(0);
+  expect(await navigations(), "the current Matchup Intel tab fetches nothing").toEqual([]);
+  await expect(page).toHaveURL(/\/resources\/matchups\?champion=Riven&vs=Mordekaiser$/);
+  await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Mordekaiser");
+  if (info.project.name === "desktop") {
+    // The sidebar's entry for the page shown (Resources): the page stays as it is, back at its top.
+    // Resources fits a desktop window, so the test makes it long enough to scroll. The Library's rows
+    // ask each site for its icon; a test asks none (resources.spec.ts).
+    await page.route(/\/favicon\.ico$/, (route) => route.abort());
+    await page.goto("/resources");
+    await page.waitForLoadState("networkidle");
+    await page.evaluate(() => {
+      const extra = document.createElement("div");
+      extra.dataset.testid = "test-length";
+      extra.style.height = "2000px";
+      document.querySelector("main")!.append(extra);
+      window.scrollTo(0, document.documentElement.scrollHeight);
+    });
+    await expect.poll(() => scrollY(page)).toBeGreaterThan(200);
+    navigations = watchNavigations(page);
+    await page.getByTestId("nav-resources").click();
+    await expect.poll(() => scrollY(page)).toBe(0);
+    expect(await navigations(), "the sidebar's entry for the page shown fetches nothing").toEqual([]);
+    await expect(page).toHaveURL(/\/resources$/);
+  }
+});
+
+test("Team Matches' filters replace the history entry, as every filter does: Back leaves the page", async ({ page }, info) => {
+  test.skip(info.project.name === "tablet", "runs on phone and desktop");
+  await page.goto("/team");
+  await page.goto("/matches");
+  // Phones: the filters are in the sheet behind Filters (opened again if a change closed it); each
+  // field has one copy, wherever it is shown.
+  const bar = page.getByTestId("together-filters");
+  const show = () => openFilterBar(bar, "together-filters-toggle");
+  await show();
+  await page.getByTestId("together-queue").selectOption("solo");
+  await expect(page).toHaveURL(/queue=solo/);
+  await show();
+  await page.getByTestId("together-min").selectOption("3");
+  await expect(page).toHaveURL(/min=3/);
+  await show();
+  await bar.getByTestId("reset-filters").click();
+  await expect(page).not.toHaveURL(/queue=|min=/);
+  await closeFilterSheet(page);
+  // Three changes, one entry: Back goes to the page before Matches.
+  await page.goBack();
+  await expect(page).toHaveURL(/\/team$/);
+});
+
 test("Skip to content is the first stop on the page and moves focus to the page itself", async ({ page }) => {
   await page.goto("/team");
   await page.keyboard.press("Tab");
@@ -112,4 +217,21 @@ test("phones: a dialog is the one shared sheet, docked to the bottom edge with i
   await expect(dialog.locator("#dialog-title")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
+});
+
+test("phones: Matchup Intel's current tab, in the page, keeps the pair and goes back to the top", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "Resources' tabs sit in the page on phones (the test above has tablets and desktops)");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/resources/matchups?champion=Riven&vs=Mordekaiser");
+  await expect(page.getByTestId("matchup-enemy-abilities")).toHaveAttribute("data-champion", "Mordekaiser");
+  await expect(page.getByTestId("matchup-remembered")).not.toHaveAttribute("data-state", "loading");
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await expect.poll(() => scrollY(page)).toBeGreaterThan(200);
+  const navigations = watchNavigations(page);
+  // Dispatched, not tapped: a phone does not pin these tabs, and a tap would first scroll them into
+  // view (Playwright's own scroll), which is already the page's top.
+  await page.getByTestId("resources-tab-matchups").dispatchEvent("click");
+  await expect.poll(() => scrollY(page)).toBe(0);
+  expect(await navigations(), "the current tab fetches nothing").toEqual([]);
+  await expect(page).toHaveURL(/\/resources\/matchups\?champion=Riven&vs=Mordekaiser$/);
 });

@@ -118,7 +118,7 @@ export function PlayersDirectory({ entries, championsById, archived = null, myPr
           </FilterField>
           {archived ? (
             <FilterField label="Archived">
-              <Link href={archived.on ? "/players" : "/players?archived=1"} scroll={false} aria-current={archived.on ? "true" : undefined} className={chipClass(archived.on, "self-start")} data-testid="archived-filter">
+              <Link href={archived.on ? "/players" : "/players?archived=1"} replace scroll={false} aria-current={archived.on ? "true" : undefined} className={chipClass(archived.on, "self-start")} data-testid="archived-filter">
                 {/* Inline the one word (its label is hidden there); the sheet, with room, says what it brings back. One text run, so the words keep their spacing. */}
                 <span>
                   Archived<span className="md:sr-only"> and deactivated</span>

@@ -126,7 +126,7 @@ export function FilterBar({
   const reset = (inSheet: boolean) =>
     activeCount > 0 && (onReset || resetHref) ? (
       resetHref ? (
-        <Link href={resetHref} scroll={false} className={resetClass(inSheet)} title={iconOnly(inSheet) ? resetLabel : undefined} data-testid="reset-filters" onClick={inSheet ? () => setOpen(false) : undefined}>
+        <Link href={resetHref} replace scroll={false} className={resetClass(inSheet)} title={iconOnly(inSheet) ? resetLabel : undefined} data-testid="reset-filters" onClick={inSheet ? () => setOpen(false) : undefined}>
           {resetBody(inSheet)}
         </Link>
       ) : (
@@ -157,14 +157,16 @@ export function FilterBar({
             </div>
           ) : null}
           {!search || chips.length > 0 || end ? (
-            <div className={cn("flex min-w-0 items-center gap-2", at.toggle)}>
+            // It wraps only when a larger text size leaves no room for Filters and the page's own
+            // action side by side (the chips and the spacer take no room of their own: flex-1).
+            <div className={cn("flex min-w-0 flex-wrap items-center gap-2", at.toggle)}>
               {search ? null : filtersButton}
               {chips.length ? (
                 <ScrollRow as="ul" className="-my-1 flex min-w-0 flex-1 gap-1.5 py-1" aria-label="Active filters" data-testid={testId ? `${testId}-chips` : undefined}>
                   {chips.map((c) => (
                     <li key={c.key} className="shrink-0">
                       {c.href ? (
-                        <Link href={c.href} scroll={false} className={CHIP} aria-label={`${c.text}: remove this filter`}>
+                        <Link href={c.href} replace scroll={false} className={CHIP} aria-label={`${c.text}: remove this filter`}>
                           {c.text} <X className="h-3 w-3 text-fg-subtle" aria-hidden />
                         </Link>
                       ) : (
