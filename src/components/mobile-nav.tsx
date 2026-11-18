@@ -164,21 +164,22 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
               </Link>
             )
           ) : null}
-          <Link href={home} className={cn("flex min-h-11 min-w-0 items-center gap-2.5 rounded-md", back ? "max-md:hidden" : "max-md:shrink-0 max-md:pl-1.5", "md:min-h-14 md:flex-1")} title={shortName} data-testid="mobile-brand">
+          <Link href={home} className={cn("flex min-h-11 min-w-0 items-center gap-2.5 rounded-md", back ? "max-md:hidden" : "max-md:shrink-0 max-md:pl-1.5", "md:min-h-14", titleShown ? "md:not-short:flex-1" : "md:flex-1")} title={shortName} data-testid="mobile-brand">
             <BrandMark src={logoSrc} still={logoStill} name={shortName} className="h-8 w-8 rounded-md text-base" />
-            <span className={cn("min-w-0 transition-opacity duration-150", titleShown && "max-md:hidden")}>
+            <span className={cn("min-w-0 transition-opacity duration-150", titleShown && "max-md:hidden short:hidden")}>
               <span className="block truncate text-sm font-bold tracking-label text-fg">{shortName}</span>
               {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-label text-accent">Admin mode</span> : tagline ? <span className="block truncate text-xs text-fg-subtle max-md:hidden">{tagline}</span> : null}
             </span>
           </Link>
-          {/* Phones: the page's own title, once its heading has gone up under the bar; a tap on it goes
+          {/* Phones, and any window held sideways or too short for the section tabs to pin (a tablet's
+              too): the page's own title, once its heading has gone up under the bar; a tap on it goes
               back to the top, as iOS's status bar does. */}
           {titleShown ? (
-            <button type="button" onClick={scrollToTop} className="min-h-11 min-w-0 flex-1 truncate rounded-md px-1 text-left text-base font-semibold text-fg transition-opacity duration-150 md:hidden" aria-label={`${heading.text}: back to top`} data-testid="mobile-title">
+            <button type="button" onClick={scrollToTop} className="min-h-11 min-w-0 flex-1 truncate rounded-md px-1 text-left text-base font-semibold text-fg transition-opacity duration-150 md:not-short:hidden" aria-label={`${heading.text}: back to top`} data-testid="mobile-title">
               {heading.text}
             </button>
           ) : (
-            <p className="min-w-0 flex-1 px-1 opacity-0 md:hidden" aria-hidden data-testid="mobile-title" />
+            <p className="min-w-0 flex-1 px-1 opacity-0 md:not-short:hidden" aria-hidden data-testid="mobile-title" />
           )}
           {user ? (
             <>
