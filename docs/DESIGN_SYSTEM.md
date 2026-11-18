@@ -298,7 +298,9 @@ test):
   sections' landing from md, `e2e/navigation-reach.spec.ts`)
 - **A long page's own sections.** Where a phone's column makes a page several screens long, its
   sections are in-page links under its scope (`SectionIndex`, `ui/section-index.tsx`: Records'
-  "Season records · Multikills · Milestones"; from a 36rem view the page fits without them). Each is
+  "Season records · Multikills · Milestones"; from a 36rem view the page fits without them; Settings
+  keeps "Name · Links · Password" in its account card, a list there from md that marks the section
+  being read). Each is
   a plain link to its section's anchor, so it works before the page's code has run; once it runs a
   click jumps through the router's history (`jumpToAnchor`, which Matchup Intel's chips share): the
   section comes under the top bar, takes the focus, and the jump is an entry of the page's own where

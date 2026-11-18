@@ -170,51 +170,67 @@ index's end, then the sites grouped by section, an `h2` each:
 | Width | Layout |
 | --- | --- |
 | phone (< 640px) | a full-width search; the index under it, scrolling sideways (`ScrollRow`); the live count left to screen readers (each segment says it); one panel, a heading per section, hairlines between the rows |
-| a phone held sideways (from `sm` in a window 480px tall or less) | the search and the index share a row; a panel per section, two columns |
-| tablet (640–1023px) | the search on its own row, the index under it with the live count at its end; a panel per section packed into two columns (`columns-2`, each panel kept whole) |
-| from `lg` | one row: the search, the index, the count at its end; two columns, three from `xl` |
+| a phone held sideways, from 640px wide (`sm` in a window 480px tall or less; a 320pt iPhone held sideways is 568px wide and keeps the upright layout) | the search and the index share a row; a panel per section, two columns |
+| tablet (640–1023px) | the search on its own row, the index under it, scrolling sideways, with the live count at its end; a panel per section packed into two columns (`columns-2`, each panel kept whole) |
+| from `lg` | the index whole wherever it is shown: beside the search only where the row has room for all of it and the count (1366 and 1440 with the sidebar folded), else on a row of its own, its segments wrapping onto a second line only where even that row is too narrow (1024 beside the open sidebar); two columns, three from `xl` |
 
 The plan said two columns from `md`; they start at `sm` so a phone held sideways (an iPhone 15 in
-Safari is 734px wide) gets them too, which its 2.4-screen target needs. A row is its site's icon,
-the title (it wraps, never cut), the host beside it (cut first, then ↗) and at most two lines of
-description (its whole text read out, and shown on hover); the star at its end keeps a favourite in
-this browser. The ★ segment is in the server's page with an empty slot of its count's width (two
-digits; at most 50 favourites), which fills once the page has read this browser, so nothing moves.
+Safari is 734px wide) gets them too, which its 2.4-screen target needs (`e2e/resources.spec.ts`
+pins it at 734 × 343, and one panel at 600px). A section panel's title is `text-base` from `md`, as
+a panel's title is (STANDARDS.md, Type); a phone's headings, upright or sideways, stay `text-sm`. A
+row is its site's icon, the title (it wraps, never cut), the host beside it (cut first, then ↗) and
+the description: whole on a touch screen, as in the base (whose clamp never applied), and with a
+mouse two lines at most, its title showing the rest on hover; a screen reader reads it whole either
+way. The star at the row's end keeps a favourite in this browser. The ★ segment is in the server's
+page with an empty slot of its count's width (two digits; at most 50 favourites), which fills once
+the page has read this browser, so nothing moves. With nothing in the library a phone says "No
+resources yet." on screen too.
+
+The index's laptop widths, measured beside the open sidebar and with it folded (18 Nov 2026): whole
+at 1024, 1280, 1366 and 1440 either way; before this, beside the open sidebar, 444, 188 and 102px of
+it hid under the fade at 1024, 1280 and 1366 (about 28px at 1440).
 
 **Settings** (`settings/account-settings.tsx`, the same page in both modes; 18 Nov 2026), 64rem wide
 (`max-w-5xl`):
 
 | Width | Layout |
 | --- | --- |
-| phone (< 640px) | the title, then the compact account card: the 56px picture beside the name, @username and a neutral role badge; Change and Remove; what the picture is for; a row of quiet links (My Profile, Riot Accounts, the mode switch, Sign out); the index as chips (Name · Links · Password, jumps within the page). Every section stacked; each field with its Save on one row, 44px; the password form behind Change password |
-| a window 480px tall or less, any width | the compact card, its quiet links right under who you are, so Sign out stays on the first screen of a phone held sideways; the password form behind Change password |
-| from `sm` | two columns: the card (15rem, 16rem from `lg`) beside the sections, the title over the sections |
-| from `md` in a window taller than 480px | the card's full look: the 80px picture with Change and Remove beside it, who you are, the help, the index down the card (the section being read marked, `aria-current="location"`), My Profile, Riot Accounts, the mode switch and Sign out as rows; sticky under the tablet's bar (`--bar-top` plus 1rem); the password form open |
+| phone (< 640px), and any window 480px tall or less | the title, then the compact account card: the 56px picture beside the name, @username and a neutral role badge; a row of quiet links (My Profile, Riot Accounts, the mode switch, Sign out; 12px between wrapped lines, so their 44px touch areas never overlap); Change and Remove; what the picture is for; the index ("Name · Links · Password"). Every section stacked; each field with its Save on one row, 44px |
+| from `sm` (a phone held sideways from 640px wide) | two columns: the card (15rem, 16rem from `lg`) beside the sections, the title over the sections |
+| from `md` in a window taller than 480px | the card's full look: the 80px picture beside who you are, Change and Remove, the help, the index down the card (the section being read marked, `aria-current="location"`), then My Profile, Riot Accounts, the mode switch and Sign out as rows; sticky under the tablet's bar (`--bar-top` plus 1rem) |
 | from `xl` | Name & username side by side, each with its Save |
 
-The card is one grid whose parts each look places itself (`CARD_CELLS`); its DOM order is the
-desktop's. Sign out is on the first screen at every size measured (below).
+The password form is shown at every size, stacked like the other sections (the approved plan: no
+hidden forms). The card's parts are cells in the order they are drawn at every size, so reading
+and the keyboard follow what is seen; its actions are drawn once per layout (the quiet row or the
+rows, the other copy `display: none`, out of the keyboard's and a screen reader's way). Its index is
+Records' `SectionIndex`: a click jumps through the router's history (`jumpToAnchor`), the section
+under the top bar and focused. Sign out is on the first screen at every size measured (below).
 
 **Measured** on 18 Nov 2026 (the demo build, in-memory; page height in screens, base `8ef5a612` →
 this change, the plan's target in brackets; the owner in Player Mode, Admin Mode's Settings the
 same; a member with a player profile, so Social links too; Playwright's device sizes, the screen's
 own in the label):
 
-| Size | Library (target) | Settings, owner (target) | Settings, member | Sign out on the first screen (owner) |
+| Size | Library (target) | Settings, owner (target) | Settings, member (target) | Sign out on the first screen |
 | --- | --- | --- | --- | --- |
-| iPhone 15 (Safari, 393 × 659) | 2.62 → 1.95 (2.0) | 2.29 → 1.59 (1.6) | 3.13 → 2.50 (2.3) | no → yes |
-| iPhone SE 1st gen (320 × 568) | 3.52 → 2.46 (2.5) | 2.89 → 2.00 (2.0) | 3.93 → 3.19 | no → yes |
-| iPhone 15 installed (393 × 852, safe areas 59 / 34) | 2.13 → 1.62 (1.7) | 1.88 → 1.34 | 2.53 → 2.04 | no → yes |
-| iPhone 15 sideways (734 × 343) | 4.24 → 2.40 (2.4) | 3.37 → 2.18 (2.5) | 4.81 → 3.81 | no → yes |
-| Pixel 7 sideways (863 × 360) | 4.05 → 2.17 (2.3) | 3.13 → 1.91 (2.4) | 4.49 → 3.46 | no → yes |
+| iPhone 15 (Safari, 393 × 659) | 2.62 → 1.95 (2.0) | 2.29 → 2.03 (1.6, missed) | 3.13 → 2.94 (2.3, missed) | no → yes |
+| iPhone SE 1st gen (320 × 568) | 3.52 → 2.61 (2.5, missed) | 2.89 → 2.51 (2.0, missed) | 3.93 → 3.71 | no → yes |
+| iPhone 15 installed (393 × 852, safe areas 59 / 34) | 2.13 → 1.62 (1.7) | 1.88 → 1.68 | 2.53 → 2.38 | no → yes |
+| iPhone 15 sideways (734 × 343) | 4.24 → 2.40 (2.4) | 3.37 → 2.83 (2.5, missed) | 4.81 → 4.46 | no → yes |
+| Pixel 7 sideways (863 × 360) | 4.05 → 2.20 (2.3) | 3.13 → 2.53 (2.4, missed) | 4.49 → 4.08 | no → yes |
 | iPad (810 × 1080) | 1.35 → 1.00 (1.0) | 1.04 → 1.00 (1.0) | 1.50 → 1.39 | yes → yes |
 | 1440 × 900 | 1.10 → 1.00 (1.0) | 1.16 → 1.00 (1.0) | 1.63 → 1.32 | no → yes |
 
-The Library's "before" includes #292's Library and Matchup Intel tabs (about 60px on a phone),
-which the plan's figures predate. A member's Sign out is on the first screen at every size too. A
-member on an iPhone 15 stays above the plan's 2.3 (2.50): Social links' three fields, each a line
-for its name and Show publicly and one for the field, are the rest, and they are shared with the
-Player Card Studio and the first sign-in (`SocialLinksFields`, pinned by `e2e/social-links.spec.ts`).
+Sign out is on the first screen for the owner and the member at every size. The Library's
+"before" includes #292's Library and Matchup Intel tabs (about 60px on a phone), which the plan's
+figures predate; on the iPhone SE it misses 2.5 because its descriptions are whole on a touch screen
+(2.46 with them cut at two lines). Settings' phone targets were set with a smaller page in mind: with
+the password form shown, as the plan asks, it adds about 290px on an upright phone (the owner was
+1.59 on an iPhone 15 with it folded), and a member's Social links (three fields, each a line for its
+name and Show publicly and one for the field, shared with the Player Card Studio and the first
+sign-in, pinned by `e2e/social-links.spec.ts`) add more. Those misses are for the owner to accept or
+to take up in a later change.
 
 ## Admin Mode at a larger text size
 
@@ -247,8 +263,8 @@ At the usual text size nothing moves: compared with the base build at 320, 375, 
 on the ten Admin Mode pages), 49 of the 50 are identical; the fiftieth, System Health at 320px, is
 its job list, which differs between any two servers with the demo's background runs (two servers of
 the base differed by 450px). `e2e/phone-wraps.spec.ts` checks every Admin Mode page at 200% and 150%
-on a 320px phone, and `e2e/account-screen.spec.ts` now opens the account screen over the dashboard
-at 200% on a 320px phone as well.
+on 320, 375 and 393px phones, and `e2e/account-screen.spec.ts` now opens the account screen over
+the dashboard at 200% on a 320px phone as well.
 
 ## Shell
 
@@ -338,14 +354,19 @@ MATCHUP_INTEL.md, "What the browser tests pin"). A demo server started by hand f
 (`E2E_PORT`) needs the same environment, `DDRAGON_VERSION=16.22.1` included: outside CI
 Playwright uses a server already on the port as it is. It checks: no horizontal overflow on every page, navigation (tab bar, drawer, sidebar), 44px targets
 and 16px inputs on phones, and the champion picker on the player profile.
-`e2e/responsive.spec.ts` also checks Settings at the three widths: the account card leads (above
-the sections on a phone, a sticky column beside them wider), Sign out on the first screen, the
-display name and its Save on one row (44px on touch screens), the index's jumps, the phone's folded
-password form (Change password opens it with the focus in its first field; Cancel folds it), and on
-a desktop Name & username side by side and the index marking the section being read.
-`e2e/resources.spec.ts` checks the Library's index (a section by tapping, the counts following the
-search), its layout at each width and the ★ segment (in the server's page with an empty slot; its
-count fills without moving the list). `e2e/navigation-reach.spec.ts` keeps where you are in reach: on a phone a profile section chosen
+`e2e/responsive.spec.ts` also checks Settings: at the three widths, and at 734 × 343, 863 × 360 and
+320 × 568, the account card's Tab order against the order it is drawn in, Sign out on the first
+screen, the card above the sections on a phone and a sticky column beside them wider (not pinned in
+a window 480px tall or less), the name, the neutral role badge and the picture's control named in
+full, each field and its Save on one row (44px on touch screens), the password form shown; on a
+phone an index link's jump landing under the top bar, focused, and Back from the next page coming
+back to it; on a desktop Name & username side by side, and the index marking the section being read
+as a member's three sections scroll by. `e2e/resources.spec.ts` checks the Library's index (a
+section by tapping, the counts following the search), its layout at each width (two columns pinned
+from 640px, the panel titles' size, the host cut first and ↗ drawn, descriptions whole on a touch
+screen), the index whole at 1024, 1280, 1366 and 1440 with the sidebar open and folded, and the ★
+segment (its server width, scripts held back, equal to the hydrated one; its count filling without
+moving the list). `e2e/navigation-reach.spec.ts` keeps where you are in reach: on a phone a profile section chosen
 far down the page starts at its top once its content has arrived (tapped in place, without
 Playwright's own scroll into view); on tablets and desktops the Team and profile tabs stay pinned
 as a long page scrolls, All Champions' column headings pin under them, and nothing is pinned in a
