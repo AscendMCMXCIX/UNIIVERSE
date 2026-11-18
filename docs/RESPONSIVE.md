@@ -538,7 +538,7 @@ emptied the list; the fullest bar (Back, the title, Filters with its count, the 
 each posture; the account screen closed by Back and not reopened by Forward, upright and held
 sideways; a tablet's destinations (the current one's gradient bar) and avatar menu in both modes, and
 its top bar at 100% to 200% text in both modes, the team's name and then the labels giving way where
-the bar's row is narrower than `BAR_FIT` says, the destinations never scrolling and nothing wider than
+the bar's row is narrower than `BAR_FIT` says, the destinations never scrolling and the bar never wider than
 the window. `e2e/navigation-landings.spec.ts` has the current destination on its own page going back
 to the top without a fetch, in the sidebar and in a tablet's top bar. `e2e/filter-consistency.spec.ts`: the sheet
 opened from the pinned row at 768 and 1440 labels every field (More filters opened), holds the only

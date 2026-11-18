@@ -164,9 +164,12 @@ links (Demo Mid); with three links its line condenses where it is narrow (the ro
 below 23.5rem, "Lineup" below 29rem, the off roles as icons, each still read out in full; the
 links 32px chips, 44px targets) and stays one line, the band at most 80px, on a member's own
 Overview beside Customise too. A tablet's
-destinations: 2 taps → 1. Nothing wider than the window at 568 × 320, and at 150% and 200% text at
-568 × 320, 734 × 343, 852 × 393 and 768 × 1024 (at 200% on a 568px phone the destinations' row
-scrolls inside the bar, never the page). Upright phones unchanged (393 × 852: 53 + 57px on Team).
+destinations: 2 taps → 1. The frame is never wider than the window: at 568 × 320, and at 150% and
+200% text at 568 × 320, 734 × 343, 852 × 393 and 768 × 1024 (at 200% on a 568px phone the
+destinations' row scrolls inside the bar, never the page). A page's own content is its own to fit:
+Settings, since its two-column layout (ux/resources-settings), is 139px wider than a 768px tablet at
+200% text, in both modes (its buttons beside a 15rem column), as on the stack's Match History head.
+Upright phones unchanged (393 × 852: 53 + 57px on Team).
 
 The tablet's avatar keeps an early tap as the phone's does (so does the account tile in the desktop
 sidebar), and the account menu's Sign out tells the browser's other tabs, as the account screen's

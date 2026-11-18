@@ -358,16 +358,17 @@ test("a tablet's top bar gives way at a larger text size: the team's name first,
             labels: [...list.querySelectorAll("a")].map((a) => shown(a.querySelector(":scope > span:last-child"))),
             listScrolls: list.scrollWidth > list.clientWidth + 1,
             rowOverflow: row.scrollWidth - row.clientWidth,
-            page: document.documentElement.scrollWidth - innerWidth,
+            bar: document.querySelector("[data-testid=mobile-topbar]")!.getBoundingClientRect().right - innerWidth,
           };
         });
         const fit = FIT[mode];
         expect(m.name, `${where}: the team's name (row ${m.content.toFixed(1)}rem)`).toBe(m.content >= fit.brand);
         for (const label of m.labels) expect(label, `${where}: a label (row ${m.content.toFixed(1)}rem)`).toBe(m.content >= fit.labels);
-        // What each step leaves fits: the list needs no scrolling, the row and the page no wider.
+        // What each step leaves fits: the list needs no scrolling, and neither the bar nor its row is
+        // wider than the window (the page's own content is its pages' to fit: e2e/phone-wraps.spec.ts).
         expect(m.listScrolls, `${where}: the destinations fit`).toBe(false);
         expect(m.rowOverflow, `${where}: the bar's row`).toBeLessThanOrEqual(1);
-        expect(m.page, `${where}: the page`).toBeLessThanOrEqual(1);
+        expect(m.bar, `${where}: the bar within the window`).toBeLessThanOrEqual(1);
       }).toPass({ timeout: 15_000 });
     }
   }
