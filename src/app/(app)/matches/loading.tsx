@@ -7,7 +7,8 @@ import { Skeleton } from "@/components/ui/skeleton";
  * played-together.tsx): the result over the members on narrower lists, both teams under them from
  * md; from a 58rem list the result, the members, both teams and the bookmark side by side. The
  * members go two to a row from a 34rem column, as the cards do, so the list lands where its
- * skeleton was.
+ * skeleton was. The lists are hidden from screen readers (the status and its "Loading…" say it);
+ * Team Insights, below this folder, has its own loading.tsx.
  */
 const MEMBERS = [4, 3, 2, 2];
 
@@ -24,7 +25,7 @@ export default function Loading() {
         <Skeleton className="hidden h-9 w-28 md:block pointer-coarse:h-11" />
         <Skeleton className="ml-auto h-9 w-32 rounded-full pointer-coarse:h-11" />
       </div>
-      <ol className="@container/tm space-y-2.5">
+      <ol className="@container/tm space-y-2.5" aria-hidden="true">
         {MEMBERS.map((members, i) => (
           <li key={i} className="rounded-panel border border-border bg-surface pl-1.5">
             <div className="grid gap-x-3 gap-y-2.5 px-3 py-2.5 @min-[58rem]/tm:grid-cols-[8.5rem_minmax(0,1fr)_minmax(0,20rem)_auto] @min-[58rem]/tm:items-center @min-[58rem]/tm:py-3">
