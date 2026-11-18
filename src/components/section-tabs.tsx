@@ -43,8 +43,10 @@ export function SectionTabs({ allowed, team }: { allowed: string[]; team: { name
       current={current.href}
       dense
       sticky
-      // Phones reach Team's sections from the bottom tab bar (MobileNav), so the bar is not repeated in the page there.
-      className={cn("mb-4 sm:mb-5 lg:mb-4 lg:first:-mt-2", hub.key === "team" && "max-md:hidden")}
+      // Phones reach Team's sections from their destinations (MobileNav: the bottom tab bar upright, the
+      // top bar held sideways, a short window below lg whatever its width), so the bar is not repeated
+      // in the page there.
+      className={cn("mb-4 sm:mb-5 lg:mb-4 lg:first:-mt-2", hub.key === "team" && "max-md:hidden max-lg:short:hidden")}
       testId={`${hub.key}-tabs`}
       inner={PAGE_WIDTH[hub.width]}
       end={

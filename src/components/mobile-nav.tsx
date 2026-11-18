@@ -170,9 +170,9 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
               truncates, or goes on a tablet: BAR_FIT) only when a larger text size leaves the bar
               no room, so the bar never makes the page wider than the screen. Held sideways the mark
               alone, so the destinations have the room. */}
-          <Link href={home} className={cn("flex min-h-11 min-w-0 items-center gap-2.5 rounded-md md:min-h-14 short:min-h-11", back ? "max-md:hidden short:hidden" : "max-md:pl-1.5 short:pl-1.5")} title={shortName} data-testid="mobile-brand">
+          <Link href={home} className={cn("flex min-h-11 min-w-0 items-center gap-2.5 rounded-md md:min-h-14 md:min-w-8 md:shrink-[1000] short:min-h-11 short:shrink-0", back ? "max-md:hidden short:hidden" : "max-md:pl-1.5 short:pl-1.5")} title={shortName} data-testid="mobile-brand">
             <BrandMark src={logoSrc} still={logoStill} name={shortName} className="h-8 w-8 rounded-md text-base" />
-            <span className={cn("min-w-0 transition-opacity duration-150 short:hidden", BAR_FIT.brand, titleShown && "max-md:hidden")}>
+            <span className={cn("min-w-0 transition-opacity duration-150 short:hidden", BAR_FIT[adminMode ? "admin" : "member"].brand, titleShown && "max-md:hidden")}>
               <span className="block truncate text-sm font-bold tracking-label text-fg">{shortName}</span>
               {adminMode ? <span className="block truncate text-xs font-semibold uppercase tracking-label text-accent">Admin mode</span> : tagline ? <span className="block truncate text-xs text-fg-subtle max-md:hidden">{tagline}</span> : null}
             </span>
@@ -180,8 +180,8 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
           {/* Held sideways: the phone's destinations, one tap each, in the bar (there is no bottom
               bar). The current one is lit twice (its icon in an accent pill, its label shown and
               bright); where the bar is narrower than 38rem only its label shows, the others' left to
-              screen readers. Too long for the bar (large text), the row scrolls sideways inside it,
-              the current one kept in view, never widening the page. */}
+              screen readers (SIDEWAYS_FIT). Too long for the bar even so (large text), the row
+              scrolls sideways inside it, the current one kept in view, never widening the page. */}
           {tabs.length > 0 ? (
             <nav aria-label="Primary" className="hidden min-w-0 shrink-[0.001] short:flex" data-testid="topbar-tabs">
               <ScrollRow as="ul" className="flex items-center gap-0.5" keepCurrentInView current={activeTab}>
@@ -195,12 +195,12 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                         aria-current={active ? "page" : undefined}
                         // The current destination on its own page: back to the top, as the tab bar's does.
                         onClick={(e) => stayOnCurrentPage(e, active && pathname === href)}
-                        className="group flex h-11 min-w-11 items-center justify-center rounded-md"
+                        className="group flex h-11 min-w-11 items-center justify-center rounded-md focus-visible:-outline-offset-2"
                         data-testid={`topbar-tab-${href.slice(1).replaceAll("/", "-")}`}
                       >
                         <span className={cn("flex h-8 items-center gap-1.5 rounded-full px-2 transition-colors duration-150", active ? "bg-accent/15 text-accent" : "text-fg-muted group-hover:bg-surface-2 group-hover:text-fg")}>
                           {own ? <Avatar name={user!.name} src={user!.avatarUrl} size="xs" className={cn(active && "ring-2 ring-accent")} /> : <Icon className="h-5 w-5 shrink-0" aria-hidden />}
-                          <span className={cn("whitespace-nowrap text-2xs font-medium leading-none", active ? "font-semibold text-fg" : "@max-[38rem]/topbar:sr-only")}>{label}</span>
+                          <span className={cn("whitespace-nowrap text-2xs font-medium leading-none", active ? cn("font-semibold text-fg", SIDEWAYS_FIT.current) : SIDEWAYS_FIT.others)}>{label}</span>
                         </span>
                       </Link>
                     </li>
@@ -211,32 +211,34 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
           ) : null}
           {/* Tablets: the destinations, one tap each (the drawer they were in has gone). The current
               one is marked as in the sidebar: a neutral lift with a hairline of light, its icon in
-              the brand blue and its name bright. The bar takes the rest of the room, so the avatar
-              stays at its end; at large text the labels give way to the icons (BAR_FIT). */}
+              the brand blue and its name bright. The list grows into the room left, so the avatar
+              stays at the bar's end; at a larger text size the team's name beside the mark gives way
+              first, then the labels to the icons (BAR_FIT), and as a last resort the list scrolls
+              sideways inside the bar, never widening the page. */}
           {destinations.length > 0 ? (
-            <nav aria-label="Primary" className="hidden min-w-0 flex-1 md:not-short:flex" data-testid="topbar-destinations">
-              <ul className="flex min-w-0 items-center gap-1">
+            <nav aria-label="Primary" className="hidden min-w-0 md:not-short:flex md:not-short:grow" data-testid="topbar-destinations">
+              <ScrollRow as="ul" className="flex min-w-0 items-center gap-1" keepCurrentInView current={currentDestinationHref}>
                 {destinations.map(({ href, label, icon: Icon }) => {
                   const active = href === currentDestinationHref;
                   return (
-                    <li key={href} className="min-w-0">
+                    <li key={href} className="shrink-0">
                       <Link
                         href={href}
                         aria-current={active ? "page" : undefined}
                         // The page already shown stays as it is (its view and filters) and goes back to the top, as the sidebar's entry does.
                         onClick={(e) => stayOnCurrentPage(e, href === pathname)}
                         title={label}
-                        className={cn("group isolate relative flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors duration-150", active ? "text-fg" : "text-fg-muted hover:text-fg")}
+                        className={cn("group isolate relative flex min-h-11 items-center gap-2 whitespace-nowrap rounded-lg px-3 text-sm font-semibold transition-colors duration-150 focus-visible:-outline-offset-2", active ? "text-fg" : "text-fg-muted hover:text-fg")}
                         data-testid={`topbar-nav-${href.slice(1).replaceAll("/", "-")}`}
                       >
                         <span className={cn("absolute inset-0 -z-10 rounded-lg transition-[background-color,box-shadow] duration-150", active ? RAIL_CURRENT : RAIL_HOVER)} aria-hidden />
                         <Icon className={cn("h-[1.125rem] w-[1.125rem] shrink-0 transition-colors duration-150", active ? "text-accent" : "text-fg-subtle group-hover:text-fg-muted")} aria-hidden />
-                        <span className={cn("truncate", BAR_FIT[adminMode ? "admin" : "member"])}>{label}</span>
+                        <span className={BAR_FIT[adminMode ? "admin" : "member"].labels}>{label}</span>
                       </Link>
                     </li>
                   );
                 })}
-              </ul>
+              </ScrollRow>
             </nav>
           ) : null}
           {/* Phones (and tablet widths held sideways, where the section tabs do not pin): the page's
@@ -434,14 +436,28 @@ const TAB_FIT = {
 
 /**
  * Where a tablet's top bar gives way at a larger text size, in the bar's own width in rem (the
- * `topbar` container: its row less its gutters), as static class lists: first the team's name
- * beside its mark goes, then the destinations' labels (each destination keeps its name for screen
- * readers and in its title). Measured with the bundled Inter (BAR_FIT_MEASURED in the docs).
+ * `topbar` container: its row less its gutters), as static class lists (Tailwind reads them whole):
+ * first the team's name beside its mark, then the destinations' labels (each keeps its name for
+ * screen readers and in its title). Measured on 18 Nov 2026 with the bundled Inter at 100% text:
+ * Player Mode's bar needs 32.84rem with the name and 26.75rem without it, Admin Mode's (its name
+ * two lines, "Admin mode" under it) 38.88rem and 32.34rem. A 768px tablet's bar is 46rem at 100%
+ * text, 30.7rem at 150%.
  */
 const BAR_FIT = {
-  brand: "md:@max-[44rem]/topbar:hidden",
-  member: "md:@max-[30rem]/topbar:sr-only",
-  admin: "md:@max-[34rem]/topbar:sr-only",
+  member: { brand: "md:@max-[34rem]/topbar:hidden", labels: "md:@max-[28rem]/topbar:sr-only" },
+  admin: { brand: "md:@max-[40rem]/topbar:hidden", labels: "md:@max-[33.5rem]/topbar:sr-only" },
+} as const;
+
+/**
+ * The destinations' labels in a phone's bar held sideways, in the bar's own width in rem: the
+ * others' below 38rem (all five labelled need 33.28rem with the mark and the avatar, 36.28rem with
+ * Filters too; measured on 18 Nov 2026 at 100% text), the current one's below 27rem, where a larger
+ * text size leaves room for the icons alone (26.9rem with Leaderboards current and Filters; the
+ * same fallback as the upright bar's, TAB_FIT).
+ */
+const SIDEWAYS_FIT = {
+  others: "@max-[38rem]/topbar:sr-only",
+  current: "@max-[27rem]/topbar:sr-only",
 } as const;
 
 /**

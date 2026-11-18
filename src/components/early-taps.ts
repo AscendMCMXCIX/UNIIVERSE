@@ -1,7 +1,7 @@
 /*
   Taps on the frame's script-driven controls before the page's code has run. The avatar (the
-  phone's account screen), the tablet's menu, the account menu's avatar (tablets) and tile (the
-  desktop sidebar) and the sidebar's collapse control are buttons with a React click handler only.
+  phone's account screen), the account menu's avatar (tablets) and tile (the desktop sidebar) and
+  the sidebar's collapse control are buttons with a React click handler only.
   On a slow network the page is drawn, and those buttons can be pressed, seconds before that
   handler exists: a tap then did nothing, and one while React was starting waited for it (0.3 to
   0.9 s after the tap at CPU x4 on a local server).
@@ -28,7 +28,7 @@
  * What a control opens: its data-early value. The account menu's two triggers share one, as do
  * Matchup Intel's slot and prompt for a side.
  */
-export type EarlyTap = "sheet" | "drawer" | "sidebar" | "account" | "matchup-you" | "matchup-enemy";
+export type EarlyTap = "sheet" | "sidebar" | "account" | "matchup-you" | "matchup-enemy";
 
 declare global {
   interface Window {
