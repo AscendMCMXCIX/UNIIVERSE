@@ -28,7 +28,8 @@ import { landTarget, publishPageFilters } from "./page-toolbar";
       (one bar a page). Opened that way it is the sheet at every width, its fields in their sheet
       form (labels shown, the whole width, a page's Refine fields in place: useInFilterSheet), while
       the inline row keeps its size in the page; closed after a change, the list's start comes into
-      view under what is pinned (the page's PageToolbar names it; else the bar itself).
+      view under what is pinned (the page's PageToolbar names it; else the bar itself), unless the
+      reader has moved on first (scrolled, pressed, typed, stepped Back or Forward).
   Pages decide which filters they need; the bar decides how they look and behave.
 */
 
@@ -70,6 +71,9 @@ export function useInFilterSheet(): boolean {
 export function InFilterSheet({ children }: { children: (inSheet: boolean) => React.ReactNode }) {
   return <>{children(useInFilterSheet())}</>;
 }
+
+/** What the reader does next that ends the wait for a change to land (as profile-tabs.tsx's), and a step Back or Forward. */
+const READER_INPUT = ["wheel", "touchstart", "pointerdown", "keydown", "popstate"] as const;
 
 /** How long after the sheet closes a change still brings the list's start into view (a slow page). */
 const LAND_WITHIN_MS = 8_000;
@@ -150,36 +154,59 @@ export function FilterBar({
     from.current = openedFrom;
   });
   const atOpen = React.useRef({ summary, activeCount });
+  // A choice was made in the sheet (a field changed, a control pressed, Reset): only then may closing
+  // it bring the list's start into view.
+  const chose = React.useRef(false);
   const [landBy, setLandBy] = React.useState<number | null>(null);
   const openSheet = React.useCallback((from: "own" | "toolbar" | "topbar") => {
     const row = controlsRef.current;
     setKept(row && row.offsetHeight ? { width: row.offsetWidth, height: row.offsetHeight } : null);
     atOpen.current = now.current;
+    chose.current = false;
     setLandBy(null);
     setOpenedFrom(from);
   }, []);
   const closeSheet = React.useCallback(() => {
-    // Opened from the frame far down the page: after a change, the list starts again in view.
-    if (from.current === "toolbar" || from.current === "topbar") setLandBy(Date.now() + LAND_WITHIN_MS);
+    // Opened from the frame far down the page, and a choice made in it: once the change has arrived,
+    // within LAND_WITHIN_MS, the list starts again in view. Closed unchanged, nothing is armed.
+    const was = atOpen.current;
+    const changed = chose.current || was.summary !== now.current.summary || was.activeCount !== now.current.activeCount;
+    if ((from.current === "toolbar" || from.current === "topbar") && changed) setLandBy(Date.now() + LAND_WITHIN_MS);
     setOpenedFrom(null);
   }, []);
-  // One bar a page tells the frame how to open its sheet (ui/page-toolbar.tsx).
+  const choose = React.useCallback(() => {
+    chose.current = true;
+  }, []);
+  // One bar a page tells the frame how to open its sheet, and whether its sheet is open and from where
+  // (ui/page-toolbar.tsx: the control that opened it stays until it has the focus back).
   React.useEffect(() => {
     const root = rootRef.current;
-    if (root) publishPageFilters({ open: openSheet, count: activeCount, summary, root }, root);
-  }, [openSheet, activeCount, summary]);
+    if (root) publishPageFilters({ open: openSheet, openedFrom, count: activeCount, summary, root }, root);
+  }, [openSheet, openedFrom, activeCount, summary]);
   React.useEffect(() => {
     const root = rootRef.current;
     return () => publishPageFilters(null, root);
   }, []);
-  // The list's start under what is pinned, once the change has arrived (never for a sheet closed unchanged).
+  // The list's start under what is pinned, once the change has arrived. Until then it is disarmed when
+  // the time is up, or by the reader's next scroll, press or key, or a step Back or Forward (a change
+  // made any other way starts with one of these; captured, so no handler can hide it), so a later
+  // change keeps the place as every change does. Done's and Escape's own events come before the close.
   React.useEffect(() => {
-    if (landBy === null || open || pending) return;
+    if (landBy === null || open) return;
     const was = atOpen.current;
     const changed = was.summary !== summary || was.activeCount !== activeCount;
-    if (!changed && Date.now() <= landBy) return;
+    const left = landBy - Date.now();
+    if (pending || !changed || left < 0) {
+      const disarm = () => setLandBy(null);
+      const t = window.setTimeout(disarm, Math.max(0, left));
+      for (const type of READER_INPUT) window.addEventListener(type, disarm, { capture: true, passive: true });
+      return () => {
+        window.clearTimeout(t);
+        for (const type of READER_INPUT) window.removeEventListener(type, disarm, { capture: true });
+      };
+    }
     setLandBy(null);
-    if (changed) land(landTarget() ?? rootRef.current);
+    land(landTarget() ?? rootRef.current);
   }, [landBy, open, pending, summary, activeCount]);
   const resetCls = "inline-flex min-h-11 items-center justify-center gap-1 rounded-md px-2 text-sm font-medium text-accent hover:bg-accent/10 md:pointer-fine:min-h-9";
   // Inline in a compact bar, below xl: the icon alone, as wide as it is tall.
@@ -193,11 +220,35 @@ export function FilterBar({
   const reset = (inSheet: boolean) =>
     activeCount > 0 && (onReset || resetHref) ? (
       resetHref ? (
-        <Link href={resetHref} replace scroll={false} className={resetClass(inSheet)} title={iconOnly(inSheet) ? resetLabel : undefined} data-testid="reset-filters" onClick={inSheet ? closeSheet : undefined}>
+        <Link
+          href={resetHref}
+          replace
+          scroll={false}
+          className={resetClass(inSheet)}
+          title={iconOnly(inSheet) ? resetLabel : undefined}
+          data-testid="reset-filters"
+          onClick={
+            inSheet
+              ? () => {
+                  choose();
+                  closeSheet();
+                }
+              : undefined
+          }
+        >
           {resetBody(inSheet)}
         </Link>
       ) : (
-        <button type="button" onClick={onReset} className={resetClass(inSheet)} title={iconOnly(inSheet) ? resetLabel : undefined} data-testid="reset-filters">
+        <button
+          type="button"
+          onClick={() => {
+            if (inSheet) choose();
+            onReset?.();
+          }}
+          className={resetClass(inSheet)}
+          title={iconOnly(inSheet) ? resetLabel : undefined}
+          data-testid="reset-filters"
+        >
           {resetBody(inSheet)}
         </button>
       )
@@ -212,7 +263,7 @@ export function FilterBar({
   );
   return (
     <FoldContext.Provider value={foldBelow}>
-      <div ref={rootRef} className={cn("flex min-w-0 flex-col gap-2 transition-opacity motion-reduce:transition-none", pending && "opacity-60", className)} data-testid={testId} aria-busy={pending || undefined}>
+      <div ref={rootRef} className={cn("flex min-w-0 flex-col gap-2 transition-opacity motion-reduce:transition-none", pending && "opacity-60", className)} data-testid={testId} data-filter-bar="" aria-busy={pending || undefined}>
         <div className={cn("flex min-w-0 flex-col gap-2", at.row, align === "end" && !search && "justify-end")}>
           {/* Folded (phones): the search and Filters share the first row; what is narrowed follows as
               chips, then the page's own action. From the breakpoint up the wrapper steps aside
@@ -282,7 +333,7 @@ export function FilterBar({
           >
             {/* The sheet's form at every width: each field labelled and as wide as the sheet (FilterField; a select sized for the inline row too). */}
             <SheetContext.Provider value>
-              <div id={id} className={cn("flex min-w-0 flex-col gap-4 transition-opacity [&_select]:w-full", pending && "opacity-60")} data-testid={testId ? `${testId}-controls` : undefined} data-filter-controls="" aria-busy={pending || undefined}>
+              <div id={id} className={cn("flex min-w-0 flex-col gap-4 transition-opacity [&_select]:w-full", pending && "opacity-60")} onChangeCapture={choose} onClickCapture={choose} data-testid={testId ? `${testId}-controls` : undefined} data-filter-controls="" aria-busy={pending || undefined}>
                 {children}
               </div>
             </SheetContext.Provider>

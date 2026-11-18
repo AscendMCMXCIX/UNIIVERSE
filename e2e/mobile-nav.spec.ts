@@ -472,13 +472,16 @@ test("once the page's own Filters has scrolled away, the top bar offers it: 44px
   await page.goto(`/players/${await idOf(page, "TOP")}/matches`);
   await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
   const filters = page.getByTestId("topbar-filters");
-  // At the top the page's own Filters is in view: the bar has none.
-  await expect(filters).toHaveCount(0);
   await scrollToEnd(page);
   await expect(filters).toBeVisible();
   await expect(filters).toHaveAccessibleName(/^Filters: Season \d{4} · All supported games/);
   const box = (await filters.boundingBox())!;
   expect([Math.round(box.width), Math.round(box.height)]).toEqual([44, 44]);
+  // Back at the top, the page's own Filters is in view: the bar's goes (asserted after it showed, so
+  // it is the observer's answer, not the moment before it).
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(filters).toHaveCount(0);
+  await scrollToEnd(page);
   await filters.click();
   const sheet = page.getByTestId("filter-sheet");
   await expect(sheet).toBeVisible();
@@ -489,7 +492,6 @@ test("once the page's own Filters has scrolled away, the top bar offers it: 44px
   await expect(sheet).toHaveCount(0);
   // The new list starts at its first game, just under the top bar (with the profile's sections in it),
   // or as near it as the page's end allows.
-  const bar = page.getByTestId("mobile-topbar");
   const landed = () =>
     page.evaluate(() => {
       const first = document.querySelector("[data-testid=match-card]")!.getBoundingClientRect();
@@ -498,30 +500,68 @@ test("once the page's own Filters has scrolled away, the top bar offers it: 44px
       return { gap: Math.round(first.top - under.bottom), atEnd: window.scrollY >= end - 1 };
     });
   await expect.poll(async () => { const at = await landed(); return at.gap >= 0 && (at.gap <= 12 || at.atEnd); }, { message: "the first game just under the bars" }).toBe(true);
-  expect(await bar.isVisible()).toBe(true);
-  // Focused again as the sheet closed, it stays (now counting the narrowed filter) while it has the focus.
+  // The focus came back to it as the sheet closed; its badge counts the narrowed filter.
   await expect(filters).toBeFocused();
-  await expect(filters).toContainText("1");
+  await expect(filters.locator("span:not(.sr-only)")).toHaveText("1");
 });
 
-test("the top bar's Filters never makes the page wider than the phone: 320px, and 200% text on 320px", async ({ page }) => {
+test("the top bar's Filters gets the focus back from its sheet (Escape, Done), and stays while it has it, even once a change has emptied the list", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto(`/players/${await idOf(page, "TOP")}/matches`);
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  await scrollToEnd(page);
+  const filters = page.getByTestId("topbar-filters");
+  const sheet = page.getByTestId("filter-sheet");
+  await filters.click();
+  await expect(sheet).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
+  await expect(filters).toBeFocused();
+  // A change that leaves no game: the page shortens behind the sheet and its own Filters comes back
+  // into view; the bar's button is still there to take the focus back, and stays while it has it.
+  await filters.click();
+  await sheet.getByTestId("refine-more").click();
+  await sheet.getByTestId("refine-to").fill("2001-01-01");
+  await expect(page).toHaveURL(/to=2001-01-01/);
+  await expect(page.getByTestId("match-empty")).toBeVisible();
+  await sheet.getByTestId("filter-sheet-done").click();
+  await expect(sheet).toHaveCount(0);
+  await expect(filters).toBeVisible();
+  await expect(filters).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(filters).toHaveCount(0);
+});
+
+test("the fullest top bar (Back, the title, Filters with its count, the avatar) keeps within a 320px phone at 100%, 175% and 200% text: Back gives way, Filters and the avatar stay on the screen", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 568 });
-  for (const root of [100, 200]) {
+  const profile = `/players/${await idOf(page, "TOP")}`;
+  for (const root of [100, 175, 200]) {
+    // A teammate's Match History, reached from Players (so Back is named) and narrowed (a count badge).
     await page.goto("/players");
+    await page.goto(`${profile}/matches?result=win`);
     if (root !== 100) await page.addStyleTag({ content: `html { font-size: ${root}% !important; }` });
-    await expect(page.getByTestId("players-directory")).toBeVisible();
+    await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
     await scrollToEnd(page);
     const filters = page.getByTestId("topbar-filters");
     await expect(filters, `${root}% text`).toBeVisible();
+    await expect(page.getByTestId("mobile-back"), `${root}% text: Back`).toBeVisible();
+    await expect(filters.locator("span:not(.sr-only)")).toHaveText("1");
     const fit = await page.evaluate(() => {
       const bar = document.querySelector<HTMLElement>("[data-testid=mobile-topbar]")!;
       const row = bar.firstElementChild as HTMLElement;
-      const button = document.querySelector("[data-testid=topbar-filters]")!.getBoundingClientRect();
-      return { page: document.documentElement.scrollWidth, row: row.scrollWidth - row.clientWidth, right: Math.round(button.right) };
+      const right = (el: Element) => Math.round(el.getBoundingClientRect().right);
+      return { page: document.documentElement.scrollWidth, bar: right(bar), row: row.scrollWidth - row.clientWidth, items: Math.max(...[...row.children].map(right)), filters: right(document.querySelector("[data-testid=topbar-filters]")!), avatar: right(document.querySelector("[data-testid=account-sheet-button]")!) };
     });
-    expect(fit.page, `${root}% text: the page`).toBeLessThanOrEqual(320);
+    // The page under the bar fits the phone at 100%. At 175% and 200% a teammate's pages are wider
+    // than a 320px phone already, from their own content (the strip of Match History's last games,
+    // All Champions' sort row, Encounters' rates), not from the bar, so there the bar itself is
+    // measured: it, its row and everything in the row end within the screen.
+    if (root === 100) expect(fit.page, "100% text: the page").toBeLessThanOrEqual(320);
+    expect(fit.bar, `${root}% text: the bar`).toBeLessThanOrEqual(320);
     expect(fit.row, `${root}% text: the bar's row`).toBeLessThanOrEqual(1);
-    expect(fit.right, `${root}% text: Filters on screen`).toBeLessThanOrEqual(320);
+    expect(fit.items, `${root}% text: everything in the bar's row`).toBeLessThanOrEqual(320);
+    expect(fit.filters, `${root}% text: Filters on screen`).toBeLessThanOrEqual(320);
+    expect(fit.avatar, `${root}% text: the avatar on screen`).toBeLessThanOrEqual(320);
   }
 });
 

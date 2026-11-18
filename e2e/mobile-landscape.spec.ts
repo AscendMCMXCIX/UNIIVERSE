@@ -277,6 +277,54 @@ test("held sideways, a member's own Overview with all three links shown keeps it
   await done(page);
 });
 
+test("held sideways, the compact bar's Filters gets the focus back from its sheet (Escape, Done), and stays while it has it, even once a change has emptied the list", async ({ browser, baseURL }) => {
+  // The same top bar's Filters as upright (mobile-nav.spec.ts), in the one compact bar, which slides
+  // away while reading: on an SE and at a tablet's width (an iPhone 15's whole screen).
+  for (const viewport of [{ width: 568, height: 320 }, { width: 852, height: 393 }]) {
+    const where = `${viewport.width} × ${viewport.height}`;
+    const page = await phone(browser, baseURL!, { ...IPHONE_LANDSCAPE, viewport });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/team");
+    await page.goto(`/players/${await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id")}/matches`);
+    await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+    // Down the list by steps, as a reader scrolls (the bar slides away), then a little back up: the bar
+    // returns, its Filters in it, the page's own far above.
+    await page.evaluate(async () => {
+      for (let at = window.scrollY; at < document.documentElement.scrollHeight; at += 240) {
+        window.scrollTo(0, at);
+        await new Promise((r) => requestAnimationFrame(() => r(null)));
+      }
+      window.scrollTo(0, document.documentElement.scrollHeight);
+    });
+    const bar = page.getByTestId("mobile-topbar");
+    await expect(bar, where).toHaveAttribute("data-hidden", "true");
+    await page.mouse.wheel(0, -80);
+    await expect(bar, where).toHaveAttribute("data-hidden", "false");
+    const filters = bar.getByTestId("topbar-filters");
+    const sheet = page.getByTestId("filter-sheet");
+    await filters.click();
+    await expect(sheet, where).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(sheet, where).toHaveCount(0);
+    await expect(filters, `${where}: back from Escape`).toBeFocused();
+    // A change that leaves no game: the page shortens behind the sheet and its own Filters comes back
+    // into view; the bar's button is still there to take the focus back, and stays while it has it.
+    await filters.click();
+    await sheet.getByTestId("refine-more").click();
+    await sheet.getByTestId("refine-to").fill("2001-01-01");
+    await expect(page).toHaveURL(/to=2001-01-01/);
+    await expect(page.getByTestId("match-empty")).toBeVisible();
+    await sheet.getByTestId("filter-sheet-done").click();
+    await expect(sheet, where).toHaveCount(0);
+    await expect(filters, `${where}: kept after Done`).toBeVisible();
+    await expect(filters, `${where}: back from Done`).toBeFocused();
+    await expect.poll(async () => (await rect(page, "[data-testid=mobile-topbar]")).top, { message: `${where}: the bar in view with the focus in it` }).toBeGreaterThanOrEqual(0);
+    await page.keyboard.press("Tab");
+    await expect(filters, `${where}: gone once the focus moves on`).toHaveCount(0);
+    await done(page);
+  }
+});
+
 test("held sideways, the avatar opens the account screen at every width, and Team's sections are not repeated in the page", async ({ browser, baseURL }) => {
   for (const viewport of [{ width: 734, height: 343 }, { width: 852, height: 393 }]) {
     const page = await phone(browser, baseURL!, { ...IPHONE_LANDSCAPE, viewport });

@@ -61,7 +61,7 @@ const menuOf = (page: Page) => page.locator(phoneFrame(page) ? "[data-testid=acc
 const menuButton = (page: Page) => (phoneFrame(page) ? page.getByTestId("account-sheet-button") : page.getByTestId("mobile-topbar").getByTestId("account-menu-button"));
 
 /** The entry in the phone's account screen or a tablet's avatar menu (the sidebar is not shown below desktop width). */
-async function drawerEntry(page: Page) {
+async function menuEntry(page: Page) {
   await expect(async () => {
     if (!(await menuOf(page).isVisible())) await menuButton(page).click({ timeout: 2_000 });
     await expect(menuOf(page)).toBeVisible({ timeout: 2_000 });
@@ -167,7 +167,7 @@ test("inside the installed app there is nothing to install: no entry, before or 
   await css.context.close();
   // iPhone and iPad: opened from the Home Screen.
   const ios = await open(browser, baseURL!, { ...devices["iPhone 15"] }, () => Object.defineProperty(Navigator.prototype, "standalone", { get: () => true }));
-  await drawerEntry(ios.page);
+  await menuEntry(ios.page);
   await expect(menuOf(ios.page).getByRole("link", { name: "Settings" })).toBeVisible();
   await expect(menuOf(ios.page).getByTestId("install-app")).toHaveCount(0);
   await ios.context.close();
@@ -180,7 +180,7 @@ test("iPhone, Safari: Install App in the account screen closes it and shows Shar
   ] as const) {
     const { context, page } = await open(browser, baseURL!, options);
     // Safari makes no install offer: even a stray one could not make a button that does nothing here.
-    const entry = await drawerEntry(page);
+    const entry = await menuEntry(page);
     await entry.click();
     await expect(menuOf(page)).toHaveCount(0);
     const win = page.getByTestId("install-window");
@@ -215,7 +215,7 @@ test("iPhone, Safari: Install App in the account screen closes it and shows Shar
 
 test("iPhone, other browsers and in-app browsers: their own route, a way to Safari, and a copyable link", async ({ browser, baseURL }) => {
   const chrome = await open(browser, baseURL!, { ...devices["iPhone 15"], userAgent: UA.iphoneChrome });
-  await (await drawerEntry(chrome.page)).click();
+  await (await menuEntry(chrome.page)).click();
   let win = chrome.page.getByTestId("install-window");
   await expect(win.getByTestId("install-steps")).toContainText("Share in the address bar");
   await expect(win).toContainText("Open this page in Safari");
@@ -223,7 +223,7 @@ test("iPhone, other browsers and in-app browsers: their own route, a way to Safa
   await chrome.context.close();
 
   const insta = await open(browser, baseURL!, { ...devices["iPhone 15"], userAgent: UA.instagram });
-  await (await drawerEntry(insta.page)).click();
+  await (await menuEntry(insta.page)).click();
   win = insta.page.getByTestId("install-window");
   await expect(win.getByTestId("install-body")).toHaveAttribute("data-guide", "in-app");
   await expect(win).toContainText("Instagram's built-in browser, which can't install apps");
@@ -246,7 +246,7 @@ test("Android: Install shows the browser's dialog when offered; otherwise the me
   const pixel = { ...devices["Pixel 7"], userAgent: UA.android };
   const offered = await open(browser, baseURL!, pixel);
   await offerInstall(offered.page, "accepted");
-  await (await drawerEntry(offered.page)).click();
+  await (await menuEntry(offered.page)).click();
   const win = offered.page.getByTestId("install-window");
   await expect(win).toContainText("Adds it to your home screen.");
   await win.getByTestId("install-confirm").click();
@@ -254,7 +254,7 @@ test("Android: Install shows the browser's dialog when offered; otherwise the me
   await offered.context.close();
 
   const samsung = await open(browser, baseURL!, { ...pixel, userAgent: UA.samsung });
-  await (await drawerEntry(samsung.page)).click();
+  await (await menuEntry(samsung.page)).click();
   const steps = samsung.page.getByTestId("install-window").getByTestId("install-steps");
   await expect(steps).toContainText("Add page to, then Home screen");
   await expect(samsung.page.getByTestId("install-confirm")).toHaveCount(0);
@@ -278,7 +278,7 @@ test("the window is accessible and fits phones held either way", async ({ browse
   for (const options of [{ viewport: { width: 1440, height: 900 } }, { ...devices["iPhone 15"] }, { ...devices["iPhone 15 landscape"] }, { ...devices["Pixel 7"], userAgent: UA.android }]) {
     const { context, page } = await open(browser, baseURL!, options);
     const desktop = (options.viewport?.width ?? 0) >= 1024;
-    await (desktop ? page.locator("aside").getByTestId("install-app") : await drawerEntry(page)).click();
+    await (desktop ? page.locator("aside").getByTestId("install-app") : await menuEntry(page)).click();
     const win = page.getByTestId("install-window");
     await expect(win).toBeVisible();
     const box = (await win.boundingBox())!;

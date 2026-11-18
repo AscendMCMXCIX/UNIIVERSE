@@ -289,39 +289,60 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     "no blur on content" (§3) holds.
   - Anything pinned under it (All Champions' column headings) offsets by `--tabs-top`.
   - Nothing is pinned in a window under 481px tall.
-  - **One composition at every width (PR 10, 18 Nov 2026).** The pages of a tab set share one width
-    (`SECTION_HUBS`' `width`): Team's four sections `--content-wide` (Players and Matches moved up
-    from `--content-max` to join Team Overview and Leaderboards), Resources' and Platform Settings'
-    `--content-max`. The bar's row of tabs takes it (`TabBar`'s `inner`), so in a window wide enough
-    for the pages to stop growing and centre beside the sidebar (80rem pages from about 1650px with
-    the sidebar open and 1417px with it folded; Team's 100rem from about 2370px and 1926px) the first
-    tab still starts where the page does, Team's name at the row's end ends where it ends, and the
-    row never moves when you switch sections. Before, the row
-    started at the room's edge: 74px left of Players at 1920 and 250px at 2560, 400 to 620px at 3440.
-    The line under the tabs and the pinned ink still span the room beside the sidebar, as a frame
-    does. A profile's tabs, and a section's views (`SubTabs`), sit inside their page's own column, so
-    they always lined up. Team Overview's lineup keeps its own cap (84rem), centred in the column.
-    A page's loading state takes the same width (`PageSkeleton`'s `width`, from `pageWidthOf`).
+  - **One composition at every width (PR 10, 18 Nov 2026).** In a window from 1600px wide the pages
+    of a tab set share one width (`SECTION_HUBS`' `width`): Team's four sections `--content-wide`
+    (Players and Matches join Team Overview and Leaderboards there), Resources' and Platform
+    Settings' `--content-max`. From 1600px the bar's row of tabs takes it (`TabBar`'s `inner`,
+    `ROW_WIDTH`), so where the pages stop growing and centre beside the sidebar (80rem pages from
+    about 1650px with the sidebar open and from 1600px with it folded; Team's 100rem from about
+    2370px and 1926px) the first tab still starts at the page's column, Team's name at the row's end
+    ends where it ends, and the row never moves when you switch sections. Before, the row started at
+    the room's edge: 74px left of Players at 1920 and 250px at 2560, 400 to 620px at 3440 (the
+    sidebar open). In a window under 1600px every page and the row are as they always were, the
+    sidebar open or folded (measured against main's build at 1280, 1366, 1440, 1536 and 1599: no
+    difference; PR 2b's 44px dense tabs on touch screens from 1024px aside, below), so with the
+    sidebar folded between 1417 and 1599px Players, Matches, Resources and
+    Platform Settings still start up to about 79px inside the row (60px at 1536), as before. The
+    line under the tabs and the pinned ink span the room beside the sidebar, as a frame does. A
+    profile's tabs, and a section's views (`SubTabs`), sit inside their page's own column, so they
+    always lined up. On Team Overview the column is Team's 100rem and the header and lineup keep
+    their own 84rem, centred in it (its approved design): the first tab starts at the column and the
+    logo (column − 84rem)/2 further in, 38px at 1920, 165px at 2560 and 176px at 3440 with the
+    sidebar open (before, 38, 208 and 576px from the first tab), 140px at 1920 with it folded. Team
+    Matches' list keeps `--content-max` under Team's wider header, left-aligned, so a game's row is
+    never longer than before. A page's loading state takes the width `pageWidthOf` gives its address
+    (a Team section's own; the ordinary 80rem elsewhere).
   - **A page's controls in reach (PR 2b, 18 Nov 2026).** Once the row is pinned and the page's own
     toolbar has gone up under it, the page's compact copy of its controls shows at the row's end
     (`PageToolbar`, `src/components/ui/page-toolbar.tsx`): Match History and Encounters
     [Games | Encounters] + [Filters · n]; Overview [Filters · n]; All Champions and Players
     [Search] + [Filters · n]; Team Matches [Filters · n] + [Bookmarked]; Leaderboards
     [Recent form | Records]. Back up at the toolbar the copy goes, and it is drawn only while it
-    shows, so nothing hidden can be tabbed to; while the focus is in it, it stays. Never in a short
+    shows, so nothing hidden can be tabbed to. In use it stays: pressed or focused, while the sheet
+    its Filters opened is open, and until that sheet has handed the focus back, so a change that
+    shortens the page never leaves the focus with nowhere to return (`useHeld`). Never in a short
     window (nothing is pinned there). The row never grows: the controls are 32px with a mouse and 38px
-    on touch screens (a 44px target), centred in it; where the row is narrower than 56rem (a tablet, a
-    laptop with the sidebar open) they show their icons alone, named for screen readers, and Team's
-    name at the row's end gives them its place. Their Filters opens the page's Filters sheet at every
-    width, in its sheet form (labels shown, fields the sheet's width, a page's Refine fields in place),
-    while the toolbar in the page keeps its size; closed after a change, it brings the list's first
-    item under the pinned stack. The page's own toolbar is found by the page's filter bar, or named
-    by the page (All Champions' table search, Leaderboards' views).
+    on touch screens (a 44px target), centred in the whole bar, the search 44px on touch screens with
+    its 40px clear button, and from 1024px on touch screens the dense section tabs (Team's,
+    Resources', Platform Settings') are 44px, not 40px, so the bar holds those targets and is the
+    2.75rem `--tabs-top` assumes (with a mouse they stay 40px); where the row is narrower than 56rem
+    (a tablet, a laptop with the sidebar open) they
+    show their icons alone, named for screen readers, and Team's name at the row's end gives them its
+    place. Their Filters opens the page's Filters sheet at every width, in its sheet form (labels
+    shown, fields the sheet's width, a page's Refine fields in place, in one column behind More
+    filters), while the toolbar in the page keeps its size; closed after a choice made in it, within
+    8 s of the change arriving and before the reader scrolls, presses, types or steps Back, it brings
+    the list's first item under the pinned stack; closed unchanged, or once the reader moves on,
+    nothing later moves the page. Bookmarked keeps the place, as every filter does. The page's
+    own toolbar is found by the page's filter bar, or named by the page (All Champions' table search,
+    Leaderboards' views).
 - **A tablet's avatar menu** (it replaced the drawer, which was a native `<dialog>`, when the
   destinations moved into the top bar): a menu, not a window. The focus goes to its first item, the
-  arrow keys go round its items, Tab or a click outside closes it, Escape gives the focus back to the
-  avatar; Install App closes it and opens its window, which gives the focus back to the avatar. A
-  change of page closes it (`Menu`'s `dismissKey`), and Forward never reopens it.
+  arrow keys go round its items (Home and End to the first and last), Tab or a click outside closes
+  it, Escape gives the focus back to the avatar; Install App closes it and opens its window, which
+  gives the focus back to the avatar. Its notes (the patch, Riot's notice) are a group named by
+  their words, holding one item, "Details: Riot Games notice". A change of page closes it (`Menu`'s
+  `dismissKey`), and Forward never reopens it.
 - **The installed app on a tablet.** It shows Back in the top bar, as phones do, because the
   installed app has no browser Back.
 

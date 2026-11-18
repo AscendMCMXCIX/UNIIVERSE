@@ -14,7 +14,7 @@ import type { SocialLinkView } from "@/domain/social-links";
 import { PageHeader } from "@/components/ui/page-header";
 import { buttonClass } from "@/components/ui/button";
 import { RoleSegmented, chipClass } from "@/components/ui/segmented";
-import { FilterBar, FilterField } from "@/components/ui/filter-bar";
+import { FilterBar, FilterField, InFilterSheet } from "@/components/ui/filter-bar";
 import { SearchInput } from "@/components/ui/search-input";
 import { COMPACT_SEARCH, FiltersControl, PageToolbar } from "@/components/ui/page-toolbar";
 import { formatCount } from "@/lib/format";
@@ -127,7 +127,7 @@ export function PlayersDirectory({ entries, championsById, archived = null, myPr
               <Link href={archived.on ? "/players" : "/players?archived=1"} replace scroll={false} aria-current={archived.on ? "true" : undefined} className={chipClass(archived.on, "self-start")} data-testid="archived-filter">
                 {/* Inline the one word (its label is hidden there); the sheet, with room, says what it brings back. One text run, so the words keep their spacing. */}
                 <span>
-                  Archived<span className="md:sr-only"> and deactivated</span>
+                  Archived<InFilterSheet>{(inSheet) => <span className={inSheet ? undefined : "md:sr-only"}> and deactivated</span>}</InFilterSheet>
                   <span className="sr-only"> players</span>
                 </span>
               </Link>

@@ -15,7 +15,7 @@ import { announceAccountChange, markAccountChange } from "./account-guard";
 import { InstallAppEntry } from "./install/install-app";
 import { useInstallState } from "./install/install-state";
 import { ProfileTabs } from "./players/profile-tabs";
-import { usePageFilters, useScrolledAway } from "./ui/page-toolbar";
+import { useHeld, usePageFilters, useScrolledAway } from "./ui/page-toolbar";
 import { ScrollRow } from "./ui/scroll-row";
 import { releaseEarlyTaps } from "./early-taps";
 import { cn } from "@/lib/cn";
@@ -120,10 +120,13 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   const heading = usePageHeading(pathname, bar);
   const back = useBack(pathname, heading.text, tabs, home);
   // The page's filters (its FilterBar), offered in the bar once the page's own have gone up under it,
-  // and kept while the button has the focus (the sheet hands it back there as it closes).
+  // and kept while in use: pressed or focused, while the sheet it opened is open, and until that sheet
+  // has handed it the focus back (useHeld).
   const filters = usePageFilters();
   const filtersAway = useScrolledAway(filters?.root ?? null, bar || null);
-  const [filtersFocused, setFiltersFocused] = React.useState(false);
+  const filtersButton = React.useRef<HTMLButtonElement>(null);
+  const filtersSheet = filters?.openedFrom === "topbar";
+  const filtersHold = useHeld(filtersButton, filtersAway, filtersSheet);
   // A profile's sections, when this page is one (your own only when you have a profile).
   const profile = adminMode ? null : profileBase(pathname);
   const sections = profile === "/overview" && !hasPlayer ? null : profile;
@@ -271,8 +274,8 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
           {/* Phones, and tablet widths in a window 480px tall or less (where the section tabs do not pin
               and their row cannot offer them): the page's Filters, once its own have scrolled up under
               the bar; its sheet, as from the page's own button. 44px, with the count of narrowed filters. */}
-          {filters && (filtersAway || filtersFocused) ? (
-            <button type="button" onClick={() => filters.open("topbar")} onFocus={() => setFiltersFocused(true)} onBlur={() => setFiltersFocused(false)} aria-haspopup="dialog" className="relative grid h-11 w-11 shrink-0 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg md:not-short:hidden" data-testid="topbar-filters">
+          {filters && (filtersAway || filtersHold.held || filtersSheet) ? (
+            <button ref={filtersButton} type="button" onClick={() => filters.open("topbar")} onFocus={filtersHold.grab} onPointerDown={filtersHold.grab} onBlur={filtersHold.onBlur} aria-haspopup="dialog" className="relative grid h-11 w-11 shrink-0 place-items-center rounded-md text-fg-muted hover:bg-surface-2 hover:text-fg md:not-short:hidden" data-testid="topbar-filters">
               <SlidersHorizontal className="h-5 w-5 text-accent" aria-hidden />
               <span className="sr-only">Filters: {filters.summary}</span>
               {filters.count ? <span className="absolute right-0.5 top-1 min-w-4 rounded-full bg-accent px-1 text-center text-2xs font-semibold leading-4 tabular-nums text-bg">{filters.count}</span> : null}
@@ -481,10 +484,12 @@ const SIDEWAYS_FIT = {
 
 /**
  * Back: phones, either way round; tablets in the installed app, which has no browser Back (a tablet
- * in a browser has the browser's). Held sideways it gives way first when the bar is full (its label
- * truncates down to the chevron), so the destinations keep their room.
+ * in a browser has the browser's). Up to 45% of the bar, and it gives way first (its label shortens,
+ * its name stays whole for screen readers) when a larger text size leaves the bar too little room for
+ * Filters and the avatar; held sideways, where the destinations share the bar, likewise when the bar
+ * is full, down to the chevron (a 44px target), so the destinations keep their room.
  */
-const BACK_CLASS = "-ml-1 flex min-h-11 min-w-0 max-w-[45%] shrink-0 items-center gap-0.5 rounded-md pr-2 text-sm font-medium text-accent hover:bg-surface-2 short:min-w-11 short:shrink";
+const BACK_CLASS = "-ml-1 flex min-h-11 min-w-0 max-w-[45%] shrink items-center gap-0.5 rounded-md pr-2 text-sm font-medium text-accent hover:bg-surface-2 short:min-w-11";
 /**
  * Tablets: hidden in a browser, shown in the installed app's display mode from the first paint (the
  * `standalone` variant, globals.css), so a cold start never draws the bar without it and then with

@@ -101,14 +101,14 @@ function useToolbarSlot(nav: React.RefObject<HTMLElement | null>, slot: React.Re
  * the page once it has scrolled past it (under the tablet's top bar), so the sections stay in reach
  * however long the page (globals.css sticky-tabs; docs/RESPONSIVE.md → Shell); it must be a child of
  * the element the page scrolls through, never of a wrapper that ends with it. `end`: content at the
- * bar's right end (Team names the team there). `inner`: the width of the pages under the bar, for a
- * bar that spans more than they do (Team's, Resources' and Platform Settings' sections, a child of
- * `main` above pages centred in their own width; PAGE_WIDTH): the row of tabs takes it, so the first
- * tab starts where the page does and `end` ends where it ends, however wide the window, while the
- * bar's line and its pinned background still span the bar. The current tab, pressed again, keeps the
- * page as it is (its view and filters, which its own link leaves out) and goes back to the top, as
- * the phone's tab bar does. `onChoose`: told which other tab was pressed with a plain click, before
- * the page changes.
+ * bar's right end (Team names the team there). `inner`: classes for the row's width, for a bar that
+ * spans more than the pages under it (Team's, Resources' and Platform Settings' sections, a child of
+ * `main` above pages centred in their own width). SectionTabs passes ROW_WIDTH: the bar's width in a
+ * window under 1600px, the set's width from there. From 1600px the first tab starts at the pages'
+ * column and `end` ends where it ends; the bar's line and its pinned background still span the bar.
+ * The current tab, pressed again, keeps the page as it is (its view and filters, which its own link
+ * leaves out) and goes back to the top, as the phone's tab bar does. `onChoose`: told which other tab
+ * was pressed with a plain click, before the page changes.
  */
 export function TabBar({ label, items, current, keepScroll = false, dense = false, sticky = false, className, testId, end, inner, onChoose }: { label: string; items: readonly TabBarItem[]; current: string; keepScroll?: boolean; dense?: boolean; sticky?: boolean; className?: string; testId?: string; end?: React.ReactNode; inner?: string; onChoose?: (key: string) => void }) {
   const listRef = React.useRef<HTMLUListElement>(null);
@@ -137,7 +137,7 @@ export function TabBar({ label, items, current, keepScroll = false, dense = fals
                     // A click that opens a new tab or window leaves this page as it is: nothing to tell.
                     if (!stayOnCurrentPage(e, on) && isPlainClick(e)) onChoose?.(s.key);
                   }}
-                  className={cn("inline-flex min-h-11 items-center gap-2 whitespace-nowrap px-3 text-sm font-medium transition-colors duration-150 max-sm:w-full max-sm:justify-center max-sm:px-2", dense && "lg:min-h-10", tabIndicatorClass(on))}
+                  className={cn("inline-flex min-h-11 items-center gap-2 whitespace-nowrap px-3 text-sm font-medium transition-colors duration-150 max-sm:w-full max-sm:justify-center max-sm:px-2", dense && "lg:min-h-10 lg:pointer-coarse:min-h-11", tabIndicatorClass(on))}
                   data-testid={s.testId}
                 >
                   <s.icon className={cn("hidden h-4 w-4 sm:block", on ? "text-accent" : "text-fg-subtle")} aria-hidden />
@@ -149,8 +149,10 @@ export function TabBar({ label, items, current, keepScroll = false, dense = fals
         </ul>
         {/* While a page's compact controls are at the row's end, they take the place of `end` (Team's name). */}
         {end ? <span className="contents group-has-[[data-page-toolbar]]/tabrow:hidden">{end}</span> : null}
-        {/* The pinned row's end, for a page's compact controls (PageToolbar draws them here); nothing while empty. */}
-        {sticky ? <div ref={slotRef} className="flex shrink-0 items-center self-center empty:hidden" data-page-toolbar-slot="" /> : null}
+        {/* The pinned row's end, for a page's compact controls (PageToolbar draws them here); nothing while
+            empty. Over the hairline as the tabs' list is (-mb-px): centred in the whole bar, so a 44px
+            control fills a 44px bar exactly. */}
+        {sticky ? <div ref={slotRef} className="-mb-px flex shrink-0 items-center self-center empty:hidden" data-page-toolbar-slot="" /> : null}
       </div>
     </nav>
   );

@@ -71,6 +71,8 @@ export function useToolbarSlot(): ToolbarSlot | null {
 export interface PageFilters {
   /** Opens the sheet; `from` says what asked (the pinned row's control, the top bar's), so closing it after a change brings the list's start into view. */
   open: (from: "toolbar" | "topbar") => void;
+  /** Whether the sheet is open, and what opened it: that control stays until the sheet has handed it the focus back. */
+  openedFrom: "own" | "toolbar" | "topbar" | null;
   count: number;
   summary: string;
   /** The bar's own element: once it has gone up under what is pinned, the copies show. */
@@ -107,9 +109,9 @@ export function landTarget(): Element | null {
  * when `top` changes (the pinned stack follows the window: a tablet's top bar and the tabs).
  */
 export function useScrolledAway(target: HTMLElement | React.RefObject<HTMLElement | null> | null, top: number | null): boolean {
-  // The observer's last answer, for the element it was about (a new element starts as not away).
-  const [seen, setSeen] = React.useState<{ el: HTMLElement; away: boolean } | null>(null);
-  const [watched, setWatched] = React.useState<HTMLElement | null>(null);
+  // The observer's last answer, for the target (and line) it was about: a new target, such as the
+  // next page's filter bar, starts as not away until its own observer has answered.
+  const [seen, setSeen] = React.useState<{ of: typeof target; at: number; away: boolean } | null>(null);
   React.useEffect(() => {
     const el = target && "current" in target ? target.current : target;
     if (!el || top === null) return;
@@ -117,17 +119,57 @@ export function useScrolledAway(target: HTMLElement | React.RefObject<HTMLElemen
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry) return;
-        setWatched(el);
         // An element with no box (hidden at this width) is never away: there is nothing to scroll back to.
         const box = entry.boundingClientRect;
-        setSeen({ el, away: !entry.isIntersecting && box.height > 0 && box.bottom <= line + 1 });
+        setSeen({ of: target, at: top, away: !entry.isIntersecting && box.height > 0 && box.bottom <= line + 1 });
       },
       { rootMargin: `-${line}px 0px 0px 0px`, threshold: [0] },
     );
     observer.observe(el);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      // No longer watched (unpinned, another target): the next watch starts as not away.
+      setSeen(null);
+    };
   }, [target, top]);
-  return target !== null && top !== null && !!seen && seen.el === watched && seen.away;
+  return target !== null && top !== null && !!seen && seen.of === target && seen.at === top && seen.away;
+}
+
+/**
+ * Keeps a frame control drawn while it is in use after what shows it has gone (its toolbar back in
+ * view, the page shortened by a filter): from a press or the focus on it (`grab`), while the sheet it
+ * opened is open (`sheetOpen`), and until that sheet has handed the focus back as it closes (it does
+ * on the next frame). Let go when the focus moves on to the page (`onBlur`; a move into the sheet it
+ * opened does not count), or, once it is not wanted, when the focus is not in it two frames after
+ * any render (a focused button removed by its own press, as a search's Clear, sends no blur, and
+ * changes nothing this hook watches: the page's render after it does). `el`: the control or its group.
+ */
+export function useHeld(el: React.RefObject<HTMLElement | null>, wanted: boolean, sheetOpen: boolean) {
+  const [held, setHeld] = React.useState(false);
+  // After every render, not only when these change: see above.
+  React.useEffect(() => {
+    if (!held || wanted || sheetOpen) return;
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => {
+        if (!el.current?.contains(document.activeElement)) setHeld(false);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
+    };
+  });
+  const grab = React.useCallback(() => setHeld(true), []);
+  const onBlur = React.useCallback(
+    (e: React.FocusEvent) => {
+      const next = e.relatedTarget as Element | null;
+      if (el.current?.contains(next) || next?.closest?.("dialog")) return;
+      setHeld(false);
+    },
+    [el],
+  );
+  return { held, grab, onBlur };
 }
 
 /** The pinned stack's foot, in px from the window's top: the pinned bar's sticky offset (a tablet's top bar) and its height. */
@@ -167,6 +209,8 @@ export function ToolbarChip({ href, on, label, count, children, testId }: { href
     <Link
       href={href}
       replace
+      // A filter: the page keeps its place, as the original keeps it (the copy is only ever pressed far down).
+      scroll={false}
       aria-current={on ? "page" : undefined}
       title={label}
       className={cn(
@@ -184,10 +228,12 @@ export function ToolbarChip({ href, on, label, count, children, testId }: { href
 }
 
 /**
- * A page's search in the pinned row (SearchInput's `className`): 12rem, 8rem where the row is narrow,
- * the field and its clear button at the row's height (16px text on touch screens, as every field).
+ * A page's search in the pinned row (SearchInput's `className`): 12rem, 8rem where the row is narrow;
+ * with a mouse the field 32px and its clear button 28px; on a touch screen the field keeps every
+ * field's 44px (and 16px text) and its clear button its own 40px, the field's negative margins
+ * keeping the row's height (the pinned row is 44px on touch screens, its tabs included).
  */
-export const COMPACT_SEARCH = "w-48 shrink-0 @max-[56rem]/tabrow:w-32 [&_input]:h-8 pointer-coarse:[&_input]:h-9.5 [&_button]:h-7 [&_button]:w-7";
+export const COMPACT_SEARCH = "w-48 shrink-0 @max-[56rem]/tabrow:w-32 [&_input]:h-8 pointer-fine:[&_button]:h-7 pointer-fine:[&_button]:w-7 pointer-coarse:-my-1 pointer-coarse:[&_input]:h-11";
 
 /**
  * A page's compact controls, shown at the pinned section tabs' end once the row is pinned and the
@@ -227,24 +273,15 @@ export function PageToolbar({ anchor, land, fallback = false, label = "This page
   const foot = useStackFoot(slot?.stuck ? slot.bar : null);
   const away = useScrolledAway(slot?.stuck ? (anchor ?? filters?.root ?? null) : null, foot);
   const wanted = !!slot?.stuck && away;
-  // While the focus is inside, the controls stay (a keyboard user is not dropped onto the page).
+  // In use, the controls stay: while the focus or a press is in them, while the sheet their Filters
+  // opened is open, and until it has handed the focus back (useHeld).
   const group = React.useRef<HTMLDivElement>(null);
-  const [holding, setHolding] = React.useState(false);
-  const shown = !!slot && !outranked && (wanted || holding);
+  const sheetOpen = filters?.openedFrom === "toolbar";
+  const { held, grab, onBlur } = useHeld(group, wanted, sheetOpen);
+  const shown = !!slot && !outranked && (wanted || held || sheetOpen);
   if (!slot || !shown) return null;
   return createPortal(
-    <div
-      ref={group}
-      role="group"
-      aria-label={label}
-      className="flex items-center gap-2"
-      onFocus={() => setHolding(true)}
-      onBlur={(e) => {
-        if (!group.current?.contains(e.relatedTarget as Node | null)) setHolding(false);
-      }}
-      data-page-toolbar=""
-      data-testid="page-toolbar"
-    >
+    <div ref={group} role="group" aria-label={label} className="flex items-center gap-2" onFocus={grab} onPointerDown={grab} onBlur={onBlur} data-page-toolbar="" data-testid="page-toolbar">
       {children}
     </div>,
     slot.el,

@@ -225,8 +225,9 @@ test("tablet and desktop: Team's sections stay in reach as a long page scrolls, 
 /**
  * A tab row against its pages: where its first tab starts and where the page's column does (the
  * element of main#content that holds the page: for a bar of main's own, as Team's, the page after
- * it; for a bar inside a page, as a profile's or a view switch, that page), and the bar against
- * main's room (inside its padding).
+ * it; for a bar inside a page, as a profile's or a view switch, that page), the bar against main's
+ * room (inside its padding), the row itself, and on Team Overview its header (capped at 84rem and
+ * centred in Team's column). Measured on the page itself, never on a loading state standing in for it.
  */
 const rowEdges = (nav: Locator) =>
   nav.evaluate((nav) => {
@@ -237,24 +238,37 @@ const rowEdges = (nav: Locator) =>
       column = nav.nextElementSibling;
       while (column && column.getBoundingClientRect().width === 0) column = column.nextElementSibling;
     }
+    if (!column || column.matches("[role=status]")) throw new Error("measured a loading state, not the page");
     const style = getComputedStyle(main);
     const room = main.getBoundingClientRect();
-    const page = column!.getBoundingClientRect();
+    const page = column.getBoundingClientRect();
     const bar = nav.getBoundingClientRect();
+    const row = (nav.firstElementChild as HTMLElement).getBoundingClientRect();
     const end = nav.querySelector("[data-testid=team-tabs-identity]")?.getBoundingClientRect();
+    const header = column.querySelector("[data-testid=team-header]")?.getBoundingClientRect();
     return {
       tab: nav.querySelector("li")!.getBoundingClientRect().left,
       pageLeft: page.left,
       pageRight: page.right,
       barLeft: bar.left,
       barRight: bar.right,
+      rowLeft: row.left,
+      rowRight: row.right,
       roomLeft: room.left + parseFloat(style.paddingLeft),
       roomRight: room.right - parseFloat(style.paddingRight),
       end: end?.right ?? null,
+      header: header ? { left: header.left, right: header.right } : null,
     };
   });
 
-test("wide windows: every tab row starts where its pages do, on each of their sections, and never moves between them", async ({ page, context, baseURL }) => {
+/** Loads a page and waits for the page itself: its heading in main, and no loading state left in its place. */
+async function loaded(page: Page, path: string) {
+  await page.goto(path);
+  await expect(page.locator("main h1, main h2").first()).toBeVisible();
+  await expect(page.locator("main#content > [role=status]")).toHaveCount(0);
+}
+
+test("wide windows: every tab row starts at its pages' column, on each of their sections, never moving between them; on Team Overview the header is centred in Team's column", async ({ page, context, baseURL }) => {
   test.skip(width(page) < 1024, "desktop windows; phones and tablets fill the width");
   test.setTimeout(240_000);
   const profile = await teammate(page);
@@ -269,36 +283,58 @@ test("wide windows: every tab row starts where its pages do, on each of their se
     { nav: "match-views", mode: "player", pages: [`${profile}/matches`, `${profile}/matches?view=encounters`] },
     { nav: "people-tabs", mode: "admin", pages: ["/admin/people", "/admin/people/access", "/admin/people/privacy"] },
   ];
-  // Ultrawide and 1440p, the sidebar open; and a laptop with it folded, where the pages stopped
-  // growing (80rem) from 1417px wide.
+  // Ultrawide and 1440p, the sidebar open; and 1080p with it folded, where 80rem pages stop growing
+  // while Team's 100rem fill the room. (Under a 1600px window nothing changed: the test below.)
   const WINDOWS = [
     { width: 2560, height: 1440, sidebar: "expanded" },
     { width: 3440, height: 1440, sidebar: "expanded" },
-    { width: 1440, height: 900, sidebar: "collapsed" },
+    { width: 1920, height: 1080, sidebar: "collapsed" },
   ];
   for (const w of WINDOWS) {
     await page.setViewportSize({ width: w.width, height: w.height });
     for (const set of SETS) {
-      if (w.width === 1440 && !set.ownBar) continue;
+      if (w.width === 1920 && !set.ownBar) continue;
       await context.addCookies([{ name: "uniiverse_view", value: set.mode, url: baseURL! }, { name: "uniiverse_sidebar", value: w.sidebar, url: baseURL! }]);
       const starts: number[] = [];
       for (const path of set.pages) {
-        await page.goto(path);
+        await loaded(page, path);
         const nav = set.nav === "people-tabs" ? page.getByRole("navigation", { name: "Users & Permissions" }) : page.getByTestId(set.nav);
         await expect(nav).toBeVisible();
         const at = await rowEdges(nav);
         const where = `${set.nav} on ${path.replace(profile, "a profile")} at ${w.width} × ${w.height} (sidebar ${w.sidebar})`;
-        expect(Math.abs(at.tab - at.pageLeft), `${where}: the first tab at ${at.tab}, the page's edge at ${at.pageLeft}`).toBeLessThanOrEqual(1);
+        expect(Math.abs(at.tab - at.pageLeft), `${where}: the first tab at ${at.tab}, the page's column at ${at.pageLeft}`).toBeLessThanOrEqual(1);
         if (set.ownBar) {
           // The bar's line and its pinned background still span the room beside the sidebar.
           expect(Math.abs(at.barLeft - at.roomLeft) + Math.abs(at.barRight - at.roomRight), `${where}: the bar spans ${at.barLeft} to ${at.barRight}, the room ${at.roomLeft} to ${at.roomRight}`).toBeLessThanOrEqual(1);
-          // Team's name, at the row's end, ends where the page does.
+          // Team's name, at the row's end, ends where the page's column does.
           if (at.end !== null) expect(Math.abs(at.end - at.pageRight), `${where}: the team's name ends at ${at.end}, the page at ${at.pageRight}`).toBeLessThanOrEqual(1);
+        }
+        if (at.header) {
+          // Team Overview's header (and lineup) keep their 84rem, centred in Team's 100rem column: the
+          // tabs start at the column, the logo that inset further in (its approved design, not moved).
+          const inset = { left: at.header.left - at.pageLeft, right: at.pageRight - at.header.right };
+          expect(Math.abs(inset.left - inset.right), `${where}: the header ${Math.round(inset.left)}px inside the column on the left, ${Math.round(inset.right)}px on the right`).toBeLessThanOrEqual(1);
         }
         starts.push(at.tab);
       }
       expect(Math.max(...starts) - Math.min(...starts), `${set.nav} at ${w.width}: the row starts at ${starts.join(", ")} on its sections`).toBeLessThanOrEqual(1);
     }
+  }
+});
+
+test("under a 1600px window the pages and the section tabs are as they always were, the sidebar open or folded", async ({ page, context, baseURL }) => {
+  test.skip(width(page) < 1024, "desktop windows");
+  // A 1920 laptop at 125% (1536 × 864) with the sidebar folded, where the room (1400px) is wider than
+  // 80rem: Players and Matches stay 80rem, centred, the row of tabs spans the bar (it did not follow
+  // them before 1600px either), and Team Overview's 100rem column fills the room.
+  await context.addCookies([{ name: "uniiverse_sidebar", value: "collapsed", url: baseURL! }]);
+  await page.setViewportSize({ width: 1536, height: 864 });
+  for (const [path, wide] of [["/players", false], ["/matches", false], ["/team", true]] as const) {
+    await loaded(page, path);
+    const at = await rowEdges(page.getByTestId("team-tabs"));
+    const room = at.roomRight - at.roomLeft;
+    expect(Math.abs(at.rowLeft - at.roomLeft) + Math.abs(at.rowRight - at.roomRight), `${path}: the row spans the bar`).toBeLessThanOrEqual(1);
+    expect(Math.round(at.pageRight - at.pageLeft), `${path}: the page's width`).toBe(wide ? Math.round(room) : 1280);
   }
 });
 
@@ -360,21 +396,46 @@ async function scrollTo(page: Page, y: number | "end") {
   }, y);
 }
 
-test("tablet and desktop: once the pinned row is pinned and the page's own toolbar has gone up under it, the row offers the page's controls, and keeps its height", async ({ page }) => {
+/** Where the page's filter bar ends in the page, and the pinned stack's foot (the pinned tabs' sticky offset and height). */
+const barAndFoot = (page: Page, tabs: string) =>
+  page.evaluate((tabs) => {
+    const bar = document.querySelector("[data-filter-bar]")!.getBoundingClientRect();
+    const nav = document.querySelector<HTMLElement>(`[data-testid=${tabs}]`)!;
+    return { barBottom: bar.bottom + window.scrollY, foot: (parseFloat(getComputedStyle(nav).top) || 0) + nav.offsetHeight };
+  }, tabs);
+
+/** The list's first item against what is pinned over it: its top and the stack's foot (the tabs, or a table's own pinned headings under them). */
+const landedAt = (page: Page, first: string, tabs: string, under?: string) =>
+  page.evaluate(
+    ({ first, tabs, under }) => {
+      const item = [...document.querySelectorAll(first)].find((el) => el.getBoundingClientRect().height > 0)!.getBoundingClientRect();
+      const foot = document.querySelector(under ?? `[data-testid=${tabs}]`)!.getBoundingClientRect().bottom;
+      const end = document.documentElement.scrollHeight - window.innerHeight;
+      // The room the page's scroll padding leaves under what is pinned (globals.css: the pinned
+      // stack's heights and 0.5rem), where a list's start lands; more with larger text.
+      const pad = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) - foot;
+      return { gap: Math.round(item.top - foot), atEnd: window.scrollY >= end - 1, pad: Math.round(pad) };
+    },
+    { first, tabs, under },
+  );
+
+test("tablet and desktop: the pinned row offers the page's controls exactly once the page's filter bar has gone up under it, at the row's own height", async ({ page }) => {
   test.skip(isPhone(page), "phones offer Filters in the top bar (mobile-nav.spec.ts)");
   const profile = await teammate(page);
   await page.goto(`${profile}/matches`);
   await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
   const tabs = page.getByTestId("profile-tabs");
   const resting = await rect(tabs);
-  // At rest, and pinned while the toolbar is still in view: nothing in the row.
+  const { barBottom, foot } = await barAndFoot(page, "profile-tabs");
+  // The boundary, both ways: the filter bar 10px above the pinned stack's foot (the copies show),
+  // then 10px below it (they go, though the row is still pinned). The tabs pin above both places.
+  await scrollTo(page, Math.round(barBottom - foot + 10));
+  await expect(tabs).toHaveAttribute("data-stuck", "");
+  await expect(pageToolbar(page)).toBeVisible();
+  await scrollTo(page, Math.round(barBottom - foot - 10));
+  await expect(tabs).toHaveAttribute("data-stuck", "");
   await expect(pageToolbar(page)).toHaveCount(0);
-  const toolbar = page.getByTestId("match-history").getByTestId("section-toolbar");
-  const toolbarTop = await toolbar.evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
-  await scrollTo(page, Math.max(0, Math.round(toolbarTop - resting.height - 80)));
-  await page.waitForTimeout(300);
-  if (await tabs.getAttribute("data-stuck").then((v) => v !== null)) await expect(pageToolbar(page)).toHaveCount(0);
-  // Past it: Games | Encounters and Filters, in the row, which is as tall as at rest.
+  // Far down: Games | Encounters and Filters, in the row, which is as tall as at rest.
   await scrollTo(page, "end");
   await expect(tabs).toHaveAttribute("data-stuck", "");
   await expect(pageToolbar(page)).toBeVisible();
@@ -383,7 +444,6 @@ test("tablet and desktop: once the pinned row is pinned and the page's own toolb
   await expect(page.getByTestId("toolbar-match-view-encounters")).toBeVisible();
   await expect(page.getByTestId("toolbar-filters")).toBeVisible();
   expect((await rect(tabs)).height, "the pinned row keeps its height").toBe(resting.height);
-  // Every compact control within the row's box.
   const inside = await tabs.evaluate((nav) => {
     const box = nav.getBoundingClientRect();
     return [...nav.querySelectorAll("[data-page-toolbar] :is(a, button, input)")].every((el) => {
@@ -398,6 +458,25 @@ test("tablet and desktop: once the pinned row is pinned and the page's own toolb
   await expect(page.locator("[data-page-toolbar-slot] :is(a, button, input)")).toHaveCount(0);
 });
 
+test("tablet and desktop: a control in the pinned row stays while it has the focus, and goes once the focus moves on", async ({ page }) => {
+  test.skip(isPhone(page), "the pinned row is from md");
+  const profile = await teammate(page);
+  await page.goto(`${profile}/matches`);
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  await scrollTo(page, "end");
+  const filters = page.getByTestId("toolbar-filters");
+  await expect(filters).toBeVisible();
+  await filters.focus();
+  // Back up at the page's own filters, the copy keeps the focus rather than dropping it on the page.
+  await scrollTo(page, 0);
+  await page.waitForTimeout(200);
+  await expect(filters).toBeVisible();
+  await expect(filters).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(pageToolbar(page)).toHaveCount(0);
+  await expect(page.locator("[data-page-toolbar-slot] :is(a, button, input)")).toHaveCount(0);
+});
+
 test("tablet and desktop: in a short window nothing is pinned, so the row offers nothing", async ({ page }) => {
   test.skip(isPhone(page), "the pinned row is from md");
   const profile = await teammate(page);
@@ -405,17 +484,20 @@ test("tablet and desktop: in a short window nothing is pinned, so the row offers
   await page.goto(`${profile}/matches`);
   await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
   await scrollTo(page, "end");
-  await page.waitForTimeout(400);
   if (isTablet(page)) {
     // At a tablet's width a short window is a phone held sideways: no row in the page to pin (the
     // sections ride in the compact bar), and nothing offered beside it.
     await expect(page.getByTestId("profile-tabs")).toBeHidden();
     await expect(page.getByTestId("mobile-topbar").getByTestId("profile-chrome-tabs")).toBeAttached();
-  } else await expect(page.getByTestId("profile-tabs")).not.toHaveAttribute("data-stuck", /.*/);
+  } else {
+    // Not sticky at all in a short window, so no observer runs and nothing is waited for.
+    expect(await page.getByTestId("profile-tabs").evaluate((el) => getComputedStyle(el).position)).not.toBe("sticky");
+    await expect(page.getByTestId("profile-tabs")).not.toHaveAttribute("data-stuck", /.*/);
+  }
   await expect(pageToolbar(page)).toHaveCount(0);
 });
 
-test("tablet and desktop: from the end of Match History the pinned row's Filters opens the filter sheet, the row in the page keeping its height, and focus comes back to it", async ({ page }) => {
+test("tablet and desktop: from the end of Match History the pinned row's Filters opens the filter sheet in its sheet form, the row in the page keeping its height", async ({ page }) => {
   test.skip(isPhone(page), "phones offer Filters in the top bar (mobile-nav.spec.ts)");
   await page.emulateMedia({ reducedMotion: "reduce" });
   const profile = await teammate(page);
@@ -430,17 +512,76 @@ test("tablet and desktop: from the end of Match History the pinned row's Filters
   await filters.click();
   const sheet = page.getByTestId("filter-sheet");
   await expect(sheet).toBeVisible();
-  // The sheet's form at this width too: the game mode and Refine's fields in it, each with its label.
-  await expect(sheet.getByLabel("Game mode")).toBeVisible();
+  // The sheet's form at this width too: Refine's fields in it, in one column, the rest behind More filters.
   await expect(sheet.getByTestId("refine-filters")).toHaveCount(0);
   await expect(sheet.getByTestId("refine-panel")).toBeVisible();
+  const column = await sheet.getByTestId("history-refine").evaluate((el) => getComputedStyle(el).display);
+  expect(column, "Refine's fields in one column").toBe("flex");
+  await expect(sheet.getByTestId("refine-more")).toBeVisible();
   // The page behind does not move, and its toolbar keeps its size while its fields are in the sheet.
   expect(await page.evaluate(() => window.scrollY)).toBe(scrolled);
   expect((await rect(header)).height).toBe(before.height);
   await sheet.getByTestId("filter-sheet-done").click();
   await expect(sheet).toHaveCount(0);
-  await expect(filters).toBeFocused();
   expect(await page.evaluate(() => window.scrollY)).toBe(scrolled);
+});
+
+test("tablet and desktop: closed with Escape or Done, the sheet hands the focus back to the pinned row's Filters, still drawn, even when its change emptied the list", async ({ page }) => {
+  test.skip(isPhone(page), "phones: mobile-nav.spec.ts");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const profile = await teammate(page);
+  await page.goto(`${profile}/matches`);
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  await scrollTo(page, "end");
+  const filters = page.getByTestId("toolbar-filters");
+  const sheet = page.getByTestId("filter-sheet");
+  await filters.click();
+  await expect(sheet).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
+  await expect(filters).toBeFocused();
+  // Again, and a change that leaves no game: the page shortens behind the sheet (its filters back in
+  // view), yet the button that opened the sheet is still there to take the focus back.
+  await filters.click();
+  await sheet.getByTestId("refine-more").click();
+  await sheet.getByTestId("refine-to").fill("2001-01-01");
+  await expect(page).toHaveURL(/to=2001-01-01/);
+  await expect(page.getByTestId("match-empty")).toBeVisible();
+  await sheet.getByTestId("filter-sheet-done").click();
+  await expect(sheet).toHaveCount(0);
+  await expect(filters).toBeVisible();
+  await expect(filters).toBeFocused();
+  // Once the focus moves on, the copy goes: its toolbar is in view.
+  await page.keyboard.press("Tab");
+  await expect(pageToolbar(page)).toHaveCount(0);
+});
+
+test("tablet and desktop: a sheet closed after only a look moves nothing once the reader goes on: a later change in the page's own filters keeps the place", async ({ page }) => {
+  test.skip(isPhone(page), "the pinned row is from md");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const profile = await teammate(page);
+  await page.goto(`${profile}/matches`);
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  await scrollTo(page, "end");
+  await page.getByTestId("toolbar-filters").click();
+  const sheet = page.getByTestId("filter-sheet");
+  await expect(sheet).toBeVisible();
+  // A look only: More filters opened, nothing chosen, and closed.
+  await sheet.getByTestId("refine-more").click();
+  await expect(sheet.getByTestId("refine-more")).toHaveAttribute("aria-expanded", "true");
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
+  // The reader goes back up with the wheel (scrolling by script sends no input of the reader's).
+  await page.mouse.move(width(page) / 2, 300);
+  await page.mouse.wheel(0, -100_000);
+  await expect.poll(() => page.evaluate(() => window.scrollY), { message: "the wheel took the page up" }).toBeLessThan(400);
+  await scrollTo(page, 0);
+  // The page's own Game mode, at the top: the new list arrives and the page stays at its top.
+  await page.locator("#overview-mode").selectOption("solo");
+  await expect(page).toHaveURL(/mode=solo/);
+  await expect(page.getByTestId("match-scope")).toContainText("Ranked Solo/Duo");
+  await page.waitForTimeout(800);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
 });
 
 test("tablet and desktop: closing the sheet after a change brings the list's first game under the pinned tabs", async ({ page }) => {
@@ -458,14 +599,232 @@ test("tablet and desktop: closing the sheet after a change brings the list's fir
   await sheet.getByTestId("filter-sheet-done").click();
   await expect(sheet).toHaveCount(0);
   // The first game just under the pinned tabs, or as near as the page's end allows.
-  const landed = () =>
-    page.evaluate(() => {
-      const first = document.querySelector("[data-testid=match-card]")!.getBoundingClientRect();
-      const tabs = document.querySelector("[data-testid=profile-tabs]")!.getBoundingClientRect();
-      const end = document.documentElement.scrollHeight - window.innerHeight;
-      return { gap: Math.round(first.top - tabs.bottom), atEnd: window.scrollY >= end - 1 };
-    });
-  await expect.poll(async () => { const at = await landed(); return at.gap >= 0 && (at.gap <= 12 || at.atEnd); }, { message: "the first game just under the pinned tabs" }).toBe(true);
+  await expect.poll(async () => { const at = await landedAt(page, "[data-testid=match-card]", "profile-tabs"); return at.gap >= 0 && (at.gap <= 12 || at.atEnd); }, { message: "the first game just under the pinned tabs" }).toBe(true);
+});
+
+test("desktop: from the pinned row of every page that offers Filters, a change brings the list's first item under what is pinned", async ({ page }) => {
+  test.skip(width(page) < 1024, "one desktop window per page below");
+  test.setTimeout(180_000);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const profile = await teammate(page);
+  // Short enough for each list to scroll its filters away, tall enough for the tabs to pin; the demo's
+  // nine players and eight champions need a larger text size for that, and All Champions a window wide
+  // enough at that size for its column headings (from a 44rem table), which pin under the tabs.
+  const CASES: Array<{ what: string; path: string; tabs: string; first: string; under?: string; text?: number; viewport?: { width: number; height: number }; change: (sheet: Locator) => Promise<unknown>; url?: RegExp }> = [
+    { what: "Encounters' first player met", path: `${profile}/matches?view=encounters`, tabs: "profile-tabs", first: "[data-testid=encounter-row]", change: (s) => s.getByLabel("Game mode").selectOption("solo"), url: /mode=solo/ },
+    { what: "Team Matches' first game", path: "/matches", tabs: "team-tabs", first: "[data-testid=together-card]", change: (s) => s.getByTestId("together-min").selectOption("3"), url: /min=3/ },
+    { what: "the Overview's dashboard", path: profile, tabs: "profile-tabs", first: "[data-testid=overview-dashboard]", change: (s) => s.getByLabel("Game mode").selectOption("solo"), url: /mode=solo/ },
+    { what: "All Champions' first champion, under its pinned column headings", path: `${profile}/champions`, tabs: "profile-tabs", first: "[data-testid=top-champion]", under: "[data-testid=all-champions-header]", text: 175, viewport: { width: 1920, height: 560 }, change: (s) => s.getByLabel("Game mode").selectOption("solo"), url: /mode=solo/ },
+    { what: "Players' first player", path: "/players", tabs: "team-tabs", first: "[data-testid=player-card]", text: 175, change: (s) => s.getByTestId("role-filter-MID").click() },
+  ];
+  for (const c of CASES) {
+    await page.setViewportSize(c.viewport ?? { width: 1440, height: 560 });
+    await page.goto(c.path);
+    await expect(page.locator("main h1, main h2").first()).toBeVisible();
+    if (c.text) await page.addStyleTag({ content: `html { font-size: ${c.text}% !important; }` });
+    await page.waitForLoadState("networkidle");
+    if (c.under) await expect(page.locator(c.under), `${c.what}: the column headings show`).toBeVisible();
+    await scrollTo(page, "end");
+    await page.getByTestId("toolbar-filters").click();
+    const sheet = page.locator("dialog[open]");
+    await expect(sheet).toBeVisible();
+    await c.change(sheet);
+    if (c.url) await expect(page).toHaveURL(c.url);
+    await sheet.getByRole("button", { name: "Done" }).click();
+    await expect(page.locator("dialog[open]")).toHaveCount(0);
+    // Its first item just under what is pinned: at the page's scroll padding under the tabs, or right
+    // under All Champions' pinned column headings, which would cover it there; or as near as the
+    // page's end allows.
+    await expect.poll(async () => { const at = await landedAt(page, c.first, c.tabs, c.under); return at.gap >= -1 && (at.gap <= Math.max(at.pad, 0) + 4 || at.atEnd); }, { message: c.what }).toBe(true);
+  }
+});
+
+test("desktop: the compact search narrows the list it copies, in the row's own height (Players and All Champions)", async ({ page }) => {
+  test.skip(width(page) < 1024, "one desktop window");
+  const profile = await teammate(page);
+  await page.setViewportSize({ width: 1440, height: 560 });
+  for (const [path, tabs, search, item, typed] of [
+    ["/players", "team-tabs", "toolbar-players-search", "[data-testid=player-card]", "mid"],
+    [`${profile}/champions`, "profile-tabs", "toolbar-all-champions-search", "[data-testid=top-champion]", "top"],
+  ] as const) {
+    await page.goto(path);
+    await expect(page.locator("main h1, main h2").first()).toBeVisible();
+    // A larger text size, so the demo's short lists scroll their toolbars away under the tabs.
+    await page.addStyleTag({ content: "html { font-size: 175% !important; }" });
+    await page.waitForLoadState("networkidle");
+    const row = page.getByTestId(tabs);
+    const resting = await rect(row);
+    const before = await page.locator(item).count();
+    await scrollTo(page, "end");
+    const field = page.getByTestId(search);
+    await expect(field).toBeVisible();
+    expect((await rect(row)).height, `${path}: the pinned row keeps its height`).toBe(resting.height);
+    await field.fill(typed);
+    await expect.poll(() => page.locator(item).count(), { message: `${path}: the list narrows` }).toBeLessThan(before);
+    await expect(field).toBeFocused();
+    await field.fill("");
+  }
+});
+
+test("desktop: Team Matches' Bookmarked from the pinned row replaces the entry, is marked, and keeps the place", async ({ page }) => {
+  test.skip(width(page) < 1024, "one desktop window");
+  await page.setViewportSize({ width: 1440, height: 600 });
+  await page.goto("/matches");
+  await expect(page.getByTestId("played-together")).toBeVisible();
+  // A larger text size, so that the page is still longer than the window with only the bookmarked
+  // games listed (the demo has none): one sent to its top would read 0.
+  await page.addStyleTag({ content: "html { font-size: 175% !important; }" });
+  await page.waitForLoadState("networkidle");
+  await scrollTo(page, "end");
+  const saved = page.getByTestId("toolbar-together-saved");
+  await expect(saved).toBeVisible();
+  const entries = await page.evaluate(() => history.length);
+  await saved.click();
+  await expect(page).toHaveURL(/saved=1/);
+  await expect(page.getByTestId("together-saved")).toHaveAttribute("aria-current", "page");
+  expect(await page.evaluate(() => history.length), "a filter replaces the entry").toBe(entries);
+  // Not sent to the page's top: the place is kept, as near as the shorter list allows (its end).
+  const at = await page.evaluate(() => ({ y: window.scrollY, end: document.documentElement.scrollHeight - window.innerHeight }));
+  expect(at.end, "the shorter page still scrolls").toBeGreaterThan(0);
+  expect(at.y, "the page kept its place").toBeGreaterThanOrEqual(at.end - 1);
+});
+
+test("desktop: after a look in the sheet (Team Matches' Played with opened and closed, then Done), Bookmarked from the pinned row still keeps the place", async ({ page }) => {
+  test.skip(width(page) < 1024, "one desktop window");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  // As in the test above, at 175% text, and a window short enough (still tall enough to pin) for the
+  // page with only the bookmarked games listed (none in the demo) to end well below where the list's
+  // start would land: a landing reads less than the page's end.
+  await page.setViewportSize({ width: 1440, height: 500 });
+  await page.goto("/matches");
+  await expect(page.getByTestId("played-together")).toBeVisible();
+  await page.addStyleTag({ content: "html { font-size: 175% !important; }" });
+  await page.waitForLoadState("networkidle");
+  await scrollTo(page, "end");
+  await page.getByTestId("toolbar-filters").click();
+  const sheet = page.getByTestId("together-filters-sheet");
+  await expect(sheet).toBeVisible();
+  const picker = sheet.getByTestId("together-with-button");
+  await picker.click();
+  await expect(picker).toHaveAttribute("aria-expanded", "true");
+  await picker.click();
+  await expect(picker).toHaveAttribute("aria-expanded", "false");
+  await sheet.getByRole("button", { name: "Done" }).click();
+  await expect(sheet).toHaveCount(0);
+  // The press on Bookmarked is the reader moving on: its change keeps the place, not the list's start.
+  await page.getByTestId("toolbar-together-saved").click();
+  await expect(page).toHaveURL(/saved=1/);
+  await expect(page.getByTestId("together-saved")).toHaveAttribute("aria-current", "page");
+  await page.waitForTimeout(500);
+  const at = await page.evaluate(() => ({ y: window.scrollY, end: document.documentElement.scrollHeight - window.innerHeight }));
+  expect(at.end, "the shorter page still scrolls").toBeGreaterThan(0);
+  expect(at.y, "the page kept its place").toBeGreaterThanOrEqual(at.end - 1);
+});
+
+test("desktop: the compact search's Clear lets its copy go once the page's own search is back in view, and leaves no focus in the row", async ({ page }) => {
+  test.skip(width(page) < 1024, "one desktop window");
+  await page.setViewportSize({ width: 1440, height: 560 });
+  await page.goto("/players");
+  await expect(page.locator("main h1, main h2").first()).toBeVisible();
+  // A larger text size, so the demo's short list scrolls its toolbar away under the tabs.
+  await page.addStyleTag({ content: "html { font-size: 175% !important; }" });
+  await page.waitForLoadState("networkidle");
+  await scrollTo(page, "end");
+  const field = page.getByTestId("toolbar-players-search");
+  await expect(field).toBeVisible();
+  // Narrowed to a few players, the page is short again and its own search back in view: the copy
+  // stays while it has the focus.
+  await field.fill("mid");
+  await expect.poll(async () => (await rect(page.getByTestId("players-search"))).top - (await rect(page.getByTestId("team-tabs"))).bottom, { message: "the page's own search back in view, under the tabs" }).toBeGreaterThanOrEqual(0);
+  await expect(field).toBeVisible();
+  await expect(field).toBeFocused();
+  // Its Clear goes as it clears (the field is empty), taking the focus with it: the copy goes too.
+  await pageToolbar(page).getByRole("button", { name: "Clear search" }).click();
+  await expect(page.getByTestId("players-search")).toHaveValue("");
+  await expect(pageToolbar(page)).toHaveCount(0);
+  expect(await page.evaluate(() => !!document.activeElement?.closest("[data-page-toolbar-slot]")), "no focus left in the row").toBe(false);
+});
+
+/** Team's pinned stack: the section tabs' height, the bar's (its hairline included), what --tabs-top assumes, and the compact controls at the bar's end relative to its edges. */
+const teamStack = (page: Page) =>
+  page.evaluate(() => {
+    const probe = document.createElement("div");
+    probe.style.cssText = "position:absolute;visibility:hidden;height:var(--tabs-top)";
+    document.body.append(probe);
+    const tabsTop = probe.getBoundingClientRect().height;
+    probe.remove();
+    const nav = document.querySelector("[data-testid=team-tabs]")!;
+    const bar = nav.getBoundingClientRect();
+    const controls = [...nav.querySelectorAll<HTMLElement>("[data-page-toolbar-slot] :is(a, button, input)")]
+      .filter((el) => el.getBoundingClientRect().height > 0)
+      .map((el) => {
+        const r = el.getBoundingClientRect();
+        return { name: el.dataset.testid ?? el.getAttribute("aria-label") ?? el.tagName, top: r.top - bar.top, bottom: bar.bottom - r.bottom, height: r.height };
+      });
+    return { coarse: matchMedia("(pointer: coarse)").matches, rem: parseFloat(getComputedStyle(document.documentElement).fontSize), tabsTop, bar: bar.height, tab: nav.querySelector("li a")!.getBoundingClientRect().height, stuck: nav.hasAttribute("data-stuck"), controls };
+  });
+
+test("touch screens from 1024px (an iPad held sideways, a touch laptop): Team's section tabs are 44px, the bar the height the pinned stack assumes, its compact controls inside it, and a change from it lands the list under it", async ({ page }, info) => {
+  test.skip(info.project.name !== "tablet", "a touch screen: the tablet project, made 1180 and 1366 wide");
+  test.setTimeout(120_000);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  for (const viewport of [{ width: 1180, height: 820 }, { width: 1366, height: 1024 }]) {
+    const at = `${viewport.width} × ${viewport.height}`;
+    await page.setViewportSize(viewport);
+    // Team Matches: a list long enough to pin the tabs and scroll its filters away.
+    await page.goto("/matches");
+    await expect(page.getByTestId("played-together")).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    const rest = await teamStack(page);
+    expect(rest.coarse, `${at}: a touch screen`).toBe(true);
+    expect([rest.tab, rest.bar], `${at}: at rest, the tabs and the bar 44px, as --tabs-top assumes`).toEqual([44, rest.tabsTop]);
+    expect(rest.tabsTop, `${at}: --tabs-top`).toBe(44);
+    await scrollTo(page, "end");
+    await expect(page.getByTestId("toolbar-filters")).toBeVisible();
+    const pinned = await teamStack(page);
+    expect(pinned.stuck, `${at}: pinned`).toBe(true);
+    expect([pinned.tab, pinned.bar], `${at}: pinned, the tabs and the bar 44px`).toEqual([44, pinned.tabsTop]);
+    // Filters and Bookmarked: 38px buttons, centred in the bar, nothing past its edges.
+    expect(pinned.controls.length, `${at}: the row's controls`).toBe(2);
+    for (const c of pinned.controls) expect(c.top >= 0 && c.bottom >= 0 && Math.abs(c.top - c.bottom) <= 0.5, `${at}: ${c.name} inside the bar and centred (${c.top}px above, ${c.bottom}px below)`).toBe(true);
+    // A change from the pinned row: the first game lands under the bar, at the page's scroll padding
+    // (8px under it), never under the bar; or as near as the page's end allows.
+    await page.getByTestId("toolbar-filters").click();
+    const sheet = page.getByTestId("together-filters-sheet");
+    await expect(sheet).toBeVisible();
+    await sheet.getByTestId("together-min").selectOption("3");
+    await expect(page).toHaveURL(/min=3/);
+    await sheet.getByRole("button", { name: "Done" }).click();
+    await expect(sheet).toHaveCount(0);
+    await expect.poll(async () => { const l = await landedAt(page, "[data-testid=together-card]", "team-tabs"); return l.gap >= 0 && (Math.abs(l.gap - l.pad) <= 1 || l.atEnd); }, { message: `${at}: the first game just under the bar` }).toBe(true);
+    // Players at 175% text (so its short demo list scrolls its toolbar away): the compact search is
+    // the bar's height, 2.75rem, exactly inside it, as the tabs are.
+    await page.goto("/players");
+    await expect(page.locator("main h1, main h2").first()).toBeVisible();
+    await page.addStyleTag({ content: "html { font-size: 175% !important; }" });
+    await page.waitForLoadState("networkidle");
+    await scrollTo(page, "end");
+    await expect(page.getByTestId("toolbar-players-search")).toBeVisible();
+    const large = await teamStack(page);
+    expect([large.tab, large.bar], `${at}, 175% text: the tabs and the bar 2.75rem, as --tabs-top assumes`).toEqual([2.75 * large.rem, large.tabsTop]);
+    const search = large.controls.find((c) => c.name === "toolbar-players-search")!;
+    expect(search.height, `${at}, 175% text: the search 2.75rem`).toBe(2.75 * large.rem);
+    for (const c of large.controls) expect(c.top >= 0 && c.bottom >= 0, `${at}, 175% text: ${c.name} inside the bar (${c.top}px above, ${c.bottom}px below)`).toBe(true);
+  }
+});
+
+test("desktop: with a mouse Team's section tabs stay 40px, level with the sidebar's brand row, under the 2.75rem the pinned stack keeps for them", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "a mouse at 1440");
+  await page.goto("/matches");
+  await expect(page.getByTestId("played-together")).toBeVisible();
+  const rest = await teamStack(page);
+  expect(rest.coarse).toBe(false);
+  expect([rest.tab, rest.bar, rest.tabsTop]).toEqual([40, 40, 44]);
+  await scrollTo(page, "end");
+  await expect(page.getByTestId("toolbar-filters")).toBeVisible();
+  const pinned = await teamStack(page);
+  expect([pinned.stuck, pinned.tab, pinned.bar]).toEqual([true, 40, 40]);
+  for (const c of pinned.controls) expect(c.top >= 0 && c.bottom >= 0 && Math.abs(c.top - c.bottom) <= 0.5, `${c.name} inside the bar and centred (${c.top}px above, ${c.bottom}px below)`).toBe(true);
 });
 
 test("tablet and desktop: Records → Recent form from the pinned row", async ({ page }) => {
