@@ -736,9 +736,10 @@ test("desktop: the compact search's Clear lets its copy go once the page's own s
   await scrollTo(page, "end");
   const field = page.getByTestId("toolbar-players-search");
   await expect(field).toBeVisible();
-  // Narrowed to a few players, the page is short again and its own search back in view: the copy
-  // stays while it has the focus.
-  await field.fill("mid");
+  // Narrowed to one player, the page is short again and its own search back in view: the copy stays
+  // while it has the focus. (By the whole name: "mid" also matched members other tests add, and one
+  // with a long name kept the page too tall at 175% for its search to come back, on CI.)
+  await field.fill("Demo Mid");
   await expect.poll(async () => (await rect(page.getByTestId("players-search"))).top - (await rect(page.getByTestId("team-tabs"))).bottom, { message: "the page's own search back in view, under the tabs" }).toBeGreaterThanOrEqual(0);
   await expect(field).toBeVisible();
   await expect(field).toBeFocused();

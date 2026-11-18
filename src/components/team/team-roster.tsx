@@ -51,23 +51,27 @@ const ART_BUTTON = "grid h-8 w-8 place-items-center rounded-full bg-bg/80 text-f
   The role chip and the card's own controls share the artwork's top row. With larger text a phone's
   card is narrow for what that row holds (6.5rem wide at 200% on a 320px phone, where "SUPPORT" ran
   past the card under the turn control and read "SUPPO"), so the chip has a lane of its own: from the
-  role's corner to the controls (0, 1 or 2 of them, by count), or to 0.25rem short of the card's far
-  edge where there are none. A control is a 2.75rem touch target 0.625rem from the edge (2rem with a
-  mouse; the lane keeps the touch size), and two stand side by side, or one above the other five
-  across and on a card under 9.25rem, where side by side they left the chip no room; the lane ends
-  0.125rem short of them. Where the lane is narrower than the role's chip (its name in the chip's
-  capitals beside its icon: 4.9rem for Mid to 7.8rem for Support), the chip shows the icon alone, as
-  a round badge of the same height, and the name stays its text for screen readers. Every card at
-  the usual text size is 12.2rem wide or more, which holds the chip beside its controls, so there
-  nothing changes.
+  role's corner to the controls (0, 1 or 2 of them, by count), or to the card's own edge where there
+  are none (its clip: what a chip fitted inside before it had a lane, so a chip that fitted there
+  keeps its name). A control is a 2.75rem touch target 0.625rem from the edge (2rem with a mouse;
+  the lane keeps the touch size), and two stand side by side, or one above the other five across and
+  on a card under 9.25rem, where side by side they left the chip no room; the lane ends 0.125rem
+  short of them. Where the lane is narrower than the role's chip, the chip shows the icon alone, as
+  a round badge of the same height, and the name stays its text for screen readers. CHIP_FIT holds
+  each role's chip (its name in the chip's capitals beside its icon), measured in Inter at 100% to
+  200%: Mid 4.872rem, Top 4.978, Jungle 7.001, Bottom 7.335 and Support 7.773, the same at every size
+  to 0.005rem. Each threshold is its chip rounded up to the next 0.01rem, so a name that shows always
+  fits its lane, and a chip that fits keeps its name (the least room a demo chip fits in is Support's
+  7.79rem beside its control at 150% on a 375px phone). Every card at the usual text size is 12.2rem
+  wide or more, which holds the chip beside its controls, so there nothing changes.
 */
-const CHIP_LANE = ["right-1", "right-14", "right-26.5 @5xl/lineup:right-14 @max-[9.25rem]/card:right-14"] as const;
+const CHIP_LANE = ["right-0", "right-14", "right-26.5 @5xl/lineup:right-14 @max-[9.25rem]/card:right-14"] as const;
 const CHIP_FIT: Record<Role, { chip: string; label: string }> = {
-  TOP: { chip: "@max-[4.95rem]/chip:p-1.5", label: "@max-[4.95rem]/chip:sr-only" },
-  JUNGLE: { chip: "@max-[7rem]/chip:p-1.5", label: "@max-[7rem]/chip:sr-only" },
-  MID: { chip: "@max-[4.85rem]/chip:p-1.5", label: "@max-[4.85rem]/chip:sr-only" },
-  ADC: { chip: "@max-[7.3rem]/chip:p-1.5", label: "@max-[7.3rem]/chip:sr-only" },
-  SUPPORT: { chip: "@max-[7.75rem]/chip:p-1.5", label: "@max-[7.75rem]/chip:sr-only" },
+  TOP: { chip: "@max-[4.98rem]/chip:p-1.5", label: "@max-[4.98rem]/chip:sr-only" },
+  JUNGLE: { chip: "@max-[7.01rem]/chip:p-1.5", label: "@max-[7.01rem]/chip:sr-only" },
+  MID: { chip: "@max-[4.88rem]/chip:p-1.5", label: "@max-[4.88rem]/chip:sr-only" },
+  ADC: { chip: "@max-[7.34rem]/chip:p-1.5", label: "@max-[7.34rem]/chip:sr-only" },
+  SUPPORT: { chip: "@max-[7.78rem]/chip:p-1.5", label: "@max-[7.78rem]/chip:sr-only" },
 };
 
 /** How a member fits a role, as the lineup sheets name it. */
@@ -873,8 +877,10 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
           logo and the name on the first line, then the state and Edit lineup on a line of their own,
           so neither squeezes the name (the tab above already says this is the Team Overview). With a
           larger text size (the frame under 11.25rem: 200% text on a 375px phone or narrower), Edit
-          lineup takes a line of its own under the state, so the header stays within the phone; at
-          the usual size nothing moves. The logo is drawn at its own proportions in a square
+          lineup takes a line of its own under the state, and a member's state (no Edit lineup
+          beside it) takes the whole line under the logo rather than the room beside it (it ran 33px
+          past a 320px phone at 200%), so the header stays within the phone; at the usual size
+          nothing moves. The logo is drawn at its own proportions in a square
           (BrandMark: object-contain, never squeezed), and animates where the browser allows motion. */}
       <header className={cn(LINEUP_WIDTH, "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2.5 [text-shadow:0_1px_14px_rgb(0_0_0/0.55)] sm:gap-x-4 sm:gap-y-1")} data-testid="team-header">
         <BrandMark src={team.logo} still={team.logoStill} name={team.shortName} className="col-start-1 row-start-1 h-12 w-12 shrink-0 rounded-panel text-lg shadow-lg shadow-black/40 ring-1 ring-border-strong sm:row-end-3 sm:h-16 sm:w-16 sm:rounded-card sm:text-2xl lg:h-20 lg:w-20 lg:text-3xl short:h-11 short:w-11 short:rounded-panel short:text-lg" />
@@ -888,7 +894,7 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
           </p>
         </div>
         {!guest && !editingLineup ? (
-          <span className={cn("row-start-2 inline-flex items-center gap-1.5 justify-self-start rounded-full border py-px pl-2 pr-1 text-xs font-medium leading-5 [text-shadow:none] sm:col-start-2 sm:col-end-3 sm:self-start sm:text-sm short:text-xs", canManageLineup ? "col-start-1 col-end-3 @max-[11.25rem]/lineup:col-end-4" : "col-start-2 col-end-4", complete ? "border-good/35 bg-good/10 text-good" : "border-warn/35 bg-warn/10 text-warn")} data-testid="lineup-status">
+          <span className={cn("row-start-2 inline-flex items-center gap-1.5 justify-self-start rounded-full border py-px pl-2 pr-1 text-xs font-medium leading-5 [text-shadow:none] sm:col-start-2 sm:col-end-3 sm:self-start sm:text-sm short:text-xs", canManageLineup ? "col-start-1 col-end-3 @max-[11.25rem]/lineup:col-end-4" : "col-start-2 col-end-4 @max-[11.25rem]/lineup:col-start-1", complete ? "border-good/35 bg-good/10 text-good" : "border-warn/35 bg-warn/10 text-warn")} data-testid="lineup-status">
             <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
             {complete ? "Lineup complete" : canManageLineup ? "Assign all five roles" : "A lineup manager assigns the five roles"}
             <InfoTip text="Each card is about the role the player holds in this lineup: its figures count this season's supported games (Ranked Solo/Duo, Ranked Flex, Normal games) played in that role, on any champion, from their linked Riot accounts; the champions are their whole pool for that role, in order of preference." />

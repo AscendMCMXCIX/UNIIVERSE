@@ -99,7 +99,7 @@ const facts = (page: Page) =>
         starBesideLink: star.left >= link.right - 0.5,
       };
     });
-    return { cut, split: [...new Set(split)], overflow: document.documentElement.scrollWidth - innerWidth, rows };
+    return { cut, split: [...new Set(split)], overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth, rows };
   });
 
 test("at 125% to 200% text on 320, 375 and 393px phones, the Library's titles and descriptions are whole (no word split, nothing cut), the page no wider than the phone, the star's target clear of the text; the usual size unchanged", async ({ page }) => {

@@ -13,7 +13,9 @@ test.beforeEach(async ({ context, baseURL }) => {
 test("a teammate's Riot Accounts tab carries no PUUID", async ({ page }) => {
   test.skip(test.info().project.name !== "desktop", "the payload is the same at every width");
   await page.goto("/players");
-  const href = await page.locator('a[href^="/players/"]').first().getAttribute("href");
+  // A demo player with Riot accounts, by name: the first row is whoever sorts first, and other
+  // tests add members (a random name sorting before "Demo" has no accounts, and no "#DEMO").
+  const href = await page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']").getAttribute("href");
   const id = /\/players\/([0-9a-f-]{36})/.exec(href ?? "")?.[1];
   expect(id, "a member's profile link").toBeTruthy();
   await page.goto(`/players/${id}/accounts`);

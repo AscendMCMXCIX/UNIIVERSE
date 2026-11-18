@@ -20,7 +20,8 @@ import { useFavourites } from "./favourites";
   then ↗) and one or two lines of description; at a larger text size, where a row is too narrow for
   that, the icon and the star take a line of their own over the rest (ResourceRow). A whole row is
   the link (a new tab, without access back to this page and without sending this page's address);
-  the star beside it keeps a favourite in this browser. Managing the library is Admin Mode's
+  the star keeps a favourite in this browser (at the row's end, or at its top right, beside the icon,
+  where the two take a line of their own). Managing the library is Admin Mode's
   (Platform Settings → Resources), never this page's.
 */
 
@@ -147,7 +148,9 @@ function ResourceRow({ resource: e, favourite, onToggle }: { resource: Resource;
         <ResourceIcon icon={e.icon} url={e.url} className="mt-0.5 h-8 w-8" />
         <span className="min-w-0 flex-1 @max-[16rem]/resources:self-stretch">
           {/* The title wraps rather than being cut (a phone row's name at the row standard, text-md
-              semibold, docs/MOBILE.md); the host beside it gives way first, cut short, then ↗. */}
+              semibold, docs/MOBILE.md); the host beside it gives way first, cut short, then ↗. Under
+              16rem of list (larger text) the line wraps: the host goes under the title where the two
+              do not fit side by side, still the one cut short. */}
           <span className="flex min-w-0 items-baseline gap-2 @max-[16rem]/resources:flex-wrap @max-[16rem]/resources:gap-y-0.5">
             <span className="min-w-0 text-md font-semibold leading-snug text-fg [overflow-wrap:anywhere] group-hover:text-accent md:text-sm md:font-medium" data-testid="resource-title">
               {e.title}
