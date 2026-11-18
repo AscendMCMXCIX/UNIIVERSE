@@ -258,14 +258,17 @@ test("the tab bar's five destinations fit side by side on the narrowest phones, 
 });
 
 test("with larger text the tab bar still fits the phone: the icons alone once the labels no longer fit, each destination still named", async ({ browser, baseURL }) => {
-  // A phone's text-size setting scales the root size, and with it the bar's rem: the five labels
-  // need 19.1rem under their icons and 33.2rem beside them (a short window). Wider than the phone,
-  // the bar made the browser widen the area every fixed element is placed in.
+  // A phone's text-size setting scales the root size, and with it the bar's rem: Player Mode's five
+  // labels need up to 19.6rem under their icons and 34.7rem beside them (a short window), Admin
+  // Mode's four 14.6rem and 26rem (TAB_FIT). Wider than the phone, the bar made the browser widen
+  // the area every fixed element is placed in.
   const cases = [
     { viewport: { width: 320, height: 568 }, root: 125 },
     { viewport: { width: 320, height: 568 }, root: 200 },
     { viewport: { width: 393, height: 659 }, root: 150 },
     { viewport: { width: 393, height: 659 }, root: 200 },
+    // Held sideways where the labels side by side only just fit or just do not (34rem at 135%).
+    { viewport: { width: 734, height: 343 }, root: 135 },
     { viewport: { width: 734, height: 343 }, root: 150 },
     { viewport: { width: 734, height: 343 }, root: 200 },
   ];
@@ -279,7 +282,6 @@ test("with larger text the tab bar still fits the phone: the icons alone once th
       document.documentElement.style.fontSize = `${r}%`;
     }, root);
     await page.evaluate(() => document.fonts.ready);
-    // Each destination keeps its name (its label, read even where only the icon shows).
     // Each destination keeps its name for screen readers: its accessible name, whether the label
     // shows or is left to them (sr-only, never removed).
     const links = bar.getByRole("link");
@@ -298,6 +300,25 @@ test("with larger text the tab bar still fits the phone: the icons alone once th
     }).toPass({ timeout: 15_000 });
   }
   await done(page);
+  // Admin Mode's four labels need less room (14.6rem under their icons): at 150% on a 393px phone
+  // (a 16.4rem bar) they still show, where Player Mode's five give way to the icons.
+  const admin = await phone(browser, baseURL!, { ...IPHONE, viewport: { width: 393, height: 659 } }, "admin");
+  // Platform settings fits a 393px phone at 150% text (the dashboard's health cards do not yet:
+  // STATUS.md, Deferred), so the bar is measured alone.
+  await admin.goto("/admin/settings");
+  await admin.evaluate(() => {
+    document.documentElement.style.fontSize = "150%";
+  });
+  await admin.evaluate(() => document.fonts.ready);
+  const adminBar = admin.getByTestId("phone-tabbar");
+  await expect(async () => {
+    expect(await admin.evaluate(() => window.innerWidth), "Admin Mode at 150%: the page as wide as the phone").toBe(393);
+    for (const tab of await adminBar.getByRole("link").all()) {
+      const shown = await tab.locator("span").last().evaluate((el) => el.getBoundingClientRect().width > 1 && el.scrollWidth <= el.clientWidth + 1);
+      expect(shown, "Admin Mode at 150%: its labels shown whole").toBe(true);
+    }
+  }).toPass({ timeout: 15_000 });
+  await done(admin);
 });
 
 test("the (i) marks are 24px targets, 40px to a finger, without changing the line they sit in", async ({ browser, baseURL }) => {

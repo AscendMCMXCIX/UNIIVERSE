@@ -78,6 +78,8 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
   const accountLinks = adminMode ? ADMIN_ACCOUNT_LINKS : ACCOUNT_LINKS;
   const pathname = usePathname();
   const tabs: PhoneTab[] = adminMode ? ADMIN_TABS.filter((t) => allowed.includes(t.href)) : phoneTabs(allowed);
+  // Where the labels give way to the icons alone, for this set of destinations (TAB_FIT).
+  const fit = adminMode ? TAB_FIT.admin : TAB_FIT.member;
   const activeTab = currentTab(pathname, tabs.map((t) => t.href));
   // The drawer (tablets) and the account screen (phones) remember the path they were opened on, so any
   // navigation closes them without an effect.
@@ -325,18 +327,19 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
           {/* One column per destination, as wide as the bar allows and never narrower than its label,
               so the longest (Leaderboards) stays whole on a 320px screen. The current tab is lit twice
               over: its icon sits in an accent pill and its label turns bright, so it reads at a glance
-              without colour alone. With larger text the labels can stop fitting (the five need
-              19.1rem under their icons, 33.2rem beside them in a short window): then the bar shows
+              without colour alone. With larger text the labels can stop fitting: then the bar shows
               the icons alone, each pill sharing the width, and the labels stay the destinations'
               names for screen readers. Measured in the bar's own width in rem, so the user's text
-              size counts: a 320px phone has 20rem at 100% and 10rem at 200%. Wider than the phone,
-              the bar made the browser widen the area every fixed element is placed in. */}
-          <ul className="mx-auto flex max-w-lg">
+              size counts (a 320px phone has 20rem at 100% and 10rem at 200%), against what each set
+              of labels needs (TAB_FIT). In a short window the list's cap is wider than its labels
+              side by side. Wider than the phone, the bar made the browser widen the area every fixed
+              element is placed in. */}
+          <ul className="mx-auto flex max-w-lg short:max-w-xl">
             {tabs.map(({ href, label, icon: Icon }) => {
               const active = href === activeTab;
               const own = href === "/overview" && user?.avatarUrl;
               return (
-                <li key={href} className="min-w-max flex-1 basis-0 @max-[19.5rem]/tabbar:min-w-0 short:@max-[33.5rem]/tabbar:min-w-0">
+                <li key={href} className={cn("min-w-max flex-1 basis-0", fit.li)}>
                   <Link
                     href={href}
                     aria-current={active ? "page" : undefined}
@@ -348,11 +351,11 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
                         toTop();
                       }
                     }}
-                    className={cn("group flex min-h-14 flex-col items-center justify-center gap-1 px-1 pb-1 pt-1.5 text-2xs font-medium transition-colors duration-150 short:min-h-11 short:flex-row short:gap-1.5 short:py-1 @max-[19.5rem]/tabbar:px-0.5 short:@max-[33.5rem]/tabbar:px-0.5", active ? "font-semibold text-fg" : "text-fg-muted hover:text-fg")} data-testid={`tab-${href.slice(1)}`}>
-                    <span className={cn("grid h-7 w-12 place-items-center rounded-full transition-colors duration-150 @max-[19.5rem]/tabbar:w-full @max-[19.5rem]/tabbar:max-w-12 short:@max-[33.5rem]/tabbar:w-full short:@max-[33.5rem]/tabbar:max-w-12", active ? "bg-accent/15 text-accent" : "group-hover:bg-surface-2")} aria-hidden>
+                    className={cn("group flex min-h-14 flex-col items-center justify-center gap-1 px-1 pb-1 pt-1.5 text-2xs font-medium transition-colors duration-150 short:min-h-11 short:flex-row short:gap-1.5 short:py-1", fit.link, active ? "font-semibold text-fg" : "text-fg-muted hover:text-fg")} data-testid={`tab-${href.slice(1)}`}>
+                    <span className={cn("grid h-7 w-12 place-items-center rounded-full transition-colors duration-150", fit.pill, active ? "bg-accent/15 text-accent" : "group-hover:bg-surface-2")} aria-hidden>
                       {own ? <Avatar name={user!.name} src={user!.avatarUrl} size="xs" className={cn(active && "ring-2 ring-accent")} /> : <Icon className="h-5 w-5" />}
                     </span>
-                    <span className="leading-none @max-[19.5rem]/tabbar:sr-only short:@max-[33.5rem]/tabbar:sr-only">{label}</span>
+                    <span className={cn("leading-none", fit.label)}>{label}</span>
                   </Link>
                 </li>
               );
@@ -378,6 +381,28 @@ function toTop() {
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   window.scrollTo({ top: 0, behavior: reduce ? "instant" : "smooth" });
 }
+
+/**
+ * Where the tab bar's labels stop fitting, as static class lists (Tailwind reads them whole). Measured
+ * on 18 Nov 2026 with the bundled Inter at 100% text, by a clone of a real tab per label: Player
+ * Mode's five need up to 19.64rem under their icons and 34.67rem beside them in a short window (with
+ * Resources as the fifth; 19.13rem and 33.32rem with Profile); Admin Mode's four 14.63rem and 25.99rem.
+ * Below these widths of the bar, each destination shows its icon alone (docs/MOBILE.md, the tab bar).
+ */
+const TAB_FIT = {
+  member: {
+    li: "@max-[20rem]/tabbar:min-w-0 short:@max-[35rem]/tabbar:min-w-0",
+    link: "@max-[20rem]/tabbar:px-0.5 short:@max-[35rem]/tabbar:px-0.5",
+    pill: "@max-[20rem]/tabbar:w-full @max-[20rem]/tabbar:max-w-12 short:@max-[35rem]/tabbar:w-full short:@max-[35rem]/tabbar:max-w-12",
+    label: "@max-[20rem]/tabbar:sr-only short:@max-[35rem]/tabbar:sr-only",
+  },
+  admin: {
+    li: "@max-[15rem]/tabbar:min-w-0 short:@max-[26.5rem]/tabbar:min-w-0",
+    link: "@max-[15rem]/tabbar:px-0.5 short:@max-[26.5rem]/tabbar:px-0.5",
+    pill: "@max-[15rem]/tabbar:w-full @max-[15rem]/tabbar:max-w-12 short:@max-[26.5rem]/tabbar:w-full short:@max-[26.5rem]/tabbar:max-w-12",
+    label: "@max-[15rem]/tabbar:sr-only short:@max-[26.5rem]/tabbar:sr-only",
+  },
+} as const;
 
 /** Phones; and tablets in the installed app, which has no browser Back (a tablet in a browser has the browser's). */
 const BACK_CLASS = "-ml-1 flex min-h-11 min-w-0 max-w-[45%] shrink-0 items-center gap-0.5 rounded-md pr-2 text-sm font-medium text-accent hover:bg-surface-2";
