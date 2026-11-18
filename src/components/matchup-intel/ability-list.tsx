@@ -195,7 +195,7 @@ function AbilityRow({ champion, ability: a, checkedPatch, dataPatch, notRechecke
             <div className="min-w-0 space-y-1.5">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <KeyChip slot={a.slot} />
-                <h3 className="min-w-0 text-md font-semibold leading-snug text-fg" data-testid="ability-name">
+                <h3 className="min-w-0 text-md font-semibold leading-snug text-fg [overflow-wrap:anywhere]" data-testid="ability-name">
                   {a.name}
                 </h3>
                 {flagged ? (
@@ -340,7 +340,8 @@ export function AbilitiesPanel({ intel, title, testId }: { intel: ChampionIntelV
   return (
     <Panel className="overflow-hidden" data-testid={testId} data-champion={intel.champion.id}>
       <PanelHeader
-        title={title}
+        // A long name (Heimerdinger's) breaks rather than reach past the panel at a larger text size.
+        title={<span className="[overflow-wrap:anywhere]">{title}</span>}
         subtitle={
           <span className="flex flex-col gap-1">
             <span>Base cooldowns, without ability haste{from ? ` · ${from}` : ""}</span>

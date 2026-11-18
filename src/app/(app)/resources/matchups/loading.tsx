@@ -4,7 +4,7 @@ export default function Loading() {
   return (
     <div className="mx-auto max-w-[var(--content-max)] space-y-5" role="status" aria-live="polite" aria-label="Loading Matchup Intel" data-testid="matchup-intel-loading">
       <div className="space-y-2">
-        <div className={`${block} h-8 w-44 rounded-md`} />
+        <div className={`${block} h-8 w-44 max-w-full rounded-md`} />
         <div className={`${block} h-4 w-[32rem] max-w-full rounded-md max-md:hidden`} />
       </div>
       <div className="@container/pickers space-y-1.5">

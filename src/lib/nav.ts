@@ -285,6 +285,16 @@ export function backSteps(entries: ReadonlyArray<{ url: string | null }>, index:
   return null;
 }
 
+/**
+ * Whether this browser shows the page its own history (the Navigation API), which backSteps needs to
+ * step a phone's Back past the entries a page made of itself. Where it does not (Safari before 26.2,
+ * Firefox before 147), such a page replaces its entry instead of adding one: otherwise the Back named
+ * after the page before would step back through each of them, one tap at a time, under that name.
+ */
+export function historyShowsEntries(): boolean {
+  return typeof window !== "undefined" && !!(window as unknown as { navigation?: { currentEntry?: unknown } }).navigation?.currentEntry;
+}
+
 /** Admin Mode's start page (its dashboard). It is current only on itself, not on the pages beneath it. */
 export const ADMIN_HOME = "/admin";
 

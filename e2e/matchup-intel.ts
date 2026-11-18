@@ -53,7 +53,14 @@ export async function pickerSpill(win: Locator): Promise<number> {
   await expect(win.getByTestId("matchup-picker-grid").locator("button[data-champion]").first()).toBeVisible();
   return win.evaluate((d) => {
     const box = d.getBoundingClientRect();
-    return Math.max(0, ...[...d.querySelectorAll("*")].map((e) => e.getBoundingClientRect().right - box.right));
+    // What is fixed to the screen rather than laid out in the window is left out: the notifications'
+    // region, drawn inside an open window in the same place as on the page (the screen's foot, its
+    // own width), is empty and out of the window's layout.
+    const fixed = (e: Element) => {
+      for (let a: Element | null = e; a && a !== d; a = a.parentElement) if (getComputedStyle(a).position === "fixed") return true;
+      return false;
+    };
+    return Math.max(0, ...[...d.querySelectorAll("*")].filter((e) => !fixed(e)).map((e) => e.getBoundingClientRect().right - box.right));
   });
 }
 

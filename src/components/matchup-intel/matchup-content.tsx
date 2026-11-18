@@ -123,7 +123,7 @@ export function MatchupContent({ view, champions, curated, legal }: { view: Matc
         <section>
           <h2 className="sr-only">{`Your champion: ${yourIntel.champion.name}`}</h2>
           <Disclosure
-            title={`Your champion: ${yourIntel.champion.name}`}
+            title={<span className="[overflow-wrap:anywhere]">{`Your champion: ${yourIntel.champion.name}`}</span>}
             description={
               // Where its abilities come from, its own version (which may differ from the enemy's), and its notes' check.
               <span className="flex flex-col gap-1">

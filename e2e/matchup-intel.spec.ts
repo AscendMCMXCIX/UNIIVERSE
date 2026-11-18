@@ -390,6 +390,24 @@ test("phone: Back in the top bar leads to Resources, as it is named, past the pa
   // The browser's own Back still steps through the pairs (the swap test above).
 });
 
+test("phone, in a browser without the Navigation API (Safari before 26.2): Back in the top bar still reaches Resources in one tap", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1000) >= 768, "the phone's top bar");
+  // Without the API the page cannot see its own history entries, so the top bar's Back could not step
+  // past pairs added as entries: each pair replaces the entry instead. Next.js's router reads the API
+  // only where it exists, so hiding it gives the page what an older Safari gives it.
+  await page.addInitScript(() => Object.defineProperty(window, "navigation", { value: undefined, configurable: true }));
+  await page.goto("/resources");
+  await page.getByTestId("resources-tab-matchups").click();
+  await expect(page.getByRole("heading", { level: 1, name: "Matchup Intel" })).toBeVisible();
+  expect(await page.evaluate(() => (window as unknown as { navigation?: unknown }).navigation)).toBeUndefined();
+  await choose(page, "you", "riven", "Riven");
+  await choose(page, "enemy", "morde", "Mordekaiser");
+  const back = page.getByTestId("mobile-back");
+  await expect(back).toContainText("Resources");
+  await back.click();
+  await expect(page).toHaveURL(/\/resources$/);
+});
+
 test("the champion window links to Matchup Intel with its champion chosen", async ({ page }) => {
   await page.goto("/team");
   const id = await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id");
@@ -513,30 +531,37 @@ test("no sideways scrolling at 320, 375, 430 (a large phone) and 768 wide, the p
   }
 });
 
-test("phone at 200% text: nothing is cut or spills sideways in the pickers, the briefing, the ability lists (every details part open) or the notes", async ({ page }) => {
+test("phone at 200% text: nothing is cut or spills sideways in the pickers, the remembered line, the briefing, the ability lists (every details part open) or the notes, at 390 and 320 wide, each pair swapped too", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 1000) >= 768, "a phone");
-  // A 390px phone with its text at 200%, as the other large-text tests set it (html's font size: the
+  // A phone with its text at 200%, as the other large-text tests set it (html's font size: the
   // page's sizes are in rem, so everything but the screen grows). The three validation pairs: the
-  // most a page holds, with a briefing, two curated champions and their level notes. Pictures drawn,
-  // not their stand-ins.
+  // most a page holds, with a briefing, two curated champions and their level notes. Each swapped
+  // too: no briefing then, and the remembered line offers to remember the longer names (Remember
+  // Mordekaiser was wider than a 320 or 375px phone). Measured once the page has read this device,
+  // so the line is in its real state, not its placeholder. Pictures drawn, not their stand-ins.
   await localPictures(page);
-  await page.setViewportSize({ width: 390, height: 844 });
-  for (const [you, enemy] of CURATED) {
-    await openMatchupIntel(page, you, enemy);
-    await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
-    expect(await page.evaluate(() => getComputedStyle(document.documentElement).fontSize)).toBe("32px");
-    // Every details part open (your champion's abilities, each ability's notes and sources), and
-    // measured at rest: a chevron turns as its details opens, and a turning square is wider.
-    await page.getByTestId("matchup-intel").evaluate(async (m) => {
-      for (const d of m.querySelectorAll("details")) d.open = true;
-      await document.fonts.ready;
-      const finite = document.getAnimations().filter((a) => a.effect?.getComputedTiming().endTime !== Infinity);
-      await Promise.all(finite.map((a) => a.finished.catch(() => undefined)));
-    });
-    expect(await overflow(page), `${you} vs ${enemy}: the page`).toBeLessThanOrEqual(1);
-    for (const part of ["matchup-pickers", "matchup-briefing", "matchup-enemy-abilities", "matchup-your-abilities", "matchup-interactions", "matchup-level-notes"]) {
-      await expect(page.getByTestId(part), `${you} vs ${enemy}: ${part}`).toBeVisible();
-      expect.soft(await cutOrSpilled(page.getByTestId(part)), `${you} vs ${enemy}: ${part}`).toEqual([]);
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    for (const [you, enemy, curated] of CURATED.flatMap(([a, b]) => [[a, b, true], [b, a, false]] as const)) {
+      await openMatchupIntel(page, you, enemy);
+      await hydrated(page);
+      await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+      expect(await page.evaluate(() => getComputedStyle(document.documentElement).fontSize)).toBe("32px");
+      // Every details part open (your champion's abilities, each ability's notes and sources), and
+      // measured at rest: a chevron turns as its details opens, and a turning square is wider.
+      await page.getByTestId("matchup-intel").evaluate(async (m) => {
+        for (const d of m.querySelectorAll("details")) d.open = true;
+        await document.fonts.ready;
+        const finite = document.getAnimations().filter((a) => a.effect?.getComputedTiming().endTime !== Infinity);
+        await Promise.all(finite.map((a) => a.finished.catch(() => undefined)));
+      });
+      const at = `${you} vs ${enemy} at ${width}px`;
+      expect(await overflow(page), `${at}: the page`).toBeLessThanOrEqual(1);
+      const parts = curated ? ["matchup-pickers", "matchup-remembered", "matchup-briefing", "matchup-enemy-abilities", "matchup-your-abilities", "matchup-interactions", "matchup-level-notes"] : ["matchup-pickers", "matchup-remembered", "matchup-no-briefing", "matchup-enemy-abilities", "matchup-your-abilities"];
+      for (const part of parts) {
+        await expect(page.getByTestId(part), `${at}: ${part}`).toBeVisible();
+        expect.soft(await cutOrSpilled(page.getByTestId(part)), `${at}: ${part}`).toEqual([]);
+      }
     }
   }
 });
@@ -577,11 +602,13 @@ test("phone at 200% and 150% text: the states with one side or none chosen, and 
     for (const [name, query, part] of states) {
       await page.goto(`/resources/matchups${query}`);
       await expect(page.getByTestId(part)).toBeVisible();
+      // The remembered line in its real state (Remember Riven, with only yours), not its placeholder.
+      await hydrated(page);
       await page.addStyleTag({ content: `html { font-size: ${percent}% !important; }` });
       await page.evaluate(() => document.fonts.ready);
       const at = `${name} at ${width}px, ${percent}%`;
       expect(await overflow(page), `${at}: the page`).toBeLessThanOrEqual(1);
-      for (const p of ["matchup-pickers", part]) expect.soft(await cutOrSpilled(page.getByTestId(p)), `${at}: ${p}`).toEqual([]);
+      for (const p of ["matchup-pickers", "matchup-remembered", part]) expect.soft(await cutOrSpilled(page.getByTestId(p)), `${at}: ${p}`).toEqual([]);
     }
     // The picker window, with nothing typed and with results: whole portraits, whole names.
     const win = await openPicker(page, "you");
@@ -594,6 +621,19 @@ test("phone at 200% and 150% text: the states with one side or none chosen, and 
     await win.getByTestId("matchup-picker-close").click();
     await expect(win).toHaveCount(0);
   }
+  // The picker's short rows keep long one-word names inside the window too: Recent (a long name
+  // picked before) and your champion's curated matchups (Riven's: Mordekaiser), at 320px and 200%.
+  await page.setViewportSize({ width: 320, height: 844 });
+  await openMatchupIntel(page, "Riven");
+  await hydrated(page);
+  await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+  await choose(page, "enemy", "heimer", "Heimerdinger");
+  const rows = await openPicker(page, "enemy");
+  await untilStill(page);
+  await expect(rows.getByTestId("matchup-picker-recent").locator('button[data-champion="Heimerdinger"]')).toBeVisible();
+  await expect(rows.getByTestId("matchup-picker-curated").locator('button[data-champion="Mordekaiser"]')).toBeVisible();
+  expect(await pickerSpill(rows), "the picker's rows at 320px, 200%: past the window's edge").toBeLessThanOrEqual(1);
+  for (const r of ["matchup-picker-recent", "matchup-picker-curated"]) expect.soft(await cutOrSpilled(rows.getByTestId(r)), `the picker at 320px, 200%: ${r}`).toEqual([]);
 });
 
 test("phone: the briefing's threat is on the first screen, above the tab bar: whole at 390 by 664, its first line at 320 by 568", async ({ page }) => {
@@ -711,6 +751,34 @@ test.describe("a choice on its way", () => {
     // A pick says what came the same way.
     await choose(page, "enemy", "darius", "Darius");
     await expect(page.getByTestId("matchup-status")).toHaveText("No curated briefing for Riven vs Darius yet. Darius's abilities follow.");
+  });
+
+  test("the status line changes only once a picker window has gone, so a screen reader hears it; a window closed without a pick says nothing", async ({ page }) => {
+    await openMatchupIntel(page, "Riven", "Garen");
+    await hydrated(page);
+    // Every change of the status line's words, and whether a window was open as it happened: while
+    // a modal window is open the page under it is inert, out of a screen reader's reach, and a live
+    // region speaks only what is added to it once it is back in reach.
+    type Change = { text: string; windowOpen: boolean };
+    await page.getByTestId("matchup-status").evaluate((el) => {
+      const log: Change[] = [];
+      (window as unknown as { statusChanges: Change[] }).statusChanges = log;
+      new MutationObserver(() => log.push({ text: el.textContent ?? "", windowOpen: !!document.querySelector("dialog[open]") })).observe(el, { childList: true, characterData: true, subtree: true });
+    });
+    const changes = () => page.evaluate(() => (window as unknown as { statusChanges: Change[] }).statusChanges);
+    // Opened and closed without a pick: nothing new, so the line does not change. Waited past the
+    // window's closing motion and the moment after it, when a change would be made.
+    const win = await openPicker(page, "enemy");
+    await win.getByTestId("matchup-picker-close").click();
+    await expect(win).toHaveCount(0);
+    await page.waitForTimeout(500);
+    expect(await changes(), "a window closed without a pick").toEqual([]);
+    // A pick: the line says what came, and its words change only once the window has gone.
+    await choose(page, "enemy", "darius", "Darius");
+    await expect(page.getByTestId("matchup-status")).toHaveText("No curated briefing for Riven vs Darius yet. Darius's abilities follow.");
+    const made = await changes();
+    expect(made.length, "the line changed").toBeGreaterThan(0);
+    expect(made.filter((c) => c.windowOpen), "changes made while the window was open").toEqual([]);
   });
 });
 

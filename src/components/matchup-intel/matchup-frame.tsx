@@ -8,6 +8,7 @@ import { ChampionPortrait } from "@/components/champion-portrait";
 import { releaseEarlyTaps, type EarlyTap } from "@/components/early-taps";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
+import { historyShowsEntries } from "@/lib/nav";
 import { matchupHref } from "./address";
 import { ChampionPickerWindow } from "./champion-picker";
 import { useMatchupPreferences, type PickerSlot } from "./preferences";
@@ -159,6 +160,14 @@ function SlotButton({ slot, champion, onOpen, buttonRef }: { slot: PickerSlot; c
 
 /** Words a phone leaves out of sight to keep the line on one row; screen readers still read them (and the button names keep their visible words first). */
 const WIDER = "max-sm:sr-only";
+/**
+ * A button whose words a larger text size makes wider than the line (Remember Mordekaiser at 200%, on
+ * a phone or beside a tablet's open sidebar): they wrap and it grows. At the usual size it keeps its
+ * height, 28px with a mouse and 44px on a phone or a touch screen (Button's own minimums stay).
+ */
+const WRAP_WORDS = "h-auto min-h-7 max-w-full whitespace-normal py-1 text-center";
+/** Longer than a window's closing motion (DetailModal's EXIT_MS, 140 ms): the page under it is in a screen reader's reach again by then. */
+const STATUS_SETTLE_MS = 200;
 
 /**
  * What this device remembers as your champion, said where it matters: with no champion of yours in
@@ -171,7 +180,9 @@ const WIDER = "max-sm:sr-only";
  * kept while the storage is unknown, so nothing under the line moves once it is read: the picture
  * or check and the words are one item, and only the buttons may go to a row of their own. From sm
  * the buttons follow the words, not the far end of the line. A button's words, those a phone hides
- * included, are one run of text, so its gap never falls inside them. Focus never falls off the page:
+ * included, are one run of text, so its gap never falls inside them. With a larger text size a
+ * button wraps its words and grows (Remember Mordekaiser at 200% is wider than a 320px or 375px
+ * phone), so the line never reaches past its place. Focus never falls off the page:
  * Forget and Remember are one button whose words change, and where the focused control goes with
  * what it did (Use, and Forget on the offer), focus moves to the You slot.
  */
@@ -252,7 +263,7 @@ function RememberedLine({ you, remembered, onUse, onRemember, focusYourSlot }: {
     ) : null;
     actions = (
       // A button that looks like one, on a phone too, with what it does in its icon.
-      <Button key="toggle" size="sm" variant="outline" onClick={() => onRemember(you.id)} data-testid="matchup-remember">
+      <Button key="toggle" size="sm" variant="outline" className={WRAP_WORDS} onClick={() => onRemember(you.id)} data-testid="matchup-remember">
         <BookmarkPlus className="h-3.5 w-3.5 shrink-0" aria-hidden />
         <span>
           Remember {you.name}
@@ -264,7 +275,7 @@ function RememberedLine({ you, remembered, onUse, onRemember, focusYourSlot }: {
   return (
     <div className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg-muted" data-testid="matchup-remembered" data-state={state}>
       {info ? <span className="flex min-w-0 grow basis-24 items-center gap-2 sm:grow-0 sm:basis-auto">{info}</span> : null}
-      {actions ? <span className="flex shrink-0 items-center gap-2">{actions}</span> : null}
+      {actions ? <span className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{actions}</span> : null}
     </div>
   );
 }
@@ -282,6 +293,17 @@ export function MatchupFrame({ you, enemy, champions, curated, announcement = ""
   // The choice on its way: shown in the slots until the server's page for it arrives.
   const [target, setTarget] = React.useState<Pair | null>(null);
   const [picking, setPicking] = React.useState<PickerSlot | null>(null);
+  /**
+   * The status line's words while a picker window is open, and for a moment after it has gone: the
+   * page under a modal window is out of a screen reader's reach (inert), and a live region speaks
+   * only what is added to it once it is in reach again, never what it already holds. So the line
+   * keeps what it said until the page is back, then says what is new: what is loading, or what came.
+   * A window closed without a pick changes nothing, so nothing is said.
+   */
+  const [heldStatus, setHeldStatus] = React.useState<string | null>(null);
+  const statusNow = React.useRef("");
+  const releaseTimer = React.useRef<number | undefined>(undefined);
+  React.useEffect(() => () => window.clearTimeout(releaseTimer.current), []);
   const youSlot = React.useRef<HTMLButtonElement>(null);
   const enemySlot = React.useRef<HTMLButtonElement>(null);
   /**
@@ -291,7 +313,14 @@ export function MatchupFrame({ you, enemy, champions, curated, announcement = ""
    */
   const openPicker = React.useCallback((slot: PickerSlot) => {
     (slot === "you" ? youSlot : enemySlot).current?.focus({ preventScroll: true });
+    window.clearTimeout(releaseTimer.current);
+    setHeldStatus((held) => held ?? statusNow.current);
     setPicking(slot);
+  }, []);
+  const closePicker = React.useCallback(() => {
+    setPicking(null);
+    window.clearTimeout(releaseTimer.current);
+    releaseTimer.current = window.setTimeout(() => setHeldStatus(null), STATUS_SETTLE_MS);
   }, []);
   const focusYourSlot = React.useCallback(() => youSlot.current?.focus({ preventScroll: true }), []);
   // Taps on the slots and the prompts made before this code ran: each opens its picker now, once.
@@ -308,7 +337,10 @@ export function MatchupFrame({ you, enemy, champions, curated, announcement = ""
   const go = (next: Pair) => {
     if (next.you === shown.you && next.enemy === shown.enemy) return;
     setTarget(next);
-    startTransition(() => router.push(matchupHref(next.you, next.enemy), { scroll: false }));
+    // Each pair an entry of its own where the phone's Back can step past them (backSteps); where it
+    // cannot, the pair replaces the entry, so both Backs leave the page in one step.
+    const href = matchupHref(next.you, next.enemy);
+    startTransition(() => (historyShowsEntries() ? router.push(href, { scroll: false }) : router.replace(href, { scroll: false })));
   };
   const goRef = React.useRef(go);
   React.useEffect(() => {
@@ -328,6 +360,10 @@ export function MatchupFrame({ you, enemy, champions, curated, announcement = ""
   const recent = (slot: PickerSlot) => prefs.recent[slot].map(choice).filter((c): c is ChampionChoice => !!c);
   const yourChoice = choice(shown.you);
   const loading = pending && target ? `Loading ${pairWords(target, nameOf)}…` : null;
+  const status = loading ?? (arrived ? announcement : "");
+  React.useEffect(() => {
+    statusNow.current = status;
+  });
 
   return (
     <FrameContext.Provider value={actions}>
@@ -363,7 +399,7 @@ export function MatchupFrame({ you, enemy, champions, curated, announcement = ""
           )}
           {/* Always there, so a screen reader hears each change: what is loading, then what came. */}
           <p role="status" className="sr-only" data-testid="matchup-status">
-            {loading ?? (arrived ? announcement : "")}
+            {heldStatus ?? status}
           </p>
         </section>
         <div className={cn("transition-opacity duration-150 motion-reduce:transition-none", pending && "pointer-events-none opacity-60")} aria-busy={pending || undefined} inert={pending || undefined} data-testid="matchup-intel-content">
@@ -379,7 +415,7 @@ export function MatchupFrame({ you, enemy, champions, curated, announcement = ""
           curated={picking === "enemy" && shown.you ? (curated[shown.you] ?? []).map(choice).filter((c): c is ChampionChoice => !!c) : []}
           yourName={yourChoice?.name ?? null}
           onPick={(id) => pick(picking, id)}
-          onClose={() => setPicking(null)}
+          onClose={closePicker}
         />
       ) : null}
     </FrameContext.Provider>

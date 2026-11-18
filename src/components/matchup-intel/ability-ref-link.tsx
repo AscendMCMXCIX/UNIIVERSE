@@ -1,12 +1,14 @@
 "use client";
 
 import type * as React from "react";
+import { historyShowsEntries } from "@/lib/nav";
 
 /**
  * Jumps to the row with this anchor, as following a link to it would, through the router's own
  * history: a closed section the row sits in (your own champion's abilities, collapsed) is opened
- * first; the anchor is written into the address with history.pushState, which Next.js's router
- * extends to copy its own state into the new entry; the row is brought into view and takes the
+ * first; the anchor is written into the address with history.pushState (replaceState where the
+ * browser has no Navigation API, see historyShowsEntries), which Next.js's router extends to copy
+ * its own state into the entry; the row is brought into view and takes the
  * focus until it moves on (tabIndex -1 meanwhile, so a click inside a row never focuses it), so a
  * screen reader lands there too. The browser's own jump to an anchor makes an entry without that
  * state, which the router does not restore: after a later choice of champions, Back would show that
@@ -18,7 +20,11 @@ export function jumpToAnchor(anchor: string): void {
   if (!row) return;
   for (let d = row.parentElement?.closest("details:not([open])"); d; d = d.parentElement?.closest("details:not([open])")) (d as HTMLDetailsElement).open = true;
   const hash = `#${anchor}`;
-  if (window.location.hash !== hash) window.history.pushState(null, "", hash);
+  // An entry of its own where the phone's Back can step past it (backSteps); else the entry is replaced.
+  if (window.location.hash !== hash) {
+    if (historyShowsEntries()) window.history.pushState(null, "", hash);
+    else window.history.replaceState(null, "", hash);
+  }
   row.scrollIntoView({ block: "start" });
   if (!row.hasAttribute("tabindex")) {
     row.setAttribute("tabindex", "-1");

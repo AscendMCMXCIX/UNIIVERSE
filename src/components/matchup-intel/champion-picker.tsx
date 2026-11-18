@@ -38,13 +38,14 @@ function ChoiceRow({ title, choices, selected, onPick, testId }: { title: string
               type="button"
               onClick={() => onPick(c.id)}
               aria-pressed={selected === c.id}
-              className={cn("flex min-h-11 items-center gap-2 rounded-md border bg-surface py-1 pl-1 pr-3 text-sm font-medium transition-colors hover:border-border-strong hover:text-fg", selected === c.id ? "border-accent/60 text-fg" : "border-border text-fg-muted")}
+              className={cn("flex min-h-11 min-w-0 max-w-full items-center gap-2 rounded-md border bg-surface py-1 pl-1 pr-3 text-left text-sm font-medium transition-colors hover:border-border-strong hover:text-fg", selected === c.id ? "border-accent/60 text-fg" : "border-border text-fg-muted")}
               data-champion={c.id}
             >
               <span aria-hidden className="shrink-0">
                 <ChampionPortrait champion={portraitOf(c)} size="sm" />
               </span>
-              {c.name}
+              {/* A long name breaks rather than reach past the window at a larger text size. */}
+              <span className="min-w-0 [overflow-wrap:anywhere]">{c.name}</span>
             </button>
           </li>
         ))}

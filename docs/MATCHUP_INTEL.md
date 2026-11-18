@@ -76,8 +76,11 @@ would leave a column a word wide, the two pickers stand one above the other with
 them (under 14rem: 200%, or 150% up to 375px wide), and an ability row puts its icon above its
 words and a level note its level above it (under 16rem: from 150%, or 125% on a 320px phone). The
 picker's roster has columns in rem as well, so its portraits and names grow with the text, and a
-name takes two lines rather than being cut. At 200% on a 390px phone nothing on the page is cut or
-reaches past its box, in every state and in the picker window (`e2e/matchup-intel.spec.ts`).
+name takes two lines rather than being cut. At 200% on a 320px or a 390px phone nothing on the page
+is cut or reaches past its box, in every state (each curated pair and its swap, so the remembered
+line's Remember with the longer names, too) and in the picker window, its Recent and curated rows
+included: a word too long for its line (a heading's, an ability's or a champion's name) breaks
+rather than being cut, and a button's words wrap (`e2e/matchup-intel.spec.ts`).
 
 The page also has a state for each of these:
 
@@ -130,7 +133,9 @@ afterwards, and no person has checked each fact against its page (For the owner,
   screen, and Back from Matchup Intel leads to Resources, never to Team (`phoneParent` and
   `pageName`, `src/lib/nav.ts`). Each pair chosen is an entry in the browser's history, so the
   browser's Back steps through them; the top bar's Back, named after Resources, goes past them to
-  Resources (`backSteps`).
+  Resources (`backSteps`). That needs the browser's Navigation API (Chrome, Safari from 26.2,
+  Firefox from 147): without it the page cannot see those entries, so each pair replaces the entry
+  instead, and both Backs leave the page in one step (`historyShowsEntries`).
 - **The address** carries the choice: `?champion=<id>&vs=<id>`, Data Dragon ids, the same names as
   the champion window's. Each id is checked against the roster on the server. An id that is not on
   it is dropped. The id may also be written as a name, in any case, with accents or punctuation
@@ -156,7 +161,7 @@ afterwards, and no person has checked each fact against its page (For the owner,
   - then the whole roster (`ChampionGrid` without its own toolbar).
 
   Enter takes the first match. Escape clears the search, then closes the window. A choice goes into
-  the address at once (`router.push`): the slots show it while the page under them dims until the
+  the address at once (`router.push`; `router.replace` where the browser has no Navigation API): the slots show it while the page under them dims until the
   server's page arrives (a curated pair's link goes the same way, `PairLink`).
 - **Remembered on this device, for this account**: the champion you choose as yours, and the last
   eight champions on each side. They live in `localStorage` under `uniiverse.matchup-intel.v1`

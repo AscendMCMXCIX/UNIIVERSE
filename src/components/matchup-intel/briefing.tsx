@@ -77,7 +77,7 @@ function Point({ kind, point, names, rows }: { kind: "threat" | "opportunity"; p
   const Icon = threat ? TriangleAlert : Crosshair;
   return (
     <div className="min-w-0 space-y-2 px-3 py-3 sm:px-4" data-testid={`briefing-${kind}`} data-hidden={point.kind === "hidden" ? "" : undefined}>
-      <h3 className={threat ? "flex items-center gap-1.5 text-xs font-semibold uppercase tracking-label text-warn" : "flex items-center gap-1.5 text-xs font-semibold uppercase tracking-label text-good"}>
+      <h3 className={threat ? "flex items-center gap-1.5 text-xs font-semibold uppercase tracking-label text-warn [overflow-wrap:anywhere]" : "flex items-center gap-1.5 text-xs font-semibold uppercase tracking-label text-good [overflow-wrap:anywhere]"}>
         <Icon className="h-4 w-4 shrink-0" aria-hidden />
         {threat ? "Threat" : "Opportunity"}
       </h3>
@@ -182,7 +182,7 @@ export function Briefing({ matchup, you, enemy, rows }: { matchup: MatchupIntelV
           </div>
           {lane.length ? (
             <section className="border-t border-border px-3 py-3 sm:px-4" aria-labelledby="briefing-lane-title" data-testid="briefing-lane">
-              <h3 id="briefing-lane-title" className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-label text-fg-subtle">
+              <h3 id="briefing-lane-title" className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-label text-fg-subtle [overflow-wrap:anywhere]">
                 <Waypoints className="h-4 w-4 shrink-0" aria-hidden />
                 In lane
               </h3>
