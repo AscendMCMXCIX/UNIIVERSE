@@ -18,17 +18,19 @@ the most important part first; side by side where a desktop has the room):
    the slots above it show the pair (a screen reader hears the pair in the heading). Each point has
    chips naming the abilities it rests on ("Renekton W"), which jump to that ability's row and give
    it the focus; a champion with no ability rows on the page (none stored yet) gets plain labels,
-   never links that lead nowhere. The jump goes into the address through the router's own
-   history, so Back after a later choice shows the pair it was made on (a browser's own jump to an
-   anchor leaves an entry the router does not restore). The briefing says which patch it was
-   checked on ("Checked on patch 26.22"), and once a later patch is out, that nobody has checked it
-   again for it ("Not re-checked for 26.23"). A point that rests on an ability Riot changed after
-   the check is hidden, and the page says so in its place, naming the ability ("Hidden: Riot changed
-   Renekton W after this briefing was checked."; Data, "Hidden points"). More than two patches
-   after its check the whole briefing is hidden, and says why (Data, "Freshness"). Where no briefing
-   exists, one calm line says so ("No curated briefing for Garen vs Darius yet") and that what
-   follows is the enemy's general reference, naming only what it holds: "abilities and base
-   cooldowns from Riot's data" for an enemy with no curated notes (Darius), "abilities, base
+   never links that lead nowhere. The jump goes into the address through the router's own history,
+   so Back after a later choice shows the pair it was made on (a browser's own jump to an anchor
+   leaves an entry the router does not restore). That holds where the browser has the Navigation
+   API; without it (Safari before 26.2, Firefox before 147) the jump replaces the current entry, as
+   each pair does, so Back leaves the page in one step (docs/MOBILE.md, Back). The briefing says
+   which patch it was checked on ("Checked on patch 26.22"), and once a later patch is out, that
+   nobody has checked it again for it ("Not re-checked for 26.23"). A point that rests on an ability
+   Riot changed after the check is hidden, and the page says so in its place, naming the ability
+   ("Hidden: Riot changed Renekton W after this briefing was checked."; Data, "Hidden points"). More
+   than two patches after its check the whole briefing is hidden, and says why (Data, "Freshness").
+   Where no briefing exists, one calm line says so ("No curated briefing for Garen vs Darius yet")
+   and that what follows is the enemy's general reference, naming only what it holds: "abilities and
+   base cooldowns from Riot's data" for an enemy with no curated notes (Darius), "abilities, base
    cooldowns and checked notes" for one with notes, and nothing more where no abilities are stored
    (`generalReferenceWords`). It also links the curated matchups that do exist for your champion.
 2. **The enemy's abilities**, one row each for P, Q, W, E and R (on a phone the icon sits beside the
@@ -102,7 +104,10 @@ The page also has a state for each of these:
   ("Loading Riven vs Mordekaiser…"), and the page under them dims and is out of reach (`inert`)
   until the server's page arrives. A curated pair's link does the same. A screen reader then hears
   what came ("Riven vs Mordekaiser: curated briefing, checked on patch 26.22. Mordekaiser's
-  abilities follow."), from a live region that is always there.
+  abilities follow."), from a live region that is always there. While a picker window is open the
+  line keeps the words it had, and keeps them for 200ms after the window has gone (longer than its
+  closing motion, so the page under it is back in a screen reader's reach), then says what is new; a
+  window closed without a pick says nothing (`heldStatus` in `matchup-frame.tsx`).
 - **The page failed** (the roster or the abilities could not be read, with nothing cached to stand
   in): "Matchup Intel could not load", with Try again (the page read afresh) and Start again (no
   champions chosen), inside the Resources tabs (`error.tsx` beside the page).
@@ -875,6 +880,9 @@ pages were read on 16 Nov 2026: the League of Legends documentation
   load it too: 17 in CI's browser job (the Library: `account-screen` 8, `quality` 4, and
   `cross-device`, `matchup-intel` and `mobile-nav` one each; the manager only: `quality`'s two
   admin-page tests; counted from the specs on 16 Nov 2026) and 2 in the WebKit workflow (`webkit`).
+  Since then a second Matchup Intel phone test of the top bar's Back (in a browser without the
+  Navigation API, 18 Nov) opens the Library without blocking icons, so that figure is no longer
+  exact.
   It is a small automated request, repeated in every run that can reach the internet, in CI and on
   developers' machines.
   The agents who built this feature loaded it too, on 16 Nov 2026: their probes of the Library on
