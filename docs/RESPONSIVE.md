@@ -232,17 +232,22 @@ Substitute side of the Team cards).
   Filters, search) scroll away with its header. From md, once the section tabs are pinned and the
   page's own toolbar has gone up under them, the page's compact copy shows at the pinned row's end
   (`PageToolbar`; which page offers what: DESIGN_SYSTEM.md §7), at the row's own height (32px with a
-  mouse, 38px on touch screens with a 44px target), the labels where the row is 56rem or wider and
-  the icons alone below that; Team's name at the row's end gives way to it. It is watched against
-  the pinned stack's foot (the tablet's top bar and the tabs, measured from the pinned row), drawn
-  only while it shows, kept while it has the focus, and never in a short window. On phones the top
-  bar offers the page's Filters instead (above), and so does a tablet-wide short window (a phone held
-  sideways), where nothing pins. Either way the page's Filters sheet opens: at any width in its sheet
-  form, the inline toolbar keeping its size in the page (an empty box of its size while its fields
-  are in the sheet, one copy of each field and id), and closed after a change it brings the list's
-  first item under what is pinned (and under anything pinned over its start, as All Champions'
-  column headings). The pinned row's buttons and fields take the scroll padding back as its links
-  do, so focus moving onto them never scrolls the page.
+  mouse, 38px on touch screens with a 44px target; the search field 44px on touch screens, kept in
+  the row by its negative margins), the labels where the row is 56rem or wider and the icons alone
+  below that; Team's name at the row's end gives way to it. It is watched against the pinned stack's
+  foot (the tablet's top bar and the tabs, measured from the pinned row), drawn only while it shows,
+  kept while in use (pressed or focused, while the sheet it opened is open, and until that sheet has
+  handed the focus back), and never in a short window. On phones the top bar offers the page's
+  Filters instead (above), kept the same way, and so does a tablet-wide short window (a phone held
+  sideways), where nothing pins; in the fullest bar at large text, Back gives way to it (its label
+  shortens). Either way the page's Filters sheet opens: at any width in its sheet form (Refine's
+  fields in one column behind More filters, Players' "Archived and deactivated" whole), the inline
+  toolbar keeping its size in the page (an empty box of its size while its fields are in the sheet,
+  one copy of each field and id), and closed after a choice made in it, once the change has arrived
+  (within 8 s), it brings the list's first item under what is pinned (and under anything pinned over
+  its start, as All Champions' column headings); closed unchanged, it arms nothing. The pinned row's
+  buttons and fields take the scroll padding back as its links do, so focus moving onto them never
+  scrolls the page.
 - `main` pads for the tab bar (`pb-tabbar`) so content never hides behind it.
 
 ## Primitives
@@ -298,15 +303,24 @@ header centred in Team's column; under a 1600px window (1536 × 864, the sidebar
 Matches stay 80rem and the row spans the bar, as before; the tablet's menu keeps focus inside and gives it back to the menu button; the
 installed app's Back on a tablet (the display mode stood in for, as Chromium cannot emulate it);
 the filter sheet's Done leaves with its motion; Admin Mode's Settings has its title; and a page's
-controls in reach (PR 2b): from md the pinned row offers Match History's views and Filters only once
-it is pinned and the page's toolbar has gone up under it, at the row's resting height and inside it,
-none in a short window; from the end of Match History (768 and 1440) its Filters opens the sheet in
-its sheet form, the toolbar in the page keeping its size and the focus coming back; closed after a
-change, the first game lands under the pinned tabs; Records → Recent form from the pinned row.
-`e2e/mobile-nav.spec.ts` has the phone's: the top bar's Filters (44px, "Filters:" and what is
-chosen) opens the sheet, and Done after a change lands the first game under the bars; nothing wider
-than the phone at 320px, at 100% and 200% text. `e2e/filter-consistency.spec.ts`: the sheet opened
-from the pinned row at 1440 labels every field and holds the only copy of each id.
+controls in reach (PR 2b): from md the pinned row offers Match History's views and Filters exactly
+once the page's filter bar has gone 10px above the pinned stack's foot, and not 10px below it (the
+row pinned at both), at the row's resting height and inside it, gone again at the top, none in a
+short window; a copy keeps the focus while it has it and goes once the focus moves on; from the end
+of Match History (768 and 1440) Filters opens the sheet in its sheet form (Refine in one column), the
+toolbar in the page keeping its size; Escape and Done hand the focus back to it, still drawn, even
+after a change that emptied the list; a sheet closed unchanged arms nothing (a later change in the
+page's own filters keeps the place); closed after a change, the first game lands under the pinned
+tabs, and on the desktop Encounters' first player, Team Matches' first game, the Overview's
+dashboard, All Champions' first champion under its pinned headings and Players' first player do too;
+the compact search narrows Players and All Champions in the row's own height; Bookmarked from the row
+replaces the entry, is marked and keeps the place; Records → Recent form from the pinned row.
+`e2e/mobile-nav.spec.ts` has the phone's: the top bar's Filters (44px, "Filters:" and what is chosen)
+only once the page's own has gone, opening the sheet, Done after a change landing the first game
+under the bars, its badge counting; Escape and Done hand the focus back, even after a change that
+emptied the list; nothing wider than the phone in the fullest bar (Back, the title, Filters with its
+count, the avatar) at 320px and 100%, 175% and 200% text. `e2e/filter-consistency.spec.ts`: the sheet
+opened from the pinned row at 1440 labels every field and holds the only copy of each id.
 `e2e/popups.spec.ts` keeps what shows over a window inside it: an ⓘ's bubble in a window drawn
 inside the window and above it where its trigger puts it (also while the window is moved and
 scaled, and once a motion of the window's own is over), Escape closing the bubble alone; an ⓘ

@@ -38,8 +38,11 @@ anywhere else:
    are (the iOS large-title pattern). Once the page's own Filters has scrolled up under the bar, the
    bar offers it beside your avatar (PR 2b): a 44px button with the count of narrowed filters,
    named "Filters:" and what is chosen, opening the same sheet, which hands the focus back to it as
-   it closes (the button stays while it has the focus); Done after a change brings the list's first
-   item (the first game, the first player) under the bar, or as near as the page's end allows. At its right end, your avatar opens
+   it closes (the button stays while the sheet is open and while it has the focus, even once a change
+   has brought the page's own Filters back into view); Done after a change brings the list's first
+   item (the first game, the first player) under the bar, or as near as the page's end allows. With
+   Back, the title, Filters and the avatar in the bar at large text, Back gives way first (its label
+   shortens, its name stays whole for screen readers), so the bar never runs past the screen. At its right end, your avatar opens
    the account screen.
 2. **The bottom tab bar** (fixed, within reach of the thumb): **Team, Players, Leaderboards,
    Matches, Profile**, each one tap from anywhere (`PHONE_TABS` in `src/lib/nav.ts`, at most five,

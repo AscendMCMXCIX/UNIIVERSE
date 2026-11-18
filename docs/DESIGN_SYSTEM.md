@@ -297,15 +297,20 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     [Games | Encounters] + [Filters · n]; Overview [Filters · n]; All Champions and Players
     [Search] + [Filters · n]; Team Matches [Filters · n] + [Bookmarked]; Leaderboards
     [Recent form | Records]. Back up at the toolbar the copy goes, and it is drawn only while it
-    shows, so nothing hidden can be tabbed to; while the focus is in it, it stays. Never in a short
+    shows, so nothing hidden can be tabbed to. In use it stays: pressed or focused, while the sheet
+    its Filters opened is open, and until that sheet has handed the focus back, so a change that
+    shortens the page never leaves the focus with nowhere to return (`useHeld`). Never in a short
     window (nothing is pinned there). The row never grows: the controls are 32px with a mouse and 38px
-    on touch screens (a 44px target), centred in it; where the row is narrower than 56rem (a tablet, a
-    laptop with the sidebar open) they show their icons alone, named for screen readers, and Team's
-    name at the row's end gives them its place. Their Filters opens the page's Filters sheet at every
-    width, in its sheet form (labels shown, fields the sheet's width, a page's Refine fields in place),
-    while the toolbar in the page keeps its size; closed after a change, it brings the list's first
-    item under the pinned stack. The page's own toolbar is found by the page's filter bar, or named
-    by the page (All Champions' table search, Leaderboards' views).
+    on touch screens (a 44px target), centred in it, the search 44px on touch screens with its 40px
+    clear button; where the row is narrower than 56rem (a tablet, a laptop with the sidebar open) they
+    show their icons alone, named for screen readers, and Team's name at the row's end gives them its
+    place. Their Filters opens the page's Filters sheet at every width, in its sheet form (labels
+    shown, fields the sheet's width, a page's Refine fields in place, in one column behind More
+    filters), while the toolbar in the page keeps its size; closed after a choice made in it, within
+    8 s of the change arriving, it brings the list's first item under the pinned stack; closed
+    unchanged, it changes nothing later. Bookmarked keeps the place, as every filter does. The page's
+    own toolbar is found by the page's filter bar, or named by the page (All Champions' table search,
+    Leaderboards' views).
 - **Tablet drawer.** It is a native `<dialog>`: it keeps focus inside, the page behind it cannot
   be used and is locked as behind a window (no scrolling, no rubber band), the focus starts as in a
   window (on the menu itself after a tap, on its close button from the keyboard), and closing it
