@@ -6,6 +6,7 @@ import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useScrollEdges } from "@/components/ui/scroll-row";
 import { isPlainClick, stayOnCurrentPage } from "@/lib/back-to-top";
+import { publishToolbarSlot } from "@/components/ui/page-toolbar";
 
 /**
  * The look of a tab and its indicator, shared by every row of tabs (a page's sections, a game's
@@ -35,21 +36,26 @@ export interface TabBarItem {
  * window reports as the bar no longer wholly inside. Watched again when the window changes size
  * (the offset differs between a tablet and the sidebar's widths, and a short window pins nothing).
  */
-function useStuck(ref: React.RefObject<HTMLElement | null>, enabled: boolean) {
+function useStuck(ref: React.RefObject<HTMLElement | null>, enabled: boolean): boolean {
+  const [stuck, setStuck] = React.useState(false);
   React.useEffect(() => {
     const el = ref.current;
     if (!enabled || !el) return;
     let observer: IntersectionObserver | null = null;
+    const mark = (on: boolean) => {
+      el.toggleAttribute("data-stuck", on);
+      setStuck(on);
+    };
     const watch = () => {
       observer?.disconnect();
       observer = null;
-      el.removeAttribute("data-stuck");
+      mark(false);
       const style = getComputedStyle(el);
       if (style.position !== "sticky") return;
       const top = parseFloat(style.top) || 0;
       observer = new IntersectionObserver(
         ([entry]) => {
-          if (entry) el.toggleAttribute("data-stuck", entry.intersectionRatio < 1 && entry.boundingClientRect.top <= top + 1);
+          if (entry) mark(entry.intersectionRatio < 1 && entry.boundingClientRect.top <= top + 1);
         },
         { threshold: [1], rootMargin: `-${Math.ceil(top) + 1}px 0px 0px 0px` },
       );
@@ -61,8 +67,28 @@ function useStuck(ref: React.RefObject<HTMLElement | null>, enabled: boolean) {
       observer?.disconnect();
       window.removeEventListener("resize", watch);
       el.removeAttribute("data-stuck");
+      setStuck(false);
     };
   }, [ref, enabled]);
+  return stuck;
+}
+
+/**
+ * The pinned row's end, where a page's compact controls are drawn once the row is pinned and the
+ * page's own toolbar has gone up under it (ui/page-toolbar.tsx): published for the page while the
+ * bar is on it, with whether the bar is pinned now.
+ */
+function useToolbarSlot(nav: React.RefObject<HTMLElement | null>, slot: React.RefObject<HTMLDivElement | null>, stuck: boolean, enabled: boolean) {
+  React.useEffect(() => {
+    const el = slot.current;
+    const bar = nav.current;
+    if (!enabled || !el || !bar) return;
+    publishToolbarSlot({ el, bar, stuck }, el);
+  }, [nav, slot, stuck, enabled]);
+  React.useEffect(() => {
+    const el = slot.current;
+    return () => publishToolbarSlot(null, el);
+  }, [slot]);
 }
 
 /**
@@ -87,12 +113,15 @@ function useStuck(ref: React.RefObject<HTMLElement | null>, enabled: boolean) {
 export function TabBar({ label, items, current, keepScroll = false, dense = false, sticky = false, className, testId, end, inner, onChoose }: { label: string; items: readonly TabBarItem[]; current: string; keepScroll?: boolean; dense?: boolean; sticky?: boolean; className?: string; testId?: string; end?: React.ReactNode; inner?: string; onChoose?: (key: string) => void }) {
   const listRef = React.useRef<HTMLUListElement>(null);
   const navRef = React.useRef<HTMLElement>(null);
+  const slotRef = React.useRef<HTMLDivElement>(null);
   useScrollEdges(listRef, { keepCurrentInView: true, current });
-  useStuck(navRef, sticky);
+  const stuck = useStuck(navRef, sticky);
+  useToolbarSlot(navRef, slotRef, stuck, sticky);
   return (
     <nav ref={navRef} aria-label={label} className={cn("border-b border-border", sticky && "sticky-tabs", className)} data-testid={testId} data-sticky-tabs={sticky || undefined}>
-      {/* The row: as wide as the bar, or as the pages under it (`inner`), centred as they are. */}
-      <div className={cn("mx-auto flex w-full min-w-0 items-end gap-4", inner)} data-testid={testId ? `${testId}-row` : undefined}>
+      {/* The row: as wide as the bar, or as the pages under it (`inner`), centred as they are. Its
+          width decides whether a page's compact controls show their labels (COMPACT_LABEL). */}
+      <div className={cn("group/tabrow @container/tabrow mx-auto flex w-full min-w-0 items-end gap-4", inner)} data-testid={testId ? `${testId}-row` : undefined}>
         <ul ref={listRef} className="scroll-fade-x -mb-px flex min-w-0 flex-1 snap-x gap-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {items.map((s) => {
             const on = s.key === current;
@@ -118,7 +147,10 @@ export function TabBar({ label, items, current, keepScroll = false, dense = fals
             );
           })}
         </ul>
-        {end}
+        {/* While a page's compact controls are at the row's end, they take the place of `end` (Team's name). */}
+        {end ? <span className="contents group-has-[[data-page-toolbar]]/tabrow:hidden">{end}</span> : null}
+        {/* The pinned row's end, for a page's compact controls (PageToolbar draws them here); nothing while empty. */}
+        {sticky ? <div ref={slotRef} className="flex shrink-0 items-center self-center empty:hidden" data-page-toolbar-slot="" /> : null}
       </div>
     </nav>
   );
