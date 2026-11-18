@@ -306,7 +306,7 @@ the responsive pass report.
 and fails on any horizontal overflow or a missing heading; admin pages at five widths. The
 same file runs axe (WCAG 2.1 A/AA) on every page and fails on critical or serious violations.
 Panel layouts that live in variable-width columns use container queries (`@container`, `@xl:`) rather than viewport breakpoints.
-For example, Team Matches' cards take their four columns from their list's width (`@container/tm`, from 58rem), because the sidebar beside the list takes 4.5 or 16rem of the same window (`e2e/played-together.spec.ts`).
+For example, Team Matches' cards take their four columns from their list's width (`@container/tm`, from 58rem), because the sidebar beside the list takes 4.5 or 16rem of the same window (`e2e/played-together.spec.ts`); inside a card the members go two to a row from a 34rem column of their own (`@container/members`: a tablet's stacked card, or the four columns beside the open sidebar at 1440), and a member's CS and damage show where the member's row is 19rem (`@container/member`). On narrower cards the result, its game and the count of members are one line of words that wraps, the bookmark in the corner; on a phone's card the count is read out only.
 
 ## Device matrix
 
