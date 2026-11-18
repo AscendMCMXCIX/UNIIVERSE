@@ -55,10 +55,11 @@ export function HistorySummaryStrip({ summary, ladder, championsById }: { summar
           wideLine={wideLine}
           lead
           labelFirst
-          // On a phone the squares take what the line leaves (each 3 to 8px), so the streak and a
-          // trend keep their line; 6px from 36rem.
-          className="@max-[36rem]/strip:flex-1"
-          valueClassName="@max-[36rem]/strip:min-w-0 @max-[36rem]/strip:flex-1"
+          // On a phone the squares take what the line leaves (each 3 to 8px), and never less: where
+          // 3px squares do not fit beside the streak and a trend, they go under "Last 20 ⓘ" or the
+          // trend takes the next line (never drawn under the streak); 6px from 36rem.
+          className="@max-[36rem]/strip:min-w-min @max-[36rem]/strip:flex-1"
+          valueClassName="@max-[36rem]/strip:flex-1"
           label={
             <>
               Last {form.recent.games}{" "}
@@ -72,7 +73,7 @@ export function HistorySummaryStrip({ summary, ladder, championsById }: { summar
             </>
           }
           value={
-            <span className="flex h-5 min-w-0 flex-1 items-center gap-px @min-[36rem]/strip:flex-none @min-[36rem]/strip:gap-0.5" role="img" aria-label={`${form.recent.wins} wins and ${form.recent.games - form.recent.wins} losses, oldest to newest`} data-testid="history-summary-strip">
+            <span className="flex h-5 flex-1 items-center gap-px @min-[36rem]/strip:flex-none @min-[36rem]/strip:gap-0.5" role="img" aria-label={`${form.recent.wins} wins and ${form.recent.games - form.recent.wins} losses, oldest to newest`} data-testid="history-summary-strip">
               {strip.map((g) => (
                 <span key={g.matchId} className={cn("h-5 min-w-0.75 max-w-2 flex-1 rounded-sm @min-[36rem]/strip:w-1.5 @min-[36rem]/strip:max-w-none @min-[36rem]/strip:flex-none", g.win ? "bg-blue/85" : "bg-red/75")} title={`${g.win ? "Win" : "Loss"} · ${champ(g.championId).name}`} data-result={g.win ? "W" : "L"} />
               ))}
