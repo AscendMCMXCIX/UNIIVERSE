@@ -27,6 +27,8 @@ function fieldSizes(page: Page) {
 for (const path of ["/settings", "/players", "/resources"]) {
   test(`text fields on ${path} are 16px on a touch screen and 14px with a mouse from md`, async ({ page }, info) => {
     test.skip(info.project.name === "phone", "phones keep 16px at every width (MOBILE.md)");
+    // The Library's rows ask each site for its icon; a test asks none (resources.spec.ts).
+    await page.route(/\/favicon\.ico$/, (route) => route.abort());
     await page.goto(path);
     await page.waitForLoadState("networkidle");
     const sizes = await fieldSizes(page);

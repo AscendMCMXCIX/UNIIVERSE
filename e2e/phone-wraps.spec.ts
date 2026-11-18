@@ -36,6 +36,8 @@ test("Team Matches: a member's name beside their multikill wraps rather than bei
 });
 
 test("Resources: a title wraps rather than being cut", async ({ page }) => {
+  // The Library's rows ask each site for its icon; a test asks none (resources.spec.ts).
+  await page.route(/\/favicon\.ico$/, (route) => route.abort());
   await page.goto("/resources");
   await expectWhole(page.getByTestId("resource-title"), "a resource's title");
   await expect(page.getByTestId("resource-title").filter({ hasText: "League of Legends Wiki" })).toBeVisible();
