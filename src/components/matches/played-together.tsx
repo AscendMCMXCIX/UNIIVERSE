@@ -81,7 +81,7 @@ export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams 
         resetHref={href({ season: currentSeason, queue: "all", min: 2, with: [], limit: 20 })}
         resetLabel="Clear filters"
         end={
-          <Link href={href({ saved: !filters.saved, limit: 20 })} aria-current={filters.saved ? "page" : undefined} className={chipClass(filters.saved, "shrink-0")} data-testid="together-saved-phone">
+          <Link href={href({ saved: !filters.saved, limit: 20 })} replace aria-current={filters.saved ? "page" : undefined} className={chipClass(filters.saved, "shrink-0")} data-testid="together-saved-phone">
             <Bookmark className="h-3.5 w-3.5" aria-hidden /> Bookmarked{savedCount ? ` · ${savedCount}` : ""}
           </Link>
         }
@@ -129,7 +129,7 @@ export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams 
           {data.unknownSide ? <InfoTip text="Some games with two or more members could not be checked yet: their match details are not stored, so which side each member was on is unknown. They appear once the details are synced." label="Games not checked yet" /> : null}
           {data.unavailableSide ? <InfoTip text={`${data.unavailableSide} game${data.unavailableSide === 1 ? "" : "s"} with two or more members ${data.unavailableSide === 1 ? "is" : "are"} left out: Riot no longer provides the record, so which side each member was on cannot be known. The results still count on the members' profiles.`} label="Games Riot no longer serves" /> : null}
         </p>
-        <Link href={href({ saved: !filters.saved, limit: 20 })} aria-current={filters.saved ? "page" : undefined} className={chipClass(filters.saved, "max-md:hidden")} data-testid="together-saved">
+        <Link href={href({ saved: !filters.saved, limit: 20 })} replace aria-current={filters.saved ? "page" : undefined} className={chipClass(filters.saved, "max-md:hidden")} data-testid="together-saved">
           <Bookmark className="h-3.5 w-3.5" aria-hidden /> Bookmarked{savedCount ? ` · ${savedCount}` : ""}
         </Link>
       </div>
@@ -146,7 +146,7 @@ export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams 
               {elsewhere.map((e, i) => (
                 <React.Fragment key={e.season}>
                   {i ? ", " : ""}
-                  <Link href={href({ season: e.season, limit: 20 })} className="font-medium text-accent hover:underline">
+                  <Link href={href({ season: e.season, limit: 20 })} replace className="font-medium text-accent hover:underline">
                     {seasonLabel(e.season)} ({e.games})
                   </Link>
                 </React.Fragment>
@@ -158,14 +158,14 @@ export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams 
           )}
         </EmptyState>
       ) : (
-        <TogetherList entries={shown.map((g) => ({ entry: togetherEntry(g.matchId, g.teamId), matchId: g.matchId, playerId: g.members[0]!.playerId }))} championsById={champions} className="space-y-2.5">
+        <TogetherList entries={shown.map((g) => ({ entry: togetherEntry(g.matchId, g.teamId), matchId: g.matchId, playerId: g.members[0]!.playerId }))} championsById={champions} className="@container/tm space-y-2.5">
           {shown.map((g) => (
             <TogetherCard key={togetherEntry(g.matchId, g.teamId)} g={g} p={p} champions={champions} teams={teams[togetherEntry(g.matchId, g.teamId)] ?? teams[g.matchId] ?? null} />
           ))}
         </TogetherList>
       )}
       {shown.length < total ? (
-        <Link href={href({ limit: filters.limit + 20 })} scroll={false} className="block rounded-panel border border-border py-2.5 text-center text-sm text-fg-muted hover:border-border-strong hover:text-fg" data-testid="together-more">
+        <Link href={href({ limit: filters.limit + 20 })} replace scroll={false} className="block rounded-panel border border-border py-2.5 text-center text-sm text-fg-muted hover:border-border-strong hover:text-fg" data-testid="together-more">
           Show more ({total - shown.length} more)
         </Link>
       ) : null}
@@ -264,12 +264,18 @@ function TogetherCard({ g, p, champions, teams }: { g: TogetherListGame; p: (id:
   return (
     <TogetherCardFrame entry={togetherEntry(g.matchId, g.teamId)} playerId={g.members[0]!.playerId} matchId={g.matchId} championsById={champions} label={`${g.win === null ? "Game" : g.win ? "Victory" : "Defeat"}, ${queueLabel(g.queueId)}, ${formatDate(new Date(g.gameCreation))}, ${g.members.map((m) => p(m.playerId)?.name ?? "Player").join(", ")}`} className={matchCardClass(g.win, { interactive: true })} data-testid="together-game" data-match-id={g.matchId} data-members={g.members.length}>
       <MatchRail win={g.win} />
-      <div className="relative grid gap-x-4 gap-y-2.5 px-3 py-2.5 lg:grid-cols-[9rem_minmax(0,1fr)_minmax(0,20rem)_auto] lg:items-center lg:py-3">
+      {/* Four columns (the result, the members, both teams, the bookmark) once the list is 58rem wide
+          (@container/tm, on the list): the list's width, not the window's, since the sidebar beside
+          it takes 4.5 or 16rem. The members' column is then 22rem, which leaves a name about 7.8rem
+          beside the widest figures (a multikill tag and a double-digit K/D/A), so a typical name
+          stays whole; narrower lists stack the card. */}
+      <div className="relative grid gap-x-4 gap-y-2.5 px-3 py-2.5 @min-[58rem]/tm:grid-cols-[9rem_minmax(0,1fr)_minmax(0,20rem)_auto] @min-[58rem]/tm:items-center @min-[58rem]/tm:py-3">
         {/* The result and the game, then who played it: one line on narrower cards, clear of the
-            bookmark in the corner. */}
-        <div className={cn("min-w-0 lg:pr-0", bookmark && "pr-9 pointer-coarse:pr-12")}>
-          <MatchResult win={g.win} queue={queueLabel(g.queueId)} when={formatDate(new Date(g.gameCreation))} duration={fmtDuration(g.durationS)} lineBelow="lg" />
-          <span className="mt-0.5 block text-xs text-fg-subtle lg:mt-1">
+            bookmark in the corner (more room on a touch screen, where the bookmark is larger). On
+            four columns the bookmark has its own, so the result keeps its full 9rem. */}
+        <div className={cn("min-w-0", bookmark && "@max-[58rem]/tm:pr-9 @max-[58rem]/tm:pointer-coarse:pr-12")}>
+          <MatchResult win={g.win} queue={queueLabel(g.queueId)} when={formatDate(new Date(g.gameCreation))} duration={fmtDuration(g.durationS)} lineBelow="teamMatches" />
+          <span className="mt-0.5 block text-xs text-fg-subtle @min-[58rem]/tm:mt-1">
             {g.sharedBy ? (
               <span title="A member's own game, shared with the team by them" data-testid="together-shared-by">
                 Shared by {p(g.sharedBy)?.name ?? "a member"}
@@ -295,7 +301,7 @@ function TogetherCard({ g, p, champions, teams }: { g: TogetherListGame; p: (id:
                   <span className="min-w-0">
                     <span className="flex min-w-0 items-center gap-1.5">
                       {pl ? <CardAvatar look={pl.look} name={pl.name} src={pl.avatarUrl} size="xs" /> : null}
-                      <Link href={`/players/${m.playerId}`} className="relative truncate py-0.5 text-sm font-semibold text-fg hover:underline pointer-coarse:-my-2 pointer-coarse:py-2.5">
+                      <Link href={`/players/${m.playerId}`} className="relative min-w-0 truncate py-0.5 text-sm font-semibold max-sm:overflow-visible max-sm:whitespace-normal max-sm:break-words text-fg hover:underline pointer-coarse:-my-2 pointer-coarse:py-2.5">
                         {pl?.name ?? "Player"}
                       </Link>
                     </span>
@@ -324,17 +330,17 @@ function TogetherCard({ g, p, champions, teams }: { g: TogetherListGame; p: (id:
             members who played (what the list is for) and leaves both teams to the game's own screen,
             where the scoreboard lists all ten. */}
         {teams ? (
-          <div className="relative min-w-0 border-t border-border/60 pt-2.5 max-md:hidden lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
+          <div className="relative min-w-0 border-t border-border/60 pt-2.5 max-md:hidden @min-[58rem]/tm:border-l @min-[58rem]/tm:border-t-0 @min-[58rem]/tm:pl-4 @min-[58rem]/tm:pt-0">
             <TeamComposition teams={teams} champion={champOrUnknown} keepNames />
           </div>
         ) : (
-          <span className="hidden lg:block" />
+          <span className="hidden @min-[58rem]/tm:block" />
         )}
         {/* One bookmark: in the card's top corner on narrower cards, above the chevron in the last
             column on wide ones. */}
-        <span className="absolute right-1.5 top-1.5 lg:relative lg:inset-auto lg:flex lg:flex-col lg:items-center lg:gap-1">
+        <span className="absolute right-1.5 top-1.5 @min-[58rem]/tm:relative @min-[58rem]/tm:inset-auto @min-[58rem]/tm:flex @min-[58rem]/tm:flex-col @min-[58rem]/tm:items-center @min-[58rem]/tm:gap-1">
           {bookmark}
-          <ChevronRight className="hidden h-4 w-4 text-fg-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-fg group-data-[expanded=true]/together:translate-x-0 group-data-[expanded=true]/together:rotate-90 group-data-[expanded=true]/together:text-fg motion-reduce:transition-none lg:block" aria-hidden />
+          <ChevronRight className="hidden h-4 w-4 text-fg-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-fg group-data-[expanded=true]/together:translate-x-0 group-data-[expanded=true]/together:rotate-90 group-data-[expanded=true]/together:text-fg motion-reduce:transition-none @min-[58rem]/tm:block" aria-hidden />
         </span>
       </div>
       {g.queueId === SOLO_DUO_QUEUE && g.members.length > 2 ? <p className="relative border-t border-border/60 px-3 py-1.5 text-xs text-fg-subtle">Ranked Solo/Duo allows parties of two at most, so not all of them queued together.</p> : null}

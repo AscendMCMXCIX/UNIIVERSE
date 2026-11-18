@@ -22,9 +22,9 @@ import { isSyncableAccount } from "@/server/accounts/refresh";
   the team's kills and damage, and the extra figures kept from Phase 14 on), and Riot mastery.
   No Riot request is made here.
 
-  Who is on the board: team members with a finished account and a player profile (listPlayers'
-  defaults: archived, unfinished and personal-use profiles are left out). The Owner's admin
-  account has no player profile, so it never appears.
+  Who is on the board: the team's members with a player profile, whether or not their account has
+  finished setup (listPlayers' defaults: archived and personal-use profiles are left out). The
+  Owner's admin account has no player profile, so it never appears.
 
   The games and mastery are cached per team and reused until something that changes them moves:
   the number of stored games or newly summarised match details, the newest game, the last

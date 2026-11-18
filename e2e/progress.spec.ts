@@ -1,4 +1,5 @@
-import { expect, test } from "./test";
+import { expect, test, type Locator, type Page } from "./test";
+import { playerEntry } from "./players";
 import { RANKED_YEAR } from "../src/domain/ranked-year";
 
 /*
@@ -70,9 +71,13 @@ test("a profile shows recent form and ranked progress per queue", async ({ page 
   await expect(page.getByTestId("ranked-peak-stat")).toContainText(/LP/);
   await expect(page.getByTestId("ranked-change")).toHaveText(/^([+\u2212]\d+ (LP|divisions?)|No change)$/);
   await expect(page.getByTestId("ranked-lp-bar")).toBeVisible();
-  // Compact: well under half a desktop screen, and under 520 px on a phone.
+  // Compact: under 520 px on a phone; on a tablet, which keeps the arrangement without the 2×2,
+  // well under half its screen (320 px); on a 1440 desktop, in the 2×2's rail (28rem wide with the
+  // sidebar open, 30rem wider; the rail's 20rem floor never applies, since the 2×2 needs a 68rem
+  // dashboard) where its parts stand one above the other, under 480 px, so it ends with the pools
+  // beside it.
   const height = (await ranked.boundingBox())!.height;
-  expect(height, "Ranked progress's height").toBeLessThan(info.project.name === "phone" ? 520 : 320);
+  expect(height, "Ranked progress's height").toBeLessThan(info.project.name === "phone" ? 520 : info.project.name === "tablet" ? 320 : 480);
   // The header shows the same current rank as Ranked progress.
   const current = (await page.getByTestId("ranked-current").innerText()).split("·")[0]!.trim();
   await expect(page.getByTestId("profile-rank")).toContainText(current);
@@ -160,4 +165,173 @@ test("the chart's box has its final height before the page is interactive, so no
     await context.close();
   }
   expect(Math.abs(heights[0]! - heights[1]!), `before hydration ${heights[0]} px, interactive ${heights[1]} px`).toBeLessThanOrEqual(1);
+});
+
+test("on a large screen the chart's division names stay whole, and a narrow chart names them by code", async ({ page }, info) => {
+  // The root size grows above 1536px (globals.css), and the labels with it: the gutter follows
+  // (it was a fixed 64px, which cut "Platinum II" on the left above about 1700px). Demo Mid, whose
+  // readings are Platinum IV to II, the longest names a division line carries (Demo Top's Silver
+  // ones fit even the old gutter).
+  test.skip(info.project.name !== "desktop", "a desktop window, then a phone-wide one");
+  await page.goto("/team");
+  const id = (await page.getByTestId("lineup-row-MID").getAttribute("data-player-id"))!;
+  const labels = () =>
+    page.getByTestId("ranked-chart").evaluate((svg) =>
+      [...svg.querySelectorAll<SVGTextElement>("text[data-division]")].map((t) => ({ x: t.getBBox().x, text: t.textContent ?? "" })),
+    );
+  await page.setViewportSize({ width: 2560, height: 1440 });
+  await page.goto(`/players/${id}`);
+  await expect(page.getByTestId("ranked-chart")).toBeVisible();
+  // Measured: the drawing is as tall as its box (7.5rem) at this root size too.
+  await expect.poll(async () => Math.abs(Number((await page.getByTestId("ranked-chart").getAttribute("viewBox"))!.split(" ")[3]) - (await page.getByTestId("ranked-chart").boundingBox())!.height)).toBeLessThanOrEqual(1);
+  const wide = await labels();
+  expect(wide.length, "division names drawn").toBeGreaterThan(0);
+  for (const l of wide) expect(l.x, `"${l.text}" starts inside the drawing`).toBeGreaterThanOrEqual(0);
+  // The longest names the wide chart writes ("Platinum II", "Emerald III", "Diamond IV") are what
+  // the gutter must hold; at 2560 the root is about 22px.
+  expect(wide.some((l) => / I{1,3}V?$|IV$/.test(l.text)), "the wide chart names divisions in full").toBe(true);
+  // A phone-wide window: every line by its code, as match cards write a rank (P2, a tier's line by
+  // its first division, E4; the apex M), never a bare letter or a short word beside codes; whole.
+  await page.setViewportSize({ width: 360, height: 800 });
+  await expect.poll(async () => (await labels()).every((l) => /^(I|B|S|G|P|E|D)[1-4]$|^(M|GM|C)$/.test(l.text))).toBe(true);
+  for (const l of await labels()) expect(l.x, `"${l.text}" starts inside the drawing`).toBeGreaterThanOrEqual(0);
+});
+
+/** A demo player's profile address, from the Players roster (a row per player at every width, one link over each). */
+async function profileOf(page: Page, name: string): Promise<string> {
+  await page.goto("/players");
+  const entry = playerEntry(page, name).first();
+  await expect(entry).toBeVisible();
+  return (await entry.getAttribute("href"))!;
+}
+
+/**
+ * Where the queue switch meets the title: how much of the ⓘ's button and of the title's own words
+ * (each line's box, from a Range; not the tip's text, which is read out only) lies under the
+ * switch, in px², and whether the switch starts above the title's last line (one row).
+ */
+function headerClash(ranked: Locator) {
+  return ranked.evaluate((el) => {
+    const h2 = el.querySelector<HTMLElement>("#ranked-progress-title")!;
+    const nav = el.querySelector("nav[aria-label=Queue]")!.getBoundingClientRect();
+    const under = (r: DOMRect) => Math.max(0, Math.min(r.right, nav.right) - Math.max(r.left, nav.left)) * Math.max(0, Math.min(r.bottom, nav.bottom) - Math.max(r.top, nav.top));
+    const words: DOMRect[] = [];
+    const walk = document.createTreeWalker(h2, NodeFilter.SHOW_TEXT);
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+      if (!n.textContent?.trim() || n.parentElement?.closest(".sr-only, button")) continue;
+      const range = document.createRange();
+      range.selectNodeContents(n);
+      words.push(...range.getClientRects());
+    }
+    const tip = h2.querySelector("button")!.getBoundingClientRect();
+    return { tip: under(tip), words: words.reduce((sum, r) => sum + under(r), 0), lines: words.length, oneRow: nav.top < h2.getBoundingClientRect().bottom };
+  });
+}
+
+/**
+ * The W–L cells of the readings that end past the box's inner right edge (their text's own extent,
+ * from a Range: a cell's padding may overflow while its figures are whole), as "row: text".
+ */
+function winLossOutside(table: Locator) {
+  return table.evaluate((box) => {
+    const right = box.getBoundingClientRect().left + box.clientLeft + box.clientWidth;
+    return [...box.querySelectorAll("tbody tr")].flatMap((tr, i) => {
+      const cell = tr.querySelector("td:nth-child(3)");
+      if (!cell) return [];
+      const range = document.createRange();
+      range.selectNodeContents(cell);
+      const end = range.getBoundingClientRect().right;
+      return end > right + 1 ? [`${i + 1}: ${cell.textContent?.trim()} ends ${Math.round(end - right)}px out`] : [];
+    });
+  });
+}
+
+/**
+ * The "confirmed …" line under each first reading (where the Last confirmed column does not fit),
+ * with the two instants as the table writes them in full: the first reading, and the Last confirmed
+ * cell, which stays in the markup while hidden. Each of the line's parts (its child elements: the
+ * day, the time) with the number of line boxes it takes.
+ */
+function confirmedLines(table: Locator) {
+  return table.evaluate((box) =>
+    [...box.querySelectorAll("tbody tr")].flatMap((tr) => {
+      const first = tr.querySelector("td:first-child")!;
+      const line = first.querySelector<HTMLElement>(":scope > span");
+      if (!line) return [];
+      return [
+        {
+          firstRead: [...first.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent).join("").trim(),
+          lastConfirmed: tr.querySelector("td:nth-child(4)")!.textContent!.trim(),
+          line: line.innerText.replace(/\s+/g, " ").trim(),
+          // Lines, not rectangles: Chrome gives one rectangle per text run, and "14 Nov," is two ("14 Nov" and ","), side by side on one line.
+          parts: [...line.children].map((part) => ({ text: part.textContent!.trim(), lines: new Set([...part.getClientRects()].map((r) => Math.round(r.top))).size })),
+        },
+      ];
+    }),
+  );
+}
+
+/**
+ * Every confirmed line says only what it does not share with the first reading above it: the
+ * time alone on the same day ("confirmed 3:04 pm"), the day and the time in the same year
+ * ("confirmed 21 Oct, 3:04 pm"), the full date only in another year; and its day and its time each
+ * stay on one line (never "pm" alone).
+ */
+async function expectConfirmedShort(table: Locator, at: string) {
+  const rows = await confirmedLines(table);
+  expect(rows.length, `${at}: readings confirmed later than first read`).toBeGreaterThan(0);
+  const full = /^(\d{1,2} [A-Z][a-z]{2}) (\d{4}), (\d{1,2}:\d{2} [ap]m)$/;
+  for (const r of rows) {
+    const reading = `${at}, first read ${r.firstRead}, last confirmed ${r.lastConfirmed}`;
+    const [, fromDay, fromYear] = full.exec(r.firstRead) ?? [];
+    const [, day, year, time] = full.exec(r.lastConfirmed) ?? [];
+    expect(fromDay && day, `${reading}: both written in full`).toBeTruthy();
+    const said = fromYear !== year ? `${day} ${year}, ${time}` : fromDay !== day ? `${day}, ${time}` : time;
+    expect(r.line, reading).toBe(`confirmed ${said}`);
+    expect(r.parts.at(-1)?.text, `${reading}: the time a part of its own`).toBe(time);
+    expect(r.parts.filter((p) => p.lines !== 1), `${reading}: each part on one line`).toEqual([]);
+  }
+}
+
+test("on a phone Ranked progress's header never lets the queue switch cover the title or its ⓘ, and the readings keep W–L in their box", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "phone widths, set below");
+  await page.goto(await profileOf(page, "Demo Top"));
+  const ranked = page.getByTestId("ranked-progress");
+  await expect(ranked).toBeVisible();
+  // The narrowest phone, default text and larger: the switch beside the title while even the
+  // wrapped title ("Ranked", "progress ⓘ") fits there, under it otherwise, never over the ⓘ or a word.
+  await page.setViewportSize({ width: 320, height: 640 });
+  for (const size of ["100%", "125%", "150%"]) {
+    await page.evaluate((s) => { document.documentElement.style.fontSize = s; }, size);
+    const clash = await headerClash(ranked);
+    expect(clash.lines, `${size} text: the title's words measured`).toBeGreaterThan(0);
+    expect(clash.tip, `${size} text: the ⓘ clear of the queue switch`).toBe(0);
+    expect(clash.words, `${size} text: the title's words clear of the queue switch`).toBe(0);
+    if (size === "100%") expect(clash.oneRow, "320, default text: the switch on the title's row").toBe(true);
+  }
+  await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
+
+  // History and coverage open: every W–L figure inside the readings' box (the "confirmed …" line
+  // under each first reading no longer widens its column): Demo Top on this project's phone (375),
+  // Demo Mid on an iPhone 15 (393), whose rows are the widest.
+  const table = page.getByTestId("ranked-table");
+  const openDetails = async () => {
+    const details = page.getByTestId("ranked-details");
+    await expect(async () => {
+      if (!(await details.evaluate((d) => (d as HTMLDetailsElement).open))) await page.getByTestId("ranked-details-toggle").click();
+      await expect(table).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 15_000 });
+  };
+  await page.setViewportSize({ width: 375, height: 667 });
+  await openDetails();
+  expect(await table.locator("tbody tr").count(), "Demo Top: readings listed").toBeGreaterThan(3);
+  expect(await winLossOutside(table), "Demo Top at 375: W–L inside the box").toEqual([]);
+  await expectConfirmedShort(table, "Demo Top at 375");
+  await page.setViewportSize({ width: 393, height: 852 });
+  await page.goto(await profileOf(page, "Demo Mid"));
+  await expect(page.getByTestId("ranked-progress")).toBeVisible();
+  await openDetails();
+  expect(await table.locator("tbody tr").count(), "Demo Mid: readings listed").toBeGreaterThan(3);
+  expect(await winLossOutside(table), "Demo Mid at 393: W–L inside the box").toEqual([]);
+  await expectConfirmedShort(table, "Demo Mid at 393");
 });

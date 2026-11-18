@@ -2,18 +2,23 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { stayOnCurrentPage } from "@/lib/back-to-top";
 import { cn } from "@/lib/cn";
 import { ADMIN_ENTRIES, ADMIN_LINKS, NAV_ENTRIES, NAV_LINKS, activeHref, isNavHub, type NavEntry, type NavLink } from "@/lib/nav";
 import { RAIL_CURRENT, RAIL_FADE, RAIL_HIGHLIGHT, RAIL_HOVER, RAIL_ICON, RAIL_ICON_IDLE, RAIL_ROW } from "@/lib/sidebar";
 
 export { ADMIN_LINKS, NAV_LINKS, isActivePath, canOpen, type NavLink } from "@/lib/nav";
 
-function NavItem({ link, active, large, onNavigate, testId }: { link: NavLink; active: boolean; large: boolean; onNavigate?: () => void; testId?: string }) {
+function NavItem({ link, active, here, large, onNavigate, testId }: { link: NavLink; active: boolean; /** The link is to the page already shown. */ here: boolean; large: boolean; onNavigate?: () => void; testId?: string }) {
   const Icon = link.icon;
   return (
     <Link
       href={link.href}
-      onClick={onNavigate}
+      onClick={(e) => {
+        // The page already shown stays as it is (its view and filters) and goes back to the top.
+        stayOnCurrentPage(e, here);
+        onNavigate?.();
+      }}
       aria-current={active ? "page" : undefined}
       data-testid={testId}
       title={link.label}
@@ -48,9 +53,9 @@ export function NavLinks({ allowed, admin = false, onNavigate, large = false }: 
           // Team (or an Admin Mode section with tabs): one entry, to the first section this account may open, marked on all of them.
           const sections = entry.sections.filter(may);
           if (sections.length === 0) return null;
-          return <NavItem key={entry.key} link={{ href: sections[0]!.href, label: entry.label, icon: entry.icon }} active={sections.some((l) => l.href === current)} large={large} onNavigate={onNavigate} testId={`nav-${entry.key}`} />;
+          return <NavItem key={entry.key} link={{ href: sections[0]!.href, label: entry.label, icon: entry.icon }} active={sections.some((l) => l.href === current)} here={sections[0]!.href === pathname} large={large} onNavigate={onNavigate} testId={`nav-${entry.key}`} />;
         }
-        return may(entry) ? <NavItem key={entry.href} link={entry} active={entry.href === current} large={large} onNavigate={onNavigate} testId={`nav-${entry.href.slice(1).replaceAll("/", "-")}`} /> : null;
+        return may(entry) ? <NavItem key={entry.href} link={entry} active={entry.href === current} here={entry.href === pathname} large={large} onNavigate={onNavigate} testId={`nav-${entry.href.slice(1).replaceAll("/", "-")}`} /> : null;
       })}
     </nav>
   );

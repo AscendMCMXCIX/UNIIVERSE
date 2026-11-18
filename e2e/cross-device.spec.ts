@@ -84,7 +84,7 @@ test("Riot's image servers unreachable: every picture shows its stand-in, never 
 
 test("no page nests blocks where the browser would rearrange them", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "markup is the same at every size");
-  for (const path of ["/team", await profileOf(page), "/players", "/settings", "/resources", "/admin", "/admin/settings"]) {
+  for (const path of ["/team", await profileOf(page), "/players", "/leaderboards", "/settings", "/resources", "/admin", "/admin/settings"]) {
     await settle(page, path);
     const bad = await page.evaluate(() => [...document.querySelectorAll("p ul, p ol, p div, p p, p section, p table, a a, button button, button a, a button")].slice(0, 5).map((el) => `${el.parentElement?.tagName} > ${el.tagName}: ${(el.textContent ?? "").trim().slice(0, 40)}`));
     expect(bad, `invalid nesting on ${path}`).toEqual([]);

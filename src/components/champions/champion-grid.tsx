@@ -4,6 +4,7 @@ import * as React from "react";
 import { Check, Search, X } from "lucide-react";
 import { ROLES, ROLE_LABELS, type Role } from "@/domain/roles";
 import { normalise, type PickerChampion } from "./types";
+import { perAccountKey } from "@/components/account-storage";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { RoleIcon } from "@/components/role-icon";
 import { cn } from "@/lib/cn";
@@ -66,15 +67,23 @@ export interface ChampionGridProps {
    * and recently used champions) and a "Browse all" button, instead of every champion at once.
    */
   progressive?: boolean;
+  /**
+   * False: no search field or role filter of its own, for a window that searches the champions
+   * itself and hands over the ones to show (Matchup Intel's pickers). The grid keeps its keyboard
+   * moves; what it says when nothing matches is the window's.
+   */
+  toolbar?: boolean;
+  /**
+   * Where ArrowUp or ArrowLeft from the first portraits leads, for a window whose search is its own
+   * (toolbar false): it focuses that search. Without it the keys go back to the grid's own search.
+   */
+  onExitTop?: () => void;
 }
 
 const noopSubscribe = () => () => {};
 const RECENT_MAX = 12;
-/** Per account: a browser signed in to several accounts keeps each one's recent picks apart. */
-function recentKey(): string {
-  const who = document.cookie.split(/;\s*/).find((c) => c.startsWith("uniiverse_who="))?.slice("uniiverse_who=".length);
-  return who ? `uniiverse_recent_champions:${who}` : "uniiverse_recent_champions";
-}
+/** Per account: people who use one browser one after the other keep their recent picks apart. */
+const recentKey = () => perAccountKey("uniiverse_recent_champions");
 /** Champions recently chosen in any picker on this device by this account (a convenience; empty when storage is unavailable). */
 function readRecent(): string[] {
   try {
@@ -97,7 +106,7 @@ function rememberRecent(id: string) {
  * filter, portrait grid with clear selected and unavailable states. Enter picks the first match;
  * every portrait is a real button, so keyboard and touch work the same. No network calls.
  */
-export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReason, onPick, initialRole = "ALL", maxHeight = 360, autoFocus = false, toolbarExtra, size = "md", testId = "champion-grid", prioritisedIds, prioritisedLabel, readOnly = false, placeholder = "Search champion…", inputRef, progressive = false }: ChampionGridProps) {
+export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReason, onPick, initialRole = "ALL", maxHeight = 360, autoFocus = false, toolbarExtra, size = "md", testId = "champion-grid", prioritisedIds, prioritisedLabel, readOnly = false, placeholder = "Search champion…", inputRef, progressive = false, toolbar = true, onExitTop }: ChampionGridProps) {
   const [query, setQuery] = React.useState("");
   const [role, setRole] = React.useState<RoleFilter>(initialRole);
   const [browseAll, setBrowseAll] = React.useState(false);
@@ -140,48 +149,52 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
     const to = e.key === "ArrowRight" ? i + 1 : e.key === "ArrowLeft" ? i - 1 : e.key === "ArrowDown" ? i + cols : e.key === "ArrowUp" ? i - cols : e.key === "Home" ? 0 : e.key === "End" ? buttons.length - 1 : null;
     if (to === null) return;
     e.preventDefault();
-    if (to < 0 && (e.key === "ArrowUp" || e.key === "ArrowLeft")) (gridRef.current?.closest("[data-testid]")?.querySelector("input[type=search]") as HTMLInputElement | null)?.focus();
-    else buttons[Math.max(0, Math.min(buttons.length - 1, to))]?.focus();
+    if (to < 0 && (e.key === "ArrowUp" || e.key === "ArrowLeft")) {
+      if (onExitTop) onExitTop();
+      else (gridRef.current?.closest("[data-testid]")?.querySelector("input[type=search]") as HTMLInputElement | null)?.focus();
+    } else buttons[Math.max(0, Math.min(buttons.length - 1, to))]?.focus();
   };
   return (
     <div className="flex min-h-0 flex-col gap-2" data-testid={testId}>
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="relative min-w-40 flex-1">
-          <span className="sr-only">Search champions</span>
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" aria-hidden />
-          <input
-            ref={inputRef}
-            type="search"
-            value={query}
-            autoFocus={autoFocus}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && first && !readOnly) {
-                e.preventDefault();
-                pick(first.id);
-                setQuery("");
-              }
-              if (e.key === "ArrowDown") {
-                e.preventDefault();
-                gridRef.current?.querySelector<HTMLButtonElement>("button[data-champion]:not(:disabled)")?.focus();
-              }
-              if (e.key === "Escape" && query) {
-                e.stopPropagation();
-                setQuery("");
-              }
-            }}
-            placeholder={placeholder}
-            className="h-11 w-full rounded-lg border border-border bg-bg-elevated pl-9 pr-9 text-base text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none md:h-9 md:text-sm"
-          />
-          {query ? (
-            <button type="button" onClick={() => setQuery("")} className="absolute right-1.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-md text-fg-subtle hover:text-fg" aria-label="Clear search">
-              <X className="h-4 w-4" />
-            </button>
-          ) : null}
-        </label>
-        <RoleFilterBar value={role} onChange={setRole} />
-        {toolbarExtra}
-      </div>
+      {toolbar ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="relative min-w-40 flex-1">
+            <span className="sr-only">Search champions</span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-subtle" aria-hidden />
+            <input
+              ref={inputRef}
+              type="search"
+              value={query}
+              autoFocus={autoFocus}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && first && !readOnly) {
+                  e.preventDefault();
+                  pick(first.id);
+                  setQuery("");
+                }
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  gridRef.current?.querySelector<HTMLButtonElement>("button[data-champion]:not(:disabled)")?.focus();
+                }
+                if (e.key === "Escape" && query) {
+                  e.stopPropagation();
+                  setQuery("");
+                }
+              }}
+              placeholder={placeholder}
+              className="h-11 w-full rounded-lg border border-border bg-bg-elevated pl-9 pr-9 text-base text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none md:pointer-fine:h-9 md:pointer-fine:text-sm"
+            />
+            {query ? (
+              <button type="button" onClick={() => setQuery("")} className="absolute right-1.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-md text-fg-subtle hover:text-fg" aria-label="Clear search">
+                <X className="h-4 w-4" />
+              </button>
+            ) : null}
+          </label>
+          <RoleFilterBar value={role} onChange={setRole} />
+          {toolbarExtra}
+        </div>
+      ) : null}
       {short ? (
         <div className="flex items-center justify-between gap-2 text-xs text-fg-subtle">
           <span>{filtered.length ? "Your champions and recent picks · type to search, or pick a role" : "Type a name, or pick a role to browse"}</span>
@@ -193,7 +206,10 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
       <div
         ref={gridRef}
         onKeyDown={onGridKeyDown}
-        className={cn("grid content-start gap-1 overflow-y-auto overscroll-contain rounded-lg", size === "sm" ? "grid-cols-[repeat(auto-fill,minmax(60px,1fr))]" : "grid-cols-[repeat(auto-fill,minmax(68px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(76px,1fr))]", maxHeight === "fill" && "min-h-0 flex-1")}
+        // Columns at least as wide as a portrait and the button's padding, in rem, so they grow with
+        // the reader's text size as the portraits do (4rem or 3rem, and 0.75rem of padding): in px,
+        // a large text size drew portraits wider than their columns and cut every name.
+        className={cn("grid content-start gap-1 overflow-y-auto overscroll-contain rounded-lg", size === "sm" ? "grid-cols-[repeat(auto-fill,minmax(3.75rem,1fr))]" : "grid-cols-[repeat(auto-fill,minmax(4.75rem,1fr))]", maxHeight === "fill" && "min-h-0 flex-1")}
         style={typeof maxHeight === "number" ? { maxHeight } : undefined}
       >
         {filtered.map((c) => {
@@ -213,7 +229,9 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
               data-unavailable={disabled ? "true" : undefined}
               data-prioritised={prioritised ? "true" : undefined}
             >
-              <span className="relative">
+              {/* The button is named by the name under the portrait: the portrait is hidden from
+                  assistive technology, or each champion would be read twice. */}
+              <span className="relative" aria-hidden>
                 <ChampionPortrait champion={c} size={portrait} dimmed={disabled && !selected} className={cn("transition-shadow", selected && "ring-2 ring-accent", prioritised && !disabled && !selected && "ring-1 ring-accent/60")} />
                 {selected ? (
                   <span className="pop-in absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-accent text-bg shadow" aria-hidden>
@@ -221,11 +239,12 @@ export function ChampionGrid({ champions, selectedIds, disabledIds, disabledReas
                   </span>
                 ) : null}
               </span>
-              <span className={cn("w-full truncate leading-tight", c.name.length > 7 ? "text-2xs tracking-tight" : "text-xs", disabled && !selected ? "text-fg-subtle" : selected ? "text-fg" : "text-fg-muted group-hover:text-fg")}>{c.name}</span>
+              {/* Two lines where a name needs them (Nunu & Willump, a large text size), never cut. */}
+              <span className={cn("line-clamp-2 w-full break-words leading-tight", c.name.length > 7 ? "text-2xs tracking-tight" : "text-xs", disabled && !selected ? "text-fg-subtle" : selected ? "text-fg" : "text-fg-muted group-hover:text-fg")}>{c.name}</span>
             </button>
           );
         })}
-        {filtered.length === 0 && !short ? <p className="col-span-full py-8 text-center text-sm text-fg-muted">{query ? `No champion matches “${query}”.` : "No champions in this role."}</p> : null}
+        {filtered.length === 0 && !short && toolbar ? <p className="col-span-full py-8 text-center text-sm text-fg-muted">{query ? `No champion matches “${query}”.` : "No champions in this role."}</p> : null}
       </div>
     </div>
   );

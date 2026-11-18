@@ -7,6 +7,45 @@ import { screenHeight } from "@/lib/screen";
 const TYPED = "input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=button]):not([type=submit]):not([type=reset]):not([type=file]):not([type=color]), textarea, [contenteditable]:not([contenteditable=false])";
 
 /**
+ * Whether the visible part of the screen (the visual viewport, `view`) is a keyboard's worth shorter
+ * than the `screen`: on a touch screen, not pinched to zoom (pinch zoom shrinks it too, but scaled),
+ * more than 120px short, and still at least 30% of the screen (a keyboard never leaves less).
+ */
+export function keyboardShrinks(view: { height: number; scale: number }, screen: number, touch: boolean): boolean {
+  return touch && view.scale < 1.05 && screen - view.height > 120 && view.height >= screen * 0.3;
+}
+
+/**
+ * The part of the screen above the on-screen keyboard while it is up for `field`, from the top of the
+ * screen as fixed positioning and getBoundingClientRect measure it: `field` has the focus, takes
+ * typing, and the visible part is a keyboard's worth short (keyboardShrinks). Null otherwise. A list
+ * opened from a field (add-champion.tsx) is kept inside it: phones raise the keyboard over the page
+ * without resizing it (iOS fires no resize at all), so the tab bar's top, behind the keyboard, is no
+ * limit then. Believed only for a focused field, as useKeyboardFit believes it (below).
+ */
+export function aboveKeyboard(field: Element | null): { top: number; bottom: number } | null {
+  const vv = window.visualViewport;
+  if (!vv || !field || document.activeElement !== field || !field.matches(TYPED)) return null;
+  if (!keyboardShrinks(vv, screenHeight(), window.matchMedia("(pointer: coarse)").matches)) return null;
+  return { top: vv.offsetTop, bottom: vv.offsetTop + vv.height };
+}
+
+/**
+ * Calls `listener` whenever the visible part of the screen changes: the keyboard rising or going
+ * away, Safari moving the visible part to bring a field above the keyboard. Returns the way to stop.
+ */
+export function watchVisiblePart(listener: () => void): () => void {
+  const vv = window.visualViewport;
+  if (!vv) return () => undefined;
+  vv.addEventListener("resize", listener);
+  vv.addEventListener("scroll", listener);
+  return () => {
+    vv.removeEventListener("resize", listener);
+    vv.removeEventListener("scroll", listener);
+  };
+}
+
+/**
  * Touch screens: while the on-screen keyboard is up, the window around `ref` (its <dialog>) fits the
  * part of the screen above the keyboard, so the field being typed in and the window's buttons stay
  * in view instead of behind it. Phones leave the page's layout as it is when the keyboard opens
@@ -46,7 +85,7 @@ export function useKeyboardFit(ref: React.RefObject<HTMLElement | null>): boolea
       const typing = active instanceof HTMLElement && dialog.contains(active) && active.matches(TYPED);
       // A keyboard takes a good share of the screen but never nearly all of it; pinch zoom also
       // shrinks the visual viewport, but scaled.
-      const shrunk = touch.matches && vv.scale < 1.05 && screen - vv.height > 120 && vv.height >= screen * 0.3;
+      const shrunk = keyboardShrinks(vv, screen, touch.matches);
       const keyboard = shrunk && (typing || wasUp);
       wasUp = keyboard;
       if (keyboard) {

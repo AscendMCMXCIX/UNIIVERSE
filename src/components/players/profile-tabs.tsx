@@ -7,6 +7,7 @@ import { PROFILE_SECTIONS, activeHref } from "@/lib/nav";
 import { TabBar, tabIndicatorClass } from "@/components/ui/tab-bar";
 import { ScrollRow } from "@/components/ui/scroll-row";
 import { cn } from "@/lib/cn";
+import { isPlainClick, stayOnCurrentPage } from "@/lib/back-to-top";
 
 /** Sections that share the chosen season and game mode when you move between them. */
 const KEEPS_SEASON = new Set(["overview", "champions", "matches"]);
@@ -34,20 +35,64 @@ export function ProfileTabs({ basePath, variant = "page" }: { basePath: string; 
   const carried = new URLSearchParams();
   if (KEEPS_SEASON.has(current.key)) for (const k of ["season", "mode"]) if (params.get(k)) carried.set(k, params.get(k)!);
   const hrefOf = (s: (typeof sections)[number]) => (KEEPS_SEASON.has(s.key) && carried.size && s.key !== current.key ? `${s.href}?${carried.toString()}` : s.href);
+  // Tablets and desktops: a section chosen from further down than its own top starts at that top,
+  // under the pinned tabs (settleSectionTop), as on a phone. One chosen with its top still in view
+  // (the card at rest, or only scrolled a little) keeps the page where it is: it never moves down.
+  const pending = React.useRef<{ key: string; from: number } | null>(null);
+  React.useEffect(() => {
+    const chosen = pending.current;
+    pending.current = null;
+    if (variant !== "page" || !chosen || chosen.key !== current.key) return;
+    const top = sectionTop("page");
+    if (top === null || chosen.from <= top) return;
+    return settleSectionTop("page");
+  }, [current.key, variant]);
   if (variant === "chrome") return <ChromeTabs items={sections.map((s) => ({ key: s.key, href: hrefOf(s), label: s.short, testId: `profile-chrome-tab-${s.key}` }))} current={current.key} />;
   // Tucked right under the profile card (the frame's own gap taken back), and pinned at the top of
   // the page once the card has scrolled away, so the sections stay in reach (TabBar's sticky).
-  return <TabBar label="Profile sections" items={sections.map((s) => ({ key: s.key, href: hrefOf(s), label: s.label, icon: s.icon, testId: `profile-tab-${s.key}` }))} current={current.key} keepScroll sticky testId="profile-tabs" className="max-md:hidden md:-mt-2.5" />;
+  return (
+    <TabBar
+      label="Profile sections"
+      items={sections.map((s) => ({ key: s.key, href: hrefOf(s), label: s.label, icon: s.icon, testId: `profile-tab-${s.key}` }))}
+      current={current.key}
+      keepScroll
+      sticky
+      testId="profile-tabs"
+      className="max-md:hidden md:-mt-2.5"
+      onChoose={(key) => {
+        pending.current = { key, from: window.scrollY };
+      }}
+    />
+  );
 }
 
 const CARD = "[data-testid=profile-header]";
 const BAR = "[data-testid=mobile-topbar]";
 
-/** Where a section starts when it is opened far down the page: just under the bar, the profile card scrolled away. */
-function sectionTop(): number | null {
+/**
+ * Where a section starts when it is opened far down the page, the profile card scrolled away. Phones
+ * (`chrome`): just under the top bar, which carries the sections. Tablets and desktops (`page`): with
+ * the section tabs just pinned (at the top bar's foot, or the window's edge beside the sidebar,
+ * where the bar is hidden) and the section right under them. The tabs' place in the page is read
+ * with their pinning set aside for the measurement (in the same frame, so nothing is drawn), as
+ * whatever spacing puts them under the card.
+ */
+function sectionTop(variant: "page" | "chrome"): number | null {
   const card = document.querySelector<HTMLElement>(CARD);
   if (!card) return null;
+  const tabs = variant === "page" ? document.querySelector<HTMLElement>("[data-testid=profile-tabs]") : null;
   const bar = document.querySelector<HTMLElement>(BAR)?.offsetHeight ?? 0;
+  if (tabs) {
+    // Pinned at their sticky offset; in a window too short for them to pin (globals.css sticky-tabs),
+    // just under the top bar.
+    const style = getComputedStyle(tabs);
+    const pinnedAt = style.position === "sticky" ? parseFloat(style.top) || 0 : bar;
+    const sticky = tabs.style.position;
+    tabs.style.position = "static";
+    const top = tabs.getBoundingClientRect().top + window.scrollY;
+    tabs.style.position = sticky;
+    return Math.max(0, Math.round(top - pinnedAt));
+  }
   return Math.max(0, card.getBoundingClientRect().bottom + window.scrollY - bar);
 }
 
@@ -78,7 +123,7 @@ const READER_INPUT = ["wheel", "touchstart", "pointerdown", "keydown"] as const;
  * their own (one that moved the page while its height stayed the same: a clamp or an anchoring
  * adjustment comes with a change of height). Returns the cleanup.
  */
-function settleSectionTop(): () => void {
+function settleSectionTop(variant: "page" | "chrome"): () => void {
   const main = document.querySelector("main");
   let expected = -1;
   let height = 0;
@@ -86,7 +131,7 @@ function settleSectionTop(): () => void {
   let target: number | null = null;
   const loading = () => !!main?.querySelector('[role="status"][aria-label="Loading"]');
   const place = () => {
-    const top = sectionTop();
+    const top = sectionTop(variant);
     if (top === null) return;
     target = top;
     // Instant: a smooth scroll would still be under way when the next change to the page arrives.
@@ -129,7 +174,7 @@ function ChromeTabs({ items, current }: { items: Array<{ key: string; href: stri
     const chosen = pending.current;
     pending.current = null;
     if (chosen !== current) return;
-    return settleSectionTop();
+    return settleSectionTop("chrome");
   }, [current]);
   return (
     <nav aria-label="Profile sections" data-testid="profile-chrome-tabs">
@@ -146,8 +191,11 @@ function ChromeTabs({ items, current }: { items: Array<{ key: string; href: stri
                 // Lands at the section's own top (settleSectionTop), never at the page's (ScrollOnNavigate).
                 data-keep-scroll=""
                 aria-current={on ? "page" : undefined}
-                onClick={() => {
-                  pending.current = !on && cardScrolledPast() ? t.key : null;
+                onClick={(e) => {
+                  // The current section: the page stays as it is (its view and filters) and goes
+                  // back to the top, as the current tab does everywhere (src/lib/back-to-top.ts).
+                  if (stayOnCurrentPage(e, on)) return;
+                  pending.current = !on && isPlainClick(e) && cardScrolledPast() ? t.key : null;
                 }}
                 // 6px a side: the four names fit a 320px screen with the bar's gutters.
                 className={cn("flex min-h-11 items-center justify-center whitespace-nowrap px-1.5 text-sm font-medium transition-colors duration-150", tabIndicatorClass(on))}

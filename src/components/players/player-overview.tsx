@@ -39,18 +39,38 @@ export const fmt = {
   own width decides the layout (a container query), so the open or folded sidebar is allowed for.
 */
 
+/**
+ * A figure's label with a line break allowed after each "/" ("Damage/min" wraps as "Damage/" "min"
+ * in a narrow cell rather than running under its ⓘ, with no extra height for the band): a <wbr>,
+ * so nothing is added to the text, copied or read out. Never overflow-wrap:anywhere, which breaks
+ * inside the word ("Damage/mi" "n"). The ⓘ is named from the label as written.
+ */
+function breakable(label: string): React.ReactNode {
+  const parts = label.split("/");
+  return parts.map((part, i) =>
+    i < parts.length - 1 ? (
+      <React.Fragment key={i}>
+        {part}/<wbr />
+      </React.Fragment>
+    ) : (
+      part
+    ),
+  );
+}
+
 /** A headline figure: its label, the number at the size of the page's main figures, its context. */
 function Headline({ label, value, sub, info, tone = "plain", testId, children }: { label: string; value: React.ReactNode; sub?: React.ReactNode; info?: string; tone?: WinRateTone; testId: string; children?: React.ReactNode }) {
   return (
     <div className="min-w-0 px-3 py-3 @min-[34rem]/perf:px-5 @min-[34rem]/perf:py-4" data-testid={testId}>
       <div className="flex items-center gap-1 text-xs font-medium text-fg-muted">
-        <span className="min-w-0 truncate leading-tight">{label}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
+        <span className="min-w-0 leading-tight">{breakable(label)}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
       </div>
       <div className={cn("mt-1.5 text-2xl font-semibold leading-none tracking-tight tabular-nums @min-[34rem]/perf:text-figure", TONE_CLASS[tone])} data-testid={`${testId}-value`}>
         {value}
       </div>
       {children}
-      {sub ? <div className="mt-1.5 truncate text-xs text-fg-subtle">{sub}</div> : null}
+      {/* Its context wraps rather than ends cut short ("4.0 / 4.0 / 4.0" on a 320px phone's third of the card). */}
+      {sub ? <div className="mt-1.5 text-xs leading-snug text-fg-subtle">{sub}</div> : null}
     </div>
   );
 }
@@ -60,13 +80,13 @@ function Supporting({ label, value, sub, info, muted, testId }: { label: string;
   return (
     <div className="min-w-0 px-3 py-2.5 @min-[34rem]/perf:px-5" data-testid={testId}>
       <div className="flex items-center gap-1 text-xs text-fg-muted">
-        <span className="min-w-0 truncate leading-tight">{label}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
+        <span className="min-w-0 leading-tight">{breakable(label)}</span> {info ? <InfoTip text={info} label={`About ${label}`} /> : null}
       </div>
       <div className="mt-1 flex min-w-0 items-baseline gap-2">
         <span className={cn("text-lg font-semibold leading-tight tabular-nums", muted ? "text-fg-subtle" : "text-fg")} data-testid={`${testId}-value`}>
           {value}
         </span>
-        {sub ? <span className="hidden min-w-0 truncate text-xs text-fg-subtle @min-[44rem]/perf:inline">{sub}</span> : null}
+        {sub ? <span className="hidden min-w-0 truncate text-xs text-fg-subtle @min-[40rem]/perf:inline">{sub}</span> : null}
       </div>
     </div>
   );
@@ -94,12 +114,13 @@ function multikillRate(count: number, counted: number): string {
 /** One count in the kills row: its label, the number, how often (or its context). */
 function KillCount({ label, value, sub, muted, testId, className }: { label: string; value: React.ReactNode; sub: string; muted?: boolean; testId: string; className?: string }) {
   return (
-    <div className={cn("min-w-0 px-3 py-2.5", className)} data-testid={testId}>
-      <div className="truncate text-xs text-fg-muted">{label}</div>
+    <div className={cn("min-w-0 px-2.5 py-2.5 @min-[34rem]/perf:px-3", className)} data-testid={testId}>
+      <div className="text-xs leading-tight text-fg-muted @min-[34rem]/perf:truncate">{label}</div>
       <div className={cn("mt-0.5 text-lg font-semibold leading-tight tabular-nums", muted ? "text-fg-subtle" : "text-fg")} data-testid={`${testId}-value`}>
         {value}
       </div>
-      <div className="truncate text-2xs text-fg-subtle" title={sub}>
+      {/* Three across on a narrow card ("1 every 12 games" in a third of a phone): it wraps, never cut. */}
+      <div className="text-2xs leading-snug text-fg-subtle @min-[34rem]/perf:truncate" title={sub}>
         {sub}
       </div>
     </div>
@@ -113,7 +134,9 @@ function KillCount({ label, value, sub, muted, testId, className }: { label: str
  * the same games as the figures above; the multikills add up Riot's counts. Whether every game has
  * its counts is the page's status, beside the scope line under the title, never a mark here. A
  * count no game has yet is a dash, never 0. The champions behind them are one quiet link away, at
- * the row's end. Phones: Total kills across the top, then two by two.
+ * the row's end. On a card narrower than 34rem (phones): three by two, Total kills first and the link in
+ * the sixth cell, where it was a row of its own under Total kills across the top and two by two
+ * (245px on an iPhone 15).
  */
 function KillsBand({ perf, m, byChampionHref }: { perf: PerformanceSummary; m: MultikillSummary; byChampionHref: string }) {
   const unknown = m.counted === 0;
@@ -133,14 +156,14 @@ function KillsBand({ perf, m, byChampionHref }: { perf: PerformanceSummary; m: M
       <h3 id="multikills-heading" className="sr-only">
         Kills and multikills{notes.length ? ` (${notes.join("; ")})` : ""}
       </h3>
-      <div className="grid grid-cols-2 @min-[34rem]/perf:grid-cols-5 @min-[48rem]/perf:grid-cols-[repeat(5,minmax(0,1fr))_auto]" data-testid="multikill-tiles">
-        <KillCount label="Total kills" value={perf.totalKills === null ? notYet : formatCount(perf.totalKills)} muted={perf.totalKills === null} sub={perf.totalKills === null ? "Not counted yet" : `${fmt.one(perf.kills)} a game`} testId="stat-total-kills" className="col-span-2 @min-[34rem]/perf:col-span-1" />
+      <div className="grid grid-cols-3 @min-[34rem]/perf:grid-cols-5 @min-[48rem]/perf:grid-cols-[repeat(5,minmax(0,1fr))_auto]" data-testid="multikill-tiles">
+        <KillCount label="Total kills" value={perf.totalKills === null ? notYet : formatCount(perf.totalKills)} muted={perf.totalKills === null} sub={perf.totalKills === null ? "Not counted yet" : `${fmt.one(perf.kills)} a game`} testId="stat-total-kills" />
         {MULTIKILL_KINDS.map((k) => (
           <KillCount key={k.key} label={kinds[k.key]} value={unknown ? notYet : formatCount(m[k.key])} muted={unknown} sub={unknown ? "Not counted yet" : multikillRate(m[k.key], m.counted)} testId={`multikill-${k.key}`} className="@min-[34rem]/perf:border-l @min-[34rem]/perf:border-border/60" />
         ))}
-        <p className="col-span-2 flex items-center justify-end px-3 pb-2 @min-[34rem]/perf:col-span-5 @min-[34rem]/perf:-mt-1 @min-[48rem]/perf:col-span-1 @min-[48rem]/perf:mt-0 @min-[48rem]/perf:pb-0 @min-[48rem]/perf:pl-1 @min-[48rem]/perf:pr-4">
+        <p className="flex items-center justify-end px-2.5 text-right @min-[34rem]/perf:col-span-5 @min-[34rem]/perf:-mt-1 @min-[34rem]/perf:px-3 @min-[34rem]/perf:pb-2 @min-[48rem]/perf:col-span-1 @min-[48rem]/perf:mt-0 @min-[48rem]/perf:pb-0 @min-[48rem]/perf:pl-1 @min-[48rem]/perf:pr-4">
           {/* A small link with a finger-sized area on touch screens that takes no room of its own. */}
-          <Link href={byChampionHref} className="relative inline-flex min-h-6 items-center gap-0.5 whitespace-nowrap rounded-md text-xs font-medium text-fg-muted transition-colors hover:text-accent focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:after:absolute pointer-coarse:after:-inset-y-2.5 pointer-coarse:after:-left-3 pointer-coarse:after:right-0 pointer-coarse:after:content-['']" aria-label="Multikills by champion, in All Champions" data-testid="multikills-by-champion">
+          <Link href={byChampionHref} className="relative inline-flex min-h-6 items-center gap-0.5 rounded-md text-xs font-medium @min-[34rem]/perf:whitespace-nowrap text-fg-muted transition-colors hover:text-accent focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:after:absolute pointer-coarse:after:-inset-y-2.5 pointer-coarse:after:-left-3 pointer-coarse:after:right-0 pointer-coarse:after:content-['']" aria-label="Multikills by champion, in All Champions" data-testid="multikills-by-champion">
             By champion <ChevronRight className="h-3.5 w-3.5" aria-hidden />
           </Link>
         </p>
@@ -191,32 +214,58 @@ function PerformanceCard({ data, basePath }: { data: PlayerOverviewData; basePat
 
 /*
   The Overview's dashboard, under Season performance's heading (whose filters and Refresh govern
-  the season's card, recent form and the pools). Its own width decides the arrangement (a
-  container query, so the sidebar is allowed for):
+  the season's card, recent form and the pools). The window and the dashboard's own width decide
+  the arrangement (a container query, so the sidebar is allowed for):
+    2×2 (a window 1440px or wider, and a dashboard of 68rem or more: 1440 with the sidebar open and
+                   wider; the owner's choice of 8 Nov 2026, never forced onto smaller screens)
+                   the season's card and recent form side by side, level; under them the champion
+                   pools beside ranked progress, each at the top of its cell, in a rail of 40% of
+                   the dashboard within 20–30rem: 28rem at 1440 with the sidebar open, 30rem wider
+                   (the floor never applies, the 2×2 needing 68rem), where ranked progress draws
+                   its chart in full. Without recent form, ranked progress takes the whole rail
+                   beside the season's card and the pools; without ranked progress, the pools span
+                   the width as below;
     wide (58rem+)  the season's card and recent form side by side, level; under them ranked
                    progress across the whole width (a year on one time axis needs it), then the
                    champion pools across the whole width;
     narrower       one column in that same order.
+  The markup's order (a phone's, and a screen reader's) is always season, form, ranked, pools.
   A card without data is left out (fewer than five games: no recent form; no linked account: no
   ranked progress), and the others close up: nothing is padded out to keep a shape.
 */
+const GRID_2X2 = "min-[90rem]:@min-[68rem]/ov:grid-cols-[minmax(0,1fr)_clamp(20rem,40%,30rem)]";
 function OverviewDashboard({ perf, form, ranked, pools }: { perf: React.ReactNode; form?: React.ReactNode; ranked?: React.ReactNode; pools?: React.ReactNode }) {
   const wide = form ? "@min-[58rem]/ov:col-span-2" : undefined;
+  // 2×2: only with ranked progress (else the 58rem arrangement stays); the pools go under the
+  // season's card, ranked progress into the rail (under recent form, or its whole height without it).
+  // The classes are written out whole, for Tailwind to find them.
+  const two = !!ranked;
   return (
     <div className="@container/ov" data-testid="overview-dashboard">
-      <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start gap-3 sm:gap-4", form && "@min-[58rem]/ov:grid-cols-[minmax(0,1fr)_minmax(18rem,21rem)]")}>
-        <div className="min-w-0 self-stretch">{perf}</div>
+      {/* Without recent form, ranked progress spans both rows of the rail: the second row takes its
+          growth (its details opened), so the season's card never stretches and the pools stay put. */}
+      <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start gap-3 sm:gap-4", form && "@min-[58rem]/ov:grid-cols-[minmax(0,1fr)_minmax(18rem,21rem)]", two && GRID_2X2, two && !form && "min-[90rem]:@min-[68rem]/ov:grid-rows-[auto_1fr]")}>
+        <div className={cn("min-w-0 self-stretch", two && "min-[90rem]:@min-[68rem]/ov:col-start-1 min-[90rem]:@min-[68rem]/ov:row-start-1")}>{perf}</div>
         {form ? (
-          <div className="min-w-0 self-stretch" data-testid="overview-form">
+          <div className={cn("min-w-0 self-stretch", two && "min-[90rem]:@min-[68rem]/ov:col-start-2 min-[90rem]:@min-[68rem]/ov:row-start-1")} data-testid="overview-form">
             {form}
           </div>
         ) : null}
         {ranked ? (
-          <div className={cn("min-w-0", wide)} data-testid="overview-ranked">
+          <div
+            className={cn(
+              "min-w-0",
+              wide,
+              form
+                ? "min-[90rem]:@min-[68rem]/ov:col-span-1 min-[90rem]:@min-[68rem]/ov:col-start-2 min-[90rem]:@min-[68rem]/ov:row-start-2 min-[90rem]:@min-[68rem]/ov:self-start"
+                : "min-[90rem]:@min-[68rem]/ov:col-start-2 min-[90rem]:@min-[68rem]/ov:row-span-2 min-[90rem]:@min-[68rem]/ov:row-start-1 min-[90rem]:@min-[68rem]/ov:self-start",
+            )}
+            data-testid="overview-ranked"
+          >
             {ranked}
           </div>
         ) : null}
-        {pools ? <div className={cn("min-w-0", wide)}>{pools}</div> : null}
+        {pools ? <div className={cn("min-w-0", wide, two && "min-[90rem]:@min-[68rem]/ov:col-span-1 min-[90rem]:@min-[68rem]/ov:col-start-1 min-[90rem]:@min-[68rem]/ov:row-start-2 min-[90rem]:@min-[68rem]/ov:self-start")} data-testid="overview-pools">{pools}</div> : null}
       </div>
     </div>
   );
@@ -274,6 +323,7 @@ export function SeasonSummary({ data, basePath, championsById, status, refresh, 
             {scopeLabel(data, nameOf)}
           </p>
         }
+        statusAfterText
         status={status ? <DataStatusNote status={status} refresh={refresh} /> : null}
         refresh={status ? <RefreshButton status={status} refresh={refresh} /> : null}
         controls={<OverviewFilters basePath={basePath} filter={data.filter} seasons={data.seasons} currentSeason={data.currentSeason} champions={champions} accounts={data.accountOptions} modeCounts={data.modes.counts} refineScope={REFINE_SCOPE} />}

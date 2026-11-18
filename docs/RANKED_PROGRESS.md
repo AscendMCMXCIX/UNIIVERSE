@@ -49,7 +49,7 @@ marks the three seasons on the year's coverage strip. Games are placed by patch;
 
 ## What Ranked progress shows
 
-Compact, in Profile Overview under the season card and Recent form (`ranked-progress.tsx`):
+Compact, in Profile Overview (`ranked-progress.tsx`): under Recent form, in the right-hand rail, from a 1440px window; under the season card and Recent form, across the width, on smaller screens:
 
 - **Now:** the crest, the current rank and LP (with how far into the division), and Riot's wins and
   losses for the ranked year with the win rate.
@@ -67,12 +67,18 @@ Compact, in Profile Overview under the season card and Recent form (`ranked-prog
 - **The chart** (`rank-timeline-chart.tsx`, 120 px tall): only the stretch with readings, from the
   first reading to now (at least three days; the days before a newer first reading are hatched).
   No empty band for the months before it. Day and month ticks sit on the installation's midnights.
+  Its division lines are named in full ("Platinum II"; a tier's line "Emerald" where the range is
+  too wide for every division); a narrow chart (under 25.5rem: a phone, a tablet's third) writes
+  every line as match cards write a rank: "P2", a tier's line by its first division, "E4",
+  Master's "M".
 - **History and coverage** (closed at first, a native disclosure): the ranked year as one strip
   (every stored ranked game week by week, the three seasons marked, the stretch since the first
   reading lit, and "Rank known on N of M days": the installation's calendar days covered by a
   reading, from its first sight to its last confirmation, or between two readings at most one game
   apart, out of the days of the ranked year so far), what cannot be recovered and why, every rank change, the chart's
-  key, and every reading (the newest 200) with its first and last time.
+  key, and every reading (the newest 200) with its first and last time (on a narrow card the last
+  under the first, without what the two share: "confirmed 21 Oct, 3:04 pm", the time alone on the
+  same day, so the W–L column stays in its box).
 
 ## LP per game: the rule
 

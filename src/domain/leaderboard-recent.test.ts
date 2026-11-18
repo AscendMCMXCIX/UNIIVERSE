@@ -114,6 +114,7 @@ describe("ranking", () => {
     const board = rankRecentBoard(entries, "overall", "winRate", names);
     expect(board.rows.map((r) => [r.entry.playerId, r.rank])).toEqual([["a", 1], ["b", null]]);
     expect(board.rows[1]!.note).toBe("Provisional · 10 of 20 games");
+    expect(board.rows[1]!.gap).toEqual({ kind: "provisional", games: 10 });
   });
 
   it("playing more games never raises a place by itself: the same latest 20 rank the same", () => {
@@ -144,6 +145,14 @@ describe("ranking", () => {
       ["d", 2, "1 win behind Ash"],
       ["c", 4, "3 wins behind Bo and Di"],
     ]);
+    // The same notes in parts, for a board that shows the gap short ("Next win: 2=", "3 wins behind"):
+    // the place a gap is to is the place of the rows the sentence names.
+    expect(board.rows.map((r) => [r.entry.playerId, r.gap])).toEqual([
+      ["a", null],
+      ["b", { kind: "level", place: 1 }],
+      ["d", { kind: "behind", wins: 1, place: 1 }],
+      ["c", { kind: "behind", wins: 3, place: 2 }],
+    ]);
   });
 
   it("ranks by the figure as shown, so figures that read the same share a place", () => {
@@ -155,6 +164,8 @@ describe("ranking", () => {
       ["b", 1, true, null],
       ["c", 3, false, "0.5 CS/min behind Ash and Bo"],
     ]);
+    // A gap in another figure's unit has no parts: only win rate's gaps are shown short.
+    expect(board.rows.map((r) => r.gap)).toEqual([null, null, null]);
   });
 
   it("works out the next game exactly: a full window drops its oldest game", () => {
@@ -171,6 +182,37 @@ describe("ranking", () => {
     expect(rankRecentBoard(entries, "SUPPORT", "visionPerMin", names).rows.map((r) => r.entry.playerId)).toEqual(["a", "b"]);
     expect(rankRecentBoard(entries, "SUPPORT", "winRate", names).rows.map((r) => r.entry.playerId)).toEqual(["b", "a"]);
     expect(rankRecentBoard(entries, "SUPPORT", "visionPerMin", names).rows[1]!.note).toBe("1.00 vision/min behind Ash");
+    expect(rankRecentBoard(entries, "SUPPORT", "visionPerMin", names).rows[1]!.gap).toBeNull();
+  });
+
+  it("the parts say what the sentence says, on a board of every kind of gap", () => {
+    // Eight full windows (wins from 8 to 15 of 20, the oldest game won or lost) and a provisional
+    // one, so the board has level and behind gaps, shared places above and below a row, gaps of
+    // several wins and a sentence naming three members.
+    const shapes: Array<[string, number, boolean]> = [["a", 15, false], ["b", 14, true], ["c", 14, false], ["d", 13, false], ["e", 11, true], ["f", 11, false], ["g", 11, true], ["h", 8, false]];
+    const more = new Map([...names, ["f", "Fi"], ["g", "Gu"], ["h", "Hy"], ["i", "Io"]]);
+    // The newest `wins` games won; the oldest game a win when `oldestWon` (one fewer win among the newest then).
+    const entries = shapes.map(([id, wins, oldestWon]) => recentEntry(id, run(id, 20, oldestWon ? wins - 1 : wins).map((g, i) => (i === 19 ? { ...g, win: oldestWon } : g)), scope()));
+    entries.push(recentEntry("i", run("i", 14, 9), scope()));
+    const board = rankRecentBoard(entries, "overall", "winRate", more);
+    expect(board.rows.map((r) => r.rank)).toEqual([1, 2, 2, 4, 5, 5, 5, 8, null]);
+    const byName = new Map([...more].map(([id, name]) => [name, id]));
+    for (const r of board.rows) {
+      expect(r.note === null, `${r.entry.playerId}: a note exactly when there are parts`).toBe(r.gap === null);
+      if (!r.gap || !r.note) continue;
+      expect(r.gap.kind === "level", `${r.entry.playerId}: "level" exactly when one win draws level`).toBe(r.note.startsWith("Win your next game to draw level with "));
+      if (r.gap.kind === "behind") expect(r.note.startsWith(`${r.gap.wins} ${r.gap.wins === 1 ? "win" : "wins"} behind `)).toBe(true);
+      if (r.gap.kind === "provisional") {
+        expect(r.note).toBe(`Provisional · ${r.gap.games} of 20 games`);
+        continue;
+      }
+      // Every member the sentence names holds the place the parts give.
+      const named = r.note.replace(/^(Win your next game to draw level with |\d+ wins? behind )/, "").split(/, | and /);
+      expect(named.length).toBeGreaterThan(0);
+      for (const name of named) expect(board.rows.find((o) => o.entry.playerId === byName.get(name))!.rank, `${r.entry.playerId}: ${name}`).toBe(r.gap.place);
+    }
+    expect(board.rows.map((r) => r.gap?.kind ?? null)).toEqual([null, "behind", "level", "level", "behind", "behind", "behind", "behind", "provisional"]);
+    expect(board.rows.at(-2)!.note).toBe("3 wins behind Ev, Fi and Gu");
   });
 });
 
