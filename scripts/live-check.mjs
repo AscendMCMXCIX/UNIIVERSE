@@ -56,14 +56,29 @@
     not failed); a shared place is titled "Tied for Nth" and no other place claims it; every row's bar
     has 20 segments, as many filled as the row's wins and as many missing as its window lacks. Counts,
     heights and true/false only: the rows carry names.
+  - records (PR 5b): Records & achievements (/leaderboards?view=records) at every width loads as every
+    page does (no sideways scroll, no page error, no failed request, no broken image) and axe on the
+    records view; at 1440 the record book stands beside the multikills (their tops within 1px), and
+    every record row of two lines (the record over the holder and game) is at most 72px (rows of more
+    lines, a long name or champion, are counted, not failed; the verification account has no profile,
+    so no row carries "Your best"). Counts, heights and true/false only: the rows carry names.
   - settings: the picture and display-name help name the public team page, and Settings never
-    mentions a Public profile switch (retired; true or false only).
+    mentions a Public profile switch (retired; true or false only); on the phone, Sign out is on
+    Settings' first screen (above the tab bar).
+  - resources (the Library): every section under its h2 and every row a link to a new tab with
+    noopener and noreferrer; the index offers All, Favourites and each section, and choosing a
+    section shows that section alone, as many rows as its segment counts; no title cut short and no
+    broken site icon. No site's own icon is asked for: once any route is installed (the vitals
+    route, and the Library's own below), Playwright itself aborts every request for /favicon.ico,
+    unreported, so every row shows its stand-in. Counts only.
   - games (#178): Team Matches opens a game under its card (no window), with ?match= in the address;
+    on the tablet and the desktop a game with 4 or more members lists them in two columns;
     a copied link opens it; Back returns to it; the keyboard toggles it; "Close this game" closes it
     and keeps the focus on the card. Match History opens games under their cards; at 1440 the
     first three cards' CS totals and damage shares end before the next column (the build or the
     teams), and a copy of a card with the widest K/D/A and the longest champion names stays level
-    with it and keeps the names whole; its Encounters view and the champion window still open.
+    with it and keeps the names whole; on the phone (390x844) the first game card is complete above
+    the tab bar; its Encounters view and the champion window still open.
   - accessibility (#173): axe (WCAG 2.1 A and AA, plus label-content-name-mismatch) on the main pages
     at every width, with a game open, and in the champion window: no serious or critical violation.
   - players (the roster board, Nov 2026), at every width: one profile link per listed player, and no
@@ -651,6 +666,48 @@ async function leaderboardsFacts(page, kind) {
 }
 
 /**
+ * Records & achievements (PR 5b), at 1440, as true/false, counts and heights only (the rows carry
+ * names, which redact() keeps): the record book beside the multikills, their tops level within 1px,
+ * and every record row of two lines (its record on one line over its holder and game on one) at most
+ * 72px. A row of more lines (a long name or champion wrapping its game's line, a qualifier on a line
+ * of its own) is counted, not failed, as Recent form's are. The verification account has no profile,
+ * so no row carries "Your best".
+ */
+async function recordsFacts(page, kind) {
+  if (kind !== "desktop") return;
+  const f = await page.evaluate(() => {
+    const book = document.querySelector("[data-testid=records-book]");
+    if (!book) return null;
+    const box = (el) => el.getBoundingClientRect();
+    const multikills = document.querySelector("[data-testid=records-multikills]");
+    // One line: the record's title no taller than its line; the holder and the game's parts level with each other.
+    const titleOneLine = (row) => {
+      const t = row.querySelector("[data-testid=record-title]");
+      return !t || box(t).height <= (parseFloat(getComputedStyle(t).lineHeight) || 20) + 2;
+    };
+    const gameOneLine = (row) => {
+      const g = row.querySelector("[data-testid=record-game]");
+      if (!g) return true;
+      const mids = [...g.children].filter((c) => box(c).width > 0).map((c) => box(c).top + box(c).height / 2);
+      return mids.length === 0 || Math.max(...mids) - Math.min(...mids) <= 6;
+    };
+    const rows = [...book.querySelectorAll("[data-testid=season-record]")].map((r) => ({ h: Math.round(box(r).height * 10) / 10, two: titleOneLine(r) && gameOneLine(r) }));
+    return {
+      rows: rows.length,
+      twoLine: rows.filter((r) => r.two).map((r) => r.h),
+      longer: rows.filter((r) => !r.two).length,
+      topsApart: multikills ? Math.round(Math.abs(box(book).top - box(multikills).top) * 10) / 10 : null,
+      multikillsBeside: multikills ? box(multikills).left >= box(book).right : false,
+    };
+  });
+  if (!f) return pass("leaderboards", "1440: Records' book is on the page", false, "no records-book");
+  pass("leaderboards", "1440: Records' book beside the multikills, their tops within 1px", f.multikillsBeside && f.topsApart !== null && f.topsApart <= 1, { beside: f.multikillsBeside, topsApart: f.topsApart });
+  const name = "1440: every Records row of two lines is at most 72px";
+  if (!f.twoLine.length) check("leaderboards", name, "PASS", `not applicable: ${f.longer} rows of more lines`);
+  else pass("leaderboards", name, Math.max(...f.twoLine) <= 72, { rows: f.rows, twoLine: f.twoLine.length, tallest: Math.max(...f.twoLine), longerByDesign: f.longer });
+}
+
+/**
  * Settings says who sees a member's picture and display name: teammates, and the public team page
  * while they are in the lineup or a substitute. The Public profile switch it once named is gone
  * (19 Oct 2026; docs/UNIIVERSE_TECHNICAL_HANDOVER.md §C4). Only true or false is reported.
@@ -663,6 +720,57 @@ async function settingsFacts(page, kind) {
   }));
   pass("settings", `${kind}: Settings never mentions a Public profile switch`, !facts.publicProfile, { mentioned: facts.publicProfile });
   pass("settings", `${kind}: the picture and display-name help name the public team page`, facts.picture && facts.displayName, { picture: facts.picture, displayName: facts.displayName });
+  if (kind !== "phone") return;
+  // The account card leads the page: Sign out is in view as it opens, above the tab bar. The card
+  // draws its actions once per layout (the other copy is display: none): the one shown is measured.
+  const signOut = await page.evaluate(() => {
+    const button = [...document.querySelectorAll("[data-testid=settings-sign-out]")].find((el) => el.getBoundingClientRect().height > 0);
+    if (!button) return null;
+    const bar = document.querySelector("[data-testid=phone-tabbar]")?.getBoundingClientRect();
+    const r = button.getBoundingClientRect();
+    return { bottom: Math.round(r.bottom), firstScreen: Math.round(bar && bar.height > 0 ? bar.top : innerHeight), scrollY: Math.round(scrollY) };
+  });
+  pass("settings", "phone: Sign out is on Settings' first screen", !!signOut && signOut.scrollY === 0 && signOut.bottom <= signOut.firstScreen, signOut ?? "no Sign out");
+}
+
+/**
+ * The Library (Resources, its first tab): every section under its own heading, every row a link to
+ * its site in a new tab that cannot reach back to this page or learn its address, the index offering
+ * All, Favourites and each section, no title cut short and no broken site icon. Counts and true or
+ * false only.
+ */
+async function resourcesFacts(page, kind) {
+  await page.getByTestId("resources-list").waitFor({ timeout: 20_000 });
+  const f = await page.evaluate(() => {
+    const links = [...document.querySelectorAll("[data-testid=resource-link]")];
+    return {
+      rows: document.querySelectorAll("[data-testid=resource]").length,
+      groups: document.querySelectorAll("[data-testid=resources-section-group]").length,
+      headed: document.querySelectorAll("[data-testid=resources-section-group] h2").length,
+      unsafeLinks: links.filter((a) => a.target !== "_blank" || !/\bnoopener\b/.test(a.rel) || !/\bnoreferrer\b/.test(a.rel) || !a.href.startsWith("https://")).length,
+      segments: document.querySelectorAll("[data-testid=resources-index] [role=radio]").length,
+      favourites: !!document.querySelector("[data-testid=resources-index-favourites]"),
+      cutTitles: [...document.querySelectorAll("[data-testid=resource-title]")].filter((el) => el.scrollWidth > el.clientWidth + 1).length,
+      brokenIcons: [...document.querySelectorAll("[data-testid=resource] img")].filter((i) => i.complete && i.naturalWidth === 0).length,
+    };
+  });
+  pass("resources", `${kind}: every section under its heading, every row a link to a new tab without this page's address`, f.rows > 0 && f.headed === f.groups && f.unsafeLinks === 0, { rows: f.rows, sections: f.groups, headed: f.headed, unsafeLinks: f.unsafeLinks });
+  pass("resources", `${kind}: the index offers All, Favourites and each section`, f.favourites && f.segments === f.groups + 2, { segments: f.segments, sections: f.groups, favourites: f.favourites });
+  // Choosing a section (the page's own filter: no request) shows that section alone, as many rows as
+  // its segment counts; All brings the library back.
+  const segment = page.locator("[data-testid=resources-index] [role=radio]").nth(2);
+  if (f.groups > 0 && (await segment.count())) {
+    await segment.click();
+    await page.waitForFunction(() => document.querySelector("[data-testid=resources-index] [role=radio]:nth-child(3)")?.getAttribute("aria-checked") === "true", null, { timeout: 10_000 });
+    const chosen = await page.evaluate(() => ({
+      groups: document.querySelectorAll("[data-testid=resources-section-group]").length,
+      rows: document.querySelectorAll("[data-testid=resource]").length,
+      counted: Number(document.querySelector("[data-testid=resources-index] [role=radio]:nth-child(3) [data-testid=resources-index-count]")?.textContent?.replace(/\D/g, "") || -1),
+    }));
+    pass("resources", `${kind}: choosing a section shows it alone, its rows as counted`, chosen.groups === 1 && chosen.rows === chosen.counted, chosen);
+    await page.locator("[data-testid=resources-index-all]").click();
+  }
+  pass("resources", `${kind}: no title cut short, no broken site icon`, f.cutTitles === 0 && f.brokenIcons === 0, { cutTitles: f.cutTitles, brokenIcons: f.brokenIcons });
 }
 
 async function allChampions(page, log, kind, playerId) {
@@ -891,6 +999,17 @@ async function teamMatches(page, log, kind, context) {
   if (!(await games.first().waitFor({ timeout: 20_000 }).then(() => true, () => false))) return warn("games", `${kind}: Team Matches lists no games`, "nothing to open");
   const game = games.first();
   if (kind === "phone") return phoneGame(page, kind, "Team Matches", "team-matches", () => game.getByTestId("together-card").click({ position: { x: 24, y: 12 } }));
+  // A game with four or more members lists them two to a row (their column is 34rem wide on the
+  // tablet's card and beside the open sidebar at 1440); a list with no such game passes as not
+  // applicable.
+  const four = await page.evaluate(() => {
+    const card = [...document.querySelectorAll("[data-testid=together-game]")].find((c) => Number(c.getAttribute("data-members")) >= 4);
+    if (!card) return null;
+    const lefts = [...card.querySelectorAll("[data-testid=together-member]")].map((m) => Math.round(m.getBoundingClientRect().left));
+    return { members: lefts.length, columns: new Set(lefts).size };
+  });
+  if (!four) pass("games", `${kind}: a Team Matches game with 4 members shows them in two columns`, true, "not applicable: no game with 4 or more members is listed");
+  else pass("games", `${kind}: a Team Matches game with 4 members shows them in two columns`, four.columns === 2, four);
   const toggle = game.getByTestId("together-open");
   await game.getByTestId("together-card").click({ position: { x: 24, y: 12 } });
   await page.waitForFunction(() => document.querySelector("[data-testid=together-open][aria-expanded=true]"), null, { timeout: 10_000 }).catch(() => {});
@@ -964,7 +1083,7 @@ async function matchHistory(page, log, kind, playerId) {
         // The next column: past what takes no room in the row, hidden or out of flow (a build that
         // was not recorded leaves only its screen-reader note, a 1px box at the row's start).
         const inRow = (e) => e.getBoundingClientRect().width >= 0.5 && !["absolute", "fixed"].includes(getComputedStyle(e).position);
-        let next = cs.parentElement.nextElementSibling;
+        let next = (cs.closest("[data-testid=match-figures]") ?? cs.parentElement).nextElementSibling;
         while (next && !inRow(next)) next = next.nextElementSibling;
         return next ? Math.round(Math.max(end(cs), end(damage)) - next.getBoundingClientRect().left) : null;
       }),
@@ -1003,7 +1122,21 @@ async function matchHistory(page, log, kind, playerId) {
     if (!extremes) warn("games", "1440: no card on the first page shows its teams, so the widest K/D/A and the longest names were not tried", path);
     else pass("games", "1440: a card with the widest K/D/A and the longest champion names stays level with the others and keeps the names whole", extremes.shift.every((x) => x <= 1) && extremes.cut.every((x) => !x), extremes);
   }
-  if (kind === "phone") await phoneGame(page, kind, "Match History", "match-history", () => card.click({ position: { x: 24, y: 16 } }));
+  if (kind === "phone") {
+    // The phone's denser cards (owner decision D8): the first game is whole above the tab bar on the
+    // first screen. Positions only; not applicable where no tab bar shows.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(300);
+    const first = await page.evaluate(() => {
+      const nav = [...document.querySelectorAll("nav[aria-label=Primary]")].find((n) => getComputedStyle(n).display !== "none" && n.getBoundingClientRect().height > 0);
+      const card = document.querySelector("[data-testid=match-card]");
+      return { cardBottom: card ? Math.round(card.getBoundingClientRect().bottom + scrollY) : null, tabBarTop: nav ? Math.round(nav.getBoundingClientRect().top) : null };
+    });
+    const name = "390x844: the first game card is complete above the tab bar";
+    if (first.tabBarTop === null) check("games", name, "PASS", "not applicable: no tab bar shown");
+    else pass("games", name, first.cardBottom !== null && first.cardBottom <= first.tabBarTop, first);
+    await phoneGame(page, kind, "Match History", "match-history", () => card.click({ position: { x: 24, y: 16 } }));
+  }
   else {
     await card.click({ position: { x: 24, y: 16 } });
     const opened = await page.getByTestId("match-expanded").getByTestId("match-breakdown").first().waitFor({ timeout: 30_000 }).then(() => true, () => false);
@@ -1082,10 +1215,33 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
       await axe(page, kind, "leaderboards");
     }
   });
+  await guarded(kind, "records", async () => {
+    if (await visit(page, log, kind, "records", "/leaderboards?view=records")) {
+      await recordsFacts(page, kind);
+      await axe(page, kind, "records", "[data-testid=records]");
+    }
+  });
   await guarded(kind, "settings", async () => {
     if (await visit(page, log, kind, "settings", "/settings")) {
       await settingsFacts(page, kind);
       await axe(page, kind, "settings");
+    }
+  });
+  await guarded(kind, "resources", async () => {
+    // The rows ask each site for its icon; the check asks none (as the browser tests do). Once any
+    // route is installed, Playwright itself aborts every request for /favicon.ico before a route's
+    // handler runs, and reports none of them: so no request leaves for another site and every row
+    // shows its stand-in. This route is that switch for the Library, should the context's vitals
+    // route ever go; its handler never runs.
+    const siteIcon = (url) => !url.href.startsWith(base) && url.pathname.endsWith("/favicon.ico");
+    await page.route(siteIcon, (route) => route.abort());
+    try {
+      if (await visit(page, log, kind, "resources", "/resources")) {
+        await resourcesFacts(page, kind);
+        await axe(page, kind, "resources");
+      }
+    } finally {
+      await page.unroute(siteIcon);
     }
   });
   // Last in the desktop context, so a mode switch that went wrong cannot affect the other checks. Not

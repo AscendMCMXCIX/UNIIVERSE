@@ -82,10 +82,17 @@ test("Refresh ends the toolbar in the same place on every tab of a profile, neve
     if (isPhone(page)) expect(at!.height, tab).toBeGreaterThanOrEqual(44);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), tab).toBeLessThanOrEqual(1);
     const right = await page.evaluate(() => window.innerWidth);
-    seen.add(`${Math.round(right - at!.x - at!.width)}:${Math.round(at!.width)}×${Math.round(at!.height)}`);
+    // On a phone Match History's Refresh shares the views' row with Filters (owner decision D8): its
+    // icon alone, a 44px square, its name kept for screen readers. Everywhere else it shows its word.
+    const compact = isPhone(page) && tab.startsWith("/matches");
+    if (compact) expect(Math.round(at!.width), `${tab}: its icon alone`).toBe(44);
+    await expect(button, tab).toHaveAccessibleName("Refresh");
+    seen.add(`${Math.round(right - at!.x - at!.width)}:${compact ? "icon" : Math.round(at!.width)}×${Math.round(at!.height)}`);
   }
-  // The same button at the same distance from the right edge on every tab.
-  expect([...seen]).toHaveLength(1);
+  // The same button at the same distance from the right edge and the same height on every tab, and
+  // the same width but for a phone's Match History.
+  expect(new Set([...seen].map((x) => x.replace(/:(\d+|icon)×/, "×")))).toHaveProperty("size", 1);
+  expect([...seen].filter((x) => !x.includes(":icon×"))).toHaveLength(1);
   // Riot accounts: the same Refresh in the panel header's toolbar, at the right of its title, without a status (each account says its own state there).
   await page.goto(`${href}/accounts`, { waitUntil: "networkidle" });
   const button = page.getByTestId("data-refresh-button");

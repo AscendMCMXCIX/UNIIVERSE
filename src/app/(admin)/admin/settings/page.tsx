@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { AccountSettings } from "@/components/settings/account-settings";
-import { PageHeader } from "@/components/ui/page-header";
 import { isAdmin } from "@/server/auth/permissions";
 import { requirePageAccess } from "@/server/auth/page-access";
 
@@ -14,10 +13,5 @@ export const dynamic = "force-dynamic";
  */
 export default async function AdminSettingsPage() {
   if (!isAdmin(await requirePageAccess())) redirect("/settings");
-  return (
-    <div className="mx-auto max-w-3xl space-y-5">
-      <PageHeader title="Settings" description="Your picture, display name, username and password." guide />
-      <AccountSettings mode="admin" />
-    </div>
-  );
+  return <AccountSettings mode="admin" />;
 }
