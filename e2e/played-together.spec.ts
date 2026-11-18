@@ -514,10 +514,10 @@ test("while it loads, Team Matches shows the list's shape, read out as one Loadi
   await expect(page.getByTestId("team-insights")).toBeVisible({ timeout: 20_000 });
   await page.unrouteAll();
   // Back to Team Matches by the preview's own link: the list's shape, its cards hidden from screen
-  // readers, which hear the status alone (no empty lists).
+  // readers, which hear the status alone (no empty lists). Nothing to prefetch first: /matches was
+  // the first page, which brought its loading state (a second wait for the network to go quiet
+  // would not wait on anything: it is still the same document).
   const back = page.getByTestId("insights-back");
-  await back.hover();
-  await page.waitForLoadState("networkidle");
   await hold("/matches");
   await back.click();
   await expect(loading).toHaveAttribute("data-testid", "matches-skeleton");
