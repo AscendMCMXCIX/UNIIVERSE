@@ -17,6 +17,9 @@ async function showFilters(page: Page) {
   await openFilterBar(page.getByTestId("together-filters"), "together-filters-toggle");
 }
 
+/** A member's CS and damage as the card writes them ("212 CS · 23.4k dmg", "— CS" without a record). */
+const CS_AND_DAMAGE = /^(\d+|—) CS( · \d+\.\dk dmg)?$/;
+
 test("Played together lists games with two or more members on one side, with honest labels and filters", async ({ page, request }) => {
   const season = await demoSeasonLabel(request);
   // Played together is the whole page: Encounters are in each profile's Match History.
@@ -70,14 +73,22 @@ test("Played together lists games with two or more members on one side, with hon
   await page.getByTestId("together-queue").selectOption("solo");
   await expect(page).toHaveURL(/queue=solo/);
   // Text on the card, never only behind an (i): whole on a stacked card; in the four columns' narrow
-  // result column a short line on screen, the whole sentence read out and in its title.
+  // result column a short line on screen that keeps the point, under the queue's own "Ranked
+  // Solo/Duo", the whole sentence in its title and read out. The accessibility tree is what is read
+  // out: the sentence alone, whichever line is on screen (the short line is hidden from it; a
+  // sentence hidden from it, or not drawn at all, fails here).
   const caveat = page.getByTestId("together-solo-caveat").first();
   await expect(caveat).toBeVisible();
   const full = "Ranked Solo/Duo allows parties of two at most, so not all of them queued together.";
   await expect(caveat).toHaveAttribute("title", full);
-  expect(await caveat.evaluate((p) => p.textContent)).toContain(full);
+  await expect(caveat).toMatchAriaSnapshot(`- paragraph: ${full}`);
   const wide = await page.getByTestId("together-list").evaluate((l) => l.getBoundingClientRect().width / parseFloat(getComputedStyle(document.documentElement).fontSize) >= 58);
-  expect(await caveat.evaluate((p) => [...p.children].filter((c) => c.getBoundingClientRect().width > 1).map((c) => c.textContent!.trim()).join(""))).toBe(wide ? "Solo/Duo: duos at most" : full);
+  const shown = await caveat.evaluate((p) => {
+    const drawn = [...p.children].filter((c) => c.getBoundingClientRect().width > 1);
+    return { text: drawn.map((c) => c.textContent!.trim()).join(""), lines: drawn.length === 1 ? drawn[0]!.getClientRects().length : null };
+  });
+  expect(shown.text, "the line on screen").toBe(wide ? "Not all queued together" : full);
+  if (wide) expect(shown.lines, "one line in the 8.5rem result column").toBe(1);
   // All five, Clash: none in the demo, so an honest empty state, and Clear filters puts every filter back.
   await showFilters(page);
   await page.getByTestId("together-queue").selectOption("clash");
@@ -306,7 +317,21 @@ test("members two to a row from a 34rem column: a 36px portrait with the member'
       const badge = box(m.querySelector("[data-testid=together-member-avatar]")!.firstElementChild!);
       const name = box(m.querySelector("a[href^='/players/']")!);
       const kda = box(m.querySelector("[data-testid=together-kda]")!);
-      return { left: Math.round(box(m).left), height: box(m).height, portrait: [portrait.width, portrait.height], badge: [badge.width, badge.height], corner: [badge.right - portrait.right, badge.bottom - portrait.bottom], gap: kda.left - name.right, sameLine: Math.abs(kda.top + kda.height / 2 - (name.top + name.height / 2)) < 6 };
+      const extra = m.querySelector("[data-testid=together-member-extra]")!;
+      const role = box(m.querySelector("[data-testid=together-member-role]")!);
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+      return {
+        left: Math.round(box(m).left),
+        height: box(m).height,
+        rowRem: box(m).width / rem,
+        portrait: [portrait.width, portrait.height],
+        badge: [badge.width, badge.height],
+        corner: [badge.right - portrait.right, badge.bottom - portrait.bottom],
+        gap: kda.left - name.right,
+        sameLine: Math.abs(kda.top + kda.height / 2 - (name.top + name.height / 2)) < 6,
+        extra: getComputedStyle(extra).display === "none" ? null : { text: extra.textContent!.replace("·", "").trim(), onRoleLine: Math.abs(box(extra).top + box(extra).height / 2 - (role.top + role.height / 2)) < 2 },
+        title: m.querySelector("[data-testid=together-kda]")!.getAttribute("title"),
+      };
     }),
   );
   expect(members.length).toBe(4);
@@ -318,6 +343,18 @@ test("members two to a row from a 34rem column: a 36px portrait with the member'
     for (const d of m.corner) expect(Math.abs(d - 4)).toBeLessThanOrEqual(1);
     expect(m.sameLine && m.gap >= 0 && m.gap <= 12, "the K/D/A right after the name").toBe(true);
     expect(m.height, "a member's row").toBeLessThanOrEqual(56);
+    // The CS and damage: the K/D/A's title always has them. On the tablet's two-up rows (20.9rem) they
+    // are on the row too, beside the role and champion (the demo's are short); beside the open
+    // sidebar at 1440 the rows are about 17rem, short of 19rem, so the title (and the game's
+    // breakdown) is where they are.
+    expect(m.title, "the K/D/A's title").toMatch(CS_AND_DAMAGE);
+    if (info.project.name === "tablet") {
+      expect(m.rowRem, "the tablet's rows reach 19rem").toBeGreaterThanOrEqual(19);
+      expect(m.extra, "the CS and damage on the row, beside the role and champion").toEqual({ text: m.title, onRoleLine: true });
+    } else {
+      expect(m.rowRem, "beside the open sidebar at 1440 the rows stay under 19rem").toBeLessThan(19);
+      expect(m.extra, "no CS and damage on the row").toBeNull();
+    }
   }
   // No line of its own for the count: the scope line counts the games, and Bookmarked ends the filter row.
   await expect(page.getByTestId("together-count")).toHaveCount(0);
@@ -326,6 +363,63 @@ test("members two to a row from a 34rem column: a 36px portrait with the member'
   const [s, list, first] = [(await saved.boundingBox())!, (await page.getByTestId("together-list").boundingBox())!, (await page.getByTestId("together-queue").boundingBox())!];
   expect(Math.abs(s.x + s.width - (list.x + list.width)), "at the row's end").toBeLessThanOrEqual(1);
   expect(Math.abs(s.y + s.height / 2 - (first.y + first.height / 2)), "on the filters' line").toBeLessThanOrEqual(2);
+});
+
+test("a member's CS and damage come in at a 19rem row and never cut the champion's name: beside the role and champion where both fit whole, on a line of their own under them otherwise", async ({ page }, info) => {
+  test.skip(info.project.name !== "tablet", "tablet widths, where the rows cross 19rem");
+  await page.goto("/matches");
+  await expect(page.getByTestId("together-member").first()).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  const shown = () => page.evaluate(() => getComputedStyle(document.querySelector("[data-testid=together-member-extra]")!).display !== "none");
+  const rowRem = () => page.evaluate(() => document.querySelector("[data-testid=together-member]")!.getBoundingClientRect().width / parseFloat(getComputedStyle(document.documentElement).fontSize));
+  // The narrowest window at which they show: its rows are 19rem, one pixel less and they are not.
+  let threshold = 0;
+  for (let width = 680; width <= 768 && !threshold; width++) {
+    await page.setViewportSize({ width, height: 1024 });
+    if (await shown()) threshold = width;
+  }
+  expect(threshold, "the CS and damage show by the tablet's 768px").toBeGreaterThan(680);
+  expect(await rowRem(), `${threshold}px: rows of 19rem`).toBeGreaterThanOrEqual(19);
+  await page.setViewportSize({ width: threshold - 1, height: 1024 });
+  expect(await shown(), `${threshold - 1}px: not under 19rem`).toBe(false);
+  expect(await rowRem()).toBeLessThan(19);
+  await page.setViewportSize({ width: threshold, height: 1024 });
+  // At that width, the widest role and champion the game can show, "Role unknown · Nunu & Willump"
+  // (180px at 12px; a role's icon only comes with a shorter role), here beside an icon too, so wider
+  // than any real pair. It stays whole and the CS and damage take a line of their own, whole, not
+  // starting with their "·"; a short pair keeps them beside it with the "·" between.
+  const facts = await page.getByTestId("together-member").evaluateAll((rows) => {
+    const withIcon = rows.find((r) => r.querySelector("[data-testid=together-member-role] [data-role-icon]"))!;
+    const pair = withIcon.querySelector<HTMLElement>("[data-testid=together-member-role] .truncate")!;
+    pair.textContent = "Role unknown · Nunu & Willump";
+    const read = (row: Element) => {
+      const role = row.querySelector("[data-testid=together-member-role]")!.getBoundingClientRect();
+      const extra = row.querySelector<HTMLElement>("[data-testid=together-member-extra]")!;
+      const line = extra.parentElement!;
+      const [e, l] = [extra.getBoundingClientRect(), line.getBoundingClientRect()];
+      const dot = extra.firstElementChild!.getBoundingClientRect();
+      const text = row.querySelector<HTMLElement>("[data-testid=together-member-role] .truncate")!;
+      return {
+        layout: {
+          pairWhole: text.scrollWidth <= text.clientWidth + 1,
+          extraWhole: extra.scrollWidth <= extra.clientWidth + 1,
+          under: e.top >= role.bottom - 1,
+          beside: Math.abs(e.top + e.height / 2 - (role.top + role.height / 2)) < 2,
+          // On a line of their own the "·" is outside the line's clipped box; beside the pair, in the gap.
+          dotShown: getComputedStyle(line).overflow === "hidden" ? dot.right > l.left + 0.5 && dot.left >= role.right - 0.5 : true,
+          startsLine: Math.abs(e.left - l.left) < 0.5,
+          // The role's line: one line, or two with the CS and damage under the pair.
+          lines: Math.round(l.height / parseFloat(getComputedStyle(line).lineHeight)),
+        },
+        height: row.getBoundingClientRect().height,
+      };
+    };
+    const short = rows.find((r) => r !== withIcon && r.querySelector("[data-testid=together-member-role]")!.textContent!.length < 20)!;
+    return { long: read(withIcon), short: read(short) };
+  });
+  expect(facts.long.layout, "the long pair whole; the CS and damage whole on the next line, at its start, without the \"·\"").toEqual({ pairWhole: true, extraWhole: true, under: true, beside: false, dotShown: false, startsLine: true, lines: 2 });
+  expect(facts.long.height, "the name's line and two more: the row still at most 56px").toBeLessThanOrEqual(56);
+  expect(facts.short.layout, "a short pair: the CS and damage beside it, the \"·\" between").toEqual({ pairWhole: true, extraWhole: true, under: false, beside: true, dotShown: true, startsLine: false, lines: 1 });
 });
 
 test("on a phone each member is a row of about 40px with the name whole, the count of members read out only", async ({ page }, info) => {
@@ -338,15 +432,101 @@ test("on a phone each member is a row of about 40px with the name whole, the cou
     const facts = await page.evaluate(() => ({
       heights: [...document.querySelectorAll("[data-testid=together-member]")].map((m) => Math.round(m.getBoundingClientRect().height)),
       cut: [...document.querySelectorAll<HTMLElement>("[data-testid=together-member] a[href^='/players/']")].filter((a) => a.scrollWidth > a.clientWidth + 1).map((a) => a.textContent),
-      size: [...document.querySelectorAll("[data-testid=together-size]")].map((s) => s.parentElement!.getBoundingClientRect().width),
+      // Drawn as a 1px box (sr-only), but there: display none would also be 0px wide, and silent.
+      size: [...document.querySelectorAll("[data-testid=together-size]")].map((s) => ({ width: s.parentElement!.getBoundingClientRect().width, display: getComputedStyle(s.parentElement!).display })),
+      // The CS and damage stay off a phone's rows: the K/D/A's title carries them (and the game's breakdown).
+      extra: [...document.querySelectorAll("[data-testid=together-member]")].map((m) => ({ shown: getComputedStyle(m.querySelector("[data-testid=together-member-extra]")!).display !== "none", title: m.querySelector("[data-testid=together-kda]")!.getAttribute("title") })),
     }));
     const forty = facts.heights.filter((h) => h <= 44).length;
     expect(forty / facts.heights.length, `${width}px: most rows about 40px (${facts.heights.join(", ")})`).toBeGreaterThanOrEqual(0.75);
     expect(Math.max(...facts.heights), `${width}px: a long name and a multikill take a third line at most`).toBeLessThanOrEqual(60);
     expect(facts.cut, `${width}px: names whole`).toEqual([]);
-    for (const w of facts.size) expect(w, `${width}px: the count read out only`).toBeLessThanOrEqual(1);
+    for (const s of facts.size) {
+      expect(s.width, `${width}px: the count not on screen`).toBeLessThanOrEqual(1);
+      expect(s.display, `${width}px: the count still there to be read out`).not.toBe("none");
+    }
+    for (const e of facts.extra) {
+      expect(e.shown, `${width}px: no CS and damage on a phone's row`).toBe(false);
+      expect(e.title, `${width}px: the K/D/A's title has them`).toMatch(CS_AND_DAMAGE);
+    }
+    // Read out: the accessibility tree has the count (the rows under it are the members).
+    const first = page.getByTestId("together-game").first();
+    const n = await first.getAttribute("data-members");
+    expect(await first.ariaSnapshot(), `${width}px: the count read out`).toContain(`${n} team members`);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
   }
+});
+
+test("the scope line's (i) never takes a line alone: where the line does not fit, the record goes to the next line with it", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "a phone's narrow line");
+  await page.goto("/matches");
+  const summary = page.getByTestId("matches-summary");
+  await expect(summary).toContainText(/\d+W \d+L/);
+  await page.evaluate(() => document.fonts.ready);
+  // The line's own width, then every width from 60px under it to 30px over: wherever it breaks, the
+  // (i) shares its line with the record ("4W 2L"), and the record is never split.
+  const alone = await summary.evaluate((s) => {
+    const line = s.parentElement!;
+    const tip = s.querySelector("button")!.closest("span.inline-flex")!;
+    const words: Text[] = [];
+    const walk = document.createTreeWalker(s, NodeFilter.SHOW_TEXT);
+    for (let n = walk.nextNode(); n && !tip.contains(n); n = walk.nextNode()) if (n.textContent!.trim()) words.push(n as Text);
+    const last = words.at(-1)!;
+    const record = document.createRange();
+    const text = last.textContent!.trimEnd();
+    record.setStart(last, text.search(/\d+W \d+L$/));
+    record.setEnd(last, text.length);
+    line.style.width = "max-content";
+    const natural = line.getBoundingClientRect().width;
+    const out: { width: number; alone: boolean; split: boolean }[] = [];
+    for (let w = Math.floor(natural) - 60; w <= Math.ceil(natural) + 30; w++) {
+      line.style.width = `${w}px`;
+      const [b, r] = [tip.getBoundingClientRect(), record.getBoundingClientRect()];
+      out.push({ width: w, alone: Math.abs(b.top + b.height / 2 - (r.top + r.height / 2)) > 6, split: record.getClientRects().length > 1 });
+    }
+    line.style.width = "";
+    return out.filter((o) => o.alone || o.split);
+  });
+  expect(alone, "no width leaves the (i) alone or splits the record").toEqual([]);
+});
+
+test("while it loads, Team Matches shows the list's shape, read out as one Loading status; Team Insights, under it, keeps the app's own loading state", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "one device is enough for the loading states");
+  const loading = page.locator("main [role=status][aria-label=Loading]");
+  const hold = (path: string) =>
+    page.route(
+      (url) => url.pathname === path,
+      async (route) => {
+        await new Promise((r) => setTimeout(r, 3000));
+        await route.continue();
+      },
+    );
+  // Team Insights has no link to it (administrators open its address): the router goes there once
+  // its prefetch, which brings the loading state, has finished; then the page itself is held back.
+  await page.goto("/matches");
+  await expect(page.getByTestId("together-game").first()).toBeVisible();
+  await page.evaluate(() => (window as unknown as { next: { router: { prefetch(href: string): void } } }).next.router.prefetch("/matches/insights"));
+  await page.waitForLoadState("networkidle");
+  await hold("/matches/insights");
+  await page.evaluate(() => (window as unknown as { next: { router: { push(href: string): void } } }).next.router.push("/matches/insights"));
+  await expect(loading).toHaveCount(1);
+  await expect(loading, "Team Insights: the app's generic loading state, not Team Matches' list").not.toHaveAttribute("data-testid", "matches-skeleton");
+  await expect(page.getByTestId("team-insights")).toBeVisible({ timeout: 20_000 });
+  await page.unrouteAll();
+  // Back to Team Matches by the preview's own link: the list's shape, its cards hidden from screen
+  // readers, which hear the status alone (no empty lists).
+  const back = page.getByTestId("insights-back");
+  await back.hover();
+  await page.waitForLoadState("networkidle");
+  await hold("/matches");
+  await back.click();
+  await expect(loading).toHaveAttribute("data-testid", "matches-skeleton");
+  await expect(loading).toMatchAriaSnapshot(`
+    - status "Loading":
+      - /children: equal
+      - paragraph: Loading…
+  `);
+  await expect(page.getByTestId("together-game").first()).toBeVisible({ timeout: 20_000 });
 });
 
 test("at 200% text on a 320px phone, Team Matches is no wider than the phone", async ({ page }, info) => {
