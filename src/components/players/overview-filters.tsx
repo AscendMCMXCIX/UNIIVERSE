@@ -141,7 +141,9 @@ export function OverviewFilters({
   }, [open]);
   const narrowed = refinements.length + (filter.mode !== "all" ? 1 : 0) + (filter.season !== currentSeason ? 1 : 0) + sheetChips.length;
   const field = "md:w-auto";
-  const summary = [seasonLabel(filter.season), SEASON_MODES.find((m) => m.key === filter.mode)?.label ?? "All supported games", ...refinements.map((r) => r.text), ...sheetChips.map((c) => c.text)].join(" · ");
+  // What the bar chooses; below md a list's own choices too (they join the sheet there).
+  const barSummary = [seasonLabel(filter.season), SEASON_MODES.find((m) => m.key === filter.mode)?.label ?? "All supported games", ...refinements.map((r) => r.text)].join(" · ");
+  const summary = [barSummary, ...sheetChips.map((c) => c.text)].join(" · ");
   return (
     <form
       method="get"
@@ -167,7 +169,7 @@ export function OverviewFilters({
         ]}
         onReset={() => startTransition(() => router.replace(resetQuery ? `${basePath}?${resetQuery}` : basePath, { scroll: false }))}
         // From tablets up a list's own choices are not this bar's (see above).
-        inlineReset={sheetFields ? { count: narrowed - sheetChips.length, onReset: () => startTransition(() => router.replace(`${basePath}?${new URLSearchParams(keep).toString()}`, { scroll: false })) } : undefined}
+        inlineReset={sheetFields ? { count: narrowed - sheetChips.length, summary: barSummary, onReset: () => startTransition(() => router.replace(`${basePath}?${new URLSearchParams(keep).toString()}`, { scroll: false })) } : undefined}
         compactToggle={compactToggle}
         align="end"
         pending={pending}

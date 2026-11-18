@@ -382,9 +382,9 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     the list's first item under the pinned stack; closed unchanged, or once the reader moves on,
     nothing later moves the page. Bookmarked keeps the place, as every filter does. The page's
     own toolbar is found by the page's filter bar, or named by the page (All Champions' table search,
-    Leaderboards' views). The copy's Filters counts what the page's own bar narrows at its width
-    (from md Encounters' Minimum games and Sort by are its list toolbar's, so the pinned row leaves
-    them out, as the inline bar does).
+    Leaderboards' views). The copy's Filters counts and names what the page's own bar narrows at its
+    width (from md Encounters' Minimum games and Sort by are its list toolbar's, so the pinned row
+    and the sheet there leave them out, as the inline bar does, following the width while open).
 - **A tablet's avatar menu** (it replaced the drawer, which was a native `<dialog>`, when the
   destinations moved into the top bar): a menu, not a window. The focus goes to its first item, the
   arrow keys go round its items (Home and End to the first and last), Tab or a click outside closes
